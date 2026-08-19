@@ -35,16 +35,14 @@ kotlin {
     }
 }
 
-//Publishing your Kotlin Multiplatform library to Maven Central
-//https://www.jetbrains.com/help/kotlin-multiplatform-dev/multiplatform-publish-libraries.html
 mavenPublishing {
     publishToMavenCentral()
-    coordinates("dev.jordond.filmstrip", "filmstrip-core", "1.0.0")
+    coordinates("dev.jordond.filmstrip", "filmstrip-core", "0.1.0")
 
     pom {
         name = "filmstrip"
         description = "Kotlin Multiplatform library"
-        url = "github url" //todo
+        url = "https://github.com/jordond/filmstrip"
 
         licenses {
             license {
@@ -55,15 +53,16 @@ mavenPublishing {
 
         developers {
             developer {
-                id = "" //todo github nickname
-                name = "" //todo full name
-                email = "" //todo email
+                id = "jordond"
+                name = "Jordon de Hoog"
+                email = "me@jordond.dev"
             }
         }
 
         scm {
-            url = "github url" //todo
+            url = "https://github.com/jordond/filmstrip"
         }
     }
+
     if (project.hasProperty("signing.keyId")) signAllPublications()
 }

@@ -1,4 +1,4 @@
-rootProject.name = "filmstrip"
+enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
     repositories {
@@ -29,5 +29,23 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
+
+plugins {
+    id("com.gradle.develocity") version "4.5.0"
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+}
+
+develocity {
+    buildScan {
+        termsOfUseUrl.set("https://gradle.com/help/legal-terms-of-use")
+        termsOfUseAgree.set("yes")
+
+        publishing.onlyIf { context ->
+            context.buildResult.failures.isNotEmpty() && !System.getenv("CI").isNullOrEmpty()
+        }
+    }
+}
+
+rootProject.name = "filmstrip"
 
 include(":filmstrip-core")
