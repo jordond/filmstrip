@@ -19,8 +19,6 @@ kotlin {
   }
 }
 
-// The clips the Apple host tests export. AVFoundation, VideoToolbox and the filesystem are all real
-// on macOS, so the whole pipeline runs here in full.
 val appleFixtures =
   testMedia(
     name = "apple",
@@ -29,10 +27,7 @@ val appleFixtures =
         FixtureSpec("apple_export_a", 640, 360, 30, 2.0, 48000, 2, bitrateKbps = 1_500),
         FixtureSpec("apple_export_b", 480, 270, 30, 2.0, 48000, 2, bitrateKbps = 1_000, hue = 120),
         FixtureSpec("apple_export_portrait", 360, 640, 30, 2.0, 48000, 2, bitrateKbps = 1_500, hue = 240),
-        // Long enough that a hardware encode outlives the progress interval, which a two second
-        // clip does not.
         FixtureSpec("apple_export_long", 1280, 720, 30, 12.0, 48000, 2, bitrateKbps = 6_000),
-        // Ten-bit BT.2020 PQ, so the HDR branch has something to run against.
         FixtureSpec(
           "apple_export_hdr",
           1280,

@@ -64,14 +64,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # ffmpeg is host tooling for the jobs that render their own fixtures, plus the one that
-        # drives it as a backend. The browser jobs build their clips in the page.
         config: [
           { target: "android-host", os: "ubuntu-latest", tasks: "testAndroidHostTest" },
           { target: "jvm", os: "ubuntu-latest", tasks: "jvmTest", ffmpeg: true },
           { target: "ios-simulator", os: "macos-latest", tasks: "iosSimulatorArm64Test", ffmpeg: true },
           { target: "macos-arm", os: "macos-latest", tasks: "macosArm64Test", ffmpeg: true },
-          # Karma drives the Chrome the runner image already ships.
           { target: "wasm-browser", os: "ubuntu-latest", tasks: "wasmJsBrowserTest" },
           { target: "js-browser", os: "ubuntu-latest", tasks: "jsBrowserTest" },
           { target: "sample", os: "macos-latest", tasks: ":sample:androidApp:assembleDebug" }
@@ -89,8 +86,6 @@ jobs:
           java-version: 17
           distribution: temurin
 
-      # The Apple jobs generate their fixtures with host ffmpeg the same way the jvm one does, and
-      # the runner image ships no ffmpeg at all.
       - name: Install ffmpeg (linux)
         if: matrix.config.ffmpeg && runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
@@ -119,8 +114,6 @@ jobs:
       - name: Run ${{ matrix.config.target }} tests
         run: ./gradlew ${{ matrix.config.tasks }} --scan
 
-      # Gradle's console output names the failing test and its line and stops there, so a failure
-      # that only reproduces on a runner has to be read out of the report.
       - name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v5

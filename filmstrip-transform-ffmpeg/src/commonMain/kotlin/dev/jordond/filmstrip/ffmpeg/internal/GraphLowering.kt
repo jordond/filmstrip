@@ -19,8 +19,8 @@ import kotlin.time.DurationUnit
  * Writes the graph.
  *
  * One input per clip in declaration order, then one per overlay image, then one per silence filler.
- * Every clip is normalised to the output frame before it is joined, because `concat` demands
- * uniform inputs, and every audio branch is normalised to one sample format for the same reason.
+ * Every clip is normalized to the output frame before it is joined, because `concat` demands
+ * uniform inputs, and every audio branch is normalized to one sample format for the same reason.
  */
 internal class GraphLowering(
   private val negotiated: NegotiatedComposition,
@@ -169,9 +169,6 @@ internal class GraphLowering(
 
     val out = "vout"
     if (deferFill) {
-      // As in media3, the fill was never painted in, only left transparent, so it is flattened in
-      // here now that composition effects have already run over everything else. [bg] is read
-      // first because overlay takes its first input as the base and its second as what goes on top.
       val background = "vbg"
       graph.chain(
         emptyList(),
@@ -374,7 +371,7 @@ internal class GraphLowering(
             trackLabels,
             // normalize defaults to true and divides the output by the input count, which would
             // silently halve the dialogue the moment a music bed is added. dropout_transition
-            // defaults to a two second ramp when an input ends, which would fade the primary track
+            // defaults to a two-second ramp when an input ends, which would fade the primary track
             // up when the bed runs out.
             listOf(
               FilterNode(

@@ -20,24 +20,14 @@ import dev.jordond.filmstrip.sample.ui.screen.CapabilitiesPane
 import dev.jordond.filmstrip.sample.ui.screen.DiagnosticsPane
 import dev.jordond.filmstrip.sample.ui.screen.EditorScreen
 import dev.jordond.filmstrip.sample.ui.screen.ExportPane
-import dev.jordond.filmstrip.sample.ui.screen.StartScreen
 import dev.jordond.filmstrip.sample.ui.screen.ResultScreen
+import dev.jordond.filmstrip.sample.ui.screen.StartScreen
 import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
 import io.github.vinceglb.filekit.name
 
-/**
- * The sample: an editor over one clip, and everywhere it can send you.
- *
- * The editor is the only root. It shows the picker and the device's capability report until a clip
- * is loaded, so there is nothing to get past before a session starts.
- *
- * Navigation is a back stack of [SampleRoute] keys rendered by `NavDisplay`. Export and
- * capabilities are entries like any other, so the system back gesture closes them and the window's
- * width decides whether they arrive as a bottom sheet or a dialog.
- */
 @Composable
-public fun App(state: SampleAppState) {
+fun App(state: SampleAppState) {
   SampleTheme {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
       val picker = rememberFilePickerLauncher(
