@@ -46,40 +46,40 @@ Notes:
 
 A backend is registered on the `Filmstrip` builder.
 
-| Backend          | Artifact                          | Registration             | Runs on    | Built on                                                  |
-|------------------|------------------------------------|--------------------------|------------|------------------------------------------------------------|
-| media3           | `filmstrip-transform-media3`       | `media3Backend()`        | Android    | media3-transformer                                        |
-| AVFoundation     | `filmstrip-transform-avfoundation` | `avFoundationBackend()`  | Apple      | AVFoundation and VideoToolbox                              |
-| WebCodecs        | `filmstrip-transform-webcodecs`    | `webCodecsBackend()`     | browser    | WebCodecs, mediabunny                                     |
-| ffmpeg           | `filmstrip-transform-ffmpeg`       | `ffmpegBackend()`        | JVM        | An `ffmpeg` and `ffprobe` already on the machine           |
-| Built-in effects | `filmstrip-effects`                | `builtInEffects()`       | everywhere | media3-effect, Core Image, WebGL 2, ffmpeg filter graphs   |
+| Backend          | Artifact                           | Registration            | Runs on    | Built on                                                 |
+|------------------|------------------------------------|-------------------------|------------|----------------------------------------------------------|
+| media3           | `filmstrip-transform-media3`       | `media3Backend()`       | Android    | media3-transformer                                       |
+| AVFoundation     | `filmstrip-transform-avfoundation` | `avFoundationBackend()` | Apple      | AVFoundation and VideoToolbox                            |
+| WebCodecs        | `filmstrip-transform-webcodecs`    | `webCodecsBackend()`    | browser    | WebCodecs, mediabunny                                    |
+| ffmpeg           | `filmstrip-transform-ffmpeg`       | `ffmpegBackend()`       | JVM        | An `ffmpeg` and `ffprobe` already on the machine         |
+| Built-in effects | `filmstrip-effects`                | `builtInEffects()`      | everywhere | media3-effect, Core Image, WebGL 2, ffmpeg filter graphs |
 
 `filmstrip` registers the right one of these for the current target through `transformBackend()`.
 Registrations go in at the front, so registering a second engine after the first makes the second
 one win.
 
 `capabilities()`, `plan()` and `export()` all run for real on media3, AVFoundation and WebCodecs.
-Per-effect gaps are listed in the Effects table below rather than here.
+Per-effect gaps are listed in the Effects table below.
 
 ## Effects
 
 Which built-in effects each render backend can lower. A backend only sees effects whose
 `RenderApi` it recognises, and declines the rest so the next resolver gets a look.
 
-| Effect          | Android                | Apple                    | Browser               | ffmpeg               |
-|-----------------|------------------------|--------------------------|-----------------------|----------------------|
-| `Rotate`        | yes                    | yes                      | pending [^web-resize] | yes                  |
-| `Flip`          | yes                    | yes                      | yes                   | yes                  |
-| `Crop` (aspect) | yes                    | yes                      | yes                   | yes                  |
-| `CropRect`      | yes                    | yes                      | yes                   | yes                  |
-| `Scale`         | yes [^android-fit]     | yes                      | pending [^web-resize] | yes [^ffmpeg-scale]  |
-| `Brightness`    | yes [^hdr-brightness]  | yes [^hdr-brightness]    | yes [^web-sdr-only]   | yes [^hdr-brightness] |
-| `Watermark`     | pending [^overlays]    | pending [^overlays]      | pending [^overlays]   | yes                  |
-| `Text`          | pending [^overlays]    | pending [^overlays]      | pending [^overlays]   | no [^ffmpeg-text]    |
+| Effect          | Android               | Apple                 | Browser               | ffmpeg                |
+|-----------------|-----------------------|-----------------------|-----------------------|-----------------------|
+| `Rotate`        | yes                   | yes                   | pending [^web-resize] | yes                   |
+| `Flip`          | yes                   | yes                   | yes                   | yes                   |
+| `Crop` (aspect) | yes                   | yes                   | yes                   | yes                   |
+| `CropRect`      | yes                   | yes                   | yes                   | yes                   |
+| `Scale`         | yes [^android-fit]    | yes                   | pending [^web-resize] | yes [^ffmpeg-scale]   |
+| `Brightness`    | yes [^hdr-brightness] | yes [^hdr-brightness] | yes [^web-sdr-only]   | yes [^hdr-brightness] |
+| `Watermark`     | pending [^overlays]   | pending [^overlays]   | pending [^overlays]   | yes                   |
+| `Text`          | pending [^overlays]   | pending [^overlays]   | pending [^overlays]   | no [^ffmpeg-text]     |
 
-[^android-fit]: The effect itself only sets a height, and `Fit` is applied once by the pipeline
-rather than per scale: the plan pins one `Presentation` at the resolved output frame, which is also
-what puts clips of differing sizes on the same frame so they concatenate.
+[^android-fit]: The effect itself only sets a height, and the pipeline applies `Fit` once for the
+whole plan, not once per scale: the plan pins one `Presentation` at the resolved output frame, which
+is also what puts clips of differing sizes on the same frame so they concatenate.
 
 [^web-resize]: `Rotate` and `Scale` change the size of the render target rather than adding a pass,
 which makes them pipeline setup. No browser pipeline has landed to set up.
@@ -89,7 +89,7 @@ to the resolved output frame, so the effect that decides that frame emits nothin
 Claimed rather than declined, because an unclaimed spec is refused by name at plan time.
 
 [^overlays]: Overlays are declared and refused with a message. On Android they have to share one
-`OverlayEffect` so N overlays cost one GL pass rather than N. On Apple they have to composite inside
+`OverlayEffect` so N overlays cost one GL pass instead of N. On Apple they have to composite inside
 the image chain, because a composition carrying a layer tool is not valid for AVPlayer playback. In
 the browser they need a canvas the resolver does not have.
 
@@ -102,8 +102,8 @@ highlights, where SDR clips at white and HDR keeps going until the transfer func
 
 [^web-sdr-only]: The browser compositor renders into an eight-bit canvas, so this backend never
 writes an HDR grade and the multiply always lands on an SDR signal. It has no lowering for a kept
-grade, and a test pins the compositor's depth so the day that changes it fails rather than
-multiplying the wrong domain.
+grade, and a test pins the compositor's depth, so the day that changes the test fails instead of the
+multiply landing in the wrong domain.
 
 [^ffmpeg-text]: Refused for one of two reasons, and the message says which. Either the ffmpeg build
 has no `drawtext` filter, which needs `--enable-libfreetype` and `--enable-libharfbuzz` and the
@@ -128,7 +128,7 @@ metrics and measured extent are exact on both platforms.
 | ALAC  | no      | no    | no                   | yes           |
 
 HDR: Android reports HEVC Main 10 support, Apple infers it from HEVC availability. `HdrMode` is
-resolved once up front and the resolved mode is used by both preview and export.
+resolved once up front, and both preview and export use that decision.
 
 An export that keeps an HDR grade is pinned to HEVC, because Main 10 is the only profile either
 platform measured. Asking for H.264 as well reports a `CodecFallback`. An SDR source resolves to
@@ -140,19 +140,19 @@ stream copy, since a platform told to tone-map has to decode every frame to do i
 What each working export backend accepts. The Apple export pipeline has not landed, so there is no
 column for it: `plan()` and `export()` both refuse by name there and `capabilities()` is real.
 
-| Feature                                 | Android            | Browser          | ffmpeg           |
-|-----------------------------------------|--------------------|------------------|------------------|
-| One video track, clips end to end       | yes                | yes              | yes              |
-| Clip trim                               | yes [^android-trim]| yes [^trim]      | yes [^trim]      |
-| Per-clip and per-track effects          | yes                | yes              | yes              |
-| Composition-level effects               | yes                | yes              | yes              |
-| Second audio-only track                 | yes                | no [^web-audio]  | yes              |
-| Second video track (picture in picture) | no [^compositor]   | no [^compositor] | no [^compositor] |
-| Looping track                           | yes                | no               | yes              |
-| `AudioSpec.Keep`, `Mute`, `Volume`      | yes                | no [^web-audio]  | yes              |
-| `AudioSpec.Remove`, `AudioCodec.None`   | yes                | yes              | yes              |
-| `AudioSpec.AudioOnly`                   | yes [^audio-only]  | no [^web-audio]  | yes [^audio-only]|
-| `AudioLevel` per clip and per track     | yes                | no [^web-audio]  | yes              |
+| Feature                                 | Android             | Browser          | ffmpeg            |
+|-----------------------------------------|---------------------|------------------|-------------------|
+| One video track, clips end to end       | yes                 | yes              | yes               |
+| Clip trim                               | yes [^android-trim] | yes [^trim]      | yes [^trim]       |
+| Per-clip and per-track effects          | yes                 | yes              | yes               |
+| Composition-level effects               | yes                 | yes              | yes               |
+| Second audio-only track                 | yes                 | no [^web-audio]  | yes               |
+| Second video track (picture in picture) | no [^compositor]    | no [^compositor] | no [^compositor]  |
+| Looping track                           | yes                 | no               | yes               |
+| `AudioSpec.Keep`, `Mute`, `Volume`      | yes                 | no [^web-audio]  | yes               |
+| `AudioSpec.Remove`, `AudioCodec.None`   | yes                 | yes              | yes               |
+| `AudioSpec.AudioOnly`                   | yes [^audio-only]   | no [^web-audio]  | yes [^audio-only] |
+| `AudioLevel` per clip and per track     | yes                 | no [^web-audio]  | yes               |
 
 [^trim]: `TrimStrategy.Fast` and `Auto` both resolve to `Precise` on these backends, and the plan
 reports the adjustment. The browser decodes frame by frame, so every trim lands exactly where it was
