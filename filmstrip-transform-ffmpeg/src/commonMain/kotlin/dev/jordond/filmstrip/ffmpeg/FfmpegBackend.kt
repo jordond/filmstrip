@@ -34,7 +34,7 @@ public fun FilmstripBuilder.ffmpegBackend(config: FfmpegConfig = FfmpegConfig())
   // once per component.
   val runtime = FfmpegRuntime(config)
   return builtInEffects()
-    .addExportEngineFactory { _, components -> FfmpegExportEngine(components, runtime) }
+    .addExportEngineFactory { components -> FfmpegExportEngine(components, runtime) }
     .addMediaProberFactory { FfmpegProber(runtime) }
     .addBackendInfo(BackendInfo(name = "ffmpeg", artifact = "dev.jordond.filmstrip:filmstrip-transform-ffmpeg"))
 }

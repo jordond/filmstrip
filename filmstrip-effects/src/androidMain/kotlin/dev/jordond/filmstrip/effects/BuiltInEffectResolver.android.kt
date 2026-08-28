@@ -1,11 +1,11 @@
 package dev.jordond.filmstrip.effects
 
-import android.content.Context
 import androidx.media3.common.Effect
 import androidx.media3.effect.Presentation
 import androidx.media3.effect.RgbAdjustment
 import androidx.media3.effect.ScaleAndRotateTransformation
-import dev.jordond.filmstrip.PlatformContext
+import dev.jordond.filmstrip.FilmstripContext
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.DegradationReason
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -26,11 +26,8 @@ import androidx.media3.effect.Crop as Media3Crop
 /**
  * Lowers the built-in catalogue onto Media3's effect classes.
  */
-public actual class BuiltInEffectResolver actual constructor(
-  context: PlatformContext,
-) : EffectResolver {
-  private val androidContext: Context? = context.context
-
+@OptIn(InternalFilmstripApi::class)
+public actual class BuiltInEffectResolver actual constructor() : EffectResolver {
   actual override fun resolve(
     spec: EffectSpec,
     capabilities: RenderCapabilities,
@@ -60,7 +57,7 @@ public actual class BuiltInEffectResolver actual constructor(
     capabilities: RenderCapabilities,
     attributes: Attributes,
   ): EffectResolution {
-    val bitmap = image.decode(androidContext) ?: return unsupported(id, UNREADABLE_IMAGE)
+    val bitmap = image.decode(FilmstripContext.get()) ?: return unsupported(id, UNREADABLE_IMAGE)
     val size = bitmap.size()
     val placement = placedOn(attributes.inputSize, size)
     return resolved(RasterOverlay(bitmap, placement.toOverlaySettings(size, opacity), visibleDuring), capabilities)

@@ -4,7 +4,6 @@ import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.PlatformContext
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.edit.CompositionBuilder
 import dev.jordond.filmstrip.edit.EditComposition
@@ -33,16 +32,15 @@ import kotlin.time.Duration
 // Everything else is a typed failure until its artifact is added.
 @OptIn(InternalFilmstripApi::class)
 internal class DefaultFilmstrip(
-  private val context: PlatformContext,
   override val components: ComponentRegistry,
 ) : Filmstrip {
   // Registered probers first, core's own last. A module that demuxes the container knows more than
   // a read-only OS API does, and on the JVM and the web it is the only thing that knows anything.
   // Shared with the export backends, so a plan reads a source the same way this does.
-  private val prober: MediaProber by lazy { chainedProber(context, components) }
+  private val prober: MediaProber by lazy { chainedProber(components) }
 
   private val exportEngine: ExportEngine? by lazy {
-    components.exportEngineFactories.firstNotNullOfOrNull { it.create(context, components) }
+    components.exportEngineFactories.firstNotNullOfOrNull { it.create(components) }
   }
 
   override fun composition(block: CompositionBuilder.() -> Unit): EditComposition =
@@ -122,7 +120,7 @@ internal class DefaultFilmstrip(
     config: PlayerConfig,
   ): VideoPlayer {
     val engine =
-      components.playerEngineFactories.firstNotNullOfOrNull { it.create(context, config) }
+      components.playerEngineFactories.firstNotNullOfOrNull { it.create(config) }
         ?: return MissingEnginePlayer(MISSING_PLAYER)
     return EngineVideoPlayer(engine, composition)
   }

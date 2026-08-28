@@ -90,14 +90,6 @@ public final class dev/jordond/filmstrip/FilmstripVersion {
 public abstract interface annotation class dev/jordond/filmstrip/InternalFilmstripApi : java/lang/annotation/Annotation {
 }
 
-public final class dev/jordond/filmstrip/PlatformContext {
-	public static final field Companion Ldev/jordond/filmstrip/PlatformContext$Companion;
-}
-
-public final class dev/jordond/filmstrip/PlatformContext$Companion {
-	public final fun getShared ()Ldev/jordond/filmstrip/PlatformContext;
-}
-
 public final class dev/jordond/filmstrip/capability/AudioEncoderCapability {
 	public fun <init> (Ldev/jordond/filmstrip/export/AudioCodec;Ljava/util/List;I)V
 	public fun equals (Ljava/lang/Object;)Z
@@ -2050,7 +2042,7 @@ public abstract interface class dev/jordond/filmstrip/player/PlayerEngine {
 }
 
 public abstract interface class dev/jordond/filmstrip/player/PlayerEngineFactory {
-	public abstract fun create (Ldev/jordond/filmstrip/PlatformContext;Ldev/jordond/filmstrip/player/PlayerConfig;)Ldev/jordond/filmstrip/player/PlayerEngine;
+	public abstract fun create (Ldev/jordond/filmstrip/player/PlayerConfig;)Ldev/jordond/filmstrip/player/PlayerEngine;
 }
 
 public final class dev/jordond/filmstrip/player/PlayerFeature : java/lang/Enum {

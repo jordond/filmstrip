@@ -460,7 +460,7 @@ abstract fun interface dev.jordond.filmstrip.player/PlaybackEventListener { // d
 }
 
 abstract fun interface dev.jordond.filmstrip.player/PlayerEngineFactory { // dev.jordond.filmstrip.player/PlayerEngineFactory|null[0]
-    abstract fun create(dev.jordond.filmstrip/PlatformContext, dev.jordond.filmstrip.player/PlayerConfig): dev.jordond.filmstrip.player/PlayerEngine? // dev.jordond.filmstrip.player/PlayerEngineFactory.create|create(dev.jordond.filmstrip.PlatformContext;dev.jordond.filmstrip.player.PlayerConfig){}[0]
+    abstract fun create(dev.jordond.filmstrip.player/PlayerConfig): dev.jordond.filmstrip.player/PlayerEngine? // dev.jordond.filmstrip.player/PlayerEngineFactory.create|create(dev.jordond.filmstrip.player.PlayerConfig){}[0]
 }
 
 abstract fun interface dev.jordond.filmstrip.player/PlayerPositionListener { // dev.jordond.filmstrip.player/PlayerPositionListener|null[0]
@@ -2755,13 +2755,6 @@ final class dev.jordond.filmstrip/FilmstripBuilder { // dev.jordond.filmstrip/Fi
     final fun addThumbnailSourceFactory(dev.jordond.filmstrip.thumbnail/ThumbnailSourceFactory): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip/FilmstripBuilder.addThumbnailSourceFactory|addThumbnailSourceFactory(dev.jordond.filmstrip.thumbnail.ThumbnailSourceFactory){}[0]
     final fun build(): dev.jordond.filmstrip/Filmstrip // dev.jordond.filmstrip/FilmstripBuilder.build|build(){}[0]
     final fun components(kotlin/Function1<dev.jordond.filmstrip/ComponentRegistry.Builder, kotlin/Unit>): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip/FilmstripBuilder.components|components(kotlin.Function1<dev.jordond.filmstrip.ComponentRegistry.Builder,kotlin.Unit>){}[0]
-}
-
-final class dev.jordond.filmstrip/PlatformContext { // dev.jordond.filmstrip/PlatformContext|null[0]
-    final object Companion { // dev.jordond.filmstrip/PlatformContext.Companion|null[0]
-        final val shared // dev.jordond.filmstrip/PlatformContext.Companion.shared|{}shared[0]
-            final fun <get-shared>(): dev.jordond.filmstrip/PlatformContext // dev.jordond.filmstrip/PlatformContext.Companion.shared.<get-shared>|<get-shared>(){}[0]
-    }
 }
 
 final object dev.jordond.filmstrip.effect/EffectIds { // dev.jordond.filmstrip.effect/EffectIds|null[0]

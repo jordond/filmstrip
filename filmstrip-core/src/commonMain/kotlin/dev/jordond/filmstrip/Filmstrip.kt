@@ -238,7 +238,7 @@ public sealed interface CapabilitiesResult {
  * backend already registered.
  *
  * On Android the application context comes from App Startup. Where App Startup is disabled or does
- * not run, such as a bare JVM test, pass one with the Android-only `Filmstrip(context)` overload.
+ * not run, such as a bare JVM test, install one with the Android-only `Filmstrip(context)` overload.
  *
  * @param block Registers components on the builder.
  * @return The configured instance.
@@ -249,22 +249,9 @@ public fun Filmstrip(block: FilmstripBuilder.() -> Unit = {}): Filmstrip = Films
  * Assembles a [Filmstrip].
  *
  * Also the Swift entry point: `FilmstripBuilder()`, then the explicit `add` calls, then [build].
- *
- * @property context The platform context everything registered here is built against. Readable so
- *   that a registration living in another filmstrip module can pass it to what it constructs.
  */
 @FilmstripDsl
-public class FilmstripBuilder internal constructor(
-  @property:InternalFilmstripApi public val context: PlatformContext,
-) {
-  /**
-   * Assembles against the context the platform supplies on its own.
-   *
-   * On Android that is the application context App Startup captured. See the Android-only
-   * `FilmstripBuilder(context)` for the explicit form.
-   */
-  public constructor() : this(platformContext())
-
+public class FilmstripBuilder {
   private var registry: ComponentRegistry.Builder = ComponentRegistry.Builder()
 
   /**
@@ -338,5 +325,5 @@ public class FilmstripBuilder internal constructor(
   /**
    * Builds the configured [Filmstrip].
    */
-  public fun build(): Filmstrip = DefaultFilmstrip(context, registry.build())
+  public fun build(): Filmstrip = DefaultFilmstrip(registry.build())
 }

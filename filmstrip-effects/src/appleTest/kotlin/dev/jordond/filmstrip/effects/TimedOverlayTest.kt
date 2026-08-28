@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.effects
 
-import dev.jordond.filmstrip.PlatformContext
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -34,7 +33,7 @@ import kotlin.time.Duration.Companion.seconds
  */
 @OptIn(ExperimentalForeignApi::class)
 class TimedOverlayTest {
-  private val resolver = BuiltInEffectResolver(PlatformContext.shared)
+  private val resolver = BuiltInEffectResolver()
 
   @Test
   fun `draws a watermark inside its window and not outside`() {

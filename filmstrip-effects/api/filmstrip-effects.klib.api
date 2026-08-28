@@ -35,7 +35,7 @@ final class dev.jordond.filmstrip.effects/Brightness : dev.jordond.filmstrip.eff
 }
 
 final class dev.jordond.filmstrip.effects/BuiltInEffectResolver : dev.jordond.filmstrip.effect/EffectResolver { // dev.jordond.filmstrip.effects/BuiltInEffectResolver|null[0]
-    constructor <init>(dev.jordond.filmstrip/PlatformContext) // dev.jordond.filmstrip.effects/BuiltInEffectResolver.<init>|<init>(dev.jordond.filmstrip.PlatformContext){}[0]
+    constructor <init>() // dev.jordond.filmstrip.effects/BuiltInEffectResolver.<init>|<init>(){}[0]
 
     final fun resolve(dev.jordond.filmstrip.effect/EffectSpec, dev.jordond.filmstrip.effect/RenderCapabilities, dev.jordond.filmstrip.effect/ExecutionContext, dev.jordond.filmstrip.effect/Attributes): dev.jordond.filmstrip.effect/EffectResolution? // dev.jordond.filmstrip.effects/BuiltInEffectResolver.resolve|resolve(dev.jordond.filmstrip.effect.EffectSpec;dev.jordond.filmstrip.effect.RenderCapabilities;dev.jordond.filmstrip.effect.ExecutionContext;dev.jordond.filmstrip.effect.Attributes){}[0]
 }

@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.avfoundation.internal
 
-import dev.jordond.filmstrip.PlatformContext
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.export.ExportError
@@ -22,7 +21,6 @@ import kotlinx.coroutines.withContext
  * [toAvComposition], and driving the two pumps is [WriterRun].
  */
 internal class AvFoundationDriver(
-  @Suppress("unused") private val context: PlatformContext,
   private val prober: MediaProber,
 ) : ExportDriver {
   private var cached: DeviceCapabilities? = null

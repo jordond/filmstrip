@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.ffmpeg
 
-import dev.jordond.filmstrip.PlatformContext
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
@@ -445,8 +444,7 @@ class PlannerTest {
     assertIs<ExportError.NoEncoder>(assertIs<Verdict.Incapable>(verdict).reasons.single())
   }
 
-  private fun planner(toolchain: Toolchain = toolchain()) =
-    FfmpegPlanner(toolchain, listOf(BuiltInEffectResolver(PlatformContext.shared)))
+  private fun planner(toolchain: Toolchain = toolchain()) = FfmpegPlanner(toolchain, listOf(BuiltInEffectResolver()))
 
   private fun device(
     codecs: List<VideoCodec> = listOf(VideoCodec.H264),

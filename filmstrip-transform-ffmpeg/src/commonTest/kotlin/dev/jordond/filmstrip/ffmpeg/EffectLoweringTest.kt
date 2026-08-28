@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.ffmpeg
 
-import dev.jordond.filmstrip.PlatformContext
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -35,7 +34,7 @@ import kotlin.test.assertTrue
 
 // The platform object is data here, so the whole catalogue is assertable with no ffmpeg installed.
 class EffectLoweringTest {
-  private val resolver = BuiltInEffectResolver(PlatformContext.shared)
+  private val resolver = BuiltInEffectResolver()
 
   @Test
   fun `declines a backend it was not written for`() {

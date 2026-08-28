@@ -10,20 +10,10 @@ import androidx.startup.Initializer
  * merges into the consuming app.
  */
 public class FilmstripInitializer : Initializer<Unit> {
+  @OptIn(InternalFilmstripApi::class)
   override fun create(context: Context) {
-    ApplicationContextHolder.install(context)
+    FilmstripContext.install(context)
   }
 
   override fun dependencies(): List<Class<out Initializer<*>>> = emptyList()
-}
-
-internal object ApplicationContextHolder {
-  @Volatile
-  private var applicationContext: Context? = null
-
-  fun install(context: Context) {
-    applicationContext = context.applicationContext
-  }
-
-  fun get(): Context? = applicationContext
 }

@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.effects
 
-import dev.jordond.filmstrip.PlatformContext
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.CoreImageEffect
@@ -29,9 +28,7 @@ import kotlin.math.roundToInt
  * Lowers the built-in catalogue onto Core Image.
  */
 @OptIn(ExperimentalForeignApi::class)
-public actual class BuiltInEffectResolver actual constructor(
-  @Suppress("unused") private val context: PlatformContext,
-) : EffectResolver {
+public actual class BuiltInEffectResolver actual constructor() : EffectResolver {
   actual override fun resolve(
     spec: EffectSpec,
     capabilities: RenderCapabilities,

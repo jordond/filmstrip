@@ -7,7 +7,6 @@ import androidx.media3.effect.RgbAdjustment
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.PlatformContext
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
@@ -58,7 +57,7 @@ import kotlin.time.Duration.Companion.minutes
 class AndroidBrightnessHdrTest {
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
   private val filmstrip = Filmstrip(context) { media3Backend() }
-  private val resolver = BuiltInEffectResolver(PlatformContext(context))
+  private val resolver = BuiltInEffectResolver()
 
   @Test
   fun anSdrFrameIsMultipliedAsAuthored() {
