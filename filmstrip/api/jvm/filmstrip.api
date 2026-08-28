@@ -1,0 +1,7 @@
+public final class dev/jordond/filmstrip/AllBackendsKt {
+	public static final fun allBackends (Ldev/jordond/filmstrip/FilmstripBuilder;)Ldev/jordond/filmstrip/FilmstripBuilder;
+	public static final fun create (Ldev/jordond/filmstrip/Filmstrip$Companion;Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/Filmstrip;
+	public static synthetic fun create$default (Ldev/jordond/filmstrip/Filmstrip$Companion;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/Filmstrip;
+	public static final fun transformBackend (Ldev/jordond/filmstrip/FilmstripBuilder;)Ldev/jordond/filmstrip/FilmstripBuilder;
+}
+

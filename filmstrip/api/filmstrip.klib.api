@@ -1,0 +1,11 @@
+// Klib ABI Dump
+// Targets: [iosArm64, iosSimulatorArm64, js, macosArm64, wasmJs]
+// Rendering settings:
+// - Signature version: 2
+// - Show manifest properties: true
+// - Show declarations: true
+
+// Library unique name: <filmstrip-root:filmstrip>
+final fun (dev.jordond.filmstrip/Filmstrip.Companion).dev.jordond.filmstrip/create(kotlin/Function1<dev.jordond.filmstrip/FilmstripBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip/Filmstrip // dev.jordond.filmstrip/create|create@dev.jordond.filmstrip.Filmstrip.Companion(kotlin.Function1<dev.jordond.filmstrip.FilmstripBuilder,kotlin.Unit>){}[0]
+final fun (dev.jordond.filmstrip/FilmstripBuilder).dev.jordond.filmstrip/allBackends(): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip/allBackends|allBackends@dev.jordond.filmstrip.FilmstripBuilder(){}[0]
+final fun (dev.jordond.filmstrip/FilmstripBuilder).dev.jordond.filmstrip/transformBackend(): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip/transformBackend|transformBackend@dev.jordond.filmstrip.FilmstripBuilder(){}[0]
