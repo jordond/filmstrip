@@ -167,6 +167,16 @@ internal class GraphLowering(
       current = label
     }
 
+    // The effect chain is where a frame can go through RGB and come back, and what comes back is
+    // untagged. ffmpeg 7 and newer reads the grade off the frames either side of it, but below that
+    // the conversion out of RGB falls back to BT.601 and the picture is written through the wrong
+    // matrix.
+    gradeNodes().takeIf { it.isNotEmpty() && negotiated.compositionEffects.isNotEmpty() }?.let { nodes ->
+      val graded = "vgrade"
+      graph.chain(listOf(current), nodes, graded)
+      current = graded
+    }
+
     val out = "vout"
     if (deferFill) {
       val background = "vbg"
@@ -179,7 +189,7 @@ internal class GraphLowering(
             "s" to "${output.size.width}x${output.size.height}",
             "r" to frameRate.toString(),
           ),
-        ) + backgroundGradeNodes(),
+        ) + gradeNodes(),
         background,
       )
       graph.chain(
@@ -201,14 +211,14 @@ internal class GraphLowering(
   }
 
   /**
-   * Labels a generated background with the grade the frames it is composited under carry.
+   * Restates the grade the frames carry, for a stage that drops it.
    *
-   * `color` names no colour attributes of its own. ffmpeg 7 and newer take the overlay's from its
-   * base input, so an untagged background costs nothing there, but below that the composited frame
-   * comes out labelled BT.709 and every conversion after it reads a BT.2020 picture through the
-   * wrong matrix.
+   * `color` names no colour attributes of its own, and a frame that has been through RGB carries
+   * none either. ffmpeg 7 and newer take them from the neighbouring input, so restating costs
+   * nothing there, but below that the frame comes out untagged and every conversion after it reads
+   * a BT.2020 picture through the wrong matrix.
    */
-  private fun backgroundGradeNodes(): List<FilterNode> {
+  private fun gradeNodes(): List<FilterNode> {
     val transfer = negotiated.hdrTransfer ?: return emptyList()
 
     return listOf(
