@@ -1,0 +1,9 @@
+// Klib ABI Dump
+// Targets: [iosArm64, iosSimulatorArm64, macosArm64]
+// Rendering settings:
+// - Signature version: 2
+// - Show manifest properties: true
+// - Show declarations: true
+
+// Library unique name: <filmstrip-root:filmstrip-transform-avfoundation>
+final fun (dev.jordond.filmstrip/FilmstripBuilder).dev.jordond.filmstrip.avfoundation/avFoundationBackend(): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip.avfoundation/avFoundationBackend|avFoundationBackend@dev.jordond.filmstrip.FilmstripBuilder(){}[0]
