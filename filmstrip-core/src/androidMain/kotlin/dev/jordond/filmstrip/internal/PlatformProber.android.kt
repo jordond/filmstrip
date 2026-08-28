@@ -5,8 +5,8 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.PlatformContext
 import dev.jordond.filmstrip.export.Bitrate
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.geometry.Size
@@ -27,9 +27,7 @@ import java.io.IOException
 import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(InternalFilmstripApi::class)
-internal actual class PlatformProber actual constructor(
-  private val context: PlatformContext,
-) {
+internal actual class PlatformProber actual constructor() {
   actual suspend fun probe(source: MediaSource): ProbeResult =
     withContext(Dispatchers.IO) {
       val retriever = MediaMetadataRetriever()
@@ -41,9 +39,9 @@ internal actual class PlatformProber actual constructor(
           is MediaSource.Uri -> {
             // A content:// URI resolves through the app's ContentResolver.
             val android =
-              context.context
+              FilmstripContext.get()
                 ?: return@withContext ProbeResult.Failure(
-                  ExportError.SourceUnreadable(source = source.uri, message = PlatformContext.MISSING_CONTEXT),
+                  ExportError.SourceUnreadable(source = source.uri, message = FilmstripContext.MISSING_CONTEXT),
                 )
             retriever.setDataSource(android, Uri.parse(source.uri))
           }
@@ -81,7 +79,7 @@ internal actual class PlatformProber actual constructor(
     return try {
       when (this) {
         is MediaSource.Path -> extractor.setDataSource(path)
-        is MediaSource.Uri -> extractor.setDataSource(context.context ?: return null, Uri.parse(uri), null)
+        is MediaSource.Uri -> extractor.setDataSource(FilmstripContext.get() ?: return null, Uri.parse(uri), null)
         is MediaSource.Bytes -> return null
       }
       extractor.readTracks()

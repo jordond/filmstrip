@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.internal
 
-import dev.jordond.filmstrip.PlatformContext
 import dev.jordond.filmstrip.export.Bitrate
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.geometry.Size
@@ -87,9 +86,7 @@ import kotlin.time.Duration.Companion.seconds
 // Reads metadata from AVURLAsset track properties, which are read-only AVFoundation symbols and so
 // stay inside core's layering row.
 @OptIn(ExperimentalForeignApi::class)
-internal actual class PlatformProber actual constructor(
-  @Suppress("unused") private val context: PlatformContext,
-) {
+internal actual class PlatformProber actual constructor() {
   actual suspend fun probe(source: MediaSource): ProbeResult =
     withContext(Dispatchers.Default) {
       val url =

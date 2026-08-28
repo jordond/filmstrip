@@ -3,7 +3,6 @@ package dev.jordond.filmstrip.media
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.PlatformContext
 import dev.jordond.filmstrip.internal.PlatformProber
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -16,17 +15,13 @@ import kotlinx.coroutines.ensureActive
  * reported failure is the first one, which comes from the prober registered last and therefore
  * knows the most.
  *
- * @param context The platform context to probe against.
  * @param components The components registered on the owning [Filmstrip].
  * @return A prober that walks the whole chain.
  */
 @InternalFilmstripApi
-public fun chainedProber(
-  context: PlatformContext,
-  components: ComponentRegistry,
-): MediaProber {
-  val platform = PlatformProber(context)
-  val chain = components.mediaProberFactories.mapNotNull { it.create(context) } + MediaProber { platform.probe(it) }
+public fun chainedProber(components: ComponentRegistry): MediaProber {
+  val platform = PlatformProber()
+  val chain = components.mediaProberFactories.mapNotNull { it.create() } + MediaProber { platform.probe(it) }
 
   return MediaProber { source -> chain.firstAnswerFor(source) }
 }

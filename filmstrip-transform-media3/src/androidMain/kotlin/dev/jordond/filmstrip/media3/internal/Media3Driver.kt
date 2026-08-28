@@ -2,8 +2,8 @@ package dev.jordond.filmstrip.media3.internal
 
 import android.content.Context
 import androidx.media3.transformer.Composition
+import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.PlatformContext
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.export.ExportError
@@ -26,7 +26,6 @@ import kotlinx.coroutines.withContext
  */
 @OptIn(InternalFilmstripApi::class)
 internal class Media3Driver(
-  private val context: PlatformContext,
   private val prober: MediaProber,
 ) : ExportDriver {
   private var cached: DeviceCapabilities? = null
@@ -72,8 +71,8 @@ internal class Media3Driver(
     // Not a platform failure with a code of its own, and every other arm is about a source, a sink
     // or a codec. What went wrong is the graph filmstrip was built with.
     val android =
-      context.context
-        ?: return Preparation.Failed(ExportError.Underlying(NO_PLATFORM_CODE, PlatformContext.MISSING_CONTEXT))
+      FilmstripContext.get()
+        ?: return Preparation.Failed(ExportError.Underlying(NO_PLATFORM_CODE, FilmstripContext.MISSING_CONTEXT))
 
     val composition =
       try {

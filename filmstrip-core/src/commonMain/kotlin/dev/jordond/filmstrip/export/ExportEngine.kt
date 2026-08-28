@@ -4,7 +4,6 @@ import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.PlatformContext
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.edit.EditComposition
@@ -75,14 +74,10 @@ public interface ExportEngine {
 @InternalFilmstripApi
 public fun interface ExportEngineFactory {
   /**
-   * Builds an engine for [context].
+   * Builds an engine against [components].
    *
-   * @param context The platform context the engine runs against.
    * @param components The components registered on the owning [Filmstrip].
    * @return An engine, or null to defer to the next factory.
    */
-  public fun create(
-    context: PlatformContext,
-    components: ComponentRegistry,
-  ): ExportEngine?
+  public fun create(components: ComponentRegistry): ExportEngine?
 }

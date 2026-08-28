@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.PlatformContext
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
@@ -60,7 +59,7 @@ import kotlin.time.Duration.Companion.minutes
 // mediabunny or a browser beyond what the runner already is.
 @OptIn(InternalFilmstripApi::class)
 class BrowserPlannerTest {
-  private val planner = BrowserPlanner(listOf(BuiltInEffectResolver(PlatformContext.shared)))
+  private val planner = BrowserPlanner(listOf(BuiltInEffectResolver()))
 
   private fun lower(
     composition: EditComposition,

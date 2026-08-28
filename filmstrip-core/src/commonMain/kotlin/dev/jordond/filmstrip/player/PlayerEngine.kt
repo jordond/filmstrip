@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.player
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.Cancellable
-import dev.jordond.filmstrip.PlatformContext
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import kotlin.time.Duration
@@ -134,16 +133,12 @@ public interface PlayerEngine {
  */
 public fun interface PlayerEngineFactory {
   /**
-   * Builds an engine for [context].
+   * Builds an engine for [config].
    *
-   * @param context The platform context the player runs against.
    * @param config How the player should be built.
    * @return an engine, or null to defer to the next factory.
    */
-  public fun create(
-    context: PlatformContext,
-    config: PlayerConfig,
-  ): PlayerEngine?
+  public fun create(config: PlayerConfig): PlayerEngine?
 }
 
 /**

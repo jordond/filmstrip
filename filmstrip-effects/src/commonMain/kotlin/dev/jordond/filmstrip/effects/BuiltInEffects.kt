@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.effects
 
 import dev.jordond.filmstrip.FilmstripBuilder
-import dev.jordond.filmstrip.PlatformContext
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -14,13 +13,8 @@ import kotlinx.serialization.modules.subclass
 
 /**
  * Resolves filmstrip's built-in effects for the current platform.
- *
- * @param context The platform context. Android reads a `content://` watermark through it. Every
- *   other platform ignores it.
  */
-public expect class BuiltInEffectResolver(
-  context: PlatformContext,
-) : EffectResolver {
+public expect class BuiltInEffectResolver() : EffectResolver {
   /**
    * Realises [spec] for the current platform.
    *
@@ -39,7 +33,7 @@ public expect class BuiltInEffectResolver(
  *
  * Without this call a built-in effect resolves to nothing and `plan` refuses it by name.
  */
-public fun FilmstripBuilder.builtInEffects(): FilmstripBuilder = addEffectResolver(BuiltInEffectResolver(context))
+public fun FilmstripBuilder.builtInEffects(): FilmstripBuilder = addEffectResolver(BuiltInEffectResolver())
 
 /**
  * Serialisers for the built-in effect catalogue.

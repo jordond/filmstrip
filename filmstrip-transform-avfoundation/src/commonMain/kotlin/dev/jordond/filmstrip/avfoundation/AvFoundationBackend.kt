@@ -21,10 +21,10 @@ import dev.jordond.filmstrip.transform.internal.PlannedExportEngine
 @OptIn(InternalFilmstripApi::class)
 public fun FilmstripBuilder.avFoundationBackend(): FilmstripBuilder =
   builtInEffects()
-    .addExportEngineFactory { context, components ->
-      val prober = chainedProber(context, components)
+    .addExportEngineFactory { components ->
+      val prober = chainedProber(components)
       PlannedExportEngine(
-        backend = AvFoundationDriver(context, prober),
+        backend = AvFoundationDriver(prober),
         prober = prober,
         resolvers = components.effectResolvers,
         parity = AVFOUNDATION_PARITY,

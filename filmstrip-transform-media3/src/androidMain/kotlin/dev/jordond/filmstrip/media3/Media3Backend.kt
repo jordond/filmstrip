@@ -20,10 +20,10 @@ import dev.jordond.filmstrip.transform.internal.PlannedExportEngine
 @OptIn(InternalFilmstripApi::class)
 public fun FilmstripBuilder.media3Backend(): FilmstripBuilder =
   builtInEffects()
-    .addExportEngineFactory { context, components ->
-      val prober = chainedProber(context, components)
+    .addExportEngineFactory { components ->
+      val prober = chainedProber(components)
       PlannedExportEngine(
-        backend = Media3Driver(context, prober),
+        backend = Media3Driver(prober),
         prober = prober,
         resolvers = components.effectResolvers,
         parity = MEDIA3_PARITY,
