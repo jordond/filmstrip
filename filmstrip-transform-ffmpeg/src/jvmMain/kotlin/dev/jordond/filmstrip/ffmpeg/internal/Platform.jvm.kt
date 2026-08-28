@@ -72,21 +72,35 @@ internal actual class ProcessRunner {
   // atom lands and a partial export is still readable. destroy() on the JVM is TerminateProcess on
   // Windows whatever the flag says, so it is the fallback rather than the mechanism.
   private fun stop(process: Process) {
-    runCatching {
-      process.outputWriter().apply {
-        write("q\n")
-        flush()
+    // A cancelled export reaches this through runInterruptible, which interrupts the thread to
+    // break waitFor. The flag survives into here, where a timed wait throws the moment it is
+    // called, so every grace period below would be skipped and ffmpeg killed before it could write
+    // its moov atom. The interrupt is put back afterwards, since it belongs to the caller.
+    val interrupted = Thread.interrupted()
+    try {
+      runCatching {
+        process.outputWriter().apply {
+          write("q\n")
+          flush()
+        }
       }
+
+      if (awaitExit(process)) return
+
+      process.destroy()
+
+      if (awaitExit(process)) return
+
+      process.destroyForcibly()
+    } finally {
+      if (interrupted) Thread.currentThread().interrupt()
     }
-
-    if (process.waitFor(STOP_GRACE_MILLIS, TimeUnit.MILLISECONDS)) return
-
-    process.destroy()
-
-    if (process.waitFor(STOP_GRACE_MILLIS, TimeUnit.MILLISECONDS)) return
-
-    process.destroyForcibly()
   }
+
+  // An interrupt landing mid-wait reads as "has not exited yet" rather than skipping the step after
+  // it, so a stop that is interrupted twice still escalates instead of falling out of the ladder.
+  private fun awaitExit(process: Process): Boolean =
+    runCatching { process.waitFor(STOP_GRACE_MILLIS, TimeUnit.MILLISECONDS) }.getOrDefault(false)
 }
 
 internal actual fun environmentVariable(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() }
