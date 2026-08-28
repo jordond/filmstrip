@@ -1,0 +1,18 @@
+public final class dev/jordond/filmstrip/ffmpeg/FfmpegBackendKt {
+	public static final fun ffmpegBackend (Ldev/jordond/filmstrip/FilmstripBuilder;Ldev/jordond/filmstrip/ffmpeg/FfmpegConfig;)Ldev/jordond/filmstrip/FilmstripBuilder;
+	public static synthetic fun ffmpegBackend$default (Ldev/jordond/filmstrip/FilmstripBuilder;Ldev/jordond/filmstrip/ffmpeg/FfmpegConfig;ILjava/lang/Object;)Ldev/jordond/filmstrip/FilmstripBuilder;
+}
+
+public final class dev/jordond/filmstrip/ffmpeg/FfmpegConfig {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/Integer;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExecutablePath ()Ljava/lang/String;
+	public final fun getExtraArgs ()Ljava/util/List;
+	public final fun getProbePath ()Ljava/lang/String;
+	public final fun getThreads ()Ljava/lang/Integer;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
