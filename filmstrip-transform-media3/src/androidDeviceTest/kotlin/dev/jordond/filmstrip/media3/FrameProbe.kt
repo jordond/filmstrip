@@ -3,6 +3,8 @@ package dev.jordond.filmstrip.media3
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import android.media.MediaMetadataRetriever
 import java.io.File
 import kotlin.math.abs
@@ -158,3 +160,29 @@ internal const val CELLS = 6
 internal const val PATCH = 4
 internal const val SPAN_SAMPLES = 40
 private const val PNG_QUALITY = 100
+
+/**
+ * Whether this device has a decoder for the ten-bit HEVC the HDR fixtures are written in.
+ *
+ * Encoding and decoding are separate questions. Tone mapping needs only the decoder, which is
+ * exactly the case a device with no HDR encoder is still expected to serve.
+ *
+ * The emulator carries `OMX.google.hevc.decoder`, which advertises eight-bit HEVC only and throws
+ * when media3 hands it a Main10 stream because it is the sole HEVC decoder on the image. Asking
+ * for the profile rather than for the codec is what separates the two.
+ */
+internal fun decodesTenBitHevc(): Boolean =
+  MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.any { codec ->
+    !codec.isEncoder &&
+      codec.supportedTypes.any { it.equals(HEVC_MIME, ignoreCase = true) } &&
+      codec.getCapabilitiesForType(HEVC_MIME).profileLevels.any { it.profile in TEN_BIT_HEVC_PROFILES }
+  }
+
+private const val HEVC_MIME = "video/hevc"
+
+private val TEN_BIT_HEVC_PROFILES =
+  setOf(
+    MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10,
+    MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10,
+    MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10Plus,
+  )

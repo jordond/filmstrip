@@ -79,6 +79,8 @@ class AndroidFillTest {
   fun aBlackFillStaysBlackThroughToneMapping() =
     runTest(timeout = TIMEOUT) {
       val source = fixture(HDR_CLIP) ?: return@runTest
+      // Tone mapping runs on a device with no HDR encoder, but not on one with no HDR decoder.
+      if (!decodesTenBitHevc()) return@runTest
       val bitmap =
         frame(
           export(source, effects = listOf(squareCrop()), fill = Fill.Black, hdr = HdrMode.ToneMapToSdr),
