@@ -1,0 +1,9 @@
+// Klib ABI Dump
+// Targets: [js, wasmJs]
+// Rendering settings:
+// - Signature version: 2
+// - Show manifest properties: true
+// - Show declarations: true
+
+// Library unique name: <filmstrip-root:filmstrip-transform-webcodecs>
+final fun (dev.jordond.filmstrip/FilmstripBuilder).dev.jordond.filmstrip.webcodecs/webCodecsBackend(): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip.webcodecs/webCodecsBackend|webCodecsBackend@dev.jordond.filmstrip.FilmstripBuilder(){}[0]
