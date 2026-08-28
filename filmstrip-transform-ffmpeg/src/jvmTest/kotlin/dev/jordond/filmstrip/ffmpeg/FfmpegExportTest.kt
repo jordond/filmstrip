@@ -41,9 +41,11 @@ import dev.jordond.filmstrip.media.pqSignalFromNits
 import dev.jordond.filmstrip.media.sceneFromHlgSignal
 import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -416,7 +418,8 @@ class FfmpegExportTest {
         )
         assertTrue(
           abs(dimmed[channel] - linear[channel]) > abs(dimmed[channel] - expected[channel]),
-          "channel $channel matched a linear reading as closely as the display one",
+          "channel $channel read ${dimmed[channel]}, ${expected[channel]} from the display gain " +
+            "and ${linear[channel]} from a linear one",
         )
       }
     }
@@ -476,7 +479,8 @@ class FfmpegExportTest {
         )
         assertTrue(
           abs(dimmed[channel] - overDimmed[channel]) > abs(dimmed[channel] - expected[channel]),
-          "channel $channel matched the display gain as closely as the scene one",
+          "channel $channel read ${dimmed[channel]}, ${expected[channel]} from the scene gain " +
+            "and ${overDimmed[channel]} from the display one",
         )
       }
     }
@@ -786,12 +790,20 @@ class FfmpegExportTest {
 
       withContext(Dispatchers.Default) {
         val flow = filmstrip.export(composition, ExportSpec(targetHeight = 720), MediaSink.of(output.absolutePath))
-        assertNull(
-          withTimeoutOrNull(1_000.milliseconds) {
-            flow.collect { if (it is ExportStatus.Progress) delay(10_000.milliseconds) }
-          },
-          "the export finished before it could be cancelled",
-        )
+        val encoding = CompletableDeferred<Unit>()
+        // Cancelled once a report carries encoded output rather than after a fixed wait. A runner
+        // slow enough to still be starting ffmpeg at the deadline leaves a graceful stop nothing to
+        // close, and the readable file this is about only exists once frames have reached the muxer.
+        val collector =
+          launch {
+            flow.collect { status ->
+              if (status is ExportStatus.Progress && status.fraction > 0f) encoding.complete(Unit)
+            }
+          }
+
+        withTimeoutOrNull(ENCODE_DEADLINE) { encoding.await() }
+        assertTrue(collector.isActive, "the export finished before it could be cancelled")
+        collector.cancelAndJoin()
       }
 
       assertTrue(output.length() > 0, "nothing was written before the cancel")
@@ -1097,6 +1109,9 @@ class FfmpegExportTest {
 
   private companion object {
     val TIMEOUT = kotlin.time.Duration.parse("2m")
+
+    // Long enough for a loaded runner to open the encoder, short of the runTest timeout.
+    val ENCODE_DEADLINE = kotlin.time.Duration.parse("30s")
     const val RED = 0xFFFF0000.toInt()
     const val HALF = 0.5f
     const val BRIGHTER = 1.5f
