@@ -1,0 +1,931 @@
+package dev.jordond.filmstrip.transform.internal
+
+import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.capability.AudioEncoderCapability
+import dev.jordond.filmstrip.capability.DeviceCapabilities
+import dev.jordond.filmstrip.capability.EffectParity
+import dev.jordond.filmstrip.capability.ParityNote
+import dev.jordond.filmstrip.edit.AudioLevel
+import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.Clip
+import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.EffectResolution
+import dev.jordond.filmstrip.effect.EffectResolver
+import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effect.EffectStage
+import dev.jordond.filmstrip.effect.ExecutionContext
+import dev.jordond.filmstrip.effect.PlatformEffect
+import dev.jordond.filmstrip.effect.RenderCapabilities
+import dev.jordond.filmstrip.effect.inCanonicalOrder
+import dev.jordond.filmstrip.effects.Scale
+import dev.jordond.filmstrip.export.Adjustment
+import dev.jordond.filmstrip.export.AdjustmentKind
+import dev.jordond.filmstrip.export.AudioCodec
+import dev.jordond.filmstrip.export.AudioFormat
+import dev.jordond.filmstrip.export.ExportError
+import dev.jordond.filmstrip.export.ExportEstimate
+import dev.jordond.filmstrip.export.ExportPath
+import dev.jordond.filmstrip.export.ExportPlan
+import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.HdrMode
+import dev.jordond.filmstrip.export.OutputFormat
+import dev.jordond.filmstrip.export.PlannedEffect
+import dev.jordond.filmstrip.export.TrimStrategy
+import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.export.VideoCodec
+import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.MediaInfo
+import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.audioCodecOf
+import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.media.videoCodecOf
+import kotlin.math.abs
+import kotlin.math.roundToInt
+import kotlin.time.Duration
+import kotlin.time.DurationUnit
+
+/**
+ * The codecs an export that keeps HDR chooses from, most preferred first.
+ *
+ * A kept grade needs a 10-bit profile, and not every codec has an encoder for one. A backend whose
+ * encoders differ passes its own, and a backend that
+ * measures whether it can encode HDR at all answers for the encoder this resolves to rather than for
+ * any encoder it happens to carry.
+ */
+@InternalFilmstripApi
+public val DEFAULT_HDR_LADDER: List<VideoCodec> = listOf(VideoCodec.Hevc)
+
+/**
+ * Negotiates a composition against a device into a verdict and a [NegotiatedExport], the policy
+ * shared by every engine that drives a platform encoder.
+ *
+ * Everything it needs to know about the sources arrives in `infos`, so the whole negotiation can be
+ * asserted on without a device. What it cannot decide alone is handed in. The resolvers lower an
+ * effect to a platform object, [renderCapabilities] says what that platform can render, [ladder] is
+ * the order this engine tries video codecs in, most preferred first, [hdrLadder] is the same but for
+ * an export that keeps HDR, [noteOf] is what to tell a caller about an effect this engine only
+ * approximates, [supportsFastTrim] says whether it can snap a trim to a sync sample rather than
+ * decoding to reach it, [supportsPassthrough] says whether it can copy a stream across without an
+ * encoder at all, [canCopy] says whether the muxer will take a source's streams without re-encoding
+ * them, [canToneMap] says whether it can bring an HDR grade down to SDR, and
+ * [compositionGeometryPerClip] says whether composition-level geometry has to run on each clip's own
+ * frame.
+ */
+@InternalFilmstripApi
+public class ExportPlanner(
+  private val resolvers: List<EffectResolver>,
+  private val renderCapabilities: (Size, Boolean) -> RenderCapabilities,
+  private val parityOf: (String) -> EffectParity?,
+  private val unclaimedMessage: (String) -> String,
+  private val ladder: List<VideoCodec>,
+  private val supportsPassthrough: Boolean,
+  private val canCopy: (MediaInfo) -> Boolean,
+  private val noteOf: (String) -> String? = { null },
+  private val supportsFastTrim: Boolean = true,
+  private val canToneMap: Boolean = true,
+  private val compositionGeometryPerClip: Boolean = false,
+  private val hdrLadder: List<VideoCodec> = DEFAULT_HDR_LADDER,
+) {
+  public fun negotiate(
+    composition: EditComposition,
+    spec: ExportSpec,
+    device: DeviceCapabilities,
+    infos: Map<MediaSource, MediaInfo>,
+    dropped: Set<String> = emptySet(),
+  ): NegotiatedExport {
+    val edit = composition.withoutEffectIds(dropped)
+    val primary = edit.tracks.firstOrNull() ?: return incapable(NO_TRACKS)
+
+    if (edit.tracks.drop(1).any { it.content != TrackContent.Audio }) return incapable(SECOND_VIDEO_TRACK)
+    if (primary.clips.isEmpty()) return incapable("The primary track has no clips.")
+    if (primary.content == TrackContent.Audio) return incapable(NO_PRIMARY_VIDEO)
+    if (edit.tracks.all { it.looping }) return incapable(EVERY_TRACK_LOOPS)
+
+    // What each scope asks for can cancel out: an audio-only output over a video-only track, or a
+    // kept-audio output over a source that carries none, leaves no track to write.
+    val keepVideo = edit.audio != AudioSpec.AudioOnly
+    val anySourceAudio = edit.tracks.any { track -> track.clips.any { infos[it.source]?.audio != null } }
+    val keepAudio = spec.audioCodec != AudioCodec.None && edit.audio != AudioSpec.Remove && anySourceAudio
+    if (edit.tracks.none { it.contributes(keepAudio, keepVideo) }) return incapable(NOTHING_TO_ENCODE)
+
+    edit.tracks.flatMap { it.clips }.forEach { clip ->
+      val info = infos[clip.source] ?: return unreadable(clip.source)
+      if (!info.isExportable) return protected(clip.source)
+    }
+
+    val firstClip = primary.clips.first()
+    val firstVideo = infos.getValue(firstClip.source).video ?: return incapable(NO_PRIMARY_VIDEO)
+
+    // Clip and track geometry always finishes before the composition's own runs, so the frame the
+    // composition's geometry reads is chained from these two scopes alone.
+    val clipStage = firstClip.effects + primary.effects
+    val compositionGeometrySpecs = edit.effects.filter { it.stage == EffectStage.Geometry }
+    val compositionInputSize = frameThrough(firstVideo.displaySize, listOf(clipStage))
+    val requestedSize = requestedFrame(compositionInputSize, compositionGeometrySpecs, spec.targetHeight)
+
+    // Settled before the codec, because a grade that survives to the encoder decides which codecs
+    // are eligible at all.
+    val sourceTransfers =
+      edit.tracks
+        .flatMap { it.clips }
+        .mapNotNull { infos[it.source]?.video }
+        .mapTo(mutableSetOf()) { it.hdrTransfer }
+    val sourceIsHdr = sourceTransfers.any { it != null }
+    // Sources that disagree, an HDR clip sat beside an SDR one included, have no one transfer that
+    // describes the output, so there is no grade to keep and the export tone-maps or refuses.
+    val gradesAgree = sourceTransfers.size == 1
+    // Measured against the requested frame, since a copy runs no encoder and so has no ceiling to
+    // clamp to. This has to be known before HDR is resolved, since
+    // it is one of the things that decides whether the grade can be kept.
+    val firstInfo = infos.getValue(firstClip.source)
+    val copyKeepsHdr =
+      supportsPassthrough &&
+        untouchedExceptHdr(edit, spec, firstVideo.displaySize, requestedSize) &&
+        canCopy(firstInfo) &&
+        codecsAreNameable(firstInfo)
+    val hdr =
+      resolveHdr(spec.hdr, sourceIsHdr, gradesAgree, device.supportsHdrEncoding, canToneMap, copyKeepsHdr)
+        ?: return incapable(
+          when {
+            !canToneMap -> NO_HDR_PATH
+            !gradesAgree -> MIXED_GRADES
+            else -> NO_HDR_ENCODER
+          },
+        )
+    // A copy that already keeps the grade needs nothing from the ladder, so it does not pin the
+    // codec to HEVC for a stream nobody is going to encode.
+    val encodesHdr = sourceIsHdr && hdr == ResolvedHdr.Keep && !copyKeepsHdr
+    val path = exportPath(copyKeepsHdr, hdr)
+    // A source that is HLG must not be written as PQ, so the transfer travels with the grade.
+    // Keeping a grade already means the sources agree on one, so there is exactly one to take.
+    val hdrTransfer = if (hdr == ResolvedHdr.Keep) sourceTransfers.singleOrNull() else null
+
+    val codec =
+      resolveVideoCodec(spec, device, encodesHdr, ladder, hdrLadder)
+        ?: return incapable(ExportError.NoEncoder(spec.videoCodec, NO_ENCODER))
+    val (codecAdjustments, videoCodec) = codec
+    val encoder = device.encoderFor(videoCodec)
+
+    // A frame above the encoder's ceiling is clamped and reported, not refused, since
+    // AdjustmentKind.ResolutionClamped is what the model calls exactly this. `strict` is how a
+    // caller says the number was not negotiable, and that turns the same clamp into a refusal. A
+    // copy runs no encoder, so there is no ceiling to clamp to and the frame goes across whole.
+    val outputSize =
+      if (path == ExportPath.Transmux) {
+        requestedSize
+      } else {
+        requestedSize.fittedTo(encoder?.maxSize, encoder?.sizeAlignment ?: SIZE_ALIGNMENT)
+      }
+
+    // A copy runs no encoder, so like the frame it has no rate ceiling to clamp to.
+    val frameRate =
+      resolveFrameRate(spec, firstVideo.frameRate, encoder?.maxFrameRate.takeIf { path != ExportPath.Transmux })
+    val capabilities = renderCapabilities(outputSize, encodesHdr)
+    // A transmuxed copy runs no effect chain and a tone-mapped export is SDR by the time one runs,
+    // so the transfer an effect is lowered against is the one the encoder is actually handed.
+    val encodedTransfer = hdrTransfer.takeIf { encodesHdr }
+
+    // Every clip's chain is measured from its own source frame, and every normalised parameter
+    // against the one output frame the whole composition lands on.
+    val compositionGain = edit.audio.gain()
+    val fannedGeometry = if (compositionGeometryPerClip) compositionGeometrySpecs else emptyList()
+    val asked = mutableListOf<LoweredEffect>()
+    val tracks =
+      edit.tracks.map { track ->
+        val trackGain = track.audio.appliedTo(compositionGain)
+        ResolvedTrack(
+          content = track.content,
+          looping = track.looping,
+          start = track.start,
+          clips =
+            track.clips.map { clip ->
+              val info = infos.getValue(clip.source)
+              val timing =
+                trimWindow(clip, info) ?: return incapable("Clip ${clip.source.describe()} trims to nothing.")
+              val resolved =
+                resolve(
+                  stages = listOf(clip.effects + track.effects, fannedGeometry),
+                  inputSize = info.video?.displaySize ?: outputSize,
+                  outputSize = outputSize,
+                  capabilities = capabilities,
+                  frameRate = frameRate,
+                  hdrTransfer = encodedTransfer,
+                )
+              asked += resolved
+              ResolvedClip(
+                source = clip.source,
+                info = info,
+                start = timing.first,
+                end = timing.second,
+                effects = resolved.mapNotNull { it.resolvedEffect },
+                gain = clip.audio.appliedTo(trackGain),
+                startsAtKeyFrame = supportsFastTrim && spec.trim == TrimStrategy.Fast,
+              )
+            },
+        )
+      }
+
+    val compositionGeometry =
+      if (compositionGeometryPerClip) {
+        emptyList()
+      } else {
+        resolve(
+          stages = listOf(compositionGeometrySpecs),
+          inputSize = compositionInputSize,
+          outputSize = outputSize,
+          capabilities = capabilities,
+          frameRate = frameRate,
+          hdrTransfer = encodedTransfer,
+        )
+      }
+    val compositionRest =
+      resolve(
+        stages = listOf(edit.effects.filterNot { it.stage == EffectStage.Geometry }),
+        inputSize = outputSize,
+        outputSize = outputSize,
+        capabilities = capabilities,
+        frameRate = frameRate,
+        hdrTransfer = encodedTransfer,
+      )
+    asked += compositionGeometry
+    asked += compositionRest
+
+    val unsupported = linkedMapOf<String, String>()
+    asked.forEach { resolved -> resolved.unsupported?.let { unsupported[resolved.spec.id] = it } }
+    if (unsupported.isNotEmpty()) return incapableWithFallback(composition, spec, device, infos, dropped, unsupported)
+
+    val duration =
+      tracks.filterNot { it.looping }.maxOfOrNull { it.duration } ?: return incapable(EVERY_TRACK_LOOPS)
+
+    val planned = plannedEffects(edit)
+    val fit =
+      (clipStage.inCanonicalOrder() + compositionGeometrySpecs.inCanonicalOrder())
+        .filterIsInstance<Scale>()
+        .lastOrNull()
+        ?.fit ?: Fit.Contain
+
+    // AudioSpec.AudioOnly writes a file with no video track, and OutputFormat has no way to say
+    // that. The video half of the format is reported as resolved and then not written, which is
+    // what the ffmpeg backend does with the same edit.
+    val audioCodec = resolveAudioCodec(spec, device, silent = !keepAudio)
+    val audioEncoder = device.audio.firstOrNull { it.codec == audioCodec.second }
+    val output =
+      if (path == ExportPath.Transmux) {
+        // A copy writes the source's own codecs and audio format untouched, since nothing here
+        // re-encodes to change them.
+        val sourceAudio = infos.getValue(firstClip.source).audio
+        OutputFormat(
+          size = outputSize,
+          videoCodec = videoCodecOf(firstVideo.codec.kind),
+          audioCodec = sourceAudio?.let { audioCodecOf(it.codec.kind) } ?: AudioCodec.None,
+          bitrate = spec.bitrate,
+          frameRate = frameRate,
+          audioFormat = sourceAudio?.let { AudioFormat(sampleRate = it.sampleRate, channelCount = it.channelCount) },
+        )
+      } else {
+        OutputFormat(
+          size = outputSize,
+          videoCodec = videoCodec,
+          audioCodec = audioCodec.second,
+          bitrate = spec.bitrate,
+          frameRate = frameRate,
+          audioFormat = if (audioCodec.second == AudioCodec.None) null else audioFormat(tracks, audioEncoder),
+        )
+      }
+    val adjustments =
+      adjustments(
+        spec = spec,
+        edit = edit,
+        requestedSize = requestedSize,
+        outputSize = outputSize,
+        requestedFrameRate = spec.frameRate,
+        frameRate = frameRate,
+        codec = codecAdjustments + audioCodec.first,
+        hdr = hdr,
+        sourceIsHdr = sourceIsHdr,
+        gradesAgree = gradesAgree,
+        degraded = asked.mapNotNull { it.degraded }.distinct(),
+        dropped = dropped,
+      )
+    if (spec.strict && adjustments.isNotEmpty()) {
+      return incapableStrict(adjustments, requestedSize, encoder?.maxSize ?: outputSize)
+    }
+
+    val plan =
+      ExportPlan(
+        path = path,
+        output = output,
+        effectOrder = planned,
+        estimate = estimate(spec, duration, path),
+        parity = planned.minByOrNull { it.parity.ordinal }?.parity ?: EffectParity.Exact,
+        composition = edit,
+        spec = spec,
+      )
+
+    return NegotiatedExport(
+      verdict = if (adjustments.isEmpty()) Verdict.Capable(plan) else Verdict.Degraded(plan, adjustments),
+      composition =
+        NegotiatedComposition(
+          tracks = tracks,
+          compositionGeometry = compositionGeometry.mapNotNull { it.resolvedEffect },
+          compositionInputSize = compositionInputSize,
+          compositionEffects = compositionRest.mapNotNull { it.resolvedEffect },
+          output = output,
+          fit = fit,
+          fill = edit.fill,
+          duration = duration,
+          hdr = hdr,
+          hdrTransfer = hdrTransfer,
+          path = path,
+          audio = edit.audio,
+          adjustments = adjustments,
+          encoderName = encoder?.encoderName,
+        ),
+    )
+  }
+
+  private fun resolve(
+    stages: List<List<EffectSpec>>,
+    inputSize: Size,
+    outputSize: Size,
+    capabilities: RenderCapabilities,
+    frameRate: Int,
+    hdrTransfer: HdrTransfer?,
+  ): List<LoweredEffect> {
+    var size = inputSize
+    // A kept grade is written in BT.2020, so a resolver reading the colour space off an HDR export
+    // sees the one the encoder is handed rather than the SDR default.
+    val colorSpace = if (hdrTransfer != null) ColorSpace.Bt2020 else ColorSpace.Bt709
+    return stages.flatMap { it.inCanonicalOrder() }.map { spec ->
+      val attributes = Attributes(size, outputSize, colorSpace, hdrTransfer, 1f, frameRate.toFloat())
+      val resolution =
+        resolvers.firstNotNullOfOrNull { it.resolve(spec, capabilities, ExecutionContext.Export, attributes) }
+
+      size = frameAfter(spec, size)
+
+      when (resolution) {
+        is EffectResolution.Resolved -> LoweredEffect(spec, resolution.effect, null, null)
+        is EffectResolution.Degraded -> LoweredEffect(spec, resolution.effect, null, resolution.message)
+        is EffectResolution.Unsupported -> LoweredEffect(spec, null, resolution.message, null)
+        null -> LoweredEffect(spec, null, unclaimedMessage(spec.id), null)
+      }
+    }
+  }
+
+  private fun incapableWithFallback(
+    composition: EditComposition,
+    spec: ExportSpec,
+    device: DeviceCapabilities,
+    infos: Map<MediaSource, MediaInfo>,
+    dropped: Set<String>,
+    unsupported: Map<String, String>,
+  ): NegotiatedExport {
+    val reasons = unsupported.map { (id, message) -> ExportError.UnsupportedEffect(id, message) }
+
+    val fallback =
+      if (dropped.isEmpty()) {
+        when (val retry = negotiate(composition, spec, device, infos, unsupported.keys).verdict) {
+          is Verdict.Capable -> retry.plan
+          is Verdict.Degraded -> retry.plan
+          is Verdict.Incapable -> null
+        }
+      } else {
+        null
+      }
+    return NegotiatedExport(Verdict.Incapable(reasons, fallback), null)
+  }
+
+  private fun incapableStrict(
+    adjustments: List<Adjustment>,
+    requestedSize: Size,
+    maxSize: Size,
+  ): NegotiatedExport =
+    NegotiatedExport(
+      Verdict.Incapable(
+        reasons =
+          adjustments.map { adjustment ->
+            when (adjustment.kind) {
+              AdjustmentKind.CodecFallback -> {
+                // The same kind covers the audio fallback, whose requested name is not a video
+                // codec. Only the video one has an arm that can carry it.
+                videoCodecFor(adjustment.requested)?.let { ExportError.NoEncoder(it, adjustment.message) }
+                  ?: ExportError.InvalidComposition(adjustment.message)
+              }
+              AdjustmentKind.ResolutionClamped -> {
+                ExportError.UnsupportedResolution(requestedSize, maxSize, adjustment.message)
+              }
+              else -> {
+                ExportError.InvalidComposition(adjustment.message)
+              }
+            }
+          },
+        withoutUnsupported = null,
+      ),
+      null,
+    )
+
+  private fun plannedEffects(edit: EditComposition): List<PlannedEffect> =
+    (edit.tracks.flatMap { track -> track.clips.flatMap { it.effects } + track.effects } + edit.effects)
+      .distinct()
+      .inCanonicalOrder()
+      .map { spec ->
+        val parity = parityOf(spec.id) ?: EffectParity.Exact
+        PlannedEffect(
+          spec = spec,
+          stage = spec.stage,
+          parity = parity,
+          note =
+            if (parity == EffectParity.Exact) {
+              null
+            } else {
+              ParityNote(spec.id, parity, noteOf(spec.id) ?: APPROXIMATE)
+            },
+        )
+      }
+
+  private fun adjustments(
+    spec: ExportSpec,
+    edit: EditComposition,
+    requestedSize: Size,
+    outputSize: Size,
+    requestedFrameRate: Int?,
+    frameRate: Int,
+    codec: List<Adjustment>,
+    hdr: ResolvedHdr,
+    sourceIsHdr: Boolean,
+    gradesAgree: Boolean,
+    degraded: List<Pair<String, String>>,
+    dropped: Set<String>,
+  ): List<Adjustment> =
+    buildList {
+      addAll(codec)
+      val trimmed = edit.tracks.any { track -> track.clips.any { it.trim != null } }
+      if (!supportsFastTrim && spec.trim == TrimStrategy.Fast && trimmed) {
+        add(
+          Adjustment(
+            kind = AdjustmentKind.TrimStrategyChanged,
+            requested = spec.trim.name,
+            resolved = TrimStrategy.Precise.name,
+            message = TRIM_ALWAYS_PRECISE,
+          ),
+        )
+      }
+      if (requestedSize != outputSize) {
+        add(
+          Adjustment(
+            kind = AdjustmentKind.ResolutionClamped,
+            requested = requestedSize.describe(),
+            resolved = outputSize.describe(),
+            message = "The encoder wants aligned dimensions, so each side rounds to what it accepts.",
+          ),
+        )
+      }
+      if (requestedFrameRate != null && requestedFrameRate != frameRate) {
+        add(
+          Adjustment(
+            kind = AdjustmentKind.FrameRateClamped,
+            requested = "$requestedFrameRate fps",
+            resolved = "$frameRate fps",
+            message = "The encoder does not accept $requestedFrameRate fps, so $frameRate is used instead.",
+          ),
+        )
+      }
+      // Auto is the only mode that lands somewhere the caller did not name, so it is the only one
+      // with anything to report. ToneMapToSdr asked for exactly this, and honouring a request is
+      // not an adjustment to it.
+      if (sourceIsHdr && hdr == ResolvedHdr.ToneMap && spec.hdr == HdrMode.Auto) {
+        add(
+          Adjustment(
+            kind = AdjustmentKind.HdrToneMapped,
+            requested = spec.hdr.name,
+            resolved = HdrMode.ToneMapToSdr.name,
+            // Auto reaches a tone map two ways, and a device that encodes HDR fine still gets here
+            // on a mix, so the reason is read rather than assumed.
+            message = if (gradesAgree) TONE_MAPPED else TONE_MAPPED_MIXED,
+          ),
+        )
+      }
+      degraded.forEach { (id, message) ->
+        add(
+          Adjustment(
+            kind = AdjustmentKind.EffectApproximated,
+            requested = id,
+            resolved = "approximated",
+            message = message,
+          ),
+        )
+      }
+      dropped.forEach { id ->
+        add(
+          Adjustment(
+            kind = AdjustmentKind.EffectDropped,
+            requested = id,
+            resolved = "removed",
+            message = "$id cannot run on this device and is not in this plan.",
+          ),
+        )
+      }
+    }
+
+  private fun estimate(
+    spec: ExportSpec,
+    duration: Duration,
+    path: ExportPath,
+  ): ExportEstimate {
+    val bits = spec.bitrate?.bitsPerSecond?.let { (it * duration.toDouble(DurationUnit.SECONDS)).toLong() }
+    return ExportEstimate(
+      outputSizeBytesMin = bits?.let { it / BITS_PER_BYTE },
+      outputSizeBytesMax = bits?.let { it * HEADROOM_NUMERATOR / HEADROOM_DENOMINATOR / BITS_PER_BYTE },
+      approximateDuration = null,
+      isPassthrough = path == ExportPath.Transmux,
+    )
+  }
+
+  private fun incapable(message: String): NegotiatedExport = incapable(ExportError.InvalidComposition(message))
+
+  private fun incapable(error: ExportError): NegotiatedExport =
+    NegotiatedExport(Verdict.Incapable(listOf(error), null), null)
+
+  private fun unreadable(source: MediaSource): NegotiatedExport =
+    incapable(ExportError.SourceUnreadable(source.describe(), UNREADABLE))
+
+  private fun protected(source: MediaSource): NegotiatedExport =
+    incapable(ExportError.SourceNotExportable("${source.describe()} is protected and cannot be exported."))
+
+  private companion object {
+    const val SIZE_ALIGNMENT = 2
+    const val BITS_PER_BYTE = 8L
+    const val HEADROOM_NUMERATOR = 13L
+    const val HEADROOM_DENOMINATOR = 10L
+
+    const val NO_TRACKS = "A composition needs at least one track."
+
+    const val SECOND_VIDEO_TRACK =
+      "This backend renders video from the primary track only. A second video track needs a " +
+        "compositor, which has not landed here. A second audio-only track works."
+
+    const val NO_PRIMARY_VIDEO = "The primary track contributes no video, so there is nothing to encode."
+
+    const val NOTHING_TO_ENCODE =
+      "No track survives what the composition and the spec ask for, so the export would write a " +
+        "file with no tracks in it."
+
+    const val EVERY_TRACK_LOOPS = "Every track loops, so the composition has nothing to bound it."
+
+    const val UNREADABLE = "The source could not be read, so there is nothing to plan against."
+
+    const val NO_ENCODER = "This device has no encoder for the requested codec."
+
+    const val NO_HDR_ENCODER =
+      "HDR was required and this device cannot encode it. Use HdrMode.Auto to tone-map instead."
+
+    const val NO_HDR_PATH =
+      "This source carries an HDR grade and this engine can neither encode it nor tone-map it, so " +
+        "there is nowhere to put it."
+
+    const val MIXED_GRADES =
+      "These sources do not share one HDR transfer, so no single grade describes the output. Use " +
+        "HdrMode.Auto or HdrMode.ToneMapToSdr to bring them down to SDR together."
+
+    const val TONE_MAPPED = "This device cannot encode HDR, so the grade is tone-mapped to SDR."
+
+    const val TONE_MAPPED_MIXED =
+      "These sources do not share one HDR transfer, so no single grade describes the output and " +
+        "they are tone-mapped to SDR together."
+
+    const val APPROXIMATE = "The preview and the export diverge by a bounded amount for this effect."
+
+    const val TRIM_ALWAYS_PRECISE =
+      "This engine decodes frame by frame, so every trim lands exactly where it was asked to rather " +
+        "than snapping to a sync sample."
+  }
+}
+
+/**
+ * One effect, after the resolver chain has been asked.
+ *
+ * @property degraded The spec's id and what was given up, when a resolver realised it but not
+ *   exactly as declared.
+ */
+private class LoweredEffect(
+  val spec: EffectSpec,
+  effect: PlatformEffect?,
+  val unsupported: String?,
+  degradedMessage: String?,
+) {
+  val degraded: Pair<String, String>? = degradedMessage?.let { spec.id to it }
+
+  val resolvedEffect: ResolvedEffect? = effect?.let { ResolvedEffect(spec.id, it) }
+}
+
+/**
+ * Whether this track still writes something once the output's audio and video have been settled.
+ */
+private fun Track.contributes(
+  keepAudio: Boolean,
+  keepVideo: Boolean,
+): Boolean = (keepVideo && content != TrackContent.Audio) || (keepAudio && content != TrackContent.Video)
+
+private fun requestedFrame(
+  sourceSize: Size,
+  geometry: List<EffectSpec>,
+  targetHeight: Int?,
+): Size {
+  var size = frameThrough(sourceSize, listOf(geometry))
+  if (targetHeight != null && targetHeight > 0 && size.height > 0) {
+    size = Size((targetHeight * size.aspect).roundToInt().coerceAtLeast(1), targetHeight)
+  }
+  return size
+}
+
+/**
+ * Rounds each side down to a multiple the encoder accepts, and never above its ceiling.
+ *
+ * Rounding to the nearest multiple would carry a frame that already sits on the encoder's maximum
+ * past that maximum.
+ */
+private fun Size.fittedTo(
+  max: Size?,
+  alignment: Int,
+): Size {
+  val step = alignment.coerceAtLeast(1)
+  val width = if (max == null) width else width.coerceAtMost(max.width)
+  val height = if (max == null) height else height.coerceAtMost(max.height)
+  return Size(
+    (width - width % step).coerceAtLeast(step),
+    (height - height % step).coerceAtLeast(step),
+  )
+}
+
+private fun resolveFrameRate(
+  spec: ExportSpec,
+  sourceRate: Float?,
+  maxRate: Int?,
+): Int {
+  val requested = spec.frameRate ?: sourceRate?.roundToInt()?.takeIf { it > 0 } ?: DEFAULT_RATE
+  return if (maxRate != null && maxRate > 0) requested.coerceAtMost(maxRate) else requested
+}
+
+/**
+ * The codec to encode with, and what it cost to get there, or null when the device encodes none of
+ * them.
+ *
+ * @param encodesHdr Whether the grade reaches the encoder. HDR needs a 10-bit profile, and not every
+ *   codec this engine otherwise tries has one, so an HDR export chooses from [hdrLadder] rather than
+ *   [ladder]. Leaving a codec with no such profile in it would have the plan name one that the
+ *   platform then silently swaps out from under it.
+ * @param ladder The order this engine tries codecs in when the request is [VideoCodec.Auto], or
+ *   when the requested codec is unsupported and something has to be tried next.
+ * @param hdrLadder The same, for an export that keeps HDR.
+ */
+private fun resolveVideoCodec(
+  spec: ExportSpec,
+  device: DeviceCapabilities,
+  encodesHdr: Boolean,
+  ladder: List<VideoCodec>,
+  hdrLadder: List<VideoCodec>,
+): Pair<List<Adjustment>, VideoCodec>? {
+  val requested = spec.videoCodec
+  val tried =
+    when {
+      encodesHdr -> hdrLadder
+      requested == VideoCodec.Auto -> ladder
+      else -> listOf(requested) + ladder.filterNot { it == requested }
+    }
+  val supported = tried.firstOrNull { codec -> device.video.any { it.codec == codec } } ?: return null
+  val adjustments =
+    if (supported == requested || requested == VideoCodec.Auto) {
+      emptyList()
+    } else {
+      val reason =
+        if (encodesHdr) {
+          "Keeping the HDR grade needs a 10-bit encoder"
+        } else {
+          "This device has no encoder for $requested"
+        }
+      listOf(
+        Adjustment(
+          kind = AdjustmentKind.CodecFallback,
+          requested = requested.name,
+          resolved = supported.name,
+          message = "$reason, so $supported is used instead.",
+        ),
+      )
+    }
+  return adjustments to supported
+}
+
+private fun resolveAudioCodec(
+  spec: ExportSpec,
+  device: DeviceCapabilities,
+  silent: Boolean,
+): Pair<List<Adjustment>, AudioCodec> {
+  if (silent) return emptyList<Adjustment>() to AudioCodec.None
+  if (device.audio.any { it.codec == spec.audioCodec }) return emptyList<Adjustment>() to spec.audioCodec
+  val fallback = device.audio.firstOrNull()?.codec ?: return emptyList<Adjustment>() to AudioCodec.None
+  if (spec.audioCodec == AudioCodec.Auto) return emptyList<Adjustment>() to fallback
+
+  return listOf(
+    Adjustment(
+      kind = AdjustmentKind.CodecFallback,
+      requested = spec.audioCodec.name,
+      resolved = fallback.name,
+      message = "This device has no ${spec.audioCodec} encoder, so $fallback is used instead.",
+    ),
+  ) to fallback
+}
+
+/**
+ * What to do about high dynamic range, or null when nothing this engine can do satisfies the ask.
+ *
+ * An SDR source resolves to [ResolvedHdr.Keep] whatever was asked for, because there is no grade to
+ * map. Saying so is what keeps a stream copy possible, since a platform told to tone-map has to
+ * decode every frame to do it.
+ *
+ * A grade is only ever kept when every video source carries the same transfer, which [gradesAgree]
+ * says. A mix has nothing that is true of the whole output, so keeping one would tag the rest of the
+ * frames with a grade they do not have.
+ *
+ * [copyKeepsHdr] gives HDR a second way to reach [ResolvedHdr.Keep]: a copy carries whatever grade
+ * the source already has without asking an encoder for anything, so a device that cannot encode HDR
+ * still keeps it when the rest of the export would already have been a copy. An explicit tone map
+ * still means what it says, since asking for one forces a transcode either way.
+ *
+ * An engine that can neither encode the grade, copy it across, nor bring it down has nowhere to put
+ * an HDR source, and null is how it refuses rather than writing the untouched grade into an SDR
+ * file.
+ */
+private fun resolveHdr(
+  mode: HdrMode,
+  sourceIsHdr: Boolean,
+  gradesAgree: Boolean,
+  deviceEncodesHdr: Boolean,
+  canToneMap: Boolean,
+  copyKeepsHdr: Boolean,
+): ResolvedHdr? {
+  if (!sourceIsHdr) return ResolvedHdr.Keep
+
+  val canKeep = gradesAgree && (deviceEncodesHdr || copyKeepsHdr)
+  return when (mode) {
+    HdrMode.ToneMapToSdr -> {
+      if (canToneMap) ResolvedHdr.ToneMap else null
+    }
+    HdrMode.KeepHdr -> {
+      if (canKeep) ResolvedHdr.Keep else null
+    }
+    HdrMode.Auto -> {
+      when {
+        canKeep -> ResolvedHdr.Keep
+        canToneMap -> ResolvedHdr.ToneMap
+        else -> null
+      }
+    }
+  }
+}
+
+/**
+ * The format every track's audio is normalised to before mixing.
+ *
+ * The first clip that has audio proposes the rate, because that is the stream the platform keeps,
+ * and [encoder] gets the last word: a rate it does not list is snapped to the nearest one it does,
+ * since an encoder handed a rate it cannot write resamples on its own and leaves the written file
+ * disagreeing with the plan. An encoder that lists no rates at all is taken at its word and given
+ * the source's. Channel count is fixed, since mixing tracks of differing widths needs one width to
+ * mix into.
+ */
+private fun audioFormat(
+  tracks: List<ResolvedTrack>,
+  encoder: AudioEncoderCapability?,
+): AudioFormat {
+  val source =
+    tracks
+      .flatMap { it.clips }
+      .firstNotNullOfOrNull {
+        it.info.audio
+          ?.sampleRate
+          ?.takeIf { rate -> rate > 0 }
+      } ?: DEFAULT_SAMPLE_RATE
+  val accepted = encoder?.sampleRates.orEmpty()
+  val channels = encoder?.maxChannelCount?.takeIf { it > 0 } ?: CHANNEL_COUNT
+  return AudioFormat(
+    sampleRate = if (accepted.isEmpty() || source in accepted) source else accepted.minBy { abs(it - source) },
+    channelCount = CHANNEL_COUNT.coerceAtMost(channels),
+  )
+}
+
+/**
+ * Whether the platform can copy the streams across without re-encoding them.
+ *
+ * Deliberately conservative: [copyKeepsHdr] already answers everything about the shape of the
+ * composition, so the one thing left to add is whether HDR actually resolved to being kept rather
+ * than tone-mapped. Which path actually ran is reported by the backend once the file is written.
+ */
+private fun exportPath(
+  copyKeepsHdr: Boolean,
+  hdr: ResolvedHdr,
+): ExportPath = if (copyKeepsHdr && hdr == ResolvedHdr.Keep) ExportPath.Transmux else ExportPath.Transcode
+
+/**
+ * Whether nothing about the composition or the spec asks for more than a stream copy could give,
+ * HDR set aside.
+ *
+ * HDR is left out on purpose: whether a copy can carry the grade is itself one of the things that
+ * decides HDR, so this has to be answerable before that decision is made.
+ *
+ * [requestedSize] is the frame the composition asks for, before any encoder ceiling is applied. A
+ * copy runs no encoder, so a source larger than one could take, or one an encoder would round to
+ * its alignment, still copies. Comparing it to [sourceSize] is what says the geometry is identity,
+ * which also means the fill is never visible on this path.
+ */
+private fun untouchedExceptHdr(
+  edit: EditComposition,
+  spec: ExportSpec,
+  sourceSize: Size,
+  requestedSize: Size,
+): Boolean {
+  val track = edit.tracks.singleOrNull() ?: return false
+  val clip = track.clips.singleOrNull() ?: return false
+  return edit.effects.isEmpty() &&
+    track.effects.isEmpty() &&
+    clip.effects.isEmpty() &&
+    spec.frameRate == null &&
+    spec.videoCodec == VideoCodec.Auto &&
+    spec.targetHeight == null &&
+    spec.bitrate == null &&
+    spec.audioCodec == AudioCodec.Auto &&
+    edit.audio == AudioSpec.Keep &&
+    track.start == Duration.ZERO &&
+    clip.trim == null &&
+    track.content == TrackContent.AudioAndVideo &&
+    clip.audio.appliedTo(track.audio.appliedTo(edit.audio.gain())) == 1f &&
+    sourceSize == requestedSize
+}
+
+/**
+ * Whether [info]'s streams could report codecs the public enums can name.
+ *
+ * A muxer can agree to copy bytes neither [VideoCodec] nor [AudioCodec] has a member for, which
+ * `canCopy` alone does not catch, so this is checked alongside it.
+ */
+private fun codecsAreNameable(info: MediaInfo): Boolean =
+  runCatching { info.video?.let { videoCodecOf(it.codec.kind) } }.isSuccess &&
+    runCatching { info.audio?.let { audioCodecOf(it.codec.kind) } }.isSuccess
+
+/**
+ * The trim window, resolved against the source's real duration, or null when it keeps no frames.
+ */
+private fun trimWindow(
+  clip: Clip,
+  info: MediaInfo,
+): Pair<Duration, Duration>? {
+  val start = clip.trim?.start ?: Duration.ZERO
+  val end = (clip.trim?.endExclusive ?: info.duration).coerceAtMost(info.duration)
+  return if (end <= start) null else start to end
+}
+
+/**
+ * Levels multiply down the scopes, and a mute at any of them silences everything below it.
+ */
+private fun AudioLevel.appliedTo(parent: Float): Float =
+  when (this) {
+    is AudioLevel.Inherit -> parent
+    is AudioLevel.Mute -> 0f
+    is AudioLevel.Volume -> parent * gain
+  }
+
+private fun AudioSpec.gain(): Float =
+  when (this) {
+    is AudioSpec.Keep, is AudioSpec.AudioOnly -> 1f
+    is AudioSpec.Mute, is AudioSpec.Remove -> 0f
+    is AudioSpec.Volume -> gain
+  }
+
+private fun videoCodecFor(name: String): VideoCodec? = VideoCodec.entries.firstOrNull { it.name == name }
+
+private fun Size.describe(): String = "${width}x$height"
+
+private fun EditComposition.withoutEffectIds(ids: Set<String>): EditComposition {
+  if (ids.isEmpty()) return this
+  val stripped =
+    tracks.map { track ->
+      Track(
+        clips = track.clips.map { clip -> clip.withEffects(clip.effects.filterNot { it.id in ids }) },
+        content = track.content,
+        effects = track.effects.filterNot { it.id in ids },
+        audio = track.audio,
+        start = track.start,
+        looping = track.looping,
+      )
+    }
+  return EditComposition(stripped, effects.filterNot { it.id in ids }, audio, fill)
+}
+
+private const val DEFAULT_RATE = 30
+private const val DEFAULT_SAMPLE_RATE = 44_100
+private const val CHANNEL_COUNT = 2
