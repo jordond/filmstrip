@@ -36,18 +36,21 @@ internal class ProgressParser(
       // despite its name. A 6.000 second encode reports out_time_ms=6000000.
       "out_time_us" -> outTimeMicros = value.toLongOrNull()
       "speed" -> speed = value.removeSuffix("x").toDoubleOrNull()
-      "progress" -> return snapshot()
+      "progress" -> return snapshot(ended = value == END)
     }
     return null
   }
 
-  private fun snapshot(): ExportStatus.Progress {
+  private fun snapshot(ended: Boolean): ExportStatus.Progress {
     val position = outTimeMicros
     val fraction =
-      if (totalMicros <= 0L || position == null) {
-        highestFraction
-      } else {
-        (position.toFloat() / totalMicros.toFloat()).coerceIn(0f, 1f)
+      when {
+        // `progress=end` closes the last block ffmpeg writes, so everything the plan asked for is
+        // encoded. out_time lands a frame or so short of the planned duration on some builds, and
+        // reading that back as a fraction reports an export that finished as unfinished.
+        ended -> 1f
+        totalMicros <= 0L || position == null -> highestFraction
+        else -> (position.toFloat() / totalMicros.toFloat()).coerceIn(0f, 1f)
       }
     // The KDoc promises a fraction that never goes backwards, and out_time does go backwards
     // between the first blocks of some encodes.
@@ -69,5 +72,9 @@ internal class ProgressParser(
     if (totalMicros <= 0L) return null
     val left = (totalMicros - done).coerceAtLeast(0L)
     return (left / rate).microseconds
+  }
+
+  private companion object {
+    const val END = "end"
   }
 }

@@ -66,10 +66,9 @@ jobs:
       matrix:
         config: [
           { target: "android-host", os: "ubuntu-latest", tasks: "testAndroidHostTest" },
-          { target: "jvm", os: "ubuntu-latest", tasks: "jvmTest" },
-          { target: "ios-simulator", os: "macos-latest", tasks: "iosSimulatorArm64Test" },
-          { target: "macos-arm", os: "macos-latest", tasks: "macosArm64Test" },
-          # Karma drives the Chrome the runner image already ships.
+          { target: "jvm", os: "ubuntu-latest", tasks: "jvmTest", ffmpeg: true },
+          { target: "ios-simulator", os: "macos-latest", tasks: "iosSimulatorArm64Test", ffmpeg: true },
+          { target: "macos-arm", os: "macos-latest", tasks: "macosArm64Test", ffmpeg: true },
           { target: "wasm-browser", os: "ubuntu-latest", tasks: "wasmJsBrowserTest" },
           { target: "js-browser", os: "ubuntu-latest", tasks: "jsBrowserTest" },
           { target: "sample", os: "macos-latest", tasks: ":sample:androidApp:assembleDebug" }
@@ -87,9 +86,13 @@ jobs:
           java-version: 17
           distribution: temurin
 
-      - name: Install ffmpeg
-        if: matrix.config.target == 'jvm'
+      - name: Install ffmpeg (linux)
+        if: matrix.config.ffmpeg && runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install ffmpeg (macos)
+        if: matrix.config.ffmpeg && runner.os == 'macOS'
+        run: brew install ffmpeg
 
       - name: Cache Konan
         uses: actions/cache@v6
@@ -110,6 +113,16 @@ jobs:
 
       - name: Run ${{ matrix.config.target }} tests
         run: ./gradlew ${{ matrix.config.tasks }} --scan
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: test-reports-${{ matrix.config.target }}
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          retention-days: 7
 
   test-android-device:
     name: "Test android device"
@@ -145,3 +158,13 @@ jobs:
           arch: x86_64
           target: google_apis
           script: ./gradlew connectedAndroidDeviceTest --scan
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: test-reports-android-device
+          path: |
+            **/build/reports/androidTests/
+            **/build/outputs/androidTest-results/
+          retention-days: 7

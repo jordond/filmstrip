@@ -41,9 +41,11 @@ import dev.jordond.filmstrip.media.pqSignalFromNits
 import dev.jordond.filmstrip.media.sceneFromHlgSignal
 import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -416,7 +418,8 @@ class FfmpegExportTest {
         )
         assertTrue(
           abs(dimmed[channel] - linear[channel]) > abs(dimmed[channel] - expected[channel]),
-          "channel $channel matched a linear reading as closely as the display one",
+          "channel $channel read ${dimmed[channel]}, ${expected[channel]} from the display gain " +
+            "and ${linear[channel]} from a linear one",
         )
       }
     }
@@ -476,7 +479,8 @@ class FfmpegExportTest {
         )
         assertTrue(
           abs(dimmed[channel] - overDimmed[channel]) > abs(dimmed[channel] - expected[channel]),
-          "channel $channel matched the display gain as closely as the scene one",
+          "channel $channel read ${dimmed[channel]}, ${expected[channel]} from the scene gain " +
+            "and ${overDimmed[channel]} from the display one",
         )
       }
     }
@@ -629,10 +633,15 @@ class FfmpegExportTest {
 
       // This fixture's own codec is H264, which is also the ladder's first pick, so a re-encode
       // would land on H264 too and the codec alone would not catch a silent fall back to it. File
-      // size does: a copy remuxes the container without touching an encoded byte, so it lands on
-      // the source's exact size, while re-encoding writes a file of a visibly different one.
+      // size does: a copy remuxes the container without touching an encoded byte, so it lands
+      // within the muxer's own padding of the source, while re-encoding writes a file of a
+      // visibly different one.
       ffprobe(output.absolutePath).endsWith("h264 aac") shouldBe true
-      output.length() shouldBe landscape.length()
+      val drift = abs(output.length() - landscape.length())
+      assertTrue(
+        drift <= CONTAINER_DRIFT_BYTES,
+        "the copy wrote ${output.length()} bytes against the source's ${landscape.length()}",
+      )
 
       output.delete()
     }
@@ -781,12 +790,20 @@ class FfmpegExportTest {
 
       withContext(Dispatchers.Default) {
         val flow = filmstrip.export(composition, ExportSpec(targetHeight = 720), MediaSink.of(output.absolutePath))
-        assertNull(
-          withTimeoutOrNull(1_000.milliseconds) {
-            flow.collect { if (it is ExportStatus.Progress) delay(10_000.milliseconds) }
-          },
-          "the export finished before it could be cancelled",
-        )
+        val encoding = CompletableDeferred<Unit>()
+        // Cancelled once a report carries encoded output rather than after a fixed wait. A runner
+        // slow enough to still be starting ffmpeg at the deadline leaves a graceful stop nothing to
+        // close, and the readable file this is about only exists once frames have reached the muxer.
+        val collector =
+          launch {
+            flow.collect { status ->
+              if (status is ExportStatus.Progress && status.fraction > 0f) encoding.complete(Unit)
+            }
+          }
+
+        withTimeoutOrNull(ENCODE_DEADLINE) { encoding.await() }
+        assertTrue(collector.isActive, "the export finished before it could be cancelled")
+        collector.cancelAndJoin()
       }
 
       assertTrue(output.length() > 0, "nothing was written before the cancel")
@@ -1092,6 +1109,9 @@ class FfmpegExportTest {
 
   private companion object {
     val TIMEOUT = kotlin.time.Duration.parse("2m")
+
+    // Long enough for a loaded runner to open the encoder, short of the runTest timeout.
+    val ENCODE_DEADLINE = kotlin.time.Duration.parse("30s")
     const val RED = 0xFFFF0000.toInt()
     const val HALF = 0.5f
     const val BRIGHTER = 1.5f
@@ -1100,6 +1120,11 @@ class FfmpegExportTest {
     // floor, so a bar that read halved fails here rather than by accident of a bound written for a
     // different purpose.
     const val HALVED_RED_CEILING = 180
+
+    // How far a remux may land from the source it copied. The mp4 muxer sizes its own padding, and
+    // ffmpeg 6 writes a byte more of it than later builds do. A re-encode of this fixture misses by
+    // tens of kilobytes, so the band separates the two readings without pinning a muxer's spelling.
+    const val CONTAINER_DRIFT_BYTES = 64L
 
     // A 2x2 crop of one plane at two bytes a sample.
     const val PLANE_BYTES = 8

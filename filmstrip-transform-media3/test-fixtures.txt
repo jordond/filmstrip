@@ -1,0 +1,10 @@
+# filmstrip test fixtures, served from https://filmstrip-media.jordond.dev/test-fixtures
+# Written by the module's publish task. Commit it with the clips it names.
+# name sha256 bytes
+android_export_24fps.mp4 d0cd1df33d71ef4188b50699da155c036016f201b175174b8019da81a46d181a 448757
+android_export_a.mp4 1c2f1df93c0294d2f361826555084c1ed777ad75b043e053f57a2bf3f3e716b5 452239
+android_export_b.mp4 6660d0b55457859ce66d3224d2bddefda5b782429e7357ac598243f5da033957 274700
+android_export_hdr.mp4 a5643f167b601a18ea84353960dc1b8cb518ef680bd953d4ec93067cbdb3c9f2 1573933
+android_export_hdr_hlg.mp4 1468ea472941054784374a5171cedaaf5dc4d6f46560095034d21ce3b052892a 1577160
+android_export_long.mp4 7a1483444bc3f1451eda62e84af9067e3e185a0934e235b479c145e6e2388ff4 9454817
+android_export_rotated.mp4 e49f711677c8530ad56b60fb2d7c79691e5daccac90261e15abd91167e7e3455 454095

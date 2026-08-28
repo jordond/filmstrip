@@ -1,7 +1,5 @@
 package dev.jordond.filmstrip.media3
 
-import android.media.MediaCodecInfo
-import android.media.MediaCodecList
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
@@ -134,18 +132,7 @@ class AndroidHdrTest {
   private suspend fun encodesHdr(): Boolean =
     (filmstrip.capabilities() as? CapabilitiesResult.Success)?.capabilities?.supportsHdrEncoding == true
 
-  /**
-   * Whether this device has a decoder for the ten-bit HEVC the fixture is written in.
-   *
-   * Encoding and decoding are separate questions. Tone mapping needs only the decoder, which is
-   * exactly the case a device with no HDR encoder is still expected to serve.
-   */
-  private fun decodesHdr(): Boolean =
-    MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.any { codec ->
-      !codec.isEncoder &&
-        codec.supportedTypes.any { it.equals(HEVC, ignoreCase = true) } &&
-        codec.getCapabilitiesForType(HEVC).profileLevels.any { it.profile in TEN_BIT_PROFILES }
-    }
+  private fun decodesHdr(): Boolean = decodesTenBitHevc()
 
   private fun composition(source: MediaSource) = EditComposition(listOf(Track(listOf(Clip(source)))))
 
@@ -197,13 +184,5 @@ class AndroidHdrTest {
     val TIMEOUT = 5.minutes
 
     const val CLIP = "android_export_hdr.mp4"
-    const val HEVC = "video/hevc"
-
-    val TEN_BIT_PROFILES =
-      setOf(
-        MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10,
-        MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10,
-        MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10Plus,
-      )
   }
 }

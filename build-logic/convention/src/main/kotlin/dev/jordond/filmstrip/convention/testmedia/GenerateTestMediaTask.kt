@@ -101,6 +101,15 @@ abstract class GenerateTestMediaTask
           buildList {
             if (spec.hue != 0) add("hue=h=${spec.hue}")
             add("noise=alls=14:allf=t+u:all_seed=20260819")
+            // After the noise, so the patch is flat. That is the whole point of it: a test that
+            // predicts what an operation did to one pixel cannot read a pixel whose neighbours
+            // disagree with it.
+            spec.patch?.let { patch ->
+              add(
+                "drawbox=x=(iw-${patch.size})/2:y=(ih-${patch.size})/2:" +
+                  "w=${patch.size}:h=${patch.size}:color=${patch.hex}:t=fill",
+              )
+            }
           }
         addAll(listOf("-filter:v", filters.joinToString(",")))
         addAll(spec.transfer?.let { hdrVideoArgs(it) } ?: sdrVideoArgs())

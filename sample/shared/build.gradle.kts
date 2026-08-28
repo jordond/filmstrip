@@ -28,9 +28,6 @@ kotlin {
     }
   }
 
-  // Android and the desktop both download a preset clip through java.io, so they get a source set
-  // of their own to hold the one copy. Declaring an edge by hand turns the default hierarchy off,
-  // so it is asked for explicitly here.
   applyDefaultHierarchyTemplate()
 
   sourceSets {

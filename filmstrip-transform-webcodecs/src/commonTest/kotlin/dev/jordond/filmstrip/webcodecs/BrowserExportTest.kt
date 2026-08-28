@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.webcodecs
 
+import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.PlatformContext
 import dev.jordond.filmstrip.edit.AudioLevel
@@ -422,6 +423,7 @@ class BrowserExportTest {
   @Test
   fun aTranscodedExportCarriesAudibleAudio() =
     runTest {
+      if (!encodesAac()) return@runTest
       val bytes = makeClipWithAudio(frames = 60, frameRate = 30)
       val composition =
         EditComposition(
@@ -445,6 +447,7 @@ class BrowserExportTest {
   @Test
   fun aMusicBedOnASecondAudioOnlyTrackReachesTheOutput() =
     runTest {
+      if (!encodesAac()) return@runTest
       val video = makeClip(frames = 30, frameRate = 30)
       val bed = makeClipWithAudio(frames = 30, frameRate = 30)
       val composition =
@@ -471,6 +474,7 @@ class BrowserExportTest {
   @Test
   fun aMutedClipEncodesSilence() =
     runTest {
+      if (!encodesAac()) return@runTest
       val bytes = makeClipWithAudio(frames = 30, frameRate = 30)
       val composition =
         EditComposition(
@@ -492,6 +496,7 @@ class BrowserExportTest {
   @Test
   fun anAudioOnlyExportWritesNoVideoTrack() =
     runTest {
+      if (!encodesAac()) return@runTest
       val success = exportOf(audioOnlyComposition(), MediaSink.Uri(""), aacSpec())
 
       assertFalse(hasVideoTrack(outputOf(success)), "an audio-only export wrote a video track")
@@ -500,6 +505,7 @@ class BrowserExportTest {
   @Test
   fun anAudioOnlyExportCarriesAudibleAudio() =
     runTest {
+      if (!encodesAac()) return@runTest
       val success = exportOf(audioOnlyComposition(), MediaSink.Uri(""), aacSpec())
 
       val audio = assertNotNull(decodeAudio(outputOf(success)), "the export produced no readable audio track")
@@ -513,6 +519,7 @@ class BrowserExportTest {
   @Test
   fun anAudioOnlyExportReportsAnAudioTrackAndNoVideoOne() =
     runTest {
+      if (!encodesAac()) return@runTest
       val success = exportOf(audioOnlyComposition(), MediaSink.Uri(""), aacSpec())
 
       assertNull(success.info.video, "an audio-only export reported a video track")
@@ -527,6 +534,7 @@ class BrowserExportTest {
   @Test
   fun anAudioOnlyExportLandsAsM4a() =
     runTest {
+      if (!encodesAac()) return@runTest
       val success = exportOf(audioOnlyComposition(), MediaSink.Temporary, aacSpec())
 
       val output = assertIs<MediaSink.Path>(success.output)
@@ -598,6 +606,19 @@ class BrowserExportTest {
   }
 
   private fun aacSpec(): ExportSpec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac)
+
+  /**
+   * Whether this browser can encode AAC, which is the same question the backend's own probe asks.
+   *
+   * Chrome hands AAC encoding to the platform, so it is there on macOS and Windows and absent on
+   * Linux, where every headless CI runner lives. Decoding is built in everywhere, which is why a
+   * copy carries a source's AAC across on a browser that cannot write any.
+   */
+  private suspend fun encodesAac(): Boolean {
+    val result = filmstrip().capabilities()
+    val capabilities = assertIs<CapabilitiesResult.Success>(result).capabilities
+    return capabilities.audio.any { it.codec == AudioCodec.Aac }
+  }
 
   private suspend fun planOf(
     filmstrip: Filmstrip,

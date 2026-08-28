@@ -19,8 +19,8 @@ import kotlin.time.DurationUnit
  * Writes the graph.
  *
  * One input per clip in declaration order, then one per overlay image, then one per silence filler.
- * Every clip is normalised to the output frame before it is joined, because `concat` demands
- * uniform inputs, and every audio branch is normalised to one sample format for the same reason.
+ * Every clip is normalized to the output frame before it is joined, because `concat` demands
+ * uniform inputs, and every audio branch is normalized to one sample format for the same reason.
  */
 internal class GraphLowering(
   private val negotiated: NegotiatedComposition,
@@ -113,6 +113,7 @@ internal class GraphLowering(
       videoEncoder = negotiated.encoderName,
       duration = duration,
       hdrTransfer = negotiated.hdrTransfer,
+      toneMapped = negotiated.hdr == ResolvedHdr.ToneMap,
     )
   }
 
@@ -166,11 +167,18 @@ internal class GraphLowering(
       current = label
     }
 
+    // The effect chain is where a frame can go through RGB and come back, and what comes back is
+    // untagged. ffmpeg 7 and newer reads the grade off the frames either side of it, but below that
+    // the conversion out of RGB falls back to BT.601 and the picture is written through the wrong
+    // matrix.
+    gradeNodes().takeIf { it.isNotEmpty() && negotiated.compositionEffects.isNotEmpty() }?.let { nodes ->
+      val graded = "vgrade"
+      graph.chain(listOf(current), nodes, graded)
+      current = graded
+    }
+
     val out = "vout"
     if (deferFill) {
-      // As in media3, the fill was never painted in, only left transparent, so it is flattened in
-      // here now that composition effects have already run over everything else. [bg] is read
-      // first because overlay takes its first input as the base and its second as what goes on top.
       val background = "vbg"
       graph.chain(
         emptyList(),
@@ -181,7 +189,7 @@ internal class GraphLowering(
             "s" to "${output.size.width}x${output.size.height}",
             "r" to frameRate.toString(),
           ),
-        ),
+        ) + gradeNodes(),
         background,
       )
       graph.chain(
@@ -200,6 +208,27 @@ internal class GraphLowering(
       graph.chain(listOf(current), listOf(trimTo(duration), SETPTS), out)
     }
     return out
+  }
+
+  /**
+   * Restates the grade the frames carry, for a stage that drops it.
+   *
+   * `color` names no colour attributes of its own, and a frame that has been through RGB carries
+   * none either. ffmpeg 7 and newer take them from the neighbouring input, so restating costs
+   * nothing there, but below that the frame comes out untagged and every conversion after it reads
+   * a BT.2020 picture through the wrong matrix.
+   */
+  private fun gradeNodes(): List<FilterNode> {
+    val transfer = negotiated.hdrTransfer ?: return emptyList()
+
+    return listOf(
+      FilterNode(
+        "setparams",
+        "color_primaries" to HDR_PRIMARIES,
+        "color_trc" to transfer.ffmpegTag,
+        "colorspace" to HDR_MATRIX,
+      ),
+    )
   }
 
   /**
@@ -352,7 +381,7 @@ internal class GraphLowering(
             trackLabels,
             // normalize defaults to true and divides the output by the input count, which would
             // silently halve the dialogue the moment a music bed is added. dropout_transition
-            // defaults to a two second ramp when an input ends, which would fade the primary track
+            // defaults to a two-second ramp when an input ends, which would fade the primary track
             // up when the bed runs out.
             listOf(
               FilterNode(
