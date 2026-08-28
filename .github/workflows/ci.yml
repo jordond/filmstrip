@@ -1,0 +1,147 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches:
+      - main
+    types: [ opened, synchronize, reopened, ready_for_review ]
+    paths-ignore:
+      - 'art/**'
+      - '**.md'
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    name: "Verify"
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: setup-java
+        uses: actions/setup-java@v5
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Formatting
+        run: ./gradlew spotlessCheck --scan
+
+      - name: Binary Compatibility Validation
+        run: ./gradlew apiCheck --scan
+
+      - name: Architecture guards
+        run: >-
+          ./gradlew --scan
+          checkForbiddenImports
+          checkLayeringFilmstrip checkLayeringFilmstripCore checkLayeringFilmstripEffects
+          checkLayeringFilmstripTransform checkLayeringFilmstripTransformFfmpeg
+          checkLayeringFilmstripPlayer checkLayeringFilmstripCompose
+          checkNpmDependenciesFilmstrip checkNpmDependenciesFilmstripCore
+          checkNpmDependenciesFilmstripEffects checkNpmDependenciesFilmstripTransform
+          checkNpmDependenciesFilmstripTransformFfmpeg checkNpmDependenciesFilmstripPlayer
+          checkNpmDependenciesFilmstripCompose
+
+      - name: Lint
+        run: ./gradlew lint --scan
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        config: [
+          { target: "android-host", os: "ubuntu-latest", tasks: "testAndroidHostTest" },
+          { target: "jvm", os: "ubuntu-latest", tasks: "jvmTest" },
+          { target: "ios-simulator", os: "macos-latest", tasks: "iosSimulatorArm64Test" },
+          { target: "macos-arm", os: "macos-latest", tasks: "macosArm64Test" },
+          # Karma drives the Chrome the runner image already ships.
+          { target: "wasm-browser", os: "ubuntu-latest", tasks: "wasmJsBrowserTest" },
+          { target: "js-browser", os: "ubuntu-latest", tasks: "jsBrowserTest" },
+          { target: "sample", os: "macos-latest", tasks: ":sample:androidApp:assembleDebug" }
+        ]
+    runs-on: ${{ matrix.config.os }}
+    name: Test ${{ matrix.config.target }}
+    needs: verify
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: setup-java
+        uses: actions/setup-java@v5
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Install ffmpeg
+        if: matrix.config.target == 'jvm'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Cache Konan
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.konan/caches
+            ~/.konan/dependencies
+            ~/.konan/kotlin-native-prebuilt-macos-*
+          key: ${{ runner.os }}-konan-${{ hashFiles('**/gradle/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-konan-
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Gradle Wrapper Validation
+        uses: gradle/actions/wrapper-validation@v6
+
+      - name: Run ${{ matrix.config.target }} tests
+        run: ./gradlew ${{ matrix.config.tasks }} --scan
+
+  test-android-device:
+    name: "Test android device"
+    runs-on: ubuntu-latest
+    needs: verify
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: setup-java
+        uses: actions/setup-java@v5
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Run device tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          script: ./gradlew connectedAndroidDeviceTest --scan
