@@ -447,6 +447,10 @@ final enum class dev.jordond.filmstrip.style/TextAlignment : kotlin/Enum<dev.jor
     }
 }
 
+abstract fun interface dev.jordond.filmstrip.diagnostics/DiagnosticListener { // dev.jordond.filmstrip.diagnostics/DiagnosticListener|null[0]
+    abstract fun onEvent(dev.jordond.filmstrip.diagnostics/DiagnosticEvent) // dev.jordond.filmstrip.diagnostics/DiagnosticListener.onEvent|onEvent(dev.jordond.filmstrip.diagnostics.DiagnosticEvent){}[0]
+}
+
 abstract fun interface dev.jordond.filmstrip.effect/EffectResolver { // dev.jordond.filmstrip.effect/EffectResolver|null[0]
     abstract fun resolve(dev.jordond.filmstrip.effect/EffectSpec, dev.jordond.filmstrip.effect/RenderCapabilities, dev.jordond.filmstrip.effect/ExecutionContext, dev.jordond.filmstrip.effect/Attributes): dev.jordond.filmstrip.effect/EffectResolution? // dev.jordond.filmstrip.effect/EffectResolver.resolve|resolve(dev.jordond.filmstrip.effect.EffectSpec;dev.jordond.filmstrip.effect.RenderCapabilities;dev.jordond.filmstrip.effect.ExecutionContext;dev.jordond.filmstrip.effect.Attributes){}[0]
 }
@@ -1811,6 +1815,34 @@ final class dev.jordond.filmstrip.capability/VideoEncoderCapability { // dev.jor
     final fun toString(): kotlin/String // dev.jordond.filmstrip.capability/VideoEncoderCapability.toString|toString(){}[0]
 }
 
+final class dev.jordond.filmstrip.diagnostics/BackendInfo { // dev.jordond.filmstrip.diagnostics/BackendInfo|null[0]
+    constructor <init>(kotlin/String, kotlin/String) // dev.jordond.filmstrip.diagnostics/BackendInfo.<init>|<init>(kotlin.String;kotlin.String){}[0]
+
+    final val artifact // dev.jordond.filmstrip.diagnostics/BackendInfo.artifact|{}artifact[0]
+        final fun <get-artifact>(): kotlin/String // dev.jordond.filmstrip.diagnostics/BackendInfo.artifact.<get-artifact>|<get-artifact>(){}[0]
+    final val name // dev.jordond.filmstrip.diagnostics/BackendInfo.name|{}name[0]
+        final fun <get-name>(): kotlin/String // dev.jordond.filmstrip.diagnostics/BackendInfo.name.<get-name>|<get-name>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.diagnostics/BackendInfo.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.diagnostics/BackendInfo.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.diagnostics/BackendInfo.toString|toString(){}[0]
+}
+
+final class dev.jordond.filmstrip.diagnostics/DiagnosticEvent { // dev.jordond.filmstrip.diagnostics/DiagnosticEvent|null[0]
+    constructor <init>(kotlin/String, kotlin/String, kotlin.collections/Map<kotlin/String, kotlin/String>) // dev.jordond.filmstrip.diagnostics/DiagnosticEvent.<init>|<init>(kotlin.String;kotlin.String;kotlin.collections.Map<kotlin.String,kotlin.String>){}[0]
+
+    final val detail // dev.jordond.filmstrip.diagnostics/DiagnosticEvent.detail|{}detail[0]
+        final fun <get-detail>(): kotlin.collections/Map<kotlin/String, kotlin/String> // dev.jordond.filmstrip.diagnostics/DiagnosticEvent.detail.<get-detail>|<get-detail>(){}[0]
+    final val name // dev.jordond.filmstrip.diagnostics/DiagnosticEvent.name|{}name[0]
+        final fun <get-name>(): kotlin/String // dev.jordond.filmstrip.diagnostics/DiagnosticEvent.name.<get-name>|<get-name>(){}[0]
+    final val source // dev.jordond.filmstrip.diagnostics/DiagnosticEvent.source|{}source[0]
+        final fun <get-source>(): kotlin/String // dev.jordond.filmstrip.diagnostics/DiagnosticEvent.source.<get-source>|<get-source>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.diagnostics/DiagnosticEvent.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.diagnostics/DiagnosticEvent.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.diagnostics/DiagnosticEvent.toString|toString(){}[0]
+}
+
 final class dev.jordond.filmstrip.edit/Clip { // dev.jordond.filmstrip.edit/Clip|null[0]
     constructor <init>(dev.jordond.filmstrip.media/MediaSource, dev.jordond.filmstrip.edit/TimeRange? = ..., kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec> = ..., dev.jordond.filmstrip.edit/AudioLevel = ...) // dev.jordond.filmstrip.edit/Clip.<init>|<init>(dev.jordond.filmstrip.media.MediaSource;dev.jordond.filmstrip.edit.TimeRange?;kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>;dev.jordond.filmstrip.edit.AudioLevel){}[0]
 
@@ -2689,6 +2721,10 @@ final class dev.jordond.filmstrip.thumbnail/ThumbnailRequest { // dev.jordond.fi
 }
 
 final class dev.jordond.filmstrip/ComponentRegistry { // dev.jordond.filmstrip/ComponentRegistry|null[0]
+    final val backends // dev.jordond.filmstrip/ComponentRegistry.backends|{}backends[0]
+        final fun <get-backends>(): kotlin.collections/List<dev.jordond.filmstrip.diagnostics/BackendInfo> // dev.jordond.filmstrip/ComponentRegistry.backends.<get-backends>|<get-backends>(){}[0]
+    final val diagnosticListeners // dev.jordond.filmstrip/ComponentRegistry.diagnosticListeners|{}diagnosticListeners[0]
+        final fun <get-diagnosticListeners>(): kotlin.collections/List<dev.jordond.filmstrip.diagnostics/DiagnosticListener> // dev.jordond.filmstrip/ComponentRegistry.diagnosticListeners.<get-diagnosticListeners>|<get-diagnosticListeners>(){}[0]
     final val effectResolvers // dev.jordond.filmstrip/ComponentRegistry.effectResolvers|{}effectResolvers[0]
         final fun <get-effectResolvers>(): kotlin.collections/List<dev.jordond.filmstrip.effect/EffectResolver> // dev.jordond.filmstrip/ComponentRegistry.effectResolvers.<get-effectResolvers>|<get-effectResolvers>(){}[0]
     final val playerEngineFactories // dev.jordond.filmstrip/ComponentRegistry.playerEngineFactories|{}playerEngineFactories[0]
@@ -2702,6 +2738,7 @@ final class dev.jordond.filmstrip/ComponentRegistry { // dev.jordond.filmstrip/C
         constructor <init>() // dev.jordond.filmstrip/ComponentRegistry.Builder.<init>|<init>(){}[0]
         constructor <init>(dev.jordond.filmstrip/ComponentRegistry) // dev.jordond.filmstrip/ComponentRegistry.Builder.<init>|<init>(dev.jordond.filmstrip.ComponentRegistry){}[0]
 
+        final fun add(dev.jordond.filmstrip.diagnostics/DiagnosticListener): dev.jordond.filmstrip/ComponentRegistry.Builder // dev.jordond.filmstrip/ComponentRegistry.Builder.add|add(dev.jordond.filmstrip.diagnostics.DiagnosticListener){}[0]
         final fun add(dev.jordond.filmstrip.effect/EffectResolver): dev.jordond.filmstrip/ComponentRegistry.Builder // dev.jordond.filmstrip/ComponentRegistry.Builder.add|add(dev.jordond.filmstrip.effect.EffectResolver){}[0]
         final fun add(dev.jordond.filmstrip.player/PlayerEngineFactory): dev.jordond.filmstrip/ComponentRegistry.Builder // dev.jordond.filmstrip/ComponentRegistry.Builder.add|add(dev.jordond.filmstrip.player.PlayerEngineFactory){}[0]
         final fun add(dev.jordond.filmstrip.thumbnail/ThumbnailSourceFactory): dev.jordond.filmstrip/ComponentRegistry.Builder // dev.jordond.filmstrip/ComponentRegistry.Builder.add|add(dev.jordond.filmstrip.thumbnail.ThumbnailSourceFactory){}[0]
@@ -2712,6 +2749,7 @@ final class dev.jordond.filmstrip/ComponentRegistry { // dev.jordond.filmstrip/C
 final class dev.jordond.filmstrip/FilmstripBuilder { // dev.jordond.filmstrip/FilmstripBuilder|null[0]
     constructor <init>() // dev.jordond.filmstrip/FilmstripBuilder.<init>|<init>(){}[0]
 
+    final fun addDiagnosticListener(dev.jordond.filmstrip.diagnostics/DiagnosticListener): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip/FilmstripBuilder.addDiagnosticListener|addDiagnosticListener(dev.jordond.filmstrip.diagnostics.DiagnosticListener){}[0]
     final fun addEffectResolver(dev.jordond.filmstrip.effect/EffectResolver): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip/FilmstripBuilder.addEffectResolver|addEffectResolver(dev.jordond.filmstrip.effect.EffectResolver){}[0]
     final fun addPlayerEngineFactory(dev.jordond.filmstrip.player/PlayerEngineFactory): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip/FilmstripBuilder.addPlayerEngineFactory|addPlayerEngineFactory(dev.jordond.filmstrip.player.PlayerEngineFactory){}[0]
     final fun addThumbnailSourceFactory(dev.jordond.filmstrip.thumbnail/ThumbnailSourceFactory): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip/FilmstripBuilder.addThumbnailSourceFactory|addThumbnailSourceFactory(dev.jordond.filmstrip.thumbnail.ThumbnailSourceFactory){}[0]
@@ -2743,6 +2781,11 @@ final object dev.jordond.filmstrip.effect/EffectIds { // dev.jordond.filmstrip.e
         final fun <get-TEXT>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.TEXT.<get-TEXT>|<get-TEXT>(){}[0]
     final const val WATERMARK // dev.jordond.filmstrip.effect/EffectIds.WATERMARK|{}WATERMARK[0]
         final fun <get-WATERMARK>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.WATERMARK.<get-WATERMARK>|<get-WATERMARK>(){}[0]
+}
+
+final object dev.jordond.filmstrip/FilmstripVersion { // dev.jordond.filmstrip/FilmstripVersion|null[0]
+    final val name // dev.jordond.filmstrip/FilmstripVersion.name|{}name[0]
+        final fun <get-name>(): kotlin/String // dev.jordond.filmstrip/FilmstripVersion.name.<get-name>|<get-name>(){}[0]
 }
 
 final val dev.jordond.filmstrip.export/Kbps // dev.jordond.filmstrip.export/Kbps|@kotlin.Int{}Kbps[0]

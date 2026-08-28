@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.capability.VideoEncoderCapability
+import dev.jordond.filmstrip.diagnostics.report
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.export.AudioCodec
@@ -52,9 +53,11 @@ internal class FfmpegExportEngine(
   private val config: FfmpegConfig get() = runtime.config
   private val capabilityLock = Mutex()
   private var deviceCapabilities: DeviceCapabilities? = null
+  private val reportLock = Mutex()
+  private var toolchainReported = false
 
   override suspend fun capabilities(): CapabilitiesResult =
-    when (val result = runtime.toolchain()) {
+    when (val result = toolchain()) {
       is ToolchainResult.Unavailable -> {
         CapabilitiesResult.Failure(result.error)
       }
@@ -78,7 +81,7 @@ internal class FfmpegExportEngine(
   ): Flow<ExportStatus> =
     channelFlow {
       val toolchain =
-        when (val result = runtime.toolchain()) {
+        when (val result = toolchain()) {
           is ToolchainResult.Unavailable -> {
             send(ExportStatus.Failure(result.error))
             return@channelFlow
@@ -130,9 +133,12 @@ internal class FfmpegExportEngine(
         // channelFlow rather than flow: the reader callbacks run on their own coroutines, and
         // progress that only arrives once the process has exited is a progress bar that jumps from
         // nothing to done.
+        val command = invocation.arguments(toolchain, config, resolvedInputs, outputPath)
+        components.report(BACKEND, "invocation", mapOf("command" to command.joinToString(" ")))
+
         val exitCode =
           runtime.stream(
-            command = invocation.arguments(toolchain, config, resolvedInputs, outputPath),
+            command = command,
             onStdout = { line -> progress.accept(line)?.let { trySend(it) } },
             onStderr = stderr::accept,
           )
@@ -169,12 +175,52 @@ internal class FfmpegExportEngine(
 
   override fun parityOf(specId: String): EffectParity? = FfmpegParity.of(specId)
 
+  /**
+   * Resolves the binaries, announcing what was found the first time anything asks.
+   *
+   * The banner is the thing a desktop bug report is asked for and the only place it exists is the
+   * output of the spawn that resolved the toolchain, which nothing else returns.
+   */
+  private suspend fun toolchain(): ToolchainResult {
+    val result = runtime.toolchain()
+
+    reportLock.withLock {
+      if (toolchainReported) return@withLock
+      toolchainReported = true
+
+      when (result) {
+        is ToolchainResult.Unavailable -> {
+          components.report(
+            source = BACKEND,
+            name = "toolchain",
+            detail = mapOf("found" to (result.error.foundVersion ?: "nothing"), "reason" to result.error.message),
+          )
+        }
+        is ToolchainResult.Available -> {
+          components.report(
+            source = BACKEND,
+            name = "toolchain",
+            detail =
+              mapOf(
+                "ffmpeg" to result.toolchain.ffmpeg,
+                "ffprobe" to result.toolchain.ffprobe,
+                "version" to result.toolchain.version.printed,
+                "banner" to result.toolchain.version.banner,
+              ),
+          )
+        }
+      }
+    }
+
+    return result
+  }
+
   private suspend fun lower(
     composition: EditComposition,
     spec: ExportSpec,
   ): LoweringResult {
     val toolchain =
-      when (val result = runtime.toolchain()) {
+      when (val result = toolchain()) {
         is ToolchainResult.Unavailable -> return LoweringResult.Failed(result.error)
         is ToolchainResult.Available -> result.toolchain
       }
@@ -366,6 +412,7 @@ internal class FfmpegExportEngine(
   }
 
   private companion object {
+    const val BACKEND = "ffmpeg"
     const val SIZE_ALIGNMENT = 2
     const val MAX_CHANNELS = 8
     const val FRAME_RATE_TOLERANCE = 0.5f

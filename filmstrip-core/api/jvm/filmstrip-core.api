@@ -22,6 +22,8 @@ public final class dev/jordond/filmstrip/CapabilitiesResult$Success : dev/jordon
 }
 
 public final class dev/jordond/filmstrip/ComponentRegistry {
+	public final fun getBackends ()Ljava/util/List;
+	public final fun getDiagnosticListeners ()Ljava/util/List;
 	public final fun getEffectResolvers ()Ljava/util/List;
 	public final fun getPlayerEngineFactories ()Ljava/util/List;
 	public final fun getThumbnailSourceFactories ()Ljava/util/List;
@@ -31,6 +33,7 @@ public final class dev/jordond/filmstrip/ComponentRegistry {
 public final class dev/jordond/filmstrip/ComponentRegistry$Builder {
 	public fun <init> ()V
 	public fun <init> (Ldev/jordond/filmstrip/ComponentRegistry;)V
+	public final fun add (Ldev/jordond/filmstrip/diagnostics/DiagnosticListener;)Ldev/jordond/filmstrip/ComponentRegistry$Builder;
 	public final fun add (Ldev/jordond/filmstrip/effect/EffectResolver;)Ldev/jordond/filmstrip/ComponentRegistry$Builder;
 	public final fun add (Ldev/jordond/filmstrip/player/PlayerEngineFactory;)Ldev/jordond/filmstrip/ComponentRegistry$Builder;
 	public final fun add (Ldev/jordond/filmstrip/thumbnail/ThumbnailSourceFactory;)Ldev/jordond/filmstrip/ComponentRegistry$Builder;
@@ -66,6 +69,7 @@ public final class dev/jordond/filmstrip/Filmstrip$DefaultImpls {
 
 public final class dev/jordond/filmstrip/FilmstripBuilder {
 	public fun <init> ()V
+	public final fun addDiagnosticListener (Ldev/jordond/filmstrip/diagnostics/DiagnosticListener;)Ldev/jordond/filmstrip/FilmstripBuilder;
 	public final fun addEffectResolver (Ldev/jordond/filmstrip/effect/EffectResolver;)Ldev/jordond/filmstrip/FilmstripBuilder;
 	public final fun addPlayerEngineFactory (Ldev/jordond/filmstrip/player/PlayerEngineFactory;)Ldev/jordond/filmstrip/FilmstripBuilder;
 	public final fun addThumbnailSourceFactory (Ldev/jordond/filmstrip/thumbnail/ThumbnailSourceFactory;)Ldev/jordond/filmstrip/FilmstripBuilder;
@@ -76,6 +80,11 @@ public final class dev/jordond/filmstrip/FilmstripBuilder {
 public final class dev/jordond/filmstrip/FilmstripKt {
 	public static final fun Filmstrip (Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/Filmstrip;
 	public static synthetic fun Filmstrip$default (Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/Filmstrip;
+}
+
+public final class dev/jordond/filmstrip/FilmstripVersion {
+	public static final field INSTANCE Ldev/jordond/filmstrip/FilmstripVersion;
+	public final fun getName ()Ljava/lang/String;
 }
 
 public abstract interface annotation class dev/jordond/filmstrip/InternalFilmstripApi : java/lang/annotation/Annotation {
@@ -175,6 +184,29 @@ public final class dev/jordond/filmstrip/capability/VideoEncoderCapability {
 	public fun hashCode ()I
 	public final fun isHardwareAccelerated ()Ljava/lang/Boolean;
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/diagnostics/BackendInfo {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getArtifact ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/diagnostics/DiagnosticEvent {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDetail ()Ljava/util/Map;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getSource ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class dev/jordond/filmstrip/diagnostics/DiagnosticListener {
+	public abstract fun onEvent (Ldev/jordond/filmstrip/diagnostics/DiagnosticEvent;)V
 }
 
 public abstract interface class dev/jordond/filmstrip/edit/AudioLevel {

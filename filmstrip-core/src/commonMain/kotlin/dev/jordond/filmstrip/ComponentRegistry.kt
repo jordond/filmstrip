@@ -1,5 +1,7 @@
 package dev.jordond.filmstrip
 
+import dev.jordond.filmstrip.diagnostics.BackendInfo
+import dev.jordond.filmstrip.diagnostics.DiagnosticListener
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.export.ExportEngineFactory
 import dev.jordond.filmstrip.media.MediaProberFactory
@@ -18,6 +20,9 @@ import dev.jordond.filmstrip.thumbnail.ThumbnailSourceFactory
  * @property exportEngineFactories Factories that build an export engine.
  * @property mediaProberFactories Factories that build a media prober. Core's own platform prober
  *   is consulted after every one of these, so an empty list still probes on a target that can.
+ * @property backends What each registered backend says about itself, in registration order rather
+ *   than in precedence order, because a bug report wants all of them.
+ * @property diagnosticListeners Listeners that receive what the components learn while running.
  */
 public class ComponentRegistry internal constructor(
   public val effectResolvers: List<EffectResolver>,
@@ -25,6 +30,8 @@ public class ComponentRegistry internal constructor(
   public val thumbnailSourceFactories: List<ThumbnailSourceFactory>,
   @property:InternalFilmstripApi public val exportEngineFactories: List<ExportEngineFactory>,
   @property:InternalFilmstripApi public val mediaProberFactories: List<MediaProberFactory>,
+  public val backends: List<BackendInfo>,
+  public val diagnosticListeners: List<DiagnosticListener>,
 ) {
   /**
    * Starts a builder from what is already registered here.
@@ -42,6 +49,8 @@ public class ComponentRegistry internal constructor(
     private val thumbnailSourceFactories = mutableListOf<ThumbnailSourceFactory>()
     private val exportEngineFactories = mutableListOf<ExportEngineFactory>()
     private val mediaProberFactories = mutableListOf<MediaProberFactory>()
+    private val backends = mutableListOf<BackendInfo>()
+    private val diagnosticListeners = mutableListOf<DiagnosticListener>()
 
     /**
      * An empty builder.
@@ -53,6 +62,8 @@ public class ComponentRegistry internal constructor(
      */
     public constructor(registry: ComponentRegistry) {
       effectResolvers += registry.effectResolvers
+      backends += registry.backends
+      diagnosticListeners += registry.diagnosticListeners
       playerEngineFactories += registry.playerEngineFactories
       thumbnailSourceFactories += registry.thumbnailSourceFactories
       exportEngineFactories += registry.exportEngineFactories
@@ -87,6 +98,17 @@ public class ComponentRegistry internal constructor(
     public fun add(factory: MediaProberFactory): Builder = apply { mediaProberFactories.add(0, factory) }
 
     /**
+     * Records what a backend says about itself, at the end of the list.
+     */
+    @InternalFilmstripApi
+    public fun add(backend: BackendInfo): Builder = apply { backends += backend }
+
+    /**
+     * Registers a diagnostic listener, at the end of the list.
+     */
+    public fun add(listener: DiagnosticListener): Builder = apply { diagnosticListeners += listener }
+
+    /**
      * Freezes what has been registered.
      */
     public fun build(): ComponentRegistry =
@@ -96,6 +118,8 @@ public class ComponentRegistry internal constructor(
         thumbnailSourceFactories = thumbnailSourceFactories.toList(),
         exportEngineFactories = exportEngineFactories.toList(),
         mediaProberFactories = mediaProberFactories.toList(),
+        backends = backends.toList(),
+        diagnosticListeners = diagnosticListeners.toList(),
       )
   }
 }

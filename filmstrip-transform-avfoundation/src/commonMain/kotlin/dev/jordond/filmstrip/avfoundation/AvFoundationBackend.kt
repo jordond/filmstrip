@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.FilmstripBuilder
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.avfoundation.internal.AvFoundationDriver
 import dev.jordond.filmstrip.capability.EffectParity
+import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effects.builtInEffects
 import dev.jordond.filmstrip.export.VideoCodec
@@ -19,21 +20,24 @@ import dev.jordond.filmstrip.transform.internal.PlannedExportEngine
  */
 @OptIn(InternalFilmstripApi::class)
 public fun FilmstripBuilder.avFoundationBackend(): FilmstripBuilder =
-  builtInEffects().addExportEngineFactory { context, components ->
-    val prober = chainedProber(context, components)
-    PlannedExportEngine(
-      backend = AvFoundationDriver(context, prober),
-      prober = prober,
-      resolvers = components.effectResolvers,
-      parity = AVFOUNDATION_PARITY,
-      ladder = AVFOUNDATION_LADDER,
-      // AVAssetWriter takes a source track by format hint instead of output settings, so a copy
-      // needs no encoder at all.
-      supportsPassthrough = true,
-      // Every export here writes AVFileTypeMPEG4, so a copy is allowed for exactly what mp4 carries.
-      canCopy = { info -> Mp4Copy.accepts(info) },
+  builtInEffects()
+    .addExportEngineFactory { context, components ->
+      val prober = chainedProber(context, components)
+      PlannedExportEngine(
+        backend = AvFoundationDriver(context, prober),
+        prober = prober,
+        resolvers = components.effectResolvers,
+        parity = AVFOUNDATION_PARITY,
+        ladder = AVFOUNDATION_LADDER,
+        // AVAssetWriter takes a source track by format hint instead of output settings, so a copy
+        // needs no encoder at all.
+        supportsPassthrough = true,
+        // Every export here writes AVFileTypeMPEG4, so a copy is allowed for exactly what mp4 carries.
+        canCopy = { info -> Mp4Copy.accepts(info) },
+      )
+    }.addBackendInfo(
+      BackendInfo(name = "avfoundation", artifact = "dev.jordond.filmstrip:filmstrip-transform-avfoundation"),
     )
-  }
 
 internal val AVFOUNDATION_LADDER: List<VideoCodec> = listOf(VideoCodec.H264, VideoCodec.Hevc)
 
