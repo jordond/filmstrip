@@ -1,5 +1,7 @@
 scratchpad
 docs/research
+docs/adr
+docs/measurements
 *.iml
 .gradle
 .idea
@@ -7,6 +9,7 @@ docs/research
 .DS_Store
 build
 */build
+**/build
 captures
 .externalNativeBuild
 .cxx
@@ -16,4 +19,10 @@ Pods/
 *.jks
 *.gpg
 *yarn.lock
+# Kotlin/JS pins npm transitives here, so these two belong in version control.
+!kotlin-js-store/yarn.lock
+!kotlin-js-store/wasm/yarn.lock
 CLAUDE.md
+dokka
+
+.playwright-mcp/
