@@ -57,6 +57,8 @@ internal sealed interface InputSource {
  * @property copy Whether this invocation remuxes the source streams rather than running a filter
  *   graph. True skips [filterGraph] and asks ffmpeg for `-c copy` instead of an encoder.
  * @property hdrTransfer The transfer function to tag the output with, or null to write SDR.
+ * @property toneMapped Whether the graph brought an HDR grade down to BT.709. The tone-map nodes
+ *   leave the frames in BT.709, so the output carries the tags that say so.
  */
 internal class Invocation(
   val inputs: List<InputSpec>,
@@ -68,6 +70,7 @@ internal class Invocation(
   val duration: Duration,
   val copy: Boolean = false,
   val hdrTransfer: HdrTransfer? = null,
+  val toneMapped: Boolean = false,
 )
 
 /**
@@ -175,7 +178,7 @@ private fun Invocation.videoArguments(): List<String> =
       add("hvc1")
     }
     if (hdrPixelFormat != null) {
-      val transfer = if (hdrTransfer == HdrTransfer.Pq) "smpte2084" else "arib-std-b67"
+      val transfer = checkNotNull(hdrTransfer).ffmpegTag
       encoder?.hdrProfile?.let {
         add("-profile:v")
         add(it)
@@ -184,9 +187,9 @@ private fun Invocation.videoArguments(): List<String> =
       // instead, which lands on the same tags only because a kept grade is always the source's.
       // FfmpegExportTest reads the written file back rather than trusting the flags.
       add("-color_primaries")
-      add("bt2020")
+      add(HDR_PRIMARIES)
       add("-colorspace")
-      add("bt2020nc")
+      add(HDR_MATRIX)
       add("-color_trc")
       add(transfer)
       // The -color_* flags above tag the container. libx265 does not pick them up on its own, so
@@ -194,8 +197,21 @@ private fun Invocation.videoArguments(): List<String> =
       // stream sees SDR.
       if (name == "libx265") {
         add("-x265-params")
-        add("colorprim=bt2020:transfer=$transfer:colormatrix=bt2020nc:hdr10=1:repeat-headers=1")
+        add(
+          "colorprim=$HDR_PRIMARIES:transfer=$transfer:colormatrix=$HDR_MATRIX:" +
+            "hdr10=1:repeat-headers=1",
+        )
       }
+    } else if (toneMapped) {
+      // The tone-map nodes deliver BT.709 and say so on the frames they hand on, but only ffmpeg 7
+      // and newer carries that onto the written stream. Tagging it here leaves the same file on
+      // every build rather than one whose matrix reads `unknown` below that.
+      add("-color_primaries")
+      add("bt709")
+      add("-colorspace")
+      add("bt709")
+      add("-color_trc")
+      add("bt709")
     }
     output.bitrate?.let {
       add("-b:v")

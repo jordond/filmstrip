@@ -113,6 +113,7 @@ internal class GraphLowering(
       videoEncoder = negotiated.encoderName,
       duration = duration,
       hdrTransfer = negotiated.hdrTransfer,
+      toneMapped = negotiated.hdr == ResolvedHdr.ToneMap,
     )
   }
 
@@ -181,7 +182,7 @@ internal class GraphLowering(
             "s" to "${output.size.width}x${output.size.height}",
             "r" to frameRate.toString(),
           ),
-        ),
+        ) + backgroundGradeNodes(),
         background,
       )
       graph.chain(
@@ -200,6 +201,27 @@ internal class GraphLowering(
       graph.chain(listOf(current), listOf(trimTo(duration), SETPTS), out)
     }
     return out
+  }
+
+  /**
+   * Labels a generated background with the grade the frames it is composited under carry.
+   *
+   * `color` names no colour attributes of its own. ffmpeg 7 and newer take the overlay's from its
+   * base input, so an untagged background costs nothing there, but below that the composited frame
+   * comes out labelled BT.709 and every conversion after it reads a BT.2020 picture through the
+   * wrong matrix.
+   */
+  private fun backgroundGradeNodes(): List<FilterNode> {
+    val transfer = negotiated.hdrTransfer ?: return emptyList()
+
+    return listOf(
+      FilterNode(
+        "setparams",
+        "color_primaries" to HDR_PRIMARIES,
+        "color_trc" to transfer.ffmpegTag,
+        "colorspace" to HDR_MATRIX,
+      ),
+    )
   }
 
   /**

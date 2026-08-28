@@ -43,6 +43,17 @@ class ProgressParserTest {
     progress.estimatedRemaining shouldBe null
   }
 
+  // ffmpeg 6 closes a 12 second encode on out_time_us=11989333, which reads as 0.999 rather than
+  // done. Later builds report the full duration, so the fraction has to come from the key that
+  // means the encode ended rather than from the clock.
+  @Test
+  fun `reads the end block as finished however short out_time lands`() {
+    val parser = ProgressParser(totalMicros = 12_000_000)
+    parser.accept("out_time_us=11989333")
+
+    parser.accept("progress=end")!!.fraction shouldBe 1f
+  }
+
   @Test
   fun `never goes backwards`() {
     val parser = ProgressParser(totalMicros = 6_000_000)

@@ -113,6 +113,26 @@ class InvocationTest {
   // AudioSpec.AudioOnly lowers to a plan with no videoLabel, which is what audioArgumentsFor
   // already builds. This is the shape that reaches the command line: -vn instead of a video map,
   // and no -c:v at all since there is no encoder to name for a track that is not written.
+  // Only ffmpeg 7 and newer carries the tone-map nodes' own BT.709 attributes onto the written
+  // stream, so the flags are what make the file read the same on every build.
+  @Test
+  fun `tags a tone-mapped output as BT709 rather than leaving the matrix unwritten`() {
+    val arguments = argumentsFor(VideoCodec.H264, "libx264", toneMapped = true)
+
+    arguments.after("-color_primaries") shouldBe "bt709"
+    arguments.after("-colorspace") shouldBe "bt709"
+    arguments.after("-color_trc") shouldBe "bt709"
+  }
+
+  // A grade that is kept writes BT.2020, so the tone-map tags must not reach it, and an ordinary
+  // SDR export carries the source's own attributes rather than being relabelled BT.709.
+  @Test
+  fun `leaves colour tags alone when nothing was tone-mapped`() {
+    argumentsFor(VideoCodec.H264, "libx264").shouldNotContain("-color_primaries")
+    argumentsFor(VideoCodec.Hevc, "libx265", HdrTransfer.Pq, toneMapped = true)
+      .after("-color_primaries") shouldBe "bt2020"
+  }
+
   @Test
   fun `an audio-only plan writes -vn rather than mapping a video stream`() {
     val arguments = audioArgumentsFor(AudioCodec.Aac)
@@ -213,6 +233,7 @@ class InvocationTest {
     codec: VideoCodec,
     encoder: String?,
     hdrTransfer: HdrTransfer? = null,
+    toneMapped: Boolean = false,
   ): List<String> =
     Invocation(
       inputs = listOf(InputSpec(InputSource.OfPath("/fixtures/a.mp4"))),
@@ -231,6 +252,7 @@ class InvocationTest {
       videoEncoder = encoder,
       duration = 2.seconds,
       hdrTransfer = hdrTransfer,
+      toneMapped = toneMapped,
     ).arguments(TOOLCHAIN, FfmpegConfig(), listOf("/fixtures/a.mp4"), "/out.mp4")
 
   private companion object {

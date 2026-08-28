@@ -629,10 +629,15 @@ class FfmpegExportTest {
 
       // This fixture's own codec is H264, which is also the ladder's first pick, so a re-encode
       // would land on H264 too and the codec alone would not catch a silent fall back to it. File
-      // size does: a copy remuxes the container without touching an encoded byte, so it lands on
-      // the source's exact size, while re-encoding writes a file of a visibly different one.
+      // size does: a copy remuxes the container without touching an encoded byte, so it lands
+      // within the muxer's own padding of the source, while re-encoding writes a file of a
+      // visibly different one.
       ffprobe(output.absolutePath).endsWith("h264 aac") shouldBe true
-      output.length() shouldBe landscape.length()
+      val drift = abs(output.length() - landscape.length())
+      assertTrue(
+        drift <= CONTAINER_DRIFT_BYTES,
+        "the copy wrote ${output.length()} bytes against the source's ${landscape.length()}",
+      )
 
       output.delete()
     }
@@ -1100,6 +1105,11 @@ class FfmpegExportTest {
     // floor, so a bar that read halved fails here rather than by accident of a bound written for a
     // different purpose.
     const val HALVED_RED_CEILING = 180
+
+    // How far a remux may land from the source it copied. The mp4 muxer sizes its own padding, and
+    // ffmpeg 6 writes a byte more of it than later builds do. A re-encode of this fixture misses by
+    // tens of kilobytes, so the band separates the two readings without pinning a muxer's spelling.
+    const val CONTAINER_DRIFT_BYTES = 64L
 
     // A 2x2 crop of one plane at two bytes a sample.
     const val PLANE_BYTES = 8
