@@ -1,0 +1,38 @@
+// Klib ABI Dump
+// Targets: [iosArm64, iosSimulatorArm64, js, macosArm64, wasmJs]
+// Rendering settings:
+// - Signature version: 2
+// - Show manifest properties: true
+// - Show declarations: true
+
+// Library unique name: <filmstrip-root:filmstrip-test>
+final class dev.jordond.filmstrip.test/FrameComparison { // dev.jordond.filmstrip.test/FrameComparison|null[0]
+    constructor <init>(kotlin/Double, kotlin/Double, kotlin/Double) // dev.jordond.filmstrip.test/FrameComparison.<init>|<init>(kotlin.Double;kotlin.Double;kotlin.Double){}[0]
+
+    final val meanAbsoluteDifference // dev.jordond.filmstrip.test/FrameComparison.meanAbsoluteDifference|{}meanAbsoluteDifference[0]
+        final fun <get-meanAbsoluteDifference>(): kotlin/Double // dev.jordond.filmstrip.test/FrameComparison.meanAbsoluteDifference.<get-meanAbsoluteDifference>|<get-meanAbsoluteDifference>(){}[0]
+    final val psnrDb // dev.jordond.filmstrip.test/FrameComparison.psnrDb|{}psnrDb[0]
+        final fun <get-psnrDb>(): kotlin/Double // dev.jordond.filmstrip.test/FrameComparison.psnrDb.<get-psnrDb>|<get-psnrDb>(){}[0]
+    final val ssim // dev.jordond.filmstrip.test/FrameComparison.ssim|{}ssim[0]
+        final fun <get-ssim>(): kotlin/Double // dev.jordond.filmstrip.test/FrameComparison.ssim.<get-ssim>|<get-ssim>(){}[0]
+
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.test/FrameComparison.toString|toString(){}[0]
+}
+
+final class dev.jordond.filmstrip.test/TestFrame { // dev.jordond.filmstrip.test/TestFrame|null[0]
+    constructor <init>(kotlin/ByteArray, dev.jordond.filmstrip.geometry/Size) // dev.jordond.filmstrip.test/TestFrame.<init>|<init>(kotlin.ByteArray;dev.jordond.filmstrip.geometry.Size){}[0]
+
+    final val pixels // dev.jordond.filmstrip.test/TestFrame.pixels|{}pixels[0]
+        final fun <get-pixels>(): kotlin/ByteArray // dev.jordond.filmstrip.test/TestFrame.pixels.<get-pixels>|<get-pixels>(){}[0]
+    final val size // dev.jordond.filmstrip.test/TestFrame.size|{}size[0]
+        final fun <get-size>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.test/TestFrame.size.<get-size>|<get-size>(){}[0]
+}
+
+final const val dev.jordond.filmstrip.test/DEFAULT_MIN_PSNR_DB // dev.jordond.filmstrip.test/DEFAULT_MIN_PSNR_DB|{}DEFAULT_MIN_PSNR_DB[0]
+    final fun <get-DEFAULT_MIN_PSNR_DB>(): kotlin/Double // dev.jordond.filmstrip.test/DEFAULT_MIN_PSNR_DB.<get-DEFAULT_MIN_PSNR_DB>|<get-DEFAULT_MIN_PSNR_DB>(){}[0]
+final const val dev.jordond.filmstrip.test/DEFAULT_MIN_SSIM // dev.jordond.filmstrip.test/DEFAULT_MIN_SSIM|{}DEFAULT_MIN_SSIM[0]
+    final fun <get-DEFAULT_MIN_SSIM>(): kotlin/Double // dev.jordond.filmstrip.test/DEFAULT_MIN_SSIM.<get-DEFAULT_MIN_SSIM>|<get-DEFAULT_MIN_SSIM>(){}[0]
+
+final fun dev.jordond.filmstrip.test/assertFramesDiffer(dev.jordond.filmstrip.test/TestFrame, dev.jordond.filmstrip.test/TestFrame, kotlin/Double = ..., kotlin/Double = ..., kotlin/String? = ...) // dev.jordond.filmstrip.test/assertFramesDiffer|assertFramesDiffer(dev.jordond.filmstrip.test.TestFrame;dev.jordond.filmstrip.test.TestFrame;kotlin.Double;kotlin.Double;kotlin.String?){}[0]
+final fun dev.jordond.filmstrip.test/assertFramesSimilar(dev.jordond.filmstrip.test/TestFrame, dev.jordond.filmstrip.test/TestFrame, kotlin/Double = ..., kotlin/Double = ..., kotlin/String? = ...) // dev.jordond.filmstrip.test/assertFramesSimilar|assertFramesSimilar(dev.jordond.filmstrip.test.TestFrame;dev.jordond.filmstrip.test.TestFrame;kotlin.Double;kotlin.Double;kotlin.String?){}[0]
+final fun dev.jordond.filmstrip.test/compareFrames(dev.jordond.filmstrip.test/TestFrame, dev.jordond.filmstrip.test/TestFrame): dev.jordond.filmstrip.test/FrameComparison // dev.jordond.filmstrip.test/compareFrames|compareFrames(dev.jordond.filmstrip.test.TestFrame;dev.jordond.filmstrip.test.TestFrame){}[0]

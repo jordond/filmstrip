@@ -1,0 +1,30 @@
+public final class dev/jordond/filmstrip/test/AssertionsKt {
+	public static final field DEFAULT_MIN_PSNR_DB D
+	public static final field DEFAULT_MIN_SSIM D
+	public static final fun assertFramesDiffer (Ldev/jordond/filmstrip/test/TestFrame;Ldev/jordond/filmstrip/test/TestFrame;DDLjava/lang/String;)V
+	public static synthetic fun assertFramesDiffer$default (Ldev/jordond/filmstrip/test/TestFrame;Ldev/jordond/filmstrip/test/TestFrame;DDLjava/lang/String;ILjava/lang/Object;)V
+	public static final fun assertFramesSimilar (Ldev/jordond/filmstrip/test/TestFrame;Ldev/jordond/filmstrip/test/TestFrame;DDLjava/lang/String;)V
+	public static synthetic fun assertFramesSimilar$default (Ldev/jordond/filmstrip/test/TestFrame;Ldev/jordond/filmstrip/test/TestFrame;DDLjava/lang/String;ILjava/lang/Object;)V
+}
+
+public final class dev/jordond/filmstrip/test/FrameComparison {
+	public static final field DIGITS I
+	public static final field PRECISION J
+	public fun <init> (DDD)V
+	public final fun getMeanAbsoluteDifference ()D
+	public final fun getPsnrDb ()D
+	public final fun getSsim ()D
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/test/FrameComparisonKt {
+	public static final fun compareFrames (Ldev/jordond/filmstrip/test/TestFrame;Ldev/jordond/filmstrip/test/TestFrame;)Ldev/jordond/filmstrip/test/FrameComparison;
+}
+
+public final class dev/jordond/filmstrip/test/TestFrame {
+	public static final field CHANNELS I
+	public fun <init> ([BLdev/jordond/filmstrip/geometry/Size;)V
+	public final fun getPixels ()[B
+	public final fun getSize ()Ldev/jordond/filmstrip/geometry/Size;
+}
+
