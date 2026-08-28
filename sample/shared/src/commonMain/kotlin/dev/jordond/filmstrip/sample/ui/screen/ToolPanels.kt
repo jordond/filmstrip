@@ -40,9 +40,9 @@ import dev.jordond.filmstrip.sample.EditorTool
 import dev.jordond.filmstrip.sample.FillMode
 import dev.jordond.filmstrip.sample.SampleAppState
 import dev.jordond.filmstrip.sample.toImageSource
+import dev.jordond.filmstrip.sample.ui.AnchorGrid
 import dev.jordond.filmstrip.sample.ui.Chip
 import dev.jordond.filmstrip.sample.ui.ChipGroup
-import dev.jordond.filmstrip.sample.ui.AnchorGrid
 import dev.jordond.filmstrip.sample.ui.ControlGroup
 import dev.jordond.filmstrip.sample.ui.SampleIcons
 import dev.jordond.filmstrip.sample.ui.SliderRow
@@ -53,9 +53,9 @@ import dev.jordond.filmstrip.sample.ui.formatFraction
 import dev.jordond.filmstrip.sample.ui.formatPercent
 import dev.jordond.filmstrip.style.FontWeight
 import dev.jordond.filmstrip.style.TextAlignment
-import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
+import io.github.vinceglb.filekit.name
 import kotlin.time.Duration.Companion.seconds
 
 private class ToolSpec(
@@ -472,7 +472,7 @@ private fun AdjustPanel(state: SampleAppState) {
   ControlGroup("Brightness") {
     Text(
       "Multiplies every colour channel. Black stays black, and a factor above 1 brightens until a " +
-        "channel saturates.",
+          "channel saturates.",
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.outline,
     )
@@ -654,7 +654,11 @@ private fun WatermarkPanel(state: SampleAppState) {
 
   ControlGroup("Image") {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-      Chip(label = if (edit.watermarkImage == null) "Pick an image" else "Replace", selected = false, onClick = picker::launch)
+      Chip(
+        label = if (edit.watermarkImage == null) "Pick an image" else "Replace",
+        selected = false,
+        onClick = picker::launch,
+      )
       if (edit.watermarkImage != null) {
         Chip(
           label = "Remove",
@@ -770,8 +774,16 @@ private fun WindowSlider(
       valueRange = 0f..duration,
     )
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-      Text(start.toDouble().seconds.asClock(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-      Text(end.toDouble().seconds.asClock(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      Text(
+        start.toDouble().seconds.asClock(),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      Text(
+        end.toDouble().seconds.asClock(),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
     }
   }
 }
@@ -783,7 +795,7 @@ private fun AudioPanel(state: SampleAppState) {
   ControlGroup("Mixed audio") {
     Text(
       "Set on the composition, after every track is mixed. Mute keeps a silent track, remove writes " +
-        "none at all.",
+          "none at all.",
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.outline,
     )
@@ -839,7 +851,7 @@ private fun BackgroundPanel(state: SampleAppState) {
   ControlGroup("Fill") {
     Text(
       "What lands where no clip's pixels do: letterbox bars, gaps between tracks, and rounding at " +
-        "the edges.",
+          "the edges.",
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.outline,
     )

@@ -47,7 +47,7 @@ import dev.jordond.filmstrip.sample.ui.isCompactWidth
 private const val HEADLINE = "Cut, reframe and export\non the device's own encoder"
 private const val BLURB =
   "One composition value drives the plan, the preview and the export. Pick a clip to see what " +
-    "this device will do with it."
+      "this device will do with it."
 
 /**
  * The editor before a clip is loaded: the pitch, both ways of starting a session, and what this

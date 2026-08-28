@@ -16,14 +16,14 @@ export CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-bca591069b9efc9b82571ab63
 for file in build/*; do
   name="$(basename "$file")"
   case "$name" in
-    *.mp4) type="video/mp4" ;;
-    *.mkv) type="video/x-matroska" ;;
-    *.webm) type="video/webm" ;;
-    *) type="application/octet-stream" ;;
+  *.mp4) type="video/mp4" ;;
+  *.mkv) type="video/x-matroska" ;;
+  *.webm) type="video/webm" ;;
+  *) type="application/octet-stream" ;;
   esac
 
   echo "$name"
-  wrangler r2 object put "$bucket/$name" --file "$file" --content-type "$type" --remote > /dev/null
+  wrangler r2 object put "$bucket/$name" --file "$file" --content-type "$type" --remote >/dev/null
 done
 
 echo

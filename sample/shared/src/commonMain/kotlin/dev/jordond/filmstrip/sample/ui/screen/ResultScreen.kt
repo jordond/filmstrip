@@ -6,9 +6,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -18,10 +18,10 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -125,7 +125,10 @@ public fun ResultScreen(
           }
 
           when (val probe = state.exportedInfo) {
-            is ProbeResult.Success -> Pill("RE-PROBED · ${probe.info.duration.asClock()}", MaterialTheme.colorScheme.tertiary)
+            is ProbeResult.Success -> Pill(
+              "RE-PROBED · ${probe.info.duration.asClock()}",
+              MaterialTheme.colorScheme.tertiary,
+            )
             is ProbeResult.Failure -> ErrorLine(probe.error)
             null -> Unit
           }
@@ -139,9 +142,17 @@ public fun ResultScreen(
               .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
           ) {
-            Text("Adjusted on the way out", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(
+              "Adjusted on the way out",
+              style = MaterialTheme.typography.labelLarge,
+              color = MaterialTheme.colorScheme.primary,
+            )
             result.adjustments.forEach { adjustment ->
-              Text(adjustment.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+              Text(
+                adjustment.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+              )
             }
           }
         }

@@ -2,8 +2,6 @@
 
 package dev.jordond.filmstrip.sample
 
-import kotlin.js.ExperimentalWasmJsInterop
-
 // There is no filesystem, so each half is published as a blob and handed to the browser's own
 // download, which is the only way a page gives a user a file.
 public actual suspend fun writeDiagnostics(report: DiagnosticsReport): String? {

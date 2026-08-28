@@ -27,7 +27,7 @@ import dev.jordond.filmstrip.sample.ui.formatBytes
 
 private const val BLURB =
   "Each one is here for something an encoder has to get right. Downloaded once, then cached. " +
-    "Naming one in a bug report gives anybody the same input you had."
+      "Naming one in a bug report gives anybody the same input you had."
 
 /**
  * The clips a session can start from without a file on the device.

@@ -380,7 +380,10 @@ public class SampleAppState(
               exportFailure = status.error
               recorder.record(
                 label = "export.failed",
-                detail = mapOf("error" to (status.error::class.simpleName ?: "unknown"), "message" to status.error.message),
+                detail = mapOf(
+                  "error" to (status.error::class.simpleName ?: "unknown"),
+                  "message" to status.error.message,
+                ),
               )
             }
           }

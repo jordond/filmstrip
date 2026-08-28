@@ -13,6 +13,7 @@ import androidx.navigation3.scene.OverlayScene
 import androidx.navigation3.scene.Scene
 import androidx.navigation3.scene.SceneStrategy
 import androidx.navigation3.scene.SceneStrategyScope
+import dev.jordond.filmstrip.sample.ui.nav.BottomSheetSceneStrategy.Companion.sheet
 
 /**
  * Shows an entry marked with [sheet] in a modal bottom sheet over the entry behind it.

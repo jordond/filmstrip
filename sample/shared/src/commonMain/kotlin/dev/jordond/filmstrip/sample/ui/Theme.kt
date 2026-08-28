@@ -83,15 +83,35 @@ private val SampleShapes =
 
 private val SampleTypography =
   Typography(
-    displaySmall = TextStyle(fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-1).sp),
-    headlineSmall = TextStyle(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.4).sp),
+    displaySmall = TextStyle(
+      fontSize = 30.sp,
+      lineHeight = 36.sp,
+      fontWeight = FontWeight.SemiBold,
+      letterSpacing = (-1).sp,
+    ),
+    headlineSmall = TextStyle(
+      fontSize = 24.sp,
+      lineHeight = 30.sp,
+      fontWeight = FontWeight.SemiBold,
+      letterSpacing = (-0.4).sp,
+    ),
     titleMedium = TextStyle(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold),
     titleSmall = TextStyle(fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold),
     bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 20.sp),
     bodySmall = TextStyle(fontSize = 12.sp, lineHeight = 17.sp),
     labelLarge = TextStyle(fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium),
-    labelMedium = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.2.sp),
-    labelSmall = TextStyle(fontSize = 10.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.6.sp),
+    labelMedium = TextStyle(
+      fontSize = 12.sp,
+      lineHeight = 16.sp,
+      fontWeight = FontWeight.Medium,
+      letterSpacing = 0.2.sp,
+    ),
+    labelSmall = TextStyle(
+      fontSize = 10.sp,
+      lineHeight = 14.sp,
+      fontWeight = FontWeight.Medium,
+      letterSpacing = 0.6.sp,
+    ),
   )
 
 /**

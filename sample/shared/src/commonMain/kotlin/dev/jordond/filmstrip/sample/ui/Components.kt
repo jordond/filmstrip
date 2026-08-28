@@ -263,7 +263,10 @@ public fun AnchorGrid(
                 if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceContainer,
                 RoundedCornerShape(6.dp),
               ).border(
-                BorderStroke(1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
+                BorderStroke(
+                  1.dp,
+                  if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                ),
                 RoundedCornerShape(6.dp),
               ).clickable { onSelect(x, y) },
             contentAlignment = Alignment.Center,
@@ -271,7 +274,10 @@ public fun AnchorGrid(
             Box(
               Modifier
                 .size(if (selected) 8.dp else 5.dp)
-                .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, CircleShape),
+                .background(
+                  if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                  CircleShape,
+                ),
             )
           }
         }
@@ -316,13 +322,21 @@ private fun Swatch(
       .size(30.dp)
       .background(color ?: MaterialTheme.colorScheme.surfaceContainer, CircleShape)
       .border(
-        BorderStroke(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
+        BorderStroke(
+          if (selected) 2.dp else 1.dp,
+          if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+        ),
         CircleShape,
       ).clickable(onClick = onClick),
     contentAlignment = Alignment.Center,
   ) {
     if (color == null) {
-      Icon(SampleIcons.Close, contentDescription = "None", tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(14.dp))
+      Icon(
+        SampleIcons.Close,
+        contentDescription = "None",
+        tint = MaterialTheme.colorScheme.outline,
+        modifier = Modifier.size(14.dp),
+      )
     }
   }
 }

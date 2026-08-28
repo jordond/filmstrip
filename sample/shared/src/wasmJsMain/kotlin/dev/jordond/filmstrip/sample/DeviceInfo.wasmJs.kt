@@ -2,9 +2,6 @@
 
 package dev.jordond.filmstrip.sample
 
-import kotlin.js.ExperimentalWasmJsInterop
-import kotlin.js.JsString
-
 public actual fun deviceInfo(): DeviceInfo = DeviceInfo(
   platform = "Browser",
   model = platformName().toString(),

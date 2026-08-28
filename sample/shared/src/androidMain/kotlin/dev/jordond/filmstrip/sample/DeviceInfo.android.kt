@@ -18,6 +18,6 @@ public actual fun deviceInfo(): DeviceInfo = DeviceInfo(
 // is what an emulator boots.
 private fun isEmulator(): Boolean =
   Build.FINGERPRINT.startsWith("generic") ||
-    Build.FINGERPRINT.startsWith("unknown") ||
-    Build.MODEL.contains("Emulator") ||
-    Build.MODEL.contains("Android SDK built for")
+      Build.FINGERPRINT.startsWith("unknown") ||
+      Build.MODEL.contains("Emulator") ||
+      Build.MODEL.contains("Android SDK built for")

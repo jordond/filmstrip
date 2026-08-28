@@ -37,7 +37,7 @@ import kotlinx.coroutines.launch
 
 private const val BLURB =
   "Everything this session knows, in the order the bug template asks for it. File names are " +
-    "reduced to a hash, so nothing here says what you picked or where it lives."
+      "reduced to a hash, so nothing here says what you picked or where it lives."
 
 /**
  * The report, and the two ways of getting it off the device.

@@ -188,7 +188,10 @@ private fun Sprockets() {
     verticalAlignment = Alignment.CenterVertically,
   ) {
     repeat(18) {
-      Box(Modifier.size(width = 7.dp, height = 4.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(1.dp)))
+      Box(
+        Modifier.size(width = 7.dp, height = 4.dp)
+          .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(1.dp)),
+      )
     }
   }
 }
@@ -216,7 +219,10 @@ private fun TrimHandle(
       },
     contentAlignment = Alignment.Center,
   ) {
-    Box(Modifier.size(width = 2.dp, height = 18.dp).background(MaterialTheme.colorScheme.background, RoundedCornerShape(1.dp)))
+    Box(
+      Modifier.size(width = 2.dp, height = 18.dp)
+        .background(MaterialTheme.colorScheme.background, RoundedCornerShape(1.dp)),
+    )
   }
 }
 

@@ -19,8 +19,6 @@ import dev.jordond.filmstrip.sample.ui.asClock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.add
-import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -201,7 +199,7 @@ private fun SampleAppState.capabilitiesSummary(): String =
           }
           appendLine(
             "* ${video.codec.name}: ${video.encoderName ?: "unnamed"}, $hardware, " +
-              "up to ${video.maxSize.width}x${video.maxSize.height}, alignment ${video.sizeAlignment}",
+                "up to ${video.maxSize.width}x${video.maxSize.height}, alignment ${video.sizeAlignment}",
           )
         }
         capabilities.audio.forEach { audio ->
@@ -219,7 +217,7 @@ private fun MediaInfo.summary(): String {
   val fps = track.frameRate?.let { ", ${it} fps" }.orEmpty()
   val hdr = track.hdrTransfer?.let { ", HDR $it" }.orEmpty()
   return "${track.displaySize.width}x${track.displaySize.height} ${track.codec.name}$fps$hdr, " +
-    "rotation ${track.rotationDegrees}, ${duration.asClock()}, exportable=$isExportable"
+      "rotation ${track.rotationDegrees}, ${duration.asClock()}, exportable=$isExportable"
 }
 
 private fun ExportSpec.summary(): String =
@@ -236,7 +234,7 @@ private fun ExportSpec.summary(): String =
 
 private fun ExportPlan.summary(): String =
   "Plan: $path, ${output.size.width}x${output.size.height} ${output.videoCodec}, " +
-    "${effectOrder.size} effects, parity $parity"
+      "${effectOrder.size} effects, parity $parity"
 
 private fun Adjustment.summary(): String = "$kind: $requested became $resolved. $message"
 

@@ -72,11 +72,23 @@ internal fun CapabilitiesContent(
       null ->
         if (state.loadingCapabilities) {
           Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            CircularProgressIndicator(Modifier.size(16.dp), color = MaterialTheme.colorScheme.primary, strokeWidth = 2.dp)
-            Text("Asking the encoders", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            CircularProgressIndicator(
+              Modifier.size(16.dp),
+              color = MaterialTheme.colorScheme.primary,
+              strokeWidth = 2.dp,
+            )
+            Text(
+              "Asking the encoders",
+              style = MaterialTheme.typography.bodyMedium,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
           }
         } else {
-          Text("Nothing asked yet.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
+          Text(
+            "Nothing asked yet.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.outline,
+          )
         }
 
       is CapabilitiesResult.Failure -> ErrorLine(result.error)
@@ -105,7 +117,11 @@ internal fun CapabilitiesContent(
               horizontalArrangement = Arrangement.SpaceBetween,
               verticalAlignment = Alignment.CenterVertically,
             ) {
-              Text(video.codec.name, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+              Text(
+                video.codec.name,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+              )
               when (video.isHardwareAccelerated) {
                 true -> Pill("HARDWARE", MaterialTheme.colorScheme.tertiary)
                 false -> Pill("SOFTWARE", MaterialTheme.colorScheme.outline)
@@ -128,7 +144,11 @@ internal fun CapabilitiesContent(
               .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
           ) {
-            Text(audio.codec.name, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+              audio.codec.name,
+              style = MaterialTheme.typography.titleSmall,
+              color = MaterialTheme.colorScheme.onSurface,
+            )
             StatRow("Sample rates", audio.sampleRates.joinToString(" / ") { "$it Hz" })
             StatRow("Max channels", "${audio.maxChannelCount}")
           }

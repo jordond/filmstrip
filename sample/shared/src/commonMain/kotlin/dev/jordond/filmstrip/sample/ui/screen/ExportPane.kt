@@ -260,7 +260,11 @@ private fun PlanSummary(
   ) {
     StatRow("Frame", "${output.size.width} x ${output.size.height}")
     StatRow("Video", output.videoCodec.name)
-    StatRow("Audio", output.audioFormat?.let { "${output.audioCodec.name} · ${it.sampleRate} Hz · ${it.channelCount} ch" } ?: output.audioCodec.name)
+    StatRow(
+      "Audio",
+      output.audioFormat?.let { "${output.audioCodec.name} · ${it.sampleRate} Hz · ${it.channelCount} ch" }
+        ?: output.audioCodec.name,
+    )
     output.bitrate?.let { StatRow("Bitrate", "${it.bitsPerSecond / 1_000_000} Mbps") }
     output.frameRate?.let { StatRow("Frame rate", "$it fps") }
     StatRow("Path", plan.path.name.lowercase())
@@ -273,7 +277,13 @@ private fun PlanSummary(
     val parity = state.parity()
     if (parity.isNotEmpty()) {
       Spacer(Modifier.height(2.dp))
-      parity.forEach { (id, name) -> StatRow(id, name.lowercase(), valueColor = MaterialTheme.colorScheme.onSurfaceVariant) }
+      parity.forEach { (id, name) ->
+        StatRow(
+          id,
+          name.lowercase(),
+          valueColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+      }
     }
   }
 }
@@ -294,7 +304,11 @@ private fun Adjustments(adjustments: List<Adjustment>) {
           style = MaterialTheme.typography.labelLarge,
           color = MaterialTheme.colorScheme.primary,
         )
-        Text(adjustment.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+          adjustment.message,
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
       }
     }
   }
@@ -325,7 +339,11 @@ private fun RunBlock(state: SampleAppState) {
           progress.position?.let { add(it.asClock()) }
           progress.estimatedRemaining?.let { add("about ${it.asClock()} left") }
         }
-        Text(parts.joinToString("  ·  "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+          parts.joinToString("  ·  "),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
       }
       OutlinedButton(
         onClick = state::cancelExport,
@@ -376,7 +394,11 @@ internal fun ErrorLine(error: ExportError) {
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.error,
       )
-      Text(error.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+      Text(
+        error.message,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
     }
   }
 }

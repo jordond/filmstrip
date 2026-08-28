@@ -4,8 +4,6 @@ package dev.jordond.filmstrip.sample
 
 import dev.jordond.filmstrip.media.MediaSource
 import kotlinx.coroutines.await
-import kotlin.js.ExperimentalWasmJsInterop
-import kotlin.js.JsString
 import kotlin.js.Promise
 
 // There is no filesystem to cache into, so the clip is fetched into a blob and published as an

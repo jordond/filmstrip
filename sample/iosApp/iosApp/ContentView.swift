@@ -1,20 +1,20 @@
-import SwiftUI
 import Shared
+import SwiftUI
 
 // Compose owns the whole window. Safe areas are handled inside the composition, which is what lets
 // the editor put its viewport under the status bar without the controls following it there.
 struct ComposeView: UIViewControllerRepresentable {
-  func makeUIViewController(context: Context) -> UIViewController {
-    MainViewControllerKt.MainViewController()
-  }
+    func makeUIViewController(context: Context) -> UIViewController {
+        MainViewControllerKt.MainViewController()
+    }
 
-  func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
 }
 
 struct ContentView: View {
-  var body: some View {
-    ComposeView()
-      .ignoresSafeArea(.all)
-      .preferredColorScheme(.dark)
-  }
+    var body: some View {
+        ComposeView()
+            .ignoresSafeArea(.all)
+            .preferredColorScheme(.dark)
+    }
 }

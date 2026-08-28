@@ -18,10 +18,10 @@ crop, audio that stops before the video does, a frame size past what a phone wil
 Two clips are real footage, because synthetic frames say nothing about how an encoder handles
 grain, motion and shadow:
 
-| Clip | Source | Licence |
-|---|---|---|
-| `tears-of-steel-720p.mp4` | Tears of Steel, (CC) Blender Foundation, mango.blender.org | CC BY 3.0 |
-| `nasa-orion-earth.mp4` | Artemis I, Orion's first imagery of Earth, NASA | Public domain |
+| Clip                      | Source                                                     | Licence       |
+|---------------------------|------------------------------------------------------------|---------------|
+| `tears-of-steel-720p.mp4` | Tears of Steel, (CC) Blender Foundation, mango.blender.org | CC BY 3.0     |
+| `nasa-orion-earth.mp4`    | Artemis I, Orion's first imagery of Earth, NASA            | Public domain |
 
 Both are excerpts, re-encoded. CC BY asks for attribution, so the clip list carries it on the row
 and this table records where it came from.
