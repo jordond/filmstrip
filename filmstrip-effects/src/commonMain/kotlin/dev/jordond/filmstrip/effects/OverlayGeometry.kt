@@ -1,0 +1,95 @@
+package dev.jordond.filmstrip.effects
+
+import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.geometry.Anchor
+import dev.jordond.filmstrip.geometry.Corner
+import dev.jordond.filmstrip.geometry.Size
+import kotlin.math.min
+import kotlin.math.roundToInt
+
+/**
+ * Where a composited overlay lands, in real pixels of the frame it is drawn on.
+ *
+ * Both backends place an overlay by naming a point inside the overlay and a point inside the frame,
+ * then bringing the two together. Resolving that pair here rather than in each lowering is what
+ * keeps the same watermark in the same relative spot on either platform and at any resolution, the
+ * same reason [Crop.retainedRect] is shared.
+ *
+ * @property size The overlay's drawn size, in pixels of the frame it lands on.
+ * @property overlayAnchor The point inside the overlay that meets [frameAnchor], as a fraction of
+ *   the overlay.
+ * @property frameAnchor The point inside the frame the overlay is brought to, as a fraction of the
+ *   frame.
+ */
+@Poko
+public class OverlayPlacement(
+  public val size: Size,
+  public val overlayAnchor: Anchor,
+  public val frameAnchor: Anchor,
+)
+
+/**
+ * Resolves this watermark against the frame it is composited onto.
+ *
+ * The drawn width is [Watermark.scale] of the frame's width and the height follows [image]'s own
+ * aspect, so a watermark never stretches. The inset is measured off the frame's shorter side, so
+ * the same margin reads as the same distance from the edge in portrait and in landscape.
+ *
+ * A margin large enough to carry the overlay past the middle of the frame is held at the middle
+ * rather than allowed to cross to the far side.
+ *
+ * @param frame The frame the overlay is drawn on, in pixels.
+ * @param image The overlay image's own pixel size.
+ * @return Where to draw it.
+ */
+public fun Watermark.placedOn(
+  frame: Size,
+  image: Size,
+): OverlayPlacement {
+  val width = (scale * frame.width).roundToInt().coerceAtLeast(1)
+  val height =
+    if (image.width <= 0) width else (width.toFloat() * image.height / image.width).roundToInt().coerceAtLeast(1)
+  val inset = margin * min(frame.width, frame.height)
+  return OverlayPlacement(
+    size = Size(width, height),
+    overlayAnchor = corner.anchor(),
+    frameAnchor = corner.inset(inset.fractionOf(frame.width), inset.fractionOf(frame.height)),
+  )
+}
+
+/**
+ * Resolves this text against the frame it is burned into.
+ *
+ * Text carries no margin of its own, so the same point named by [Text.anchor] is taken in both the
+ * text block and the frame: anchoring to [Anchor.BottomCenter] puts the block's bottom edge on the
+ * frame's. [text] is the rasterised block's real pixel size, which each platform measures with its
+ * own font stack.
+ *
+ * @param text The rasterised text block's pixel size.
+ * @return Where to draw it.
+ */
+public fun Text.placedOn(text: Size): OverlayPlacement =
+  OverlayPlacement(size = text, overlayAnchor = anchor, frameAnchor = anchor)
+
+private fun Float.fractionOf(side: Int): Float = if (side <= 0) 0f else (this / side).coerceIn(0f, HALF)
+
+private fun Corner.anchor(): Anchor =
+  when (this) {
+    Corner.TopStart -> Anchor.TopStart
+    Corner.TopEnd -> Anchor.TopEnd
+    Corner.BottomStart -> Anchor.BottomStart
+    Corner.BottomEnd -> Anchor.BottomEnd
+  }
+
+private fun Corner.inset(
+  x: Float,
+  y: Float,
+): Anchor =
+  when (this) {
+    Corner.TopStart -> Anchor(x, y)
+    Corner.TopEnd -> Anchor(1f - x, y)
+    Corner.BottomStart -> Anchor(x, 1f - y)
+    Corner.BottomEnd -> Anchor(1f - x, 1f - y)
+  }
+
+private const val HALF = 0.5f
