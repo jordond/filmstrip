@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.media3
 import dev.jordond.filmstrip.FilmstripBuilder
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
+import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effects.builtInEffects
 import dev.jordond.filmstrip.export.VideoCodec
@@ -18,21 +19,22 @@ import dev.jordond.filmstrip.transform.internal.PlannedExportEngine
  */
 @OptIn(InternalFilmstripApi::class)
 public fun FilmstripBuilder.media3Backend(): FilmstripBuilder =
-  builtInEffects().addExportEngineFactory { context, components ->
-    val prober = chainedProber(context, components)
-    PlannedExportEngine(
-      backend = Media3Driver(context, prober),
-      prober = prober,
-      resolvers = components.effectResolvers,
-      parity = MEDIA3_PARITY,
-      ladder = listOf(VideoCodec.H264, VideoCodec.Hevc),
-      // Transformer names no MIME type on a copy and muxes the source's own samples across, so no
-      // encoder is opened.
-      supportsPassthrough = true,
-      // Every export here writes mp4, so a copy is allowed for exactly what mp4 carries.
-      canCopy = { info -> Mp4Copy.accepts(info) },
-    )
-  }
+  builtInEffects()
+    .addExportEngineFactory { context, components ->
+      val prober = chainedProber(context, components)
+      PlannedExportEngine(
+        backend = Media3Driver(context, prober),
+        prober = prober,
+        resolvers = components.effectResolvers,
+        parity = MEDIA3_PARITY,
+        ladder = listOf(VideoCodec.H264, VideoCodec.Hevc),
+        // Transformer names no MIME type on a copy and muxes the source's own samples across, so no
+        // encoder is opened.
+        supportsPassthrough = true,
+        // Every export here writes mp4, so a copy is allowed for exactly what mp4 carries.
+        canCopy = { info -> Mp4Copy.accepts(info) },
+      )
+    }.addBackendInfo(BackendInfo(name = "media3", artifact = "dev.jordond.filmstrip:filmstrip-transform-media3"))
 
 private val MEDIA3_PARITY: Map<String, EffectParity> =
   mapOf(

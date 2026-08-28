@@ -1,0 +1,60 @@
+name: New effect
+description: An effect filmstrip should carry in its catalogue
+labels: ["enhancement", "effect", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The catalogue is rotate, flip, crop, cropRect, scale, brightness, watermark and text.
+
+        An effect belongs in filmstrip when every backend can render it and they can be made to
+        agree on the result. One that only one platform can do is better off in your own resolver,
+        which the effect SPI is there for.
+  - type: input
+    attributes:
+      label: Effect
+      placeholder: Gaussian blur
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: What it does to the frame
+      description: In terms of pixels. A reference image or a shader is worth more than an adjective.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Parameters
+      description: What the caller sets, the range each one takes, and what the default should be.
+      placeholder: |
+        radius: 0.0 to 1.0 as a fraction of the frame's shorter side, default 0.1
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: How each backend would render it
+      description: |
+        Name the filter or class where you know one, and say so where you do not.
+
+        * Android: a media3 `GlEffect`, or one of the effects media3 ships
+        * Apple: a Core Image filter
+        * JVM: an ffmpeg filter, and whether it needs a non-default build
+        * Browser: what the WebCodecs pipeline would run
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: How closely should the preview match the export?
+      description: |
+        Every effect declares an `EffectParity`. `Exact` means the preview and the export produce
+        the same pixels; `Approximate` means they diverge in a bounded way the effect names.
+      options:
+        - Exact
+        - Approximate
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: What you are using it for
+      description: The edit in your app that wants it.

@@ -1,0 +1,36 @@
+name: Feature request
+description: Something filmstrip should be able to do
+labels: ["enhancement", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please search the open requests first: https://github.com/jordond/filmstrip/labels/enhancement
+
+        New effects have their own template, since they need a story on all four backends.
+  - type: textarea
+    attributes:
+      label: What you are trying to do
+      description: The problem, not the solution. What does the app you are writing need?
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Targets it matters on
+      multiple: true
+      options:
+        - Android (media3)
+        - iOS (AVFoundation)
+        - macOS (AVFoundation)
+        - Desktop JVM (ffmpeg)
+        - Browser (WebCodecs)
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: What you would like
+      description: An API sketch if you have one, in Kotlin.
+  - type: textarea
+    attributes:
+      label: What you are doing instead
+      description: The workaround you are living with, and where it falls down.

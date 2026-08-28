@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.FilmstripBuilder
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.effects.builtInEffects
 import dev.jordond.filmstrip.media.chainedProber
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
@@ -19,3 +20,4 @@ public fun FilmstripBuilder.webCodecsBackend(): FilmstripBuilder =
     .addExportEngineFactory { context, components ->
       BrowserExportEngine(components, chainedProber(context, components))
     }.addMediaProberFactory { BrowserProber() }
+    .addBackendInfo(BackendInfo(name = "webcodecs", artifact = "dev.jordond.filmstrip:filmstrip-transform-webcodecs"))

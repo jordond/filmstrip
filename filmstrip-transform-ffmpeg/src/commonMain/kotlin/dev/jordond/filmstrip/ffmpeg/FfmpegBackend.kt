@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.ffmpeg
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.FilmstripBuilder
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.effects.builtInEffects
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
@@ -35,6 +36,7 @@ public fun FilmstripBuilder.ffmpegBackend(config: FfmpegConfig = FfmpegConfig())
   return builtInEffects()
     .addExportEngineFactory { _, components -> FfmpegExportEngine(components, runtime) }
     .addMediaProberFactory { FfmpegProber(runtime) }
+    .addBackendInfo(BackendInfo(name = "ffmpeg", artifact = "dev.jordond.filmstrip:filmstrip-transform-ffmpeg"))
 }
 
 /**

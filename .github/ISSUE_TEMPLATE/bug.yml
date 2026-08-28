@@ -1,0 +1,97 @@
+name: Bug report
+description: Something filmstrip does that it should not
+labels: ["bug", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        filmstrip is pre-alpha, so please check the existing issues first, closed ones included:
+        https://github.com/jordond/filmstrip/issues?q=is%3Aissue
+
+        If the problem is a device refusing an encode rather than filmstrip getting it wrong, the
+        sample app's capabilities screen usually says so in one line. Paste that instead of a stack
+        trace where it fits.
+  - type: input
+    attributes:
+      label: Version
+      description: The released version, or the commit SHA if you are on a branch.
+      placeholder: 0.1.0, or 4bbc56d
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Targets
+      description: Where it goes wrong. Tick every one you tried.
+      multiple: true
+      options:
+        - Android (media3)
+        - iOS (AVFoundation)
+        - macOS (AVFoundation)
+        - Desktop JVM (ffmpeg)
+        - Browser (WebCodecs)
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Devices that reproduce it
+      description: Model and OS version, and whether it is an emulator or a simulator.
+      placeholder: |
+        * Pixel 8 on Android 15
+        * iPhone 14 simulator on iOS 18.2
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Devices that do not reproduce it
+      placeholder: |
+        * Galaxy S23 on Android 14
+  - type: dropdown
+    attributes:
+      label: Reproducible in the sample app?
+      description: The sample is in `sample/`, and runs on all four targets.
+      options:
+        - "Yes"
+        - "No"
+        - Not tested
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Media
+      description: |
+        What you fed it. Either:
+        * A clip from the sample app's clip list, by name, which is the easiest to act on
+        * A url we can download
+        * A file attached here
+        * "Not applicable" if you are certain the media makes no difference
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Steps to reproduce
+      description: The edit, the spec, and what you called. Code beats prose here.
+      placeholder: |
+        1. Probe the clip
+        2. Build the composition with crop(1, 1) then rotate(90)
+        3. plan() with targetHeight 1080 and codec H265
+        4. export()
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: What happened
+      description: Include the `Verdict`, the `ExportError`, or the stack trace, whichever came back.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Logs
+      description: |
+        Logcat for Android, the console for iOS and the browser, the ffmpeg command line for the
+        desktop. Paste it here rather than as a screenshot.
+      render: text

@@ -3,6 +3,8 @@ package dev.jordond.filmstrip
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
+import dev.jordond.filmstrip.diagnostics.BackendInfo
+import dev.jordond.filmstrip.diagnostics.DiagnosticListener
 import dev.jordond.filmstrip.edit.CompositionBuilder
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.FilmstripDsl
@@ -315,6 +317,23 @@ public class FilmstripBuilder internal constructor(
    */
   @InternalFilmstripApi
   public fun addMediaProberFactory(factory: MediaProberFactory): FilmstripBuilder = apply { registry.add(factory) }
+
+  /**
+   * Records what a backend calls itself, so a diagnostic report can name it.
+   *
+   * @param info The backend's identity.
+   * @return This builder.
+   */
+  @InternalFilmstripApi
+  public fun addBackendInfo(info: BackendInfo): FilmstripBuilder = apply { registry.add(info) }
+
+  /**
+   * Registers a listener for what the components learn while they run.
+   *
+   * @param listener The listener to register.
+   * @return This builder.
+   */
+  public fun addDiagnosticListener(listener: DiagnosticListener): FilmstripBuilder = apply { registry.add(listener) }
 
   /**
    * Builds the configured [Filmstrip].
