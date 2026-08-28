@@ -1,0 +1,9 @@
+# filmstrip test fixtures, served from https://filmstrip-media.jordond.dev/test-fixtures
+# Written by the module's publish task. Commit it with the clips it names.
+# name sha256 bytes
+apple_export_a.mp4 89b349164bd9e30bb7c1f314d762853749664f626fb47655cfd417824f53308f 450697
+apple_export_b.mp4 3bdd130fb8e335a12d5ca52a0d09864749f55d87156218cdbff79a8739505621 278585
+apple_export_hdr.mp4 5dda70e3efe79e292074641ec7b3df177a3044880ac118399a234af22454b78f 1577191
+apple_export_hdr_hlg.mp4 ce56e4299a294e04a78ee17186511e7ba68fbfa2c45f093ee77db928f40a3e4f 1573902
+apple_export_long.mp4 bd2768d81f6c33261a3eac73be218aeb1d9c4ff1cd9d8750d8cd028f51431ed5 9370784
+apple_export_portrait.mp4 1217d8730f33d22c6ddbd5594014e7f264a7e8dd409bffd8e134824424224079 389515

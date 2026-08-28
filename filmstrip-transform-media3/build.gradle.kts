@@ -1,7 +1,8 @@
 import dev.jordond.filmstrip.convention.androidDeviceTests
+import dev.jordond.filmstrip.convention.testmedia.FixturePatch
 import dev.jordond.filmstrip.convention.testmedia.FixtureSpec
 import dev.jordond.filmstrip.convention.testmedia.FixtureTransfer
-import dev.jordond.filmstrip.convention.testmedia.GenerateTestMediaTask
+import dev.jordond.filmstrip.convention.testmedia.testMedia
 
 plugins {
   id("filmstrip.library.android")
@@ -33,10 +34,9 @@ kotlin {
 // resources so they ride into the test APK. Absent when the host has no ffmpeg, which the test reads as "skip"
 // since there is nothing to export from.
 val exportFixtures =
-  tasks.register<GenerateTestMediaTask>("generateDeviceTestFixtures") {
-    group = "verification"
-    description = "Generates the clips the Android export device test encodes."
-    specs.set(
+  testMedia(
+    name = "device",
+    specs =
       listOf(
         FixtureSpec("android_export_a", 640, 360, 30, 2.0, 48000, 2, bitrateKbps = 1_500),
         FixtureSpec("android_export_b", 480, 270, 30, 2.0, 48000, 2, bitrateKbps = 1_000, hue = 120),
@@ -60,6 +60,7 @@ val exportFixtures =
           2,
           bitrateKbps = 6_000,
           transfer = FixtureTransfer.Pq,
+          patch = FixturePatch.Graded,
         ),
         FixtureSpec(
           "android_export_hdr_hlg",
@@ -71,20 +72,11 @@ val exportFixtures =
           2,
           bitrateKbps = 6_000,
           transfer = FixtureTransfer.Hlg,
+          patch = FixturePatch.Graded,
         ),
       ),
-    )
-    outputDirectory.set(layout.buildDirectory.dir("device-test-fixtures"))
-    manifest.set(layout.buildDirectory.file("device-test-fixtures/fixtures.txt"))
-  }
+  )
 
-val hasFfmpeg =
-  providers.environmentVariable("PATH").orElse("").map { path ->
-    path.split(File.pathSeparatorChar).any { entry -> File(entry, "ffmpeg").canExecute() }
-  }
-
-if (hasFfmpeg.get()) {
-  kotlin.sourceSets.named("androidDeviceTest") {
-    resources.srcDir(exportFixtures.map { it.outputDirectory })
-  }
+kotlin.sourceSets.named("androidDeviceTest") {
+  resources.srcDir(exportFixtures.download.map { it.outputDirectory })
 }

@@ -1,0 +1,6 @@
+# filmstrip test fixtures, served from https://filmstrip-media.jordond.dev/test-fixtures
+# Written by the module's publish task. Commit it with the clips it names.
+# name sha256 bytes
+concat_a.mp4 505450d0503b7d5f07425235a28369ed47c4386fd2168aa23b0f7481de796e49 4512510
+concat_b.mp4 2f0e529139594a834e7702e507e70afdbb7d5634c48145cc2ef5292eaec64c5f 2413284
+p1080_30.mp4 4afad9d27e3150a892c07029d5ea9a0a14cd2431f58ca089edead62ed0d18d5d 9255669

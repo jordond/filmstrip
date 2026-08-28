@@ -6,6 +6,7 @@ import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
@@ -36,9 +37,11 @@ abstract class PublishTestMediaTask
         @get:OutputFile
         abstract val manifest: RegularFileProperty
 
-        @get:Option(option = "dry-run", description = "Write the manifest and print the keys without uploading.")
-        abstract val dryRun: Property<Boolean>
+        @get:Internal
+        @get:Option(option = "no-upload", description = "Write the manifest and print the keys without uploading.")
+        abstract val noUpload: Property<Boolean>
 
+        @get:Internal
         @get:Option(option = "account", description = "Cloudflare account that owns the bucket.")
         abstract val account: Property<String>
 
@@ -60,7 +63,7 @@ abstract class PublishTestMediaTask
 
             TestMediaManifest.write(manifest.get().asFile, entries)
 
-            if (dryRun.getOrElse(false)) {
+            if (noUpload.getOrElse(false)) {
                 entries.forEach {
                     logger.lifecycle("${it.fileName}  ${it.bytes} bytes  ${TestMediaManifest.urlFor(it.sha256)}")
                 }

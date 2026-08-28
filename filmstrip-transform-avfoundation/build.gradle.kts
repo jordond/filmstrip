@@ -1,6 +1,7 @@
+import dev.jordond.filmstrip.convention.testmedia.FixturePatch
 import dev.jordond.filmstrip.convention.testmedia.FixtureSpec
 import dev.jordond.filmstrip.convention.testmedia.FixtureTransfer
-import dev.jordond.filmstrip.convention.testmedia.GenerateTestMediaTask
+import dev.jordond.filmstrip.convention.testmedia.testMedia
 
 plugins {
   id("filmstrip.library.apple")
@@ -18,18 +19,12 @@ kotlin {
   }
 }
 
-val hasFfmpeg =
-  providers.environmentVariable("PATH").orElse("").map { path ->
-    path.split(File.pathSeparatorChar).any { entry -> File(entry, "ffmpeg").canExecute() }
-  }
-
 // The clips the Apple host tests export. AVFoundation, VideoToolbox and the filesystem are all real
 // on macOS, so the whole pipeline runs here in full.
 val appleFixtures =
-  tasks.register<GenerateTestMediaTask>("generateAppleTestFixtures") {
-    group = "verification"
-    description = "Generates the clips the Apple export host test encodes."
-    specs.set(
+  testMedia(
+    name = "apple",
+    specs =
       listOf(
         FixtureSpec("apple_export_a", 640, 360, 30, 2.0, 48000, 2, bitrateKbps = 1_500),
         FixtureSpec("apple_export_b", 480, 270, 30, 2.0, 48000, 2, bitrateKbps = 1_000, hue = 120),
@@ -48,6 +43,7 @@ val appleFixtures =
           2,
           bitrateKbps = 6_000,
           transfer = FixtureTransfer.Pq,
+          patch = FixturePatch.Graded,
         ),
         FixtureSpec(
           "apple_export_hdr_hlg",
@@ -59,25 +55,17 @@ val appleFixtures =
           2,
           bitrateKbps = 6_000,
           transfer = FixtureTransfer.Hlg,
+          patch = FixturePatch.Graded,
         ),
       ),
-    )
-    outputDirectory.set(layout.buildDirectory.dir("apple-test-fixtures"))
-    manifest.set(layout.buildDirectory.file("apple-test-fixtures/fixtures.txt"))
-  }
+  )
 
 // Only the host gets the fixtures. simctl forwards nothing without a SIMCTL_CHILD_ prefix, so a
 // simulator run reads no path and skips. A simulator would only answer questions about its own
 // codecs anyway.
 tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest>().configureEach {
-  if (name == "macosArm64Test" && hasFfmpeg.get()) {
-    dependsOn(appleFixtures)
-    environment(
-      "FILMSTRIP_FIXTURES",
-      layout.buildDirectory
-        .dir("apple-test-fixtures")
-        .get()
-        .asFile.absolutePath,
-    )
+  if (name == "macosArm64Test") {
+    dependsOn(appleFixtures.download)
+    environment("FILMSTRIP_FIXTURES", appleFixtures.directory.absolutePath)
   }
 }
