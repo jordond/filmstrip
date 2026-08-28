@@ -1,0 +1,5 @@
+# host	Version 26.5.2 (Build 25F84)
+# note	Not an on-device iPhone measurement. still-submitted returns once Core Image has enqueued the work; still-completed also waits for the GPU and pays a readback the on-screen path does not.
+case	arm	source_w	source_h	samples	p50_ms	p95_ms	max_ms
+1	still-submitted	1920	1080	200	0.7866250816732645	0.8657083380967379	1.1232916731387377
+1	still-completed	1920	1080	200	0.7592916954308748	0.8258334128186107	0.8654583944007754

@@ -1,0 +1,7 @@
+arm	ms_per_1080p_frame
+read: KotlinByteArray.get(index:)	43.908
+read: NSData -> Data	0.394
+read: native [UInt8] control	0.371
+make: ByteArray across the bridge	2.308
+make: NSData across the bridge	3.582
+# checksum sink 5640192000, printed so no loop can be eliminated
