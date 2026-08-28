@@ -26,3 +26,9 @@ CLAUDE.md
 dokka
 
 .playwright-mcp/
+
+# Generated sample clips, published to R2 rather than committed
+sample/media/build/
+
+# wrangler scratch
+.wrangler/

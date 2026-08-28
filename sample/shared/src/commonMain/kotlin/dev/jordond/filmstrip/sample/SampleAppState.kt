@@ -4,14 +4,11 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.navigation3.runtime.NavBackStack
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.edit.AudioLevel
+import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.edit.EditComposition
-import dev.jordond.filmstrip.effects.crop
-import dev.jordond.filmstrip.effects.flip
-import dev.jordond.filmstrip.effects.rotate
-import dev.jordond.filmstrip.effects.text
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.Bitrate
@@ -23,8 +20,7 @@ import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.TrimStrategy
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.export.VideoCodec
-import dev.jordond.filmstrip.geometry.AspectRatio
-import dev.jordond.filmstrip.geometry.FlipAxis
+import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
@@ -32,59 +28,96 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
+
+/**
+ * What the editor is currently editing, which decides what the tool panel shows.
+ */
+public enum class EditorTool {
+  Trim,
+  Crop,
+  Transform,
+  Scale,
+  Adjust,
+  Text,
+  Watermark,
+  Audio,
+  Background,
+}
 
 /**
  * Drives one pick-to-export session against a [Filmstrip], exposing each step as compose state.
  *
- * Everything it runs is cancellable by cancelling [scope], and every arm of the API it hits is a
- * value to show rather than an exception to catch, which is the point of the sample.
+ * The edit itself lives in [edit]. Everything here is the session around it: what was picked, what
+ * the device said about it, and what came back from a run.
  */
 @Stable
-class SampleAppState(
+public class SampleAppState(
   private val filmstrip: Filmstrip,
+  public val recorder: DiagnosticsRecorder = DiagnosticsRecorder(),
   private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
+  public val edit: EditState = EditState()
+
+  /**
+   * What each registered backend calls itself, for the first line of a bug report.
+   */
+  public val backends: List<BackendInfo> get() = filmstrip.components.backends
+
+  /**
+   * Where the app is, newest last. Handed straight to `NavDisplay`.
+   *
+   * It lives on the state rather than in composition because the state outlives the activity, so a
+   * rotation mid-export lands back on the screen the export was started from.
+   */
+  public val backStack: NavBackStack<SampleRoute> = NavBackStack(SampleRoute.Editor)
+
   var source: MediaSource? by mutableStateOf(null)
     private set
-
-  var probing by mutableStateOf(false)
+  var sourceLabel: String by mutableStateOf("")
     private set
-  var pickFailure: String? by mutableStateOf(null)
+  var probing: Boolean by mutableStateOf(false)
     private set
   var probe: ProbeResult? by mutableStateOf(null)
     private set
+  var pickFailure: String? by mutableStateOf(null)
+    private set
+  var loadingPreset: SamplePreset? by mutableStateOf(null)
+    private set
+  var sourcePreset: SamplePreset? by mutableStateOf(null)
+    private set
 
-  var trimming by mutableStateOf(false)
-  var trimStartSeconds by mutableStateOf(0f)
-  var trimEndSeconds by mutableStateOf(0f)
-  var rotationDegrees by mutableStateOf(0)
-  var flipHorizontal by mutableStateOf(false)
-  var cropAspect: AspectRatio? by mutableStateOf(null)
-  var caption by mutableStateOf("")
-  var muteAudio by mutableStateOf(false)
+  var activeTool: EditorTool by mutableStateOf(EditorTool.Trim)
+
+  var positionSeconds: Float by mutableStateOf(0f)
+    private set
+  var playing: Boolean by mutableStateOf(false)
+    private set
+  var looping: Boolean by mutableStateOf(true)
 
   var targetHeight: Int? by mutableStateOf(1080)
-  var videoCodec by mutableStateOf(VideoCodec.Auto)
-  var audioCodec by mutableStateOf(AudioCodec.Auto)
+  var videoCodec: VideoCodec by mutableStateOf(VideoCodec.Auto)
+  var audioCodec: AudioCodec by mutableStateOf(AudioCodec.Auto)
   var bitrateMbps: Int? by mutableStateOf(4)
   var frameRate: Int? by mutableStateOf(null)
-  var hdr by mutableStateOf(HdrMode.Auto)
-  var trimStrategy by mutableStateOf(TrimStrategy.Precise)
-  var strict by mutableStateOf(false)
+  var hdr: HdrMode by mutableStateOf(HdrMode.Auto)
+  var trimStrategy: TrimStrategy by mutableStateOf(TrimStrategy.Precise)
+  var strict: Boolean by mutableStateOf(false)
 
-  var planning by mutableStateOf(false)
+  var planning: Boolean by mutableStateOf(false)
     private set
   var verdict: Verdict? by mutableStateOf(null)
     private set
 
-  var exporting by mutableStateOf(false)
+  var exporting: Boolean by mutableStateOf(false)
     private set
   var exportProgress: ExportStatus.Progress? by mutableStateOf(null)
     private set
-  var exportAdjustments by mutableStateOf(emptyList<Adjustment>())
+  var exportAdjustments: List<Adjustment> by mutableStateOf(emptyList())
     private set
   var exported: ExportStatus.Success? by mutableStateOf(null)
     private set
@@ -95,33 +128,81 @@ class SampleAppState(
 
   var capabilities: CapabilitiesResult? by mutableStateOf(null)
     private set
+  var loadingCapabilities: Boolean by mutableStateOf(false)
+    private set
 
   private var exportJob: Job? = null
+  private var clockJob: Job? = null
+
+  val info: MediaInfo?
+    get() = (probe as? ProbeResult.Success)?.info
 
   val sourceDuration: Duration?
-    get() = (probe as? ProbeResult.Success)?.info?.duration
+    get() = info?.duration
 
-  val sourceDurationSeconds: Float?
-    get() = sourceDuration?.toSeconds()
+  val sourceAspect: Float
+    get() = info?.video?.displaySize?.aspect?.takeIf { it > 0f } ?: DEFAULT_ASPECT
 
-  fun onPicked(source: MediaSource?) {
+  val editedDuration: Duration
+    get() = edit.editedDuration(sourceDuration) ?: Duration.ZERO
+
+  /**
+   * Where the playhead sits inside the trimmed edit, in seconds.
+   */
+  val editedDurationSeconds: Float
+    get() = editedDuration.inWholeMilliseconds / 1000f
+
+  fun onPicked(source: MediaSource?, label: String, preset: SamplePreset? = null) {
+    if (source == null) return
+
     this.source = source
+    sourceLabel = label
+    sourcePreset = preset
     pickFailure = null
     resetRun()
+    stopClock()
+    positionSeconds = 0f
+    // The label is the user's own file name, so the log gets the same redaction the report does.
+    recorder.record("source.picked", "source" to (preset?.fileName ?: source.redactedName()))
 
-    if (source != null) {
-      probing = true
-      scope.launch {
-        try {
-          probe = filmstrip.probe(source)
-          val duration = sourceDuration
-          if (duration != null) {
-            trimStartSeconds = 0f
-            trimEndSeconds = duration.toSeconds()
-          }
-        } finally {
-          probing = false
+    probing = true
+    probe = null
+    scope.launch {
+      try {
+        val result = filmstrip.probe(source)
+        probe = result
+        when (result) {
+          is ProbeResult.Success -> recorder.record("source.probed", "info" to result.info.toString())
+          is ProbeResult.Failure -> recorder.record("source.unreadable", "error" to result.error.message)
         }
+        edit.reset((result as? ProbeResult.Success)?.info?.duration)
+        activeTool = EditorTool.Trim
+      } finally {
+        probing = false
+      }
+    }
+  }
+
+  /**
+   * Downloads [preset] and opens the editor on it, reporting through [pickFailure] if the download
+   * fails.
+   */
+  fun pickPreset(preset: SamplePreset) {
+    if (loadingPreset != null) return
+
+    loadingPreset = preset
+    pickFailure = null
+    scope.launch {
+      try {
+        recorder.record("preset.download", "clip" to preset.fileName)
+        onPicked(loadPreset(preset), preset.name, preset)
+      } catch (cancellation: CancellationException) {
+        throw cancellation
+      } catch (failure: Throwable) {
+        pickFailure = failure.message ?: "The download gave no reason."
+        recorder.record("preset.failed", "clip" to preset.fileName, "reason" to pickFailure.orEmpty())
+      } finally {
+        loadingPreset = null
       }
     }
   }
@@ -131,10 +212,11 @@ class SampleAppState(
    */
   fun onPickFailed(message: String?) {
     pickFailure = message ?: "No reason given."
+    recorder.record("source.pickFailed", "reason" to pickFailure.orEmpty())
   }
 
   /**
-   * Drops anything an edit or source change invalidated: the plan, and the export that came from it.
+   * Drops the plan and the export an edit just invalidated.
    */
   fun onEditChanged() {
     verdict = null
@@ -143,24 +225,56 @@ class SampleAppState(
     exportFailure = null
     exportProgress = null
     exportAdjustments = emptyList()
+    positionSeconds = positionSeconds.coerceIn(0f, editedDurationSeconds)
   }
 
-  fun composition(): EditComposition = filmstrip.composition {
-    clip(requireNotNull(source)) {
-      val duration = sourceDuration
-      if (trimming && duration != null) {
-        val start = trimStartSeconds.toDuration().coerceIn(Duration.ZERO, duration)
-        val end = trimEndSeconds.toDuration().coerceIn(start, duration)
-        if (end > start) trim(start, end)
-      }
-      effects {
-        if (rotationDegrees != 0) rotate(rotationDegrees)
-        if (flipHorizontal) flip(FlipAxis.Horizontal)
-        cropAspect?.let { crop(it) }
-        if (caption.isNotBlank()) text(caption)
-      }
-      if (muteAudio) audio(AudioLevel.Mute)
-    }
+  /**
+   * Pushes a route, unless it is already the one on top.
+   */
+  fun navigateTo(route: SampleRoute) {
+    if (backStack.lastOrNull() != route) backStack.add(route)
+  }
+
+  /**
+   * Pops one route. The editor is the root, so back from it is left to the platform.
+   */
+  fun navigateBack() {
+    if (backStack.size <= 1) return
+    backStack.removeLastOrNull()
+  }
+
+  fun openExport() {
+    navigateTo(SampleRoute.Export)
+  }
+
+  fun openCapabilities() {
+    navigateTo(SampleRoute.Capabilities)
+    refreshCapabilities()
+  }
+
+  fun openDiagnostics() {
+    navigateTo(SampleRoute.Diagnostics)
+  }
+
+  /**
+   * Drops the clip and everything derived from it, leaving the root on its picker.
+   */
+  fun closeProject() {
+    stopClock()
+    exportJob?.cancel()
+    source = null
+    sourceLabel = ""
+    sourcePreset = null
+    probe = null
+    pickFailure = null
+    resetRun()
+    backStack.clear()
+    backStack.add(SampleRoute.Editor)
+  }
+
+  fun composition(): EditComposition? {
+    val source = source ?: return null
+    return edit.composition(filmstrip, source, sourceDuration)
   }
 
   fun spec(): ExportSpec = ExportSpec(
@@ -174,12 +288,58 @@ class SampleAppState(
     strict = strict,
   )
 
+  fun togglePlay() {
+    if (playing) pause() else play()
+  }
+
+  /**
+   * Advances a local playhead so the timeline can be driven before a preview backend is attached.
+   *
+   * Swap this for `VideoPlayer.positionFlow` once `preview()` renders here.
+   */
+  fun play() {
+    if (playing || editedDurationSeconds <= 0f) return
+    playing = true
+    clockJob = scope.launch {
+      while (isActive) {
+        delay(TICK_MILLIS)
+        val next = positionSeconds + TICK_SECONDS
+        val end = editedDurationSeconds
+        positionSeconds = when {
+          next < end -> next
+          looping -> 0f
+          else -> {
+            playing = false
+            end
+          }
+        }
+        if (!playing) break
+      }
+    }
+  }
+
+  fun pause() {
+    stopClock()
+  }
+
+  fun seekTo(seconds: Float) {
+    positionSeconds = seconds.coerceIn(0f, editedDurationSeconds)
+  }
+
+  fun stepFrames(frames: Int) {
+    val fps = frameRate ?: info?.video?.frameRate?.toInt() ?: DEFAULT_FRAME_RATE
+    seekTo(positionSeconds + frames.toFloat() / fps)
+  }
+
   fun plan() {
+    val composition = composition() ?: return
     verdict = null
     planning = true
     scope.launch {
       try {
-        verdict = filmstrip.plan(composition(), spec())
+        val result = filmstrip.plan(composition, spec())
+        verdict = result
+        recorder.record("plan.done", "verdict" to (result::class.simpleName ?: "unknown"))
       } finally {
         planning = false
       }
@@ -193,20 +353,36 @@ class SampleAppState(
     exportFailure = null
     exportProgress = null
     exportAdjustments = emptyList()
+    pause()
 
     exportJob = scope.launch {
       exporting = true
       try {
         filmstrip.export(plan, MediaSink.temporary()).collect { status ->
           when (status) {
-            is ExportStatus.Started -> Unit
-            is ExportStatus.Adjusted -> exportAdjustments = status.adjustments
+            is ExportStatus.Started -> recorder.record("export.started", "path" to plan.path.name)
+            is ExportStatus.Adjusted -> {
+              exportAdjustments = status.adjustments
+              recorder.record(
+                label = "export.adjusted",
+                detail = status.adjustments.associate { it.kind.name to "${'$'}{it.requested} -> ${'$'}{it.resolved}" },
+              )
+            }
             is ExportStatus.Progress -> exportProgress = status
             is ExportStatus.Success -> {
               exported = status
               exportedInfo = filmstrip.probe(status.output.asSource())
+              recorder.record("export.succeeded", "output" to status.info.toString())
+              backStack.remove(SampleRoute.Export)
+              navigateTo(SampleRoute.Result)
             }
-            is ExportStatus.Failure -> exportFailure = status.error
+            is ExportStatus.Failure -> {
+              exportFailure = status.error
+              recorder.record(
+                label = "export.failed",
+                detail = mapOf("error" to (status.error::class.simpleName ?: "unknown"), "message" to status.error.message),
+              )
+            }
           }
         }
       } finally {
@@ -220,31 +396,53 @@ class SampleAppState(
   }
 
   fun refreshCapabilities() {
+    if (loadingCapabilities) return
+    loadingCapabilities = true
     scope.launch {
-      capabilities = filmstrip.capabilities()
+      try {
+        val result = filmstrip.capabilities()
+        capabilities = result
+        recorder.record("capabilities.read", "result" to (result::class.simpleName ?: "unknown"))
+      } finally {
+        loadingCapabilities = false
+      }
     }
   }
 
+  /**
+   * How faithfully each effect in the current edit will preview, straight from the engine.
+   */
+  fun parity(): List<Pair<String, String>> =
+    composition()?.effects.orEmpty().map { spec ->
+      spec.id to (filmstrip.parityOf(spec.id)?.name ?: "unknown")
+    }
+
+  private fun stopClock() {
+    clockJob?.cancel()
+    clockJob = null
+    playing = false
+  }
+
   private fun resetRun() {
-    probe = null
     verdict = null
     exported = null
     exportedInfo = null
     exportFailure = null
     exportProgress = null
     exportAdjustments = emptyList()
-    trimStartSeconds = 0f
-    trimEndSeconds = 0f
   }
-
-  private fun Float.toDuration(): Duration = toDouble().seconds
-
-  private fun Duration.toSeconds(): Float = inWholeMilliseconds / 1000f
 
   private fun MediaSink.asSource(): MediaSource =
     when (this) {
       is MediaSink.Path -> MediaSource.of(path)
       is MediaSink.Uri -> MediaSource.ofUri(uri)
-      MediaSink.Temporary -> throw IllegalStateException("A resolved temporary sink reports a path or uri.")
+      MediaSink.Temporary -> error("A resolved temporary sink reports a path or uri.")
     }
+
+  private companion object {
+    const val TICK_MILLIS = 33L
+    const val TICK_SECONDS = 0.033f
+    const val DEFAULT_ASPECT = 16f / 9f
+    const val DEFAULT_FRAME_RATE = 30
+  }
 }

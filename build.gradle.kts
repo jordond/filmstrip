@@ -18,7 +18,7 @@ plugins {
 
 apiValidation {
   nonPublicMarkers += "dev.jordond.filmstrip.InternalFilmstripApi"
-  ignoredProjects += listOf("sample", "shared", "androidApp")
+  ignoredProjects += listOf("sample", "shared", "androidApp", "desktopApp", "webApp")
   ignoredProjects += listOf("internal", "ios-harness")
 
   @OptIn(kotlinx.validation.ExperimentalBCVApi::class)

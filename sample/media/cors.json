@@ -1,0 +1,13 @@
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": ["*"],
+        "methods": ["GET", "HEAD"],
+        "headers": ["range"]
+      },
+      "exposeHeaders": ["Content-Length", "Content-Range", "Accept-Ranges", "Content-Type"],
+      "maxAgeSeconds": 86400
+    }
+  ]
+}

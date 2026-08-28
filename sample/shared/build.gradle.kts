@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+
 plugins {
   alias(libs.plugins.multiplatform)
   alias(libs.plugins.android.multiplatform.library)
@@ -12,6 +14,13 @@ kotlin {
     minSdk = libs.versions.sdk.min.get().toInt()
   }
 
+  jvm()
+
+  @OptIn(ExperimentalWasmDsl::class)
+  wasmJs {
+    browser()
+  }
+
   listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
     target.binaries.framework {
       baseName = "Shared"
@@ -19,19 +28,48 @@ kotlin {
     }
   }
 
+  // Android and the desktop both download a preset clip through java.io, so they get a source set
+  // of their own to hold the one copy. Declaring an edge by hand turns the default hierarchy off,
+  // so it is asked for explicitly here.
+  applyDefaultHierarchyTemplate()
+
   sourceSets {
+    val jvmCommonMain by creating {
+      dependsOn(commonMain.get())
+    }
+    androidMain.get().dependsOn(jvmCommonMain)
+    jvmMain.get().dependsOn(jvmCommonMain)
+
     commonMain.dependencies {
       api(projects.filmstrip)
       implementation(libs.filekit.dialogs.compose)
       implementation(compose.runtime)
       implementation(compose.foundation)
       implementation(compose.material3)
+      implementation(libs.compose.adaptive)
+      implementation(libs.compose.adaptive.layout)
+      implementation(libs.navigation3.runtime)
+      implementation(libs.navigation3.ui)
+    }
+
+    commonTest.dependencies {
+      implementation(kotlin("test"))
     }
 
     androidMain.dependencies {
+      implementation(libs.androidx.activity.compose)
       implementation(libs.kotlinx.coroutines.android)
       implementation(libs.media3.exoplayer)
       implementation(libs.media3.ui)
+    }
+
+    wasmJsMain.dependencies {
+      implementation(libs.kotlinx.browser)
+    }
+
+    jvmMain.dependencies {
+      implementation(compose.desktop.currentOs)
+      implementation(libs.kotlinx.coroutines.swing)
     }
   }
 }
