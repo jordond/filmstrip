@@ -1,0 +1,22 @@
+// Klib ABI Dump
+// Targets: [iosArm64, iosSimulatorArm64, js, wasmJs]
+// Rendering settings:
+// - Signature version: 2
+// - Show manifest properties: true
+// - Show declarations: true
+
+// Library unique name: <filmstrip-root:filmstrip-compose>
+final enum class dev.jordond.filmstrip.compose/VideoContentScale : kotlin/Enum<dev.jordond.filmstrip.compose/VideoContentScale> { // dev.jordond.filmstrip.compose/VideoContentScale|null[0]
+    enum entry Crop // dev.jordond.filmstrip.compose/VideoContentScale.Crop|null[0]
+    enum entry Fit // dev.jordond.filmstrip.compose/VideoContentScale.Fit|null[0]
+    enum entry Stretch // dev.jordond.filmstrip.compose/VideoContentScale.Stretch|null[0]
+
+    final val entries // dev.jordond.filmstrip.compose/VideoContentScale.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.compose/VideoContentScale> // dev.jordond.filmstrip.compose/VideoContentScale.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.jordond.filmstrip.compose/VideoContentScale // dev.jordond.filmstrip.compose/VideoContentScale.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.jordond.filmstrip.compose/VideoContentScale> // dev.jordond.filmstrip.compose/VideoContentScale.values|values#static(){}[0]
+}
+
+final fun dev.jordond.filmstrip.compose/VideoSurface(dev.jordond.filmstrip.player/VideoPlayer, androidx.compose.ui/Modifier?, dev.jordond.filmstrip.compose/VideoContentScale?, dev.jordond.filmstrip.player/PreviewSurfaceType?, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int) // dev.jordond.filmstrip.compose/VideoSurface|VideoSurface(dev.jordond.filmstrip.player.VideoPlayer;androidx.compose.ui.Modifier?;dev.jordond.filmstrip.compose.VideoContentScale?;dev.jordond.filmstrip.player.PreviewSurfaceType?;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.compose/rememberVideoPlayer(kotlin/Function0<dev.jordond.filmstrip.player/VideoPlayer>, androidx.compose.runtime/Composer?, kotlin/Int): dev.jordond.filmstrip.player/VideoPlayer // dev.jordond.filmstrip.compose/rememberVideoPlayer|rememberVideoPlayer(kotlin.Function0<dev.jordond.filmstrip.player.VideoPlayer>;androidx.compose.runtime.Composer?;kotlin.Int){}[0]
