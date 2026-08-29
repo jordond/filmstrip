@@ -11,5 +11,5 @@ import dev.jordond.filmstrip.effects.builtInEffects
  */
 public fun FilmstripBuilder.playerBackend(): FilmstripBuilder =
   builtInEffects()
-    .addPlayerEngineFactory { config -> createPlayerEngine(config) }
-    .addThumbnailSourceFactory { request -> createThumbnailSource(request) }
+    .addPlayerEngineFactory { config, components -> createPlayerEngine(config, components) }
+    .addThumbnailSourceFactory { request, components -> createThumbnailSource(request, components) }
