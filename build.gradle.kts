@@ -12,19 +12,7 @@ plugins {
   alias(libs.plugins.publish) apply false
   alias(libs.plugins.dokka)
   alias(libs.plugins.dependencies)
-  alias(libs.plugins.binaryCompatibility)
   alias(libs.plugins.kotlinx.kover)
-}
-
-apiValidation {
-  nonPublicMarkers += "dev.jordond.filmstrip.InternalFilmstripApi"
-  ignoredProjects += listOf("sample", "shared", "androidApp", "desktopApp", "webApp")
-  ignoredProjects += listOf("internal", "ios-harness")
-
-  @OptIn(kotlinx.validation.ExperimentalBCVApi::class)
-  klib {
-    enabled = true
-  }
 }
 
 dependencies {

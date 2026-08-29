@@ -20,7 +20,6 @@ androidx-test-junit = "1.3.0"
 androidx-constraintlayout = "2.2.2"
 androidx-startup = "1.2.0"
 junit = "4.13.2"
-binaryCompatibility = "0.18.1"
 dokka = "2.2.0"
 publish = "0.37.0"
 poko = "0.23.1"
@@ -91,6 +90,5 @@ dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
 publish = { id = "com.vanniktech.maven.publish", version.ref = "publish" }
 poko = { id = "dev.drewhamilton.poko", version.ref = "poko" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
-binaryCompatibility = { id = "org.jetbrains.kotlinx.binary-compatibility-validator", version.ref = "binaryCompatibility" }
 kotlinx-kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kotlinx-kover" }
 dependencies = { id = "io.github.ben-manes.versions", version.ref = "versions" }

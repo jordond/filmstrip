@@ -34,10 +34,10 @@ enforces it: `check` runs an import guard and a resolved-dependency guard per mo
 ## Building
 
 ```bash
-./gradlew build          # everything, including the Apple frameworks
-./gradlew check          # tests, formatting, ABI validation, lint, and both layering guards
-./gradlew spotlessApply  # format to .editorconfig
-./gradlew apiDump        # regenerate the klib ABI dumps after a public API change
+./gradlew build            # everything, including the Apple frameworks
+./gradlew check            # tests, formatting, ABI validation, lint, and both layering guards
+./gradlew spotlessApply    # format to .editorconfig
+./gradlew updateKotlinAbi  # regenerate the ABI dumps after a public API change
 ```
 
 JDK 17 or newer, and macOS for the Apple targets.

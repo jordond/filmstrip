@@ -43,7 +43,7 @@ jobs:
         run: ./gradlew spotlessCheck --scan
 
       - name: Binary Compatibility Validation
-        run: ./gradlew apiCheck --scan
+        run: ./gradlew checkKotlinAbi --scan
 
       - name: Architecture guards
         run: >-
