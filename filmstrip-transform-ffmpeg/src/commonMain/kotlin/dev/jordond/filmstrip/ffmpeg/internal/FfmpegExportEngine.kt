@@ -157,7 +157,7 @@ internal class FfmpegExportEngine(
         // ffmpeg falls back silently when it cannot honour a request, so the exit code is not
         // enough. The probe is on the critical path anyway, because Success carries a MediaInfo.
         drift(plan, written)?.let {
-          send(ExportStatus.Failure(ExportError.Underlying(0, it)))
+          send(ExportStatus.Failure(ExportError.Underlying(ExportError.Underlying.NO_PLATFORM_CODE, it)))
           return@channelFlow
         }
 
