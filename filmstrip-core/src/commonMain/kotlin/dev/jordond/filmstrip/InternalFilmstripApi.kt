@@ -3,7 +3,7 @@ package dev.jordond.filmstrip
 /**
  * Marks the annotated element as internal to filmstrip.
  *
- * It is not meant to be used outside the filmstrip modules, and it is excluded from the apiDump, so
+ * It is not meant to be used outside the filmstrip modules, and it is excluded from the ABI dump, so
  * anything it marks can change in a patch release.
  */
 @Target(

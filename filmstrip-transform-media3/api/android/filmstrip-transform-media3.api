@@ -1,0 +1,4 @@
+public final class dev/jordond/filmstrip/media3/Media3BackendKt {
+	public static final fun media3Backend (Ldev/jordond/filmstrip/FilmstripBuilder;)Ldev/jordond/filmstrip/FilmstripBuilder;
+}
+

@@ -14,9 +14,9 @@ import kotlinx.coroutines.flow.Flow
  * The seam between `filmstrip-core` and the module that owns encoding.
  *
  * Each engine artifact (`filmstrip-transform-media3`, `-avfoundation`, `-webcodecs`, `-ffmpeg`)
- * registers its own implementation through [ExportEngineFactory]. A third-party engine does the
- * same. See [dev.jordond.filmstrip.effect.EffectResolver] for the shape this and the effect-resolver
- * SPI share.
+ * registers its own implementation through [ExportEngineFactory]. See
+ * [dev.jordond.filmstrip.effect.EffectResolver] for the shape this and the effect-resolver SPI
+ * share.
  */
 @InternalFilmstripApi
 public interface ExportEngine {

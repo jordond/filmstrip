@@ -77,6 +77,13 @@ public final class dev/jordond/filmstrip/FilmstripBuilder {
 	public final fun components (Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/FilmstripBuilder;
 }
 
+public final class dev/jordond/filmstrip/FilmstripInitializer : androidx/startup/Initializer {
+	public fun <init> ()V
+	public synthetic fun create (Landroid/content/Context;)Ljava/lang/Object;
+	public fun create (Landroid/content/Context;)V
+	public fun dependencies ()Ljava/util/List;
+}
+
 public final class dev/jordond/filmstrip/FilmstripKt {
 	public static final fun Filmstrip (Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/Filmstrip;
 	public static synthetic fun Filmstrip$default (Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/Filmstrip;
@@ -85,6 +92,12 @@ public final class dev/jordond/filmstrip/FilmstripKt {
 public final class dev/jordond/filmstrip/FilmstripVersion {
 	public static final field INSTANCE Ldev/jordond/filmstrip/FilmstripVersion;
 	public final fun getName ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/Filmstrip_androidKt {
+	public static final fun Filmstrip (Landroid/content/Context;Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/Filmstrip;
+	public static synthetic fun Filmstrip$default (Landroid/content/Context;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/Filmstrip;
+	public static final fun FilmstripBuilder (Landroid/content/Context;)Ldev/jordond/filmstrip/FilmstripBuilder;
 }
 
 public abstract interface annotation class dev/jordond/filmstrip/InternalFilmstripApi : java/lang/annotation/Annotation {
@@ -522,16 +535,6 @@ public final class dev/jordond/filmstrip/effect/Attributes {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class dev/jordond/filmstrip/effect/AuxInput {
-	public fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ljava/util/List;)V
-	public synthetic fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getChain ()Ljava/util/List;
-	public final fun getImage ()Ldev/jordond/filmstrip/media/ImageSource;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
 public final class dev/jordond/filmstrip/effect/DegradationReason : java/lang/Enum {
 	public static final field ApproximateAlgorithm Ldev/jordond/filmstrip/effect/DegradationReason;
 	public static final field ColorSpaceConverted Ldev/jordond/filmstrip/effect/DegradationReason;
@@ -613,44 +616,8 @@ public final class dev/jordond/filmstrip/effect/EffectStage : java/lang/Enum {
 	public static fun values ()[Ldev/jordond/filmstrip/effect/EffectStage;
 }
 
-public final class dev/jordond/filmstrip/effect/FilterArgument {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getKey ()Ljava/lang/String;
-	public final fun getValue ()Ljava/lang/String;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class dev/jordond/filmstrip/effect/FilterFragment {
-	public fun <init> ()V
-	public fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterNode;)V
-	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterNode;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getAuxInputs ()Ljava/util/List;
-	public final fun getChain ()Ljava/util/List;
-	public final fun getMerge ()Ldev/jordond/filmstrip/effect/FilterNode;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class dev/jordond/filmstrip/effect/FilterNode {
-	public fun <init> (Ljava/lang/String;Ljava/util/List;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public fun <init> (Ljava/lang/String;[Lkotlin/Pair;)V
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getArguments ()Ljava/util/List;
-	public final fun getName ()Ljava/lang/String;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
 public final class dev/jordond/filmstrip/effect/PlatformEffect {
-	public fun <init> (Ldev/jordond/filmstrip/effect/FilterFragment;)V
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getFragment ()Ldev/jordond/filmstrip/effect/FilterFragment;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
+	public fun <init> (Ljava/lang/Object;)V
 }
 
 public final class dev/jordond/filmstrip/effect/RenderApi : java/lang/Enum {
@@ -1729,8 +1696,8 @@ public final class dev/jordond/filmstrip/media/MediaSource$Uri$Companion {
 }
 
 public final class dev/jordond/filmstrip/media/PlatformImage : java/lang/AutoCloseable {
-	public fun <init> (Ljava/awt/image/BufferedImage;)V
-	public final fun asBufferedImage ()Ljava/awt/image/BufferedImage;
+	public fun <init> (Landroid/graphics/Bitmap;)V
+	public final fun asBitmap ()Landroid/graphics/Bitmap;
 	public fun close ()V
 	public final fun getHeightPx ()I
 	public final fun getWidthPx ()I

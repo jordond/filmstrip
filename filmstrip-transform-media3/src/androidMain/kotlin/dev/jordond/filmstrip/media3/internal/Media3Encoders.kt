@@ -46,7 +46,6 @@ internal fun media3RenderCapabilities(
     supportsHdr = hdr,
     colorSpaces = setOf(ColorSpace.Bt709, ColorSpace.Bt601, ColorSpace.Bt2020),
     maxTextureSize = maxOf(outputSize.width, outputSize.height, MAX_TEXTURE_FLOOR),
-    realtimeBudgetNanos = null,
     features =
       buildSet {
         add(RenderFeature.MultipassRender)

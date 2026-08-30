@@ -3,7 +3,6 @@ package dev.jordond.filmstrip.ffmpeg
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectSpec
-import dev.jordond.filmstrip.effect.ExecutionContext
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
@@ -40,7 +39,7 @@ class EffectLoweringTest {
   fun `declines a backend it was not written for`() {
     val gl = capabilities(RenderApi.OpenGlEs)
 
-    resolver.resolve(Rotate(90), gl, ExecutionContext.Export, attributes()) shouldBe null
+    resolver.resolve(Rotate(90), gl, attributes()) shouldBe null
   }
 
   @Test
@@ -75,7 +74,7 @@ class EffectLoweringTest {
   // decides that frame emits nothing of its own.
   @Test
   fun `scale claims the spec and emits nothing`() {
-    val resolution = resolver.resolve(Scale(720), capabilities(), ExecutionContext.Export, attributes())
+    val resolution = resolver.resolve(Scale(720), capabilities(), attributes())
 
     assertIs<EffectResolution.Resolved>(resolution)
     chainOf(Scale(720)) shouldBe ""
@@ -84,7 +83,7 @@ class EffectLoweringTest {
   @Test
   fun `places a watermark against the frame variables`() {
     val spec = Watermark(ImageSource.of("logo.png"), Corner.BottomEnd, margin = 0.04f, scale = 0.2f, opacity = 0.8f)
-    val resolution = resolver.resolve(spec, capabilities(), ExecutionContext.Export, attributes(Size(640, 360)))
+    val resolution = resolver.resolve(spec, capabilities(), attributes(Size(640, 360)))
 
     assertIs<EffectResolution.Resolved>(resolution)
     val fragment = resolution.effect.fragment
@@ -97,7 +96,7 @@ class EffectLoweringTest {
 
   @Test
   fun `refuses text because the build has no drawtext`() {
-    val resolution = resolver.resolve(Text("hello"), capabilities(), ExecutionContext.Export, attributes())
+    val resolution = resolver.resolve(Text("hello"), capabilities(), attributes())
 
     assertIs<EffectResolution.Unsupported>(resolution)
     resolution.message.contains("drawtext") shouldBe true
@@ -107,7 +106,7 @@ class EffectLoweringTest {
   @Test
   fun `refuses text even where drawtext exists`() {
     val withText = capabilities(features = setOf(RenderFeature.TextRendering))
-    val resolution = resolver.resolve(Text("hello"), withText, ExecutionContext.Export, attributes())
+    val resolution = resolver.resolve(Text("hello"), withText, attributes())
 
     assertIs<EffectResolution.Unsupported>(resolution)
     resolution.message.contains("maxWidth") shouldBe true
@@ -200,7 +199,7 @@ class EffectLoweringTest {
     spec: EffectSpec,
     attributes: Attributes = attributes(),
   ): String {
-    val resolution = resolver.resolve(spec, capabilities(), ExecutionContext.Export, attributes)
+    val resolution = resolver.resolve(spec, capabilities(), attributes)
     assertIs<EffectResolution.Resolved>(resolution)
     return resolution.effect.fragment.chain
       .render()
@@ -216,7 +215,6 @@ class EffectLoweringTest {
       outputSize = outputSize,
       colorSpace = if (hdrTransfer == null) ColorSpace.Bt709 else ColorSpace.Bt2020,
       hdrTransfer = hdrTransfer,
-      renderScale = 1f,
       frameRate = 30f,
     )
 
@@ -231,7 +229,6 @@ class EffectLoweringTest {
       supportsHdr = false,
       colorSpaces = setOf(ColorSpace.Bt709),
       maxTextureSize = 16_384,
-      realtimeBudgetNanos = null,
       features = features,
     )
 }

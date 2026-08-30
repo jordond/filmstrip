@@ -4,7 +4,6 @@ import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
-import dev.jordond.filmstrip.effect.ExecutionContext
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
@@ -23,7 +22,6 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   actual override fun resolve(
     spec: EffectSpec,
     capabilities: RenderCapabilities,
-    context: ExecutionContext,
     attributes: Attributes,
   ): EffectResolution? {
     if (capabilities.api != RenderApi.WebGl) return null
@@ -86,20 +84,18 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       offsetV,
       1f,
     )
-
-  private companion object {
-    const val TEXTURE_PROGRAM = "filmstrip.texture"
-    const val BRIGHTNESS_PROGRAM = "filmstrip.brightness"
-    const val TEXTURE_MATRIX = "uTexMatrix"
-    const val BRIGHTNESS = "uBrightness"
-
-    const val RESIZING_PENDING =
-      "Rotate and Scale change the size of the render target rather than adding a pass, so they " +
-        "are pipeline setup rather than a resolved effect. No browser pipeline has landed to set " +
-        "up."
-
-    const val OVERLAYS_PENDING =
-      "Overlay effects rasterise text and images into the frame, which needs a canvas the resolver " +
-        "does not have. Their browser lowering has not landed yet."
-  }
 }
+
+private const val TEXTURE_PROGRAM = "filmstrip.texture"
+private const val BRIGHTNESS_PROGRAM = "filmstrip.brightness"
+private const val TEXTURE_MATRIX = "uTexMatrix"
+private const val BRIGHTNESS = "uBrightness"
+
+private const val RESIZING_PENDING =
+  "Rotate and Scale change the size of the render target rather than adding a pass, so they " +
+    "are pipeline setup rather than a resolved effect. No browser pipeline has landed to set " +
+    "up."
+
+private const val OVERLAYS_PENDING =
+  "Overlay effects rasterise text and images into the frame, which needs a canvas the resolver " +
+    "does not have. Their browser lowering has not landed yet."

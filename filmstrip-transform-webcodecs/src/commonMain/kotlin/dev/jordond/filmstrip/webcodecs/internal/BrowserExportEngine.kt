@@ -173,7 +173,11 @@ internal class BrowserExportEngine(
         emit(ExportStatus.Failure(ExportError.InvalidComposition(failure.message ?: UNKNOWN_FAILURE)))
         return
       } catch (error: Throwable) {
-        emit(ExportStatus.Failure(ExportError.Underlying(NO_PLATFORM_CODE, error.message ?: UNKNOWN_FAILURE)))
+        emit(
+          ExportStatus.Failure(
+            ExportError.Underlying(ExportError.Underlying.NO_PLATFORM_CODE, error.message ?: UNKNOWN_FAILURE),
+          ),
+        )
         return
       }
 
@@ -343,9 +347,6 @@ internal class BrowserExportEngine(
     const val UNREADABLE =
       "A browser reads URLs and in-memory bytes. A path has no meaning here, and a file has to be " +
         "loaded by the page first."
-
-    // A browser reports failures as exceptions with a message, never as a numeric code.
-    const val NO_PLATFORM_CODE = 0
 
     const val UNKNOWN_FAILURE = "The browser export failed without saying why."
 

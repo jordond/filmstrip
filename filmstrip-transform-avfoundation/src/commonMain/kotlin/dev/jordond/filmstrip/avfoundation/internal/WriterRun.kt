@@ -358,7 +358,10 @@ internal class WriterRun(
 
   private fun NSError?.toExportError(side: FailingSide): ExportError =
     this?.toExportError(resolved.output.videoCodec, side, destination.path)
-      ?: ExportError.Underlying(NO_CODE, "AVFoundation refused to start and reported no error.")
+      ?: ExportError.Underlying(
+        ExportError.Underlying.NO_PLATFORM_CODE,
+        "AVFoundation refused to start and reported no error.",
+      )
 
   /**
    * One writer input and the reader output that feeds it.
@@ -478,7 +481,6 @@ internal class WriterRun(
     val PROGRESS_INTERVAL = 250L.milliseconds
 
     const val QUEUE_LABEL = "dev.jordond.filmstrip.export"
-    const val NO_CODE = 0
     const val MILLIS_PER_SECOND = 1_000L
     const val BITS_PER_BYTE = 8L
     const val HEADROOM_NUMERATOR = 13L

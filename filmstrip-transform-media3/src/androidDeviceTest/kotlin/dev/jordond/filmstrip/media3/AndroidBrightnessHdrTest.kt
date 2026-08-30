@@ -12,7 +12,6 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
-import dev.jordond.filmstrip.effect.ExecutionContext
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effects.Brightness
@@ -151,7 +150,6 @@ class AndroidBrightnessHdrTest {
         outputSize = FRAME,
         colorSpace = if (transfer == null) ColorSpace.Bt709 else ColorSpace.Bt2020,
         hdrTransfer = transfer,
-        renderScale = 1f,
         frameRate = 30f,
       )
     val capabilities =
@@ -162,10 +160,9 @@ class AndroidBrightnessHdrTest {
         supportsHdr = transfer != null,
         colorSpaces = setOf(ColorSpace.Bt709, ColorSpace.Bt2020),
         maxTextureSize = 8_192,
-        realtimeBudgetNanos = null,
         features = emptySet(),
       )
-    val resolution = resolver.resolve(Brightness(factor), capabilities, ExecutionContext.Export, attributes)
+    val resolution = resolver.resolve(Brightness(factor), capabilities, attributes)
     val effect = assertIs<EffectResolution.Resolved>(resolution).effect.handle
 
     return assertIs<RgbAdjustment>(effect).getMatrix(0L, transfer != null)

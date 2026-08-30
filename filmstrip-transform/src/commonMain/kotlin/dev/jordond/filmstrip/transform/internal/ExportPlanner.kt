@@ -16,7 +16,6 @@ import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
-import dev.jordond.filmstrip.effect.ExecutionContext
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.inCanonicalOrder
@@ -363,9 +362,9 @@ public class ExportPlanner(
     // sees the one the encoder is handed rather than the SDR default.
     val colorSpace = if (hdrTransfer != null) ColorSpace.Bt2020 else ColorSpace.Bt709
     return stages.flatMap { it.inCanonicalOrder() }.map { spec ->
-      val attributes = Attributes(size, outputSize, colorSpace, hdrTransfer, 1f, frameRate.toFloat())
+      val attributes = Attributes(size, outputSize, colorSpace, hdrTransfer, frameRate.toFloat())
       val resolution =
-        resolvers.firstNotNullOfOrNull { it.resolve(spec, capabilities, ExecutionContext.Export, attributes) }
+        resolvers.firstNotNullOfOrNull { it.resolve(spec, capabilities, attributes) }
 
       size = frameAfter(spec, size)
 

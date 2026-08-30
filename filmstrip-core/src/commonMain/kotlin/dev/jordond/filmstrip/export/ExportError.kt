@@ -204,12 +204,20 @@ public sealed interface ExportError {
   /**
    * A platform failure filmstrip could not classify, with whatever code the platform gave.
    *
-   * @property platformCode The raw error code the platform reported.
+   * @property platformCode The raw error code the platform reported, or [NO_PLATFORM_CODE] when
+   *   the platform gave none.
    * @property message A human-readable description of the failure.
    */
   @Poko
   public class Underlying(
     public val platformCode: Int,
     override val message: String,
-  ) : ExportError
+  ) : ExportError {
+    public companion object {
+      /**
+       * Sentinel for [platformCode] when the platform reported no numeric code.
+       */
+      public const val NO_PLATFORM_CODE: Int = 0
+    }
+  }
 }

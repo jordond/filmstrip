@@ -8,6 +8,7 @@ import org.gradle.kotlin.dsl.get
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
+import org.jetbrains.kotlin.gradle.dsl.abi.ExperimentalAbiValidation
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
 /**
@@ -63,10 +64,19 @@ internal fun Project.configureFilmstripJvmLibrary() {
   configurePublishing()
 }
 
+@OptIn(ExperimentalAbiValidation::class)
 private fun KotlinMultiplatformExtension.configureShared(project: Project) {
   explicitApi()
   jvmToolchain(project.intVersion("jvmTarget"))
   applyDefaultHierarchyTemplate()
+
+  abiValidation {
+    filters {
+      exclude {
+        annotatedWith.add("dev.jordond.filmstrip.InternalFilmstripApi")
+      }
+    }
+  }
 
   compilerOptions {
     freeCompilerArgs.add("-Xexpect-actual-classes")

@@ -85,7 +85,6 @@ class CrossEngineLadderTest {
           supportsHdr = hdr,
           colorSpaces = setOf(ColorSpace.Bt709),
           maxTextureSize = maxOf(size.width, size.height),
-          realtimeBudgetNanos = null,
           features = emptySet(),
         )
       },

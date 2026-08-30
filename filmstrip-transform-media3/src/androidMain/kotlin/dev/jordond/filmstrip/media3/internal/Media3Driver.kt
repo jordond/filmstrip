@@ -72,7 +72,9 @@ internal class Media3Driver(
     // or a codec. What went wrong is the graph filmstrip was built with.
     val android =
       FilmstripContext.get()
-        ?: return Preparation.Failed(ExportError.Underlying(NO_PLATFORM_CODE, FilmstripContext.MISSING_CONTEXT))
+        ?: return Preparation.Failed(
+          ExportError.Underlying(ExportError.Underlying.NO_PLATFORM_CODE, FilmstripContext.MISSING_CONTEXT),
+        )
 
     val composition =
       try {
@@ -97,9 +99,5 @@ internal class Media3Driver(
     class Failed(
       val error: ExportError,
     ) : Preparation
-  }
-
-  private companion object {
-    const val NO_PLATFORM_CODE = 0
   }
 }

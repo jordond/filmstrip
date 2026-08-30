@@ -1,0 +1,4 @@
+public final class dev/jordond/filmstrip/playback/FilmstripPlayerKt {
+	public static final fun playerBackend (Ldev/jordond/filmstrip/FilmstripBuilder;)Ldev/jordond/filmstrip/FilmstripBuilder;
+}
+

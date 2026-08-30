@@ -280,7 +280,6 @@ private fun List<Placement>.toSpans(
           outputSize = outputSize,
           colorSpace = if (hdrTransfer != null) ColorSpace.Bt2020 else ColorSpace.Bt709,
           hdrTransfer = hdrTransfer,
-          renderScale = 1f,
           frameRate = info?.frameRate,
         ),
       effects = placement.clip.effects,

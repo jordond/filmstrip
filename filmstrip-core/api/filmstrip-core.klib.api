@@ -107,17 +107,6 @@ final enum class dev.jordond.filmstrip.effect/EffectStage : kotlin/Enum<dev.jord
     final fun values(): kotlin/Array<dev.jordond.filmstrip.effect/EffectStage> // dev.jordond.filmstrip.effect/EffectStage.values|values#static(){}[0]
 }
 
-final enum class dev.jordond.filmstrip.effect/ExecutionContext : kotlin/Enum<dev.jordond.filmstrip.effect/ExecutionContext> { // dev.jordond.filmstrip.effect/ExecutionContext|null[0]
-    enum entry Export // dev.jordond.filmstrip.effect/ExecutionContext.Export|null[0]
-    enum entry Preview // dev.jordond.filmstrip.effect/ExecutionContext.Preview|null[0]
-
-    final val entries // dev.jordond.filmstrip.effect/ExecutionContext.entries|#static{}entries[0]
-        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.effect/ExecutionContext> // dev.jordond.filmstrip.effect/ExecutionContext.entries.<get-entries>|<get-entries>#static(){}[0]
-
-    final fun valueOf(kotlin/String): dev.jordond.filmstrip.effect/ExecutionContext // dev.jordond.filmstrip.effect/ExecutionContext.valueOf|valueOf#static(kotlin.String){}[0]
-    final fun values(): kotlin/Array<dev.jordond.filmstrip.effect/ExecutionContext> // dev.jordond.filmstrip.effect/ExecutionContext.values|values#static(){}[0]
-}
-
 final enum class dev.jordond.filmstrip.effect/RenderApi : kotlin/Enum<dev.jordond.filmstrip.effect/RenderApi> { // dev.jordond.filmstrip.effect/RenderApi|null[0]
     enum entry CoreImage // dev.jordond.filmstrip.effect/RenderApi.CoreImage|null[0]
     enum entry FilterGraph // dev.jordond.filmstrip.effect/RenderApi.FilterGraph|null[0]
@@ -452,7 +441,7 @@ abstract fun interface dev.jordond.filmstrip.diagnostics/DiagnosticListener { //
 }
 
 abstract fun interface dev.jordond.filmstrip.effect/EffectResolver { // dev.jordond.filmstrip.effect/EffectResolver|null[0]
-    abstract fun resolve(dev.jordond.filmstrip.effect/EffectSpec, dev.jordond.filmstrip.effect/RenderCapabilities, dev.jordond.filmstrip.effect/ExecutionContext, dev.jordond.filmstrip.effect/Attributes): dev.jordond.filmstrip.effect/EffectResolution? // dev.jordond.filmstrip.effect/EffectResolver.resolve|resolve(dev.jordond.filmstrip.effect.EffectSpec;dev.jordond.filmstrip.effect.RenderCapabilities;dev.jordond.filmstrip.effect.ExecutionContext;dev.jordond.filmstrip.effect.Attributes){}[0]
+    abstract fun resolve(dev.jordond.filmstrip.effect/EffectSpec, dev.jordond.filmstrip.effect/RenderCapabilities, dev.jordond.filmstrip.effect/Attributes): dev.jordond.filmstrip.effect/EffectResolution? // dev.jordond.filmstrip.effect/EffectResolver.resolve|resolve(dev.jordond.filmstrip.effect.EffectSpec;dev.jordond.filmstrip.effect.RenderCapabilities;dev.jordond.filmstrip.effect.Attributes){}[0]
 }
 
 abstract fun interface dev.jordond.filmstrip.player/PlaybackEventListener { // dev.jordond.filmstrip.player/PlaybackEventListener|null[0]
@@ -896,6 +885,11 @@ sealed interface dev.jordond.filmstrip.export/ExportError { // dev.jordond.films
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.export/ExportError.Underlying.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.export/ExportError.Underlying.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.export/ExportError.Underlying.toString|toString(){}[0]
+
+        final object Companion { // dev.jordond.filmstrip.export/ExportError.Underlying.Companion|null[0]
+            final const val NO_PLATFORM_CODE // dev.jordond.filmstrip.export/ExportError.Underlying.Companion.NO_PLATFORM_CODE|{}NO_PLATFORM_CODE[0]
+                final fun <get-NO_PLATFORM_CODE>(): kotlin/Int // dev.jordond.filmstrip.export/ExportError.Underlying.Companion.NO_PLATFORM_CODE.<get-NO_PLATFORM_CODE>|<get-NO_PLATFORM_CODE>(){}[0]
+        }
     }
 
     final class UnpreviewableEffect : dev.jordond.filmstrip.export/ExportError { // dev.jordond.filmstrip.export/ExportError.UnpreviewableEffect|null[0]
@@ -2049,8 +2043,6 @@ final class dev.jordond.filmstrip.effect/Attributes { // dev.jordond.filmstrip.e
         final fun <get-inputSize>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.effect/Attributes.inputSize.<get-inputSize>|<get-inputSize>(){}[0]
     final val outputSize // dev.jordond.filmstrip.effect/Attributes.outputSize|{}outputSize[0]
         final fun <get-outputSize>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.effect/Attributes.outputSize.<get-outputSize>|<get-outputSize>(){}[0]
-    final val renderScale // dev.jordond.filmstrip.effect/Attributes.renderScale|{}renderScale[0]
-        final fun <get-renderScale>(): kotlin/Float // dev.jordond.filmstrip.effect/Attributes.renderScale.<get-renderScale>|<get-renderScale>(){}[0]
 
     final fun toString(): kotlin/String // dev.jordond.filmstrip.effect/Attributes.toString|toString(){}[0]
 }
@@ -2083,8 +2075,6 @@ final class dev.jordond.filmstrip.effect/RenderCapabilities { // dev.jordond.fil
         final fun <get-features>(): kotlin.collections/Set<dev.jordond.filmstrip.effect/RenderFeature> // dev.jordond.filmstrip.effect/RenderCapabilities.features.<get-features>|<get-features>(){}[0]
     final val maxTextureSize // dev.jordond.filmstrip.effect/RenderCapabilities.maxTextureSize|{}maxTextureSize[0]
         final fun <get-maxTextureSize>(): kotlin/Int // dev.jordond.filmstrip.effect/RenderCapabilities.maxTextureSize.<get-maxTextureSize>|<get-maxTextureSize>(){}[0]
-    final val realtimeBudgetNanos // dev.jordond.filmstrip.effect/RenderCapabilities.realtimeBudgetNanos|{}realtimeBudgetNanos[0]
-        final fun <get-realtimeBudgetNanos>(): kotlin/Long? // dev.jordond.filmstrip.effect/RenderCapabilities.realtimeBudgetNanos.<get-realtimeBudgetNanos>|<get-realtimeBudgetNanos>(){}[0]
     final val supportsComputeShader // dev.jordond.filmstrip.effect/RenderCapabilities.supportsComputeShader|{}supportsComputeShader[0]
         final fun <get-supportsComputeShader>(): kotlin/Boolean // dev.jordond.filmstrip.effect/RenderCapabilities.supportsComputeShader.<get-supportsComputeShader>|<get-supportsComputeShader>(){}[0]
     final val supportsFragmentShader // dev.jordond.filmstrip.effect/RenderCapabilities.supportsFragmentShader|{}supportsFragmentShader[0]

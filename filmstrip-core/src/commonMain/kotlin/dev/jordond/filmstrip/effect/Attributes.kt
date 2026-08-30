@@ -20,8 +20,6 @@ import dev.jordond.filmstrip.media.HdrTransfer
  * @property hdrTransfer The transfer function the frame is held in, or null when the pipeline is
  *   working in SDR. An effect authored against an SDR encoding reads this to work out what its
  *   parameter means in the domain the backend is actually holding the frame in.
- * @property renderScale The preview's resolution as a fraction of the export's, `1f` when they
- *   match. Only ever below `1f` in [ExecutionContext.Preview].
  * @property frameRate Frames per second the pipeline is targeting, or null when the source does not
  *   say.
  */
@@ -32,8 +30,7 @@ public class Attributes
     public val outputSize: Size,
     public val colorSpace: ColorSpace,
     public val hdrTransfer: HdrTransfer?,
-    public val renderScale: Float,
     public val frameRate: Float?,
   ) {
-    override fun toString(): String = "Attributes($inputSize -> $outputSize @ ${renderScale}x)"
+    override fun toString(): String = "Attributes($inputSize -> $outputSize)"
   }
