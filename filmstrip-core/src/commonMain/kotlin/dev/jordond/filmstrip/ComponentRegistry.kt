@@ -2,6 +2,7 @@ package dev.jordond.filmstrip
 
 import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.diagnostics.DiagnosticListener
+import dev.jordond.filmstrip.edit.FilmstripDsl
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.export.ExportEngineFactory
 import dev.jordond.filmstrip.media.MediaProberFactory
@@ -43,6 +44,7 @@ public class ComponentRegistry internal constructor(
   /**
    * Accumulates components, front-first so later registrations take precedence.
    */
+  @FilmstripDsl
   public class Builder {
     private val effectResolvers = mutableListOf<EffectResolver>()
     private val playerEngineFactories = mutableListOf<PlayerEngineFactory>()
