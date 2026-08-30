@@ -25,8 +25,6 @@ public fun interface EffectResolver {
    * Realises [spec], or declines it.
    *
    * @param capabilities what this device can render, right now.
-   * @param context whether the result is for realtime preview or an offline export. A resolver may return a cheaper
-   * approximation for [ExecutionContext.Preview], and must not for [ExecutionContext.Export].
    * @param attributes cross-cutting facts the pipeline already resolved, such as the output frame size every
    * normalized parameter is measured against.
    * @return `null` to pass to the next resolver, or a resolution that claims the spec.
@@ -34,24 +32,8 @@ public fun interface EffectResolver {
   public fun resolve(
     spec: EffectSpec,
     capabilities: RenderCapabilities,
-    context: ExecutionContext,
     attributes: Attributes,
   ): EffectResolution?
-}
-
-/**
- * Where an effect is being asked to run.
- */
-public enum class ExecutionContext {
-  /**
-   * Realtime. Must not drop frames, and may trade exactness for latency.
-   */
-  Preview,
-
-  /**
-   * Offline. May be slow, and must be exact and deterministic.
-   */
-  Export,
 }
 
 /**
@@ -72,8 +54,7 @@ public sealed interface EffectResolution {
    * Realised, but not exactly as declared.
    *
    * The caller decides whether that is acceptable, and `plan()` surfaces it before any long-running
-   * work starts. [DegradationReason.RealtimeApproximation] must never appear in an
-   * [ExecutionContext.Export] resolution.
+   * work starts.
    *
    * @property effect The platform object to render with.
    * @property reason What was given up.

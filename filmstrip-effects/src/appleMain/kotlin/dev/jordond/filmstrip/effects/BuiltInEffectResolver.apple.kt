@@ -6,7 +6,6 @@ import dev.jordond.filmstrip.effect.CoreImageEffect
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
-import dev.jordond.filmstrip.effect.ExecutionContext
 import dev.jordond.filmstrip.effect.FrameInfo
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderApi
@@ -14,7 +13,6 @@ import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
-import dev.jordond.filmstrip.geometry.Size
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents
 import platform.CoreGraphics.CGAffineTransformMakeRotation
@@ -22,7 +20,6 @@ import platform.CoreGraphics.CGAffineTransformMakeScale
 import platform.CoreGraphics.CGRectMake
 import platform.CoreImage.CIImage
 import kotlin.math.PI
-import kotlin.math.roundToInt
 
 /**
  * Lowers the built-in catalogue onto Core Image.
@@ -32,7 +29,6 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   actual override fun resolve(
     spec: EffectSpec,
     capabilities: RenderCapabilities,
-    context: ExecutionContext,
     attributes: Attributes,
   ): EffectResolution? {
     if (capabilities.api != RenderApi.CoreImage && capabilities.api != RenderApi.Metal) {
@@ -83,16 +79,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       if (!frame.shows(visibleDuring)) {
         image
       } else {
-        // Laid out once, at the size the export draws it, and scaled down for a preview rather
-        // than re-laid. Laying out per target would wrap at the preview's frame width and the
-        // export's separately, and the two could break lines on different words.
-        val scale = frame.attributes.renderScale
-        val drawn =
-          Size(
-            (size.width * scale).roundToInt().coerceAtLeast(1),
-            (size.height * scale).roundToInt().coerceAtLeast(1),
-          )
-        raster.compositedOnto(image, placedOn(drawn), frame.attributes.inputSize, 1f)
+        raster.compositedOnto(image, placedOn(size), frame.attributes.inputSize, 1f)
       }
     }
   }
@@ -145,16 +132,14 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
           this@scaledToHeight.imageByApplyingTransform(CGAffineTransformMakeScale(factor, factor))
         }
       }.atOrigin()
-
-  private companion object {
-    const val STRAIGHT_ANGLE = 180.0
-
-    const val UNREADABLE_IMAGE =
-      "The watermark image could not be decoded. Check that the path or URL is readable by this " +
-        "process, and that the bytes are PNG, JPEG or HEIC."
-
-    const val EMPTY_TEXT = "The text and its style leave nothing to draw."
-
-    const val NO_TEXT_RENDERING = "This device cannot rasterise text into a frame."
-  }
 }
+
+private const val STRAIGHT_ANGLE = 180.0
+
+private const val UNREADABLE_IMAGE =
+  "The watermark image could not be decoded. Check that the path or URL is readable by this " +
+    "process, and that the bytes are PNG, JPEG or HEIC."
+
+private const val EMPTY_TEXT = "The text and its style leave nothing to draw."
+
+private const val NO_TEXT_RENDERING = "This device cannot rasterise text into a frame."

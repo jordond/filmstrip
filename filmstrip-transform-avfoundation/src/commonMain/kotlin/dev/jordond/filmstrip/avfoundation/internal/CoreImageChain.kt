@@ -94,7 +94,6 @@ internal class CoreImageChain(
       outputSize = output.size,
       colorSpace = if (encodesHdr) ColorSpace.Bt2020 else ColorSpace.Bt709,
       hdrTransfer = encodedTransfer,
-      renderScale = 1f,
       frameRate = output.frameRate?.toFloat(),
     )
 
@@ -108,7 +107,6 @@ internal class CoreImageChain(
       outputSize = output.size,
       colorSpace = if (encodesHdr) ColorSpace.Bt2020 else ColorSpace.Bt709,
       hdrTransfer = encodedTransfer,
-      renderScale = 1f,
       frameRate = output.frameRate?.toFloat(),
     )
 

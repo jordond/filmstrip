@@ -8,8 +8,6 @@ public final class dev/jordond/filmstrip/test/AssertionsKt {
 }
 
 public final class dev/jordond/filmstrip/test/FrameComparison {
-	public static final field DIGITS I
-	public static final field PRECISION J
 	public fun <init> (DDD)V
 	public final fun getMeanAbsoluteDifference ()D
 	public final fun getPsnrDb ()D
@@ -22,7 +20,6 @@ public final class dev/jordond/filmstrip/test/FrameComparisonKt {
 }
 
 public final class dev/jordond/filmstrip/test/TestFrame {
-	public static final field CHANNELS I
 	public fun <init> ([BLdev/jordond/filmstrip/geometry/Size;)V
 	public final fun getPixels ()[B
 	public final fun getSize ()Ldev/jordond/filmstrip/geometry/Size;

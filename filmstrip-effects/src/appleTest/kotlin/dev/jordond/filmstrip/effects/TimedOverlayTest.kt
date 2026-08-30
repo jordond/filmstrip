@@ -3,7 +3,6 @@ package dev.jordond.filmstrip.effects
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
-import dev.jordond.filmstrip.effect.ExecutionContext
 import dev.jordond.filmstrip.effect.FrameInfo
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
@@ -76,7 +75,7 @@ class TimedOverlayTest {
 
   private fun stepFor(spec: dev.jordond.filmstrip.effect.EffectSpec) =
     assertIs<EffectResolution.Resolved>(
-      resolver.resolve(spec, CAPABILITIES, ExecutionContext.Export, ATTRIBUTES),
+      resolver.resolve(spec, CAPABILITIES, ATTRIBUTES),
     ).effect.step
 
   private fun at(time: kotlin.time.Duration) = FrameInfo(ATTRIBUTES, time)
@@ -105,7 +104,6 @@ class TimedOverlayTest {
         outputSize = FRAME,
         colorSpace = ColorSpace.Bt709,
         hdrTransfer = null,
-        renderScale = 1f,
         frameRate = 30f,
       )
 
@@ -117,7 +115,6 @@ class TimedOverlayTest {
         supportsHdr = false,
         colorSpaces = setOf(ColorSpace.Bt709),
         maxTextureSize = 8_192,
-        realtimeBudgetNanos = null,
         features = setOf(RenderFeature.TextRendering),
       )
 

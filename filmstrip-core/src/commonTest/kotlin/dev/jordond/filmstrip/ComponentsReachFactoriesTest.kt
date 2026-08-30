@@ -5,7 +5,6 @@ import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
-import dev.jordond.filmstrip.effect.ExecutionContext
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.PlayerConfig
@@ -65,7 +64,6 @@ class ComponentsReachFactoriesTest {
     override fun resolve(
       spec: EffectSpec,
       capabilities: RenderCapabilities,
-      context: ExecutionContext,
       attributes: Attributes,
     ): EffectResolution? = null
   }

@@ -15,8 +15,6 @@ import dev.jordond.filmstrip.media.ColorSpace
  * @property supportsHdr True when HDR can be rendered without tone-mapping.
  * @property colorSpaces The colour spaces this device can render into.
  * @property maxTextureSize The longest texture edge the pipeline accepts, in pixels.
- * @property realtimeBudgetNanos The per-frame budget, in nanoseconds, that keeps the preview
- *   realtime. Non-null only in [ExecutionContext.Preview].
  * @property features The additive capabilities present here.
  */
 public class RenderCapabilities
@@ -28,7 +26,6 @@ public class RenderCapabilities
     public val supportsHdr: Boolean,
     public val colorSpaces: Set<ColorSpace>,
     public val maxTextureSize: Int,
-    public val realtimeBudgetNanos: Long?,
     public val features: Set<RenderFeature>,
   ) {
     /**

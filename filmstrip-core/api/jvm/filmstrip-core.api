@@ -519,7 +519,6 @@ public final class dev/jordond/filmstrip/effect/Attributes {
 	public final fun getHdrTransfer ()Ldev/jordond/filmstrip/media/HdrTransfer;
 	public final fun getInputSize ()Ldev/jordond/filmstrip/geometry/Size;
 	public final fun getOutputSize ()Ldev/jordond/filmstrip/geometry/Size;
-	public final fun getRenderScale ()F
 	public fun toString ()Ljava/lang/String;
 }
 
@@ -588,7 +587,7 @@ public final class dev/jordond/filmstrip/effect/EffectResolution$Unsupported : d
 }
 
 public abstract interface class dev/jordond/filmstrip/effect/EffectResolver {
-	public abstract fun resolve (Ldev/jordond/filmstrip/effect/EffectSpec;Ldev/jordond/filmstrip/effect/RenderCapabilities;Ldev/jordond/filmstrip/effect/ExecutionContext;Ldev/jordond/filmstrip/effect/Attributes;)Ldev/jordond/filmstrip/effect/EffectResolution;
+	public abstract fun resolve (Ldev/jordond/filmstrip/effect/EffectSpec;Ldev/jordond/filmstrip/effect/RenderCapabilities;Ldev/jordond/filmstrip/effect/Attributes;)Ldev/jordond/filmstrip/effect/EffectResolution;
 }
 
 public abstract interface class dev/jordond/filmstrip/effect/EffectSpec {
@@ -612,14 +611,6 @@ public final class dev/jordond/filmstrip/effect/EffectStage : java/lang/Enum {
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/effect/EffectStage;
 	public static fun values ()[Ldev/jordond/filmstrip/effect/EffectStage;
-}
-
-public final class dev/jordond/filmstrip/effect/ExecutionContext : java/lang/Enum {
-	public static final field Export Ldev/jordond/filmstrip/effect/ExecutionContext;
-	public static final field Preview Ldev/jordond/filmstrip/effect/ExecutionContext;
-	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/effect/ExecutionContext;
-	public static fun values ()[Ldev/jordond/filmstrip/effect/ExecutionContext;
 }
 
 public final class dev/jordond/filmstrip/effect/FilterArgument {
@@ -679,7 +670,6 @@ public final class dev/jordond/filmstrip/effect/RenderCapabilities {
 	public final fun getColorSpaces ()Ljava/util/Set;
 	public final fun getFeatures ()Ljava/util/Set;
 	public final fun getMaxTextureSize ()I
-	public final fun getRealtimeBudgetNanos ()Ljava/lang/Long;
 	public final fun getSupportsComputeShader ()Z
 	public final fun getSupportsFragmentShader ()Z
 	public final fun getSupportsHdr ()Z
@@ -882,12 +872,17 @@ public final class dev/jordond/filmstrip/export/ExportError$ToolchainMissing : d
 }
 
 public final class dev/jordond/filmstrip/export/ExportError$Underlying : dev/jordond/filmstrip/export/ExportError {
+	public static final field Companion Ldev/jordond/filmstrip/export/ExportError$Underlying$Companion;
+	public static final field NO_PLATFORM_CODE I
 	public fun <init> (ILjava/lang/String;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMessage ()Ljava/lang/String;
 	public final fun getPlatformCode ()I
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/export/ExportError$Underlying$Companion {
 }
 
 public final class dev/jordond/filmstrip/export/ExportError$UnpreviewableEffect : dev/jordond/filmstrip/export/ExportError {
@@ -1734,10 +1729,6 @@ public final class dev/jordond/filmstrip/media/MediaSource$Uri$Companion {
 }
 
 public final class dev/jordond/filmstrip/media/PlatformImage : java/lang/AutoCloseable {
-	public static final field ALPHA_SHIFT I
-	public static final field BYTES_PER_PIXEL I
-	public static final field GREEN_SHIFT I
-	public static final field RED_SHIFT I
 	public fun <init> (Ljava/awt/image/BufferedImage;)V
 	public final fun asBufferedImage ()Ljava/awt/image/BufferedImage;
 	public fun close ()V

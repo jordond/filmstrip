@@ -5,7 +5,6 @@ import dev.jordond.filmstrip.effect.AuxInput
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
-import dev.jordond.filmstrip.effect.ExecutionContext
 import dev.jordond.filmstrip.effect.FilterArgument
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
@@ -42,7 +41,6 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   actual override fun resolve(
     spec: EffectSpec,
     capabilities: RenderCapabilities,
-    context: ExecutionContext,
     attributes: Attributes,
   ): EffectResolution? {
     if (capabilities.api != RenderApi.FilterGraph) return null
@@ -197,25 +195,23 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     get() = this == Corner.BottomStart || this == Corner.BottomEnd
 
   private fun Duration.toSeconds(): String = toDouble(DurationUnit.SECONDS).toString()
-
-  private companion object {
-    // The only depth this backend writes HDR at, so the lut runs on planar RGB of the same depth
-    // rather than on whatever the auto-negotiated conversion would have picked.
-    const val HDR_PLANAR_RGB = "gbrp10le"
-
-    const val FULL_TURN = 360
-    const val QUARTER_TURN = 90
-    const val HALF_TURN = 180
-    const val THREE_QUARTER_TURN = 270
-
-    const val TEXT_NO_FILTER =
-      "This ffmpeg build has no drawtext filter, so text cannot be burned in. drawtext needs " +
-        "--enable-libfreetype and --enable-libharfbuzz, which the common prebuilt packages leave " +
-        "out. Export without the caption, or install a build that has it."
-
-    const val TEXT_CANNOT_WRAP =
-      "drawtext breaks lines only on a literal newline, so TextStyle.maxWidth cannot be honoured " +
-        "and line breaks would land on different words than every other backend. Text layout is " +
-        "required to be exact, so it is refused here rather than rendered differently."
-  }
 }
+
+// The only depth this backend writes HDR at, so the lut runs on planar RGB of the same depth
+// rather than on whatever the auto-negotiated conversion would have picked.
+private const val HDR_PLANAR_RGB = "gbrp10le"
+
+private const val FULL_TURN = 360
+private const val QUARTER_TURN = 90
+private const val HALF_TURN = 180
+private const val THREE_QUARTER_TURN = 270
+
+private const val TEXT_NO_FILTER =
+  "This ffmpeg build has no drawtext filter, so text cannot be burned in. drawtext needs " +
+    "--enable-libfreetype and --enable-libharfbuzz, which the common prebuilt packages leave " +
+    "out. Export without the caption, or install a build that has it."
+
+private const val TEXT_CANNOT_WRAP =
+  "drawtext breaks lines only on a literal newline, so TextStyle.maxWidth cannot be honoured " +
+    "and line breaks would land on different words than every other backend. Text layout is " +
+    "required to be exact, so it is refused here rather than rendered differently."

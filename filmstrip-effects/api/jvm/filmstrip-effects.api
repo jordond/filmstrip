@@ -25,15 +25,8 @@ public final class dev/jordond/filmstrip/effects/Brightness$Companion {
 }
 
 public final class dev/jordond/filmstrip/effects/BuiltInEffectResolver : dev/jordond/filmstrip/effect/EffectResolver {
-	public static final field FULL_TURN I
-	public static final field HALF_TURN I
-	public static final field HDR_PLANAR_RGB Ljava/lang/String;
-	public static final field QUARTER_TURN I
-	public static final field TEXT_CANNOT_WRAP Ljava/lang/String;
-	public static final field TEXT_NO_FILTER Ljava/lang/String;
-	public static final field THREE_QUARTER_TURN I
 	public fun <init> ()V
-	public fun resolve (Ldev/jordond/filmstrip/effect/EffectSpec;Ldev/jordond/filmstrip/effect/RenderCapabilities;Ldev/jordond/filmstrip/effect/ExecutionContext;Ldev/jordond/filmstrip/effect/Attributes;)Ldev/jordond/filmstrip/effect/EffectResolution;
+	public fun resolve (Ldev/jordond/filmstrip/effect/EffectSpec;Ldev/jordond/filmstrip/effect/RenderCapabilities;Ldev/jordond/filmstrip/effect/Attributes;)Ldev/jordond/filmstrip/effect/EffectResolution;
 }
 
 public final class dev/jordond/filmstrip/effects/BuiltInEffectsKt {

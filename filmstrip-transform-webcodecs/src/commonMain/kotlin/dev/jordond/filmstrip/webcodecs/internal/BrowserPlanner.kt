@@ -416,7 +416,6 @@ private fun renderCapabilities(
     supportsHdr = encodesHdr,
     colorSpaces = setOf(ColorSpace.Bt709, ColorSpace.Bt601, ColorSpace.Bt2020),
     maxTextureSize = maxOf(outputSize.width, outputSize.height, MAX_TEXTURE_FLOOR),
-    realtimeBudgetNanos = null,
     // Decoded VideoFrames are uploaded straight into the texture, which is what this advertises.
     features = setOf(RenderFeature.ExternalTexture),
   )

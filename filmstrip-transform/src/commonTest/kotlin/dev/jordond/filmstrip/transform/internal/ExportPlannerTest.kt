@@ -16,7 +16,6 @@ import dev.jordond.filmstrip.effect.DegradationReason
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
-import dev.jordond.filmstrip.effect.ExecutionContext
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effects.Crop
@@ -974,7 +973,6 @@ class ExportPlannerTest {
         supportsHdr = hdr,
         colorSpaces = setOf(ColorSpace.Bt709),
         maxTextureSize = maxOf(size.width, size.height),
-        realtimeBudgetNanos = null,
         features = emptySet(),
       )
     },
@@ -1061,7 +1059,6 @@ private class FakeResolver(
   override fun resolve(
     spec: EffectSpec,
     capabilities: RenderCapabilities,
-    context: ExecutionContext,
     attributes: Attributes,
   ): EffectResolution =
     when (spec.id) {
@@ -1092,7 +1089,6 @@ private class RecordingResolver : EffectResolver {
   override fun resolve(
     spec: EffectSpec,
     capabilities: RenderCapabilities,
-    context: ExecutionContext,
     attributes: Attributes,
   ): EffectResolution {
     inputSizes[spec.id] = attributes.inputSize
