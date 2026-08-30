@@ -21,10 +21,6 @@ public class TestFrame(
         "but ${pixels.size} were given."
     }
   }
-
-  internal companion object {
-    const val CHANNELS = 4
-  }
 }
 
 /**
@@ -46,11 +42,6 @@ public class FrameComparison(
     if (value.isInfinite()) return "inf"
     val scaled = (value * PRECISION).toLong()
     return "${scaled / PRECISION}.${(abs(scaled) % PRECISION).toString().padStart(DIGITS, '0')}"
-  }
-
-  private companion object {
-    const val PRECISION = 1000L
-    const val DIGITS = 3
   }
 }
 
@@ -178,7 +169,7 @@ private fun windowSimilarity(
 private fun TestFrame.luma(): DoubleArray {
   val out = DoubleArray(size.width * size.height)
   for (pixel in out.indices) {
-    val base = pixel * TestFrame.CHANNELS
+    val base = pixel * CHANNELS
     out[pixel] =
       RED_WEIGHT * pixels[base].toChannel() +
       GREEN_WEIGHT * pixels[base + 1].toChannel() +
@@ -189,6 +180,9 @@ private fun TestFrame.luma(): DoubleArray {
 
 private fun Byte.toChannel(): Int = toInt() and CHANNEL_MASK
 
+private const val CHANNELS = 4
+private const val PRECISION = 1000L
+private const val DIGITS = 3
 private const val CHANNEL_MASK = 0xFF
 private const val MAX_CHANNEL = 255.0
 private const val DECIBEL_SCALE = 10.0

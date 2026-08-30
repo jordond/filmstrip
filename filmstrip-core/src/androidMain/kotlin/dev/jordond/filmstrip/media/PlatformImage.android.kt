@@ -37,8 +37,6 @@ public actual class PlatformImage(
     bitmap?.recycle()
     bitmap = null
   }
-
-  private companion object {
-    const val BYTES_PER_PIXEL = 4
-  }
 }
+
+private const val BYTES_PER_PIXEL = 4

@@ -47,11 +47,9 @@ public actual class PlatformImage(
   actual override fun close() {
     image = null
   }
-
-  private companion object {
-    const val BYTES_PER_PIXEL = 4
-    const val ALPHA_SHIFT = 24
-    const val RED_SHIFT = 16
-    const val GREEN_SHIFT = 8
-  }
 }
+
+private const val BYTES_PER_PIXEL = 4
+private const val ALPHA_SHIFT = 24
+private const val RED_SHIFT = 16
+private const val GREEN_SHIFT = 8

@@ -94,9 +94,7 @@ public actual class PlatformImage
       image?.let(::CGImageRelease)
       image = null
     }
-
-    private companion object {
-      const val BYTES_PER_PIXEL = 4
-      const val BITS_PER_COMPONENT = 8uL
-    }
   }
+
+private const val BYTES_PER_PIXEL = 4
+private const val BITS_PER_COMPONENT = 8uL
