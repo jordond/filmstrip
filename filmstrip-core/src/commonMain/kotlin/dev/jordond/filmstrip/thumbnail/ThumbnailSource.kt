@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.thumbnail
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.Cancellable
+import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.media.PlatformImage
@@ -101,7 +102,13 @@ public fun interface ThumbnailSourceFactory {
   /**
    * Builds a source able to serve [request].
    *
+   * @param request Which frame, at what size.
+   * @param components The registry the owning `Filmstrip` was built with, holding the same
+   *   resolvers and probers an export runs through.
    * @return a source, or null to defer to the next factory.
    */
-  public fun create(request: ThumbnailRequest): ThumbnailSource?
+  public fun create(
+    request: ThumbnailRequest,
+    components: ComponentRegistry,
+  ): ThumbnailSource?
 }

@@ -120,7 +120,7 @@ internal class DefaultFilmstrip(
     config: PlayerConfig,
   ): VideoPlayer {
     val engine =
-      components.playerEngineFactories.firstNotNullOfOrNull { it.create(config) }
+      components.playerEngineFactories.firstNotNullOfOrNull { it.create(config, components) }
         ?: return MissingEnginePlayer(MISSING_PLAYER)
     return EngineVideoPlayer(engine, composition)
   }
@@ -129,7 +129,7 @@ internal class DefaultFilmstrip(
   // engine registered there is no pipeline and therefore no answer, which `null` already covers.
   override fun parityOf(specId: String): EffectParity? = exportEngine?.parityOf(specId)
 
-  private val thumbnails = ThumbnailDispatcher(components.thumbnailSourceFactories)
+  private val thumbnails = ThumbnailDispatcher(components)
 
   private fun missingTransform(operation: String): ExportError.BackendMissing =
     ExportError.BackendMissing(
