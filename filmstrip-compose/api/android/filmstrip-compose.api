@@ -1,0 +1,17 @@
+public final class dev/jordond/filmstrip/compose/VideoContentScale : java/lang/Enum {
+	public static final field Crop Ldev/jordond/filmstrip/compose/VideoContentScale;
+	public static final field Fit Ldev/jordond/filmstrip/compose/VideoContentScale;
+	public static final field Stretch Ldev/jordond/filmstrip/compose/VideoContentScale;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/compose/VideoContentScale;
+	public static fun values ()[Ldev/jordond/filmstrip/compose/VideoContentScale;
+}
+
+public final class dev/jordond/filmstrip/compose/VideoSurfaceKt {
+	public static final fun rememberVideoPlayer (Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;I)Ldev/jordond/filmstrip/player/VideoPlayer;
+}
+
+public final class dev/jordond/filmstrip/compose/VideoSurface_androidKt {
+	public static final fun VideoSurface (Ldev/jordond/filmstrip/player/VideoPlayer;Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/VideoContentScale;Ldev/jordond/filmstrip/player/PreviewSurfaceType;Landroidx/compose/runtime/Composer;II)V
+}
+
