@@ -31,6 +31,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -58,6 +60,15 @@ public fun EditorScreen(
   modifier: Modifier = Modifier,
 ) {
   val layout = currentEditorLayout()
+
+  // Hoisted above the layout arrangement below, so switching between them (a fold, an unfold, a
+  // window resize) only moves the viewport rather than tearing its player down and losing the
+  // playhead. Restarts once a pick's probe has settled rather than on every step of it, so a probe
+  // still in flight never opens a player the next step immediately replaces.
+  LaunchedEffect(state.source, state.probing) {
+    if (!state.probing) state.startPreview()
+  }
+  DisposableEffect(Unit) { onDispose { state.stopPreview() } }
 
   Scaffold(
     modifier = modifier,

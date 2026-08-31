@@ -35,8 +35,12 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.jordond.filmstrip.compose.VideoSurface
+import dev.jordond.filmstrip.compose.rememberVideoSurfaceState
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.player.PlaybackError
+import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.sample.CropMode
 import dev.jordond.filmstrip.sample.EditState
 import dev.jordond.filmstrip.sample.FillMode
@@ -51,9 +55,13 @@ import androidx.compose.ui.text.font.FontWeight as ComposeFontWeight
 /**
  * The editor's viewport.
  *
- * There is no decoder behind this yet, so it draws a synthetic frame and puts the edit's geometry,
- * colour and overlays through the same maths the export will use. It letterboxes to the output
- * aspect rather than the source's, which is what a real surface has to do once a crop is attached.
+ * It plays the edit through the player `preview` hands back, letterboxed to the output aspect
+ * rather than the source's, which is what a surface has to do once a crop is attached. Where no
+ * preview backend is registered it falls back to a schematic of the same edit, so the rest of the
+ * editor stays usable on a target that cannot play anything yet.
+ *
+ * The player itself is started and stopped above this, so folding or unfolding a host that swaps
+ * this out for a differently laid out copy of itself never tears the player down.
  */
 @Composable
 public fun PreviewStage(
@@ -61,7 +69,8 @@ public fun PreviewStage(
   modifier: Modifier = Modifier,
 ) {
   val edit = state.edit
-  val aspect = edit.outputAspect(state.sourceAspect).coerceIn(0.2f, 5f)
+  val aspect = stageAspect(state).coerceIn(0.2f, 5f)
+  val player = state.player
 
   Box(
     modifier = modifier.background(MaterialTheme.colorScheme.background),
@@ -85,16 +94,38 @@ public fun PreviewStage(
           .clip(RoundedCornerShape(4.dp))
           .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(4.dp)),
       ) {
-        FrameBackground(edit, shorterSide, state.sourceAspect)
-        FrameContent(edit, frameWidth, frameHeight, state.sourceAspect)
-        BrightnessScrim(edit.brightness)
-        TextOverlay(edit, frameWidth, frameHeight)
-        WatermarkOverlay(edit, frameWidth, shorterSide)
+        if (player != null && !state.previewUnavailable) {
+          Box(Modifier.fillMaxSize().background(Color.Black))
+          VideoSurface(player, Modifier.fillMaxSize())
+        } else {
+          FrameBackground(edit, shorterSide, state.sourceAspect)
+          FrameContent(edit, frameWidth, frameHeight, state.sourceAspect)
+          BrightnessScrim(edit.brightness)
+          TextOverlay(edit, frameWidth, frameHeight)
+          WatermarkOverlay(edit, frameWidth, shorterSide)
+        }
       }
     }
 
     StageChrome(state, Modifier.fillMaxSize().padding(12.dp))
   }
+}
+
+/**
+ * The aspect the stage frames.
+ *
+ * A live preview reports the frame it is showing rather than the one it was last asked for, so the
+ * stage and the picture in it change shape on the same frame instead of the stage moving a swap
+ * ahead of the video. The schematic has no picture to wait for and follows the edit directly.
+ */
+@Composable
+private fun stageAspect(state: SampleAppState): Float {
+  val edited = state.edit.outputAspect(state.sourceAspect)
+  val player = state.player
+  if (player == null || state.previewUnavailable) return edited
+
+  val presented = rememberVideoSurfaceState(player).outputSize.aspect
+  return if (presented > 0f) presented else edited
 }
 
 @Composable
@@ -372,18 +403,56 @@ private fun StageChrome(
   val scaled = state.edit.scaleHeight.takeIf { state.edit.scaleEnabled }
   val height = state.targetHeight ?: scaled ?: state.info?.video?.displaySize?.height
   val aspect = state.edit.outputAspect(state.sourceAspect)
+  val live = state.player != null && !state.previewUnavailable
 
   Box(modifier) {
     Column(Modifier.align(Alignment.TopStart)) {
-      Pill("SCHEMATIC", MaterialTheme.colorScheme.secondary)
+      if (live) {
+        Pill(state.playerStatus.pillLabel(), MaterialTheme.colorScheme.primary)
+      } else {
+        Pill("SCHEMATIC", MaterialTheme.colorScheme.secondary)
+      }
     }
     Row(Modifier.align(Alignment.TopEnd)) {
       if (height != null) {
         Pill("${(height * aspect).toInt()} x $height", MaterialTheme.colorScheme.onSurfaceVariant)
       }
     }
+
+    state.previewNote()?.let { note ->
+      Text(
+        text = note,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+          .align(Alignment.BottomCenter)
+          .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(6.dp))
+          .padding(horizontal = 10.dp, vertical = 6.dp),
+      )
+    }
   }
 }
+
+/**
+ * What the stage says about a preview that is not playing, or null while it is.
+ */
+private fun SampleAppState.previewNote(): String? =
+  when (val error = previewError) {
+    null -> null
+    is PlaybackError.BackendMissing -> "No preview backend here. The schematic stands in for it."
+    else -> "Preview stopped: ${error.message}"
+  }
+
+private fun PlaybackStatus.pillLabel(): String =
+  when (this) {
+    PlaybackStatus.Idle -> "IDLE"
+    PlaybackStatus.Preparing -> "LOADING"
+    PlaybackStatus.Ready -> "PREVIEW"
+    PlaybackStatus.Ended -> "ENDED"
+    PlaybackStatus.Released -> "RELEASED"
+    is PlaybackStatus.Error -> "ERROR"
+  }
 
 private const val BLUR_GAIN = 6f
 private const val CAP_HEIGHT_RATIO = 0.7f

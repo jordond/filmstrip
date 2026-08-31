@@ -23,8 +23,8 @@ kotlin {
   sourceSets {
     wasmJsMain.dependencies {
       implementation(projects.sample.shared)
-      implementation(compose.runtime)
-      implementation(compose.ui)
+      implementation(libs.compose.runtime)
+      implementation(libs.compose.ui)
     }
   }
 }

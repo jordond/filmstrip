@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.Bitrate
@@ -24,6 +25,14 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.player.PlaybackError
+import dev.jordond.filmstrip.player.PlaybackEvent
+import dev.jordond.filmstrip.player.PlaybackStatus
+import dev.jordond.filmstrip.player.PlayerConfig
+import dev.jordond.filmstrip.player.PlayerFeature
+import dev.jordond.filmstrip.player.PlayerState
+import dev.jordond.filmstrip.player.SetCompositionResult
+import dev.jordond.filmstrip.player.VideoPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,6 +42,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * What the editor is currently editing, which decides what the tool panel shows.
@@ -57,7 +68,7 @@ public enum class EditorTool {
  */
 @Stable
 public class SampleAppState(
-  private val filmstrip: Filmstrip,
+  internal val filmstrip: Filmstrip,
   public val recorder: DiagnosticsRecorder = DiagnosticsRecorder(),
   private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
 ) {
@@ -97,7 +108,39 @@ public class SampleAppState(
     private set
   var playing: Boolean by mutableStateOf(false)
     private set
-  var looping: Boolean by mutableStateOf(true)
+
+  /**
+   * The preview player over the current edit, or null while no preview screen is showing.
+   */
+  var player: VideoPlayer? by mutableStateOf(null)
+    private set
+
+  /**
+   * Where the preview player is in its lifecycle.
+   */
+  var playerStatus: PlaybackStatus by mutableStateOf(PlaybackStatus.Idle)
+    private set
+
+  /**
+   * Why the preview cannot play, or null while it can.
+   */
+  var previewError: PlaybackError? by mutableStateOf(null)
+    private set
+
+  /**
+   * True where no preview backend is registered, which is every target but Apple today.
+   */
+  val previewUnavailable: Boolean
+    get() = previewError is PlaybackError.BackendMissing
+
+  private var loopingState: Boolean by mutableStateOf(true)
+
+  var looping: Boolean
+    get() = loopingState
+    set(value) {
+      loopingState = value
+      applyLoopRange()
+    }
 
   var targetHeight: Int? by mutableStateOf(1080)
   var videoCodec: VideoCodec by mutableStateOf(VideoCodec.Auto)
@@ -132,7 +175,10 @@ public class SampleAppState(
     private set
 
   private var exportJob: Job? = null
+  private var exportGeneration = 0
   private var clockJob: Job? = null
+  private var previewJobs: List<Job> = emptyList()
+  private var reloadJob: Job? = null
 
   val info: MediaInfo?
     get() = (probe as? ProbeResult.Success)?.info
@@ -160,7 +206,7 @@ public class SampleAppState(
     sourcePreset = preset
     pickFailure = null
     resetRun()
-    stopClock()
+    stopPreview()
     positionSeconds = 0f
     // The label is the user's own file name, so the log gets the same redaction the report does.
     recorder.record("source.picked", "source" to (preset?.fileName ?: source.redactedName()))
@@ -226,6 +272,7 @@ public class SampleAppState(
     exportProgress = null
     exportAdjustments = emptyList()
     positionSeconds = positionSeconds.coerceIn(0f, editedDurationSeconds)
+    reloadPreview()
   }
 
   /**
@@ -260,7 +307,7 @@ public class SampleAppState(
    * Drops the clip and everything derived from it, leaving the root on its picker.
    */
   fun closeProject() {
-    stopClock()
+    stopPreview()
     exportJob?.cancel()
     source = null
     sourceLabel = ""
@@ -277,6 +324,17 @@ public class SampleAppState(
     return edit.composition(filmstrip, source, sourceDuration)
   }
 
+  /**
+   * The current edit over the whole source, with no trim applied.
+   *
+   * Built for the timeline strip, which lays the source out end to end and draws the trim window
+   * over it rather than following it.
+   */
+  fun filmstripComposition(): EditComposition? {
+    val source = source ?: return null
+    return edit.composition(filmstrip, source, sourceDuration, trimmed = false)
+  }
+
   fun spec(): ExportSpec = ExportSpec(
     targetHeight = targetHeight,
     bitrate = bitrateMbps?.let(Bitrate::mbps),
@@ -288,50 +346,88 @@ public class SampleAppState(
     strict = strict,
   )
 
+  /**
+   * Opens a player over the current edit, replacing whatever was open.
+   *
+   * The preview screen calls this on the way in and [stopPreview] on the way out, so the player
+   * lives exactly as long as the surface it draws into.
+   */
+  fun startPreview() {
+    val composition = composition() ?: return
+    stopPreview()
+
+    val opened = filmstrip.preview(composition, PlayerConfig())
+    player = opened
+    recorder.record("player.opened", "duration" to editedDuration.toString())
+    observe(opened)
+    applyLoopRange()
+  }
+
+  /**
+   * Closes the player and drops everything derived from it.
+   */
+  fun stopPreview() {
+    reloadJob?.cancel()
+    reloadJob = null
+    previewJobs.forEach { it.cancel() }
+    previewJobs = emptyList()
+
+    player?.let { open ->
+      open.close()
+      recorder.record("player.closed")
+    }
+    player = null
+    playerStatus = PlaybackStatus.Idle
+    previewError = null
+    playing = false
+    stopClock()
+  }
+
   fun togglePlay() {
     if (playing) pause() else play()
   }
 
-  /**
-   * Advances a local playhead so the timeline can be driven before a preview backend is attached.
-   *
-   * Swap this for `VideoPlayer.positionFlow` once `preview()` renders here.
-   */
   fun play() {
-    if (playing || editedDurationSeconds <= 0f) return
-    playing = true
-    clockJob = scope.launch {
-      while (isActive) {
-        delay(TICK_MILLIS)
-        val next = positionSeconds + TICK_SECONDS
-        val end = editedDurationSeconds
-        positionSeconds = when {
-          next < end -> next
-          looping -> 0f
-          else -> {
-            playing = false
-            end
-          }
-        }
-        if (!playing) break
-      }
+    val open = livePlayer()
+    if (open == null) {
+      startLocalClock()
+      return
     }
+
+    recorder.record("player.play", "playWhenReady" to "true")
+    open.play()
   }
 
   fun pause() {
-    stopClock()
+    val open = livePlayer()
+    if (open == null) {
+      stopClock()
+      return
+    }
+
+    recorder.record("player.pause", "playWhenReady" to "false")
+    open.pause()
   }
 
   fun seekTo(seconds: Float) {
-    positionSeconds = seconds.coerceIn(0f, editedDurationSeconds)
+    val target = seconds.coerceIn(0f, editedDurationSeconds)
+    positionSeconds = target
+    livePlayer()?.seekTo(target.toDouble().seconds)
   }
 
   fun stepFrames(frames: Int) {
+    val open = livePlayer()
+    if (open != null && open.features.supports(PlayerFeature.FrameStepping)) {
+      open.stepFrames(frames)
+      return
+    }
+
     val fps = frameRate ?: info?.video?.frameRate?.toInt() ?: DEFAULT_FRAME_RATE
     seekTo(positionSeconds + frames.toFloat() / fps)
   }
 
   fun plan() {
+    if (planning) return
     val composition = composition() ?: return
     verdict = null
     planning = true
@@ -355,8 +451,12 @@ public class SampleAppState(
     exportAdjustments = emptyList()
     pause()
 
+    // The flag is flipped here rather than inside the coroutine, and cleared only by the run that
+    // still owns it. cancel() above does not wait, so a superseded run's finally lands after the
+    // replacement has started and would otherwise report the new export as finished.
+    val generation = ++exportGeneration
+    exporting = true
     exportJob = scope.launch {
-      exporting = true
       try {
         filmstrip.export(plan, MediaSink.temporary()).collect { status ->
           when (status) {
@@ -389,7 +489,7 @@ public class SampleAppState(
           }
         }
       } finally {
-        exporting = false
+        if (generation == exportGeneration) exporting = false
       }
     }
   }
@@ -420,6 +520,90 @@ public class SampleAppState(
       spec.id to (filmstrip.parityOf(spec.id)?.name ?: "unknown")
     }
 
+  private fun livePlayer(): VideoPlayer? = player?.takeIf { !previewUnavailable }
+
+  private fun observe(open: VideoPlayer) {
+    // Events first, because they are edge-triggered with no replay and the player starts loading
+    // the composition it was built with the moment it exists.
+    previewJobs = listOf(
+      scope.launch { open.events.collect(::onPlaybackEvent) },
+      scope.launch { open.state.collect(::onPlayerState) },
+      scope.launch {
+        open.positionFlow(POSITION_TICK).collect { position ->
+          // The player's own duration once it has loaded, so the clamp agrees with what it is
+          // actually playing rather than with a bound this recomputes from the edit on its own.
+          val bound = (open.state.value.duration ?: editedDuration).inWholeMilliseconds / 1000f
+          positionSeconds = (position.inWholeMilliseconds / 1000f).coerceIn(0f, bound)
+        }
+      },
+    )
+  }
+
+  private fun onPlayerState(snapshot: PlayerState) {
+    playing = snapshot.playWhenReady
+    previewError = (snapshot.status as? PlaybackStatus.Error)?.error
+
+    if (snapshot.status == playerStatus) return
+    playerStatus = snapshot.status
+    recorder.record(
+      label = "player.status",
+      "status" to snapshot.status.label(),
+      "playWhenReady" to snapshot.playWhenReady.toString(),
+    )
+  }
+
+  private fun onPlaybackEvent(event: PlaybackEvent) {
+    val wanted = player?.state?.value?.playWhenReady
+    recorder.record(event.label(), event.detail() + ("playWhenReady" to wanted.toString()))
+  }
+
+  /**
+   * Hands the edit to the open player, debounced so one drag issues one rebuild.
+   */
+  private fun reloadPreview() {
+    val open = player ?: return
+    reloadJob?.cancel()
+    reloadJob = scope.launch {
+      delay(RELOAD_DEBOUNCE_MILLIS)
+      val composition = composition() ?: return@launch
+      val result = open.setComposition(composition)
+      if (result is SetCompositionResult.Failure) {
+        recorder.record("player.loadFailed", "error" to result.error.message)
+      }
+      applyLoopRange()
+    }
+  }
+
+  private fun applyLoopRange() {
+    val open = livePlayer() ?: return
+    val duration = editedDuration
+    open.setLoopRange(if (loopingState && duration > Duration.ZERO) TimeRange(Duration.ZERO, duration) else null)
+  }
+
+  /**
+   * Advances a local playhead where no preview backend answered, so the timeline still moves.
+   */
+  private fun startLocalClock() {
+    if (playing || editedDurationSeconds <= 0f) return
+    playing = true
+    clockJob = scope.launch {
+      while (isActive) {
+        delay(TICK_MILLIS)
+        val next = positionSeconds + TICK_SECONDS
+        val end = editedDurationSeconds
+        positionSeconds = when {
+          next < end -> next
+          loopingState -> 0f
+          else -> {
+            playing = false
+            end
+          }
+        }
+        if (!playing) break
+      }
+    }
+  }
+
   private fun stopClock() {
     clockJob?.cancel()
     clockJob = null
@@ -445,7 +629,49 @@ public class SampleAppState(
   private companion object {
     const val TICK_MILLIS = 33L
     const val TICK_SECONDS = 0.033f
+    const val RELOAD_DEBOUNCE_MILLIS = 150L
     const val DEFAULT_ASPECT = 16f / 9f
     const val DEFAULT_FRAME_RATE = 30
+
+    val POSITION_TICK = 33.milliseconds
   }
 }
+
+/**
+ * How a status reads in the session log.
+ */
+private fun PlaybackStatus.label(): String =
+  when (this) {
+    is PlaybackStatus.Error -> "Error(${error::class.simpleName ?: "unknown"})"
+    else -> this::class.simpleName ?: "unknown"
+  }
+
+/**
+ * The log label for an event, namespaced the way the rest of the session log is.
+ */
+private fun PlaybackEvent.label(): String =
+  when (this) {
+    is PlaybackEvent.Ended -> "player.ended"
+    is PlaybackEvent.SeekCompleted -> "player.seeked"
+    PlaybackEvent.FirstFrameRendered -> "player.firstFrame"
+    is PlaybackEvent.RangeLooped -> "player.looped"
+    is PlaybackEvent.Failed -> "player.failed"
+    is PlaybackEvent.ExternalPlayWhenReadyChanged -> "player.external"
+    is PlaybackEvent.EffectsDegraded -> "player.effectsDegraded"
+    is PlaybackEvent.QualityDegraded -> "player.qualityDegraded"
+  }
+
+/**
+ * The fields of an event worth carrying into a bug report.
+ */
+private fun PlaybackEvent.detail(): Map<String, String> =
+  when (this) {
+    is PlaybackEvent.Ended -> mapOf("at" to finalPosition.toString(), "duration" to duration.toString())
+    is PlaybackEvent.SeekCompleted -> mapOf("at" to position.toString())
+    PlaybackEvent.FirstFrameRendered -> emptyMap()
+    is PlaybackEvent.RangeLooped -> mapOf("range" to range.toString())
+    is PlaybackEvent.Failed -> mapOf("error" to (error::class.simpleName ?: "unknown"), "message" to error.message)
+    is PlaybackEvent.ExternalPlayWhenReadyChanged -> mapOf("wanted" to playWhenReady.toString())
+    is PlaybackEvent.EffectsDegraded -> adjustments.associate { it.kind.name to it.message }
+    is PlaybackEvent.QualityDegraded -> mapOf("message" to message)
+  }

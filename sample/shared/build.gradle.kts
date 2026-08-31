@@ -31,7 +31,7 @@ kotlin {
   applyDefaultHierarchyTemplate()
 
   sourceSets {
-    val jvmCommonMain by creating {
+    val jvmCommonMain = create("jvmCommonMain") {
       dependsOn(commonMain.get())
     }
     androidMain.get().dependsOn(jvmCommonMain)
@@ -39,10 +39,11 @@ kotlin {
 
     commonMain.dependencies {
       api(projects.filmstrip)
+      implementation(projects.filmstripCompose)
       implementation(libs.filekit.dialogs.compose)
-      implementation(compose.runtime)
-      implementation(compose.foundation)
-      implementation(compose.material3)
+      implementation(libs.compose.runtime)
+      implementation(libs.compose.foundation)
+      implementation(libs.compose.material3)
       implementation(libs.compose.adaptive)
       implementation(libs.compose.adaptive.layout)
       implementation(libs.navigation3.runtime)

@@ -194,15 +194,20 @@ public class EditState {
 
   /**
    * Builds the value that `plan`, `export` and `preview` all take.
+   *
+   * @param trimmed Whether to cut the clip to [trimRange]. False keeps the whole source, which is
+   *   what the timeline strip renders against so it covers the same ground no matter where the trim
+   *   handles sit.
    */
   fun composition(
     filmstrip: Filmstrip,
     source: MediaSource,
     sourceDuration: Duration?,
+    trimmed: Boolean = true,
   ): EditComposition =
     filmstrip.composition {
       clip(source) {
-        trimRange(sourceDuration)?.let { trim(it) }
+        if (trimmed) trimRange(sourceDuration)?.let { trim(it) }
         if (clipMuted) audio(AudioLevel.Mute)
       }
 

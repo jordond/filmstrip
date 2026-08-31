@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.sample.ui.screen
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -21,26 +22,33 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.jordond.filmstrip.compose.FilmstripFrames
+import dev.jordond.filmstrip.compose.rememberFilmstripFrames
+import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.sample.SampleAppState
 import dev.jordond.filmstrip.sample.ui.asClock
 import kotlin.math.roundToInt
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
  * The strip under the viewport: the whole source laid out end to end, with the trim window over it
  * and the playhead in it.
  *
- * The tiles are stand-ins. `Filmstrip.frames` is what fills them once a decode path is wired up,
- * which is why the strip is addressed in source time rather than in trimmed time.
+ * Tiles are addressed in source time rather than trimmed time, so the strip covers the same ground
+ * no matter where the trim handles sit.
  */
 @Composable
 public fun Timeline(
@@ -76,7 +84,7 @@ public fun Timeline(
         state.seekTo(seconds - trimStart)
       }
 
-      FrameTiles(widthDp)
+      FrameTiles(state, widthDp, durationSeconds)
 
       Box(
         Modifier
@@ -143,27 +151,73 @@ private fun Ruler(durationSeconds: Float) {
   }
 }
 
+/**
+ * Frames of a strip's tiles, rendered from this session's own engine.
+ *
+ * The wrapper keeps the engine instance itself out of reach of everything but the state that owns
+ * it, the same as [SampleAppState.composition] does for the edit it is built from.
+ */
 @Composable
-private fun FrameTiles(width: Dp) {
+private fun SampleAppState.rememberStripFrames(
+  composition: EditComposition,
+  positions: List<Duration>,
+  heightPx: Int,
+): FilmstripFrames = rememberFilmstripFrames(filmstrip, composition, positions, heightPx)
+
+@Composable
+private fun FrameTiles(
+  state: SampleAppState,
+  width: Dp,
+  durationSeconds: Float,
+) {
   val tileWidth = 46.dp
   val count = (width / tileWidth).roundToInt().coerceIn(1, 40)
+  val heightPx = with(LocalDensity.current) { STRIP_HEIGHT.roundToPx() }
+
+  val positions = remember(durationSeconds, count) {
+    List(count) { index -> ((index + 0.5f) / count * durationSeconds).toDouble().seconds }
+  }
+
+  val composition = state.filmstripComposition()?.takeIf { durationSeconds > 0f }
+  val frames = if (composition != null) {
+    state.rememberStripFrames(composition, positions, heightPx)
+  } else {
+    null
+  }
+
+  // The whole strip is always on screen at once, unlike a scrolling timeline, so everything it
+  // covers counts as visible.
+  LaunchedEffect(frames, count) {
+    frames?.onVisibleRange(0, count - 1)
+  }
 
   Row(Modifier.fillMaxSize()) {
     repeat(count) { index ->
       val hue = (index * 37f) % 360f
-      Box(
-        Modifier
-          .weight(1f)
-          .fillMaxHeight()
-          .background(
-            Brush.verticalGradient(
-              listOf(
-                Color.hsv(hue, 0.35f, 0.42f),
-                Color.hsv((hue + 24f) % 360f, 0.45f, 0.22f),
+      Box(Modifier.weight(1f).fillMaxHeight()) {
+        val bitmap = frames?.get(index)
+        if (bitmap != null) {
+          Image(
+            bitmap = bitmap,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+          )
+        } else {
+          Box(
+            Modifier
+              .fillMaxSize()
+              .background(
+                Brush.verticalGradient(
+                  listOf(
+                    Color.hsv(hue, 0.35f, 0.42f),
+                    Color.hsv((hue + 24f) % 360f, 0.45f, 0.22f),
+                  ),
+                ),
               ),
-            ),
-          ),
-      )
+          )
+        }
+      }
       if (index != count - 1) {
         Spacer(Modifier.width(1.dp).fillMaxHeight().background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)))
       }
