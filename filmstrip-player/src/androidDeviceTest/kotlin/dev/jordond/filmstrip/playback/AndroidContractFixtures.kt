@@ -1,0 +1,174 @@
+package dev.jordond.filmstrip.playback
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.media.MediaMetadataRetriever
+import androidx.test.platform.app.InstrumentationRegistry
+import dev.jordond.filmstrip.ComponentRegistry
+import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.edit.Clip
+import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.ExportStatus
+import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.MediaSink
+import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.chainedProber
+import dev.jordond.filmstrip.media3.media3ExportEngine
+import dev.jordond.filmstrip.test.TestFrame
+import kotlinx.coroutines.flow.toList
+import java.io.File
+import kotlin.test.fail
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+
+/**
+ * The context the instrumentation runs against, which is what media3 decodes and encodes on.
+ */
+internal fun contractContext(): Context = InstrumentationRegistry.getInstrumentation().targetContext
+
+/**
+ * The clip every Android contract suite plays, packaged into the test APK by the fixture task.
+ *
+ * The task is a dependency of the instrumented build, so the resource is there or the build failed
+ * before a test ran. Nothing here skips: a suite that returns early on a missing fixture reports
+ * green without having asserted anything.
+ */
+internal fun androidFixtureClip(): MediaSource {
+  val file = File(contractContext().cacheDir, CLIP_NAME)
+  if (!file.exists()) {
+    val loader = AndroidContractFixtures::class.java.classLoader ?: fail("the test APK has no class loader")
+    val stream = loader.getResourceAsStream(CLIP_NAME) ?: fail("$CLIP_NAME was not packaged into the test APK")
+    stream.use { input -> file.outputStream().use(input::copyTo) }
+  }
+  return MediaSource.of(file.path)
+}
+
+/**
+ * One trimmed clip of the fixture, with [effects] over the whole composition.
+ */
+internal fun androidFixtureComposition(
+  effects: List<EffectSpec> = emptyList(),
+  fill: Fill = Fill.Black,
+): EditComposition =
+  EditComposition(
+    tracks = listOf(Track(listOf(Clip(androidFixtureClip(), TimeRange.of(Duration.ZERO, CLIP_LENGTH))))),
+    effects = effects,
+    fill = fill,
+  )
+
+/**
+ * The frame the export writes at [position], decoded back out of the file it wrote.
+ *
+ * This is the export path and not a second preview: the edit is negotiated again through
+ * [media3ExportEngine], lowered again by `toMedia3`, and run through `Transformer` onto a real file
+ * with a real encoder. Only the encoder separates it from the preview's own frame, which is the one
+ * thing a preview is documented not to carry, and it is what the thresholds in
+ * [AndroidPixelContractTest] are set against.
+ *
+ * Each composition is exported once and its file kept, since the suite compares several frames of
+ * the same edit.
+ */
+internal suspend fun androidExportFrame(
+  composition: EditComposition,
+  position: Duration,
+): TestFrame {
+  val file = exports.getOrPut(composition) { export(composition) }
+  val retriever = MediaMetadataRetriever()
+  return try {
+    retriever.setDataSource(file.path)
+    val frame =
+      retriever.getFrameAtTime(position.inWholeMicroseconds, MediaMetadataRetriever.OPTION_CLOSEST)
+        ?: fail("the export wrote no frame at $position")
+    frame.toTestFrame()
+  } finally {
+    retriever.release()
+  }
+}
+
+private suspend fun export(composition: EditComposition): File {
+  val engine = media3ExportEngine(chainedProber(CONTRACT_COMPONENTS), CONTRACT_COMPONENTS.effectResolvers)
+  val plan =
+    when (val verdict = engine.plan(composition, ExportSpec())) {
+      is Verdict.Capable -> verdict.plan
+      is Verdict.Degraded -> verdict.plan
+      is Verdict.Incapable -> fail("the export refused the fixture: ${verdict.reasons.map { it.message }}")
+    }
+
+  val finished = engine.export(plan, MediaSink.temporary()).toList().last()
+  if (finished is ExportStatus.Failure) fail("the export failed: ${finished.error.message}")
+  val success = finished as? ExportStatus.Success ?: fail("the export ended on $finished")
+  return when (val output = success.output) {
+    is MediaSink.Path -> File(output.path)
+    else -> fail("a finished export resolves to a real path, and gave $output")
+  }
+}
+
+/**
+ * This bitmap as the tightly packed RGBA the comparison helpers take.
+ *
+ * Read through `getPixels` rather than out of the backing buffer, since a bitmap is free to pad its
+ * rows and the packed form must carry none of that. The alpha channel is written full: an exported
+ * frame is opaque, and the decoder can hand back whatever it likes there.
+ */
+private fun Bitmap.toTestFrame(): TestFrame {
+  val colors = IntArray(width * height)
+  getPixels(colors, 0, width, 0, 0, width, height)
+
+  val pixels = ByteArray(colors.size * CHANNELS)
+  for (index in colors.indices) {
+    val color = colors[index]
+    val base = index * CHANNELS
+    pixels[base] = (color shr RED_SHIFT).toByte()
+    pixels[base + 1] = (color shr GREEN_SHIFT).toByte()
+    pixels[base + 2] = color.toByte()
+    pixels[base + 3] = OPAQUE
+  }
+  return TestFrame(pixels, Size(width, height))
+}
+
+/**
+ * The components a host that registered the media3 backend would hand a preview.
+ *
+ * Both sides of the pixel contract lower through this one registry, so a difference between them is
+ * a difference in how the graph is built rather than in what was registered.
+ */
+@OptIn(InternalFilmstripApi::class)
+internal val CONTRACT_COMPONENTS: ComponentRegistry = ComponentRegistry.Builder().add(BuiltInEffectResolver()).build()
+
+/**
+ * Long enough to play through and seek inside, and a whole number of frames at the fixture's rate.
+ */
+internal val CLIP_LENGTH: Duration = 1500.milliseconds
+
+/**
+ * The frame the fixture decodes at, which is the frame an export of it writes.
+ */
+internal val FIXTURE_FRAME: Size = Size(640, 360)
+
+/**
+ * Composition times both suites compare at, each landing exactly on the fixture's 30fps grid.
+ */
+internal val PROBE_POSITIONS: List<Duration> = listOf(300.milliseconds, 900.milliseconds)
+
+private const val CLIP_NAME = "apple_export_a.mp4"
+private const val CHANNELS = 4
+private const val RED_SHIFT = 16
+private const val GREEN_SHIFT = 8
+private const val OPAQUE = 0xFF.toByte()
+
+private val exports = mutableMapOf<EditComposition, File>()
+
+private object AndroidContractFixtures
+
+/**
+ * A composition over a path nothing can open, which no planner can resolve.
+ */
+internal fun androidFixtureBrokenComposition(): EditComposition =
+  EditComposition(tracks = listOf(Track(listOf(Clip(MediaSource.of("/does/not/exist/filmstrip.mp4"))))))
