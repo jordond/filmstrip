@@ -5,7 +5,6 @@ import androidx.compose.runtime.RememberObserver
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import dev.jordond.filmstrip.player.PreviewSurfaceType
 import dev.jordond.filmstrip.player.VideoPlayer
 
 /**
@@ -26,7 +25,6 @@ public expect fun VideoSurface(
   player: VideoPlayer,
   modifier: Modifier = Modifier,
   contentScale: VideoContentScale = VideoContentScale.Fit,
-  surfaceType: PreviewSurfaceType = PreviewSurfaceType.Surface,
 )
 
 /**
@@ -67,7 +65,7 @@ public fun rememberVideoPlayer(factory: () -> VideoPlayer): VideoPlayer =
   remember { ClosingPlayerHolder(factory()) }.player
 
 @Stable
-private class ClosingPlayerHolder(
+internal class ClosingPlayerHolder(
   val player: VideoPlayer,
 ) : RememberObserver {
   override fun onAbandoned(): Unit = player.close()

@@ -18,5 +18,76 @@ final enum class dev.jordond.filmstrip.compose/VideoContentScale : kotlin/Enum<d
     final fun values(): kotlin/Array<dev.jordond.filmstrip.compose/VideoContentScale> // dev.jordond.filmstrip.compose/VideoContentScale.values|values#static(){}[0]
 }
 
-final fun dev.jordond.filmstrip.compose/VideoSurface(dev.jordond.filmstrip.player/VideoPlayer, androidx.compose.ui/Modifier?, dev.jordond.filmstrip.compose/VideoContentScale?, dev.jordond.filmstrip.player/PreviewSurfaceType?, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int) // dev.jordond.filmstrip.compose/VideoSurface|VideoSurface(dev.jordond.filmstrip.player.VideoPlayer;androidx.compose.ui.Modifier?;dev.jordond.filmstrip.compose.VideoContentScale?;dev.jordond.filmstrip.player.PreviewSurfaceType?;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+final class dev.jordond.filmstrip.compose/FilmstripFrames { // dev.jordond.filmstrip.compose/FilmstripFrames|null[0]
+    final val count // dev.jordond.filmstrip.compose/FilmstripFrames.count|{}count[0]
+        final fun <get-count>(): kotlin/Int // dev.jordond.filmstrip.compose/FilmstripFrames.count.<get-count>|<get-count>(){}[0]
+    final val heldBytes // dev.jordond.filmstrip.compose/FilmstripFrames.heldBytes|{}heldBytes[0]
+        final fun <get-heldBytes>(): kotlin/Long // dev.jordond.filmstrip.compose/FilmstripFrames.heldBytes.<get-heldBytes>|<get-heldBytes>(){}[0]
+
+    final fun get(kotlin/Int): androidx.compose.ui.graphics/ImageBitmap? // dev.jordond.filmstrip.compose/FilmstripFrames.get|get(kotlin.Int){}[0]
+    final fun onVisibleRange(kotlin/Int, kotlin/Int) // dev.jordond.filmstrip.compose/FilmstripFrames.onVisibleRange|onVisibleRange(kotlin.Int;kotlin.Int){}[0]
+}
+
+final class dev.jordond.filmstrip.compose/PlayheadState { // dev.jordond.filmstrip.compose/PlayheadState|null[0]
+    final val progress // dev.jordond.filmstrip.compose/PlayheadState.progress|{}progress[0]
+        final fun <get-progress>(): kotlin/Float // dev.jordond.filmstrip.compose/PlayheadState.progress.<get-progress>|<get-progress>(){}[0]
+
+    final var duration // dev.jordond.filmstrip.compose/PlayheadState.duration|{}duration[0]
+        final fun <get-duration>(): kotlin.time/Duration? // dev.jordond.filmstrip.compose/PlayheadState.duration.<get-duration>|<get-duration>(){}[0]
+    final var position // dev.jordond.filmstrip.compose/PlayheadState.position|{}position[0]
+        final fun <get-position>(): kotlin.time/Duration // dev.jordond.filmstrip.compose/PlayheadState.position.<get-position>|<get-position>(){}[0]
+
+    final fun positionProvider(): kotlin/Function0<kotlin.time/Duration> // dev.jordond.filmstrip.compose/PlayheadState.positionProvider|positionProvider(){}[0]
+}
+
+final class dev.jordond.filmstrip.compose/ScrubState { // dev.jordond.filmstrip.compose/ScrubState|null[0]
+    final var isScrubbing // dev.jordond.filmstrip.compose/ScrubState.isScrubbing|{}isScrubbing[0]
+        final fun <get-isScrubbing>(): kotlin/Boolean // dev.jordond.filmstrip.compose/ScrubState.isScrubbing.<get-isScrubbing>|<get-isScrubbing>(){}[0]
+
+    final fun onScrubEnd() // dev.jordond.filmstrip.compose/ScrubState.onScrubEnd|onScrubEnd(){}[0]
+    final fun onScrubStart() // dev.jordond.filmstrip.compose/ScrubState.onScrubStart|onScrubStart(){}[0]
+    final fun onScrubTo(kotlin.time/Duration) // dev.jordond.filmstrip.compose/ScrubState.onScrubTo|onScrubTo(kotlin.time.Duration){}[0]
+}
+
+final class dev.jordond.filmstrip.compose/VideoSurfaceState { // dev.jordond.filmstrip.compose/VideoSurfaceState|null[0]
+    final var coverSurface // dev.jordond.filmstrip.compose/VideoSurfaceState.coverSurface|{}coverSurface[0]
+        final fun <get-coverSurface>(): kotlin/Boolean // dev.jordond.filmstrip.compose/VideoSurfaceState.coverSurface.<get-coverSurface>|<get-coverSurface>(){}[0]
+    final var outputSize // dev.jordond.filmstrip.compose/VideoSurfaceState.outputSize|{}outputSize[0]
+        final fun <get-outputSize>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.compose/VideoSurfaceState.outputSize.<get-outputSize>|<get-outputSize>(){}[0]
+}
+
+final object dev.jordond.filmstrip.compose/FilmstripFramesDefaults { // dev.jordond.filmstrip.compose/FilmstripFramesDefaults|null[0]
+    final val MaxBytes // dev.jordond.filmstrip.compose/FilmstripFramesDefaults.MaxBytes|{}MaxBytes[0]
+        final fun <get-MaxBytes>(): kotlin/Long // dev.jordond.filmstrip.compose/FilmstripFramesDefaults.MaxBytes.<get-MaxBytes>|<get-MaxBytes>(){}[0]
+    final val Overscan // dev.jordond.filmstrip.compose/FilmstripFramesDefaults.Overscan|{}Overscan[0]
+        final fun <get-Overscan>(): kotlin/Int // dev.jordond.filmstrip.compose/FilmstripFramesDefaults.Overscan.<get-Overscan>|<get-Overscan>(){}[0]
+}
+
+final object dev.jordond.filmstrip.compose/PlayheadDefaults { // dev.jordond.filmstrip.compose/PlayheadDefaults|null[0]
+    final val Tick // dev.jordond.filmstrip.compose/PlayheadDefaults.Tick|{}Tick[0]
+        final fun <get-Tick>(): kotlin.time/Duration // dev.jordond.filmstrip.compose/PlayheadDefaults.Tick.<get-Tick>|<get-Tick>(){}[0]
+}
+
+final val dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_FilmstripFrames$stableprop // dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_FilmstripFrames$stableprop|#static{}dev_jordond_filmstrip_compose_FilmstripFrames$stableprop[0]
+final val dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_FilmstripFramesDefaults$stableprop // dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_FilmstripFramesDefaults$stableprop|#static{}dev_jordond_filmstrip_compose_FilmstripFramesDefaults$stableprop[0]
+final val dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_PlayheadDefaults$stableprop // dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_PlayheadDefaults$stableprop|#static{}dev_jordond_filmstrip_compose_PlayheadDefaults$stableprop[0]
+final val dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_PlayheadState$stableprop // dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_PlayheadState$stableprop|#static{}dev_jordond_filmstrip_compose_PlayheadState$stableprop[0]
+final val dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_ScrubState$stableprop // dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_ScrubState$stableprop|#static{}dev_jordond_filmstrip_compose_ScrubState$stableprop[0]
+final val dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_VideoSurfaceState$stableprop // dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_VideoSurfaceState$stableprop|#static{}dev_jordond_filmstrip_compose_VideoSurfaceState$stableprop[0]
+
+final fun (androidx.compose.ui/Modifier).dev.jordond.filmstrip.compose/videoAspect(dev.jordond.filmstrip.compose/VideoSurfaceState, dev.jordond.filmstrip.compose/VideoContentScale): androidx.compose.ui/Modifier // dev.jordond.filmstrip.compose/videoAspect|videoAspect@androidx.compose.ui.Modifier(dev.jordond.filmstrip.compose.VideoSurfaceState;dev.jordond.filmstrip.compose.VideoContentScale){}[0]
+final fun dev.jordond.filmstrip.compose/PlaybackEventEffect(dev.jordond.filmstrip.player/VideoPlayer, kotlin/Function1<dev.jordond.filmstrip.player/PlaybackEvent, kotlin/Unit>, androidx.compose.runtime/Composer?, kotlin/Int) // dev.jordond.filmstrip.compose/PlaybackEventEffect|PlaybackEventEffect(dev.jordond.filmstrip.player.VideoPlayer;kotlin.Function1<dev.jordond.filmstrip.player.PlaybackEvent,kotlin.Unit>;androidx.compose.runtime.Composer?;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.compose/VideoSurface(dev.jordond.filmstrip.player/VideoPlayer, androidx.compose.ui/Modifier?, dev.jordond.filmstrip.compose/VideoContentScale?, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int) // dev.jordond.filmstrip.compose/VideoSurface|VideoSurface(dev.jordond.filmstrip.player.VideoPlayer;androidx.compose.ui.Modifier?;dev.jordond.filmstrip.compose.VideoContentScale?;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_FilmstripFrames$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_FilmstripFrames$stableprop_getter|dev_jordond_filmstrip_compose_FilmstripFrames$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_FilmstripFramesDefaults$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_FilmstripFramesDefaults$stableprop_getter|dev_jordond_filmstrip_compose_FilmstripFramesDefaults$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_PlayheadDefaults$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_PlayheadDefaults$stableprop_getter|dev_jordond_filmstrip_compose_PlayheadDefaults$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_PlayheadState$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_PlayheadState$stableprop_getter|dev_jordond_filmstrip_compose_PlayheadState$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_ScrubState$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_ScrubState$stableprop_getter|dev_jordond_filmstrip_compose_ScrubState$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_VideoSurfaceState$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose/dev_jordond_filmstrip_compose_VideoSurfaceState$stableprop_getter|dev_jordond_filmstrip_compose_VideoSurfaceState$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose/rememberFilmstripFrames(dev.jordond.filmstrip/Filmstrip, dev.jordond.filmstrip.edit/EditComposition, kotlin.collections/List<kotlin.time/Duration>, kotlin/Int, kotlin/Long, kotlin/Int, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int): dev.jordond.filmstrip.compose/FilmstripFrames // dev.jordond.filmstrip.compose/rememberFilmstripFrames|rememberFilmstripFrames(dev.jordond.filmstrip.Filmstrip;dev.jordond.filmstrip.edit.EditComposition;kotlin.collections.List<kotlin.time.Duration>;kotlin.Int;kotlin.Long;kotlin.Int;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.compose/rememberFilmstripPlayer(dev.jordond.filmstrip/Filmstrip, dev.jordond.filmstrip.edit/EditComposition, dev.jordond.filmstrip.player/PlayerConfig?, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int): dev.jordond.filmstrip.player/VideoPlayer // dev.jordond.filmstrip.compose/rememberFilmstripPlayer|rememberFilmstripPlayer(dev.jordond.filmstrip.Filmstrip;dev.jordond.filmstrip.edit.EditComposition;dev.jordond.filmstrip.player.PlayerConfig?;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.compose/rememberPlayheadState(dev.jordond.filmstrip.player/VideoPlayer, kotlin.time/Duration, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int): dev.jordond.filmstrip.compose/PlayheadState // dev.jordond.filmstrip.compose/rememberPlayheadState|rememberPlayheadState(dev.jordond.filmstrip.player.VideoPlayer;kotlin.time.Duration;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.compose/rememberPlayheadState(dev.jordond.filmstrip.player/VideoPlayer, kotlin.time/Duration?, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int): dev.jordond.filmstrip.compose/PlayheadState // dev.jordond.filmstrip.compose/rememberPlayheadState|rememberPlayheadState(dev.jordond.filmstrip.player.VideoPlayer;kotlin.time.Duration?;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.compose/rememberScrubState(dev.jordond.filmstrip.player/VideoPlayer, androidx.compose.runtime/Composer?, kotlin/Int): dev.jordond.filmstrip.compose/ScrubState // dev.jordond.filmstrip.compose/rememberScrubState|rememberScrubState(dev.jordond.filmstrip.player.VideoPlayer;androidx.compose.runtime.Composer?;kotlin.Int){}[0]
 final fun dev.jordond.filmstrip.compose/rememberVideoPlayer(kotlin/Function0<dev.jordond.filmstrip.player/VideoPlayer>, androidx.compose.runtime/Composer?, kotlin/Int): dev.jordond.filmstrip.player/VideoPlayer // dev.jordond.filmstrip.compose/rememberVideoPlayer|rememberVideoPlayer(kotlin.Function0<dev.jordond.filmstrip.player.VideoPlayer>;androidx.compose.runtime.Composer?;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.compose/rememberVideoSurfaceState(dev.jordond.filmstrip.player/VideoPlayer, androidx.compose.runtime/Composer?, kotlin/Int): dev.jordond.filmstrip.compose/VideoSurfaceState // dev.jordond.filmstrip.compose/rememberVideoSurfaceState|rememberVideoSurfaceState(dev.jordond.filmstrip.player.VideoPlayer;androidx.compose.runtime.Composer?;kotlin.Int){}[0]

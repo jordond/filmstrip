@@ -1,3 +1,60 @@
+public final class dev/jordond/filmstrip/compose/FilmstripFrames {
+	public static final field $stable I
+	public final fun get (I)Landroidx/compose/ui/graphics/ImageBitmap;
+	public final fun getCount ()I
+	public final fun getHeldBytes ()J
+	public final fun onVisibleRange (II)V
+}
+
+public final class dev/jordond/filmstrip/compose/FilmstripFramesDefaults {
+	public static final field $stable I
+	public static final field INSTANCE Ldev/jordond/filmstrip/compose/FilmstripFramesDefaults;
+	public final fun getMaxBytes ()J
+	public final fun getOverscan ()I
+}
+
+public final class dev/jordond/filmstrip/compose/FilmstripFramesKt {
+	public static final fun rememberFilmstripFrames (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;Ljava/util/List;IJILandroidx/compose/runtime/Composer;II)Ldev/jordond/filmstrip/compose/FilmstripFrames;
+}
+
+public final class dev/jordond/filmstrip/compose/FilmstripPlayerKt {
+	public static final fun rememberFilmstripPlayer (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/player/PlayerConfig;Landroidx/compose/runtime/Composer;II)Ldev/jordond/filmstrip/player/VideoPlayer;
+}
+
+public final class dev/jordond/filmstrip/compose/PlaybackEventEffectKt {
+	public static final fun PlaybackEventEffect (Ldev/jordond/filmstrip/player/VideoPlayer;Lkotlin/jvm/functions/Function1;Landroidx/compose/runtime/Composer;I)V
+}
+
+public final class dev/jordond/filmstrip/compose/PlayheadDefaults {
+	public static final field $stable I
+	public static final field INSTANCE Ldev/jordond/filmstrip/compose/PlayheadDefaults;
+	public final fun getTick-UwyO8pc ()J
+}
+
+public final class dev/jordond/filmstrip/compose/PlayheadState {
+	public static final field $stable I
+	public final fun getDuration-FghU774 ()Lkotlin/time/Duration;
+	public final fun getPosition-UwyO8pc ()J
+	public final fun getProgress ()F
+	public final fun positionProvider ()Lkotlin/jvm/functions/Function0;
+}
+
+public final class dev/jordond/filmstrip/compose/PlayheadStateKt {
+	public static final fun rememberPlayheadState-WPwdCS8 (Ldev/jordond/filmstrip/player/VideoPlayer;JLandroidx/compose/runtime/Composer;II)Ldev/jordond/filmstrip/compose/PlayheadState;
+}
+
+public final class dev/jordond/filmstrip/compose/ScrubState {
+	public static final field $stable I
+	public final fun isScrubbing ()Z
+	public final fun onScrubEnd ()V
+	public final fun onScrubStart ()V
+	public final fun onScrubTo-LRDsOJo (J)V
+}
+
+public final class dev/jordond/filmstrip/compose/ScrubStateKt {
+	public static final fun rememberScrubState (Ldev/jordond/filmstrip/player/VideoPlayer;Landroidx/compose/runtime/Composer;I)Ldev/jordond/filmstrip/compose/ScrubState;
+}
+
 public final class dev/jordond/filmstrip/compose/VideoContentScale : java/lang/Enum {
 	public static final field Crop Ldev/jordond/filmstrip/compose/VideoContentScale;
 	public static final field Fit Ldev/jordond/filmstrip/compose/VideoContentScale;
@@ -11,7 +68,18 @@ public final class dev/jordond/filmstrip/compose/VideoSurfaceKt {
 	public static final fun rememberVideoPlayer (Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;I)Ldev/jordond/filmstrip/player/VideoPlayer;
 }
 
+public final class dev/jordond/filmstrip/compose/VideoSurfaceState {
+	public static final field $stable I
+	public final fun getCoverSurface ()Z
+	public final fun getOutputSize ()Ldev/jordond/filmstrip/geometry/Size;
+}
+
+public final class dev/jordond/filmstrip/compose/VideoSurfaceStateKt {
+	public static final fun rememberVideoSurfaceState (Ldev/jordond/filmstrip/player/VideoPlayer;Landroidx/compose/runtime/Composer;I)Ldev/jordond/filmstrip/compose/VideoSurfaceState;
+	public static final fun videoAspect (Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/VideoSurfaceState;Ldev/jordond/filmstrip/compose/VideoContentScale;)Landroidx/compose/ui/Modifier;
+}
+
 public final class dev/jordond/filmstrip/compose/VideoSurface_jvmKt {
-	public static final fun VideoSurface (Ldev/jordond/filmstrip/player/VideoPlayer;Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/VideoContentScale;Ldev/jordond/filmstrip/player/PreviewSurfaceType;Landroidx/compose/runtime/Composer;II)V
+	public static final fun VideoSurface (Ldev/jordond/filmstrip/player/VideoPlayer;Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/VideoContentScale;Landroidx/compose/runtime/Composer;II)V
 }
 
