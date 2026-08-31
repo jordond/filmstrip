@@ -6,8 +6,10 @@ import dev.jordond.filmstrip.avfoundation.internal.AvFoundationDriver
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.effect.EffectIds
+import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effects.builtInEffects
 import dev.jordond.filmstrip.export.VideoCodec
+import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.chainedProber
 import dev.jordond.filmstrip.transform.internal.Mp4Copy
 import dev.jordond.filmstrip.transform.internal.PlannedExportEngine
@@ -22,22 +24,39 @@ import dev.jordond.filmstrip.transform.internal.PlannedExportEngine
 public fun FilmstripBuilder.avFoundationBackend(): FilmstripBuilder =
   builtInEffects()
     .addExportEngineFactory { components ->
-      val prober = chainedProber(components)
-      PlannedExportEngine(
-        backend = AvFoundationDriver(prober),
-        prober = prober,
-        resolvers = components.effectResolvers,
-        parity = AVFOUNDATION_PARITY,
-        ladder = AVFOUNDATION_LADDER,
-        // AVAssetWriter takes a source track by format hint instead of output settings, so a copy
-        // needs no encoder at all.
-        supportsPassthrough = true,
-        // Every export here writes AVFileTypeMPEG4, so a copy is allowed for exactly what mp4 carries.
-        canCopy = { info -> Mp4Copy.accepts(info) },
-      )
+      avFoundationExportEngine(chainedProber(components), components.effectResolvers)
     }.addBackendInfo(
       BackendInfo(name = "avfoundation", artifact = "dev.jordond.filmstrip:filmstrip-transform-avfoundation"),
     )
+
+/**
+ * Builds the engine every AVFoundation lowering goes through.
+ *
+ * The preview calls this too, so a previewed edit and an exported one negotiate against the same
+ * codec ladder, the same parity table and the same copy rules rather than against two sets that
+ * have to be kept in step.
+ *
+ * @param prober Reads what each source is.
+ * @param resolvers Lower an effect spec to something Core Image can run.
+ * @return An engine that plans, resolves and exports on AVFoundation.
+ */
+@InternalFilmstripApi
+public fun avFoundationExportEngine(
+  prober: MediaProber,
+  resolvers: List<EffectResolver>,
+): PlannedExportEngine =
+  PlannedExportEngine(
+    backend = AvFoundationDriver(prober),
+    prober = prober,
+    resolvers = resolvers,
+    parity = AVFOUNDATION_PARITY,
+    ladder = AVFOUNDATION_LADDER,
+    // AVAssetWriter takes a source track by format hint instead of output settings, so a copy
+    // needs no encoder at all.
+    supportsPassthrough = true,
+    // Every export here writes AVFileTypeMPEG4, so a copy is allowed for exactly what mp4 carries.
+    canCopy = { info -> Mp4Copy.accepts(info) },
+  )
 
 internal val AVFOUNDATION_LADDER: List<VideoCodec> = listOf(VideoCodec.H264, VideoCodec.Hevc)
 

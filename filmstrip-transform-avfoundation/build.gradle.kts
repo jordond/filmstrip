@@ -1,7 +1,9 @@
+import dev.jordond.filmstrip.convention.bootIosSimulatorForTests
 import dev.jordond.filmstrip.convention.testmedia.FixturePatch
 import dev.jordond.filmstrip.convention.testmedia.FixtureSpec
 import dev.jordond.filmstrip.convention.testmedia.FixtureTransfer
 import dev.jordond.filmstrip.convention.testmedia.testMedia
+import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
 
 plugins {
   id("filmstrip.library.apple")
@@ -14,6 +16,7 @@ kotlin {
     }
 
     commonTest.dependencies {
+      implementation(projects.filmstripTest)
       implementation(libs.kotlinx.coroutines.test)
     }
   }
@@ -55,12 +58,20 @@ val appleFixtures =
       ),
   )
 
-// Only the host gets the fixtures. simctl forwards nothing without a SIMCTL_CHILD_ prefix, so a
-// simulator run reads no path and skips. A simulator would only answer questions about its own
-// codecs anyway.
-tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest>().configureEach {
-  if (name == "macosArm64Test") {
-    dependsOn(appleFixtures.download)
-    environment("FILMSTRIP_FIXTURES", appleFixtures.directory.absolutePath)
+// Both Apple test targets read the fixtures off the host filesystem, which a simulator process can
+// see. simctl hands a spawned process only the variables prefixed for it and strips the prefix on
+// the way in, so the simulator task sets the same name behind SIMCTL_CHILD_.
+tasks.withType<KotlinNativeTest>().configureEach {
+  when (name) {
+    "macosArm64Test" -> {
+      dependsOn(appleFixtures.download)
+      environment("FILMSTRIP_FIXTURES", appleFixtures.directory.absolutePath)
+    }
+    "iosSimulatorArm64Test" -> {
+      dependsOn(appleFixtures.download)
+      environment("SIMCTL_CHILD_FILMSTRIP_FIXTURES", appleFixtures.directory.absolutePath)
+    }
   }
 }
+
+bootIosSimulatorForTests()

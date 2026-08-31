@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.avfoundation.internal
 
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.Attributes
@@ -70,14 +71,15 @@ internal class AppleLoweringFailure(
  * @property attributes The frame this clip's effects were resolved against, which is the clip's own
  *   size, never the output's.
  */
-internal class ClipSpan(
-  val start: Duration,
-  val end: Duration,
-  val rotationDegrees: Int,
-  val attributes: Attributes,
-  val effects: List<ResolvedEffect>,
+@InternalFilmstripApi
+public class ClipSpan(
+  public val start: Duration,
+  public val end: Duration,
+  public val rotationDegrees: Int,
+  public val attributes: Attributes,
+  public val effects: List<ResolvedEffect>,
 ) {
-  fun covers(time: Duration): Boolean = time in start..<end
+  public fun covers(time: Duration): Boolean = time in start..<end
 }
 
 /**
@@ -89,15 +91,24 @@ internal class ClipSpan(
  * @property encodesHdr Whether an HDR grade reaches the encoder, which is not always what was
  *   asked for.
  */
-internal class AvComposition(
-  val composition: AVMutableComposition,
-  val videoComposition: AVMutableVideoComposition?,
-  val audioMix: AVMutableAudioMix?,
-  val encodesHdr: Boolean,
-  val transfer: HdrTransfer?,
-  val spans: List<ClipSpan>,
-  internal val chain: CoreImageChain?,
+@InternalFilmstripApi
+public class AvComposition(
+  public val composition: AVMutableComposition,
+  public val videoComposition: AVMutableVideoComposition?,
+  public val audioMix: AVMutableAudioMix?,
+  public val encodesHdr: Boolean,
+  public val transfer: HdrTransfer?,
+  private val laidSpans: List<ClipSpan>,
+  public val chain: CoreImageChain?,
 ) {
+  /**
+   * Where each clip sits on the timeline, and what it draws.
+   *
+   * Read off the chain wherever there is one, so a parameter swap shows here rather than leaving
+   * this describing an edit that stopped rendering.
+   */
+  public val spans: List<ClipSpan> get() = chain?.spans ?: laidSpans
+
   /**
    * What the filter handler could not draw, or null when every frame went through.
    *
@@ -105,7 +116,7 @@ internal class AvComposition(
    * terminates the process, so it records the failure and passes the frame on. The run asks once
    * the pumps have drained.
    */
-  fun chainFailure(): ExportError? = chain?.failure
+  public fun chainFailure(): ExportError? = chain?.failure
 }
 
 /**
@@ -117,14 +128,14 @@ internal class AvComposition(
  *
  * @throws AppleLoweringFailure when a source or a track cannot be opened.
  */
+@InternalFilmstripApi
 @OptIn(ExperimentalForeignApi::class)
-internal fun ResolvedComposition.toAvComposition(): AvComposition {
+public fun ResolvedComposition.toAvComposition(): AvComposition {
   val keepAudio = output.audioCodec != AudioCodec.None
   val keepVideo = audio != AudioSpec.AudioOnly
   val composition = AVMutableComposition()
   val assets = AssetCache()
 
-  val videoTrack = tracks.firstOrNull { keepVideo && it.content != TrackContent.Audio }
   val placements =
     videoTrack
       ?.let { track ->
@@ -153,7 +164,7 @@ internal fun ResolvedComposition.toAvComposition(): AvComposition {
   }
 
   val encodesHdr = hdrTransfer != null
-  val spans = placements.toSpans(composition.duration.toDuration(), output.size, hdrTransfer)
+  val spans = placements.toSpans(composition.duration.toDuration(), output.size, layoutSize, hdrTransfer)
   val chain = if (keepVideo) CoreImageChain(this, spans, encodesHdr) else null
 
   return AvComposition(
@@ -162,7 +173,7 @@ internal fun ResolvedComposition.toAvComposition(): AvComposition {
     audioMix = mixed.toAudioMix(),
     encodesHdr = encodesHdr,
     transfer = hdrTransfer,
-    spans = spans,
+    laidSpans = spans,
     chain = chain,
   )
 }
@@ -266,25 +277,99 @@ private fun ResolvedTrack.layOnto(
 private fun List<Placement>.toSpans(
   compositionDuration: Duration,
   outputSize: Size,
+  layoutSize: Size,
   hdrTransfer: HdrTransfer?,
 ): List<ClipSpan> =
   mapIndexed { index, placement ->
-    val info = placement.clip.info.video
-    ClipSpan(
+    val video = placement.clip.info.video
+    placement.clip.spanning(
       start = placement.start,
       end = if (index == lastIndex) maxOf(compositionDuration, placement.end) else this[index + 1].start,
-      rotationDegrees = info?.rotationDegrees ?: 0,
-      attributes =
-        Attributes(
-          inputSize = info?.displaySize ?: outputSize,
-          outputSize = outputSize,
-          colorSpace = if (hdrTransfer != null) ColorSpace.Bt2020 else ColorSpace.Bt709,
-          hdrTransfer = hdrTransfer,
-          frameRate = info?.frameRate,
-        ),
-      effects = placement.clip.effects,
+      rotationDegrees = video?.rotationDegrees ?: 0,
+      outputSize = outputSize,
+      layoutSize = layoutSize,
+      hdrTransfer = hdrTransfer,
     )
   }
+
+/**
+ * Rebuilds these spans against [resolved]'s clips, over the slots they already hold.
+ *
+ * The slot a span covers and the rotation baked into it both come from where the clip was laid onto
+ * the `AVMutableComposition`, and a parameters-only edit moves neither, so they are carried across
+ * rather than derived again. Deriving them again would mean laying the whole composition down a
+ * second time, which is the work a swap exists to avoid.
+ *
+ * A looping track lays its clips down more than once, so the clip behind a span is found by
+ * wrapping round the list the same way [layOnto] wrapped when it produced the placements.
+ */
+internal fun List<ClipSpan>.respannedOnto(resolved: ResolvedComposition): List<ClipSpan> {
+  val clips = resolved.videoTrack?.clips.orEmpty()
+  if (clips.isEmpty()) return emptyList()
+
+  return mapIndexed { index, span ->
+    clips[index % clips.size].spanning(
+      start = span.start,
+      end = span.end,
+      rotationDegrees = span.rotationDegrees,
+      outputSize = resolved.output.size,
+      layoutSize = resolved.layoutSize,
+      hdrTransfer = resolved.hdrTransfer,
+    )
+  }
+}
+
+/**
+ * The span this clip draws over [start] until [end].
+ *
+ * The one place a span's attributes are derived, so a clip laid down by [layOnto] and the same clip
+ * swapped in by [respannedOnto] are measured against the same frame.
+ */
+private fun ResolvedClip.spanning(
+  start: Duration,
+  end: Duration,
+  rotationDegrees: Int,
+  outputSize: Size,
+  layoutSize: Size,
+  hdrTransfer: HdrTransfer?,
+): ClipSpan {
+  val video = info.video
+  return ClipSpan(
+    start = start,
+    end = end,
+    rotationDegrees = rotationDegrees,
+    attributes =
+      Attributes(
+        inputSize = video?.displaySize ?: outputSize,
+        outputSize = outputSize,
+        layoutSize = video?.displaySize ?: layoutSize,
+        colorSpace = if (hdrTransfer != null) ColorSpace.Bt2020 else ColorSpace.Bt709,
+        hdrTransfer = hdrTransfer,
+        frameRate = video?.frameRate,
+      ),
+    effects = effects,
+  )
+}
+
+/**
+ * The track whose frames reach the video composition, or null when the output carries no video.
+ */
+internal val ResolvedComposition.videoTrack: ResolvedTrack?
+  get() =
+    if (audio == AudioSpec.AudioOnly) {
+      null
+    } else {
+      tracks.firstOrNull { it.content != TrackContent.Audio }
+    }
+
+/**
+ * How long each clip the video composition draws from runs for.
+ *
+ * The shape the spans are laid out against, so two compositions agreeing on it tile the timeline
+ * identically and the spans of one can be reused for the other.
+ */
+internal val ResolvedComposition.videoClipDurations: List<Duration>
+  get() = videoTrack?.clips?.map { it.duration }.orEmpty()
 
 /**
  * The mix that applies each clip's gain, or null when every clip is at full volume.

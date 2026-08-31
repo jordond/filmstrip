@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.avfoundation.internal
 
+import dev.jordond.filmstrip.InternalFilmstripApi
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.CoreMedia.CMTime
@@ -17,7 +18,8 @@ import kotlin.time.Duration.Companion.seconds
  * on a whole tick instead of being rounded onto one. Mixing timescales inside one composition is
  * what makes clip spans fail to tile, so there is exactly one.
  */
-internal const val MEDIA_TIMESCALE: Int = 600
+@InternalFilmstripApi
+public const val MEDIA_TIMESCALE: Int = 600
 
 /**
  * This duration as a [CMTime] at [MEDIA_TIMESCALE].
@@ -26,8 +28,9 @@ internal const val MEDIA_TIMESCALE: Int = 600
  * of a long composition, and a tick that lands half a unit out is a span boundary that does not
  * meet its neighbour.
  */
+@InternalFilmstripApi
 @OptIn(ExperimentalForeignApi::class)
-internal fun Duration.toCMTime(): CValue<CMTime> = CMTimeMake(value = ticks(), timescale = MEDIA_TIMESCALE)
+public fun Duration.toCMTime(): CValue<CMTime> = CMTimeMake(value = ticks(), timescale = MEDIA_TIMESCALE)
 
 /**
  * This [CMTime] as a [Duration], with an invalid or negative time reading as zero.
@@ -35,8 +38,9 @@ internal fun Duration.toCMTime(): CValue<CMTime> = CMTimeMake(value = ticks(), t
  * `CMTimeGetSeconds` answers `NaN` for the invalid and indefinite times AVFoundation hands back
  * from an asset it could not load, and every caller here wants a real number.
  */
+@InternalFilmstripApi
 @OptIn(ExperimentalForeignApi::class)
-internal fun CValue<CMTime>.toDuration(): Duration {
+public fun CValue<CMTime>.toDuration(): Duration {
   val seconds = CMTimeGetSeconds(this)
   return if (seconds.isNaN() || seconds <= 0.0) Duration.ZERO else seconds.seconds
 }

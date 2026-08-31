@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.avfoundation.internal
 
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.FrameInfo
 import dev.jordond.filmstrip.export.ExportError
@@ -55,23 +56,40 @@ import kotlin.time.Duration
  * There is no overlay batching here and no analogue of Android's sampler budget. Core Image fuses a
  * chain of composites into one pass over the frame, whereas media3 spends a whole render pass per
  * `OverlayEffect`, which is the only reason that coalescing exists.
+ *
+ * A preview shares one `AVVideoComposition` with the export it previews, and reassigning that on a
+ * playing `AVPlayerItem` stalls it. Everything a parameters-only edit can change therefore lives
+ * behind one reference that [render] re-reads on every frame and [updateParameters] replaces.
  */
+@InternalFilmstripApi
 @OptIn(ExperimentalForeignApi::class)
-internal class CoreImageChain(
-  private val resolved: ResolvedComposition,
-  private val spans: List<ClipSpan>,
+public class CoreImageChain(
+  resolved: ResolvedComposition,
+  spans: List<ClipSpan>,
   encodesHdr: Boolean,
 ) {
-  val output: OutputFormat = resolved.output
+  /**
+   * Everything one frame is drawn from, replaced whole rather than field by field.
+   *
+   * Written from whichever queue an edit arrives on and read from AVFoundation's render queue,
+   * which is never that one.
+   */
+  @Volatile
+  private var snapshot: ChainSnapshot = ChainSnapshot(resolved, spans, encodesHdr)
 
-  val transfer: HdrTransfer? = resolved.hdrTransfer
+  public val output: OutputFormat get() = snapshot.output
+
+  public val transfer: HdrTransfer? get() = snapshot.transfer
 
   /**
-   * The transfer function reaching the encoder, or null when the export writes SDR.
-   *
-   * A tone-mapped export is SDR by the time a fill is drawn, however the sources were graded.
+   * Whether an HDR grade reaches the encoder, which is not always what was asked for.
    */
-  private val encodedTransfer: HdrTransfer? = transfer.takeIf { encodesHdr }
+  public val encodesHdr: Boolean get() = snapshot.encodesHdr
+
+  /**
+   * Where each clip sits on the timeline, and what it draws, as of the last swap.
+   */
+  public val spans: List<ClipSpan> get() = snapshot.spans
 
   /**
    * Built once and reused for every frame, or null when this process cannot build one at all.
@@ -82,33 +100,7 @@ internal class CoreImageChain(
    */
   private val context: CIContext? = renderingContext()
 
-  /**
-   * What composition-level geometry measures against.
-   *
-   * The frame after every clip and track effect, since geometry is what pins it to [output]'s size
-   * rather than something that already runs inside it.
-   */
-  internal val geometryAttributes =
-    Attributes(
-      inputSize = resolved.compositionInputSize,
-      outputSize = output.size,
-      colorSpace = if (encodesHdr) ColorSpace.Bt2020 else ColorSpace.Bt709,
-      hdrTransfer = encodedTransfer,
-      frameRate = output.frameRate?.toFloat(),
-    )
-
-  /**
-   * What a composition-level effect that runs after geometry measures against. The output frame on
-   * either side, since by the time one runs the frame has been pinned to it.
-   */
-  private val compositionAttributes =
-    Attributes(
-      inputSize = output.size,
-      outputSize = output.size,
-      colorSpace = if (encodesHdr) ColorSpace.Bt2020 else ColorSpace.Bt709,
-      hdrTransfer = encodedTransfer,
-      frameRate = output.frameRate?.toFloat(),
-    )
+  internal val geometryAttributes: Attributes get() = snapshot.geometryAttributes
 
   /**
    * What a resolver's step threw, or null while nothing has.
@@ -116,8 +108,38 @@ internal class CoreImageChain(
    * Written on AVFoundation's render queue and read once the run has stopped.
    */
   @Volatile
-  var failure: ExportError? = null
+  public var failure: ExportError? = null
     private set
+
+  /**
+   * Swaps in the effect parameters [resolved] carries, for every frame drawn from here on.
+   *
+   * Each span keeps the slot it already holds and picks up its clip's new effects, so nothing is
+   * laid onto an `AVMutableComposition` again and the `AVVideoComposition` a player is showing
+   * stays the object it was handed. A frame already in flight finishes against the parameters it
+   * started on.
+   *
+   * @param resolved The same timeline, planned again with different effect parameters.
+   * @throws IllegalArgumentException When [resolved] moves something a caller has already read off
+   *   this chain or something the spans were laid out against, which needs the whole graph built
+   *   again through [toAvComposition] instead.
+   */
+  public fun updateParameters(resolved: ResolvedComposition) {
+    val current = snapshot
+    require(resolved.output == current.output) {
+      "A swap cannot change the output format. It was ${current.output}, and ${resolved.output} was given."
+    }
+    require(resolved.hdrTransfer == current.transfer) {
+      "A swap cannot change the transfer function. It was ${current.transfer}, and " +
+        "${resolved.hdrTransfer} was given."
+    }
+    require(resolved.videoClipDurations == current.resolved.videoClipDurations) {
+      "A swap keeps the spans it already has, so it cannot change the timeline they cover. It was " +
+        "${current.resolved.videoClipDurations}, and ${resolved.videoClipDurations} was given."
+    }
+
+    snapshot = ChainSnapshot(resolved, current.spans.respannedOnto(resolved), current.encodesHdr)
+  }
 
   /**
    * Renders one frame and hands it back to AVFoundation.
@@ -131,12 +153,15 @@ internal class CoreImageChain(
    * through and the reason is kept for the run to report.
    */
   @OptIn(BetaInteropApi::class)
-  fun render(request: AVAsynchronousCIImageFilteringRequest) {
+  public fun render(request: AVAsynchronousCIImageFilteringRequest) {
     autoreleasepool {
+      // Read once. A swap landing between two reads would draw one edit's spans against another
+      // edit's composition, which is a frame neither of them describes.
+      val state = snapshot
       val source = request.sourceFrame()
       val frame =
         try {
-          compose(source, request.compositionTime.toDuration())
+          compose(state, source, request.compositionTime.toDuration())
         } catch (broken: StepFailure) {
           if (failure == null) failure = ExportError.UnsupportedEffect(broken.specId, broken.reason)
           source
@@ -149,13 +174,17 @@ internal class CoreImageChain(
   }
 
   private fun compose(
+    state: ChainSnapshot,
     source: CIImage,
     time: Duration,
   ): CIImage {
+    val resolved = state.resolved
+    val size = state.output.size
+
     // A time outside every span is a hole in the timeline, which the last span covering the
     // composition's full duration already rules out. Passing the frame through keeps one from
     // failing the whole export.
-    val span = spans.firstOrNull { it.covers(time) }
+    val span = state.spans.firstOrNull { it.covers(time) }
     var image = source
 
     if (span != null) {
@@ -163,26 +192,26 @@ internal class CoreImageChain(
       image = image.stepped(span.effects, FrameInfo(span.attributes, time))
     }
 
-    image = image.stepped(resolved.compositionGeometry, FrameInfo(geometryAttributes, time))
+    image = image.stepped(resolved.compositionGeometry, FrameInfo(state.geometryAttributes, time))
 
     // A gap has no real clip frame to blur, only whatever placeholder AVFoundation handed back,
     // so a blurred fill falls back to black there the same way it always has.
     val fill = if (span == null && resolved.fill is Fill.Blurred) Fill.Black else resolved.fill
-    val frame = FrameInfo(compositionAttributes, time)
+    val frame = FrameInfo(state.compositionAttributes, time)
 
     if (fill.derivesFromFrame) {
       // Picture, not furniture: today's order is the contract, so the fill is composited in first
       // and the composition's own effects grade it along with the rest of the frame.
-      image = image.fittedTo(output.size, resolved.fit, fill)
+      image = image.fittedTo(size, resolved.fit, fill, state.encodedTransfer)
       return image.stepped(resolved.compositionEffects, frame)
     }
 
     // A named colour is furniture. It is laid in without the fill composited yet, graded, and only
     // blended against the fill afterwards, so a composition effect never reaches a colour it was
     // not given to grade.
-    val laid = image.laidInto(output.size, resolved.fit)
+    val laid = image.laidInto(size, resolved.fit)
     val graded = laid.stepped(resolved.compositionEffects, frame)
-    return graded.over(image.fillImage(fill, output.size), mask = laid, size = output.size)
+    return graded.over(image.fillImage(fill, size, state.encodedTransfer), mask = laid, size = size)
   }
 
   /**
@@ -230,9 +259,10 @@ internal class CoreImageChain(
     size: Size,
     fit: Fit,
     fill: Fill,
+    transfer: HdrTransfer?,
   ): CIImage {
     val rect = CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble())
-    val background = fillImage(fill, size).imageByCroppingToRect(rect)
+    val background = fillImage(fill, size, transfer).imageByCroppingToRect(rect)
     return laidInto(size, fit).imageByCompositingOverImage(background)
   }
 
@@ -315,9 +345,10 @@ internal class CoreImageChain(
   private fun CIImage.fillImage(
     fill: Fill,
     size: Size,
+    transfer: HdrTransfer?,
   ): CIImage =
     when (fill) {
-      is Fill.Solid -> CIImage(color = fillCIColor(fill.color, encodedTransfer))
+      is Fill.Solid -> CIImage(color = fillCIColor(fill.color, transfer))
       is Fill.Blurred -> blurredCover(size, fill)
       else -> CIImage(color = CIColor.blackColor)
     }
@@ -434,6 +465,64 @@ internal class CoreImageChain(
         null
       }
   }
+}
+
+/**
+ * Everything one frame of a [CoreImageChain] is drawn from, taken together.
+ *
+ * A parameter edit produces a new composition and a new set of spans, and the two only describe the
+ * same frame as each other. Held as one immutable object so a render reads a consistent pair rather
+ * than one edit's spans against another edit's composition.
+ *
+ * @property resolved The composition the frame is drawn from.
+ * @property spans Where each clip sits on the timeline, and what it draws.
+ * @property encodesHdr Whether an HDR grade reaches the encoder.
+ */
+internal class ChainSnapshot(
+  val resolved: ResolvedComposition,
+  val spans: List<ClipSpan>,
+  val encodesHdr: Boolean,
+) {
+  val output: OutputFormat = resolved.output
+
+  val transfer: HdrTransfer? = resolved.hdrTransfer
+
+  /**
+   * The transfer function reaching the encoder, or null when the export writes SDR.
+   *
+   * A tone-mapped export is SDR by the time a fill is drawn, however the sources were graded.
+   */
+  val encodedTransfer: HdrTransfer? = transfer.takeIf { encodesHdr }
+
+  /**
+   * What composition-level geometry measures against.
+   *
+   * The frame after every clip and track effect, since geometry is what pins it to [output]'s size
+   * rather than something that already runs inside it.
+   */
+  val geometryAttributes: Attributes =
+    Attributes(
+      inputSize = resolved.compositionInputSize,
+      outputSize = output.size,
+      layoutSize = resolved.compositionInputSize,
+      colorSpace = if (encodesHdr) ColorSpace.Bt2020 else ColorSpace.Bt709,
+      hdrTransfer = encodedTransfer,
+      frameRate = output.frameRate?.toFloat(),
+    )
+
+  /**
+   * What a composition-level effect that runs after geometry measures against. The output frame on
+   * either side, since by the time one runs the frame has been pinned to it.
+   */
+  val compositionAttributes: Attributes =
+    Attributes(
+      inputSize = output.size,
+      outputSize = output.size,
+      layoutSize = resolved.layoutSize,
+      colorSpace = if (encodesHdr) ColorSpace.Bt2020 else ColorSpace.Bt709,
+      hdrTransfer = encodedTransfer,
+      frameRate = output.frameRate?.toFloat(),
+    )
 }
 
 /**
