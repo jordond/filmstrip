@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.convention
 
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
 import org.gradle.api.Project
+import org.gradle.api.publish.maven.MavenPomLicenseSpec
 import org.gradle.kotlin.dsl.configure
 
 /**
@@ -11,7 +12,9 @@ import org.gradle.kotlin.dsl.configure
  * `dev.jordond.filmstrip:filmstrip-core`. The version comes from `VERSION_NAME`, which a release
  * overrides with `ORG_GRADLE_PROJECT_VERSION_NAME`.
  */
-internal fun Project.configurePublishing() {
+internal fun Project.configurePublishing(
+  license: (MavenPomLicenseSpec.() -> Unit)? = null
+) {
   val repo = "https://github.com/jordond/filmstrip"
 
   extensions.configure<MavenPublishBaseExtension> {
@@ -26,10 +29,14 @@ internal fun Project.configurePublishing() {
       url.set(repo)
 
       licenses {
-        license {
-          name.set("MIT License")
-          url.set("$repo/blob/main/LICENSE")
-          distribution.set("repo")
+        if (license == null) {
+          license {
+            name.set("MIT License")
+            url.set("$repo/blob/main/LICENSE")
+            distribution.set("repo")
+          }
+        } else {
+          license(this@licenses)
         }
       }
 

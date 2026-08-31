@@ -2,8 +2,6 @@ package dev.jordond.filmstrip.convention
 
 import org.gradle.api.Project
 
-// The web targets the Compose plugin registers a UI test check for, and the test source sets each
-// one compiles.
 private val WEB_TARGETS =
   mapOf(
     "Js" to listOf("commonTest", "webTest", "jsTest"),

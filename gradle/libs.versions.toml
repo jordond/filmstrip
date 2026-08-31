@@ -4,7 +4,7 @@ sdk-target = "37"
 sdk-compile = "37"
 sdk-min = "24"
 jvmTarget = "17"
-agp = "9.3.1"
+agp = "9.3.2"
 kotlin = "2.4.20-RC2"
 kotlinx-coroutines = "1.11.0"
 kotlinx-serialization = "1.11.0"
@@ -13,6 +13,7 @@ kotlinx-browser = "0.5.0"
 kotlinx-kover = "0.9.9"
 compose-multiplatform = "1.12.0"
 media3 = "1.11.0"
+androidx-core = "1.19.0"
 androidx-activityCompose = "1.13.0"
 androidx-test-runner = "1.7.0"
 androidx-test = "1.7.0"
@@ -23,7 +24,7 @@ junit = "4.13.2"
 dokka = "2.2.0"
 publish = "0.37.0"
 poko = "0.23.1"
-spotless = "8.10.0"
+spotless = "8.10.1"
 ktlint = "1.8.0"
 versions = "0.61.0"
 kotest = "6.2.4"
@@ -31,7 +32,8 @@ turbine = "1.2.1"
 mockk = "1.14.11"
 filekit = "0.15.0"
 compose-adaptive = "1.3.0-beta02"
-navigation3-runtime = "1.1.1"
+compose-material3 = "1.9.0"
+navigation3-runtime = "1.1.7"
 navigation3-ui = "1.1.1"
 
 [libraries]
@@ -48,8 +50,13 @@ media3-common = { module = "androidx.media3:media3-common", version.ref = "media
 media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
 media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
 media3-inspector-frame = { module = "androidx.media3:media3-inspector-frame", version.ref = "media3" }
+androidx-core = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activityCompose" }
 filekit-dialogs-compose = { module = "io.github.vinceglb:filekit-dialogs-compose", version.ref = "filekit" }
+compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose-multiplatform" }
+compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "compose-multiplatform" }
+compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose-multiplatform" }
+compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "compose-material3" }
 compose-adaptive = { module = "org.jetbrains.compose.material3.adaptive:adaptive", version.ref = "compose-adaptive" }
 compose-adaptive-layout = { module = "org.jetbrains.compose.material3.adaptive:adaptive-layout", version.ref = "compose-adaptive" }
 navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version.ref = "navigation3-runtime" }

@@ -10,7 +10,15 @@ import org.gradle.kotlin.dsl.listProperty
 import org.gradle.kotlin.dsl.register
 
 data class Layer(
+  /**
+   * Project paths that may appear anywhere in this module's resolved graph, direct or transitive.
+   */
   val allowedProjects: Set<String>,
+  /**
+   * Project paths this module may declare a dependency on. Narrower than [allowedProjects]
+   * wherever a project is only supposed to arrive through another one.
+   */
+  val directProjects: Set<String>,
   val forbiddenExternals: Set<String>,
   val forbiddenImports: Set<String> = emptySet(),
   val allowedNpm: Set<String> = emptySet(),
@@ -19,9 +27,18 @@ data class Layer(
 private val COMPOSE = setOf("org.jetbrains.compose", "androidx.compose")
 
 /**
+ * The fixture module a test source set may reach for.
+ *
+ * It carries `:filmstrip-core` and nothing else, so allowing it widens a module's graph by nothing
+ * that module does not already have. Guard B walks test configurations along with main ones, so a
+ * module whose tests compare frames has to name it.
+ */
+private val TEST_FIXTURES = setOf(":filmstrip-test")
+
+/**
  * The single source of truth for the layering contract:
  * `core -> effects -> {transform, transform-media3, transform-avfoundation, transform-webcodecs,
- * transform-ffmpeg, player} -> {compose, filmstrip}`.
+ * transform-ffmpeg} -> player -> {compose, filmstrip}`.
  *
  * `filmstrip-test` is absent: fixtures may depend on everything.
  */
@@ -32,6 +49,7 @@ private val LAYERING: Map<String, Layer> =
         // The strictest rule in the map. `core` carries the effect SPI, so this is what keeps a
         // third-party effect author's single dependency free of any runtime and any shader pack.
         allowedProjects = emptySet(),
+        directProjects = emptySet(),
         forbiddenExternals = COMPOSE + setOf("androidx.media3", "io.ktor"),
         // NOTE the deny list is SYMBOL-level for AVFoundation, not package-level. `core`
         // legitimately imports platform.AVFoundation.AVURLAsset and AVAssetImageGenerator for
@@ -53,6 +71,7 @@ private val LAYERING: Map<String, Layer> =
     ":filmstrip-effects" to
       Layer(
         allowedProjects = setOf(":filmstrip-core"),
+        directProjects = setOf(":filmstrip-core"),
         forbiddenExternals =
           COMPOSE +
             setOf(
@@ -64,13 +83,8 @@ private val LAYERING: Map<String, Layer> =
     ":filmstrip-transform" to
       Layer(
         allowedProjects = setOf(":filmstrip-core", ":filmstrip-effects"),
-        // Not a blanket androidx.media3 ban: filmstrip-effects exports media3-effect and
-        // media3-common as api, so those resolve into this module's Android classpath whether it
-        // wants them or not. The transformer coordinate is the one that must not come back.
+        directProjects = setOf(":filmstrip-core", ":filmstrip-effects"),
         forbiddenExternals = COMPOSE + setOf("androidx.media3:media3-transformer"),
-        // Same symbol-level AVFoundation ban filmstrip-core carries. No writer or export session
-        // should appear here now that the engine moved out. Only filmstrip-transform-avfoundation
-        // gets to answer for those.
         forbiddenImports =
           COMPOSE +
             setOf(
@@ -87,25 +101,23 @@ private val LAYERING: Map<String, Layer> =
     ":filmstrip-transform-media3" to
       Layer(
         allowedProjects = setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform"),
+        directProjects = setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform"),
         forbiddenExternals = COMPOSE,
-        // media3-exoplayer is NOT forbidden here. media3-transformer 1.11.0 declares it at
-        // compile scope, so Transformer cannot be linked
-        // without it and a coordinate rule would only ever fail. The import ban below is the
-        // operative guard: this module's own code must not touch an ExoPlayer type.
         forbiddenImports = COMPOSE + setOf("androidx.media3.exoplayer"),
       ),
     ":filmstrip-transform-avfoundation" to
       Layer(
-        allowedProjects = setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform"),
+        allowedProjects =
+          setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform") + TEST_FIXTURES,
+        directProjects =
+          setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform") + TEST_FIXTURES,
         forbiddenExternals = COMPOSE + setOf("androidx.media3"),
-        // The module has no Android target, so this can never fire. Kept anyway: it is the guard
-        // that catches somebody adding an Android target here later instead of using
-        // filmstrip-transform-media3.
         forbiddenImports = COMPOSE + setOf("androidx.media3"),
       ),
     ":filmstrip-transform-webcodecs" to
       Layer(
         allowedProjects = setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform"),
+        directProjects = setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform"),
         forbiddenExternals = COMPOSE + setOf("androidx.media3"),
         forbiddenImports = COMPOSE + setOf("androidx.media3"),
         allowedNpm = setOf("mediabunny"),
@@ -113,13 +125,8 @@ private val LAYERING: Map<String, Layer> =
     ":filmstrip-transform-ffmpeg" to
       Layer(
         allowedProjects = setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform"),
-        // org.bytedeco is the coordinate that would silently turn "spawns a binary the user
-        // installed" into "ships 168 MiB of LGPLv3 native code", and the licence of a wrapper
-        // tracks the build it bundles.
+        directProjects = setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform"),
         forbiddenExternals = COMPOSE + setOf("androidx.media3", "org.bytedeco"),
-        // AVFoundation and VideoToolbox are reachable the moment this module gains a macosArm64
-        // target, and macOS already has a hardware export path in filmstrip-transform. Banning
-        // them keeps this module one implementation rather than two.
         forbiddenImports =
           COMPOSE +
             setOf(
@@ -132,14 +139,28 @@ private val LAYERING: Map<String, Layer> =
       ),
     ":filmstrip-player" to
       Layer(
-        allowedProjects = setOf(":filmstrip-core", ":filmstrip-effects"),
-        forbiddenExternals =
-          COMPOSE +
-            setOf(
-              "androidx.media3:media3-transformer",
-              "androidx.media3:media3-muxer",
-            ),
-        forbiddenImports = COMPOSE + setOf("androidx.media3.transformer"),
+        allowedProjects =
+          setOf(
+            ":filmstrip-core",
+            ":filmstrip-effects",
+            ":filmstrip-transform",
+            ":filmstrip-transform-media3",
+            ":filmstrip-transform-avfoundation",
+            ":filmstrip-transform-webcodecs",
+            ":filmstrip-transform-ffmpeg",
+          ) + TEST_FIXTURES,
+        directProjects =
+          setOf(
+            ":filmstrip-core",
+            ":filmstrip-effects",
+            ":filmstrip-transform",
+            ":filmstrip-transform-media3",
+            ":filmstrip-transform-avfoundation",
+            ":filmstrip-transform-webcodecs",
+            ":filmstrip-transform-ffmpeg",
+          ) + TEST_FIXTURES,
+        forbiddenExternals = COMPOSE,
+        forbiddenImports = COMPOSE,
       ),
     ":filmstrip-compose" to
       Layer(
@@ -148,12 +169,30 @@ private val LAYERING: Map<String, Layer> =
             ":filmstrip-core",
             ":filmstrip-effects",
             ":filmstrip-player",
+            ":filmstrip-transform",
+            ":filmstrip-transform-media3",
+            ":filmstrip-transform-avfoundation",
+            ":filmstrip-transform-webcodecs",
+            ":filmstrip-transform-ffmpeg",
           ),
-        forbiddenExternals = setOf("androidx.media3:media3-transformer"),
+        directProjects = setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-player"),
+        forbiddenExternals = emptySet(),
+        forbiddenImports = setOf("androidx.media3.transformer"),
       ),
     ":filmstrip" to
       Layer(
         allowedProjects =
+          setOf(
+            ":filmstrip-core",
+            ":filmstrip-effects",
+            ":filmstrip-player",
+            ":filmstrip-transform",
+            ":filmstrip-transform-media3",
+            ":filmstrip-transform-avfoundation",
+            ":filmstrip-transform-webcodecs",
+            ":filmstrip-transform-ffmpeg",
+          ),
+        directProjects =
           setOf(
             ":filmstrip-core",
             ":filmstrip-effects",
@@ -183,10 +222,14 @@ private val CHECKED_SUFFIXES =
   )
 
 /**
- * The declarable buckets Guard C reads. An `npm(...)` dependency lands in one of these and never
- * on a resolvable graph, so the guard reads declarations rather than resolution results.
+ * The declarable buckets, as opposed to the resolvable ones in [CHECKED_SUFFIXES].
+ *
+ * Guard C reads these because an `npm(...)` dependency lands in one of them and never on a
+ * resolvable graph. Guard B's direct-dependency half reads them because a resolved graph has
+ * already lost the difference between what a module declared and what arrived through something
+ * else.
  */
-private val NPM_SUFFIXES = listOf("Implementation", "Api", "CompileOnly", "RuntimeOnly")
+private val DECLARABLE_SUFFIXES = listOf("Implementation", "Api", "CompileOnly", "RuntimeOnly")
 
 /**
  * Registers all three layering guards and hangs them off each module's `check`.
@@ -230,6 +273,7 @@ fun Project.configureArchitectureGuards() {
         description = "Verifies $path obeys the filmstrip layering contract."
         moduleName.set(path)
         allowedProjects.set(layer.allowedProjects)
+        directProjects.set(layer.directProjects)
         forbiddenExternals.set(layer.forbiddenExternals)
       }
 
@@ -242,9 +286,12 @@ fun Project.configureArchitectureGuards() {
       val roots = objects.listProperty<ResolvedComponentResult>()
       checked.forEach { roots.add(it.incoming.resolutionResult.rootComponent) }
 
+      val declared = target.declaredProjectDependencies()
+
       layeringTask.configure {
         inspectedConfigurations.set(checked.map { it.name }.toSet())
         resolvedIds.set(roots.map { components -> components.flatMap(::flattenIds).toSet() })
+        declaredProjects.set(declared)
       }
     }
 
@@ -269,11 +316,22 @@ fun Project.configureArchitectureGuards() {
 }
 
 /**
+ * Every project path this module names in a declarable configuration.
+ */
+private fun Project.declaredProjectDependencies(): Set<String> =
+  configurations
+    .filter { DECLARABLE_SUFFIXES.any(it.name::endsWith) }
+    .flatMap { it.dependencies }
+    .filterIsInstance<ProjectDependency>()
+    .map { it.path }
+    .toSet()
+
+/**
  * Every `npm(...)` dependency this project declares, as `name@version`.
  */
 private fun Project.npmDependencies(): Set<String> =
   configurations
-    .filter { NPM_SUFFIXES.any(it.name::endsWith) }
+    .filter { DECLARABLE_SUFFIXES.any(it.name::endsWith) }
     .flatMap { it.dependencies }
     .filter { it.group == null && it.version != null && it !is ProjectDependency }
     .map { "${it.name}@${it.version}" }

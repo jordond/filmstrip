@@ -9,6 +9,11 @@ import org.gradle.api.tasks.TaskAction
 
 /**
  * Guard B. Catches what Guard A cannot see: a forbidden coordinate arriving transitively.
+ *
+ * Runs two checks over two different views of the same module. The resolved graph answers what
+ * reached this module by any route, and the declared dependencies answer what it asked for
+ * directly. A project allowed to arrive through another one is not thereby allowed to be named
+ * here, and only the second view can tell the two apart.
  */
 abstract class CheckLayeringTask : DefaultTask() {
   @get:Input
@@ -21,6 +26,12 @@ abstract class CheckLayeringTask : DefaultTask() {
   abstract val allowedProjects: SetProperty<String>
 
   /**
+   * Project paths this module may declare a dependency on.
+   */
+  @get:Input
+  abstract val directProjects: SetProperty<String>
+
+  /**
    * `group` or `group:artifact` prefixes that must not appear on any resolved classpath.
    */
   @get:Input
@@ -31,6 +42,12 @@ abstract class CheckLayeringTask : DefaultTask() {
    */
   @get:Input
   abstract val resolvedIds: SetProperty<String>
+
+  /**
+   * Project paths this module names in a declarable configuration.
+   */
+  @get:Input
+  abstract val declaredProjects: SetProperty<String>
 
   /**
    * Names of the configurations actually inspected, used to detect a silent no-op.
@@ -51,9 +68,10 @@ abstract class CheckLayeringTask : DefaultTask() {
     }
 
     val allowed = allowedProjects.get()
+    val direct = directProjects.get()
     val forbidden = forbiddenExternals.get()
 
-    val violations =
+    val resolvedViolations =
       resolvedIds.get().sorted().mapNotNull { id ->
         when {
           id.startsWith(":") && id != self && id !in allowed -> {
@@ -69,6 +87,19 @@ abstract class CheckLayeringTask : DefaultTask() {
           }
         }
       }
+
+    val declaredViolations =
+      declaredProjects.get().sorted().filter { it != self && it !in direct }.map { path ->
+        val note =
+          if (path in allowed) {
+            " (it may only arrive transitively)"
+          } else {
+            ""
+          }
+        "illegal direct project dependency: $path$note"
+      }
+
+    val violations = resolvedViolations + declaredViolations
 
     if (violations.isNotEmpty()) {
       throw GradleException(
