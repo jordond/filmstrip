@@ -27,6 +27,49 @@ internal expect class ProcessRunner() {
     onStdout: (String) -> Unit,
     onStderr: (String) -> Unit,
   ): Int
+
+  /**
+   * Spawns [command] and hands back a handle that reads its stdout as whole frames.
+   *
+   * @return The stream, or null when the child never started.
+   */
+  suspend fun frames(command: List<String>): FrameStream?
+}
+
+/**
+ * A running child whose stdout is read as fixed-size binary frames rather than as lines.
+ *
+ * The line reader behind [ProcessRunner.run] is right for `-progress` output and wrong for pixels:
+ * a frame is a fixed number of bytes carrying no delimiter, and any byte inside one can be a
+ * newline.
+ */
+internal interface FrameStream {
+  /**
+   * The child's process id, for a caller that has to prove it is gone.
+   */
+  val processId: Long?
+
+  /**
+   * Whether the child is still running.
+   */
+  val isAlive: Boolean
+
+  /**
+   * Fills [frame] with the next frame's bytes.
+   *
+   * @return false once the stream ends, including when it ends part way through a frame.
+   */
+  suspend fun read(frame: ByteArray): Boolean
+
+  /**
+   * The tail of what the child wrote to stderr.
+   */
+  fun errors(): String
+
+  /**
+   * Stops the child and closes its pipes. Idempotent, and never returns with the child running.
+   */
+  fun close()
 }
 
 /**
@@ -46,6 +89,18 @@ internal class ProcessOutput(
 internal const val SPAWN_FAILED: Int = -1
 
 internal const val STOP_GRACE_MILLIS: Long = 5_000
+
+// A preview writes no container, so there is no moov atom to wait for and nothing to lose by
+// killing the child outright. Short enough that a seek respawn does not stall on it.
+internal const val FRAME_STOP_GRACE_MILLIS: Long = 250
+
+/**
+ * Runs [block] with every other caller of it held out.
+ *
+ * For the runtime cache, which is read from ordinary constructors and so cannot take the
+ * suspending mutex the rest of this module locks with.
+ */
+internal expect fun <T> exclusively(block: () -> T): T
 
 // Reads one environment variable, or null when it is unset or empty.
 internal expect fun environmentVariable(name: String): String?

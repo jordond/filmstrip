@@ -20,18 +20,22 @@ import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.ExportPlanner
 import dev.jordond.filmstrip.transform.internal.Mp4Copy
 import dev.jordond.filmstrip.transform.internal.NegotiatedComposition
+import dev.jordond.filmstrip.transform.internal.NegotiatedExport
 import dev.jordond.filmstrip.transform.internal.backgroundGain
 import dev.jordond.filmstrip.transform.internal.showsFill
 import dev.jordond.filmstrip.transform.internal.sigmaFor
 import kotlin.math.roundToInt
 
 /**
- * What a plan resolved to: the verdict a caller sees, and the graph that runs when it is capable.
+ * What a plan resolved to: what the shared negotiator settled on, and the graph that runs when it is
+ * capable.
  */
 internal class Lowering(
-  val verdict: Verdict,
+  val export: NegotiatedExport,
   val invocation: Invocation?,
-)
+) {
+  val verdict: Verdict get() = export.verdict
+}
 
 /**
  * Turns a composition into a filter graph and a verdict.
@@ -80,19 +84,25 @@ internal class FfmpegPlanner(
       compositionGeometryPerClip = true,
     )
 
+  /**
+   * @param layoutSize The output frame text is laid out against, for a caller planning a frame
+   *   smaller than the one an export writes. Null lays text out against the frame [spec] settles
+   *   on, which is what an export does.
+   */
   fun lower(
     composition: EditComposition,
     spec: ExportSpec,
     device: DeviceCapabilities,
     infos: Map<MediaSource, MediaInfo>,
     dropped: Set<String> = emptySet(),
+    layoutSize: Size? = null,
   ): Lowering {
     composition.tracks.flatMap { it.clips }.forEach { clip ->
       readablePath(clip.source) ?: return unreadable(clip.source)
     }
 
-    val export = planner.negotiate(composition, spec, device, infos, dropped)
-    val negotiated = export.composition ?: return Lowering(export.verdict, null)
+    val export = planner.negotiate(composition, spec, device, infos, dropped, layoutSize)
+    val negotiated = export.composition ?: return Lowering(export, null)
     val fill = negotiated.fill
     if (fill is Fill.Blurred && negotiated.showsFill) {
       if (!toolchain.hasFilter("gblur")) return unsupportedBlur("gblur")
@@ -104,17 +114,24 @@ internal class FfmpegPlanner(
         return unsupportedBlur("colorchannelmixer")
       }
     }
-    return Lowering(export.verdict, GraphLowering(negotiated, toneMapRoute).build())
+    return Lowering(
+      export,
+      GraphLowering(
+        negotiated = negotiated,
+        toneMapRoute = toneMapRoute,
+        hdrPixelFormat = hdrPixelFormatFor(negotiated.encoderName, negotiated.hdrTransfer),
+      ).build(),
+    )
   }
 
   private fun unreadable(source: MediaSource): Lowering =
-    Lowering(
-      Verdict.Incapable(listOf(ExportError.SourceUnreadable(source.describe(), READS_FILES)), null),
-      null,
-    )
+    incapable(ExportError.SourceUnreadable(source.describe(), READS_FILES))
 
   private fun unsupportedBlur(filter: String): Lowering =
-    Lowering(Verdict.Incapable(listOf(ExportError.InvalidComposition(missingBlurFilter(filter))), null), null)
+    incapable(ExportError.InvalidComposition(missingBlurFilter(filter)))
+
+  private fun incapable(error: ExportError): Lowering =
+    Lowering(NegotiatedExport(Verdict.Incapable(listOf(error), null), null), null)
 }
 
 /**

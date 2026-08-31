@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg.internal
 
 import dev.jordond.filmstrip.export.VideoCodec
+import dev.jordond.filmstrip.media.HdrTransfer
 
 /**
  * One libav encoder this backend knows how to drive.
@@ -108,3 +109,18 @@ internal fun VideoCodec.ffmpegEncoders(): List<FfmpegEncoder> = FFMPEG_ENCODERS[
  */
 internal fun ffmpegEncoderNamed(name: String): FfmpegEncoder? =
   FFMPEG_ENCODERS.values.firstNotNullOfOrNull { encoders -> encoders.firstOrNull { it.name == name } }
+
+/**
+ * The 10-bit pixel format an export writes a kept grade in, or null when there is no grade to carry
+ * or the encoder has no HDR profile to reach.
+ *
+ * The graph pins every clip's tail to this and `-pix_fmt` names it, so the two read one answer
+ * rather than each deriving its own from the encoder table.
+ *
+ * @param encoderName The encoder the device resolved, which is the one `-c:v` names.
+ * @param hdrTransfer The transfer function the output is written in, or null for SDR.
+ */
+internal fun hdrPixelFormatFor(
+  encoderName: String?,
+  hdrTransfer: HdrTransfer?,
+): String? = hdrTransfer?.let { encoderName?.let(::ffmpegEncoderNamed)?.hdrPixelFormat }

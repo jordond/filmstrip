@@ -21,10 +21,14 @@ import kotlin.time.DurationUnit
  * One input per clip in declaration order, then one per overlay image, then one per silence filler.
  * Every clip is normalized to the output frame before it is joined, because `concat` demands
  * uniform inputs, and every audio branch is normalized to one sample format for the same reason.
+ *
+ * @param hdrPixelFormat The format a kept grade is written in, from [hdrPixelFormatFor], or null
+ *   for an output that carries none.
  */
 internal class GraphLowering(
   private val negotiated: NegotiatedComposition,
   private val toneMapRoute: ToneMapRoute?,
+  hdrPixelFormat: String?,
 ) {
   private val tracks = negotiated.tracks
   private val output = negotiated.output
@@ -40,10 +44,19 @@ internal class GraphLowering(
 
   // The pixel format every clip's tail is pinned to, so concat sees uniform inputs. Falls back to
   // yuv420p whenever there is no grade to carry or the resolved encoder has no HDR profile.
-  private val pixelFormat: String =
-    negotiated.hdrTransfer
-      ?.let { negotiated.encoderName?.let(::ffmpegEncoderNamed)?.hdrPixelFormat }
-      ?: "yuv420p"
+  private val pixelFormat: String = hdrPixelFormat ?: "yuv420p"
+
+  // The source time composition time zero maps to, for a caller windowing this graph with an input
+  // seek. Only a single clip on a track that opens with the composition can be windowed: a concat's
+  // later branches and a tpad lead both count from a timeline the seek has already moved, so a
+  // graph carrying either has to be read forward from the start instead.
+  private val seekBase: Duration? =
+    tracks
+      .firstOrNull()
+      ?.takeIf { it.start == Duration.ZERO && it.clips.size == 1 }
+      ?.clips
+      ?.first()
+      ?.start
 
   // Held back only when a composition effect could actually see the fill: with none present the
   // graph this writes is pixel-identical to the undeferred one, so keeping that simpler graph then
@@ -78,6 +91,7 @@ internal class GraphLowering(
         duration = duration,
         copy = true,
         hdrTransfer = negotiated.hdrTransfer,
+        seekBase = seekBase,
       )
     }
 
@@ -114,6 +128,7 @@ internal class GraphLowering(
       duration = duration,
       hdrTransfer = negotiated.hdrTransfer,
       toneMapped = negotiated.hdr == ResolvedHdr.ToneMap,
+      seekBase = seekBase,
     )
   }
 

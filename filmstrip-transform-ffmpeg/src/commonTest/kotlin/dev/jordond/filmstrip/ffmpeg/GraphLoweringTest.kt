@@ -86,9 +86,22 @@ class GraphLoweringTest {
     graph shouldContain "gblur=sigma=${fill.sigmaFor(output).roundToInt()}"
   }
 
-  // gblur itself refuses a sigma above 1024, so a wide-open radius on a large frame is clamped
-  // rather than handed straight through to a value ffmpeg would reject at run time. 1024 is a
-  // literal here on purpose: it pins ffmpeg's own ceiling, not the shared contract.
+  // A radius between the default and the one gblur clamps, so the assertion fails under any
+  // reading of the contract that happens to agree with it at the ends of the range.
+  @Test
+  fun `a mid-range radius lowers to the shared sigma uncapped`() {
+    val fill = Fill.Blurred(radius = 0.5f)
+    val output = Size(1080, 1920)
+    val sigma = fill.sigmaFor(output).roundToInt()
+
+    val graph = graphFor(fill = fill, output = output)
+
+    assertTrue(sigma in 2..<GBLUR_SIGMA_CEILING, "$sigma is not inside the range this test claims to cover")
+    graph shouldContain "gblur=sigma=$sigma"
+  }
+
+  // gblur itself refuses a sigma above its ceiling, so a wide-open radius on a large frame is
+  // clamped rather than handed straight through to a value ffmpeg would reject at run time.
   @Test
   fun `sigma clamps to gblur's own ceiling`() {
     val fill = Fill.Blurred(radius = 1f)
@@ -97,7 +110,7 @@ class GraphLoweringTest {
 
     val graph = graphFor(fill = fill, output = output)
 
-    graph shouldContain "gblur=sigma=1024"
+    graph shouldContain "gblur=sigma=$GBLUR_SIGMA_CEILING"
     graph shouldNotContain "sigma=$uncapped"
   }
 
@@ -263,6 +276,7 @@ class GraphLoweringTest {
             frameRate = 30,
             audioFormat = null,
           ),
+        layoutSize = output,
         fit = fit,
         fill = fill,
         duration = track.duration,
@@ -274,6 +288,10 @@ class GraphLoweringTest {
         encoderName = "libx264",
       )
 
-    return GraphLowering(negotiated, toneMapRoute = null).build().filterGraph
+    return GraphLowering(negotiated, toneMapRoute = null, hdrPixelFormat = null).build().filterGraph
   }
 }
+
+// gblur's own ceiling on sigma, a literal here on purpose: it pins what ffmpeg accepts rather than
+// anything the shared contract says.
+private const val GBLUR_SIGMA_CEILING = 1024

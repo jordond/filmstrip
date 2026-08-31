@@ -8,6 +8,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.cancellation.CancellationException
 
 internal actual class ProcessRunner {
   actual suspend fun capture(command: List<String>): ProcessOutput =
@@ -37,6 +39,29 @@ internal actual class ProcessRunner {
         SPAWN_FAILED
       }
     }
+
+  // The child is alive the moment start() returns, and the hop back to the caller drops the stream
+  // when the caller is cancelled, leaving a process nobody holds a handle to. It is parked across
+  // that hop and closed here instead. A caller that gets one cancels by closing it.
+  actual suspend fun frames(command: List<String>): FrameStream? {
+    var opened: FrameStream? = null
+    try {
+      return withContext(Dispatchers.IO) {
+        try {
+          JvmFrameStream(ProcessBuilder(command).start()).also { opened = it }
+        } catch (
+          @Suppress("SwallowedException") cause: IOException,
+        ) {
+          // The caller reports a missing toolchain from the resolve that preceded this, so a spawn
+          // that failed anyway has nothing to add beyond that it did.
+          null
+        }
+      }
+    } catch (cancelled: CancellationException) {
+      opened?.close()
+      throw cancelled
+    }
+  }
 
   // stdout and stderr are drained on their own coroutines because a full pipe blocks the child, and
   // ffmpeg is chatty on stderr while stdout carries the machine-readable progress. They are not
@@ -103,6 +128,10 @@ internal actual class ProcessRunner {
     runCatching { process.waitFor(STOP_GRACE_MILLIS, TimeUnit.MILLISECONDS) }.getOrDefault(false)
 }
 
+private val exclusion = Any()
+
+internal actual fun <T> exclusively(block: () -> T): T = synchronized(exclusion, block)
+
 internal actual fun environmentVariable(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() }
 
 internal actual fun pathEntries(): List<String> =
@@ -121,3 +150,61 @@ internal actual fun executableSuffixes(): List<String> {
 }
 
 internal actual fun absolutePathOf(path: String): String = File(path).absolutePath
+
+/**
+ * One ffmpeg child, read a frame at a time.
+ *
+ * stderr is drained on a daemon thread rather than a coroutine: the stream outlives any one call
+ * into it, and a full stderr pipe blocks the child just as a full stdout one does.
+ */
+private class JvmFrameStream(
+  private val process: Process,
+) : FrameStream {
+  private val stderr = StderrTail()
+  private val closed = AtomicBoolean(false)
+  private val output = process.inputStream
+
+  private val drain =
+    Thread {
+      runCatching {
+        process.errorReader().forEachLine { line ->
+          synchronized(stderr) { stderr.accept(line) }
+        }
+      }
+    }.apply {
+      name = "filmstrip-ffmpeg-stderr-${process.pid()}"
+      isDaemon = true
+      start()
+    }
+
+  override val processId: Long? get() = runCatching { process.pid() }.getOrNull()
+
+  override val isAlive: Boolean get() = process.isAlive
+
+  override suspend fun read(frame: ByteArray): Boolean =
+    withContext(Dispatchers.IO) {
+      runInterruptible {
+        // readNBytes rather than a single read: a pipe hands over whatever it has, and a frame is
+        // only whole once every byte of it has arrived.
+        runCatching { output.readNBytes(frame, 0, frame.size) }.getOrDefault(0) == frame.size
+      }
+    }
+
+  override fun errors(): String = synchronized(stderr) { stderr.text() }
+
+  override fun close() {
+    if (!closed.compareAndSet(false, true)) return
+    // Closing the pipe first is what usually ends it: a child blocked writing a frame nobody is
+    // reading takes the broken pipe and exits before the signal below is needed.
+    runCatching { output.close() }
+    process.destroy()
+    if (!awaitFrameExit(process)) {
+      process.destroyForcibly()
+      awaitFrameExit(process)
+    }
+    drain.interrupt()
+  }
+}
+
+private fun awaitFrameExit(process: Process): Boolean =
+  runCatching { process.waitFor(FRAME_STOP_GRACE_MILLIS, TimeUnit.MILLISECONDS) }.getOrDefault(false)

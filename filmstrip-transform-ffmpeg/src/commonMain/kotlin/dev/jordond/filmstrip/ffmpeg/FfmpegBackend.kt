@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg
 
 import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.FilmstripBuilder
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.diagnostics.BackendInfo
@@ -30,14 +31,38 @@ import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
  */
 @OptIn(InternalFilmstripApi::class)
 public fun FilmstripBuilder.ffmpegBackend(config: FfmpegConfig = FfmpegConfig()): FilmstripBuilder {
-  // One runtime behind both, so resolving the binaries and probing a clip happen once rather than
-  // once per component.
-  val runtime = FfmpegRuntime(config)
+  // One runtime behind both, so resolving the binaries, probing a clip and measuring the encoder
+  // ladder happen once rather than once per component. The factory runs per caller, so the engine
+  // it hands back holds nothing worth keeping that the runtime does not already hold.
+  val runtime = FfmpegRuntime.of(config)
   return builtInEffects()
     .addExportEngineFactory { components -> FfmpegExportEngine(components, runtime) }
     .addMediaProberFactory { FfmpegProber(runtime) }
     .addBackendInfo(BackendInfo(name = "ffmpeg", artifact = "dev.jordond.filmstrip:filmstrip-transform-ffmpeg"))
 }
+
+/**
+ * Builds the engine every ffmpeg lowering goes through.
+ *
+ * The preview calls this too, so a previewed edit and an exported one negotiate against the same
+ * codec ladder, the same parity table and the same copy rules rather than against two sets that
+ * have to be kept in step.
+ *
+ * The runtime behind it is the one [config] already resolved through, so an engine built here and
+ * a backend registered with the same config share one toolchain resolution, one probe cache and one
+ * measurement of the encoder ladder. A caller that registered [ffmpegBackend] with a config of its
+ * own should reach for the registered engine rather than building one against a default it never
+ * asked for.
+ *
+ * @param components The components the owning `Filmstrip` was built with.
+ * @param config How to find ffmpeg and what to pass it.
+ * @return An engine that plans, resolves and exports on ffmpeg.
+ */
+@InternalFilmstripApi
+public fun ffmpegExportEngine(
+  components: ComponentRegistry,
+  config: FfmpegConfig = FfmpegConfig(),
+): FfmpegExportEngine = FfmpegExportEngine(components, FfmpegRuntime.of(config))
 
 /**
  * How the ffmpeg backend finds its binaries and what it passes them.

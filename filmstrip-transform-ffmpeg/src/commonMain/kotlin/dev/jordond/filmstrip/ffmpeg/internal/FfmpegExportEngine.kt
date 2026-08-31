@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
+import dev.jordond.filmstrip.ffmpeg.PreviewStreamResult
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
@@ -27,6 +28,9 @@ import dev.jordond.filmstrip.media.audioCodecOf
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.videoCodecOf
 import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
+import dev.jordond.filmstrip.transform.internal.ResolveResult
+import dev.jordond.filmstrip.transform.internal.refusal
+import dev.jordond.filmstrip.transform.internal.toResolveResult
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
@@ -37,6 +41,7 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.math.abs
+import kotlin.time.Duration
 
 /**
  * Drives ffmpeg as a separate program.
@@ -45,14 +50,12 @@ import kotlin.math.abs
  * [ExportError.ToolchainMissing] value, so registering the backend on a machine without ffmpeg is
  * as harmless as registering any other backend that cannot run.
  */
-@OptIn(InternalFilmstripApi::class)
-internal class FfmpegExportEngine(
+@InternalFilmstripApi
+public class FfmpegExportEngine internal constructor(
   private val components: ComponentRegistry,
   private val runtime: FfmpegRuntime,
 ) : ExportEngine {
   private val config: FfmpegConfig get() = runtime.config
-  private val capabilityLock = Mutex()
-  private var deviceCapabilities: DeviceCapabilities? = null
   private val reportLock = Mutex()
   private var toolchainReported = false
 
@@ -106,10 +109,7 @@ internal class FfmpegExportEngine(
 
       val invocation =
         lowered.invocation ?: run {
-          val reason =
-            (lowered.verdict as? Verdict.Incapable)?.reasons?.firstOrNull()
-              ?: ExportError.InvalidComposition("The composition no longer plans to anything runnable.")
-          send(ExportStatus.Failure(reason))
+          send(ExportStatus.Failure(lowered.export.refusal()))
           return@channelFlow
         }
 
@@ -176,6 +176,102 @@ internal class FfmpegExportEngine(
   override fun parityOf(specId: String): EffectParity? = FfmpegParity.of(specId)
 
   /**
+   * Negotiates [composition] and lowers it into the graph [export] would run, writing nothing.
+   *
+   * A preview presents the same edit an export of it writes, so it lowers through this rather than
+   * through a negotiation of its own. Sharing the call is what makes the two pipelines the same
+   * one: the same probes, the same device answer, the same output format and the same effect chain.
+   *
+   * @param composition The edit to lower.
+   * @param spec What the export would be asked for.
+   * @param layoutSize The output frame text is laid out against, for a caller lowering a frame
+   *   smaller than the one an export writes. Null lays text out against the frame [spec] settles
+   *   on, which is what an export does.
+   * @return The lowered composition and the verdict it came with, or why it cannot run here.
+   */
+  @InternalFilmstripApi
+  public suspend fun resolve(
+    composition: EditComposition,
+    spec: ExportSpec,
+    layoutSize: Size? = null,
+  ): ResolveResult =
+    when (val result = lower(composition, spec, layoutSize)) {
+      is LoweringResult.Failed -> ResolveResult.Refused(result.error)
+      is LoweringResult.Done -> result.lowering.export.toResolveResult()
+    }
+
+  /**
+   * Spawns the preview pump for [composition], windowed at [at].
+   *
+   * The process runs the graph [export] would run, out of the same lowering, and differs from it
+   * only in where it starts and where the frames go. A caller presenting the frames is therefore
+   * showing what an export of the same edit writes rather than an approximation of it.
+   *
+   * ffmpeg settles a seek as it starts, so this is the whole of seeking on this backend: a caller
+   * that needs a different position opens another stream and closes the one it holds.
+   *
+   * @param composition The edit to preview.
+   * @param spec What the export would be asked for.
+   * @param layoutSize The output frame text is laid out against, as [resolve] takes it.
+   * @param at Where in the composition the first frame comes from. A composition whose timeline an
+   *   input seek cannot window opens at zero and reports so through
+   *   [dev.jordond.filmstrip.ffmpeg.PreviewStream.startPosition].
+   * @return The running stream, or why the edit cannot be previewed here.
+   */
+  @InternalFilmstripApi
+  public suspend fun openPreview(
+    composition: EditComposition,
+    spec: ExportSpec,
+    layoutSize: Size? = null,
+    at: Duration = Duration.ZERO,
+  ): PreviewStreamResult {
+    val toolchain =
+      when (val result = toolchain()) {
+        is ToolchainResult.Unavailable -> return PreviewStreamResult.Refused(result.error)
+        is ToolchainResult.Available -> result.toolchain
+      }
+
+    val lowered =
+      when (val result = lower(composition, spec, layoutSize)) {
+        is LoweringResult.Failed -> return PreviewStreamResult.Refused(result.error)
+        is LoweringResult.Done -> result.lowering
+      }
+    val invocation =
+      lowered.invocation ?: return PreviewStreamResult.Refused(lowered.export.refusal())
+
+    val scratch = Scratch.create()
+    val resolvedInputs =
+      invocation.inputs.map { input ->
+        when (val source = input.source) {
+          is InputSource.OfPath -> source.path
+          is InputSource.OfImage -> scratch.materialise(source.image)
+          is InputSource.Generated -> source.description
+        }
+      }
+
+    val command = invocation.previewArguments(toolchain, config, resolvedInputs, at)
+    components.report(BACKEND, "preview", mapOf("command" to command.joinToString(" ")))
+
+    val frames = runtime.frames(command)
+    if (frames == null) {
+      scratch.delete()
+      return PreviewStreamResult.Refused(
+        ExportError.Underlying(ExportError.Underlying.NO_PLATFORM_CODE, PUMP_UNSPAWNABLE),
+      )
+    }
+
+    return PreviewStreamResult.Opened(
+      FfmpegPreviewStream(
+        frames = frames,
+        scratch = scratch,
+        size = invocation.output.size,
+        startPosition = if (invocation.seekBase == null) Duration.ZERO else at,
+        frameBytes = invocation.previewFrameBytes,
+      ),
+    )
+  }
+
+  /**
    * Resolves the binaries, announcing what was found the first time anything asks.
    *
    * The banner is the thing a desktop bug report is asked for and the only place it exists is the
@@ -218,6 +314,7 @@ internal class FfmpegExportEngine(
   private suspend fun lower(
     composition: EditComposition,
     spec: ExportSpec,
+    layoutSize: Size? = null,
   ): LoweringResult {
     val toolchain =
       when (val result = toolchain()) {
@@ -238,20 +335,18 @@ internal class FfmpegExportEngine(
 
     return LoweringResult.Done(
       FfmpegPlanner(toolchain, components.effectResolvers)
-        .lower(composition, spec, device(toolchain), infos),
+        .lower(composition, spec, device(toolchain), infos, layoutSize = layoutSize),
     )
   }
 
-  // Held across the probe rather than around the assignment, so two exports planned at once spawn
-  // one ladder between them instead of one each.
+  // Memoised on the runtime rather than here, so every engine built over one config reaches the
+  // ladder that was already measured instead of measuring one of its own.
   private suspend fun device(toolchain: Toolchain): DeviceCapabilities =
-    capabilityLock.withLock {
-      deviceCapabilities ?: measureCapabilities(toolchain).also { deviceCapabilities = it }
-    }
+    runtime.capabilities { measureCapabilities(toolchain) }
 
   // A ladder rather than a published number, because ffmpeg does not publish one. Each rung encodes
   // a single frame as cheaply as that encoder allows, and the whole probe is cached for the life of
-  // the engine. Every codec in the table is probed, including the ones CODEC_LADDER leaves out of
+  // the runtime. Every codec in the table is probed, including the ones CODEC_LADDER leaves out of
   // Auto, so a caller who names one still gets an answer. One encoder's ladder does not wait on
   // another's, or a build carrying six of them would spend a second of somebody's startup.
   private suspend fun measureCapabilities(toolchain: Toolchain): DeviceCapabilities =
@@ -426,5 +521,7 @@ internal class FfmpegExportEngine(
 
     const val NOT_READABLE =
       "ffmpeg reported success but the output could not be probed, so nothing usable was written."
+
+    const val PUMP_UNSPAWNABLE = "The ffmpeg preview process could not be started."
   }
 }

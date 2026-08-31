@@ -213,6 +213,7 @@ class EffectLoweringTest {
     Attributes(
       inputSize = inputSize,
       outputSize = outputSize,
+      layoutSize = inputSize,
       colorSpace = if (hdrTransfer == null) ColorSpace.Bt709 else ColorSpace.Bt2020,
       hdrTransfer = hdrTransfer,
       frameRate = 30f,

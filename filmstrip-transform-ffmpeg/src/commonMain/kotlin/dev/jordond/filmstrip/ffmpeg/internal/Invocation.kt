@@ -59,6 +59,9 @@ internal sealed interface InputSource {
  * @property hdrTransfer The transfer function to tag the output with, or null to write SDR.
  * @property toneMapped Whether the graph brought an HDR grade down to BT.709. The tone-map nodes
  *   leave the frames in BT.709, so the output carries the tags that say so.
+ * @property seekBase The source time composition time zero maps to, for a caller windowing this
+ *   graph with an input seek. Null for a graph whose timeline an input seek cannot window, which is
+ *   read forward from the start instead. Unused by an export, which renders the whole timeline.
  */
 internal class Invocation(
   val inputs: List<InputSpec>,
@@ -71,6 +74,7 @@ internal class Invocation(
   val copy: Boolean = false,
   val hdrTransfer: HdrTransfer? = null,
   val toneMapped: Boolean = false,
+  val seekBase: Duration? = null,
 )
 
 /**
@@ -163,7 +167,7 @@ private fun Invocation.videoArguments(): List<String> =
     // export encoding H264 into a file the caller asked for something else in.
     val name = videoEncoder ?: error("The plan named no encoder for ${output.videoCodec}.")
     val encoder = ffmpegEncoderNamed(name)
-    val hdrPixelFormat = hdrTransfer?.let { encoder?.hdrPixelFormat }
+    val hdrPixelFormat = hdrPixelFormatFor(name, hdrTransfer)
     add("-c:v")
     add(name)
     add("-pix_fmt")
