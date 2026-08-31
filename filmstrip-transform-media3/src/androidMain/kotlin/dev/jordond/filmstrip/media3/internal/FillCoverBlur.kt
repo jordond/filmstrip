@@ -45,6 +45,17 @@ internal class FillCoverBlur(
     inputWidth: Int,
     inputHeight: Int,
   ): Boolean = abs(inputWidth.toFloat() / inputHeight.toFloat() - outputSize.aspect) < ASPECT_EPSILON
+
+  // Compared by value so a preview can tell a re-lowering that changed this pass from one that
+  // produced the same pass again.
+  override fun equals(other: Any?): Boolean =
+    this === other || (other is FillCoverBlur && fill == other.fill && outputSize == other.outputSize)
+
+  override fun hashCode(): Int = HASH * fill.hashCode() + outputSize.hashCode()
+
+  private companion object {
+    const val HASH = 31
+  }
 }
 
 /**
@@ -279,9 +290,10 @@ internal fun downscaleFor(sigma: Float): Int = maxOf(1, ceil(sigma / DOWNSCALE_T
 /**
  * How many taps on either side of the centre a Gaussian of this standard deviation needs.
  *
- * Three standard deviations either side keeps 99.7% of the kernel's weight. Capped defensively:
- * [downscaleFor] already keeps `sigma` here at eight or under, which never asks for more than
- * `ceil(3 * 8) = 24`, six taps under the cap.
+ * Three standard deviations either side keeps 99.7% of the kernel's weight, clamped to
+ * [MAX_TAP_RADIUS]. [downscaleFor] already keeps `sigma` here at eight or under, which asks for at
+ * most `ceil(3 * 8) = 24`, eight taps below that clamp, so a sigma handed straight in is the only
+ * thing the clamp bites on.
  */
 internal fun tapRadiusFor(sigma: Float): Int = minOf(ceil(TAP_STANDARD_DEVIATIONS * sigma).toInt(), MAX_TAP_RADIUS)
 
@@ -409,7 +421,14 @@ private val COVER_FRAGMENT_SHADER =
   """.trimIndent()
 
 private const val DOWNSCALE_TARGET_SIGMA = 8f
-private const val TAP_STANDARD_DEVIATIONS = 3f
-private const val MAX_TAP_RADIUS = 32
+internal const val TAP_STANDARD_DEVIATIONS = 3f
+
+/**
+ * The widest kernel the generated fragment shader may carry, in taps either side of the centre.
+ *
+ * This is a limit of this backend rather than of the blur: every tap is written into the shader
+ * source as its own term, so the tap count is the length of the program a driver has to compile.
+ */
+internal const val MAX_TAP_RADIUS = 32
 
 private const val ASPECT_EPSILON = 0.001f

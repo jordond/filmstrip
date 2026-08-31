@@ -14,7 +14,7 @@ kotlin {
   sourceSets {
     androidMain.dependencies {
       api(projects.filmstripTransform)
-      implementation(libs.media3.transformer)
+      api(libs.media3.transformer)
     }
 
     named("androidDeviceTest").dependencies {
@@ -22,6 +22,7 @@ kotlin {
       implementation(libs.kotlinx.coroutines.test)
       implementation(libs.androidx.test.runner)
       implementation(libs.androidx.test.core)
+      implementation(libs.kotest.assertions)
     }
   }
 

@@ -16,6 +16,7 @@ import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effects.MAX_OVERLAYS_PER_EFFECT
@@ -42,9 +43,29 @@ import kotlin.time.Duration
  * Only reachable when a resolver returned something that is not a media3 `Effect`, or when a source
  * survived planning that media3 has no way to open.
  */
-internal class Media3LoweringFailure(
-  val reason: String,
+@InternalFilmstripApi
+public class Media3LoweringFailure(
+  public val reason: String,
 ) : Exception(reason)
+
+/**
+ * Sees every lowered video effect as it is produced, in chain order, and says what goes into the
+ * chain in its place.
+ *
+ * A preview installs one to keep hold of the positions a parameter change can reach. An export
+ * takes the default and lowers exactly what it always did.
+ */
+internal fun interface EffectWrapper {
+  /**
+   * Returns what belongs in the chain where [effect] was lowered.
+   */
+  fun wrap(effect: Effect): Effect
+}
+
+/**
+ * Lowers each effect and passes it straight through.
+ */
+internal val PassThroughEffects: EffectWrapper = EffectWrapper { it }
 
 /**
  * Builds the media3 composition this plan runs as.
@@ -54,9 +75,15 @@ internal class Media3LoweringFailure(
  * concatenate. It sits after composition-level geometry and before everything else, so a
  * normalized measurement in a later effect is a fraction of the frame that will really be written.
  *
+ * Every clip's chain is lowered before the composition's, in track and clip order, which is the
+ * order [wrapper] sees them in.
+ *
  * @throws Media3LoweringFailure when an effect or a source cannot be lowered.
  */
-internal fun ResolvedComposition.toMedia3(): Composition {
+@InternalFilmstripApi
+public fun ResolvedComposition.toMedia3(): Composition = toMedia3(PassThroughEffects)
+
+internal fun ResolvedComposition.toMedia3(wrapper: EffectWrapper): Composition {
   val keepAudio = output.audioCodec != AudioCodec.None
   val keepVideo = audio != AudioSpec.AudioOnly
   val sequences =
@@ -81,6 +108,7 @@ internal fun ResolvedComposition.toMedia3(): Composition {
             fit = fit,
             fill = fill,
             outputSize = output.size,
+            wrapper = wrapper,
           ),
         )
       }
@@ -94,7 +122,7 @@ internal fun ResolvedComposition.toMedia3(): Composition {
 
   return Composition
     .Builder(sequences)
-    .setEffects(Effects(emptyList(), if (keepVideo) compositionVideoEffects() else emptyList()))
+    .setEffects(Effects(emptyList(), if (keepVideo) compositionVideoEffects(wrapper) else emptyList()))
     .setHdrMode(
       when (hdr) {
         ResolvedHdr.Keep -> Composition.HDR_MODE_KEEP_HDR
@@ -165,13 +193,14 @@ internal fun audioCodecName(mimeType: String): String =
  * `internal` rather than `private` so a test can inspect the chain without building a full
  * [Composition].
  */
-internal fun ResolvedComposition.compositionVideoEffects(): List<Effect> {
+internal fun ResolvedComposition.compositionVideoEffects(wrapper: EffectWrapper = PassThroughEffects): List<Effect> {
   val effects =
     compositionGeometry.toMedia3Effects() +
       Presentation.createForWidthAndHeight(output.size.width, output.size.height, fit.toLayout()) +
       compositionEffects.toMedia3Effects()
 
-  return if (showsFill) effects + FillFlatten(fill.flattenColor(), hdrTransfer) else effects
+  val whole = if (showsFill) effects + FillFlatten(fill.flattenColor(), hdrTransfer) else effects
+  return whole.map(wrapper::wrap)
 }
 
 // Only Fill.Solid names a colour of its own. A gap has no frame to blur, so Fill.Blurred, and
@@ -192,6 +221,7 @@ private fun ResolvedClip.toItem(
   fit: Fit,
   fill: Fill,
   outputSize: Size,
+  wrapper: EffectWrapper,
 ): EditedMediaItem {
   val removeAudio = !keepAudio || content == TrackContent.Video
   val removeVideo = !keepVideo || content == TrackContent.Audio
@@ -231,7 +261,7 @@ private fun ResolvedClip.toItem(
     }.setEffects(
       Effects(
         if (removeAudio) emptyList() else audioProcessors(gain, mixesAudio),
-        if (removeVideo) emptyList() else clipVideoEffects(fit, fill, outputSize),
+        if (removeVideo) emptyList() else clipVideoEffects(fit, fill, outputSize, wrapper),
       ),
     ).build()
 }
@@ -247,14 +277,25 @@ internal fun ResolvedClip.clipVideoEffects(
   fit: Fit,
   fill: Fill,
   outputSize: Size,
+  wrapper: EffectWrapper = PassThroughEffects,
 ): List<Effect> {
   val lowered = effects.toMedia3Effects()
-  if (fit != Fit.Contain || fill !is Fill.Blurred) return lowered
+  val whole =
+    when {
+      fit != Fit.Contain || fill !is Fill.Blurred -> {
+        lowered
+      }
+      else -> {
+        val displaySize = info.video?.displaySize
+        when {
+          displaySize == null -> lowered
+          abs(displaySize.aspect - outputSize.aspect) < ASPECT_EPSILON -> lowered
+          else -> lowered + FillCoverBlur(fill, outputSize)
+        }
+      }
+    }
 
-  val displaySize = info.video?.displaySize ?: return lowered
-  if (abs(displaySize.aspect - outputSize.aspect) < ASPECT_EPSILON) return lowered
-
-  return lowered + FillCoverBlur(fill, outputSize)
+  return whole.map(wrapper::wrap)
 }
 
 /**

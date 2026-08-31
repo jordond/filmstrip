@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.sigmaFor
 import io.kotest.matchers.floats.plusOrMinus
+import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
@@ -90,6 +91,23 @@ class Media3CompositionTest {
     tapRadiusFor(sigma / downscale) shouldBe 22
   }
 
+  /**
+   * The clamp is this backend's own ceiling on how long the generated shader may get, not a claim
+   * about the blur, so what is asserted is that a sigma past it stops there. Both the threshold
+   * and the expected result are read off the constants the function itself reads, so a change to
+   * either moves this test rather than leaving it pinned to a number that no longer means
+   * anything.
+   */
+  @Test
+  fun `a sigma past the tap budget clamps to the shader's own ceiling`() {
+    val atCap = MAX_TAP_RADIUS / TAP_STANDARD_DEVIATIONS
+
+    tapRadiusFor(atCap / 2f) shouldBeLessThan MAX_TAP_RADIUS
+    tapRadiusFor(atCap) shouldBe MAX_TAP_RADIUS
+    tapRadiusFor(atCap * 1.5f) shouldBe MAX_TAP_RADIUS
+    tapRadiusFor(atCap * 4f) shouldBe MAX_TAP_RADIUS
+  }
+
   @Test
   fun `a small sigma needs no downscale at all`() {
     val output = Size(1080, 1920)
@@ -125,6 +143,7 @@ class Media3CompositionTest {
           frameRate = 30,
           audioFormat = null,
         ),
+      layoutSize = Size(320, 180),
       fit = fit,
       fill = fill,
       duration = 1.seconds,

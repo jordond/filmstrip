@@ -32,6 +32,17 @@ internal class FillFlatten(
     context: Context,
     useHdr: Boolean,
   ): GlShaderProgram = FillFlattenShaderProgram(useHdr, fillComponents(color, transfer.takeIf { useHdr }))
+
+  // Compared by value so a preview can tell a re-lowering that changed this pass from one that
+  // produced the same pass again.
+  override fun equals(other: Any?): Boolean =
+    this === other || (other is FillFlatten && color == other.color && transfer == other.transfer)
+
+  override fun hashCode(): Int = HASH * color + transfer.hashCode()
+
+  private companion object {
+    const val HASH = 31
+  }
 }
 
 /**

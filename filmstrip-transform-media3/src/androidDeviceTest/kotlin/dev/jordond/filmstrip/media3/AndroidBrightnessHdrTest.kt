@@ -148,6 +148,7 @@ class AndroidBrightnessHdrTest {
       Attributes(
         inputSize = FRAME,
         outputSize = FRAME,
+        layoutSize = FRAME,
         colorSpace = if (transfer == null) ColorSpace.Bt709 else ColorSpace.Bt2020,
         hdrTransfer = transfer,
         frameRate = 30f,
