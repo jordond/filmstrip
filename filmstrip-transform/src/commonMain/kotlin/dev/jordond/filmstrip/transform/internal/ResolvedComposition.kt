@@ -28,6 +28,10 @@ import kotlin.time.Duration
  *   after every clip and track effect, before geometry pins it to [OutputFormat.size].
  * @property compositionEffects Composition-level effects that run after the frame is pinned, so a
  *   normalized measurement in one is a fraction of the real output frame.
+ * @property layoutSize The output frame text is laid out against. [OutputFormat.size] for an
+ *   export, and the frame an export would write for a graph lowered smaller than that, such as a
+ *   preview under a quality cap. A backend hands this to a resolver rather than working it out from
+ *   the two frames itself.
  * @property fit How a frame that does not match the output aspect is fitted to it.
  * @property fill What fills the frame where no clip's pixels land.
  * @property hdr What to do about high dynamic range, after the device has been asked.
@@ -43,6 +47,7 @@ public class ResolvedComposition(
   public val compositionInputSize: Size,
   public val compositionEffects: List<ResolvedEffect>,
   public val output: OutputFormat,
+  public val layoutSize: Size,
   public val fit: Fit,
   public val fill: Fill,
   public val duration: Duration,

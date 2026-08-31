@@ -91,12 +91,21 @@ public class ExportPlanner(
   private val compositionGeometryPerClip: Boolean = false,
   private val hdrLadder: List<VideoCodec> = DEFAULT_HDR_LADDER,
 ) {
+  /**
+   * Negotiates [composition] against [device] into a verdict and the graph an export would run.
+   *
+   * @param dropped Effect ids to leave out of the graph entirely.
+   * @param layoutSize The output frame text is laid out against, for a caller planning a frame
+   *   smaller than the one an export writes. Null lays text out against the frame this negotiation
+   *   settles on, which is what an export does.
+   */
   public fun negotiate(
     composition: EditComposition,
     spec: ExportSpec,
     device: DeviceCapabilities,
     infos: Map<MediaSource, MediaInfo>,
     dropped: Set<String> = emptySet(),
+    layoutSize: Size? = null,
   ): NegotiatedExport {
     val edit = composition.withoutEffectIds(dropped)
     val primary = edit.tracks.firstOrNull() ?: return incapable(NO_TRACKS)
@@ -181,6 +190,7 @@ public class ExportPlanner(
       } else {
         requestedSize.fittedTo(encoder?.maxSize, encoder?.sizeAlignment ?: SIZE_ALIGNMENT)
       }
+    val layoutFrame = layoutSize ?: outputSize
 
     // A copy runs no encoder, so like the frame it has no rate ceiling to clamp to.
     val frameRate =
@@ -212,6 +222,7 @@ public class ExportPlanner(
                   stages = listOf(clip.effects + track.effects, fannedGeometry),
                   inputSize = info.video?.displaySize ?: outputSize,
                   outputSize = outputSize,
+                  layoutSize = info.video?.displaySize ?: layoutFrame,
                   capabilities = capabilities,
                   frameRate = frameRate,
                   hdrTransfer = encodedTransfer,
@@ -238,6 +249,7 @@ public class ExportPlanner(
           stages = listOf(compositionGeometrySpecs),
           inputSize = compositionInputSize,
           outputSize = outputSize,
+          layoutSize = compositionInputSize,
           capabilities = capabilities,
           frameRate = frameRate,
           hdrTransfer = encodedTransfer,
@@ -248,6 +260,7 @@ public class ExportPlanner(
         stages = listOf(edit.effects.filterNot { it.stage == EffectStage.Geometry }),
         inputSize = outputSize,
         outputSize = outputSize,
+        layoutSize = layoutFrame,
         capabilities = capabilities,
         frameRate = frameRate,
         hdrTransfer = encodedTransfer,
@@ -257,7 +270,9 @@ public class ExportPlanner(
 
     val unsupported = linkedMapOf<String, String>()
     asked.forEach { resolved -> resolved.unsupported?.let { unsupported[resolved.spec.id] = it } }
-    if (unsupported.isNotEmpty()) return incapableWithFallback(composition, spec, device, infos, dropped, unsupported)
+    if (unsupported.isNotEmpty()) {
+      return incapableWithFallback(composition, spec, device, infos, dropped, unsupported, layoutSize)
+    }
 
     val duration =
       tracks.filterNot { it.looping }.maxOfOrNull { it.duration } ?: return incapable(EVERY_TRACK_LOOPS)
@@ -336,6 +351,7 @@ public class ExportPlanner(
           compositionInputSize = compositionInputSize,
           compositionEffects = compositionRest.mapNotNull { it.resolvedEffect },
           output = output,
+          layoutSize = layoutFrame,
           fit = fit,
           fill = edit.fill,
           duration = duration,
@@ -353,20 +369,25 @@ public class ExportPlanner(
     stages: List<List<EffectSpec>>,
     inputSize: Size,
     outputSize: Size,
+    layoutSize: Size,
     capabilities: RenderCapabilities,
     frameRate: Int,
     hdrTransfer: HdrTransfer?,
   ): List<LoweredEffect> {
     var size = inputSize
+    // The layout frame is chained through the same geometry the drawn frame is, so an effect late
+    // in the stage is measured against the frame an export would hand it rather than the first one.
+    var layout = layoutSize
     // A kept grade is written in BT.2020, so a resolver reading the colour space off an HDR export
     // sees the one the encoder is handed rather than the SDR default.
     val colorSpace = if (hdrTransfer != null) ColorSpace.Bt2020 else ColorSpace.Bt709
     return stages.flatMap { it.inCanonicalOrder() }.map { spec ->
-      val attributes = Attributes(size, outputSize, colorSpace, hdrTransfer, frameRate.toFloat())
+      val attributes = Attributes(size, outputSize, layout, colorSpace, hdrTransfer, frameRate.toFloat())
       val resolution =
         resolvers.firstNotNullOfOrNull { it.resolve(spec, capabilities, attributes) }
 
       size = frameAfter(spec, size)
+      layout = frameAfter(spec, layout)
 
       when (resolution) {
         is EffectResolution.Resolved -> LoweredEffect(spec, resolution.effect, null, null)
@@ -384,12 +405,13 @@ public class ExportPlanner(
     infos: Map<MediaSource, MediaInfo>,
     dropped: Set<String>,
     unsupported: Map<String, String>,
+    layoutSize: Size?,
   ): NegotiatedExport {
     val reasons = unsupported.map { (id, message) -> ExportError.UnsupportedEffect(id, message) }
 
     val fallback =
       if (dropped.isEmpty()) {
-        when (val retry = negotiate(composition, spec, device, infos, unsupported.keys).verdict) {
+        when (val retry = negotiate(composition, spec, device, infos, unsupported.keys, layoutSize).verdict) {
           is Verdict.Capable -> retry.plan
           is Verdict.Degraded -> retry.plan
           is Verdict.Incapable -> null

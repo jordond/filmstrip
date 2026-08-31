@@ -37,6 +37,9 @@ public class NegotiatedExport(
  *   after every clip and track effect, before geometry pins it to [OutputFormat.size].
  * @property compositionEffects Composition-level effects that run after the frame is pinned, so a
  *   normalised measurement in one is a fraction of the real output frame.
+ * @property layoutSize The output frame text is laid out against. [OutputFormat.size] for an
+ *   export, and the frame an export would write for a caller that negotiated a smaller one, such as
+ *   a preview under a quality cap.
  * @property fit How a frame that does not match the output aspect is fitted to it.
  * @property fill What fills the frame where no clip's pixels land.
  * @property hdr What to do about high dynamic range, after the device has been asked.
@@ -55,6 +58,7 @@ public class NegotiatedComposition(
   public val compositionInputSize: Size,
   public val compositionEffects: List<ResolvedEffect>,
   public val output: OutputFormat,
+  public val layoutSize: Size,
   public val fit: Fit,
   public val fill: Fill,
   public val duration: Duration,
@@ -104,6 +108,7 @@ public fun NegotiatedComposition.toResolvedComposition(): ResolvedComposition =
     compositionInputSize = compositionInputSize,
     compositionEffects = compositionEffects,
     output = output,
+    layoutSize = layoutSize,
     fit = fit,
     fill = fill,
     duration = duration,

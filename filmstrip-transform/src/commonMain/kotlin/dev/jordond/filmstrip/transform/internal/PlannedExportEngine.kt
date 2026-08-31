@@ -13,11 +13,10 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.export.VideoCodec
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSink
-import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.ProbeResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -34,7 +33,7 @@ import kotlinx.coroutines.flow.flowOf
 @InternalFilmstripApi
 public class PlannedExportEngine(
   private val backend: ExportDriver,
-  private val prober: MediaProber,
+  prober: MediaProber,
   resolvers: List<EffectResolver>,
   private val parity: Map<String, EffectParity>,
   ladder: List<VideoCodec>,
@@ -52,7 +51,7 @@ public class PlannedExportEngine(
       canCopy = canCopy,
     )
 
-  private val probed = mutableMapOf<MediaSource, MediaInfo>()
+  private val probes = ProbeCache(prober)
   private var device: DeviceCapabilities? = null
 
   override suspend fun capabilities(): CapabilitiesResult = CapabilitiesResult.Success(deviceCapabilities())
@@ -73,6 +72,31 @@ public class PlannedExportEngine(
 
   override fun parityOf(specId: String): EffectParity? = parity[specId]
 
+  /**
+   * Negotiates [composition] and lowers it into the graph [export] would run, writing nothing.
+   *
+   * A preview presents the same edit an export of it writes, so it lowers through this rather than
+   * through a negotiation of its own. Sharing the call is what makes the two pipelines the same
+   * one: the same probes, the same device answer, the same output format and the same effect chain.
+   *
+   * @param composition The edit to lower.
+   * @param spec What the export would be asked for.
+   * @param layoutSize The output frame text is laid out against, for a caller lowering a frame
+   *   smaller than the one an export writes. Null lays text out against the frame [spec] settles
+   *   on, which is what an export does.
+   * @return The lowered composition and the verdict it came with, or why it cannot run here.
+   */
+  @InternalFilmstripApi
+  public suspend fun resolve(
+    composition: EditComposition,
+    spec: ExportSpec,
+    layoutSize: Size? = null,
+  ): ResolveResult =
+    when (val result = negotiate(composition, spec, layoutSize)) {
+      is NegotiationResult.Failed -> ResolveResult.Refused(result.error)
+      is NegotiationResult.Done -> result.export.toResolveResult()
+    }
+
   private suspend fun deviceCapabilities(): DeviceCapabilities = device ?: backend.capabilities().also { device = it }
 
   /**
@@ -90,43 +114,28 @@ public class PlannedExportEngine(
         flowOf(ExportStatus.Failure(result.error))
       }
       is NegotiationResult.Done -> {
-        val resolved = result.export.composition?.toResolvedComposition()
-        if (resolved == null) {
-          flowOf(ExportStatus.Failure(refusal(result.export)))
-        } else {
-          backend.export(resolved, to)
+        when (val resolved = result.export.toResolveResult()) {
+          is ResolveResult.Refused -> flowOf(ExportStatus.Failure(resolved.error))
+          is ResolveResult.Resolved -> backend.export(resolved.composition, to)
         }
       }
     }
-
-  private fun refusal(export: NegotiatedExport): ExportError =
-    (export.verdict as? Verdict.Incapable)?.reasons?.firstOrNull()
-      ?: ExportError.InvalidComposition(NO_LONGER_RUNNABLE)
 
   private suspend fun negotiate(
     composition: EditComposition,
     spec: ExportSpec,
-  ): NegotiationResult {
-    val infos = mutableMapOf<MediaSource, MediaInfo>()
-    for (clip in composition.tracks.flatMap { it.clips }) {
-      val cached = probed[clip.source]
-      if (cached != null) {
-        infos[clip.source] = cached
-        continue
+    layoutSize: Size? = null,
+  ): NegotiationResult =
+    when (val probed = probes.read(composition)) {
+      is ProbeCacheResult.Failed -> {
+        NegotiationResult.Failed(probed.error)
       }
-      when (val result = prober.probe(clip.source)) {
-        is ProbeResult.Success -> {
-          probed[clip.source] = result.info
-          infos[clip.source] = result.info
-        }
-        is ProbeResult.Failure -> {
-          return NegotiationResult.Failed(result.error)
-        }
+      is ProbeCacheResult.Read -> {
+        NegotiationResult.Done(
+          planner.negotiate(composition, spec, deviceCapabilities(), probed.infos, layoutSize = layoutSize),
+        )
       }
     }
-
-    return NegotiationResult.Done(planner.negotiate(composition, spec, deviceCapabilities(), infos))
-  }
 
   private sealed interface NegotiationResult {
     class Done(
@@ -137,8 +146,56 @@ public class PlannedExportEngine(
       val error: ExportError,
     ) : NegotiationResult
   }
-
-  private companion object {
-    const val NO_LONGER_RUNNABLE = "The composition no longer plans to anything runnable."
-  }
 }
+
+/**
+ * What [PlannedExportEngine.resolve] settled on.
+ */
+@InternalFilmstripApi
+public sealed interface ResolveResult {
+  /**
+   * The edit lowered.
+   *
+   * @property composition The graph an export of this edit would run.
+   * @property verdict What a caller asking [ExportEngine.plan] for the same edit would be told,
+   *   which carries the parity a preview reports.
+   */
+  @InternalFilmstripApi
+  public class Resolved(
+    public val composition: ResolvedComposition,
+    public val verdict: Verdict,
+  ) : ResolveResult
+
+  /**
+   * The edit cannot run here.
+   *
+   * @property error Why it cannot.
+   */
+  @InternalFilmstripApi
+  public class Refused(
+    public val error: ExportError,
+  ) : ResolveResult
+}
+
+/**
+ * Turns what a negotiation settled on into what a preview lowers from.
+ *
+ * A capable negotiation carries the graph an export of the same edit would run. One that is not
+ * carries the first reason it was refused.
+ */
+@InternalFilmstripApi
+public fun NegotiatedExport.toResolveResult(): ResolveResult =
+  when (val resolved = composition?.toResolvedComposition()) {
+    null -> ResolveResult.Refused(refusal())
+    else -> ResolveResult.Resolved(resolved, verdict)
+  }
+
+/**
+ * The first reason this negotiation refused the edit, or a stand-in when it named none.
+ */
+@InternalFilmstripApi
+public fun NegotiatedExport.refusal(): ExportError =
+  (verdict as? Verdict.Incapable)?.reasons?.firstOrNull()
+    ?: ExportError.InvalidComposition(NO_LONGER_RUNNABLE)
+
+private const val NO_LONGER_RUNNABLE = "The composition no longer plans to anything runnable."
