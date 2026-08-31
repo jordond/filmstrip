@@ -144,8 +144,8 @@ public interface VideoPlayer : AutoCloseable {
   /**
    * Sets monitor volume in `0f..1f`.
    *
-   * Monitor volume only, on both platforms. It does not reach the exported file. Gain that should
-   * end up in the file belongs in the composition's audio spec.
+   * Requires [PlayerFeature.AudioMonitoring]. Monitor volume only, it does not reach the exported
+   * file. Gain that should end up in the file belongs in the composition's audio spec.
    */
   public fun setVolume(volume: Float)
 

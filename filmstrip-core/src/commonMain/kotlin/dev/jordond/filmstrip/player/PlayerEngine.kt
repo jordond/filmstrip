@@ -101,8 +101,8 @@ public interface PlayerEngine {
   /**
    * Sets monitor volume in `0f..1f`.
    *
-   * Monitor volume only, on both platforms. It does not reach the export. All gain that should end
-   * up in the file belongs in the composition's audio spec.
+   * Requires [PlayerFeature.AudioMonitoring]. Monitor volume only, it does not reach the export.
+   * All gain that should end up in the file belongs in the composition's audio spec.
    */
   public fun setVolume(volume: Float)
 
@@ -150,12 +150,10 @@ public fun interface PlayerEngineFactory {
 /**
  * How a player should be built.
  *
- * @property surfaceType Which kind of surface the preview renders into.
  * @property qualityPolicy How hard the preview may work.
  */
 @Poko
 public class PlayerConfig(
-  public val surfaceType: PreviewSurfaceType = PreviewSurfaceType.Surface,
   public val qualityPolicy: PreviewQualityPolicy = PreviewQualityPolicy.Full,
 )
 

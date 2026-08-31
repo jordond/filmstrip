@@ -70,6 +70,8 @@ internal class EngineVideoPlayer(
     )
 
   init {
+    // Result deliberately dropped: a failure surfaces as PlaybackStatus.Error on state, which is
+    // where a UI reads it.
     engine.setComposition(SetCompositionRequest(initial)) { }
   }
 

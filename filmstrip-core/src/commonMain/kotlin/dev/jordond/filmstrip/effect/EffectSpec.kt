@@ -8,6 +8,12 @@ package dev.jordond.filmstrip.effect
  *
  * Implementations must be `@Serializable` so edit lists persist and move between devices, and must
  * carry a stable [id] so a persisted list survives a refactor.
+ *
+ * Implementations must also compare by value, which a `data class` or `@Poko` gives for free.
+ * filmstrip decides whether a composition changed, and whether a cached thumbnail is still good,
+ * by comparing specs. An implementation left on identity equality reports every reloaded edit as
+ * different, so setting an equal composition rebuilds the graph and every thumbnail cache key
+ * changes when an edit list is deserialized.
  */
 public interface EffectSpec {
   /**

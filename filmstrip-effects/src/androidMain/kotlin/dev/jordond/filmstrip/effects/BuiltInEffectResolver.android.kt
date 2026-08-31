@@ -66,10 +66,13 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     attributes: Attributes,
   ): EffectResolution {
     if (!capabilities.has(RenderFeature.TextRendering)) return unsupported(id, NO_TEXT_RENDERING)
-    val bitmap = rasterizeText(text, style, attributes.inputSize) ?: return unsupported(id, EMPTY_TEXT)
+    val bitmap = rasterizeText(text, style, attributes.layoutSize) ?: return unsupported(id, EMPTY_TEXT)
     val size = bitmap.size()
-    // Rasterised at the size it will occupy, so it is composited one to one and never resampled.
-    return resolved(RasterOverlay(bitmap, placedOn(size).toOverlaySettings(size, 1f), visibleDuring), capabilities)
+    // Laid out against the frame an export writes and only resampled here, so a graph lowered
+    // smaller than that breaks its lines on the same words. The two frames agree for an export,
+    // which composites one to one.
+    val drawn = attributes.drawnTextSize(size)
+    return resolved(RasterOverlay(bitmap, placedOn(drawn).toOverlaySettings(size, 1f), visibleDuring), capabilities)
   }
 
   private fun resolved(effect: Effect): EffectResolution = EffectResolution.Resolved(PlatformEffect(effect))

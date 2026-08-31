@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effects
 
 import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
@@ -70,6 +71,27 @@ public fun Watermark.placedOn(
  */
 public fun Text.placedOn(text: Size): OverlayPlacement =
   OverlayPlacement(size = text, overlayAnchor = anchor, frameAnchor = anchor)
+
+/**
+ * The size a rasterised text block is drawn at on the frame entering the effect.
+ *
+ * A backend lays text out against [Attributes.layoutSize] and gets back a raster in that frame's
+ * pixels. This brings it down to [Attributes.inputSize], which is the same frame for an export and
+ * a smaller one for a preview rendering below it. Only the raster is resampled, so the lines were
+ * already broken where the export breaks them.
+ *
+ * @param raster The rasterised text block's own pixel size.
+ * @return The size to draw the block at.
+ */
+internal fun Attributes.drawnTextSize(raster: Size): Size {
+  val layout = layoutSize.height
+  if (layout <= 0 || layout == inputSize.height) return raster
+  val scale = inputSize.height.toFloat() / layout
+  return Size(
+    (raster.width * scale).roundToInt().coerceAtLeast(1),
+    (raster.height * scale).roundToInt().coerceAtLeast(1),
+  )
+}
 
 private fun Float.fractionOf(side: Int): Float = if (side <= 0) 0f else (this / side).coerceIn(0f, HALF)
 

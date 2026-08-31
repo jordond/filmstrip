@@ -2,15 +2,19 @@ package dev.jordond.filmstrip.media
 
 import dev.jordond.filmstrip.InternalFilmstripApi
 import kotlinx.cinterop.BetaInteropApi
+import kotlinx.cinterop.CValuesRef
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import platform.CoreGraphics.CGBitmapContextCreate
 import platform.CoreGraphics.CGColorSpaceCreateDeviceRGB
+import platform.CoreGraphics.CGColorSpaceRef
 import platform.CoreGraphics.CGColorSpaceRelease
 import platform.CoreGraphics.CGContextDrawImage
+import platform.CoreGraphics.CGContextRef
 import platform.CoreGraphics.CGContextRelease
 import platform.CoreGraphics.CGImageAlphaInfo
+import platform.CoreGraphics.CGImageGetColorSpace
 import platform.CoreGraphics.CGImageGetHeight
 import platform.CoreGraphics.CGImageGetWidth
 import platform.CoreGraphics.CGImageRef
@@ -61,6 +65,16 @@ public actual class PlatformImage
       }
     }
 
+    /**
+     * The pixels are read in the frame's own colour space wherever Core Graphics will take one.
+     * Naming a device space instead converts the frame on its way out, and a frame rendered for
+     * Rec.709 then stops matching the file the same pipeline encodes. A device space is the
+     * fallback for an image Core Graphics will not open a matching context for, such as a
+     * monochrome or CMYK one.
+     *
+     * Throws when neither space opens a context, rather than answering with the zeroed buffer that
+     * a caller would read as a black frame.
+     */
     public actual fun toRgba8888(): ByteArray {
       val source = image ?: return ByteArray(0)
       val width = CGImageGetWidth(source).toInt()
@@ -68,26 +82,52 @@ public actual class PlatformImage
       val bytes = ByteArray(width * height * BYTES_PER_PIXEL)
 
       val deviceRgb = CGColorSpaceCreateDeviceRGB()
-      bytes.usePinned { pinned ->
-        val context =
-          CGBitmapContextCreate(
-            data = pinned.addressOf(0),
-            width = width.toULong(),
-            height = height.toULong(),
-            bitsPerComponent = BITS_PER_COMPONENT,
-            bytesPerRow = (width * BYTES_PER_PIXEL).toULong(),
-            space = deviceRgb,
-            bitmapInfo = CGImageAlphaInfo.kCGImageAlphaPremultipliedLast.value,
-          )
-        CGContextDrawImage(
-          context,
-          CGRectMake(0.0, 0.0, width.toDouble(), height.toDouble()),
-          source,
-        )
-        CGContextRelease(context)
+      try {
+        bytes.usePinned { pinned ->
+          val target = pinned.addressOf(0)
+          val context =
+            contextFor(target, width, height, CGImageGetColorSpace(source))
+              ?: contextFor(target, width, height, deviceRgb)
+              ?: error("Core Graphics refused a bitmap context for a ${width}x$height image.")
+          try {
+            CGContextDrawImage(
+              context,
+              CGRectMake(0.0, 0.0, width.toDouble(), height.toDouble()),
+              source,
+            )
+          } finally {
+            CGContextRelease(context)
+          }
+        }
+      } finally {
+        CGColorSpaceRelease(deviceRgb)
       }
-      CGColorSpaceRelease(deviceRgb)
       return bytes
+    }
+
+    /**
+     * A tightly packed RGBA context over [target], or null when [space] is not one Core Graphics
+     * will draw eight-bit RGBA into.
+     *
+     * The row stride is set rather than left to Core Graphics, which would round it up to its own
+     * alignment and leave the padding the contract forbids.
+     */
+    private fun contextFor(
+      target: CValuesRef<*>,
+      width: Int,
+      height: Int,
+      space: CGColorSpaceRef?,
+    ): CGContextRef? {
+      if (space == null) return null
+      return CGBitmapContextCreate(
+        data = target,
+        width = width.toULong(),
+        height = height.toULong(),
+        bitsPerComponent = BITS_PER_COMPONENT,
+        bytesPerRow = (width * BYTES_PER_PIXEL).toULong(),
+        space = space,
+        bitmapInfo = CGImageAlphaInfo.kCGImageAlphaPremultipliedLast.value,
+      )
     }
 
     actual override fun close() {

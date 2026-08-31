@@ -71,7 +71,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   ): EffectResolution {
     if (!capabilities.has(RenderFeature.TextRendering)) return EffectResolution.Unsupported(id, NO_TEXT_RENDERING)
     val raster =
-      rasterizeText(text, style, attributes.inputSize)
+      rasterizeText(text, style, attributes.layoutSize)
         ?: return EffectResolution.Unsupported(id, EMPTY_TEXT)
     val size = raster.pixelSize()
 
@@ -79,7 +79,10 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       if (!frame.shows(visibleDuring)) {
         image
       } else {
-        raster.compositedOnto(image, placedOn(size), frame.attributes.inputSize, 1f)
+        // Laid out once against the frame an export writes and only resampled here, so a preview
+        // and the export it previews break their lines on the same words.
+        val drawn = frame.attributes.drawnTextSize(size)
+        raster.compositedOnto(image, placedOn(drawn), frame.attributes.inputSize, 1f)
       }
     }
   }

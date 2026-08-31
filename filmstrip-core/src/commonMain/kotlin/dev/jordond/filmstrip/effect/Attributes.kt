@@ -16,6 +16,10 @@ import dev.jordond.filmstrip.media.HdrTransfer
  * @property outputSize The composition's final output frame size, in real pixels. A normalised
  *   measurement is multiplied by [inputSize], the frame the effect is drawn on. The two agree for
  *   a composition-scoped effect and differ for a clip-scoped one, which runs before the size stage.
+ * @property layoutSize The frame text is laid out against, in real pixels. Equal to [inputSize] for
+ *   an export, and larger for a preview rendering below the frame an export writes. A resolver that
+ *   lays text out measures the type and the wrap width against this, then scales the raster it gets
+ *   back to [inputSize], so a line breaks on the same word whichever of the two is being drawn.
  * @property colorSpace The colour space the pipeline normalises to before the first effect.
  * @property hdrTransfer The transfer function the frame is held in, or null when the pipeline is
  *   working in SDR. An effect authored against an SDR encoding reads this to work out what its
@@ -28,6 +32,7 @@ public class Attributes
   constructor(
     public val inputSize: Size,
     public val outputSize: Size,
+    public val layoutSize: Size,
     public val colorSpace: ColorSpace,
     public val hdrTransfer: HdrTransfer?,
     public val frameRate: Float?,

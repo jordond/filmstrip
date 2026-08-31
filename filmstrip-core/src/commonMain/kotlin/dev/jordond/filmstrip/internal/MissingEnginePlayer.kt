@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.internal
 
 import dev.jordond.filmstrip.Cancellable
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -34,13 +35,15 @@ import kotlin.time.Duration
 
 // What preview() returns with no playback backend registered: it reports the missing artifact
 // through state, the same way every other playback failure reaches the UI.
+@OptIn(InternalFilmstripApi::class)
 internal class MissingEnginePlayer(
   message: String,
 ) : VideoPlayer {
   private val error =
     PlaybackError.BackendMissing(artifact = PLAYER_ARTIFACT, message = message)
 
-  private val _state = MutableStateFlow(PlayerState(PlaybackStatus.Error(error), false, false, false))
+  private val _state =
+    MutableStateFlow(PlayerState(PlaybackStatus.Error(error), false, false, false, null))
   private val _previewInfo = MutableStateFlow(EMPTY_PREVIEW_INFO)
   private val _events = MutableSharedFlow<PlaybackEvent>(replay = 0, extraBufferCapacity = 1)
 

@@ -1,11 +1,15 @@
 package dev.jordond.filmstrip.player
 
 import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.InternalFilmstripApi
+import kotlin.time.Duration
 
 /**
- * An atomic snapshot of the player, across four orthogonal axes.
+ * An atomic snapshot of the player, across five orthogonal axes.
  *
- * Never torn: a reader cannot see playing and errored at the same time.
+ * Never torn: a reader cannot see playing and errored at the same time. The constructor is marked
+ * internal so a snapshot is only ever assembled where every axis is known, rather than by a caller
+ * holding some of them.
  *
  * @property status Where the player is in its lifecycle.
  * @property playWhenReady Intent. Flipped synchronously by [VideoPlayer.play] and
@@ -13,42 +17,47 @@ import dev.drewhamilton.poko.Poko
  * @property isStalled Data. True when playback cannot advance at the current position, so this is
  *   what a spinner reads.
  * @property isSeeking True when a seek has been issued and its frame has not been presented.
+ * @property duration The loaded composition's duration, or null when none is loaded.
  */
 @Poko
-public class PlayerState(
-  public val status: PlaybackStatus,
-  public val playWhenReady: Boolean,
-  public val isStalled: Boolean,
-  public val isSeeking: Boolean,
-) {
-  /**
-   * Strictly playing: ready, wanted, and not stalled.
-   *
-   * Answers "is video advancing", so it drives analytics rather than buttons. It is false while
-   * buffering even though the user pressed play.
-   */
-  public val isPlaying: Boolean
-    get() = status == PlaybackStatus.Ready && playWhenReady && !isStalled
-
-  /**
-   * True when something is in flight that the user should see a spinner for.
-   */
-  public val isBusy: Boolean
-    get() = status == PlaybackStatus.Preparing || isStalled || isSeeking
-
-  /**
-   * True when a composition is loaded and presentable.
-   */
-  public val hasComposition: Boolean
-    get() = status == PlaybackStatus.Ready || status == PlaybackStatus.Ended
-
-  public companion object {
+public class PlayerState
+  @InternalFilmstripApi
+  constructor(
+    public val status: PlaybackStatus,
+    public val playWhenReady: Boolean,
+    public val isStalled: Boolean,
+    public val isSeeking: Boolean,
+    public val duration: Duration?,
+  ) {
     /**
-     * Idle, not wanted, not stalled, not seeking.
+     * Strictly playing: ready, wanted, and not stalled.
+     *
+     * Answers "is video advancing", so it drives analytics rather than buttons. It is false while
+     * buffering even though the user pressed play.
      */
-    public val Initial: PlayerState = PlayerState(PlaybackStatus.Idle, false, false, false)
+    public val isPlaying: Boolean
+      get() = status == PlaybackStatus.Ready && playWhenReady && !isStalled
+
+    /**
+     * True when something is in flight that the user should see a spinner for.
+     */
+    public val isBusy: Boolean
+      get() = status == PlaybackStatus.Preparing || isStalled || isSeeking
+
+    /**
+     * True when a composition is loaded and presentable.
+     */
+    public val hasComposition: Boolean
+      get() = status == PlaybackStatus.Ready || status == PlaybackStatus.Ended
+
+    public companion object {
+      /**
+       * Idle, not wanted, not stalled, not seeking, no duration.
+       */
+      @OptIn(InternalFilmstripApi::class)
+      public val Initial: PlayerState = PlayerState(PlaybackStatus.Idle, false, false, false, null)
+    }
   }
-}
 
 /**
  * Where the player is in its lifecycle.
@@ -157,11 +166,19 @@ public sealed interface PlaybackError {
   /**
    * A platform failure filmstrip could not classify.
    *
-   * @property platformCode The platform's own error code, for a bug report.
+   * @property platformCode The platform's own error code, or [NO_PLATFORM_CODE] when the platform
+   *   gave none.
    */
   @Poko
   public class Underlying(
     public val platformCode: Int,
     override val message: String,
-  ) : PlaybackError
+  ) : PlaybackError {
+    public companion object {
+      /**
+       * Sentinel for [platformCode] when the platform reported no numeric code.
+       */
+      public const val NO_PLATFORM_CODE: Int = 0
+    }
+  }
 }

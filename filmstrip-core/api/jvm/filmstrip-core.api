@@ -518,6 +518,7 @@ public final class dev/jordond/filmstrip/effect/Attributes {
 	public final fun getFrameRate ()Ljava/lang/Float;
 	public final fun getHdrTransfer ()Ldev/jordond/filmstrip/media/HdrTransfer;
 	public final fun getInputSize ()Ldev/jordond/filmstrip/geometry/Size;
+	public final fun getLayoutSize ()Ldev/jordond/filmstrip/geometry/Size;
 	public final fun getOutputSize ()Ldev/jordond/filmstrip/geometry/Size;
 	public fun toString ()Ljava/lang/String;
 }
@@ -1867,12 +1868,17 @@ public final class dev/jordond/filmstrip/player/PlaybackError$SourceUnreadable :
 }
 
 public final class dev/jordond/filmstrip/player/PlaybackError$Underlying : dev/jordond/filmstrip/player/PlaybackError {
+	public static final field Companion Ldev/jordond/filmstrip/player/PlaybackError$Underlying$Companion;
+	public static final field NO_PLATFORM_CODE I
 	public fun <init> (ILjava/lang/String;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMessage ()Ljava/lang/String;
 	public final fun getPlatformCode ()I
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/player/PlaybackError$Underlying$Companion {
 }
 
 public final class dev/jordond/filmstrip/player/PlaybackError$UnsupportedFormat : dev/jordond/filmstrip/player/PlaybackError {
@@ -2003,11 +2009,10 @@ public final class dev/jordond/filmstrip/player/PlaybackStatus$Released : dev/jo
 
 public final class dev/jordond/filmstrip/player/PlayerConfig {
 	public fun <init> ()V
-	public fun <init> (Ldev/jordond/filmstrip/player/PreviewSurfaceType;Ldev/jordond/filmstrip/player/PreviewQualityPolicy;)V
-	public synthetic fun <init> (Ldev/jordond/filmstrip/player/PreviewSurfaceType;Ldev/jordond/filmstrip/player/PreviewQualityPolicy;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ldev/jordond/filmstrip/player/PreviewQualityPolicy;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/player/PreviewQualityPolicy;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getQualityPolicy ()Ldev/jordond/filmstrip/player/PreviewQualityPolicy;
-	public final fun getSurfaceType ()Ldev/jordond/filmstrip/player/PreviewSurfaceType;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
@@ -2037,12 +2042,12 @@ public abstract interface class dev/jordond/filmstrip/player/PlayerEngineFactory
 }
 
 public final class dev/jordond/filmstrip/player/PlayerFeature : java/lang/Enum {
+	public static final field AudioMonitoring Ldev/jordond/filmstrip/player/PlayerFeature;
 	public static final field FrameReadback Ldev/jordond/filmstrip/player/PlayerFeature;
 	public static final field FrameStepping Ldev/jordond/filmstrip/player/PlayerFeature;
 	public static final field HdrPreview Ldev/jordond/filmstrip/player/PlayerFeature;
 	public static final field LiveParameterRedraw Ldev/jordond/filmstrip/player/PlayerFeature;
 	public static final field PlaybackSpeed Ldev/jordond/filmstrip/player/PlayerFeature;
-	public static final field TextureSurface Ldev/jordond/filmstrip/player/PlayerFeature;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/player/PlayerFeature;
 	public static fun values ()[Ldev/jordond/filmstrip/player/PlayerFeature;
@@ -2060,8 +2065,8 @@ public abstract interface class dev/jordond/filmstrip/player/PlayerPositionListe
 
 public final class dev/jordond/filmstrip/player/PlayerState {
 	public static final field Companion Ldev/jordond/filmstrip/player/PlayerState$Companion;
-	public fun <init> (Ldev/jordond/filmstrip/player/PlaybackStatus;ZZZ)V
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDuration-FghU774 ()Lkotlin/time/Duration;
 	public final fun getHasComposition ()Z
 	public final fun getPlayWhenReady ()Z
 	public final fun getStatus ()Ldev/jordond/filmstrip/player/PlaybackStatus;
@@ -2113,14 +2118,6 @@ public final class dev/jordond/filmstrip/player/PreviewQualityPolicy$Full : dev/
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
-}
-
-public final class dev/jordond/filmstrip/player/PreviewSurfaceType : java/lang/Enum {
-	public static final field Surface Ldev/jordond/filmstrip/player/PreviewSurfaceType;
-	public static final field Texture Ldev/jordond/filmstrip/player/PreviewSurfaceType;
-	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/player/PreviewSurfaceType;
-	public static fun values ()[Ldev/jordond/filmstrip/player/PreviewSurfaceType;
 }
 
 public abstract interface class dev/jordond/filmstrip/player/ReadbackCallback {
@@ -2301,6 +2298,10 @@ public final class dev/jordond/filmstrip/style/TextStyle$Companion {
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
+public abstract interface class dev/jordond/filmstrip/thumbnail/ThumbnailBatchCallback {
+	public abstract fun onThumbnail (ILdev/jordond/filmstrip/thumbnail/ThumbnailResult;)V
+}
+
 public abstract interface class dev/jordond/filmstrip/thumbnail/ThumbnailCallback {
 	public abstract fun onThumbnail (Ldev/jordond/filmstrip/thumbnail/ThumbnailResult;)V
 }
@@ -2338,6 +2339,11 @@ public final class dev/jordond/filmstrip/thumbnail/ThumbnailResult$Success : dev
 
 public abstract interface class dev/jordond/filmstrip/thumbnail/ThumbnailSource {
 	public abstract fun requestThumbnail (Ldev/jordond/filmstrip/thumbnail/ThumbnailRequest;Ldev/jordond/filmstrip/thumbnail/ThumbnailCallback;)Ldev/jordond/filmstrip/Cancellable;
+	public fun requestThumbnails (Ljava/util/List;Ldev/jordond/filmstrip/thumbnail/ThumbnailBatchCallback;)Ldev/jordond/filmstrip/Cancellable;
+}
+
+public final class dev/jordond/filmstrip/thumbnail/ThumbnailSource$DefaultImpls {
+	public static fun requestThumbnails (Ldev/jordond/filmstrip/thumbnail/ThumbnailSource;Ljava/util/List;Ldev/jordond/filmstrip/thumbnail/ThumbnailBatchCallback;)Ldev/jordond/filmstrip/Cancellable;
 }
 
 public abstract interface class dev/jordond/filmstrip/thumbnail/ThumbnailSourceFactory {

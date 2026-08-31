@@ -102,6 +102,7 @@ class TimedOverlayTest {
       Attributes(
         inputSize = FRAME,
         outputSize = FRAME,
+        layoutSize = FRAME,
         colorSpace = ColorSpace.Bt709,
         hdrTransfer = null,
         frameRate = 30f,

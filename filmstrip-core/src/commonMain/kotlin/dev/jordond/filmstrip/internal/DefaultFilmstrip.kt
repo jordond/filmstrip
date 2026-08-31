@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.edit.CompositionBuilder
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.effectsRevision
 import dev.jordond.filmstrip.export.ExportEngine
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPlan
@@ -107,7 +108,8 @@ internal class DefaultFilmstrip(
   override suspend fun frame(
     composition: EditComposition,
     at: Duration,
-  ): FrameResult = thumbnails.frame(ThumbnailRequest(composition, at, heightPx = 0, effectsRevision = 0L))
+  ): FrameResult =
+    thumbnails.frame(ThumbnailRequest(composition, at, heightPx = 0, effectsRevision = composition.effectsRevision()))
 
   override fun frames(
     composition: EditComposition,

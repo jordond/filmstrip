@@ -64,33 +64,16 @@ public enum class SeekAccuracy {
 
   /**
    * Land on the nearest sync sample. Near-instant, and the right choice while a finger is moving.
+   *
+   * Android does not reach it. media3's player takes no seek tolerance of any kind, so a relaxed
+   * seek there lands on the requested frame and costs what an exact one costs.
+   *
+   * The desktop does not reach it either. Its frames arrive on a pipe that carries no timestamps,
+   * so a seek that landed anywhere but where it was asked has no way to say where, and both the
+   * completion and a read-back frame's presentation time would name a frame nobody rendered. It
+   * bounds the cost of a scrub by waiting for the finger to settle instead.
    */
   Nearest,
-}
-
-/**
- * Which kind of surface the preview renders into, where the platform offers a choice.
- *
- * Android only. Apple has a single path.
- */
-public enum class PreviewSurfaceType {
-  /**
-   * A dedicated surface layer. The default, and the only path with HDR and protected content.
-   *
-   * It does not respect the UI layer's clipping, alpha or transforms: a rounded-corner clip, an
-   * alpha fade or a rotation applied around it does nothing to the video pixels. Design the preview
-   * so the video rectangle is axis-aligned and untransformed, with chrome drawn around it.
-   */
-  Surface,
-
-  /**
-   * A texture-backed view, which the UI layer can clip, fade, rotate and animate.
-   *
-   * Costs GPU time and power, and loses HDR and protected content. Worth it when the video
-   * rectangle itself is being transformed, such as a cross-fade, a drag-to-dismiss or a
-   * shared-element transition.
-   */
-  Texture,
 }
 
 /**
@@ -114,11 +97,6 @@ public enum class PlayerFeature {
   HdrPreview,
 
   /**
-   * A texture-backed surface is available. See [PreviewSurfaceType.Texture].
-   */
-  TextureSurface,
-
-  /**
    * Stepping by whole frames is supported.
    */
   FrameStepping,
@@ -132,6 +110,11 @@ public enum class PlayerFeature {
    * Rendered preview frames can be read back. See [PreviewFrameReadback].
    */
   FrameReadback,
+
+  /**
+   * Monitor volume set through [VideoPlayer.setVolume] is audible.
+   */
+  AudioMonitoring,
 }
 
 /**

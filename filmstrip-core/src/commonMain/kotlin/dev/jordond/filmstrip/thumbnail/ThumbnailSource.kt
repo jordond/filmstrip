@@ -32,6 +32,39 @@ public fun interface ThumbnailSource {
     request: ThumbnailRequest,
     callback: ThumbnailCallback,
   ): Cancellable
+
+  /**
+   * Asks for a run of frames, which a strip fetches together.
+   *
+   * Returns immediately and each frame arrives on [callback], in the order [requests] lists them,
+   * one call per entry. Frames are produced one at a time, so a source that holds a decoder open
+   * across the run serves the whole strip on one setup rather than on one per frame.
+   *
+   * Cancelling the returned handle stops the run where it is, and the entries not yet delivered
+   * never are. The default walks [requests] through [requestThumbnail], which is what a source
+   * with nothing to reuse between frames wants.
+   *
+   * @param requests Which frames, at what sizes, in the order they should arrive.
+   * @param callback Receives each frame, or its failure, exactly once.
+   * @return a handle that cancels the rest of the run.
+   */
+  public fun requestThumbnails(
+    requests: List<ThumbnailRequest>,
+    callback: ThumbnailBatchCallback,
+  ): Cancellable = SerialThumbnailRun(this, requests, callback)
+}
+
+/**
+ * Receives the outcome of each request in one [ThumbnailSource.requestThumbnails].
+ */
+public fun interface ThumbnailBatchCallback {
+  /**
+   * Called once per request, at its index in the list that was asked for.
+   */
+  public fun onThumbnail(
+    index: Int,
+    result: ThumbnailResult,
+  )
 }
 
 /**
@@ -52,9 +85,10 @@ public fun interface ThumbnailCallback {
  * @property position The composition time to render.
  * @property heightPx Target height in pixels. The width follows from the composition's output
  *   aspect.
- * @property effectsRevision Bumped whenever the effect chain changes, and part of the cache key so
- *   stale pre-crop thumbnails do not survive an edit. It advances on a structural change and on the
- *   commit of a crop or rotation drag, never during the drag.
+ * @property effectsRevision An opaque token over everything that would change a rendered frame,
+ *   and part of the cache key so stale pre-crop thumbnails do not survive an edit. Compare it for
+ *   equality only. It changes on a structural edit and on the commit of a crop or rotation drag,
+ *   and holds during the drag, but it does not increase and carries no ordering.
  */
 @Poko
 public class ThumbnailRequest(

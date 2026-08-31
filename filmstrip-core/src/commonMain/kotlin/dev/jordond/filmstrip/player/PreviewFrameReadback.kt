@@ -72,7 +72,9 @@ public sealed interface ReadbackResult {
  * One frame read back out of the preview pipeline.
  *
  * @property pixels Tightly packed RGBA_8888, row-major, no row padding.
- *   `size.width * size.height * 4` bytes.
+ *   `size.width * size.height * 4` bytes. Every pixel is opaque, because the frame is flattened
+ *   onto the composition's fill before it is read back, so premultiplied and straight alpha are the
+ *   same bytes here.
  * @property size The frame's dimensions, in pixels.
  * @property presentationTime The composition time actually rendered, which may differ from
  *   the requested position.
