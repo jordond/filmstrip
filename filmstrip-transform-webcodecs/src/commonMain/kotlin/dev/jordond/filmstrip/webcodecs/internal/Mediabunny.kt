@@ -159,6 +159,12 @@ internal external class EncodedPacketSink(
   fun getFirstKeyPacket(): Promise<EncodedPacket?>
 
   /**
+   * The last key packet whose timestamp is at or before [timestamp], in seconds, or null when the
+   * track has none before it. This is the sample a relaxed seek lands on.
+   */
+  fun getKeyPacket(timestamp: Double): Promise<EncodedPacket?>
+
+  /**
    * Packets from [startPacket] up to but excluding [endPacket], in decode order. Left at its
    * default on either end reads from the track's start, or through to its end.
    *
@@ -204,6 +210,12 @@ internal external class VideoSampleSink(
     startTimestamp: Double,
     endTimestamp: Double,
   ): VideoSampleIterator
+
+  /**
+   * The one frame presented at [timestamp], in seconds, or null past the end of the track. The sink
+   * decodes forward from the key frame at or before it, which is what a seek costs here.
+   */
+  fun getSample(timestamp: Double): Promise<VideoSample?>
 }
 
 /**

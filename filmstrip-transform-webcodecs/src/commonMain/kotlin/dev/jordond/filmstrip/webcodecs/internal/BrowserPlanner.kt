@@ -28,25 +28,29 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.ExportPlanner
 import dev.jordond.filmstrip.transform.internal.Mp4Copy
-import dev.jordond.filmstrip.transform.internal.NegotiatedComposition
+import dev.jordond.filmstrip.transform.internal.NegotiatedExport
+import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.containScale
 import dev.jordond.filmstrip.transform.internal.coverScale
 import dev.jordond.filmstrip.transform.internal.frameAfter
+import dev.jordond.filmstrip.transform.internal.toResolvedComposition
 import kotlin.math.ceil
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.DurationUnit
 
 /**
- * What a browser plan resolved to: the verdict a caller sees, and the render description that runs
- * when it is capable.
+ * What a browser plan resolved to: what the shared negotiator settled on, and the render description
+ * that runs when it is capable.
  */
 internal class BrowserLowering(
-  val verdict: Verdict,
+  val export: NegotiatedExport,
   val render: BrowserRender?,
-)
+) {
+  val verdict: Verdict get() = export.verdict
+}
 
 /**
  * What the pipeline needs for one clip: a quad, a texture matrix and a brightness, all lowered from
@@ -123,7 +127,7 @@ internal class BrowserRender(
  *
  * What stays here is what the negotiator does not, and cannot, own: refusals for gaps this backend
  * has that are not policy (no video to draw from an audio-only primary track, no baking a source's
- * container rotation), and the lowering from a [NegotiatedComposition]'s platform effect chain onto
+ * container rotation), and the lowering from a [ResolvedComposition]'s platform effect chain onto
  * one quad, one texture matrix and one brightness per clip, which is what a single WebGL pass
  * draws.
  */
@@ -156,22 +160,28 @@ internal class BrowserPlanner(
       hdrLadder = listOf(VideoCodec.Vp9),
     )
 
+  /**
+   * @param layoutSize The output frame text is laid out against, for a caller planning a frame
+   *   smaller than the one an export writes. Null lays text out against the frame [spec] settles
+   *   on, which is what an export does.
+   */
   internal fun lower(
     composition: EditComposition,
     spec: ExportSpec,
     device: DeviceCapabilities,
     infos: Map<MediaSource, MediaInfo>,
     dropped: Set<String> = emptySet(),
+    layoutSize: Size? = null,
   ): BrowserLowering {
     unconditionalRefusal(composition, infos)?.let { return it }
 
-    val export = planner.negotiate(composition, spec, device, infos, dropped)
-    val negotiated = export.composition ?: return BrowserLowering(export.verdict, null)
+    val export = planner.negotiate(composition, spec, device, infos, dropped, layoutSize)
+    val negotiated = export.composition ?: return BrowserLowering(export, null)
     val writesVideo = negotiated.audio != AudioSpec.AudioOnly
     if (writesVideo && negotiated.path == ExportPath.Transcode) {
       transcodeOnlyRefusal(composition, infos)?.let { return it }
     }
-    return BrowserLowering(export.verdict, toBrowserRender(negotiated, composition))
+    return BrowserLowering(export, browserRenderOf(negotiated.toResolvedComposition(), composition))
   }
 
   /**
@@ -220,123 +230,12 @@ internal class BrowserPlanner(
     return null
   }
 
-  /**
-   * The lowering from a negotiated composition onto what one WebGL pass draws per clip.
-   *
-   * A clip's own effects and the composition's, resolved separately by the negotiator, are one
-   * combined texture matrix and one brightness here, because a single pass has no intermediate
-   * canvas to apply them on separately. [composition] is the same one negotiation ran against: dropping an
-   * unsupported effect's id never changes a clip's trim or its count, so clips line up by index.
-   *
-   * A [ExportPath.Transmux] render never opens an encoder, and `videoCodec` there is the source's
-   * own codec rather than the ladder's pick, which [webCodecString] and [muxCodecKey] refuse to
-   * name a WebCodecs string for. [encoderCodec], [muxCodec] and [container] are left null on that
-   * path rather than asked for.
-   */
-  private fun toBrowserRender(
-    negotiated: NegotiatedComposition,
-    composition: EditComposition,
-  ): BrowserRender {
-    if (negotiated.audio == AudioSpec.AudioOnly) return audioOnlyRender(negotiated)
-
-    val track = composition.tracks.first()
-    val outputSize = negotiated.output.size
-    val videoCodec = negotiated.output.videoCodec
-    val encodes = negotiated.path == ExportPath.Transcode
-    // Always resolved, never left to the container to guess: the negotiator only leaves this null
-    // when a caller builds an OutputFormat by hand, which a NegotiatedComposition never does.
-    val frameRate = checkNotNull(negotiated.output.frameRate)
-
-    var offset = Duration.ZERO
-    val clips =
-      negotiated.tracks.first().clips.zip(track.clips).map { (resolved, raw) ->
-        val ownGeometry = (raw.effects + track.effects).inCanonicalOrder()
-        val drawnSize =
-          ownGeometry.fold(resolved.info.video?.displaySize ?: outputSize) { size, spec -> frameAfter(spec, size) }
-        val chain = resolved.effects + negotiated.compositionGeometry + negotiated.compositionEffects
-        val rendered =
-          RenderedClip(
-            source = resolved.source,
-            trimStartUs = resolved.start.microseconds(),
-            trimEndUs = if (raw.trim?.endExclusive == null) OPEN_END else resolved.end.microseconds(),
-            offsetUs = offset.microseconds(),
-            quadHalfW = drawnSize.width * containScale(drawnSize, outputSize) / outputSize.width,
-            quadHalfH = drawnSize.height * containScale(drawnSize, outputSize) / outputSize.height,
-            coverHalfW = drawnSize.width * coverScale(drawnSize, outputSize) / outputSize.width,
-            coverHalfH = drawnSize.height * coverScale(drawnSize, outputSize) / outputSize.height,
-            hasBars = !matchesOutputAspect(drawnSize, outputSize),
-            matrix = chain.matrix(),
-            brightness = chain.brightness(),
-            frames = framesIn(resolved.duration, frameRate),
-          )
-        offset += resolved.duration
-        rendered
-      }
-
-    return BrowserRender(
-      writesVideo = true,
-      clips = clips,
-      duration = negotiated.duration,
-      frameRate = frameRate,
-      width = outputSize.width,
-      height = outputSize.height,
-      encoderCodec = if (encodes) webCodecString(videoCodec, outputSize, negotiated.hdrTransfer != null) else null,
-      muxCodec = if (encodes) muxCodecKey(videoCodec) else null,
-      container = if (encodes) containerFor(videoCodec) else null,
-      bitrate =
-        (negotiated.output.bitrate?.bitsPerSecond ?: DEFAULT_BITRATE)
-          .coerceAtMost(
-            Int.MAX_VALUE.toLong(),
-          ).toInt(),
-      // Summed from the clips, not the duration, so what progress measures against is exactly
-      // what the pipeline walks.
-      estimatedFrames = clips.sumOf { it.frames },
-      adjustments = negotiated.adjustments,
-      audioFormat = negotiated.output.audioFormat,
-      audioTracks = negotiated.tracks,
-      fill = negotiated.fill,
-      hdrTransfer = negotiated.hdrTransfer,
-    )
-  }
-
-  /**
-   * The lowering for a composition that writes audio and no video.
-   *
-   * The mix reads the tracks, the audio format and the duration. Nothing else is asked for: no clip
-   * is drawn, no encoder is opened, and the output frame the negotiator resolved describes a track
-   * that never gets written.
-   */
-  private fun audioOnlyRender(negotiated: NegotiatedComposition): BrowserRender =
-    BrowserRender(
-      writesVideo = false,
-      clips = emptyList(),
-      duration = negotiated.duration,
-      frameRate = 0,
-      width = 0,
-      height = 0,
-      encoderCodec = null,
-      muxCodec = null,
-      container = null,
-      bitrate = 0,
-      estimatedFrames = 0,
-      adjustments = negotiated.adjustments,
-      audioFormat = negotiated.output.audioFormat,
-      audioTracks = negotiated.tracks,
-      fill = negotiated.fill,
-      hdrTransfer = null,
-    )
-
   private fun incapable(message: String): BrowserLowering = incapable(ExportError.InvalidComposition(message))
 
   private fun incapable(error: ExportError): BrowserLowering =
-    BrowserLowering(Verdict.Incapable(listOf(error), null), null)
+    BrowserLowering(NegotiatedExport(Verdict.Incapable(listOf(error), null), null), null)
 
   private companion object {
-    const val DEFAULT_BITRATE = 8_000_000L
-
-    // The pipeline reads this as "to the end of the track", never as a timestamp.
-    val OPEN_END = Double.POSITIVE_INFINITY
-
     const val SECOND_VIDEO_TRACK =
       "This backend renders video from the primary track only. A second video track needs a " +
         "compositor, which has not landed here."
@@ -347,11 +246,122 @@ internal class BrowserPlanner(
 }
 
 /**
+ * The lowering from a resolved composition onto what one WebGL pass draws per clip.
+ *
+ * A clip's own effects and the composition's, resolved separately by the negotiator, are one
+ * combined texture matrix and one brightness here, because a single pass has no intermediate
+ * canvas to apply them on separately. [composition] is the same one negotiation ran against: dropping an
+ * unsupported effect's id never changes a clip's trim or its count, so clips line up by index.
+ *
+ * A [ExportPath.Transmux] render never opens an encoder, and `videoCodec` there is the source's
+ * own codec rather than the ladder's pick, which [webCodecString] and [muxCodecKey] refuse to
+ * name a WebCodecs string for. [encoderCodec], [muxCodec] and [container] are left null on that
+ * path rather than asked for.
+ */
+internal fun browserRenderOf(
+  plan: ResolvedComposition,
+  composition: EditComposition,
+): BrowserRender {
+  if (plan.audio == AudioSpec.AudioOnly) return audioOnlyRender(plan)
+
+  val track = composition.tracks.first()
+  val outputSize = plan.output.size
+  val videoCodec = plan.output.videoCodec
+  val encodes = plan.path == ExportPath.Transcode
+  // Always resolved, never left to the container to guess: the negotiator only leaves this null
+  // when a caller builds an OutputFormat by hand, which a resolved composition never does.
+  val frameRate = checkNotNull(plan.output.frameRate)
+
+  var offset = Duration.ZERO
+  val clips =
+    plan.tracks.first().clips.zip(track.clips).map { (resolved, raw) ->
+      val ownGeometry = (raw.effects + track.effects).inCanonicalOrder()
+      val drawnSize =
+        ownGeometry.fold(resolved.info.video?.displaySize ?: outputSize) { size, spec -> frameAfter(spec, size) }
+      val chain = resolved.effects + plan.compositionGeometry + plan.compositionEffects
+      val rendered =
+        RenderedClip(
+          source = resolved.source,
+          trimStartUs = resolved.start.microseconds(),
+          trimEndUs = if (raw.trim?.endExclusive == null) OPEN_END else resolved.end.microseconds(),
+          offsetUs = offset.microseconds(),
+          quadHalfW = drawnSize.width * containScale(drawnSize, outputSize) / outputSize.width,
+          quadHalfH = drawnSize.height * containScale(drawnSize, outputSize) / outputSize.height,
+          coverHalfW = drawnSize.width * coverScale(drawnSize, outputSize) / outputSize.width,
+          coverHalfH = drawnSize.height * coverScale(drawnSize, outputSize) / outputSize.height,
+          hasBars = !matchesOutputAspect(drawnSize, outputSize),
+          matrix = chain.matrix(),
+          brightness = chain.brightness(),
+          frames = framesIn(resolved.duration, frameRate),
+        )
+      offset += resolved.duration
+      rendered
+    }
+
+  return BrowserRender(
+    writesVideo = true,
+    clips = clips,
+    duration = plan.duration,
+    frameRate = frameRate,
+    width = outputSize.width,
+    height = outputSize.height,
+    encoderCodec = if (encodes) webCodecString(videoCodec, outputSize, plan.hdrTransfer != null) else null,
+    muxCodec = if (encodes) muxCodecKey(videoCodec) else null,
+    container = if (encodes) containerFor(videoCodec) else null,
+    bitrate =
+      (plan.output.bitrate?.bitsPerSecond ?: DEFAULT_BITRATE)
+        .coerceAtMost(
+          Int.MAX_VALUE.toLong(),
+        ).toInt(),
+    // Summed from the clips, not the duration, so what progress measures against is exactly
+    // what the pipeline walks.
+    estimatedFrames = clips.sumOf { it.frames },
+    adjustments = plan.adjustments,
+    audioFormat = plan.output.audioFormat,
+    audioTracks = plan.tracks,
+    fill = plan.fill,
+    hdrTransfer = plan.hdrTransfer,
+  )
+}
+
+/**
+ * The lowering for a composition that writes audio and no video.
+ *
+ * The mix reads the tracks, the audio format and the duration. Nothing else is asked for: no clip
+ * is drawn, no encoder is opened, and the output frame the negotiator resolved describes a track
+ * that never gets written.
+ */
+private fun audioOnlyRender(plan: ResolvedComposition): BrowserRender =
+  BrowserRender(
+    writesVideo = false,
+    clips = emptyList(),
+    duration = plan.duration,
+    frameRate = 0,
+    width = 0,
+    height = 0,
+    encoderCodec = null,
+    muxCodec = null,
+    container = null,
+    bitrate = 0,
+    estimatedFrames = 0,
+    adjustments = plan.adjustments,
+    audioFormat = plan.output.audioFormat,
+    audioTracks = plan.tracks,
+    fill = plan.fill,
+    hdrTransfer = null,
+  )
+
+/**
  * The order this backend tries video codecs in, most preferred first. VP9 is a browser encode
  * safety net. H264 encode is universal and Hevc encode is concentrated in Safari and non-Windows
  * Chrome, so it goes last.
  */
 internal val BROWSER_LADDER: List<VideoCodec> = listOf(VideoCodec.H264, VideoCodec.Vp9, VideoCodec.Hevc)
+
+private const val DEFAULT_BITRATE = 8_000_000L
+
+// The pipeline reads this as "to the end of the track", never as a timestamp.
+private val OPEN_END = Double.POSITIVE_INFINITY
 
 /**
  * The four ids this backend's built-in resolvers realise exactly. Shared with [ExportPlanner], so

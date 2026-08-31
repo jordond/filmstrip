@@ -64,9 +64,23 @@ internal actual fun ByteArray.toUint8Array(): Uint8Array {
   return out
 }
 
+internal actual fun Uint8Array.toByteArray(): ByteArray {
+  val out = ByteArray(length)
+  var offset = 0
+  while (offset < length) {
+    val end = minOf(offset + BYTE_CHUNK, length)
+    val chunk = readLatin1(this, offset, end - offset)
+    for (index in offset until end) out[index] = chunk[index - offset].code.toByte()
+    offset = end
+  }
+  return out
+}
+
 internal actual fun hasVideoEncoder(): Boolean = js("typeof VideoEncoder !== 'undefined'")
 
 internal actual fun hasAudioEncoder(): Boolean = js("typeof AudioEncoder !== 'undefined'")
+
+internal actual fun hasAudioContext(): Boolean = js("typeof AudioContext !== 'undefined'")
 
 @JsFun("() => ({})")
 private external fun newObject(): JsAny
@@ -108,6 +122,13 @@ private external fun setFloat(
   index: Int,
   value: Float,
 )
+
+@JsFun("(array, offset, length) => String.fromCharCode.apply(null, array.subarray(offset, offset + length))")
+private external fun readLatin1(
+  array: Uint8Array,
+  offset: Int,
+  length: Int,
+): String
 
 @JsFun("(array, offset, text) => { for (let i = 0; i < text.length; i++) array[offset + i] = text.charCodeAt(i); }")
 private external fun writeLatin1(

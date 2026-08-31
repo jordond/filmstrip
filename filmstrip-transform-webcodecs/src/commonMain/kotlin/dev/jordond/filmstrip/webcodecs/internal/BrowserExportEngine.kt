@@ -20,11 +20,14 @@ import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSink
-import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.transform.internal.ProbeCache
+import dev.jordond.filmstrip.transform.internal.ProbeCacheResult
+import dev.jordond.filmstrip.transform.internal.ResolveResult
+import dev.jordond.filmstrip.transform.internal.refusal
+import dev.jordond.filmstrip.transform.internal.toResolveResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
@@ -44,16 +47,16 @@ import kotlin.time.Duration.Companion.microseconds
  * - [MediaSink.Path] downloads a file named after the path's last segment.
  * - [MediaSink.Temporary] downloads a file under a generated name, reported back as a resolved [MediaSink.Path].
  */
-@OptIn(InternalFilmstripApi::class)
-internal class BrowserExportEngine(
+@InternalFilmstripApi
+public class BrowserExportEngine(
   components: ComponentRegistry,
-  private val prober: MediaProber,
+  prober: MediaProber,
 ) : ExportEngine {
   private val backend = WebCodecsCapabilities()
   private val sources = SourceCache()
   private val planner = BrowserPlanner(components.effectResolvers)
   private var device: DeviceCapabilities? = null
-  private val probed = mutableMapOf<MediaSource, MediaInfo>()
+  private val probes = ProbeCache(prober)
 
   override suspend fun capabilities(): CapabilitiesResult = CapabilitiesResult.Success(backend.capabilities())
 
@@ -82,36 +85,49 @@ internal class BrowserExportEngine(
   override fun parityOf(specId: String): EffectParity? = browserParityOf(specId)
 
   /**
+   * Negotiates [composition] and lowers it into the graph [export] would run, writing nothing.
+   *
+   * A preview presents the same edit an export of it writes, so it lowers through this rather than
+   * through a negotiation of its own. Sharing the call is what makes the two pipelines the same
+   * one: the same probes, the same device answer, the same output format and the same effect chain.
+   *
+   * @param composition The edit to lower.
+   * @param spec What the export would be asked for.
+   * @param layoutSize The output frame text is laid out against, for a caller lowering a frame
+   *   smaller than the one an export writes. Null lays text out against the frame [spec] settles
+   *   on, which is what an export does.
+   * @return The lowered composition and the verdict it came with, or why it cannot run here.
+   */
+  @InternalFilmstripApi
+  public suspend fun resolve(
+    composition: EditComposition,
+    spec: ExportSpec,
+    layoutSize: Size? = null,
+  ): ResolveResult =
+    when (val result = negotiate(composition, spec, layoutSize)) {
+      is NegotiationResult.Failed -> ResolveResult.Refused(result.error)
+      is NegotiationResult.Done -> result.lowering.export.toResolveResult()
+    }
+
+  /**
    * Re-negotiates the plan's own composition and spec, so exporting costs nothing beyond
    * re-planning against cached probes.
    */
   private suspend fun negotiate(
     composition: EditComposition,
     spec: ExportSpec,
-  ): NegotiationResult {
-    val infos = mutableMapOf<MediaSource, MediaInfo>()
-    for (source in composition.tracks
-      .flatMap { it.clips }
-      .map { it.source }
-      .distinct()) {
-      val cached = probed[source]
-      if (cached != null) {
-        infos[source] = cached
-        continue
+    layoutSize: Size? = null,
+  ): NegotiationResult =
+    when (val probed = probes.read(composition)) {
+      is ProbeCacheResult.Failed -> {
+        NegotiationResult.Failed(probed.error)
       }
-      when (val result = prober.probe(source)) {
-        is ProbeResult.Success -> {
-          probed[source] = result.info
-          infos[source] = result.info
-        }
-        is ProbeResult.Failure -> {
-          return NegotiationResult.Failed(result.error)
-        }
+      is ProbeCacheResult.Read -> {
+        NegotiationResult.Done(
+          planner.lower(composition, spec, deviceCapabilities(), probed.infos, layoutSize = layoutSize),
+        )
       }
     }
-
-    return NegotiationResult.Done(planner.lower(composition, spec, deviceCapabilities(), infos))
-  }
 
   private suspend fun FlowCollector<ExportStatus>.runExport(
     plan: ExportPlan,
@@ -129,7 +145,7 @@ internal class BrowserExportEngine(
       }
     val render =
       lowering.render ?: run {
-        emit(ExportStatus.Failure(refusal(lowering)))
+        emit(ExportStatus.Failure(lowering.export.refusal()))
         return
       }
 
@@ -218,10 +234,6 @@ internal class BrowserExportEngine(
       ),
     )
   }
-
-  private fun refusal(lowering: BrowserLowering): ExportError =
-    (lowering.verdict as? Verdict.Incapable)?.reasons?.firstOrNull()
-      ?: ExportError.InvalidComposition(NO_LONGER_RUNNABLE)
 
   /**
    * Which path the negotiator settled on. A refused verdict never reaches this, since [runExport]
@@ -359,7 +371,5 @@ internal class BrowserExportEngine(
 
     const val NO_SAMPLES =
       "The muxed file's audio track decoded no samples, so it was not handed over."
-
-    const val NO_LONGER_RUNNABLE = "The composition no longer plans to anything runnable."
   }
 }

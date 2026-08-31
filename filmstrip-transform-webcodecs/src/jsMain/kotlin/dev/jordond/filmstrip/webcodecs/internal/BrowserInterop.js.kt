@@ -51,6 +51,13 @@ internal actual fun ByteArray.toUint8Array(): Uint8Array {
   return js("new Uint8Array(view.buffer, view.byteOffset, view.length)").unsafeCast<Uint8Array>()
 }
 
+internal actual fun Uint8Array.toByteArray(): ByteArray {
+  val view = this
+  return js("new Int8Array(view.buffer.slice(view.byteOffset, view.byteOffset + view.length))").unsafeCast<ByteArray>()
+}
+
 internal actual fun hasVideoEncoder(): Boolean = js("typeof VideoEncoder !== 'undefined'").unsafeCast<Boolean>()
 
 internal actual fun hasAudioEncoder(): Boolean = js("typeof AudioEncoder !== 'undefined'").unsafeCast<Boolean>()
+
+internal actual fun hasAudioContext(): Boolean = js("typeof AudioContext !== 'undefined'").unsafeCast<Boolean>()

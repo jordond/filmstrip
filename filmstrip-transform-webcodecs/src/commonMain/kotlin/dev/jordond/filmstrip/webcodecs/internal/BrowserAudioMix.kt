@@ -118,24 +118,30 @@ internal object BrowserAudioMix {
   /**
    * Wires one decoded buffer into [context]: a gain node set to [gain], started at [offsetSeconds]
    * on the context's timeline and playing from [from] seconds into the buffer.
+   *
+   * @param into Where the gain node feeds, which a live preview points at its own master gain so
+   *   monitor volume reaches every clip at once.
+   * @return The source node, for a caller that has to stop it again.
    */
   internal fun schedule(
-    context: OfflineAudioContext,
+    context: BaseAudioContext,
     buffer: AudioBuffer,
     gain: Float,
     offsetSeconds: Double,
     looping: Boolean,
     from: Double = 0.0,
-  ) {
+    into: AudioNode = context.destination,
+  ): AudioBufferSourceNode {
     val gainNode = context.createGain()
     gainNode.gain.value = gain
-    gainNode.connect(context.destination)
+    gainNode.connect(into)
 
     val source = context.createBufferSource()
     source.buffer = buffer
     source.loop = looping
     source.connect(gainNode)
     source.start(offsetSeconds, from)
+    return source
   }
 
   /**
@@ -164,11 +170,11 @@ internal object BrowserAudioMix {
    * cutting one to the span it was asked for. Such a chunk is pinned to the head of the buffer,
    * which is why a window renders a lead it then drops.
    */
-  private suspend fun decode(
+  internal suspend fun decode(
     audioTrack: InputAudioTrack,
     startSeconds: Double,
     endSeconds: Double,
-    context: OfflineAudioContext,
+    context: BaseAudioContext,
   ): AudioBuffer? {
     val sampleRate = audioTrack.getSampleRate().await().toDouble()
     val channels = audioTrack.getNumberOfChannels().await().toDouble()
@@ -240,7 +246,7 @@ internal object BrowserAudioMix {
     sampleRate: Int,
   ): Int = (duration.seconds() * sampleRate).roundToInt().coerceAtLeast(1)
 
-  private fun placed(tracks: List<ResolvedTrack>): List<Placed> =
+  internal fun placed(tracks: List<ResolvedTrack>): List<Placed> =
     tracks.flatMap { track ->
       var offset = track.start
       track.clips.map { clip -> Placed(clip, offset, track.looping).also { offset += clip.duration } }
@@ -254,12 +260,12 @@ internal object BrowserAudioMix {
 
   private fun megabytes(bytes: Long): String = "${bytes / BYTES_PER_MEGABYTE} MB"
 
-  private fun Duration.seconds(): Double = toDouble(DurationUnit.SECONDS)
+  internal fun Duration.seconds(): Double = toDouble(DurationUnit.SECONDS)
 
   /**
    * One clip with the place on the output timeline its track puts it at.
    */
-  private class Placed(
+  internal class Placed(
     val clip: ResolvedClip,
     val offset: Duration,
     val looping: Boolean,

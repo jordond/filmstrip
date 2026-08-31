@@ -362,21 +362,21 @@ internal external interface EncoderSupport : JsAny {
 }
 
 /**
- * Renders audio without playing it, into an [AudioBuffer] a stream copy or the audio pipeline can
- * hand to mediabunny.
+ * What building an audio graph needs, whichever context it is built on.
+ *
+ * The export renders its graph offline and the preview plays the same graph live, so everything
+ * that wires nodes together is written against this rather than against either one.
  */
-internal external class OfflineAudioContext(
-  numberOfChannels: Int,
-  length: Int,
-  sampleRate: Float,
-) : JsAny {
+internal external interface BaseAudioContext : JsAny {
   val destination: AudioDestinationNode
 
   val sampleRate: Float
 
+  /**
+   * The context's own clock, in seconds. It runs on the audio hardware thread, which is what makes
+   * it the steadiest clock a page has, and it does not advance while the context is suspended.
+   */
   val currentTime: Double
-
-  fun startRendering(): Promise<AudioBuffer>
 
   fun createGain(): GainNode
 
@@ -387,6 +387,78 @@ internal external class OfflineAudioContext(
     length: Int,
     sampleRate: Float,
   ): AudioBuffer
+}
+
+/**
+ * Renders audio without playing it, into an [AudioBuffer] a stream copy or the audio pipeline can
+ * hand to mediabunny.
+ */
+internal external class OfflineAudioContext(
+  numberOfChannels: Int,
+  length: Int,
+  sampleRate: Float,
+) : BaseAudioContext {
+  override val destination: AudioDestinationNode
+
+  override val sampleRate: Float
+
+  override val currentTime: Double
+
+  override fun createGain(): GainNode
+
+  override fun createBufferSource(): AudioBufferSourceNode
+
+  override fun createBuffer(
+    numberOfChannels: Int,
+    length: Int,
+    sampleRate: Float,
+  ): AudioBuffer
+
+  fun startRendering(): Promise<AudioBuffer>
+}
+
+/**
+ * The live audio graph, which plays what it is given and carries the clock the preview runs on.
+ *
+ * A context starts `suspended` until the page has had a user gesture. [resume] neither resolves nor
+ * rejects while the page is not allowed to start, so [state] and the `statechange` event are the
+ * only signals worth building on.
+ */
+internal external class AudioContext : BaseAudioContext {
+  override val destination: AudioDestinationNode
+
+  override val sampleRate: Float
+
+  override val currentTime: Double
+
+  override fun createGain(): GainNode
+
+  override fun createBufferSource(): AudioBufferSourceNode
+
+  override fun createBuffer(
+    numberOfChannels: Int,
+    length: Int,
+    sampleRate: Float,
+  ): AudioBuffer
+
+  /**
+   * `suspended`, `running` or `closed`.
+   */
+  val state: String
+
+  fun resume(): Promise<JsAny?>
+
+  fun close(): Promise<JsAny?>
+
+  fun addEventListener(
+    type: String,
+    listener: () -> Unit,
+  )
+
+  fun removeEventListener(
+    type: String,
+    listener: () -> Unit,
+  )
 }
 
 /**

@@ -100,6 +100,27 @@ internal class SourceReader(
   }
 
   /**
+   * A sampler over this source's video track, for a caller that reads frames out of order.
+   *
+   * Each call opens a decoder of its own, so a preview can read a frame back without disturbing the
+   * one playback is decoding through.
+   */
+  suspend fun sampler(): FrameSampler? {
+    val track = videoTrack() ?: return null
+    return FrameSampler(VideoSampleSink(track))
+  }
+
+  /**
+   * The timestamp of the sync sample at or before [timestampUs], or null when the track carries
+   * none before it.
+   */
+  suspend fun keyFrameAt(timestampUs: Double): Double? {
+    val track = videoTrack() ?: return null
+    val packet = EncodedPacketSink(track).getKeyPacket(timestampUs / MICROS_PER_SECOND).await() ?: return null
+    return packet.timestamp * MICROS_PER_SECOND
+  }
+
+  /**
    * Decoded audio samples covering `[startUs, endUs)`. An [endUs] that is not finite runs to the
    * end of the track.
    */
@@ -179,6 +200,35 @@ internal class FrameStream(
     if (finished) return
     finished = true
     iterator.`return`(null)
+  }
+}
+
+/**
+ * Random access into one video track: the frame at a time, or a forward run from a time.
+ *
+ * A sibling to [FrameStream] rather than a replacement for it. The export walks a track forwards and
+ * needs nothing else, while a preview lands on an arbitrary position and then reads on from there.
+ *
+ * Every frame handed out is the caller's to close.
+ */
+internal class FrameSampler(
+  private val sink: VideoSampleSink,
+) {
+  /**
+   * The frame presented at [timestampUs], or null past the end of the track.
+   */
+  suspend fun sampleAt(timestampUs: Double): VideoSample? = sink.getSample(timestampUs / MICROS_PER_SECOND).await()
+
+  /**
+   * Frames from [startUs] onwards, up to [endUs]. An [endUs] that is not finite runs to the end of
+   * the track.
+   */
+  fun stream(
+    startUs: Double,
+    endUs: Double,
+  ): FrameStream {
+    val end = if (endUs.isFinite()) endUs / MICROS_PER_SECOND else OPEN_ENDED_SECONDS
+    return FrameStream(sink.samples(startUs / MICROS_PER_SECOND, end))
   }
 }
 

@@ -66,6 +66,14 @@ internal expect fun FloatArray.toFloat32Array(): Float32Array
 internal expect fun ByteArray.toUint8Array(): Uint8Array
 
 /**
+ * Copies bytes back out of the JavaScript heap, which is what a read-back frame arrives as.
+ *
+ * The js target views the same buffer. wasmJs copies, and does it in chunks rather than a byte at a
+ * time, because a frame is megabytes and a call per byte would dominate the read.
+ */
+internal expect fun Uint8Array.toByteArray(): ByteArray
+
+/**
  * True when the page has a `VideoEncoder` global at all. Reading the global directly would throw
  * where it is missing, which is why the check is spelled per target.
  */
@@ -75,6 +83,12 @@ internal expect fun hasVideoEncoder(): Boolean
  * True when the page has an `AudioEncoder` global at all.
  */
 internal expect fun hasAudioEncoder(): Boolean
+
+/**
+ * True when the page has an `AudioContext` global at all, which the preview's clock and its monitor
+ * volume both run on.
+ */
+internal expect fun hasAudioContext(): Boolean
 
 /**
  * VP9 Profile 2, 10-bit 4:2:0. The one HDR profile any browser encoder here was measured to take.
