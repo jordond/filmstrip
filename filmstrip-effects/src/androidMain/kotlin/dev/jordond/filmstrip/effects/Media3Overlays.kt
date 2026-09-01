@@ -27,6 +27,9 @@ public const val MAX_OVERLAYS_PER_EFFECT: Int = 15
  * the frame, so the drawn size is `bitmap * scale` and the multiplier is what turns one into the
  * other.
  *
+ * The renderer brings the two anchors together itself, so the placement's pair crosses over as it
+ * stands rather than through [OverlayPlacement.rectOn].
+ *
  * @param bitmap The rasterised overlay's pixel size.
  * @param opacity Alpha applied to the whole overlay.
  */

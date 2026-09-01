@@ -35,6 +35,15 @@ public final class dev/jordond/filmstrip/effects/BuiltInEffectsKt {
 	public static final fun getBuiltInEffectSerializers ()Lkotlinx/serialization/modules/SerializersModule;
 }
 
+public final class dev/jordond/filmstrip/effects/CornerInset {
+	public fun <init> (Ldev/jordond/filmstrip/geometry/Corner;F)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCorner ()Ldev/jordond/filmstrip/geometry/Corner;
+	public final fun getMargin ()F
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class dev/jordond/filmstrip/effects/Crop : dev/jordond/filmstrip/effect/EffectSpec {
 	public static final field Companion Ldev/jordond/filmstrip/effects/Crop$Companion;
 	public fun <init> (Ldev/jordond/filmstrip/geometry/AspectRatio;Ldev/jordond/filmstrip/geometry/Fit;Ldev/jordond/filmstrip/geometry/Anchor;)V
@@ -178,8 +187,10 @@ public final class dev/jordond/filmstrip/effects/KenBurnsGeometryKt {
 }
 
 public final class dev/jordond/filmstrip/effects/OverlayGeometryKt {
+	public static final fun nearestCornerInset (Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/effects/CornerInset;
 	public static final fun placedOn (Ldev/jordond/filmstrip/effects/Text;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/effects/OverlayPlacement;
 	public static final fun placedOn (Ldev/jordond/filmstrip/effects/Watermark;Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/effects/OverlayPlacement;
+	public static final fun rectOn (Ldev/jordond/filmstrip/effects/OverlayPlacement;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/geometry/NormalizedRect;
 }
 
 public final class dev/jordond/filmstrip/effects/OverlayPlacement {

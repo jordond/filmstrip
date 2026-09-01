@@ -14,9 +14,10 @@ import platform.CoreImage.CIVector
 /**
  * The transform that puts an overlay where this placement says.
  *
- * Core Image measures real pixels from the bottom-left with +Y up, and filmstrip authors fractions
- * from the top-left with +Y down, so both anchors flip on the way in. The overlay's own anchor
- * flips against the overlay's height, not the frame's.
+ * The rectangle comes from [rectOn], so the anchor pair is brought together in one place rather
+ * than once per backend. Core Image measures real pixels from the bottom-left with +Y up and
+ * filmstrip authors fractions from the top-left with +Y down, so the rectangle's bottom edge is
+ * what the translation is taken from.
  *
  * @param frame The frame the overlay lands on, in pixels.
  * @param raster The overlay's own pixel size, which the drawn size is scaled from.
@@ -26,13 +27,11 @@ internal fun OverlayPlacement.transformOnto(
   frame: Size,
   raster: Size,
 ): CValue<CGAffineTransform> {
-  val width = size.width.toDouble()
-  val height = size.height.toDouble()
-  val scaleX = if (raster.width <= 0) 1.0 else width / raster.width
-  val scaleY = if (raster.height <= 0) 1.0 else height / raster.height
-  val translateX = frameAnchor.x.toDouble() * frame.width - overlayAnchor.x.toDouble() * width
-  val translateY =
-    (1.0 - frameAnchor.y.toDouble()) * frame.height - (1.0 - overlayAnchor.y.toDouble()) * height
+  val rect = rectOn(frame)
+  val scaleX = if (raster.width <= 0) 1.0 else size.width.toDouble() / raster.width
+  val scaleY = if (raster.height <= 0) 1.0 else size.height.toDouble() / raster.height
+  val translateX = rect.left.toDouble() * frame.width
+  val translateY = (1.0 - rect.bottom.toDouble()) * frame.height
 
   return CGAffineTransformConcat(
     CGAffineTransformMakeScale(scaleX, scaleY),

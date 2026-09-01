@@ -1,10 +1,13 @@
 package dev.jordond.filmstrip.effects
 
+import androidx.compose.runtime.Immutable
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Corner
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -23,11 +26,79 @@ import kotlin.math.roundToInt
  *   frame.
  */
 @Poko
+@Immutable
 public class OverlayPlacement(
   public val size: Size,
   public val overlayAnchor: Anchor,
   public val frameAnchor: Anchor,
 )
+
+/**
+ * A corner of the frame and how far in from it an overlay sits.
+ *
+ * @property corner Which corner the overlay is measured from.
+ * @property margin Inset from that corner, as a fraction of the frame's shorter side.
+ */
+@Poko
+@Immutable
+public class CornerInset(
+  public val corner: Corner,
+  public val margin: Float,
+)
+
+/**
+ * Where this placement puts the overlay on [frame], as a fraction of it.
+ *
+ * The point [OverlayPlacement.overlayAnchor] names inside the overlay lands on the point
+ * [OverlayPlacement.frameAnchor] names inside the frame, and [OverlayPlacement.size] gives the
+ * rectangle its extent. An overlay hanging over an edge answers a rectangle reaching outside
+ * `0f..1f`, which is what a caller drawing the overlay's outline needs to see.
+ *
+ * @param frame The frame the overlay is drawn on, in pixels.
+ * @return The rectangle the overlay covers, in the frame's normalised space.
+ */
+public fun OverlayPlacement.rectOn(frame: Size): NormalizedRect {
+  if (frame.width <= 0 || frame.height <= 0) return NormalizedRect.Full
+
+  val width = size.width.toFloat() / frame.width
+  val height = size.height.toFloat() / frame.height
+  val left = frameAnchor.x - overlayAnchor.x * width
+  val top = frameAnchor.y - overlayAnchor.y * height
+
+  return NormalizedRect(left = left, top = top, right = left + width, bottom = top + height)
+}
+
+/**
+ * The corner and margin that bring a watermark's own corner to this point.
+ *
+ * The inverse of what [Watermark.placedOn] does with [Watermark.corner] and [Watermark.margin], for
+ * a caller holding a position a drag produced. The corner is the quadrant of the frame the point
+ * falls in, and the margin is read back off the two insets from it. One margin answers for both
+ * axes, so a point off the diagonal the forward arithmetic reaches takes the margin midway between
+ * the two the insets imply.
+ *
+ * Only the frame's proportions are read, so a measurement in view pixels answers the same as one in
+ * output pixels. A point far enough past the middle that the forward arithmetic would hold the
+ * margin at half the frame does not come back as the margin that produced it.
+ *
+ * @param frame The frame the point is measured on, in pixels.
+ * @return The corner the point sits nearest and the margin that reaches it.
+ */
+public fun Anchor.nearestCornerInset(frame: Size): CornerInset {
+  val corner =
+    when {
+      x < HALF -> if (y < HALF) Corner.TopStart else Corner.BottomStart
+      else -> if (y < HALF) Corner.TopEnd else Corner.BottomEnd
+    }
+  val shorter = min(frame.width, frame.height)
+  if (shorter <= 0) return CornerInset(corner, 0f)
+
+  val at = corner.anchor()
+  val insetX = abs(x - at.x) * frame.width
+  val insetY = abs(y - at.y) * frame.height
+
+  return CornerInset(corner, (insetX + insetY) / (2f * shorter))
+}
 
 /**
  * Resolves this watermark against the frame it is composited onto.

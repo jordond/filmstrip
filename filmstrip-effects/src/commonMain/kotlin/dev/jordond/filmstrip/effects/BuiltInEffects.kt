@@ -35,7 +35,7 @@ public expect class BuiltInEffectResolver() : EffectResolver {
 public fun FilmstripBuilder.builtInEffects(): FilmstripBuilder = addEffectResolver(BuiltInEffectResolver())
 
 /**
- * Serialisers for the built-in effect catalogue.
+ * Serializers for the built-in effect catalogue.
  *
  * [EffectSpec] is an open interface, so persisting a composition needs every implementation
  * registered polymorphically. Third-party effects contribute their own module the same way.
