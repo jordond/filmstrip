@@ -67,7 +67,7 @@ internal val Brightness.scale: Float get() = if (factor.isNaN()) 1f else factor.
 public fun List<EffectSpec>.fusedBrightness(): List<EffectSpec> {
   if (count { it is Brightness } < 2) return this
 
-  return fold(mutableListOf<EffectSpec>()) { fused, spec ->
+  return fold(mutableListOf()) { fused, spec ->
     val previous = fused.lastOrNull()
     if (spec is Brightness && previous is Brightness) {
       fused[fused.lastIndex] = Brightness(previous.scale * spec.scale)

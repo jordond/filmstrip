@@ -29,9 +29,6 @@ public fun compositionOf(block: CompositionBuilder.() -> Unit): EditComposition 
 /**
  * Builds an [EditComposition].
  *
- * Also the Swift entry point, where [compositionOf] has no receiver lambda: `CompositionBuilder()`,
- * the explicit `add` calls, then [build].
- *
  * [clip] appends to the primary track, which is the only track most edits have, so a single-track
  * composition never names one. [track] adds a layer that plays alongside it.
  *

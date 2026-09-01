@@ -25,6 +25,7 @@ import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlin.time.Duration
 
 // Dispatches the facade's operations to whatever was registered. Probe is the only one core can
@@ -45,10 +46,8 @@ internal class DefaultFilmstrip(
 
   override suspend fun probe(source: MediaSource): ProbeResult = prober.probe(source)
 
-  override suspend fun capabilities(): CapabilitiesResult {
-    val engine = exportEngine ?: return CapabilitiesResult.Failure(missingTransform("capabilities"))
-    return engine.capabilities()
-  }
+  override suspend fun capabilities(): CapabilitiesResult =
+    exportEngine?.capabilities() ?: CapabilitiesResult.Failure(missingTransform("capabilities"))
 
   override suspend fun plan(
     composition: EditComposition,
@@ -68,22 +67,18 @@ internal class DefaultFilmstrip(
       val engine = exportEngine
       if (engine == null) {
         emit(ExportStatus.Failure(missingTransform("export")))
-        return@flow
+      } else {
+        emitAll(engine.export(plan, to))
       }
-      emitAll(engine.export(plan, to))
     }
 
   override fun export(
     composition: EditComposition,
     spec: ExportSpec,
     to: MediaSink,
-  ): Flow<ExportStatus> =
-    flow {
-      val engine = exportEngine
-      if (engine == null) {
-        emit(ExportStatus.Failure(missingTransform("export")))
-        return@flow
-      }
+  ): Flow<ExportStatus> {
+    val engine = exportEngine ?: return flowOf(ExportStatus.Failure(missingTransform("export")))
+    return flow {
       when (val verdict = engine.plan(composition, spec)) {
         is Verdict.Capable -> {
           emitAll(engine.export(verdict.plan, to))
@@ -98,6 +93,7 @@ internal class DefaultFilmstrip(
         }
       }
     }
+  }
 
   override suspend fun frame(
     composition: EditComposition,
@@ -110,7 +106,6 @@ internal class DefaultFilmstrip(
         position = at,
         heightPx = heightPx,
         effectsRevision = composition.effectsRevision(),
-        // One frame asked for by itself is the frame the caller names, not the one nearest it.
         precise = true,
       ),
     )

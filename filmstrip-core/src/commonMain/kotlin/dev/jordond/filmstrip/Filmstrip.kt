@@ -27,14 +27,13 @@ import dev.jordond.filmstrip.thumbnail.ThumbnailSourceFactory
 import kotlinx.coroutines.flow.Flow
 
 /**
- * The entry point.
  *
  * One instance per component graph: injectable, disposable, and created by the [Filmstrip] factory
  * function. Implemented by filmstrip, never by a consumer.
  *
- * Four questions and three actions. [probe] asks what a file is, [capabilities] asks what the
- * device can encode, [plan] asks what this device will do with an edit, and [export], [preview] and
- * [frame] do the work, all three over the same [EditComposition] value, built with [compositionOf].
+ * [probe] asks what a file is, [capabilities] asks what the device can encode, [plan] asks what this device will do
+ * with an edit, and [export], [preview] and [frame] do the work, all three over the same [EditComposition] value,
+ * built with [dev.jordond.filmstrip.edit.compositionOf].
  *
  * The last two are what [FrameRenderer] and [PreviewFactory] declare, so a component that only
  * draws frames or only plays takes one of those and is handed this.

@@ -6,9 +6,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Where output goes.
- *
- * Construct one through the companion factories, which are also what a Swift caller uses.
+ * Defines where a media file should be exported to.
  */
 @Serializable
 public sealed interface MediaSink {
@@ -27,8 +25,7 @@ public sealed interface MediaSink {
   /**
    * A platform-native destination.
    *
-   * @property uri An `android.net.Uri` string on Android, or an `NSURL` absolute string on Apple
-   *   platforms.
+   * @property uri An `android.net.Uri` string on Android, or an `NSURL` absolute string on Apple platforms.
    */
   @Serializable
   @SerialName("uri")
@@ -38,8 +35,7 @@ public sealed interface MediaSink {
   ) : MediaSink
 
   /**
-   * A library-chosen temporary location, reported back on [ExportStatus.Success.output] as a
-   * resolved [Path].
+   * A library-chosen temporary location, reported back on [ExportStatus.Success.output] as a resolved [Path].
    *
    * The file belongs to the caller once the export finishes: filmstrip never deletes it.
    */
