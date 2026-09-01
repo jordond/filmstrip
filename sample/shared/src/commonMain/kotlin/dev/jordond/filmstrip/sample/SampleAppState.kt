@@ -102,7 +102,21 @@ public class SampleAppState(
   var sourcePreset: SamplePreset? by mutableStateOf(null)
     private set
 
-  var activeTool: EditorTool by mutableStateOf(EditorTool.Trim)
+  private var activeToolState: EditorTool by mutableStateOf(EditorTool.Trim)
+
+  /**
+   * Which tool panel is open, which decides what the tool panel shows.
+   *
+   * Reloads the live preview on the way in or out of [croppingRect], since that flips whether the
+   * player renders the rectangle crop.
+   */
+  var activeTool: EditorTool
+    get() = activeToolState
+    set(value) {
+      val wasCroppingRect = croppingRect
+      activeToolState = value
+      if (croppingRect != wasCroppingRect) reloadPreview()
+    }
 
   var positionSeconds: Float by mutableStateOf(0f)
     private set
@@ -128,10 +142,18 @@ public class SampleAppState(
     private set
 
   /**
-   * True where no preview backend is registered, which is every target but Apple today.
+   * True where the player reported no preview backend rather than a failure while playing. Every
+   * platform ships one, so a build reaching this is one that never registered it.
    */
   val previewUnavailable: Boolean
     get() = previewError is PlaybackError.BackendMissing
+
+  /**
+   * True while the crop tool is open on a rectangle crop, which is when the crop overlay is drawn
+   * over the stage and the live preview renders the frame before that crop rather than after it.
+   */
+  val croppingRect: Boolean
+    get() = activeTool == EditorTool.Crop && edit.cropMode == CropMode.Rect
 
   private var loopingState: Boolean by mutableStateOf(true)
 
@@ -325,6 +347,17 @@ public class SampleAppState(
   }
 
   /**
+   * The composition the live player renders.
+   *
+   * Omits the rectangle crop while [croppingRect] is true, since the overlay drawn over the player
+   * authors that rectangle against the frame before the crop rather than after it.
+   */
+  private fun previewComposition(): EditComposition? {
+    val source = source ?: return null
+    return edit.composition(filmstrip, source, sourceDuration, cropped = !croppingRect)
+  }
+
+  /**
    * The current edit over the whole source, with no trim applied.
    *
    * Built for the timeline strip, which lays the source out end to end and draws the trim window
@@ -353,7 +386,7 @@ public class SampleAppState(
    * lives exactly as long as the surface it draws into.
    */
   fun startPreview() {
-    val composition = composition() ?: return
+    val composition = previewComposition() ?: return
     stopPreview()
 
     val opened = filmstrip.preview(composition, PlayerConfig())
@@ -413,6 +446,14 @@ public class SampleAppState(
     val target = seconds.coerceIn(0f, editedDurationSeconds)
     positionSeconds = target
     livePlayer()?.seekTo(target.toDouble().seconds)
+  }
+
+  fun beginScrub() {
+    livePlayer()?.beginScrub()
+  }
+
+  fun endScrub() {
+    livePlayer()?.endScrub()
   }
 
   fun stepFrames(frames: Int) {
@@ -565,7 +606,7 @@ public class SampleAppState(
     reloadJob?.cancel()
     reloadJob = scope.launch {
       delay(RELOAD_DEBOUNCE_MILLIS)
-      val composition = composition() ?: return@launch
+      val composition = previewComposition() ?: return@launch
       val result = open.setComposition(composition)
       if (result is SetCompositionResult.Failure) {
         recorder.record("player.loadFailed", "error" to result.error.message)
@@ -581,7 +622,7 @@ public class SampleAppState(
   }
 
   /**
-   * Advances a local playhead where no preview backend answered, so the timeline still moves.
+   * Advances a local playhead while no player is open, so the timeline still moves.
    */
   private fun startLocalClock() {
     if (playing || editedDurationSeconds <= 0f) return

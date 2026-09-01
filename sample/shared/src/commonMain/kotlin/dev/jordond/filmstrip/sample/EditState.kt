@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effects.brightness
 import dev.jordond.filmstrip.effects.crop
 import dev.jordond.filmstrip.effects.flip
+import dev.jordond.filmstrip.effects.nearestCornerInset
 import dev.jordond.filmstrip.effects.rotate
 import dev.jordond.filmstrip.effects.scale
 import dev.jordond.filmstrip.effects.text
@@ -23,6 +24,7 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.style.FontWeight
@@ -87,6 +89,7 @@ public class EditState {
   var cropTop: Float by mutableStateOf(0.1f)
   var cropRight: Float by mutableStateOf(0.9f)
   var cropBottom: Float by mutableStateOf(0.9f)
+  var cropLockAspect: AspectRatio? by mutableStateOf(null)
 
   var scaleEnabled: Boolean by mutableStateOf(false)
   var scaleHeight: Int by mutableStateOf(720)
@@ -132,8 +135,38 @@ public class EditState {
   val cropAnchor: Anchor
     get() = Anchor(cropAnchorX, cropAnchorY)
 
+  /**
+   * Moves the rectangle crop to [rect].
+   */
+  fun setCropRect(rect: NormalizedRect) {
+    cropLeft = rect.left
+    cropTop = rect.top
+    cropRight = rect.right
+    cropBottom = rect.bottom
+  }
+
   val textAnchor: Anchor
     get() = Anchor(textAnchorX, textAnchorY)
+
+  /**
+   * Moves the text overlay to [anchor].
+   */
+  fun setTextAnchor(anchor: Anchor) {
+    textAnchorX = anchor.x
+    textAnchorY = anchor.y
+  }
+
+  /**
+   * Snaps the watermark to the corner and margin that bring it to [anchor] on a frame of [frame].
+   */
+  fun setWatermarkAnchor(
+    anchor: Anchor,
+    frame: Size,
+  ) {
+    val inset = anchor.nearestCornerInset(frame)
+    watermarkCorner = inset.corner
+    watermarkMargin = inset.margin
+  }
 
   val textStyle: TextStyle
     get() = TextStyle(
@@ -179,13 +212,20 @@ public class EditState {
   /**
    * The output frame's aspect after every geometry effect, so the preview can letterbox to the
    * shape the file will actually have.
+   *
+   * @param cropped Whether the rectangle crop is folded in. False reports the frame before it,
+   *   which is what a crop overlay measures itself against.
    */
-  fun outputAspect(sourceAspect: Float): Float {
+  fun outputAspect(
+    sourceAspect: Float,
+    cropped: Boolean = true,
+  ): Float {
     val rotated = if (rotationDegrees == 90 || rotationDegrees == 270) 1f / sourceAspect else sourceAspect
     return when (cropMode) {
       CropMode.Off -> rotated
       CropMode.Aspect -> cropAspect.value
       CropMode.Rect -> {
+        if (!cropped) return rotated
         val rect = cropRect
         if (rect.isValid) rotated * (rect.width / rect.height) else rotated
       }
@@ -198,12 +238,15 @@ public class EditState {
    * @param trimmed Whether to cut the clip to [trimRange]. False keeps the whole source, which is
    *   what the timeline strip renders against so it covers the same ground no matter where the trim
    *   handles sit.
+   * @param cropped Whether to apply the rectangle crop. False keeps the whole frame, which is what
+   *   a crop overlay renders against, since the rectangle it authors addresses the uncropped frame.
    */
   fun composition(
     filmstrip: Filmstrip,
     source: MediaSource,
     sourceDuration: Duration?,
     trimmed: Boolean = true,
+    cropped: Boolean = true,
   ): EditComposition =
     filmstrip.composition {
       clip(source) {
@@ -219,7 +262,7 @@ public class EditState {
         when (cropMode) {
           CropMode.Off -> Unit
           CropMode.Aspect -> crop(cropAspect, cropFit, cropAnchor)
-          CropMode.Rect -> if (cropRect.isValid) crop(cropRect)
+          CropMode.Rect -> if (cropped && cropRect.isValid) crop(cropRect)
         }
 
         if (scaleEnabled) scale(scaleHeight, scaleFit)
@@ -270,6 +313,7 @@ public class EditState {
     cropTop = 0.1f
     cropRight = 0.9f
     cropBottom = 0.9f
+    cropLockAspect = null
     scaleEnabled = false
     scaleHeight = 720
     scaleFit = Fit.Contain

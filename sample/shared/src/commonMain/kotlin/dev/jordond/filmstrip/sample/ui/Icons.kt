@@ -136,6 +136,51 @@ public object SampleIcons {
       lineTo(19f, 12f)
     }
 
+  public val Minus: ImageVector =
+    stroke("minus") {
+      moveTo(5f, 12f)
+      lineTo(19f, 12f)
+    }
+
+  public val ZoomIn: ImageVector =
+    stroke("zoomIn") {
+      moveTo(11f, 4f)
+      arcToRelative(7f, 7f, 0f, isMoreThanHalf = true, isPositiveArc = true, 0f, 14f)
+      arcToRelative(7f, 7f, 0f, isMoreThanHalf = true, isPositiveArc = true, 0f, -14f)
+      moveTo(16f, 16f)
+      lineTo(21f, 21f)
+      moveTo(11f, 8f)
+      lineTo(11f, 14f)
+      moveTo(8f, 11f)
+      lineTo(14f, 11f)
+    }
+
+  public val ZoomOut: ImageVector =
+    stroke("zoomOut") {
+      moveTo(11f, 4f)
+      arcToRelative(7f, 7f, 0f, isMoreThanHalf = true, isPositiveArc = true, 0f, 14f)
+      arcToRelative(7f, 7f, 0f, isMoreThanHalf = true, isPositiveArc = true, 0f, -14f)
+      moveTo(16f, 16f)
+      lineTo(21f, 21f)
+      moveTo(8f, 11f)
+      lineTo(14f, 11f)
+    }
+
+  public val Recenter: ImageVector =
+    stroke("recenter") {
+      moveTo(12f, 8f)
+      arcToRelative(4f, 4f, 0f, isMoreThanHalf = true, isPositiveArc = true, 0f, 8f)
+      arcToRelative(4f, 4f, 0f, isMoreThanHalf = true, isPositiveArc = true, 0f, -8f)
+      moveTo(12f, 2f)
+      lineTo(12f, 5f)
+      moveTo(12f, 19f)
+      lineTo(12f, 22f)
+      moveTo(2f, 12f)
+      lineTo(5f, 12f)
+      moveTo(19f, 12f)
+      lineTo(22f, 12f)
+    }
+
   public val Export: ImageVector =
     stroke("export") {
       moveTo(12f, 15.5f)

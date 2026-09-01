@@ -1,27 +1,23 @@
 package dev.jordond.filmstrip.sample.ui
 
+import dev.jordond.filmstrip.compose.ui.FilmstripTimelineDefaults
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Formats a duration the way a transport bar reads it: `1:04.2`, or `1:02:03` once it passes an
  * hour.
+ *
+ * The timeline's ruler labels come out of the same formatter, so a time read off the transport and
+ * the same time read off the ruler are written the same way. The tick interval passed here is what
+ * decides whether tenths appear.
  */
-public fun Duration.asClock(): String {
-  val totalTenths = (inWholeMilliseconds / 100).coerceAtLeast(0)
-  val tenths = totalTenths % 10
-  val totalSeconds = totalTenths / 10
-  val seconds = totalSeconds % 60
-  val minutes = (totalSeconds / 60) % 60
-  val hours = totalSeconds / 3600
-
-  return if (hours > 0) {
-    "$hours:${minutes.pad()}:${seconds.pad()}"
-  } else {
-    "$minutes:${seconds.pad()}.$tenths"
-  }
-}
+public fun Duration.asClock(): String =
+  FilmstripTimelineDefaults.clockLabel(this, if (this >= 1.hours) 1.seconds else 100.milliseconds)
 
 /**
  * Formats a byte count as the kilobytes, megabytes or gigabytes an export estimate is read in.
@@ -48,7 +44,5 @@ public fun formatFraction(value: Float): String {
   val sign = if (value < 0f) "-" else ""
   return "$sign${hundredths / 100}.${(hundredths % 100).pad()}"
 }
-
-private fun Long.pad(): String = if (this < 10) "0$this" else "$this"
 
 private fun Int.pad(): String = if (this < 10) "0$this" else "$this"

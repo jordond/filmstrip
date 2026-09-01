@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
@@ -32,11 +33,23 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import dev.jordond.filmstrip.compose.VideoSurface
-import dev.jordond.filmstrip.compose.rememberVideoSurfaceState
+import dev.jordond.filmstrip.compose.ui.CropColors
+import dev.jordond.filmstrip.compose.ui.CropOverlayDefaults
+import dev.jordond.filmstrip.compose.ui.OverlayHandleColors
+import dev.jordond.filmstrip.compose.ui.OverlayHandleDefaults
+import dev.jordond.filmstrip.compose.ui.VideoStage
+import dev.jordond.filmstrip.compose.ui.VideoStageScope
+import dev.jordond.filmstrip.compose.ui.component.CropOverlay
+import dev.jordond.filmstrip.compose.ui.component.OverlayHandle
+import dev.jordond.filmstrip.compose.ui.interaction.CropConstraint
+import dev.jordond.filmstrip.effects.OverlayPlacement
+import dev.jordond.filmstrip.effects.Watermark
+import dev.jordond.filmstrip.effects.placedOn
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.player.PlaybackError
@@ -50,15 +63,19 @@ import dev.jordond.filmstrip.style.FontWeight
 import dev.jordond.filmstrip.style.TextAlignment
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
+import androidx.compose.ui.text.TextStyle as ComposeTextStyle
 import androidx.compose.ui.text.font.FontWeight as ComposeFontWeight
+import dev.jordond.filmstrip.effects.Text as TextEffect
+import dev.jordond.filmstrip.geometry.Size as FrameSize
 
 /**
  * The editor's viewport.
  *
  * It plays the edit through the player `preview` hands back, letterboxed to the output aspect
- * rather than the source's, which is what a surface has to do once a crop is attached. Where no
- * preview backend is registered it falls back to a schematic of the same edit, so the rest of the
- * editor stays usable on a target that cannot play anything yet.
+ * rather than the source's, which is what a surface has to do once a crop is attached. Before a
+ * player is open, and where none could be built, it falls back to a schematic of the same edit so
+ * the rest of the editor stays usable.
  *
  * The player itself is started and stopped above this, so folding or unfolding a host that swaps
  * this out for a differently laid out copy of itself never tears the player down.
@@ -69,41 +86,39 @@ public fun PreviewStage(
   modifier: Modifier = Modifier,
 ) {
   val edit = state.edit
-  val aspect = stageAspect(state).coerceIn(0.2f, 5f)
-  val player = state.player
 
   Box(
     modifier = modifier.background(MaterialTheme.colorScheme.background),
     contentAlignment = Alignment.Center,
   ) {
-    BoxWithConstraints(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
-      val frameWidth: Dp
-      val frameHeight: Dp
-      if (maxWidth / maxHeight > aspect) {
-        frameHeight = maxHeight
-        frameWidth = maxHeight * aspect
+    VideoStage(
+      // Every platform ships a preview backend, so a build with none is one that never registered
+      // it, and the schematic stands in for the picture.
+      player = state.player?.takeIf { !state.previewUnavailable },
+      outputAspect = edit.outputAspect(state.sourceAspect, cropped = !state.croppingRect),
+      modifier = Modifier
+        .padding(16.dp)
+        .clip(RoundedCornerShape(4.dp))
+        .background(Color.Black)
+        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(4.dp)),
+      fallback = { StageSchematic(state, Modifier.fillMaxSize()) },
+    ) {
+      if (state.croppingRect) {
+        CropOverlay(
+          rect = edit.cropRect,
+          onRectChange = { rect ->
+            edit.setCropRect(rect)
+            state.onEditChanged()
+          },
+          constraint = edit.cropLockAspect
+            ?.let { CropConstraint.lockedTo(it, aspect) }
+            ?: CropOverlayDefaults.Constraint,
+          colors = sampleCropColors(),
+        )
       } else {
-        frameWidth = maxWidth
-        frameHeight = maxWidth / aspect
-      }
-      val shorterSide = min(frameWidth.value, frameHeight.value).dp
-
-      Box(
-        modifier = Modifier
-          .size(frameWidth, frameHeight)
-          .clip(RoundedCornerShape(4.dp))
-          .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(4.dp)),
-      ) {
-        if (player != null && !state.previewUnavailable) {
-          Box(Modifier.fillMaxSize().background(Color.Black))
-          VideoSurface(player, Modifier.fillMaxSize())
-        } else {
-          FrameBackground(edit, shorterSide, state.sourceAspect)
-          FrameContent(edit, frameWidth, frameHeight, state.sourceAspect)
-          BrightnessScrim(edit.brightness)
-          TextOverlay(edit, frameWidth, frameHeight)
-          WatermarkOverlay(edit, frameWidth, shorterSide)
-        }
+        // Both tools drag against the whole stage, so the crop rectangle and the overlay handles
+        // take turns rather than sharing a frame's worth of gestures.
+        OverlayHandles(state)
       }
     }
 
@@ -112,20 +127,138 @@ public fun PreviewStage(
 }
 
 /**
- * The aspect the stage frames.
- *
- * A live preview reports the frame it is showing rather than the one it was last asked for, so the
- * stage and the picture in it change shape on the same frame instead of the stage moving a swap
- * ahead of the video. The schematic has no picture to wait for and follows the edit directly.
+ * What the stage draws where there is no picture to draw: the same edit, laid out from its
+ * parameters rather than rendered.
  */
 @Composable
-private fun stageAspect(state: SampleAppState): Float {
-  val edited = state.edit.outputAspect(state.sourceAspect)
-  val player = state.player
-  if (player == null || state.previewUnavailable) return edited
+private fun StageSchematic(
+  state: SampleAppState,
+  modifier: Modifier = Modifier,
+) {
+  val edit = state.edit
 
-  val presented = rememberVideoSurfaceState(player).outputSize.aspect
-  return if (presented > 0f) presented else edited
+  BoxWithConstraints(modifier) {
+    val frameWidth = maxWidth
+    val frameHeight = maxHeight
+    val shorterSide = min(frameWidth.value, frameHeight.value).dp
+
+    FrameBackground(edit, shorterSide, state.sourceAspect)
+    FrameContent(edit, frameWidth, frameHeight, state.sourceAspect, applyRectCrop = !state.croppingRect)
+    BrightnessScrim(edit.brightness)
+    TextOverlay(edit, frameWidth, frameHeight)
+    WatermarkOverlay(edit, frameWidth, shorterSide)
+  }
+}
+
+/**
+ * The placement handles for the composited overlays, drawn over whatever the stage is showing.
+ *
+ * A live preview has the text and the watermark burnt in by the effect chain already, so the handle
+ * sits on top of the picture the viewer is looking at and a drag moves that. The schematic draws
+ * its own stand-ins underneath, and the handles drive both.
+ */
+@Composable
+private fun VideoStageScope.OverlayHandles(state: SampleAppState) {
+  val edit = state.edit
+  val stage = frame.contentRect
+  val output = FrameSize(stage.width.roundToInt(), stage.height.roundToInt())
+  if (output.width <= 0 || output.height <= 0) return
+
+  val colors = sampleHandleColors()
+
+  if (edit.textEnabled && edit.text.isNotBlank()) {
+    OverlayHandle(
+      placement = textPlacement(edit, output),
+      onFrameAnchorChange = { anchor ->
+        edit.setTextAnchor(anchor)
+        state.onEditChanged()
+      },
+      output = output,
+      colors = colors,
+    )
+  }
+
+  edit.watermarkImage?.let { image ->
+    OverlayHandle(
+      placement = remember(edit.watermarkCorner, edit.watermarkMargin, edit.watermarkScale, output) {
+        Watermark(
+          image = image,
+          corner = edit.watermarkCorner,
+          margin = edit.watermarkMargin,
+          scale = edit.watermarkScale,
+        ).placedOn(output, WATERMARK_IMAGE)
+      },
+      onFrameAnchorChange = { anchor ->
+        edit.setWatermarkAnchor(anchor, output)
+        state.onEditChanged()
+      },
+      output = output,
+      colors = colors,
+    )
+  }
+}
+
+/**
+ * Where the text block lands, measured with the same font size and wrapping width the schematic
+ * draws it at.
+ */
+@Composable
+private fun textPlacement(
+  edit: EditState,
+  output: FrameSize,
+): OverlayPlacement {
+  val measurer = rememberTextMeasurer()
+  val fontSize = with(LocalDensity.current) { (output.height * edit.textSize / CAP_HEIGHT_RATIO).toSp() }
+  val block = measurer.measure(
+    text = edit.text,
+    style = ComposeTextStyle(
+      fontSize = fontSize,
+      lineHeight = fontSize * 1.15f,
+      fontWeight = when (edit.textWeight) {
+        FontWeight.Regular -> ComposeFontWeight.Normal
+        FontWeight.Medium -> ComposeFontWeight.Medium
+        FontWeight.Bold -> ComposeFontWeight.Bold
+      },
+    ),
+    constraints = Constraints(maxWidth = (output.width * edit.textMaxWidth).roundToInt().coerceAtLeast(1)),
+  )
+
+  return TextEffect(
+    text = edit.text,
+    style = edit.textStyle,
+    anchor = edit.textAnchor,
+  ).placedOn(FrameSize(block.size.width, block.size.height))
+}
+
+/**
+ * The crop overlay's palette, taken from the app's theme.
+ */
+@Composable
+private fun sampleCropColors(): CropColors {
+  val scheme = MaterialTheme.colorScheme
+  return remember(scheme) {
+    CropOverlayDefaults.colors(
+      scrim = scheme.scrim.copy(alpha = 0.72f),
+      outline = scheme.onSurface,
+      handle = scheme.primary,
+      grid = scheme.onSurface.copy(alpha = 0.5f),
+    )
+  }
+}
+
+/**
+ * The overlay handles' palette, taken from the app's theme.
+ */
+@Composable
+private fun sampleHandleColors(): OverlayHandleColors {
+  val scheme = MaterialTheme.colorScheme
+  return remember(scheme) {
+    OverlayHandleDefaults.colors(
+      fill = scheme.primary.copy(alpha = 0.12f),
+      outline = scheme.primary.copy(alpha = 0.8f),
+      handle = scheme.primary,
+    )
+  }
 }
 
 @Composable
@@ -157,6 +290,7 @@ private fun FrameContent(
   frameWidth: Dp,
   frameHeight: Dp,
   sourceAspect: Float,
+  applyRectCrop: Boolean = true,
 ) {
   val rotated = if (edit.rotationDegrees == 90 || edit.rotationDegrees == 270) 1f / sourceAspect else sourceAspect
   val contentWidth: Dp
@@ -167,7 +301,7 @@ private fun FrameContent(
   // Offsets are measured from the centre, because that is where a box places a child larger than
   // itself no matter what alignment it was given.
   when {
-    edit.cropMode == CropMode.Rect && edit.cropRect.isValid -> {
+    edit.cropMode == CropMode.Rect && edit.cropRect.isValid && applyRectCrop -> {
       val rect = edit.cropRect
       contentWidth = frameWidth / rect.width
       contentHeight = frameHeight / rect.height
@@ -457,3 +591,8 @@ private fun PlaybackStatus.pillLabel(): String =
 private const val BLUR_GAIN = 6f
 private const val CAP_HEIGHT_RATIO = 0.7f
 private const val WATERMARK_ASPECT = 0.6f
+
+/**
+ * The stand-in watermark's own pixel size, whose aspect is what the handle's box follows.
+ */
+private val WATERMARK_IMAGE = FrameSize(100, (100 * WATERMARK_ASPECT).roundToInt())

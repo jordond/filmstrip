@@ -6,9 +6,6 @@ import dev.jordond.filmstrip.create
 /**
  * Builds the sample's [Filmstrip] through the bundle artifact, which registers every backend.
  *
- * The preview backend it registers has not landed on Android yet, which is fine: this app is here
- * to exercise the encoder.
- *
  * @param recorder Receives what the backends learn while they run, such as the ffmpeg banner and
  *   the command line it was spawned with.
  */

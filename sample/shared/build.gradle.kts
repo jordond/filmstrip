@@ -8,6 +8,8 @@ plugins {
 }
 
 kotlin {
+  jvmToolchain(libs.versions.jvmTarget.get().toInt())
+
   android {
     namespace = "dev.jordond.filmstrip.sample.shared"
     compileSdk = libs.versions.sdk.compile.get().toInt()
@@ -40,6 +42,7 @@ kotlin {
     commonMain.dependencies {
       api(projects.filmstrip)
       implementation(projects.filmstripCompose)
+      implementation(projects.filmstripComposeUi)
       implementation(libs.filekit.dialogs.compose)
       implementation(libs.compose.runtime)
       implementation(libs.compose.foundation)

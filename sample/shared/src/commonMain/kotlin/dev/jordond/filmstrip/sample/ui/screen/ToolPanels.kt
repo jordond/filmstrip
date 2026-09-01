@@ -329,6 +329,27 @@ private fun CropPanel(state: SampleAppState) {
     }
 
     CropMode.Rect -> {
+      ControlGroup("Lock") {
+        Text(
+          "Drag the rectangle on the preview. A lock holds the shape the handles may produce.",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.outline,
+        )
+        ChipGroup(
+          options = listOf(
+            "Free" to null,
+            "9:16" to AspectRatio.Portrait,
+            "1:1" to AspectRatio.Square,
+            "4:5" to AspectRatio.Feed,
+            "16:9" to AspectRatio.Landscape,
+          ),
+          selected = edit.cropLockAspect,
+          onSelect = {
+            edit.cropLockAspect = it
+            state.onEditChanged()
+          },
+        )
+      }
       ControlGroup("Rectangle") {
         Text(
           "Normalised to the frame the rotation produced, origin top left.",
