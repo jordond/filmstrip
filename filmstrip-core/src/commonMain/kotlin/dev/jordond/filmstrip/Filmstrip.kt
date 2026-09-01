@@ -36,6 +36,9 @@ import kotlinx.coroutines.flow.Flow
  * device can encode, [plan] asks what this device will do with an edit, and [export], [preview] and
  * [frame] do the work, all three over the same [EditComposition] value, built with [compositionOf].
  *
+ * The last two are what [FrameRenderer] and [PreviewFactory] declare, so a component that only
+ * draws frames or only plays takes one of those and is handed this.
+ *
  * Which of these work depends on what is on the classpath. [export], [plan] and [capabilities] need
  * `filmstrip-transform`, or `filmstrip-transform-ffmpeg` on the desktop, [preview] and
  * effect-applied frames need `filmstrip-player`, and effects need `filmstrip-effects`. Each

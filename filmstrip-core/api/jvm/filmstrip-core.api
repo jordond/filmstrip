@@ -1851,12 +1851,12 @@ public final class dev/jordond/filmstrip/media/StillFormat$Companion {
 public final class dev/jordond/filmstrip/media/StillImageKt {
 	public static final fun encodeStill (Ldev/jordond/filmstrip/media/PlatformImage;Ldev/jordond/filmstrip/media/StillSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun encodeStill$default (Ldev/jordond/filmstrip/media/PlatformImage;Ldev/jordond/filmstrip/media/StillSpec;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public static final fun frame-1Y68eR8 (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/media/MediaSource;JILkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun frame-1Y68eR8$default (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/media/MediaSource;JILkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public static final fun still-WPi__2c (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;JLdev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/media/StillSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static final fun still-WPi__2c (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/media/MediaSource;JLdev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/media/StillSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun still-WPi__2c$default (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;JLdev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/media/StillSpec;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public static synthetic fun still-WPi__2c$default (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/media/MediaSource;JLdev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/media/StillSpec;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static final fun frame-1Y68eR8 (Ldev/jordond/filmstrip/media/FrameRenderer;Ldev/jordond/filmstrip/media/MediaSource;JILkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun frame-1Y68eR8$default (Ldev/jordond/filmstrip/media/FrameRenderer;Ldev/jordond/filmstrip/media/MediaSource;JILkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static final fun still-WPi__2c (Ldev/jordond/filmstrip/media/FrameRenderer;Ldev/jordond/filmstrip/edit/EditComposition;JLdev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/media/StillSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun still-WPi__2c (Ldev/jordond/filmstrip/media/FrameRenderer;Ldev/jordond/filmstrip/media/MediaSource;JLdev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/media/StillSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun still-WPi__2c$default (Ldev/jordond/filmstrip/media/FrameRenderer;Ldev/jordond/filmstrip/edit/EditComposition;JLdev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/media/StillSpec;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun still-WPi__2c$default (Ldev/jordond/filmstrip/media/FrameRenderer;Ldev/jordond/filmstrip/media/MediaSource;JLdev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/media/StillSpec;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public abstract interface class dev/jordond/filmstrip/media/StillResult {
