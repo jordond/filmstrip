@@ -20,6 +20,7 @@ import dev.jordond.filmstrip.media.TrackCodec
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.displaySizeOf
+import dev.jordond.filmstrip.media.probeImage
 import dev.jordond.filmstrip.media.trackCodecOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -29,39 +30,54 @@ import kotlin.time.Duration.Companion.milliseconds
 @OptIn(InternalFilmstripApi::class)
 internal actual class PlatformProber actual constructor() {
   actual suspend fun probe(source: MediaSource): ProbeResult =
+    when (source) {
+      // A still carries no container to open, and the retriever throws a bare RuntimeException on
+      // an image file, so this is answered from the image's own header instead.
+      is MediaSource.Image -> {
+        probeImage(source)
+      }
+      is MediaSource.Path -> {
+        source.readContainer { setDataSource(source.path) }
+      }
+      is MediaSource.Uri -> {
+        // A content:// URI resolves through the app's ContentResolver.
+        val android = FilmstripContext.get()
+        if (android == null) {
+          ProbeResult.Failure(
+            ExportError.SourceUnreadable(source = source.uri, message = FilmstripContext.MISSING_CONTEXT),
+          )
+        } else {
+          source.readContainer { setDataSource(android, Uri.parse(source.uri)) }
+        }
+      }
+      is MediaSource.Bytes -> {
+        ProbeResult.Failure(
+          ExportError.SourceUnreadable(
+            source = "bytes",
+            message =
+              "In-memory sources are written to a temporary file before probing, " +
+                "which is not implemented yet.",
+          ),
+        )
+      }
+    }
+
+  /**
+   * Reads this source once [open] has pointed a retriever at it.
+   *
+   * The retriever is built before [open] runs, so a source that fails to open is still released.
+   */
+  private suspend fun MediaSource.readContainer(open: MediaMetadataRetriever.() -> Unit): ProbeResult =
     withContext(Dispatchers.IO) {
       val retriever = MediaMetadataRetriever()
       try {
-        when (source) {
-          is MediaSource.Path -> {
-            retriever.setDataSource(source.path)
-          }
-          is MediaSource.Uri -> {
-            // A content:// URI resolves through the app's ContentResolver.
-            val android =
-              FilmstripContext.get()
-                ?: return@withContext ProbeResult.Failure(
-                  ExportError.SourceUnreadable(source = source.uri, message = FilmstripContext.MISSING_CONTEXT),
-                )
-            retriever.setDataSource(android, Uri.parse(source.uri))
-          }
-          is MediaSource.Bytes -> {
-            return@withContext ProbeResult.Failure(
-              ExportError.SourceUnreadable(
-                source = "bytes",
-                message =
-                  "In-memory sources are written to a temporary file before probing, " +
-                    "which is not implemented yet.",
-              ),
-            )
-          }
-        }
-        ProbeResult.Success(retriever.readInfo(source.tracks()))
+        retriever.open()
+        ProbeResult.Success(retriever.readInfo(tracks()))
       } catch (error: IllegalArgumentException) {
-        ProbeResult.Failure(source.unreadable(error.message))
+        ProbeResult.Failure(unreadable(error.message))
       } catch (error: RuntimeException) {
         // setDataSource throws a bare RuntimeException for a malformed or unsupported container.
-        ProbeResult.Failure(source.unreadable(error.message))
+        ProbeResult.Failure(unreadable(error.message))
       } finally {
         retriever.release()
       }
@@ -80,7 +96,8 @@ internal actual class PlatformProber actual constructor() {
       when (this) {
         is MediaSource.Path -> extractor.setDataSource(path)
         is MediaSource.Uri -> extractor.setDataSource(FilmstripContext.get() ?: return null, Uri.parse(uri), null)
-        is MediaSource.Bytes -> return null
+        // Neither names a container the extractor can open.
+        is MediaSource.Bytes, is MediaSource.Image -> return null
       }
       extractor.readTracks()
     } catch (unreadable: IOException) {

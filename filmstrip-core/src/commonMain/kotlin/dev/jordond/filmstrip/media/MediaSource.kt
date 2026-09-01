@@ -1,10 +1,12 @@
 package dev.jordond.filmstrip.media
 
 import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.InternalFilmstripApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import kotlin.time.Duration
 
 /**
  * Something to read media from.
@@ -86,6 +88,24 @@ public sealed interface MediaSource {
     }
   }
 
+  /**
+   * A still image held on screen for a fixed length of time.
+   *
+   * A photo on a timeline, or a title card the host drew and handed over as bytes. Every frame it
+   * contributes is the same pixels, so a trim over one keeps exactly the range it names.
+   *
+   * @property image Where to read the still from.
+   * @property duration How long the still is held.
+   */
+  @Serializable
+  @SerialName("image")
+  @Poko
+  @ExperimentalFilmstripApi
+  public class Image(
+    public val image: ImageSource,
+    public val duration: Duration,
+  ) : MediaSource
+
   public companion object {
     /**
      * A source reading from [path].
@@ -104,6 +124,15 @@ public sealed interface MediaSource {
       bytes: ByteArray,
       hint: FormatHint? = null,
     ): MediaSource = Bytes(bytes, hint)
+
+    /**
+     * A source holding [image] on screen for [duration].
+     */
+    @ExperimentalFilmstripApi
+    public fun ofImage(
+      image: ImageSource,
+      duration: Duration,
+    ): MediaSource = Image(image, duration)
   }
 }
 
@@ -129,4 +158,5 @@ public fun MediaSource.describe(): String =
     is MediaSource.Path -> path
     is MediaSource.Uri -> uri
     is MediaSource.Bytes -> "bytes[${bytes.size}]"
+    is MediaSource.Image -> image.describe()
   }

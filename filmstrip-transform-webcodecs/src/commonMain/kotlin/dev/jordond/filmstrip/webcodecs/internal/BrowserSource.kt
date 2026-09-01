@@ -160,6 +160,8 @@ internal class SourceReader(
           is MediaSource.Uri -> UrlSource(source.uri)
           is MediaSource.Bytes -> BufferSource(source.bytes.toUint8Array())
           is MediaSource.Path -> return null
+          // A still has no container for the demuxer to open.
+          is MediaSource.Image -> return null
         }
       return SourceReader(Input(inputOptions(backing)))
     }

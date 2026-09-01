@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media3.internal.Media3Preview
+import dev.jordond.filmstrip.media3.internal.Media3Readback
 import dev.jordond.filmstrip.media3.internal.Media3Span
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewFrameReadback
@@ -19,6 +20,7 @@ import dev.jordond.filmstrip.player.ReadbackResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.util.concurrent.Executor
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
 
 /**
@@ -29,6 +31,9 @@ import kotlin.time.Duration
  * chain is run ahead of the composition's. Both lists are the objects the player is drawing with, so
  * a parameter swapped into the live graph is in this frame too, and the readback is the preview's
  * own output rather than a second rendering of it.
+ *
+ * A photo goes through [Media3StillFrames] instead, because the extractor builds its player with a
+ * single video renderer and an image item has nothing there to decode it.
  *
  * Because the extractor is a separate player, no seek is observable, the playhead does not move, and
  * playback if running is unaffected, which is what [PreviewFrameReadback] requires.
@@ -53,6 +58,8 @@ internal class Media3FrameReadback(
   private val colorSpace: () -> ColorSpace,
   private val revision: () -> Long,
 ) : PreviewFrameReadback {
+  private val stills = Media3StillFrames(context)
+
   private val thread = HandlerThread(THREAD_NAME).apply { start() }
   private val handler = Handler(thread.looper)
 
@@ -66,6 +73,8 @@ internal class Media3FrameReadback(
     val scale = renderScale()
     val space = colorSpace()
     val request = Request(callback)
+
+    if (span.still) return readStill(lowered, position, scale, space, request)
 
     // The extractor builds an ExoPlayer, which binds to the looper of whatever thread creates it,
     // so it is built on one of this class's own rather than on the player's.
@@ -111,6 +120,55 @@ internal class Media3FrameReadback(
     return Cancellable {
       request.cancelled = true
       handler.post { request.closeExtractor() }
+    }
+  }
+
+  /**
+   * Reads the frame [lowered]'s photo draws at [position].
+   *
+   * A photo contributes the same pixels at every position in its span, so the frame covering one
+   * sits exactly there and the time is reported as asked rather than as decoded.
+   */
+  private fun readStill(
+    lowered: Media3Readback,
+    position: Duration,
+    scale: Float,
+    space: ColorSpace,
+    request: Request,
+  ): Cancellable {
+    val job =
+      scope.launch {
+        val outcome =
+          try {
+            val drawn = stills.render(lowered)
+            ReadbackResult
+              .Success(
+                ReadbackFrame(
+                  pixels = drawn.toRgba(),
+                  size = Size(drawn.width, drawn.height),
+                  presentationTime = position,
+                  colorSpace = space,
+                  renderScale = scale,
+                ),
+              ).also { drawn.recycle() }
+          } catch (cancelled: CancellationException) {
+            throw cancelled
+          } catch (
+            @Suppress("TooGenericExceptionCaught") broken: Exception,
+          ) {
+            ReadbackResult.Failure(
+              PlaybackError.Underlying(
+                PlaybackError.Underlying.NO_PLATFORM_CODE,
+                broken.message ?: broken.toString(),
+              ),
+            )
+          }
+        request.settle(outcome)
+      }
+
+    return Cancellable {
+      request.cancelled = true
+      job.cancel()
     }
   }
 

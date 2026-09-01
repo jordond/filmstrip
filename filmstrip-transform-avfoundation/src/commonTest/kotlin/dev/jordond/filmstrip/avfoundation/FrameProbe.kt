@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.avfoundation
 
+import dev.jordond.filmstrip.avfoundation.internal.toCMTime
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
@@ -19,6 +20,7 @@ import platform.CoreMedia.CMTimeMake
 import platform.Foundation.NSURL
 import kotlin.math.abs
 import kotlin.test.assertTrue
+import kotlin.time.Duration
 
 /**
  * One decoded video frame, held as RGBA bytes.
@@ -88,16 +90,24 @@ internal class FrameProbe(
 }
 
 /**
- * Decodes the first video frame of the file at [path].
+ * Decodes the video frame of the file at [path] covering [at].
+ *
+ * Both tolerances are pinned, so what comes back is the frame at the time that was asked for rather
+ * than the nearest sync sample, which is what lets a caller sample the middle of a clip's span.
  */
 @OptIn(ExperimentalForeignApi::class)
 @Suppress("DEPRECATION")
-internal fun frameOf(path: String): FrameProbe {
+internal fun frameOf(
+  path: String,
+  at: Duration = Duration.ZERO,
+): FrameProbe {
   val generator = AVAssetImageGenerator(asset = AVURLAsset(uRL = NSURL.fileURLWithPath(path), options = null))
   generator.appliesPreferredTrackTransform = true
+  generator.requestedTimeToleranceBefore = CMTimeMake(value = 0, timescale = TIMESCALE)
+  generator.requestedTimeToleranceAfter = CMTimeMake(value = 0, timescale = TIMESCALE)
   val frame =
-    generator.copyCGImageAtTime(CMTimeMake(value = 0, timescale = TIMESCALE), actualTime = null, error = null)
-      ?: error("could not read a frame from $path")
+    generator.copyCGImageAtTime(at.toCMTime(), actualTime = null, error = null)
+      ?: error("could not read a frame from $path at $at")
 
   try {
     val width = CGImageGetWidth(frame).toInt()

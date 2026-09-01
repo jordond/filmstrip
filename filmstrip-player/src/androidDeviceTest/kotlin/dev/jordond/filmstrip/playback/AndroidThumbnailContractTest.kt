@@ -275,6 +275,75 @@ class AndroidThumbnailContractTest {
       }
     }
 
+  /**
+   * A tile asked for inside a photo's span draws the photo, effected, rather than a blank frame.
+   *
+   * `FrameExtractor` builds its player with a single video renderer, so an image item has nothing
+   * there to decode it and this position used to come back with no frame at all. The probe is well
+   * inside the span: a reader choosing its path once per composition would still be right at a
+   * boundary.
+   */
+  @Test
+  fun aThumbnailInsideAPhotosSpanDrawsThePhoto() =
+    contractTest { scope ->
+      val composition = androidPhotoComposition(listOf(Brightness(DIM)))
+      val request = ThumbnailRequest(composition, PHOTO_PROBE, FIXTURE_FRAME.height, REVISION, precise = false)
+
+      val thumbnail = source(scope).awaitThumbnail(request)
+
+      try {
+        val frame = thumbnail.frame()
+        frame.size shouldBe FIXTURE_FRAME
+
+        // The photo itself. A tile agreeing with an export that also drew nothing would pass a
+        // comparison and still be the bug this covers.
+        frame.centre() shouldBeNothingLike BLACK
+
+        // A still has no sync samples for a relaxed request to snap to, so it answers where asked.
+        thumbnail.presentationTime shouldBe PHOTO_PROBE
+
+        assertFramesSimilar(
+          expected = androidExportFrame(composition, thumbnail.presentationTime),
+          actual = frame,
+          minSsim = ENCODED_MIN_SSIM,
+          message = "the thumbnail and the export disagree inside the photo at $PHOTO_PROBE",
+        )
+      } finally {
+        thumbnail.image.close()
+      }
+    }
+
+  /**
+   * A strip drawn across video, photo and video, which is the run that changes path twice.
+   */
+  @Test
+  fun aRunAcrossAPhotoDrawsEverySpan() =
+    contractTest { scope ->
+      val composition = androidSandwichComposition()
+      val positions =
+        listOf(
+          MID_GOP_POSITION,
+          PHOTO_PROBE,
+          PHOTO_START + PHOTO_LENGTH + MID_GOP_POSITION,
+        )
+      val requests =
+        positions.map { ThumbnailRequest(composition, it, FIXTURE_FRAME.height, REVISION, precise = false) }
+
+      val thumbnails = source(scope).awaitThumbnails(requests)
+
+      try {
+        thumbnails.size shouldBe requests.size
+        thumbnails.forEach { it.frame().size shouldBe FIXTURE_FRAME }
+
+        val photo = thumbnails[1].frame()
+        photo.centre() shouldBeCloseTo PHOTO_COLOR
+        thumbnails[0].frame().centre() shouldBeNothingLike PHOTO_COLOR
+        thumbnails[2].frame().centre() shouldBeNothingLike PHOTO_COLOR
+      } finally {
+        thumbnails.forEach { it.image.close() }
+      }
+    }
+
   private companion object {
     // Where a run starts. The suite asks twice under the same edit, so the second run moves on.
     const val REVISION = 1L
@@ -299,6 +368,10 @@ class AndroidThumbnailContractTest {
 
     // Enough overlapping runs to reach a shared frame twice. Three lanes poison a tile within the
     // first round when nothing owns what it hands on.
+    // What a span that drew nothing would read as, which is the failure worth telling apart from a
+    // photo that really rendered.
+    val BLACK: Triple<Int, Int, Int> = Triple(0, 0, 0)
+
     const val CHURN_ROUNDS = 4
     const val CHURN_LANES = 3
     val CHURN_TIMEOUT: Duration = 5.minutes

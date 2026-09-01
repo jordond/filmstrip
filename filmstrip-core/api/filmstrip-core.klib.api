@@ -1328,6 +1328,34 @@ sealed interface dev.jordond.filmstrip.media/MediaSource { // dev.jordond.filmst
         }
     }
 
+    final class Image : dev.jordond.filmstrip.media/MediaSource { // dev.jordond.filmstrip.media/MediaSource.Image|null[0]
+        constructor <init>(dev.jordond.filmstrip.media/ImageSource, kotlin.time/Duration) // dev.jordond.filmstrip.media/MediaSource.Image.<init>|<init>(dev.jordond.filmstrip.media.ImageSource;kotlin.time.Duration){}[0]
+
+        final val duration // dev.jordond.filmstrip.media/MediaSource.Image.duration|{}duration[0]
+            final fun <get-duration>(): kotlin.time/Duration // dev.jordond.filmstrip.media/MediaSource.Image.duration.<get-duration>|<get-duration>(){}[0]
+        final val image // dev.jordond.filmstrip.media/MediaSource.Image.image|{}image[0]
+            final fun <get-image>(): dev.jordond.filmstrip.media/ImageSource // dev.jordond.filmstrip.media/MediaSource.Image.image.<get-image>|<get-image>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/MediaSource.Image.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/MediaSource.Image.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.media/MediaSource.Image.toString|toString(){}[0]
+
+        final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.media/MediaSource.Image> { // dev.jordond.filmstrip.media/MediaSource.Image.$serializer|null[0]
+            final val descriptor // dev.jordond.filmstrip.media/MediaSource.Image.$serializer.descriptor|{}descriptor[0]
+                final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.media/MediaSource.Image.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+            final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.media/MediaSource.Image.$serializer.childSerializers|childSerializers(){}[0]
+            final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.media/MediaSource.Image // dev.jordond.filmstrip.media/MediaSource.Image.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+            final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.media/MediaSource.Image) // dev.jordond.filmstrip.media/MediaSource.Image.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.media.MediaSource.Image){}[0]
+        }
+
+        final object Companion { // dev.jordond.filmstrip.media/MediaSource.Image.Companion|null[0]
+            final val $childSerializers // dev.jordond.filmstrip.media/MediaSource.Image.Companion.$childSerializers|{}$childSerializers[0]
+
+            final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/MediaSource.Image> // dev.jordond.filmstrip.media/MediaSource.Image.Companion.serializer|serializer(){}[0]
+        }
+    }
+
     final class Path : dev.jordond.filmstrip.media/MediaSource { // dev.jordond.filmstrip.media/MediaSource.Path|null[0]
         constructor <init>(kotlin/String) // dev.jordond.filmstrip.media/MediaSource.Path.<init>|<init>(kotlin.String){}[0]
 
@@ -1379,6 +1407,7 @@ sealed interface dev.jordond.filmstrip.media/MediaSource { // dev.jordond.filmst
     final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.media/MediaSource.Companion|null[0]
         final fun of(kotlin/String): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.media/MediaSource.Companion.of|of(kotlin.String){}[0]
         final fun ofBytes(kotlin/ByteArray, dev.jordond.filmstrip.media/FormatHint? = ...): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.media/MediaSource.Companion.ofBytes|ofBytes(kotlin.ByteArray;dev.jordond.filmstrip.media.FormatHint?){}[0]
+        final fun ofImage(dev.jordond.filmstrip.media/ImageSource, kotlin.time/Duration): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.media/MediaSource.Companion.ofImage|ofImage(dev.jordond.filmstrip.media.ImageSource;kotlin.time.Duration){}[0]
         final fun ofUri(kotlin/String): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.media/MediaSource.Companion.ofUri|ofUri(kotlin.String){}[0]
         final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/MediaSource> // dev.jordond.filmstrip.media/MediaSource.Companion.serializer|serializer(){}[0]
         final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.media/MediaSource.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
@@ -1980,6 +2009,7 @@ final class dev.jordond.filmstrip.edit/CompositionBuilder { // dev.jordond.films
     final fun clip(dev.jordond.filmstrip.media/MediaSource, kotlin/Function1<dev.jordond.filmstrip.edit/ClipBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.clip|clip(dev.jordond.filmstrip.media.MediaSource;kotlin.Function1<dev.jordond.filmstrip.edit.ClipBuilder,kotlin.Unit>){}[0]
     final fun effects(kotlin/Function1<dev.jordond.filmstrip.edit/EffectsBuilder, kotlin/Unit>): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.effects|effects(kotlin.Function1<dev.jordond.filmstrip.edit.EffectsBuilder,kotlin.Unit>){}[0]
     final fun fill(dev.jordond.filmstrip.geometry/Fill): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.fill|fill(dev.jordond.filmstrip.geometry.Fill){}[0]
+    final fun image(dev.jordond.filmstrip.media/ImageSource, kotlin.time/Duration, kotlin/Function1<dev.jordond.filmstrip.edit/ClipBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.image|image(dev.jordond.filmstrip.media.ImageSource;kotlin.time.Duration;kotlin.Function1<dev.jordond.filmstrip.edit.ClipBuilder,kotlin.Unit>){}[0]
     final fun track(dev.jordond.filmstrip.edit/TrackContent = ..., kotlin/Function1<dev.jordond.filmstrip.edit/TrackBuilder, kotlin/Unit>): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.track|track(dev.jordond.filmstrip.edit.TrackContent;kotlin.Function1<dev.jordond.filmstrip.edit.TrackBuilder,kotlin.Unit>){}[0]
 }
 
@@ -2113,6 +2143,7 @@ final class dev.jordond.filmstrip.edit/TrackBuilder { // dev.jordond.filmstrip.e
     final fun build(): dev.jordond.filmstrip.edit/Track // dev.jordond.filmstrip.edit/TrackBuilder.build|build(){}[0]
     final fun clip(dev.jordond.filmstrip.media/MediaSource, kotlin/Function1<dev.jordond.filmstrip.edit/ClipBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/TrackBuilder // dev.jordond.filmstrip.edit/TrackBuilder.clip|clip(dev.jordond.filmstrip.media.MediaSource;kotlin.Function1<dev.jordond.filmstrip.edit.ClipBuilder,kotlin.Unit>){}[0]
     final fun effects(kotlin/Function1<dev.jordond.filmstrip.edit/EffectsBuilder, kotlin/Unit>): dev.jordond.filmstrip.edit/TrackBuilder // dev.jordond.filmstrip.edit/TrackBuilder.effects|effects(kotlin.Function1<dev.jordond.filmstrip.edit.EffectsBuilder,kotlin.Unit>){}[0]
+    final fun image(dev.jordond.filmstrip.media/ImageSource, kotlin.time/Duration, kotlin/Function1<dev.jordond.filmstrip.edit/ClipBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip.edit/TrackBuilder // dev.jordond.filmstrip.edit/TrackBuilder.image|image(dev.jordond.filmstrip.media.ImageSource;kotlin.time.Duration;kotlin.Function1<dev.jordond.filmstrip.edit.ClipBuilder,kotlin.Unit>){}[0]
     final fun looping(kotlin/Boolean = ...): dev.jordond.filmstrip.edit/TrackBuilder // dev.jordond.filmstrip.edit/TrackBuilder.looping|looping(kotlin.Boolean){}[0]
     final fun startAt(kotlin.time/Duration): dev.jordond.filmstrip.edit/TrackBuilder // dev.jordond.filmstrip.edit/TrackBuilder.startAt|startAt(kotlin.time.Duration){}[0]
 }

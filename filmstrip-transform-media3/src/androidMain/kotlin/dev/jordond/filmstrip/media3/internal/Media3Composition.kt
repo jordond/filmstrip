@@ -16,6 +16,7 @@ import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
+import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TrackContent
@@ -25,8 +26,11 @@ import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.FormatHint
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedEffect
@@ -34,6 +38,7 @@ import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.showsFill
 import java.io.File
+import java.io.IOException
 import kotlin.math.abs
 import kotlin.time.Duration
 
@@ -223,6 +228,9 @@ private fun ResolvedClip.toItem(
   outputSize: Size,
   wrapper: EffectWrapper,
 ): EditedMediaItem {
+  val still = source as? MediaSource.Image
+  if (still != null) return toImageItem(still, frameRate, fit, fill, outputSize, wrapper)
+
   val removeAudio = !keepAudio || content == TrackContent.Video
   val removeVideo = !keepVideo || content == TrackContent.Audio
 
@@ -265,6 +273,59 @@ private fun ResolvedClip.toItem(
       ),
     ).build()
 }
+
+/**
+ * The item a still lowers to.
+ *
+ * media3 chooses its image loader by MIME type, and the loader wants both a duration and a rate to
+ * hold the picture at, since a still carries neither. The type is the one the probe read out of the
+ * image's own header rather than a guess from the URI, because neither a cached copy of a byte
+ * buffer nor a `content://` reference is guaranteed to carry a file extension.
+ *
+ * The span comes from the resolved clip, whose trim the plan has already collapsed into its length.
+ * An image item has no samples to clip, so there is no clipping configuration here for one to reach.
+ */
+private fun ResolvedClip.toImageItem(
+  source: MediaSource.Image,
+  frameRate: Int?,
+  fit: Fit,
+  fill: Fill,
+  outputSize: Size,
+  wrapper: EffectWrapper,
+): EditedMediaItem {
+  val rate =
+    frameRate?.takeIf { it > 0 }
+      ?: throw Media3LoweringFailure(
+        "${source.image.describe()} is a still, which has no cadence of its own, and the plan " +
+          "settled on no frame rate to hold it at.",
+      )
+
+  val mediaItem =
+    MediaItem
+      .Builder()
+      .setUri(source.image.toAndroidUri(stillFormat))
+      .apply { stillFormat?.let { setMimeType("$IMAGE_MIME_PREFIX$it") } }
+      .setImageDurationMs(duration.inWholeMilliseconds)
+      .build()
+
+  // Nothing is removed: media3 ignores both flags on an image item, and a still contributes no
+  // audio for a track that carries some to want removed anyway.
+  return EditedMediaItem
+    .Builder(mediaItem)
+    .setDurationUs(duration.inWholeMicroseconds)
+    .setFrameRate(rate)
+    .setEffects(Effects(emptyList(), clipVideoEffects(fit, fill, outputSize, wrapper)))
+    .build()
+}
+
+// The still format the probe read out of the image's header, or null when it named none.
+private val ResolvedClip.stillFormat: String?
+  get() =
+    info.video
+      ?.codec
+      ?.name
+      ?.lowercase()
+      ?.takeIf { it.isNotBlank() }
 
 /**
  * A clip's own video effect chain, with a cover-blur pass appended when its frame would otherwise
@@ -387,17 +448,84 @@ private fun MediaSource.toAndroidUri(): Uri =
       Uri.parse(uri)
     }
     is MediaSource.Bytes -> {
-      throw Media3LoweringFailure(
-        "In-memory sources are written to a temporary file before encoding, which is not " +
-          "implemented on Android.",
-      )
+      cached(bytes, hint.extension())
     }
+    is MediaSource.Image -> {
+      // Lowered by toImageItem, which reaches the still through ImageSource.toAndroidUri instead.
+      throw Media3LoweringFailure("${image.describe()} is a still, which is not lowered as a plain URI.")
+    }
+  }
+
+/**
+ * The URI media3 opens a still through, written to the cache first when the still is bytes.
+ *
+ * @param format The still format the probe named, used as the extension a cached copy is written
+ *   under.
+ */
+private fun ImageSource.toAndroidUri(format: String?): Uri =
+  when (this) {
+    is ImageSource.Path -> {
+      Uri.fromFile(File(path))
+    }
+    is ImageSource.Uri -> {
+      Uri.parse(uri)
+    }
+    is ImageSource.Bytes -> {
+      val extension =
+        format
+          ?: throw Media3LoweringFailure(
+            "A still handed over as bytes is written to a temporary file before it is encoded, " +
+              "and nothing that read it named the format to write it under.",
+          )
+      cached(bytes, extension)
+    }
+  }
+
+/**
+ * The URI of [bytes] written into the cache under [extension].
+ */
+private fun cached(
+  bytes: ByteArray,
+  extension: String,
+): Uri {
+  val context =
+    FilmstripContext.get()
+      ?: throw Media3LoweringFailure(
+        "An in-memory source is written to a temporary file before it is encoded, and " +
+          FilmstripContext.MISSING_CONTEXT,
+      )
+
+  return try {
+    Uri.fromFile(Media3Scratch.fileFor(context, bytes, extension))
+  } catch (failure: IOException) {
+    throw Media3LoweringFailure("An in-memory source could not be written to a temporary file: ${failure.message}")
+  } catch (denied: SecurityException) {
+    throw Media3LoweringFailure("An in-memory source could not be written to a temporary file: ${denied.message}")
+  }
+}
+
+/**
+ * The extension a buffer with this hint is cached under.
+ *
+ * media3 sniffs a container rather than trusting the name, so an unhinted buffer is written under a
+ * name that claims nothing.
+ */
+private fun FormatHint?.extension(): String =
+  when (this) {
+    FormatHint.Mp4 -> "mp4"
+    FormatHint.Mov -> "mov"
+    FormatHint.M4a -> "m4a"
+    FormatHint.ThreeGp -> "3gp"
+    null -> "tmp"
   }
 
 private const val CHANNEL_COUNT = 2
 private val INPUT_CHANNEL_COUNTS = listOf(1, 2)
 
 private const val BLACK = 0xFF000000.toInt()
+
+// What media3 reads an item's MIME type for, which is only ever whether it starts with this.
+private const val IMAGE_MIME_PREFIX = "image/"
 
 // Aspect ratios closer than this are treated as the same shape, so a clip that already fills the
 // output frame is never sent through a blur pass it would draw nothing observable with.

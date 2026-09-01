@@ -128,11 +128,20 @@ public class ExportPlanner(
     }
 
     val firstClip = primary.clips.first()
-    val firstVideo = infos.getValue(firstClip.source).video ?: return incapable(NO_PRIMARY_VIDEO)
+    // A still is held for a span rather than decoded from one, and its bounds are a sensor's rather
+    // than an encoder's, so it is never what the output frame and the output cadence are measured
+    // from while a clip that decodes video is on the track. Only a leading still looks past the
+    // first clip, and a track that carries no video at all still falls back to it.
+    val frameClip =
+      firstClip.takeUnless { it.source is MediaSource.Image }
+        ?: primary.clips.firstOrNull { carriesVideo(it, infos) }
+        ?: firstClip
+    val framedByStill = frameClip.source is MediaSource.Image
+    val firstVideo = infos.getValue(frameClip.source).video ?: return incapable(NO_PRIMARY_VIDEO)
 
     // Clip and track geometry always finishes before the composition's own runs, so the frame the
     // composition's geometry reads is chained from these two scopes alone.
-    val clipStage = firstClip.effects + primary.effects
+    val clipStage = frameClip.effects + primary.effects
     val compositionGeometrySpecs = edit.effects.filter { it.stage == EffectStage.Geometry }
     val compositionInputSize = frameThrough(firstVideo.displaySize, listOf(clipStage))
     val requestedSize = requestedFrame(compositionInputSize, compositionGeometrySpecs, spec.targetHeight)
@@ -181,15 +190,24 @@ public class ExportPlanner(
     val encoder = device.encoderFor(videoCodec)
 
     // A frame above the encoder's ceiling is clamped and reported, not refused, since
-    // AdjustmentKind.ResolutionClamped is what the model calls exactly this. `strict` is how a
-    // caller says the number was not negotiable, and that turns the same clamp into a refusal. A
-    // copy runs no encoder, so there is no ceiling to clamp to and the frame goes across whole.
+    // AdjustmentKind.ResolutionClamped is what the model calls exactly this. A composition framed
+    // by a still is held to MAX_STILL_FRAME on top of that, because a sensor's bounds are not a
+    // frame any encoder has agreed to, and a spec that names its own height has already said what
+    // the frame should be. `strict` is how a caller says the number was not negotiable, and that
+    // turns the same clamp into a refusal. A copy runs no encoder, so there is no ceiling to clamp
+    // to and the frame goes across whole.
+    val ceiling =
+      tightest(encoder?.maxSize, MAX_STILL_FRAME.takeIf { framedByStill && spec.targetHeight == null })
     val outputSize =
       if (path == ExportPath.Transmux) {
         requestedSize
       } else {
-        requestedSize.fittedTo(encoder?.maxSize, encoder?.sizeAlignment ?: SIZE_ALIGNMENT)
+        requestedSize.fittedTo(ceiling, encoder?.sizeAlignment ?: SIZE_ALIGNMENT)
       }
+    val overCeiling =
+      path != ExportPath.Transmux &&
+        ceiling != null &&
+        (requestedSize.width > ceiling.width || requestedSize.height > ceiling.height)
     val layoutFrame = layoutSize ?: outputSize
 
     // A copy runs no encoder, so like the frame it has no rate ceiling to clamp to.
@@ -318,6 +336,7 @@ public class ExportPlanner(
         edit = edit,
         requestedSize = requestedSize,
         outputSize = outputSize,
+        ceiling = ceiling.takeIf { overCeiling },
         requestedFrameRate = spec.frameRate,
         frameRate = frameRate,
         codec = codecAdjustments + audioCodec.first,
@@ -328,7 +347,7 @@ public class ExportPlanner(
         dropped = dropped,
       )
     if (spec.strict && adjustments.isNotEmpty()) {
-      return incapableStrict(adjustments, requestedSize, encoder?.maxSize ?: outputSize)
+      return incapableStrict(adjustments, requestedSize, ceiling ?: outputSize)
     }
 
     val plan =
@@ -470,11 +489,16 @@ public class ExportPlanner(
         )
       }
 
+  /**
+   * @param ceiling The largest frame this export encodes into, when the requested one was above it,
+   *   and null when the frame only moved to meet the encoder's alignment.
+   */
   private fun adjustments(
     spec: ExportSpec,
     edit: EditComposition,
     requestedSize: Size,
     outputSize: Size,
+    ceiling: Size?,
     requestedFrameRate: Int?,
     frameRate: Int,
     codec: List<Adjustment>,
@@ -503,7 +527,13 @@ public class ExportPlanner(
             kind = AdjustmentKind.ResolutionClamped,
             requested = requestedSize.describe(),
             resolved = outputSize.describe(),
-            message = "The encoder wants aligned dimensions, so each side rounds to what it accepts.",
+            message =
+              if (ceiling == null) {
+                "The encoder wants aligned dimensions, so each side rounds to what it accepts."
+              } else {
+                "This export encodes into ${ceiling.describe()} at most, so the frame is scaled " +
+                  "down to fit inside it and keeps its shape."
+              },
           ),
         )
       }
@@ -666,7 +696,8 @@ private fun requestedFrame(
 }
 
 /**
- * Rounds each side down to a multiple the encoder accepts, and never above its ceiling.
+ * Scales the frame down to sit inside [max], then rounds each side down to a multiple the encoder
+ * accepts.
  *
  * Rounding to the nearest multiple would carry a frame that already sits on the encoder's maximum
  * past that maximum.
@@ -676,13 +707,33 @@ private fun Size.fittedTo(
   alignment: Int,
 ): Size {
   val step = alignment.coerceAtLeast(1)
-  val width = if (max == null) width else width.coerceAtMost(max.width)
-  val height = if (max == null) height else height.coerceAtMost(max.height)
+  val fitted = if (max == null) this else frameWithin(this, max)
   return Size(
-    (width - width % step).coerceAtLeast(step),
-    (height - height % step).coerceAtLeast(step),
+    (fitted.width - fitted.width % step).coerceAtLeast(step),
+    (fitted.height - fitted.height % step).coerceAtLeast(step),
   )
 }
+
+/**
+ * The box both [first] and [second] fit inside, or whichever of them is the only one given.
+ */
+private fun tightest(
+  first: Size?,
+  second: Size?,
+): Size? =
+  when {
+    first == null -> second
+    second == null -> first
+    else -> Size(minOf(first.width, second.width), minOf(first.height, second.height))
+  }
+
+/**
+ * Whether this clip decodes video of its own, rather than holding a still for a span.
+ */
+private fun carriesVideo(
+  clip: Clip,
+  infos: Map<MediaSource, MediaInfo>,
+): Boolean = clip.source !is MediaSource.Image && infos.getValue(clip.source).video != null
 
 private fun resolveFrameRate(
   spec: ExportSpec,
@@ -900,6 +951,10 @@ private fun codecsAreNameable(info: MediaInfo): Boolean =
 
 /**
  * The trim window, resolved against the source's real duration, or null when it keeps no frames.
+ *
+ * A still holds the same pixels for its whole span, so a trim over one takes nothing away but
+ * length. The window it resolves to therefore opens at zero and runs for as long as the trim kept,
+ * which is what leaves every backend a span to lay and no samples it has to clip.
  */
 private fun trimWindow(
   clip: Clip,
@@ -907,7 +962,11 @@ private fun trimWindow(
 ): Pair<Duration, Duration>? {
   val start = clip.trim?.start ?: Duration.ZERO
   val end = (clip.trim?.endExclusive ?: info.duration).coerceAtMost(info.duration)
-  return if (end <= start) null else start to end
+  return when {
+    end <= start -> null
+    clip.source is MediaSource.Image -> Duration.ZERO to (end - start)
+    else -> start to end
+  }
 }
 
 /**

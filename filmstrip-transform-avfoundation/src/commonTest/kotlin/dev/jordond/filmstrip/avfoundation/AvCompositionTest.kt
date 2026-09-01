@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.avfoundation
 
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.avfoundation.internal.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.toDuration
@@ -13,9 +14,12 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.EXIF_ORIENTATION_NORMAL
+import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
+import dev.jordond.filmstrip.media.imageMediaInfoOf
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
@@ -40,7 +44,7 @@ import kotlin.time.Duration.Companion.seconds
  * render with `AVErrorInvalidVideoComposition`, which names no clip and no time, so it has to be
  * caught where the spans are built, not where they are used.
  */
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class, ExperimentalFilmstripApi::class)
 class AvCompositionTest {
   private val fixtures = NSProcessInfo.processInfo.environment[FIXTURES] as? String
 
@@ -136,6 +140,101 @@ class AvCompositionTest {
     inputSize shouldNotBe OUTPUT
   }
 
+  // A still holds no track of any type, so an empty range would leave an image-only composition
+  // with no duration at all and nothing able to open it.
+  @Test
+  fun `gives an image clip a real slot on the timeline`() {
+    val composition = resolved(listOf(imageClip(PHOTO)), PHOTO)
+
+    composition.composition.duration.toDuration() shouldBe PHOTO
+    composition.spans.single().still shouldBe PHOTO_IMAGE
+    composition.spans.single().start shouldBe Duration.ZERO
+  }
+
+  // A trailing empty range is discarded, so a still last in the sequence used to lose its time off
+  // the end of the timeline.
+  @Test
+  fun `keeps an image clip's slot when it is last`() {
+    val first = fixture("apple_export_a.mp4") ?: return
+
+    val composition =
+      resolved(
+        clips = listOf(clip(first, Size(640, 360), Duration.ZERO, 1.seconds), imageClip(PHOTO)),
+        duration = 1.seconds + PHOTO,
+      )
+
+    composition.composition.duration.toDuration() shouldBe 1.seconds + PHOTO
+    composition.spans.size shouldBe 2
+    composition.spans.first().still shouldBe null
+    composition.spans.last().still shouldBe PHOTO_IMAGE
+    composition.spans.last().start shouldBe 1.seconds
+  }
+
+  private fun imageClip(duration: Duration): ResolvedClip =
+    ResolvedClip(
+      source = MediaSource.Image(PHOTO_IMAGE, duration),
+      info = imageMediaInfoOf(Size(640, 360), EXIF_ORIENTATION_NORMAL, "png", duration),
+      start = Duration.ZERO,
+      end = duration,
+      effects = emptyList(),
+      gain = 1f,
+      startsAtKeyFrame = false,
+    )
+
+  // A swap rebuilds the spans over the slots they already hold, and a still dropped on the way
+  // would leave a preview drawing the seed's own frame from the next parameter change on.
+  @Test
+  fun `keeps an image clip's still across a parameter swap`() {
+    val clips = listOf(imageClip(PHOTO))
+    val composition = resolved(clips, PHOTO)
+
+    composition.chain?.updateParameters(resolvedComposition(clips, PHOTO))
+
+    composition.spans.single().still shouldBe PHOTO_IMAGE
+  }
+
+  private fun resolved(
+    clips: List<ResolvedClip>,
+    duration: Duration,
+  ): AvComposition = resolvedComposition(clips, duration).toAvComposition()
+
+  private fun resolvedComposition(
+    clips: List<ResolvedClip>,
+    duration: Duration,
+  ): ResolvedComposition =
+    ResolvedComposition(
+      tracks =
+        listOf(
+          ResolvedTrack(
+            content = TrackContent.AudioAndVideo,
+            looping = false,
+            start = Duration.ZERO,
+            clips = clips,
+          ),
+        ),
+      compositionGeometry = emptyList(),
+      compositionInputSize = OUTPUT,
+      compositionEffects = emptyList(),
+      output =
+        OutputFormat(
+          size = OUTPUT,
+          videoCodec = VideoCodec.H264,
+          audioCodec = AudioCodec.Aac,
+          bitrate = null,
+          frameRate = 30,
+          audioFormat = null,
+        ),
+      layoutSize = OUTPUT,
+      fit = Fit.Contain,
+      fill = Fill.Black,
+      duration = duration,
+      hdr = ResolvedHdr.Keep,
+      hdrTransfer = null,
+      audio = AudioSpec.Keep,
+      adjustments = emptyList(),
+      path = ExportPath.Transcode,
+    )
+
   private fun threeClips(): AvComposition? {
     val first = fixture("apple_export_a.mp4") ?: return null
     val second = fixture("apple_export_b.mp4") ?: return null
@@ -222,6 +321,10 @@ class AvCompositionTest {
   private companion object {
     const val FIXTURES = "FILMSTRIP_FIXTURES"
     val OUTPUT = Size(320, 180)
+    val PHOTO = 2.seconds
+
+    // Never opened. The lowering only asks whether the clip is a still, not what the still holds.
+    val PHOTO_IMAGE = ImageSource.of("/filmstrip/does-not-exist.png")
     val COMPOSITION_INPUT = Size(640, 360)
     val PROBE_STEP = 37.milliseconds
   }

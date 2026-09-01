@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.Bitrate
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
@@ -75,6 +76,19 @@ class ProbeCacheTest {
       assertIs<ProbeCacheResult.Read>(parked.await()).infos[SOURCE] shouldBe INFO
     }
 
+  // The cache keys on the source, and an image source is a value like any other, so two lengths of
+  // one photo stay two entries and the same length stays one.
+  @Test
+  fun `two lengths of the same still are two entries in the cache`() =
+    runTest {
+      val prober = GatedProber().apply { answer(SHORT_STILL) }.apply { answer(LONG_STILL) }
+      val cache = ProbeCache(prober)
+
+      cache.read(compositionOf(SHORT_STILL, LONG_STILL, SHORT_STILL))
+
+      prober.probes shouldBe 2
+    }
+
   private fun compositionOf(vararg sources: MediaSource): EditComposition =
     EditComposition(tracks = listOf(Track(sources.map { Clip(it) })), audio = AudioSpec.Remove)
 }
@@ -105,6 +119,10 @@ private class GatedProber : MediaProber {
 private val SOURCE = MediaSource.of("/fixtures/gated.mp4")
 
 private val OTHER = MediaSource.of("/fixtures/other.mp4")
+
+private val SHORT_STILL = MediaSource.Image(ImageSource.of("/fixtures/still.jpg"), 2.seconds)
+
+private val LONG_STILL = MediaSource.Image(ImageSource.of("/fixtures/still.jpg"), 5.seconds)
 
 private val INFO =
   MediaInfo(

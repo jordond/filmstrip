@@ -116,6 +116,40 @@ class AppleThumbnailContractTest {
       }
     }
 
+  /**
+   * A strip frame drawn from a photo rather than from a decoded clip.
+   *
+   * A still holds no track of its own and takes its slot from a generated segment, so the claim
+   * that thumbnails come free once the export draws one is worth measuring rather than inheriting.
+   * The frame is asked for inside the photo's span and not at either edge of it, then compared
+   * against the file an export of the same edit writes at the time that came back.
+   */
+  @Test
+  fun `a thumbnail inside a photo's span matches the export`() =
+    contractTest {
+      val composition = applePhotoComposition()
+      val inside = CLIP_LENGTH + PHOTO_LENGTH * PHOTO_FRACTION
+      val request = ThumbnailRequest(composition, inside, FIXTURE_FRAME.height, REVISION, precise = true)
+
+      val thumbnail = source(request).awaitThumbnail(request)
+      try {
+        val frame = thumbnail.frame()
+        frame.size shouldBe FIXTURE_FRAME
+
+        // The photo itself, not only agreement with the export. Both lowerings drawing the seed's
+        // own black frame would agree with each other and be wrong together.
+        frame.centre() shouldBeCloseTo PHOTO_COLOR
+
+        assertFramesSimilar(
+          expected = appleExportFrame(composition, thumbnail.presentationTime),
+          actual = frame,
+          message = "the strip and the export disagree inside the photo at ${thumbnail.presentationTime}",
+        )
+      } finally {
+        thumbnail.image.close()
+      }
+    }
+
   @Test
   fun `a cancelled request never delivers`() =
     contractTest {

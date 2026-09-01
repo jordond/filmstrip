@@ -152,6 +152,9 @@ internal fun readablePath(source: MediaSource): String? =
     is MediaSource.Path -> source.path
     is MediaSource.Uri -> source.uri.removePrefix("file://").takeIf { !source.uri.contains("://") || it != source.uri }
     is MediaSource.Bytes -> null
+    // A still names a file, but not one this backend reads as a clip, and answering with its path
+    // would have ffprobe report the file's own zero duration over the one the source declares.
+    is MediaSource.Image -> null
   }
 
 /**

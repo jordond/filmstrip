@@ -45,7 +45,8 @@ import kotlin.time.Duration
  * What every frame goes through, from the buffer AVFoundation decoded to the one it encodes.
  *
  * The handler is given a composition time and nothing else, so the clip a frame came from is found
- * by range lookup over [ClipSpan]. The clip's container rotation is baked in first, then its own
+ * by range lookup over [ClipSpan]. A span drawing a still puts that photo in first, in place of the
+ * segment its slot was cut from. The clip's container rotation is baked in next, then its own
  * effects run, then composition-level geometry, then the frame is pinned to [OutputFormat.size].
  * Composition-level effects run next, over the picture that frame produced. A named fill colour is
  * only painted into whatever the picture does not cover once those effects have finished, so a grade
@@ -99,6 +100,14 @@ public class CoreImageChain(
    * test process is, and AVFoundation renders through one of its own when handed none.
    */
   private val context: CIContext? = renderingContext()
+
+  /**
+   * The photos this chain draws, opened once each.
+   *
+   * Kept outside the snapshot, so a parameters-only edit rebuilding the spans keeps the images it
+   * already opened instead of reading them again on the next frame.
+   */
+  private val stills = CoreImageStills()
 
   internal val geometryAttributes: Attributes get() = snapshot.geometryAttributes
 
@@ -188,6 +197,10 @@ public class CoreImageChain(
     var image = source
 
     if (span != null) {
+      // A still is what its whole span draws, so it stands in for the segment AVFoundation decoded
+      // before anything measures or grades the frame. Everything after this is the chain a video
+      // clip already runs.
+      span.still?.let { image = stills.of(it) }
       image = image.rotated(span.rotationDegrees)
       image = image.stepped(span.effects, FrameInfo(span.attributes, time))
     }

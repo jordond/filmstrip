@@ -95,6 +95,37 @@ class ApplePixelContractTest : PlayerPixelContractTest() {
       }
     }
 
+  /**
+   * The preview inside a photo's span.
+   *
+   * A still holds no track of its own and takes its slot from a generated segment, so a player
+   * showing the edit has to draw the photo over that slot the way the export's reader does.
+   * Measured at a time inside the span rather than at either edge of it.
+   */
+  @Test
+  fun `a preview inside a photo's span matches the export`() =
+    contractTest { scope ->
+      val engine = createEngine(scope)
+      withEngine(engine) { recorder ->
+        val composition = applePhotoComposition()
+        engine.awaitComposition(composition).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the preview to be presentable") { recorder.lastState.hasComposition }
+
+        val preview = engine.readback.awaitFrame(CLIP_LENGTH + PHOTO_LENGTH * PHOTO_FRACTION)
+        val frame = preview.asTestFrame()
+
+        // The photo itself, not only agreement with the export. Both lowerings drawing the seed's
+        // own black frame would agree with each other and be wrong together.
+        frame.centre() shouldBeCloseTo PHOTO_COLOR
+
+        assertFramesSimilar(
+          expected = appleExportFrame(composition, preview.presentationTime),
+          actual = frame,
+          message = "the preview and the export disagree inside the photo at ${preview.presentationTime}",
+        )
+      }
+    }
+
   private companion object {
     const val DIM = 0.4f
     const val BRIGHT = 1.4f

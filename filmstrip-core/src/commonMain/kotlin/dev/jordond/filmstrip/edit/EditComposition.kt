@@ -194,9 +194,11 @@ public class Clip(
   /**
    * How long this clip contributes, or null while it is untrimmed or open-ended and the source has
    * not been probed.
+   *
+   * An untrimmed still needs no probe, because its source already says how long it is held.
    */
   public val duration: Duration?
-    get() = trim?.duration
+    get() = trim?.duration ?: (source as? MediaSource.Image)?.duration
 
   /**
    * A copy trimmed to [trim], or untrimmed when null.

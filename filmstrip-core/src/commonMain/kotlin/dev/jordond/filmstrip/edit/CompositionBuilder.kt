@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.edit
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import kotlin.time.Duration
 
@@ -37,6 +38,16 @@ public class CompositionBuilder internal constructor() {
     source: MediaSource,
     block: ClipBuilder.() -> Unit = {},
   ): CompositionBuilder = apply { primary += ClipBuilder(source).apply(block).build() }
+
+  /**
+   * Appends a still image to the primary track, held for [duration] and configured by [block].
+   */
+  @ExperimentalFilmstripApi
+  public fun image(
+    image: ImageSource,
+    duration: Duration,
+    block: ClipBuilder.() -> Unit = {},
+  ): CompositionBuilder = clip(MediaSource.Image(image, duration), block)
 
   /**
    * Appends an already-built clip to the primary track.
@@ -123,6 +134,16 @@ public class TrackBuilder public constructor(
     source: MediaSource,
     block: ClipBuilder.() -> Unit = {},
   ): TrackBuilder = apply { clips += ClipBuilder(source).apply(block).build() }
+
+  /**
+   * Appends a still image, held for [duration] and configured by [block].
+   */
+  @ExperimentalFilmstripApi
+  public fun image(
+    image: ImageSource,
+    duration: Duration,
+    block: ClipBuilder.() -> Unit = {},
+  ): TrackBuilder = clip(MediaSource.Image(image, duration), block)
 
   /**
    * Appends an already-built clip.

@@ -123,7 +123,7 @@ private fun jpegBytes(
  * The path a `file:` URL names, or null for anything else. The JVM has no content resolver to hand
  * another scheme to.
  */
-private fun filePathOf(uri: String): String? =
+internal fun filePathOf(uri: String): String? =
   try {
     val parsed = URI(uri)
     if (parsed.scheme == "file") parsed.path else null

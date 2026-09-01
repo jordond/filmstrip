@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.avfoundation.internal
 
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TrackContent
@@ -9,7 +10,9 @@ import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedEffect
@@ -70,6 +73,8 @@ internal class AppleLoweringFailure(
  *   here, since the flag that would apply it is ignored once a video composition is set.
  * @property attributes The frame this clip's effects were resolved against, which is the clip's own
  *   size, never the output's.
+ * @property still The image every frame of this span draws, or null when the clip is video and what
+ *   AVFoundation decoded is already the picture.
  */
 @InternalFilmstripApi
 public class ClipSpan(
@@ -78,6 +83,7 @@ public class ClipSpan(
   public val rotationDegrees: Int,
   public val attributes: Attributes,
   public val effects: List<ResolvedEffect>,
+  public val still: ImageSource? = null,
 ) {
   public fun covers(time: Duration): Boolean = time in start..<end
 }
@@ -146,7 +152,7 @@ public fun ResolvedComposition.toAvComposition(): AvComposition {
         // composition ignores it. Every clip bakes its own rotation instead, so this says the frames
         // are already the way round they should be shown.
         media.preferredTransform = CGAffineTransformIdentity.readValue()
-        track.layOnto(media, AVMediaTypeVideo, duration, assets)
+        track.layOnto(media, AVMediaTypeVideo, duration, assets, output.frameRate)
       }.orEmpty()
 
   val mixed =
@@ -156,7 +162,7 @@ public fun ResolvedComposition.toAvComposition(): AvComposition {
         val media =
           composition.addMutableTrackWithMediaType(AVMediaTypeAudio, kCMPersistentTrackID_Invalid)
             ?: return@mapNotNull null
-        media to track.layOnto(media, AVMediaTypeAudio, duration, assets)
+        media to track.layOnto(media, AVMediaTypeAudio, duration, assets, output.frameRate)
       }
 
   if (placements.isEmpty() && mixed.all { it.second.isEmpty() }) {
@@ -195,6 +201,12 @@ internal fun MediaSource.toNSURL(): NSURL =
           "implemented on Apple platforms.",
       )
     }
+    is MediaSource.Image -> {
+      throw AppleLoweringFailure(
+        "${image.describe()} is a still, which takes its slot from a generated segment and is " +
+          "drawn by the filter handler rather than opened as an asset.",
+      )
+    }
   }
 
 /**
@@ -220,14 +232,19 @@ private class AssetCache {
  * Lays this track's clips onto [media], one after the next, and says where each landed.
  *
  * A clip whose source has no track of this type still takes its slot, as an empty range, so a
- * silent clip in the middle of a sequence shifts nothing after it.
+ * silent clip in the middle of a sequence shifts nothing after it. A still has no track of any type
+ * and cannot hold its slot that way, since AVFoundation discards a trailing empty range, so on the
+ * video track it takes a real segment cut from [stillSeedTrack] and empty time everywhere else.
+ *
+ * @param stillFrameRate The cadence a still's segment is cut at, which only the video track reads.
  */
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class, ExperimentalFilmstripApi::class)
 private fun ResolvedTrack.layOnto(
   media: AVMutableCompositionTrack,
   mediaType: String?,
   limit: Duration,
   assets: AssetCache,
+  stillFrameRate: Int?,
 ): List<Placement> {
   val placements = mutableListOf<Placement>()
   var cursor = Duration.ZERO
@@ -242,15 +259,27 @@ private fun ResolvedTrack.layOnto(
   do {
     val passStart = cursor
     clips.forEach { clip ->
-      val source = assets.of(clip.source).tracksWithMediaType(mediaType).firstOrNull() as? AVAssetTrack
+      val still = clip.source is MediaSource.Image
       val inserted =
-        source != null &&
-          media.insertTimeRange(
-            timeRange = timeRangeOf(clip.start, clip.duration),
-            ofTrack = source,
-            atTime = cursor.toCMTime(),
-            error = null,
-          )
+        when {
+          still && mediaType == AVMediaTypeVideo -> {
+            media.insertStill(cursor, clip.duration, stillFrameRate)
+            true
+          }
+          still -> {
+            false
+          }
+          else -> {
+            val source = assets.of(clip.source).tracksWithMediaType(mediaType).firstOrNull() as? AVAssetTrack
+            source != null &&
+              media.insertTimeRange(
+                timeRange = timeRangeOf(clip.start, clip.duration),
+                ofTrack = source,
+                atTime = cursor.toCMTime(),
+                error = null,
+              )
+          }
+        }
       if (!inserted) media.insertEmptyTimeRange(timeRangeOf(cursor, clip.duration))
 
       placements +=
@@ -266,6 +295,41 @@ private fun ResolvedTrack.layOnto(
   } while (looping && cursor < limit && cursor > passStart)
 
   return placements
+}
+
+/**
+ * Gives a still its slot on this track, as real segments cut from the seed for [frameRate].
+ *
+ * @throws AppleLoweringFailure when there is no seed to cut from or the track refuses one, which
+ *   would otherwise leave the still holding no time and the export running short by however long
+ *   the photo was to be held.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private fun AVMutableCompositionTrack.insertStill(
+  at: Duration,
+  duration: Duration,
+  frameRate: Int?,
+) {
+  val seed =
+    frameRate
+      ?.takeIf { it > 0 }
+      ?.let(::stillSeedTrack)
+      ?: throw AppleLoweringFailure(NO_STILL_SEED)
+  val end = at + duration
+  var cursor = at
+
+  while (cursor < end) {
+    val piece = minOf(end - cursor, STILL_SEED_LENGTH)
+    val inserted =
+      insertTimeRange(
+        timeRange = timeRangeOf(Duration.ZERO, piece),
+        ofTrack = seed,
+        atTime = cursor.toCMTime(),
+        error = null,
+      )
+    if (!inserted) throw AppleLoweringFailure(NO_STILL_SEED)
+    cursor += piece
+  }
 }
 
 /**
@@ -325,6 +389,7 @@ internal fun List<ClipSpan>.respannedOnto(resolved: ResolvedComposition): List<C
  * The one place a span's attributes are derived, so a clip laid down by [layOnto] and the same clip
  * swapped in by [respannedOnto] are measured against the same frame.
  */
+@OptIn(ExperimentalFilmstripApi::class)
 private fun ResolvedClip.spanning(
   start: Duration,
   end: Duration,
@@ -348,6 +413,7 @@ private fun ResolvedClip.spanning(
         frameRate = video?.frameRate,
       ),
     effects = effects,
+    still = (source as? MediaSource.Image)?.image,
   )
 }
 
@@ -439,6 +505,10 @@ private fun AVMutableComposition.videoComposition(
 }
 
 private const val NO_VIDEO_TRACK = "AVFoundation refused a video track on the composition."
+
+private const val NO_STILL_SEED =
+  "A still needs a segment of its own on the timeline, and AVFoundation would neither write nor " +
+    "accept one, so the export would run short by however long the photo was to be held."
 
 private const val NOTHING_INSERTED =
   "No clip in this composition contributed a track AVFoundation could read, so the export would " +

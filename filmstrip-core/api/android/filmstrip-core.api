@@ -381,6 +381,8 @@ public final class dev/jordond/filmstrip/edit/CompositionBuilder {
 	public static synthetic fun clip$default (Ldev/jordond/filmstrip/edit/CompositionBuilder;Ldev/jordond/filmstrip/media/MediaSource;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
 	public final fun effects (Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
 	public final fun fill (Ldev/jordond/filmstrip/geometry/Fill;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
+	public final fun image-8Mi8wO0 (Ldev/jordond/filmstrip/media/ImageSource;JLkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
+	public static synthetic fun image-8Mi8wO0$default (Ldev/jordond/filmstrip/edit/CompositionBuilder;Ldev/jordond/filmstrip/media/ImageSource;JLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
 	public final fun track (Ldev/jordond/filmstrip/edit/TrackContent;Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
 	public static synthetic fun track$default (Ldev/jordond/filmstrip/edit/CompositionBuilder;Ldev/jordond/filmstrip/edit/TrackContent;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/CompositionBuilder;
 }
@@ -509,6 +511,8 @@ public final class dev/jordond/filmstrip/edit/TrackBuilder {
 	public final fun clip (Ldev/jordond/filmstrip/media/MediaSource;Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/TrackBuilder;
 	public static synthetic fun clip$default (Ldev/jordond/filmstrip/edit/TrackBuilder;Ldev/jordond/filmstrip/media/MediaSource;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/TrackBuilder;
 	public final fun effects (Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/TrackBuilder;
+	public final fun image-8Mi8wO0 (Ldev/jordond/filmstrip/media/ImageSource;JLkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/TrackBuilder;
+	public static synthetic fun image-8Mi8wO0$default (Ldev/jordond/filmstrip/edit/TrackBuilder;Ldev/jordond/filmstrip/media/ImageSource;JLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/TrackBuilder;
 	public final fun looping (Z)Ldev/jordond/filmstrip/edit/TrackBuilder;
 	public static synthetic fun looping$default (Ldev/jordond/filmstrip/edit/TrackBuilder;ZILjava/lang/Object;)Ldev/jordond/filmstrip/edit/TrackBuilder;
 	public final fun startAt-LRDsOJo (J)Ldev/jordond/filmstrip/edit/TrackBuilder;
@@ -1655,7 +1659,33 @@ public final class dev/jordond/filmstrip/media/MediaSource$Companion {
 	public final fun of (Ljava/lang/String;)Ldev/jordond/filmstrip/media/MediaSource;
 	public final fun ofBytes ([BLdev/jordond/filmstrip/media/FormatHint;)Ldev/jordond/filmstrip/media/MediaSource;
 	public static synthetic fun ofBytes$default (Ldev/jordond/filmstrip/media/MediaSource$Companion;[BLdev/jordond/filmstrip/media/FormatHint;ILjava/lang/Object;)Ldev/jordond/filmstrip/media/MediaSource;
+	public final fun ofImage-HG0u8IE (Ldev/jordond/filmstrip/media/ImageSource;J)Ldev/jordond/filmstrip/media/MediaSource;
 	public final fun ofUri (Ljava/lang/String;)Ldev/jordond/filmstrip/media/MediaSource;
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/media/MediaSource$Image : dev/jordond/filmstrip/media/MediaSource {
+	public static final field Companion Ldev/jordond/filmstrip/media/MediaSource$Image$Companion;
+	public synthetic fun <init> (Ldev/jordond/filmstrip/media/ImageSource;JLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDuration-UwyO8pc ()J
+	public final fun getImage ()Ldev/jordond/filmstrip/media/ImageSource;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class dev/jordond/filmstrip/media/MediaSource$Image$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/media/MediaSource$Image$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/media/MediaSource$Image;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/media/MediaSource$Image;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/media/MediaSource$Image$Companion {
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 

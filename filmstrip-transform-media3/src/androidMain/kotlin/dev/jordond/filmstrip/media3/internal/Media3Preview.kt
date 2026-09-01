@@ -22,6 +22,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * @property end The composition time the next one starts at.
  * @property item The media item, carrying its trim.
  * @property effects The clip's own chain, before the composition's runs.
+ * @property still Whether the clip is a photo rather than a run of samples.
  */
 @InternalFilmstripApi
 public class Media3Span(
@@ -29,6 +30,7 @@ public class Media3Span(
   public val end: Duration,
   public val item: MediaItem,
   public val effects: List<Effect>,
+  public val still: Boolean,
 ) {
   /**
    * Whether this clip is on screen at [time].
@@ -158,6 +160,7 @@ public class Media3Preview internal constructor(
                 .setMediaId(revision.toString())
                 .build(),
             effects = span.effects,
+            still = span.still,
           )
         Media3Readback(stamped, stamped.effects + compositionEffects)
       }
@@ -239,10 +242,19 @@ private fun Composition.videoSpans(): List<Media3Span> {
   return sequence.editedMediaItems.mapNotNull { item ->
     val start = at
     at += item.presentationDurationUs
-    if (item.mediaItem.localConfiguration == null) {
+    val local = item.mediaItem.localConfiguration
+    if (local == null) {
       null
     } else {
-      Media3Span(start.microseconds, at.microseconds, item.mediaItem, item.effects.videoEffects)
+      Media3Span(
+        start = start.microseconds,
+        end = at.microseconds,
+        item = item.mediaItem,
+        effects = item.effects.videoEffects,
+        // The length a still is held for is what media3 itself routes an item to its image loader
+        // by, so it is also what tells a frame reader there are no samples here to seek.
+        still = local.imageDurationMs != C.TIME_UNSET,
+      )
     }
   }
 }

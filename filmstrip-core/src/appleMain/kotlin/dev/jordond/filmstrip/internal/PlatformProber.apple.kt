@@ -13,6 +13,8 @@ import dev.jordond.filmstrip.media.TrackCodec
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.displaySizeOf
+import dev.jordond.filmstrip.media.intValue
+import dev.jordond.filmstrip.media.probeImage
 import dev.jordond.filmstrip.media.trackCodecOf
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.COpaquePointer
@@ -42,7 +44,6 @@ import platform.AVFoundation.preferredTransform
 import platform.AVFoundation.tracksWithMediaType
 import platform.CoreAudioTypes.AudioStreamBasicDescription
 import platform.CoreFoundation.CFDictionaryGetTypeID
-import platform.CoreFoundation.CFDictionaryGetValue
 import platform.CoreFoundation.CFDictionaryRef
 import platform.CoreFoundation.CFGetTypeID
 import platform.CoreFoundation.CFNumberGetTypeID
@@ -91,6 +92,11 @@ internal actual class PlatformProber actual constructor() {
     withContext(Dispatchers.Default) {
       val url =
         when (source) {
+          // A still carries no container to open, and an asset made from one reports no tracks at
+          // all, so this is answered from the image's own header instead.
+          is MediaSource.Image -> {
+            return@withContext probeImage(source)
+          }
           is MediaSource.Path -> {
             NSURL.fileURLWithPath(source.path)
           }
@@ -334,20 +340,11 @@ internal actual class PlatformProber actual constructor() {
     if (CFGetTypeID(ratio) != CFDictionaryGetTypeID()) return SQUARE
 
     val dictionary: CFDictionaryRef = ratio.reinterpret()
-    val horizontal = dictionary.int(kCVImageBufferPixelAspectRatioHorizontalSpacingKey) ?: return SQUARE
-    val vertical = dictionary.int(kCVImageBufferPixelAspectRatioVerticalSpacingKey)?.takeIf { it != 0 } ?: return SQUARE
+    val horizontal = dictionary.intValue(kCVImageBufferPixelAspectRatioHorizontalSpacingKey) ?: return SQUARE
+    val vertical =
+      dictionary.intValue(kCVImageBufferPixelAspectRatioVerticalSpacingKey)?.takeIf { it != 0 } ?: return SQUARE
 
     return horizontal.toFloat() / vertical
-  }
-
-  private fun CFDictionaryRef.int(key: CFStringRef?): Int? {
-    val value = CFDictionaryGetValue(this, key) ?: return null
-    if (CFGetTypeID(value) != CFNumberGetTypeID()) return null
-
-    return memScoped {
-      val number = alloc<IntVar>()
-      if (CFNumberGetValue(value.reinterpret(), kCFNumberIntType, number.ptr)) number.value else null
-    }
   }
 
   /**

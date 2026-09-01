@@ -48,6 +48,10 @@ import kotlin.time.Duration
  * chain is run ahead of the composition's. That is the same arithmetic the preview's readback uses
  * and the same objects, so a strip frame is the frame the file carries.
  *
+ * A photo goes through [Media3StillFrames] instead. The extractor builds its player with a single
+ * video renderer, so an image item has nothing to decode it, and the same chain is run over the
+ * decoded picture rather than over a seek.
+ *
  * A run of requests is served on one extractor per clip it draws from. Frame extraction shares one
  * player across the process and releases it once nothing holds an extractor open, so a handle kept
  * for the length of a run turns each frame after the first into a seek on a prepared player rather
@@ -77,6 +81,8 @@ internal class Media3ThumbnailSource(
   private val context: Context,
   private val planner: Media3ThumbnailPlanner,
 ) : ThumbnailSource {
+  private val stills = Media3StillFrames(context)
+
   override fun requestThumbnail(
     request: ThumbnailRequest,
     callback: ThumbnailCallback,
@@ -158,15 +164,74 @@ internal class Media3ThumbnailSource(
     while (from < group.size && !run.isCancelled) {
       currentCoroutineContext().ensureActive()
       val readback = readbacks[from]
+      val still = readback.span.still
       val precise = group[from].precise
       var to = from + 1
-      while (to < group.size && readbacks[to] === readback && group[to].precise == precise) {
+      // A photo carries no sync samples for a relaxed seek to snap to, so an accuracy that cannot
+      // change its answer does not split a run over one.
+      while (to < group.size && readbacks[to] === readback && (still || group[to].precise == precise)) {
         currentCoroutineContext().ensureActive()
         to++
       }
 
-      serveClip(reader, readback, precise, group.subList(from, to), offset + from, run)
+      val stretch = group.subList(from, to)
+      if (still) {
+        serveStill(readback, stretch, offset + from, run)
+      } else {
+        serveClip(reader, readback, precise, stretch, offset + from, run)
+      }
       from = to
+    }
+  }
+
+  /**
+   * Draws every frame [group] asks for out of the photo [readback] covers them with.
+   *
+   * A photo contributes the same pixels at every position in its span, which is what lets one
+   * render answer a whole stretch of requests and what makes the frame covering a position sit
+   * exactly at that position however precise the request asked to be.
+   *
+   * Each tile is handed a copy, for the reason every other frame here is copied: a [PlatformImage]
+   * recycles what it owns, and one tile closed by its caller must not empty another's.
+   */
+  private suspend fun serveStill(
+    readback: Media3Readback,
+    group: List<ThumbnailRequest>,
+    offset: Int,
+    run: ThumbnailRun,
+  ) {
+    val drawn =
+      try {
+        stills.render(readback)
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (
+        @Suppress("TooGenericExceptionCaught") broken: Exception,
+      ) {
+        return run.failAll(
+          group,
+          offset,
+          ExportError.Underlying(ExportError.Underlying.NO_PLATFORM_CODE, broken.message ?: broken.toString()),
+        )
+      }
+
+    try {
+      group.forEachIndexed { at, request ->
+        if (run.isCancelled) return
+        val owned =
+          drawn.copy(drawn.config ?: Bitmap.Config.ARGB_8888, false)
+            ?: return run.failAll(
+              group.subList(at, group.size),
+              offset + at,
+              ExportError.Underlying(ExportError.Underlying.NO_PLATFORM_CODE, NO_COPY),
+            )
+        run.deliver(
+          offset + at,
+          ThumbnailResult.Success(image = PlatformImage(owned), presentationTime = request.position),
+        )
+      }
+    } finally {
+      drawn.recycle()
     }
   }
 

@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.sample
 
 import dev.jordond.filmstrip.CapabilitiesResult
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.FilmstripVersion
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
@@ -12,6 +13,7 @@ import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
@@ -278,11 +280,20 @@ private fun EditComposition.redacted(): EditComposition = EditComposition(
 /**
  * The source reduced to something that names no file.
  */
+@OptIn(ExperimentalFilmstripApi::class)
 internal fun MediaSource.redactedName(): String =
   when (this) {
     is MediaSource.Path -> path.redactLocation()
     is MediaSource.Uri -> uri.redactLocation()
     is MediaSource.Bytes -> "bytes-${bytes.size}"
+    is MediaSource.Image -> "image-${image.redactedName()}"
+  }
+
+private fun ImageSource.redactedName(): String =
+  when (this) {
+    is ImageSource.Path -> path.redactLocation()
+    is ImageSource.Uri -> uri.redactLocation()
+    is ImageSource.Bytes -> "bytes-${bytes.size}"
   }
 
 // The extension is the part that matters for a container bug, and the hash keeps two different
