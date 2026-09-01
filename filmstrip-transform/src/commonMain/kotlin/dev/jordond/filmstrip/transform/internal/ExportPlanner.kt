@@ -9,11 +9,13 @@ import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
+import dev.jordond.filmstrip.effect.EffectScope
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
@@ -127,6 +129,23 @@ public class ExportPlanner(
       if (!info.isExportable) return protected(clip.source)
     }
 
+    // A clip-only effect reads where a frame sits inside the run it is drawn over. A track effect
+    // and a composition-level geometry effect are lowered by fanning onto each clip on the backends
+    // that have no pass of their own to run them in, so the same declaration would draw one run on
+    // one engine and a run per clip on another.
+    val misplaced =
+      (edit.effects + edit.tracks.flatMap { it.effects }).firstOrNull { it.scope == EffectScope.ClipOnly }
+    if (misplaced != null) return incapable(ExportError.UnsupportedEffect(misplaced.id, CLIP_ONLY_SCOPE))
+
+    // A looping track lays its clips down again from the top, so a clip on one holds more than one
+    // slot on the timeline and there is no single run for a clip-only effect to measure against.
+    val looped =
+      edit.tracks
+        .filter { it.looping }
+        .flatMap { track -> track.clips.flatMap { it.effects } }
+        .firstOrNull { it.scope == EffectScope.ClipOnly }
+    if (looped != null) return incapable(ExportError.UnsupportedEffect(looped.id, CLIP_ONLY_LOOPING))
+
     val firstClip = primary.clips.first()
     // A still is held for a span rather than decoded from one, and its bounds are a sensor's rather
     // than an encoder's, so it is never what the output frame and the output cadence are measured
@@ -226,6 +245,10 @@ public class ExportPlanner(
     val tracks =
       edit.tracks.map { track ->
         val trackGain = track.audio.appliedTo(compositionGain)
+        // Where each clip lands on the composition timeline, derived here and nowhere else, since
+        // every backend lays its clips end to end from the track's own start and an effect that
+        // reads the time has to be measured against the same run on all of them.
+        var cursor = track.start
         ResolvedTrack(
           content = track.content,
           looping = track.looping,
@@ -235,6 +258,9 @@ public class ExportPlanner(
               val info = infos.getValue(clip.source)
               val timing =
                 trimWindow(clip, info) ?: return incapable("Clip ${clip.source.describe()} trims to nothing.")
+              val length = timing.second - timing.first
+              val span = TimeRange.of(cursor, cursor + length)
+              cursor += length
               val resolved =
                 resolve(
                   stages = listOf(clip.effects + track.effects, fannedGeometry),
@@ -244,6 +270,7 @@ public class ExportPlanner(
                   capabilities = capabilities,
                   frameRate = frameRate,
                   hdrTransfer = encodedTransfer,
+                  span = span,
                 )
               asked += resolved
               ResolvedClip(
@@ -254,10 +281,15 @@ public class ExportPlanner(
                 effects = resolved.mapNotNull { it.resolvedEffect },
                 gain = clip.audio.appliedTo(trackGain),
                 startsAtKeyFrame = supportsFastTrim && spec.trim == TrimStrategy.Fast,
+                span = span,
               )
             },
         )
       }
+
+    val duration =
+      tracks.filterNot { it.looping }.maxOfOrNull { it.duration } ?: return incapable(EVERY_TRACK_LOOPS)
+    val compositionSpan = TimeRange.of(Duration.ZERO, duration)
 
     val compositionGeometry =
       if (compositionGeometryPerClip) {
@@ -271,6 +303,7 @@ public class ExportPlanner(
           capabilities = capabilities,
           frameRate = frameRate,
           hdrTransfer = encodedTransfer,
+          span = compositionSpan,
         )
       }
     val compositionRest =
@@ -282,6 +315,7 @@ public class ExportPlanner(
         capabilities = capabilities,
         frameRate = frameRate,
         hdrTransfer = encodedTransfer,
+        span = compositionSpan,
       )
     asked += compositionGeometry
     asked += compositionRest
@@ -291,9 +325,6 @@ public class ExportPlanner(
     if (unsupported.isNotEmpty()) {
       return incapableWithFallback(composition, spec, device, infos, dropped, unsupported, layoutSize)
     }
-
-    val duration =
-      tracks.filterNot { it.looping }.maxOfOrNull { it.duration } ?: return incapable(EVERY_TRACK_LOOPS)
 
     val planned = plannedEffects(edit)
     val fit =
@@ -392,6 +423,7 @@ public class ExportPlanner(
     capabilities: RenderCapabilities,
     frameRate: Int,
     hdrTransfer: HdrTransfer?,
+    span: TimeRange,
   ): List<LoweredEffect> {
     var size = inputSize
     // The layout frame is chained through the same geometry the drawn frame is, so an effect late
@@ -401,7 +433,7 @@ public class ExportPlanner(
     // sees the one the encoder is handed rather than the SDR default.
     val colorSpace = if (hdrTransfer != null) ColorSpace.Bt2020 else ColorSpace.Bt709
     return stages.flatMap { it.inCanonicalOrder() }.map { spec ->
-      val attributes = Attributes(size, outputSize, layout, colorSpace, hdrTransfer, frameRate.toFloat())
+      val attributes = Attributes(size, outputSize, layout, colorSpace, hdrTransfer, frameRate.toFloat(), span)
       val resolution =
         resolvers.firstNotNullOfOrNull { it.resolve(spec, capabilities, attributes) }
 
@@ -651,6 +683,16 @@ public class ExportPlanner(
         "they are tone-mapped to SDR together."
 
     const val APPROXIMATE = "The preview and the export diverge by a bounded amount for this effect."
+
+    const val CLIP_ONLY_SCOPE =
+      "This effect reads where a frame sits inside the run it is drawn over, so it belongs on a " +
+        "clip. Declared on a track or on the composition it would draw one run on one engine and " +
+        "a run per clip on another. Move it onto the clips it should travel across."
+
+    const val CLIP_ONLY_LOOPING =
+      "This effect reads where a frame sits inside the run it is drawn over, and a looping track " +
+        "lays its clips down more than once, so there is no single run to measure against. Take " +
+        "the loop off the track, or take the effect off the clip."
 
     const val TRIM_ALWAYS_PRECISE =
       "This engine decodes frame by frame, so every trim lands exactly where it was asked to rather " +

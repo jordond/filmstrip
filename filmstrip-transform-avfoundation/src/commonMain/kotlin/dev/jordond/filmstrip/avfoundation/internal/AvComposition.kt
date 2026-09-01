@@ -411,6 +411,9 @@ private fun ResolvedClip.spanning(
         colorSpace = if (hdrTransfer != null) ColorSpace.Bt2020 else ColorSpace.Bt709,
         hdrTransfer = hdrTransfer,
         frameRate = video?.frameRate,
+        // The planner's slot, not this lay-down's, so a clip effect is measured against the same
+        // run media3 measures against rather than against a second walk of the same durations.
+        span = span,
       ),
     effects = effects,
     still = (source as? MediaSource.Image)?.image,

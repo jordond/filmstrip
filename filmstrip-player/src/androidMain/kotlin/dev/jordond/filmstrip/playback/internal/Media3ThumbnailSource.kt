@@ -187,12 +187,14 @@ internal class Media3ThumbnailSource(
   /**
    * Draws every frame [group] asks for out of the photo [readback] covers them with.
    *
-   * A photo contributes the same pixels at every position in its span, which is what lets one
-   * render answer a whole stretch of requests and what makes the frame covering a position sit
-   * exactly at that position however precise the request asked to be.
+   * A photo holds one picture for its whole span, so it is read once for the whole stretch and the
+   * frame covering a position sits exactly at that position however precise the request asked to
+   * be. The chain over that picture is run per position rather than once, since an effect that
+   * travels over the clip's span draws a different part of it at each of them.
    *
-   * Each tile is handed a copy, for the reason every other frame here is copied: a [PlatformImage]
-   * recycles what it owns, and one tile closed by its caller must not empty another's.
+   * Each tile owns what it is handed, for the reason every other frame here is copied: a
+   * [PlatformImage] recycles what it owns, and one tile closed by its caller must not empty
+   * another's.
    */
   private suspend fun serveStill(
     readback: Media3Readback,
@@ -200,40 +202,42 @@ internal class Media3ThumbnailSource(
     offset: Int,
     run: ThumbnailRun,
   ) {
-    val drawn =
+    val picture =
       try {
-        stills.render(readback)
+        stills.picture(readback)
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (
         @Suppress("TooGenericExceptionCaught") broken: Exception,
       ) {
-        return run.failAll(
-          group,
-          offset,
-          ExportError.Underlying(ExportError.Underlying.NO_PLATFORM_CODE, broken.message ?: broken.toString()),
-        )
+        return run.failAll(group, offset, broken.asFailure())
       }
 
     try {
       group.forEachIndexed { at, request ->
         if (run.isCancelled) return
-        val owned =
-          drawn.copy(drawn.config ?: Bitmap.Config.ARGB_8888, false)
-            ?: return run.failAll(
-              group.subList(at, group.size),
-              offset + at,
-              ExportError.Underlying(ExportError.Underlying.NO_PLATFORM_CODE, NO_COPY),
-            )
+        val drawn =
+          try {
+            stills.drawAt(picture, readback, request.position)
+          } catch (cancelled: CancellationException) {
+            throw cancelled
+          } catch (
+            @Suppress("TooGenericExceptionCaught") broken: Exception,
+          ) {
+            return run.failAll(group.subList(at, group.size), offset + at, broken.asFailure())
+          }
         run.deliver(
           offset + at,
-          ThumbnailResult.Success(image = PlatformImage(owned), presentationTime = request.position),
+          ThumbnailResult.Success(image = PlatformImage(drawn), presentationTime = request.position),
         )
       }
     } finally {
-      drawn.recycle()
+      picture.recycle()
     }
   }
+
+  private fun Exception.asFailure(): ExportError =
+    ExportError.Underlying(ExportError.Underlying.NO_PLATFORM_CODE, message ?: toString())
 
   /**
    * Decodes every frame [group] asks for out of the one clip [readback] draws them from.

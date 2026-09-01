@@ -13,13 +13,16 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.DegradationReason
+import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
+import dev.jordond.filmstrip.effects.Brightness
 import dev.jordond.filmstrip.effects.Crop
 import dev.jordond.filmstrip.effects.CropRect
+import dev.jordond.filmstrip.effects.KenBurns
 import dev.jordond.filmstrip.effects.Rotate
 import dev.jordond.filmstrip.effects.Scale
 import dev.jordond.filmstrip.export.AdjustmentKind
@@ -48,6 +51,7 @@ import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.imageMediaInfoOf
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.media.videoCodecOf
+import dev.jordond.filmstrip.motion.Easing
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 import kotlin.test.assertFails
@@ -1173,6 +1177,128 @@ class ExportPlannerTest {
     assertIs<Verdict.Degraded>(verdict).plan.output.size shouldBe Size(1280, 720)
   }
 
+  @Test
+  fun `a clip-only effect plans capable on a clip`() {
+    val verdict = plan(composition(clip(effects = listOf(PUSH_IN))))
+
+    assertIs<Verdict.Capable>(verdict).plan.effectOrder.map { it.spec.id } shouldBe listOf(EffectIds.KEN_BURNS)
+  }
+
+  // The effect is defined on geometry rather than on stills, and a slow push over footage is an
+  // ordinary edit, so a video clip takes one on the same terms a photo does.
+  @Test
+  fun `a clip-only effect plans capable over a video clip and over a photo alike`() {
+    val over = composition(clip(effects = listOf(PUSH_IN)), imageClip().withEffects(listOf(PUSH_IN)))
+
+    val plan = assertIs<Verdict.Capable>(plan(over)).plan
+    plan.path shouldBe ExportPath.Transcode
+    plan.effectOrder.map { it.spec.id } shouldBe listOf(EffectIds.KEN_BURNS)
+  }
+
+  @Test
+  fun `a clip-only effect declared on a track is refused by name`() {
+    val verdict =
+      plan(EditComposition(listOf(Track(listOf(clip()), effects = listOf(PUSH_IN)))))
+
+    val refused = assertIs<Verdict.Incapable>(verdict).reasons.single()
+    assertIs<ExportError.UnsupportedEffect>(refused).specId shouldBe EffectIds.KEN_BURNS
+  }
+
+  @Test
+  fun `a clip-only effect declared on the composition is refused by name`() {
+    val verdict = plan(EditComposition(listOf(Track(listOf(clip()))), effects = listOf(PUSH_IN)))
+
+    val refused = assertIs<Verdict.Incapable>(verdict).reasons.single()
+    assertIs<ExportError.UnsupportedEffect>(refused).specId shouldBe EffectIds.KEN_BURNS
+  }
+
+  @Test
+  fun `a clip-only effect on a looping track is refused by name`() {
+    val verdict =
+      plan(
+        EditComposition(
+          listOf(
+            Track(listOf(clip(effects = listOf(PUSH_IN))), looping = true),
+            Track(listOf(audioOnlyClip()), content = TrackContent.Audio),
+          ),
+        ),
+      )
+
+    val refused = assertIs<Verdict.Incapable>(verdict).reasons.single()
+    assertIs<ExportError.UnsupportedEffect>(refused).specId shouldBe EffectIds.KEN_BURNS
+  }
+
+  /**
+   * The slot every backend measures a clip effect against, derived here and nowhere else.
+   */
+  @Test
+  fun `each clip's effects are resolved against that clip's own slot on the timeline`() {
+    val recording = RecordingResolver()
+    val first = clip(duration = 2_000.milliseconds, trim = TimeRange.of(Duration.ZERO, 2_000.milliseconds))
+    val second = imageClip(duration = 3_000.milliseconds)
+    val third = clip(duration = 4_000.milliseconds, trim = TimeRange.of(Duration.ZERO, 4_000.milliseconds))
+    val composition =
+      EditComposition(
+        listOf(
+          Track(
+            listOf(
+              first.withEffects(listOf(Rotate(90))),
+              second.withEffects(listOf(PUSH_IN)),
+              third.withEffects(listOf(CropRect(NormalizedRect(0f, 0f, 0.5f, 1f)))),
+            ),
+            start = 1_000.milliseconds,
+          ),
+        ),
+      )
+
+    val resolved = resolve(composition, resolvers = listOf(recording))
+
+    resolved.tracks
+      .single()
+      .clips
+      .map { it.span } shouldBe
+      listOf(
+        TimeRange.of(1_000.milliseconds, 3_000.milliseconds),
+        TimeRange.of(3_000.milliseconds, 6_000.milliseconds),
+        TimeRange.of(6_000.milliseconds, 10_000.milliseconds),
+      )
+    recording.spans shouldBe
+      resolved.tracks
+        .single()
+        .clips
+        .map { it.span }
+  }
+
+  @Test
+  fun `a composition-level effect is resolved against the whole composition`() {
+    val recording = RecordingResolver()
+    val composition =
+      EditComposition(
+        listOf(
+          Track(listOf(clip(duration = 2_000.milliseconds, trim = TimeRange.of(Duration.ZERO, 2_000.milliseconds)))),
+        ),
+        effects = listOf(Brightness(0.5f)),
+      )
+
+    resolve(composition, resolvers = listOf(recording))
+
+    recording.spans.last() shouldBe TimeRange.of(Duration.ZERO, 2_000.milliseconds)
+  }
+
+  /**
+   * A pan is what a big photo is used with, so it has to survive the clamp a photo-framed
+   * composition is held to.
+   */
+  @Test
+  fun `a pan over a photo survives the still frame clamp`() {
+    val verdict = plan(composition(imageClip(size = Size(4032, 3024)).withEffects(listOf(PUSH_IN))))
+
+    val degraded = assertIs<Verdict.Degraded>(verdict)
+    degraded.adjustments.map { it.kind } shouldBe listOf(AdjustmentKind.ResolutionClamped)
+    degraded.plan.output.size shouldBe Size(2880, 2160)
+    degraded.plan.effectOrder.map { it.spec.id } shouldBe listOf(EffectIds.KEN_BURNS)
+  }
+
   private fun plan(
     composition: EditComposition,
     spec: ExportSpec = ExportSpec(),
@@ -1355,6 +1481,11 @@ private class FakeResolver(
     }
 }
 
+// A push in from the whole frame to a centred window, which is the shape a pan is normally written
+// as.
+private val PUSH_IN =
+  KenBurns(NormalizedRect.Full, NormalizedRect(0.15f, 0.15f, 0.85f, 0.85f), Easing.EaseInOut)
+
 /**
  * Hands back opaque handles like [FakeResolver], and keeps the frame each spec was measured
  * against so a plan's geometry chain is assertable.
@@ -1362,6 +1493,7 @@ private class FakeResolver(
 private class RecordingResolver : EffectResolver {
   val inputSizes = mutableMapOf<String, Size>()
   val outputSizes = mutableMapOf<String, Size>()
+  val spans = mutableListOf<TimeRange>()
 
   override fun resolve(
     spec: EffectSpec,
@@ -1370,6 +1502,7 @@ private class RecordingResolver : EffectResolver {
   ): EffectResolution {
     inputSizes[spec.id] = attributes.inputSize
     outputSizes[spec.id] = attributes.outputSize
+    spans += attributes.span
     return EffectResolution.Resolved(fakePlatformEffect())
   }
 }

@@ -1,15 +1,20 @@
 package dev.jordond.filmstrip.playback
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effects.KenBurns
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.motion.Easing
 import dev.jordond.filmstrip.test.TestFrame
 import java.io.File
 import kotlin.math.abs
@@ -56,6 +61,69 @@ internal fun androidSandwichComposition(): EditComposition =
         ),
       ),
   )
+
+/**
+ * The fixture clip followed by a patterned photo that a pan travels across.
+ *
+ * The photo is red on one side of [PHOTO_BOUNDARY] and blue on the other, so two readings inside
+ * the span are two different pictures rather than the same flat sheet twice.
+ */
+@OptIn(ExperimentalFilmstripApi::class)
+internal fun androidPannedPhotoComposition(): EditComposition =
+  EditComposition(
+    tracks =
+      listOf(
+        Track(
+          listOf(
+            Clip(androidFixtureClip(), TimeRange.of(Duration.ZERO, CLIP_LENGTH)),
+            Clip(
+              MediaSource.Image(ImageSource.of(androidSplitPhotoFile().path), PHOTO_LENGTH),
+              effects = listOf(PHOTO_PAN),
+            ),
+          ),
+        ),
+      ),
+  )
+
+/**
+ * A photo split into a red half and a blue half, written into the cache once.
+ */
+internal fun androidSplitPhotoFile(): File {
+  val file = File(contractContext().cacheDir, SPLIT_PHOTO_NAME)
+  if (file.exists()) return file
+
+  val bitmap = Bitmap.createBitmap(FIXTURE_FRAME.width, FIXTURE_FRAME.height, Bitmap.Config.ARGB_8888)
+  val canvas = Canvas(bitmap)
+  val paint = Paint()
+  val edge = FIXTURE_FRAME.width * PHOTO_BOUNDARY
+  paint.color = Color.RED
+  canvas.drawRect(0f, 0f, edge, FIXTURE_FRAME.height.toFloat(), paint)
+  paint.color = Color.BLUE
+  canvas.drawRect(edge, 0f, FIXTURE_FRAME.width.toFloat(), FIXTURE_FRAME.height.toFloat(), paint)
+  file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it) }
+  bitmap.recycle()
+  return file
+}
+
+/**
+ * Where the split photo's red half gives way to its blue one.
+ */
+internal const val PHOTO_BOUNDARY: Float = 0.5f
+
+/**
+ * The pan the split photo travels under, from a window in the red half to one in the blue.
+ */
+internal val PHOTO_PAN: KenBurns =
+  KenBurns(
+    from = NormalizedRect(0f, 0f, 0.4f, 1f),
+    to = NormalizedRect(0.6f, 0f, 1f, 1f),
+    easing = Easing.Linear,
+  )
+
+/**
+ * Two readings inside the photo's span, either side of the halfway point every curve agrees on.
+ */
+internal val PAN_FRACTIONS: List<Double> = listOf(0.4, 0.6)
 
 /**
  * A composition with nothing on it but the photo, which has no video clip to fall back on.
@@ -138,6 +206,7 @@ internal infix fun Triple<Int, Int, Int>.shouldBeNothingLike(other: Triple<Int, 
 }
 
 private const val PHOTO_NAME = "filmstrip-player-photo.png"
+private const val SPLIT_PHOTO_NAME = "filmstrip-player-split-photo.png"
 private const val PNG_QUALITY = 100
 private const val CHANNELS = 4
 private const val BYTE_MASK = 0xFF

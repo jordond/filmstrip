@@ -39,12 +39,20 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       is Flip -> resolved(spec.toMedia3())
       is Crop -> resolved(spec.retainedRect(attributes.inputSize).toMedia3())
       is CropRect -> resolved(spec.rect.toMedia3())
+      is KenBurns -> spec.toTransformation(attributes)
       is Scale -> resolved(spec.toMedia3())
       is Brightness -> resolved(spec.toMedia3(attributes.hdrTransfer))
       is Watermark -> spec.toOverlay(capabilities, attributes)
       is Text -> spec.toOverlay(capabilities, attributes)
       else -> null
     }
+  }
+
+  // A region outside the frame samples nothing, and one with no area collapses the frame to a
+  // point, so both are refused by name rather than drawn as whatever the reciprocal comes out as.
+  private fun KenBurns.toTransformation(attributes: Attributes): EffectResolution {
+    if (!from.isValid || !to.isValid) return unsupported(id, REGION_OUTSIDE_FRAME)
+    return resolved(KenBurnsTransformation(this, attributes.span))
   }
 
   // The frame an overlay measures against is the one entering it, not the composition's output.
@@ -150,6 +158,9 @@ private const val UNREADABLE_IMAGE =
     "process, and that the bytes are PNG, JPEG or WebP."
 
 private const val EMPTY_TEXT = "The text and its style leave nothing to draw."
+
+private const val REGION_OUTSIDE_FRAME =
+  "A pan travels between two regions of the frame, so both have to have area and lie inside it."
 
 private const val NO_TEXT_RENDERING = "This device cannot rasterise text into a frame."
 

@@ -33,6 +33,38 @@ public interface EffectSpec {
    */
   public val stage: EffectStage
     get() = EffectStage.Color
+
+  /**
+   * Which scopes this effect may be declared in.
+   *
+   * Defaults to [EffectScope.Everywhere], which is where almost every effect belongs. An effect
+   * whose result depends on where a frame sits inside the run it is drawn over declares
+   * [EffectScope.ClipOnly] by overriding this one line, and a plan refuses it by name anywhere
+   * else.
+   */
+  public val scope: EffectScope
+    get() = EffectScope.Everywhere
+}
+
+/**
+ * Where an effect may be declared.
+ *
+ * A track effect is lowered by fanning it onto every clip under the track, and a composition-level
+ * geometry effect is fanned the same way on a backend that has no composition-wide geometry pass.
+ * An effect that reads the time a frame sits at within its run therefore draws a run of its own on
+ * each clip rather than one across the track, which is a different picture on backends that fan and
+ * on backends that do not.
+ */
+public enum class EffectScope {
+  /**
+   * Valid at clip, track and composition scope.
+   */
+  Everywhere,
+
+  /**
+   * Valid on a clip alone.
+   */
+  ClipOnly,
 }
 
 /**
@@ -79,6 +111,7 @@ public object EffectIds {
   public const val FLIP: String = "filmstrip.flip"
   public const val CROP: String = "filmstrip.crop"
   public const val CROP_RECT: String = "filmstrip.cropRect"
+  public const val KEN_BURNS: String = "filmstrip.kenBurns"
   public const val SCALE: String = "filmstrip.scale"
   public const val BRIGHTNESS: String = "filmstrip.brightness"
   public const val WATERMARK: String = "filmstrip.watermark"
@@ -105,14 +138,16 @@ public fun List<EffectSpec>.inCanonicalOrder(): List<EffectSpec> =
     ).map { it.value }
 
 // Rank within a stage. Ids with no entry sort after every ranked one. Rotate runs before crop so the
-// corners rotation adds can be cropped away, and scale is last because it sets the output size.
+// corners rotation adds can be cropped away, a pan runs after crop so it travels inside the framing
+// the crop chose, and scale is last because it sets the output size.
 private val CANONICAL_RANK: Map<String, Int> =
   mapOf(
     EffectIds.ROTATE to 0,
     EffectIds.FLIP to 1,
     EffectIds.CROP to 2,
     EffectIds.CROP_RECT to 2,
-    EffectIds.SCALE to 3,
+    EffectIds.KEN_BURNS to 3,
+    EffectIds.SCALE to 4,
     EffectIds.BRIGHTNESS to 0,
     EffectIds.WATERMARK to 0,
     EffectIds.TEXT to 1,

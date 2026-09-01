@@ -126,8 +126,10 @@ internal class Media3FrameReadback(
   /**
    * Reads the frame [lowered]'s photo draws at [position].
    *
-   * A photo contributes the same pixels at every position in its span, so the frame covering one
-   * sits exactly there and the time is reported as asked rather than as decoded.
+   * A photo holds one picture for its whole span, so the frame covering a position sits exactly
+   * there and the time is reported as asked rather than as decoded. The chain over that picture
+   * still gets the composition time, since an effect that travels over the clip's span draws a
+   * different part of it at each position.
    */
   private fun readStill(
     lowered: Media3Readback,
@@ -140,7 +142,7 @@ internal class Media3FrameReadback(
       scope.launch {
         val outcome =
           try {
-            val drawn = stills.render(lowered)
+            val drawn = stills.render(lowered, position)
             ReadbackResult
               .Success(
                 ReadbackFrame(

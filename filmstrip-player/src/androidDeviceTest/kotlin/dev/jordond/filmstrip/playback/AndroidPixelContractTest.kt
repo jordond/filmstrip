@@ -14,8 +14,10 @@ import dev.jordond.filmstrip.playback.internal.Media3PlayerEngine
 import dev.jordond.filmstrip.playback.internal.Media3PreviewPlanner
 import dev.jordond.filmstrip.player.PlayerConfig
 import dev.jordond.filmstrip.player.PlayerEngine
+import dev.jordond.filmstrip.player.PreviewQualityPolicy
 import dev.jordond.filmstrip.player.SetCompositionResult
 import dev.jordond.filmstrip.test.TestFrame
+import dev.jordond.filmstrip.test.assertFramesDiffer
 import dev.jordond.filmstrip.test.assertFramesSimilar
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -95,6 +97,61 @@ class AndroidPixelContractTest : PlayerPixelContractTest() {
     }
 
   /**
+   * A pan over a photo, previewed against the export at two readings inside its span.
+   *
+   * This is the reading ADR-style parity actually turns on for a time-varying effect. The preview
+   * decodes the picture and pushes it through the chain itself, while the export runs the same
+   * chain inside the transformer, so the two only agree when both hand that chain the same
+   * composition time. Measured at 40% and 60% through the span, since a pan that stood still would
+   * still match at either end of it.
+   */
+  @Test
+  fun aPanOverAPhotoPreviewsTheWayItExports() =
+    contractTest { scope ->
+      val engine = createEngine(scope)
+      withEngine(engine) { recorder ->
+        engine.setQualityPolicy(PreviewQualityPolicy.Full)
+        val composition = androidPannedPhotoComposition()
+        engine.awaitComposition(composition).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the preview to be presentable") { recorder.lastState.hasComposition }
+
+        val exported = mutableListOf<TestFrame>()
+        val drawn =
+          PAN_FRACTIONS.map { fraction ->
+            val preview = engine.readback.awaitFrame(PHOTO_START + PHOTO_LENGTH * fraction)
+            val frame = preview.asTestFrame()
+            val export = androidExportFrame(composition, preview.presentationTime)
+            exported += export
+
+            assertFramesSimilar(
+              expected = export,
+              actual = frame,
+              minPsnrDb = PAN_MIN_PSNR_DB,
+              minSsim = MIN_SSIM,
+              message = "the preview and the export disagree $fraction through the pan",
+            )
+            frame
+          }
+
+        // Two readings of a pan that never moved would match each other and match the export at
+        // both, which is the way this passes while drawing the wrong thing.
+        assertFramesDiffer(
+          expected = drawn.first(),
+          actual = drawn.last(),
+          message = "the pan drew the same frame at ${PAN_FRACTIONS.first()} and ${PAN_FRACTIONS.last()}",
+        )
+        // And the floor above is not so low that a frame a fifth of the travel away clears it.
+        assertFramesDiffer(
+          expected = exported.last(),
+          actual = drawn.first(),
+          minPsnrDb = PAN_MIN_PSNR_DB,
+          minSsim = MIN_SSIM,
+          message = "the reading at ${PAN_FRACTIONS.first()} matched the export at ${PAN_FRACTIONS.last()}",
+        )
+      }
+    }
+
+  /**
    * A run of video, photo, video, read back in all three of its spans.
    *
    * One path serves the outer two and another serves the middle, so this is what catches a reader
@@ -156,6 +213,12 @@ class AndroidPixelContractTest : PlayerPixelContractTest() {
 
   private companion object {
     const val MIN_SSIM = 0.985
+
+    // The split photo carries a hard colour edge, which is the one thing an encoder rings on and
+    // which none of the flat fixtures have. An unbroken pair scores 38.1 dB and 0.997 across it,
+    // against 40 dB for a flat one, so the floor comes down for this fixture and no other. A
+    // reading a fifth of the travel away from its export is asserted to fall below it.
+    const val PAN_MIN_PSNR_DB = 34.0
 
     const val DIM = 0.4f
     const val BRIGHT = 1.4f

@@ -63,6 +63,7 @@ private val MEDIA3_PARITY: Map<String, EffectParity> =
     EffectIds.FLIP to EffectParity.Exact,
     EffectIds.CROP to EffectParity.Exact,
     EffectIds.CROP_RECT to EffectParity.Exact,
+    EffectIds.KEN_BURNS to EffectParity.Exact,
     EffectIds.SCALE to EffectParity.Exact,
     EffectIds.BRIGHTNESS to EffectParity.Exact,
     EffectIds.WATERMARK to EffectParity.Exact,

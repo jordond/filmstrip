@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.media3.internal
 
 import androidx.media3.effect.AlphaScale
 import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.export.AudioCodec
@@ -181,6 +182,7 @@ class Media3CompositionTest {
       effects = emptyList(),
       gain = 1f,
       startsAtKeyFrame = false,
+      span = TimeRange.of(Duration.ZERO, 1.seconds),
     )
 
   private fun resolvedEffect(handle: Any): ResolvedEffect = ResolvedEffect("test", PlatformEffect(handle))

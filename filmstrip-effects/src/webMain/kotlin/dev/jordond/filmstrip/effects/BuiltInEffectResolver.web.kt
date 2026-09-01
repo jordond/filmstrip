@@ -31,6 +31,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       is CropRect -> textureMatrix(spec.rect)
       is Flip -> textureMatrix(spec.axis.matrix())
       is Brightness -> spec.toPass()
+      is KenBurns -> EffectResolution.Unsupported(spec.id, PAN_PENDING)
       is Rotate, is Scale -> EffectResolution.Unsupported(spec.id, RESIZING_PENDING)
       is Watermark, is Text -> EffectResolution.Unsupported(spec.id, OVERLAYS_PENDING)
       else -> null
@@ -95,6 +96,10 @@ private const val RESIZING_PENDING =
   "Rotate and Scale change the size of the render target rather than adding a pass, so they " +
     "are pipeline setup rather than a resolved effect. No browser pipeline has landed to set " +
     "up."
+
+private const val PAN_PENDING =
+  "A pan moves the region it shows on every frame, and a pass here carries one texture matrix " +
+    "settled at resolve. The per-frame form has not landed yet."
 
 private const val OVERLAYS_PENDING =
   "Overlay effects rasterise text and images into the frame, which needs a canvas the resolver " +

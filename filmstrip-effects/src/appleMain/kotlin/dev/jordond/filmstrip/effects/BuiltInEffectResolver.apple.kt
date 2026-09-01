@@ -40,12 +40,20 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       is Flip -> step { image, _ -> image.flipped(spec.axis) }
       is Crop -> step { image, frame -> image.cropped(spec.retainedRect(frame.attributes.inputSize)) }
       is CropRect -> step { image, _ -> image.cropped(spec.rect) }
+      is KenBurns -> spec.toStep()
       is Scale -> step { image, _ -> image.scaledToHeight(spec.targetHeight) }
       is Brightness -> step { image, frame -> image.withBrightness(spec.scale, frame.attributes.hdrTransfer) }
       is Watermark -> spec.toOverlay()
       is Text -> spec.toOverlay(capabilities, attributes)
       else -> null
     }
+  }
+
+  // A region outside the frame samples nothing, and one with no area collapses the frame to a
+  // point, so both are refused by name rather than drawn as whatever the reciprocal comes out as.
+  private fun KenBurns.toStep(): EffectResolution {
+    if (!from.isValid || !to.isValid) return EffectResolution.Unsupported(id, REGION_OUTSIDE_FRAME)
+    return step { image, frame -> image.panned(regionAt(frame.compositionTime, frame.attributes.span)) }
   }
 
   // Rasterised at resolve and placed at apply. Where an overlay lands depends on the frame entering
@@ -125,6 +133,13 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
         )
       }.atOrigin()
 
+  // The frame keeps the size it arrived at, matching what a vertex transform does on the other
+  // backend: the region is cut out and then opened back up to the extent it was cut from.
+  private fun CIImage.panned(rect: NormalizedRect): CIImage =
+    cropped(rect)
+      .imageByApplyingTransform(CGAffineTransformMakeScale(1.0 / rect.width, 1.0 / rect.height))
+      .atOrigin()
+
   private fun CIImage.scaledToHeight(targetHeight: Int): CIImage =
     extent
       .useContents {
@@ -144,5 +159,8 @@ private const val UNREADABLE_IMAGE =
     "process, and that the bytes are PNG, JPEG or HEIC."
 
 private const val EMPTY_TEXT = "The text and its style leave nothing to draw."
+
+private const val REGION_OUTSIDE_FRAME =
+  "A pan travels between two regions of the frame, so both have to have area and lie inside it."
 
 private const val NO_TEXT_RENDERING = "This device cannot rasterise text into a frame."

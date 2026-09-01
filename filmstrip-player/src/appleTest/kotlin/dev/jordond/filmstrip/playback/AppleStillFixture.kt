@@ -5,8 +5,11 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.effects.KenBurns
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.motion.Easing
 import dev.jordond.filmstrip.test.TestFrame
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.reinterpret
@@ -18,6 +21,7 @@ import platform.CoreGraphics.CGBitmapContextCreateImage
 import platform.CoreGraphics.CGColorSpaceCreateDeviceRGB
 import platform.CoreGraphics.CGColorSpaceRelease
 import platform.CoreGraphics.CGContextFillRect
+import platform.CoreGraphics.CGContextRef
 import platform.CoreGraphics.CGContextRelease
 import platform.CoreGraphics.CGContextSetRGBFillColor
 import platform.CoreGraphics.CGImageAlphaInfo
@@ -57,11 +61,101 @@ internal fun applePhotoComposition(): EditComposition =
   )
 
 /**
+ * The fixture clip followed by a patterned photo that a pan travels across.
+ *
+ * The photo is red on one side of [PHOTO_BOUNDARY] and blue on the other, so two readings inside
+ * the span are two different pictures rather than the same flat sheet twice.
+ */
+@OptIn(ExperimentalFilmstripApi::class)
+internal fun applePannedPhotoComposition(): EditComposition =
+  EditComposition(
+    tracks =
+      listOf(
+        Track(
+          listOf(
+            Clip(MediaSource.of(appleFixtureClip()), TimeRange.of(Duration.ZERO, CLIP_LENGTH)),
+            Clip(
+              MediaSource.Image(ImageSource.of(appleSplitPhotoFile()), PHOTO_LENGTH),
+              effects = listOf(PHOTO_PAN),
+            ),
+          ),
+        ),
+      ),
+  )
+
+/**
+ * Where the split photo's red half gives way to its blue one.
+ */
+internal const val PHOTO_BOUNDARY: Float = 0.5f
+
+/**
+ * The pan the split photo travels under, from a window in the red half to one in the blue.
+ */
+internal val PHOTO_PAN: KenBurns =
+  KenBurns(
+    from = NormalizedRect(0f, 0f, 0.4f, 1f),
+    to = NormalizedRect(0.6f, 0f, 1f, 1f),
+    easing = Easing.Linear,
+  )
+
+/**
+ * Two readings inside the photo's span, either side of the halfway point every curve agrees on.
+ */
+internal val PAN_FRACTIONS: List<Double> = listOf(0.4, 0.6)
+
+/**
+ * A photo split into a red half and a blue half, written into the temporary directory once.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun appleSplitPhotoFile(): String =
+  photoWritten("filmstrip-player-split-photo.png") { context ->
+    CGContextSetRGBFillColor(c = context, red = 1.0, green = 0.0, blue = 0.0, alpha = 1.0)
+    CGContextFillRect(
+      context,
+      CGRectMake(0.0, 0.0, FIXTURE_FRAME.width * PHOTO_BOUNDARY.toDouble(), FIXTURE_FRAME.height.toDouble()),
+    )
+    CGContextSetRGBFillColor(c = context, red = 0.0, green = 0.0, blue = 1.0, alpha = 1.0)
+    CGContextFillRect(
+      context,
+      CGRectMake(
+        FIXTURE_FRAME.width * PHOTO_BOUNDARY.toDouble(),
+        0.0,
+        FIXTURE_FRAME.width * (1.0 - PHOTO_BOUNDARY),
+        FIXTURE_FRAME.height.toDouble(),
+      ),
+    )
+  }
+
+/**
  * A flat photo the shape of the fixture's own frame, written into the temporary directory once.
  */
 @OptIn(ExperimentalForeignApi::class)
-internal fun applePhotoFile(): String {
-  val path = NSTemporaryDirectory() + "filmstrip-player-photo.png"
+internal fun applePhotoFile(): String =
+  photoWritten("filmstrip-player-photo.png") { context ->
+    CGContextSetRGBFillColor(
+      c = context,
+      red = PHOTO_COLOR.first / FULL,
+      green = PHOTO_COLOR.second / FULL,
+      blue = PHOTO_COLOR.third / FULL,
+      alpha = 1.0,
+    )
+    CGContextFillRect(
+      context,
+      CGRectMake(0.0, 0.0, FIXTURE_FRAME.width.toDouble(), FIXTURE_FRAME.height.toDouble()),
+    )
+  }
+
+/**
+ * Draws a photo the shape of the fixture's frame with [paint] and writes it to [name] once.
+ *
+ * @return The path it landed at.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private fun photoWritten(
+  name: String,
+  paint: (CGContextRef) -> Unit,
+): String {
+  val path = NSTemporaryDirectory() + name
   if (NSFileManager.defaultManager.fileExistsAtPath(path)) return path
 
   val space = CGColorSpaceCreateDeviceRGB() ?: fail("Core Graphics refused a device RGB colour space")
@@ -76,17 +170,7 @@ internal fun applePhotoFile(): String {
       bitmapInfo = CGImageAlphaInfo.kCGImageAlphaPremultipliedLast.value,
     ) ?: fail("Core Graphics refused a bitmap context for the photo fixture")
 
-  CGContextSetRGBFillColor(
-    c = context,
-    red = PHOTO_COLOR.first / FULL,
-    green = PHOTO_COLOR.second / FULL,
-    blue = PHOTO_COLOR.third / FULL,
-    alpha = 1.0,
-  )
-  CGContextFillRect(
-    context,
-    CGRectMake(0.0, 0.0, FIXTURE_FRAME.width.toDouble(), FIXTURE_FRAME.height.toDouble()),
-  )
+  paint(context)
 
   val image = CGBitmapContextCreateImage(context)
   CGContextRelease(context)

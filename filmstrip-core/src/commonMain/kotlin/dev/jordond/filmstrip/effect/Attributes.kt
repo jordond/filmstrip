@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effect
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -26,6 +27,10 @@ import dev.jordond.filmstrip.media.HdrTransfer
  *   parameter means in the domain the backend is actually holding the frame in.
  * @property frameRate Frames per second the pipeline is targeting, or null when the source does not
  *   say.
+ * @property span The composition time range the frames entering this effect fall in. A clip effect
+ *   sees its clip's slot on the timeline, a composition effect sees the whole composition. Every
+ *   backend hands an effect composition-relative timestamps, so an effect whose result varies over
+ *   its run measures against this rather than against zero.
  */
 public class Attributes
   @InternalFilmstripApi
@@ -36,6 +41,7 @@ public class Attributes
     public val colorSpace: ColorSpace,
     public val hdrTransfer: HdrTransfer?,
     public val frameRate: Float?,
+    public val span: TimeRange,
   ) {
     override fun toString(): String = "Attributes($inputSize -> $outputSize)"
   }

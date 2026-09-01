@@ -94,6 +94,17 @@ final enum class dev.jordond.filmstrip.effect/DegradationReason : kotlin/Enum<de
     final fun values(): kotlin/Array<dev.jordond.filmstrip.effect/DegradationReason> // dev.jordond.filmstrip.effect/DegradationReason.values|values#static(){}[0]
 }
 
+final enum class dev.jordond.filmstrip.effect/EffectScope : kotlin/Enum<dev.jordond.filmstrip.effect/EffectScope> { // dev.jordond.filmstrip.effect/EffectScope|null[0]
+    enum entry ClipOnly // dev.jordond.filmstrip.effect/EffectScope.ClipOnly|null[0]
+    enum entry Everywhere // dev.jordond.filmstrip.effect/EffectScope.Everywhere|null[0]
+
+    final val entries // dev.jordond.filmstrip.effect/EffectScope.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.effect/EffectScope> // dev.jordond.filmstrip.effect/EffectScope.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.jordond.filmstrip.effect/EffectScope // dev.jordond.filmstrip.effect/EffectScope.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.jordond.filmstrip.effect/EffectScope> // dev.jordond.filmstrip.effect/EffectScope.values|values#static(){}[0]
+}
+
 final enum class dev.jordond.filmstrip.effect/EffectStage : kotlin/Enum<dev.jordond.filmstrip.effect/EffectStage> { // dev.jordond.filmstrip.effect/EffectStage|null[0]
     enum entry Color // dev.jordond.filmstrip.effect/EffectStage.Color|null[0]
     enum entry Composite // dev.jordond.filmstrip.effect/EffectStage.Composite|null[0]
@@ -382,6 +393,24 @@ final enum class dev.jordond.filmstrip.media/StillFormat : kotlin/Enum<dev.jordo
     }
 }
 
+final enum class dev.jordond.filmstrip.motion/Easing : kotlin/Enum<dev.jordond.filmstrip.motion/Easing> { // dev.jordond.filmstrip.motion/Easing|null[0]
+    enum entry EaseIn // dev.jordond.filmstrip.motion/Easing.EaseIn|null[0]
+    enum entry EaseInOut // dev.jordond.filmstrip.motion/Easing.EaseInOut|null[0]
+    enum entry EaseOut // dev.jordond.filmstrip.motion/Easing.EaseOut|null[0]
+    enum entry Linear // dev.jordond.filmstrip.motion/Easing.Linear|null[0]
+
+    final val entries // dev.jordond.filmstrip.motion/Easing.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.motion/Easing> // dev.jordond.filmstrip.motion/Easing.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.jordond.filmstrip.motion/Easing // dev.jordond.filmstrip.motion/Easing.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.jordond.filmstrip.motion/Easing> // dev.jordond.filmstrip.motion/Easing.values|values#static(){}[0]
+
+    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.motion/Easing.Companion|null[0]
+        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.motion/Easing> // dev.jordond.filmstrip.motion/Easing.Companion.serializer|serializer(){}[0]
+        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.motion/Easing.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
+    }
+}
+
 final enum class dev.jordond.filmstrip.player/PlayerFeature : kotlin/Enum<dev.jordond.filmstrip.player/PlayerFeature> { // dev.jordond.filmstrip.player/PlayerFeature|null[0]
     enum entry AudioMonitoring // dev.jordond.filmstrip.player/PlayerFeature.AudioMonitoring|null[0]
     enum entry FrameReadback // dev.jordond.filmstrip.player/PlayerFeature.FrameReadback|null[0]
@@ -502,6 +531,8 @@ abstract fun interface dev.jordond.filmstrip/Cancellable { // dev.jordond.filmst
 abstract interface dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effect/EffectSpec|null[0]
     abstract val id // dev.jordond.filmstrip.effect/EffectSpec.id|{}id[0]
         abstract fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effect/EffectSpec.id.<get-id>|<get-id>(){}[0]
+    open val scope // dev.jordond.filmstrip.effect/EffectSpec.scope|{}scope[0]
+        open fun <get-scope>(): dev.jordond.filmstrip.effect/EffectScope // dev.jordond.filmstrip.effect/EffectSpec.scope.<get-scope>|<get-scope>(){}[0]
     open val stage // dev.jordond.filmstrip.effect/EffectSpec.stage|{}stage[0]
         open fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effect/EffectSpec.stage.<get-stage>|<get-stage>(){}[0]
 }
@@ -2161,6 +2192,8 @@ final class dev.jordond.filmstrip.effect/Attributes { // dev.jordond.filmstrip.e
         final fun <get-layoutSize>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.effect/Attributes.layoutSize.<get-layoutSize>|<get-layoutSize>(){}[0]
     final val outputSize // dev.jordond.filmstrip.effect/Attributes.outputSize|{}outputSize[0]
         final fun <get-outputSize>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.effect/Attributes.outputSize.<get-outputSize>|<get-outputSize>(){}[0]
+    final val span // dev.jordond.filmstrip.effect/Attributes.span|{}span[0]
+        final fun <get-span>(): dev.jordond.filmstrip.edit/TimeRange // dev.jordond.filmstrip.effect/Attributes.span.<get-span>|<get-span>(){}[0]
 
     final fun toString(): kotlin/String // dev.jordond.filmstrip.effect/Attributes.toString|toString(){}[0]
 }
@@ -2904,6 +2937,8 @@ final object dev.jordond.filmstrip.effect/EffectIds { // dev.jordond.filmstrip.e
         final fun <get-CROP_RECT>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.CROP_RECT.<get-CROP_RECT>|<get-CROP_RECT>(){}[0]
     final const val FLIP // dev.jordond.filmstrip.effect/EffectIds.FLIP|{}FLIP[0]
         final fun <get-FLIP>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.FLIP.<get-FLIP>|<get-FLIP>(){}[0]
+    final const val KEN_BURNS // dev.jordond.filmstrip.effect/EffectIds.KEN_BURNS|{}KEN_BURNS[0]
+        final fun <get-KEN_BURNS>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.KEN_BURNS.<get-KEN_BURNS>|<get-KEN_BURNS>(){}[0]
     final const val ROTATE // dev.jordond.filmstrip.effect/EffectIds.ROTATE|{}ROTATE[0]
         final fun <get-ROTATE>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.ROTATE.<get-ROTATE>|<get-ROTATE>(){}[0]
     final const val SCALE // dev.jordond.filmstrip.effect/EffectIds.SCALE|{}SCALE[0]
@@ -2924,6 +2959,7 @@ final val dev.jordond.filmstrip.export/Kbps // dev.jordond.filmstrip.export/Kbps
 final val dev.jordond.filmstrip.export/Mbps // dev.jordond.filmstrip.export/Mbps|@kotlin.Int{}Mbps[0]
     final fun (kotlin/Int).<get-Mbps>(): dev.jordond.filmstrip.export/Bitrate // dev.jordond.filmstrip.export/Mbps.<get-Mbps>|<get-Mbps>@kotlin.Int(){}[0]
 
+final fun (dev.jordond.filmstrip.motion/Easing).dev.jordond.filmstrip.motion/paced(kotlin/Float): kotlin/Float // dev.jordond.filmstrip.motion/paced|paced@dev.jordond.filmstrip.motion.Easing(kotlin.Float){}[0]
 final fun (kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec>).dev.jordond.filmstrip.effect/inCanonicalOrder(): kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec> // dev.jordond.filmstrip.effect/inCanonicalOrder|inCanonicalOrder@kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>(){}[0]
 final fun dev.jordond.filmstrip.edit/TimeRange(kotlin.ranges/ClosedRange<kotlin.time/Duration>): dev.jordond.filmstrip.edit/TimeRange // dev.jordond.filmstrip.edit/TimeRange|TimeRange(kotlin.ranges.ClosedRange<kotlin.time.Duration>){}[0]
 final fun dev.jordond.filmstrip/Filmstrip(kotlin/Function1<dev.jordond.filmstrip/FilmstripBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip/Filmstrip // dev.jordond.filmstrip/Filmstrip|Filmstrip(kotlin.Function1<dev.jordond.filmstrip.FilmstripBuilder,kotlin.Unit>){}[0]

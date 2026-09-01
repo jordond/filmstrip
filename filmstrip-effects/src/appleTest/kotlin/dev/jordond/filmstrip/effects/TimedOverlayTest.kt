@@ -20,6 +20,7 @@ import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.test.assertNotSame
 import kotlin.test.assertSame
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -106,6 +107,7 @@ class TimedOverlayTest {
         colorSpace = ColorSpace.Bt709,
         hdrTransfer = null,
         frameRate = 30f,
+        span = TimeRange.of(Duration.ZERO, 10.seconds),
       )
 
     val CAPABILITIES =

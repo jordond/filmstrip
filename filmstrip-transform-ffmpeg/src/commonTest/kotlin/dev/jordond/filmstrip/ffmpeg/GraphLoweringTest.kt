@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
@@ -258,6 +259,7 @@ class GraphLoweringTest {
         effects = emptyList(),
         gain = 1f,
         startsAtKeyFrame = false,
+        span = TimeRange.of(trackStart, trackStart + duration),
       )
     val track =
       ResolvedTrack(content = TrackContent.Video, looping = false, start = trackStart, clips = listOf(clip))

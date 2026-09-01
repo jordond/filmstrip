@@ -50,6 +50,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       is Flip -> fragment(listOf(FilterNode(if (spec.axis == FlipAxis.Horizontal) "hflip" else "vflip")))
       is Crop -> fragment(crop(spec.retainedRect(attributes.inputSize), attributes.inputSize))
       is CropRect -> fragment(crop(spec.rect, attributes.inputSize))
+      is KenBurns -> EffectResolution.Unsupported(spec.id, PAN_PENDING)
       // The size stage is the tail the backend pins to the resolved output frame, so the effect
       // that decides that frame contributes no node of its own. Claimed rather than declined,
       // because an unclaimed spec is refused by name at plan time.
@@ -205,6 +206,11 @@ private const val FULL_TURN = 360
 private const val QUARTER_TURN = 90
 private const val HALF_TURN = 180
 private const val THREE_QUARTER_TURN = 270
+
+private const val PAN_PENDING =
+  "A pan moves the region it shows on every frame, and this backend resolves a crop to whole " +
+    "pixels once at plan time so that the plan and the export cannot disagree about the frame. " +
+    "The time-varying form has not landed here yet."
 
 private const val TEXT_NO_FILTER =
   "This ffmpeg build has no drawtext filter, so text cannot be burned in. drawtext needs " +

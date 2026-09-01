@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.media3.common.MediaItem
 import androidx.media3.transformer.EditedMediaItem
 import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportPath
@@ -190,6 +191,7 @@ class Media3ImageItemTest {
       effects = emptyList(),
       gain = 1f,
       startsAtKeyFrame = false,
+      span = TimeRange.of(Duration.ZERO, span),
     )
 
   /**
@@ -222,5 +224,6 @@ class Media3ImageItemTest {
       effects = emptyList(),
       gain = 1f,
       startsAtKeyFrame = false,
+      span = TimeRange.of(Duration.ZERO, 1.seconds),
     )
 }

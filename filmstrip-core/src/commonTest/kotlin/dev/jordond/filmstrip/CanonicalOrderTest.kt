@@ -63,6 +63,23 @@ class CanonicalOrderTest {
   }
 
   @Test
+  fun aPanTravelsInsideTheFramingTheCropChose() {
+    val ordered =
+      listOf(
+        spec(EffectIds.SCALE, EffectStage.Geometry),
+        spec(EffectIds.KEN_BURNS, EffectStage.Geometry),
+        spec(EffectIds.CROP, EffectStage.Geometry),
+        spec(EffectIds.ROTATE, EffectStage.Geometry),
+        spec(EffectIds.FLIP, EffectStage.Geometry),
+      ).inCanonicalOrder()
+
+    assertEquals(
+      listOf(EffectIds.ROTATE, EffectIds.FLIP, EffectIds.CROP, EffectIds.KEN_BURNS, EffectIds.SCALE),
+      ordered.map { it.id },
+    )
+  }
+
+  @Test
   fun thirdPartyEffectsLandAtTheEndOfTheirStageInDeclarationOrder() {
     val ordered =
       listOf(

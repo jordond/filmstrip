@@ -3,6 +3,7 @@
 package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.media.AudioTrackInfo
@@ -140,6 +141,7 @@ class BrowserMixSeamTest {
             effects = emptyList(),
             gain = 1f,
             startsAtKeyFrame = true,
+            span = TimeRange.of(Duration.ZERO, CLIP_DURATION),
           ),
         ),
     )

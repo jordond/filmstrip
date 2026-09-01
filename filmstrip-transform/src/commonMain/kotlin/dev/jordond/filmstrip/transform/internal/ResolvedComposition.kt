@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.export.Adjustment
@@ -101,6 +102,11 @@ public class ResolvedTrack(
  *   multiplied in. Zero for silence.
  * @property startsAtKeyFrame Whether this clip's trim is asserted to open on a sync sample, which
  *   is what lets the clipping stream-copy without transcoding.
+ * @property span This clip's slot on the composition timeline, counted from the start of the whole
+ *   composition. Derived once by the planner, since every backend lays its clips end to end from
+ *   the track's own start and an effect that reads the time has to be measured against the same run
+ *   on all of them. A looping track lays its clips down again from the top, and this describes the
+ *   first pass.
  */
 @InternalFilmstripApi
 public class ResolvedClip(
@@ -111,6 +117,7 @@ public class ResolvedClip(
   public val effects: List<ResolvedEffect>,
   public val gain: Float,
   public val startsAtKeyFrame: Boolean,
+  public val span: TimeRange,
 ) {
   public val duration: Duration get() = end - start
 }

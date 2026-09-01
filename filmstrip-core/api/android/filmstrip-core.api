@@ -539,6 +539,7 @@ public final class dev/jordond/filmstrip/effect/Attributes {
 	public final fun getInputSize ()Ldev/jordond/filmstrip/geometry/Size;
 	public final fun getLayoutSize ()Ldev/jordond/filmstrip/geometry/Size;
 	public final fun getOutputSize ()Ldev/jordond/filmstrip/geometry/Size;
+	public final fun getSpan ()Ldev/jordond/filmstrip/edit/TimeRange;
 	public fun toString ()Ljava/lang/String;
 }
 
@@ -560,6 +561,7 @@ public final class dev/jordond/filmstrip/effect/EffectIds {
 	public static final field CROP_RECT Ljava/lang/String;
 	public static final field FLIP Ljava/lang/String;
 	public static final field INSTANCE Ldev/jordond/filmstrip/effect/EffectIds;
+	public static final field KEN_BURNS Ljava/lang/String;
 	public static final field ROTATE Ljava/lang/String;
 	public static final field SCALE Ljava/lang/String;
 	public static final field TEXT Ljava/lang/String;
@@ -600,12 +602,22 @@ public abstract interface class dev/jordond/filmstrip/effect/EffectResolver {
 	public abstract fun resolve (Ldev/jordond/filmstrip/effect/EffectSpec;Ldev/jordond/filmstrip/effect/RenderCapabilities;Ldev/jordond/filmstrip/effect/Attributes;)Ldev/jordond/filmstrip/effect/EffectResolution;
 }
 
+public final class dev/jordond/filmstrip/effect/EffectScope : java/lang/Enum {
+	public static final field ClipOnly Ldev/jordond/filmstrip/effect/EffectScope;
+	public static final field Everywhere Ldev/jordond/filmstrip/effect/EffectScope;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/effect/EffectScope;
+	public static fun values ()[Ldev/jordond/filmstrip/effect/EffectScope;
+}
+
 public abstract interface class dev/jordond/filmstrip/effect/EffectSpec {
 	public abstract fun getId ()Ljava/lang/String;
+	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
 	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
 }
 
 public final class dev/jordond/filmstrip/effect/EffectSpec$DefaultImpls {
+	public static fun getScope (Ldev/jordond/filmstrip/effect/EffectSpec;)Ldev/jordond/filmstrip/effect/EffectScope;
 	public static fun getStage (Ldev/jordond/filmstrip/effect/EffectSpec;)Ldev/jordond/filmstrip/effect/EffectStage;
 }
 
@@ -1916,6 +1928,25 @@ public final synthetic class dev/jordond/filmstrip/media/VideoTrackInfo$$seriali
 
 public final class dev/jordond/filmstrip/media/VideoTrackInfo$Companion {
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/motion/Easing : java/lang/Enum {
+	public static final field Companion Ldev/jordond/filmstrip/motion/Easing$Companion;
+	public static final field EaseIn Ldev/jordond/filmstrip/motion/Easing;
+	public static final field EaseInOut Ldev/jordond/filmstrip/motion/Easing;
+	public static final field EaseOut Ldev/jordond/filmstrip/motion/Easing;
+	public static final field Linear Ldev/jordond/filmstrip/motion/Easing;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/motion/Easing;
+	public static fun values ()[Ldev/jordond/filmstrip/motion/Easing;
+}
+
+public final class dev/jordond/filmstrip/motion/Easing$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/motion/EasingKt {
+	public static final fun paced (Ldev/jordond/filmstrip/motion/Easing;F)F
 }
 
 public abstract interface class dev/jordond/filmstrip/player/EngineListener {

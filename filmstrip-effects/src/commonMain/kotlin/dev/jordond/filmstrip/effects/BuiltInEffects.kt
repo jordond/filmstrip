@@ -46,6 +46,7 @@ public val builtInEffectSerializers: SerializersModule =
       subclass(Flip::class)
       subclass(Crop::class)
       subclass(CropRect::class)
+      subclass(KenBurns::class)
       subclass(Scale::class)
       subclass(Brightness::class)
       subclass(Watermark::class)

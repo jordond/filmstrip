@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -38,8 +39,10 @@ import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Brightness on an export that keeps its grade, on real media3.
@@ -152,6 +155,7 @@ class AndroidBrightnessHdrTest {
         colorSpace = if (transfer == null) ColorSpace.Bt709 else ColorSpace.Bt2020,
         hdrTransfer = transfer,
         frameRate = 30f,
+        span = TimeRange.of(Duration.ZERO, 1.seconds),
       )
     val capabilities =
       RenderCapabilities(

@@ -4,6 +4,7 @@ import androidx.media3.common.Effect
 import androidx.media3.effect.RgbAdjustment
 import androidx.media3.effect.RgbMatrix
 import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.export.AudioCodec
@@ -227,6 +228,7 @@ class Media3PreviewTest {
       effects = emptyList(),
       gain = 1f,
       startsAtKeyFrame = false,
+      span = TimeRange.of(Duration.ZERO, length),
     )
 
   private companion object {

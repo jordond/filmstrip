@@ -2,6 +2,8 @@ package dev.jordond.filmstrip.effects
 
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.geometry.FlipAxis
+import dev.jordond.filmstrip.geometry.NormalizedRect
+import dev.jordond.filmstrip.motion.Easing
 import kotlinx.serialization.PolymorphicSerializer
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
@@ -21,6 +23,7 @@ class BuiltInEffectSerializersTest {
         Rotate(degrees = 90),
         Flip(axis = FlipAxis.Horizontal),
         Scale(targetHeight = 720),
+        KenBurns(from = NormalizedRect(0.1f, 0.1f, 0.9f, 0.9f), to = NormalizedRect.Full, easing = Easing.EaseOut),
         Brightness(factor = 0.5f),
       )
 

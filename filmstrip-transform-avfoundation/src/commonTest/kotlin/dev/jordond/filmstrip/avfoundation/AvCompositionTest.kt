@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.avfoundation.internal.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.toDuration
 import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportPath
@@ -179,6 +180,7 @@ class AvCompositionTest {
       effects = emptyList(),
       gain = 1f,
       startsAtKeyFrame = false,
+      span = TimeRange.of(Duration.ZERO, duration),
     )
 
   // A swap rebuilds the spans over the slots they already hold, and a still dropped on the way
@@ -310,6 +312,7 @@ class AvCompositionTest {
       effects = emptyList(),
       gain = 1f,
       startsAtKeyFrame = false,
+      span = TimeRange.of(Duration.ZERO, end - start),
     )
 
   private fun fixture(name: String): String? {

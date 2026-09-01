@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.player.PlayerEngine
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
 import dev.jordond.filmstrip.player.SetCompositionResult
 import dev.jordond.filmstrip.test.TestFrame
+import dev.jordond.filmstrip.test.assertFramesDiffer
 import dev.jordond.filmstrip.test.assertFramesSimilar
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -126,6 +127,58 @@ class ApplePixelContractTest : PlayerPixelContractTest() {
       }
     }
 
+  /**
+   * A pan over a photo, previewed against the export at two readings inside its span.
+   *
+   * This is the reading parity actually turns on for a time-varying effect. Both paths run the same
+   * Core Image chain over the same still, so they only agree when both hand it the same composition
+   * time. Measured at 40% and 60% through the span, since a pan that stood still would still match
+   * at either end of it.
+   */
+  @Test
+  fun `a pan over a photo previews the way it exports`() =
+    contractTest { scope ->
+      val engine = createEngine(scope)
+      withEngine(engine) { recorder ->
+        engine.setQualityPolicy(PreviewQualityPolicy.Full)
+        val composition = applePannedPhotoComposition()
+        engine.awaitComposition(composition).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the preview to be presentable") { recorder.lastState.hasComposition }
+
+        val exported = mutableListOf<TestFrame>()
+        val drawn =
+          PAN_FRACTIONS.map { fraction ->
+            val preview = engine.readback.awaitFrame(CLIP_LENGTH + PHOTO_LENGTH * fraction)
+            val frame = preview.asTestFrame()
+            val export = appleExportFrame(composition, preview.presentationTime)
+            exported += export
+
+            assertFramesSimilar(
+              expected = export,
+              actual = frame,
+              minPsnrDb = PAN_MIN_PSNR_DB,
+              message = "the preview and the export disagree $fraction through the pan",
+            )
+            frame
+          }
+
+        // Two readings of a pan that never moved would match each other and match the export at
+        // both, which is the way this passes while drawing the wrong thing.
+        assertFramesDiffer(
+          expected = drawn.first(),
+          actual = drawn.last(),
+          message = "the pan drew the same frame at ${PAN_FRACTIONS.first()} and ${PAN_FRACTIONS.last()}",
+        )
+        // And the floor above is not so low that a frame a fifth of the travel away clears it.
+        assertFramesDiffer(
+          expected = exported.last(),
+          actual = drawn.first(),
+          minPsnrDb = PAN_MIN_PSNR_DB,
+          message = "the reading at ${PAN_FRACTIONS.first()} matched the export at ${PAN_FRACTIONS.last()}",
+        )
+      }
+    }
+
   private companion object {
     const val DIM = 0.4f
     const val BRIGHT = 1.4f
@@ -135,5 +188,10 @@ class ApplePixelContractTest : PlayerPixelContractTest() {
     // Well above a caption wrapped onto a different number of lines, measured at 14.8 dB and 0.842.
     const val CAPTION_MIN_PSNR_DB = 25.0
     const val CAPTION_MIN_SSIM = 0.96
+
+    // The split photo carries a hard colour edge, which is the one thing a resample rings on and
+    // which none of the flat fixtures have. Measured across it below, with a reading a fifth of the
+    // travel away asserted to fall under the same floor.
+    const val PAN_MIN_PSNR_DB = 34.0
   }
 }

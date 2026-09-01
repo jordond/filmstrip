@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.effect.EffectIds
+import dev.jordond.filmstrip.effect.EffectScope
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.geometry.Anchor
@@ -9,6 +10,7 @@ import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
+import dev.jordond.filmstrip.motion.Easing
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -84,6 +86,39 @@ public class CropRect(
   override val id: String get() = EffectIds.CROP_RECT
 
   override val stage: EffectStage get() = EffectStage.Geometry
+}
+
+/**
+ * Pan and zoom across the frame over the clip's span.
+ *
+ * [from] and [to] are the regions filling the frame at the start of the clip and at its end, and
+ * every frame between them shows the region [easing] paces to. Both are fractions of the frame
+ * entering this effect, so a crop declared on the same clip has already chosen the framing this
+ * travels within.
+ *
+ * The region is resampled to fill the frame it was measured against, so the frame keeps the size it
+ * arrived at and a rect whose shape differs from the frame's stretches to fill it.
+ *
+ * Valid on a clip alone. Its result depends on where a frame sits in the clip's span, so it cannot
+ * be fanned onto a run of clips the way a track effect is, and a plan refuses it anywhere else.
+ *
+ * @property from The region visible at the start of the clip.
+ * @property to The region visible at the end.
+ * @property easing How the motion is paced between them.
+ */
+@Serializable
+@SerialName(EffectIds.KEN_BURNS)
+@Poko
+public class KenBurns(
+  public val from: NormalizedRect,
+  public val to: NormalizedRect,
+  public val easing: Easing = Easing.EaseInOut,
+) : EffectSpec {
+  override val id: String get() = EffectIds.KEN_BURNS
+
+  override val stage: EffectStage get() = EffectStage.Geometry
+
+  override val scope: EffectScope get() = EffectScope.ClipOnly
 }
 
 /**

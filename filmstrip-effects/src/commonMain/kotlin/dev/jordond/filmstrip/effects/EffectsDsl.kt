@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.motion.Easing
 import dev.jordond.filmstrip.style.TextStyle
 import kotlin.time.Duration
 
@@ -35,6 +36,18 @@ public fun EffectsBuilder.crop(
  * Crop to an explicit [rect], expressed in the frame rotation produced.
  */
 public fun EffectsBuilder.crop(rect: NormalizedRect): EffectsBuilder = add(CropRect(rect))
+
+/**
+ * Pan and zoom from [from] to [to] over the clip's span.
+ *
+ * Valid on a clip alone, since the region it shows depends on where the frame sits inside that
+ * clip.
+ */
+public fun EffectsBuilder.kenBurns(
+  from: NormalizedRect,
+  to: NormalizedRect,
+  easing: Easing = Easing.EaseInOut,
+): EffectsBuilder = add(KenBurns(from, to, easing))
 
 /**
  * Scale the output to [targetHeight] pixels tall.

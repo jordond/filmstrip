@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.avfoundation.internal.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.toCMTime
 import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.CoreImageEffect
 import dev.jordond.filmstrip.effect.PlatformEffect
@@ -221,6 +222,7 @@ class AppleParameterSwapTest {
       effects = effects,
       gain = 1f,
       startsAtKeyFrame = false,
+      span = TimeRange.of(Duration.ZERO, end),
     )
 
   /**

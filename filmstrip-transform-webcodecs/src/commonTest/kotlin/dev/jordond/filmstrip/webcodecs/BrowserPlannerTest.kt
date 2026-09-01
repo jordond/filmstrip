@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.effects.Brightness
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.Crop
 import dev.jordond.filmstrip.effects.Flip
+import dev.jordond.filmstrip.effects.KenBurns
 import dev.jordond.filmstrip.effects.Rotate
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.AudioCodec
@@ -30,6 +31,7 @@ import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.FlipAxis
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
@@ -131,6 +133,19 @@ class BrowserPlannerTest {
     val verdict = lower(compositionOf(listOf(Clip(source("a")))), spec = videoSpec(targetHeight = 360)).verdict
     assertIs<Verdict.Capable>(verdict)
     assertEquals(Size(640, 360), verdict.plan.output.size)
+  }
+
+  // A pass here carries one texture matrix settled at resolve, and a pan moves the region on every
+  // frame, so it is refused by name rather than drawn standing still.
+  @Test
+  fun panRefusesByName() {
+    val pan = KenBurns(NormalizedRect.Full, NormalizedRect(0.2f, 0.2f, 0.8f, 0.8f))
+    val clip = Clip(source("a"), effects = listOf(pan))
+
+    val verdict = lower(compositionOf(listOf(clip))).verdict
+
+    assertIs<Verdict.Incapable>(verdict)
+    assertTrue(verdict.reasons.any { it is ExportError.UnsupportedEffect && it.specId == EffectIds.KEN_BURNS })
   }
 
   @Test

@@ -1,6 +1,8 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.RenderApi
@@ -11,6 +13,7 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.Crop
 import dev.jordond.filmstrip.effects.CropRect
 import dev.jordond.filmstrip.effects.Flip
+import dev.jordond.filmstrip.effects.KenBurns
 import dev.jordond.filmstrip.effects.Rotate
 import dev.jordond.filmstrip.effects.Scale
 import dev.jordond.filmstrip.effects.Text
@@ -30,6 +33,8 @@ import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 // The platform object is data here, so the whole catalogue is assertable with no ffmpeg installed.
 class EffectLoweringTest {
@@ -110,6 +115,20 @@ class EffectLoweringTest {
 
     assertIs<EffectResolution.Unsupported>(resolution)
     resolution.message.contains("maxWidth") shouldBe true
+  }
+
+  // A crop is resolved to whole pixels once, so that the plan and the export cannot disagree about
+  // the frame, and a pan moves the region on every frame. It is refused by name rather than lowered
+  // to a crop that stands still, which is the way an effect this backend cannot draw becomes a
+  // wrong render instead of a refusal.
+  @Test
+  fun `refuses a pan by name`() {
+    val pan = KenBurns(NormalizedRect.Full, NormalizedRect(0.2f, 0.2f, 0.8f, 0.8f))
+
+    val resolution = resolver.resolve(pan, capabilities(), attributes())
+
+    assertIs<EffectResolution.Unsupported>(resolution)
+    resolution.specId shouldBe EffectIds.KEN_BURNS
   }
 
   @Test
@@ -217,6 +236,7 @@ class EffectLoweringTest {
       colorSpace = if (hdrTransfer == null) ColorSpace.Bt709 else ColorSpace.Bt2020,
       hdrTransfer = hdrTransfer,
       frameRate = 30f,
+      span = TimeRange.of(Duration.ZERO, 1.seconds),
     )
 
   private fun capabilities(

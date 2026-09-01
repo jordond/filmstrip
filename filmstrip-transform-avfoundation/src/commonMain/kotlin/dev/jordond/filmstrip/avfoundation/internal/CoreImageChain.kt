@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.avfoundation.internal
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.FrameInfo
 import dev.jordond.filmstrip.export.ExportError
@@ -498,6 +499,11 @@ internal class ChainSnapshot(
 ) {
   val output: OutputFormat = resolved.output
 
+  /**
+   * The run a composition-level effect is drawn over, which is the whole composition.
+   */
+  val compositionSpan: TimeRange = TimeRange.of(Duration.ZERO, resolved.duration)
+
   val transfer: HdrTransfer? = resolved.hdrTransfer
 
   /**
@@ -521,6 +527,7 @@ internal class ChainSnapshot(
       colorSpace = if (encodesHdr) ColorSpace.Bt2020 else ColorSpace.Bt709,
       hdrTransfer = encodedTransfer,
       frameRate = output.frameRate?.toFloat(),
+      span = compositionSpan,
     )
 
   /**
@@ -535,6 +542,7 @@ internal class ChainSnapshot(
       colorSpace = if (encodesHdr) ColorSpace.Bt2020 else ColorSpace.Bt709,
       hdrTransfer = encodedTransfer,
       frameRate = output.frameRate?.toFloat(),
+      span = compositionSpan,
     )
 }
 

@@ -29,6 +29,7 @@ import kotlinx.coroutines.withContext
 import java.nio.ByteBuffer
 import java.util.concurrent.Executor
 import kotlin.coroutines.resumeWithException
+import kotlin.time.Duration
 
 /**
  * Draws the one frame a photo contributes, through the chain an export of it would run.
@@ -62,19 +63,50 @@ internal class Media3StillFrames(
   }
 
   /**
-   * The frame [readback]'s photo draws, at the size its chain resolves to.
+   * The frame [readback]'s photo draws at [at], at the size its chain resolves to.
    *
    * Neither half runs on the caller's thread. The decode reads a file, and building the processor
    * parks the calling thread until its GL context is up, which is not something to do on the
    * dispatcher a player delivers its callbacks on.
    *
+   * @param at The composition time the frame is drawn as.
    * @throws IllegalStateException when the item names no picture to read.
    * @throws VideoFrameProcessingException when the chain could not be run.
    */
-  suspend fun render(readback: Media3Readback): Bitmap {
-    val decoded = withContext(Dispatchers.IO) { loader.load(readback.span.item).awaitBitmap() }
-    return withContext(Dispatchers.Default) { draw(decoded, readback.effects) }
+  suspend fun render(
+    readback: Media3Readback,
+    at: Duration,
+  ): Bitmap {
+    val decoded = picture(readback)
+    return withContext(Dispatchers.Default) { draw(decoded, readback.effects, at) }
   }
+
+  /**
+   * [readback]'s picture, decoded and not yet drawn through anything.
+   *
+   * Read once for a run of positions over the same photo, since the file is the same read every
+   * time and only the chain over it moves.
+   *
+   * @throws IllegalStateException when the item names no picture to read.
+   */
+  suspend fun picture(readback: Media3Readback): Bitmap =
+    withContext(Dispatchers.IO) { loader.load(readback.span.item).awaitBitmap() }
+
+  /**
+   * The frame [picture] draws through [readback]'s chain at [at].
+   *
+   * [picture] is left alone, so one decode answers a whole run of positions.
+   *
+   * @throws VideoFrameProcessingException when the chain could not be run.
+   */
+  suspend fun drawAt(
+    picture: Bitmap,
+    readback: Media3Readback,
+    at: Duration,
+  ): Bitmap =
+    withContext(Dispatchers.Default) {
+      draw(picture.copy(picture.config ?: Bitmap.Config.ARGB_8888, false), readback.effects, at)
+    }
 
   /**
    * Runs [effects] over [source] and reads the result back.
@@ -85,6 +117,7 @@ internal class Media3StillFrames(
   private suspend fun draw(
     source: Bitmap,
     effects: List<Effect>,
+    at: Duration,
   ): Bitmap {
     val drawn = CompletableDeferred<Bitmap>()
     val registered = CompletableDeferred<Unit>()
@@ -134,7 +167,17 @@ internal class Media3StillFrames(
     try {
       // Registration is what opens the processor to input, and it completes on a thread of its own,
       // so a bitmap queued before the callback lands is refused rather than drawn.
-      processor.registerInputStream(VideoFrameProcessor.INPUT_TYPE_BITMAP, source.inputFormat(), effects, 0L)
+      //
+      // The offset is added to a frame's timestamp before the chain sees it, and the one timestamp
+      // queued below is zero, so an effect reading the time is handed the composition time rather
+      // than the start of the photo. That is the base an export's own chain measures against, and
+      // an effect that travels over its clip's span draws the wrong part of it under any other.
+      processor.registerInputStream(
+        VideoFrameProcessor.INPUT_TYPE_BITMAP,
+        source.inputFormat(),
+        effects,
+        at.inWholeMicroseconds,
+      )
       registered.await()
 
       if (!processor.queueInputBitmap(source, ConstantRateTimestampIterator(ONE_FRAME_US, ONE_FRAME_RATE))) {
