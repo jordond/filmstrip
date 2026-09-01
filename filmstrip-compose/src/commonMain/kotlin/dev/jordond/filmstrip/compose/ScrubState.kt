@@ -5,6 +5,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import dev.jordond.filmstrip.player.VideoPlayer
 import kotlin.time.Duration
@@ -18,11 +19,13 @@ import kotlin.time.Duration
  * fresh exact seek per delta, each one cancelling the last, and the picture stops updating while
  * the finger moves.
  *
- * Built by [rememberScrubState].
+ * Built by [rememberScrubState], either over a [VideoPlayer] or over a host's own transport.
  */
 @Stable
 public class ScrubState internal constructor(
-  private val player: VideoPlayer,
+  private val onBegin: () -> Unit,
+  private val onSeek: (Duration) -> Unit,
+  private val onEnd: () -> Unit,
 ) {
   /**
    * Whether a gesture is in flight.
@@ -36,7 +39,7 @@ public class ScrubState internal constructor(
   public fun onScrubStart() {
     if (isScrubbing) return
     isScrubbing = true
-    player.beginScrub()
+    onBegin()
   }
 
   /**
@@ -44,7 +47,7 @@ public class ScrubState internal constructor(
    */
   public fun onScrubTo(position: Duration) {
     if (!isScrubbing) return
-    player.seekTo(position)
+    onSeek(position)
   }
 
   /**
@@ -53,7 +56,7 @@ public class ScrubState internal constructor(
   public fun onScrubEnd() {
     if (!isScrubbing) return
     isScrubbing = false
-    player.endScrub()
+    onEnd()
   }
 }
 
@@ -64,4 +67,35 @@ public class ScrubState internal constructor(
  * @return State keyed to [player], the same instance across recompositions.
  */
 @Composable
-public fun rememberScrubState(player: VideoPlayer): ScrubState = remember(player) { ScrubState(player) }
+public fun rememberScrubState(player: VideoPlayer): ScrubState =
+  remember(player) { ScrubState(player::beginScrub, player::seekTo, player::endScrub) }
+
+/**
+ * Remembers the scrub protocol for a transport the host drives itself.
+ *
+ * For a host seeking something other than a [VideoPlayer], such as a preview it renders on its own
+ * clock. [onBegin] and [onEnd] are where a host relaxes and restores its own seek accuracy, and a
+ * host with nothing to relax leaves them out.
+ *
+ * ```
+ * val scrub = rememberScrubState(onSeek = { player.seekTo(it) })
+ * ```
+ *
+ * @param onSeek Called with the position the gesture is over, on every delta.
+ * @param onBegin Called once as the gesture starts.
+ * @param onEnd Called once as the gesture ends, after the last [onSeek].
+ * @return State that is the same instance across recompositions, calling whichever callbacks the
+ *   last composition passed.
+ */
+@Composable
+public fun rememberScrubState(
+  onSeek: (Duration) -> Unit,
+  onBegin: () -> Unit = {},
+  onEnd: () -> Unit = {},
+): ScrubState {
+  val currentSeek by rememberUpdatedState(onSeek)
+  val currentBegin by rememberUpdatedState(onBegin)
+  val currentEnd by rememberUpdatedState(onEnd)
+
+  return remember { ScrubState({ currentBegin() }, { currentSeek(it) }, { currentEnd() }) }
+}

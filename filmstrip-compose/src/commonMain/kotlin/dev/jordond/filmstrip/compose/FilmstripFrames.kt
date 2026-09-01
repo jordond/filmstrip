@@ -88,7 +88,12 @@ public class FilmstripFrames internal constructor(
    * a decode the strip has already scrolled past.
    */
   internal suspend fun fill(next: StripSpec) {
-    if (next.invalidates(strip)) clear()
+    val previous = strip
+    if (next.invalidates(previous)) {
+      clear()
+    } else if (previous != null) {
+      remap(previous, next)
+    }
     strip = next
 
     snapshotFlow { window() }.collectLatest { window ->
@@ -100,8 +105,52 @@ public class FilmstripFrames internal constructor(
       filmstrip
         .frames(spec.composition, missing.map { spec.positions[it] }, spec.heightPx)
         .withIndex()
-        .collect { (offset, result) -> store(missing[offset], result) }
+        .collect { (offset, result) -> store(spec, missing[offset], result) }
     }
+  }
+
+  /**
+   * Moves what is already decoded onto [next]'s indices, and closes what [next] has no place for.
+   *
+   * A strip that only moves its positions, such as one being zoomed, renders the same picture at a
+   * position it kept. Clearing there would re-decode the whole strip on every step.
+   */
+  private fun remap(
+    previous: StripSpec,
+    next: StripSpec,
+  ) {
+    if (frames.isEmpty()) return
+    if (previous.positions == next.positions) return
+
+    // Keyed by the position a frame was decoded for rather than by the index it sat at, so what is
+    // built here is the size of what is held rather than the size of the strip.
+    val source = mutableMapOf<Duration, StripFrame>()
+    frames.forEach { (index, frame) ->
+      val position = previous.positions.getOrNull(index)
+      if (position == null || position in source) {
+        held -= frame.bytes
+        frame.close()
+      } else {
+        source[position] = frame
+      }
+    }
+
+    // Walked backwards so a position appearing twice in the new strip keeps its frame at the later
+    // of the two indices.
+    val moved = mutableMapOf<Int, StripFrame>()
+    for (index in next.positions.indices.reversed()) {
+      if (source.isEmpty()) break
+      val frame = source.remove(next.positions[index]) ?: continue
+      moved[index] = frame
+    }
+
+    source.values.forEach { frame ->
+      held -= frame.bytes
+      frame.close()
+    }
+
+    frames.clear()
+    frames.putAll(moved)
   }
 
   /**
@@ -130,12 +179,20 @@ public class FilmstripFrames internal constructor(
     frames.keys.filterNot { it in window }.forEach(::evict)
   }
 
+  /**
+   * Files a decoded frame at [index], as long as [spec] is still the strip that asked for it.
+   *
+   * A fill whose job is cancelled can deliver one more frame after the next fill has taken over,
+   * and that frame's index was resolved against positions the strip no longer has. Writing it would
+   * put one source time's picture under another's.
+   */
   private fun store(
+    spec: StripSpec,
     index: Int,
     result: FrameResult,
   ) {
     val frame = (result as? FrameResult.Success)?.image ?: return
-    if (index !in window()) {
+    if (spec !== strip || index !in window()) {
       frame.close()
       return
     }
@@ -144,6 +201,7 @@ public class FilmstripFrames internal constructor(
     val stored = StripFrame(frame)
     frames[index] = stored
     held += stored.bytes
+    if (index in visible) stored.bitmap()
     trim()
   }
 
@@ -202,8 +260,10 @@ public object FilmstripFramesDefaults {
  * preview contends with it for the device's decoders.
  *
  * The cache is dropped whenever anything that would change a rendered frame changes: an edit that
- * moves the pixels, a different [heightPx], or a different set of [positions]. An edit that changes
- * nothing a frame is rendered from, such as a clip's gain, keeps every frame already held.
+ * moves the pixels, or a different [heightPx]. An edit that changes nothing a frame is rendered
+ * from, such as a clip's gain, keeps every frame already held. A different set of [positions] keeps
+ * the frames whose position survives and closes the rest, so a strip being zoomed only asks for the
+ * positions it gained.
  *
  * @param filmstrip The instance the frames are rendered by.
  * @param composition The edit to render from.
@@ -250,19 +310,23 @@ internal class StripSpec(
 ) {
   /**
    * Whether a strip already filled against [previous] holds frames this one cannot reuse.
+   *
+   * Positions are not part of this. A frame is rendered from the edit and the height alone, so one
+   * decoded for a position both strips ask for is still the right picture at whatever index it has
+   * moved to.
    */
   fun invalidates(previous: StripSpec?): Boolean =
     previous == null ||
       revision != previous.revision ||
-      heightPx != previous.heightPx ||
-      positions != previous.positions
+      heightPx != previous.heightPx
 }
 
 /**
- * One decoded frame, and the drawable form of it once something asks.
+ * One decoded frame, and the drawable form of it.
  *
- * The conversion is deferred because a frame fetched into the overscan may never be drawn, and on
- * every target but Android it costs a copy.
+ * A frame that arrives for an item the strip is showing is converted there and then, on the
+ * coroutine that fetched it. One that arrives into the overscan waits until something asks for it,
+ * since it may never be drawn at all and on every target but Android the conversion costs a copy.
  */
 internal class StripFrame(
   private val image: PlatformImage,

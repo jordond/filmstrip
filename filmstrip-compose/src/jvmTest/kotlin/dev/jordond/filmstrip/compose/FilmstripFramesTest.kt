@@ -114,6 +114,64 @@ class FilmstripFramesTest {
       runtime.dispose()
     }
 
+  @Test
+  fun `a strip that only moves its positions keeps the frames both sets ask for`() =
+    runTest {
+      val source = FakeThumbnailSource()
+      val filmstrip = filmstripWith(source)
+      var positions by mutableStateOf(POSITIONS)
+
+      val runtime = ComposeRuntime(this)
+      lateinit var frames: FilmstripFrames
+      runtime.setContent {
+        frames =
+          rememberFilmstripFrames(filmstrip, testComposition("strip.mp4"), positions, HEIGHT_PX, overscan = 0)
+      }
+
+      frames.onVisibleRange(0, 0)
+      runtime.settle()
+      val held = source.images.single()
+
+      // One step in: every position survives, at twice the index it had.
+      positions = POSITIONS.flatMap { listOf(it, it + HALF_STEP) }
+      runtime.settle()
+
+      held.isClosed shouldBe false
+      frames.holds(0) shouldBe true
+      frames.heldBytes shouldBe FakeThumbnailSource.FRAME_BYTES
+      source.requested shouldBe listOf(POSITIONS[0])
+
+      runtime.dispose()
+    }
+
+  @Test
+  fun `a position no new tile sits at is closed`() =
+    runTest {
+      val source = FakeThumbnailSource()
+      val filmstrip = filmstripWith(source)
+      var positions by mutableStateOf(POSITIONS)
+
+      val runtime = ComposeRuntime(this)
+      lateinit var frames: FilmstripFrames
+      runtime.setContent {
+        frames =
+          rememberFilmstripFrames(filmstrip, testComposition("strip.mp4"), positions, HEIGHT_PX, overscan = 0)
+      }
+
+      frames.onVisibleRange(0, 0)
+      runtime.settle()
+      val held = source.images.single()
+
+      positions = POSITIONS.map { it + HALF_STEP }
+      runtime.settle()
+
+      held.isClosed shouldBe true
+      source.requested shouldBe listOf(POSITIONS[0], POSITIONS[0] + HALF_STEP)
+      frames.heldBytes shouldBe FakeThumbnailSource.FRAME_BYTES
+
+      runtime.dispose()
+    }
+
   private fun TestScope.strip(
     source: FakeThumbnailSource,
     maxBytes: Long = FilmstripFramesDefaults.MaxBytes,
@@ -159,5 +217,10 @@ class FilmstripFramesTest {
     const val MIDDLE = 8
 
     val POSITIONS: List<Duration> = List(20) { (it * 250).milliseconds }
+
+    /**
+     * Half the gap between two positions, which is where a zoom step puts the ones it adds.
+     */
+    val HALF_STEP: Duration = 125.milliseconds
   }
 }

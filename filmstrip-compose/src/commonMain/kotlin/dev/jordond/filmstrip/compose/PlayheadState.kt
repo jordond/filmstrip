@@ -40,6 +40,8 @@ public class PlayheadState internal constructor() {
       return (position / total).toFloat().coerceIn(0f, 1f)
     }
 
+  private val provider: () -> Duration = { position }
+
   /**
    * Hands the playhead out as a lambda, to be called from a layout or draw lambda.
    *
@@ -48,9 +50,12 @@ public class PlayheadState internal constructor() {
    * Calling this in a composable body instead reads [position] during composition and recomposes on
    * every tick, which is the whole thing it exists to avoid.
    *
+   * The same lambda comes back every call, so calling this inline in a composable body hands the
+   * composable a parameter it can compare and skip on.
+   *
    * @return a lambda reading the current position.
    */
-  public fun positionProvider(): () -> Duration = { position }
+  public fun positionProvider(): () -> Duration = provider
 
   internal fun onPosition(position: Duration) {
     this.position = position

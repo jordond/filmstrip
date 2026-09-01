@@ -1,8 +1,10 @@
 package dev.jordond.filmstrip.compose
 
 import dev.jordond.filmstrip.geometry.Size
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.doubles.shouldBeWithinPercentageOf
 import io.kotest.matchers.shouldBe
+import kotlin.math.absoluteValue
 import kotlin.test.Test
 import androidx.compose.ui.geometry.Size as ComposeSize
 
@@ -109,10 +111,70 @@ class VideoRectTest {
     crop shouldBe fit
   }
 
+  @Test
+  fun pillarboxedContentIsCentredWithBarsLeftAndRight() {
+    val available = ComposeSize(4000f, 500f)
+    val rect = videoContentRect(OUTPUT, available, VideoContentScale.Fit)
+
+    val expectedHeight = 500f
+    val expectedWidth = expectedHeight * OUTPUT.aspect
+    val expectedBar = (available.width - expectedWidth) / 2f
+
+    rect.left shouldBe expectedBar
+    rect.top shouldBe 0f
+    (rect.width - expectedWidth).absoluteValue shouldBeLessThan PIXEL_TOLERANCE
+    rect.height shouldBe expectedHeight
+  }
+
+  @Test
+  fun letterboxedContentIsCentredWithBarsTopAndBottom() {
+    val available = ComposeSize(1000f, 1000f)
+    val rect = videoContentRect(OUTPUT, available, VideoContentScale.Fit)
+
+    val expectedWidth = 1000f
+    val expectedHeight = expectedWidth / OUTPUT.aspect
+    val expectedBar = (available.height - expectedHeight) / 2f
+
+    rect.left shouldBe 0f
+    rect.top shouldBe expectedBar
+    rect.width shouldBe expectedWidth
+    (rect.height - expectedHeight).absoluteValue shouldBeLessThan PIXEL_TOLERANCE
+  }
+
+  @Test
+  fun cropOverflowsSymmetricallyOnBothSides() {
+    val available = ComposeSize(4000f, 500f)
+    val rect = videoContentRect(OUTPUT, available, VideoContentScale.Crop)
+
+    val expectedWidth = 4000f
+    val expectedHeight = expectedWidth / OUTPUT.aspect
+    val expectedOverflow = (available.height - expectedHeight) / 2f
+
+    rect.left shouldBe 0f
+    rect.top shouldBe expectedOverflow
+    rect.width shouldBe expectedWidth
+    (rect.height - expectedHeight).absoluteValue shouldBeLessThan PIXEL_TOLERANCE
+  }
+
+  @Test
+  fun stretchFillsAvailableExactlyWithNoOffset() {
+    val available = ComposeSize(731f, 419f)
+    val rect = videoContentRect(OUTPUT, available, VideoContentScale.Stretch)
+
+    rect.left shouldBe 0f
+    rect.top shouldBe 0f
+    rect.width shouldBe available.width
+    rect.height shouldBe available.height
+  }
+
   private companion object {
     // 16:9 rather than square, so a rectangle that swapped its axes is not the same rectangle.
     val OUTPUT = Size(1920, 1080)
 
     const val TOLERANCE = 0.01
+
+    // A rectangle's width and height are read back as right-minus-left, so a dimension folded into
+    // an offset and back out can land a bit off the value it started as.
+    const val PIXEL_TOLERANCE = 0.01f
   }
 }

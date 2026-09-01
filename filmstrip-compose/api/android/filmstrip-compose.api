@@ -1,3 +1,7 @@
+public final class dev/jordond/filmstrip/compose/FilmstripFrameKt {
+	public static final fun rememberFilmstripFrame-WPi__2c (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;JILandroidx/compose/runtime/Composer;I)Landroidx/compose/ui/graphics/ImageBitmap;
+}
+
 public final class dev/jordond/filmstrip/compose/FilmstripFrames {
 	public static final field $stable I
 	public final fun get (I)Landroidx/compose/ui/graphics/ImageBitmap;
@@ -53,6 +57,7 @@ public final class dev/jordond/filmstrip/compose/ScrubState {
 
 public final class dev/jordond/filmstrip/compose/ScrubStateKt {
 	public static final fun rememberScrubState (Ldev/jordond/filmstrip/player/VideoPlayer;Landroidx/compose/runtime/Composer;I)Ldev/jordond/filmstrip/compose/ScrubState;
+	public static final fun rememberScrubState (Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;II)Ldev/jordond/filmstrip/compose/ScrubState;
 }
 
 public final class dev/jordond/filmstrip/compose/VideoContentScale : java/lang/Enum {
@@ -62,6 +67,11 @@ public final class dev/jordond/filmstrip/compose/VideoContentScale : java/lang/E
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/compose/VideoContentScale;
 	public static fun values ()[Ldev/jordond/filmstrip/compose/VideoContentScale;
+}
+
+public final class dev/jordond/filmstrip/compose/VideoRectKt {
+	public static final fun videoContentRect-12SF9DM (FJLdev/jordond/filmstrip/compose/VideoContentScale;)Landroidx/compose/ui/geometry/Rect;
+	public static final fun videoContentRect-12SF9DM (Ldev/jordond/filmstrip/geometry/Size;JLdev/jordond/filmstrip/compose/VideoContentScale;)Landroidx/compose/ui/geometry/Rect;
 }
 
 public final class dev/jordond/filmstrip/compose/VideoSurfaceKt {
