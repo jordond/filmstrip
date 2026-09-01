@@ -57,7 +57,7 @@ private val TEST_FIXTURES = setOf(":filmstrip-test")
 /**
  * The single source of truth for the layering contract:
  * `core -> effects -> {transform, transform-media3, transform-avfoundation, transform-webcodecs,
- * transform-ffmpeg} -> player -> {compose, filmstrip}`.
+ * transform-ffmpeg} -> player -> {compose -> compose-ui, filmstrip}`.
  *
  * `filmstrip-test` is absent: fixtures may depend on everything.
  */
@@ -197,6 +197,27 @@ private val LAYERING: Map<String, Layer> =
         directProjects = setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-player"),
         forbiddenExternals = emptySet(),
         forbiddenImports = setOf("androidx.media3.transformer"),
+      ),
+    ":filmstrip-compose-ui" to
+      Layer(
+        allowedProjects =
+          setOf(
+            ":filmstrip-core",
+            ":filmstrip-effects",
+            ":filmstrip-player",
+            ":filmstrip-compose",
+            ":filmstrip-transform",
+            ":filmstrip-transform-media3",
+            ":filmstrip-transform-avfoundation",
+            ":filmstrip-transform-webcodecs",
+            ":filmstrip-transform-ffmpeg",
+          ),
+        directProjects = setOf(":filmstrip-compose"),
+        forbiddenExternals = emptySet(),
+        // NOTE the material ban is what keeps this module a foundation-only timeline. It covers
+        // `material`, `material3` and `material3.adaptive` by prefix, so a tool panel or a styled
+        // control cannot be written here without the build failing.
+        forbiddenImports = setOf("androidx.media3.transformer", "androidx.compose.material"),
       ),
     ":filmstrip" to
       Layer(

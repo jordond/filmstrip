@@ -60,6 +60,7 @@ include(
   ":filmstrip-transform-ffmpeg",
   ":filmstrip-player",
   ":filmstrip-compose",
+  ":filmstrip-compose-ui",
   ":filmstrip-test",
 )
 

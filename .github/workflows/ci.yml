@@ -52,10 +52,11 @@ jobs:
           checkLayeringFilmstrip checkLayeringFilmstripCore checkLayeringFilmstripEffects
           checkLayeringFilmstripTransform checkLayeringFilmstripTransformFfmpeg
           checkLayeringFilmstripPlayer checkLayeringFilmstripCompose
+          checkLayeringFilmstripComposeUi
           checkNpmDependenciesFilmstrip checkNpmDependenciesFilmstripCore
           checkNpmDependenciesFilmstripEffects checkNpmDependenciesFilmstripTransform
           checkNpmDependenciesFilmstripTransformFfmpeg checkNpmDependenciesFilmstripPlayer
-          checkNpmDependenciesFilmstripCompose
+          checkNpmDependenciesFilmstripCompose checkNpmDependenciesFilmstripComposeUi
 
       - name: Lint
         run: ./gradlew lint --scan

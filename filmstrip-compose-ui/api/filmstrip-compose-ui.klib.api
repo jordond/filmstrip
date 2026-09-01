@@ -1,0 +1,286 @@
+// Klib ABI Dump
+// Targets: [iosArm64, iosSimulatorArm64, js, wasmJs]
+// Rendering settings:
+// - Signature version: 2
+// - Show manifest properties: true
+// - Show declarations: true
+
+// Library unique name: <filmstrip-root:filmstrip-compose-ui>
+final enum class dev.jordond.filmstrip.compose.ui.interaction/TrimHandle : kotlin/Enum<dev.jordond.filmstrip.compose.ui.interaction/TrimHandle> { // dev.jordond.filmstrip.compose.ui.interaction/TrimHandle|null[0]
+    enum entry End // dev.jordond.filmstrip.compose.ui.interaction/TrimHandle.End|null[0]
+    enum entry Start // dev.jordond.filmstrip.compose.ui.interaction/TrimHandle.Start|null[0]
+
+    final val entries // dev.jordond.filmstrip.compose.ui.interaction/TrimHandle.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.compose.ui.interaction/TrimHandle> // dev.jordond.filmstrip.compose.ui.interaction/TrimHandle.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.jordond.filmstrip.compose.ui.interaction/TrimHandle // dev.jordond.filmstrip.compose.ui.interaction/TrimHandle.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.jordond.filmstrip.compose.ui.interaction/TrimHandle> // dev.jordond.filmstrip.compose.ui.interaction/TrimHandle.values|values#static(){}[0]
+}
+
+abstract interface dev.jordond.filmstrip.compose.ui/TimelineOverlayScope : androidx.compose.foundation.layout/BoxScope { // dev.jordond.filmstrip.compose.ui/TimelineOverlayScope|null[0]
+    abstract val follow // dev.jordond.filmstrip.compose.ui/TimelineOverlayScope.follow|{}follow[0]
+        abstract fun <get-follow>(): dev.jordond.filmstrip.compose.ui.interaction/PlayheadFollow // dev.jordond.filmstrip.compose.ui/TimelineOverlayScope.follow.<get-follow>|<get-follow>(){}[0]
+    abstract val timeline // dev.jordond.filmstrip.compose.ui/TimelineOverlayScope.timeline|{}timeline[0]
+        abstract fun <get-timeline>(): dev.jordond.filmstrip.compose.ui/TimelineState // dev.jordond.filmstrip.compose.ui/TimelineOverlayScope.timeline.<get-timeline>|<get-timeline>(){}[0]
+}
+
+sealed interface dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint { // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint|null[0]
+    abstract fun constrain(dev.jordond.filmstrip.edit/TimeRange, dev.jordond.filmstrip.compose.ui.interaction/TrimHandle, kotlin.time/Duration): dev.jordond.filmstrip.edit/TimeRange // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.constrain|constrain(dev.jordond.filmstrip.edit.TimeRange;dev.jordond.filmstrip.compose.ui.interaction.TrimHandle;kotlin.time.Duration){}[0]
+
+    final class FixedDuration : dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint { // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.FixedDuration|null[0]
+        constructor <init>(kotlin.time/Duration) // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.FixedDuration.<init>|<init>(kotlin.time.Duration){}[0]
+
+        final val length // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.FixedDuration.length|{}length[0]
+            final fun <get-length>(): kotlin.time/Duration // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.FixedDuration.length.<get-length>|<get-length>(){}[0]
+
+        final fun constrain(dev.jordond.filmstrip.edit/TimeRange, dev.jordond.filmstrip.compose.ui.interaction/TrimHandle, kotlin.time/Duration): dev.jordond.filmstrip.edit/TimeRange // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.FixedDuration.constrain|constrain(dev.jordond.filmstrip.edit.TimeRange;dev.jordond.filmstrip.compose.ui.interaction.TrimHandle;kotlin.time.Duration){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.FixedDuration.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.FixedDuration.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.FixedDuration.toString|toString(){}[0]
+    }
+
+    final class MinDuration : dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint { // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.MinDuration|null[0]
+        constructor <init>(kotlin.time/Duration) // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.MinDuration.<init>|<init>(kotlin.time.Duration){}[0]
+
+        final val minimum // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.MinDuration.minimum|{}minimum[0]
+            final fun <get-minimum>(): kotlin.time/Duration // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.MinDuration.minimum.<get-minimum>|<get-minimum>(){}[0]
+
+        final fun constrain(dev.jordond.filmstrip.edit/TimeRange, dev.jordond.filmstrip.compose.ui.interaction/TrimHandle, kotlin.time/Duration): dev.jordond.filmstrip.edit/TimeRange // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.MinDuration.constrain|constrain(dev.jordond.filmstrip.edit.TimeRange;dev.jordond.filmstrip.compose.ui.interaction.TrimHandle;kotlin.time.Duration){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.MinDuration.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.MinDuration.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.MinDuration.toString|toString(){}[0]
+    }
+
+    final class MinMaxDuration : dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint { // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.MinMaxDuration|null[0]
+        constructor <init>(kotlin.time/Duration, kotlin.time/Duration) // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.MinMaxDuration.<init>|<init>(kotlin.time.Duration;kotlin.time.Duration){}[0]
+
+        final val maximum // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.MinMaxDuration.maximum|{}maximum[0]
+            final fun <get-maximum>(): kotlin.time/Duration // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.MinMaxDuration.maximum.<get-maximum>|<get-maximum>(){}[0]
+        final val minimum // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.MinMaxDuration.minimum|{}minimum[0]
+            final fun <get-minimum>(): kotlin.time/Duration // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.MinMaxDuration.minimum.<get-minimum>|<get-minimum>(){}[0]
+
+        final fun constrain(dev.jordond.filmstrip.edit/TimeRange, dev.jordond.filmstrip.compose.ui.interaction/TrimHandle, kotlin.time/Duration): dev.jordond.filmstrip.edit/TimeRange // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.MinMaxDuration.constrain|constrain(dev.jordond.filmstrip.edit.TimeRange;dev.jordond.filmstrip.compose.ui.interaction.TrimHandle;kotlin.time.Duration){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.MinMaxDuration.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.MinMaxDuration.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint.MinMaxDuration.toString|toString(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.compose.ui.geometry/StripGrid { // dev.jordond.filmstrip.compose.ui.geometry/StripGrid|null[0]
+    constructor <init>(dev.jordond.filmstrip.compose.ui.geometry/TimelineScale, kotlin/Int) // dev.jordond.filmstrip.compose.ui.geometry/StripGrid.<init>|<init>(dev.jordond.filmstrip.compose.ui.geometry.TimelineScale;kotlin.Int){}[0]
+
+    final val count // dev.jordond.filmstrip.compose.ui.geometry/StripGrid.count|{}count[0]
+        final fun <get-count>(): kotlin/Int // dev.jordond.filmstrip.compose.ui.geometry/StripGrid.count.<get-count>|<get-count>(){}[0]
+    final val positions // dev.jordond.filmstrip.compose.ui.geometry/StripGrid.positions|{}positions[0]
+        final fun <get-positions>(): kotlin.collections/List<kotlin.time/Duration> // dev.jordond.filmstrip.compose.ui.geometry/StripGrid.positions.<get-positions>|<get-positions>(){}[0]
+    final val scale // dev.jordond.filmstrip.compose.ui.geometry/StripGrid.scale|{}scale[0]
+        final fun <get-scale>(): dev.jordond.filmstrip.compose.ui.geometry/TimelineScale // dev.jordond.filmstrip.compose.ui.geometry/StripGrid.scale.<get-scale>|<get-scale>(){}[0]
+    final val tileWidthPx // dev.jordond.filmstrip.compose.ui.geometry/StripGrid.tileWidthPx|{}tileWidthPx[0]
+        final fun <get-tileWidthPx>(): kotlin/Int // dev.jordond.filmstrip.compose.ui.geometry/StripGrid.tileWidthPx.<get-tileWidthPx>|<get-tileWidthPx>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.compose.ui.geometry/StripGrid.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.compose.ui.geometry/StripGrid.hashCode|hashCode(){}[0]
+    final fun indexAt(kotlin.time/Duration): kotlin/Int? // dev.jordond.filmstrip.compose.ui.geometry/StripGrid.indexAt|indexAt(kotlin.time.Duration){}[0]
+    final fun tileWidthPxAt(kotlin/Int): kotlin/Int // dev.jordond.filmstrip.compose.ui.geometry/StripGrid.tileWidthPxAt|tileWidthPxAt(kotlin.Int){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.compose.ui.geometry/StripGrid.toString|toString(){}[0]
+    final fun visibleRange(kotlin/Float, kotlin/Float): kotlin.ranges/IntRange // dev.jordond.filmstrip.compose.ui.geometry/StripGrid.visibleRange|visibleRange(kotlin.Float;kotlin.Float){}[0]
+    final fun withScale(dev.jordond.filmstrip.compose.ui.geometry/TimelineScale): dev.jordond.filmstrip.compose.ui.geometry/StripGrid // dev.jordond.filmstrip.compose.ui.geometry/StripGrid.withScale|withScale(dev.jordond.filmstrip.compose.ui.geometry.TimelineScale){}[0]
+    final fun withTileWidth(kotlin/Int): dev.jordond.filmstrip.compose.ui.geometry/StripGrid // dev.jordond.filmstrip.compose.ui.geometry/StripGrid.withTileWidth|withTileWidth(kotlin.Int){}[0]
+}
+
+final class dev.jordond.filmstrip.compose.ui.geometry/TimelineScale { // dev.jordond.filmstrip.compose.ui.geometry/TimelineScale|null[0]
+    constructor <init>(kotlin.time/Duration, kotlin/Float) // dev.jordond.filmstrip.compose.ui.geometry/TimelineScale.<init>|<init>(kotlin.time.Duration;kotlin.Float){}[0]
+
+    final val contentWidthPx // dev.jordond.filmstrip.compose.ui.geometry/TimelineScale.contentWidthPx|{}contentWidthPx[0]
+        final fun <get-contentWidthPx>(): kotlin/Float // dev.jordond.filmstrip.compose.ui.geometry/TimelineScale.contentWidthPx.<get-contentWidthPx>|<get-contentWidthPx>(){}[0]
+    final val duration // dev.jordond.filmstrip.compose.ui.geometry/TimelineScale.duration|{}duration[0]
+        final fun <get-duration>(): kotlin.time/Duration // dev.jordond.filmstrip.compose.ui.geometry/TimelineScale.duration.<get-duration>|<get-duration>(){}[0]
+    final val pixelsPerSecond // dev.jordond.filmstrip.compose.ui.geometry/TimelineScale.pixelsPerSecond|{}pixelsPerSecond[0]
+        final fun <get-pixelsPerSecond>(): kotlin/Float // dev.jordond.filmstrip.compose.ui.geometry/TimelineScale.pixelsPerSecond.<get-pixelsPerSecond>|<get-pixelsPerSecond>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.compose.ui.geometry/TimelineScale.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.compose.ui.geometry/TimelineScale.hashCode|hashCode(){}[0]
+    final fun tickInterval(kotlin/Float): kotlin.time/Duration // dev.jordond.filmstrip.compose.ui.geometry/TimelineScale.tickInterval|tickInterval(kotlin.Float){}[0]
+    final fun timeAt(kotlin/Float): kotlin.time/Duration // dev.jordond.filmstrip.compose.ui.geometry/TimelineScale.timeAt|timeAt(kotlin.Float){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.compose.ui.geometry/TimelineScale.toString|toString(){}[0]
+    final fun widthOf(kotlin.time/Duration): kotlin/Float // dev.jordond.filmstrip.compose.ui.geometry/TimelineScale.widthOf|widthOf(kotlin.time.Duration){}[0]
+    final fun withDuration(kotlin.time/Duration): dev.jordond.filmstrip.compose.ui.geometry/TimelineScale // dev.jordond.filmstrip.compose.ui.geometry/TimelineScale.withDuration|withDuration(kotlin.time.Duration){}[0]
+    final fun withPixelsPerSecond(kotlin/Float): dev.jordond.filmstrip.compose.ui.geometry/TimelineScale // dev.jordond.filmstrip.compose.ui.geometry/TimelineScale.withPixelsPerSecond|withPixelsPerSecond(kotlin.Float){}[0]
+    final fun xOf(kotlin.time/Duration): kotlin/Float // dev.jordond.filmstrip.compose.ui.geometry/TimelineScale.xOf|xOf(kotlin.time.Duration){}[0]
+
+    final object Companion // dev.jordond.filmstrip.compose.ui.geometry/TimelineScale.Companion|null[0]
+}
+
+final class dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom { // dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom|null[0]
+    final val pixelsPerSecond // dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom.pixelsPerSecond|{}pixelsPerSecond[0]
+        final fun <get-pixelsPerSecond>(): kotlin/Float // dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom.pixelsPerSecond.<get-pixelsPerSecond>|<get-pixelsPerSecond>(){}[0]
+    final val step // dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom.step|{}step[0]
+        final fun <get-step>(): kotlin/Int // dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom.step.<get-step>|<get-step>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom.hashCode|hashCode(){}[0]
+    final fun scaleFor(kotlin.time/Duration): dev.jordond.filmstrip.compose.ui.geometry/TimelineScale // dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom.scaleFor|scaleFor(kotlin.time.Duration){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom.toString|toString(){}[0]
+    final fun zoomedIn(): dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom // dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom.zoomedIn|zoomedIn(){}[0]
+    final fun zoomedOut(): dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom // dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom.zoomedOut|zoomedOut(){}[0]
+
+    final object Companion { // dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom.Companion|null[0]
+        final val Steps // dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom.Companion.Steps|{}Steps[0]
+            final fun <get-Steps>(): kotlin.ranges/IntRange // dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom.Companion.Steps.<get-Steps>|<get-Steps>(){}[0]
+
+        final fun fitting(kotlin.time/Duration, kotlin/Float): dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom // dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom.Companion.fitting|fitting(kotlin.time.Duration;kotlin.Float){}[0]
+        final fun of(kotlin/Int): dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom // dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom.Companion.of|of(kotlin.Int){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.compose.ui.interaction/PlayheadFollow { // dev.jordond.filmstrip.compose.ui.interaction/PlayheadFollow|null[0]
+    final var isEngaged // dev.jordond.filmstrip.compose.ui.interaction/PlayheadFollow.isEngaged|{}isEngaged[0]
+        final fun <get-isEngaged>(): kotlin/Boolean // dev.jordond.filmstrip.compose.ui.interaction/PlayheadFollow.isEngaged.<get-isEngaged>|<get-isEngaged>(){}[0]
+
+    final fun disengage() // dev.jordond.filmstrip.compose.ui.interaction/PlayheadFollow.disengage|disengage(){}[0]
+    final fun engage() // dev.jordond.filmstrip.compose.ui.interaction/PlayheadFollow.engage|engage(){}[0]
+}
+
+final class dev.jordond.filmstrip.compose.ui/TimelineColors { // dev.jordond.filmstrip.compose.ui/TimelineColors|null[0]
+    final val playhead // dev.jordond.filmstrip.compose.ui/TimelineColors.playhead|{}playhead[0]
+        final fun <get-playhead>(): androidx.compose.ui.graphics/Color // dev.jordond.filmstrip.compose.ui/TimelineColors.playhead.<get-playhead>|<get-playhead>(){}[0]
+    final val ruler // dev.jordond.filmstrip.compose.ui/TimelineColors.ruler|{}ruler[0]
+        final fun <get-ruler>(): androidx.compose.ui.graphics/Color // dev.jordond.filmstrip.compose.ui/TimelineColors.ruler.<get-ruler>|<get-ruler>(){}[0]
+    final val rulerLabel // dev.jordond.filmstrip.compose.ui/TimelineColors.rulerLabel|{}rulerLabel[0]
+        final fun <get-rulerLabel>(): androidx.compose.ui.graphics/Color // dev.jordond.filmstrip.compose.ui/TimelineColors.rulerLabel.<get-rulerLabel>|<get-rulerLabel>(){}[0]
+    final val tile // dev.jordond.filmstrip.compose.ui/TimelineColors.tile|{}tile[0]
+        final fun <get-tile>(): androidx.compose.ui.graphics/Color // dev.jordond.filmstrip.compose.ui/TimelineColors.tile.<get-tile>|<get-tile>(){}[0]
+    final val tileDivider // dev.jordond.filmstrip.compose.ui/TimelineColors.tileDivider|{}tileDivider[0]
+        final fun <get-tileDivider>(): androidx.compose.ui.graphics/Color // dev.jordond.filmstrip.compose.ui/TimelineColors.tileDivider.<get-tileDivider>|<get-tileDivider>(){}[0]
+    final val trimHandle // dev.jordond.filmstrip.compose.ui/TimelineColors.trimHandle|{}trimHandle[0]
+        final fun <get-trimHandle>(): androidx.compose.ui.graphics/Color // dev.jordond.filmstrip.compose.ui/TimelineColors.trimHandle.<get-trimHandle>|<get-trimHandle>(){}[0]
+    final val trimHandleGrip // dev.jordond.filmstrip.compose.ui/TimelineColors.trimHandleGrip|{}trimHandleGrip[0]
+        final fun <get-trimHandleGrip>(): androidx.compose.ui.graphics/Color // dev.jordond.filmstrip.compose.ui/TimelineColors.trimHandleGrip.<get-trimHandleGrip>|<get-trimHandleGrip>(){}[0]
+    final val trimScrim // dev.jordond.filmstrip.compose.ui/TimelineColors.trimScrim|{}trimScrim[0]
+        final fun <get-trimScrim>(): androidx.compose.ui.graphics/Color // dev.jordond.filmstrip.compose.ui/TimelineColors.trimScrim.<get-trimScrim>|<get-trimScrim>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.compose.ui/TimelineColors.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.compose.ui/TimelineColors.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.compose.ui/TimelineColors.toString|toString(){}[0]
+}
+
+final class dev.jordond.filmstrip.compose.ui/TimelineOptions { // dev.jordond.filmstrip.compose.ui/TimelineOptions|null[0]
+    constructor <init>(androidx.compose.ui.unit/Dp = ..., androidx.compose.ui.unit/Dp = ..., androidx.compose.ui.unit/Dp = ..., kotlin/Boolean = ..., kotlin/Boolean = ..., kotlin/Boolean = ..., dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint = ..., kotlin/Long = ..., kotlin/Int = ..., kotlin/Boolean = ..., kotlin/Boolean = ...) // dev.jordond.filmstrip.compose.ui/TimelineOptions.<init>|<init>(androidx.compose.ui.unit.Dp;androidx.compose.ui.unit.Dp;androidx.compose.ui.unit.Dp;kotlin.Boolean;kotlin.Boolean;kotlin.Boolean;dev.jordond.filmstrip.compose.ui.interaction.TrimConstraint;kotlin.Long;kotlin.Int;kotlin.Boolean;kotlin.Boolean){}[0]
+
+    final val followPlayhead // dev.jordond.filmstrip.compose.ui/TimelineOptions.followPlayhead|{}followPlayhead[0]
+        final fun <get-followPlayhead>(): kotlin/Boolean // dev.jordond.filmstrip.compose.ui/TimelineOptions.followPlayhead.<get-followPlayhead>|<get-followPlayhead>(){}[0]
+    final val maxBytes // dev.jordond.filmstrip.compose.ui/TimelineOptions.maxBytes|{}maxBytes[0]
+        final fun <get-maxBytes>(): kotlin/Long // dev.jordond.filmstrip.compose.ui/TimelineOptions.maxBytes.<get-maxBytes>|<get-maxBytes>(){}[0]
+    final val overscan // dev.jordond.filmstrip.compose.ui/TimelineOptions.overscan|{}overscan[0]
+        final fun <get-overscan>(): kotlin/Int // dev.jordond.filmstrip.compose.ui/TimelineOptions.overscan.<get-overscan>|<get-overscan>(){}[0]
+    final val pinchZoom // dev.jordond.filmstrip.compose.ui/TimelineOptions.pinchZoom|{}pinchZoom[0]
+        final fun <get-pinchZoom>(): kotlin/Boolean // dev.jordond.filmstrip.compose.ui/TimelineOptions.pinchZoom.<get-pinchZoom>|<get-pinchZoom>(){}[0]
+    final val rulerHeight // dev.jordond.filmstrip.compose.ui/TimelineOptions.rulerHeight|{}rulerHeight[0]
+        final fun <get-rulerHeight>(): androidx.compose.ui.unit/Dp // dev.jordond.filmstrip.compose.ui/TimelineOptions.rulerHeight.<get-rulerHeight>|<get-rulerHeight>(){}[0]
+    final val showPlayhead // dev.jordond.filmstrip.compose.ui/TimelineOptions.showPlayhead|{}showPlayhead[0]
+        final fun <get-showPlayhead>(): kotlin/Boolean // dev.jordond.filmstrip.compose.ui/TimelineOptions.showPlayhead.<get-showPlayhead>|<get-showPlayhead>(){}[0]
+    final val showRuler // dev.jordond.filmstrip.compose.ui/TimelineOptions.showRuler|{}showRuler[0]
+        final fun <get-showRuler>(): kotlin/Boolean // dev.jordond.filmstrip.compose.ui/TimelineOptions.showRuler.<get-showRuler>|<get-showRuler>(){}[0]
+    final val stripHeight // dev.jordond.filmstrip.compose.ui/TimelineOptions.stripHeight|{}stripHeight[0]
+        final fun <get-stripHeight>(): androidx.compose.ui.unit/Dp // dev.jordond.filmstrip.compose.ui/TimelineOptions.stripHeight.<get-stripHeight>|<get-stripHeight>(){}[0]
+    final val tileWidth // dev.jordond.filmstrip.compose.ui/TimelineOptions.tileWidth|{}tileWidth[0]
+        final fun <get-tileWidth>(): androidx.compose.ui.unit/Dp // dev.jordond.filmstrip.compose.ui/TimelineOptions.tileWidth.<get-tileWidth>|<get-tileWidth>(){}[0]
+    final val trimConstraint // dev.jordond.filmstrip.compose.ui/TimelineOptions.trimConstraint|{}trimConstraint[0]
+        final fun <get-trimConstraint>(): dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint // dev.jordond.filmstrip.compose.ui/TimelineOptions.trimConstraint.<get-trimConstraint>|<get-trimConstraint>(){}[0]
+    final val wheelZoom // dev.jordond.filmstrip.compose.ui/TimelineOptions.wheelZoom|{}wheelZoom[0]
+        final fun <get-wheelZoom>(): kotlin/Boolean // dev.jordond.filmstrip.compose.ui/TimelineOptions.wheelZoom.<get-wheelZoom>|<get-wheelZoom>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.compose.ui/TimelineOptions.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.compose.ui/TimelineOptions.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.compose.ui/TimelineOptions.toString|toString(){}[0]
+
+    final object Companion { // dev.jordond.filmstrip.compose.ui/TimelineOptions.Companion|null[0]
+        final val Default // dev.jordond.filmstrip.compose.ui/TimelineOptions.Companion.Default|{}Default[0]
+            final fun <get-Default>(): dev.jordond.filmstrip.compose.ui/TimelineOptions // dev.jordond.filmstrip.compose.ui/TimelineOptions.Companion.Default.<get-Default>|<get-Default>(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.compose.ui/TimelineState { // dev.jordond.filmstrip.compose.ui/TimelineState|null[0]
+    final val grid // dev.jordond.filmstrip.compose.ui/TimelineState.grid|{}grid[0]
+        final fun <get-grid>(): dev.jordond.filmstrip.compose.ui.geometry/StripGrid // dev.jordond.filmstrip.compose.ui/TimelineState.grid.<get-grid>|<get-grid>(){}[0]
+    final val listState // dev.jordond.filmstrip.compose.ui/TimelineState.listState|{}listState[0]
+        final fun <get-listState>(): androidx.compose.foundation.lazy/LazyListState // dev.jordond.filmstrip.compose.ui/TimelineState.listState.<get-listState>|<get-listState>(){}[0]
+    final val scale // dev.jordond.filmstrip.compose.ui/TimelineState.scale|{}scale[0]
+        final fun <get-scale>(): dev.jordond.filmstrip.compose.ui.geometry/TimelineScale // dev.jordond.filmstrip.compose.ui/TimelineState.scale.<get-scale>|<get-scale>(){}[0]
+
+    final var zoom // dev.jordond.filmstrip.compose.ui/TimelineState.zoom|{}zoom[0]
+        final fun <get-zoom>(): dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom // dev.jordond.filmstrip.compose.ui/TimelineState.zoom.<get-zoom>|<get-zoom>(){}[0]
+
+    final fun scrollPx(): kotlin/Float // dev.jordond.filmstrip.compose.ui/TimelineState.scrollPx|scrollPx(){}[0]
+    final suspend fun zoomIn(kotlin/Float) // dev.jordond.filmstrip.compose.ui/TimelineState.zoomIn|zoomIn(kotlin.Float){}[0]
+    final suspend fun zoomOut(kotlin/Float) // dev.jordond.filmstrip.compose.ui/TimelineState.zoomOut|zoomOut(kotlin.Float){}[0]
+    final suspend fun zoomTo(dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom, kotlin/Float) // dev.jordond.filmstrip.compose.ui/TimelineState.zoomTo|zoomTo(dev.jordond.filmstrip.compose.ui.geometry.TimelineZoom;kotlin.Float){}[0]
+}
+
+final object dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults { // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults|null[0]
+    final val HandleTouchWidth // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.HandleTouchWidth|{}HandleTouchWidth[0]
+        final fun <get-HandleTouchWidth>(): androidx.compose.ui.unit/Dp // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.HandleTouchWidth.<get-HandleTouchWidth>|<get-HandleTouchWidth>(){}[0]
+    final val HandleWidth // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.HandleWidth|{}HandleWidth[0]
+        final fun <get-HandleWidth>(): androidx.compose.ui.unit/Dp // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.HandleWidth.<get-HandleWidth>|<get-HandleWidth>(){}[0]
+    final val KeyStep // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.KeyStep|{}KeyStep[0]
+        final fun <get-KeyStep>(): kotlin.time/Duration // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.KeyStep.<get-KeyStep>|<get-KeyStep>(){}[0]
+    final val MinTickSpacing // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.MinTickSpacing|{}MinTickSpacing[0]
+        final fun <get-MinTickSpacing>(): androidx.compose.ui.unit/Dp // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.MinTickSpacing.<get-MinTickSpacing>|<get-MinTickSpacing>(){}[0]
+    final val MinTrimDuration // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.MinTrimDuration|{}MinTrimDuration[0]
+        final fun <get-MinTrimDuration>(): kotlin.time/Duration // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.MinTrimDuration.<get-MinTrimDuration>|<get-MinTrimDuration>(){}[0]
+    final val Palette // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.Palette|{}Palette[0]
+        final fun <get-Palette>(): dev.jordond.filmstrip.compose.ui/TimelineColors // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.Palette.<get-Palette>|<get-Palette>(){}[0]
+    final val PlayheadKnobSize // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.PlayheadKnobSize|{}PlayheadKnobSize[0]
+        final fun <get-PlayheadKnobSize>(): androidx.compose.ui.unit/Dp // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.PlayheadKnobSize.<get-PlayheadKnobSize>|<get-PlayheadKnobSize>(){}[0]
+    final val PlayheadWidth // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.PlayheadWidth|{}PlayheadWidth[0]
+        final fun <get-PlayheadWidth>(): androidx.compose.ui.unit/Dp // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.PlayheadWidth.<get-PlayheadWidth>|<get-PlayheadWidth>(){}[0]
+    final val RulerHeight // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.RulerHeight|{}RulerHeight[0]
+        final fun <get-RulerHeight>(): androidx.compose.ui.unit/Dp // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.RulerHeight.<get-RulerHeight>|<get-RulerHeight>(){}[0]
+    final val StripHeight // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.StripHeight|{}StripHeight[0]
+        final fun <get-StripHeight>(): androidx.compose.ui.unit/Dp // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.StripHeight.<get-StripHeight>|<get-StripHeight>(){}[0]
+    final val TileWidth // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.TileWidth|{}TileWidth[0]
+        final fun <get-TileWidth>(): androidx.compose.ui.unit/Dp // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.TileWidth.<get-TileWidth>|<get-TileWidth>(){}[0]
+    final val Trim // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.Trim|{}Trim[0]
+        final fun <get-Trim>(): dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.Trim.<get-Trim>|<get-Trim>(){}[0]
+
+    final fun clockLabel(kotlin.time/Duration, kotlin.time/Duration): kotlin/String // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.clockLabel|clockLabel(kotlin.time.Duration;kotlin.time.Duration){}[0]
+    final fun colors(androidx.compose.ui.graphics/Color = ..., androidx.compose.ui.graphics/Color = ..., androidx.compose.ui.graphics/Color = ..., androidx.compose.ui.graphics/Color = ..., androidx.compose.ui.graphics/Color = ..., androidx.compose.ui.graphics/Color = ..., androidx.compose.ui.graphics/Color = ..., androidx.compose.ui.graphics/Color = ...): dev.jordond.filmstrip.compose.ui/TimelineColors // dev.jordond.filmstrip.compose.ui/FilmstripTimelineDefaults.colors|colors(androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color;androidx.compose.ui.graphics.Color){}[0]
+}
+
+final val dev.jordond.filmstrip.compose.ui.geometry/dev_jordond_filmstrip_compose_ui_geometry_StripGrid$stableprop // dev.jordond.filmstrip.compose.ui.geometry/dev_jordond_filmstrip_compose_ui_geometry_StripGrid$stableprop|#static{}dev_jordond_filmstrip_compose_ui_geometry_StripGrid$stableprop[0]
+final val dev.jordond.filmstrip.compose.ui.geometry/dev_jordond_filmstrip_compose_ui_geometry_TimelineScale$stableprop // dev.jordond.filmstrip.compose.ui.geometry/dev_jordond_filmstrip_compose_ui_geometry_TimelineScale$stableprop|#static{}dev_jordond_filmstrip_compose_ui_geometry_TimelineScale$stableprop[0]
+final val dev.jordond.filmstrip.compose.ui.geometry/dev_jordond_filmstrip_compose_ui_geometry_TimelineZoom$stableprop // dev.jordond.filmstrip.compose.ui.geometry/dev_jordond_filmstrip_compose_ui_geometry_TimelineZoom$stableprop|#static{}dev_jordond_filmstrip_compose_ui_geometry_TimelineZoom$stableprop[0]
+final val dev.jordond.filmstrip.compose.ui.interaction/dev_jordond_filmstrip_compose_ui_interaction_PlayheadFollow$stableprop // dev.jordond.filmstrip.compose.ui.interaction/dev_jordond_filmstrip_compose_ui_interaction_PlayheadFollow$stableprop|#static{}dev_jordond_filmstrip_compose_ui_interaction_PlayheadFollow$stableprop[0]
+final val dev.jordond.filmstrip.compose.ui.interaction/dev_jordond_filmstrip_compose_ui_interaction_TrimConstraint_FixedDuration$stableprop // dev.jordond.filmstrip.compose.ui.interaction/dev_jordond_filmstrip_compose_ui_interaction_TrimConstraint_FixedDuration$stableprop|#static{}dev_jordond_filmstrip_compose_ui_interaction_TrimConstraint_FixedDuration$stableprop[0]
+final val dev.jordond.filmstrip.compose.ui.interaction/dev_jordond_filmstrip_compose_ui_interaction_TrimConstraint_MinDuration$stableprop // dev.jordond.filmstrip.compose.ui.interaction/dev_jordond_filmstrip_compose_ui_interaction_TrimConstraint_MinDuration$stableprop|#static{}dev_jordond_filmstrip_compose_ui_interaction_TrimConstraint_MinDuration$stableprop[0]
+final val dev.jordond.filmstrip.compose.ui.interaction/dev_jordond_filmstrip_compose_ui_interaction_TrimConstraint_MinMaxDuration$stableprop // dev.jordond.filmstrip.compose.ui.interaction/dev_jordond_filmstrip_compose_ui_interaction_TrimConstraint_MinMaxDuration$stableprop|#static{}dev_jordond_filmstrip_compose_ui_interaction_TrimConstraint_MinMaxDuration$stableprop[0]
+final val dev.jordond.filmstrip.compose.ui/dev_jordond_filmstrip_compose_ui_FilmstripTimelineDefaults$stableprop // dev.jordond.filmstrip.compose.ui/dev_jordond_filmstrip_compose_ui_FilmstripTimelineDefaults$stableprop|#static{}dev_jordond_filmstrip_compose_ui_FilmstripTimelineDefaults$stableprop[0]
+final val dev.jordond.filmstrip.compose.ui/dev_jordond_filmstrip_compose_ui_TimelineColors$stableprop // dev.jordond.filmstrip.compose.ui/dev_jordond_filmstrip_compose_ui_TimelineColors$stableprop|#static{}dev_jordond_filmstrip_compose_ui_TimelineColors$stableprop[0]
+final val dev.jordond.filmstrip.compose.ui/dev_jordond_filmstrip_compose_ui_TimelineOptions$stableprop // dev.jordond.filmstrip.compose.ui/dev_jordond_filmstrip_compose_ui_TimelineOptions$stableprop|#static{}dev_jordond_filmstrip_compose_ui_TimelineOptions$stableprop[0]
+final val dev.jordond.filmstrip.compose.ui/dev_jordond_filmstrip_compose_ui_TimelineState$stableprop // dev.jordond.filmstrip.compose.ui/dev_jordond_filmstrip_compose_ui_TimelineState$stableprop|#static{}dev_jordond_filmstrip_compose_ui_TimelineState$stableprop[0]
+
+final fun (androidx.compose.foundation.lazy/LazyListState).dev.jordond.filmstrip.compose.ui.component/stripScrollPx(dev.jordond.filmstrip.compose.ui.geometry/StripGrid): kotlin/Float // dev.jordond.filmstrip.compose.ui.component/stripScrollPx|stripScrollPx@androidx.compose.foundation.lazy.LazyListState(dev.jordond.filmstrip.compose.ui.geometry.StripGrid){}[0]
+final fun (androidx.compose.ui/Modifier).dev.jordond.filmstrip.compose.ui.interaction/scrubTimeline(dev.jordond.filmstrip.compose/ScrubState, dev.jordond.filmstrip.compose.ui.geometry/TimelineScale, kotlin/Function0<kotlin/Float> = ..., kotlin/Function0<kotlin.time/Duration> = ...): androidx.compose.ui/Modifier // dev.jordond.filmstrip.compose.ui.interaction/scrubTimeline|scrubTimeline@androidx.compose.ui.Modifier(dev.jordond.filmstrip.compose.ScrubState;dev.jordond.filmstrip.compose.ui.geometry.TimelineScale;kotlin.Function0<kotlin.Float>;kotlin.Function0<kotlin.time.Duration>){}[0]
+final fun (androidx.compose.ui/Modifier).dev.jordond.filmstrip.compose.ui.interaction/timelineKeys(dev.jordond.filmstrip.compose.ui/TimelineState, dev.jordond.filmstrip.compose/ScrubState? = ..., kotlin/Function0<kotlin.time/Duration>, kotlin.time/Duration = ..., kotlin/Boolean = ...): androidx.compose.ui/Modifier // dev.jordond.filmstrip.compose.ui.interaction/timelineKeys|timelineKeys@androidx.compose.ui.Modifier(dev.jordond.filmstrip.compose.ui.TimelineState;dev.jordond.filmstrip.compose.ScrubState?;kotlin.Function0<kotlin.time.Duration>;kotlin.time.Duration;kotlin.Boolean){}[0]
+final fun (androidx.compose.ui/Modifier).dev.jordond.filmstrip.compose.ui.interaction/wheelZoomTimeline(dev.jordond.filmstrip.compose.ui/TimelineState, kotlin/Boolean = ..., kotlin/Boolean = ...): androidx.compose.ui/Modifier // dev.jordond.filmstrip.compose.ui.interaction/wheelZoomTimeline|wheelZoomTimeline@androidx.compose.ui.Modifier(dev.jordond.filmstrip.compose.ui.TimelineState;kotlin.Boolean;kotlin.Boolean){}[0]
+final fun (androidx.compose.ui/Modifier).dev.jordond.filmstrip.compose.ui.interaction/zoomTimeline(dev.jordond.filmstrip.compose.ui/TimelineState, kotlin/Boolean = ...): androidx.compose.ui/Modifier // dev.jordond.filmstrip.compose.ui.interaction/zoomTimeline|zoomTimeline@androidx.compose.ui.Modifier(dev.jordond.filmstrip.compose.ui.TimelineState;kotlin.Boolean){}[0]
+final fun dev.jordond.filmstrip.compose.ui.component/FilmstripImage(dev.jordond.filmstrip/Filmstrip, dev.jordond.filmstrip.edit/EditComposition, kotlin.time/Duration, androidx.compose.ui/Modifier?, androidx.compose.ui.layout/ContentScale?, kotlin/String?, kotlin/Function2<androidx.compose.runtime/Composer, kotlin/Int, kotlin/Unit>?, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int) // dev.jordond.filmstrip.compose.ui.component/FilmstripImage|FilmstripImage(dev.jordond.filmstrip.Filmstrip;dev.jordond.filmstrip.edit.EditComposition;kotlin.time.Duration;androidx.compose.ui.Modifier?;androidx.compose.ui.layout.ContentScale?;kotlin.String?;kotlin.Function2<androidx.compose.runtime.Composer,kotlin.Int,kotlin.Unit>?;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.compose.ui.component/FilmstripStrip(dev.jordond.filmstrip.compose/FilmstripFrames, dev.jordond.filmstrip.compose.ui.geometry/StripGrid, androidx.compose.ui/Modifier?, androidx.compose.foundation.lazy/LazyListState?, androidx.compose.ui.unit/Dp, dev.jordond.filmstrip.compose.ui/TimelineColors?, kotlin/Boolean, kotlin/Function3<kotlin/Int, androidx.compose.runtime/Composer, kotlin/Int, kotlin/Unit>?, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int) // dev.jordond.filmstrip.compose.ui.component/FilmstripStrip|FilmstripStrip(dev.jordond.filmstrip.compose.FilmstripFrames;dev.jordond.filmstrip.compose.ui.geometry.StripGrid;androidx.compose.ui.Modifier?;androidx.compose.foundation.lazy.LazyListState?;androidx.compose.ui.unit.Dp;dev.jordond.filmstrip.compose.ui.TimelineColors?;kotlin.Boolean;kotlin.Function3<kotlin.Int,androidx.compose.runtime.Composer,kotlin.Int,kotlin.Unit>?;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.compose.ui.component/Playhead(kotlin/Function0<kotlin.time/Duration>, dev.jordond.filmstrip.compose.ui.geometry/TimelineScale, androidx.compose.ui/Modifier?, kotlin/Function0<kotlin/Float>?, kotlin/Function0<kotlin.time/Duration>?, dev.jordond.filmstrip.compose.ui/TimelineColors?, androidx.compose.ui.unit/Dp, androidx.compose.ui.unit/Dp, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int) // dev.jordond.filmstrip.compose.ui.component/Playhead|Playhead(kotlin.Function0<kotlin.time.Duration>;dev.jordond.filmstrip.compose.ui.geometry.TimelineScale;androidx.compose.ui.Modifier?;kotlin.Function0<kotlin.Float>?;kotlin.Function0<kotlin.time.Duration>?;dev.jordond.filmstrip.compose.ui.TimelineColors?;androidx.compose.ui.unit.Dp;androidx.compose.ui.unit.Dp;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.compose.ui.component/TimelineRuler(dev.jordond.filmstrip.compose.ui.geometry/TimelineScale, androidx.compose.ui/Modifier?, kotlin/Function0<kotlin/Float>?, androidx.compose.ui.unit/Dp, dev.jordond.filmstrip.compose.ui/TimelineColors?, androidx.compose.ui.unit/Dp, kotlin/Function2<kotlin.time/Duration, kotlin.time/Duration, kotlin/String>?, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int) // dev.jordond.filmstrip.compose.ui.component/TimelineRuler|TimelineRuler(dev.jordond.filmstrip.compose.ui.geometry.TimelineScale;androidx.compose.ui.Modifier?;kotlin.Function0<kotlin.Float>?;androidx.compose.ui.unit.Dp;dev.jordond.filmstrip.compose.ui.TimelineColors?;androidx.compose.ui.unit.Dp;kotlin.Function2<kotlin.time.Duration,kotlin.time.Duration,kotlin.String>?;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.compose.ui.component/TrimOverlay(dev.jordond.filmstrip.edit/TimeRange, dev.jordond.filmstrip.compose.ui.geometry/TimelineScale, kotlin/Function1<dev.jordond.filmstrip.edit/TimeRange, kotlin/Unit>, androidx.compose.ui/Modifier?, kotlin/Function0<kotlin/Float>?, dev.jordond.filmstrip.compose.ui.interaction/TrimConstraint?, dev.jordond.filmstrip.compose.ui/TimelineColors?, androidx.compose.ui.unit/Dp, androidx.compose.ui.unit/Dp, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int) // dev.jordond.filmstrip.compose.ui.component/TrimOverlay|TrimOverlay(dev.jordond.filmstrip.edit.TimeRange;dev.jordond.filmstrip.compose.ui.geometry.TimelineScale;kotlin.Function1<dev.jordond.filmstrip.edit.TimeRange,kotlin.Unit>;androidx.compose.ui.Modifier?;kotlin.Function0<kotlin.Float>?;dev.jordond.filmstrip.compose.ui.interaction.TrimConstraint?;dev.jordond.filmstrip.compose.ui.TimelineColors?;androidx.compose.ui.unit.Dp;androidx.compose.ui.unit.Dp;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.compose.ui.geometry/dev_jordond_filmstrip_compose_ui_geometry_StripGrid$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose.ui.geometry/dev_jordond_filmstrip_compose_ui_geometry_StripGrid$stableprop_getter|dev_jordond_filmstrip_compose_ui_geometry_StripGrid$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose.ui.geometry/dev_jordond_filmstrip_compose_ui_geometry_TimelineScale$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose.ui.geometry/dev_jordond_filmstrip_compose_ui_geometry_TimelineScale$stableprop_getter|dev_jordond_filmstrip_compose_ui_geometry_TimelineScale$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose.ui.geometry/dev_jordond_filmstrip_compose_ui_geometry_TimelineZoom$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose.ui.geometry/dev_jordond_filmstrip_compose_ui_geometry_TimelineZoom$stableprop_getter|dev_jordond_filmstrip_compose_ui_geometry_TimelineZoom$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose.ui.interaction/dev_jordond_filmstrip_compose_ui_interaction_PlayheadFollow$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose.ui.interaction/dev_jordond_filmstrip_compose_ui_interaction_PlayheadFollow$stableprop_getter|dev_jordond_filmstrip_compose_ui_interaction_PlayheadFollow$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose.ui.interaction/dev_jordond_filmstrip_compose_ui_interaction_TrimConstraint_FixedDuration$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose.ui.interaction/dev_jordond_filmstrip_compose_ui_interaction_TrimConstraint_FixedDuration$stableprop_getter|dev_jordond_filmstrip_compose_ui_interaction_TrimConstraint_FixedDuration$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose.ui.interaction/dev_jordond_filmstrip_compose_ui_interaction_TrimConstraint_MinDuration$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose.ui.interaction/dev_jordond_filmstrip_compose_ui_interaction_TrimConstraint_MinDuration$stableprop_getter|dev_jordond_filmstrip_compose_ui_interaction_TrimConstraint_MinDuration$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose.ui.interaction/dev_jordond_filmstrip_compose_ui_interaction_TrimConstraint_MinMaxDuration$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose.ui.interaction/dev_jordond_filmstrip_compose_ui_interaction_TrimConstraint_MinMaxDuration$stableprop_getter|dev_jordond_filmstrip_compose_ui_interaction_TrimConstraint_MinMaxDuration$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose.ui.interaction/rememberPlayheadFollow(kotlin/Function0<kotlin.time/Duration>, dev.jordond.filmstrip.compose.ui.geometry/StripGrid, androidx.compose.foundation.lazy/LazyListState, kotlin/Boolean, kotlin/Boolean, kotlin/Function0<kotlin.time/Duration>?, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int): dev.jordond.filmstrip.compose.ui.interaction/PlayheadFollow // dev.jordond.filmstrip.compose.ui.interaction/rememberPlayheadFollow|rememberPlayheadFollow(kotlin.Function0<kotlin.time.Duration>;dev.jordond.filmstrip.compose.ui.geometry.StripGrid;androidx.compose.foundation.lazy.LazyListState;kotlin.Boolean;kotlin.Boolean;kotlin.Function0<kotlin.time.Duration>?;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.compose.ui/FilmstripTimeline(dev.jordond.filmstrip/Filmstrip, dev.jordond.filmstrip.edit/EditComposition, kotlin.time/Duration, kotlin/Function0<kotlin.time/Duration>, kotlin/Boolean, androidx.compose.ui/Modifier?, dev.jordond.filmstrip.compose/ScrubState?, dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom?, dev.jordond.filmstrip.edit/TimeRange?, kotlin/Function1<dev.jordond.filmstrip.edit/TimeRange, kotlin/Unit>?, dev.jordond.filmstrip.compose.ui/TimelineOptions?, dev.jordond.filmstrip.compose.ui/TimelineColors?, kotlin/Function0<kotlin.time/Duration>?, kotlin/Function3<kotlin/Int, androidx.compose.runtime/Composer, kotlin/Int, kotlin/Unit>?, kotlin/Function3<dev.jordond.filmstrip.compose.ui/TimelineOverlayScope, androidx.compose.runtime/Composer, kotlin/Int, kotlin/Unit>?, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int, kotlin/Int) // dev.jordond.filmstrip.compose.ui/FilmstripTimeline|FilmstripTimeline(dev.jordond.filmstrip.Filmstrip;dev.jordond.filmstrip.edit.EditComposition;kotlin.time.Duration;kotlin.Function0<kotlin.time.Duration>;kotlin.Boolean;androidx.compose.ui.Modifier?;dev.jordond.filmstrip.compose.ScrubState?;dev.jordond.filmstrip.compose.ui.geometry.TimelineZoom?;dev.jordond.filmstrip.edit.TimeRange?;kotlin.Function1<dev.jordond.filmstrip.edit.TimeRange,kotlin.Unit>?;dev.jordond.filmstrip.compose.ui.TimelineOptions?;dev.jordond.filmstrip.compose.ui.TimelineColors?;kotlin.Function0<kotlin.time.Duration>?;kotlin.Function3<kotlin.Int,androidx.compose.runtime.Composer,kotlin.Int,kotlin.Unit>?;kotlin.Function3<dev.jordond.filmstrip.compose.ui.TimelineOverlayScope,androidx.compose.runtime.Composer,kotlin.Int,kotlin.Unit>?;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.compose.ui/dev_jordond_filmstrip_compose_ui_FilmstripTimelineDefaults$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose.ui/dev_jordond_filmstrip_compose_ui_FilmstripTimelineDefaults$stableprop_getter|dev_jordond_filmstrip_compose_ui_FilmstripTimelineDefaults$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose.ui/dev_jordond_filmstrip_compose_ui_TimelineColors$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose.ui/dev_jordond_filmstrip_compose_ui_TimelineColors$stableprop_getter|dev_jordond_filmstrip_compose_ui_TimelineColors$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose.ui/dev_jordond_filmstrip_compose_ui_TimelineOptions$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose.ui/dev_jordond_filmstrip_compose_ui_TimelineOptions$stableprop_getter|dev_jordond_filmstrip_compose_ui_TimelineOptions$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose.ui/dev_jordond_filmstrip_compose_ui_TimelineState$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.compose.ui/dev_jordond_filmstrip_compose_ui_TimelineState$stableprop_getter|dev_jordond_filmstrip_compose_ui_TimelineState$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.compose.ui/rememberTimelineState(kotlin.time/Duration, kotlin/Float, kotlin/Int, dev.jordond.filmstrip.compose.ui.geometry/TimelineZoom?, androidx.compose.foundation.lazy/LazyListState?, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int): dev.jordond.filmstrip.compose.ui/TimelineState // dev.jordond.filmstrip.compose.ui/rememberTimelineState|rememberTimelineState(kotlin.time.Duration;kotlin.Float;kotlin.Int;dev.jordond.filmstrip.compose.ui.geometry.TimelineZoom?;androidx.compose.foundation.lazy.LazyListState?;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+final suspend fun (androidx.compose.foundation.lazy/LazyListState).dev.jordond.filmstrip.compose.ui.component/scrollStripTo(dev.jordond.filmstrip.compose.ui.geometry/StripGrid, kotlin/Float) // dev.jordond.filmstrip.compose.ui.component/scrollStripTo|scrollStripTo@androidx.compose.foundation.lazy.LazyListState(dev.jordond.filmstrip.compose.ui.geometry.StripGrid;kotlin.Float){}[0]

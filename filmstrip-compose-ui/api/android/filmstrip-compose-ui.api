@@ -1,0 +1,280 @@
+public final class dev/jordond/filmstrip/compose/ui/ComposableSingletons$FilmstripTimelineKt {
+	public static final field INSTANCE Ldev/jordond/filmstrip/compose/ui/ComposableSingletons$FilmstripTimelineKt;
+	public fun <init> ()V
+	public final fun getLambda$-1805850321$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function3;
+	public final fun getLambda$1996831430$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function3;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/FilmstripTimelineDefaults {
+	public static final field $stable I
+	public static final field INSTANCE Ldev/jordond/filmstrip/compose/ui/FilmstripTimelineDefaults;
+	public final fun clockLabel-QTBD994 (JJ)Ljava/lang/String;
+	public final fun colors-FD3wquc (JJJJJJJJ)Ldev/jordond/filmstrip/compose/ui/TimelineColors;
+	public static synthetic fun colors-FD3wquc$default (Ldev/jordond/filmstrip/compose/ui/FilmstripTimelineDefaults;JJJJJJJJILjava/lang/Object;)Ldev/jordond/filmstrip/compose/ui/TimelineColors;
+	public final fun getHandleTouchWidth-D9Ej5fM ()F
+	public final fun getHandleWidth-D9Ej5fM ()F
+	public final fun getKeyStep-UwyO8pc ()J
+	public final fun getMinTickSpacing-D9Ej5fM ()F
+	public final fun getMinTrimDuration-UwyO8pc ()J
+	public final fun getPalette ()Ldev/jordond/filmstrip/compose/ui/TimelineColors;
+	public final fun getPlayheadKnobSize-D9Ej5fM ()F
+	public final fun getPlayheadWidth-D9Ej5fM ()F
+	public final fun getRulerHeight-D9Ej5fM ()F
+	public final fun getStripHeight-D9Ej5fM ()F
+	public final fun getTileWidth-D9Ej5fM ()F
+	public final fun getTrim ()Ldev/jordond/filmstrip/compose/ui/interaction/TrimConstraint;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/FilmstripTimelineKt {
+	public static final fun FilmstripTimeline-f273YPY (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;JLkotlin/jvm/functions/Function0;ZLandroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/ScrubState;Ldev/jordond/filmstrip/compose/ui/geometry/TimelineZoom;Ldev/jordond/filmstrip/edit/TimeRange;Lkotlin/jvm/functions/Function1;Ldev/jordond/filmstrip/compose/ui/TimelineOptions;Ldev/jordond/filmstrip/compose/ui/TimelineColors;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function3;Lkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;III)V
+}
+
+public final class dev/jordond/filmstrip/compose/ui/TimelineColors {
+	public static final field $stable I
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPlayhead-0d7_KjU ()J
+	public final fun getRuler-0d7_KjU ()J
+	public final fun getRulerLabel-0d7_KjU ()J
+	public final fun getTile-0d7_KjU ()J
+	public final fun getTileDivider-0d7_KjU ()J
+	public final fun getTrimHandle-0d7_KjU ()J
+	public final fun getTrimHandleGrip-0d7_KjU ()J
+	public final fun getTrimScrim-0d7_KjU ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/TimelineOptions {
+	public static final field $stable I
+	public static final field Companion Ldev/jordond/filmstrip/compose/ui/TimelineOptions$Companion;
+	public fun <init> ()V
+	public synthetic fun <init> (FFFZZZLdev/jordond/filmstrip/compose/ui/interaction/TrimConstraint;JIZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (FFFZZZLdev/jordond/filmstrip/compose/ui/interaction/TrimConstraint;JIZZLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFollowPlayhead ()Z
+	public final fun getMaxBytes ()J
+	public final fun getOverscan ()I
+	public final fun getPinchZoom ()Z
+	public final fun getRulerHeight-D9Ej5fM ()F
+	public final fun getShowPlayhead ()Z
+	public final fun getShowRuler ()Z
+	public final fun getStripHeight-D9Ej5fM ()F
+	public final fun getTileWidth-D9Ej5fM ()F
+	public final fun getTrimConstraint ()Ldev/jordond/filmstrip/compose/ui/interaction/TrimConstraint;
+	public final fun getWheelZoom ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/TimelineOptions$Companion {
+	public final fun getDefault ()Ldev/jordond/filmstrip/compose/ui/TimelineOptions;
+}
+
+public abstract interface class dev/jordond/filmstrip/compose/ui/TimelineOverlayScope : androidx/compose/foundation/layout/BoxScope {
+	public abstract fun getFollow ()Ldev/jordond/filmstrip/compose/ui/interaction/PlayheadFollow;
+	public abstract fun getTimeline ()Ldev/jordond/filmstrip/compose/ui/TimelineState;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/TimelineState {
+	public static final field $stable I
+	public final fun getGrid ()Ldev/jordond/filmstrip/compose/ui/geometry/StripGrid;
+	public final fun getListState ()Landroidx/compose/foundation/lazy/LazyListState;
+	public final fun getScale ()Ldev/jordond/filmstrip/compose/ui/geometry/TimelineScale;
+	public final fun getZoom ()Ldev/jordond/filmstrip/compose/ui/geometry/TimelineZoom;
+	public final fun scrollPx ()F
+	public final fun zoomIn (FLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun zoomOut (FLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun zoomTo (Ldev/jordond/filmstrip/compose/ui/geometry/TimelineZoom;FLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/TimelineStateKt {
+	public static final fun rememberTimelineState-2ru2uwY (JFILdev/jordond/filmstrip/compose/ui/geometry/TimelineZoom;Landroidx/compose/foundation/lazy/LazyListState;Landroidx/compose/runtime/Composer;II)Ldev/jordond/filmstrip/compose/ui/TimelineState;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/component/ComposableSingletons$FilmstripImageKt {
+	public static final field INSTANCE Ldev/jordond/filmstrip/compose/ui/component/ComposableSingletons$FilmstripImageKt;
+	public fun <init> ()V
+	public final fun getLambda$-1661963607$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
+	public final fun getLambda$398179505$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
+	public final fun getLambda$453871351$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/component/ComposableSingletons$FilmstripStripKt {
+	public static final field INSTANCE Ldev/jordond/filmstrip/compose/ui/component/ComposableSingletons$FilmstripStripKt;
+	public fun <init> ()V
+	public final fun getLambda$596375469$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function3;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/component/ComposableSingletons$PlayheadKt {
+	public static final field INSTANCE Ldev/jordond/filmstrip/compose/ui/component/ComposableSingletons$PlayheadKt;
+	public fun <init> ()V
+	public final fun getLambda$1801407261$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/component/ComposableSingletons$TimelineRulerKt {
+	public static final field INSTANCE Ldev/jordond/filmstrip/compose/ui/component/ComposableSingletons$TimelineRulerKt;
+	public fun <init> ()V
+	public final fun getLambda$1612933939$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
+	public final fun getLambda$791097866$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/component/ComposableSingletons$TrimOverlayKt {
+	public static final field INSTANCE Ldev/jordond/filmstrip/compose/ui/component/ComposableSingletons$TrimOverlayKt;
+	public fun <init> ()V
+	public final fun getLambda$-1616921731$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
+	public final fun getLambda$-1941124077$filmstrip_root_filmstrip_compose_ui ()Lkotlin/jvm/functions/Function2;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/component/FilmstripImageKt {
+	public static final fun FilmstripImage--XzGXFE (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;JLandroidx/compose/ui/Modifier;Landroidx/compose/ui/layout/ContentScale;Ljava/lang/String;Lkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
+}
+
+public final class dev/jordond/filmstrip/compose/ui/component/FilmstripStripKt {
+	public static final fun FilmstripStrip-GHTll3U (Ldev/jordond/filmstrip/compose/FilmstripFrames;Ldev/jordond/filmstrip/compose/ui/geometry/StripGrid;Landroidx/compose/ui/Modifier;Landroidx/compose/foundation/lazy/LazyListState;FLdev/jordond/filmstrip/compose/ui/TimelineColors;ZLkotlin/jvm/functions/Function3;Landroidx/compose/runtime/Composer;II)V
+	public static final fun scrollStripTo (Landroidx/compose/foundation/lazy/LazyListState;Ldev/jordond/filmstrip/compose/ui/geometry/StripGrid;FLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun stripScrollPx (Landroidx/compose/foundation/lazy/LazyListState;Ldev/jordond/filmstrip/compose/ui/geometry/StripGrid;)F
+}
+
+public final class dev/jordond/filmstrip/compose/ui/component/PlayheadKt {
+	public static final fun Playhead-4EFweAY (Lkotlin/jvm/functions/Function0;Ldev/jordond/filmstrip/compose/ui/geometry/TimelineScale;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;Ldev/jordond/filmstrip/compose/ui/TimelineColors;FFLandroidx/compose/runtime/Composer;II)V
+}
+
+public final class dev/jordond/filmstrip/compose/ui/component/TimelineRulerKt {
+	public static final fun TimelineRuler-wNmHvu0 (Ldev/jordond/filmstrip/compose/ui/geometry/TimelineScale;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function0;FLdev/jordond/filmstrip/compose/ui/TimelineColors;FLkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
+}
+
+public final class dev/jordond/filmstrip/compose/ui/component/TrimOverlayKt {
+	public static final fun TrimOverlay-HXNGIdc (Ldev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/compose/ui/geometry/TimelineScale;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function0;Ldev/jordond/filmstrip/compose/ui/interaction/TrimConstraint;Ldev/jordond/filmstrip/compose/ui/TimelineColors;FFLandroidx/compose/runtime/Composer;II)V
+}
+
+public final class dev/jordond/filmstrip/compose/ui/geometry/StripGrid {
+	public static final field $stable I
+	public fun <init> (Ldev/jordond/filmstrip/compose/ui/geometry/TimelineScale;I)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCount ()I
+	public final fun getPositions ()Ljava/util/List;
+	public final fun getScale ()Ldev/jordond/filmstrip/compose/ui/geometry/TimelineScale;
+	public final fun getTileWidthPx ()I
+	public fun hashCode ()I
+	public final fun indexAt-LRDsOJo (J)Ljava/lang/Integer;
+	public final fun tileWidthPxAt (I)I
+	public fun toString ()Ljava/lang/String;
+	public final fun visibleRange (FF)Lkotlin/ranges/IntRange;
+	public final fun withScale (Ldev/jordond/filmstrip/compose/ui/geometry/TimelineScale;)Ldev/jordond/filmstrip/compose/ui/geometry/StripGrid;
+	public final fun withTileWidth (I)Ldev/jordond/filmstrip/compose/ui/geometry/StripGrid;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/geometry/TimelineScale {
+	public static final field $stable I
+	public static final field Companion Ldev/jordond/filmstrip/compose/ui/geometry/TimelineScale$Companion;
+	public synthetic fun <init> (JFLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getContentWidthPx ()F
+	public final fun getDuration-UwyO8pc ()J
+	public final fun getPixelsPerSecond ()F
+	public fun hashCode ()I
+	public final fun tickInterval-5sfh64U (F)J
+	public final fun timeAt-5sfh64U (F)J
+	public fun toString ()Ljava/lang/String;
+	public final fun widthOf-LRDsOJo (J)F
+	public final fun withDuration-LRDsOJo (J)Ldev/jordond/filmstrip/compose/ui/geometry/TimelineScale;
+	public final fun withPixelsPerSecond (F)Ldev/jordond/filmstrip/compose/ui/geometry/TimelineScale;
+	public final fun xOf-LRDsOJo (J)F
+}
+
+public final class dev/jordond/filmstrip/compose/ui/geometry/TimelineScale$Companion {
+}
+
+public final class dev/jordond/filmstrip/compose/ui/geometry/TimelineZoom {
+	public static final field $stable I
+	public static final field Companion Ldev/jordond/filmstrip/compose/ui/geometry/TimelineZoom$Companion;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPixelsPerSecond ()F
+	public final fun getStep ()I
+	public fun hashCode ()I
+	public final fun scaleFor-LRDsOJo (J)Ldev/jordond/filmstrip/compose/ui/geometry/TimelineScale;
+	public fun toString ()Ljava/lang/String;
+	public final fun zoomedIn ()Ldev/jordond/filmstrip/compose/ui/geometry/TimelineZoom;
+	public final fun zoomedOut ()Ldev/jordond/filmstrip/compose/ui/geometry/TimelineZoom;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/geometry/TimelineZoom$Companion {
+	public final fun fitting-VtjQ1oo (JF)Ldev/jordond/filmstrip/compose/ui/geometry/TimelineZoom;
+	public final fun getSteps ()Lkotlin/ranges/IntRange;
+	public final fun of (I)Ldev/jordond/filmstrip/compose/ui/geometry/TimelineZoom;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/interaction/PlayheadFollow {
+	public static final field $stable I
+	public final fun disengage ()V
+	public final fun engage ()V
+	public final fun isEngaged ()Z
+}
+
+public final class dev/jordond/filmstrip/compose/ui/interaction/PlayheadFollowKt {
+	public static final fun rememberPlayheadFollow (Lkotlin/jvm/functions/Function0;Ldev/jordond/filmstrip/compose/ui/geometry/StripGrid;Landroidx/compose/foundation/lazy/LazyListState;ZZLkotlin/jvm/functions/Function0;Landroidx/compose/runtime/Composer;II)Ldev/jordond/filmstrip/compose/ui/interaction/PlayheadFollow;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/interaction/ScrubTimelineKt {
+	public static final fun scrubTimeline (Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/ScrubState;Ldev/jordond/filmstrip/compose/ui/geometry/TimelineScale;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;)Landroidx/compose/ui/Modifier;
+	public static synthetic fun scrubTimeline$default (Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/ScrubState;Ldev/jordond/filmstrip/compose/ui/geometry/TimelineScale;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function0;ILjava/lang/Object;)Landroidx/compose/ui/Modifier;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/interaction/TimelineKeysKt {
+	public static final fun timelineKeys-myKFqkg (Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/ui/TimelineState;Ldev/jordond/filmstrip/compose/ScrubState;Lkotlin/jvm/functions/Function0;JZ)Landroidx/compose/ui/Modifier;
+	public static synthetic fun timelineKeys-myKFqkg$default (Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/ui/TimelineState;Ldev/jordond/filmstrip/compose/ScrubState;Lkotlin/jvm/functions/Function0;JZILjava/lang/Object;)Landroidx/compose/ui/Modifier;
+}
+
+public abstract interface class dev/jordond/filmstrip/compose/ui/interaction/TrimConstraint {
+	public abstract fun constrain-SxA4cEA (Ldev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/compose/ui/interaction/TrimHandle;J)Ldev/jordond/filmstrip/edit/TimeRange;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/interaction/TrimConstraint$FixedDuration : dev/jordond/filmstrip/compose/ui/interaction/TrimConstraint {
+	public static final field $stable I
+	public synthetic fun <init> (JLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun constrain-SxA4cEA (Ldev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/compose/ui/interaction/TrimHandle;J)Ldev/jordond/filmstrip/edit/TimeRange;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLength-UwyO8pc ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/interaction/TrimConstraint$MinDuration : dev/jordond/filmstrip/compose/ui/interaction/TrimConstraint {
+	public static final field $stable I
+	public synthetic fun <init> (JLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun constrain-SxA4cEA (Ldev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/compose/ui/interaction/TrimHandle;J)Ldev/jordond/filmstrip/edit/TimeRange;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMinimum-UwyO8pc ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/interaction/TrimConstraint$MinMaxDuration : dev/jordond/filmstrip/compose/ui/interaction/TrimConstraint {
+	public static final field $stable I
+	public synthetic fun <init> (JJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun constrain-SxA4cEA (Ldev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/compose/ui/interaction/TrimHandle;J)Ldev/jordond/filmstrip/edit/TimeRange;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMaximum-UwyO8pc ()J
+	public final fun getMinimum-UwyO8pc ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/interaction/TrimHandle : java/lang/Enum {
+	public static final field End Ldev/jordond/filmstrip/compose/ui/interaction/TrimHandle;
+	public static final field Start Ldev/jordond/filmstrip/compose/ui/interaction/TrimHandle;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/compose/ui/interaction/TrimHandle;
+	public static fun values ()[Ldev/jordond/filmstrip/compose/ui/interaction/TrimHandle;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/interaction/WheelZoomTimelineKt {
+	public static final fun wheelZoomTimeline (Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/ui/TimelineState;ZZ)Landroidx/compose/ui/Modifier;
+	public static synthetic fun wheelZoomTimeline$default (Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/ui/TimelineState;ZZILjava/lang/Object;)Landroidx/compose/ui/Modifier;
+}
+
+public final class dev/jordond/filmstrip/compose/ui/interaction/ZoomTimelineKt {
+	public static final fun zoomTimeline (Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/ui/TimelineState;Z)Landroidx/compose/ui/Modifier;
+	public static synthetic fun zoomTimeline$default (Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/ui/TimelineState;ZILjava/lang/Object;)Landroidx/compose/ui/Modifier;
+}
+

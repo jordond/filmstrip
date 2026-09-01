@@ -25,10 +25,11 @@ an ffmpeg you installed yourself.
 | `filmstrip-transform-webcodecs` | The WebCodecs export engine, browser. |
 | `filmstrip-transform-ffmpeg` | The ffmpeg export engine, JVM. Shells out to an `ffmpeg` and `ffprobe` already on the machine. |
 | `filmstrip-player` | Preview playback. media3-exoplayer on Android, AVKit on Apple. |
-| `filmstrip-compose` | Compose Multiplatform bindings. The only artifact that depends on Compose. |
+| `filmstrip-compose` | Compose Multiplatform bindings: player state, the frame strip's cache, and bare surfaces. |
+| `filmstrip-compose-ui` | The drawn timeline: scrolling strip, ruler, playhead, trim handles, scrub gestures. Foundation only, no Material. |
 | `filmstrip-test` | Test fixtures and the frame-similarity harness. |
 
-Layering is `core -> effects -> {transform -> engines, player} -> {compose, filmstrip}`. The build
+Layering is `core -> effects -> {transform -> engines, player} -> {compose -> compose-ui, filmstrip}`. The build
 enforces it: `check` runs an import guard and a resolved-dependency guard per module.
 
 ## Building
