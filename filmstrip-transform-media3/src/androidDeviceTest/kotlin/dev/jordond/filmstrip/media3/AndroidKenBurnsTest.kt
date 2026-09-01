@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media3.AndroidKenBurnsTest.Companion.BOUNDARY
 import dev.jordond.filmstrip.motion.Easing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList

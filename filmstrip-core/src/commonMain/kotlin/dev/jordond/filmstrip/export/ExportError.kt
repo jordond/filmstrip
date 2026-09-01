@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.export
 
 import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.export.ExportError.Underlying.Companion.NO_PLATFORM_CODE
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.StillFormat
 

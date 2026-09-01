@@ -23,7 +23,6 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.math.roundToInt
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
-import androidx.compose.ui.geometry.Size as ComposeSize
 
 /**
  * Draws the frame the pipeline already produced, pulled through [VideoPlayer.readback].

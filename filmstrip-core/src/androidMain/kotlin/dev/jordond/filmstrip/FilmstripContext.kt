@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip
 
 import android.content.Context
+import dev.jordond.filmstrip.FilmstripContext.MISSING_CONTEXT
 
 /**
  * The application [Context] filmstrip's Android code runs against.

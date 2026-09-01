@@ -6,7 +6,6 @@ import dev.jordond.filmstrip.style.FontWeight
 import dev.jordond.filmstrip.style.TextAlignment
 import dev.jordond.filmstrip.style.TextStyle
 import kotlinx.cinterop.BetaInteropApi
-import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.COpaquePointerVar
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CValue

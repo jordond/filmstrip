@@ -2,9 +2,6 @@
 
 package dev.jordond.filmstrip.media
 
-import kotlin.js.ExperimentalWasmJsInterop
-import kotlin.js.JsAny
-
 // The wasm half. Bytes have to be copied rather than viewed, because wasm linear memory is not the
 // JavaScript heap. They go over in latin-1 chunks, which costs one pass and no base64 inflation.
 

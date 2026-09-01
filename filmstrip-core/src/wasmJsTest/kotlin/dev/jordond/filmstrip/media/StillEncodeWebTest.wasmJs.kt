@@ -2,8 +2,6 @@
 
 package dev.jordond.filmstrip.media
 
-import kotlin.js.ExperimentalWasmJsInterop
-
 internal actual fun ImageData.channel(index: Int): Int = channelOf(this, index)
 
 @JsFun("(image, index) => image.data[index]")

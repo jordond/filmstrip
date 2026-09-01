@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg.internal
 
 import dev.jordond.filmstrip.export.ExportStatus
-import kotlin.math.roundToLong
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 

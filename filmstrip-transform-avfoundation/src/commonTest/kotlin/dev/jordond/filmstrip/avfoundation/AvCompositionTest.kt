@@ -29,7 +29,6 @@ import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import kotlinx.cinterop.ExperimentalForeignApi
-import platform.AVFoundation.duration
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSProcessInfo
 import kotlin.test.Test

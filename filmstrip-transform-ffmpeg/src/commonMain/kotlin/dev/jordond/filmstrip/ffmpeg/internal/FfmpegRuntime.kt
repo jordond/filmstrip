@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.ffmpeg.internal
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
+import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime.Companion.of
 import dev.jordond.filmstrip.media.MediaInfo
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

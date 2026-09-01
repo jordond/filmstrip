@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.avfoundation
 
+import dev.jordond.filmstrip.avfoundation.FrameProbe.Companion.PATCH
 import dev.jordond.filmstrip.avfoundation.internal.toCMTime
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf

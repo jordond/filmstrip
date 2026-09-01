@@ -114,6 +114,13 @@ public object EffectIds {
   public const val KEN_BURNS: String = "filmstrip.kenBurns"
   public const val SCALE: String = "filmstrip.scale"
   public const val BRIGHTNESS: String = "filmstrip.brightness"
+  public const val RGB_ADJUSTMENT: String = "filmstrip.rgbAdjustment"
+  public const val CONTRAST: String = "filmstrip.contrast"
+  public const val SATURATION: String = "filmstrip.saturation"
+  public const val HUE_ROTATE: String = "filmstrip.hueRotate"
+  public const val SEPIA: String = "filmstrip.sepia"
+  public const val INVERT: String = "filmstrip.invert"
+  public const val COLOR_MATRIX: String = "filmstrip.colorMatrix"
   public const val IMAGE_OVERLAY: String = "filmstrip.imageOverlay"
   public const val TEXT_OVERLAY: String = "filmstrip.textOverlay"
 }
@@ -139,7 +146,9 @@ public fun List<EffectSpec>.inCanonicalOrder(): List<EffectSpec> =
 
 // Rank within a stage. Ids with no entry sort after every ranked one. Rotate runs before crop so the
 // corners rotation adds can be cropped away, a pan runs after crop so it travels inside the framing
-// the crop chose, and scale is last because it sets the output size.
+// the crop chose, and scale is last because it sets the output size. Colour matrices do not commute,
+// so the colour stage runs exposure first, contrast on the exposed frame, the hue and tone changes
+// on that, and a caller's own matrix last as the look the rest was graded for.
 private val CANONICAL_RANK: Map<String, Int> =
   mapOf(
     EffectIds.ROTATE to 0,
@@ -149,6 +158,13 @@ private val CANONICAL_RANK: Map<String, Int> =
     EffectIds.KEN_BURNS to 3,
     EffectIds.SCALE to 4,
     EffectIds.BRIGHTNESS to 0,
+    EffectIds.RGB_ADJUSTMENT to 1,
+    EffectIds.CONTRAST to 2,
+    EffectIds.SATURATION to 3,
+    EffectIds.HUE_ROTATE to 4,
+    EffectIds.SEPIA to 5,
+    EffectIds.INVERT to 6,
+    EffectIds.COLOR_MATRIX to 7,
     EffectIds.IMAGE_OVERLAY to 0,
     EffectIds.TEXT_OVERLAY to 1,
   )

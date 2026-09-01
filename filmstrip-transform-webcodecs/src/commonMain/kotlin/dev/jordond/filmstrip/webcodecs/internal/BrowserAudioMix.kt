@@ -5,6 +5,7 @@ package dev.jordond.filmstrip.webcodecs.internal
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import dev.jordond.filmstrip.webcodecs.internal.BrowserAudioMix.PAD
 import kotlinx.coroutines.await
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive

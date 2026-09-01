@@ -2,9 +2,6 @@
 
 package dev.jordond.filmstrip.media
 
-import kotlin.js.ExperimentalWasmJsInterop
-import kotlin.js.JsAny
-
 // The js half. A Kotlin ByteArray already is an Int8Array here, so every conversion is a view over
 // the same buffer rather than a copy.
 //

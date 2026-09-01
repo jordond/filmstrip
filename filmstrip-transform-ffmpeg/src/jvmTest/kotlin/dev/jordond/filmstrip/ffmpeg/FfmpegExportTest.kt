@@ -18,7 +18,6 @@ import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.export.VideoCodec
-import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
 import dev.jordond.filmstrip.ffmpeg.internal.FFMPEG_ENCODERS
 import dev.jordond.filmstrip.ffmpeg.internal.ProcessRunner
 import dev.jordond.filmstrip.ffmpeg.internal.ToolchainLocator

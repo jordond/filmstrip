@@ -17,7 +17,6 @@ import dev.jordond.filmstrip.player.PlayerStateListener
 import dev.jordond.filmstrip.player.PreviewFrameReadback
 import dev.jordond.filmstrip.player.PreviewInfo
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
-import dev.jordond.filmstrip.player.ReadbackCallback
 import dev.jordond.filmstrip.player.ReadbackResult
 import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.SetCompositionCallback

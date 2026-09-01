@@ -16,7 +16,6 @@ import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedEffect
-import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.readValue

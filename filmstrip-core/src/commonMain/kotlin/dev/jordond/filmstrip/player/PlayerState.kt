@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.player
 import androidx.compose.runtime.Immutable
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.player.PlaybackError.Underlying.Companion.NO_PLATFORM_CODE
 import kotlin.time.Duration
 
 /**

@@ -62,8 +62,8 @@ private fun Array<MediaCodecInfo>.videoCapabilities(
   codec: VideoCodec,
   mime: String,
 ): List<VideoEncoderCapability> =
-  // MediaCodecList order is the device's, not a preference, and a phone lists a software encoder
-  // for a codec it also has silicon for. The hardware one is the faster of the two here, unlike on
+// MediaCodecList order is the device's, not a preference, and a phone lists a software encoder
+// for a codec it also has silicon for. The hardware one is the faster of the two here, unlike on
   // a desktop ffmpeg build, so it leads.
   encodersFor(mime).sortedByDescending { it.isHardwareAccelerated }.mapNotNull { info ->
     val video = info.getCapabilitiesForType(mime).videoCapabilities ?: return@mapNotNull null

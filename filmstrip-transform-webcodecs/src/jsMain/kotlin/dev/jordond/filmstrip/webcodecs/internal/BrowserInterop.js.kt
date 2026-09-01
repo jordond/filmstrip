@@ -2,9 +2,6 @@
 
 package dev.jordond.filmstrip.webcodecs.internal
 
-import kotlin.js.JsAny
-import kotlin.js.JsArray
-
 // The js half. A Kotlin FloatArray already is a Float32Array here and a ByteArray already is an
 // Int8Array, so both conversions are a view rather than a copy.
 

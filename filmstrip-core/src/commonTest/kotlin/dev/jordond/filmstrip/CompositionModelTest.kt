@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip
 
 import dev.jordond.filmstrip.edit.AudioLevel
-import dev.jordond.filmstrip.edit.CompositionBuilder
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf

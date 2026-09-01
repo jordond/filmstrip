@@ -2,10 +2,6 @@
 
 package dev.jordond.filmstrip.webcodecs.internal
 
-import kotlin.js.ExperimentalWasmJsInterop
-import kotlin.js.JsAny
-import kotlin.js.JsArray
-
 // The wasm half. Arrays have to be copied rather than viewed, because wasm linear memory is not the
 // JavaScript heap. Floats are copied one at a time, which stays cheap since the longest array a
 // call site builds is a blurred fill's kernel weights. Bytes go over in latin-1 chunks, which
