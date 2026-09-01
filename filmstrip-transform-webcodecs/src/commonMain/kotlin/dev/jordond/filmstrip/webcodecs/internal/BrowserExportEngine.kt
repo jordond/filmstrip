@@ -289,16 +289,19 @@ public class BrowserExportEngine(
       } else {
         null
       }
+    // The bitrate is the whole file's, so it describes a track only while that track is the only
+    // one. A file carrying both gives it to the video, which is the larger part of it by far, and
+    // leaves the audio's null rather than counting the same bytes twice.
     return MediaInfo(
       duration = durationUs.microseconds,
-      video = if (render.writesVideo) videoTrackOf(verified, render, bitrate) else null,
-      audio = if (render.writesVideo) null else audioTrackOf(verified, render, bitrate),
+      video = verified.video?.let { videoTrackOf(it, render, bitrate) },
+      audio = verified.audio?.let { audioTrackOf(it, if (verified.video == null) bitrate else null) },
       isExportable = true,
     )
   }
 
   private fun videoTrackOf(
-    verified: VerifiedFile,
+    video: VerifiedVideo,
     render: BrowserRender,
     bitrate: Bitrate?,
   ): VideoTrackInfo =
@@ -308,7 +311,7 @@ public class BrowserExportEngine(
       rotationDegrees = 0,
       pixelAspectRatio = 1f,
       frameRate = render.frameRate.toFloat(),
-      codec = trackCodecOf(fourCc(verified.codec)),
+      codec = trackCodecOf(fourCc(video.codec)),
       bitDepth = null,
       colorSpace = if (render.hdrTransfer == null) ColorSpace.Bt709 else ColorSpace.Bt2020,
       hdrTransfer = render.hdrTransfer,
@@ -316,20 +319,15 @@ public class BrowserExportEngine(
     )
 
   private fun audioTrackOf(
-    verified: VerifiedFile,
-    render: BrowserRender,
+    audio: VerifiedAudio,
     bitrate: Bitrate?,
-  ): AudioTrackInfo {
-    // A render that writes no video writes audio, and the negotiator resolves the format it is
-    // normalised to before the pipeline ever opens an encoder.
-    val format = checkNotNull(render.audioFormat)
-    return AudioTrackInfo(
-      codec = trackCodecOf(verified.codec),
-      sampleRate = format.sampleRate,
-      channelCount = format.channelCount,
+  ): AudioTrackInfo =
+    AudioTrackInfo(
+      codec = trackCodecOf(audio.codec),
+      sampleRate = audio.sampleRate,
+      channelCount = audio.channelCount,
       bitrate = bitrate,
     )
-  }
 
   private fun fourCc(codec: String): String =
     when (codec) {

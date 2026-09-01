@@ -162,13 +162,36 @@ internal class EncodedFile(
  * What reading the muxed file back proved: bytes that a demuxer accepts, frames a decoder yields,
  * and the timeline the frames actually cover.
  *
+ * @property video The video track the read found, or null on a file that carries none.
+ * @property audio The audio track the read found, or null on a file that carries none.
  * @property decodedFrames Video frames on a file that carries video, audio samples on one that
  *   carries only audio.
  */
 internal class VerifiedFile(
-  val codec: String,
+  val video: VerifiedVideo?,
+  val audio: VerifiedAudio?,
   val decodedFrames: Long,
   val durationUs: Double,
+)
+
+/**
+ * The video track a read back found, as the container names it.
+ */
+internal class VerifiedVideo(
+  val codec: String,
+)
+
+/**
+ * The audio track a read back found, described by the file rather than by the plan that wrote it.
+ *
+ * A transmux copies the source's packets without normalising them, so a run that takes that path
+ * leaves the render's audio format null while still writing audio. Reading the rate and the channel
+ * count back off the file covers both paths with one answer.
+ */
+internal class VerifiedAudio(
+  val codec: String,
+  val sampleRate: Int,
+  val channelCount: Int,
 )
 
 /**
@@ -206,6 +229,7 @@ private suspend fun EncodedFile.readBack(): VerifiedFile? {
         ?.getCodec()
         ?.await()
         ?.toString() ?: return null
+    val audio = reader.verifiedAudio()
     val stream = reader.frames(0.0, Double.POSITIVE_INFINITY) ?: return null
     var decoded = 0L
     var durationUs = 0.0
@@ -222,7 +246,7 @@ private suspend fun EncodedFile.readBack(): VerifiedFile? {
     } finally {
       stream.close()
     }
-    return VerifiedFile(codec, decoded, durationUs)
+    return VerifiedFile(VerifiedVideo(codec), audio, decoded, durationUs)
   } finally {
     reader.close()
   }
@@ -231,12 +255,7 @@ private suspend fun EncodedFile.readBack(): VerifiedFile? {
 private suspend fun EncodedFile.readBackAudio(): VerifiedFile? {
   val reader = reader()
   try {
-    val codec =
-      reader
-        .audioTrack()
-        ?.getCodec()
-        ?.await()
-        ?.toString() ?: return null
+    val audio = reader.verifiedAudio() ?: return null
     val stream = reader.samples(0.0, Double.POSITIVE_INFINITY) ?: return null
     var decoded = 0L
     var durationUs = 0.0
@@ -253,10 +272,21 @@ private suspend fun EncodedFile.readBackAudio(): VerifiedFile? {
     } finally {
       stream.close()
     }
-    return VerifiedFile(codec, decoded, durationUs)
+    return VerifiedFile(null, audio, decoded, durationUs)
   } finally {
     reader.close()
   }
+}
+
+/**
+ * The audio track of the file being read back, or null when it carries none.
+ */
+private suspend fun SourceReader.verifiedAudio(): VerifiedAudio? {
+  val track = audioTrack() ?: return null
+  val codec = track.getCodec().await()?.toString() ?: return null
+  val sampleRate = track.getSampleRate().await().toDouble()
+  val channels = track.getNumberOfChannels().await().toDouble()
+  return VerifiedAudio(codec, sampleRate.toInt(), channels.toInt())
 }
 
 /**

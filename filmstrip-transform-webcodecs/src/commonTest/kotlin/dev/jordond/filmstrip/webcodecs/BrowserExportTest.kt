@@ -530,6 +530,26 @@ class BrowserExportTest {
       assertTrue(drift < DURATION_TOLERANCE, "the export ran ${success.info.duration}, the composition runs 1s")
     }
 
+  // The mirror of the audio-only case. A render that writes video writes the mix into the same
+  // file, so the info has to name both tracks rather than only the one the path is named after.
+  @Test
+  fun anExportCarryingBothTracksReportsBothOfThem() =
+    runTest {
+      if (!encodesAac()) return@runTest
+      val bytes = makeClipWithAudio(frames = 30, frameRate = 30)
+      val composition =
+        EditComposition(
+          tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))))),
+          audio = AudioSpec.Keep,
+        )
+      val success = exportOf(composition, MediaSink.Uri(""), aacSpec())
+
+      assertNotNull(success.info.video, "an export carrying both tracks reported no video track")
+      val audio = assertNotNull(success.info.audio, "an export carrying both tracks reported no audio track")
+      assertTrue(audio.sampleRate > 0, "the reported track ran at ${audio.sampleRate} hertz")
+      assertTrue(audio.channelCount > 0, "the reported track carried ${audio.channelCount} channels")
+    }
+
   @Test
   fun anAudioOnlyExportLandsAsM4a() =
     runTest {
