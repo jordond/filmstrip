@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.inCanonicalOrder
 import dev.jordond.filmstrip.effects.Scale
+import dev.jordond.filmstrip.effects.fusedBrightness
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.AudioCodec
@@ -435,7 +436,7 @@ public class ExportPlanner(
     // A kept grade is written in BT.2020, so a resolver reading the colour space off an HDR export
     // sees the one the encoder is handed rather than the SDR default.
     val colorSpace = if (hdrTransfer != null) ColorSpace.Bt2020 else ColorSpace.Bt709
-    return stages.flatMap { it.inCanonicalOrder() }.map { spec ->
+    return stages.flatMap { it.inCanonicalOrder() }.fusedBrightness().map { spec ->
       val attributes = Attributes(size, outputSize, layout, colorSpace, hdrTransfer, frameRate.toFloat(), span)
       val resolution =
         resolvers.firstNotNullOfOrNull { it.resolve(spec, capabilities, attributes) }

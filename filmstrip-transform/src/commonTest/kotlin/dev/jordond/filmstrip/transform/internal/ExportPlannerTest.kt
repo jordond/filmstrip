@@ -409,6 +409,18 @@ class ExportPlannerTest {
     resolved.output.size shouldBe Size(1080, 1080)
   }
 
+  // Where a run of brightnesses stops being several multiplies. Backends disagree about where they
+  // clamp, so a backend only ever sees the product.
+  @Test
+  fun `stacked brightnesses reach a resolver as one`() {
+    val recorder = RecordingResolver()
+    val composition = composition(clip(effects = listOf(Brightness(4f), Brightness(0.25f))))
+
+    resolve(composition, resolvers = listOf(recorder))
+
+    recorder.specs.filterIsInstance<Brightness>().map { it.factor } shouldBe listOf(1f)
+  }
+
   // The middle of the range a composition crop can see: no clip geometry runs first, so the frame
   // it measures against is the source frame itself.
   @Test
@@ -1514,12 +1526,14 @@ private class RecordingResolver : EffectResolver {
   val inputSizes = mutableMapOf<String, Size>()
   val outputSizes = mutableMapOf<String, Size>()
   val spans = mutableListOf<TimeRange>()
+  val specs = mutableListOf<EffectSpec>()
 
   override fun resolve(
     spec: EffectSpec,
     capabilities: RenderCapabilities,
     attributes: Attributes,
   ): EffectResolution {
+    specs += spec
     inputSizes[spec.id] = attributes.inputSize
     outputSizes[spec.id] = attributes.outputSize
     spans += attributes.span

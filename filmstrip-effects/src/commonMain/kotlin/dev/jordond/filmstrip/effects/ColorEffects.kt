@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effects
 
 import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
@@ -19,6 +20,9 @@ import kotlinx.serialization.Serializable
  * display would have produced, so a frame looks the same graded or not. HDR has headroom above
  * white where SDR clips, so a factor above `1f` matches an SDR export through the midtones and
  * keeps going where that one saturates.
+ *
+ * Two of these in a row multiply before anything clamps, so a factor above `1f` followed by its
+ * reciprocal returns the frame unchanged rather than a saturated frame the second factor darkens.
  *
  * @property factor The multiplier, where `1f` leaves the frame unchanged and `0f` writes black.
  * Negative values are read as `0f`, and a NaN as `1f`.
@@ -42,3 +46,28 @@ public class Brightness(
  * matrix element, which fail three different ways, so it is turned into the no-op here instead.
  */
 internal val Brightness.scale: Float get() = if (factor.isNaN()) 1f else factor.coerceAtLeast(0f)
+
+/**
+ * Folds every run of consecutive [Brightness] in an ordered chain into one carrying the product of
+ * their factors.
+ *
+ * A backend clamps to the encoding's range as it writes, some once for the whole chain and some
+ * around each effect, so where a run stops being several multiplies decides what a factor above
+ * `1f` followed by one below it produces. It stops here, ahead of all four.
+ *
+ * @return the chain with each run of brightnesses replaced by a single one.
+ */
+@InternalFilmstripApi
+public fun List<EffectSpec>.fusedBrightness(): List<EffectSpec> {
+  if (count { it is Brightness } < 2) return this
+
+  return fold(mutableListOf<EffectSpec>()) { fused, spec ->
+    val previous = fused.lastOrNull()
+    if (spec is Brightness && previous is Brightness) {
+      fused[fused.lastIndex] = Brightness(previous.scale * spec.scale)
+    } else {
+      fused += spec
+    }
+    fused
+  }
+}
