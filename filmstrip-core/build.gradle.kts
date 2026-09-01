@@ -1,7 +1,13 @@
+import dev.jordond.filmstrip.convention.androidDeviceTests
+
 plugins {
   id("filmstrip.library")
   alias(libs.plugins.kotlin.serialization)
 }
+
+// A still's header is read through BitmapFactory and ExifInterface on Android, and both are stubs
+// off a device, so the probe every other target covers on the host is covered on one here.
+androidDeviceTests()
 
 kotlin {
   sourceSets {
@@ -14,6 +20,15 @@ kotlin {
     androidMain.dependencies {
       api(libs.kotlinx.coroutines.android)
       implementation(libs.androidx.startup)
+    }
+
+    named("androidDeviceTest") {
+      kotlin.srcDir("src/commonTest/kotlin/dev/jordond/filmstrip/media/probe")
+      dependencies {
+        implementation(kotlin("test"))
+        implementation(libs.kotlinx.coroutines.test)
+        implementation(libs.androidx.test.runner)
+      }
     }
   }
 }

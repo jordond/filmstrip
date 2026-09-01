@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects
 
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.motion.paced
@@ -20,6 +21,7 @@ import kotlin.time.Duration
  * @param span The clip's slot on that timeline.
  * @return The region that fills the frame at [time].
  */
+@ExperimentalFilmstripApi
 public fun KenBurns.regionAt(
   time: Duration,
   span: TimeRange,

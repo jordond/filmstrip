@@ -4,6 +4,7 @@ import androidx.media3.common.Effect
 import androidx.media3.effect.Presentation
 import androidx.media3.effect.RgbAdjustment
 import androidx.media3.effect.ScaleAndRotateTransformation
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effect.Attributes
@@ -25,7 +26,7 @@ import androidx.media3.effect.Crop as Media3Crop
 /**
  * Lowers the built-in catalogue onto Media3's effect classes.
  */
-@OptIn(InternalFilmstripApi::class)
+@OptIn(InternalFilmstripApi::class, ExperimentalFilmstripApi::class)
 public actual class BuiltInEffectResolver actual constructor() : EffectResolver {
   actual override fun resolve(
     spec: EffectSpec,

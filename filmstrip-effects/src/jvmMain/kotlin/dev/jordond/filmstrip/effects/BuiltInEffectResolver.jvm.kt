@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects
 
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.AuxInput
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -37,6 +38,7 @@ import kotlin.time.DurationUnit
  * Every lowering is a pure function of the spec and the resolved [Attributes], so it is assertable
  * in a unit test with no toolchain installed, which neither of the other two resolvers can manage.
  */
+@OptIn(ExperimentalFilmstripApi::class)
 public actual class BuiltInEffectResolver actual constructor() : EffectResolver {
   actual override fun resolve(
     spec: EffectSpec,

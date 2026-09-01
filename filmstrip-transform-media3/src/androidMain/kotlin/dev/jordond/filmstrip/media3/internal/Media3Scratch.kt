@@ -12,7 +12,8 @@ import java.security.MessageDigest
  * anything can be lowered. A file is named after a digest of the bytes it holds, so the same buffer
  * lowered again finds the file already there and the export that follows writes no copy of its own.
  * The directory is emptied the first time a process reaches it, which is what stops the files an
- * earlier run left behind outliving it.
+ * earlier run left behind outliving it, and held under [BUDGET_BYTES] after that, which is what
+ * stops a process that lowers a new buffer for every edit from keeping all of them until it dies.
  */
 internal object Media3Scratch {
   private val lock = Any()
@@ -41,9 +42,30 @@ internal object Media3Scratch {
         partial.writeBytes(bytes)
         if (!partial.renameTo(file)) throw IOException("${partial.path} could not be moved onto ${file.path}.")
       }
+
+      // Eviction takes the oldest first, so touching the file on the way out is what puts whatever
+      // is about to be exported last in line.
+      file.setLastModified(System.currentTimeMillis())
+      directory.trimTo(BUDGET_BYTES)
     }
 
     return file
+  }
+
+  /**
+   * Deletes the least recently used files until what is left fits in [budget].
+   *
+   * Nothing tells this when an export has finished with a file, so the file handed out most
+   * recently is the one eviction reaches last rather than one it is told to spare.
+   */
+  private fun File.trimTo(budget: Long) {
+    val files = listFiles()?.sortedByDescending { it.lastModified() } ?: return
+
+    var kept = 0L
+    for (file in files) {
+      val size = file.length()
+      if (kept + size <= budget) kept += size else file.delete()
+    }
   }
 
   private fun Context.scratchDirectory(): File {
@@ -70,6 +92,11 @@ internal object Media3Scratch {
       .joinToString("") { byte -> byte.toUByte().toString(HEX).padStart(2, '0') }
 
   private const val DIRECTORY = "filmstrip-scratch"
+
+  // Room for a handful of buffers of the size a caller hands over, on a directory the platform is
+  // free to reclaim anyway. A file still being exported from is the newest, so it is the last one
+  // this reaches.
+  private const val BUDGET_BYTES = 256L * 1024 * 1024
 
   private const val DIGEST = "SHA-256"
 

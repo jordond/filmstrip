@@ -47,6 +47,48 @@ class StillSpecTest {
   }
 
   @Test
+  fun aHeightComfortablyUnderTheCeilingIsUntouched() {
+    assertEquals(Size(3556, 2000), stillSizeOf(Size(1920, 1080), 2000))
+  }
+
+  @Test
+  fun aHeightJustUnderTheCeilingIsUntouched() {
+    assertEquals(Size(3838, 2159), stillSizeOf(Size(1920, 1080), 2159))
+  }
+
+  @Test
+  fun aHeightJustOverTheCeilingIsScaledDownToIt() {
+    assertEquals(Size(3840, 2160), stillSizeOf(Size(1920, 1080), 2161))
+  }
+
+  @Test
+  fun aHeightFarOverTheCeilingIsScaledDownToIt() {
+    // 1920x1080 asked for at 20000 tall would be 35556x20000, well past what any target can hold
+    // in memory. The aspect survives the clamp rather than each side being coerced on its own.
+    assertEquals(Size(3840, 2160), stillSizeOf(Size(1920, 1080), 20000))
+  }
+
+  @Test
+  fun aPortraitSourceOverTheCeilingIsScaledByItsOwnAspect() {
+    // A landscape ceiling on a portrait source proves the fit follows the source's aspect rather
+    // than coercing width and height against the ceiling's own shape.
+    assertEquals(Size(1215, 2160), stillSizeOf(Size(1080, 1920), 20000))
+  }
+
+  @Test
+  fun aSourceOverTheCeilingWithNoRequestedHeightIsStillHeldToIt() {
+    // A 4032x3024 phone photo, with no heightPx asked for at all.
+    assertEquals(Size(2880, 2160), stillSizeOf(Size(4032, 3024), null))
+  }
+
+  @Test
+  fun aSourceOverTheCeilingAskedForAtItsOwnHeightIsStillHeldToIt() {
+    // Asking for exactly the source's own height takes the other early-return path, and must land
+    // on the same clamp as a null height rather than slip past it.
+    assertEquals(Size(2880, 2160), stillSizeOf(Size(4032, 3024), 3024))
+  }
+
+  @Test
   fun qualityIsClampedRatherThanRefused() {
     assertEquals(100, StillSpec(quality = 1000).qualityPercent)
     assertEquals(0, StillSpec(quality = -20).qualityPercent)

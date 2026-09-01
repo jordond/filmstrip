@@ -91,6 +91,7 @@ internal const val PHOTO_BOUNDARY: Float = 0.5f
 /**
  * The pan the split photo travels under, from a window in the red half to one in the blue.
  */
+@OptIn(ExperimentalFilmstripApi::class)
 internal val PHOTO_PAN: KenBurns =
   KenBurns(
     from = NormalizedRect(0f, 0f, 0.4f, 1f),

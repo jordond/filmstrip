@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.stillHold
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -38,7 +39,9 @@ import dev.jordond.filmstrip.export.TrimStrategy
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.geometry.MAX_STILL_FRAME
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.geometry.frameWithin
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
@@ -1002,13 +1005,13 @@ private fun trimWindow(
   clip: Clip,
   info: MediaInfo,
 ): Pair<Duration, Duration>? {
+  if (clip.source is MediaSource.Image) {
+    val hold = stillHold(info.duration, clip.trim)
+    return if (hold <= Duration.ZERO) null else Duration.ZERO to hold
+  }
   val start = clip.trim?.start ?: Duration.ZERO
   val end = (clip.trim?.endExclusive ?: info.duration).coerceAtMost(info.duration)
-  return when {
-    end <= start -> null
-    clip.source is MediaSource.Image -> Duration.ZERO to (end - start)
-    else -> start to end
-  }
+  return if (end <= start) null else start to end
 }
 
 /**

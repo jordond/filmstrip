@@ -46,6 +46,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.transform.internal.stillUnsupportedMessage
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import kotlin.test.Test
@@ -352,6 +353,38 @@ class PlannerTest {
     val verdict = planner().lower(composition, ExportSpec(), device(), infos).verdict
     assertIs<Verdict.Incapable>(verdict)
     assertIs<ExportError.InvalidComposition>(verdict.reasons.single())
+  }
+
+  // This backend has no stills support, and the old refusal named the wrong problem: a still names
+  // a real, readable file, so blaming an unreadable source was never the actual reason.
+  @Test
+  fun `refuses a still by kind`() {
+    val still = MediaSource.Image(ImageSource.of("/photos/one.png"), 3_000.milliseconds)
+    val composition = EditComposition(listOf(Track(listOf(Clip(still)))))
+
+    val verdict = planner().lower(composition, ExportSpec(), device(), emptyMap()).verdict
+
+    val reason = assertIs<Verdict.Incapable>(verdict).reasons.single()
+    assertIs<ExportError.SourceNotExportable>(reason).message shouldBe stillUnsupportedMessage("ffmpeg")
+  }
+
+  // The scan is over every track's clips, not just the primary one, so a still parked on a music
+  // bed is caught the same way as a still leading the timeline.
+  @Test
+  fun `refuses a still on a secondary track`() {
+    val still = MediaSource.Image(ImageSource.of("/photos/one.png"), 3_000.milliseconds)
+    val composition =
+      EditComposition(
+        listOf(
+          Track(listOf(Clip(landscape))),
+          Track(clips = listOf(Clip(still)), content = TrackContent.Audio),
+        ),
+      )
+
+    val verdict = planner().lower(composition, ExportSpec(), device(), infos).verdict
+
+    val reason = assertIs<Verdict.Incapable>(verdict).reasons.single()
+    assertIs<ExportError.SourceNotExportable>(reason).message shouldBe stillUnsupportedMessage("ffmpeg")
   }
 
   @Test

@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.ComponentRegistry
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
@@ -11,6 +12,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.Brightness
@@ -36,12 +38,14 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.transform.internal.stillUnsupportedMessage
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
 import dev.jordond.filmstrip.webcodecs.internal.BrowserLowering
 import dev.jordond.filmstrip.webcodecs.internal.BrowserPlanner
@@ -59,7 +63,7 @@ import kotlin.time.Duration.Companion.minutes
 
 // The browser planner, with fabricated probes. The lowering is pure, so none of these need
 // mediabunny or a browser beyond what the runner already is.
-@OptIn(InternalFilmstripApi::class)
+@OptIn(InternalFilmstripApi::class, ExperimentalFilmstripApi::class)
 class BrowserPlannerTest {
   private val planner = BrowserPlanner(listOf(BuiltInEffectResolver()))
 
@@ -107,6 +111,40 @@ class BrowserPlannerTest {
     val verdict = lower(compositionOf(listOf(clip)), infos = mapOf(clip.source to info(rotation = 90))).verdict
     assertIs<Verdict.Incapable>(verdict)
     assertTrue(verdict.reasons.any { it.message.contains("rotation") })
+  }
+
+  // This backend draws its output by decoding a video track. A still is refused at plan time
+  // rather than left to fail once an export or a preview actually tries to open it.
+  @Test
+  fun stillIsRefusedAtPlanTime() {
+    val still = MediaSource.Image(ImageSource.of("/photos/one.png"), 3_000.milliseconds)
+    val verdict = lower(compositionOf(listOf(Clip(still)))).verdict
+
+    val reason = assertIs<Verdict.Incapable>(verdict).reasons.single()
+    assertIs<ExportError.SourceNotExportable>(reason)
+    assertEquals(stillUnsupportedMessage("browser"), reason.message)
+  }
+
+  // The scan is over every track's clips, not just the primary one, so a still parked on a
+  // secondary audio track is caught the same way as a still leading the timeline.
+  @Test
+  fun stillOnASecondaryTrackIsRefusedAtPlanTime() {
+    val still = MediaSource.Image(ImageSource.of("/photos/one.png"), 3_000.milliseconds)
+    val composition =
+      EditComposition(
+        tracks =
+          listOf(
+            Track(listOf(Clip(source("a")))),
+            Track(clips = listOf(Clip(still)), content = TrackContent.Audio),
+          ),
+        audio = AudioSpec.Remove,
+      )
+
+    val verdict = lower(composition).verdict
+
+    val reason = assertIs<Verdict.Incapable>(verdict).reasons.single()
+    assertIs<ExportError.SourceNotExportable>(reason)
+    assertEquals(stillUnsupportedMessage("browser"), reason.message)
   }
 
   @Test

@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.ComponentRegistry
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
@@ -12,15 +13,18 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.effects.KenBurns
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.chainedProber
 import dev.jordond.filmstrip.media3.media3ExportEngine
+import dev.jordond.filmstrip.motion.Easing
 import dev.jordond.filmstrip.test.TestFrame
 import kotlinx.coroutines.flow.toList
 import java.io.File
@@ -147,6 +151,51 @@ internal val CONTRACT_COMPONENTS: ComponentRegistry = ComponentRegistry.Builder(
  * Long enough to play through and seek inside, and a whole number of frames at the fixture's rate.
  */
 internal val CLIP_LENGTH: Duration = 1500.milliseconds
+
+/**
+ * Two runs of the fixture clip, the second travelling under [FIXTURE_PAN].
+ *
+ * The panned clip starts at [PANNED_CLIP_START] rather than at zero, which is the only layout that
+ * separates a chain reading the clip it was decoded from from one reading the composition. At zero
+ * the two clocks are the same number.
+ */
+internal fun androidPannedClipComposition(): EditComposition =
+  EditComposition(
+    tracks =
+      listOf(
+        Track(
+          listOf(
+            Clip(androidFixtureClip(), TimeRange.of(Duration.ZERO, CLIP_LENGTH)),
+            Clip(androidFixtureClip(), TimeRange.of(Duration.ZERO, CLIP_LENGTH), effects = listOf(FIXTURE_PAN)),
+          ),
+        ),
+      ),
+  )
+
+/**
+ * Where the panned clip's span starts, which is the end of the clip that runs before it.
+ */
+internal val PANNED_CLIP_START: Duration = CLIP_LENGTH
+
+/**
+ * The pan a panned fixture travels under, from a window at one edge of the frame to one at the
+ * other.
+ *
+ * Windows narrow enough that two readings inside a span are plainly different pictures, and linear
+ * so every fraction of the travel is a figure both backends work out the same way.
+ */
+@OptIn(ExperimentalFilmstripApi::class)
+internal val FIXTURE_PAN: KenBurns =
+  KenBurns(
+    from = NormalizedRect(0f, 0f, 0.4f, 1f),
+    to = NormalizedRect(0.6f, 0f, 1f, 1f),
+    easing = Easing.Linear,
+  )
+
+/**
+ * Two readings inside a panned span, either side of the halfway point every curve agrees on.
+ */
+internal val PAN_FRACTIONS: List<Double> = listOf(0.4, 0.6)
 
 /**
  * The frame the fixture decodes at, which is the frame an export of it writes.

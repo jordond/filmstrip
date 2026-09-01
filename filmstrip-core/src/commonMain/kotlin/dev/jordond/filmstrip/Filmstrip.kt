@@ -136,6 +136,8 @@ public interface Filmstrip {
   /**
    * Renders one frame of a composition, with its effects applied.
    *
+   * Lands on the frame covering [at], rather than on the nearest sync sample the way [frames] may.
+   *
    * @param composition The edit to render from.
    * @param at Where in the composition to render.
    * @param heightPx The height to render at, in pixels. Zero renders at the composition's own
@@ -151,7 +153,10 @@ public interface Filmstrip {
   /**
    * Renders several frames, emitting each as it is ready.
    *
-   * For a timeline strip.
+   * For a timeline strip, which reads as a run of frames rather than as a set of exact instants.
+   * Each frame may therefore come from the nearest sync sample rather than the one covering its
+   * entry in [at], where that is the faster read. [FrameResult.Success.presentationTime] says where
+   * a frame actually landed. Use [frame] when a position has to be exact.
    *
    * @param composition The edit to render from.
    * @param at Where in the composition to render each frame.

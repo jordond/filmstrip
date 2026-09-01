@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import androidx.test.platform.app.InstrumentationRegistry
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
@@ -43,8 +44,10 @@ import kotlin.time.Duration.Companion.seconds
  * lowering draws from, rather than against a number copied out of it. A backend that eased a curve
  * of its own fails here and so does one that agreed only at the two ends.
  *
- * Every reading is taken at 40% and 60% through the span for that reason.
+ * A pan at a constant rate is read at 40% and 60% through the span for that reason, and a pan on a
+ * curve at the halfway point, where the curve is furthest from the straight line.
  */
+@OptIn(ExperimentalFilmstripApi::class)
 class AndroidKenBurnsTest {
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
   private val filmstrip = Filmstrip(context) { media3Backend() }
@@ -83,6 +86,28 @@ class AndroidKenBurnsTest {
       FRACTIONS.forEach { fraction ->
         val at = CLIP + PHOTO * fraction
         assertRedFraction(frameOf(written, at), PAN.regionAt(at, span), "at $fraction through the photo")
+      }
+    }
+
+  /**
+   * The same pan, paced by a curve rather than at a constant rate.
+   *
+   * A lowering that interpolated the two regions itself instead of reading the shared one draws the
+   * straight-line position whatever curve it was handed. At the halfway point that is a quarter of
+   * the travel from where either of these curves sits, which this window reads as nearly four times
+   * the slack the measurement allows.
+   */
+  @Test
+  fun aCurvedPanShowsTheRegionItsCurveNames() =
+    runTest(timeout = TIMEOUT) {
+      val span = TimeRange.of(Duration.ZERO, PHOTO)
+      val at = PHOTO * MIDPOINT
+
+      CURVES.forEach { easing ->
+        val pan = KenBurns(PAN.from, PAN.to, easing)
+        val written = export(composition(Clip(stillSource(), effects = listOf(pan))))
+
+        assertRedFraction(frameOf(written, at), pan.regionAt(at, span), "halfway through a $easing pan")
       }
     }
 
@@ -199,8 +224,17 @@ class AndroidKenBurnsTest {
     // well under the slack the boundary itself costs.
     val PHOTO = 4.seconds
 
-    // Neither end of the span, and either side of its halfway point, which every curve agrees on.
+    // Neither end of the span, and either side of its halfway point, which a symmetric curve
+    // agrees with a straight line on.
     val FRACTIONS = listOf(0.4, 0.6)
+
+    // The halfway point is where a curve that only accelerates and one that only decelerates sit
+    // furthest from a straight line, a quarter of the travel either side of it.
+    const val MIDPOINT = 0.5
+
+    // EaseInOut is left to the Apple reading, since it never leaves the straight line by enough for
+    // this path's TOLERANCE to tell the two apart.
+    val CURVES = listOf(Easing.EaseIn, Easing.EaseOut)
 
     const val BOUNDARY = 0.5f
 

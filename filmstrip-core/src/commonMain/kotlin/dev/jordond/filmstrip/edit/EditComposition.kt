@@ -195,10 +195,11 @@ public class Clip(
    * How long this clip contributes, or null while it is untrimmed or open-ended and the source has
    * not been probed.
    *
-   * An untrimmed still needs no probe, because its source already says how long it is held.
+   * A still needs no probe, because its source already says how long it is held, so even an
+   * open-ended trim over one resolves to the length a backend lays.
    */
   public val duration: Duration?
-    get() = trim?.duration ?: (source as? MediaSource.Image)?.duration
+    get() = (source as? MediaSource.Image)?.let { stillHold(it.duration, trim) } ?: trim?.duration
 
   /**
    * A copy trimmed to [trim], or untrimmed when null.

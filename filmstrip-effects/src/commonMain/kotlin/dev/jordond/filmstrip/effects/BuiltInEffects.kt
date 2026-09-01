@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects
 
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.FilmstripBuilder
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -39,6 +40,7 @@ public fun FilmstripBuilder.builtInEffects(): FilmstripBuilder = addEffectResolv
  * [EffectSpec] is an open interface, so persisting a composition needs every implementation
  * registered polymorphically. Third-party effects contribute their own module the same way.
  */
+@OptIn(ExperimentalFilmstripApi::class)
 public val builtInEffectSerializers: SerializersModule =
   SerializersModule {
     polymorphic(EffectSpec::class) {

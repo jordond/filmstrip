@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.edit
 
 import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.InternalFilmstripApi
 import kotlinx.serialization.Serializable
 import kotlin.time.Duration
 
@@ -53,3 +54,20 @@ public class TimeRange(
  * A range covering [range], with its end treated as exclusive.
  */
 public fun TimeRange(range: ClosedRange<Duration>): TimeRange = TimeRange(range.start, range.endInclusive)
+
+/**
+ * How long a still is held once [trim] is applied, given the [held] span its source names.
+ *
+ * A still shows the same pixels throughout, so a trim over one takes nothing away but length. The
+ * trim is resolved against [held] rather than extending past it, and a trim starting at or after
+ * the end of the held span resolves to zero.
+ */
+@InternalFilmstripApi
+public fun stillHold(
+  held: Duration,
+  trim: TimeRange?,
+): Duration {
+  val start = trim?.start ?: Duration.ZERO
+  val end = (trim?.endExclusive ?: held).coerceAtMost(held)
+  return (end - start).coerceAtLeast(Duration.ZERO)
+}

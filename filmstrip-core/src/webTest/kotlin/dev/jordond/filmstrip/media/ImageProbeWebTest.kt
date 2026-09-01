@@ -3,6 +3,12 @@
 package dev.jordond.filmstrip.media
 
 import dev.jordond.filmstrip.internal.PlatformProber
+import dev.jordond.filmstrip.media.probe.IMAGE_PROBE_DURATION
+import dev.jordond.filmstrip.media.probe.MIRRORED_IMAGE_PROBE_ORIENTATION
+import dev.jordond.filmstrip.media.probe.expectedImageInfo
+import dev.jordond.filmstrip.media.probe.expectedRotatedImageInfo
+import dev.jordond.filmstrip.media.probe.imageProbeBytes
+import dev.jordond.filmstrip.media.probe.rotatedImageProbeBytes
 import kotlinx.coroutines.test.runTest
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.test.Test
@@ -23,8 +29,9 @@ class ImageProbeWebTest {
 
       val result = PlatformProber().probe(source)
 
-      // Raw bytes name no media type, so nothing here claims one.
-      assertEquals(expectedImageInfo(""), assertIs<ProbeResult.Success>(result).info)
+      // The type comes off the bytes' own header, so it is the one an object URL of the same bytes
+      // carries rather than nothing at all.
+      assertEquals(expectedImageInfo(BMP), assertIs<ProbeResult.Success>(result).info)
     }
 
   @Test
@@ -35,10 +42,53 @@ class ImageProbeWebTest {
       try {
         val result = PlatformProber().probe(MediaSource.Image(ImageSource.ofUri(url), IMAGE_PROBE_DURATION))
 
-        assertEquals(expectedImageInfo("bmp"), assertIs<ProbeResult.Success>(result).info)
+        assertEquals(expectedImageInfo(BMP), assertIs<ProbeResult.Success>(result).info)
       } finally {
         URL.revokeObjectURL(url)
       }
+    }
+
+  // A phone stores a photo taken in portrait landscape, with a tag saying which way up it goes, so
+  // the bounds reported have to be the stored ones and the turn has to come off the tag.
+  @Test
+  fun aStillStoredSidewaysReportsItsStoredBoundsAndTheTurnItsTagAsksFor() =
+    runTest {
+      val source = MediaSource.Image(ImageSource.ofBytes(rotatedImageProbeBytes()), IMAGE_PROBE_DURATION)
+
+      val result = PlatformProber().probe(source)
+
+      assertEquals(expectedRotatedImageInfo(JPEG), assertIs<ProbeResult.Success>(result).info)
+    }
+
+  @Test
+  fun anObjectUrlOfASidewaysStillReadsTheSameTag() =
+    runTest {
+      val url = URL.createObjectURL(blobOf(rotatedImageProbeBytes(), "image/jpeg"))
+
+      try {
+        val result = PlatformProber().probe(MediaSource.Image(ImageSource.ofUri(url), IMAGE_PROBE_DURATION))
+
+        assertEquals(expectedRotatedImageInfo(JPEG), assertIs<ProbeResult.Success>(result).info)
+      } finally {
+        URL.revokeObjectURL(url)
+      }
+    }
+
+  // Transpose mirrors as well as turning, and a browser applying it hands back the same swapped
+  // bounds a plain quarter turn does. Pinning it here rather than only over codedSizeOf is what says
+  // the decode and the read agree about the mirrored half of the range.
+  @Test
+  fun aMirroredStillReportsTheTurnItSharesWithItsUnmirroredTwin() =
+    runTest {
+      val bytes = rotatedImageProbeBytes(MIRRORED_IMAGE_PROBE_ORIENTATION)
+      val source = MediaSource.Image(ImageSource.ofBytes(bytes), IMAGE_PROBE_DURATION)
+
+      val result = PlatformProber().probe(source)
+
+      assertEquals(
+        expectedRotatedImageInfo(JPEG, MIRRORED_IMAGE_PROBE_ORIENTATION),
+        assertIs<ProbeResult.Success>(result).info,
+      )
     }
 
   // The length is the source's, not the file's, so two clips of the same photo report two lengths.
@@ -80,4 +130,16 @@ class ImageProbeWebTest {
       val failure = assertIs<ProbeResult.Failure>(result)
       assertTrue(failure.error.message.contains("demuxer"), failure.error.message)
     }
+
+  private companion object {
+    /**
+     * What a blob's own media type reduces to for the still both other targets call a bitmap.
+     */
+    const val BMP = "bmp"
+
+    /**
+     * What a blob's own media type reduces to for the still the rotated fixture is built on.
+     */
+    const val JPEG = "jpeg"
+  }
 }

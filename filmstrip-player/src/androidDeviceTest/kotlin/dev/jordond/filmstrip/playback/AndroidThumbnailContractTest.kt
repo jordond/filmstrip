@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.playback.contract.settleForAbsence
 import dev.jordond.filmstrip.playback.internal.Media3ThumbnailPlanner
 import dev.jordond.filmstrip.playback.internal.Media3ThumbnailSource
 import dev.jordond.filmstrip.test.TestFrame
+import dev.jordond.filmstrip.test.assertFramesDiffer
 import dev.jordond.filmstrip.test.assertFramesSimilar
 import dev.jordond.filmstrip.test.compareFrames
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
@@ -91,7 +92,7 @@ class AndroidThumbnailContractTest {
           assertFramesSimilar(
             expected = exported,
             actual = thumbnail.frame(),
-            minSsim = ENCODED_MIN_SSIM,
+            minSsim = RELAXED_MIN_SSIM,
             message = "a run's thumbnail and the export disagree at ${thumbnail.presentationTime}",
           )
         }
@@ -118,7 +119,7 @@ class AndroidThumbnailContractTest {
           assertFramesSimilar(
             expected = androidExportFrame(exportable, thumbnail.presentationTime),
             actual = thumbnail.frame(),
-            minSsim = ENCODED_MIN_SSIM,
+            minSsim = RELAXED_MIN_SSIM,
             message = "the first run and the export disagree at ${thumbnail.presentationTime}",
           )
         }
@@ -167,7 +168,7 @@ class AndroidThumbnailContractTest {
           assertFramesSimilar(
             expected = androidExportFrame(exportable, thumbnail.presentationTime),
             actual = thumbnail.frame(),
-            minSsim = ENCODED_MIN_SSIM,
+            minSsim = RELAXED_MIN_SSIM,
             message =
               "a run after a cancelled one disagrees with the export " +
                 "at ${thumbnail.presentationTime}",
@@ -314,6 +315,48 @@ class AndroidThumbnailContractTest {
     }
 
   /**
+   * A tile inside a pan over a clip that starts partway along the composition.
+   *
+   * The strip runs the same chain the preview does, over a reader that decodes one item at a time,
+   * so it needs the composition's clock in front of that chain for the same reason. A clip starting
+   * at zero cannot tell a chain reading one clock from a chain reading the other.
+   *
+   * The tiles are read against the same frame of the same file with no pan over it, which a pan
+   * that reached no pixel would have drawn.
+   */
+  @Test
+  fun aThumbnailInsideAPannedClipMatchesTheExport() =
+    contractTest { scope ->
+      val composition = androidPannedClipComposition()
+      val positions = PAN_FRACTIONS.map { PANNED_CLIP_START + CLIP_LENGTH * it }
+      val requests =
+        positions.map { ThumbnailRequest(composition, it, FIXTURE_FRAME.height, REVISION, precise = true) }
+
+      val thumbnails = source(scope).awaitThumbnails(requests)
+
+      try {
+        thumbnails.size shouldBe requests.size
+        for (thumbnail in thumbnails) {
+          assertFramesSimilar(
+            expected = androidExportFrame(composition, thumbnail.presentationTime),
+            actual = thumbnail.frame(),
+            minPsnrDb = CLIP_PAN_MIN_PSNR_DB,
+            minSsim = CLIP_PAN_MIN_SSIM,
+            message = "the strip and the export disagree inside the pan at ${thumbnail.presentationTime}",
+          )
+        }
+
+        assertFramesDiffer(
+          expected = androidExportFrame(androidFixtureComposition(), CLIP_LENGTH * PAN_FRACTIONS.first()),
+          actual = thumbnails.first().frame(),
+          message = "the strip drew the frame an unpanned clip draws, so the pan reached no pixel",
+        )
+      } finally {
+        thumbnails.forEach { it.image.close() }
+      }
+    }
+
+  /**
    * A strip drawn across video, photo and video, which is the run that changes path twice.
    */
   @Test
@@ -354,8 +397,24 @@ class AndroidThumbnailContractTest {
     const val DIM = 0.4f
     const val ENCODED_MIN_SSIM = 0.985
 
+    // A relaxed request lands on a sync sample and nowhere else, and the fixture spends 28,612
+    // bytes on the one at 966ms against 9,181 and 6,311 on the frames either side of it. The
+    // export's encoder gives that same frame 8,233, so a strip drawn off a sync sample carries
+    // grain the exported file no longer does and the pair reads lower than any other reading of
+    // this clip: 0.984 and 0.985 at the fixture's two sync samples, against 0.987 to 0.995 at the
+    // frames between them. The floor comes down for a relaxed reading of a clip and no other, and
+    // it stays above what a divergence costs. A strip reporting the position it was asked for
+    // rather than the sample it landed on reads 0.973 and 0.974, and the export a frame step
+    // either side of the one reported reads 0.980 and 0.981.
+    const val RELAXED_MIN_SSIM = 0.982
+
     // Twice DIM, and under the factor at which a channel saturates.
     const val LIT = 0.8f
+
+    // What a pan over a clip costs two encodes apart, measured and reasoned about where
+    // AndroidPixelContractTest declares the same pair.
+    const val CLIP_PAN_MIN_PSNR_DB = 32.0
+    const val CLIP_PAN_MIN_SSIM = 0.975
 
     // What separates a regrade from the noise two renders of one chain differ by. The comparisons
     // above hold that noise near a mean absolute difference of one, and doubling the brightness of

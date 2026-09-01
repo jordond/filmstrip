@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects
 
 import android.graphics.Matrix
 import androidx.media3.effect.MatrixTransformation
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import kotlin.time.Duration.Companion.microseconds
@@ -14,12 +15,14 @@ import kotlin.time.Duration.Companion.microseconds
  * since the default configure of a matrix transformation passes the input size out unchanged and
  * pixels the transform pushes outside the frame are clipped.
  *
- * The presentation time media3 hands over is measured from the start of the sequence rather than
- * from the start of the item, so it is already the composition time [span] is expressed in.
+ * The presentation time media3 hands over is already the composition time [span] is expressed in,
+ * whether the item's offset came from the sequence it plays in or from the clock a frame reader put
+ * in front of this.
  *
  * A fresh matrix leaves each call, since media3 compares what it is given against what it last
  * uploaded and a mutated instance reads as unchanged.
  */
+@OptIn(ExperimentalFilmstripApi::class)
 internal class KenBurnsTransformation(
   private val spec: KenBurns,
   private val span: TimeRange,

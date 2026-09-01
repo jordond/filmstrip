@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects
 
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.motion.Easing
@@ -18,6 +19,7 @@ import kotlin.time.Duration.Companion.seconds
  * middle. Two backends each easing a pan of their own would pass an end-only test and put the same
  * clip in two places at the same time.
  */
+@OptIn(ExperimentalFilmstripApi::class)
 class KenBurnsGeometryTest {
   @Test
   fun holdsTheStartRegionAtTheStartOfTheSpan() {

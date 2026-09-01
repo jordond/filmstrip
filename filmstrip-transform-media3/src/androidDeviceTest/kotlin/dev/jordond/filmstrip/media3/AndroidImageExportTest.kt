@@ -1,6 +1,17 @@
 package dev.jordond.filmstrip.media3
 
 import android.graphics.Bitmap
+import android.net.Uri
+import android.os.Handler
+import android.os.HandlerThread
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.transformer.Composition
+import androidx.media3.transformer.EditedMediaItem
+import androidx.media3.transformer.EditedMediaItemSequence
+import androidx.media3.transformer.ExportException
+import androidx.media3.transformer.ExportResult
+import androidx.media3.transformer.Transformer
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
@@ -18,6 +29,7 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -134,6 +146,81 @@ class AndroidImageExportTest {
       withStill.path shouldBe ExportPath.Transcode
     }
 
+  /**
+   * A still names its length twice on media3: whole milliseconds on the media item, microseconds on
+   * the edited item. The backend fills both from one span, so the two can only ever differ by the
+   * rounding between them and nothing it exports could say which one media3 laid the picture out by.
+   * Set far apart here, the length of the file that comes out names it.
+   */
+  @Test
+  fun aPhotoIsHeldForTheEditedItemsLengthAndNotTheImageFields() =
+    runTest(timeout = TIMEOUT) {
+      val mediaItem =
+        MediaItem
+          .Builder()
+          .setUri(Uri.fromFile(photoFile()))
+          .setMimeType("image/png")
+          .setImageDurationMs(DISAGREEING.inWholeMilliseconds)
+          .build()
+      val item =
+        EditedMediaItem
+          .Builder(mediaItem)
+          .setDurationUs(PHOTO.inWholeMicroseconds)
+          .setFrameRate(FRAME_RATE)
+          .build()
+      val sequence = EditedMediaItemSequence.Builder(setOf(C.TRACK_TYPE_VIDEO)).addItem(item).build()
+
+      val written = transformed(Composition.Builder(sequence).build())
+
+      val probed = assertIs<ProbeResult.Success>(filmstrip.probe(MediaSource.of(written.path))).info
+      probed.duration shouldBeCloseTo PHOTO
+    }
+
+  /**
+   * Runs [composition] straight on media3, without a plan in front of it, and returns what it wrote.
+   */
+  private suspend fun transformed(composition: Composition): File {
+    val output = File(context.cacheDir, "still-duration-contract.mp4").apply { delete() }
+    val thread = HandlerThread("still-duration-contract").apply { start() }
+    val finished = CompletableDeferred<Unit>()
+
+    try {
+      Handler(thread.looper).post {
+        try {
+          Transformer
+            .Builder(context)
+            .setLooper(thread.looper)
+            .addListener(
+              object : Transformer.Listener {
+                override fun onCompleted(
+                  composition: Composition,
+                  result: ExportResult,
+                ) {
+                  finished.complete(Unit)
+                }
+
+                override fun onError(
+                  composition: Composition,
+                  result: ExportResult,
+                  exception: ExportException,
+                ) {
+                  finished.completeExceptionally(exception)
+                }
+              },
+            ).build()
+            .start(composition, output.path)
+        } catch (rejected: RuntimeException) {
+          finished.completeExceptionally(rejected)
+        }
+      }
+      withContext(Dispatchers.Default) { finished.await() }
+    } finally {
+      thread.quitSafely()
+    }
+
+    return output
+  }
+
   private suspend fun capablePlan(
     composition: EditComposition,
     spec: ExportSpec,
@@ -211,6 +298,11 @@ class AndroidImageExportTest {
     // What the fixture generator was asked for, so a change to it fails here rather than drifting.
     val CLIP = 2.seconds
     val PHOTO = 2.seconds
+
+    // Nowhere near the length the item names, so which of the two media3 read is unmistakable in
+    // the file that comes out.
+    val DISAGREEING = 500.milliseconds
+    const val FRAME_RATE = 30
 
     // Far enough inside a span that the frame either side of a boundary is not what gets sampled.
     val EDGE = 200.milliseconds

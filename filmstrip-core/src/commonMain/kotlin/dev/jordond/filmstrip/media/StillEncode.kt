@@ -1,7 +1,9 @@
 package dev.jordond.filmstrip.media
 
 import dev.jordond.filmstrip.export.ExportError
+import dev.jordond.filmstrip.geometry.MAX_STILL_FRAME
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.geometry.frameWithin
 import kotlinx.io.IOException
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
@@ -18,17 +20,22 @@ import kotlin.random.Random
  * The size a still is encoded at.
  *
  * A [heightPx] that is null or not positive keeps [source] as it is. Any other value scales
- * [source] to that height, keeping its aspect and never rounding a side below one pixel.
+ * [source] to that height, keeping its aspect and never rounding a side below one pixel. Whatever
+ * that leaves is held to [MAX_STILL_FRAME] before it is returned, so a [source] already past that
+ * ceiling is brought inside it too, not just one this function itself scaled up.
  */
 internal fun stillSizeOf(
   source: Size,
   heightPx: Int?,
 ): Size {
-  if (heightPx == null || heightPx <= 0) return source
-  if (source.width <= 0 || source.height <= 0 || heightPx == source.height) return source
-
-  val width = (source.width.toDouble() * heightPx / source.height).roundToInt()
-  return Size(width.coerceAtLeast(1), heightPx)
+  val target =
+    if (heightPx == null || heightPx <= 0 || source.width <= 0 || source.height <= 0 || heightPx == source.height) {
+      source
+    } else {
+      val width = (source.width.toDouble() * heightPx / source.height).roundToInt()
+      Size(width.coerceAtLeast(1), heightPx)
+    }
+  return frameWithin(target, MAX_STILL_FRAME)
 }
 
 /**
@@ -139,6 +146,21 @@ internal fun writeStillFile(
     StillWrite.Failure(ExportError.SinkUnwritable(path, failure.message ?: UNWRITABLE))
   }
 }
+
+/**
+ * The refusal a target answers with for a frame that was closed before it could be encoded.
+ */
+internal fun closedFrame(): ExportError = ExportError.SourceUnreadable("PlatformImage", "The frame has been closed.")
+
+/**
+ * What a target that writes through the filesystem says about a URI that names no file.
+ */
+internal const val NOT_A_FILE_URL: String = "This target writes to file URLs only."
+
+/**
+ * The platform code an error carries when the platform reported none.
+ */
+internal const val NO_CODE: Int = ExportError.Underlying.NO_PLATFORM_CODE
 
 /**
  * A path in the system temporary directory for a still a caller asked to have put somewhere it

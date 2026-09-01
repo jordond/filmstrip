@@ -39,12 +39,15 @@ class Media3ScratchTest {
   @Test
   fun `the same bytes lowered twice are written once`() {
     val first = Media3Scratch.fileFor(context, PNG, "png")
-    val modified = first.lastModified()
+
+    val sentinel = first.readBytes()
+    sentinel[sentinel.lastIndex] = sentinel[sentinel.lastIndex].inc()
+    first.writeBytes(sentinel)
 
     val second = Media3Scratch.fileFor(context, PNG.copyOf(), "png")
 
     second shouldBe first
-    second.lastModified() shouldBe modified
+    second.readBytes().toList() shouldBe sentinel.toList()
   }
 
   @Test

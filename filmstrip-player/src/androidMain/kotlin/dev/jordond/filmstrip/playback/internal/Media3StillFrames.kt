@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ColorSpace
+import android.net.Uri
 import android.opengl.GLES20
 import android.os.Build
 import androidx.media3.common.ColorInfo
@@ -25,6 +26,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.nio.ByteBuffer
 import java.util.concurrent.Executor
@@ -62,12 +65,22 @@ internal class Media3StillFrames(
       .build()
   }
 
+  private val held = Mutex()
+
+  private var heldUri: Uri? = null
+
+  private var heldPicture: Bitmap? = null
+
   /**
    * The frame [readback]'s photo draws at [at], at the size its chain resolves to.
    *
    * Neither half runs on the caller's thread. The decode reads a file, and building the processor
    * parks the calling thread until its GL context is up, which is not something to do on the
    * dispatcher a player delivers its callbacks on.
+   *
+   * One picture at a time is kept, so scrubbing over a photo decodes the file once instead of once
+   * per position. Renders run one at a time for as long as that picture is being copied out of,
+   * since the next photo's render is what frees it.
    *
    * @param at The composition time the frame is drawn as.
    * @throws IllegalStateException when the item names no picture to read.
@@ -76,16 +89,39 @@ internal class Media3StillFrames(
   suspend fun render(
     readback: Media3Readback,
     at: Duration,
-  ): Bitmap {
-    val decoded = picture(readback)
-    return withContext(Dispatchers.Default) { draw(decoded, readback.effects, at) }
+  ): Bitmap = held.withLock { drawAt(pictureFor(readback), readback, at) }
+
+  /**
+   * Drops the picture kept for the last photo rendered.
+   *
+   * The pixels are left to the collector rather than recycled, because a render that has already
+   * taken the lock is still copying out of them.
+   */
+  fun forget() {
+    heldUri = null
+    heldPicture = null
+  }
+
+  /**
+   * The decoded picture for [readback], read from the file only when it is not the one already
+   * held.
+   *
+   * @throws IllegalStateException when the item names no picture to read.
+   */
+  private suspend fun pictureFor(readback: Media3Readback): Bitmap {
+    val uri = readback.span.item.pictureUri()
+    heldPicture?.takeIf { heldUri == uri && !it.isRecycled }?.let { return it }
+    heldPicture?.recycle()
+    heldUri = uri
+    return picture(readback).also { heldPicture = it }
   }
 
   /**
    * [readback]'s picture, decoded and not yet drawn through anything.
    *
-   * Read once for a run of positions over the same photo, since the file is the same read every
-   * time and only the chain over it moves.
+   * The caller owns it and holds it across a run of positions over the same photo, since the file
+   * is the same read every time and only the chain over it moves. [render] keeps one of its own for
+   * callers that ask a position at a time.
    *
    * @throws IllegalStateException when the item names no picture to read.
    */
@@ -97,7 +133,7 @@ internal class Media3StillFrames(
    *
    * [picture] is left alone, so one decode answers a whole run of positions.
    *
-   * @throws VideoFrameProcessingException when the chain could not be run.
+   * @throws VideoFrameProcessingException when the picture could not be copied or the chain could not be run.
    */
   suspend fun drawAt(
     picture: Bitmap,
@@ -105,16 +141,20 @@ internal class Media3StillFrames(
     at: Duration,
   ): Bitmap =
     withContext(Dispatchers.Default) {
-      draw(picture.copy(picture.config ?: Bitmap.Config.ARGB_8888, false), readback.effects, at)
+      val copy =
+        picture.copy(picture.config ?: Bitmap.Config.ARGB_8888, false)
+          ?: throw VideoFrameProcessingException(NO_COPY)
+      draw(copy, readback.effects, at)
     }
 
   /**
    * Runs [effects] over [source] and reads the result back.
    *
-   * The bitmap is handed over rather than lent: media3 recycles what it is queued once the last
-   * frame it produced has gone downstream.
+   * The bitmap is handed over rather than lent. media3 recycles what it drew once the last frame it
+   * produced has gone downstream, and it drops what it never drew, so the source is recycled here
+   * once the processor has come down.
    */
-  private suspend fun draw(
+  internal suspend fun draw(
     source: Bitmap,
     effects: List<Effect>,
     at: Duration,
@@ -187,7 +227,12 @@ internal class Media3StillFrames(
       return drawn.await()
     } finally {
       // Blocks until the render thread has come down, so never from the render thread itself.
-      withContext(NonCancellable + Dispatchers.Default) { processor.release() }
+      withContext(NonCancellable + Dispatchers.Default) {
+        processor.release()
+        // The release above joined the thread that reads these pixels, so whatever media3 still
+        // held is free by now. A bitmap it already recycled ignores the second call.
+        source.recycle()
+      }
     }
   }
 
@@ -206,6 +251,7 @@ internal class Media3StillFrames(
     const val NO_FRAME = "The effect chain ended without drawing the photo."
     const val REFUSED = "The effect chain refused the photo before it could be drawn."
     const val NO_PICTURE = "The image clip names no picture to read."
+    const val NO_COPY = "The photo could not be copied into the effect chain."
 
     const val CHANNELS = 4
 
@@ -216,10 +262,12 @@ internal class Media3StillFrames(
     /**
      * Reads [item]'s picture, which is the same read an export of it performs.
      */
-    fun DataSourceBitmapLoader.load(item: MediaItem): ListenableFuture<Bitmap> {
-      val uri = checkNotNull(item.localConfiguration) { NO_PICTURE }.uri
-      return loadBitmap(uri)
-    }
+    fun DataSourceBitmapLoader.load(item: MediaItem): ListenableFuture<Bitmap> = loadBitmap(item.pictureUri())
+
+    /**
+     * Where [MediaItem]'s picture is read from.
+     */
+    fun MediaItem.pictureUri(): Uri = checkNotNull(localConfiguration) { NO_PICTURE }.uri
 
     /**
      * The format a decoded picture enters the chain as.

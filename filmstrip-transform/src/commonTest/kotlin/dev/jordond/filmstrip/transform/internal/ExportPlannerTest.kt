@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.transform.internal
 
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
@@ -38,6 +39,7 @@ import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.geometry.MAX_STILL_FRAME
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
@@ -259,6 +261,23 @@ class ExportPlannerTest {
 
     val degraded = assertIs<Verdict.Degraded>(verdict)
     degraded.plan.output.size shouldBe Size(1280, 720)
+    degraded.adjustments.single().kind shouldBe AdjustmentKind.ResolutionClamped
+  }
+
+  // A 16:9 source against a 16:9 ceiling scales the same under a per-side clamp and an
+  // aspect-preserving one, so the shape only shows on a frame whose ratio differs from the ceiling's.
+  @Test
+  fun `a clamped frame keeps its aspect rather than being squashed onto the ceiling`() {
+    val landscapeOnly = encoder(VideoCodec.H264, maxSize = Size(1920, 1080))
+    val verdict =
+      plan(
+        composition(clip(size = Size(1080, 1920))),
+        device = device(video = listOf(landscapeOnly)),
+        canCopy = { false },
+      )
+
+    val degraded = assertIs<Verdict.Degraded>(verdict)
+    degraded.plan.output.size shouldBe Size(608, 1080)
     degraded.adjustments.single().kind shouldBe AdjustmentKind.ResolutionClamped
   }
 
@@ -1483,6 +1502,7 @@ private class FakeResolver(
 
 // A push in from the whole frame to a centred window, which is the shape a pan is normally written
 // as.
+@OptIn(ExperimentalFilmstripApi::class)
 private val PUSH_IN =
   KenBurns(NormalizedRect.Full, NormalizedRect(0.15f, 0.15f, 0.85f, 0.85f), Easing.EaseInOut)
 

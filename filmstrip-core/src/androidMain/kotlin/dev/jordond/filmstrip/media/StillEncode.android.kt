@@ -127,8 +127,6 @@ private fun writeUri(
   }
 }
 
-private fun closedFrame() = ExportError.SourceUnreadable("PlatformImage", "The frame has been closed.")
-
 private const val NOT_A_URI = "The destination is not a valid URI."
 
 private const val NO_PATH = "The file URI names no path."
@@ -138,5 +136,3 @@ private const val NO_STREAM = "The content provider gave back no stream to write
 private const val UNWRITABLE = "The destination could not be written."
 
 private const val DENIED = "Writing the destination was denied."
-
-private const val NO_CODE = ExportError.Underlying.NO_PLATFORM_CODE

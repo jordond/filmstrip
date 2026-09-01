@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects
 
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
@@ -13,6 +14,7 @@ import kotlin.test.assertEquals
 // this module the property throws while it initialises, and because Kotlin initialises a file's
 // top-level properties together, that takes builtInEffects() and therefore every export backend
 // registration down with it.
+@OptIn(ExperimentalFilmstripApi::class)
 class BuiltInEffectSerializersTest {
   private val json = Json { serializersModule = builtInEffectSerializers }
 

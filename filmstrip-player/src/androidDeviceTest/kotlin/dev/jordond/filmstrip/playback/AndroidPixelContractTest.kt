@@ -152,6 +152,62 @@ class AndroidPixelContractTest : PlayerPixelContractTest() {
     }
 
   /**
+   * The same pan over a clip of video, on a clip that starts partway along the composition.
+   *
+   * A clip reader decodes one item on its own, so the times it feeds the chain run from the start
+   * of that item, while an export hands the same chain the composition's own clock. A pan reads
+   * that time to decide what to draw, so the two only agree when the reader's chain is put on the
+   * composition's clock first. Nothing but a clip that starts somewhere other than zero can tell
+   * the two apart.
+   */
+  @Test
+  fun aPanOverAVideoClipPreviewsTheWayItExports() =
+    contractTest { scope ->
+      val engine = createEngine(scope)
+      withEngine(engine) { recorder ->
+        engine.setQualityPolicy(PreviewQualityPolicy.Full)
+        val composition = androidPannedClipComposition()
+        engine.awaitComposition(composition).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the preview to be presentable") { recorder.lastState.hasComposition }
+
+        val exported = mutableListOf<TestFrame>()
+        val drawn =
+          PAN_FRACTIONS.map { fraction ->
+            val preview = engine.readback.awaitFrame(PANNED_CLIP_START + CLIP_LENGTH * fraction)
+            val frame = preview.asTestFrame()
+            val export = androidExportFrame(composition, preview.presentationTime)
+            exported += export
+
+            assertFramesSimilar(
+              expected = export,
+              actual = frame,
+              minPsnrDb = CLIP_PAN_MIN_PSNR_DB,
+              minSsim = CLIP_PAN_MIN_SSIM,
+              message = "the preview and the export disagree $fraction through the pan over the clip",
+            )
+            frame
+          }
+
+        // The same frame of the same file with no pan over it, taken off the export path so that
+        // nothing a frame reader is holding can stand in for it. A pan that reached no pixel would
+        // draw this, and would still clear a parity floor if the export had lost the pan too.
+        assertFramesDiffer(
+          expected = androidExportFrame(androidFixtureComposition(), CLIP_LENGTH * PAN_FRACTIONS.first()),
+          actual = drawn.first(),
+          message = "the panned clip drew the frame an unpanned one draws, so the pan reached no pixel",
+        )
+        // And the floor above is not so low that a frame a fifth of the travel away clears it.
+        assertFramesDiffer(
+          expected = exported.last(),
+          actual = drawn.first(),
+          minPsnrDb = CLIP_PAN_MIN_PSNR_DB,
+          minSsim = CLIP_PAN_MIN_SSIM,
+          message = "the reading at ${PAN_FRACTIONS.first()} matched the export at ${PAN_FRACTIONS.last()}",
+        )
+      }
+    }
+
+  /**
    * A run of video, photo, video, read back in all three of its spans.
    *
    * One path serves the outer two and another serves the middle, so this is what catches a reader
@@ -219,6 +275,15 @@ class AndroidPixelContractTest : PlayerPixelContractTest() {
     // against 40 dB for a flat one, so the floor comes down for this fixture and no other. A
     // reading a fifth of the travel away from its export is asserted to fall below it.
     const val PAN_MIN_PSNR_DB = 34.0
+
+    // A pan magnifies its window, so both sides encode enlarged grain and an unbroken pair scores
+    // below what a whole frame of the same clip does: 34.0 dB and 0.981 at the readings below,
+    // against 40 dB for a frame nothing magnified. The floor comes down for a pan over a clip and
+    // no other reading, and it stays a long way above what a divergence costs. Two exports of this
+    // pan a tenth of a frame of travel apart score 25.3 dB and 0.941, and a whole frame apart
+    // 13.2 dB and 0.877.
+    const val CLIP_PAN_MIN_PSNR_DB = 32.0
+    const val CLIP_PAN_MIN_SSIM = 0.975
 
     const val DIM = 0.4f
     const val BRIGHT = 1.4f

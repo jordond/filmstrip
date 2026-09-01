@@ -41,14 +41,6 @@ public class Media3Span(
    * Where [time] falls inside the trimmed item, which is what a frame reader seeks to.
    */
   public fun positionIn(time: Duration): Duration = (time - start).coerceIn(Duration.ZERO, end - start)
-
-  /**
-   * The composition time a frame reader's answer of [clipPositionMs] carries.
-   *
-   * A reader reports a time inside the clip it decoded, and every caller has to put it back on the
-   * composition's clock before anything else compares it.
-   */
-  public fun compositionTimeOf(clipPositionMs: Long): Duration = start + clipPositionMs.milliseconds
 }
 
 /**
@@ -162,7 +154,7 @@ public class Media3Preview internal constructor(
             effects = span.effects,
             still = span.still,
           )
-        Media3Readback(stamped, stamped.effects + compositionEffects)
+        Media3Readback(stamped, stamped.readbackChain(compositionEffects))
       }
 
     return positions.map { position ->
@@ -208,13 +200,33 @@ public class Media3Preview internal constructor(
  *
  * @property span Where the clip sits on the composition's timeline.
  * @property effects The clip's own chain and the composition's, in the order a frame goes through
- *   them.
+ *   them, on the composition's clock.
  */
 @InternalFilmstripApi
 public class Media3Readback(
   public val span: Media3Span,
   public val effects: List<Effect>,
-)
+) {
+  /**
+   * The composition time a frame reader's answer of [framePositionMs] carries.
+   *
+   * The chain starts on the composition's clock, so a reader's own answer comes off it too and this
+   * only changes the units.
+   */
+  public fun compositionTimeOf(framePositionMs: Long): Duration = framePositionMs.milliseconds
+}
+
+/**
+ * The whole chain a frame reader runs over this clip, on the composition's clock.
+ *
+ * A clip's frames reach a reader measured from the start of the item it decoded, so the clock goes
+ * in front of the chain that was lowered against the composition. A photo needs none: its reader
+ * draws one picture and is handed the composition time it draws at directly.
+ */
+private fun Media3Span.readbackChain(compositionEffects: List<Effect>): List<Effect> {
+  val chain = effects + compositionEffects
+  return if (still) chain else listOf(CompositionClock(start)) + chain
+}
 
 /**
  * Lowers this plan for a preview, keeping hold of every position a parameter change can reach.

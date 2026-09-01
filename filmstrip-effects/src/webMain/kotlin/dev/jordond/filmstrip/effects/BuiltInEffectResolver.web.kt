@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects
 
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -18,6 +19,7 @@ import dev.jordond.filmstrip.geometry.NormalizedRect
  * change the size of the render target rather than adding a pass, which makes them pipeline setup,
  * and no browser pipeline has landed to set up.
  */
+@OptIn(ExperimentalFilmstripApi::class)
 public actual class BuiltInEffectResolver actual constructor() : EffectResolver {
   actual override fun resolve(
     spec: EffectSpec,

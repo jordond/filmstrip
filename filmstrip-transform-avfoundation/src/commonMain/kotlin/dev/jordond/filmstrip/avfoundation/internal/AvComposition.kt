@@ -234,7 +234,7 @@ private class AssetCache {
  * A clip whose source has no track of this type still takes its slot, as an empty range, so a
  * silent clip in the middle of a sequence shifts nothing after it. A still has no track of any type
  * and cannot hold its slot that way, since AVFoundation discards a trailing empty range, so on the
- * video track it takes a real segment cut from [stillSeedTrack] and empty time everywhere else.
+ * video track it takes a real segment cut from [stillSeed] and empty time everywhere else.
  *
  * @param stillFrameRate The cadence a still's segment is cut at, which only the video track reads.
  */
@@ -313,17 +313,20 @@ private fun AVMutableCompositionTrack.insertStill(
   val seed =
     frameRate
       ?.takeIf { it > 0 }
-      ?.let(::stillSeedTrack)
+      ?.let(::stillSeed)
       ?: throw AppleLoweringFailure(NO_STILL_SEED)
   val end = at + duration
   var cursor = at
 
+  // Cut to what the seed holds rather than to STILL_SEED_LENGTH. A seed left by an earlier run can
+  // be a frame short, and AVFoundation answers a cut longer than the track by clamping it and still
+  // reporting success, which would advance the cursor past time the track never got.
   while (cursor < end) {
-    val piece = minOf(end - cursor, STILL_SEED_LENGTH)
+    val piece = minOf(end - cursor, seed.length)
     val inserted =
       insertTimeRange(
         timeRange = timeRangeOf(Duration.ZERO, piece),
-        ofTrack = seed,
+        ofTrack = seed.track,
         atTime = cursor.toCMTime(),
         error = null,
       )

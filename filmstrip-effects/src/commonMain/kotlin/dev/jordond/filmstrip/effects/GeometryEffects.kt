@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effects
 
 import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectScope
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -109,6 +110,7 @@ public class CropRect(
 @Serializable
 @SerialName(EffectIds.KEN_BURNS)
 @Poko
+@ExperimentalFilmstripApi
 public class KenBurns(
   public val from: NormalizedRect,
   public val to: NormalizedRect,

@@ -25,7 +25,7 @@ import platform.Foundation.create
 internal class CoreImageStills {
   private val lock = NSLock()
 
-  private val opened = mutableMapOf<ImageSource, CIImage>()
+  private val opened = mutableMapOf<Any, CIImage>()
 
   /**
    * [source] as a Core Image image.
@@ -34,17 +34,32 @@ internal class CoreImageStills {
    *   would otherwise pass the seed's own frame off as the photo.
    */
   fun of(source: ImageSource): CIImage {
+    val key = source.key()
     lock.lock()
     try {
-      opened[source]?.let { return it }
+      opened[key]?.let { return it }
       val image = source.open() ?: throw AppleLoweringFailure(unreadable(source))
-      opened[source] = image
+      opened[key] = image
       return image
     } finally {
       lock.unlock()
     }
   }
 }
+
+/**
+ * What this source is looked up by, which is the buffer itself for encoded bytes.
+ *
+ * [ImageSource.Bytes] compares and hashes over its whole array, and the lookup runs once per output
+ * frame, so keying on the source would walk a multi-megabyte photo for every frame of its span. An
+ * array keys on identity, and every span drawing the same photo carries the same buffer.
+ */
+private fun ImageSource.key(): Any =
+  when (this) {
+    is ImageSource.Path -> "path:$path"
+    is ImageSource.Uri -> "uri:$uri"
+    is ImageSource.Bytes -> bytes
+  }
 
 /**
  * Opens this source as a Core Image image, or null when nothing here can read it.

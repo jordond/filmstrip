@@ -228,11 +228,13 @@ private fun ResolvedClip.toItem(
   outputSize: Size,
   wrapper: EffectWrapper,
 ): EditedMediaItem {
-  val still = source as? MediaSource.Image
-  if (still != null) return toImageItem(still, frameRate, fit, fill, outputSize, wrapper)
-
   val removeAudio = !keepAudio || content == TrackContent.Video
   val removeVideo = !keepVideo || content == TrackContent.Audio
+
+  val still = source as? MediaSource.Image
+  if (still != null) {
+    return toImageItem(still, frameRate, fit, fill, outputSize, wrapper, removeAudio, removeVideo)
+  }
 
   val mediaItem =
     MediaItem
@@ -284,6 +286,9 @@ private fun ResolvedClip.toItem(
  *
  * The span comes from the resolved clip, whose trim the plan has already collapsed into its length.
  * An image item has no samples to clip, so there is no clipping configuration here for one to reach.
+ *
+ * The removal flags are the ones every other clip in the sequence is built from, read the same way,
+ * so a photo and the sequence's own track types cannot disagree about whether it contributes video.
  */
 private fun ResolvedClip.toImageItem(
   source: MediaSource.Image,
@@ -292,6 +297,8 @@ private fun ResolvedClip.toImageItem(
   fill: Fill,
   outputSize: Size,
   wrapper: EffectWrapper,
+  removeAudio: Boolean,
+  removeVideo: Boolean,
 ): EditedMediaItem {
   val rate =
     frameRate?.takeIf { it > 0 }
@@ -305,18 +312,33 @@ private fun ResolvedClip.toImageItem(
       .Builder()
       .setUri(source.image.toAndroidUri(stillFormat))
       .apply { stillFormat?.let { setMimeType("$IMAGE_MIME_PREFIX$it") } }
-      .setImageDurationMs(duration.inWholeMilliseconds)
+      .setImageDurationMs(duration.heldMilliseconds())
       .build()
 
-  // Nothing is removed: media3 ignores both flags on an image item, and a still contributes no
-  // audio for a track that carries some to want removed anyway.
+  // A still carries no audio of its own, so removing it takes nothing away, and media3 ignores both
+  // flags on an image item. They are set anyway so an audio-only export drops a photo's video
+  // through the same reading that drops every other clip's.
   return EditedMediaItem
     .Builder(mediaItem)
+    .setRemoveAudio(removeAudio)
+    .setRemoveVideo(removeVideo)
     .setDurationUs(duration.inWholeMicroseconds)
     .setFrameRate(rate)
-    .setEffects(Effects(emptyList(), clipVideoEffects(fit, fill, outputSize, wrapper)))
-    .build()
+    .setEffects(
+      Effects(emptyList(), if (removeVideo) emptyList() else clipVideoEffects(fit, fill, outputSize, wrapper)),
+    ).build()
 }
+
+/**
+ * This span in the whole milliseconds media3's own image duration is counted in.
+ *
+ * media3 takes that field in milliseconds and rejects a zero, so a span that is not a whole number
+ * of them rounds to the nearest one and never falls below one. It is what routes the item to the
+ * image loader and what a preview holds the picture for. The exact span rides on the edited item's
+ * duration, which is what an export lays the picture out by.
+ */
+private fun Duration.heldMilliseconds(): Long =
+  ((inWholeMicroseconds + MICROS_PER_MILLISECOND / 2) / MICROS_PER_MILLISECOND).coerceAtLeast(1)
 
 // The still format the probe read out of the image's header, or null when it named none.
 private val ResolvedClip.stillFormat: String?
@@ -526,6 +548,8 @@ private const val BLACK = 0xFF000000.toInt()
 
 // What media3 reads an item's MIME type for, which is only ever whether it starts with this.
 private const val IMAGE_MIME_PREFIX = "image/"
+
+private const val MICROS_PER_MILLISECOND = 1000L
 
 // Aspect ratios closer than this are treated as the same shape, so a clip that already fills the
 // output frame is never sent through a blur pass it would draw nothing observable with.

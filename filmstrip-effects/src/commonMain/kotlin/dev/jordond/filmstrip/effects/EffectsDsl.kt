@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects
 
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.geometry.Anchor
@@ -43,6 +44,7 @@ public fun EffectsBuilder.crop(rect: NormalizedRect): EffectsBuilder = add(CropR
  * Valid on a clip alone, since the region it shows depends on where the frame sits inside that
  * clip.
  */
+@ExperimentalFilmstripApi
 public fun EffectsBuilder.kenBurns(
   from: NormalizedRect,
   to: NormalizedRect,

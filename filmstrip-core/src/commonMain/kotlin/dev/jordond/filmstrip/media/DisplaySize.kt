@@ -34,6 +34,21 @@ public fun displaySizeOf(
 }
 
 /**
+ * Turns the dimensions a player puts on screen back into the ones they were stored at.
+ *
+ * The inverse of [displaySizeOf] over the rotation, for a reader that can only answer with a frame
+ * it has already turned. A pixel aspect correction does not come back out of a size on its own, so
+ * a reader that has had one applied reports the ratio rather than coming back through here.
+ *
+ * @param displaySize Dimensions with [rotationDegrees] already applied.
+ * @param rotationDegrees Rotation that was applied to reach [displaySize]: 0, 90, 180 or 270.
+ */
+internal fun codedSizeOf(
+  displaySize: Size,
+  rotationDegrees: Int,
+): Size = if (rotationDegrees % HALF_TURN == 0) displaySize else Size(displaySize.height, displaySize.width)
+
+/**
  * The band a real container reports a pixel aspect in. Every ratio in use sits well inside it, and
  * a value outside it grows a frame by orders of magnitude rather than correcting one.
  */

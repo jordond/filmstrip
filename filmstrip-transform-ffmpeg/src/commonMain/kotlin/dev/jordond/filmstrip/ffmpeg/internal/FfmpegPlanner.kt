@@ -24,6 +24,7 @@ import dev.jordond.filmstrip.transform.internal.NegotiatedExport
 import dev.jordond.filmstrip.transform.internal.backgroundGain
 import dev.jordond.filmstrip.transform.internal.showsFill
 import dev.jordond.filmstrip.transform.internal.sigmaFor
+import dev.jordond.filmstrip.transform.internal.stillUnsupportedMessage
 import kotlin.math.roundToInt
 
 /**
@@ -98,6 +99,10 @@ internal class FfmpegPlanner(
     layoutSize: Size? = null,
   ): Lowering {
     composition.tracks.flatMap { it.clips }.forEach { clip ->
+      // A still is refused by kind, not by asking readablePath and guessing why it came back
+      // null: it names a real file, and the actual reason is that this backend has no stills
+      // support, not that the source is unreadable.
+      if (clip.source is MediaSource.Image) return stillUnsupported()
       readablePath(clip.source) ?: return unreadable(clip.source)
     }
 
@@ -126,6 +131,9 @@ internal class FfmpegPlanner(
 
   private fun unreadable(source: MediaSource): Lowering =
     incapable(ExportError.SourceUnreadable(source.describe(), READS_FILES))
+
+  private fun stillUnsupported(): Lowering =
+    incapable(ExportError.SourceNotExportable(stillUnsupportedMessage("ffmpeg")))
 
   private fun unsupportedBlur(filter: String): Lowering =
     incapable(ExportError.InvalidComposition(missingBlurFilter(filter)))

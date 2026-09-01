@@ -73,6 +73,11 @@ internal external interface Blob : JsAny {
   val type: String
 
   fun arrayBuffer(): Promise<ArrayBuffer>
+
+  fun slice(
+    start: Int,
+    end: Int,
+  ): Blob
 }
 
 /**

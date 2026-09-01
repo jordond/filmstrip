@@ -43,7 +43,9 @@ public enum class StillFormat {
  * @property quality How much of the image a lossy [format] keeps, from 0 to 100. A value outside
  *   that range is clamped rather than refused, and [StillFormat.Png] ignores it.
  * @property heightPx The height to encode at, in pixels. The width follows from the frame's aspect.
- *   Null keeps the frame's own height, and so does a value that is not positive.
+ *   Null keeps the frame's own height, and so does a value that is not positive. A height that
+ *   would scale the frame past the largest still filmstrip encodes is held to that size instead,
+ *   so an upscale can grow a frame only so far.
  */
 @Serializable
 @Poko

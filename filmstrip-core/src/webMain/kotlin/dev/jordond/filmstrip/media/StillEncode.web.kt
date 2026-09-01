@@ -99,8 +99,6 @@ private fun Blob.download(filename: String) {
   setTimeout({ URL.revokeObjectURL(url) }, 0)
 }
 
-private fun closedFrame() = ExportError.SourceUnreadable("PlatformImage", "The frame has been closed.")
-
 private fun noContext() = ExportError.Underlying(NO_CODE, "This browser gave back no 2D canvas context.")
 
 private const val CONTEXT_2D = "2d"
@@ -108,5 +106,3 @@ private const val CONTEXT_2D = "2d"
 private const val TARGET = "This browser"
 
 private const val REFUSED = "The canvas refused to encode the still."
-
-private const val NO_CODE = ExportError.Underlying.NO_PLATFORM_CODE

@@ -27,9 +27,7 @@ import platform.CoreGraphics.CGImageRelease
 import platform.CoreGraphics.CGRectMake
 import platform.Foundation.CFBridgingRetain
 import platform.Foundation.NSMutableData
-import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
-import platform.Foundation.NSUUID
 import platform.ImageIO.CGImageDestinationAddImage
 import platform.ImageIO.CGImageDestinationCreateWithData
 import platform.ImageIO.CGImageDestinationFinalize
@@ -68,7 +66,7 @@ internal actual suspend fun writeStill(
         writeStillFile(bytes, to.path, MediaSink.Path(to.path))
       }
       is MediaSink.Temporary -> {
-        val path = NSTemporaryDirectory() + "filmstrip-still-" + NSUUID().UUIDString() + "." + format.fileExtension
+        val path = temporaryStillPath(format)
         writeStillFile(bytes, path, MediaSink.Path(path))
       }
       is MediaSink.Uri -> {
@@ -199,8 +197,6 @@ private val StillFormat.uti: String
       StillFormat.Webp -> "org.webmproject.webp"
     }
 
-private fun closedFrame() = ExportError.SourceUnreadable("PlatformImage", "The frame has been closed.")
-
 private fun noContext(size: Size) =
   ExportError.SourceUnreadable(
     "PlatformImage",
@@ -209,13 +205,9 @@ private fun noContext(size: Size) =
 
 private const val TARGET = "Apple's ImageIO on this system"
 
-private const val NOT_A_FILE_URL = "This target writes to file URLs only."
-
 private const val NO_BUFFER = "Core Foundation refused a buffer to encode the still into."
 
 private const val NOT_FINALIZED = "ImageIO opened a destination for the still and then would not finalize it."
-
-private const val NO_CODE = ExportError.Underlying.NO_PLATFORM_CODE
 
 private const val LOSSY_QUALITY_KEY = "kCGImageDestinationLossyCompressionQuality"
 

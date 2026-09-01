@@ -2,6 +2,12 @@ package dev.jordond.filmstrip.media
 
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.internal.PlatformProber
+import dev.jordond.filmstrip.media.probe.IMAGE_PROBE_DURATION
+import dev.jordond.filmstrip.media.probe.MIRRORED_IMAGE_PROBE_ORIENTATION
+import dev.jordond.filmstrip.media.probe.expectedImageInfo
+import dev.jordond.filmstrip.media.probe.expectedRotatedImageInfo
+import dev.jordond.filmstrip.media.probe.imageProbeBytes
+import dev.jordond.filmstrip.media.probe.rotatedImageProbeBytes
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
@@ -49,6 +55,44 @@ class ImageProbeAppleTest {
       assertEquals(expectedImageInfo(FORMAT), assertIs<ProbeResult.Success>(result).info)
     }
 
+  // A phone stores a photo taken in portrait landscape, with a tag saying which way up it goes, so
+  // the bounds reported have to be the stored ones and the turn has to come off the tag.
+  @Test
+  fun aStillStoredSidewaysReportsItsStoredBoundsAndTheTurnItsTagAsksFor() =
+    runTest {
+      val path = writeProbeImage("sideways", rotatedImageProbeBytes())
+
+      val result = PlatformProber().probe(MediaSource.Image(ImageSource.of(path), IMAGE_PROBE_DURATION))
+
+      assertEquals(expectedRotatedImageInfo(JPEG), assertIs<ProbeResult.Success>(result).info)
+    }
+
+  @Test
+  fun aSidewaysStillInMemoryReadsTheSameTagOneOnDiskDoes() =
+    runTest {
+      val source = MediaSource.Image(ImageSource.ofBytes(rotatedImageProbeBytes()), IMAGE_PROBE_DURATION)
+
+      val result = PlatformProber().probe(source)
+
+      assertEquals(expectedRotatedImageInfo(JPEG), assertIs<ProbeResult.Success>(result).info)
+    }
+
+  // Transpose mirrors as well as turning. Filmstrip carries no mirror, so it has to report the turn
+  // it shares with its unmirrored twin rather than no turn at all.
+  @Test
+  fun aMirroredStillReportsTheTurnItSharesWithItsUnmirroredTwin() =
+    runTest {
+      val bytes = rotatedImageProbeBytes(MIRRORED_IMAGE_PROBE_ORIENTATION)
+      val source = MediaSource.Image(ImageSource.ofBytes(bytes), IMAGE_PROBE_DURATION)
+
+      val result = PlatformProber().probe(source)
+
+      assertEquals(
+        expectedRotatedImageInfo(JPEG, MIRRORED_IMAGE_PROBE_ORIENTATION),
+        assertIs<ProbeResult.Success>(result).info,
+      )
+    }
+
   // The length is the source's, not the file's, so two clips of the same photo report two lengths.
   @Test
   fun theLengthReportedIsTheOneTheSourceDeclares() =
@@ -81,9 +125,12 @@ class ImageProbeAppleTest {
       assertIs<ProbeResult.Failure>(PlatformProber().probe(source))
     }
 
-  private fun writeProbeImage(): String {
-    val path = Path(SystemTemporaryDirectory, "filmstrip-probe-${Random.nextLong(0, Long.MAX_VALUE)}.bmp")
-    SystemFileSystem.sink(path).buffered().use { it.write(imageProbeBytes()) }
+  private fun writeProbeImage(
+    name: String = "probe",
+    bytes: ByteArray = imageProbeBytes(),
+  ): String {
+    val path = Path(SystemTemporaryDirectory, "filmstrip-$name-${Random.nextLong(0, Long.MAX_VALUE)}")
+    SystemFileSystem.sink(path).buffered().use { it.write(bytes) }
     return path.toString()
   }
 
@@ -93,5 +140,10 @@ class ImageProbeAppleTest {
      * bitmap.
      */
     const val FORMAT = "bmp"
+
+    /**
+     * The trailing component of `public.jpeg`, the still the rotated fixture is built on.
+     */
+    const val JPEG = "jpeg"
   }
 }

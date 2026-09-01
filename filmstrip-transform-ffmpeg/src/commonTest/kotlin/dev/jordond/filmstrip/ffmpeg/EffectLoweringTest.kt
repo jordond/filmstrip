@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectIds
@@ -37,6 +38,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 // The platform object is data here, so the whole catalogue is assertable with no ffmpeg installed.
+@OptIn(ExperimentalFilmstripApi::class)
 class EffectLoweringTest {
   private val resolver = BuiltInEffectResolver()
 

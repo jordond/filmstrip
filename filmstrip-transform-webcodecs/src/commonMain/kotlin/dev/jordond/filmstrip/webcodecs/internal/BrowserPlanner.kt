@@ -35,6 +35,7 @@ import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.containScale
 import dev.jordond.filmstrip.transform.internal.coverScale
 import dev.jordond.filmstrip.transform.internal.frameAfter
+import dev.jordond.filmstrip.transform.internal.stillUnsupportedMessage
 import dev.jordond.filmstrip.transform.internal.toResolvedComposition
 import kotlin.math.ceil
 import kotlin.time.Duration
@@ -186,13 +187,21 @@ internal class BrowserPlanner(
 
   /**
    * Refusals that hold whatever the negotiated path turns out to be, checked before the shared
-   * negotiator ever sees the composition: a second video track, an audio-only primary track, and
-   * a clip past the first with no video track.
+   * negotiator ever sees the composition: a still anywhere on the timeline, a second video track,
+   * an audio-only primary track, and a clip past the first with no video track.
    */
   private fun unconditionalRefusal(
     composition: EditComposition,
     infos: Map<MediaSource, MediaInfo>,
   ): BrowserLowering? {
+    // This backend draws its output by decoding a video track, and a still carries none, so every
+    // clip on every track is refused by kind rather than only the ones that reach the negotiator's
+    // own checks below. A still on an audio track would otherwise pass those unnoticed and only
+    // fail later, as a source the export pipeline cannot open.
+    if (composition.tracks.flatMap { it.clips }.any { it.source is MediaSource.Image }) {
+      return incapable(ExportError.SourceNotExportable(stillUnsupportedMessage("browser")))
+    }
+
     val primary = composition.tracks.firstOrNull() ?: return null
     if (composition.tracks.drop(1).any { it.content != TrackContent.Audio }) return incapable(SECOND_VIDEO_TRACK)
     if (primary.content == TrackContent.Audio) return incapable(AUDIO_ONLY_UNSUPPORTED)

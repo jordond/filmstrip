@@ -36,6 +36,7 @@ import kotlin.test.Test
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -81,6 +82,33 @@ class Media3ImageItemTest {
     item.durationUs shouldBe 4.seconds.inWholeMicroseconds
     assertNotNull(item.mediaItem.localConfiguration).imageDurationMs shouldBe 4.seconds.inWholeMilliseconds
     item.mediaItem.clippingConfiguration shouldBe MediaItem.ClippingConfiguration.UNSET
+  }
+
+  // media3 counts its own image duration in whole milliseconds, so a span that is not one lands on
+  // the nearest rather than losing the remainder. The length the export lays the picture out by is
+  // the exact one either way.
+  @Test
+  fun `a still held for part of a millisecond rounds media3's own field to the nearest`() {
+    val down = 3.seconds + 1400.microseconds
+    val up = 3.seconds + 1600.microseconds
+
+    val shorter = composition(clip(declared = down)).firstItem()
+    val longer = composition(clip(declared = up)).firstItem()
+
+    shorter.durationUs shouldBe down.inWholeMicroseconds
+    assertNotNull(shorter.mediaItem.localConfiguration).imageDurationMs shouldBe 3001
+    longer.durationUs shouldBe up.inWholeMicroseconds
+    assertNotNull(longer.mediaItem.localConfiguration).imageDurationMs shouldBe 3002
+  }
+
+  // media3 rejects a zero on that field, which is what a still shorter than a millisecond would
+  // round down to.
+  @Test
+  fun `a still shorter than a millisecond is lowered rather than rejected`() {
+    val item = composition(clip(declared = 400.microseconds)).firstItem()
+
+    item.durationUs shouldBe 400
+    assertNotNull(item.mediaItem.localConfiguration).imageDurationMs shouldBe 1
   }
 
   // Read off the output rather than pinned to a number here, since the cadence a still is held at is

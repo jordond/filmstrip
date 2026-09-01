@@ -58,4 +58,16 @@ class DisplaySizeTest {
     assertEquals(Size(720, 480), displaySizeOf(Size(720, 480), rotationDegrees = 0, pixelAspectRatio = 500f))
     assertEquals(Size(0, 0), displaySizeOf(Size(0, 0), rotationDegrees = 0, pixelAspectRatio = 2f))
   }
+
+  // A browser only ever answers with a frame it has already turned, so the turn has to come back
+  // out of it. Round tripping is what says the two directions are the same rotation.
+  @Test
+  fun `turns a displayed frame back to the one it was stored at`() {
+    for (rotation in listOf(0, 90, 180, 270)) {
+      val coded = Size(1920, 1080)
+      val display = displaySizeOf(coded, rotation, pixelAspectRatio = 1f)
+
+      assertEquals(coded, codedSizeOf(display, rotation), "a turn of $rotation degrees")
+    }
+  }
 }

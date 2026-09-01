@@ -316,7 +316,7 @@ internal class Media3ThumbnailSource(
           ?: return ThumbnailResult.Failure(ExportError.Underlying(ExportError.Underlying.NO_PLATFORM_CODE, NO_COPY))
       ThumbnailResult.Success(
         image = PlatformImage(owned),
-        presentationTime = readback.span.compositionTimeOf(frame.presentationTimeMs),
+        presentationTime = readback.compositionTimeOf(frame.presentationTimeMs),
       )
     } catch (cancelled: CancellationException) {
       // Two different cancellations reach here. ensureActive rethrows the run's own, which is not a

@@ -131,14 +131,8 @@ internal fun filePathOf(uri: String): String? =
     null
   }
 
-private fun closedFrame() = ExportError.SourceUnreadable("PlatformImage", "The frame has been closed.")
-
 private const val TARGET = "The JDK's ImageIO"
-
-private const val NOT_A_FILE_URL = "This target writes to file URLs only."
 
 private const val NO_PNG_WRITER = "ImageIO found no PNG writer on this JDK."
 
 private const val NO_JPEG_WRITER = "ImageIO found no JPEG writer on this JDK."
-
-private const val NO_CODE = ExportError.Underlying.NO_PLATFORM_CODE

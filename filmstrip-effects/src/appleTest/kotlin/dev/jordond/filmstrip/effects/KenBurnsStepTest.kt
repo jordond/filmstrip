@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects
 
+import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -37,29 +38,35 @@ import kotlin.time.Duration.Companion.seconds
  * which region was cut out, and it is compared against [regionAt] rather than against a copied
  * number, so a lowering that eased a curve of its own fails here.
  *
- * Measured at 40% and 60% through the span. Both ends agree under every reading of the travel, so
- * they prove nothing on their own.
+ * Measured away from both ends, which agree under every reading of the travel and so prove nothing
+ * on their own, and on a curve as well as on a constant rate.
  */
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class, ExperimentalFilmstripApi::class)
 class KenBurnsStepTest {
   private val resolver = BuiltInEffectResolver()
 
   @Test
   fun `cuts out the region the shared interpolation names`() {
     val context = renderingContext() ?: return
-    val step = stepFor(PAN)
 
-    listOf(0.0, 0.4, 0.5, 0.6, 1.0).forEach { fraction ->
-      val time = SPAN_START + SPAN_LENGTH * fraction
-      val drawn = step.apply(frame(), FrameInfo(ATTRIBUTES, time))
-      val region = PAN.regionAt(time, SPAN)
-      val expected = ((BOUNDARY - region.left) / region.width).coerceIn(0f, 1f)
+    listOf(0.0, 0.4, 0.5, 0.6, 1.0).forEach { fraction -> assertRegion(PAN, fraction, context) }
+  }
 
-      val measured = redFraction(drawn, context)
-      assertTrue(
-        abs(measured - expected) < TOLERANCE,
-        "at $fraction the region $region should leave $expected red, measured $measured",
-      )
+  /**
+   * The same reading on a pan paced by a curve.
+   *
+   * A lowering that interpolated the two regions itself instead of reading [regionAt] draws the
+   * straight-line position whatever curve it was handed, and at every fraction here the curve is
+   * further from that position than the reading's own slack.
+   */
+  @Test
+  fun `paces the region along the curve it was given`() {
+    val context = renderingContext() ?: return
+
+    CURVES.forEach { easing ->
+      val pan = KenBurns(CURVED_FROM, CURVED_TO, easing)
+
+      CURVED_FRACTIONS.forEach { fraction -> assertRegion(pan, fraction, context) }
     }
   }
 
@@ -95,6 +102,24 @@ class KenBurnsStepTest {
     val empty = KenBurns(NormalizedRect.Full, NormalizedRect(0.5f, 0.5f, 0.5f, 0.5f))
 
     assertIs<EffectResolution.Unsupported>(resolver.resolve(empty, CAPABILITIES, ATTRIBUTES))
+  }
+
+  private fun assertRegion(
+    pan: KenBurns,
+    fraction: Double,
+    context: CIContext,
+  ) {
+    val time = SPAN_START + SPAN_LENGTH * fraction
+    val region = pan.regionAt(time, SPAN)
+    val expected = ((BOUNDARY - region.left) / region.width).coerceIn(0f, 1f)
+
+    val drawn = stepFor(pan).apply(frame(), FrameInfo(ATTRIBUTES, time))
+    val measured = redFraction(drawn, context)
+
+    assertTrue(
+      abs(measured - expected) < TOLERANCE,
+      "at $fraction of a ${pan.easing} pan the region $region should leave $expected red, measured $measured",
+    )
   }
 
   private fun stepFor(spec: KenBurns) =
@@ -164,6 +189,17 @@ class KenBurnsStepTest {
         to = NormalizedRect(0.75f, 0f, 1f, 1f),
         easing = Easing.Linear,
       )
+
+    // A window travelling exactly its own width, so the red left is the share of the travel still
+    // to come and every reading lands inside the travel rather than against a flat end.
+    val CURVED_FROM = NormalizedRect(0.25f, 0f, 0.5f, 1f)
+    val CURVED_TO = NormalizedRect(0.5f, 0f, 0.75f, 1f)
+
+    val CURVES = Easing.entries.filter { it != Easing.Linear }
+
+    // Off the halfway point, which the symmetric curve rejoins the straight line at, and off the
+    // ends. The closest any curve comes to a straight line here is four times TOLERANCE away.
+    val CURVED_FRACTIONS = listOf(0.25, 0.4, 0.6, 0.75)
 
     val SPAN_START = 2.seconds
     val SPAN_LENGTH = 4.seconds

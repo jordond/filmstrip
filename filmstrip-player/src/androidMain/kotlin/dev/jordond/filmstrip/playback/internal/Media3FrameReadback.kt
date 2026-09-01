@@ -11,7 +11,6 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media3.internal.Media3Preview
 import dev.jordond.filmstrip.media3.internal.Media3Readback
-import dev.jordond.filmstrip.media3.internal.Media3Span
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewFrameReadback
 import dev.jordond.filmstrip.player.ReadbackCallback
@@ -92,7 +91,7 @@ internal class Media3FrameReadback(
         {
           val outcome =
             try {
-              future.get().toReadback(span, scale, space)
+              future.get().toReadback(lowered, scale, space)
             } catch (
               @Suppress("TooGenericExceptionCaught") broken: Exception,
             ) {
@@ -175,10 +174,11 @@ internal class Media3FrameReadback(
   }
 
   /**
-   * Releases the extractor thread. Idempotent.
+   * Releases the extractor thread and the picture the last photo was drawn from. Idempotent.
    */
   fun dispose() {
     thread.quitSafely()
+    stills.forget()
   }
 
   /**
@@ -237,8 +237,7 @@ internal class Media3FrameReadback(
 /**
  * This extracted frame as the packed, opaque RGBA a [ReadbackFrame] carries.
  *
- * The extractor reports a time inside the clip it decoded, so it is put back on the composition's
- * clock before a caller sees it.
+ * The time is the one [lowered]'s chain reports, which is already the composition's.
  *
  * The bitmap is read rather than taken. It belongs to the player media3 shares across the process,
  * which answers a later extraction with a frame it already made, the same object included, so
@@ -247,7 +246,7 @@ internal class Media3FrameReadback(
  * for the frames it does hand on.
  */
 private fun FrameExtractor.Frame.toReadback(
-  span: Media3Span,
+  lowered: Media3Readback,
   scale: Float,
   space: ColorSpace,
 ): ReadbackResult =
@@ -255,7 +254,7 @@ private fun FrameExtractor.Frame.toReadback(
     ReadbackFrame(
       pixels = bitmap.toRgba(),
       size = Size(bitmap.width, bitmap.height),
-      presentationTime = span.compositionTimeOf(presentationTimeMs),
+      presentationTime = lowered.compositionTimeOf(presentationTimeMs),
       colorSpace = space,
       renderScale = scale,
     ),

@@ -63,6 +63,29 @@ class ImageClipTest {
     assertEquals(2.seconds, clip.duration)
   }
 
+  // What the planner lays for the same clip, so a ruler drawn off this and the exported file agree.
+  @Test
+  fun anOpenEndedTrimOnAnImageClipRunsToTheEndOfWhatItHolds() {
+    val clip =
+      Clip(
+        source = MediaSource.Image(ImageSource.of("/photos/beach.jpg"), 5.seconds),
+        trim = TimeRange.from(1.seconds),
+      )
+
+    assertEquals(4.seconds, clip.duration)
+  }
+
+  @Test
+  fun aTrimReachingPastAnImageClipStopsWhereTheStillDoes() {
+    val clip =
+      Clip(
+        source = MediaSource.Image(ImageSource.of("/photos/beach.jpg"), 5.seconds),
+        trim = TimeRange(1.seconds, 9.seconds),
+      )
+
+    assertEquals(4.seconds, clip.duration)
+  }
+
   @Test
   fun anUntrimmedVideoClipStillNeedsAProbe() {
     val clip = Clip(MediaSource.of("/clips/a.mp4"))

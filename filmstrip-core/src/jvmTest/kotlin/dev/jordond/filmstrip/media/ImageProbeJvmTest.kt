@@ -2,6 +2,12 @@ package dev.jordond.filmstrip.media
 
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.internal.PlatformProber
+import dev.jordond.filmstrip.media.probe.IMAGE_PROBE_DURATION
+import dev.jordond.filmstrip.media.probe.MIRRORED_IMAGE_PROBE_ORIENTATION
+import dev.jordond.filmstrip.media.probe.expectedImageInfo
+import dev.jordond.filmstrip.media.probe.expectedRotatedImageInfo
+import dev.jordond.filmstrip.media.probe.imageProbeBytes
+import dev.jordond.filmstrip.media.probe.rotatedImageProbeBytes
 import kotlinx.coroutines.test.runTest
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
@@ -48,6 +54,45 @@ class ImageProbeJvmTest {
         PlatformProber().probe(MediaSource.Image(ImageSource.ofUri("file://${file.path}"), IMAGE_PROBE_DURATION))
 
       assertEquals(expectedImageInfo(FORMAT), assertIs<ProbeResult.Success>(result).info)
+    }
+
+  // A phone stores a photo taken in portrait landscape, with a tag saying which way up it goes, so
+  // the bounds reported have to be the stored ones and the turn has to come off the tag.
+  @Test
+  fun `a still stored sideways reports its stored bounds and the turn its tag asks for`() =
+    runTest {
+      val file = temporaryDirectory.resolve("sideways.jpg").toFile()
+      file.writeBytes(rotatedImageProbeBytes())
+
+      val result = PlatformProber().probe(MediaSource.Image(ImageSource.of(file.path), IMAGE_PROBE_DURATION))
+
+      assertEquals(expectedRotatedImageInfo(JPEG), assertIs<ProbeResult.Success>(result).info)
+    }
+
+  @Test
+  fun `a sideways still in memory reads the same tag one on disk does`() =
+    runTest {
+      val source = MediaSource.Image(ImageSource.ofBytes(rotatedImageProbeBytes()), IMAGE_PROBE_DURATION)
+
+      val result = PlatformProber().probe(source)
+
+      assertEquals(expectedRotatedImageInfo(JPEG), assertIs<ProbeResult.Success>(result).info)
+    }
+
+  // Transpose mirrors as well as turning. Filmstrip carries no mirror, so it has to report the turn
+  // it shares with its unmirrored twin rather than no turn at all.
+  @Test
+  fun `a mirrored still reports the turn it shares with its unmirrored twin`() =
+    runTest {
+      val bytes = rotatedImageProbeBytes(MIRRORED_IMAGE_PROBE_ORIENTATION)
+      val source = MediaSource.Image(ImageSource.ofBytes(bytes), IMAGE_PROBE_DURATION)
+
+      val result = PlatformProber().probe(source)
+
+      assertEquals(
+        expectedRotatedImageInfo(JPEG, MIRRORED_IMAGE_PROBE_ORIENTATION),
+        assertIs<ProbeResult.Success>(result).info,
+      )
     }
 
   // The length is the source's, not the file's, so two clips of the same photo have to report two
@@ -104,5 +149,10 @@ class ImageProbeJvmTest {
      * What the JDK's own reader calls an uncompressed bitmap.
      */
     const val FORMAT = "bmp"
+
+    /**
+     * What it calls the still the rotated fixture is built on.
+     */
+    const val JPEG = "jpeg"
   }
 }
