@@ -16,17 +16,15 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.internal.DefaultFilmstrip
-import dev.jordond.filmstrip.media.FrameResult
+import dev.jordond.filmstrip.media.FrameRenderer
 import dev.jordond.filmstrip.media.MediaProberFactory
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
-import dev.jordond.filmstrip.player.PlayerConfig
 import dev.jordond.filmstrip.player.PlayerEngineFactory
-import dev.jordond.filmstrip.player.VideoPlayer
+import dev.jordond.filmstrip.player.PreviewFactory
 import dev.jordond.filmstrip.thumbnail.ThumbnailSourceFactory
 import kotlinx.coroutines.flow.Flow
-import kotlin.time.Duration
 
 /**
  * The entry point.
@@ -45,7 +43,9 @@ import kotlin.time.Duration
  * [ExportError.BackendMissing] naming the artifact rather than as a crash.
  */
 @Stable
-public interface Filmstrip {
+public interface Filmstrip :
+  FrameRenderer,
+  PreviewFactory {
   /**
    * Everything this instance was built with, for diagnostics.
    */
@@ -118,58 +118,6 @@ public interface Filmstrip {
     spec: ExportSpec,
     to: MediaSink,
   ): Flow<ExportStatus>
-
-  /**
-   * Renders one frame of a composition, with its effects applied.
-   *
-   * Lands on the frame covering [at], rather than on the nearest sync sample the way [frames] may.
-   *
-   * @param composition The edit to render from.
-   * @param at Where in the composition to render.
-   * @param heightPx The height to render at, in pixels. Zero renders at the composition's own
-   *   output height.
-   * @return The frame, which the caller owns and must close, or why it could not be produced.
-   */
-  public suspend fun frame(
-    composition: EditComposition,
-    at: Duration,
-    heightPx: Int = 0,
-  ): FrameResult
-
-  /**
-   * Renders several frames, emitting each as it is ready.
-   *
-   * For a timeline strip, which reads as a run of frames rather than as a set of exact instants.
-   * Each frame may therefore come from the nearest sync sample rather than the one covering its
-   * entry in [at], where that is the faster read. [FrameResult.Success.presentationTime] says where
-   * a frame actually landed. Use [frame] when a position has to be exact.
-   *
-   * @param composition The edit to render from.
-   * @param at Where in the composition to render each frame.
-   * @param heightPx The height to render at, in pixels.
-   * @return A flow of frames, one per entry in [at]. The caller owns each and must close it.
-   */
-  public fun frames(
-    composition: EditComposition,
-    at: List<Duration>,
-    heightPx: Int,
-  ): Flow<FrameResult>
-
-  /**
-   * Opens a player over the same composition value that [export] takes.
-   *
-   * Returns immediately. The composition loads asynchronously and progress is observable on the
-   * player's own state. When no preview backend is registered, the returned player reports
-   * [dev.jordond.filmstrip.player.PlaybackError.BackendMissing] rather than throwing.
-   *
-   * @param composition The edit to play.
-   * @param config How the player should behave.
-   * @return A player, which the caller owns and must close.
-   */
-  public fun preview(
-    composition: EditComposition,
-    config: PlayerConfig = PlayerConfig(),
-  ): VideoPlayer
 
   /**
    * How faithfully an effect will be previewed, with no work at all.

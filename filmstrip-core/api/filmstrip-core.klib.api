@@ -537,6 +537,11 @@ abstract interface dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.film
         open fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effect/EffectSpec.stage.<get-stage>|<get-stage>(){}[0]
 }
 
+abstract interface dev.jordond.filmstrip.media/FrameRenderer { // dev.jordond.filmstrip.media/FrameRenderer|null[0]
+    abstract fun frames(dev.jordond.filmstrip.edit/EditComposition, kotlin.collections/List<kotlin.time/Duration>, kotlin/Int): kotlinx.coroutines.flow/Flow<dev.jordond.filmstrip.media/FrameResult> // dev.jordond.filmstrip.media/FrameRenderer.frames|frames(dev.jordond.filmstrip.edit.EditComposition;kotlin.collections.List<kotlin.time.Duration>;kotlin.Int){}[0]
+    abstract suspend fun frame(dev.jordond.filmstrip.edit/EditComposition, kotlin.time/Duration, kotlin/Int = ...): dev.jordond.filmstrip.media/FrameResult // dev.jordond.filmstrip.media/FrameRenderer.frame|frame(dev.jordond.filmstrip.edit.EditComposition;kotlin.time.Duration;kotlin.Int){}[0]
+}
+
 abstract interface dev.jordond.filmstrip.player/EngineListener { // dev.jordond.filmstrip.player/EngineListener|null[0]
     abstract fun onEvent(dev.jordond.filmstrip.player/PlaybackEvent) // dev.jordond.filmstrip.player/EngineListener.onEvent|onEvent(dev.jordond.filmstrip.player.PlaybackEvent){}[0]
     abstract fun onPosition(kotlin.time/Duration) // dev.jordond.filmstrip.player/EngineListener.onPosition|onPosition(kotlin.time.Duration){}[0]
@@ -567,6 +572,10 @@ abstract interface dev.jordond.filmstrip.player/PlayerEngine { // dev.jordond.fi
     abstract fun setQualityPolicy(dev.jordond.filmstrip.player/PreviewQualityPolicy) // dev.jordond.filmstrip.player/PlayerEngine.setQualityPolicy|setQualityPolicy(dev.jordond.filmstrip.player.PreviewQualityPolicy){}[0]
     abstract fun setVolume(kotlin/Float) // dev.jordond.filmstrip.player/PlayerEngine.setVolume|setVolume(kotlin.Float){}[0]
     abstract fun stepFrames(kotlin/Int) // dev.jordond.filmstrip.player/PlayerEngine.stepFrames|stepFrames(kotlin.Int){}[0]
+}
+
+abstract interface dev.jordond.filmstrip.player/PreviewFactory { // dev.jordond.filmstrip.player/PreviewFactory|null[0]
+    abstract fun preview(dev.jordond.filmstrip.edit/EditComposition, dev.jordond.filmstrip.player/PlayerConfig = ...): dev.jordond.filmstrip.player/VideoPlayer // dev.jordond.filmstrip.player/PreviewFactory.preview|preview(dev.jordond.filmstrip.edit.EditComposition;dev.jordond.filmstrip.player.PlayerConfig){}[0]
 }
 
 abstract interface dev.jordond.filmstrip.player/VideoPlayer : kotlin/AutoCloseable { // dev.jordond.filmstrip.player/VideoPlayer|null[0]
@@ -603,17 +612,14 @@ abstract interface dev.jordond.filmstrip.player/VideoPlayer : kotlin/AutoCloseab
     abstract suspend fun setComposition(dev.jordond.filmstrip.edit/EditComposition, kotlin.time/Duration? = ..., kotlin/Boolean = ...): dev.jordond.filmstrip.player/SetCompositionResult // dev.jordond.filmstrip.player/VideoPlayer.setComposition|setComposition(dev.jordond.filmstrip.edit.EditComposition;kotlin.time.Duration?;kotlin.Boolean){}[0]
 }
 
-abstract interface dev.jordond.filmstrip/Filmstrip { // dev.jordond.filmstrip/Filmstrip|null[0]
+abstract interface dev.jordond.filmstrip/Filmstrip : dev.jordond.filmstrip.media/FrameRenderer, dev.jordond.filmstrip.player/PreviewFactory { // dev.jordond.filmstrip/Filmstrip|null[0]
     abstract val components // dev.jordond.filmstrip/Filmstrip.components|{}components[0]
         abstract fun <get-components>(): dev.jordond.filmstrip/ComponentRegistry // dev.jordond.filmstrip/Filmstrip.components.<get-components>|<get-components>(){}[0]
 
     abstract fun export(dev.jordond.filmstrip.edit/EditComposition, dev.jordond.filmstrip.export/ExportSpec, dev.jordond.filmstrip.media/MediaSink): kotlinx.coroutines.flow/Flow<dev.jordond.filmstrip.export/ExportStatus> // dev.jordond.filmstrip/Filmstrip.export|export(dev.jordond.filmstrip.edit.EditComposition;dev.jordond.filmstrip.export.ExportSpec;dev.jordond.filmstrip.media.MediaSink){}[0]
     abstract fun export(dev.jordond.filmstrip.export/ExportPlan, dev.jordond.filmstrip.media/MediaSink): kotlinx.coroutines.flow/Flow<dev.jordond.filmstrip.export/ExportStatus> // dev.jordond.filmstrip/Filmstrip.export|export(dev.jordond.filmstrip.export.ExportPlan;dev.jordond.filmstrip.media.MediaSink){}[0]
-    abstract fun frames(dev.jordond.filmstrip.edit/EditComposition, kotlin.collections/List<kotlin.time/Duration>, kotlin/Int): kotlinx.coroutines.flow/Flow<dev.jordond.filmstrip.media/FrameResult> // dev.jordond.filmstrip/Filmstrip.frames|frames(dev.jordond.filmstrip.edit.EditComposition;kotlin.collections.List<kotlin.time.Duration>;kotlin.Int){}[0]
     abstract fun parityOf(kotlin/String): dev.jordond.filmstrip.capability/EffectParity? // dev.jordond.filmstrip/Filmstrip.parityOf|parityOf(kotlin.String){}[0]
-    abstract fun preview(dev.jordond.filmstrip.edit/EditComposition, dev.jordond.filmstrip.player/PlayerConfig = ...): dev.jordond.filmstrip.player/VideoPlayer // dev.jordond.filmstrip/Filmstrip.preview|preview(dev.jordond.filmstrip.edit.EditComposition;dev.jordond.filmstrip.player.PlayerConfig){}[0]
     abstract suspend fun capabilities(): dev.jordond.filmstrip/CapabilitiesResult // dev.jordond.filmstrip/Filmstrip.capabilities|capabilities(){}[0]
-    abstract suspend fun frame(dev.jordond.filmstrip.edit/EditComposition, kotlin.time/Duration, kotlin/Int = ...): dev.jordond.filmstrip.media/FrameResult // dev.jordond.filmstrip/Filmstrip.frame|frame(dev.jordond.filmstrip.edit.EditComposition;kotlin.time.Duration;kotlin.Int){}[0]
     abstract suspend fun plan(dev.jordond.filmstrip.edit/EditComposition, dev.jordond.filmstrip.export/ExportSpec): dev.jordond.filmstrip.export/Verdict // dev.jordond.filmstrip/Filmstrip.plan|plan(dev.jordond.filmstrip.edit.EditComposition;dev.jordond.filmstrip.export.ExportSpec){}[0]
     abstract suspend fun probe(dev.jordond.filmstrip.media/MediaSource): dev.jordond.filmstrip.media/ProbeResult // dev.jordond.filmstrip/Filmstrip.probe|probe(dev.jordond.filmstrip.media.MediaSource){}[0]
 

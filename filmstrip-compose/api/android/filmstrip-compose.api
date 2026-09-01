@@ -1,5 +1,5 @@
 public final class dev/jordond/filmstrip/compose/FilmstripFrameKt {
-	public static final fun rememberFilmstripFrame-WPi__2c (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;JILandroidx/compose/runtime/Composer;I)Landroidx/compose/ui/graphics/ImageBitmap;
+	public static final fun rememberFilmstripFrame-WPi__2c (Ldev/jordond/filmstrip/media/FrameRenderer;Ldev/jordond/filmstrip/edit/EditComposition;JILandroidx/compose/runtime/Composer;I)Landroidx/compose/ui/graphics/ImageBitmap;
 }
 
 public final class dev/jordond/filmstrip/compose/FilmstripFrames {
@@ -18,11 +18,11 @@ public final class dev/jordond/filmstrip/compose/FilmstripFramesDefaults {
 }
 
 public final class dev/jordond/filmstrip/compose/FilmstripFramesKt {
-	public static final fun rememberFilmstripFrames (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;Ljava/util/List;IJILandroidx/compose/runtime/Composer;II)Ldev/jordond/filmstrip/compose/FilmstripFrames;
+	public static final fun rememberFilmstripFrames (Ldev/jordond/filmstrip/media/FrameRenderer;Ldev/jordond/filmstrip/edit/EditComposition;Ljava/util/List;IJILandroidx/compose/runtime/Composer;II)Ldev/jordond/filmstrip/compose/FilmstripFrames;
 }
 
 public final class dev/jordond/filmstrip/compose/FilmstripPlayerKt {
-	public static final fun rememberFilmstripPlayer (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/player/PlayerConfig;Landroidx/compose/runtime/Composer;II)Ldev/jordond/filmstrip/player/VideoPlayer;
+	public static final fun rememberFilmstripPlayer (Ldev/jordond/filmstrip/player/PreviewFactory;Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/player/PlayerConfig;Landroidx/compose/runtime/Composer;II)Ldev/jordond/filmstrip/player/VideoPlayer;
 }
 
 public final class dev/jordond/filmstrip/compose/PlaybackEventEffectKt {

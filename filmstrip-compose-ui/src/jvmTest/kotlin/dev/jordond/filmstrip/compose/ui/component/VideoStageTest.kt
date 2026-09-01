@@ -252,7 +252,7 @@ private fun StageBox(content: @Composable () -> Unit) {
 @Composable
 private fun playerPresenting(outputSize: Size): VideoPlayer =
   rememberFilmstripPlayer(
-    filmstrip = Filmstrip { addPlayerEngineFactory { _, _ -> StageEngine(outputSize) } },
+    previews = Filmstrip { addPlayerEngineFactory { _, _ -> StageEngine(outputSize) } },
     composition = testComposition(),
   )
 

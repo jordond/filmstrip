@@ -9,7 +9,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
-import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.compose.PlayheadState
 import dev.jordond.filmstrip.compose.ScrubState
 import dev.jordond.filmstrip.compose.rememberFilmstripFrames
@@ -24,6 +23,7 @@ import dev.jordond.filmstrip.compose.ui.interaction.wheelZoomTimeline
 import dev.jordond.filmstrip.compose.ui.interaction.zoomTimeline
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.media.FrameRenderer
 import kotlin.time.Duration
 
 /**
@@ -53,7 +53,7 @@ import kotlin.time.Duration
  *   VideoSurface(player, Modifier.weight(1f))
  *
  *   FilmstripTimeline(
- *     filmstrip = filmstrip,
+ *     renderer = filmstrip,
  *     composition = composition,
  *     duration = playhead.duration ?: Duration.ZERO,
  *     position = playhead.positionProvider(),
@@ -70,7 +70,7 @@ import kotlin.time.Duration
  * compositionOf { clip(source) { trim(trimRange) } }
  * ```
  *
- * @param filmstrip The instance the tiles are rendered by.
+ * @param renderer What renders the tiles, usually the `Filmstrip` itself.
  * @param composition The edit to draw.
  * @param duration How much source time the strip spans. With a [sourceOffset] this is the whole source the tiles cover
  * rather than the shorter run the player reports.
@@ -98,7 +98,7 @@ import kotlin.time.Duration
  */
 @Composable
 public fun FilmstripTimeline(
-  filmstrip: Filmstrip,
+  renderer: FrameRenderer,
   composition: EditComposition,
   duration: Duration,
   position: () -> Duration,
@@ -134,7 +134,7 @@ public fun FilmstripTimeline(
 
     val frames =
       rememberFilmstripFrames(
-        filmstrip = filmstrip,
+        renderer = renderer,
         composition = composition,
         positions = grid.positions,
         heightPx = heightPx,

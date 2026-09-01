@@ -8,10 +8,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
-import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.effectsRevision
+import dev.jordond.filmstrip.media.FrameRenderer
 import dev.jordond.filmstrip.media.FrameResult
 import dev.jordond.filmstrip.media.PlatformImage
 import kotlin.time.Duration
@@ -22,14 +22,14 @@ import kotlin.time.Duration
  *
  * For a poster frame, a chapter picker or a clip card, which want the frame covering one exact
  * instant rather than the run of nearest sync samples a strip reads. Each fetch goes through
- * [Filmstrip.frame], so nothing here is shared with [rememberFilmstripFrames].
+ * [FrameRenderer.frame], so nothing here is shared with [rememberFilmstripFrames].
  *
  * The frame is fetched again whenever [at], [heightPx] or anything that would change a rendered
  * frame changes. An edit that changes nothing a frame is rendered from, such as the audio, keeps
  * the frame already held. The last frame produced stays in place while the next one renders, and a
  * render that fails clears it.
  *
- * @param filmstrip The instance the frame is rendered by.
+ * @param renderer What renders the frame, usually the `Filmstrip` itself.
  * @param composition The edit to render from.
  * @param at Where in the composition to render.
  * @param heightPx The height to render at, in pixels. Zero renders at the composition's own output
@@ -39,12 +39,12 @@ import kotlin.time.Duration
 @OptIn(InternalFilmstripApi::class)
 @Composable
 public fun rememberFilmstripFrame(
-  filmstrip: Filmstrip,
+  renderer: FrameRenderer,
   composition: EditComposition,
   at: Duration,
   heightPx: Int,
 ): ImageBitmap? {
-  val holder = remember(filmstrip) { FrameHolder() }
+  val holder = remember(renderer) { FrameHolder() }
   val revision = remember(composition) { composition.effectsRevision() }
 
   DisposableEffect(holder) {
@@ -52,7 +52,7 @@ public fun rememberFilmstripFrame(
   }
 
   LaunchedEffect(holder, revision, at, heightPx) {
-    val result = filmstrip.frame(composition, at, heightPx)
+    val result = renderer.frame(composition, at, heightPx)
     holder.replace((result as? FrameResult.Success)?.image)
   }
 

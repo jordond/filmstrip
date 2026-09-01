@@ -43,28 +43,18 @@ public final class dev/jordond/filmstrip/ComponentRegistry$Builder {
 public abstract interface annotation class dev/jordond/filmstrip/ExperimentalFilmstripApi : java/lang/annotation/Annotation {
 }
 
-public abstract interface class dev/jordond/filmstrip/Filmstrip {
+public abstract interface class dev/jordond/filmstrip/Filmstrip : dev/jordond/filmstrip/media/FrameRenderer, dev/jordond/filmstrip/player/PreviewFactory {
 	public static final field Companion Ldev/jordond/filmstrip/Filmstrip$Companion;
 	public abstract fun capabilities (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun export (Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/export/ExportSpec;Ldev/jordond/filmstrip/media/MediaSink;)Lkotlinx/coroutines/flow/Flow;
 	public abstract fun export (Ldev/jordond/filmstrip/export/ExportPlan;Ldev/jordond/filmstrip/media/MediaSink;)Lkotlinx/coroutines/flow/Flow;
-	public abstract fun frame-dWUq8MI (Ldev/jordond/filmstrip/edit/EditComposition;JILkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun frame-dWUq8MI$default (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;JILkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public abstract fun frames (Ldev/jordond/filmstrip/edit/EditComposition;Ljava/util/List;I)Lkotlinx/coroutines/flow/Flow;
 	public abstract fun getComponents ()Ldev/jordond/filmstrip/ComponentRegistry;
 	public abstract fun parityOf (Ljava/lang/String;)Ldev/jordond/filmstrip/capability/EffectParity;
 	public abstract fun plan (Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/export/ExportSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public abstract fun preview (Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/player/PlayerConfig;)Ldev/jordond/filmstrip/player/VideoPlayer;
-	public static synthetic fun preview$default (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/player/PlayerConfig;ILjava/lang/Object;)Ldev/jordond/filmstrip/player/VideoPlayer;
 	public abstract fun probe (Ldev/jordond/filmstrip/media/MediaSource;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public final class dev/jordond/filmstrip/Filmstrip$Companion {
-}
-
-public final class dev/jordond/filmstrip/Filmstrip$DefaultImpls {
-	public static synthetic fun frame-dWUq8MI$default (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;JILkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public static synthetic fun preview$default (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/player/PlayerConfig;ILjava/lang/Object;)Ldev/jordond/filmstrip/player/VideoPlayer;
 }
 
 public final class dev/jordond/filmstrip/FilmstripBuilder {
@@ -1429,6 +1419,16 @@ public final class dev/jordond/filmstrip/media/FormatHint$Companion {
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
+public abstract interface class dev/jordond/filmstrip/media/FrameRenderer {
+	public abstract fun frame-dWUq8MI (Ldev/jordond/filmstrip/edit/EditComposition;JILkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun frame-dWUq8MI$default (Ldev/jordond/filmstrip/media/FrameRenderer;Ldev/jordond/filmstrip/edit/EditComposition;JILkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun frames (Ldev/jordond/filmstrip/edit/EditComposition;Ljava/util/List;I)Lkotlinx/coroutines/flow/Flow;
+}
+
+public final class dev/jordond/filmstrip/media/FrameRenderer$DefaultImpls {
+	public static synthetic fun frame-dWUq8MI$default (Ldev/jordond/filmstrip/media/FrameRenderer;Ldev/jordond/filmstrip/edit/EditComposition;JILkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
 public abstract interface class dev/jordond/filmstrip/media/FrameResult {
 }
 
@@ -2221,6 +2221,15 @@ public final class dev/jordond/filmstrip/player/PlayerState$Companion {
 
 public abstract interface class dev/jordond/filmstrip/player/PlayerStateListener {
 	public abstract fun onStateChanged (Ldev/jordond/filmstrip/player/PlayerState;)V
+}
+
+public abstract interface class dev/jordond/filmstrip/player/PreviewFactory {
+	public abstract fun preview (Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/player/PlayerConfig;)Ldev/jordond/filmstrip/player/VideoPlayer;
+	public static synthetic fun preview$default (Ldev/jordond/filmstrip/player/PreviewFactory;Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/player/PlayerConfig;ILjava/lang/Object;)Ldev/jordond/filmstrip/player/VideoPlayer;
+}
+
+public final class dev/jordond/filmstrip/player/PreviewFactory$DefaultImpls {
+	public static synthetic fun preview$default (Ldev/jordond/filmstrip/player/PreviewFactory;Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/player/PlayerConfig;ILjava/lang/Object;)Ldev/jordond/filmstrip/player/VideoPlayer;
 }
 
 public abstract interface class dev/jordond/filmstrip/player/PreviewFrameReadback {

@@ -11,10 +11,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.ImageBitmap
-import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.effectsRevision
+import dev.jordond.filmstrip.media.FrameRenderer
 import dev.jordond.filmstrip.media.FrameResult
 import dev.jordond.filmstrip.media.PlatformImage
 import kotlinx.coroutines.flow.collectLatest
@@ -34,7 +34,7 @@ import kotlin.time.Duration
  */
 @Stable
 public class FilmstripFrames internal constructor(
-  private val filmstrip: Filmstrip,
+  private val renderer: FrameRenderer,
 ) {
   private val frames = mutableStateMapOf<Int, StripFrame>()
 
@@ -102,7 +102,7 @@ public class FilmstripFrames internal constructor(
       if (missing.isEmpty()) return@collectLatest
 
       val spec = strip ?: return@collectLatest
-      filmstrip
+      renderer
         .frames(spec.composition, missing.map { spec.positions[it] }, spec.heightPx)
         .withIndex()
         .collect { (offset, result) -> store(spec, missing[offset], result) }
@@ -265,25 +265,25 @@ public object FilmstripFramesDefaults {
  * the frames whose position survives and closes the rest, so a strip being zoomed only asks for the
  * positions it gained.
  *
- * @param filmstrip The instance the frames are rendered by.
+ * @param renderer What renders the frames, usually the `Filmstrip` itself.
  * @param composition The edit to render from.
  * @param positions Where in the composition each strip item sits.
  * @param heightPx The height to render at, in pixels.
  * @param maxBytes How many bytes of decoded frames to hold.
  * @param overscan How many items either side of the visible ones to keep ready.
- * @return State keyed to [filmstrip], the same instance across recompositions.
+ * @return State keyed to [renderer], the same instance across recompositions.
  */
 @OptIn(InternalFilmstripApi::class)
 @Composable
 public fun rememberFilmstripFrames(
-  filmstrip: Filmstrip,
+  renderer: FrameRenderer,
   composition: EditComposition,
   positions: List<Duration>,
   heightPx: Int,
   maxBytes: Long = FilmstripFramesDefaults.MaxBytes,
   overscan: Int = FilmstripFramesDefaults.Overscan,
 ): FilmstripFrames {
-  val frames = remember(filmstrip) { FilmstripFrames(filmstrip) }
+  val frames = remember(renderer) { FilmstripFrames(renderer) }
   val revision = remember(composition) { composition.effectsRevision() }
 
   DisposableEffect(frames) {

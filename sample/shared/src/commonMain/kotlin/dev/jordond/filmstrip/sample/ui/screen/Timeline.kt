@@ -84,7 +84,7 @@ public fun Timeline(
   }
 
   FilmstripTimeline(
-    filmstrip = state.filmstrip,
+    renderer = state.filmstrip,
     composition = composition,
     duration = duration,
     position = position,
