@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.convention.plugin
 
+import dev.jordond.filmstrip.convention.configureComposeCompiler
 import dev.jordond.filmstrip.convention.configureFilmstripLibrary
 import dev.jordond.filmstrip.convention.configureSpotless
 import org.gradle.api.Plugin
@@ -18,6 +19,7 @@ class ComposeLibraryPlugin : Plugin<Project> {
       apply("org.jetbrains.kotlinx.kover")
     }
 
+    target.configureComposeCompiler()
     target.configureSpotless()
     target.configureFilmstripLibrary(macOs = false, web = true, jvm = true)
   }

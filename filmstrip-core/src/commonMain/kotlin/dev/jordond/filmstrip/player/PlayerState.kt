@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.player
 
+import androidx.compose.runtime.Immutable
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.InternalFilmstripApi
 import kotlin.time.Duration
@@ -19,6 +20,7 @@ import kotlin.time.Duration
  * @property isSeeking True when a seek has been issued and its frame has not been presented.
  * @property duration The loaded composition's duration, or null when none is loaded.
  */
+@Immutable
 @Poko
 public class PlayerState
   @InternalFilmstripApi

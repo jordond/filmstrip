@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.player
 
+import androidx.compose.runtime.Immutable
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.ComponentRegistry
@@ -152,6 +153,7 @@ public fun interface PlayerEngineFactory {
  *
  * @property qualityPolicy How hard the preview may work.
  */
+@Immutable
 @Poko
 public class PlayerConfig(
   public val qualityPolicy: PreviewQualityPolicy = PreviewQualityPolicy.Full,

@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip
 
+import androidx.compose.runtime.Stable
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
@@ -44,6 +45,7 @@ import kotlin.time.Duration
  * registers itself through [FilmstripBuilder], and a missing one is reported as
  * [ExportError.BackendMissing] naming the artifact rather than as a crash.
  */
+@Stable
 public interface Filmstrip {
   /**
    * Everything this instance was built with, for diagnostics.

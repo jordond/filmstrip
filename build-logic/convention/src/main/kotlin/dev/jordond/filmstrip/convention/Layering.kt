@@ -22,9 +22,28 @@ data class Layer(
   val forbiddenExternals: Set<String>,
   val forbiddenImports: Set<String> = emptySet(),
   val allowedNpm: Set<String> = emptySet(),
+  val allowedExternals: Set<String> = COMPOSE_ANNOTATIONS,
+  val allowedImports: Set<String> = COMPOSE_ANNOTATION_IMPORTS,
 )
 
 private val COMPOSE = setOf("org.jetbrains.compose", "androidx.compose")
+
+/**
+ * The one hole in [COMPOSE].
+ *
+ * `runtime-annotation` carries `@Immutable` and `@Stable` and nothing else: no runtime, no
+ * composer, and no transitive dependency of its own. `core` takes it so its value types declare
+ * their own stability, which is the only way a consumer's call site can compare an
+ * `EditComposition` or a `TimeRange` by value rather than by identity. It reaches every module
+ * from there, so the allowance is repo-wide rather than named layer by layer.
+ */
+private val COMPOSE_ANNOTATIONS = setOf("androidx.compose.runtime:runtime-annotation")
+
+private val COMPOSE_ANNOTATION_IMPORTS =
+  setOf(
+    "androidx.compose.runtime.Immutable",
+    "androidx.compose.runtime.Stable",
+  )
 
 /**
  * The fixture module a test source set may reach for.
@@ -252,6 +271,7 @@ fun Project.configureArchitectureGuards() {
           description = "Verifies $path contains no forbidden imports."
           moduleName.set(path)
           forbiddenPrefixes.set(layer.forbiddenImports)
+          allowedPrefixes.set(layer.allowedImports)
           sources.from(target.layout.projectDirectory.dir("src"))
         }
 
@@ -275,6 +295,7 @@ fun Project.configureArchitectureGuards() {
         allowedProjects.set(layer.allowedProjects)
         directProjects.set(layer.directProjects)
         forbiddenExternals.set(layer.forbiddenExternals)
+        allowedExternals.set(layer.allowedExternals)
       }
 
     // Configurations only exist once the module has been evaluated.

@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.edit
 
+import androidx.compose.runtime.Immutable
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.InternalFilmstripApi
 import kotlinx.serialization.Serializable
@@ -15,6 +16,7 @@ import kotlin.time.Duration
  * @property endExclusive Where the range ends, or null to run to the end of the source.
  */
 @Serializable
+@Immutable
 @Poko
 public class TimeRange(
   public val start: Duration,

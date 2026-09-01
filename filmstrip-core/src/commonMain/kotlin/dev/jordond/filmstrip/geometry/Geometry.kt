@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.geometry
 
+import androidx.compose.runtime.Immutable
 import dev.drewhamilton.poko.Poko
 import kotlinx.serialization.Serializable
 
@@ -14,6 +15,7 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 @Poko
+@Immutable
 public class Size(
   public val width: Int,
   public val height: Int,
@@ -35,6 +37,7 @@ public class Size(
  */
 @Serializable
 @Poko
+@Immutable
 public class AspectRatio(
   public val width: Int,
   public val height: Int,
@@ -112,6 +115,7 @@ public enum class Fit {
  */
 @Serializable
 @Poko
+@Immutable
 public class NormalizedRect(
   public val left: Float,
   public val top: Float,
@@ -154,6 +158,7 @@ public class NormalizedRect(
  */
 @Serializable
 @Poko
+@Immutable
 public class Anchor(
   public val x: Float,
   public val y: Float,

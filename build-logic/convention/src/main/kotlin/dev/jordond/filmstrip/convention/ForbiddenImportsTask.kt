@@ -31,12 +31,19 @@ abstract class ForbiddenImportsTask : DefaultTask() {
   @get:Input
   abstract val forbiddenPrefixes: SetProperty<String>
 
+  /**
+   * Exact FQNs the rules do not apply to, checked before [forbiddenPrefixes].
+   */
+  @get:Input
+  abstract val allowedPrefixes: SetProperty<String>
+
   @get:Input
   abstract val moduleName: Property<String>
 
   @TaskAction
   fun check() {
     val prefixes = forbiddenPrefixes.get()
+    val allowed = allowedPrefixes.get()
     val violations =
       sources.asFileTree
         .matching { include("**/*.kt") }
@@ -47,6 +54,7 @@ abstract class ForbiddenImportsTask : DefaultTask() {
               .filter { (_, line) -> line.startsWith("import ") }
               .filter { (_, line) ->
                 val fqn = line.removePrefix("import ").substringBefore(' ').trim()
+                if (fqn in allowed) return@filter false
                 prefixes.any { rule ->
                   if (rule.endsWith("*")) {
                     fqn.startsWith(rule.dropLast(1))

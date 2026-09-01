@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.edit
 
+import androidx.compose.runtime.Immutable
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -29,6 +30,7 @@ import kotlin.time.Duration
  * @property fill What fills the frame where no clip's pixels land.
  */
 @Serializable
+@Immutable
 @Poko
 public class EditComposition(
   public val tracks: List<Track>,

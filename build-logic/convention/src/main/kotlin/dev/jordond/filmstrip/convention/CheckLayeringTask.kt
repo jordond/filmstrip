@@ -38,6 +38,15 @@ abstract class CheckLayeringTask : DefaultTask() {
   abstract val forbiddenExternals: SetProperty<String>
 
   /**
+   * Coordinates the rules do not apply to, checked before [forbiddenExternals].
+   *
+   * A rule matches the coordinate itself and the per-target artifacts a multiplatform publication
+   * splits it into, so `group:artifact` covers `group:artifact-jvm` and `group:artifact-iosarm64`.
+   */
+  @get:Input
+  abstract val allowedExternals: SetProperty<String>
+
+  /**
    * Flattened `":path"` / `"group:artifact"` ids, captured from resolution results.
    */
   @get:Input
@@ -70,6 +79,7 @@ abstract class CheckLayeringTask : DefaultTask() {
     val allowed = allowedProjects.get()
     val direct = directProjects.get()
     val forbidden = forbiddenExternals.get()
+    val allowedCoordinates = allowedExternals.get()
 
     val resolvedViolations =
       resolvedIds.get().sorted().mapNotNull { id ->
@@ -77,7 +87,7 @@ abstract class CheckLayeringTask : DefaultTask() {
           id.startsWith(":") && id != self && id !in allowed -> {
             "illegal project dependency: $id"
           }
-          !id.startsWith(":") -> {
+          !id.startsWith(":") && allowedCoordinates.none { id == it || id.startsWith("$it-") } -> {
             forbidden
               .firstOrNull { id == it || id.startsWith("$it:") || id.startsWith("$it.") }
               ?.let { rule -> "forbidden coordinate: $id (rule '$rule')" }
