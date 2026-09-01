@@ -15,12 +15,12 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
-import dev.jordond.filmstrip.effects.Brightness
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
-import dev.jordond.filmstrip.effects.Crop
-import dev.jordond.filmstrip.effects.Flip
-import dev.jordond.filmstrip.effects.KenBurns
-import dev.jordond.filmstrip.effects.Rotate
+import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.geometry.Crop
+import dev.jordond.filmstrip.effects.geometry.Flip
+import dev.jordond.filmstrip.effects.geometry.KenBurns
+import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportError

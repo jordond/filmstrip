@@ -1,4 +1,4 @@
-package dev.jordond.filmstrip.effects
+package dev.jordond.filmstrip.effects.geometry
 
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.FrameInfo
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
+import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace

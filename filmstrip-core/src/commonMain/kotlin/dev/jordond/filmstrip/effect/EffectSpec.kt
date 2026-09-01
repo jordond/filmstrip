@@ -114,8 +114,8 @@ public object EffectIds {
   public const val KEN_BURNS: String = "filmstrip.kenBurns"
   public const val SCALE: String = "filmstrip.scale"
   public const val BRIGHTNESS: String = "filmstrip.brightness"
-  public const val WATERMARK: String = "filmstrip.watermark"
-  public const val TEXT: String = "filmstrip.text"
+  public const val IMAGE_OVERLAY: String = "filmstrip.imageOverlay"
+  public const val TEXT_OVERLAY: String = "filmstrip.textOverlay"
 }
 
 /**
@@ -149,8 +149,8 @@ private val CANONICAL_RANK: Map<String, Int> =
     EffectIds.KEN_BURNS to 3,
     EffectIds.SCALE to 4,
     EffectIds.BRIGHTNESS to 0,
-    EffectIds.WATERMARK to 0,
-    EffectIds.TEXT to 1,
+    EffectIds.IMAGE_OVERLAY to 0,
+    EffectIds.TEXT_OVERLAY to 1,
   )
 
 private const val UNRANKED = Int.MAX_VALUE

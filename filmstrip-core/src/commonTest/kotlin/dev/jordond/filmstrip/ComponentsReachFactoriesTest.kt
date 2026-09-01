@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip
 
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -32,7 +33,7 @@ class ComponentsReachFactoriesTest {
         }
       }
 
-    filmstrip.preview(filmstrip.oneClip(), PlayerConfig())
+    filmstrip.preview(oneClip(), PlayerConfig())
 
     assertContains(assertNotNull(seen).effectResolvers, resolver)
   }
@@ -51,12 +52,12 @@ class ComponentsReachFactoriesTest {
           }
         }
 
-      filmstrip.frame(filmstrip.oneClip(), 0.milliseconds)
+      filmstrip.frame(oneClip(), 0.milliseconds)
 
       assertContains(assertNotNull(seen).effectResolvers, resolver)
     }
 
-  private fun Filmstrip.oneClip(): EditComposition = composition { clip(MediaSource.of("/fixtures/clip.mp4")) }
+  private fun oneClip(): EditComposition = compositionOf { clip(MediaSource.of("/fixtures/clip.mp4")) }
 
   // Declines every spec. A class rather than a lambda, because the test recognises the instance it
   // registered and non-capturing lambdas of the same body share one.

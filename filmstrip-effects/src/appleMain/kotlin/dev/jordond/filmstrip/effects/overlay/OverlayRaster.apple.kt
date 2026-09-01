@@ -1,4 +1,4 @@
-package dev.jordond.filmstrip.effects
+package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource

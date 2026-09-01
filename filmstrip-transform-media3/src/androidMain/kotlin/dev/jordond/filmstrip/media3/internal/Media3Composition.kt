@@ -20,7 +20,7 @@ import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TrackContent
-import dev.jordond.filmstrip.effects.MAX_OVERLAYS_PER_EFFECT
+import dev.jordond.filmstrip.effects.overlay.MAX_OVERLAYS_PER_EFFECT
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fill

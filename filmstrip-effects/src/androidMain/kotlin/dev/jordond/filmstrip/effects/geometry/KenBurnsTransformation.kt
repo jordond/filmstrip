@@ -1,4 +1,4 @@
-package dev.jordond.filmstrip.effects
+package dev.jordond.filmstrip.effects.geometry
 
 import android.graphics.Matrix
 import androidx.media3.effect.MatrixTransformation

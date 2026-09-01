@@ -69,6 +69,6 @@ private val AVFOUNDATION_PARITY: Map<String, EffectParity> =
     EffectIds.KEN_BURNS to EffectParity.Exact,
     EffectIds.SCALE to EffectParity.Exact,
     EffectIds.BRIGHTNESS to EffectParity.Exact,
-    EffectIds.WATERMARK to EffectParity.Exact,
-    EffectIds.TEXT to EffectParity.Approximate,
+    EffectIds.IMAGE_OVERLAY to EffectParity.Exact,
+    EffectIds.TEXT_OVERLAY to EffectParity.Approximate,
   )

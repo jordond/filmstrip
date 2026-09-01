@@ -1,7 +1,8 @@
-package dev.jordond.filmstrip.effects
+package dev.jordond.filmstrip.effects.color
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
@@ -37,6 +38,11 @@ public class Brightness(
 
   override val stage: EffectStage get() = EffectStage.Color
 }
+
+/**
+ * Multiply every colour channel by [factor], where `1f` leaves the frame unchanged.
+ */
+public fun EffectsBuilder.brightness(factor: Float): EffectsBuilder = add(Brightness(factor))
 
 /**
  * The multiplier a backend actually applies, computed here so all four apply the same number.

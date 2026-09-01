@@ -6,7 +6,6 @@ import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.diagnostics.DiagnosticListener
-import dev.jordond.filmstrip.edit.CompositionBuilder
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.FilmstripDsl
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -37,7 +36,7 @@ import kotlin.time.Duration
  *
  * Four questions and three actions. [probe] asks what a file is, [capabilities] asks what the
  * device can encode, [plan] asks what this device will do with an edit, and [export], [preview] and
- * [frame] do the work, all three over the same [EditComposition] value.
+ * [frame] do the work, all three over the same [EditComposition] value, built with [compositionOf].
  *
  * Which of these work depends on what is on the classpath. [export], [plan] and [capabilities] need
  * `filmstrip-transform`, or `filmstrip-transform-ffmpeg` on the desktop, [preview] and
@@ -51,21 +50,6 @@ public interface Filmstrip {
    * Everything this instance was built with, for diagnostics.
    */
   public val components: ComponentRegistry
-
-  /**
-   * Describes an edit.
-   *
-   * @param block Builds the edit.
-   * @return The described edit.
-   */
-  public fun composition(block: CompositionBuilder.() -> Unit): EditComposition
-
-  /**
-   * The explicit form of [composition], for callers without receiver lambdas.
-   *
-   * @return An empty builder.
-   */
-  public fun compositionBuilder(): CompositionBuilder
 
   /**
    * Reads a source's metadata without decoding it.

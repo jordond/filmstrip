@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.edit.CompositionBuilder
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.compositionOf
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -98,7 +99,7 @@ class ImageClipTest {
   @Test
   fun anAllImageCompositionKnowsHowLongItRunsBeforeAnythingIsProbed() {
     val edit =
-      composition {
+      compositionOf {
         image(ImageSource.of("/photos/one.jpg"), 3.seconds)
         image(ImageSource.of("/photos/two.jpg"), 4.seconds)
       }
@@ -108,7 +109,7 @@ class ImageClipTest {
 
   @Test
   fun theCompositionBuilderWritesAnImageSourceOntoThePrimaryTrack() {
-    val edit = composition { image(ImageSource.of("/photos/one.jpg"), 3.seconds) }
+    val edit = compositionOf { image(ImageSource.of("/photos/one.jpg"), 3.seconds) }
 
     val source = edit.clips.single().source
     assertEquals(MediaSource.Image(ImageSource.of("/photos/one.jpg"), 3.seconds), source)
@@ -117,7 +118,7 @@ class ImageClipTest {
   @Test
   fun theImageBuilderTakesTheSameClipBlockEveryOtherClipTakes() {
     val edit =
-      composition {
+      compositionOf {
         image(ImageSource.of("/photos/one.jpg"), 5.seconds) { trim(1.seconds, 3.seconds) }
       }
 
@@ -129,7 +130,7 @@ class ImageClipTest {
   @Test
   fun theTrackBuilderWritesAnImageSourceOntoItsOwnTrack() {
     val edit =
-      composition {
+      compositionOf {
         clip(MediaSource.of("/clips/a.mp4"))
         track(TrackContent.Video) { image(ImageSource.of("/photos/logo.png"), 2.seconds) }
       }
@@ -151,7 +152,4 @@ class ImageClipTest {
     assertEquals("/photos/beach.jpg", path.describe())
     assertEquals("bytes[3]", bytes.describe())
   }
-
-  private fun composition(block: CompositionBuilder.() -> Unit): EditComposition =
-    CompositionBuilder().apply(block).build()
 }

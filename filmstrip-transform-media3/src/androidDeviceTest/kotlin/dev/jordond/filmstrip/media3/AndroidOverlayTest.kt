@@ -9,8 +9,8 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
-import dev.jordond.filmstrip.effects.Text
-import dev.jordond.filmstrip.effects.Watermark
+import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
@@ -209,7 +209,7 @@ class AndroidOverlayTest {
   fun anUnreadableWatermarkIsRefusedWhilePlanning() =
     runTest(timeout = TIMEOUT) {
       val source = fixture() ?: return@runTest
-      val missing = Watermark(ImageSource.of("/does/not/exist.png"), Corner.BottomEnd)
+      val missing = ImageOverlay(ImageSource.of("/does/not/exist.png"), Corner.BottomEnd)
 
       val verdict = filmstrip.plan(EditComposition(listOf(Track(listOf(Clip(source)))), listOf(missing)), SPEC)
 
@@ -222,12 +222,12 @@ class AndroidOverlayTest {
     corner: Corner,
     margin: Float = DEFAULT_MARGIN,
     visibleDuring: TimeRange? = null,
-  ) = Watermark(ImageSource.of(badgeFile(context).path), corner, margin, BADGE_SCALE, 1f, visibleDuring)
+  ) = ImageOverlay(ImageSource.of(badgeFile(context).path), corner, margin, BADGE_SCALE, 1f, visibleDuring)
 
   // Plated in the badge colour instead of the usual dark one, so text is measured the same way a
   // watermark is.
   private fun caption(anchor: Anchor) =
-    Text(
+    TextOverlay(
       text = "HELLO",
       style = TextStyle(fontSize = 0.18f, color = Color.WHITE, backgroundColor = BADGE_COLOR),
       anchor = anchor,

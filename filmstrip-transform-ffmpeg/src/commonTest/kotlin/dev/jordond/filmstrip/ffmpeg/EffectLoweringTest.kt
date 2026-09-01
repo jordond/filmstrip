@@ -9,16 +9,16 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
-import dev.jordond.filmstrip.effects.Brightness
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
-import dev.jordond.filmstrip.effects.Crop
-import dev.jordond.filmstrip.effects.CropRect
-import dev.jordond.filmstrip.effects.Flip
-import dev.jordond.filmstrip.effects.KenBurns
-import dev.jordond.filmstrip.effects.Rotate
-import dev.jordond.filmstrip.effects.Scale
-import dev.jordond.filmstrip.effects.Text
-import dev.jordond.filmstrip.effects.Watermark
+import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.geometry.Crop
+import dev.jordond.filmstrip.effects.geometry.CropRect
+import dev.jordond.filmstrip.effects.geometry.Flip
+import dev.jordond.filmstrip.effects.geometry.KenBurns
+import dev.jordond.filmstrip.effects.geometry.Rotate
+import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.ffmpeg.internal.render
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
@@ -89,7 +89,7 @@ class EffectLoweringTest {
 
   @Test
   fun `places a watermark against the frame variables`() {
-    val spec = Watermark(ImageSource.of("logo.png"), Corner.BottomEnd, margin = 0.04f, scale = 0.2f, opacity = 0.8f)
+    val spec = ImageOverlay(ImageSource.of("logo.png"), Corner.BottomEnd, margin = 0.04f, scale = 0.2f, opacity = 0.8f)
     val resolution = resolver.resolve(spec, capabilities(), attributes(Size(640, 360)))
 
     assertIs<EffectResolution.Resolved>(resolution)
@@ -103,7 +103,7 @@ class EffectLoweringTest {
 
   @Test
   fun `refuses text because the build has no drawtext`() {
-    val resolution = resolver.resolve(Text("hello"), capabilities(), attributes())
+    val resolution = resolver.resolve(TextOverlay("hello"), capabilities(), attributes())
 
     assertIs<EffectResolution.Unsupported>(resolution)
     resolution.message.contains("drawtext") shouldBe true
@@ -113,7 +113,7 @@ class EffectLoweringTest {
   @Test
   fun `refuses text even where drawtext exists`() {
     val withText = capabilities(features = setOf(RenderFeature.TextRendering))
-    val resolution = resolver.resolve(Text("hello"), withText, attributes())
+    val resolution = resolver.resolve(TextOverlay("hello"), withText, attributes())
 
     assertIs<EffectResolution.Unsupported>(resolution)
     resolution.message.contains("maxWidth") shouldBe true

@@ -1,7 +1,8 @@
-package dev.jordond.filmstrip.effects
+package dev.jordond.filmstrip.effects.color
 
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.geometry.AspectRatio
 import kotlin.test.Test
 import kotlin.test.assertEquals

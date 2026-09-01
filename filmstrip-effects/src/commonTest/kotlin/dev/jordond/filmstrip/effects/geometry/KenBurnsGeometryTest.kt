@@ -1,4 +1,4 @@
-package dev.jordond.filmstrip.effects
+package dev.jordond.filmstrip.effects.geometry
 
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange

@@ -224,7 +224,7 @@ public final class dev/jordond/filmstrip/compose/ui/component/FilmstripStripKt {
 }
 
 public final class dev/jordond/filmstrip/compose/ui/component/OverlayHandleKt {
-	public static final fun OverlayHandle-V-95POc (Ldev/jordond/filmstrip/compose/ui/VideoStageScope;Ldev/jordond/filmstrip/effects/OverlayPlacement;Lkotlin/jvm/functions/Function1;Ldev/jordond/filmstrip/geometry/Size;Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/ui/OverlayHandleColors;FZLkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
+	public static final fun OverlayHandle-V-95POc (Ldev/jordond/filmstrip/compose/ui/VideoStageScope;Ldev/jordond/filmstrip/effects/overlay/OverlayPlacement;Lkotlin/jvm/functions/Function1;Ldev/jordond/filmstrip/geometry/Size;Landroidx/compose/ui/Modifier;Ldev/jordond/filmstrip/compose/ui/OverlayHandleColors;FZLkotlin/jvm/functions/Function2;Landroidx/compose/runtime/Composer;II)V
 }
 
 public final class dev/jordond/filmstrip/compose/ui/component/PlayheadKt {

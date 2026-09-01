@@ -29,7 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.edit.AudioSpec
-import dev.jordond.filmstrip.effects.Watermark
+import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fit
@@ -726,7 +726,7 @@ private fun WatermarkPanel(state: SampleAppState) {
         state.onEditChanged()
       },
       onReset = {
-        edit.watermarkMargin = Watermark.DEFAULT_MARGIN
+        edit.watermarkMargin = ImageOverlay.DEFAULT_MARGIN
         state.onEditChanged()
       },
     )
@@ -740,7 +740,7 @@ private fun WatermarkPanel(state: SampleAppState) {
         state.onEditChanged()
       },
       onReset = {
-        edit.watermarkScale = Watermark.DEFAULT_SCALE
+        edit.watermarkScale = ImageOverlay.DEFAULT_SCALE
         state.onEditChanged()
       },
     )

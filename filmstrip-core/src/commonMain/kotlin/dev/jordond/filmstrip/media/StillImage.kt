@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.media
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.geometry.Size
 import kotlinx.serialization.Serializable
@@ -196,7 +197,7 @@ public suspend fun Filmstrip.frame(
   source: MediaSource,
   at: Duration,
   heightPx: Int = 0,
-): FrameResult = frame(composition { clip(source) }, at, heightPx)
+): FrameResult = frame(compositionOf { clip(source) }, at, heightPx)
 
 /**
  * Encodes one frame of a single source as a still image, with no composition to build by hand.
@@ -215,7 +216,7 @@ public suspend fun Filmstrip.still(
   at: Duration,
   to: MediaSink,
   spec: StillSpec = StillSpec(),
-): StillResult = still(composition { clip(source) }, at, to, spec)
+): StillResult = still(compositionOf { clip(source) }, at, to, spec)
 
 private const val DEFAULT_QUALITY = 90
 

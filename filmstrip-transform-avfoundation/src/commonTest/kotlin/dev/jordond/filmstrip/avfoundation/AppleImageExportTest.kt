@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.avfoundation
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
@@ -143,7 +144,7 @@ class AppleImageExportTest {
     runTest(timeout = TIMEOUT) {
       val output = temporaryPath("image-trimmed")
       val edit =
-        filmstrip.composition {
+        compositionOf {
           image(ImageSource.of(photoFile()), 4.seconds) { trim(1.seconds, 3.seconds) }
         }
 
@@ -181,7 +182,7 @@ class AppleImageExportTest {
     runTest(timeout = TIMEOUT) {
       val clip = fixture("apple_export_a.mp4") ?: return@runTest
 
-      val alone = plan(filmstrip.composition { clip(MediaSource.of(clip)) })
+      val alone = plan(compositionOf { clip(MediaSource.of(clip)) })
       alone.path shouldBe ExportPath.Transmux
 
       plan(composition(videoClip(clip), photoClip(PHOTO))).path shouldBe ExportPath.Transcode
@@ -212,7 +213,7 @@ class AppleImageExportTest {
     }
 
   private fun composition(vararg sources: MediaSource): EditComposition =
-    filmstrip.composition {
+    compositionOf {
       sources.forEach { source ->
         when (source) {
           is MediaSource.Image -> image(source.image, source.duration)

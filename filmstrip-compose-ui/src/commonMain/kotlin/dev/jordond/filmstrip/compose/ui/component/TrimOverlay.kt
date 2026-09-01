@@ -58,7 +58,7 @@ import kotlin.time.Duration.Companion.seconds
  * }
  *
  * val composition = remember(source, trimRange) {
- *   filmstrip.composition { clip(source) { trim(trimRange) } }
+ *   compositionOf { clip(source) { trim(trimRange) } }
  * }
  * ```
  *

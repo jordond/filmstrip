@@ -1,4 +1,4 @@
-package dev.jordond.filmstrip.effects
+package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
@@ -22,7 +22,7 @@ class CoreImageOverlaysTest {
   fun `puts a bottom-end watermark the authored margin from both edges`() {
     val frame = Size(1920, 1080)
     val raster = Size(100, 50)
-    val placement = Watermark(image = NO_IMAGE, corner = Corner.BottomEnd).placedOn(frame, raster)
+    val placement = ImageOverlay(image = NO_IMAGE, corner = Corner.BottomEnd).placedOn(frame, raster)
 
     placement.size shouldBe Size(384, 192)
     placement.overlayAnchor.x shouldBe 1f
@@ -44,7 +44,7 @@ class CoreImageOverlaysTest {
   fun `puts a top-start watermark the same distance from the top`() {
     val frame = Size(1920, 1080)
     val raster = Size(100, 50)
-    val placement = Watermark(image = NO_IMAGE, corner = Corner.TopStart).placedOn(frame, raster)
+    val placement = ImageOverlay(image = NO_IMAGE, corner = Corner.TopStart).placedOn(frame, raster)
 
     placement.transformOnto(frame, raster).useContents {
       tx shouldBe (43.2 plusOrMinus TOLERANCE)
@@ -59,8 +59,8 @@ class CoreImageOverlaysTest {
   fun `keeps the two corners a mirror of each other on a portrait frame`() {
     val frame = Size(1080, 1920)
     val raster = Size(200, 200)
-    val start = Watermark(image = NO_IMAGE, corner = Corner.TopStart).placedOn(frame, raster)
-    val end = Watermark(image = NO_IMAGE, corner = Corner.BottomEnd).placedOn(frame, raster)
+    val start = ImageOverlay(image = NO_IMAGE, corner = Corner.TopStart).placedOn(frame, raster)
+    val end = ImageOverlay(image = NO_IMAGE, corner = Corner.BottomEnd).placedOn(frame, raster)
 
     val startTransform = start.transformOnto(frame, raster).useContents { tx to ty }
     val endTransform = end.transformOnto(frame, raster).useContents { tx to ty }
@@ -69,13 +69,13 @@ class CoreImageOverlaysTest {
     startTransform.second shouldBe (frame.height - endTransform.second - end.size.height plusOrMinus TOLERANCE)
   }
 
-  // Text carries no margin. The same point is taken in the block and in the frame, so a bottom
+  // TextOverlay carries no margin. The same point is taken in the block and in the frame, so a bottom
   // centre anchor puts the block's bottom edge on the frame's.
   @Test
   fun `sits a bottom-centre text block on the frame's bottom edge`() {
     val frame = Size(1280, 720)
     val raster = Size(400, 80)
-    val placement = Text("caption").placedOn(raster)
+    val placement = TextOverlay("caption").placedOn(raster)
 
     placement.transformOnto(frame, raster).useContents {
       a shouldBe (1.0 plusOrMinus TOLERANCE)

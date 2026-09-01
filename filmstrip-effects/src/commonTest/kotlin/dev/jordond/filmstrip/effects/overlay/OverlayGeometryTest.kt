@@ -1,4 +1,4 @@
-package dev.jordond.filmstrip.effects
+package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Corner
@@ -17,14 +17,14 @@ import kotlin.test.assertTrue
 class OverlayGeometryTest {
   @Test
   fun scaleIsAFractionOfFrameWidthAndHeightFollowsTheImage() {
-    val placement = watermark(scale = 0.2f).placedOn(LANDSCAPE, Size(100, 50))
+    val placement = imageOverlay(scale = 0.2f).placedOn(LANDSCAPE, Size(100, 50))
 
     assertEquals(Size(384, 192), placement.size)
   }
 
   @Test
   fun aTallImageStaysTall() {
-    val placement = watermark(scale = 0.1f).placedOn(LANDSCAPE, Size(50, 200))
+    val placement = imageOverlay(scale = 0.1f).placedOn(LANDSCAPE, Size(50, 200))
 
     // A quarter as wide as it is tall, before and after.
     assertEquals(Size(192, 768), placement.size)
@@ -32,8 +32,8 @@ class OverlayGeometryTest {
 
   @Test
   fun marginIsMeasuredOffTheShorterSide() {
-    val landscape = watermark(corner = Corner.TopStart).placedOn(LANDSCAPE, SQUARE_IMAGE)
-    val portrait = watermark(corner = Corner.TopStart).placedOn(PORTRAIT, SQUARE_IMAGE)
+    val landscape = imageOverlay(corner = Corner.TopStart).placedOn(LANDSCAPE, SQUARE_IMAGE)
+    val portrait = imageOverlay(corner = Corner.TopStart).placedOn(PORTRAIT, SQUARE_IMAGE)
 
     // Both frames are 1080 on their short side, so the inset is the same number of pixels in each
     // even though it is a different fraction of each axis.
@@ -54,7 +54,7 @@ class OverlayGeometryTest {
       )
 
     corners.forEach { (corner, expected) ->
-      val placement = watermark(corner = corner).placedOn(LANDSCAPE, SQUARE_IMAGE)
+      val placement = imageOverlay(corner = corner).placedOn(LANDSCAPE, SQUARE_IMAGE)
 
       // The overlay meets the frame at the matching point, which is what stops a corner watermark
       // hanging half outside the frame.
@@ -68,14 +68,14 @@ class OverlayGeometryTest {
 
   @Test
   fun aMarginWiderThanTheFrameStopsAtTheMiddle() {
-    val placement = watermark(corner = Corner.TopStart, margin = 5f).placedOn(LANDSCAPE, SQUARE_IMAGE)
+    val placement = imageOverlay(corner = Corner.TopStart, margin = 5f).placedOn(LANDSCAPE, SQUARE_IMAGE)
 
     assertEquals(Anchor(0.5f, 0.5f), placement.frameAnchor)
   }
 
   @Test
   fun noMarginPutsTheOverlayFlushWithTheCorner() {
-    val placement = watermark(corner = Corner.BottomEnd, margin = 0f).placedOn(LANDSCAPE, SQUARE_IMAGE)
+    val placement = imageOverlay(corner = Corner.BottomEnd, margin = 0f).placedOn(LANDSCAPE, SQUARE_IMAGE)
 
     assertEquals(Anchor.BottomEnd, placement.overlayAnchor)
     assertEquals(Anchor.BottomEnd, placement.frameAnchor)
@@ -83,9 +83,9 @@ class OverlayGeometryTest {
 
   @Test
   fun textMeetsTheFrameAtTheSamePointInBoth() {
-    val placement = Text("caption", anchor = Anchor.BottomCenter).placedOn(Size(300, 80))
+    val placement = TextOverlay("caption", anchor = Anchor.BottomCenter).placedOn(Size(300, 80))
 
-    // Text carries no margin, so the block's own bottom-centre sits on the frame's.
+    // TextOverlay carries no margin, so the block's own bottom-centre sits on the frame's.
     assertEquals(Anchor.BottomCenter, placement.overlayAnchor)
     assertEquals(Anchor.BottomCenter, placement.frameAnchor)
     // Rasterised at the size it will occupy, so nothing rescales it.
@@ -94,7 +94,7 @@ class OverlayGeometryTest {
 
   @Test
   fun aDegenerateImageStillPlaces() {
-    val placement = watermark(scale = 0.2f).placedOn(LANDSCAPE, Size(0, 0))
+    val placement = imageOverlay(scale = 0.2f).placedOn(LANDSCAPE, Size(0, 0))
 
     assertEquals(384, placement.size.width)
     assertTrue(placement.size.height >= 1)
@@ -137,18 +137,18 @@ class OverlayGeometryTest {
 
   @Test
   fun `a watermark's rectangle sits the authored margin off both edges`() {
-    val watermark = watermark(corner = Corner.BottomEnd)
+    val watermark = imageOverlay(corner = Corner.BottomEnd)
 
     val rect = watermark.placedOn(LANDSCAPE, SQUARE_IMAGE).rectOn(LANDSCAPE)
 
-    val inset = Watermark.DEFAULT_MARGIN * min(LANDSCAPE.width, LANDSCAPE.height)
+    val inset = ImageOverlay.DEFAULT_MARGIN * min(LANDSCAPE.width, LANDSCAPE.height)
     assertClose(inset, (1f - rect.right) * LANDSCAPE.width)
     assertClose(inset, (1f - rect.bottom) * LANDSCAPE.height)
   }
 
   @Test
   fun `text sits its own block on the point it names`() {
-    val rect = Text("caption").placedOn(Size(400, 80)).rectOn(Size(1280, 720))
+    val rect = TextOverlay("caption").placedOn(Size(400, 80)).rectOn(Size(1280, 720))
 
     // Bottom centre in both, so the block's bottom edge is the frame's and it is centred on width.
     assertClose(1f, rect.bottom)
@@ -163,7 +163,7 @@ class OverlayGeometryTest {
     val margin = 0.037f
 
     Corner.entries.forEach { corner ->
-      val anchor = watermark(corner = corner, margin = margin).placedOn(PORTRAIT, SQUARE_IMAGE).frameAnchor
+      val anchor = imageOverlay(corner = corner, margin = margin).placedOn(PORTRAIT, SQUARE_IMAGE).frameAnchor
       val inset = anchor.nearestCornerInset(PORTRAIT)
 
       assertEquals(corner, inset.corner)
@@ -198,11 +198,11 @@ class OverlayGeometryTest {
     assertClose(full.margin, quarter.margin)
   }
 
-  private fun watermark(
+  private fun imageOverlay(
     corner: Corner = Corner.BottomEnd,
-    margin: Float = Watermark.DEFAULT_MARGIN,
-    scale: Float = Watermark.DEFAULT_SCALE,
-  ): Watermark = Watermark(ImageSource.of("/logo.png"), corner, margin, scale)
+    margin: Float = ImageOverlay.DEFAULT_MARGIN,
+    scale: Float = ImageOverlay.DEFAULT_SCALE,
+  ): ImageOverlay = ImageOverlay(ImageSource.of("/logo.png"), corner, margin, scale)
 
   private fun assertClose(
     expected: Float,

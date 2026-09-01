@@ -4,11 +4,12 @@ import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.EffectIds
-import dev.jordond.filmstrip.effects.brightness
-import dev.jordond.filmstrip.effects.crop
-import dev.jordond.filmstrip.effects.rotate
-import dev.jordond.filmstrip.effects.text
+import dev.jordond.filmstrip.effects.color.brightness
+import dev.jordond.filmstrip.effects.geometry.crop
+import dev.jordond.filmstrip.effects.geometry.rotate
+import dev.jordond.filmstrip.effects.overlay.textOverlay
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPath
@@ -112,7 +113,7 @@ class FfmpegExportTest {
       if (!available()) return@runTest
 
       val output = File.createTempFile("filmstrip-hevc", ".mp4").also { it.delete() }
-      val composition = filmstrip.composition { clip(MediaSource.of(landscape.absolutePath)) }
+      val composition = compositionOf { clip(MediaSource.of(landscape.absolutePath)) }
       val spec = ExportSpec(targetHeight = 240, videoCodec = VideoCodec.Hevc)
 
       val capabilities = assertIs<CapabilitiesResult.Success>(filmstrip.capabilities()).capabilities
@@ -178,7 +179,7 @@ class FfmpegExportTest {
 
       val output = File.createTempFile("filmstrip-export", ".mp4").also { it.delete() }
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape.absolutePath)) {
             trim(TimeRange.of(0.milliseconds, 1_000.milliseconds))
           }
@@ -234,7 +235,7 @@ class FfmpegExportTest {
 
       val output = File.createTempFile("filmstrip-fill-solid", ".mp4").also { it.delete() }
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape.absolutePath))
           effects { crop(AspectRatio.Portrait, fit = Fit.Contain) }
           fill(Fill.Solid(RED))
@@ -302,7 +303,7 @@ class FfmpegExportTest {
 
     val output = File.createTempFile("filmstrip-fill-solid-brightness-$factor", ".mp4").also { it.delete() }
     val composition =
-      filmstrip.composition {
+      compositionOf {
         clip(MediaSource.of(landscape.absolutePath))
         effects {
           crop(AspectRatio.Portrait, fit = Fit.Contain)
@@ -368,7 +369,7 @@ class FfmpegExportTest {
   private suspend fun exportedBrightness(factor: Float): Triple<Int, Int, Int>? {
     val output = File.createTempFile("filmstrip-brightness-$factor", ".mp4").also { it.delete() }
     val composition =
-      filmstrip.composition {
+      compositionOf {
         clip(MediaSource.of(landscape.absolutePath))
         if (factor != 1f) effects { brightness(factor) }
       }
@@ -492,7 +493,7 @@ class FfmpegExportTest {
     // Carrying the effect even at 1f is what keeps the reference off the copy path, so both runs
     // came out of the encoder at the same geometry and the same pixel is the same picture.
     val composition =
-      filmstrip.composition {
+      compositionOf {
         clip(MediaSource.of(source.absolutePath))
         effects { brightness(factor) }
       }
@@ -588,7 +589,7 @@ class FfmpegExportTest {
 
       val output = File.createTempFile("filmstrip-fill-blur", ".mp4").also { it.delete() }
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape.absolutePath))
           effects { crop(AspectRatio.Portrait, fit = Fit.Contain) }
           fill(Fill.Blur)
@@ -618,7 +619,7 @@ class FfmpegExportTest {
       if (!available()) return@runTest
 
       val output = File.createTempFile("filmstrip-copy", ".mp4").also { it.delete() }
-      val composition = filmstrip.composition { clip(MediaSource.of(landscape.absolutePath)) }
+      val composition = compositionOf { clip(MediaSource.of(landscape.absolutePath)) }
 
       val verdict = filmstrip.plan(composition, ExportSpec())
       val plan = assertIs<Verdict.Capable>(verdict).plan
@@ -654,7 +655,7 @@ class FfmpegExportTest {
 
       val silent = silencedCopyOf(landscape)
       val output = File.createTempFile("filmstrip-copy-silent", ".mp4").also { it.delete() }
-      val composition = filmstrip.composition { clip(MediaSource.of(silent.absolutePath)) }
+      val composition = compositionOf { clip(MediaSource.of(silent.absolutePath)) }
 
       val verdict = filmstrip.plan(composition, ExportSpec())
       val plan = assertIs<Verdict.Capable>(verdict).plan
@@ -680,7 +681,7 @@ class FfmpegExportTest {
 
       val output = File.createTempFile("filmstrip-audio-only", ".mp4").also { it.delete() }
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape.absolutePath))
           audio(AudioSpec.AudioOnly)
         }
@@ -713,7 +714,7 @@ class FfmpegExportTest {
       if (capabilities.encoderFor(VideoCodec.Vp9) == null) return@runTest
 
       val output = File.createTempFile("filmstrip-vp9", ".mp4").also { it.delete() }
-      val composition = filmstrip.composition { clip(MediaSource.of(landscape.absolutePath)) }
+      val composition = compositionOf { clip(MediaSource.of(landscape.absolutePath)) }
       // Half of the fixture's 640x360, so nothing rounds and the verdict stays Capable.
       val spec = ExportSpec(targetHeight = 180, videoCodec = VideoCodec.Vp9)
 
@@ -741,7 +742,7 @@ class FfmpegExportTest {
       if (capabilities.audio.none { it.codec == AudioCodec.Alac }) return@runTest
 
       val output = File.createTempFile("filmstrip-alac", ".mp4").also { it.delete() }
-      val composition = filmstrip.composition { clip(MediaSource.of(landscape.absolutePath)) }
+      val composition = compositionOf { clip(MediaSource.of(landscape.absolutePath)) }
       val spec = ExportSpec(targetHeight = 180, audioCodec = AudioCodec.Alac)
 
       val verdict = filmstrip.plan(composition, spec)
@@ -762,7 +763,7 @@ class FfmpegExportTest {
       if (!long.isFile) return@runTest
 
       val output = File.createTempFile("filmstrip-progress", ".mp4").also { it.delete() }
-      val composition = filmstrip.composition { clip(MediaSource.of(long.absolutePath)) }
+      val composition = compositionOf { clip(MediaSource.of(long.absolutePath)) }
       val statuses =
         filmstrip.export(composition, ExportSpec(targetHeight = 720), MediaSink.of(output.absolutePath)).toList()
 
@@ -785,7 +786,7 @@ class FfmpegExportTest {
       if (!long.isFile) return@runTest
 
       val output = File.createTempFile("filmstrip-cancel", ".mp4").also { it.delete() }
-      val composition = filmstrip.composition { clip(MediaSource.of(long.absolutePath)) }
+      val composition = compositionOf { clip(MediaSource.of(long.absolutePath)) }
 
       withContext(Dispatchers.Default) {
         val flow = filmstrip.export(composition, ExportSpec(targetHeight = 720), MediaSink.of(output.absolutePath))
@@ -817,15 +818,15 @@ class FfmpegExportTest {
       if (!available()) return@runTest
 
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape.absolutePath))
-          effects { text("caption") }
+          effects { textOverlay("caption") }
         }
 
       val verdict = filmstrip.plan(composition, ExportSpec(targetHeight = 240))
       val incapable = assertIs<Verdict.Incapable>(verdict)
       assertIs<ExportError.UnsupportedEffect>(incapable.reasons.single())
-      incapable.withoutUnsupported!!.effectOrder.none { it.spec.id == EffectIds.TEXT } shouldBe true
+      incapable.withoutUnsupported!!.effectOrder.none { it.spec.id == EffectIds.TEXT_OVERLAY } shouldBe true
     }
 
   @Test
@@ -981,7 +982,7 @@ class FfmpegExportTest {
       val output = File.createTempFile("filmstrip-hdr", ".mp4").also { it.delete() }
       // A rotate takes the clip off the copy path, so this is the encoder writing the grade rather
       // than the muxer carrying the source's bytes across.
-      val composition = filmstrip.composition { clip(MediaSource.of(hdr.absolutePath)) { effects { rotate(90) } } }
+      val composition = compositionOf { clip(MediaSource.of(hdr.absolutePath)) { effects { rotate(90) } } }
       val spec = ExportSpec(hdr = HdrMode.KeepHdr)
 
       val plan = assertIs<Verdict.Capable>(filmstrip.plan(composition, spec)).plan
@@ -1004,7 +1005,7 @@ class FfmpegExportTest {
   fun `tone-maps an hdr grade down to rec709 when the build can`() =
     runTest(timeout = TIMEOUT) {
       if (!available()) return@runTest
-      val composition = filmstrip.composition { clip(MediaSource.of(hdr.absolutePath)) { effects { rotate(90) } } }
+      val composition = compositionOf { clip(MediaSource.of(hdr.absolutePath)) { effects { rotate(90) } } }
       val verdict = filmstrip.plan(composition, ExportSpec(hdr = HdrMode.ToneMapToSdr))
 
       if (!canToneMap()) {
@@ -1031,7 +1032,7 @@ class FfmpegExportTest {
       if (!available()) return@runTest
 
       val output = File.createTempFile("filmstrip-hdr-copy", ".mp4").also { it.delete() }
-      val composition = filmstrip.composition { clip(MediaSource.of(hdr.absolutePath)) }
+      val composition = compositionOf { clip(MediaSource.of(hdr.absolutePath)) }
 
       val plan = assertIs<Verdict.Capable>(filmstrip.plan(composition, ExportSpec())).plan
       plan.path shouldBe ExportPath.Transmux

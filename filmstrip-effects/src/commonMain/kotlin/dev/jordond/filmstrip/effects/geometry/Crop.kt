@@ -1,8 +1,46 @@
-package dev.jordond.filmstrip.effects
+package dev.jordond.filmstrip.effects.geometry
 
+import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.edit.EffectsBuilder
+import dev.jordond.filmstrip.effect.EffectIds
+import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effect.EffectStage
+import dev.jordond.filmstrip.geometry.Anchor
+import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+/**
+ * Reframe to an aspect ratio, keeping the region around [anchor].
+ *
+ * @property aspect The target aspect ratio.
+ * @property fit How the frame is fitted to [aspect].
+ * @property anchor Where the retained region sits when [fit] is [Fit.Crop]. Centred by default.
+ */
+@Serializable
+@SerialName(EffectIds.CROP)
+@Poko
+public class Crop(
+  public val aspect: AspectRatio,
+  public val fit: Fit = Fit.Crop,
+  public val anchor: Anchor = Anchor.Center,
+) : EffectSpec {
+  override val id: String get() = EffectIds.CROP
+
+  override val stage: EffectStage get() = EffectStage.Geometry
+}
+
+/**
+ * Reframe to [aspect], keeping the region around [anchor].
+ */
+public fun EffectsBuilder.crop(
+  aspect: AspectRatio,
+  fit: Fit = Fit.Crop,
+  anchor: Anchor = Anchor.Center,
+): EffectsBuilder = add(Crop(aspect, fit, anchor))
 
 /**
  * Computes the region this crop keeps, as a fraction of the frame entering it.

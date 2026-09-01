@@ -11,8 +11,8 @@ import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.RenderCapabilities
-import dev.jordond.filmstrip.effects.Brightness
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime

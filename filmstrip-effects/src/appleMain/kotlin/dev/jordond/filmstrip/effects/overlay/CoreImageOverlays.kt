@@ -1,9 +1,9 @@
-package dev.jordond.filmstrip.effects
+package dev.jordond.filmstrip.effects.overlay
 
+import dev.jordond.filmstrip.effects.atOrigin
 import dev.jordond.filmstrip.geometry.Size
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.useContents
 import platform.CoreGraphics.CGAffineTransform
 import platform.CoreGraphics.CGAffineTransformConcat
 import platform.CoreGraphics.CGAffineTransformMakeScale
@@ -80,19 +80,3 @@ internal fun CIImage.withAlpha(alpha: Float): CIImage {
     ),
   )
 }
-
-/**
- * Moves the image so its extent starts at the coordinate origin.
- *
- * Core Image transforms about the origin, so a placement applied to an image whose extent sits
- * somewhere else lands somewhere else too.
- */
-@OptIn(ExperimentalForeignApi::class)
-internal fun CIImage.atOrigin(): CIImage =
-  extent.useContents {
-    if (origin.x == 0.0 && origin.y == 0.0) {
-      this@atOrigin
-    } else {
-      this@atOrigin.imageByApplyingTransform(CGAffineTransformMakeTranslation(-origin.x, -origin.y))
-    }
-  }

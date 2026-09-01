@@ -44,7 +44,7 @@ import androidx.compose.ui.geometry.Size as ComposeSize
  * passing a player it does not want rendered.
  *
  * ```
- * val composition = remember(source) { filmstrip.composition { clip(source) } }
+ * val composition = remember(source) { compositionOf { clip(source) } }
  * val player = rememberFilmstripPlayer(filmstrip, composition)
  * val playerState by player.state.collectAsState()
  * var rect by remember(source) { mutableStateOf(NormalizedRect.Full) }

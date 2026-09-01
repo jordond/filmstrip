@@ -1,4 +1,4 @@
-package dev.jordond.filmstrip.effects
+package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.effect.FrameInfo
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
+import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
@@ -37,7 +38,7 @@ class TimedOverlayTest {
 
   @Test
   fun `draws a watermark inside its window and not outside`() {
-    val step = stepFor(Watermark(RED, Corner.BottomEnd, visibleDuring = WINDOW))
+    val step = stepFor(ImageOverlay(RED, Corner.BottomEnd, visibleDuring = WINDOW))
     val frame = background()
 
     assertNotSame(frame, step.apply(frame, at(1.5.seconds)), "the watermark is absent inside its window")
@@ -47,7 +48,7 @@ class TimedOverlayTest {
 
   @Test
   fun `draws text inside its window and not outside`() {
-    val step = stepFor(Text("caption", TextStyle(), visibleDuring = WINDOW))
+    val step = stepFor(TextOverlay("caption", TextStyle(), visibleDuring = WINDOW))
     val frame = background()
 
     assertNotSame(frame, step.apply(frame, at(1.5.seconds)), "the text is absent inside its window")
@@ -57,7 +58,7 @@ class TimedOverlayTest {
   // The window is half-open, the same as every other TimeRange in filmstrip.
   @Test
   fun `includes the window's start and excludes its end`() {
-    val step = stepFor(Watermark(RED, Corner.TopStart, visibleDuring = WINDOW))
+    val step = stepFor(ImageOverlay(RED, Corner.TopStart, visibleDuring = WINDOW))
     val frame = background()
 
     assertNotSame(frame, step.apply(frame, at(1.seconds)), "the start of the window is excluded")
@@ -66,7 +67,7 @@ class TimedOverlayTest {
 
   @Test
   fun `draws an untimed overlay on every frame`() {
-    val step = stepFor(Watermark(RED, Corner.BottomEnd))
+    val step = stepFor(ImageOverlay(RED, Corner.BottomEnd))
     val frame = background()
 
     listOf(0.seconds, 1.5.seconds, 99.seconds).forEach { time ->

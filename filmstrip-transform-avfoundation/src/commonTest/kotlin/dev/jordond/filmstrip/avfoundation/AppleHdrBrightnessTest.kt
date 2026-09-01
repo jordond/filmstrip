@@ -2,7 +2,8 @@ package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.effects.brightness
+import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.effects.color.brightness
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
@@ -126,7 +127,7 @@ class AppleHdrBrightnessTest {
     factor: Float,
   ): List<Float> {
     val composition =
-      filmstrip.composition {
+      compositionOf {
         clip(MediaSource.of(source))
         effects { brightness(factor) }
       }

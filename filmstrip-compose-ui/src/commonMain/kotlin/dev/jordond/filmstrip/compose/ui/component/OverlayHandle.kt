@@ -26,8 +26,8 @@ import dev.jordond.filmstrip.compose.ui.OverlayHandleColors
 import dev.jordond.filmstrip.compose.ui.OverlayHandleDefaults
 import dev.jordond.filmstrip.compose.ui.VideoStage
 import dev.jordond.filmstrip.compose.ui.VideoStageScope
-import dev.jordond.filmstrip.effects.OverlayPlacement
-import dev.jordond.filmstrip.effects.rectOn
+import dev.jordond.filmstrip.effects.overlay.OverlayPlacement
+import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Size
 import kotlin.math.min
@@ -51,7 +51,7 @@ import kotlin.math.roundToInt
  * wash, the outline and the corner brackets, never the payload.
  *
  * ```
- * val placement = remember(text, anchor, measured) { Text(text, anchor = anchor).placedOn(measured) }
+ * val placement = remember(text, anchor, measured) { TextOverlay(text, anchor = anchor).placedOn(measured) }
  *
  * VideoStage(player = player, outputAspect = outputAspect) {
  *   OverlayHandle(

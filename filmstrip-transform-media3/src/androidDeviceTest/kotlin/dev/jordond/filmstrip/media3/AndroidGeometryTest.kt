@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
-import dev.jordond.filmstrip.effects.Crop
+import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict

@@ -1,4 +1,4 @@
-package dev.jordond.filmstrip.effects
+package dev.jordond.filmstrip.effects.color
 
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.brightnessDisplayGain

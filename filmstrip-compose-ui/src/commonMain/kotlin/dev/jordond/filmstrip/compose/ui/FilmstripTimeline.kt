@@ -44,7 +44,7 @@ import kotlin.time.Duration
  *
  * ```
  * var trimRange by remember(source) { mutableStateOf(TimeRange.from(Duration.ZERO)) }
- * val composition = remember(source) { filmstrip.composition { clip(source) } }
+ * val composition = remember(source) { compositionOf { clip(source) } }
  * val player = rememberFilmstripPlayer(filmstrip, composition)
  * val playerState by player.state.collectAsState()
  * val playhead = rememberPlayheadState(player)
@@ -67,7 +67,7 @@ import kotlin.time.Duration
  * }
  *
  * // Where the trim finally reaches the edit, on the way to the encoder.
- * filmstrip.composition { clip(source) { trim(trimRange) } }
+ * compositionOf { clip(source) { trim(trimRange) } }
  * ```
  *
  * @param filmstrip The instance the tiles are rendered by.

@@ -22,8 +22,8 @@ import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.inCanonicalOrder
-import dev.jordond.filmstrip.effects.Scale
-import dev.jordond.filmstrip.effects.fusedBrightness
+import dev.jordond.filmstrip.effects.color.fusedBrightness
+import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.AudioCodec

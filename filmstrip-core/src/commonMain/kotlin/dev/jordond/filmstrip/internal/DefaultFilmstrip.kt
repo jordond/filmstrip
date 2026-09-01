@@ -5,7 +5,6 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
-import dev.jordond.filmstrip.edit.CompositionBuilder
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.effectsRevision
 import dev.jordond.filmstrip.export.ExportEngine
@@ -43,11 +42,6 @@ internal class DefaultFilmstrip(
   private val exportEngine: ExportEngine? by lazy {
     components.exportEngineFactories.firstNotNullOfOrNull { it.create(components) }
   }
-
-  override fun composition(block: CompositionBuilder.() -> Unit): EditComposition =
-    compositionBuilder().apply(block).build()
-
-  override fun compositionBuilder(): CompositionBuilder = CompositionBuilder()
 
   override suspend fun probe(source: MediaSource): ProbeResult = prober.probe(source)
 

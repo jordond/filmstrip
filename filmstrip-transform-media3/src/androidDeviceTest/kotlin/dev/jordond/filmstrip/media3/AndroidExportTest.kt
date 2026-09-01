@@ -8,8 +8,8 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
-import dev.jordond.filmstrip.effects.Rotate
-import dev.jordond.filmstrip.effects.Scale
+import dev.jordond.filmstrip.effects.geometry.Rotate
+import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportPlan

@@ -1,17 +1,17 @@
-package dev.jordond.filmstrip.effects
+package dev.jordond.filmstrip.effects.overlay
 
-import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.StaticOverlaySettings
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Size
+import androidx.media3.effect.OverlayEffect as Media3OverlayEffect
 
 /**
- * How many overlays one [OverlayEffect] may carry.
+ * How many overlays one [Media3OverlayEffect] may carry.
  *
  * `OverlayShaderProgram` compiles a single GL program that samples the frame plus every overlay,
  * and a GL program has sixteen sampler units. Overlays beyond this belong in a second
- * [OverlayEffect], which costs one more pass rather than failing: the shader program's constructor
+ * [Media3OverlayEffect], which costs one more pass rather than failing: the shader program's constructor
  * refuses a longer list, and it is built on the GL thread when the input stream is registered, so a
  * violation surfaces mid-export rather than while planning.
  */

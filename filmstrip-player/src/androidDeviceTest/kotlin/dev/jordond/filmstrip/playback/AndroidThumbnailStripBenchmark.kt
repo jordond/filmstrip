@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.playback
 
 import android.util.Log
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.effects.Brightness
+import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.media.FrameResult
 import dev.jordond.filmstrip.playback.AndroidThumbnailStripBenchmark.Companion.TAG
 import io.kotest.matchers.shouldBe

@@ -24,7 +24,7 @@ internal object FfmpegParity {
       EffectIds.CROP to EffectParity.Exact,
       EffectIds.CROP_RECT to EffectParity.Exact,
       EffectIds.BRIGHTNESS to EffectParity.Exact,
-      EffectIds.WATERMARK to EffectParity.Exact,
+      EffectIds.IMAGE_OVERLAY to EffectParity.Exact,
       EffectIds.SCALE to EffectParity.Approximate,
     )
 
