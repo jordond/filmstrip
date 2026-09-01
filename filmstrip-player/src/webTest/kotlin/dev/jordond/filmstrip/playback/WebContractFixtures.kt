@@ -27,6 +27,7 @@ import kotlin.io.encoding.Base64
 import kotlin.test.fail
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * A page cannot read a file off disk and this module has no muxer of its own, so the clip every web
@@ -126,6 +127,25 @@ internal val FIXTURE_FRAME: Size = Size(128, 96)
  * Composition times the pixel suite compares at, each landing exactly on the fixture's 30fps grid.
  */
 internal val PROBE_POSITIONS: List<Duration> = listOf(300.milliseconds, 900.milliseconds)
+
+/**
+ * How long one frame of the fixture runs for, at the 30fps it was encoded at.
+ */
+internal val FIXTURE_FRAME_STEP: Duration = 1.seconds / 30
+
+/**
+ * How far apart the fixture's sync samples sit, which is the keyframe interval it was encoded at.
+ */
+internal val FIXTURE_SYNC_INTERVAL: Duration = 500.milliseconds
+
+/**
+ * A composition time well inside a group of pictures rather than near either end of one, and still
+ * exactly on the fixture's frame grid.
+ *
+ * What tells a decode to the requested frame apart from a snap to the nearest sync sample. A
+ * position at either end agrees under both, which is what a probe on the grid's edges would miss.
+ */
+internal val MID_GOP_POSITION: Duration = 700.milliseconds
 
 private const val FIXTURE_BASE64 =
   """

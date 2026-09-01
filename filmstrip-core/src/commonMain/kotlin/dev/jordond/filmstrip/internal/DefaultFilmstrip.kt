@@ -108,8 +108,18 @@ internal class DefaultFilmstrip(
   override suspend fun frame(
     composition: EditComposition,
     at: Duration,
+    heightPx: Int,
   ): FrameResult =
-    thumbnails.frame(ThumbnailRequest(composition, at, heightPx = 0, effectsRevision = composition.effectsRevision()))
+    thumbnails.frame(
+      ThumbnailRequest(
+        composition = composition,
+        position = at,
+        heightPx = heightPx,
+        effectsRevision = composition.effectsRevision(),
+        // One frame asked for by itself is the frame the caller names, not the one nearest it.
+        precise = true,
+      ),
+    )
 
   override fun frames(
     composition: EditComposition,

@@ -39,7 +39,10 @@ internal class ThumbnailDispatcher(
       // open across it. Frames are still produced one at a time: parallel extractions contend with
       // the preview's decoder for scarce hardware sessions and stutter playback.
       val effectsRevision = composition.effectsRevision()
-      val requests = at.map { ThumbnailRequest(composition, it, heightPx, effectsRevision) }
+      // A strip reads as a run of frames rather than as one exact instant, and a sync sample decodes
+      // fast enough to fill one while the caller is still scrolling. presentationTime is what says
+      // where each tile actually landed.
+      val requests = at.map { ThumbnailRequest(composition, it, heightPx, effectsRevision, precise = false) }
       val source =
         components.thumbnailSourceFactories.firstNotNullOfOrNull { it.create(requests.first(), components) }
       if (source == null) {

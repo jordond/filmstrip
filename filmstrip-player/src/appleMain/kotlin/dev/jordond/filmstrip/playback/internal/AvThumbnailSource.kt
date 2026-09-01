@@ -65,7 +65,7 @@ internal class AvThumbnailSource(
       scope.launch {
         when (val plan = planner.lower(request)) {
           is AvThumbnailPlan.Refused -> delivery.deliver(ThumbnailResult.Failure(plan.error))
-          is AvThumbnailPlan.Ready -> generate(plan.lowered, request.position, delivery)
+          is AvThumbnailPlan.Ready -> generate(plan.lowered, request.position, request.precise, delivery)
         }
       }
 
@@ -78,19 +78,26 @@ internal class AvThumbnailSource(
   /**
    * Asks [av]'s generator for the frame at [position].
    *
-   * Tolerances are left at their defaults, so the generator answers from the nearest sync sample
-   * rather than decoding forward to an exact frame. Which frame that was is reported as
-   * [ThumbnailResult.Success.presentationTime].
+   * A [precise] request pins both tolerances to zero, which is what stops a generator answering
+   * from the nearest sync sample. The video composition attached here renders on the output's own
+   * frame grid and already lands on the frame covering [position] whatever the tolerances say, so
+   * pinning them makes that a property of the request rather than of what happens to be attached.
+   * Which frame came back is reported as [ThumbnailResult.Success.presentationTime] either way.
    */
   @Suppress("DEPRECATION")
   private fun generate(
     av: AvComposition,
     position: Duration,
+    precise: Boolean,
     delivery: ThumbnailDelivery,
   ) {
     val generator =
       AVAssetImageGenerator(asset = av.composition).apply {
         videoComposition = av.videoComposition
+        if (precise) {
+          requestedTimeToleranceBefore = Duration.ZERO.toCMTime()
+          requestedTimeToleranceAfter = Duration.ZERO.toCMTime()
+        }
       }
     if (!delivery.attach(generator)) return
 

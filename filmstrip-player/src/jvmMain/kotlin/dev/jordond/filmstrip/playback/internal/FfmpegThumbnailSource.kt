@@ -30,6 +30,10 @@ import kotlin.time.Duration
  * frame that was asked for and exits, which is what keeps a strip filling in the background off a
  * preview that may be playing beside it.
  *
+ * The pump reads forward from its seek to the frame covering the requested time, so every frame is
+ * the exact one whether or not the request asked to be precise. There is no faster read to fall
+ * back to here.
+ *
  * @param scope Where the pump runs. One serialised worker, since the dispatcher hands requests over
  *   one at a time and each of them waits on a pipe.
  * @param planner Lowers an edit the way an export of it would be lowered, and opens the pump on it.

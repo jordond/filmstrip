@@ -89,6 +89,28 @@ class ThumbnailDispatcherTest {
     }
 
   @Test
+  fun `frame asks its source for the height it was given`() =
+    runTest {
+      val source = HeightAwareThumbnailSource()
+      val filmstrip = Filmstrip { addThumbnailSourceFactory { _, _ -> source } }
+
+      val result = filmstrip.frame(COMPOSITION, Duration.ZERO, heightPx = 240)
+
+      (result as FrameResult.Success).image.heightPx shouldBe 240
+    }
+
+  @Test
+  fun `frame with no height asked for renders at the source's natural height`() =
+    runTest {
+      val source = HeightAwareThumbnailSource()
+      val filmstrip = Filmstrip { addThumbnailSourceFactory { _, _ -> source } }
+
+      val result = filmstrip.frame(COMPOSITION, Duration.ZERO)
+
+      (result as FrameResult.Success).image.heightPx shouldBe HeightAwareThumbnailSource.NATURAL_HEIGHT
+    }
+
+  @Test
   fun `a serial run releases every request's handle, not only the last`() =
     runTest {
       val source = CountingHandleSource(answerInline = true)
@@ -305,6 +327,29 @@ private class SerialOnlyThumbnailSource : ThumbnailSource {
   private companion object {
     const val FRAME_WIDTH = 16
     const val FRAME_HEIGHT = 9
+  }
+}
+
+/**
+ * A source that renders at the height it is asked for, the way a real backend does.
+ *
+ * Zero stands for no cap, so it renders at [NATURAL_HEIGHT] instead, proving the request's height
+ * reached the source rather than being dropped along the way.
+ */
+private class HeightAwareThumbnailSource : ThumbnailSource {
+  override fun requestThumbnail(
+    request: ThumbnailRequest,
+    callback: ThumbnailCallback,
+  ): Cancellable {
+    val height = request.heightPx.takeIf { it > 0 } ?: NATURAL_HEIGHT
+    val image = PlatformImage(BufferedImage(FRAME_WIDTH, height, BufferedImage.TYPE_INT_ARGB))
+    callback.onThumbnail(ThumbnailResult.Success(image, request.position))
+    return Cancellable { }
+  }
+
+  companion object {
+    const val NATURAL_HEIGHT = 1080
+    private const val FRAME_WIDTH = 16
   }
 }
 

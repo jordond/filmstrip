@@ -27,6 +27,7 @@ import java.io.File
 import kotlin.test.fail
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The context the instrumentation runs against, which is what media3 decodes and encodes on.
@@ -156,6 +157,27 @@ internal val FIXTURE_FRAME: Size = Size(640, 360)
  * Composition times both suites compare at, each landing exactly on the fixture's 30fps grid.
  */
 internal val PROBE_POSITIONS: List<Duration> = listOf(300.milliseconds, 900.milliseconds)
+
+/**
+ * How long one frame of the fixture runs for, at the 30fps its `FixtureSpec` pins.
+ */
+internal val FIXTURE_FRAME_STEP: Duration = 1.seconds / 30
+
+/**
+ * How far apart the fixture's sync samples sit, which is the keyframe interval it was encoded at.
+ *
+ * An upper bound rather than the exact spacing: x264 is free to place one early and does.
+ */
+internal val FIXTURE_SYNC_INTERVAL: Duration = 1.seconds
+
+/**
+ * A composition time well inside a group of pictures rather than near either end of one, and still
+ * exactly on the fixture's frame grid.
+ *
+ * What tells a decode to the requested frame apart from a snap to the nearest sync sample. A
+ * position at either end agrees under both, which is what a probe on the grid's edges would miss.
+ */
+internal val MID_GOP_POSITION: Duration = 700.milliseconds
 
 private const val CLIP_NAME = "apple_export_a.mp4"
 private const val CHANNELS = 4

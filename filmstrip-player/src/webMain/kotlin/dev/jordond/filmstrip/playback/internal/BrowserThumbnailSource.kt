@@ -27,6 +27,9 @@ import kotlin.coroutines.cancellation.CancellationException
  * frame and releases it, which is what keeps the decoders and the canvas a strip opens off the
  * preview that may be playing beside it.
  *
+ * The compositor decodes from a sync sample up to the requested time, so every frame is the exact
+ * one whether or not the request asked to be precise. There is no faster read to fall back to here.
+ *
  * A `PlatformImage` costs its own pixels in the wasm heap for as long as it is open, so nothing
  * here holds a frame past handing it over: the compositor's copy is the image, and the preview it
  * came from is released before the callback runs.

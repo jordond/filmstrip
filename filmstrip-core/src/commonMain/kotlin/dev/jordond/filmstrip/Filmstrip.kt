@@ -138,11 +138,14 @@ public interface Filmstrip {
    *
    * @param composition The edit to render from.
    * @param at Where in the composition to render.
+   * @param heightPx The height to render at, in pixels. Zero renders at the composition's own
+   *   output height.
    * @return The frame, which the caller owns and must close, or why it could not be produced.
    */
   public suspend fun frame(
     composition: EditComposition,
     at: Duration,
+    heightPx: Int = 0,
   ): FrameResult
 
   /**

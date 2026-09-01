@@ -50,7 +50,8 @@ public abstract interface class dev/jordond/filmstrip/Filmstrip {
 	public abstract fun compositionBuilder ()Ldev/jordond/filmstrip/edit/CompositionBuilder;
 	public abstract fun export (Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/export/ExportSpec;Ldev/jordond/filmstrip/media/MediaSink;)Lkotlinx/coroutines/flow/Flow;
 	public abstract fun export (Ldev/jordond/filmstrip/export/ExportPlan;Ldev/jordond/filmstrip/media/MediaSink;)Lkotlinx/coroutines/flow/Flow;
-	public abstract fun frame-8Mi8wO0 (Ldev/jordond/filmstrip/edit/EditComposition;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun frame-dWUq8MI (Ldev/jordond/filmstrip/edit/EditComposition;JILkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun frame-dWUq8MI$default (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;JILkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public abstract fun frames (Ldev/jordond/filmstrip/edit/EditComposition;Ljava/util/List;I)Lkotlinx/coroutines/flow/Flow;
 	public abstract fun getComponents ()Ldev/jordond/filmstrip/ComponentRegistry;
 	public abstract fun parityOf (Ljava/lang/String;)Ldev/jordond/filmstrip/capability/EffectParity;
@@ -64,6 +65,7 @@ public final class dev/jordond/filmstrip/Filmstrip$Companion {
 }
 
 public final class dev/jordond/filmstrip/Filmstrip$DefaultImpls {
+	public static synthetic fun frame-dWUq8MI$default (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;JILkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static synthetic fun preview$default (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/player/PlayerConfig;ILjava/lang/Object;)Ldev/jordond/filmstrip/player/VideoPlayer;
 }
 
@@ -914,6 +916,15 @@ public final class dev/jordond/filmstrip/export/ExportError$UnsupportedResolutio
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class dev/jordond/filmstrip/export/ExportError$UnsupportedStillFormat : dev/jordond/filmstrip/export/ExportError {
+	public fun <init> (Ldev/jordond/filmstrip/media/StillFormat;Ljava/lang/String;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFormat ()Ldev/jordond/filmstrip/media/StillFormat;
+	public fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class dev/jordond/filmstrip/export/ExportEstimate {
 	public synthetic fun <init> (Ljava/lang/Long;Ljava/lang/Long;Lkotlin/time/Duration;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
@@ -1757,6 +1768,101 @@ public final class dev/jordond/filmstrip/media/ProbeResult$Success : dev/jordond
 	public fun toString ()Ljava/lang/String;
 }
 
+public abstract interface class dev/jordond/filmstrip/media/StillBytes {
+}
+
+public final class dev/jordond/filmstrip/media/StillBytes$Failure : dev/jordond/filmstrip/media/StillBytes {
+	public fun <init> (Ldev/jordond/filmstrip/export/ExportError;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Ldev/jordond/filmstrip/export/ExportError;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/media/StillBytes$Success : dev/jordond/filmstrip/media/StillBytes {
+	public fun <init> ([BLdev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/media/StillFormat;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBytes ()[B
+	public final fun getFormat ()Ldev/jordond/filmstrip/media/StillFormat;
+	public final fun getSize ()Ldev/jordond/filmstrip/geometry/Size;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/media/StillFormat : java/lang/Enum {
+	public static final field Companion Ldev/jordond/filmstrip/media/StillFormat$Companion;
+	public static final field Jpeg Ldev/jordond/filmstrip/media/StillFormat;
+	public static final field Png Ldev/jordond/filmstrip/media/StillFormat;
+	public static final field Webp Ldev/jordond/filmstrip/media/StillFormat;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/media/StillFormat;
+	public static fun values ()[Ldev/jordond/filmstrip/media/StillFormat;
+}
+
+public final class dev/jordond/filmstrip/media/StillFormat$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/media/StillImageKt {
+	public static final fun encodeStill (Ldev/jordond/filmstrip/media/PlatformImage;Ldev/jordond/filmstrip/media/StillSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun encodeStill$default (Ldev/jordond/filmstrip/media/PlatformImage;Ldev/jordond/filmstrip/media/StillSpec;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static final fun frame-1Y68eR8 (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/media/MediaSource;JILkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun frame-1Y68eR8$default (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/media/MediaSource;JILkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static final fun still-WPi__2c (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;JLdev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/media/StillSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun still-WPi__2c (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/media/MediaSource;JLdev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/media/StillSpec;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun still-WPi__2c$default (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/edit/EditComposition;JLdev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/media/StillSpec;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun still-WPi__2c$default (Ldev/jordond/filmstrip/Filmstrip;Ldev/jordond/filmstrip/media/MediaSource;JLdev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/media/StillSpec;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public abstract interface class dev/jordond/filmstrip/media/StillResult {
+}
+
+public final class dev/jordond/filmstrip/media/StillResult$Failure : dev/jordond/filmstrip/media/StillResult {
+	public fun <init> (Ldev/jordond/filmstrip/export/ExportError;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Ldev/jordond/filmstrip/export/ExportError;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/media/StillResult$Success : dev/jordond/filmstrip/media/StillResult {
+	public fun <init> (Ldev/jordond/filmstrip/media/MediaSink;Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/media/StillFormat;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFormat ()Ldev/jordond/filmstrip/media/StillFormat;
+	public final fun getOutput ()Ldev/jordond/filmstrip/media/MediaSink;
+	public final fun getSize ()Ldev/jordond/filmstrip/geometry/Size;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/media/StillSpec {
+	public static final field Companion Ldev/jordond/filmstrip/media/StillSpec$Companion;
+	public fun <init> ()V
+	public fun <init> (Ldev/jordond/filmstrip/media/StillFormat;ILjava/lang/Integer;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/media/StillFormat;ILjava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFormat ()Ldev/jordond/filmstrip/media/StillFormat;
+	public final fun getHeightPx ()Ljava/lang/Integer;
+	public final fun getQuality ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class dev/jordond/filmstrip/media/StillSpec$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/media/StillSpec$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/media/StillSpec;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/media/StillSpec;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/media/StillSpec$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
 public final class dev/jordond/filmstrip/media/TrackCodec {
 	public static final field Companion Ldev/jordond/filmstrip/media/TrackCodec$Companion;
 	public fun <init> (Ljava/lang/String;Ldev/jordond/filmstrip/media/CodecKind;)V
@@ -2307,12 +2413,13 @@ public abstract interface class dev/jordond/filmstrip/thumbnail/ThumbnailCallbac
 }
 
 public final class dev/jordond/filmstrip/thumbnail/ThumbnailRequest {
-	public synthetic fun <init> (Ldev/jordond/filmstrip/edit/EditComposition;JIJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/edit/EditComposition;JIJZLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getComposition ()Ldev/jordond/filmstrip/edit/EditComposition;
 	public final fun getEffectsRevision ()J
 	public final fun getHeightPx ()I
 	public final fun getPosition-UwyO8pc ()J
+	public final fun getPrecise ()Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }

@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.HandlerThread
+import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.inspector.frame.FrameExtractor
 import com.google.common.util.concurrent.ListenableFuture
 import dev.jordond.filmstrip.Cancellable
@@ -55,9 +56,10 @@ import kotlin.time.Duration
  * The codec selector is left at its `PREFER_SOFTWARE` default. media3 sets it there because
  * flushing a hardware decoder crashes when video effects are attached, which is every frame here.
  *
- * The seek parameters are left at their exact default. Snapping to the nearest sync sample would
- * decode faster and draw a frame from somewhere else on the timeline, which is the one thing a
- * strip is read for.
+ * The seek parameters follow the request. Exact is the extractor's own default and is what a
+ * precise request wants, and anything else snaps to the nearest sync sample, which decodes faster
+ * and draws a frame from somewhere else on the timeline. Positions that disagree about it are
+ * served on extractors of their own, since the parameters are fixed when one is built.
  *
  * Each frame is copied before it is handed on. The bitmap an extraction answers with belongs to the
  * player media3 shares across the process, which answers a later extraction with a frame it already
@@ -156,13 +158,14 @@ internal class Media3ThumbnailSource(
     while (from < group.size && !run.isCancelled) {
       currentCoroutineContext().ensureActive()
       val readback = readbacks[from]
+      val precise = group[from].precise
       var to = from + 1
-      while (to < group.size && readbacks[to] === readback) {
+      while (to < group.size && readbacks[to] === readback && group[to].precise == precise) {
         currentCoroutineContext().ensureActive()
         to++
       }
 
-      serveClip(reader, readback, group.subList(from, to), offset + from, run)
+      serveClip(reader, readback, precise, group.subList(from, to), offset + from, run)
       from = to
     }
   }
@@ -173,6 +176,7 @@ internal class Media3ThumbnailSource(
   private suspend fun serveClip(
     reader: CoroutineDispatcher,
     readback: Media3Readback,
+    precise: Boolean,
     group: List<ThumbnailRequest>,
     offset: Int,
     run: ThumbnailRun,
@@ -188,6 +192,7 @@ internal class Media3ThumbnailSource(
           FrameExtractor
             .Builder(context, readback.span.item)
             .setEffects(readback.effects)
+            .setSeekParameters(if (precise) SeekParameters.EXACT else SeekParameters.CLOSEST_SYNC)
             .build()
             .also { built = it }
         }

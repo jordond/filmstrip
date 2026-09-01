@@ -89,6 +89,10 @@ public fun interface ThumbnailCallback {
  *   and part of the cache key so stale pre-crop thumbnails do not survive an edit. Compare it for
  *   equality only. It changes on a structural edit and on the commit of a crop or rotation drag,
  *   and holds during the drag, but it does not increase and carries no ordering.
+ * @property precise Whether the frame has to be the one covering [position]. False lets a source
+ *   answer from the nearest sync sample instead, taking the faster read where it has one, which is
+ *   what a strip wants. [ThumbnailResult.Success.presentationTime] says which frame came back
+ *   either way.
  */
 @Poko
 public class ThumbnailRequest(
@@ -96,6 +100,7 @@ public class ThumbnailRequest(
   public val position: Duration,
   public val heightPx: Int,
   public val effectsRevision: Long,
+  public val precise: Boolean,
 )
 
 /**

@@ -17,6 +17,9 @@ import dev.jordond.filmstrip.test.compareFrames
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
 import dev.jordond.filmstrip.thumbnail.ThumbnailResult
 import dev.jordond.filmstrip.thumbnail.ThumbnailSource
+import dev.jordond.filmstrip.transform.internal.seekTolerance
+import io.kotest.assertions.withClue
+import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -52,7 +55,8 @@ class AndroidThumbnailContractTest {
       val source = source(scope)
 
       for (probe in PROBE_POSITIONS) {
-        val thumbnail = source.awaitThumbnail(ThumbnailRequest(composition, probe, FIXTURE_FRAME.height, REVISION))
+        val request = ThumbnailRequest(composition, probe, FIXTURE_FRAME.height, REVISION, precise = true)
+        val thumbnail = source.awaitThumbnail(request)
         try {
           thumbnail.frame().size shouldBe FIXTURE_FRAME
 
@@ -73,7 +77,8 @@ class AndroidThumbnailContractTest {
   fun aRunMatchesTheExportAtEveryPositionItRendered() =
     contractTest { scope ->
       val composition = androidFixtureComposition(listOf(Brightness(DIM)))
-      val requests = RUN_POSITIONS.map { ThumbnailRequest(composition, it, FIXTURE_FRAME.height, REVISION) }
+      val requests =
+        RUN_POSITIONS.map { ThumbnailRequest(composition, it, FIXTURE_FRAME.height, REVISION, precise = false) }
 
       val thumbnails = source(scope).awaitThumbnails(requests)
 
@@ -135,7 +140,8 @@ class AndroidThumbnailContractTest {
   fun aCancelledRunStopsWhereItIs() =
     contractTest { scope ->
       val composition = androidFixtureComposition(listOf(Brightness(DIM)))
-      val requests = RUN_POSITIONS.map { ThumbnailRequest(composition, it, FIXTURE_FRAME.height, REVISION) }
+      val requests =
+        RUN_POSITIONS.map { ThumbnailRequest(composition, it, FIXTURE_FRAME.height, REVISION, precise = false) }
       val delivered = mutableListOf<Int>()
       val handle = AtomicReference<Cancellable?>(null)
 
@@ -172,11 +178,39 @@ class AndroidThumbnailContractTest {
       }
     }
 
+  /**
+   * A precise request leaves the extractor's seek parameters exact and it decodes to the frame
+   * covering the position. A relaxed one snaps to the nearest sync sample, which is a whole group
+   * of pictures of slack and the faster read a strip is served on.
+   *
+   * The position sits well inside a group of pictures, so the two land on different frames. Both
+   * bounds are the shared contract every backend is held to rather than a figure measured here.
+   */
+  @Test
+  fun aPreciseThumbnailDecodesToTheFrameARelaxedOneOnlyComesNear() =
+    contractTest { scope ->
+      val composition = androidFixtureComposition()
+
+      for (precise in listOf(true, false)) {
+        val request = ThumbnailRequest(composition, MID_GOP_POSITION, FIXTURE_FRAME.height, REVISION, precise)
+        val thumbnail = source(scope).awaitThumbnail(request)
+        try {
+          withClue("precise=$precise landed at ${thumbnail.presentationTime}") {
+            thumbnail.driftFrom(MID_GOP_POSITION) shouldBeLessThanOrEqualTo
+              seekTolerance(precise, FIXTURE_FRAME_STEP, FIXTURE_SYNC_INTERVAL)
+          }
+        } finally {
+          thumbnail.image.close()
+        }
+      }
+    }
+
   @Test
   fun aCancelledRequestNeverDelivers() =
     contractTest { scope ->
       val composition = androidFixtureComposition(listOf(Brightness(DIM)))
-      val request = ThumbnailRequest(composition, PROBE_POSITIONS.last(), FIXTURE_FRAME.height, REVISION)
+      val request =
+        ThumbnailRequest(composition, PROBE_POSITIONS.last(), FIXTURE_FRAME.height, REVISION, precise = true)
       val delivered = AtomicReference<ThumbnailResult?>(null)
 
       source(scope).requestThumbnail(request) { delivered.set(it) }.cancel()
@@ -196,7 +230,7 @@ class AndroidThumbnailContractTest {
     revision: Long,
   ): List<ThumbnailRequest> {
     val composition = androidFixtureComposition(listOf(Brightness(brightness)))
-    return RUN_POSITIONS.map { ThumbnailRequest(composition, it, FIXTURE_FRAME.height, revision) }
+    return RUN_POSITIONS.map { ThumbnailRequest(composition, it, FIXTURE_FRAME.height, revision, precise = false) }
   }
 
   private fun source(scope: CoroutineScope): ThumbnailSource =
@@ -328,6 +362,11 @@ private suspend fun ThumbnailSource.awaitThumbnail(request: ThumbnailRequest): T
       }
     continuation.invokeOnCancellation { handle.cancel() }
   }
+
+/**
+ * How far the frame that came back sits from the time [asked] for, in either direction.
+ */
+private fun ThumbnailResult.Success.driftFrom(asked: Duration): Duration = (presentationTime - asked).absoluteValue
 
 /**
  * This thumbnail's pixels, in the form the comparison helpers take.

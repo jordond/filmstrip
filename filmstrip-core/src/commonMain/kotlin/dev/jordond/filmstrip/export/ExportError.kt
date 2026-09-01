@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.export
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.StillFormat
 
 /**
  * Every way an export, probe or plan can fail, as branchable values.
@@ -165,6 +166,22 @@ public sealed interface ExportError {
   @Poko
   public class SinkUnwritable(
     public val sink: String,
+    override val message: String,
+  ) : ExportError
+
+  /**
+   * This target cannot write the still image format that was asked for.
+   *
+   * [StillFormat.Webp] is the one that is not writable everywhere. Distinct from [BackendMissing],
+   * whose [BackendMissing.artifact] is a Maven coordinate: nothing a build file can add fixes this,
+   * so a caller that has to run on all four targets asks for another format instead.
+   *
+   * @property format The format the target refused.
+   * @property message A human-readable description naming the target and the format.
+   */
+  @Poko
+  public class UnsupportedStillFormat(
+    public val format: StillFormat,
     override val message: String,
   ) : ExportError
 

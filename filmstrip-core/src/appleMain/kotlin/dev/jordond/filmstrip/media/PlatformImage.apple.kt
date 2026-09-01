@@ -49,6 +49,10 @@ public actual class PlatformImage
      */
     public fun toCIImage(): CIImage? = image?.let { CIImage.imageWithCGImage(it) }
 
+    // Still owned by this object, for the encoder in the same module. Not exposed: a Swift caller
+    // takes toCIImage() or toNSData() instead.
+    internal fun cgImage(): CGImageRef? = image
+
     /**
      * The pixels as tightly packed RGBA_8888 in an `NSData`, which Swift sees as `Data`.
      *
