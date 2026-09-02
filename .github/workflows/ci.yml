@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: setup-java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           java-version: 17
           distribution: temurin
@@ -82,7 +82,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: setup-java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           java-version: 17
           distribution: temurin
@@ -117,7 +117,7 @@ jobs:
 
       - name: Upload test reports
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: test-reports-${{ matrix.config.target }}
           path: |
@@ -134,7 +134,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: setup-java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           java-version: 17
           distribution: temurin
@@ -162,7 +162,7 @@ jobs:
 
       - name: Upload test reports
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: test-reports-android-device
           path: |
