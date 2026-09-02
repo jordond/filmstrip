@@ -39,7 +39,6 @@ kotlin {
       implementation(libs.androidx.startup)
     }
 
-
     named("androidDeviceTest") {
       kotlin.srcDir("src/commonTest/kotlin/dev/jordond/filmstrip/media/probe")
       dependencies {
@@ -51,23 +50,26 @@ kotlin {
   }
 }
 
-private fun createVersionFile(output: Provider<Directory>, version: Provider<String>) {
+private fun createVersionFile(
+  output: Provider<Directory>,
+  version: Provider<String>,
+) {
   val file = output.get().asFile.resolve("dev/jordond/filmstrip/FilmstripVersion.kt")
   file.parentFile.mkdirs()
   file.writeText(
     """
-        package dev.jordond.filmstrip
+    package dev.jordond.filmstrip
 
-        /**
-         * The version of filmstrip this build was compiled from.
-         */
-        public object FilmstripVersion {
-          /**
-           * The published version, or the snapshot name on a build that is not a release.
-           */
-          public val name: String = "${version.get()}"
-        }
+    /**
+     * The version of filmstrip this build was compiled from.
+     */
+    public object FilmstripVersion {
+      /**
+       * The published version, or the snapshot name on a build that is not a release.
+       */
+      public val name: String = "${version.get()}"
+    }
 
-        """.trimIndent(),
+    """.trimIndent(),
   )
 }
