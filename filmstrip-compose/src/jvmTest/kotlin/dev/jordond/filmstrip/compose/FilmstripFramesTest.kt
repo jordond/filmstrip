@@ -184,7 +184,7 @@ class FilmstripFramesTest {
     runtime.setContent {
       frames =
         rememberFilmstripFrames(
-          filmstrip = filmstrip,
+          renderer = filmstrip,
           composition = testComposition("strip.mp4"),
           positions = POSITIONS,
           heightPx = HEIGHT_PX,

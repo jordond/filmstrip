@@ -12,12 +12,12 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
-import dev.jordond.filmstrip.effects.Crop
-import dev.jordond.filmstrip.effects.CropRect
-import dev.jordond.filmstrip.effects.Rotate
-import dev.jordond.filmstrip.effects.Scale
-import dev.jordond.filmstrip.effects.Text
-import dev.jordond.filmstrip.effects.Watermark
+import dev.jordond.filmstrip.effects.geometry.Crop
+import dev.jordond.filmstrip.effects.geometry.CropRect
+import dev.jordond.filmstrip.effects.geometry.Rotate
+import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportError
@@ -121,7 +121,7 @@ class PlannerTest {
   // the overlay image has claimed one.
   @Test
   fun `overlays a watermark declared on a clip`() {
-    val mark = Watermark(ImageSource.of("/logo.png"), Corner.TopStart)
+    val mark = ImageOverlay(ImageSource.of("/logo.png"), Corner.TopStart)
     val composition =
       EditComposition(listOf(Track(listOf(Clip(landscape, effects = listOf(mark)), Clip(portrait)))))
 
@@ -332,14 +332,14 @@ class PlannerTest {
   @Test
   fun `refuses text and offers a plan without it`() {
     val composition =
-      EditComposition(listOf(Track(listOf(Clip(landscape, effects = listOf(Rotate(90), Text("hi")))))))
+      EditComposition(listOf(Track(listOf(Clip(landscape, effects = listOf(Rotate(90), TextOverlay("hi")))))))
 
     val verdict = planner().lower(composition, ExportSpec(), device(), infos).verdict
     assertIs<Verdict.Incapable>(verdict)
 
     val reason = verdict.reasons.single()
     assertIs<ExportError.UnsupportedEffect>(reason)
-    reason.specId shouldBe EffectIds.TEXT
+    reason.specId shouldBe EffectIds.TEXT_OVERLAY
 
     val fallback = verdict.withoutUnsupported
     fallback?.effectOrder?.map { it.spec.id } shouldBe listOf(EffectIds.ROTATE)
@@ -397,13 +397,13 @@ class PlannerTest {
     verdict.adjustments.map { it.kind } shouldBe listOf(AdjustmentKind.ResolutionClamped)
   }
 
-  // This backend reports its own parity: Scale is not Exact here, and Text has no answer.
+  // This backend reports its own parity: Scale is not Exact here, and TextOverlay has no answer.
   @Test
   fun `reports its own parity and not the mobile table`() {
     FfmpegParity.of(EffectIds.SCALE) shouldBe EffectParity.Approximate
     FfmpegParity.of(EffectIds.ROTATE) shouldBe EffectParity.Exact
     FfmpegParity.of(EffectIds.BRIGHTNESS) shouldBe EffectParity.Exact
-    FfmpegParity.of(EffectIds.TEXT) shouldBe null
+    FfmpegParity.of(EffectIds.TEXT_OVERLAY) shouldBe null
   }
 
   @Test

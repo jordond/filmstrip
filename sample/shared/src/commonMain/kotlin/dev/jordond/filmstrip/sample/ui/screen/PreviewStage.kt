@@ -47,9 +47,10 @@ import dev.jordond.filmstrip.compose.ui.VideoStageScope
 import dev.jordond.filmstrip.compose.ui.component.CropOverlay
 import dev.jordond.filmstrip.compose.ui.component.OverlayHandle
 import dev.jordond.filmstrip.compose.ui.interaction.CropConstraint
-import dev.jordond.filmstrip.effects.OverlayPlacement
-import dev.jordond.filmstrip.effects.Watermark
-import dev.jordond.filmstrip.effects.placedOn
+import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.OverlayPlacement
+import dev.jordond.filmstrip.effects.overlay.TextOverlay
+import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.player.PlaybackError
@@ -66,7 +67,6 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import androidx.compose.ui.text.TextStyle as ComposeTextStyle
 import androidx.compose.ui.text.font.FontWeight as ComposeFontWeight
-import dev.jordond.filmstrip.effects.Text as TextEffect
 import dev.jordond.filmstrip.geometry.Size as FrameSize
 
 /**
@@ -145,7 +145,7 @@ private fun StageSchematic(
     FrameBackground(edit, shorterSide, state.sourceAspect)
     FrameContent(edit, frameWidth, frameHeight, state.sourceAspect, applyRectCrop = !state.croppingRect)
     BrightnessScrim(edit.brightness)
-    TextOverlay(edit, frameWidth, frameHeight)
+    CaptionOverlay(edit, frameWidth, frameHeight)
     WatermarkOverlay(edit, frameWidth, shorterSide)
   }
 }
@@ -181,7 +181,7 @@ private fun VideoStageScope.OverlayHandles(state: SampleAppState) {
   edit.watermarkImage?.let { image ->
     OverlayHandle(
       placement = remember(edit.watermarkCorner, edit.watermarkMargin, edit.watermarkScale, output) {
-        Watermark(
+        ImageOverlay(
           image = image,
           corner = edit.watermarkCorner,
           margin = edit.watermarkMargin,
@@ -223,7 +223,7 @@ private fun textPlacement(
     constraints = Constraints(maxWidth = (output.width * edit.textMaxWidth).roundToInt().coerceAtLeast(1)),
   )
 
-  return TextEffect(
+  return TextOverlay(
     text = edit.text,
     style = edit.textStyle,
     anchor = edit.textAnchor,
@@ -458,7 +458,7 @@ private fun BrightnessScrim(factor: Float) {
 }
 
 @Composable
-private fun TextOverlay(
+private fun CaptionOverlay(
   edit: EditState,
   frameWidth: Dp,
   frameHeight: Dp,

@@ -16,6 +16,25 @@ import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
+import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.color.scale
+import dev.jordond.filmstrip.effects.geometry.Crop
+import dev.jordond.filmstrip.effects.geometry.CropRect
+import dev.jordond.filmstrip.effects.geometry.Flip
+import dev.jordond.filmstrip.effects.geometry.KenBurns
+import dev.jordond.filmstrip.effects.geometry.KenBurnsTransformation
+import dev.jordond.filmstrip.effects.geometry.Rotate
+import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.effects.geometry.retainedRect
+import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.RasterOverlay
+import dev.jordond.filmstrip.effects.overlay.TextOverlay
+import dev.jordond.filmstrip.effects.overlay.decode
+import dev.jordond.filmstrip.effects.overlay.drawnTextSize
+import dev.jordond.filmstrip.effects.overlay.placedOn
+import dev.jordond.filmstrip.effects.overlay.rasterizeText
+import dev.jordond.filmstrip.effects.overlay.size
+import dev.jordond.filmstrip.effects.overlay.toOverlaySettings
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -43,8 +62,8 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       is KenBurns -> spec.toTransformation(attributes)
       is Scale -> resolved(spec.toMedia3())
       is Brightness -> resolved(spec.toMedia3(attributes.hdrTransfer))
-      is Watermark -> spec.toOverlay(capabilities, attributes)
-      is Text -> spec.toOverlay(capabilities, attributes)
+      is ImageOverlay -> spec.toOverlay(capabilities, attributes)
+      is TextOverlay -> spec.toOverlay(capabilities, attributes)
       else -> null
     }
   }
@@ -60,7 +79,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   // They are the same for a composition-scoped overlay. A clip-scoped one runs in that item's own
   // chain, before the size stage pins every clip to the output frame, so measuring it against the
   // output would size it against a frame it never sees.
-  private fun Watermark.toOverlay(
+  private fun ImageOverlay.toOverlay(
     capabilities: RenderCapabilities,
     attributes: Attributes,
   ): EffectResolution {
@@ -70,7 +89,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     return resolved(RasterOverlay(bitmap, placement.toOverlaySettings(size, opacity), visibleDuring), capabilities)
   }
 
-  private fun Text.toOverlay(
+  private fun TextOverlay.toOverlay(
     capabilities: RenderCapabilities,
     attributes: Attributes,
   ): EffectResolution {
@@ -155,7 +174,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
 }
 
 private const val UNREADABLE_IMAGE =
-  "The watermark image could not be decoded. Check that the path or Uri is readable by this " +
+  "The overlay image could not be decoded. Check that the path or Uri is readable by this " +
     "process, and that the bytes are PNG, JPEG or WebP."
 
 private const val EMPTY_TEXT = "The text and its style leave nothing to draw."

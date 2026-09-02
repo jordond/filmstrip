@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
@@ -130,7 +131,7 @@ class AppleHdrTest {
       (filmstrip.capabilities() as? CapabilitiesResult.Success)?.capabilities?.supportsHdrEncoding == true
     }
 
-  private fun composition(source: String) = filmstrip.composition { clip(MediaSource.of(source)) }
+  private fun composition(source: String) = compositionOf { clip(MediaSource.of(source)) }
 
   private fun spec(hdr: HdrMode) = ExportSpec(targetHeight = 720, hdr = hdr)
 

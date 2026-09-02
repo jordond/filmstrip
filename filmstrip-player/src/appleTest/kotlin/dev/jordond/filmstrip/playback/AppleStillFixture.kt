@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
-import dev.jordond.filmstrip.effects.KenBurns
+import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource

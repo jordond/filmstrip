@@ -35,7 +35,7 @@ class FilmstripImageTest {
       setContent {
         val filmstrip = remember { filmstripWith(source) }
         FilmstripImage(
-          filmstrip = filmstrip,
+          renderer = filmstrip,
           composition = testComposition(),
           at = AT,
           modifier = Modifier.size(width = 160.dp, height = 90.dp).testTag(IMAGE),
@@ -59,7 +59,7 @@ class FilmstripImageTest {
       setContent {
         val filmstrip = remember { filmstripWith(source) }
         FilmstripImage(
-          filmstrip = filmstrip,
+          renderer = filmstrip,
           composition = testComposition(),
           at = AT,
           modifier = Modifier.size(90.dp),
@@ -79,7 +79,7 @@ class FilmstripImageTest {
       setContent {
         val filmstrip = remember { filmstripWith(source) }
         FilmstripImage(
-          filmstrip = filmstrip,
+          renderer = filmstrip,
           composition = testComposition(),
           at = AT,
           placeholder = { Box(Modifier.testTag(PLACEHOLDER)) },
@@ -100,7 +100,7 @@ class FilmstripImageTest {
       setContent {
         val filmstrip = remember { filmstripWith(source) }
         FilmstripImage(
-          filmstrip = filmstrip,
+          renderer = filmstrip,
           composition = testComposition(),
           at = AT,
           modifier = Modifier.size(width = 160.dp, height = height),

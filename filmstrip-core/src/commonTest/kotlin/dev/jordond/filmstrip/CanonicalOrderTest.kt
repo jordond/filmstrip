@@ -17,15 +17,15 @@ class CanonicalOrderTest {
     // otherwise cut it away.
     val declared =
       listOf(
-        spec(EffectIds.WATERMARK, EffectStage.Composite),
+        spec(EffectIds.IMAGE_OVERLAY, EffectStage.Composite),
         spec(EffectIds.CROP, EffectStage.Geometry),
-        spec(EffectIds.TEXT, EffectStage.Composite),
+        spec(EffectIds.TEXT_OVERLAY, EffectStage.Composite),
         spec(EffectIds.ROTATE, EffectStage.Geometry),
         spec(EffectIds.SCALE, EffectStage.Geometry),
       )
 
     assertEquals(
-      listOf(EffectIds.ROTATE, EffectIds.CROP, EffectIds.SCALE, EffectIds.WATERMARK, EffectIds.TEXT),
+      listOf(EffectIds.ROTATE, EffectIds.CROP, EffectIds.SCALE, EffectIds.IMAGE_OVERLAY, EffectIds.TEXT_OVERLAY),
       declared.inCanonicalOrder().map { it.id },
     )
   }
@@ -36,11 +36,11 @@ class CanonicalOrderTest {
       listOf(
         spec(EffectIds.SCALE, EffectStage.Geometry),
         spec(EffectIds.ROTATE, EffectStage.Geometry),
-        spec(EffectIds.WATERMARK, EffectStage.Composite),
+        spec(EffectIds.IMAGE_OVERLAY, EffectStage.Composite),
       )
     val other =
       listOf(
-        spec(EffectIds.WATERMARK, EffectStage.Composite),
+        spec(EffectIds.IMAGE_OVERLAY, EffectStage.Composite),
         spec(EffectIds.ROTATE, EffectStage.Geometry),
         spec(EffectIds.SCALE, EffectStage.Geometry),
       )

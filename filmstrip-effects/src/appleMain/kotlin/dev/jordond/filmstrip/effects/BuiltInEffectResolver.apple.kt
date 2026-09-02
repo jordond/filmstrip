@@ -12,6 +12,25 @@ import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
+import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.color.scale
+import dev.jordond.filmstrip.effects.color.withBrightness
+import dev.jordond.filmstrip.effects.geometry.Crop
+import dev.jordond.filmstrip.effects.geometry.CropRect
+import dev.jordond.filmstrip.effects.geometry.Flip
+import dev.jordond.filmstrip.effects.geometry.KenBurns
+import dev.jordond.filmstrip.effects.geometry.Rotate
+import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.effects.geometry.regionAt
+import dev.jordond.filmstrip.effects.geometry.retainedRect
+import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.TextOverlay
+import dev.jordond.filmstrip.effects.overlay.compositedOnto
+import dev.jordond.filmstrip.effects.overlay.decode
+import dev.jordond.filmstrip.effects.overlay.drawnTextSize
+import dev.jordond.filmstrip.effects.overlay.pixelSize
+import dev.jordond.filmstrip.effects.overlay.placedOn
+import dev.jordond.filmstrip.effects.overlay.rasterizeText
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -44,8 +63,8 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       is KenBurns -> spec.toStep()
       is Scale -> step { image, _ -> image.scaledToHeight(spec.targetHeight) }
       is Brightness -> step { image, frame -> image.withBrightness(spec.scale, frame.attributes.hdrTransfer) }
-      is Watermark -> spec.toOverlay()
-      is Text -> spec.toOverlay(capabilities, attributes)
+      is ImageOverlay -> spec.toOverlay()
+      is TextOverlay -> spec.toOverlay(capabilities, attributes)
       else -> null
     }
   }
@@ -60,7 +79,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   // Rasterised at resolve and placed at apply. Where an overlay lands depends on the frame entering
   // it, and the preview and the export hand different frames to the same resolved effect, so a
   // placement settled here would be right on one path and wrong on the other.
-  private fun Watermark.toOverlay(): EffectResolution {
+  private fun ImageOverlay.toOverlay(): EffectResolution {
     val raster = image.decode() ?: return EffectResolution.Unsupported(id, UNREADABLE_IMAGE)
     val size = raster.pixelSize()
 
@@ -74,7 +93,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     }
   }
 
-  private fun Text.toOverlay(
+  private fun TextOverlay.toOverlay(
     capabilities: RenderCapabilities,
     attributes: Attributes,
   ): EffectResolution {
@@ -156,7 +175,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
 private const val STRAIGHT_ANGLE = 180.0
 
 private const val UNREADABLE_IMAGE =
-  "The watermark image could not be decoded. Check that the path or URL is readable by this " +
+  "The overlay image could not be decoded. Check that the path or URL is readable by this " +
     "process, and that the bytes are PNG, JPEG or HEIC."
 
 private const val EMPTY_TEXT = "The text and its style leave nothing to draw."

@@ -1,9 +1,9 @@
 package dev.jordond.filmstrip
 
 import dev.jordond.filmstrip.edit.AudioLevel
-import dev.jordond.filmstrip.edit.CompositionBuilder
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.MediaSource
 import kotlinx.serialization.json.Json
@@ -22,7 +22,7 @@ class CompositionModelTest {
   @Test
   fun clipsWrittenWithoutATrackLandOnThePrimaryOne() {
     val composition =
-      composition {
+      compositionOf {
         clip(source("a")) { trim(0.milliseconds, 1_000.milliseconds) }
         clip(source("b")) { trim(0.milliseconds, 2_000.milliseconds) }
       }
@@ -36,7 +36,7 @@ class CompositionModelTest {
   fun anEditWrittenEntirelyAsTracksGetsNoEmptyLeadingOne() {
     // An empty primary track would hand the output frame to nothing.
     val composition =
-      composition {
+      compositionOf {
         track(TrackContent.Video) { clip(source("pip")) { trim(0.milliseconds, 1_000.milliseconds) } }
       }
 
@@ -48,7 +48,7 @@ class CompositionModelTest {
   fun theDurationIsTheLongestNonLoopingTrack() {
     // Tracks play together, so the composition is as long as the longest of them, not their sum.
     val composition =
-      composition {
+      compositionOf {
         clip(source("main")) { trim(0.milliseconds, 5_000.milliseconds) }
         track(TrackContent.Video) { clip(source("pip")) { trim(0.milliseconds, 9_000.milliseconds) } }
       }
@@ -59,7 +59,7 @@ class CompositionModelTest {
   @Test
   fun aLoopingTrackNeverDecidesTheDuration() {
     val composition =
-      composition {
+      compositionOf {
         clip(source("main")) { trim(0.milliseconds, 5_000.milliseconds) }
         track(TrackContent.Audio) {
           clip(source("music")) { trim(0.milliseconds, 180_000.milliseconds) }
@@ -73,7 +73,7 @@ class CompositionModelTest {
   @Test
   fun anEditWhereEveryTrackLoopsHasNothingToBoundIt() {
     val composition =
-      composition {
+      compositionOf {
         track(TrackContent.Audio) {
           clip(source("music")) { trim(0.milliseconds, 180_000.milliseconds) }
           looping()
@@ -85,7 +85,7 @@ class CompositionModelTest {
 
   @Test
   fun anOpenEndedTrimLeavesTheDurationUnknown() {
-    val composition = composition { clip(source("a")) }
+    val composition = compositionOf { clip(source("a")) }
 
     assertNull(composition.duration)
   }
@@ -93,7 +93,7 @@ class CompositionModelTest {
   @Test
   fun aTrackStartOffsetPushesItsEnd() {
     val composition =
-      composition {
+      compositionOf {
         clip(source("main")) { trim(0.milliseconds, 5_000.milliseconds) }
         track(TrackContent.Audio) {
           clip(source("sting")) { trim(0.milliseconds, 2_000.milliseconds) }
@@ -107,7 +107,7 @@ class CompositionModelTest {
   @Test
   fun audioLevelsAreDeclaredAtEveryScopeTheyBelongTo() {
     val composition =
-      composition {
+      compositionOf {
         clip(source("dialogue")) {
           trim(0.milliseconds, 5_000.milliseconds)
           audio(AudioLevel.Mute)
@@ -126,7 +126,7 @@ class CompositionModelTest {
   @Test
   fun withClipsReplacesThePrimaryTrackAndLeavesTheRestAlone() {
     val composition =
-      composition {
+      compositionOf {
         clip(source("a")) { trim(0.milliseconds, 1_000.milliseconds) }
         track(TrackContent.Audio) { clip(source("music")) { trim(0.milliseconds, 1_000.milliseconds) } }
       }
@@ -141,7 +141,7 @@ class CompositionModelTest {
   @Test
   fun aLayeredEditListRoundTripsThroughJson() {
     val composition =
-      composition {
+      compositionOf {
         clip(source("main")) {
           trim(0.milliseconds, 5_000.milliseconds)
           audio(AudioLevel.Volume(0.8f))
@@ -162,7 +162,7 @@ class CompositionModelTest {
 
   @Test
   fun aSolidFillRoundTripsThroughJson() {
-    val composition = composition { fill(Fill.Solid(color = 0xFFFF0000.toInt())) }
+    val composition = compositionOf { fill(Fill.Solid(color = 0xFFFF0000.toInt())) }
 
     val json = Json.encodeToString(EditComposition.serializer(), composition)
 
@@ -171,7 +171,7 @@ class CompositionModelTest {
 
   @Test
   fun aBlurredFillRoundTripsThroughJson() {
-    val composition = composition { fill(Fill.Blurred(radius = 0.1f, dim = 0.5f)) }
+    val composition = compositionOf { fill(Fill.Blurred(radius = 0.1f, dim = 0.5f)) }
 
     val json = Json.encodeToString(EditComposition.serializer(), composition)
 
@@ -182,7 +182,7 @@ class CompositionModelTest {
   fun withClipsWithTracksWithEffectsAndWithAudioAllPreserveTheFill() {
     val fill = Fill.Blurred(radius = 0.1f, dim = 0.5f)
     val composition =
-      composition {
+      compositionOf {
         clip(source("main")) { trim(0.milliseconds, 1_000.milliseconds) }
         fill(fill)
       }
@@ -195,13 +195,10 @@ class CompositionModelTest {
 
   @Test
   fun fillSetOnTheBuilderReachesBuild() {
-    val composition = composition { fill(Fill.White) }
+    val composition = compositionOf { fill(Fill.White) }
 
     assertEquals(Fill.White, composition.fill)
   }
-
-  private fun composition(block: CompositionBuilder.() -> Unit): EditComposition =
-    CompositionBuilder().apply(block).build()
 
   private fun source(name: String): MediaSource = MediaSource.of("/fixtures/$name.mp4")
 }

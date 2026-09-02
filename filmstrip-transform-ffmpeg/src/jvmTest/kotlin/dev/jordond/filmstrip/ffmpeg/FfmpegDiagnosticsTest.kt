@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.ffmpeg
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.diagnostics.DiagnosticEvent
 import dev.jordond.filmstrip.diagnostics.DiagnosticListener
+import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
@@ -69,7 +70,7 @@ class FfmpegDiagnosticsTest {
       if (!landscape.isFile) return@runTest
 
       val output = File.createTempFile("filmstrip-diagnostics", ".mp4").also { it.delete() }
-      val composition = filmstrip.composition { clip(MediaSource.of(landscape.absolutePath)) }
+      val composition = compositionOf { clip(MediaSource.of(landscape.absolutePath)) }
 
       filmstrip
         .export(composition, ExportSpec(targetHeight = 240), MediaSink.of(output.absolutePath))

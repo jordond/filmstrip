@@ -79,16 +79,15 @@ public class AudioTrackInfo(
 )
 
 /**
- * What a track is encoded with, both as the platform spells it and as filmstrip recognises it.
+ * What a track is encoded with, both as the platform spells it and as filmstrip recognizes it.
  *
  * A four-character code is what an ISO container stores and what AVFoundation reports, a MIME type
  * is what Android's extractor reports, and ffmpeg reports either depending on whether the container
  * carried a tag. Branch on [kind]. Show [name] to a human or put it in a bug report.
  *
- * @property name The platform's own spelling, such as `hvc1`, `video/hevc` or `hevc`. Empty when
- *   the platform did not name it.
- * @property kind What filmstrip made of [name], or [CodecKind.Other] for anything it does not
- *   recognise.
+ * @property name The platform's own spelling, such as `hvc1`, `video/hevc` or `hevc`. Empty when the platform did not
+ * name it.
+ * @property kind What filmstrip made of [name], or [CodecKind.Other] for anything it does not recognize.
  */
 @Serializable
 @Poko
@@ -98,7 +97,7 @@ public class TrackCodec(
 )
 
 /**
- * A codec filmstrip recognises.
+ * A codec filmstrip recognizes.
  *
  * Covers video and audio alike. Which media type a codec belongs to is already settled by whether
  * it arrived on a [VideoTrackInfo] or an [AudioTrackInfo].
@@ -118,7 +117,7 @@ public enum class CodecKind {
   Pcm,
 
   /**
-   * A codec filmstrip does not recognise. Read [TrackCodec.name] to find out what it was.
+   * A codec filmstrip does not recognize. Read [TrackCodec.name] to find out what it was.
    */
   Other,
 }

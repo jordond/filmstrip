@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.compose.rememberFilmstripFrame
 import dev.jordond.filmstrip.compose.ui.FilmstripTimelineDefaults
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.media.FrameRenderer
 import kotlin.time.Duration
 
 /**
@@ -31,7 +32,7 @@ import kotlin.time.Duration
  *
  * ```
  * FilmstripImage(
- *   filmstrip = filmstrip,
+ *   renderer = filmstrip,
  *   composition = composition,
  *   at = 2.seconds,
  *   modifier = Modifier.size(width = 160.dp, height = 90.dp),
@@ -39,7 +40,7 @@ import kotlin.time.Duration
  * )
  * ```
  *
- * @param filmstrip The instance the frame is rendered by.
+ * @param renderer What renders the frame, usually the `Filmstrip` itself.
  * @param composition The edit to render from.
  * @param at Where in the composition to render.
  * @param modifier Modifier for the image, and what gives it its size.
@@ -49,7 +50,7 @@ import kotlin.time.Duration
  */
 @Composable
 public fun FilmstripImage(
-  filmstrip: Filmstrip,
+  renderer: FrameRenderer,
   composition: EditComposition,
   at: Duration,
   modifier: Modifier = Modifier,
@@ -58,7 +59,7 @@ public fun FilmstripImage(
   placeholder: @Composable () -> Unit = { },
 ) {
   var heightPx by remember { mutableIntStateOf(0) }
-  val bitmap = if (heightPx > 0) rememberFilmstripFrame(filmstrip, composition, at, heightPx) else null
+  val bitmap = if (heightPx > 0) rememberFilmstripFrame(renderer, composition, at, heightPx) else null
 
   Box(modifier.onSizeChanged { heightPx = it.height }) {
     if (bitmap == null) {
@@ -79,7 +80,7 @@ public fun FilmstripImage(
 private fun FilmstripImagePreview() {
   PreviewSurface(height = PREVIEW_HEIGHT) {
     FilmstripImage(
-      filmstrip = Filmstrip(),
+      renderer = Filmstrip(),
       composition = previewComposition(),
       at = Duration.ZERO,
       modifier = Modifier.size(width = PREVIEW_HEIGHT * PREVIEW_ASPECT, height = PREVIEW_HEIGHT),

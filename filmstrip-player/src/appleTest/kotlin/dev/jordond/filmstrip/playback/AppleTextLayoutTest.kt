@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.RenderCapabilities
-import dev.jordond.filmstrip.effects.Text
+import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.playback.contract.contractTest
 import dev.jordond.filmstrip.playback.internal.AvPlanResult
 import dev.jordond.filmstrip.playback.internal.AvPreviewPlanner
@@ -33,7 +33,7 @@ class AppleTextLayoutTest {
   @Test
   fun `a capped preview lowers at the capped frame and lays text out at the export's`() =
     contractTest {
-      val composition = appleFixtureComposition(listOf(Text(CAPTION, CAPTION_STYLE)))
+      val composition = appleFixtureComposition(listOf(TextOverlay(CAPTION, CAPTION_STYLE)))
       val uncapped =
         assertIs<AvPlanResult.Ready>(
           AvPreviewPlanner(CONTRACT_COMPONENTS).plan(composition, PreviewQualityPolicy.Full),

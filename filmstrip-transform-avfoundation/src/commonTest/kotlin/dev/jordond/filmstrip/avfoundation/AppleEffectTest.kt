@@ -3,11 +3,12 @@ package dev.jordond.filmstrip.avfoundation
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.EffectsBuilder
-import dev.jordond.filmstrip.effects.brightness
-import dev.jordond.filmstrip.effects.crop
-import dev.jordond.filmstrip.effects.flip
-import dev.jordond.filmstrip.effects.rotate
-import dev.jordond.filmstrip.effects.watermark
+import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.effects.color.brightness
+import dev.jordond.filmstrip.effects.geometry.crop
+import dev.jordond.filmstrip.effects.geometry.flip
+import dev.jordond.filmstrip.effects.geometry.rotate
+import dev.jordond.filmstrip.effects.overlay.imageOverlay
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.geometry.Corner
@@ -158,11 +159,11 @@ class AppleEffectTest {
     onComposition: EffectsBuilder.() -> Unit,
   ): Frame {
     val composition =
-      filmstrip.composition {
+      compositionOf {
         clip(MediaSource.of(source)) {
           trim(0.seconds, 1.seconds)
           if (marked) {
-            effects { watermark(ImageSource.ofBytes(ORANGE_PNG), Corner.TopStart, MARGIN, BADGE_SCALE) }
+            effects { imageOverlay(ImageSource.ofBytes(ORANGE_PNG), Corner.TopStart, MARGIN, BADGE_SCALE) }
           }
         }
         effects(onComposition)

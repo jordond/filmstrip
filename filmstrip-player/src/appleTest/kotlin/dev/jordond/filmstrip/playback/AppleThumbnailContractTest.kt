@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.playback
 
 import dev.jordond.filmstrip.Cancellable
-import dev.jordond.filmstrip.effects.Text
+import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.PlatformImage
 import dev.jordond.filmstrip.playback.contract.contractTest
@@ -65,7 +65,7 @@ class AppleThumbnailContractTest {
   @Test
   fun `a thumbnail under a caption breaks its lines where the export does`() =
     contractTest {
-      val composition = appleFixtureComposition(listOf(Text(CAPTION, CAPTION_STYLE)))
+      val composition = appleFixtureComposition(listOf(TextOverlay(CAPTION, CAPTION_STYLE)))
       val request = ThumbnailRequest(composition, PROBE_POSITIONS.first(), CAP_HEIGHT, REVISION, precise = true)
 
       val thumbnail = source(request).awaitThumbnail(request)

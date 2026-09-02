@@ -343,7 +343,7 @@ public class SampleAppState(
 
   fun composition(): EditComposition? {
     val source = source ?: return null
-    return edit.composition(filmstrip, source, sourceDuration)
+    return edit.composition(source, sourceDuration)
   }
 
   /**
@@ -354,7 +354,7 @@ public class SampleAppState(
    */
   private fun previewComposition(): EditComposition? {
     val source = source ?: return null
-    return edit.composition(filmstrip, source, sourceDuration, cropped = !croppingRect)
+    return edit.composition(source, sourceDuration, cropped = !croppingRect)
   }
 
   /**
@@ -365,7 +365,7 @@ public class SampleAppState(
    */
   fun filmstripComposition(): EditComposition? {
     val source = source ?: return null
-    return edit.composition(filmstrip, source, sourceDuration, trimmed = false)
+    return edit.composition(source, sourceDuration, trimmed = false)
   }
 
   fun spec(): ExportSpec = ExportSpec(

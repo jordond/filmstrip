@@ -15,6 +15,18 @@ import kotlin.time.Duration
 public annotation class FilmstripDsl
 
 /**
+ * Describes an edit.
+ *
+ * The value every [dev.jordond.filmstrip.Filmstrip] operation takes. An edit is data, so it is built
+ * without an instance and can be handed to any of them.
+ *
+ * @param block Builds the edit.
+ * @return The described edit.
+ */
+public fun compositionOf(block: CompositionBuilder.() -> Unit): EditComposition =
+  CompositionBuilder().apply(block).build()
+
+/**
  * Builds an [EditComposition].
  *
  * [clip] appends to the primary track, which is the only track most edits have, so a single-track
@@ -24,7 +36,7 @@ public annotation class FilmstripDsl
  * for callers that cannot use a receiver lambda.
  */
 @FilmstripDsl
-public class CompositionBuilder internal constructor() {
+public class CompositionBuilder public constructor() {
   private val primary = mutableListOf<Clip>()
   private val extraTracks = mutableListOf<Track>()
   private val effects = mutableListOf<EffectSpec>()

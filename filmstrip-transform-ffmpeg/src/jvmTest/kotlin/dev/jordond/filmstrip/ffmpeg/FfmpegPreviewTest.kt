@@ -7,8 +7,8 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
-import dev.jordond.filmstrip.effects.Brightness
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict

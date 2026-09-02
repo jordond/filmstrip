@@ -8,7 +8,6 @@ import dev.jordond.filmstrip.edit.effectsRevision
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.FrameResult
-import dev.jordond.filmstrip.thumbnail.ThumbnailCallback
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
 import dev.jordond.filmstrip.thumbnail.ThumbnailResult
 import kotlinx.coroutines.channels.Channel
@@ -17,7 +16,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resume
 import kotlin.time.Duration
 
 // Turns the callback-shaped thumbnail SPI into the suspend and Flow forms the facade exposes.

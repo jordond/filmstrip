@@ -1,8 +1,8 @@
 package dev.jordond.filmstrip.playback
 
 import dev.jordond.filmstrip.edit.EditComposition
-import dev.jordond.filmstrip.effects.Brightness
-import dev.jordond.filmstrip.effects.Text
+import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.playback.contract.PixelFixture
 import dev.jordond.filmstrip.playback.contract.PlayerPixelContractTest
 import dev.jordond.filmstrip.playback.contract.asTestFrame
@@ -63,7 +63,7 @@ class ApplePixelContractTest : PlayerPixelContractTest() {
   /**
    * The readback under a cap, against the export scaled to the same frame.
    *
-   * Everything else the cap touches is meant to follow it down. Text is not: the caption is laid
+   * Everything else the cap touches is meant to follow it down. TextOverlay is not: the caption is laid
    * out against the frame the export writes and only the raster is brought down, so the two break
    * their lines on the same words and the plate lands on the same place in the frame. Laid out
    * against the preview's own width instead, this caption takes a different number of lines, which
@@ -74,7 +74,7 @@ class ApplePixelContractTest : PlayerPixelContractTest() {
     contractTest { scope ->
       val engine = createEngine(scope)
       withEngine(engine) { recorder ->
-        val composition = appleFixtureComposition(listOf(Text(CAPTION, CAPTION_STYLE)))
+        val composition = appleFixtureComposition(listOf(TextOverlay(CAPTION, CAPTION_STYLE)))
         engine.setQualityPolicy(PreviewQualityPolicy.CapHeight(CAP_HEIGHT))
         engine.awaitComposition(composition).shouldBeInstanceOf<SetCompositionResult.Success>()
         awaitContract("the preview to be presentable") { recorder.lastState.hasComposition }

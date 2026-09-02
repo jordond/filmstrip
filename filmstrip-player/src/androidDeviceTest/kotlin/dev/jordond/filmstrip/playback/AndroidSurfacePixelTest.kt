@@ -9,8 +9,8 @@ import androidx.test.core.app.ActivityScenario
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.EditComposition
-import dev.jordond.filmstrip.effects.Brightness
-import dev.jordond.filmstrip.effects.Rotate
+import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.player.PlaybackEvent

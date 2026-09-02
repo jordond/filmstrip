@@ -5,7 +5,6 @@ import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaProber
-import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import kotlinx.cinterop.BetaInteropApi

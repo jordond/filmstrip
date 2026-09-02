@@ -1,8 +1,8 @@
 package dev.jordond.filmstrip.media
 
 import dev.drewhamilton.poko.Poko
-import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.geometry.Size
 import kotlinx.serialization.Serializable
@@ -141,7 +141,7 @@ public suspend fun PlatformImage.encodeStill(spec: StillSpec = StillSpec()): Sti
 /**
  * Renders one frame of a composition and writes it as a still image.
  *
- * [Filmstrip.frame] is asked for the frame at [StillSpec.heightPx], so the still is decoded at the
+ * [FrameRenderer.frame] is asked for the frame at [StillSpec.heightPx], so the still is decoded at the
  * size it is written at rather than at full resolution and shrunk. The frame is closed before this
  * returns.
  *
@@ -156,7 +156,7 @@ public suspend fun PlatformImage.encodeStill(spec: StillSpec = StillSpec()): Sti
  * @param spec What the encoded still should look like.
  * @return Where the still ended up, or why it did not get there.
  */
-public suspend fun Filmstrip.still(
+public suspend fun FrameRenderer.still(
   composition: EditComposition,
   at: Duration,
   to: MediaSink,
@@ -184,7 +184,7 @@ public suspend fun Filmstrip.still(
 /**
  * Renders one frame of a single source, with no composition to build by hand.
  *
- * Shorthand for the composition-taking [Filmstrip.frame], over a single-clip composition built
+ * Shorthand for the composition-taking [FrameRenderer.frame], over a single-clip composition built
  * from [source]. Reach for that form directly for anything bigger than one clip.
  *
  * @param source The media to render from.
@@ -192,11 +192,11 @@ public suspend fun Filmstrip.still(
  * @param heightPx The height to render at, in pixels. Zero renders at the source's own height.
  * @return The frame, which the caller owns and must close, or why it could not be produced.
  */
-public suspend fun Filmstrip.frame(
+public suspend fun FrameRenderer.frame(
   source: MediaSource,
   at: Duration,
   heightPx: Int = 0,
-): FrameResult = frame(composition { clip(source) }, at, heightPx)
+): FrameResult = frame(compositionOf { clip(source) }, at, heightPx)
 
 /**
  * Encodes one frame of a single source as a still image, with no composition to build by hand.
@@ -210,12 +210,12 @@ public suspend fun Filmstrip.frame(
  * @param spec What the encoded still should look like.
  * @return Where the still ended up, or why it did not get there.
  */
-public suspend fun Filmstrip.still(
+public suspend fun FrameRenderer.still(
   source: MediaSource,
   at: Duration,
   to: MediaSink,
   spec: StillSpec = StillSpec(),
-): StillResult = still(composition { clip(source) }, at, to, spec)
+): StillResult = still(compositionOf { clip(source) }, at, to, spec)
 
 private const val DEFAULT_QUALITY = 90
 

@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.playback
 
 import dev.jordond.filmstrip.edit.EditComposition
-import dev.jordond.filmstrip.effects.Brightness
+import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.playback.contract.PixelFixture
 import dev.jordond.filmstrip.playback.contract.PlayerPixelContractTest
 import dev.jordond.filmstrip.playback.internal.FfmpegPlayerEngine

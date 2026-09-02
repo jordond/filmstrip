@@ -1,5 +1,18 @@
-public final class dev/jordond/filmstrip/effects/Brightness : dev/jordond/filmstrip/effect/EffectSpec {
-	public static final field Companion Ldev/jordond/filmstrip/effects/Brightness$Companion;
+public final class dev/jordond/filmstrip/effects/BuiltInEffectResolver : dev/jordond/filmstrip/effect/EffectResolver {
+	public fun <init> ()V
+	public fun resolve (Ldev/jordond/filmstrip/effect/EffectSpec;Ldev/jordond/filmstrip/effect/RenderCapabilities;Ldev/jordond/filmstrip/effect/Attributes;)Ldev/jordond/filmstrip/effect/EffectResolution;
+}
+
+public final class dev/jordond/filmstrip/effects/BuiltInEffectResolverKt {
+	public static final fun builtInEffects (Ldev/jordond/filmstrip/FilmstripBuilder;)Ldev/jordond/filmstrip/FilmstripBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/BuiltInEffectSerializersKt {
+	public static final fun getBuiltInEffectSerializers ()Lkotlinx/serialization/modules/SerializersModule;
+}
+
+public final class dev/jordond/filmstrip/effects/color/Brightness : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/color/Brightness$Companion;
 	public fun <init> (F)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getFactor ()F
@@ -10,42 +23,27 @@ public final class dev/jordond/filmstrip/effects/Brightness : dev/jordond/filmst
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/effects/Brightness$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/effects/Brightness$$serializer;
+public final synthetic class dev/jordond/filmstrip/effects/color/Brightness$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/effects/color/Brightness$$serializer;
 	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/Brightness;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/color/Brightness;
 	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
 	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/Brightness;)V
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/color/Brightness;)V
 	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
 	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
 }
 
-public final class dev/jordond/filmstrip/effects/Brightness$Companion {
+public final class dev/jordond/filmstrip/effects/color/Brightness$Companion {
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
-public final class dev/jordond/filmstrip/effects/BuiltInEffectResolver : dev/jordond/filmstrip/effect/EffectResolver {
-	public fun <init> ()V
-	public fun resolve (Ldev/jordond/filmstrip/effect/EffectSpec;Ldev/jordond/filmstrip/effect/RenderCapabilities;Ldev/jordond/filmstrip/effect/Attributes;)Ldev/jordond/filmstrip/effect/EffectResolution;
+public final class dev/jordond/filmstrip/effects/color/BrightnessKt {
+	public static final fun brightness (Ldev/jordond/filmstrip/edit/EffectsBuilder;F)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 }
 
-public final class dev/jordond/filmstrip/effects/BuiltInEffectsKt {
-	public static final fun builtInEffects (Ldev/jordond/filmstrip/FilmstripBuilder;)Ldev/jordond/filmstrip/FilmstripBuilder;
-	public static final fun getBuiltInEffectSerializers ()Lkotlinx/serialization/modules/SerializersModule;
-}
-
-public final class dev/jordond/filmstrip/effects/CornerInset {
-	public fun <init> (Ldev/jordond/filmstrip/geometry/Corner;F)V
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getCorner ()Ldev/jordond/filmstrip/geometry/Corner;
-	public final fun getMargin ()F
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class dev/jordond/filmstrip/effects/Crop : dev/jordond/filmstrip/effect/EffectSpec {
-	public static final field Companion Ldev/jordond/filmstrip/effects/Crop$Companion;
+public final class dev/jordond/filmstrip/effects/geometry/Crop : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/geometry/Crop$Companion;
 	public fun <init> (Ldev/jordond/filmstrip/geometry/AspectRatio;Ldev/jordond/filmstrip/geometry/Fit;Ldev/jordond/filmstrip/geometry/Anchor;)V
 	public synthetic fun <init> (Ldev/jordond/filmstrip/geometry/AspectRatio;Ldev/jordond/filmstrip/geometry/Fit;Ldev/jordond/filmstrip/geometry/Anchor;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
@@ -59,28 +57,30 @@ public final class dev/jordond/filmstrip/effects/Crop : dev/jordond/filmstrip/ef
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/effects/Crop$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/effects/Crop$$serializer;
+public final synthetic class dev/jordond/filmstrip/effects/geometry/Crop$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/effects/geometry/Crop$$serializer;
 	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/Crop;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/geometry/Crop;
 	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
 	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/Crop;)V
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/geometry/Crop;)V
 	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
 	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
 }
 
-public final class dev/jordond/filmstrip/effects/Crop$Companion {
+public final class dev/jordond/filmstrip/effects/geometry/Crop$Companion {
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
-public final class dev/jordond/filmstrip/effects/CropGeometryKt {
+public final class dev/jordond/filmstrip/effects/geometry/CropKt {
 	public static final fun applyTo (Ldev/jordond/filmstrip/geometry/NormalizedRect;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/geometry/Size;
-	public static final fun retainedRect (Ldev/jordond/filmstrip/effects/Crop;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/geometry/NormalizedRect;
+	public static final fun crop (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/geometry/AspectRatio;Ldev/jordond/filmstrip/geometry/Fit;Ldev/jordond/filmstrip/geometry/Anchor;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun crop$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/geometry/AspectRatio;Ldev/jordond/filmstrip/geometry/Fit;Ldev/jordond/filmstrip/geometry/Anchor;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static final fun retainedRect (Ldev/jordond/filmstrip/effects/geometry/Crop;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/geometry/NormalizedRect;
 }
 
-public final class dev/jordond/filmstrip/effects/CropRect : dev/jordond/filmstrip/effect/EffectSpec {
-	public static final field Companion Ldev/jordond/filmstrip/effects/CropRect$Companion;
+public final class dev/jordond/filmstrip/effects/geometry/CropRect : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/geometry/CropRect$Companion;
 	public fun <init> (Ldev/jordond/filmstrip/geometry/NormalizedRect;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getId ()Ljava/lang/String;
@@ -91,42 +91,27 @@ public final class dev/jordond/filmstrip/effects/CropRect : dev/jordond/filmstri
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/effects/CropRect$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/effects/CropRect$$serializer;
+public final synthetic class dev/jordond/filmstrip/effects/geometry/CropRect$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/effects/geometry/CropRect$$serializer;
 	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/CropRect;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/geometry/CropRect;
 	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
 	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/CropRect;)V
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/geometry/CropRect;)V
 	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
 	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
 }
 
-public final class dev/jordond/filmstrip/effects/CropRect$Companion {
+public final class dev/jordond/filmstrip/effects/geometry/CropRect$Companion {
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
-public final class dev/jordond/filmstrip/effects/EffectsDslKt {
-	public static final fun brightness (Ldev/jordond/filmstrip/edit/EffectsBuilder;F)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static final fun crop (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/geometry/AspectRatio;Ldev/jordond/filmstrip/geometry/Fit;Ldev/jordond/filmstrip/geometry/Anchor;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+public final class dev/jordond/filmstrip/effects/geometry/CropRectKt {
 	public static final fun crop (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/geometry/NormalizedRect;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static synthetic fun crop$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/geometry/AspectRatio;Ldev/jordond/filmstrip/geometry/Fit;Ldev/jordond/filmstrip/geometry/Anchor;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static final fun flip (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/geometry/FlipAxis;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static final fun kenBurns (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/geometry/NormalizedRect;Ldev/jordond/filmstrip/geometry/NormalizedRect;Ldev/jordond/filmstrip/motion/Easing;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static synthetic fun kenBurns$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/geometry/NormalizedRect;Ldev/jordond/filmstrip/geometry/NormalizedRect;Ldev/jordond/filmstrip/motion/Easing;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static final fun rotate (Ldev/jordond/filmstrip/edit/EffectsBuilder;I)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static final fun scale (Ldev/jordond/filmstrip/edit/EffectsBuilder;ILdev/jordond/filmstrip/geometry/Fit;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static synthetic fun scale$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;ILdev/jordond/filmstrip/geometry/Fit;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static final fun text (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/edit/TimeRange;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static final fun text (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Lkotlin/ranges/ClosedRange;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static synthetic fun text$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/edit/TimeRange;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static synthetic fun text$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Lkotlin/ranges/ClosedRange;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static final fun watermark (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;FFFLdev/jordond/filmstrip/edit/TimeRange;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static synthetic fun watermark$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;FFFLdev/jordond/filmstrip/edit/TimeRange;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 }
 
-public final class dev/jordond/filmstrip/effects/Flip : dev/jordond/filmstrip/effect/EffectSpec {
-	public static final field Companion Ldev/jordond/filmstrip/effects/Flip$Companion;
+public final class dev/jordond/filmstrip/effects/geometry/Flip : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/geometry/Flip$Companion;
 	public fun <init> (Ldev/jordond/filmstrip/geometry/FlipAxis;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAxis ()Ldev/jordond/filmstrip/geometry/FlipAxis;
@@ -137,23 +122,27 @@ public final class dev/jordond/filmstrip/effects/Flip : dev/jordond/filmstrip/ef
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/effects/Flip$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/effects/Flip$$serializer;
+public final synthetic class dev/jordond/filmstrip/effects/geometry/Flip$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/effects/geometry/Flip$$serializer;
 	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/Flip;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/geometry/Flip;
 	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
 	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/Flip;)V
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/geometry/Flip;)V
 	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
 	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
 }
 
-public final class dev/jordond/filmstrip/effects/Flip$Companion {
+public final class dev/jordond/filmstrip/effects/geometry/Flip$Companion {
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
-public final class dev/jordond/filmstrip/effects/KenBurns : dev/jordond/filmstrip/effect/EffectSpec {
-	public static final field Companion Ldev/jordond/filmstrip/effects/KenBurns$Companion;
+public final class dev/jordond/filmstrip/effects/geometry/FlipKt {
+	public static final fun flip (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/geometry/FlipAxis;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/geometry/KenBurns : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/geometry/KenBurns$Companion;
 	public fun <init> (Ldev/jordond/filmstrip/geometry/NormalizedRect;Ldev/jordond/filmstrip/geometry/NormalizedRect;Ldev/jordond/filmstrip/motion/Easing;)V
 	public synthetic fun <init> (Ldev/jordond/filmstrip/geometry/NormalizedRect;Ldev/jordond/filmstrip/geometry/NormalizedRect;Ldev/jordond/filmstrip/motion/Easing;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
@@ -167,44 +156,29 @@ public final class dev/jordond/filmstrip/effects/KenBurns : dev/jordond/filmstri
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/effects/KenBurns$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/effects/KenBurns$$serializer;
+public final synthetic class dev/jordond/filmstrip/effects/geometry/KenBurns$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/effects/geometry/KenBurns$$serializer;
 	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/KenBurns;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/geometry/KenBurns;
 	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
 	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/KenBurns;)V
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/geometry/KenBurns;)V
 	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
 	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
 }
 
-public final class dev/jordond/filmstrip/effects/KenBurns$Companion {
+public final class dev/jordond/filmstrip/effects/geometry/KenBurns$Companion {
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
-public final class dev/jordond/filmstrip/effects/KenBurnsGeometryKt {
-	public static final fun regionAt-8Mi8wO0 (Ldev/jordond/filmstrip/effects/KenBurns;JLdev/jordond/filmstrip/edit/TimeRange;)Ldev/jordond/filmstrip/geometry/NormalizedRect;
+public final class dev/jordond/filmstrip/effects/geometry/KenBurnsKt {
+	public static final fun kenBurns (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/geometry/NormalizedRect;Ldev/jordond/filmstrip/geometry/NormalizedRect;Ldev/jordond/filmstrip/motion/Easing;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun kenBurns$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/geometry/NormalizedRect;Ldev/jordond/filmstrip/geometry/NormalizedRect;Ldev/jordond/filmstrip/motion/Easing;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static final fun regionAt-8Mi8wO0 (Ldev/jordond/filmstrip/effects/geometry/KenBurns;JLdev/jordond/filmstrip/edit/TimeRange;)Ldev/jordond/filmstrip/geometry/NormalizedRect;
 }
 
-public final class dev/jordond/filmstrip/effects/OverlayGeometryKt {
-	public static final fun nearestCornerInset (Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/effects/CornerInset;
-	public static final fun placedOn (Ldev/jordond/filmstrip/effects/Text;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/effects/OverlayPlacement;
-	public static final fun placedOn (Ldev/jordond/filmstrip/effects/Watermark;Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/effects/OverlayPlacement;
-	public static final fun rectOn (Ldev/jordond/filmstrip/effects/OverlayPlacement;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/geometry/NormalizedRect;
-}
-
-public final class dev/jordond/filmstrip/effects/OverlayPlacement {
-	public fun <init> (Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/geometry/Anchor;)V
-	public fun equals (Ljava/lang/Object;)Z
-	public final fun getFrameAnchor ()Ldev/jordond/filmstrip/geometry/Anchor;
-	public final fun getOverlayAnchor ()Ldev/jordond/filmstrip/geometry/Anchor;
-	public final fun getSize ()Ldev/jordond/filmstrip/geometry/Size;
-	public fun hashCode ()I
-	public fun toString ()Ljava/lang/String;
-}
-
-public final class dev/jordond/filmstrip/effects/Rotate : dev/jordond/filmstrip/effect/EffectSpec {
-	public static final field Companion Ldev/jordond/filmstrip/effects/Rotate$Companion;
+public final class dev/jordond/filmstrip/effects/geometry/Rotate : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/geometry/Rotate$Companion;
 	public fun <init> (I)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getDegrees ()I
@@ -215,23 +189,27 @@ public final class dev/jordond/filmstrip/effects/Rotate : dev/jordond/filmstrip/
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/effects/Rotate$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/effects/Rotate$$serializer;
+public final synthetic class dev/jordond/filmstrip/effects/geometry/Rotate$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/effects/geometry/Rotate$$serializer;
 	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/Rotate;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/geometry/Rotate;
 	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
 	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/Rotate;)V
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/geometry/Rotate;)V
 	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
 	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
 }
 
-public final class dev/jordond/filmstrip/effects/Rotate$Companion {
+public final class dev/jordond/filmstrip/effects/geometry/Rotate$Companion {
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
-public final class dev/jordond/filmstrip/effects/Scale : dev/jordond/filmstrip/effect/EffectSpec {
-	public static final field Companion Ldev/jordond/filmstrip/effects/Scale$Companion;
+public final class dev/jordond/filmstrip/effects/geometry/RotateKt {
+	public static final fun rotate (Ldev/jordond/filmstrip/edit/EffectsBuilder;I)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/geometry/Scale : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/geometry/Scale$Companion;
 	public fun <init> (ILdev/jordond/filmstrip/geometry/Fit;)V
 	public synthetic fun <init> (ILdev/jordond/filmstrip/geometry/Fit;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
@@ -244,54 +222,41 @@ public final class dev/jordond/filmstrip/effects/Scale : dev/jordond/filmstrip/e
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/effects/Scale$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/effects/Scale$$serializer;
+public final synthetic class dev/jordond/filmstrip/effects/geometry/Scale$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/effects/geometry/Scale$$serializer;
 	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/Scale;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/geometry/Scale;
 	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
 	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/Scale;)V
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/geometry/Scale;)V
 	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
 	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
 }
 
-public final class dev/jordond/filmstrip/effects/Scale$Companion {
+public final class dev/jordond/filmstrip/effects/geometry/Scale$Companion {
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
-public final class dev/jordond/filmstrip/effects/Text : dev/jordond/filmstrip/effect/EffectSpec {
-	public static final field Companion Ldev/jordond/filmstrip/effects/Text$Companion;
-	public fun <init> (Ljava/lang/String;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/edit/TimeRange;)V
-	public synthetic fun <init> (Ljava/lang/String;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/edit/TimeRange;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+public final class dev/jordond/filmstrip/effects/geometry/ScaleKt {
+	public static final fun scale (Ldev/jordond/filmstrip/edit/EffectsBuilder;ILdev/jordond/filmstrip/geometry/Fit;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun scale$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;ILdev/jordond/filmstrip/geometry/Fit;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/overlay/CornerInset {
+	public fun <init> (Ldev/jordond/filmstrip/geometry/Corner;F)V
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getAnchor ()Ldev/jordond/filmstrip/geometry/Anchor;
-	public fun getId ()Ljava/lang/String;
-	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
-	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
-	public final fun getStyle ()Ldev/jordond/filmstrip/style/TextStyle;
-	public final fun getText ()Ljava/lang/String;
-	public final fun getVisibleDuring ()Ldev/jordond/filmstrip/edit/TimeRange;
+	public final fun getCorner ()Ldev/jordond/filmstrip/geometry/Corner;
+	public final fun getMargin ()F
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/effects/Text$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/effects/Text$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/Text;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/Text;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+public final class dev/jordond/filmstrip/effects/overlay/CornerInsetKt {
+	public static final fun nearestCornerInset (Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/effects/overlay/CornerInset;
 }
 
-public final class dev/jordond/filmstrip/effects/Text$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/effects/Watermark : dev/jordond/filmstrip/effect/EffectSpec {
-	public static final field Companion Ldev/jordond/filmstrip/effects/Watermark$Companion;
+public final class dev/jordond/filmstrip/effects/overlay/ImageOverlay : dev/jordond/filmstrip/effects/overlay/OverlayEffect {
+	public static final field Companion Ldev/jordond/filmstrip/effects/overlay/ImageOverlay$Companion;
 	public static final field DEFAULT_MARGIN F
 	public static final field DEFAULT_SCALE F
 	public fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;FFFLdev/jordond/filmstrip/edit/TimeRange;)V
@@ -305,23 +270,92 @@ public final class dev/jordond/filmstrip/effects/Watermark : dev/jordond/filmstr
 	public final fun getScale ()F
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
 	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
-	public final fun getVisibleDuring ()Ldev/jordond/filmstrip/edit/TimeRange;
+	public fun getVisibleDuring ()Ldev/jordond/filmstrip/edit/TimeRange;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/effects/Watermark$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/effects/Watermark$$serializer;
+public final synthetic class dev/jordond/filmstrip/effects/overlay/ImageOverlay$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/effects/overlay/ImageOverlay$$serializer;
 	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/Watermark;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/overlay/ImageOverlay;
 	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
 	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/Watermark;)V
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/overlay/ImageOverlay;)V
 	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
 	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
 }
 
-public final class dev/jordond/filmstrip/effects/Watermark$Companion {
+public final class dev/jordond/filmstrip/effects/overlay/ImageOverlay$Companion {
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/effects/overlay/ImageOverlayKt {
+	public static final fun imageOverlay (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;FFFLdev/jordond/filmstrip/edit/TimeRange;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun imageOverlay$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;FFFLdev/jordond/filmstrip/edit/TimeRange;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static final fun placedOn (Ldev/jordond/filmstrip/effects/overlay/ImageOverlay;Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/effects/overlay/OverlayPlacement;
+}
+
+public abstract interface class dev/jordond/filmstrip/effects/overlay/OverlayEffect : dev/jordond/filmstrip/effect/EffectSpec {
+	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public abstract fun getVisibleDuring ()Ldev/jordond/filmstrip/edit/TimeRange;
+}
+
+public final class dev/jordond/filmstrip/effects/overlay/OverlayEffect$DefaultImpls {
+	public static fun getScope (Ldev/jordond/filmstrip/effects/overlay/OverlayEffect;)Ldev/jordond/filmstrip/effect/EffectScope;
+	public static fun getStage (Ldev/jordond/filmstrip/effects/overlay/OverlayEffect;)Ldev/jordond/filmstrip/effect/EffectStage;
+}
+
+public final class dev/jordond/filmstrip/effects/overlay/OverlayPlacement {
+	public fun <init> (Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/geometry/Anchor;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFrameAnchor ()Ldev/jordond/filmstrip/geometry/Anchor;
+	public final fun getOverlayAnchor ()Ldev/jordond/filmstrip/geometry/Anchor;
+	public final fun getSize ()Ldev/jordond/filmstrip/geometry/Size;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/overlay/OverlayPlacementKt {
+	public static final fun rectOn (Ldev/jordond/filmstrip/effects/overlay/OverlayPlacement;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/geometry/NormalizedRect;
+}
+
+public final class dev/jordond/filmstrip/effects/overlay/TextOverlay : dev/jordond/filmstrip/effects/overlay/OverlayEffect {
+	public static final field Companion Ldev/jordond/filmstrip/effects/overlay/TextOverlay$Companion;
+	public fun <init> (Ljava/lang/String;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/edit/TimeRange;)V
+	public synthetic fun <init> (Ljava/lang/String;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/edit/TimeRange;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAnchor ()Ldev/jordond/filmstrip/geometry/Anchor;
+	public fun getId ()Ljava/lang/String;
+	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
+	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public final fun getStyle ()Ldev/jordond/filmstrip/style/TextStyle;
+	public final fun getText ()Ljava/lang/String;
+	public fun getVisibleDuring ()Ldev/jordond/filmstrip/edit/TimeRange;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class dev/jordond/filmstrip/effects/overlay/TextOverlay$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/effects/overlay/TextOverlay$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/overlay/TextOverlay;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/overlay/TextOverlay;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/effects/overlay/TextOverlay$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/effects/overlay/TextOverlayKt {
+	public static final fun placedOn (Ldev/jordond/filmstrip/effects/overlay/TextOverlay;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/effects/overlay/OverlayPlacement;
+	public static final fun textOverlay (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/edit/TimeRange;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static final fun textOverlay (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Lkotlin/ranges/ClosedRange;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun textOverlay$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/edit/TimeRange;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun textOverlay$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Lkotlin/ranges/ClosedRange;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 }
 

@@ -6,7 +6,6 @@ import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.diagnostics.DiagnosticListener
-import dev.jordond.filmstrip.edit.CompositionBuilder
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.FilmstripDsl
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -17,27 +16,27 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.internal.DefaultFilmstrip
-import dev.jordond.filmstrip.media.FrameResult
+import dev.jordond.filmstrip.media.FrameRenderer
 import dev.jordond.filmstrip.media.MediaProberFactory
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
-import dev.jordond.filmstrip.player.PlayerConfig
 import dev.jordond.filmstrip.player.PlayerEngineFactory
-import dev.jordond.filmstrip.player.VideoPlayer
+import dev.jordond.filmstrip.player.PreviewFactory
 import dev.jordond.filmstrip.thumbnail.ThumbnailSourceFactory
 import kotlinx.coroutines.flow.Flow
-import kotlin.time.Duration
 
 /**
- * The entry point.
  *
  * One instance per component graph: injectable, disposable, and created by the [Filmstrip] factory
  * function. Implemented by filmstrip, never by a consumer.
  *
- * Four questions and three actions. [probe] asks what a file is, [capabilities] asks what the
- * device can encode, [plan] asks what this device will do with an edit, and [export], [preview] and
- * [frame] do the work, all three over the same [EditComposition] value.
+ * [probe] asks what a file is, [capabilities] asks what the device can encode, [plan] asks what this device will do
+ * with an edit, and [export], [preview] and [frame] do the work, all three over the same [EditComposition] value,
+ * built with [dev.jordond.filmstrip.edit.compositionOf].
+ *
+ * The last two are what [FrameRenderer] and [PreviewFactory] declare, so a component that only
+ * draws frames or only plays takes one of those and is handed this.
  *
  * Which of these work depends on what is on the classpath. [export], [plan] and [capabilities] need
  * `filmstrip-transform`, or `filmstrip-transform-ffmpeg` on the desktop, [preview] and
@@ -46,26 +45,13 @@ import kotlin.time.Duration
  * [ExportError.BackendMissing] naming the artifact rather than as a crash.
  */
 @Stable
-public interface Filmstrip {
+public interface Filmstrip :
+  FrameRenderer,
+  PreviewFactory {
   /**
    * Everything this instance was built with, for diagnostics.
    */
   public val components: ComponentRegistry
-
-  /**
-   * Describes an edit.
-   *
-   * @param block Builds the edit.
-   * @return The described edit.
-   */
-  public fun composition(block: CompositionBuilder.() -> Unit): EditComposition
-
-  /**
-   * The explicit form of [composition], for callers without receiver lambdas.
-   *
-   * @return An empty builder.
-   */
-  public fun compositionBuilder(): CompositionBuilder
 
   /**
    * Reads a source's metadata without decoding it.
@@ -134,58 +120,6 @@ public interface Filmstrip {
     spec: ExportSpec,
     to: MediaSink,
   ): Flow<ExportStatus>
-
-  /**
-   * Renders one frame of a composition, with its effects applied.
-   *
-   * Lands on the frame covering [at], rather than on the nearest sync sample the way [frames] may.
-   *
-   * @param composition The edit to render from.
-   * @param at Where in the composition to render.
-   * @param heightPx The height to render at, in pixels. Zero renders at the composition's own
-   *   output height.
-   * @return The frame, which the caller owns and must close, or why it could not be produced.
-   */
-  public suspend fun frame(
-    composition: EditComposition,
-    at: Duration,
-    heightPx: Int = 0,
-  ): FrameResult
-
-  /**
-   * Renders several frames, emitting each as it is ready.
-   *
-   * For a timeline strip, which reads as a run of frames rather than as a set of exact instants.
-   * Each frame may therefore come from the nearest sync sample rather than the one covering its
-   * entry in [at], where that is the faster read. [FrameResult.Success.presentationTime] says where
-   * a frame actually landed. Use [frame] when a position has to be exact.
-   *
-   * @param composition The edit to render from.
-   * @param at Where in the composition to render each frame.
-   * @param heightPx The height to render at, in pixels.
-   * @return A flow of frames, one per entry in [at]. The caller owns each and must close it.
-   */
-  public fun frames(
-    composition: EditComposition,
-    at: List<Duration>,
-    heightPx: Int,
-  ): Flow<FrameResult>
-
-  /**
-   * Opens a player over the same composition value that [export] takes.
-   *
-   * Returns immediately. The composition loads asynchronously and progress is observable on the
-   * player's own state. When no preview backend is registered, the returned player reports
-   * [dev.jordond.filmstrip.player.PlaybackError.BackendMissing] rather than throwing.
-   *
-   * @param composition The edit to play.
-   * @param config How the player should behave.
-   * @return A player, which the caller owns and must close.
-   */
-  public fun preview(
-    composition: EditComposition,
-    config: PlayerConfig = PlayerConfig(),
-  ): VideoPlayer
 
   /**
    * How faithfully an effect will be previewed, with no work at all.

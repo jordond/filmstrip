@@ -6,31 +6,329 @@
 // - Show declarations: true
 
 // Library unique name: <filmstrip-root:filmstrip-effects>
-final class dev.jordond.filmstrip.effects/Brightness : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects/Brightness|null[0]
-    constructor <init>(kotlin/Float) // dev.jordond.filmstrip.effects/Brightness.<init>|<init>(kotlin.Float){}[0]
+abstract interface dev.jordond.filmstrip.effects.overlay/OverlayEffect : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.overlay/OverlayEffect|null[0]
+    abstract val visibleDuring // dev.jordond.filmstrip.effects.overlay/OverlayEffect.visibleDuring|{}visibleDuring[0]
+        abstract fun <get-visibleDuring>(): dev.jordond.filmstrip.edit/TimeRange? // dev.jordond.filmstrip.effects.overlay/OverlayEffect.visibleDuring.<get-visibleDuring>|<get-visibleDuring>(){}[0]
+    open val stage // dev.jordond.filmstrip.effects.overlay/OverlayEffect.stage|{}stage[0]
+        open fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.overlay/OverlayEffect.stage.<get-stage>|<get-stage>(){}[0]
+}
 
-    final val factor // dev.jordond.filmstrip.effects/Brightness.factor|{}factor[0]
-        final fun <get-factor>(): kotlin/Float // dev.jordond.filmstrip.effects/Brightness.factor.<get-factor>|<get-factor>(){}[0]
-    final val id // dev.jordond.filmstrip.effects/Brightness.id|{}id[0]
-        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects/Brightness.id.<get-id>|<get-id>(){}[0]
-    final val stage // dev.jordond.filmstrip.effects/Brightness.stage|{}stage[0]
-        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects/Brightness.stage.<get-stage>|<get-stage>(){}[0]
+final class dev.jordond.filmstrip.effects.color/Brightness : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.color/Brightness|null[0]
+    constructor <init>(kotlin/Float) // dev.jordond.filmstrip.effects.color/Brightness.<init>|<init>(kotlin.Float){}[0]
 
-    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects/Brightness.equals|equals(kotlin.Any?){}[0]
-    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects/Brightness.hashCode|hashCode(){}[0]
-    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects/Brightness.toString|toString(){}[0]
+    final val factor // dev.jordond.filmstrip.effects.color/Brightness.factor|{}factor[0]
+        final fun <get-factor>(): kotlin/Float // dev.jordond.filmstrip.effects.color/Brightness.factor.<get-factor>|<get-factor>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.color/Brightness.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.color/Brightness.id.<get-id>|<get-id>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.color/Brightness.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.color/Brightness.stage.<get-stage>|<get-stage>(){}[0]
 
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects/Brightness> { // dev.jordond.filmstrip.effects/Brightness.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.effects/Brightness.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects/Brightness.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.color/Brightness.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.color/Brightness.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.color/Brightness.toString|toString(){}[0]
 
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects/Brightness.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects/Brightness // dev.jordond.filmstrip.effects/Brightness.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects/Brightness) // dev.jordond.filmstrip.effects/Brightness.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.Brightness){}[0]
+    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects.color/Brightness> { // dev.jordond.filmstrip.effects.color/Brightness.$serializer|null[0]
+        final val descriptor // dev.jordond.filmstrip.effects.color/Brightness.$serializer.descriptor|{}descriptor[0]
+            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects.color/Brightness.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects.color/Brightness.$serializer.childSerializers|childSerializers(){}[0]
+        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects.color/Brightness // dev.jordond.filmstrip.effects.color/Brightness.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects.color/Brightness) // dev.jordond.filmstrip.effects.color/Brightness.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.color.Brightness){}[0]
     }
 
-    final object Companion { // dev.jordond.filmstrip.effects/Brightness.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects/Brightness> // dev.jordond.filmstrip.effects/Brightness.Companion.serializer|serializer(){}[0]
+    final object Companion { // dev.jordond.filmstrip.effects.color/Brightness.Companion|null[0]
+        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects.color/Brightness> // dev.jordond.filmstrip.effects.color/Brightness.Companion.serializer|serializer(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.geometry/Crop : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.geometry/Crop|null[0]
+    constructor <init>(dev.jordond.filmstrip.geometry/AspectRatio, dev.jordond.filmstrip.geometry/Fit = ..., dev.jordond.filmstrip.geometry/Anchor = ...) // dev.jordond.filmstrip.effects.geometry/Crop.<init>|<init>(dev.jordond.filmstrip.geometry.AspectRatio;dev.jordond.filmstrip.geometry.Fit;dev.jordond.filmstrip.geometry.Anchor){}[0]
+
+    final val anchor // dev.jordond.filmstrip.effects.geometry/Crop.anchor|{}anchor[0]
+        final fun <get-anchor>(): dev.jordond.filmstrip.geometry/Anchor // dev.jordond.filmstrip.effects.geometry/Crop.anchor.<get-anchor>|<get-anchor>(){}[0]
+    final val aspect // dev.jordond.filmstrip.effects.geometry/Crop.aspect|{}aspect[0]
+        final fun <get-aspect>(): dev.jordond.filmstrip.geometry/AspectRatio // dev.jordond.filmstrip.effects.geometry/Crop.aspect.<get-aspect>|<get-aspect>(){}[0]
+    final val fit // dev.jordond.filmstrip.effects.geometry/Crop.fit|{}fit[0]
+        final fun <get-fit>(): dev.jordond.filmstrip.geometry/Fit // dev.jordond.filmstrip.effects.geometry/Crop.fit.<get-fit>|<get-fit>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.geometry/Crop.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.geometry/Crop.id.<get-id>|<get-id>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.geometry/Crop.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.geometry/Crop.stage.<get-stage>|<get-stage>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.geometry/Crop.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.geometry/Crop.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.geometry/Crop.toString|toString(){}[0]
+
+    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects.geometry/Crop> { // dev.jordond.filmstrip.effects.geometry/Crop.$serializer|null[0]
+        final val descriptor // dev.jordond.filmstrip.effects.geometry/Crop.$serializer.descriptor|{}descriptor[0]
+            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects.geometry/Crop.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects.geometry/Crop.$serializer.childSerializers|childSerializers(){}[0]
+        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects.geometry/Crop // dev.jordond.filmstrip.effects.geometry/Crop.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects.geometry/Crop) // dev.jordond.filmstrip.effects.geometry/Crop.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.geometry.Crop){}[0]
+    }
+
+    final object Companion { // dev.jordond.filmstrip.effects.geometry/Crop.Companion|null[0]
+        final val $childSerializers // dev.jordond.filmstrip.effects.geometry/Crop.Companion.$childSerializers|{}$childSerializers[0]
+
+        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects.geometry/Crop> // dev.jordond.filmstrip.effects.geometry/Crop.Companion.serializer|serializer(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.geometry/CropRect : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.geometry/CropRect|null[0]
+    constructor <init>(dev.jordond.filmstrip.geometry/NormalizedRect) // dev.jordond.filmstrip.effects.geometry/CropRect.<init>|<init>(dev.jordond.filmstrip.geometry.NormalizedRect){}[0]
+
+    final val id // dev.jordond.filmstrip.effects.geometry/CropRect.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.geometry/CropRect.id.<get-id>|<get-id>(){}[0]
+    final val rect // dev.jordond.filmstrip.effects.geometry/CropRect.rect|{}rect[0]
+        final fun <get-rect>(): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.effects.geometry/CropRect.rect.<get-rect>|<get-rect>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.geometry/CropRect.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.geometry/CropRect.stage.<get-stage>|<get-stage>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.geometry/CropRect.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.geometry/CropRect.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.geometry/CropRect.toString|toString(){}[0]
+
+    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects.geometry/CropRect> { // dev.jordond.filmstrip.effects.geometry/CropRect.$serializer|null[0]
+        final val descriptor // dev.jordond.filmstrip.effects.geometry/CropRect.$serializer.descriptor|{}descriptor[0]
+            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects.geometry/CropRect.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects.geometry/CropRect.$serializer.childSerializers|childSerializers(){}[0]
+        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects.geometry/CropRect // dev.jordond.filmstrip.effects.geometry/CropRect.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects.geometry/CropRect) // dev.jordond.filmstrip.effects.geometry/CropRect.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.geometry.CropRect){}[0]
+    }
+
+    final object Companion { // dev.jordond.filmstrip.effects.geometry/CropRect.Companion|null[0]
+        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects.geometry/CropRect> // dev.jordond.filmstrip.effects.geometry/CropRect.Companion.serializer|serializer(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.geometry/Flip : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.geometry/Flip|null[0]
+    constructor <init>(dev.jordond.filmstrip.geometry/FlipAxis) // dev.jordond.filmstrip.effects.geometry/Flip.<init>|<init>(dev.jordond.filmstrip.geometry.FlipAxis){}[0]
+
+    final val axis // dev.jordond.filmstrip.effects.geometry/Flip.axis|{}axis[0]
+        final fun <get-axis>(): dev.jordond.filmstrip.geometry/FlipAxis // dev.jordond.filmstrip.effects.geometry/Flip.axis.<get-axis>|<get-axis>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.geometry/Flip.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.geometry/Flip.id.<get-id>|<get-id>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.geometry/Flip.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.geometry/Flip.stage.<get-stage>|<get-stage>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.geometry/Flip.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.geometry/Flip.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.geometry/Flip.toString|toString(){}[0]
+
+    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects.geometry/Flip> { // dev.jordond.filmstrip.effects.geometry/Flip.$serializer|null[0]
+        final val descriptor // dev.jordond.filmstrip.effects.geometry/Flip.$serializer.descriptor|{}descriptor[0]
+            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects.geometry/Flip.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects.geometry/Flip.$serializer.childSerializers|childSerializers(){}[0]
+        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects.geometry/Flip // dev.jordond.filmstrip.effects.geometry/Flip.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects.geometry/Flip) // dev.jordond.filmstrip.effects.geometry/Flip.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.geometry.Flip){}[0]
+    }
+
+    final object Companion { // dev.jordond.filmstrip.effects.geometry/Flip.Companion|null[0]
+        final val $childSerializers // dev.jordond.filmstrip.effects.geometry/Flip.Companion.$childSerializers|{}$childSerializers[0]
+
+        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects.geometry/Flip> // dev.jordond.filmstrip.effects.geometry/Flip.Companion.serializer|serializer(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.geometry/KenBurns : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.geometry/KenBurns|null[0]
+    constructor <init>(dev.jordond.filmstrip.geometry/NormalizedRect, dev.jordond.filmstrip.geometry/NormalizedRect, dev.jordond.filmstrip.motion/Easing = ...) // dev.jordond.filmstrip.effects.geometry/KenBurns.<init>|<init>(dev.jordond.filmstrip.geometry.NormalizedRect;dev.jordond.filmstrip.geometry.NormalizedRect;dev.jordond.filmstrip.motion.Easing){}[0]
+
+    final val easing // dev.jordond.filmstrip.effects.geometry/KenBurns.easing|{}easing[0]
+        final fun <get-easing>(): dev.jordond.filmstrip.motion/Easing // dev.jordond.filmstrip.effects.geometry/KenBurns.easing.<get-easing>|<get-easing>(){}[0]
+    final val from // dev.jordond.filmstrip.effects.geometry/KenBurns.from|{}from[0]
+        final fun <get-from>(): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.effects.geometry/KenBurns.from.<get-from>|<get-from>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.geometry/KenBurns.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.geometry/KenBurns.id.<get-id>|<get-id>(){}[0]
+    final val scope // dev.jordond.filmstrip.effects.geometry/KenBurns.scope|{}scope[0]
+        final fun <get-scope>(): dev.jordond.filmstrip.effect/EffectScope // dev.jordond.filmstrip.effects.geometry/KenBurns.scope.<get-scope>|<get-scope>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.geometry/KenBurns.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.geometry/KenBurns.stage.<get-stage>|<get-stage>(){}[0]
+    final val to // dev.jordond.filmstrip.effects.geometry/KenBurns.to|{}to[0]
+        final fun <get-to>(): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.effects.geometry/KenBurns.to.<get-to>|<get-to>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.geometry/KenBurns.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.geometry/KenBurns.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.geometry/KenBurns.toString|toString(){}[0]
+
+    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects.geometry/KenBurns> { // dev.jordond.filmstrip.effects.geometry/KenBurns.$serializer|null[0]
+        final val descriptor // dev.jordond.filmstrip.effects.geometry/KenBurns.$serializer.descriptor|{}descriptor[0]
+            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects.geometry/KenBurns.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects.geometry/KenBurns.$serializer.childSerializers|childSerializers(){}[0]
+        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects.geometry/KenBurns // dev.jordond.filmstrip.effects.geometry/KenBurns.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects.geometry/KenBurns) // dev.jordond.filmstrip.effects.geometry/KenBurns.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.geometry.KenBurns){}[0]
+    }
+
+    final object Companion { // dev.jordond.filmstrip.effects.geometry/KenBurns.Companion|null[0]
+        final val $childSerializers // dev.jordond.filmstrip.effects.geometry/KenBurns.Companion.$childSerializers|{}$childSerializers[0]
+
+        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects.geometry/KenBurns> // dev.jordond.filmstrip.effects.geometry/KenBurns.Companion.serializer|serializer(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.geometry/Rotate : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.geometry/Rotate|null[0]
+    constructor <init>(kotlin/Int) // dev.jordond.filmstrip.effects.geometry/Rotate.<init>|<init>(kotlin.Int){}[0]
+
+    final val degrees // dev.jordond.filmstrip.effects.geometry/Rotate.degrees|{}degrees[0]
+        final fun <get-degrees>(): kotlin/Int // dev.jordond.filmstrip.effects.geometry/Rotate.degrees.<get-degrees>|<get-degrees>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.geometry/Rotate.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.geometry/Rotate.id.<get-id>|<get-id>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.geometry/Rotate.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.geometry/Rotate.stage.<get-stage>|<get-stage>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.geometry/Rotate.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.geometry/Rotate.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.geometry/Rotate.toString|toString(){}[0]
+
+    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects.geometry/Rotate> { // dev.jordond.filmstrip.effects.geometry/Rotate.$serializer|null[0]
+        final val descriptor // dev.jordond.filmstrip.effects.geometry/Rotate.$serializer.descriptor|{}descriptor[0]
+            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects.geometry/Rotate.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects.geometry/Rotate.$serializer.childSerializers|childSerializers(){}[0]
+        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects.geometry/Rotate // dev.jordond.filmstrip.effects.geometry/Rotate.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects.geometry/Rotate) // dev.jordond.filmstrip.effects.geometry/Rotate.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.geometry.Rotate){}[0]
+    }
+
+    final object Companion { // dev.jordond.filmstrip.effects.geometry/Rotate.Companion|null[0]
+        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects.geometry/Rotate> // dev.jordond.filmstrip.effects.geometry/Rotate.Companion.serializer|serializer(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.geometry/Scale : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.geometry/Scale|null[0]
+    constructor <init>(kotlin/Int, dev.jordond.filmstrip.geometry/Fit = ...) // dev.jordond.filmstrip.effects.geometry/Scale.<init>|<init>(kotlin.Int;dev.jordond.filmstrip.geometry.Fit){}[0]
+
+    final val fit // dev.jordond.filmstrip.effects.geometry/Scale.fit|{}fit[0]
+        final fun <get-fit>(): dev.jordond.filmstrip.geometry/Fit // dev.jordond.filmstrip.effects.geometry/Scale.fit.<get-fit>|<get-fit>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.geometry/Scale.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.geometry/Scale.id.<get-id>|<get-id>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.geometry/Scale.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.geometry/Scale.stage.<get-stage>|<get-stage>(){}[0]
+    final val targetHeight // dev.jordond.filmstrip.effects.geometry/Scale.targetHeight|{}targetHeight[0]
+        final fun <get-targetHeight>(): kotlin/Int // dev.jordond.filmstrip.effects.geometry/Scale.targetHeight.<get-targetHeight>|<get-targetHeight>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.geometry/Scale.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.geometry/Scale.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.geometry/Scale.toString|toString(){}[0]
+
+    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects.geometry/Scale> { // dev.jordond.filmstrip.effects.geometry/Scale.$serializer|null[0]
+        final val descriptor // dev.jordond.filmstrip.effects.geometry/Scale.$serializer.descriptor|{}descriptor[0]
+            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects.geometry/Scale.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects.geometry/Scale.$serializer.childSerializers|childSerializers(){}[0]
+        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects.geometry/Scale // dev.jordond.filmstrip.effects.geometry/Scale.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects.geometry/Scale) // dev.jordond.filmstrip.effects.geometry/Scale.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.geometry.Scale){}[0]
+    }
+
+    final object Companion { // dev.jordond.filmstrip.effects.geometry/Scale.Companion|null[0]
+        final val $childSerializers // dev.jordond.filmstrip.effects.geometry/Scale.Companion.$childSerializers|{}$childSerializers[0]
+
+        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects.geometry/Scale> // dev.jordond.filmstrip.effects.geometry/Scale.Companion.serializer|serializer(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.overlay/CornerInset { // dev.jordond.filmstrip.effects.overlay/CornerInset|null[0]
+    constructor <init>(dev.jordond.filmstrip.geometry/Corner, kotlin/Float) // dev.jordond.filmstrip.effects.overlay/CornerInset.<init>|<init>(dev.jordond.filmstrip.geometry.Corner;kotlin.Float){}[0]
+
+    final val corner // dev.jordond.filmstrip.effects.overlay/CornerInset.corner|{}corner[0]
+        final fun <get-corner>(): dev.jordond.filmstrip.geometry/Corner // dev.jordond.filmstrip.effects.overlay/CornerInset.corner.<get-corner>|<get-corner>(){}[0]
+    final val margin // dev.jordond.filmstrip.effects.overlay/CornerInset.margin|{}margin[0]
+        final fun <get-margin>(): kotlin/Float // dev.jordond.filmstrip.effects.overlay/CornerInset.margin.<get-margin>|<get-margin>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.overlay/CornerInset.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.overlay/CornerInset.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.overlay/CornerInset.toString|toString(){}[0]
+}
+
+final class dev.jordond.filmstrip.effects.overlay/ImageOverlay : dev.jordond.filmstrip.effects.overlay/OverlayEffect { // dev.jordond.filmstrip.effects.overlay/ImageOverlay|null[0]
+    constructor <init>(dev.jordond.filmstrip.media/ImageSource, dev.jordond.filmstrip.geometry/Corner, kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., dev.jordond.filmstrip.edit/TimeRange? = ...) // dev.jordond.filmstrip.effects.overlay/ImageOverlay.<init>|<init>(dev.jordond.filmstrip.media.ImageSource;dev.jordond.filmstrip.geometry.Corner;kotlin.Float;kotlin.Float;kotlin.Float;dev.jordond.filmstrip.edit.TimeRange?){}[0]
+
+    final val corner // dev.jordond.filmstrip.effects.overlay/ImageOverlay.corner|{}corner[0]
+        final fun <get-corner>(): dev.jordond.filmstrip.geometry/Corner // dev.jordond.filmstrip.effects.overlay/ImageOverlay.corner.<get-corner>|<get-corner>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.overlay/ImageOverlay.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.overlay/ImageOverlay.id.<get-id>|<get-id>(){}[0]
+    final val image // dev.jordond.filmstrip.effects.overlay/ImageOverlay.image|{}image[0]
+        final fun <get-image>(): dev.jordond.filmstrip.media/ImageSource // dev.jordond.filmstrip.effects.overlay/ImageOverlay.image.<get-image>|<get-image>(){}[0]
+    final val margin // dev.jordond.filmstrip.effects.overlay/ImageOverlay.margin|{}margin[0]
+        final fun <get-margin>(): kotlin/Float // dev.jordond.filmstrip.effects.overlay/ImageOverlay.margin.<get-margin>|<get-margin>(){}[0]
+    final val opacity // dev.jordond.filmstrip.effects.overlay/ImageOverlay.opacity|{}opacity[0]
+        final fun <get-opacity>(): kotlin/Float // dev.jordond.filmstrip.effects.overlay/ImageOverlay.opacity.<get-opacity>|<get-opacity>(){}[0]
+    final val scale // dev.jordond.filmstrip.effects.overlay/ImageOverlay.scale|{}scale[0]
+        final fun <get-scale>(): kotlin/Float // dev.jordond.filmstrip.effects.overlay/ImageOverlay.scale.<get-scale>|<get-scale>(){}[0]
+    final val visibleDuring // dev.jordond.filmstrip.effects.overlay/ImageOverlay.visibleDuring|{}visibleDuring[0]
+        final fun <get-visibleDuring>(): dev.jordond.filmstrip.edit/TimeRange? // dev.jordond.filmstrip.effects.overlay/ImageOverlay.visibleDuring.<get-visibleDuring>|<get-visibleDuring>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.overlay/ImageOverlay.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.overlay/ImageOverlay.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.overlay/ImageOverlay.toString|toString(){}[0]
+
+    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects.overlay/ImageOverlay> { // dev.jordond.filmstrip.effects.overlay/ImageOverlay.$serializer|null[0]
+        final val descriptor // dev.jordond.filmstrip.effects.overlay/ImageOverlay.$serializer.descriptor|{}descriptor[0]
+            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects.overlay/ImageOverlay.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects.overlay/ImageOverlay.$serializer.childSerializers|childSerializers(){}[0]
+        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects.overlay/ImageOverlay // dev.jordond.filmstrip.effects.overlay/ImageOverlay.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects.overlay/ImageOverlay) // dev.jordond.filmstrip.effects.overlay/ImageOverlay.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.overlay.ImageOverlay){}[0]
+    }
+
+    final object Companion { // dev.jordond.filmstrip.effects.overlay/ImageOverlay.Companion|null[0]
+        final const val DEFAULT_MARGIN // dev.jordond.filmstrip.effects.overlay/ImageOverlay.Companion.DEFAULT_MARGIN|{}DEFAULT_MARGIN[0]
+            final fun <get-DEFAULT_MARGIN>(): kotlin/Float // dev.jordond.filmstrip.effects.overlay/ImageOverlay.Companion.DEFAULT_MARGIN.<get-DEFAULT_MARGIN>|<get-DEFAULT_MARGIN>(){}[0]
+        final const val DEFAULT_SCALE // dev.jordond.filmstrip.effects.overlay/ImageOverlay.Companion.DEFAULT_SCALE|{}DEFAULT_SCALE[0]
+            final fun <get-DEFAULT_SCALE>(): kotlin/Float // dev.jordond.filmstrip.effects.overlay/ImageOverlay.Companion.DEFAULT_SCALE.<get-DEFAULT_SCALE>|<get-DEFAULT_SCALE>(){}[0]
+
+        final val $childSerializers // dev.jordond.filmstrip.effects.overlay/ImageOverlay.Companion.$childSerializers|{}$childSerializers[0]
+
+        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects.overlay/ImageOverlay> // dev.jordond.filmstrip.effects.overlay/ImageOverlay.Companion.serializer|serializer(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.overlay/OverlayPlacement { // dev.jordond.filmstrip.effects.overlay/OverlayPlacement|null[0]
+    constructor <init>(dev.jordond.filmstrip.geometry/Size, dev.jordond.filmstrip.geometry/Anchor, dev.jordond.filmstrip.geometry/Anchor) // dev.jordond.filmstrip.effects.overlay/OverlayPlacement.<init>|<init>(dev.jordond.filmstrip.geometry.Size;dev.jordond.filmstrip.geometry.Anchor;dev.jordond.filmstrip.geometry.Anchor){}[0]
+
+    final val frameAnchor // dev.jordond.filmstrip.effects.overlay/OverlayPlacement.frameAnchor|{}frameAnchor[0]
+        final fun <get-frameAnchor>(): dev.jordond.filmstrip.geometry/Anchor // dev.jordond.filmstrip.effects.overlay/OverlayPlacement.frameAnchor.<get-frameAnchor>|<get-frameAnchor>(){}[0]
+    final val overlayAnchor // dev.jordond.filmstrip.effects.overlay/OverlayPlacement.overlayAnchor|{}overlayAnchor[0]
+        final fun <get-overlayAnchor>(): dev.jordond.filmstrip.geometry/Anchor // dev.jordond.filmstrip.effects.overlay/OverlayPlacement.overlayAnchor.<get-overlayAnchor>|<get-overlayAnchor>(){}[0]
+    final val size // dev.jordond.filmstrip.effects.overlay/OverlayPlacement.size|{}size[0]
+        final fun <get-size>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.effects.overlay/OverlayPlacement.size.<get-size>|<get-size>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.overlay/OverlayPlacement.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.overlay/OverlayPlacement.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.overlay/OverlayPlacement.toString|toString(){}[0]
+}
+
+final class dev.jordond.filmstrip.effects.overlay/TextOverlay : dev.jordond.filmstrip.effects.overlay/OverlayEffect { // dev.jordond.filmstrip.effects.overlay/TextOverlay|null[0]
+    constructor <init>(kotlin/String, dev.jordond.filmstrip.style/TextStyle = ..., dev.jordond.filmstrip.geometry/Anchor = ..., dev.jordond.filmstrip.edit/TimeRange? = ...) // dev.jordond.filmstrip.effects.overlay/TextOverlay.<init>|<init>(kotlin.String;dev.jordond.filmstrip.style.TextStyle;dev.jordond.filmstrip.geometry.Anchor;dev.jordond.filmstrip.edit.TimeRange?){}[0]
+
+    final val anchor // dev.jordond.filmstrip.effects.overlay/TextOverlay.anchor|{}anchor[0]
+        final fun <get-anchor>(): dev.jordond.filmstrip.geometry/Anchor // dev.jordond.filmstrip.effects.overlay/TextOverlay.anchor.<get-anchor>|<get-anchor>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.overlay/TextOverlay.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.overlay/TextOverlay.id.<get-id>|<get-id>(){}[0]
+    final val style // dev.jordond.filmstrip.effects.overlay/TextOverlay.style|{}style[0]
+        final fun <get-style>(): dev.jordond.filmstrip.style/TextStyle // dev.jordond.filmstrip.effects.overlay/TextOverlay.style.<get-style>|<get-style>(){}[0]
+    final val text // dev.jordond.filmstrip.effects.overlay/TextOverlay.text|{}text[0]
+        final fun <get-text>(): kotlin/String // dev.jordond.filmstrip.effects.overlay/TextOverlay.text.<get-text>|<get-text>(){}[0]
+    final val visibleDuring // dev.jordond.filmstrip.effects.overlay/TextOverlay.visibleDuring|{}visibleDuring[0]
+        final fun <get-visibleDuring>(): dev.jordond.filmstrip.edit/TimeRange? // dev.jordond.filmstrip.effects.overlay/TextOverlay.visibleDuring.<get-visibleDuring>|<get-visibleDuring>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.overlay/TextOverlay.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.overlay/TextOverlay.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.overlay/TextOverlay.toString|toString(){}[0]
+
+    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects.overlay/TextOverlay> { // dev.jordond.filmstrip.effects.overlay/TextOverlay.$serializer|null[0]
+        final val descriptor // dev.jordond.filmstrip.effects.overlay/TextOverlay.$serializer.descriptor|{}descriptor[0]
+            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects.overlay/TextOverlay.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects.overlay/TextOverlay.$serializer.childSerializers|childSerializers(){}[0]
+        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects.overlay/TextOverlay // dev.jordond.filmstrip.effects.overlay/TextOverlay.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects.overlay/TextOverlay) // dev.jordond.filmstrip.effects.overlay/TextOverlay.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.overlay.TextOverlay){}[0]
+    }
+
+    final object Companion { // dev.jordond.filmstrip.effects.overlay/TextOverlay.Companion|null[0]
+        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects.overlay/TextOverlay> // dev.jordond.filmstrip.effects.overlay/TextOverlay.Companion.serializer|serializer(){}[0]
     }
 }
 
@@ -40,319 +338,24 @@ final class dev.jordond.filmstrip.effects/BuiltInEffectResolver : dev.jordond.fi
     final fun resolve(dev.jordond.filmstrip.effect/EffectSpec, dev.jordond.filmstrip.effect/RenderCapabilities, dev.jordond.filmstrip.effect/Attributes): dev.jordond.filmstrip.effect/EffectResolution? // dev.jordond.filmstrip.effects/BuiltInEffectResolver.resolve|resolve(dev.jordond.filmstrip.effect.EffectSpec;dev.jordond.filmstrip.effect.RenderCapabilities;dev.jordond.filmstrip.effect.Attributes){}[0]
 }
 
-final class dev.jordond.filmstrip.effects/CornerInset { // dev.jordond.filmstrip.effects/CornerInset|null[0]
-    constructor <init>(dev.jordond.filmstrip.geometry/Corner, kotlin/Float) // dev.jordond.filmstrip.effects/CornerInset.<init>|<init>(dev.jordond.filmstrip.geometry.Corner;kotlin.Float){}[0]
-
-    final val corner // dev.jordond.filmstrip.effects/CornerInset.corner|{}corner[0]
-        final fun <get-corner>(): dev.jordond.filmstrip.geometry/Corner // dev.jordond.filmstrip.effects/CornerInset.corner.<get-corner>|<get-corner>(){}[0]
-    final val margin // dev.jordond.filmstrip.effects/CornerInset.margin|{}margin[0]
-        final fun <get-margin>(): kotlin/Float // dev.jordond.filmstrip.effects/CornerInset.margin.<get-margin>|<get-margin>(){}[0]
-
-    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects/CornerInset.equals|equals(kotlin.Any?){}[0]
-    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects/CornerInset.hashCode|hashCode(){}[0]
-    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects/CornerInset.toString|toString(){}[0]
-}
-
-final class dev.jordond.filmstrip.effects/Crop : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects/Crop|null[0]
-    constructor <init>(dev.jordond.filmstrip.geometry/AspectRatio, dev.jordond.filmstrip.geometry/Fit = ..., dev.jordond.filmstrip.geometry/Anchor = ...) // dev.jordond.filmstrip.effects/Crop.<init>|<init>(dev.jordond.filmstrip.geometry.AspectRatio;dev.jordond.filmstrip.geometry.Fit;dev.jordond.filmstrip.geometry.Anchor){}[0]
-
-    final val anchor // dev.jordond.filmstrip.effects/Crop.anchor|{}anchor[0]
-        final fun <get-anchor>(): dev.jordond.filmstrip.geometry/Anchor // dev.jordond.filmstrip.effects/Crop.anchor.<get-anchor>|<get-anchor>(){}[0]
-    final val aspect // dev.jordond.filmstrip.effects/Crop.aspect|{}aspect[0]
-        final fun <get-aspect>(): dev.jordond.filmstrip.geometry/AspectRatio // dev.jordond.filmstrip.effects/Crop.aspect.<get-aspect>|<get-aspect>(){}[0]
-    final val fit // dev.jordond.filmstrip.effects/Crop.fit|{}fit[0]
-        final fun <get-fit>(): dev.jordond.filmstrip.geometry/Fit // dev.jordond.filmstrip.effects/Crop.fit.<get-fit>|<get-fit>(){}[0]
-    final val id // dev.jordond.filmstrip.effects/Crop.id|{}id[0]
-        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects/Crop.id.<get-id>|<get-id>(){}[0]
-    final val stage // dev.jordond.filmstrip.effects/Crop.stage|{}stage[0]
-        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects/Crop.stage.<get-stage>|<get-stage>(){}[0]
-
-    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects/Crop.equals|equals(kotlin.Any?){}[0]
-    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects/Crop.hashCode|hashCode(){}[0]
-    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects/Crop.toString|toString(){}[0]
-
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects/Crop> { // dev.jordond.filmstrip.effects/Crop.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.effects/Crop.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects/Crop.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects/Crop.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects/Crop // dev.jordond.filmstrip.effects/Crop.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects/Crop) // dev.jordond.filmstrip.effects/Crop.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.Crop){}[0]
-    }
-
-    final object Companion { // dev.jordond.filmstrip.effects/Crop.Companion|null[0]
-        final val $childSerializers // dev.jordond.filmstrip.effects/Crop.Companion.$childSerializers|{}$childSerializers[0]
-
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects/Crop> // dev.jordond.filmstrip.effects/Crop.Companion.serializer|serializer(){}[0]
-    }
-}
-
-final class dev.jordond.filmstrip.effects/CropRect : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects/CropRect|null[0]
-    constructor <init>(dev.jordond.filmstrip.geometry/NormalizedRect) // dev.jordond.filmstrip.effects/CropRect.<init>|<init>(dev.jordond.filmstrip.geometry.NormalizedRect){}[0]
-
-    final val id // dev.jordond.filmstrip.effects/CropRect.id|{}id[0]
-        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects/CropRect.id.<get-id>|<get-id>(){}[0]
-    final val rect // dev.jordond.filmstrip.effects/CropRect.rect|{}rect[0]
-        final fun <get-rect>(): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.effects/CropRect.rect.<get-rect>|<get-rect>(){}[0]
-    final val stage // dev.jordond.filmstrip.effects/CropRect.stage|{}stage[0]
-        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects/CropRect.stage.<get-stage>|<get-stage>(){}[0]
-
-    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects/CropRect.equals|equals(kotlin.Any?){}[0]
-    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects/CropRect.hashCode|hashCode(){}[0]
-    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects/CropRect.toString|toString(){}[0]
-
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects/CropRect> { // dev.jordond.filmstrip.effects/CropRect.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.effects/CropRect.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects/CropRect.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects/CropRect.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects/CropRect // dev.jordond.filmstrip.effects/CropRect.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects/CropRect) // dev.jordond.filmstrip.effects/CropRect.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.CropRect){}[0]
-    }
-
-    final object Companion { // dev.jordond.filmstrip.effects/CropRect.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects/CropRect> // dev.jordond.filmstrip.effects/CropRect.Companion.serializer|serializer(){}[0]
-    }
-}
-
-final class dev.jordond.filmstrip.effects/Flip : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects/Flip|null[0]
-    constructor <init>(dev.jordond.filmstrip.geometry/FlipAxis) // dev.jordond.filmstrip.effects/Flip.<init>|<init>(dev.jordond.filmstrip.geometry.FlipAxis){}[0]
-
-    final val axis // dev.jordond.filmstrip.effects/Flip.axis|{}axis[0]
-        final fun <get-axis>(): dev.jordond.filmstrip.geometry/FlipAxis // dev.jordond.filmstrip.effects/Flip.axis.<get-axis>|<get-axis>(){}[0]
-    final val id // dev.jordond.filmstrip.effects/Flip.id|{}id[0]
-        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects/Flip.id.<get-id>|<get-id>(){}[0]
-    final val stage // dev.jordond.filmstrip.effects/Flip.stage|{}stage[0]
-        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects/Flip.stage.<get-stage>|<get-stage>(){}[0]
-
-    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects/Flip.equals|equals(kotlin.Any?){}[0]
-    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects/Flip.hashCode|hashCode(){}[0]
-    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects/Flip.toString|toString(){}[0]
-
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects/Flip> { // dev.jordond.filmstrip.effects/Flip.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.effects/Flip.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects/Flip.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects/Flip.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects/Flip // dev.jordond.filmstrip.effects/Flip.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects/Flip) // dev.jordond.filmstrip.effects/Flip.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.Flip){}[0]
-    }
-
-    final object Companion { // dev.jordond.filmstrip.effects/Flip.Companion|null[0]
-        final val $childSerializers // dev.jordond.filmstrip.effects/Flip.Companion.$childSerializers|{}$childSerializers[0]
-
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects/Flip> // dev.jordond.filmstrip.effects/Flip.Companion.serializer|serializer(){}[0]
-    }
-}
-
-final class dev.jordond.filmstrip.effects/KenBurns : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects/KenBurns|null[0]
-    constructor <init>(dev.jordond.filmstrip.geometry/NormalizedRect, dev.jordond.filmstrip.geometry/NormalizedRect, dev.jordond.filmstrip.motion/Easing = ...) // dev.jordond.filmstrip.effects/KenBurns.<init>|<init>(dev.jordond.filmstrip.geometry.NormalizedRect;dev.jordond.filmstrip.geometry.NormalizedRect;dev.jordond.filmstrip.motion.Easing){}[0]
-
-    final val easing // dev.jordond.filmstrip.effects/KenBurns.easing|{}easing[0]
-        final fun <get-easing>(): dev.jordond.filmstrip.motion/Easing // dev.jordond.filmstrip.effects/KenBurns.easing.<get-easing>|<get-easing>(){}[0]
-    final val from // dev.jordond.filmstrip.effects/KenBurns.from|{}from[0]
-        final fun <get-from>(): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.effects/KenBurns.from.<get-from>|<get-from>(){}[0]
-    final val id // dev.jordond.filmstrip.effects/KenBurns.id|{}id[0]
-        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects/KenBurns.id.<get-id>|<get-id>(){}[0]
-    final val scope // dev.jordond.filmstrip.effects/KenBurns.scope|{}scope[0]
-        final fun <get-scope>(): dev.jordond.filmstrip.effect/EffectScope // dev.jordond.filmstrip.effects/KenBurns.scope.<get-scope>|<get-scope>(){}[0]
-    final val stage // dev.jordond.filmstrip.effects/KenBurns.stage|{}stage[0]
-        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects/KenBurns.stage.<get-stage>|<get-stage>(){}[0]
-    final val to // dev.jordond.filmstrip.effects/KenBurns.to|{}to[0]
-        final fun <get-to>(): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.effects/KenBurns.to.<get-to>|<get-to>(){}[0]
-
-    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects/KenBurns.equals|equals(kotlin.Any?){}[0]
-    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects/KenBurns.hashCode|hashCode(){}[0]
-    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects/KenBurns.toString|toString(){}[0]
-
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects/KenBurns> { // dev.jordond.filmstrip.effects/KenBurns.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.effects/KenBurns.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects/KenBurns.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects/KenBurns.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects/KenBurns // dev.jordond.filmstrip.effects/KenBurns.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects/KenBurns) // dev.jordond.filmstrip.effects/KenBurns.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.KenBurns){}[0]
-    }
-
-    final object Companion { // dev.jordond.filmstrip.effects/KenBurns.Companion|null[0]
-        final val $childSerializers // dev.jordond.filmstrip.effects/KenBurns.Companion.$childSerializers|{}$childSerializers[0]
-
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects/KenBurns> // dev.jordond.filmstrip.effects/KenBurns.Companion.serializer|serializer(){}[0]
-    }
-}
-
-final class dev.jordond.filmstrip.effects/OverlayPlacement { // dev.jordond.filmstrip.effects/OverlayPlacement|null[0]
-    constructor <init>(dev.jordond.filmstrip.geometry/Size, dev.jordond.filmstrip.geometry/Anchor, dev.jordond.filmstrip.geometry/Anchor) // dev.jordond.filmstrip.effects/OverlayPlacement.<init>|<init>(dev.jordond.filmstrip.geometry.Size;dev.jordond.filmstrip.geometry.Anchor;dev.jordond.filmstrip.geometry.Anchor){}[0]
-
-    final val frameAnchor // dev.jordond.filmstrip.effects/OverlayPlacement.frameAnchor|{}frameAnchor[0]
-        final fun <get-frameAnchor>(): dev.jordond.filmstrip.geometry/Anchor // dev.jordond.filmstrip.effects/OverlayPlacement.frameAnchor.<get-frameAnchor>|<get-frameAnchor>(){}[0]
-    final val overlayAnchor // dev.jordond.filmstrip.effects/OverlayPlacement.overlayAnchor|{}overlayAnchor[0]
-        final fun <get-overlayAnchor>(): dev.jordond.filmstrip.geometry/Anchor // dev.jordond.filmstrip.effects/OverlayPlacement.overlayAnchor.<get-overlayAnchor>|<get-overlayAnchor>(){}[0]
-    final val size // dev.jordond.filmstrip.effects/OverlayPlacement.size|{}size[0]
-        final fun <get-size>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.effects/OverlayPlacement.size.<get-size>|<get-size>(){}[0]
-
-    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects/OverlayPlacement.equals|equals(kotlin.Any?){}[0]
-    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects/OverlayPlacement.hashCode|hashCode(){}[0]
-    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects/OverlayPlacement.toString|toString(){}[0]
-}
-
-final class dev.jordond.filmstrip.effects/Rotate : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects/Rotate|null[0]
-    constructor <init>(kotlin/Int) // dev.jordond.filmstrip.effects/Rotate.<init>|<init>(kotlin.Int){}[0]
-
-    final val degrees // dev.jordond.filmstrip.effects/Rotate.degrees|{}degrees[0]
-        final fun <get-degrees>(): kotlin/Int // dev.jordond.filmstrip.effects/Rotate.degrees.<get-degrees>|<get-degrees>(){}[0]
-    final val id // dev.jordond.filmstrip.effects/Rotate.id|{}id[0]
-        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects/Rotate.id.<get-id>|<get-id>(){}[0]
-    final val stage // dev.jordond.filmstrip.effects/Rotate.stage|{}stage[0]
-        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects/Rotate.stage.<get-stage>|<get-stage>(){}[0]
-
-    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects/Rotate.equals|equals(kotlin.Any?){}[0]
-    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects/Rotate.hashCode|hashCode(){}[0]
-    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects/Rotate.toString|toString(){}[0]
-
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects/Rotate> { // dev.jordond.filmstrip.effects/Rotate.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.effects/Rotate.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects/Rotate.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects/Rotate.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects/Rotate // dev.jordond.filmstrip.effects/Rotate.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects/Rotate) // dev.jordond.filmstrip.effects/Rotate.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.Rotate){}[0]
-    }
-
-    final object Companion { // dev.jordond.filmstrip.effects/Rotate.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects/Rotate> // dev.jordond.filmstrip.effects/Rotate.Companion.serializer|serializer(){}[0]
-    }
-}
-
-final class dev.jordond.filmstrip.effects/Scale : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects/Scale|null[0]
-    constructor <init>(kotlin/Int, dev.jordond.filmstrip.geometry/Fit = ...) // dev.jordond.filmstrip.effects/Scale.<init>|<init>(kotlin.Int;dev.jordond.filmstrip.geometry.Fit){}[0]
-
-    final val fit // dev.jordond.filmstrip.effects/Scale.fit|{}fit[0]
-        final fun <get-fit>(): dev.jordond.filmstrip.geometry/Fit // dev.jordond.filmstrip.effects/Scale.fit.<get-fit>|<get-fit>(){}[0]
-    final val id // dev.jordond.filmstrip.effects/Scale.id|{}id[0]
-        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects/Scale.id.<get-id>|<get-id>(){}[0]
-    final val stage // dev.jordond.filmstrip.effects/Scale.stage|{}stage[0]
-        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects/Scale.stage.<get-stage>|<get-stage>(){}[0]
-    final val targetHeight // dev.jordond.filmstrip.effects/Scale.targetHeight|{}targetHeight[0]
-        final fun <get-targetHeight>(): kotlin/Int // dev.jordond.filmstrip.effects/Scale.targetHeight.<get-targetHeight>|<get-targetHeight>(){}[0]
-
-    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects/Scale.equals|equals(kotlin.Any?){}[0]
-    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects/Scale.hashCode|hashCode(){}[0]
-    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects/Scale.toString|toString(){}[0]
-
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects/Scale> { // dev.jordond.filmstrip.effects/Scale.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.effects/Scale.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects/Scale.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects/Scale.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects/Scale // dev.jordond.filmstrip.effects/Scale.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects/Scale) // dev.jordond.filmstrip.effects/Scale.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.Scale){}[0]
-    }
-
-    final object Companion { // dev.jordond.filmstrip.effects/Scale.Companion|null[0]
-        final val $childSerializers // dev.jordond.filmstrip.effects/Scale.Companion.$childSerializers|{}$childSerializers[0]
-
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects/Scale> // dev.jordond.filmstrip.effects/Scale.Companion.serializer|serializer(){}[0]
-    }
-}
-
-final class dev.jordond.filmstrip.effects/Text : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects/Text|null[0]
-    constructor <init>(kotlin/String, dev.jordond.filmstrip.style/TextStyle = ..., dev.jordond.filmstrip.geometry/Anchor = ..., dev.jordond.filmstrip.edit/TimeRange? = ...) // dev.jordond.filmstrip.effects/Text.<init>|<init>(kotlin.String;dev.jordond.filmstrip.style.TextStyle;dev.jordond.filmstrip.geometry.Anchor;dev.jordond.filmstrip.edit.TimeRange?){}[0]
-
-    final val anchor // dev.jordond.filmstrip.effects/Text.anchor|{}anchor[0]
-        final fun <get-anchor>(): dev.jordond.filmstrip.geometry/Anchor // dev.jordond.filmstrip.effects/Text.anchor.<get-anchor>|<get-anchor>(){}[0]
-    final val id // dev.jordond.filmstrip.effects/Text.id|{}id[0]
-        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects/Text.id.<get-id>|<get-id>(){}[0]
-    final val stage // dev.jordond.filmstrip.effects/Text.stage|{}stage[0]
-        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects/Text.stage.<get-stage>|<get-stage>(){}[0]
-    final val style // dev.jordond.filmstrip.effects/Text.style|{}style[0]
-        final fun <get-style>(): dev.jordond.filmstrip.style/TextStyle // dev.jordond.filmstrip.effects/Text.style.<get-style>|<get-style>(){}[0]
-    final val text // dev.jordond.filmstrip.effects/Text.text|{}text[0]
-        final fun <get-text>(): kotlin/String // dev.jordond.filmstrip.effects/Text.text.<get-text>|<get-text>(){}[0]
-    final val visibleDuring // dev.jordond.filmstrip.effects/Text.visibleDuring|{}visibleDuring[0]
-        final fun <get-visibleDuring>(): dev.jordond.filmstrip.edit/TimeRange? // dev.jordond.filmstrip.effects/Text.visibleDuring.<get-visibleDuring>|<get-visibleDuring>(){}[0]
-
-    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects/Text.equals|equals(kotlin.Any?){}[0]
-    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects/Text.hashCode|hashCode(){}[0]
-    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects/Text.toString|toString(){}[0]
-
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects/Text> { // dev.jordond.filmstrip.effects/Text.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.effects/Text.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects/Text.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects/Text.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects/Text // dev.jordond.filmstrip.effects/Text.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects/Text) // dev.jordond.filmstrip.effects/Text.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.Text){}[0]
-    }
-
-    final object Companion { // dev.jordond.filmstrip.effects/Text.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects/Text> // dev.jordond.filmstrip.effects/Text.Companion.serializer|serializer(){}[0]
-    }
-}
-
-final class dev.jordond.filmstrip.effects/Watermark : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects/Watermark|null[0]
-    constructor <init>(dev.jordond.filmstrip.media/ImageSource, dev.jordond.filmstrip.geometry/Corner, kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., dev.jordond.filmstrip.edit/TimeRange? = ...) // dev.jordond.filmstrip.effects/Watermark.<init>|<init>(dev.jordond.filmstrip.media.ImageSource;dev.jordond.filmstrip.geometry.Corner;kotlin.Float;kotlin.Float;kotlin.Float;dev.jordond.filmstrip.edit.TimeRange?){}[0]
-
-    final val corner // dev.jordond.filmstrip.effects/Watermark.corner|{}corner[0]
-        final fun <get-corner>(): dev.jordond.filmstrip.geometry/Corner // dev.jordond.filmstrip.effects/Watermark.corner.<get-corner>|<get-corner>(){}[0]
-    final val id // dev.jordond.filmstrip.effects/Watermark.id|{}id[0]
-        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects/Watermark.id.<get-id>|<get-id>(){}[0]
-    final val image // dev.jordond.filmstrip.effects/Watermark.image|{}image[0]
-        final fun <get-image>(): dev.jordond.filmstrip.media/ImageSource // dev.jordond.filmstrip.effects/Watermark.image.<get-image>|<get-image>(){}[0]
-    final val margin // dev.jordond.filmstrip.effects/Watermark.margin|{}margin[0]
-        final fun <get-margin>(): kotlin/Float // dev.jordond.filmstrip.effects/Watermark.margin.<get-margin>|<get-margin>(){}[0]
-    final val opacity // dev.jordond.filmstrip.effects/Watermark.opacity|{}opacity[0]
-        final fun <get-opacity>(): kotlin/Float // dev.jordond.filmstrip.effects/Watermark.opacity.<get-opacity>|<get-opacity>(){}[0]
-    final val scale // dev.jordond.filmstrip.effects/Watermark.scale|{}scale[0]
-        final fun <get-scale>(): kotlin/Float // dev.jordond.filmstrip.effects/Watermark.scale.<get-scale>|<get-scale>(){}[0]
-    final val stage // dev.jordond.filmstrip.effects/Watermark.stage|{}stage[0]
-        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects/Watermark.stage.<get-stage>|<get-stage>(){}[0]
-    final val visibleDuring // dev.jordond.filmstrip.effects/Watermark.visibleDuring|{}visibleDuring[0]
-        final fun <get-visibleDuring>(): dev.jordond.filmstrip.edit/TimeRange? // dev.jordond.filmstrip.effects/Watermark.visibleDuring.<get-visibleDuring>|<get-visibleDuring>(){}[0]
-
-    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects/Watermark.equals|equals(kotlin.Any?){}[0]
-    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects/Watermark.hashCode|hashCode(){}[0]
-    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects/Watermark.toString|toString(){}[0]
-
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects/Watermark> { // dev.jordond.filmstrip.effects/Watermark.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.effects/Watermark.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects/Watermark.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects/Watermark.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects/Watermark // dev.jordond.filmstrip.effects/Watermark.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects/Watermark) // dev.jordond.filmstrip.effects/Watermark.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.Watermark){}[0]
-    }
-
-    final object Companion { // dev.jordond.filmstrip.effects/Watermark.Companion|null[0]
-        final const val DEFAULT_MARGIN // dev.jordond.filmstrip.effects/Watermark.Companion.DEFAULT_MARGIN|{}DEFAULT_MARGIN[0]
-            final fun <get-DEFAULT_MARGIN>(): kotlin/Float // dev.jordond.filmstrip.effects/Watermark.Companion.DEFAULT_MARGIN.<get-DEFAULT_MARGIN>|<get-DEFAULT_MARGIN>(){}[0]
-        final const val DEFAULT_SCALE // dev.jordond.filmstrip.effects/Watermark.Companion.DEFAULT_SCALE|{}DEFAULT_SCALE[0]
-            final fun <get-DEFAULT_SCALE>(): kotlin/Float // dev.jordond.filmstrip.effects/Watermark.Companion.DEFAULT_SCALE.<get-DEFAULT_SCALE>|<get-DEFAULT_SCALE>(){}[0]
-
-        final val $childSerializers // dev.jordond.filmstrip.effects/Watermark.Companion.$childSerializers|{}$childSerializers[0]
-
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects/Watermark> // dev.jordond.filmstrip.effects/Watermark.Companion.serializer|serializer(){}[0]
-    }
-}
-
 final val dev.jordond.filmstrip.effects/builtInEffectSerializers // dev.jordond.filmstrip.effects/builtInEffectSerializers|{}builtInEffectSerializers[0]
     final fun <get-builtInEffectSerializers>(): kotlinx.serialization.modules/SerializersModule // dev.jordond.filmstrip.effects/builtInEffectSerializers.<get-builtInEffectSerializers>|<get-builtInEffectSerializers>(){}[0]
 
-final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects/brightness(kotlin/Float): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects/brightness|brightness@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float){}[0]
-final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects/crop(dev.jordond.filmstrip.geometry/AspectRatio, dev.jordond.filmstrip.geometry/Fit = ..., dev.jordond.filmstrip.geometry/Anchor = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects/crop|crop@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.geometry.AspectRatio;dev.jordond.filmstrip.geometry.Fit;dev.jordond.filmstrip.geometry.Anchor){}[0]
-final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects/crop(dev.jordond.filmstrip.geometry/NormalizedRect): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects/crop|crop@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.geometry.NormalizedRect){}[0]
-final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects/flip(dev.jordond.filmstrip.geometry/FlipAxis): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects/flip|flip@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.geometry.FlipAxis){}[0]
-final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects/kenBurns(dev.jordond.filmstrip.geometry/NormalizedRect, dev.jordond.filmstrip.geometry/NormalizedRect, dev.jordond.filmstrip.motion/Easing = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects/kenBurns|kenBurns@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.geometry.NormalizedRect;dev.jordond.filmstrip.geometry.NormalizedRect;dev.jordond.filmstrip.motion.Easing){}[0]
-final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects/rotate(kotlin/Int): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects/rotate|rotate@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Int){}[0]
-final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects/scale(kotlin/Int, dev.jordond.filmstrip.geometry/Fit = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects/scale|scale@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Int;dev.jordond.filmstrip.geometry.Fit){}[0]
-final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects/text(kotlin/String, dev.jordond.filmstrip.style/TextStyle = ..., dev.jordond.filmstrip.geometry/Anchor = ..., dev.jordond.filmstrip.edit/TimeRange? = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects/text|text@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.String;dev.jordond.filmstrip.style.TextStyle;dev.jordond.filmstrip.geometry.Anchor;dev.jordond.filmstrip.edit.TimeRange?){}[0]
-final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects/text(kotlin/String, kotlin.ranges/ClosedRange<kotlin.time/Duration>, dev.jordond.filmstrip.style/TextStyle = ..., dev.jordond.filmstrip.geometry/Anchor = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects/text|text@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.String;kotlin.ranges.ClosedRange<kotlin.time.Duration>;dev.jordond.filmstrip.style.TextStyle;dev.jordond.filmstrip.geometry.Anchor){}[0]
-final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects/watermark(dev.jordond.filmstrip.media/ImageSource, dev.jordond.filmstrip.geometry/Corner, kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., dev.jordond.filmstrip.edit/TimeRange? = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects/watermark|watermark@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.media.ImageSource;dev.jordond.filmstrip.geometry.Corner;kotlin.Float;kotlin.Float;kotlin.Float;dev.jordond.filmstrip.edit.TimeRange?){}[0]
-final fun (dev.jordond.filmstrip.effects/Crop).dev.jordond.filmstrip.effects/retainedRect(dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.effects/retainedRect|retainedRect@dev.jordond.filmstrip.effects.Crop(dev.jordond.filmstrip.geometry.Size){}[0]
-final fun (dev.jordond.filmstrip.effects/KenBurns).dev.jordond.filmstrip.effects/regionAt(kotlin.time/Duration, dev.jordond.filmstrip.edit/TimeRange): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.effects/regionAt|regionAt@dev.jordond.filmstrip.effects.KenBurns(kotlin.time.Duration;dev.jordond.filmstrip.edit.TimeRange){}[0]
-final fun (dev.jordond.filmstrip.effects/OverlayPlacement).dev.jordond.filmstrip.effects/rectOn(dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.effects/rectOn|rectOn@dev.jordond.filmstrip.effects.OverlayPlacement(dev.jordond.filmstrip.geometry.Size){}[0]
-final fun (dev.jordond.filmstrip.effects/Text).dev.jordond.filmstrip.effects/placedOn(dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.effects/OverlayPlacement // dev.jordond.filmstrip.effects/placedOn|placedOn@dev.jordond.filmstrip.effects.Text(dev.jordond.filmstrip.geometry.Size){}[0]
-final fun (dev.jordond.filmstrip.effects/Watermark).dev.jordond.filmstrip.effects/placedOn(dev.jordond.filmstrip.geometry/Size, dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.effects/OverlayPlacement // dev.jordond.filmstrip.effects/placedOn|placedOn@dev.jordond.filmstrip.effects.Watermark(dev.jordond.filmstrip.geometry.Size;dev.jordond.filmstrip.geometry.Size){}[0]
-final fun (dev.jordond.filmstrip.geometry/Anchor).dev.jordond.filmstrip.effects/nearestCornerInset(dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.effects/CornerInset // dev.jordond.filmstrip.effects/nearestCornerInset|nearestCornerInset@dev.jordond.filmstrip.geometry.Anchor(dev.jordond.filmstrip.geometry.Size){}[0]
-final fun (dev.jordond.filmstrip.geometry/NormalizedRect).dev.jordond.filmstrip.effects/applyTo(dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.effects/applyTo|applyTo@dev.jordond.filmstrip.geometry.NormalizedRect(dev.jordond.filmstrip.geometry.Size){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.color/brightness(kotlin/Float): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.color/brightness|brightness@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.geometry/crop(dev.jordond.filmstrip.geometry/AspectRatio, dev.jordond.filmstrip.geometry/Fit = ..., dev.jordond.filmstrip.geometry/Anchor = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.geometry/crop|crop@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.geometry.AspectRatio;dev.jordond.filmstrip.geometry.Fit;dev.jordond.filmstrip.geometry.Anchor){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.geometry/crop(dev.jordond.filmstrip.geometry/NormalizedRect): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.geometry/crop|crop@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.geometry.NormalizedRect){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.geometry/flip(dev.jordond.filmstrip.geometry/FlipAxis): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.geometry/flip|flip@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.geometry.FlipAxis){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.geometry/kenBurns(dev.jordond.filmstrip.geometry/NormalizedRect, dev.jordond.filmstrip.geometry/NormalizedRect, dev.jordond.filmstrip.motion/Easing = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.geometry/kenBurns|kenBurns@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.geometry.NormalizedRect;dev.jordond.filmstrip.geometry.NormalizedRect;dev.jordond.filmstrip.motion.Easing){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.geometry/rotate(kotlin/Int): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.geometry/rotate|rotate@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Int){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.geometry/scale(kotlin/Int, dev.jordond.filmstrip.geometry/Fit = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.geometry/scale|scale@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Int;dev.jordond.filmstrip.geometry.Fit){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.overlay/imageOverlay(dev.jordond.filmstrip.media/ImageSource, dev.jordond.filmstrip.geometry/Corner, kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., dev.jordond.filmstrip.edit/TimeRange? = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.overlay/imageOverlay|imageOverlay@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.media.ImageSource;dev.jordond.filmstrip.geometry.Corner;kotlin.Float;kotlin.Float;kotlin.Float;dev.jordond.filmstrip.edit.TimeRange?){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.overlay/textOverlay(kotlin/String, dev.jordond.filmstrip.style/TextStyle = ..., dev.jordond.filmstrip.geometry/Anchor = ..., dev.jordond.filmstrip.edit/TimeRange? = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.overlay/textOverlay|textOverlay@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.String;dev.jordond.filmstrip.style.TextStyle;dev.jordond.filmstrip.geometry.Anchor;dev.jordond.filmstrip.edit.TimeRange?){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.overlay/textOverlay(kotlin/String, kotlin.ranges/ClosedRange<kotlin.time/Duration>, dev.jordond.filmstrip.style/TextStyle = ..., dev.jordond.filmstrip.geometry/Anchor = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.overlay/textOverlay|textOverlay@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.String;kotlin.ranges.ClosedRange<kotlin.time.Duration>;dev.jordond.filmstrip.style.TextStyle;dev.jordond.filmstrip.geometry.Anchor){}[0]
+final fun (dev.jordond.filmstrip.effects.geometry/Crop).dev.jordond.filmstrip.effects.geometry/retainedRect(dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.effects.geometry/retainedRect|retainedRect@dev.jordond.filmstrip.effects.geometry.Crop(dev.jordond.filmstrip.geometry.Size){}[0]
+final fun (dev.jordond.filmstrip.effects.geometry/KenBurns).dev.jordond.filmstrip.effects.geometry/regionAt(kotlin.time/Duration, dev.jordond.filmstrip.edit/TimeRange): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.effects.geometry/regionAt|regionAt@dev.jordond.filmstrip.effects.geometry.KenBurns(kotlin.time.Duration;dev.jordond.filmstrip.edit.TimeRange){}[0]
+final fun (dev.jordond.filmstrip.effects.overlay/ImageOverlay).dev.jordond.filmstrip.effects.overlay/placedOn(dev.jordond.filmstrip.geometry/Size, dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.effects.overlay/OverlayPlacement // dev.jordond.filmstrip.effects.overlay/placedOn|placedOn@dev.jordond.filmstrip.effects.overlay.ImageOverlay(dev.jordond.filmstrip.geometry.Size;dev.jordond.filmstrip.geometry.Size){}[0]
+final fun (dev.jordond.filmstrip.effects.overlay/OverlayPlacement).dev.jordond.filmstrip.effects.overlay/rectOn(dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.effects.overlay/rectOn|rectOn@dev.jordond.filmstrip.effects.overlay.OverlayPlacement(dev.jordond.filmstrip.geometry.Size){}[0]
+final fun (dev.jordond.filmstrip.effects.overlay/TextOverlay).dev.jordond.filmstrip.effects.overlay/placedOn(dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.effects.overlay/OverlayPlacement // dev.jordond.filmstrip.effects.overlay/placedOn|placedOn@dev.jordond.filmstrip.effects.overlay.TextOverlay(dev.jordond.filmstrip.geometry.Size){}[0]
+final fun (dev.jordond.filmstrip.geometry/Anchor).dev.jordond.filmstrip.effects.overlay/nearestCornerInset(dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.effects.overlay/CornerInset // dev.jordond.filmstrip.effects.overlay/nearestCornerInset|nearestCornerInset@dev.jordond.filmstrip.geometry.Anchor(dev.jordond.filmstrip.geometry.Size){}[0]
+final fun (dev.jordond.filmstrip.geometry/NormalizedRect).dev.jordond.filmstrip.effects.geometry/applyTo(dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.effects.geometry/applyTo|applyTo@dev.jordond.filmstrip.geometry.NormalizedRect(dev.jordond.filmstrip.geometry.Size){}[0]
 final fun (dev.jordond.filmstrip/FilmstripBuilder).dev.jordond.filmstrip.effects/builtInEffects(): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip.effects/builtInEffects|builtInEffects@dev.jordond.filmstrip.FilmstripBuilder(){}[0]

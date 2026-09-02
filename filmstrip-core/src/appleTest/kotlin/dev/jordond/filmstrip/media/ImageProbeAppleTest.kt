@@ -13,7 +13,6 @@ import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
 import kotlinx.io.files.SystemTemporaryDirectory
-import kotlinx.io.write
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals

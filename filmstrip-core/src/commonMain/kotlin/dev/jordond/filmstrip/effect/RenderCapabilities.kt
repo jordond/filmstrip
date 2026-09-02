@@ -80,7 +80,7 @@ public enum class RenderApi {
 /**
  * Additive capability flags.
  *
- * Ask [RenderCapabilities.has] for the ones a resolver needs. A resolver that does not recognise a
+ * Ask [RenderCapabilities.has] for the ones a resolver needs. A resolver that does not recognize a
  * flag never asks for it, so new ones can be added without breaking it.
  */
 public enum class RenderFeature {
@@ -105,7 +105,7 @@ public enum class RenderFeature {
   MultipassRender,
 
   /**
-   * Text can be rasterised into a frame.
+   * Text can be rasterized into a frame.
    */
   TextRendering,
 }

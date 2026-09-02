@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.media
 
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.StillEncodeAppleTest.Companion.COLOUR
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.ExperimentalForeignApi

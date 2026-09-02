@@ -10,8 +10,8 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.EffectSpec
-import dev.jordond.filmstrip.effects.Brightness
-import dev.jordond.filmstrip.effects.CropRect
+import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.geometry.CropRect
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec

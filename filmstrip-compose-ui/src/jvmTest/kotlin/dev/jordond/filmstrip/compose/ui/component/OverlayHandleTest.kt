@@ -14,7 +14,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.compose.ui.VideoStage
-import dev.jordond.filmstrip.effects.OverlayPlacement
+import dev.jordond.filmstrip.effects.overlay.OverlayPlacement
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Size
 import io.kotest.matchers.comparables.shouldBeLessThan

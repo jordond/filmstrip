@@ -33,7 +33,6 @@ import platform.AVFoundation.AVAssetTrack
 import platform.AVFoundation.AVMediaTypeAudio
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.AVURLAsset
-import platform.AVFoundation.duration
 import platform.AVFoundation.estimatedDataRate
 import platform.AVFoundation.exportable
 import platform.AVFoundation.formatDescriptions
@@ -54,7 +53,6 @@ import platform.CoreFoundation.CFStringGetTypeID
 import platform.CoreFoundation.CFStringRef
 import platform.CoreFoundation.kCFCompareEqualTo
 import platform.CoreFoundation.kCFNumberIntType
-import platform.CoreGraphics.CGFloat
 import platform.CoreMedia.CMAudioFormatDescriptionGetStreamBasicDescription
 import platform.CoreMedia.CMFormatDescriptionGetExtension
 import platform.CoreMedia.CMFormatDescriptionGetMediaSubType

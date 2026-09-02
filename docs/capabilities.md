@@ -74,8 +74,8 @@ Which built-in effects each render backend can lower. A backend only sees effect
 | `CropRect`      | yes                   | yes                   | yes                   | yes                   |
 | `Scale`         | yes [^android-fit]    | yes                   | pending [^web-resize] | yes [^ffmpeg-scale]   |
 | `Brightness`    | yes [^hdr-brightness] | yes [^hdr-brightness] | yes [^web-sdr-only]   | yes [^hdr-brightness] |
-| `Watermark`     | pending [^overlays]   | pending [^overlays]   | pending [^overlays]   | yes                   |
-| `Text`          | pending [^overlays]   | pending [^overlays]   | pending [^overlays]   | no [^ffmpeg-text]     |
+| `ImageOverlay`  | pending [^overlays]   | pending [^overlays]   | pending [^overlays]   | yes                   |
+| `TextOverlay`   | pending [^overlays]   | pending [^overlays]   | pending [^overlays]   | no [^ffmpeg-text]     |
 
 [^android-fit]: The effect itself only sets a height, and the pipeline applies `Fit` once for the
 whole plan, not once per scale: the plan pins one `Presentation` at the resolved output frame, which
@@ -114,7 +114,7 @@ rather than rendered differently.
 ### Parity
 
 `parityOf(specId)` says how closely a preview matches its export. Every built-in effect is `Exact`
-except `Text`, which is `Approximate`. The approximation is glyph antialiasing only: line breaks,
+except `TextOverlay`, which is `Approximate`. The approximation is glyph antialiasing only: line breaks,
 metrics and measured extent are exact on both platforms.
 
 ## Codecs

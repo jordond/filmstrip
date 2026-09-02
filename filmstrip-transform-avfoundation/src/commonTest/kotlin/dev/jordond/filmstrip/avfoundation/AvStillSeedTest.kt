@@ -8,7 +8,6 @@ import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.AVURLAsset
-import platform.AVFoundation.duration
 import platform.AVFoundation.tracksWithMediaType
 import platform.Foundation.NSDate
 import platform.Foundation.NSFileManager

@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.media3.internal
 
 import android.content.Context
+import dev.jordond.filmstrip.media3.internal.Media3Scratch.BUDGET_BYTES
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest

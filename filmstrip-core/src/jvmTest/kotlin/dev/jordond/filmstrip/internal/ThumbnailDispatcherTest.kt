@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.internal.HeightAwareThumbnailSource.Companion.NATURAL_HEIGHT
 import dev.jordond.filmstrip.media.FrameResult
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.PlatformImage

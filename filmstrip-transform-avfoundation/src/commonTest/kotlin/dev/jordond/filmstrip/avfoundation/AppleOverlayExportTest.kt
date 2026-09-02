@@ -3,10 +3,11 @@ package dev.jordond.filmstrip.avfoundation
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.EffectIds
-import dev.jordond.filmstrip.effects.brightness
-import dev.jordond.filmstrip.effects.text
-import dev.jordond.filmstrip.effects.watermark
+import dev.jordond.filmstrip.effects.color.brightness
+import dev.jordond.filmstrip.effects.overlay.imageOverlay
+import dev.jordond.filmstrip.effects.overlay.textOverlay
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
@@ -28,7 +29,6 @@ import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.test.Test
 import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -52,9 +52,9 @@ class AppleOverlayExportTest {
 
       Corner.entries.forEach { corner ->
         val composition =
-          filmstrip.composition {
+          compositionOf {
             clip(MediaSource.of(landscape)) { trim(0.seconds, 1.seconds) }
-            effects { watermark(ImageSource.ofBytes(RED_PNG), corner, margin = 0.04f, scale = 0.2f) }
+            effects { imageOverlay(ImageSource.ofBytes(RED_PNG), corner, margin = 0.04f, scale = 0.2f) }
           }
 
         val output = temporaryPath("watermark-$corner")
@@ -70,9 +70,9 @@ class AppleOverlayExportTest {
       val landscape = fixture() ?: return@runTest
 
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape)) { trim(0.seconds, 1.seconds) }
-          effects { text("filmstrip", TextStyle(fontSize = 0.12f, backgroundColor = BLACK)) }
+          effects { textOverlay("filmstrip", TextStyle(fontSize = 0.12f, backgroundColor = BLACK)) }
         }
 
       val output = temporaryPath("text")
@@ -88,7 +88,7 @@ class AppleOverlayExportTest {
       val landscape = fixture() ?: return@runTest
 
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape)) { trim(0.seconds, 1.seconds) }
           effects { brightness(0.5f) }
         }
@@ -107,10 +107,10 @@ class AppleOverlayExportTest {
       val landscape = fixture() ?: return@runTest
 
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape))
           effects {
-            watermark(
+            imageOverlay(
               ImageSource.ofBytes(RED_PNG),
               Corner.TopEnd,
               visibleDuring = TimeRange(500.milliseconds, 1_500.milliseconds),
@@ -132,14 +132,14 @@ class AppleOverlayExportTest {
       val landscape = fixture() ?: return@runTest
 
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape))
-          effects { watermark(ImageSource.of("/nonexistent/badge.png"), Corner.TopStart) }
+          effects { imageOverlay(ImageSource.of("/nonexistent/badge.png"), Corner.TopStart) }
         }
 
       val verdict = withContext(Dispatchers.Default) { filmstrip.plan(composition, ExportSpec(targetHeight = 180)) }
       val incapable = assertIs<Verdict.Incapable>(verdict)
-      assertIs<ExportError.UnsupportedEffect>(incapable.reasons.single()).specId shouldBe EffectIds.WATERMARK
+      assertIs<ExportError.UnsupportedEffect>(incapable.reasons.single()).specId shouldBe EffectIds.IMAGE_OVERLAY
     }
 
   private suspend fun exported(

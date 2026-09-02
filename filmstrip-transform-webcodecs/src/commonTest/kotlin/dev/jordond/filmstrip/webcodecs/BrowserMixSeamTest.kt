@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import dev.jordond.filmstrip.webcodecs.BrowserMixSeamTest.Companion.MAX_STEP
 import dev.jordond.filmstrip.webcodecs.internal.AudioBuffer
 import dev.jordond.filmstrip.webcodecs.internal.BrowserAudioMix
 import dev.jordond.filmstrip.webcodecs.internal.Float32Array

@@ -3,6 +3,9 @@ package dev.jordond.filmstrip.transform.internal
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.media.CodecKind
 import dev.jordond.filmstrip.media.MediaInfo
+import dev.jordond.filmstrip.transform.internal.Mp4Copy.AUDIO
+import dev.jordond.filmstrip.transform.internal.Mp4Copy.VIDEO
+import dev.jordond.filmstrip.transform.internal.Mp4Copy.accepts
 
 /**
  * Which source streams an mp4 muxer will take without re-encoding them.

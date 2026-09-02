@@ -18,7 +18,6 @@ import platform.AVFoundation.AVVideoCodecKey
 import platform.AVFoundation.AVVideoCodecTypeH264
 import platform.AVFoundation.AVVideoHeightKey
 import platform.AVFoundation.AVVideoWidthKey
-import platform.AVFoundation.duration
 import platform.AVFoundation.naturalSize
 import platform.AVFoundation.nominalFrameRate
 import platform.AVFoundation.tracksWithMediaType

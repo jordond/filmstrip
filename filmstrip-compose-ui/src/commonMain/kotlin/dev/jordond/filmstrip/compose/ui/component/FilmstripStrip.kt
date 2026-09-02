@@ -42,7 +42,7 @@ import dev.jordond.filmstrip.compose.ui.geometry.StripGrid
  *     tileWidthPx = with(density) { FilmstripTimelineDefaults.TileWidth.roundToPx() },
  *   )
  *   val frames = rememberFilmstripFrames(
- *     filmstrip = filmstrip,
+ *     renderer = filmstrip,
  *     composition = composition,
  *     positions = timeline.grid.positions,
  *     heightPx = with(density) { FilmstripTimelineDefaults.StripHeight.roundToPx() },
@@ -160,7 +160,7 @@ public suspend fun LazyListState.scrollStripTo(
 private fun FilmstripStripPreview() {
   val frames =
     rememberFilmstripFrames(
-      filmstrip = Filmstrip(),
+      renderer = Filmstrip(),
       composition = previewComposition(),
       positions = emptyList(),
       heightPx = 0,

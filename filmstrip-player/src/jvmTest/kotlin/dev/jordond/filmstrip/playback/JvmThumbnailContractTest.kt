@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.playback
 
 import dev.jordond.filmstrip.Cancellable
-import dev.jordond.filmstrip.effects.Brightness
+import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.PlatformImage
 import dev.jordond.filmstrip.playback.contract.awaitContract

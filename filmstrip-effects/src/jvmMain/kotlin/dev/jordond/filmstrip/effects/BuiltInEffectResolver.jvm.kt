@@ -13,6 +13,17 @@ import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
+import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.color.scale
+import dev.jordond.filmstrip.effects.geometry.Crop
+import dev.jordond.filmstrip.effects.geometry.CropRect
+import dev.jordond.filmstrip.effects.geometry.Flip
+import dev.jordond.filmstrip.effects.geometry.KenBurns
+import dev.jordond.filmstrip.effects.geometry.Rotate
+import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.effects.geometry.retainedRect
+import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
@@ -58,8 +69,8 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       // because an unclaimed spec is refused by name at plan time.
       is Scale -> fragment(emptyList())
       is Brightness -> fragment(brightness(spec.scale, attributes.hdrTransfer))
-      is Watermark -> watermark(spec, attributes.outputSize)
-      is Text -> EffectResolution.Unsupported(spec.id, textMessage(capabilities))
+      is ImageOverlay -> imageOverlay(spec, attributes.outputSize)
+      is TextOverlay -> EffectResolution.Unsupported(spec.id, textMessage(capabilities))
       else -> null
     }
   }
@@ -150,8 +161,8 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   // W and H inside overlay are the main frame, w and h the overlay, so the corner arithmetic is
   // written as an expression rather than resolved here. The margin is not: it is a fraction of the
   // output frame's shorter side and the planner already knows both numbers.
-  private fun watermark(
-    spec: Watermark,
+  private fun imageOverlay(
+    spec: ImageOverlay,
     outputSize: Size,
   ): EffectResolution {
     val margin = (minOf(outputSize.width, outputSize.height) * spec.margin).roundToInt()
@@ -221,5 +232,5 @@ private const val TEXT_NO_FILTER =
 
 private const val TEXT_CANNOT_WRAP =
   "drawtext breaks lines only on a literal newline, so TextStyle.maxWidth cannot be honoured " +
-    "and line breaks would land on different words than every other backend. Text layout is " +
+    "and line breaks would land on different words than every other backend. TextOverlay layout is " +
     "required to be exact, so it is refused here rather than rendered differently."

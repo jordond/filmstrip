@@ -4,7 +4,6 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlin.coroutines.coroutineContext
 import kotlin.math.abs
 
 /**

@@ -39,7 +39,6 @@ import dev.jordond.filmstrip.transform.internal.stillUnsupportedMessage
 import dev.jordond.filmstrip.transform.internal.toResolvedComposition
 import kotlin.math.ceil
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.DurationUnit
 
 /**

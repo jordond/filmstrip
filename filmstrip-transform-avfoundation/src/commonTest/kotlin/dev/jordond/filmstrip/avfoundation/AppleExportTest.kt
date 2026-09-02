@@ -6,9 +6,10 @@ import dev.jordond.filmstrip.avfoundation.internal.copyFormatDescription
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.EditComposition
-import dev.jordond.filmstrip.effects.brightness
-import dev.jordond.filmstrip.effects.crop
-import dev.jordond.filmstrip.effects.scale
+import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.effects.color.brightness
+import dev.jordond.filmstrip.effects.geometry.crop
+import dev.jordond.filmstrip.effects.geometry.scale
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
@@ -100,7 +101,7 @@ class AppleExportTest {
       val landscape = fixture("apple_export_a.mp4") ?: return@runTest
 
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape)) { trim(500.milliseconds, 1_500.milliseconds) }
         }
 
@@ -121,7 +122,7 @@ class AppleExportTest {
       val second = fixture("apple_export_b.mp4") ?: return@runTest
 
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(first)) { trim(0.seconds, 1.seconds) }
           clip(MediaSource.of(second)) { trim(0.seconds, 1.seconds) }
         }
@@ -144,7 +145,7 @@ class AppleExportTest {
       val landscape = fixture("apple_export_a.mp4") ?: return@runTest
 
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape)) { trim(0.seconds, 1.seconds) }
           effects { crop(AspectRatio.Portrait, Fit.Crop) }
         }
@@ -164,7 +165,7 @@ class AppleExportTest {
       val portrait = fixture("apple_export_portrait.mp4") ?: return@runTest
 
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(portrait)) { trim(0.seconds, 1.seconds) }
           effects { scale(240, Fit.Contain) }
         }
@@ -186,7 +187,7 @@ class AppleExportTest {
       val teal = Triple(0x11, 0xC2, 0xAA)
 
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape)) { trim(0.seconds, 1.seconds) }
           fill(Fill.Solid(teal.toArgb()))
           effects { crop(AspectRatio.Square, Fit.Contain) }
@@ -214,7 +215,7 @@ class AppleExportTest {
         factor: Float?,
       ): String {
         val composition =
-          filmstrip.composition {
+          compositionOf {
             clip(MediaSource.of(landscape)) { trim(0.seconds, 1.seconds) }
             fill(Fill.Solid(teal.toArgb()))
             effects {
@@ -253,7 +254,7 @@ class AppleExportTest {
       val landscape = fixture("apple_export_a.mp4") ?: return@runTest
 
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape)) { trim(0.seconds, 1.seconds) }
           effects { crop(AspectRatio.Square, Fit.Contain) }
         }
@@ -273,7 +274,7 @@ class AppleExportTest {
       val landscape = fixture("apple_export_a.mp4") ?: return@runTest
 
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape)) { trim(0.seconds, 1.seconds) }
           fill(Fill.Blur)
           effects { crop(AspectRatio.Square, Fit.Contain) }
@@ -302,7 +303,7 @@ class AppleExportTest {
 
       suspend fun exportedWith(fill: Fill): String {
         val composition =
-          filmstrip.composition {
+          compositionOf {
             clip(MediaSource.of(landscape)) { trim(0.seconds, 1.seconds) }
             fill(fill)
             effects { crop(AspectRatio.Square, Fit.Contain) }
@@ -334,7 +335,7 @@ class AppleExportTest {
         fill: Fill,
       ): String {
         val composition =
-          filmstrip.composition {
+          compositionOf {
             clip(MediaSource.of(landscape)) { trim(0.seconds, 1.seconds) }
             fill(fill)
             effects { crop(AspectRatio.Square, Fit.Contain) }
@@ -367,7 +368,7 @@ class AppleExportTest {
       val magenta = Triple(0xFF, 0x00, 0xFF)
 
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape)) { trim(0.seconds, 1.seconds) }
           fill(Fill.Solid(magenta.toArgb()))
           // resolved.fit, which the final pin to the output frame reads, only ever comes from a
@@ -408,7 +409,7 @@ class AppleExportTest {
       assertTrue(source != null, "the fixture's own format description could not be read")
 
       val output = temporaryPath("transmux")
-      val composition = filmstrip.composition { clip(MediaSource.of(landscape)) }
+      val composition = compositionOf { clip(MediaSource.of(landscape)) }
       val plan = assertIs<Verdict.Capable>(filmstrip.plan(composition, ExportSpec())).plan
       plan.path shouldBe ExportPath.Transmux
       exported(composition, ExportSpec(), output)
@@ -416,7 +417,7 @@ class AppleExportTest {
 
       val reEncoded = temporaryPath("transcode")
       val trimmed =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape)) { trim(0.seconds, 1.seconds) }
         }
       exported(trimmed, ExportSpec(), reEncoded)
@@ -432,7 +433,7 @@ class AppleExportTest {
       val landscape = fixture("apple_export_a.mp4") ?: return@runTest
 
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape)) {
             trim(0.seconds, 1.seconds)
             audio(AudioLevel.Mute)
@@ -457,7 +458,7 @@ class AppleExportTest {
       val landscape = fixture("apple_export_a.mp4") ?: return@runTest
 
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape)) { trim(0.seconds, 1.seconds) }
           audio(AudioSpec.AudioOnly)
         }
@@ -479,7 +480,7 @@ class AppleExportTest {
     runTest(timeout = TIMEOUT) {
       val long = fixture("apple_export_long.mp4") ?: return@runTest
 
-      val composition = filmstrip.composition { clip(MediaSource.of(long)) }
+      val composition = compositionOf { clip(MediaSource.of(long)) }
       val output = temporaryPath("progress")
       // 360 divides the fixture's frame exactly, so the plan needs no adjustment and Started is
       // genuinely the first thing a caller sees.
@@ -506,7 +507,7 @@ class AppleExportTest {
     runTest(timeout = TIMEOUT) {
       val long = fixture("apple_export_long.mp4") ?: return@runTest
       val output = temporaryPath("cancelled")
-      val composition = filmstrip.composition { clip(MediaSource.of(long)) }
+      val composition = compositionOf { clip(MediaSource.of(long)) }
 
       // Cancelled on Started, not after a fixed window. A hardware encode of even a long
       // clip outruns any window worth waiting for, and a run that finished first would be checking
@@ -532,7 +533,7 @@ class AppleExportTest {
       val landscape = fixture("apple_export_a.mp4") ?: return@runTest
 
       val composition =
-        filmstrip.composition {
+        compositionOf {
           clip(MediaSource.of(landscape)) { trim(0.seconds, 1.seconds) }
         }
 
@@ -555,7 +556,7 @@ class AppleExportTest {
     runTest(timeout = TIMEOUT) {
       val landscape = fixture("apple_export_a.mp4") ?: return@runTest
 
-      val composition = filmstrip.composition { clip(MediaSource.of(landscape)) }
+      val composition = compositionOf { clip(MediaSource.of(landscape)) }
       val statuses =
         withContext(Dispatchers.Default) {
           filmstrip
@@ -575,7 +576,7 @@ class AppleExportTest {
       val landscape = fixture("apple_export_a.mp4") ?: return@runTest
       val output = temporaryPath("leftover")
 
-      val composition = filmstrip.composition { clip(MediaSource.of(landscape)) }
+      val composition = compositionOf { clip(MediaSource.of(landscape)) }
       withContext(Dispatchers.Default) {
         filmstrip.export(composition, ExportSpec(targetHeight = 240), MediaSink.of(output)).toList()
       }

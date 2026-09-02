@@ -4,19 +4,19 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
-import dev.jordond.filmstrip.effects.brightness
-import dev.jordond.filmstrip.effects.crop
-import dev.jordond.filmstrip.effects.flip
-import dev.jordond.filmstrip.effects.nearestCornerInset
-import dev.jordond.filmstrip.effects.rotate
-import dev.jordond.filmstrip.effects.scale
-import dev.jordond.filmstrip.effects.text
-import dev.jordond.filmstrip.effects.watermark
+import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.effects.color.brightness
+import dev.jordond.filmstrip.effects.geometry.crop
+import dev.jordond.filmstrip.effects.geometry.flip
+import dev.jordond.filmstrip.effects.geometry.rotate
+import dev.jordond.filmstrip.effects.geometry.scale
+import dev.jordond.filmstrip.effects.overlay.imageOverlay
+import dev.jordond.filmstrip.effects.overlay.nearestCornerInset
+import dev.jordond.filmstrip.effects.overlay.textOverlay
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
@@ -242,13 +242,12 @@ public class EditState {
    *   a crop overlay renders against, since the rectangle it authors addresses the uncropped frame.
    */
   fun composition(
-    filmstrip: Filmstrip,
     source: MediaSource,
     sourceDuration: Duration?,
     trimmed: Boolean = true,
     cropped: Boolean = true,
   ): EditComposition =
-    filmstrip.composition {
+    compositionOf {
       clip(source) {
         if (trimmed) trimRange(sourceDuration)?.let { trim(it) }
         if (clipMuted) audio(AudioLevel.Mute)
@@ -269,7 +268,7 @@ public class EditState {
         if (brightness != 1f) brightness(brightness)
 
         if (textEnabled && text.isNotBlank()) {
-          text(
+          textOverlay(
             text = text,
             style = textStyle,
             anchor = textAnchor,
@@ -278,7 +277,7 @@ public class EditState {
         }
 
         watermarkImage?.let { image ->
-          watermark(
+          imageOverlay(
             image = image,
             corner = watermarkCorner,
             margin = watermarkMargin,

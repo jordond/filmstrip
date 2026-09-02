@@ -9,6 +9,17 @@ import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.WebGlPass
+import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.color.scale
+import dev.jordond.filmstrip.effects.geometry.Crop
+import dev.jordond.filmstrip.effects.geometry.CropRect
+import dev.jordond.filmstrip.effects.geometry.Flip
+import dev.jordond.filmstrip.effects.geometry.KenBurns
+import dev.jordond.filmstrip.effects.geometry.Rotate
+import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.effects.geometry.retainedRect
+import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 
@@ -35,7 +46,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       is Brightness -> spec.toPass()
       is KenBurns -> EffectResolution.Unsupported(spec.id, PAN_PENDING)
       is Rotate, is Scale -> EffectResolution.Unsupported(spec.id, RESIZING_PENDING)
-      is Watermark, is Text -> EffectResolution.Unsupported(spec.id, OVERLAYS_PENDING)
+      is ImageOverlay, is TextOverlay -> EffectResolution.Unsupported(spec.id, OVERLAYS_PENDING)
       else -> null
     }
   }

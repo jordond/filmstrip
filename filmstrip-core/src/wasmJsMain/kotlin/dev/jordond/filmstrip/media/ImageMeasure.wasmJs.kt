@@ -2,9 +2,6 @@
 
 package dev.jordond.filmstrip.media
 
-import kotlin.js.ExperimentalWasmJsInterop
-import kotlin.js.JsAny
-
 internal actual fun orientedBitmapOptions(): JsAny = newOrientedBitmapOptions()
 
 @JsFun("() => ({ imageOrientation: 'from-image' })")

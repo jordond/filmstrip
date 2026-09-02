@@ -65,7 +65,7 @@ import androidx.compose.ui.geometry.Size as ComposeSize
  * // The rectangle addresses the frame the overlay is drawn over, so the preview under it is the
  * // uncropped one and the crop joins the edit on the way out of the tool.
  * val cropped = remember(source, rect) {
- *   filmstrip.composition {
+ *   compositionOf {
  *     clip(source)
  *     effects { crop(rect) }
  *   }
@@ -135,7 +135,7 @@ public fun CropOverlay(
  *
  * // The rectangle addresses the frame the overlay is drawn over, so the preview under it is the
  * // uncropped one and the crop joins the edit on the way out of the tool.
- * filmstrip.composition {
+ * compositionOf {
  *   clip(source)
  *   effects { crop(rect) }
  * }

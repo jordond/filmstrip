@@ -537,6 +537,11 @@ abstract interface dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.film
         open fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effect/EffectSpec.stage.<get-stage>|<get-stage>(){}[0]
 }
 
+abstract interface dev.jordond.filmstrip.media/FrameRenderer { // dev.jordond.filmstrip.media/FrameRenderer|null[0]
+    abstract fun frames(dev.jordond.filmstrip.edit/EditComposition, kotlin.collections/List<kotlin.time/Duration>, kotlin/Int): kotlinx.coroutines.flow/Flow<dev.jordond.filmstrip.media/FrameResult> // dev.jordond.filmstrip.media/FrameRenderer.frames|frames(dev.jordond.filmstrip.edit.EditComposition;kotlin.collections.List<kotlin.time.Duration>;kotlin.Int){}[0]
+    abstract suspend fun frame(dev.jordond.filmstrip.edit/EditComposition, kotlin.time/Duration, kotlin/Int = ...): dev.jordond.filmstrip.media/FrameResult // dev.jordond.filmstrip.media/FrameRenderer.frame|frame(dev.jordond.filmstrip.edit.EditComposition;kotlin.time.Duration;kotlin.Int){}[0]
+}
+
 abstract interface dev.jordond.filmstrip.player/EngineListener { // dev.jordond.filmstrip.player/EngineListener|null[0]
     abstract fun onEvent(dev.jordond.filmstrip.player/PlaybackEvent) // dev.jordond.filmstrip.player/EngineListener.onEvent|onEvent(dev.jordond.filmstrip.player.PlaybackEvent){}[0]
     abstract fun onPosition(kotlin.time/Duration) // dev.jordond.filmstrip.player/EngineListener.onPosition|onPosition(kotlin.time.Duration){}[0]
@@ -567,6 +572,10 @@ abstract interface dev.jordond.filmstrip.player/PlayerEngine { // dev.jordond.fi
     abstract fun setQualityPolicy(dev.jordond.filmstrip.player/PreviewQualityPolicy) // dev.jordond.filmstrip.player/PlayerEngine.setQualityPolicy|setQualityPolicy(dev.jordond.filmstrip.player.PreviewQualityPolicy){}[0]
     abstract fun setVolume(kotlin/Float) // dev.jordond.filmstrip.player/PlayerEngine.setVolume|setVolume(kotlin.Float){}[0]
     abstract fun stepFrames(kotlin/Int) // dev.jordond.filmstrip.player/PlayerEngine.stepFrames|stepFrames(kotlin.Int){}[0]
+}
+
+abstract interface dev.jordond.filmstrip.player/PreviewFactory { // dev.jordond.filmstrip.player/PreviewFactory|null[0]
+    abstract fun preview(dev.jordond.filmstrip.edit/EditComposition, dev.jordond.filmstrip.player/PlayerConfig = ...): dev.jordond.filmstrip.player/VideoPlayer // dev.jordond.filmstrip.player/PreviewFactory.preview|preview(dev.jordond.filmstrip.edit.EditComposition;dev.jordond.filmstrip.player.PlayerConfig){}[0]
 }
 
 abstract interface dev.jordond.filmstrip.player/VideoPlayer : kotlin/AutoCloseable { // dev.jordond.filmstrip.player/VideoPlayer|null[0]
@@ -603,19 +612,14 @@ abstract interface dev.jordond.filmstrip.player/VideoPlayer : kotlin/AutoCloseab
     abstract suspend fun setComposition(dev.jordond.filmstrip.edit/EditComposition, kotlin.time/Duration? = ..., kotlin/Boolean = ...): dev.jordond.filmstrip.player/SetCompositionResult // dev.jordond.filmstrip.player/VideoPlayer.setComposition|setComposition(dev.jordond.filmstrip.edit.EditComposition;kotlin.time.Duration?;kotlin.Boolean){}[0]
 }
 
-abstract interface dev.jordond.filmstrip/Filmstrip { // dev.jordond.filmstrip/Filmstrip|null[0]
+abstract interface dev.jordond.filmstrip/Filmstrip : dev.jordond.filmstrip.media/FrameRenderer, dev.jordond.filmstrip.player/PreviewFactory { // dev.jordond.filmstrip/Filmstrip|null[0]
     abstract val components // dev.jordond.filmstrip/Filmstrip.components|{}components[0]
         abstract fun <get-components>(): dev.jordond.filmstrip/ComponentRegistry // dev.jordond.filmstrip/Filmstrip.components.<get-components>|<get-components>(){}[0]
 
-    abstract fun composition(kotlin/Function1<dev.jordond.filmstrip.edit/CompositionBuilder, kotlin/Unit>): dev.jordond.filmstrip.edit/EditComposition // dev.jordond.filmstrip/Filmstrip.composition|composition(kotlin.Function1<dev.jordond.filmstrip.edit.CompositionBuilder,kotlin.Unit>){}[0]
-    abstract fun compositionBuilder(): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip/Filmstrip.compositionBuilder|compositionBuilder(){}[0]
     abstract fun export(dev.jordond.filmstrip.edit/EditComposition, dev.jordond.filmstrip.export/ExportSpec, dev.jordond.filmstrip.media/MediaSink): kotlinx.coroutines.flow/Flow<dev.jordond.filmstrip.export/ExportStatus> // dev.jordond.filmstrip/Filmstrip.export|export(dev.jordond.filmstrip.edit.EditComposition;dev.jordond.filmstrip.export.ExportSpec;dev.jordond.filmstrip.media.MediaSink){}[0]
     abstract fun export(dev.jordond.filmstrip.export/ExportPlan, dev.jordond.filmstrip.media/MediaSink): kotlinx.coroutines.flow/Flow<dev.jordond.filmstrip.export/ExportStatus> // dev.jordond.filmstrip/Filmstrip.export|export(dev.jordond.filmstrip.export.ExportPlan;dev.jordond.filmstrip.media.MediaSink){}[0]
-    abstract fun frames(dev.jordond.filmstrip.edit/EditComposition, kotlin.collections/List<kotlin.time/Duration>, kotlin/Int): kotlinx.coroutines.flow/Flow<dev.jordond.filmstrip.media/FrameResult> // dev.jordond.filmstrip/Filmstrip.frames|frames(dev.jordond.filmstrip.edit.EditComposition;kotlin.collections.List<kotlin.time.Duration>;kotlin.Int){}[0]
     abstract fun parityOf(kotlin/String): dev.jordond.filmstrip.capability/EffectParity? // dev.jordond.filmstrip/Filmstrip.parityOf|parityOf(kotlin.String){}[0]
-    abstract fun preview(dev.jordond.filmstrip.edit/EditComposition, dev.jordond.filmstrip.player/PlayerConfig = ...): dev.jordond.filmstrip.player/VideoPlayer // dev.jordond.filmstrip/Filmstrip.preview|preview(dev.jordond.filmstrip.edit.EditComposition;dev.jordond.filmstrip.player.PlayerConfig){}[0]
     abstract suspend fun capabilities(): dev.jordond.filmstrip/CapabilitiesResult // dev.jordond.filmstrip/Filmstrip.capabilities|capabilities(){}[0]
-    abstract suspend fun frame(dev.jordond.filmstrip.edit/EditComposition, kotlin.time/Duration, kotlin/Int = ...): dev.jordond.filmstrip.media/FrameResult // dev.jordond.filmstrip/Filmstrip.frame|frame(dev.jordond.filmstrip.edit.EditComposition;kotlin.time.Duration;kotlin.Int){}[0]
     abstract suspend fun plan(dev.jordond.filmstrip.edit/EditComposition, dev.jordond.filmstrip.export/ExportSpec): dev.jordond.filmstrip.export/Verdict // dev.jordond.filmstrip/Filmstrip.plan|plan(dev.jordond.filmstrip.edit.EditComposition;dev.jordond.filmstrip.export.ExportSpec){}[0]
     abstract suspend fun probe(dev.jordond.filmstrip.media/MediaSource): dev.jordond.filmstrip.media/ProbeResult // dev.jordond.filmstrip/Filmstrip.probe|probe(dev.jordond.filmstrip.media.MediaSource){}[0]
 
@@ -2032,6 +2036,8 @@ final class dev.jordond.filmstrip.edit/ClipBuilder { // dev.jordond.filmstrip.ed
 }
 
 final class dev.jordond.filmstrip.edit/CompositionBuilder { // dev.jordond.filmstrip.edit/CompositionBuilder|null[0]
+    constructor <init>() // dev.jordond.filmstrip.edit/CompositionBuilder.<init>|<init>(){}[0]
+
     final fun addClip(dev.jordond.filmstrip.edit/Clip): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.addClip|addClip(dev.jordond.filmstrip.edit.Clip){}[0]
     final fun addEffects(kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec>): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.addEffects|addEffects(kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>){}[0]
     final fun addTrack(dev.jordond.filmstrip.edit/Track): dev.jordond.filmstrip.edit/CompositionBuilder // dev.jordond.filmstrip.edit/CompositionBuilder.addTrack|addTrack(dev.jordond.filmstrip.edit.Track){}[0]
@@ -2937,16 +2943,16 @@ final object dev.jordond.filmstrip.effect/EffectIds { // dev.jordond.filmstrip.e
         final fun <get-CROP_RECT>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.CROP_RECT.<get-CROP_RECT>|<get-CROP_RECT>(){}[0]
     final const val FLIP // dev.jordond.filmstrip.effect/EffectIds.FLIP|{}FLIP[0]
         final fun <get-FLIP>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.FLIP.<get-FLIP>|<get-FLIP>(){}[0]
+    final const val IMAGE_OVERLAY // dev.jordond.filmstrip.effect/EffectIds.IMAGE_OVERLAY|{}IMAGE_OVERLAY[0]
+        final fun <get-IMAGE_OVERLAY>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.IMAGE_OVERLAY.<get-IMAGE_OVERLAY>|<get-IMAGE_OVERLAY>(){}[0]
     final const val KEN_BURNS // dev.jordond.filmstrip.effect/EffectIds.KEN_BURNS|{}KEN_BURNS[0]
         final fun <get-KEN_BURNS>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.KEN_BURNS.<get-KEN_BURNS>|<get-KEN_BURNS>(){}[0]
     final const val ROTATE // dev.jordond.filmstrip.effect/EffectIds.ROTATE|{}ROTATE[0]
         final fun <get-ROTATE>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.ROTATE.<get-ROTATE>|<get-ROTATE>(){}[0]
     final const val SCALE // dev.jordond.filmstrip.effect/EffectIds.SCALE|{}SCALE[0]
         final fun <get-SCALE>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.SCALE.<get-SCALE>|<get-SCALE>(){}[0]
-    final const val TEXT // dev.jordond.filmstrip.effect/EffectIds.TEXT|{}TEXT[0]
-        final fun <get-TEXT>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.TEXT.<get-TEXT>|<get-TEXT>(){}[0]
-    final const val WATERMARK // dev.jordond.filmstrip.effect/EffectIds.WATERMARK|{}WATERMARK[0]
-        final fun <get-WATERMARK>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.WATERMARK.<get-WATERMARK>|<get-WATERMARK>(){}[0]
+    final const val TEXT_OVERLAY // dev.jordond.filmstrip.effect/EffectIds.TEXT_OVERLAY|{}TEXT_OVERLAY[0]
+        final fun <get-TEXT_OVERLAY>(): kotlin/String // dev.jordond.filmstrip.effect/EffectIds.TEXT_OVERLAY.<get-TEXT_OVERLAY>|<get-TEXT_OVERLAY>(){}[0]
 }
 
 final object dev.jordond.filmstrip/FilmstripVersion { // dev.jordond.filmstrip/FilmstripVersion|null[0]
@@ -2962,11 +2968,12 @@ final val dev.jordond.filmstrip.export/Mbps // dev.jordond.filmstrip.export/Mbps
 final fun (dev.jordond.filmstrip.motion/Easing).dev.jordond.filmstrip.motion/paced(kotlin/Float): kotlin/Float // dev.jordond.filmstrip.motion/paced|paced@dev.jordond.filmstrip.motion.Easing(kotlin.Float){}[0]
 final fun (kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec>).dev.jordond.filmstrip.effect/inCanonicalOrder(): kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec> // dev.jordond.filmstrip.effect/inCanonicalOrder|inCanonicalOrder@kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>(){}[0]
 final fun dev.jordond.filmstrip.edit/TimeRange(kotlin.ranges/ClosedRange<kotlin.time/Duration>): dev.jordond.filmstrip.edit/TimeRange // dev.jordond.filmstrip.edit/TimeRange|TimeRange(kotlin.ranges.ClosedRange<kotlin.time.Duration>){}[0]
+final fun dev.jordond.filmstrip.edit/compositionOf(kotlin/Function1<dev.jordond.filmstrip.edit/CompositionBuilder, kotlin/Unit>): dev.jordond.filmstrip.edit/EditComposition // dev.jordond.filmstrip.edit/compositionOf|compositionOf(kotlin.Function1<dev.jordond.filmstrip.edit.CompositionBuilder,kotlin.Unit>){}[0]
 final fun dev.jordond.filmstrip/Filmstrip(kotlin/Function1<dev.jordond.filmstrip/FilmstripBuilder, kotlin/Unit> = ...): dev.jordond.filmstrip/Filmstrip // dev.jordond.filmstrip/Filmstrip|Filmstrip(kotlin.Function1<dev.jordond.filmstrip.FilmstripBuilder,kotlin.Unit>){}[0]
+final suspend fun (dev.jordond.filmstrip.media/FrameRenderer).dev.jordond.filmstrip.media/frame(dev.jordond.filmstrip.media/MediaSource, kotlin.time/Duration, kotlin/Int = ...): dev.jordond.filmstrip.media/FrameResult // dev.jordond.filmstrip.media/frame|frame@dev.jordond.filmstrip.media.FrameRenderer(dev.jordond.filmstrip.media.MediaSource;kotlin.time.Duration;kotlin.Int){}[0]
+final suspend fun (dev.jordond.filmstrip.media/FrameRenderer).dev.jordond.filmstrip.media/still(dev.jordond.filmstrip.edit/EditComposition, kotlin.time/Duration, dev.jordond.filmstrip.media/MediaSink, dev.jordond.filmstrip.media/StillSpec = ...): dev.jordond.filmstrip.media/StillResult // dev.jordond.filmstrip.media/still|still@dev.jordond.filmstrip.media.FrameRenderer(dev.jordond.filmstrip.edit.EditComposition;kotlin.time.Duration;dev.jordond.filmstrip.media.MediaSink;dev.jordond.filmstrip.media.StillSpec){}[0]
+final suspend fun (dev.jordond.filmstrip.media/FrameRenderer).dev.jordond.filmstrip.media/still(dev.jordond.filmstrip.media/MediaSource, kotlin.time/Duration, dev.jordond.filmstrip.media/MediaSink, dev.jordond.filmstrip.media/StillSpec = ...): dev.jordond.filmstrip.media/StillResult // dev.jordond.filmstrip.media/still|still@dev.jordond.filmstrip.media.FrameRenderer(dev.jordond.filmstrip.media.MediaSource;kotlin.time.Duration;dev.jordond.filmstrip.media.MediaSink;dev.jordond.filmstrip.media.StillSpec){}[0]
 final suspend fun (dev.jordond.filmstrip.media/PlatformImage).dev.jordond.filmstrip.media/encodeStill(dev.jordond.filmstrip.media/StillSpec = ...): dev.jordond.filmstrip.media/StillBytes // dev.jordond.filmstrip.media/encodeStill|encodeStill@dev.jordond.filmstrip.media.PlatformImage(dev.jordond.filmstrip.media.StillSpec){}[0]
-final suspend fun (dev.jordond.filmstrip/Filmstrip).dev.jordond.filmstrip.media/frame(dev.jordond.filmstrip.media/MediaSource, kotlin.time/Duration, kotlin/Int = ...): dev.jordond.filmstrip.media/FrameResult // dev.jordond.filmstrip.media/frame|frame@dev.jordond.filmstrip.Filmstrip(dev.jordond.filmstrip.media.MediaSource;kotlin.time.Duration;kotlin.Int){}[0]
-final suspend fun (dev.jordond.filmstrip/Filmstrip).dev.jordond.filmstrip.media/still(dev.jordond.filmstrip.edit/EditComposition, kotlin.time/Duration, dev.jordond.filmstrip.media/MediaSink, dev.jordond.filmstrip.media/StillSpec = ...): dev.jordond.filmstrip.media/StillResult // dev.jordond.filmstrip.media/still|still@dev.jordond.filmstrip.Filmstrip(dev.jordond.filmstrip.edit.EditComposition;kotlin.time.Duration;dev.jordond.filmstrip.media.MediaSink;dev.jordond.filmstrip.media.StillSpec){}[0]
-final suspend fun (dev.jordond.filmstrip/Filmstrip).dev.jordond.filmstrip.media/still(dev.jordond.filmstrip.media/MediaSource, kotlin.time/Duration, dev.jordond.filmstrip.media/MediaSink, dev.jordond.filmstrip.media/StillSpec = ...): dev.jordond.filmstrip.media/StillResult // dev.jordond.filmstrip.media/still|still@dev.jordond.filmstrip.Filmstrip(dev.jordond.filmstrip.media.MediaSource;kotlin.time.Duration;dev.jordond.filmstrip.media.MediaSink;dev.jordond.filmstrip.media.StillSpec){}[0]
 
 // Targets: [apple]
 abstract fun interface dev.jordond.filmstrip.effect/CoreImageEffect { // dev.jordond.filmstrip.effect/CoreImageEffect|null[0]
