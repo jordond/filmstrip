@@ -122,6 +122,12 @@ internal external interface VideoColorSpaceInit : JsAny {
   val primaries: JsString?
 
   val transfer: JsString?
+
+  /**
+   * The Y'CbCr matrix, such as `bt2020-ncl`. Read only to prove what a written file was tagged
+   * with, since the prober decides HDR on the transfer alone.
+   */
+  val matrix: JsString?
 }
 
 /**
@@ -199,9 +205,16 @@ internal external interface EncodedPacketStep : JsAny {
 /**
  * Decodes a track's frames.
  */
-internal external class VideoSampleSink(
-  videoTrack: InputVideoTrack,
-) : JsAny {
+internal external class VideoSampleSink : JsAny {
+  constructor(videoTrack: InputVideoTrack)
+
+  /**
+   * [options] carries the decoder hint. `hardwareAcceleration: "prefer-software"` is what makes a
+   * ten-bit source hand out a readable `I420P10` frame rather than an opaque one, and a browser is
+   * free to refuse the config outright, so a caller has to be ready to open the sink without it.
+   */
+  constructor(videoTrack: InputVideoTrack, options: JsAny)
+
   /**
    * Frames in `[startTimestamp, endTimestamp)`, both in seconds. The sink seeks to the key frame
    * before [startTimestamp] rather than decoding from zero.
@@ -248,6 +261,11 @@ internal external class VideoSample(
   data: JsAny,
   init: JsAny,
 ) : JsAny {
+  /**
+   * The decoded frame's pixel layout, or null where the decoder keeps it opaque.
+   */
+  val format: JsString?
+
   val microsecondTimestamp: Double
 
   val microsecondDuration: Double
@@ -260,10 +278,16 @@ internal external class VideoSample(
 
   fun allocationSize(options: JsAny): Int
 
+  /**
+   * Copies the sample's pixels into [destination] and answers with where each plane landed.
+   *
+   * [options] left empty copies the planes as they are stored, which is the only way a ten-bit
+   * frame comes out at all: naming `I420P10` explicitly is refused as a non-RGB target.
+   */
   fun copyTo(
     destination: JsAny,
     options: JsAny,
-  ): Promise<JsAny?>
+  ): Promise<JsArray<PlaneLayout>>
 
   fun close()
 }

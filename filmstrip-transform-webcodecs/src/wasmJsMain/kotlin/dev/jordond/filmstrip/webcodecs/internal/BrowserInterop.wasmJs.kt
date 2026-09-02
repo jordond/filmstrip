@@ -40,6 +40,18 @@ internal actual class JsOptions actual constructor() {
 
 internal actual fun jsArrayOf(value: JsAny): JsArray<JsAny> = singletonArray(value)
 
+internal actual fun jsArrayOf(values: List<JsAny>): JsArray<JsAny> {
+  val out = emptyArray()
+  values.forEach { pushInto(out, it) }
+  return out
+}
+
+internal actual fun jsCopyWith(
+  source: JsAny,
+  key: String,
+  value: String,
+): JsAny = copyWith(source, key, value)
+
 internal actual fun FloatArray.toFloat32Array(): Float32Array {
   val out = Float32Array(size)
   forEachIndexed { index, value -> setFloat(out, index, value) }
@@ -111,6 +123,22 @@ private external fun setAny(
 
 @JsFun("(value) => [value]")
 private external fun singletonArray(value: JsAny): JsArray<JsAny>
+
+@JsFun("(source, key, value) => Object.assign({}, source, { [key]: value })")
+private external fun copyWith(
+  source: JsAny,
+  key: String,
+  value: String,
+): JsAny
+
+@JsFun("() => []")
+private external fun emptyArray(): JsArray<JsAny>
+
+@JsFun("(array, value) => { array.push(value); }")
+private external fun pushInto(
+  array: JsArray<JsAny>,
+  value: JsAny,
+)
 
 @JsFun("(array, index, value) => { array[index] = value; }")
 private external fun setFloat(

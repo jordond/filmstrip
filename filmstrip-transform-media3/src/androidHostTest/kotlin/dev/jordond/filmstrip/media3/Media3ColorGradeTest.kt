@@ -13,7 +13,6 @@ import dev.jordond.filmstrip.effects.color.Contrast
 import dev.jordond.filmstrip.effects.color.HdrColorMatrixEffect
 import dev.jordond.filmstrip.effects.color.Saturation
 import dev.jordond.filmstrip.effects.color.colorMatrixOf
-import dev.jordond.filmstrip.effects.color.hdrColorMatrixUniforms
 import dev.jordond.filmstrip.effects.color.toColumnMajor4x4
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
@@ -68,7 +67,7 @@ class Media3ColorGradeTest {
   // white or the display gamma means moves the pass with it rather than leaving a typed copy behind.
   @Test
   fun `a pq frame is read as display light against media3's peak`() {
-    val uniforms = HdrTransfer.Pq.hdrColorMatrixUniforms()
+    val uniforms = hdrPassFor(Contrast(FACTOR), HdrTransfer.Pq).uniforms
 
     assertEquals(HDR_REFERENCE_WHITE_NITS / MEDIA3_HDR_PEAK_NITS, uniforms.white)
     assertEquals(SDR_DISPLAY_GAMMA.toFloat(), uniforms.displayGamma)
@@ -78,7 +77,7 @@ class Media3ColorGradeTest {
 
   @Test
   fun `an hlg frame is read as scene light through the system gamma`() {
-    val uniforms = HdrTransfer.Hlg.hdrColorMatrixUniforms()
+    val uniforms = hdrPassFor(Contrast(FACTOR), HdrTransfer.Hlg).uniforms
 
     assertEquals(HDR_REFERENCE_WHITE_NITS / HLG_NOMINAL_PEAK_NITS, uniforms.white)
     assertEquals(SDR_DISPLAY_GAMMA.toFloat(), uniforms.displayGamma)
@@ -88,8 +87,8 @@ class Media3ColorGradeTest {
 
   @Test
   fun `the two transfer functions do not read the frame the same way`() {
-    val pq = HdrTransfer.Pq.hdrColorMatrixUniforms()
-    val hlg = HdrTransfer.Hlg.hdrColorMatrixUniforms()
+    val pq = hdrPassFor(Contrast(FACTOR), HdrTransfer.Pq).uniforms
+    val hlg = hdrPassFor(Contrast(FACTOR), HdrTransfer.Hlg).uniforms
 
     assertNotEquals(pq.ootfGamma, hlg.ootfGamma)
     assertNotEquals(pq.ceiling, hlg.ceiling)

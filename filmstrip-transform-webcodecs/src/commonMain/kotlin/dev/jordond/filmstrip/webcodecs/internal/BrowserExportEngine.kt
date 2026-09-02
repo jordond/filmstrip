@@ -20,6 +20,7 @@ import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSink
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.trackCodecOf
@@ -123,8 +124,20 @@ public class BrowserExportEngine(
         NegotiationResult.Failed(probed.error)
       }
       is ProbeCacheResult.Read -> {
+        val device = deviceCapabilities()
+        // Only worth asking where the device would otherwise take the grade. Where it would not,
+        // the refusal is already about the device and probing would open a reader a plan-only
+        // caller never asked for.
+        val opaque = if (device.supportsHdrEncoding) opaqueGrades(probed.infos) else emptySet()
         NegotiationResult.Done(
-          planner.lower(composition, spec, deviceCapabilities(), probed.infos, layoutSize = layoutSize),
+          planner.lower(
+            composition,
+            spec,
+            if (opaque.isEmpty()) device else device.withoutHdrEncoding(),
+            probed.infos,
+            layoutSize = layoutSize,
+            opaque = opaque,
+          ),
         )
       }
     }
@@ -274,6 +287,36 @@ public class BrowserExportEngine(
         MediaSink.Path(name)
       }
     }
+
+  /**
+   * The HDR sources in this composition whose grade cannot be read here.
+   *
+   * A browser's default decoder keeps an HDR frame opaque above some size and HEVC has no software
+   * decoder at all, so whether a grade can be kept is a question about the source rather than about
+   * the device. Asked once per reader and cached there, so the plan and the export that follows it
+   * get the same answer.
+   */
+  private suspend fun opaqueGrades(infos: Map<MediaSource, MediaInfo>): Set<MediaSource> =
+    infos
+      .filterValues { it.video?.hdrTransfer != null }
+      .keys
+      .filterNot { source -> sources.open(source)?.readsTenBit() == true }
+      .toSet()
+
+  /**
+   * The same device, with its HDR encoder taken away.
+   *
+   * The encoder is real, so this is not a correction to what the device said. It is what makes the
+   * shared negotiator settle a composition this backend cannot read the grade of the same way it
+   * settles one on a device with no HDR encoder at all.
+   */
+  private fun DeviceCapabilities.withoutHdrEncoding(): DeviceCapabilities =
+    DeviceCapabilities(
+      video = video,
+      audio = audio,
+      supportsHdrEncoding = false,
+      concurrentSessionBudget = concurrentSessionBudget,
+    )
 
   private suspend fun deviceCapabilities(): DeviceCapabilities = device ?: backend.capabilities().also { device = it }
 

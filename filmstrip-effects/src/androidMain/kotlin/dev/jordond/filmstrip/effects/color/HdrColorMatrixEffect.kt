@@ -13,10 +13,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effects.MEDIA3_HDR_PEAK_NITS
 import dev.jordond.filmstrip.media.HDR_REFERENCE_WHITE_NITS
 import dev.jordond.filmstrip.media.HLG_NOMINAL_PEAK_NITS
-import dev.jordond.filmstrip.media.HLG_SYSTEM_GAMMA
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.SDR_DISPLAY_GAMMA
-import dev.jordond.filmstrip.media.sdrSignalCeiling
 
 /**
  * Recombines the colour channels of a frame media3 holds as HDR linear light.
@@ -47,9 +44,19 @@ public class HdrColorMatrixEffect(
   public val columns: FloatArray = matrix.toColumnMajor4x4()
 
   /**
-   * The figures the shader reads the frame's light through.
+   * The figures the shader reads the frame's light through. media3 stores PQ against the peak it
+   * decodes to and HLG against its nominal peak, and it hands HLG over as scene light.
    */
-  public val uniforms: HdrColorMatrixUniforms = transfer.hdrColorMatrixUniforms()
+  public val uniforms: HdrColorMatrixUniforms =
+    transfer.hdrColorMatrixUniforms(
+      white =
+        HDR_REFERENCE_WHITE_NITS /
+          when (transfer) {
+            HdrTransfer.Pq -> MEDIA3_HDR_PEAK_NITS
+            HdrTransfer.Hlg -> HLG_NOMINAL_PEAK_NITS
+          },
+      holdsSceneLight = transfer == HdrTransfer.Hlg,
+    )
 
   override fun toGlShaderProgram(
     context: Context,
@@ -69,49 +76,6 @@ public class HdrColorMatrixEffect(
     const val HASH = 31
   }
 }
-
-/**
- * What the shader needs to move a channel between the light media3 stores and an SDR signal, all
- * derived from the shared constants rather than typed into the shader.
- *
- * @property white Reference white as a fraction of the display light media3 stores as one, so a
- * channel divided by it is the light an SDR display shows for a full signal.
- * @property displayGamma The power an SDR display raises its signal by on the way to light.
- * @property ootfGamma The per channel power between what the texture holds and display light.
- * HLG's system gamma for scene light, and one for PQ, which media3 already holds as display light.
- * @property ceiling The signal the transfer's peak encodes to, where the matrix's output is clamped.
- */
-@InternalFilmstripApi
-public class HdrColorMatrixUniforms(
-  public val white: Float,
-  public val displayGamma: Float,
-  public val ootfGamma: Float,
-  public val ceiling: Float,
-)
-
-/**
- * The figures [HdrColorMatrixEffect]'s shader reads a frame of this transfer through.
- */
-@InternalFilmstripApi
-public fun HdrTransfer.hdrColorMatrixUniforms(): HdrColorMatrixUniforms =
-  HdrColorMatrixUniforms(
-    // What media3 stores as one: the peak it decodes PQ against, and HLG's nominal peak.
-    white =
-      HDR_REFERENCE_WHITE_NITS /
-        when (this) {
-          HdrTransfer.Pq -> MEDIA3_HDR_PEAK_NITS
-          HdrTransfer.Hlg -> HLG_NOMINAL_PEAK_NITS
-        },
-    displayGamma = SDR_DISPLAY_GAMMA.toFloat(),
-    // PQ arrives as display light, so there is nothing between it and the display. HLG arrives as
-    // scene light, one opto-optical transfer short of it.
-    ootfGamma =
-      when (this) {
-        HdrTransfer.Pq -> 1f
-        HdrTransfer.Hlg -> HLG_SYSTEM_GAMMA.toFloat()
-      },
-    ceiling = sdrSignalCeiling,
-  )
 
 /**
  * Draws [HdrColorMatrixEffect]'s pass.
@@ -213,16 +177,15 @@ private val FRAGMENT_SHADER =
   uniform float uCeiling;
   in vec2 vTexSamplingCoord;
   out vec4 outColor;
+  $HDR_COLOR_MATRIX_GLSL
   void main() {
     vec4 sampled = texture(uTexSampler, vTexSamplingCoord);
     if (uHdr < 0.5) {
       outColor = vec4(clamp((uColorMatrix * vec4(sampled.rgb, 1.0)).rgb, 0.0, 1.0), sampled.a);
     } else {
-      vec3 display = pow(max(sampled.rgb, 0.0), vec3(uOotfGamma));
-      vec3 signal = pow(display / uWhite, vec3(1.0 / uDisplayGamma));
-      vec3 graded = clamp((uColorMatrix * vec4(signal, 1.0)).rgb, 0.0, uCeiling);
-      vec3 lit = pow(graded, vec3(uDisplayGamma)) * uWhite;
-      outColor = vec4(pow(lit, vec3(1.0 / uOotfGamma)), sampled.a);
+      vec3 graded =
+        filmstripGradeHdr(sampled.rgb, uColorMatrix, uWhite, uDisplayGamma, uOotfGamma, uCeiling);
+      outColor = vec4(graded, sampled.a);
     }
   }
   """.trimIndent()

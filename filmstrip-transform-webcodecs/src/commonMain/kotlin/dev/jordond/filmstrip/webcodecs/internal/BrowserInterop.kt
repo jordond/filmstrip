@@ -51,6 +51,24 @@ internal expect class JsOptions() {
 internal expect fun jsArrayOf(value: JsAny): JsArray<JsAny>
 
 /**
+ * A JavaScript array of [values], in order. The plane layout a ten-bit `VideoFrame` is built from
+ * is the one call site, and it is three entries long.
+ */
+internal expect fun jsArrayOf(values: List<JsAny>): JsArray<JsAny>
+
+/**
+ * A shallow copy of [source] with [key] set to [value].
+ *
+ * A decoder config comes out of mediabunny and is asked about with a hint added to it. Copying
+ * rather than writing into it leaves the object mediabunny still holds alone.
+ */
+internal expect fun jsCopyWith(
+  source: JsAny,
+  key: String,
+  value: String,
+): JsAny
+
+/**
  * Copies uniform or vertex data into the JavaScript heap. Most call sites are nine floats or
  * fewer. A blurred fill's kernel weights are the one that runs long.
  */
@@ -157,10 +175,21 @@ internal fun muxCodecKey(codec: VideoCodec): String =
 
 /**
  * The container a codec belongs in: VP8, VP9 and AV1 go in WebM, the others in MP4.
+ *
+ * An HDR VP9 encode is the exception and goes in MP4. Both containers carry a complete colour tag,
+ * but mediabunny rewrites the VP9 frame header's colour space bits on every WebM key frame from a
+ * map that has no entry for `bt2020-ncl` and writes zero there, while the MP4 muxer leaves the
+ * encoder's own header alone.
+ *
+ * @param hdr Whether the encode carries a grade.
  */
-internal fun containerFor(codec: VideoCodec): String =
-  when (codec) {
-    VideoCodec.Vp8, VideoCodec.Vp9, VideoCodec.Av1 -> "webm"
+internal fun containerFor(
+  codec: VideoCodec,
+  hdr: Boolean = false,
+): String =
+  when {
+    codec == VideoCodec.Vp9 && hdr -> "mp4"
+    codec == VideoCodec.Vp8 || codec == VideoCodec.Vp9 || codec == VideoCodec.Av1 -> "webm"
     else -> "mp4"
   }
 

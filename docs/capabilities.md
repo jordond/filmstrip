@@ -73,14 +73,14 @@ Which built-in effects each render backend can lower. A backend only sees effect
 | `Crop` (aspect) | yes                   | yes                   | yes                   | yes                   |
 | `CropRect`      | yes                   | yes                   | yes                   | yes                   |
 | `Scale`         | yes [^android-fit]    | yes                   | pending [^web-resize] | yes [^ffmpeg-scale]   |
-| `Brightness`    | yes [^hdr-brightness] | yes [^hdr-brightness] | yes [^web-sdr-only]   | yes [^hdr-brightness] |
-| `RgbAdjustment` | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^web-sdr-only]   | yes [^sdr-matrix]     |
-| `Contrast`      | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^web-sdr-only]   | yes [^sdr-matrix]     |
-| `Saturation`    | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^web-sdr-only]   | yes [^sdr-matrix]     |
-| `HueRotate`     | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^web-sdr-only]   | yes [^sdr-matrix]     |
-| `Sepia`         | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^web-sdr-only]   | yes [^sdr-matrix]     |
-| `Invert`        | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^web-sdr-only]   | yes [^sdr-matrix]     |
-| `ColorMatrix`   | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^web-sdr-only]   | yes [^sdr-matrix]     |
+| `Brightness`    | yes [^hdr-brightness] | yes [^hdr-brightness] | yes [^hdr-brightness] | yes [^hdr-brightness] |
+| `RgbAdjustment` | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^sdr-matrix]     |
+| `Contrast`      | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^sdr-matrix]     |
+| `Saturation`    | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^sdr-matrix]     |
+| `HueRotate`     | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^sdr-matrix]     |
+| `Sepia`         | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^sdr-matrix]     |
+| `Invert`        | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^sdr-matrix]     |
+| `ColorMatrix`   | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^sdr-matrix]     |
 | `ImageOverlay`  | pending [^overlays]   | pending [^overlays]   | pending [^overlays]   | yes                   |
 | `TextOverlay`   | pending [^overlays]   | pending [^overlays]   | pending [^overlays]   | no [^ffmpeg-text]     |
 
@@ -121,7 +121,8 @@ anything brighter than 203 nits black. Android lowers the SDR matrix onto media3
 kept grade onto a GL pass of its own, Apple onto `CIColorMatrix` inside the same tone curve pair
 `Brightness` uses on SDR and between a pair of `CIGammaAdjust` filters in linear BT.2020 on a grade,
 since Core Image's working space carries sRGB primaries and would floor a saturated BT.2020 channel,
-the browser onto one `mat4` uniform, and ffmpeg onto `lutrgb` when the matrix is per-channel and
+the browser onto one `mat4` uniform, wrapped on a grade in the same GLSL body media3's pass runs,
+and ffmpeg onto `lutrgb` when the matrix is per-channel and
 onto a two-point `lut3d` cube otherwise, which reproduces an affine map exactly and clamps once at
 the end. On a grade the cube runs at sixteen bits between two `lutrgb` tables that carry the
 transfer function, which costs two format conversions per frame. The per-channel table rounds to the
@@ -132,10 +133,13 @@ Image's opto-optical transfer keeps chroma but is not the per-channel one media3
 so an offset or a mix on a saturated HLG colour lands a few percent apart between Apple and the
 other two, and grey agrees everywhere.
 
-[^web-sdr-only]: The browser compositor renders into an eight-bit canvas, so this backend never
-writes an HDR grade and every colour matrix lands on an SDR signal. A kept grade is refused by name
-rather than lowered into the wrong domain, and a test pins the compositor's depth as well, so the
-day that changes both the refusal and the test say so.
+[^web-hdr]: The browser reads a kept grade as linear display light with reference white at one, and
+it runs HLG's opto-optical transfer per channel on the way in, which is the reading media3 and
+ffmpeg apply and which puts the three of them on the same code value. It holds the frame at half
+float and packs the result straight into the bytes of a ten-bit frame, so nothing goes through an
+eight-bit surface between the decoder and the encoder. A preview still draws an eight-bit picture:
+the composited light is clipped at reference white and put through the SDR display curve, which is
+what the browser's own upload of an HDR frame shows today.
 
 [^ffmpeg-text]: Refused for one of two reasons, and the message says which. Either the ffmpeg build
 has no `drawtext` filter, which needs `--enable-libfreetype` and `--enable-libharfbuzz` and the
@@ -159,13 +163,23 @@ metrics and measured extent are exact on both platforms.
 | AAC   | yes     | yes   | pending [^web-audio] | yes           |
 | ALAC  | no      | no    | no                   | yes           |
 
-HDR: Android reports HEVC Main 10 support, Apple infers it from HEVC availability. `HdrMode` is
-resolved once up front, and both preview and export use that decision.
+HDR: Android reports HEVC Main 10 support, Apple infers it from HEVC availability, and the browser
+reports VP9 Profile 2 [^web-hdr]. `HdrMode` is resolved once up front, and both preview and export
+use that decision.
 
-An export that keeps an HDR grade is pinned to HEVC, because Main 10 is the only profile either
-platform measured. Asking for H.264 as well reports a `CodecFallback`. An SDR source resolves to
-"keep" whatever `HdrMode` asked for: there is no grade to map, and claiming otherwise would cost the
-stream copy, since a platform told to tone-map has to decode every frame to do it.
+An export that keeps an HDR grade is pinned to HEVC on Android and Apple, because Main 10 is the
+only profile either platform measured, and to VP9 Profile 2 in the browser, which is the only HDR
+profile any browser encoder there was measured to take. Asking for H.264 as well reports a
+`CodecFallback`. An SDR source resolves to "keep" whatever `HdrMode` asked for: there is no grade to
+map, and claiming otherwise would cost the stream copy, since a platform told to tone-map has to
+decode every frame to do it.
+
+The browser's HDR encode is software only, so it runs on the CPU however capable the machine is, and
+so does the decode: the only decoder that hands out a readable ten-bit frame there is the software
+one. Whether a source's grade can be kept is therefore a question about the source rather than about
+the device, asked once per clip at plan time. An HEVC Main 10 source, which is what an iPhone
+writes, has no software decoder in any browser measured, so its grade survives only through a stream
+copy of an untouched clip. Anything that has to be re-encoded is refused by name.
 
 ## Compositions
 

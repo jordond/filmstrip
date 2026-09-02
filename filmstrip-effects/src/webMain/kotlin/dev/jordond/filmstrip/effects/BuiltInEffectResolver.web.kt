@@ -31,7 +31,6 @@ import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
-import dev.jordond.filmstrip.media.HdrTransfer
 
 /**
  * Lowers the built-in catalogue onto WebGL pass declarations.
@@ -61,7 +60,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       is Sepia,
       is Invert,
       is ColorMatrix,
-      -> spec.toColorPass(attributes.hdrTransfer)
+      -> spec.toColorPass()
       is KenBurns -> EffectResolution.Unsupported(spec.id, PAN_PENDING)
       is Rotate, is Scale -> EffectResolution.Unsupported(spec.id, RESIZING_PENDING)
       is ImageOverlay, is TextOverlay -> EffectResolution.Unsupported(spec.id, OVERLAYS_PENDING)
@@ -69,13 +68,11 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     }
   }
 
-  // The matrix goes in as authored, in the encoded domain a compositor rendering into an eight-bit
-  // canvas hands it. A kept grade is refused rather than lowered, since the pass would then hold
-  // linear light and need the arm HdrColorMatrixEffect runs on media3. The compositor reports no
-  // ten-bit output today, so nothing reaches this refusal, and it stands whatever a later pipeline
-  // reports rather than resting on that.
-  private fun EffectSpec.toColorPass(transfer: HdrTransfer?): EffectResolution {
-    if (transfer != null) return EffectResolution.Unsupported(id, GRADE_PENDING)
+  // The matrix goes in as authored, in the encoded domain it was written against. A compositor
+  // rendering into an eight-bit canvas multiplies it straight into the sample, and one keeping a
+  // grade runs the shared arm of HDR_COLOR_MATRIX_GLSL around it, which moves the light into that
+  // same domain and back. Either way the entries the pass carries are the ones the caller wrote.
+  private fun EffectSpec.toColorPass(): EffectResolution {
     val matrix = checkNotNull(colorMatrixOf(this)).toColumnMajor4x4()
 
     return resolved(WebGlPass(COLOR_MATRIX_PROGRAM, mapOf(COLOR_MATRIX to matrix)))
@@ -128,10 +125,6 @@ private const val TEXTURE_PROGRAM = "filmstrip.texture"
 private const val COLOR_MATRIX_PROGRAM = "filmstrip.colorMatrix"
 private const val TEXTURE_MATRIX = "uTexMatrix"
 private const val COLOR_MATRIX = "uColorMatrix"
-
-private const val GRADE_PENDING =
-  "A colour matrix on an export that keeps its HDR grade runs on light rather than on the encoded " +
-    "signal, and this backend has no pass for that domain yet. Export to SDR, or drop the effect."
 
 private const val RESIZING_PENDING =
   "Rotate and Scale change the size of the render target rather than adding a pass, so they " +

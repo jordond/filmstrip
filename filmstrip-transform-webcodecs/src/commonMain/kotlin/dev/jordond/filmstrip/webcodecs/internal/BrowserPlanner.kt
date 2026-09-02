@@ -182,11 +182,13 @@ internal class BrowserPlanner(
     infos: Map<MediaSource, MediaInfo>,
     dropped: Set<String> = emptySet(),
     layoutSize: Size? = null,
+    opaque: Set<MediaSource> = emptySet(),
   ): BrowserLowering {
     unconditionalRefusal(composition, infos)?.let { return it }
 
     val export = planner.negotiate(composition, spec, device, infos, dropped, layoutSize)
-    val negotiated = export.composition ?: return BrowserLowering(export, null)
+    val negotiated =
+      export.composition ?: return opaqueRefusal(opaque) ?: BrowserLowering(export, null)
     val writesVideo = negotiated.audio != AudioSpec.AudioOnly
     if (writesVideo && negotiated.path == ExportPath.Transcode) {
       transcodeOnlyRefusal(composition, infos)?.let { return it }
@@ -246,6 +248,26 @@ internal class BrowserPlanner(
       }
     }
     return null
+  }
+
+  /**
+   * Why a grade this backend was told it could encode still cannot be kept.
+   *
+   * The device answered that it has no HDR encoder for this composition, but the reason is the
+   * source rather than the device, and the shared negotiator has no way to say so. Naming the
+   * source is what separates "this browser cannot encode HDR" from "this browser cannot read this
+   * clip", which are different things to do something about.
+   */
+  private fun opaqueRefusal(opaque: Set<MediaSource>): BrowserLowering? {
+    val source = opaque.firstOrNull() ?: return null
+
+    return incapable(
+      ExportError.SourceNotExportable(
+        "The source ${source.describe()} decodes to an opaque frame in this browser, so its " +
+          "grade cannot be read. Export to SDR, or leave the clip untouched so its packets can " +
+          "be copied across.",
+      ),
+    )
   }
 
   private fun incapable(message: String): BrowserLowering = incapable(ExportError.InvalidComposition(message))
@@ -327,7 +349,7 @@ internal fun browserRenderOf(
     height = outputSize.height,
     encoderCodec = if (encodes) webCodecString(videoCodec, outputSize, plan.hdrTransfer != null) else null,
     muxCodec = if (encodes) muxCodecKey(videoCodec) else null,
-    container = if (encodes) containerFor(videoCodec) else null,
+    container = if (encodes) containerFor(videoCodec, plan.hdrTransfer != null) else null,
     bitrate =
       (plan.output.bitrate?.bitsPerSecond ?: DEFAULT_BITRATE)
         .coerceAtMost(

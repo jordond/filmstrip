@@ -308,7 +308,7 @@ public class BrowserPreview internal constructor(
     pass.clip(slot.clip)
     pass.draw(sample)
 
-    val shot = pass.snapshot(slot.outputUs, stepUs)
+    val shot = pass.present(slot.outputUs, stepUs)
     try {
       val options = JsOptions().put("format", "RGBA").build()
       val target = Uint8Array(shot.allocationSize(options))
@@ -324,7 +324,9 @@ public class BrowserPreview internal constructor(
   }
 
   private fun compositor(): BrowserCompositor =
-    compositor ?: BrowserCompositor.create(render.width, render.height, render.fill).also { compositor = it }
+    compositor ?: BrowserCompositor
+      .create(render.width, render.height, render.fill, render.hdrTransfer)
+      .also { compositor = it }
 
   private suspend fun sampler(
     cache: MutableMap<Int, FrameSampler>,
@@ -332,7 +334,7 @@ public class BrowserPreview internal constructor(
   ): FrameSampler? {
     cache[slot.index]?.let { return it }
     val reader = sources.open(slot.clip.source) ?: return null
-    return reader.sampler()?.also { cache[slot.index] = it }
+    return reader.sampler(tenBit = render.hdrTransfer != null)?.also { cache[slot.index] = it }
   }
 
   private val stepUs: Double get() = MICROS_PER_SECOND / render.frameRate

@@ -158,6 +158,20 @@ class HdrSignalTest {
     }
   }
 
+  @Test
+  fun `the BT2020 luminance weights sum to one`() {
+    BT2020_LUMA_R + BT2020_LUMA_G + BT2020_LUMA_B shouldBeNear 1f
+  }
+
+  // A chroma channel spans plus or minus a half, so its scale is twice the distance the channel it
+  // is built from travels from luma. Deriving them keeps the shader that reads them off the weights
+  // rather than off a typed pair of decimals.
+  @Test
+  fun `the chroma scales follow from the luminance weights`() {
+    BT2020_CB_SCALE shouldBeNear 1.8814f
+    BT2020_CR_SCALE shouldBeNear 1.4746f
+  }
+
   private infix fun Float.shouldBeNear(expected: Float) {
     val tolerance = if (abs(expected) > 1f) abs(expected) * 1e-3f else 1e-3f
     assertTrue(abs(this - expected) <= tolerance, "expected $expected but was $this")

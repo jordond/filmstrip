@@ -254,6 +254,42 @@ public fun sceneFromHlgSignal(signal: Float): Float {
 private fun sqrt3(value: Double): Double = exp(ln(3.0 * value) / 2.0)
 
 /**
+ * BT.2020's red luminance weight.
+ *
+ * The three weights sum to one and are what turn linear BT.2020 light into luminance, which is both
+ * what HLG's opto-optical transfer is anchored on and what a Y'CbCr matrix reads.
+ */
+@InternalFilmstripApi
+public const val BT2020_LUMA_R: Float = 0.2627f
+
+/**
+ * BT.2020's green luminance weight.
+ */
+@InternalFilmstripApi
+public const val BT2020_LUMA_G: Float = 0.6780f
+
+/**
+ * BT.2020's blue luminance weight.
+ */
+@InternalFilmstripApi
+public const val BT2020_LUMA_B: Float = 0.0593f
+
+/**
+ * What Cb is scaled by on the way from blue minus luma to a BT.2020 NCL chroma channel.
+ *
+ * Follows from [BT2020_LUMA_B]: blue reaches its extreme at `1 - Kb` above luma, and the channel
+ * spans plus or minus a half.
+ */
+@InternalFilmstripApi
+public const val BT2020_CB_SCALE: Float = 2f * (1f - BT2020_LUMA_B)
+
+/**
+ * What Cr is scaled by, the red counterpart of [BT2020_CB_SCALE].
+ */
+@InternalFilmstripApi
+public const val BT2020_CR_SCALE: Float = 2f * (1f - BT2020_LUMA_R)
+
+/**
  * The `m1` exponent of the ST 2084 transfer function.
  */
 @InternalFilmstripApi

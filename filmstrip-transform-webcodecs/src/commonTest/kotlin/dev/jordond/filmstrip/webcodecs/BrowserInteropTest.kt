@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.webcodecs.internal.COMPOSITOR_WRITES_TEN_BIT
 import dev.jordond.filmstrip.webcodecs.internal.HDR_VP9_CODEC
 import dev.jordond.filmstrip.webcodecs.internal.containerFor
 import dev.jordond.filmstrip.webcodecs.internal.muxCodecKey
@@ -10,7 +9,6 @@ import dev.jordond.filmstrip.webcodecs.internal.webCodecString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertFalse
 
 /**
  * The pure codec-string and container lookups [webCodecString], [muxCodecKey] and [containerFor]
@@ -57,15 +55,12 @@ class BrowserInteropTest {
     assertFailsWith<IllegalStateException> { muxCodecKey(VideoCodec.Av1) }
   }
 
-  // The colour effects lower to one WebGL pass that runs a matrix over the encoded signal, with no
-  // arm for the display or scene gain a kept grade needs. That is only safe while this backend
-  // cannot write a grade at all, so the day the compositor goes ten bit this fails rather than the
-  // export quietly grading the wrong domain.
+  // Both containers carry a complete colour tag, but mediabunny rewrites the WebM VP9 frame
+  // header's colour space bits from a map with no BT.2020 entry and writes zero there. The mp4
+  // muxer leaves the encoder's own header alone, so a grade goes in mp4 whatever SDR VP9 does.
   @Test
-  fun `the compositor still cannot write a grade`() {
-    assertFalse(
-      COMPOSITOR_WRITES_TEN_BIT,
-      "the compositor writes ten bit now, so the colour matrix needs the lowering the other backends have",
-    )
+  fun `an hdr vp9 encode routes to mp4 where an sdr one stays in webm`() {
+    assertEquals("webm", containerFor(VideoCodec.Vp9, hdr = false))
+    assertEquals("mp4", containerFor(VideoCodec.Vp9, hdr = true))
   }
 }

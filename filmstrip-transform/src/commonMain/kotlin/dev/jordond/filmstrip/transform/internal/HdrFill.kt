@@ -1,6 +1,9 @@
 package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.media.BT2020_LUMA_B
+import dev.jordond.filmstrip.media.BT2020_LUMA_G
+import dev.jordond.filmstrip.media.BT2020_LUMA_R
 import dev.jordond.filmstrip.media.HDR_REFERENCE_WHITE_NITS
 import dev.jordond.filmstrip.media.HLG_NOMINAL_PEAK_NITS
 import dev.jordond.filmstrip.media.HLG_SYSTEM_GAMMA
@@ -119,11 +122,6 @@ private val BT709_TO_BT2020 =
     0.0880133,
     0.8955953,
   )
-
-// BT.2020's luminance weights, which the HLG transfer above is anchored on.
-private const val BT2020_LUMA_R = 0.2627f
-private const val BT2020_LUMA_G = 0.6780f
-private const val BT2020_LUMA_B = 0.0593f
 
 private const val SRGB_KNEE = 0.04045
 private const val SRGB_SLOPE = 12.92

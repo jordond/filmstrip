@@ -14,9 +14,11 @@ import kotlin.js.definedExternally
 // lives behind expect/actual.
 
 /**
- * Raw bytes owned by JavaScript.
+ * Raw bytes owned by JavaScript. Allocated here for the plane bytes `VideoFrame.copyTo` fills.
  */
-internal external interface ArrayBuffer : JsAny {
+internal external class ArrayBuffer(
+  length: Int,
+) : JsAny {
   val byteLength: Int
 }
 
@@ -28,6 +30,20 @@ internal external class Uint8Array : JsAny {
 
   constructor(buffer: ArrayBuffer)
 
+  val length: Int
+
+  fun at(index: Int): Int
+}
+
+/**
+ * A sixteen-bit view over one plane of a ten-bit frame, which is the shape `texImage2D` takes for
+ * an `R16UI` upload.
+ */
+internal external class Uint16Array(
+  buffer: ArrayBuffer,
+  byteOffset: Int,
+  length: Int,
+) : JsAny {
   val length: Int
 
   fun at(index: Int): Int
@@ -138,6 +154,12 @@ internal external interface WebGl2 : JsAny {
 
   fun createTexture(): JsAny?
 
+  /**
+   * Which texture unit the next `bindTexture` names. The unpack pass reads three planes at once, so
+   * it binds one texture per unit rather than one at a time.
+   */
+  fun activeTexture(texture: Int)
+
   fun bindTexture(
     target: Int,
     texture: JsAny?,
@@ -218,6 +240,8 @@ internal external interface WebGl2 : JsAny {
 
   fun enable(cap: Int)
 
+  fun disable(cap: Int)
+
   fun blendFuncSeparate(
     srcRgb: Int,
     dstRgb: Int,
@@ -264,23 +288,71 @@ internal external interface WebGl2 : JsAny {
     count: Int,
   )
 
-  fun getExtension(name: String): LoseContext?
+  /**
+   * Reads the bound framebuffer back into [pixels]. Synchronous, and it stalls the GL pipeline
+   * until the draw behind it has finished, which is what makes it the pack pass's whole cost.
+   *
+   * Rows come back bottom-up.
+   */
+  fun readPixels(
+    x: Int,
+    y: Int,
+    width: Int,
+    height: Int,
+    format: Int,
+    type: Int,
+    pixels: Uint8Array,
+  )
+
+  fun getExtension(name: String): GlExtension?
 }
 
 /**
- * `WEBGL_lose_context`, the only way to hand a context back before the browser's cap of roughly
- * sixteen live contexts refuses the next one.
+ * An extension object, handed back by name or null where the context has none.
+ *
+ * `WEBGL_lose_context` is the only one whose members are called. Everything else is asked for so
+ * the answer can be null-checked, which is what a capability probe needs.
  */
-internal external interface LoseContext : JsAny {
+internal external interface GlExtension : JsAny {
   fun loseContext()
 }
 
 /**
  * A WebCodecs frame. mediabunny hands one out per decoded sample, and it has to be closed
  * separately from the sample it came from.
+ *
+ * Only the image upload takes one. Everything that reads planes goes through the sample itself,
+ * which forwards to the frame underneath it.
  */
 internal external interface VideoFrame : JsAny {
   fun close()
+}
+
+/**
+ * Where one plane sits inside the buffer a `copyTo` filled.
+ *
+ * The stride is the decoder's own and is wider than the frame on plenty of sources, so it is read
+ * rather than computed.
+ */
+internal external interface PlaneLayout : JsAny {
+  val offset: Int
+
+  val stride: Int
+}
+
+/**
+ * WebCodecs' decoder, used here only to ask whether a config decodes in software. Decoding itself
+ * goes through mediabunny.
+ */
+internal external object VideoDecoder : JsAny {
+  fun isConfigSupported(config: JsAny): Promise<DecoderSupport>
+}
+
+/**
+ * The answer to `VideoDecoder.isConfigSupported`.
+ */
+internal external interface DecoderSupport : JsAny {
+  val supported: Boolean
 }
 
 /**

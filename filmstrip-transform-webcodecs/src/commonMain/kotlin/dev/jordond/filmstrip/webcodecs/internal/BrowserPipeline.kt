@@ -30,7 +30,8 @@ internal class BrowserPipeline(
   suspend fun run(onProgress: suspend (Long, Double) -> Unit): PipelineResult {
     if (!render.writesVideo) return runAudioOnly()
 
-    val compositor = BrowserCompositor.create(render.width, render.height, render.fill)
+    val compositor =
+      BrowserCompositor.create(render.width, render.height, render.fill, render.hdrTransfer)
     try {
       val encoder = BrowserEncoder.open(render)
       var finished = false
@@ -88,7 +89,9 @@ internal class BrowserPipeline(
   ): Long {
     val stepUs = MICROS_PER_SECOND / render.frameRate
     val stream =
-      sources.open(clip.source)?.frames(clip.trimStartUs, clip.trimEndUs)
+      sources
+        .open(clip.source)
+        ?.frames(clip.trimStartUs, clip.trimEndUs, tenBit = render.hdrTransfer != null)
         ?: throw BrowserExportFailure(unreadable(clip.source))
 
     compositor.clip(clip)

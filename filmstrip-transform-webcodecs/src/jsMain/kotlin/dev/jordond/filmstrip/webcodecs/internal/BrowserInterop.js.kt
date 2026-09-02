@@ -38,6 +38,18 @@ internal actual class JsOptions actual constructor() {
 
 internal actual fun jsArrayOf(value: JsAny): JsArray<JsAny> = js("[value]").unsafeCast<JsArray<JsAny>>()
 
+internal actual fun jsArrayOf(values: List<JsAny>): JsArray<JsAny> {
+  val out = js("[]")
+  values.forEach { out.push(it) }
+  return out.unsafeCast<JsArray<JsAny>>()
+}
+
+internal actual fun jsCopyWith(
+  source: JsAny,
+  key: String,
+  value: String,
+): JsAny = js("Object.assign({}, source, { [key]: value })").unsafeCast<JsAny>()
+
 internal actual fun FloatArray.toFloat32Array(): Float32Array = unsafeCast<Float32Array>()
 
 // A `js()` body reaches the enclosing function's locals and parameters by name. The receiver is

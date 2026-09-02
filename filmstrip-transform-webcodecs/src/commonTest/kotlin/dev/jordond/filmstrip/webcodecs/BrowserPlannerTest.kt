@@ -62,6 +62,7 @@ import dev.jordond.filmstrip.webcodecs.internal.BrowserLowering
 import dev.jordond.filmstrip.webcodecs.internal.BrowserPlanner
 import dev.jordond.filmstrip.webcodecs.internal.HDR_VP9_CODEC
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
@@ -83,7 +84,8 @@ class BrowserPlannerTest {
     spec: ExportSpec = videoSpec(),
     infos: Map<MediaSource, MediaInfo> = composition.clips.map { it.source to info() }.toMap(),
     device: DeviceCapabilities = device(VideoCodec.H264, VideoCodec.Vp9),
-  ): BrowserLowering = planner.lower(composition, spec, device, infos)
+    opaque: Set<MediaSource> = emptySet(),
+  ): BrowserLowering = planner.lower(composition, spec, device, infos, opaque = opaque)
 
   private fun infosOf(composition: EditComposition): Map<MediaSource, MediaInfo> =
     composition.clips.map { it.source to info() }.toMap()
@@ -260,15 +262,27 @@ class BrowserPlannerTest {
     }
   }
 
-  // The compositor renders into an eight-bit canvas, so there is no domain here for a matrix
-  // written against light. Refused by name rather than lowered as though the frame held a signal,
-  // whatever a later pipeline reports about its own depth.
+  // The pass carries the matrix as authored either way. The compositor is what knows which domain
+  // the frame is in, and it wraps the same entries in the shared HDR arm when it keeps a grade.
   @Test
-  fun colourOnAKeptGradeIsRefused() {
+  fun colourLowersTheSameWayOnAKeptGradeAsOnAnSdrFrame() {
     val resolver = BuiltInEffectResolver()
 
-    assertIs<EffectResolution.Unsupported>(resolver.resolve(Sepia(), webCapabilities(), attributesOf(HdrTransfer.Pq)))
-    assertIs<EffectResolution.Resolved>(resolver.resolve(Sepia(), webCapabilities(), attributesOf(null)))
+    val graded =
+      assertIs<EffectResolution.Resolved>(
+        resolver.resolve(Sepia(), webCapabilities(), attributesOf(HdrTransfer.Pq)),
+      )
+    val sdr =
+      assertIs<EffectResolution.Resolved>(
+        resolver.resolve(Sepia(), webCapabilities(), attributesOf(null)),
+      )
+
+    assertContentEquals(
+      sdr.effect.pass.uniforms
+        .getValue("uColorMatrix"),
+      graded.effect.pass.uniforms
+        .getValue("uColorMatrix"),
+    )
   }
 
   private fun webCapabilities(): RenderCapabilities =
@@ -410,7 +424,52 @@ class BrowserPlannerTest {
     // The copy carries the source's own grade, and the render says which one so the muxer tags it
     // rather than guessing. Claiming Capable alone would pass just as well for a silent SDR write.
     assertEquals(HdrTransfer.Hlg, assertNotNull(lowering.render).hdrTransfer)
-    assertNull(lowering.render?.encoderCodec, "a copy opens no encoder, so it names no codec string")
+    assertNull(lowering.render.encoderCodec, "a copy opens no encoder, so it names no codec string")
+  }
+
+  // A browser's default decoder keeps an HDR frame opaque above some size, and HEVC has no software
+  // decoder here at all, so a device that really does encode HDR can still meet a clip whose grade
+  // it cannot read. The engine takes the encoder away for that composition, and the refusal has to
+  // say the source is the reason rather than repeat the device's own answer back.
+  @Test
+  fun aSourceWhoseGradeCannotBeReadIsRefusedByName() {
+    val clip = Clip(source("a"))
+    val spec = ExportSpec(hdr = HdrMode.KeepHdr)
+    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+    val infos = mapOf(clip.source to info(hdr = HdrTransfer.Hlg, codec = "mpeg2video"))
+
+    val verdict =
+      lower(
+        composition,
+        spec,
+        infos,
+        device(VideoCodec.H264, VideoCodec.Vp9, supportsHdrEncoding = false),
+        opaque = setOf(clip.source),
+      ).verdict
+
+    val reasons = assertIs<Verdict.Incapable>(verdict).reasons
+    assertTrue(
+      reasons.any { it.message.contains("opaque frame") },
+      "the refusal was ${reasons.map { it.message }}, which does not say the source is the reason",
+    )
+  }
+
+  // Nothing about a source is wrong when the device simply has no HDR encoder, so the refusal stays
+  // the shared negotiator's rather than being rewritten into one about a clip.
+  @Test
+  fun aDeviceWithNoHdrEncoderIsStillRefusedInItsOwnWords() {
+    val clip = Clip(source("a"))
+    val spec = ExportSpec(hdr = HdrMode.KeepHdr)
+    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+    val infos = mapOf(clip.source to info(hdr = HdrTransfer.Hlg, codec = "mpeg2video"))
+
+    val verdict = lower(composition, spec, infos).verdict
+
+    val reasons = assertIs<Verdict.Incapable>(verdict).reasons
+    assertTrue(
+      reasons.none { it.message.contains("opaque frame") },
+      "the refusal blamed the source where the device is what has no encoder",
+    )
   }
 
   // There is no browser encoder for HEVC Main10, so an HDR export that has to encode pins the

@@ -35,6 +35,8 @@ internal class SourceReader(
   private var looked = false
   private var audio: InputAudioTrack? = null
   private var lookedAudio = false
+  private var tenBit: Boolean? = null
+  private var softwareHint = false
 
   suspend fun videoTrack(): InputVideoTrack? {
     if (!looked) {
@@ -86,15 +88,31 @@ internal class SourceReader(
   }
 
   /**
+   * Whether this source hands out a frame whose ten-bit planes can be read, which is what a kept
+   * grade needs.
+   *
+   * A browser's default decoder keeps an HDR frame opaque above some size, and an opaque frame
+   * refuses `copyTo`, so the software decoder is asked for first and the default is the fallback.
+   * HEVC has no software decoder at all here, which is what makes this a per-source answer rather
+   * than a per-device one. Probed once and cached, so the plan, the preview and the export ask the
+   * same reader for the same answer.
+   */
+  suspend fun readsTenBit(): Boolean = tenBit ?: probeTenBit().also { tenBit = it }
+
+  /**
    * Decoded frames covering `[startUs, endUs)`. An [endUs] that is not finite runs to the end of
    * the track.
+   *
+   * @param tenBit Whether the caller reads the frame's planes rather than uploading it as an image.
+   *   Opens whichever decoder [readsTenBit] found a readable frame through.
    */
   suspend fun frames(
     startUs: Double,
     endUs: Double,
+    tenBit: Boolean = false,
   ): FrameStream? {
     val track = videoTrack() ?: return null
-    val sink = VideoSampleSink(track)
+    val sink = sinkFor(track, tenBit)
     val end = if (endUs.isFinite()) endUs / MICROS_PER_SECOND else OPEN_ENDED_SECONDS
     return FrameStream(sink.samples(startUs / MICROS_PER_SECOND, end))
   }
@@ -104,10 +122,12 @@ internal class SourceReader(
    *
    * Each call opens a decoder of its own, so a preview can read a frame back without disturbing the
    * one playback is decoding through.
+   *
+   * @param tenBit The same as on [frames].
    */
-  suspend fun sampler(): FrameSampler? {
+  suspend fun sampler(tenBit: Boolean = false): FrameSampler? {
     val track = videoTrack() ?: return null
-    return FrameSampler(VideoSampleSink(track))
+    return FrameSampler(sinkFor(track, tenBit))
   }
 
   /**
@@ -136,6 +156,63 @@ internal class SourceReader(
 
   fun close() {
     input.dispose()
+  }
+
+  /**
+   * The sink a caller reading planes decodes through, or the plain one otherwise.
+   */
+  private suspend fun sinkFor(
+    track: InputVideoTrack,
+    tenBit: Boolean,
+  ): VideoSampleSink {
+    if (!tenBit) return VideoSampleSink(track)
+    readsTenBit()
+    return if (softwareHint) softwareSink(track) ?: VideoSampleSink(track) else VideoSampleSink(track)
+  }
+
+  /**
+   * Decodes one frame each way and answers on what came back.
+   *
+   * The software hint is put to `VideoDecoder` first, since a config it refuses outright is not
+   * worth opening a sink for. mediabunny still refuses the hint on some tracks that answered
+   * supported, so the default decoder is tried after it rather than the source being written off.
+   */
+  private suspend fun probeTenBit(): Boolean {
+    val track = videoTrack() ?: return false
+    if (softwareDecodes(track) && yieldsTenBit { softwareSink(track) }) {
+      softwareHint = true
+      return true
+    }
+    softwareHint = false
+    return yieldsTenBit { VideoSampleSink(track) }
+  }
+
+  private suspend fun softwareDecodes(track: InputVideoTrack): Boolean {
+    val config = track.getDecoderConfig().await() ?: return false
+    return runCatching {
+      VideoDecoder
+        .isConfigSupported(jsCopyWith(config, HARDWARE_ACCELERATION, SOFTWARE_HINT))
+        .await()
+        .supported
+    }.getOrDefault(false)
+  }
+
+  private fun softwareSink(track: InputVideoTrack): VideoSampleSink? =
+    runCatching {
+      VideoSampleSink(track, JsOptions().put(HARDWARE_ACCELERATION, SOFTWARE_HINT).build())
+    }.getOrNull()
+
+  /**
+   * Whether the first frame [open] decodes carries readable ten-bit planes. A decoder that refuses
+   * the track answers no rather than failing the plan.
+   */
+  private suspend fun yieldsTenBit(open: () -> VideoSampleSink?): Boolean {
+    val sample = runCatching { open()?.getSample(0.0)?.await() }.getOrNull() ?: return false
+    return try {
+      sample.format?.toString() == TEN_BIT_FORMAT
+    } finally {
+      sample.close()
+    }
   }
 
   /**
@@ -285,6 +362,15 @@ internal class SourceCache {
 }
 
 internal const val MICROS_PER_SECOND = 1_000_000.0
+
+/**
+ * The four-two-zero ten-bit planar layout a kept grade is read out of. The one format any browser
+ * decoder here was measured to hand over for an HDR source.
+ */
+internal const val TEN_BIT_FORMAT: String = "I420P10"
+
+private const val HARDWARE_ACCELERATION = "hardwareAcceleration"
+private const val SOFTWARE_HINT = "prefer-software"
 
 // mediabunny takes an end timestamp in seconds, and every real track ends long before this.
 private const val OPEN_ENDED_SECONDS = 1e12
