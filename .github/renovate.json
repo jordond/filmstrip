@@ -1,0 +1,113 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":configMigration",
+    "abandonments:recommended"
+  ],
+  "enabledManagers": ["gradle", "gradle-wrapper", "github-actions"],
+  "ignorePaths": ["**/build/**", "docs/**", "scratchpad/**", ".github/modernize/**"],
+  "labels": ["dependencies"],
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "semanticCommitScope": "deps",
+  "minimumReleaseAge": "3 days",
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 0,
+  "rebaseWhen": "conflicted",
+  "dependencyDashboard": true,
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "labels": ["dependencies", "security"],
+    "schedule": ["at any time"],
+    "minimumReleaseAge": null
+  },
+  "packageRules": [
+    {
+      "description": "Kotlin language libraries",
+      "matchPackageNames": ["org.jetbrains.kotlin:*", "org.jetbrains.kotlin.*"],
+      "groupName": "kotlin"
+    },
+    {
+      "description": "kotlinx libraries",
+      "matchPackageNames": ["org.jetbrains.kotlinx:*", "org.jetbrains.kotlinx.*"],
+      "groupName": "kotlinx"
+    },
+    {
+      "description": "Compose Multiplatform",
+      "matchPackageNames": [
+        "org.jetbrains.compose:*",
+        "org.jetbrains.compose.*",
+        "androidx.compose.runtime:*"
+      ],
+      "groupName": "compose"
+    },
+    {
+      "description": "AndroidX runtime libraries",
+      "matchPackageNames": ["androidx.*"],
+      "groupName": "androidx"
+    },
+    {
+      "description": "Media3",
+      "matchPackageNames": ["androidx.media3:*"],
+      "groupName": "media3"
+    },
+    {
+      "description": "Test and assertion",
+      "matchPackageNames": [
+        "androidx.test:*",
+        "androidx.test.ext:*",
+        "junit:junit",
+        "io.kotest:*",
+        "app.cash.turbine:*",
+        "io.mockk:*"
+      ],
+      "groupName": "test libraries"
+    },
+    {
+      "description": "Android Gradle Plugin",
+      "matchPackageNames": ["com.android.tools.build:*", "com.android.*"],
+      "groupName": "android gradle plugin"
+    },
+    {
+      "description": "Build, publishing and formatting plugins",
+      "matchPackageNames": [
+        "org.jetbrains.dokka*",
+        "com.vanniktech*",
+        "dev.drewhamilton.poko*",
+        "com.diffplug*",
+        "com.pinterest.ktlint*",
+        "io.github.ben-manes.versions*",
+        "com.gradle*",
+        "org.gradle.toolchains*"
+      ],
+      "groupName": "build plugins"
+    },
+    {
+      "matchManagers": ["gradle-wrapper"],
+      "groupName": "gradle wrapper"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions",
+      "semanticCommitType": "ci",
+      "semanticCommitScope": "deps"
+    },
+    {
+      "description": "Sample app only",
+      "matchPackageNames": [
+        "androidx.activity:activity-compose",
+        "androidx.navigation3:navigation3-runtime",
+        "org.jetbrains.androidx.navigation3:navigation3-ui",
+        "org.jetbrains.compose.material3:*",
+        "org.jetbrains.compose.material3.adaptive:*",
+        "org.jetbrains.kotlinx:kotlinx-browser",
+        "io.github.vinceglb:*"
+      ],
+      "groupName": "sample dependencies",
+      "semanticCommitScope": "sample",
+      "labels": ["dependencies", "sample"],
+      "prPriority": -1
+    }
+  ]
+}
