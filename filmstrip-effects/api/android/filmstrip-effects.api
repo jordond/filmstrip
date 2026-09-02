@@ -42,6 +42,249 @@ public final class dev/jordond/filmstrip/effects/color/BrightnessKt {
 	public static final fun brightness (Ldev/jordond/filmstrip/edit/EffectsBuilder;F)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 }
 
+public final class dev/jordond/filmstrip/effects/color/ColorMatrix : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/color/ColorMatrix$Companion;
+	public fun <init> ()V
+	public fun <init> (FFFFFFFFFFFF)V
+	public synthetic fun <init> (FFFFFFFFFFFFILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBBias ()F
+	public final fun getBb ()F
+	public final fun getBg ()F
+	public final fun getBr ()F
+	public final fun getGBias ()F
+	public final fun getGb ()F
+	public final fun getGg ()F
+	public final fun getGr ()F
+	public fun getId ()Ljava/lang/String;
+	public final fun getRBias ()F
+	public final fun getRb ()F
+	public final fun getRg ()F
+	public final fun getRr ()F
+	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
+	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class dev/jordond/filmstrip/effects/color/ColorMatrix$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/effects/color/ColorMatrix$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/color/ColorMatrix;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/color/ColorMatrix;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/effects/color/ColorMatrix$Companion {
+	public final fun getIdentity ()Ldev/jordond/filmstrip/effects/color/ColorMatrix;
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/effects/color/ColorMatrixKt {
+	public static final fun colorMatrix (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/effects/color/ColorMatrix;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/color/Contrast : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/color/Contrast$Companion;
+	public fun <init> (F)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFactor ()F
+	public fun getId ()Ljava/lang/String;
+	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
+	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class dev/jordond/filmstrip/effects/color/Contrast$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/effects/color/Contrast$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/color/Contrast;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/color/Contrast;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/effects/color/Contrast$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/effects/color/ContrastKt {
+	public static final fun contrast (Ldev/jordond/filmstrip/edit/EffectsBuilder;F)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/color/HueRotate : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/color/HueRotate$Companion;
+	public fun <init> (F)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDegrees ()F
+	public fun getId ()Ljava/lang/String;
+	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
+	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class dev/jordond/filmstrip/effects/color/HueRotate$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/effects/color/HueRotate$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/color/HueRotate;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/color/HueRotate;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/effects/color/HueRotate$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/effects/color/HueRotateKt {
+	public static final fun hueRotate (Ldev/jordond/filmstrip/edit/EffectsBuilder;F)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/color/Invert : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/color/Invert$Companion;
+	public fun <init> ()V
+	public fun <init> (F)V
+	public synthetic fun <init> (FILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAmount ()F
+	public fun getId ()Ljava/lang/String;
+	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
+	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class dev/jordond/filmstrip/effects/color/Invert$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/effects/color/Invert$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/color/Invert;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/color/Invert;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/effects/color/Invert$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/effects/color/InvertKt {
+	public static final fun invert (Ldev/jordond/filmstrip/edit/EffectsBuilder;F)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun invert$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;FILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/color/RgbAdjustment : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/color/RgbAdjustment$Companion;
+	public fun <init> ()V
+	public fun <init> (FFF)V
+	public synthetic fun <init> (FFFILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBlue ()F
+	public final fun getGreen ()F
+	public fun getId ()Ljava/lang/String;
+	public final fun getRed ()F
+	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
+	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class dev/jordond/filmstrip/effects/color/RgbAdjustment$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/effects/color/RgbAdjustment$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/color/RgbAdjustment;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/color/RgbAdjustment;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/effects/color/RgbAdjustment$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/effects/color/RgbAdjustmentKt {
+	public static final fun rgbAdjustment (Ldev/jordond/filmstrip/edit/EffectsBuilder;FFF)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun rgbAdjustment$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;FFFILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/color/Saturation : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/color/Saturation$Companion;
+	public fun <init> (F)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFactor ()F
+	public fun getId ()Ljava/lang/String;
+	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
+	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class dev/jordond/filmstrip/effects/color/Saturation$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/effects/color/Saturation$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/color/Saturation;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/color/Saturation;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/effects/color/Saturation$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/effects/color/SaturationKt {
+	public static final fun grayscale (Ldev/jordond/filmstrip/edit/EffectsBuilder;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static final fun saturation (Ldev/jordond/filmstrip/edit/EffectsBuilder;F)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/color/Sepia : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/color/Sepia$Companion;
+	public fun <init> ()V
+	public fun <init> (F)V
+	public synthetic fun <init> (FILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAmount ()F
+	public fun getId ()Ljava/lang/String;
+	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
+	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class dev/jordond/filmstrip/effects/color/Sepia$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/effects/color/Sepia$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/effects/color/Sepia;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/effects/color/Sepia;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/effects/color/Sepia$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/effects/color/SepiaKt {
+	public static final fun sepia (Ldev/jordond/filmstrip/edit/EffectsBuilder;F)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun sepia$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;FILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+
 public final class dev/jordond/filmstrip/effects/geometry/Crop : dev/jordond/filmstrip/effect/EffectSpec {
 	public static final field Companion Ldev/jordond/filmstrip/effects/geometry/Crop$Companion;
 	public fun <init> (Ldev/jordond/filmstrip/geometry/AspectRatio;Ldev/jordond/filmstrip/geometry/Fit;Ldev/jordond/filmstrip/geometry/Anchor;)V

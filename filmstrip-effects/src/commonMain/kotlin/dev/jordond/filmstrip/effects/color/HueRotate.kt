@@ -19,7 +19,7 @@ import kotlin.math.sin
  * identity, so `degrees` is read modulo 360.
  *
  * @property degrees How far to turn, where `0f` leaves the frame unchanged and `180f` swaps every
- * hue for the one opposite it. A NaN is read as `0f`.
+ * hue for the one opposite it. Anything that is not a finite number is read as `0f`.
  */
 @Serializable
 @SerialName(EffectIds.HUE_ROTATE)
@@ -39,8 +39,11 @@ public fun EffectsBuilder.hueRotate(degrees: Float): EffectsBuilder = add(HueRot
 
 /**
  * The angle a backend actually applies, in degrees.
+ *
+ * Guarded here rather than on the matrix, because the trig runs first and both a NaN and an infinity
+ * come out of it as a NaN in all nine entries.
  */
-internal val HueRotate.angle: Float get() = if (degrees.isNaN()) 0f else degrees
+internal val HueRotate.angle: Float get() = if (degrees.isFinite()) degrees else 0f
 
 /**
  * The matrix behind a hue rotation, from the Filter Effects specification's `hueRotate` table.

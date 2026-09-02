@@ -2,7 +2,6 @@ plugins {
   id("filmstrip.library")
 }
 
-// The convenience artifact: every backend, one dependency, one call. Deliberately not Compose.
 kotlin {
   sourceSets {
     commonMain.dependencies {

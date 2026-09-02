@@ -231,6 +231,12 @@ internal external interface WebGl2 : JsAny {
     value: Float32Array,
   )
 
+  fun uniformMatrix4fv(
+    location: JsAny?,
+    transpose: Boolean,
+    value: Float32Array,
+  )
+
   fun uniform1f(
     location: JsAny?,
     x: Float,

@@ -7,9 +7,20 @@ import androidx.compose.runtime.setValue
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effects.color.ColorMatrix
 import dev.jordond.filmstrip.effects.color.brightness
+import dev.jordond.filmstrip.effects.color.colorMatrix
+import dev.jordond.filmstrip.effects.color.contrast
+import dev.jordond.filmstrip.effects.color.grayscale
+import dev.jordond.filmstrip.effects.color.hueRotate
+import dev.jordond.filmstrip.effects.color.invert
+import dev.jordond.filmstrip.effects.color.rgbAdjustment
+import dev.jordond.filmstrip.effects.color.saturation
+import dev.jordond.filmstrip.effects.color.sepia
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.geometry.flip
 import dev.jordond.filmstrip.effects.geometry.rotate
@@ -96,6 +107,15 @@ public class EditState {
   var scaleFit: Fit by mutableStateOf(Fit.Contain)
 
   var brightness: Float by mutableStateOf(1f)
+  var channelRed: Float by mutableStateOf(1f)
+  var channelGreen: Float by mutableStateOf(1f)
+  var channelBlue: Float by mutableStateOf(1f)
+  var contrast: Float by mutableStateOf(1f)
+  var saturation: Float by mutableStateOf(1f)
+  var hueDegrees: Float by mutableStateOf(0f)
+  var sepia: Float by mutableStateOf(0f)
+  var invert: Float by mutableStateOf(0f)
+  var customMatrix: ColorMatrix by mutableStateOf(ColorMatrix.Identity)
 
   var textEnabled: Boolean by mutableStateOf(false)
   var text: String by mutableStateOf("")
@@ -194,6 +214,35 @@ public class EditState {
     }
 
   /**
+   * The colour effects the knobs author, in the order the pipeline runs them, or an empty list while
+   * every knob sits at its default. A saturation of zero is authored as the grayscale shorthand, and
+   * the custom matrix goes last, after everything the sliders authored.
+   */
+  val colorEffects: List<EffectSpec>
+    get() = EffectsBuilder()
+      .apply {
+        if (brightness != 1f) brightness(brightness)
+        if (channelRed != 1f || channelGreen != 1f || channelBlue != 1f) {
+          rgbAdjustment(channelRed, channelGreen, channelBlue)
+        }
+        if (contrast != 1f) contrast(contrast)
+        when {
+          saturation == 0f -> grayscale()
+          saturation != 1f -> saturation(saturation)
+        }
+        if (hueDegrees != 0f) hueRotate(hueDegrees)
+        if (sepia != 0f) sepia(sepia)
+        if (invert != 0f) invert(invert)
+        if (customMatrix != ColorMatrix.Identity) colorMatrix(customMatrix)
+      }.build()
+
+  /**
+   * Whether any colour knob is off its default.
+   */
+  val colorGraded: Boolean
+    get() = colorEffects.isNotEmpty()
+
+  /**
    * How much of the source the edit keeps, or null while nothing has been trimmed.
    */
   fun trimRange(sourceDuration: Duration?): TimeRange? {
@@ -265,7 +314,7 @@ public class EditState {
         }
 
         if (scaleEnabled) scale(scaleHeight, scaleFit)
-        if (brightness != 1f) brightness(brightness)
+        addAll(colorEffects)
 
         if (textEnabled && text.isNotBlank()) {
           textOverlay(
@@ -317,6 +366,15 @@ public class EditState {
     scaleHeight = 720
     scaleFit = Fit.Contain
     brightness = 1f
+    channelRed = 1f
+    channelGreen = 1f
+    channelBlue = 1f
+    contrast = 1f
+    saturation = 1f
+    hueDegrees = 0f
+    sepia = 0f
+    invert = 0f
+    customMatrix = ColorMatrix.Identity
     textEnabled = false
     text = ""
     textSize = 0.06f

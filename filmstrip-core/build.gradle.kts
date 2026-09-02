@@ -5,23 +5,40 @@ plugins {
   alias(libs.plugins.kotlin.serialization)
 }
 
-// A still's header is read through BitmapFactory and ExifInterface on Android, and both are stubs
-// off a device, so the probe every other target covers on the host is covered on one here.
 androidDeviceTests()
+
+val generateVersionFile =
+  tasks.register("generateVersionFile") {
+    description = "Create a object containing the version for diagnostics"
+    val version = providers.gradleProperty("VERSION_NAME")
+    val output = layout.buildDirectory.dir("generated/version")
+
+    inputs.property("version", version)
+    outputs.dir(output)
+
+    doLast {
+      createVersionFile(output, version)
+    }
+  }
 
 kotlin {
   sourceSets {
-    commonMain.dependencies {
-      api(libs.kotlinx.coroutines.core)
-      api(libs.kotlinx.serialization.json)
-      implementation(libs.kotlinx.io.core)
-      api(libs.compose.annotation)
+    commonMain {
+      kotlin.srcDir(generateVersionFile)
+
+      dependencies {
+        api(libs.kotlinx.coroutines.core)
+        api(libs.kotlinx.serialization.json)
+        implementation(libs.kotlinx.io.core)
+        api(libs.compose.annotation)
+      }
     }
 
     androidMain.dependencies {
       api(libs.kotlinx.coroutines.android)
       implementation(libs.androidx.startup)
     }
+
 
     named("androidDeviceTest") {
       kotlin.srcDir("src/commonTest/kotlin/dev/jordond/filmstrip/media/probe")
@@ -34,21 +51,11 @@ kotlin {
   }
 }
 
-// The version has to be readable at runtime: it is the first field a bug report asks for, and
-// gradle.properties is not on the classpath.
-val generateVersionFile =
-  tasks.register("generateVersionFile") {
-    val version = providers.gradleProperty("VERSION_NAME")
-    val output = layout.buildDirectory.dir("generated/version")
-
-    inputs.property("version", version)
-    outputs.dir(output)
-
-    doLast {
-      val file = output.get().asFile.resolve("dev/jordond/filmstrip/FilmstripVersion.kt")
-      file.parentFile.mkdirs()
-      file.writeText(
-        """
+private fun createVersionFile(output: Provider<Directory>, version: Provider<String>) {
+  val file = output.get().asFile.resolve("dev/jordond/filmstrip/FilmstripVersion.kt")
+  file.parentFile.mkdirs()
+  file.writeText(
+    """
         package dev.jordond.filmstrip
 
         /**
@@ -62,14 +69,5 @@ val generateVersionFile =
         }
 
         """.trimIndent(),
-      )
-    }
-  }
-
-kotlin {
-  sourceSets {
-    commonMain {
-      kotlin.srcDir(generateVersionFile)
-    }
-  }
+  )
 }

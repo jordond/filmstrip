@@ -20,7 +20,9 @@ import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
+import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.color.Sepia
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.CropRect
 import dev.jordond.filmstrip.effects.geometry.KenBurns
@@ -60,6 +62,7 @@ import kotlin.test.assertFails
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -419,6 +422,51 @@ class ExportPlannerTest {
     resolve(composition, resolvers = listOf(recorder))
 
     recorder.specs.filterIsInstance<Brightness>().map { it.factor } shouldBe listOf(1f)
+  }
+
+  // A resolver registered after the catalogue outranks it for the effects the caller wrote, and the
+  // fold would hand it one ColorMatrix it never asked for instead. The run folds around what it
+  // claims rather than swallowing the claim.
+  @Test
+  fun `a resolver ahead of the catalogue is asked for the effects the caller wrote`() {
+    val recorder = RecordingResolver()
+    val composition = composition(clip(effects = listOf(Brightness(4f), Sepia(1f))))
+
+    resolve(composition, resolvers = listOf(recorder, BuiltInEffectResolver()))
+
+    recorder.specs.map { it.id } shouldBe listOf(EffectIds.BRIGHTNESS, EffectIds.SEPIA)
+  }
+
+  // The other order: registered before the catalogue, it never wins for those effects anyway, so the
+  // run folds the way it does for every backend.
+  @Test
+  fun `a resolver behind the catalogue still sees the folded run`() {
+    val recorder = RecordingResolver()
+    val composition = composition(clip(effects = listOf(Brightness(4f), Sepia(1f))))
+
+    resolve(composition, resolvers = listOf(BuiltInEffectResolver(), recorder))
+
+    recorder.specs.map { it.id } shouldBe listOf(EffectIds.COLOR_MATRIX)
+  }
+
+  // Nothing claimed the folded run, and the id the fold made up is not one the caller ever wrote.
+  @Test
+  fun `an unclaimed folded run is reported against the effects the caller wrote`() {
+    val composition = composition(clip(effects = listOf(Brightness(4f), Sepia(1f))))
+    val verdict =
+      planner(resolvers = listOf(FakeResolver(declines = setOf(EffectIds.COLOR_MATRIX))))
+        .negotiate(composition, ExportSpec(), device(), infos(composition))
+        .verdict
+
+    assertIs<Verdict.Incapable>(verdict)
+    verdict.reasons.map { (it as ExportError.UnsupportedEffect).specId } shouldBe
+      listOf(EffectIds.BRIGHTNESS, EffectIds.SEPIA)
+    verdict.reasons.forEach { reason ->
+      val message = (reason as ExportError.UnsupportedEffect).message
+      assertTrue(message.contains(EffectIds.BRIGHTNESS), "the message reads $message")
+      assertTrue(message.contains(EffectIds.SEPIA), "the message reads $message")
+      assertTrue(!message.contains(EffectIds.COLOR_MATRIX), "the message names the id the fold made up: $message")
+    }
   }
 
   // The middle of the range a composition crop can see: no clip geometry runs first, so the frame
@@ -1489,13 +1537,17 @@ class ExportPlannerTest {
 private class FakeResolver(
   private val refuse: Set<String> = emptySet(),
   private val degrade: Set<String> = emptySet(),
+  private val declines: Set<String> = emptySet(),
 ) : EffectResolver {
   override fun resolve(
     spec: EffectSpec,
     capabilities: RenderCapabilities,
     attributes: Attributes,
-  ): EffectResolution =
+  ): EffectResolution? =
     when (spec.id) {
+      in declines -> {
+        null
+      }
       in refuse -> {
         EffectResolution.Unsupported(spec.id, "this resolver owns it and cannot render it")
       }

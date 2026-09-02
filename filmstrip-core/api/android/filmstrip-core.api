@@ -550,14 +550,21 @@ public final class dev/jordond/filmstrip/effect/DegradationReason : java/lang/En
 
 public final class dev/jordond/filmstrip/effect/EffectIds {
 	public static final field BRIGHTNESS Ljava/lang/String;
+	public static final field COLOR_MATRIX Ljava/lang/String;
+	public static final field CONTRAST Ljava/lang/String;
 	public static final field CROP Ljava/lang/String;
 	public static final field CROP_RECT Ljava/lang/String;
 	public static final field FLIP Ljava/lang/String;
+	public static final field HUE_ROTATE Ljava/lang/String;
 	public static final field IMAGE_OVERLAY Ljava/lang/String;
 	public static final field INSTANCE Ldev/jordond/filmstrip/effect/EffectIds;
+	public static final field INVERT Ljava/lang/String;
 	public static final field KEN_BURNS Ljava/lang/String;
+	public static final field RGB_ADJUSTMENT Ljava/lang/String;
 	public static final field ROTATE Ljava/lang/String;
+	public static final field SATURATION Ljava/lang/String;
 	public static final field SCALE Ljava/lang/String;
+	public static final field SEPIA Ljava/lang/String;
 	public static final field TEXT_OVERLAY Ljava/lang/String;
 }
 

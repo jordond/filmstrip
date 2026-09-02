@@ -126,7 +126,8 @@ public class ResolvedClip(
  * One effect, lowered, still carrying the id it came from.
  *
  * The id travels with the platform object because an engine that cannot use what a resolver handed
- * back has to be able to say which effect it was.
+ * back has to be able to say which effect it was. A folded run of colour effects carries every id
+ * the caller wrote into it, comma separated, rather than the one the fold made up.
  */
 @InternalFilmstripApi
 public class ResolvedEffect(

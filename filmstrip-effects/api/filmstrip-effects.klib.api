@@ -41,6 +41,231 @@ final class dev.jordond.filmstrip.effects.color/Brightness : dev.jordond.filmstr
     }
 }
 
+final class dev.jordond.filmstrip.effects.color/ColorMatrix : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.color/ColorMatrix|null[0]
+    constructor <init>(kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ...) // dev.jordond.filmstrip.effects.color/ColorMatrix.<init>|<init>(kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float;kotlin.Float){}[0]
+
+    final val bBias // dev.jordond.filmstrip.effects.color/ColorMatrix.bBias|{}bBias[0]
+        final fun <get-bBias>(): kotlin/Float // dev.jordond.filmstrip.effects.color/ColorMatrix.bBias.<get-bBias>|<get-bBias>(){}[0]
+    final val bb // dev.jordond.filmstrip.effects.color/ColorMatrix.bb|{}bb[0]
+        final fun <get-bb>(): kotlin/Float // dev.jordond.filmstrip.effects.color/ColorMatrix.bb.<get-bb>|<get-bb>(){}[0]
+    final val bg // dev.jordond.filmstrip.effects.color/ColorMatrix.bg|{}bg[0]
+        final fun <get-bg>(): kotlin/Float // dev.jordond.filmstrip.effects.color/ColorMatrix.bg.<get-bg>|<get-bg>(){}[0]
+    final val br // dev.jordond.filmstrip.effects.color/ColorMatrix.br|{}br[0]
+        final fun <get-br>(): kotlin/Float // dev.jordond.filmstrip.effects.color/ColorMatrix.br.<get-br>|<get-br>(){}[0]
+    final val gBias // dev.jordond.filmstrip.effects.color/ColorMatrix.gBias|{}gBias[0]
+        final fun <get-gBias>(): kotlin/Float // dev.jordond.filmstrip.effects.color/ColorMatrix.gBias.<get-gBias>|<get-gBias>(){}[0]
+    final val gb // dev.jordond.filmstrip.effects.color/ColorMatrix.gb|{}gb[0]
+        final fun <get-gb>(): kotlin/Float // dev.jordond.filmstrip.effects.color/ColorMatrix.gb.<get-gb>|<get-gb>(){}[0]
+    final val gg // dev.jordond.filmstrip.effects.color/ColorMatrix.gg|{}gg[0]
+        final fun <get-gg>(): kotlin/Float // dev.jordond.filmstrip.effects.color/ColorMatrix.gg.<get-gg>|<get-gg>(){}[0]
+    final val gr // dev.jordond.filmstrip.effects.color/ColorMatrix.gr|{}gr[0]
+        final fun <get-gr>(): kotlin/Float // dev.jordond.filmstrip.effects.color/ColorMatrix.gr.<get-gr>|<get-gr>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.color/ColorMatrix.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.color/ColorMatrix.id.<get-id>|<get-id>(){}[0]
+    final val rBias // dev.jordond.filmstrip.effects.color/ColorMatrix.rBias|{}rBias[0]
+        final fun <get-rBias>(): kotlin/Float // dev.jordond.filmstrip.effects.color/ColorMatrix.rBias.<get-rBias>|<get-rBias>(){}[0]
+    final val rb // dev.jordond.filmstrip.effects.color/ColorMatrix.rb|{}rb[0]
+        final fun <get-rb>(): kotlin/Float // dev.jordond.filmstrip.effects.color/ColorMatrix.rb.<get-rb>|<get-rb>(){}[0]
+    final val rg // dev.jordond.filmstrip.effects.color/ColorMatrix.rg|{}rg[0]
+        final fun <get-rg>(): kotlin/Float // dev.jordond.filmstrip.effects.color/ColorMatrix.rg.<get-rg>|<get-rg>(){}[0]
+    final val rr // dev.jordond.filmstrip.effects.color/ColorMatrix.rr|{}rr[0]
+        final fun <get-rr>(): kotlin/Float // dev.jordond.filmstrip.effects.color/ColorMatrix.rr.<get-rr>|<get-rr>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.color/ColorMatrix.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.color/ColorMatrix.stage.<get-stage>|<get-stage>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.color/ColorMatrix.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.color/ColorMatrix.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.color/ColorMatrix.toString|toString(){}[0]
+
+    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects.color/ColorMatrix> { // dev.jordond.filmstrip.effects.color/ColorMatrix.$serializer|null[0]
+        final val descriptor // dev.jordond.filmstrip.effects.color/ColorMatrix.$serializer.descriptor|{}descriptor[0]
+            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects.color/ColorMatrix.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects.color/ColorMatrix.$serializer.childSerializers|childSerializers(){}[0]
+        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects.color/ColorMatrix // dev.jordond.filmstrip.effects.color/ColorMatrix.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects.color/ColorMatrix) // dev.jordond.filmstrip.effects.color/ColorMatrix.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.color.ColorMatrix){}[0]
+    }
+
+    final object Companion { // dev.jordond.filmstrip.effects.color/ColorMatrix.Companion|null[0]
+        final val Identity // dev.jordond.filmstrip.effects.color/ColorMatrix.Companion.Identity|{}Identity[0]
+            final fun <get-Identity>(): dev.jordond.filmstrip.effects.color/ColorMatrix // dev.jordond.filmstrip.effects.color/ColorMatrix.Companion.Identity.<get-Identity>|<get-Identity>(){}[0]
+
+        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects.color/ColorMatrix> // dev.jordond.filmstrip.effects.color/ColorMatrix.Companion.serializer|serializer(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.color/Contrast : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.color/Contrast|null[0]
+    constructor <init>(kotlin/Float) // dev.jordond.filmstrip.effects.color/Contrast.<init>|<init>(kotlin.Float){}[0]
+
+    final val factor // dev.jordond.filmstrip.effects.color/Contrast.factor|{}factor[0]
+        final fun <get-factor>(): kotlin/Float // dev.jordond.filmstrip.effects.color/Contrast.factor.<get-factor>|<get-factor>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.color/Contrast.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.color/Contrast.id.<get-id>|<get-id>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.color/Contrast.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.color/Contrast.stage.<get-stage>|<get-stage>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.color/Contrast.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.color/Contrast.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.color/Contrast.toString|toString(){}[0]
+
+    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects.color/Contrast> { // dev.jordond.filmstrip.effects.color/Contrast.$serializer|null[0]
+        final val descriptor // dev.jordond.filmstrip.effects.color/Contrast.$serializer.descriptor|{}descriptor[0]
+            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects.color/Contrast.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects.color/Contrast.$serializer.childSerializers|childSerializers(){}[0]
+        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects.color/Contrast // dev.jordond.filmstrip.effects.color/Contrast.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects.color/Contrast) // dev.jordond.filmstrip.effects.color/Contrast.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.color.Contrast){}[0]
+    }
+
+    final object Companion { // dev.jordond.filmstrip.effects.color/Contrast.Companion|null[0]
+        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects.color/Contrast> // dev.jordond.filmstrip.effects.color/Contrast.Companion.serializer|serializer(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.color/HueRotate : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.color/HueRotate|null[0]
+    constructor <init>(kotlin/Float) // dev.jordond.filmstrip.effects.color/HueRotate.<init>|<init>(kotlin.Float){}[0]
+
+    final val degrees // dev.jordond.filmstrip.effects.color/HueRotate.degrees|{}degrees[0]
+        final fun <get-degrees>(): kotlin/Float // dev.jordond.filmstrip.effects.color/HueRotate.degrees.<get-degrees>|<get-degrees>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.color/HueRotate.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.color/HueRotate.id.<get-id>|<get-id>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.color/HueRotate.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.color/HueRotate.stage.<get-stage>|<get-stage>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.color/HueRotate.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.color/HueRotate.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.color/HueRotate.toString|toString(){}[0]
+
+    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects.color/HueRotate> { // dev.jordond.filmstrip.effects.color/HueRotate.$serializer|null[0]
+        final val descriptor // dev.jordond.filmstrip.effects.color/HueRotate.$serializer.descriptor|{}descriptor[0]
+            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects.color/HueRotate.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects.color/HueRotate.$serializer.childSerializers|childSerializers(){}[0]
+        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects.color/HueRotate // dev.jordond.filmstrip.effects.color/HueRotate.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects.color/HueRotate) // dev.jordond.filmstrip.effects.color/HueRotate.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.color.HueRotate){}[0]
+    }
+
+    final object Companion { // dev.jordond.filmstrip.effects.color/HueRotate.Companion|null[0]
+        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects.color/HueRotate> // dev.jordond.filmstrip.effects.color/HueRotate.Companion.serializer|serializer(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.color/Invert : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.color/Invert|null[0]
+    constructor <init>(kotlin/Float = ...) // dev.jordond.filmstrip.effects.color/Invert.<init>|<init>(kotlin.Float){}[0]
+
+    final val amount // dev.jordond.filmstrip.effects.color/Invert.amount|{}amount[0]
+        final fun <get-amount>(): kotlin/Float // dev.jordond.filmstrip.effects.color/Invert.amount.<get-amount>|<get-amount>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.color/Invert.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.color/Invert.id.<get-id>|<get-id>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.color/Invert.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.color/Invert.stage.<get-stage>|<get-stage>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.color/Invert.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.color/Invert.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.color/Invert.toString|toString(){}[0]
+
+    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects.color/Invert> { // dev.jordond.filmstrip.effects.color/Invert.$serializer|null[0]
+        final val descriptor // dev.jordond.filmstrip.effects.color/Invert.$serializer.descriptor|{}descriptor[0]
+            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects.color/Invert.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects.color/Invert.$serializer.childSerializers|childSerializers(){}[0]
+        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects.color/Invert // dev.jordond.filmstrip.effects.color/Invert.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects.color/Invert) // dev.jordond.filmstrip.effects.color/Invert.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.color.Invert){}[0]
+    }
+
+    final object Companion { // dev.jordond.filmstrip.effects.color/Invert.Companion|null[0]
+        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects.color/Invert> // dev.jordond.filmstrip.effects.color/Invert.Companion.serializer|serializer(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.color/RgbAdjustment : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.color/RgbAdjustment|null[0]
+    constructor <init>(kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ...) // dev.jordond.filmstrip.effects.color/RgbAdjustment.<init>|<init>(kotlin.Float;kotlin.Float;kotlin.Float){}[0]
+
+    final val blue // dev.jordond.filmstrip.effects.color/RgbAdjustment.blue|{}blue[0]
+        final fun <get-blue>(): kotlin/Float // dev.jordond.filmstrip.effects.color/RgbAdjustment.blue.<get-blue>|<get-blue>(){}[0]
+    final val green // dev.jordond.filmstrip.effects.color/RgbAdjustment.green|{}green[0]
+        final fun <get-green>(): kotlin/Float // dev.jordond.filmstrip.effects.color/RgbAdjustment.green.<get-green>|<get-green>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.color/RgbAdjustment.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.color/RgbAdjustment.id.<get-id>|<get-id>(){}[0]
+    final val red // dev.jordond.filmstrip.effects.color/RgbAdjustment.red|{}red[0]
+        final fun <get-red>(): kotlin/Float // dev.jordond.filmstrip.effects.color/RgbAdjustment.red.<get-red>|<get-red>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.color/RgbAdjustment.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.color/RgbAdjustment.stage.<get-stage>|<get-stage>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.color/RgbAdjustment.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.color/RgbAdjustment.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.color/RgbAdjustment.toString|toString(){}[0]
+
+    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects.color/RgbAdjustment> { // dev.jordond.filmstrip.effects.color/RgbAdjustment.$serializer|null[0]
+        final val descriptor // dev.jordond.filmstrip.effects.color/RgbAdjustment.$serializer.descriptor|{}descriptor[0]
+            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects.color/RgbAdjustment.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects.color/RgbAdjustment.$serializer.childSerializers|childSerializers(){}[0]
+        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects.color/RgbAdjustment // dev.jordond.filmstrip.effects.color/RgbAdjustment.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects.color/RgbAdjustment) // dev.jordond.filmstrip.effects.color/RgbAdjustment.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.color.RgbAdjustment){}[0]
+    }
+
+    final object Companion { // dev.jordond.filmstrip.effects.color/RgbAdjustment.Companion|null[0]
+        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects.color/RgbAdjustment> // dev.jordond.filmstrip.effects.color/RgbAdjustment.Companion.serializer|serializer(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.color/Saturation : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.color/Saturation|null[0]
+    constructor <init>(kotlin/Float) // dev.jordond.filmstrip.effects.color/Saturation.<init>|<init>(kotlin.Float){}[0]
+
+    final val factor // dev.jordond.filmstrip.effects.color/Saturation.factor|{}factor[0]
+        final fun <get-factor>(): kotlin/Float // dev.jordond.filmstrip.effects.color/Saturation.factor.<get-factor>|<get-factor>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.color/Saturation.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.color/Saturation.id.<get-id>|<get-id>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.color/Saturation.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.color/Saturation.stage.<get-stage>|<get-stage>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.color/Saturation.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.color/Saturation.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.color/Saturation.toString|toString(){}[0]
+
+    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects.color/Saturation> { // dev.jordond.filmstrip.effects.color/Saturation.$serializer|null[0]
+        final val descriptor // dev.jordond.filmstrip.effects.color/Saturation.$serializer.descriptor|{}descriptor[0]
+            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects.color/Saturation.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects.color/Saturation.$serializer.childSerializers|childSerializers(){}[0]
+        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects.color/Saturation // dev.jordond.filmstrip.effects.color/Saturation.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects.color/Saturation) // dev.jordond.filmstrip.effects.color/Saturation.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.color.Saturation){}[0]
+    }
+
+    final object Companion { // dev.jordond.filmstrip.effects.color/Saturation.Companion|null[0]
+        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects.color/Saturation> // dev.jordond.filmstrip.effects.color/Saturation.Companion.serializer|serializer(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.color/Sepia : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.color/Sepia|null[0]
+    constructor <init>(kotlin/Float = ...) // dev.jordond.filmstrip.effects.color/Sepia.<init>|<init>(kotlin.Float){}[0]
+
+    final val amount // dev.jordond.filmstrip.effects.color/Sepia.amount|{}amount[0]
+        final fun <get-amount>(): kotlin/Float // dev.jordond.filmstrip.effects.color/Sepia.amount.<get-amount>|<get-amount>(){}[0]
+    final val id // dev.jordond.filmstrip.effects.color/Sepia.id|{}id[0]
+        final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.color/Sepia.id.<get-id>|<get-id>(){}[0]
+    final val stage // dev.jordond.filmstrip.effects.color/Sepia.stage|{}stage[0]
+        final fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.color/Sepia.stage.<get-stage>|<get-stage>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.color/Sepia.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.color/Sepia.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.color/Sepia.toString|toString(){}[0]
+
+    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.effects.color/Sepia> { // dev.jordond.filmstrip.effects.color/Sepia.$serializer|null[0]
+        final val descriptor // dev.jordond.filmstrip.effects.color/Sepia.$serializer.descriptor|{}descriptor[0]
+            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.effects.color/Sepia.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.effects.color/Sepia.$serializer.childSerializers|childSerializers(){}[0]
+        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.effects.color/Sepia // dev.jordond.filmstrip.effects.color/Sepia.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.effects.color/Sepia) // dev.jordond.filmstrip.effects.color/Sepia.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.effects.color.Sepia){}[0]
+    }
+
+    final object Companion { // dev.jordond.filmstrip.effects.color/Sepia.Companion|null[0]
+        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.effects.color/Sepia> // dev.jordond.filmstrip.effects.color/Sepia.Companion.serializer|serializer(){}[0]
+    }
+}
+
 final class dev.jordond.filmstrip.effects.geometry/Crop : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.geometry/Crop|null[0]
     constructor <init>(dev.jordond.filmstrip.geometry/AspectRatio, dev.jordond.filmstrip.geometry/Fit = ..., dev.jordond.filmstrip.geometry/Anchor = ...) // dev.jordond.filmstrip.effects.geometry/Crop.<init>|<init>(dev.jordond.filmstrip.geometry.AspectRatio;dev.jordond.filmstrip.geometry.Fit;dev.jordond.filmstrip.geometry.Anchor){}[0]
 
@@ -342,6 +567,14 @@ final val dev.jordond.filmstrip.effects/builtInEffectSerializers // dev.jordond.
     final fun <get-builtInEffectSerializers>(): kotlinx.serialization.modules/SerializersModule // dev.jordond.filmstrip.effects/builtInEffectSerializers.<get-builtInEffectSerializers>|<get-builtInEffectSerializers>(){}[0]
 
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.color/brightness(kotlin/Float): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.color/brightness|brightness@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.color/colorMatrix(dev.jordond.filmstrip.effects.color/ColorMatrix): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.color/colorMatrix|colorMatrix@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.effects.color.ColorMatrix){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.color/contrast(kotlin/Float): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.color/contrast|contrast@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.color/grayscale(): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.color/grayscale|grayscale@dev.jordond.filmstrip.edit.EffectsBuilder(){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.color/hueRotate(kotlin/Float): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.color/hueRotate|hueRotate@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.color/invert(kotlin/Float = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.color/invert|invert@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.color/rgbAdjustment(kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.color/rgbAdjustment|rgbAdjustment@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float;kotlin.Float;kotlin.Float){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.color/saturation(kotlin/Float): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.color/saturation|saturation@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.color/sepia(kotlin/Float = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.color/sepia|sepia@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Float){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.geometry/crop(dev.jordond.filmstrip.geometry/AspectRatio, dev.jordond.filmstrip.geometry/Fit = ..., dev.jordond.filmstrip.geometry/Anchor = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.geometry/crop|crop@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.geometry.AspectRatio;dev.jordond.filmstrip.geometry.Fit;dev.jordond.filmstrip.geometry.Anchor){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.geometry/crop(dev.jordond.filmstrip.geometry/NormalizedRect): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.geometry/crop|crop@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.geometry.NormalizedRect){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.geometry/flip(dev.jordond.filmstrip.geometry/FlipAxis): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.geometry/flip|flip@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.geometry.FlipAxis){}[0]

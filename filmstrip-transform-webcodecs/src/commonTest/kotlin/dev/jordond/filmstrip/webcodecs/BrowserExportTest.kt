@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.color.Contrast
 import dev.jordond.filmstrip.effects.geometry.CropRect
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportPlan
@@ -258,6 +259,29 @@ class BrowserExportTest {
       assertTrue(
         dimmed.isNear(expected),
         "a half-brightness clip encoded as $dimmed, and half of ${Rgb.Grey} is $expected",
+      )
+    }
+
+  // The other colour effects lower through the same uniform, so one that pivots rather than scales
+  // proves the whole matrix reached the shader and not only its diagonal.
+  @Test
+  fun contrastStretchesAboutMidGrey() =
+    runTest {
+      val contrast = Contrast(STRETCHED_CONTRAST)
+      val bytes = makeClip(colour = PIVOT_SPREAD)
+      val composition =
+        EditComposition(
+          tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), effects = listOf(contrast))))),
+          audio = AudioSpec.Remove,
+        )
+      val success = exportOf(composition, MediaSink.Uri(""))
+
+      val frame = assertNotNull(decodeFrames(outputOf(success)).firstOrNull())
+      val stretched = frame.at(x = 0.5, y = 0.5)
+      val expected = PIVOT_SPREAD.graded(contrast)
+      assertTrue(
+        stretched.isNear(expected),
+        "a contrast of $STRETCHED_CONTRAST encoded $PIVOT_SPREAD as $stretched, and the matrix says $expected",
       )
     }
 
@@ -671,6 +695,11 @@ class BrowserExportTest {
   private companion object {
     const val HALF = 32
     const val HALF_BRIGHTNESS = 0.5f
+    const val STRETCHED_CONTRAST = 1.5f
+
+    // One channel under mid grey, one over it and one on it, so a contrast has to push two apart
+    // and leave the third where it was.
+    val PIVOT_SPREAD = Rgb(80, 200, 128)
     const val WIDE_RED_ROWS = 8
     const val FLAT_TOLERANCE = 20
     const val HALF_DIM_TOLERANCE = 24

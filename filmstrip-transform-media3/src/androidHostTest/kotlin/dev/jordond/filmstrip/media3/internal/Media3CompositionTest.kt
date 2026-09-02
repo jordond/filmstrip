@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.media3.internal
 
 import androidx.media3.effect.AlphaScale
+import androidx.media3.effect.RgbMatrix
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
@@ -13,6 +14,7 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
@@ -56,6 +58,45 @@ class Media3CompositionTest {
     effects.last().shouldBeInstanceOf<FillFlatten>()
     effects[effects.lastIndex - 1] shouldBe second
     effects[effects.lastIndex - 2] shouldBe first
+  }
+
+  // media3 merges consecutive matrices into one shader program with nothing clamping between them,
+  // and the planner folds a run of colour effects per stage. The boundary pass writes the clip's
+  // stage out before the composition's runs, which is what the other backends do by writing a frame.
+  @Test
+  fun `a clip grade and a composition grade are separated by a boundary`() {
+    val graded =
+      composition(
+        fit = Fit.Crop,
+        compositionEffects = listOf(resolvedEffect(matrix())),
+        clips = listOf(clip(effects = listOf(resolvedEffect(matrix())))),
+      )
+
+    graded.compositionVideoEffects().first().shouldBeInstanceOf<ColorStageBoundary>()
+  }
+
+  @Test
+  fun `one stage grading on its own needs no boundary`() {
+    val clipOnly = composition(fit = Fit.Crop, clips = listOf(clip(effects = listOf(resolvedEffect(matrix())))))
+    val compositionOnly = composition(fit = Fit.Crop, compositionEffects = listOf(resolvedEffect(matrix())))
+
+    clipOnly.compositionVideoEffects().any { it is ColorStageBoundary } shouldBe false
+    compositionOnly.compositionVideoEffects().any { it is ColorStageBoundary } shouldBe false
+  }
+
+  // A kept grade lowers its colour to a pass of its own, which ends the program and clamps at the
+  // transfer's ceiling without help.
+  @Test
+  fun `a kept grade needs no boundary either`() {
+    val graded =
+      composition(
+        fit = Fit.Crop,
+        compositionEffects = listOf(resolvedEffect(matrix())),
+        clips = listOf(clip(effects = listOf(resolvedEffect(matrix())))),
+        hdrTransfer = HdrTransfer.Pq,
+      )
+
+    graded.compositionVideoEffects().any { it is ColorStageBoundary } shouldBe false
   }
 
   @Test
@@ -117,10 +158,17 @@ class Media3CompositionTest {
     downscaleFor(sigma) shouldBe 1
   }
 
+  // Stands in for whatever a resolver hands back for a colour effect, which media3 merges with its
+  // neighbours. Only the type it lowered to decides where the boundary goes.
+  private fun matrix(): RgbMatrix =
+    RgbMatrix { _, _ -> floatArrayOf(1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f) }
+
   private fun composition(
     fit: Fit,
     fill: Fill = Fill.Black,
     compositionEffects: List<ResolvedEffect> = emptyList(),
+    clips: List<ResolvedClip> = listOf(clip()),
+    hdrTransfer: HdrTransfer? = null,
   ): ResolvedComposition =
     ResolvedComposition(
       tracks =
@@ -129,7 +177,7 @@ class Media3CompositionTest {
             content = TrackContent.AudioAndVideo,
             looping = false,
             start = Duration.ZERO,
-            clips = listOf(clip()),
+            clips = clips,
           ),
         ),
       compositionGeometry = emptyList(),
@@ -149,13 +197,16 @@ class Media3CompositionTest {
       fill = fill,
       duration = 1.seconds,
       hdr = ResolvedHdr.Keep,
-      hdrTransfer = null,
+      hdrTransfer = hdrTransfer,
       audio = AudioSpec.Keep,
       adjustments = emptyList(),
       path = ExportPath.Transcode,
     )
 
-  private fun clip(size: Size = Size(640, 360)): ResolvedClip =
+  private fun clip(
+    size: Size = Size(640, 360),
+    effects: List<ResolvedEffect> = emptyList(),
+  ): ResolvedClip =
     ResolvedClip(
       source = MediaSource.of("clip.mp4"),
       info =
@@ -179,7 +230,7 @@ class Media3CompositionTest {
         ),
       start = Duration.ZERO,
       end = 1.seconds,
-      effects = emptyList(),
+      effects = effects,
       gain = 1f,
       startsAtKeyFrame = false,
       span = TimeRange.of(Duration.ZERO, 1.seconds),

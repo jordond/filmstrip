@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.effects.color
 
 import dev.drewhamilton.poko.Poko
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -22,11 +21,11 @@ import kotlinx.serialization.Serializable
  * white where SDR clips, so a factor above `1f` matches an SDR export through the midtones and
  * keeps going where that one saturates.
  *
- * Two of these in a row multiply before anything clamps, so a factor above `1f` followed by its
- * reciprocal returns the frame unchanged rather than a saturated frame the second factor darkens.
+ * A run of colour effects multiplies out before anything clamps, so a factor above `1f` followed by
+ * its reciprocal returns the frame unchanged rather than a saturated frame the second factor darkens.
  *
  * @property factor The multiplier, where `1f` leaves the frame unchanged and `0f` writes black.
- * Negative values are read as `0f`, and a NaN as `1f`.
+ * Negative values are read as `0f`, and anything that is not a finite number as `1f`.
  */
 @Serializable
 @SerialName(EffectIds.BRIGHTNESS)
@@ -47,33 +46,13 @@ public fun EffectsBuilder.brightness(factor: Float): EffectsBuilder = add(Bright
 /**
  * The multiplier a backend actually applies, computed here so all four apply the same number.
  *
- * NaN is checked before the floor because it compares false against everything, so `coerceAtLeast`
- * passes it straight through. It reaches a backend as a shader uniform, a filter argument and a
- * matrix element, which fail three different ways, so it is turned into the no-op here instead.
+ * Finiteness is checked before the floor because `coerceAtLeast` passes a NaN straight through and
+ * leaves an infinity where it was. Either one reaches a backend as a shader uniform, a filter
+ * argument and a matrix element, which fail three different ways, so both become the no-op here.
  */
-internal val Brightness.scale: Float get() = if (factor.isNaN()) 1f else factor.coerceAtLeast(0f)
+internal val Brightness.scale: Float get() = if (factor.isFinite()) factor.coerceAtLeast(0f) else 1f
 
 /**
- * Folds every run of consecutive [Brightness] in an ordered chain into one carrying the product of
- * their factors.
- *
- * A backend clamps to the encoding's range as it writes, some once for the whole chain and some
- * around each effect, so where a run stops being several multiplies decides what a factor above
- * `1f` followed by one below it produces. It stops here, ahead of all four.
- *
- * @return the chain with each run of brightnesses replaced by a single one.
+ * The matrix behind a brightness: the scale on every channel and nothing else.
  */
-@InternalFilmstripApi
-public fun List<EffectSpec>.fusedBrightness(): List<EffectSpec> {
-  if (count { it is Brightness } < 2) return this
-
-  return fold(mutableListOf()) { fused, spec ->
-    val previous = fused.lastOrNull()
-    if (spec is Brightness && previous is Brightness) {
-      fused[fused.lastIndex] = Brightness(previous.scale * spec.scale)
-    } else {
-      fused += spec
-    }
-    fused
-  }
-}
+internal val Brightness.matrix: ColorMatrix get() = scaleMatrix(scale, scale, scale)

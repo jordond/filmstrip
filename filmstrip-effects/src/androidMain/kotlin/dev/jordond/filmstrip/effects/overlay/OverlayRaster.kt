@@ -7,12 +7,13 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.Typeface
-import android.net.Uri
 import android.os.Build
 import android.text.Layout
 import android.text.SpannableString
 import android.text.StaticLayout
 import android.text.TextPaint
+import androidx.core.graphics.createBitmap
+import androidx.core.net.toUri
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.style.FontWeight
@@ -26,7 +27,7 @@ import kotlin.math.roundToInt
  *
  * Laid out at the real pixel size it will occupy on [frame], so the overlay is composited at one to
  * one and never resampled. Media3's own `TextOverlay` lays out at a fixed hundred-pixel paint and
- * offers no wrap width, which is why filmstrip rasterises instead.
+ * offers no wrap width, which is why filmstrip rasterizes instead.
  *
  * Two passes: the first wraps at the authored maximum width, the second re-lays the wrapped text in
  * a box tight to its longest line, so an alignment is measured against the text rather than against
@@ -56,12 +57,7 @@ internal fun rasterizeText(
   val block = paint.layout(text, ceil(used).toInt().coerceAtLeast(1), alignment)
   if (block.width <= 0 || block.height <= 0) return null
 
-  val bitmap =
-    Bitmap.createBitmap(
-      block.width + 2 * padding,
-      block.height + 2 * padding,
-      Bitmap.Config.ARGB_8888,
-    )
+  val bitmap = createBitmap(block.width + 2 * padding, block.height + 2 * padding)
   val canvas = Canvas(bitmap)
   style.backgroundColor?.let { canvas.drawColor(it) }
   canvas.translate(padding.toFloat(), padding.toFloat())
@@ -91,7 +87,7 @@ private fun decodeUri(
   uri: String,
   context: Context?,
 ): Bitmap? {
-  val parsed = runCatching { Uri.parse(uri) }.getOrNull() ?: return null
+  val parsed = runCatching { uri.toUri() }.getOrNull() ?: return null
   val path = parsed.path
   if (parsed.scheme == null || parsed.scheme == "file") {
     return path?.let { BitmapFactory.decodeFile(it) }

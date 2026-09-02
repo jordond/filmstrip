@@ -2,6 +2,10 @@
 
 package dev.jordond.filmstrip.webcodecs
 
+import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effects.color.colorMatrixOf
+import dev.jordond.filmstrip.effects.color.transform
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.webcodecs.internal.ArrayBuffer
 import dev.jordond.filmstrip.webcodecs.internal.AudioSample
@@ -23,6 +27,7 @@ import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
@@ -56,6 +61,21 @@ internal class Rgb(
     val Green = Rgb(30, 200, 30)
     val Grey = Rgb(200, 200, 200)
   }
+}
+
+/**
+ * This colour after [spec], taken through the matrix every backend lowers rather than through a
+ * number of a test's own.
+ */
+@OptIn(InternalFilmstripApi::class)
+internal fun Rgb.graded(spec: EffectSpec): Rgb {
+  val matrix = checkNotNull(colorMatrixOf(spec))
+  val graded = matrix.transform(red / MAX_CHANNEL, green / MAX_CHANNEL, blue / MAX_CHANNEL)
+  return Rgb(
+    (graded[0] * MAX_CHANNEL).roundToInt(),
+    (graded[1] * MAX_CHANNEL).roundToInt(),
+    (graded[2] * MAX_CHANNEL).roundToInt(),
+  )
 }
 
 /**
@@ -455,5 +475,6 @@ private const val FIXTURE_AUDIO_BITRATE = 64_000
 private const val BYTES_PER_SAMPLE = 2
 private const val BYTE_BITS = 8
 private const val BYTE_MASK = 0xFF
+private const val MAX_CHANNEL = 255f
 private const val TONE_HZ = 440.0
 private const val TONE_AMPLITUDE = 0.2

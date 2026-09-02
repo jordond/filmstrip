@@ -24,7 +24,6 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.diff
 import dev.jordond.filmstrip.edit.effectsRevision
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media3.internal.Media3LoweringFailure
 import dev.jordond.filmstrip.media3.internal.Media3Preview
 import dev.jordond.filmstrip.media3.internal.toMedia3Preview
@@ -226,7 +225,6 @@ internal class Media3PlayerEngine(
       context = context,
       preview = { preview },
       renderScale = { plan?.info?.renderScale ?: 1f },
-      colorSpace = { if (plan?.resolved?.hdrTransfer != null) ColorSpace.Bt2020 else ColorSpace.Bt709 },
       revision = { loaded?.effectsRevision() ?: 0L },
     )
 

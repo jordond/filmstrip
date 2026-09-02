@@ -16,8 +16,13 @@ import kotlinx.serialization.Serializable
  * what `filter: contrast()` in a browser pivots on, and a channel that stretches past black or white
  * clamps there.
  *
+ * On an export that keeps an HDR grade the pivot is the light that midpoint makes on an SDR display
+ * at reference white, about 44 cd/m2, and a channel stretches up to the format's peak rather than
+ * to white.
+ *
  * @property factor The gain about mid grey, where `1f` leaves the frame unchanged and `0f` paints
- * the whole frame mid grey. Negative values are read as `0f`, and a NaN as `1f`.
+ * the whole frame mid grey. Negative values are read as `0f`, and anything that is not a finite
+ * number as `1f`.
  */
 @Serializable
 @SerialName(EffectIds.CONTRAST)
@@ -38,7 +43,7 @@ public fun EffectsBuilder.contrast(factor: Float): EffectsBuilder = add(Contrast
 /**
  * The gain a backend actually applies, computed here so all four apply the same number.
  */
-internal val Contrast.gain: Float get() = if (factor.isNaN()) 1f else factor.coerceAtLeast(0f)
+internal val Contrast.gain: Float get() = if (factor.isFinite()) factor.coerceAtLeast(0f) else 1f
 
 /**
  * The matrix behind a contrast: each channel scaled by the gain, with the bias that keeps mid grey

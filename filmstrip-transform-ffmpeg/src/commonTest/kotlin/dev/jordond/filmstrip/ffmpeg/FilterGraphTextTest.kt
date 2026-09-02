@@ -15,12 +15,16 @@ class FilterGraphTextTest {
   }
 
   // A comma inside an argument would otherwise end the filter, and ffmpeg would read what follows
-  // as another one.
+  // as another one. A colon separates one option from the next a level further in, and ffmpeg takes
+  // both levels off, so the backslash that hides it has to survive the first pass: escaping the
+  // colon once leaves the filter reading a bare separator.
   @Test
   fun `escapes the separators a value may contain`() {
     escapeFilterValue("between(t,1.0,4.0)") shouldBe "between(t\\,1.0\\,4.0)"
-    escapeFilterValue("a:b") shouldBe "a\\:b"
+    escapeFilterValue("a:b") shouldBe "a\\\\:b"
     escapeFilterValue("[in]") shouldBe "\\[in\\]"
+    escapeFilterValue("it's") shouldBe "it\\\\\\'s"
+    escapeFilterValue("C:\\Users\\a") shouldBe "C\\\\:\\\\\\\\Users\\\\\\\\a"
   }
 
   @Test

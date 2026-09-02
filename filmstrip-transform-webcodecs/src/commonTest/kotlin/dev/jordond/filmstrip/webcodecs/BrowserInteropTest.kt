@@ -57,15 +57,15 @@ class BrowserInteropTest {
     assertFailsWith<IllegalStateException> { muxCodecKey(VideoCodec.Av1) }
   }
 
-  // Brightness lowers to one WebGL pass that multiplies the encoded signal, with no arm for the
-  // display or scene gain a kept grade needs. That is only safe while this backend cannot write a
-  // grade at all, so the day the compositor goes ten bit this fails rather than the export quietly
-  // multiplying the wrong domain.
+  // The colour effects lower to one WebGL pass that runs a matrix over the encoded signal, with no
+  // arm for the display or scene gain a kept grade needs. That is only safe while this backend
+  // cannot write a grade at all, so the day the compositor goes ten bit this fails rather than the
+  // export quietly grading the wrong domain.
   @Test
   fun `the compositor still cannot write a grade`() {
     assertFalse(
       COMPOSITOR_WRITES_TEN_BIT,
-      "the compositor writes ten bit now, so Brightness needs the lowering the other backends have",
+      "the compositor writes ten bit now, so the colour matrix needs the lowering the other backends have",
     )
   }
 }

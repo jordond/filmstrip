@@ -11,7 +11,7 @@ import androidx.media3.effect.OverlayEffect as Media3OverlayEffect
 import androidx.media3.effect.TextOverlay as Media3TextOverlay
 
 /**
- * One already-rasterised overlay, waiting to be blended into a frame.
+ * One already-rasterized overlay, waiting to be blended into a frame.
  *
  * Everything filmstrip composites is drawn to a bitmap at the exact pixel size it will occupy, so
  * this covers both a watermark and a run of burned-in text and the two share an [Media3OverlayEffect].
@@ -24,13 +24,13 @@ import androidx.media3.effect.TextOverlay as Media3TextOverlay
  * That branch is an `instanceof` rather than a documented contract, so it is worth re-reading when
  * media3 moves.
  *
- * Rasterising here rather than handing media3 a string is what gives wrapping at an authored width,
+ * Rasterizing here rather than handing media3 a string is what gives wrapping at an authored width,
  * an alignment and a background plate, none of which [Media3TextOverlay] exposes.
  *
  * Nothing downcasts to [Media3TextOverlay], and [getText] is consulted only by the [getBitmap] this
  * overrides, so the string it returns never reaches anything.
  *
- * @property bitmap The rasterised overlay. Not recycled on [release], because a frame processor may
+ * @property bitmap The rasterized overlay. Not recycled on [release], because a frame processor may
  *   rebuild its shader programs from the same effect and would then be drawing a dead bitmap.
  */
 internal class RasterOverlay(

@@ -37,6 +37,11 @@ public fun formatBytes(bytes: Long): String {
 public fun formatPercent(value: Float): String = "${(value * 100).roundToInt()}%"
 
 /**
+ * Formats an angle as whole degrees, so `137.4f` reads as `137°`.
+ */
+public fun formatDegrees(value: Float): String = "${value.roundToInt()}°"
+
+/**
  * Formats a fraction of the frame as the two decimal places an overlay inset is authored in.
  */
 public fun formatFraction(value: Float): String {

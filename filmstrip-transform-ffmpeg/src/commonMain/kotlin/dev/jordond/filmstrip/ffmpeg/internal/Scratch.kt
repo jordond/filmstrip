@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg.internal
 
+import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import kotlinx.io.buffered
@@ -19,6 +20,16 @@ internal class Scratch private constructor(
   private val directory: Path,
 ) {
   private var counter = 0
+  private val sidecars = mutableMapOf<String, String>()
+
+  /**
+   * Writes one sidecar's bytes and returns the path the graph reads them from.
+   *
+   * Keyed by the placeholder, which is a digest of what the file holds, so a graph that reads the
+   * same table from two nodes writes it once.
+   */
+  fun write(sidecar: Sidecar): String =
+    sidecars.getOrPut(sidecar.placeholder) { write(sidecar.bytes, sidecar.extension) }
 
   fun materialise(image: ImageSource): String =
     when (image) {

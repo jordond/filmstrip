@@ -12,9 +12,13 @@ androidDeviceTests()
 
 kotlin {
   sourceSets {
-    androidMain.dependencies {
-      api(projects.filmstripTransform)
-      api(libs.media3.transformer)
+    androidMain {
+      languageSettings.optIn("androidx.media3.common.util.UnstableApi")
+
+      dependencies {
+        api(projects.filmstripTransform)
+        api(libs.media3.transformer)
+      }
     }
 
     named("androidDeviceTest").dependencies {
@@ -24,10 +28,6 @@ kotlin {
       implementation(libs.androidx.test.core)
       implementation(libs.kotest.assertions)
     }
-  }
-
-  sourceSets.androidMain {
-    languageSettings.optIn("androidx.media3.common.util.UnstableApi")
   }
 }
 

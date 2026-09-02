@@ -22,7 +22,10 @@ import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.inCanonicalOrder
-import dev.jordond.filmstrip.effects.color.fusedBrightness
+import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.effects.color.FoldedSpec
+import dev.jordond.filmstrip.effects.color.colorMatrixOf
+import dev.jordond.filmstrip.effects.color.fusedColorMatrices
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AdjustmentKind
@@ -97,6 +100,18 @@ public class ExportPlanner(
   private val compositionGeometryPerClip: Boolean = false,
   private val hdrLadder: List<VideoCodec> = DEFAULT_HDR_LADDER,
 ) {
+  // Where the built-in catalogue sits, or -1 when it was never registered.
+  private val catalogue: Int = resolvers.indexOfFirst { it is BuiltInEffectResolver }
+
+  // The resolvers registered ahead of the catalogue. Folding a run of colour effects rewrites it
+  // into one ColorMatrix, which the catalogue claims, so a resolver that outranks the catalogue for
+  // one of the effects the caller wrote is asked for that effect and the run folds around it.
+  // Without this its lowering would disappear into the fold with nothing reported.
+  //
+  // Empty with no catalogue registered: there is no claim to outrank then, and the run folds the
+  // way it does for every backend.
+  private val overriding: List<EffectResolver> = if (catalogue < 0) emptyList() else resolvers.take(catalogue)
+
   /**
    * Negotiates [composition] against [device] into a verdict and the graph an export would run.
    *
@@ -325,7 +340,11 @@ public class ExportPlanner(
     asked += compositionRest
 
     val unsupported = linkedMapOf<String, String>()
-    asked.forEach { resolved -> resolved.unsupported?.let { unsupported[resolved.spec.id] = it } }
+    // A refused run is reported against every effect the caller wrote into it, so the retry that
+    // drops the refused ids drops the run rather than a name the fold made up.
+    asked.forEach { resolved ->
+      resolved.unsupported?.let { message -> resolved.sources.forEach { unsupported[it.id] = message } }
+    }
     if (unsupported.isNotEmpty()) {
       return incapableWithFallback(composition, spec, device, infos, dropped, unsupported, layoutSize)
     }
@@ -378,7 +397,7 @@ public class ExportPlanner(
         hdr = hdr,
         sourceIsHdr = sourceIsHdr,
         gradesAgree = gradesAgree,
-        degraded = asked.mapNotNull { it.degraded }.distinct(),
+        degraded = asked.flatMap { it.degraded }.distinct(),
         dropped = dropped,
       )
     if (spec.strict && adjustments.isNotEmpty()) {
@@ -436,21 +455,79 @@ public class ExportPlanner(
     // A kept grade is written in BT.2020, so a resolver reading the colour space off an HDR export
     // sees the one the encoder is handed rather than the SDR default.
     val colorSpace = if (hdrTransfer != null) ColorSpace.Bt2020 else ColorSpace.Bt709
-    return stages.flatMap { it.inCanonicalOrder() }.fusedBrightness().map { spec ->
+    val ordered = stages.flatMap { it.inCanonicalOrder() }
+    val chain =
+      foldedChain(
+        ordered = ordered,
+        overridden =
+          overriddenColour(
+            ordered,
+            inputSize,
+            layoutSize,
+            outputSize,
+            colorSpace,
+            hdrTransfer,
+            frameRate,
+            span,
+            capabilities,
+          ),
+      )
+
+    return chain.entries.mapIndexed { position, entry ->
+      val spec = entry.spec
       val attributes = Attributes(size, outputSize, layout, colorSpace, hdrTransfer, frameRate.toFloat(), span)
       val resolution =
-        resolvers.firstNotNullOfOrNull { it.resolve(spec, capabilities, attributes) }
+        chain.resolutions[position] ?: resolvers.firstNotNullOfOrNull { it.resolve(spec, capabilities, attributes) }
 
       size = frameAfter(spec, size)
       layout = frameAfter(spec, layout)
 
       when (resolution) {
-        is EffectResolution.Resolved -> LoweredEffect(spec, resolution.effect, null, null)
-        is EffectResolution.Degraded -> LoweredEffect(spec, resolution.effect, null, resolution.message)
-        is EffectResolution.Unsupported -> LoweredEffect(spec, null, resolution.message, null)
-        null -> LoweredEffect(spec, null, unclaimedMessage(spec.id), null)
+        is EffectResolution.Resolved -> LoweredEffect(spec, entry.sources, resolution.effect, null, null)
+        is EffectResolution.Degraded -> LoweredEffect(spec, entry.sources, resolution.effect, null, resolution.message)
+        is EffectResolution.Unsupported -> LoweredEffect(spec, entry.sources, null, resolution.message, null)
+        null -> LoweredEffect(spec, entry.sources, null, unclaimedMessage(entry.sources.authoredIds()), null)
       }
     }
+  }
+
+  /**
+   * The effects an [overriding] resolver claims out of the runs the fold would otherwise swallow,
+   * keyed by their place in [ordered], with the resolution it gave.
+   *
+   * Only an effect inside a run of two or more is asked about, since a run of one folds to the
+   * effect the caller wrote and reaches its resolver unchanged. The resolution is kept rather than
+   * thrown away, so no resolver is asked for the same effect twice.
+   */
+  private fun overriddenColour(
+    ordered: List<EffectSpec>,
+    inputSize: Size,
+    layoutSize: Size,
+    outputSize: Size,
+    colorSpace: ColorSpace,
+    hdrTransfer: HdrTransfer?,
+    frameRate: Int,
+    span: TimeRange,
+    capabilities: RenderCapabilities,
+  ): Map<Int, EffectResolution> {
+    if (overriding.isEmpty()) return emptyMap()
+
+    val colour = ordered.map { colorMatrixOf(it) != null }
+    val claimed = mutableMapOf<Int, EffectResolution>()
+    var size = inputSize
+    var layout = layoutSize
+
+    ordered.forEachIndexed { index, spec ->
+      val folds = colour[index] && (colour.getOrElse(index - 1) { false } || colour.getOrElse(index + 1) { false })
+      if (folds) {
+        val attributes = Attributes(size, outputSize, layout, colorSpace, hdrTransfer, frameRate.toFloat(), span)
+        overriding.firstNotNullOfOrNull { it.resolve(spec, capabilities, attributes) }?.let { claimed[index] = it }
+      }
+      size = frameAfter(spec, size)
+      layout = frameAfter(spec, layout)
+    }
+
+    return claimed
   }
 
   private fun incapableWithFallback(
@@ -705,20 +782,58 @@ public class ExportPlanner(
 }
 
 /**
+ * The chain a backend lowers: every run of colour effects folded, except around the effects an
+ * overriding resolver claimed, with the resolutions those already gave keyed by their place here.
+ */
+private fun foldedChain(
+  ordered: List<EffectSpec>,
+  overridden: Map<Int, EffectResolution>,
+): FoldedChain {
+  if (overridden.isEmpty()) return FoldedChain(ordered.fusedColorMatrices(), emptyMap())
+
+  val entries = mutableListOf<FoldedSpec>()
+  val resolutions = mutableMapOf<Int, EffectResolution>()
+  var start = 0
+
+  overridden.keys.sorted().forEach { index ->
+    entries += ordered.subList(start, index).fusedColorMatrices()
+    resolutions[entries.size] = overridden.getValue(index)
+    entries += FoldedSpec(ordered[index], listOf(ordered[index]))
+    start = index + 1
+  }
+  entries += ordered.subList(start, ordered.size).fusedColorMatrices()
+
+  return FoldedChain(entries, resolutions)
+}
+
+private class FoldedChain(
+  val entries: List<FoldedSpec>,
+  val resolutions: Map<Int, EffectResolution>,
+)
+
+// What a backend calls the effect it was handed. A folded run stands for several authored effects,
+// and naming the one the fold made up puts an id in a message that the caller never wrote.
+private fun List<EffectSpec>.authoredIds(): String = joinToString(", ") { it.id }
+
+/**
  * One effect, after the resolver chain has been asked.
  *
- * @property degraded The spec's id and what was given up, when a resolver realised it but not
- *   exactly as declared.
+ * @property sources The effects the caller wrote that [spec] stands for, which is [spec] alone
+ *   unless a run of colour effects folded into it.
+ * @property degraded Each authored id and what was given up, when a resolver realised the effect
+ *   but not exactly as declared.
  */
 private class LoweredEffect(
   val spec: EffectSpec,
+  val sources: List<EffectSpec>,
   effect: PlatformEffect?,
   val unsupported: String?,
   degradedMessage: String?,
 ) {
-  val degraded: Pair<String, String>? = degradedMessage?.let { spec.id to it }
+  val degraded: List<Pair<String, String>> =
+    degradedMessage?.let { message -> sources.map { it.id to message } }.orEmpty()
 
-  val resolvedEffect: ResolvedEffect? = effect?.let { ResolvedEffect(spec.id, it) }
+  val resolvedEffect: ResolvedEffect? = effect?.let { ResolvedEffect(sources.authoredIds(), it) }
 }
 
 /**

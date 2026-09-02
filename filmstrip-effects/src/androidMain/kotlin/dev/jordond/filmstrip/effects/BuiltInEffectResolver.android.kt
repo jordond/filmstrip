@@ -16,8 +16,10 @@ import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
-import dev.jordond.filmstrip.effects.color.Brightness
-import dev.jordond.filmstrip.effects.color.scale
+import dev.jordond.filmstrip.effects.color.ColorMatrixEffect
+import dev.jordond.filmstrip.effects.color.HdrColorMatrixEffect
+import dev.jordond.filmstrip.effects.color.colorMatrixOf
+import dev.jordond.filmstrip.effects.color.uniformScale
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.CropRect
 import dev.jordond.filmstrip.effects.geometry.Flip
@@ -53,6 +55,8 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     attributes: Attributes,
   ): EffectResolution? {
     if (capabilities.api != RenderApi.OpenGlEs) return null
+    val color = spec.toColorMatrix(attributes.hdrTransfer)
+    if (color != null) return color
 
     return when (spec) {
       is Rotate -> resolved(ScaleAndRotateTransformation.Builder().setRotationDegrees(spec.degrees.toFloat()).build())
@@ -61,11 +65,35 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       is CropRect -> resolved(spec.rect.toMedia3())
       is KenBurns -> spec.toTransformation(attributes)
       is Scale -> resolved(spec.toMedia3())
-      is Brightness -> resolved(spec.toMedia3(attributes.hdrTransfer))
       is ImageOverlay -> spec.toOverlay(capabilities, attributes)
       is TextOverlay -> spec.toOverlay(capabilities, attributes)
       else -> null
     }
+  }
+
+  // Which effects are one matrix is the shared helper's answer, so the catalogue can grow without
+  // this listing the types again, brightness included.
+  //
+  // On SDR media3's own matrix multiplies the encoded signal, which is where the entries are
+  // written. A kept grade reaches the shader as linear light, so the matrix goes through a pass of
+  // its own that moves each channel into that signal and back around it.
+  //
+  // A matrix that scales all three channels alike is the exception on a grade: it commutes with the
+  // transfer function, so it stays one of media3's own matrices with the gain moved into the domain
+  // the frame is held in, and costs no pass of its own. Which lowering an effect takes is the
+  // matrix's shape rather than the type that wrote it, so a folded run takes the same one a
+  // Brightness does.
+  private fun EffectSpec.toColorMatrix(transfer: HdrTransfer?): EffectResolution? {
+    val matrix = colorMatrixOf(this) ?: return null
+    val scale = matrix.uniformScale
+
+    return resolved(
+      when {
+        scale != null -> scale.toRgbAdjustment(transfer)
+        transfer == null -> ColorMatrixEffect(matrix)
+        else -> HdrColorMatrixEffect(matrix, transfer)
+      },
+    )
   }
 
   // A region outside the frame samples nothing, and one with no area collapses the frame to a
@@ -134,15 +162,18 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       }.build()
 
   // media3 keeps the input's own transfer function as its SDR working colour space, so on SDR the
-  // matrix multiplies the encoded signal, which is where Brightness is defined. An HDR grade is
-  // processed in linear light, and which linear is media3's own: PQ goes through its EOTF and comes
-  // out display referred, while HLG gets only the inverse OETF and stays scene referred.
-  private fun Brightness.toMedia3(transfer: HdrTransfer?): Effect {
+  // scale multiplies the encoded signal, which is where it is defined. An HDR grade is processed in
+  // linear light, and which linear is media3's own: PQ goes through its EOTF and comes out display
+  // referred, while HLG gets only the inverse OETF and stays scene referred.
+  //
+  // Nothing clamps a scale on a grade the way the matrix pass does. The light has headroom above
+  // white and the encoder cuts it off at the transfer's peak, which is where the pass clamps too.
+  private fun Float.toRgbAdjustment(transfer: HdrTransfer?): Effect {
     val gain =
       when (transfer) {
-        null -> scale
-        HdrTransfer.Pq -> brightnessDisplayGain(scale)
-        HdrTransfer.Hlg -> brightnessSceneGain(scale)
+        null -> this
+        HdrTransfer.Pq -> brightnessDisplayGain(this)
+        HdrTransfer.Hlg -> brightnessSceneGain(this)
       }
 
     return RgbAdjustment

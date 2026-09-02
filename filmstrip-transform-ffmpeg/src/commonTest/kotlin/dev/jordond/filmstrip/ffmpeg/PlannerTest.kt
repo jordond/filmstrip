@@ -406,6 +406,21 @@ class PlannerTest {
     FfmpegParity.of(EffectIds.TEXT_OVERLAY) shouldBe null
   }
 
+  // Every colour matrix lowers to a table ffmpeg evaluates exactly, whether it is the per-channel
+  // one or the file, so none of them is the approximation Scale is.
+  @Test
+  fun `reports every colour matrix as exact`() {
+    listOf(
+      EffectIds.RGB_ADJUSTMENT,
+      EffectIds.CONTRAST,
+      EffectIds.SATURATION,
+      EffectIds.HUE_ROTATE,
+      EffectIds.SEPIA,
+      EffectIds.INVERT,
+      EffectIds.COLOR_MATRIX,
+    ).forEach { FfmpegParity.of(it) shouldBe EffectParity.Exact }
+  }
+
   @Test
   fun `carries the weakest parity onto the plan`() {
     val composition = EditComposition(listOf(Track(listOf(Clip(landscape, effects = listOf(Scale(360)))))))

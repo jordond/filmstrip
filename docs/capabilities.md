@@ -74,6 +74,13 @@ Which built-in effects each render backend can lower. A backend only sees effect
 | `CropRect`      | yes                   | yes                   | yes                   | yes                   |
 | `Scale`         | yes [^android-fit]    | yes                   | pending [^web-resize] | yes [^ffmpeg-scale]   |
 | `Brightness`    | yes [^hdr-brightness] | yes [^hdr-brightness] | yes [^web-sdr-only]   | yes [^hdr-brightness] |
+| `RgbAdjustment` | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^web-sdr-only]   | yes [^sdr-matrix]     |
+| `Contrast`      | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^web-sdr-only]   | yes [^sdr-matrix]     |
+| `Saturation`    | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^web-sdr-only]   | yes [^sdr-matrix]     |
+| `HueRotate`     | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^web-sdr-only]   | yes [^sdr-matrix]     |
+| `Sepia`         | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^web-sdr-only]   | yes [^sdr-matrix]     |
+| `Invert`        | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^web-sdr-only]   | yes [^sdr-matrix]     |
+| `ColorMatrix`   | yes [^sdr-matrix]     | yes [^sdr-matrix]     | yes [^web-sdr-only]   | yes [^sdr-matrix]     |
 | `ImageOverlay`  | pending [^overlays]   | pending [^overlays]   | pending [^overlays]   | yes                   |
 | `TextOverlay`   | pending [^overlays]   | pending [^overlays]   | pending [^overlays]   | no [^ffmpeg-text]     |
 
@@ -100,10 +107,35 @@ Image scale display light, and media3 scales scene light on HLG because it runs 
 OETF there. A factor above `1f` matches an SDR export through the midtones and diverges in the
 highlights, where SDR clips at white and HDR keeps going until the transfer function's own peak.
 
+[^sdr-matrix]: Every colour effect other than `Brightness` is a 3x3 matrix and an offset on the
+encoded SDR signal, and a run of them is folded into one matrix in shared code before any backend
+clamps, so a channel pushed past white and pulled back again comes out the same everywhere. A clip's
+run and the composition's are two runs, not one, and every backend clamps between them, the way it
+would if the clip had been written out and read back. On an export that keeps an HDR grade the frame
+is linear light, so each backend reads that light as the signal an SDR display at reference white
+(203 nits) would have been fed, runs the matrix there, and takes the result back to light, floored
+at black and clamped where the transfer function runs out rather than at white. A matrix with no
+offset reads the same however bright the picture is, so only `Contrast`, `Invert` and a hand-written
+offset are anchored to that white: a contrast pivots on about 44 nits, and a full inversion turns
+anything brighter than 203 nits black. Android lowers the SDR matrix onto media3's `RgbMatrix` and a
+kept grade onto a GL pass of its own, Apple onto `CIColorMatrix` inside the same tone curve pair
+`Brightness` uses on SDR and between a pair of `CIGammaAdjust` filters in linear BT.2020 on a grade,
+since Core Image's working space carries sRGB primaries and would floor a saturated BT.2020 channel,
+the browser onto one `mat4` uniform, and ffmpeg onto `lutrgb` when the matrix is per-channel and
+onto a two-point `lut3d` cube otherwise, which reproduces an affine map exactly and clamps once at
+the end. On a grade the cube runs at sixteen bits between two `lutrgb` tables that carry the
+transfer function, which costs two format conversions per frame. The per-channel table rounds to the
+nearest code value in its own expression. The cube cannot, and `lut3d` keeps the code value below
+the one it interpolates, so a matrix that mixes channels can land one code value under the other
+three backends on ffmpeg. PQ agrees across backends to the code value. HLG does not quite: Core
+Image's opto-optical transfer keeps chroma but is not the per-channel one media3 and ffmpeg apply,
+so an offset or a mix on a saturated HLG colour lands a few percent apart between Apple and the
+other two, and grey agrees everywhere.
+
 [^web-sdr-only]: The browser compositor renders into an eight-bit canvas, so this backend never
-writes an HDR grade and the multiply always lands on an SDR signal. It has no lowering for a kept
-grade, and a test pins the compositor's depth, so the day that changes the test fails instead of the
-multiply landing in the wrong domain.
+writes an HDR grade and every colour matrix lands on an SDR signal. A kept grade is refused by name
+rather than lowered into the wrong domain, and a test pins the compositor's depth as well, so the
+day that changes both the refusal and the test say so.
 
 [^ffmpeg-text]: Refused for one of two reasons, and the message says which. Either the ffmpeg build
 has no `drawtext` filter, which needs `--enable-libfreetype` and `--enable-libharfbuzz` and the

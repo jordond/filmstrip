@@ -44,7 +44,6 @@ import kotlin.time.Duration
  * @param context The application context the extractor decodes on.
  * @param preview The graph the player is showing, or null before one is loaded.
  * @param renderScale The preview-only downscale in force.
- * @param colorSpace What the rendered pixels are in.
  * @param revision What the loaded edit's frames are decided by, which tells one request's chain
  *   from the last one's.
  */
@@ -54,7 +53,6 @@ internal class Media3FrameReadback(
   private val context: Context,
   private val preview: () -> Media3Preview?,
   private val renderScale: () -> Float,
-  private val colorSpace: () -> ColorSpace,
   private val revision: () -> Long,
 ) : PreviewFrameReadback {
   private val stills = Media3StillFrames(context)
@@ -70,10 +68,9 @@ internal class Media3FrameReadback(
     val lowered = graph.readbackAt(position, revision()) ?: return refuse(callback, NO_CLIP)
     val span = lowered.span
     val scale = renderScale()
-    val space = colorSpace()
     val request = Request(callback)
 
-    if (span.still) return readStill(lowered, position, scale, space, request)
+    if (span.still) return readStill(lowered, position, scale, request)
 
     // The extractor builds an ExoPlayer, which binds to the looper of whatever thread creates it,
     // so it is built on one of this class's own rather than on the player's.
@@ -91,7 +88,7 @@ internal class Media3FrameReadback(
         {
           val outcome =
             try {
-              future.get().toReadback(lowered, scale, space)
+              future.get().toReadback(lowered, scale)
             } catch (
               @Suppress("TooGenericExceptionCaught") broken: Exception,
             ) {
@@ -134,7 +131,6 @@ internal class Media3FrameReadback(
     lowered: Media3Readback,
     position: Duration,
     scale: Float,
-    space: ColorSpace,
     request: Request,
   ): Cancellable {
     val job =
@@ -148,7 +144,7 @@ internal class Media3FrameReadback(
                   pixels = drawn.toRgba(),
                   size = Size(drawn.width, drawn.height),
                   presentationTime = position,
-                  colorSpace = space,
+                  colorSpace = READBACK_COLOR_SPACE,
                   renderScale = scale,
                 ),
               ).also { drawn.recycle() }
@@ -248,17 +244,20 @@ internal class Media3FrameReadback(
 private fun FrameExtractor.Frame.toReadback(
   lowered: Media3Readback,
   scale: Float,
-  space: ColorSpace,
 ): ReadbackResult =
   ReadbackResult.Success(
     ReadbackFrame(
       pixels = bitmap.toRgba(),
       size = Size(bitmap.width, bitmap.height),
       presentationTime = lowered.compositionTimeOf(presentationTimeMs),
-      colorSpace = space,
+      colorSpace = READBACK_COLOR_SPACE,
       renderScale = scale,
     ),
   )
+
+// media3 tone-maps an HDR frame on the way out of both a FrameExtractor and the still processor,
+// since neither is asked for HDR frames, so a readback is BT.709 whatever the plan encodes.
+private val READBACK_COLOR_SPACE = ColorSpace.Bt709
 
 /**
  * This bitmap as tightly packed RGBA_8888, row major.

@@ -11,6 +11,7 @@ import androidx.media3.common.audio.ChannelMixingMatrix
 import androidx.media3.common.audio.ToInt16PcmAudioProcessor
 import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.Presentation
+import androidx.media3.effect.RgbMatrix
 import androidx.media3.effect.TextureOverlay
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
@@ -199,12 +200,31 @@ internal fun audioCodecName(mimeType: String): String =
  */
 internal fun ResolvedComposition.compositionVideoEffects(wrapper: EffectWrapper = PassThroughEffects): List<Effect> {
   val effects =
-    compositionGeometry.toMedia3Effects() +
+    boundaryBeforeComposition() +
+      compositionGeometry.toMedia3Effects() +
       Presentation.createForWidthAndHeight(output.size.width, output.size.height, fit.toLayout()) +
       compositionEffects.toMedia3Effects()
 
   val whole = if (showsFill) effects + FillFlatten(fill.flattenColor(), hdrTransfer) else effects
   return whole.map(wrapper::wrap)
+}
+
+/**
+ * The pass that ends the clip's colour program, when a clip and the composition both grade in SDR.
+ *
+ * media3 merges the two chains into one program with nothing clamping between them, which is not
+ * where the planner stopped the fold. A kept grade needs no pass of this kind: its colour lowers to
+ * a program of its own that clamps at the transfer's ceiling.
+ */
+private fun ResolvedComposition.boundaryBeforeComposition(): List<Effect> {
+  if (hdrTransfer != null) return emptyList()
+  val grades = compositionEffects.any { it.effect.handle is RgbMatrix }
+  val clipGrades =
+    tracks.any { track ->
+      track.clips.any { clip -> clip.effects.any { it.effect.handle is RgbMatrix } }
+    }
+
+  return if (grades && clipGrades) listOf(ColorStageBoundary()) else emptyList()
 }
 
 // Only Fill.Solid names a colour of its own. A gap has no frame to blur, so Fill.Blurred, and

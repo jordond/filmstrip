@@ -20,13 +20,17 @@ kotlin {
       api(projects.filmstripTransform)
     }
 
-    androidMain.dependencies {
-      api(libs.media3.exoplayer)
-      api(libs.media3.ui)
-      api(libs.media3.common)
-      implementation(libs.media3.inspector.frame)
-      api(projects.filmstripTransformMedia3)
-      implementation(libs.androidx.core)
+    androidMain {
+      languageSettings.optIn("androidx.media3.common.util.UnstableApi")
+
+      dependencies {
+        api(libs.media3.exoplayer)
+        api(libs.media3.ui)
+        api(libs.media3.common)
+        implementation(libs.media3.inspector.frame)
+        api(projects.filmstripTransformMedia3)
+        implementation(libs.androidx.core)
+      }
     }
 
     appleMain.dependencies {
@@ -56,10 +60,6 @@ kotlin {
         implementation(libs.androidx.test.core)
       }
     }
-  }
-
-  sourceSets.androidMain {
-    languageSettings.optIn("androidx.media3.common.util.UnstableApi")
   }
 }
 

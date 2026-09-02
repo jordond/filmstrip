@@ -1,17 +1,9 @@
 package dev.jordond.filmstrip.media3.internal
 
+import dev.jordond.filmstrip.effects.MEDIA3_HDR_PEAK_NITS
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.hdrFillNits
 import dev.jordond.filmstrip.transform.internal.hlgSceneFromNits
-
-/**
- * The peak media3 normalises an HDR frame against, in cd/m2.
- *
- * media3's own transfer shader divides a PQ frame by this after decoding it against PQ's ten
- * thousand, and leaves an HLG frame alone, so one in an effect's texture is this many nits either
- * way. This is media3's figure rather than the format's, which is why it lives here.
- */
-internal const val MEDIA3_HDR_PEAK_NITS = 1_000f
 
 /**
  * The red, green and blue an effect writes to paint [color] over a frame.

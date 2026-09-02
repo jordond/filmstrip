@@ -11,6 +11,10 @@ import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
 import dev.jordond.filmstrip.effect.inCanonicalOrder
+import dev.jordond.filmstrip.effects.color.ColorMatrix
+import dev.jordond.filmstrip.effects.color.colorMatrixOfColumnMajor4x4OrNull
+import dev.jordond.filmstrip.effects.color.then
+import dev.jordond.filmstrip.effects.color.toColumnMajor4x4
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.ExportError
@@ -53,8 +57,8 @@ internal class BrowserLowering(
 }
 
 /**
- * What the pipeline needs for one clip: a quad, a texture matrix and a brightness, all lowered from
- * the clip's effects, plus the trim window and the place on the output timeline.
+ * What the pipeline needs for one clip: a quad, a texture matrix and a colour matrix, all lowered
+ * from the clip's effects, plus the trim window and the place on the output timeline.
  *
  * @property coverHalfW Half the quad's width when the clip is scaled to cover the output rather
  *   than fit inside it. This is what a blurred fill's background draws with.
@@ -62,6 +66,11 @@ internal class BrowserLowering(
  * @property hasBars Whether this clip leaves any letterbox bars at all. A clip whose aspect already
  *   matches the output has none, and a blurred fill skips its background passes for one that does
  *   not need them.
+ * @property colorMatrix The clip's own colour chain as the sixteen floats a GL `mat4` uniform
+ *   takes, column-major, applied to `vec4(rgb, 1)`. The identity when the chain grades nothing.
+ * @property compositionColorMatrix The composition's colour chain, in the same form. The planner
+ *   folds a run of colour effects per stage and every backend clamps between the two, so the two
+ *   matrices stay apart here rather than being multiplied into one.
  * @property frames How many output frames this clip fills at the resolved rate. The pipeline walks
  *   exactly this many slots, so progress is measured against what really gets encoded.
  */
@@ -76,7 +85,8 @@ internal class RenderedClip(
   val coverHalfH: Float,
   val hasBars: Boolean,
   val matrix: FloatArray,
-  val brightness: Float,
+  val colorMatrix: FloatArray,
+  val compositionColorMatrix: FloatArray,
   val frames: Long,
 )
 
@@ -128,7 +138,7 @@ internal class BrowserRender(
  * What stays here is what the negotiator does not, and cannot, own: refusals for gaps this backend
  * has that are not policy (no video to draw from an audio-only primary track, no baking a source's
  * container rotation), and the lowering from a [ResolvedComposition]'s platform effect chain onto
- * one quad, one texture matrix and one brightness per clip, which is what a single WebGL pass
+ * one quad, one texture matrix and one colour matrix per clip, which is what a single WebGL pass
  * draws.
  */
 internal class BrowserPlanner(
@@ -257,9 +267,10 @@ internal class BrowserPlanner(
  * The lowering from a resolved composition onto what one WebGL pass draws per clip.
  *
  * A clip's own effects and the composition's, resolved separately by the negotiator, are one
- * combined texture matrix and one brightness here, because a single pass has no intermediate
- * canvas to apply them on separately. [composition] is the same one negotiation ran against: dropping an
- * unsupported effect's id never changes a clip's trim or its count, so clips line up by index.
+ * combined texture matrix and one combined colour matrix here, because a single pass has no
+ * intermediate canvas to apply them on separately. [composition] is the same one negotiation ran
+ * against: dropping an unsupported effect's id never changes a clip's trim or its count, so clips
+ * line up by index.
  *
  * A [ExportPath.Transmux] render never opens an encoder, and `videoCodec` there is the source's
  * own codec rather than the ladder's pick, which [webCodecString] and [muxCodecKey] refuse to
@@ -299,7 +310,8 @@ internal fun browserRenderOf(
           coverHalfH = drawnSize.height * coverScale(drawnSize, outputSize) / outputSize.height,
           hasBars = !matchesOutputAspect(drawnSize, outputSize),
           matrix = chain.matrix(),
-          brightness = chain.brightness(),
+          colorMatrix = resolved.effects.colorMatrix(),
+          compositionColorMatrix = (plan.compositionGeometry + plan.compositionEffects).colorMatrix(),
           frames = framesIn(resolved.duration, frameRate),
         )
       offset += resolved.duration
@@ -372,13 +384,24 @@ private const val DEFAULT_BITRATE = 8_000_000L
 private val OPEN_END = Double.POSITIVE_INFINITY
 
 /**
- * The four ids this backend's built-in resolvers realise exactly. Shared with [ExportPlanner], so
+ * The ids this backend's built-in resolvers realise exactly. Shared with [ExportPlanner], so
  * `PlannedEffect.parity` and the engine-level [dev.jordond.filmstrip.export.ExportEngine.parityOf]
  * answer the same question the same way.
  */
 internal fun browserParityOf(specId: String): EffectParity? =
   when (specId) {
-    EffectIds.CROP, EffectIds.CROP_RECT, EffectIds.FLIP, EffectIds.BRIGHTNESS -> EffectParity.Exact
+    EffectIds.CROP,
+    EffectIds.CROP_RECT,
+    EffectIds.FLIP,
+    EffectIds.BRIGHTNESS,
+    EffectIds.RGB_ADJUSTMENT,
+    EffectIds.CONTRAST,
+    EffectIds.SATURATION,
+    EffectIds.HUE_ROTATE,
+    EffectIds.SEPIA,
+    EffectIds.INVERT,
+    EffectIds.COLOR_MATRIX,
+    -> EffectParity.Exact
     else -> null
   }
 
@@ -391,13 +414,15 @@ private fun List<ResolvedEffect>.matrix(): FloatArray =
     )
   }
 
-private fun List<ResolvedEffect>.brightness(): Float =
-  fold(1f) { combined, resolved ->
-    combined * (
-      resolved.effect.pass.uniforms[BRIGHTNESS_UNIFORM]
-        ?.firstOrNull() ?: 1f
-    )
-  }
+// Composed through the shared fold, so what a stage's passes come to here is the matrix the planner
+// would have made had it folded them itself. A pass this backend did not write is free to spell a
+// uniform of that name any way it likes, and one that is not a mat4 is left out rather than failing
+// the plan.
+private fun List<ResolvedEffect>.colorMatrix(): FloatArray =
+  fold(ColorMatrix.Identity) { combined, resolved ->
+    val columns = resolved.effect.pass.uniforms[COLOR_MATRIX_UNIFORM] ?: return@fold combined
+    colorMatrixOfColumnMajor4x4OrNull(columns)?.let { combined.then(it) } ?: combined
+  }.toColumnMajor4x4()
 
 private fun multiply(
   left: FloatArray,
@@ -464,4 +489,4 @@ private val MEDIABUNNY_AUDIO = setOf(CodecKind.Vorbis)
 // The uniform names the built-in browser resolver writes. They are private there, so the names are
 // spelled out here and any resolver emitting the same names composes the same way.
 private const val TEX_MATRIX_UNIFORM = "uTexMatrix"
-private const val BRIGHTNESS_UNIFORM = "uBrightness"
+private const val COLOR_MATRIX_UNIFORM = "uColorMatrix"

@@ -8,6 +8,10 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.color.Contrast
+import dev.jordond.filmstrip.effects.color.Saturation
+import dev.jordond.filmstrip.effects.color.colorMatrixOf
+import dev.jordond.filmstrip.effects.color.transform
 import dev.jordond.filmstrip.effects.geometry.CropRect
 import dev.jordond.filmstrip.effects.geometry.Flip
 import dev.jordond.filmstrip.effects.geometry.Rotate
@@ -154,6 +158,51 @@ class AndroidEffectTest {
       )
     }
 
+  // A contrast pivots on mid grey, so its matrix carries a bias as well as a gain, and the expected
+  // pixel comes from the shared matrix rather than from a ratio. Half rather than a gain above one:
+  // the pattern's bars are saturated, and stretching one takes every channel of it past an endpoint,
+  // where a backend that dropped the bias would read the same.
+  @Test
+  fun aContrastPullsEveryChannelTowardsMidGrey() =
+    runTest(timeout = TIMEOUT) {
+      val source = fixture() ?: return@runTest
+      val spec = Contrast(HALF)
+
+      val plain = frame(export(source, marked = false, effects = emptyList()))
+      val graded = frame(export(source, marked = false, effects = listOf(spec)))
+
+      assertGraded(plain, graded, spec, BLUE_BAR)
+    }
+
+  // Saturation is the one that mixes channels, so its rows have to be the right way round. A cyan
+  // bar reads that back: two channels come down towards the luma while the third climbs to meet it.
+  @Test
+  fun aHalfSaturationMovesEveryChannelHalfwayToItsGrey() =
+    runTest(timeout = TIMEOUT) {
+      val source = fixture() ?: return@runTest
+      val spec = Saturation(HALF)
+
+      val plain = frame(export(source, marked = false, effects = emptyList()))
+      val graded = frame(export(source, marked = false, effects = listOf(spec)))
+
+      assertGraded(plain, graded, spec, CYAN_BAR)
+    }
+
+  // The endpoint where nothing but the bias survives, checked on two bars that started at opposite
+  // ends of the range and have to land on the same mid grey.
+  @Test
+  fun aZeroContrastFlattensTheFrameToMidGrey() =
+    runTest(timeout = TIMEOUT) {
+      val source = fixture() ?: return@runTest
+      val spec = Contrast(0f)
+
+      val plain = frame(export(source, marked = false, effects = emptyList()))
+      val flat = frame(export(source, marked = false, effects = listOf(spec)))
+
+      assertGraded(plain, flat, spec, CYAN_BAR)
+      assertGraded(plain, flat, spec, BLUE_BAR)
+    }
+
   private suspend fun export(
     source: MediaSource,
     marked: Boolean,
@@ -180,6 +229,30 @@ class AndroidEffectTest {
     return File((assertIs<ExportStatus.Success>(finished).output as MediaSink.Path).path)
   }
 
+  // What the shared matrix predicts for the pixel the plain export wrote, against what the graded
+  // export wrote in its place. Measuring the plain frame rather than the source is what keeps the
+  // encoder and the 4:2:0 round trip out of the comparison, since both frames carry them.
+  private fun assertGraded(
+    plain: Bitmap,
+    graded: Bitmap,
+    spec: EffectSpec,
+    fx: Float,
+  ) {
+    val before = plain.averageAt(fx, CENTRE)
+    val after = graded.averageAt(fx, CENTRE)
+    val matrix = checkNotNull(colorMatrixOf(spec)) { "$spec is not a colour matrix" }
+    val expected = matrix.transform(before.first / FULL, before.second / FULL, before.third / FULL)
+    val predicted = Triple(code(expected[0]), code(expected[1]), code(expected[2]))
+
+    assertTrue(distance(after, before) > MOVED, "$spec left the pixel at $fx on $before, so nothing was graded")
+    assertTrue(
+      distance(after, predicted) < GRADE_DRIFT,
+      "$spec read $after at $fx, where the shared matrix says $predicted from $before",
+    )
+  }
+
+  private fun code(channel: Float): Int = (channel * FULL).toInt()
+
   private fun frame(video: File): Bitmap = frameOf(video, MID_CLIP)
 
   private fun fixture(name: String = CLIP): MediaSource? {
@@ -200,6 +273,14 @@ class AndroidEffectTest {
     const val HALF = 0.5f
     const val CENTRE = 0.5f
     const val MARGIN = 0.02f
+    const val FULL = 255f
+
+    // The pattern's own centre sits on the seam between two colour bars, where the patch averages
+    // both sides and reads as a grey no pixel in the frame actually holds. A matrix that mixes
+    // channels needs a colour, so these name the middle of a bar instead. Both lie in the band of
+    // bars that crosses the frame at [CENTRE].
+    const val CYAN_BAR = 0.19f
+    const val BLUE_BAR = 0.44f
 
     val LEFT_HALF = NormalizedRect(0f, 0f, 0.5f, 1f)
     val RIGHT_HALF = NormalizedRect(0.5f, 0f, 1f, 1f)
@@ -213,5 +294,16 @@ class AndroidEffectTest {
     // which is what makes the band worth asserting rather than a plain "darker". Wide enough for
     // a device whose decode path leaves the ratio nearer 0.56 than 0.5.
     const val SIGNAL_DRIFT = 0.1f
+
+    // Summed across the three channels, for the two encodes and the two 4:2:0 round trips behind
+    // the comparison. Reading the plain frame rather than the source leaves almost nothing to
+    // absorb: an emulator lands every probe here within three of the matrix. The headroom is for
+    // other encoders, and it is still an order of magnitude under what a dropped bias or a
+    // transposed row would move a bar by.
+    const val GRADE_DRIFT = 24
+
+    // Far enough that a graded pixel cannot have been left where it started. Without it a probe
+    // that drifted onto a pixel the matrix happens to fix would pass having measured nothing.
+    const val MOVED = 60
   }
 }

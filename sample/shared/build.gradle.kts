@@ -33,11 +33,11 @@ kotlin {
   applyDefaultHierarchyTemplate()
 
   sourceSets {
-    val jvmCommonMain = create("jvmCommonMain") {
+    create("jvmCommonMain") {
       dependsOn(commonMain.get())
+      androidMain.get().dependsOn(this)
+      jvmMain.get().dependsOn(this)
     }
-    androidMain.get().dependsOn(jvmCommonMain)
-    jvmMain.get().dependsOn(jvmCommonMain)
 
     commonMain.dependencies {
       api(projects.filmstrip)

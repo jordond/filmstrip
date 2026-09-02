@@ -6,11 +6,13 @@ import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.PlatformEffect
+import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.ffmpeg.internal.GraphLowering
+import dev.jordond.filmstrip.ffmpeg.internal.Invocation
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
@@ -217,10 +219,52 @@ class GraphLoweringTest {
     }
   }
 
+  // A node names its file by placeholder, and only the invocation carries the bytes, so a fragment
+  // whose sidecar is dropped on the way through reaches ffmpeg naming a file nobody wrote. Both
+  // scopes are checked, because they are gathered on two separate lines.
+  @Test
+  fun `gathers the files an effect's nodes name, from either scope`() {
+    val sidecar = Sidecar(CUBE.encodeToByteArray(), "cube")
+    val composition = invocationFor(fill = Fill.Solid(0), compositionEffects = listOf(gradeEffect(sidecar)))
+    val clip = invocationFor(fill = Fill.Solid(0), clipEffects = listOf(gradeEffect(sidecar)))
+
+    composition.sidecars shouldBe listOf(sidecar)
+    composition.filterGraph shouldContain "lut3d=file=${sidecar.placeholder}"
+    clip.sidecars shouldBe listOf(sidecar)
+    clip.filterGraph shouldContain "lut3d=file=${sidecar.placeholder}"
+  }
+
+  // Two clips carrying the same grade lower to the same file, and a placeholder names its contents,
+  // so the one path serves both references.
+  @Test
+  fun `writes one file for a grade two effects share`() {
+    val sidecar = Sidecar(CUBE.encodeToByteArray(), "cube")
+    val invocation =
+      invocationFor(
+        fill = Fill.Solid(0),
+        compositionEffects = listOf(gradeEffect(sidecar)),
+        clipEffects = listOf(gradeEffect(sidecar)),
+      )
+
+    invocation.sidecars shouldBe listOf(sidecar)
+  }
+
   private fun compositionEffect(): ResolvedEffect =
     ResolvedEffect(
       specId = "test.brightness",
       effect = PlatformEffect(FilterFragment(chain = listOf(FilterNode("eq", "brightness" to "0.1")))),
+    )
+
+  private fun gradeEffect(sidecar: Sidecar): ResolvedEffect =
+    ResolvedEffect(
+      specId = "test.grade",
+      effect =
+        PlatformEffect(
+          FilterFragment(
+            chain = listOf(FilterNode("lut3d", "file" to sidecar.placeholder)),
+            sidecars = listOf(sidecar),
+          ),
+        ),
     )
 
   private fun graphFor(
@@ -229,7 +273,16 @@ class GraphLoweringTest {
     output: Size = Size(1920, 1080),
     trackStart: Duration = Duration.ZERO,
     compositionEffects: List<ResolvedEffect> = emptyList(),
-  ): String {
+  ): String = invocationFor(fill, fit, output, trackStart, compositionEffects).filterGraph
+
+  private fun invocationFor(
+    fill: Fill,
+    fit: Fit = Fit.Contain,
+    output: Size = Size(1920, 1080),
+    trackStart: Duration = Duration.ZERO,
+    compositionEffects: List<ResolvedEffect> = emptyList(),
+    clipEffects: List<ResolvedEffect> = emptyList(),
+  ): Invocation {
     val duration = 2.seconds
     val info =
       MediaInfo(
@@ -256,7 +309,7 @@ class GraphLoweringTest {
         info = info,
         start = Duration.ZERO,
         end = duration,
-        effects = emptyList(),
+        effects = clipEffects,
         gain = 1f,
         startsAtKeyFrame = false,
         span = TimeRange.of(trackStart, trackStart + duration),
@@ -290,10 +343,13 @@ class GraphLoweringTest {
         encoderName = "libx264",
       )
 
-    return GraphLowering(negotiated, toneMapRoute = null, hdrPixelFormat = null).build().filterGraph
+    return GraphLowering(negotiated, toneMapRoute = null, hdrPixelFormat = null).build()
   }
 }
 
 // gblur's own ceiling on sigma, a literal here on purpose: it pins what ffmpeg accepts rather than
 // anything the shared contract says.
 private const val GBLUR_SIGMA_CEILING = 1024
+
+// The header of the smallest table this backend writes, standing in for the file an effect brings.
+private const val CUBE = "LUT_3D_SIZE 2"

@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.OutputFormat
@@ -32,8 +33,8 @@ class PreviewInvocationTest {
   fun `runs the same filter graph the export runs, byte for byte`() {
     val invocation = graphed()
 
-    val exported = invocation.arguments(TOOLCHAIN, FfmpegConfig(), INPUTS, "/out.mp4")
-    val previewed = invocation.previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, 400.milliseconds)
+    val exported = invocation.arguments(TOOLCHAIN, FfmpegConfig(), INPUTS, emptyList(), "/out.mp4")
+    val previewed = invocation.previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, emptyList(), 400.milliseconds)
 
     previewed.after("-filter_complex") shouldBe exported.after("-filter_complex")
   }
@@ -60,7 +61,7 @@ class PreviewInvocationTest {
   @Test
   fun `opens an untrimmed clip without a seek at all`() {
     graphed(seekBase = Duration.ZERO)
-      .previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, Duration.ZERO)
+      .previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, emptyList(), Duration.ZERO)
       .shouldNotContain("-ss")
   }
 
@@ -75,7 +76,7 @@ class PreviewInvocationTest {
   @Test
   fun `runs unseeked when the graph cannot be windowed`() {
     graphed(seekBase = null)
-      .previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, 400.milliseconds)
+      .previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, emptyList(), 400.milliseconds)
       .shouldNotContain("-ss")
   }
 
@@ -113,11 +114,34 @@ class PreviewInvocationTest {
 
   @Test
   fun `maps the source stream directly for a transmux`() {
-    val previewed = copied().previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, Duration.ZERO)
+    val previewed = copied().previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, emptyList(), Duration.ZERO)
 
     previewed.after("-map") shouldBe "0:v:0"
     previewed.after("-s") shouldBe "${OUTPUT.size.width}x${OUTPUT.size.height}"
     previewed.shouldNotContain("-filter_complex")
+  }
+
+  // The pump writes the same files into its own scratch directory, so a node naming one by
+  // placeholder reaches a real path here as well as on the export.
+  @Test
+  fun `swaps a sidecar's placeholder for the escaped path the pump wrote it to`() {
+    val sidecar = Sidecar(CUBE.encodeToByteArray(), "cube")
+    val invocation =
+      Invocation(
+        inputs = listOf(InputSpec(InputSource.OfPath("/fixtures/a.mp4"))),
+        filterGraph = "[0:v]lut3d=file=${sidecar.placeholder}[v]",
+        videoLabel = "v",
+        audioLabel = null,
+        output = OUTPUT,
+        videoEncoder = "libx264",
+        duration = 1.seconds,
+        seekBase = Duration.ZERO,
+        sidecars = listOf(sidecar),
+      )
+
+    invocation
+      .previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, listOf(SIDECAR_PATH), Duration.ZERO)
+      .after("-filter_complex") shouldBe "[0:v]lut3d=file=/scratch/grade\\\\:1/asset0.cube[v]"
   }
 
   // The frame comes off OUTPUT. Four bytes a pixel is this backend's own wire format, from the rgba
@@ -128,7 +152,7 @@ class PreviewInvocationTest {
   }
 
   private fun previewArgumentsFor(at: Duration): List<String> =
-    graphed().previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, at)
+    graphed().previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, emptyList(), at)
 
   private fun List<String>.after(flag: String): String = this[indexOf(flag) + 1]
 
@@ -162,6 +186,12 @@ class PreviewInvocationTest {
 
   private companion object {
     val INPUTS = listOf("/fixtures/a.mp4")
+
+    const val CUBE = "LUT_3D_SIZE 2"
+
+    // A colon in the directory, because that is the character a filter graph reads as the end of an
+    // argument.
+    const val SIDECAR_PATH = "/scratch/grade:1/asset0.cube"
 
     const val RGBA_BYTES_PER_PIXEL = 4
 

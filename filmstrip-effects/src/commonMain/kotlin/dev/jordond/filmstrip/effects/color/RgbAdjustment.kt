@@ -16,7 +16,7 @@ import kotlinx.serialization.Serializable
  * so scaling red down and blue up cools it.
  *
  * @property red The red multiplier, where `1f` leaves it unchanged. Negative values are read as
- * `0f`, and a NaN as `1f`.
+ * `0f`, and anything that is not a finite number as `1f`.
  * @property green The green multiplier, read the same way.
  * @property blue The blue multiplier, read the same way.
  */
@@ -49,4 +49,4 @@ public fun EffectsBuilder.rgbAdjustment(
 internal val RgbAdjustment.matrix: ColorMatrix
   get() = scaleMatrix(red.asChannelScale(), green.asChannelScale(), blue.asChannelScale())
 
-private fun Float.asChannelScale(): Float = if (isNaN()) 1f else coerceAtLeast(0f)
+private fun Float.asChannelScale(): Float = if (isFinite()) coerceAtLeast(0f) else 1f

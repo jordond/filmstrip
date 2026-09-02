@@ -17,7 +17,7 @@ import kotlinx.serialization.Serializable
  * stays exactly where it was.
  *
  * @property factor How saturated the frame comes out, where `1f` leaves it unchanged and `0f` is
- * grey. Negative values are read as `0f`, and a NaN as `1f`.
+ * grey. Negative values are read as `0f`, and anything that is not a finite number as `1f`.
  */
 @Serializable
 @SerialName(EffectIds.SATURATION)
@@ -44,7 +44,7 @@ public fun EffectsBuilder.grayscale(): EffectsBuilder = add(Saturation(0f))
 /**
  * The amount a backend actually applies, computed here so all four apply the same number.
  */
-internal val Saturation.amount: Float get() = if (factor.isNaN()) 1f else factor.coerceAtLeast(0f)
+internal val Saturation.amount: Float get() = if (factor.isFinite()) factor.coerceAtLeast(0f) else 1f
 
 /**
  * The matrix behind a saturation: each channel is the luma plus its own distance from the luma

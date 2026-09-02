@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.OutputFormat
@@ -175,6 +176,35 @@ class InvocationTest {
     arguments.shouldNotContain("-c:a")
   }
 
+  // A node names its file by placeholder, because where the bytes land is not known until the
+  // backend has a scratch directory. The path is escaped on the way in, since a directory is free
+  // to carry a character the graph's own punctuation uses.
+  @Test
+  fun `swaps a sidecar's placeholder for the escaped path it was written to`() {
+    val sidecar = Sidecar(CUBE.encodeToByteArray(), "cube")
+    val arguments =
+      Invocation(
+        inputs = listOf(InputSpec(InputSource.OfPath("/fixtures/a.mp4"))),
+        filterGraph = "[0:v]lut3d=file=${sidecar.placeholder}[v]",
+        videoLabel = "v",
+        audioLabel = null,
+        output =
+          OutputFormat(
+            size = Size(1280, 720),
+            videoCodec = VideoCodec.H264,
+            audioCodec = AudioCodec.None,
+            bitrate = null,
+            frameRate = 30,
+            audioFormat = null,
+          ),
+        videoEncoder = "libx264",
+        duration = 2.seconds,
+        sidecars = listOf(sidecar),
+      ).arguments(TOOLCHAIN, FfmpegConfig(), listOf("/fixtures/a.mp4"), listOf(SIDECAR_PATH), "/out.mp4")
+
+    arguments.after("-filter_complex") shouldBe "[0:v]lut3d=file=/scratch/grade\\\\:1/asset0.cube[v]"
+  }
+
   @Test
   fun `a copy still reports progress and moves the moov atom to the front`() {
     val arguments = copyArguments()
@@ -208,7 +238,7 @@ class InvocationTest {
       videoEncoder = null,
       duration = 2.seconds,
       copy = true,
-    ).arguments(TOOLCHAIN, FfmpegConfig(), listOf("/fixtures/a.mp4"), "/out.mp4")
+    ).arguments(TOOLCHAIN, FfmpegConfig(), listOf("/fixtures/a.mp4"), emptyList(), "/out.mp4")
 
   private fun audioArgumentsFor(codec: AudioCodec): List<String> =
     Invocation(
@@ -227,7 +257,7 @@ class InvocationTest {
         ),
       videoEncoder = null,
       duration = 2.seconds,
-    ).arguments(TOOLCHAIN, FfmpegConfig(), listOf("/fixtures/a.mp4"), "/out.mp4")
+    ).arguments(TOOLCHAIN, FfmpegConfig(), listOf("/fixtures/a.mp4"), emptyList(), "/out.mp4")
 
   private fun argumentsFor(
     codec: VideoCodec,
@@ -253,9 +283,15 @@ class InvocationTest {
       duration = 2.seconds,
       hdrTransfer = hdrTransfer,
       toneMapped = toneMapped,
-    ).arguments(TOOLCHAIN, FfmpegConfig(), listOf("/fixtures/a.mp4"), "/out.mp4")
+    ).arguments(TOOLCHAIN, FfmpegConfig(), listOf("/fixtures/a.mp4"), emptyList(), "/out.mp4")
 
   private companion object {
+    const val CUBE = "LUT_3D_SIZE 2"
+
+    // A colon in the directory, because that is the character a filter graph reads as the end of an
+    // argument.
+    const val SIDECAR_PATH = "/scratch/grade:1/asset0.cube"
+
     val TOOLCHAIN =
       Toolchain(
         ffmpeg = "ffmpeg",

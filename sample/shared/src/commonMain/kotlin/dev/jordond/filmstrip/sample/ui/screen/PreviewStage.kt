@@ -142,9 +142,14 @@ private fun StageSchematic(
     val frameHeight = maxHeight
     val shorterSide = min(frameWidth.value, frameHeight.value).dp
 
-    FrameBackground(edit, shorterSide, state.sourceAspect)
-    FrameContent(edit, frameWidth, frameHeight, state.sourceAspect, applyRectCrop = !state.croppingRect)
-    BrightnessScrim(edit.brightness)
+    // Folded once per grade rather than once per recomposition, since dragging a slider anywhere
+    // else on the screen recomposes this.
+    val graded = remember(edit.colorEffects) { Modifier.fillMaxSize().colorGraded(edit.colorEffects) }
+
+    Box(graded) {
+      FrameBackground(edit, shorterSide, state.sourceAspect)
+      FrameContent(edit, frameWidth, frameHeight, state.sourceAspect, applyRectCrop = !state.croppingRect)
+    }
     CaptionOverlay(edit, frameWidth, frameHeight)
     WatermarkOverlay(edit, frameWidth, shorterSide)
   }
@@ -442,19 +447,6 @@ private fun DrawScope.drawTestCard(
     topLeft = Offset(width * 0.08f, height * 0.87f),
     size = Size(width * 0.3f * sourceAspect.coerceIn(0.5f, 2f), height * 0.04f),
   )
-}
-
-@Composable
-private fun BrightnessScrim(factor: Float) {
-  when {
-    factor < 1f -> Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = (1f - factor).coerceIn(0f, 1f))))
-    factor > 1f -> Box(
-      Modifier
-        .fillMaxSize()
-        .background(Color.White.copy(alpha = ((factor - 1f) * 0.55f).coerceIn(0f, 0.85f))),
-    )
-    else -> Unit
-  }
 }
 
 @Composable

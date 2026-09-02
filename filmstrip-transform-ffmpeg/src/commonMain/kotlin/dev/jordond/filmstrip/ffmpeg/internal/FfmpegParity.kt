@@ -24,6 +24,13 @@ internal object FfmpegParity {
       EffectIds.CROP to EffectParity.Exact,
       EffectIds.CROP_RECT to EffectParity.Exact,
       EffectIds.BRIGHTNESS to EffectParity.Exact,
+      EffectIds.RGB_ADJUSTMENT to EffectParity.Exact,
+      EffectIds.CONTRAST to EffectParity.Exact,
+      EffectIds.SATURATION to EffectParity.Exact,
+      EffectIds.HUE_ROTATE to EffectParity.Exact,
+      EffectIds.SEPIA to EffectParity.Exact,
+      EffectIds.INVERT to EffectParity.Exact,
+      EffectIds.COLOR_MATRIX to EffectParity.Exact,
       EffectIds.IMAGE_OVERLAY to EffectParity.Exact,
       EffectIds.SCALE to EffectParity.Approximate,
     )

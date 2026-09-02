@@ -13,10 +13,21 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectIds
+import dev.jordond.filmstrip.effect.EffectResolution
+import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effect.PlatformEffect
+import dev.jordond.filmstrip.effect.RenderApi
+import dev.jordond.filmstrip.effect.RenderCapabilities
+import dev.jordond.filmstrip.effect.WebGlPass
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.color.Contrast
+import dev.jordond.filmstrip.effects.color.Sepia
+import dev.jordond.filmstrip.effects.color.colorMatrixOf
+import dev.jordond.filmstrip.effects.color.toColumnMajor4x4
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.Flip
 import dev.jordond.filmstrip.effects.geometry.KenBurns
@@ -73,6 +84,9 @@ class BrowserPlannerTest {
     infos: Map<MediaSource, MediaInfo> = composition.clips.map { it.source to info() }.toMap(),
     device: DeviceCapabilities = device(VideoCodec.H264, VideoCodec.Vp9),
   ): BrowserLowering = planner.lower(composition, spec, device, infos)
+
+  private fun infosOf(composition: EditComposition): Map<MediaSource, MediaInfo> =
+    composition.clips.map { it.source to info() }.toMap()
 
   @Test
   fun emptyCompositionIsIncapable() {
@@ -205,7 +219,98 @@ class BrowserPlannerTest {
     assertEquals(EffectParity.Exact, verdict.plan.parity)
     assertEquals(3, verdict.plan.effectOrder.size)
     val render = assertNotNull(lower(compositionOf(listOf(Clip(source("a"))), effects = effects)).render)
-    assertTrue(render.clips.single().brightness < 1f)
+    val graded = render.clips.single().compositionColorMatrix
+    assertTrue(graded.contentEquals(matrixOf(Brightness(0.5f))), "the composition lowered to ${graded.toList()}")
+  }
+
+  // The planner folds a run of colour effects per stage and the pass clamps between the two, the
+  // way ffmpeg writes the clip's stage into a frame before the composition's filters run. The two
+  // matrices therefore reach the shader as two rather than as their product.
+  @Test
+  fun clipAndCompositionColourStayTwoMatrices() {
+    val clip = Clip(source("a"), effects = listOf(Sepia(1f)))
+    val composition = compositionOf(listOf(clip), effects = listOf(Contrast(1.5f)))
+
+    val render = assertNotNull(lower(composition).render)
+    val drawn = render.clips.single()
+
+    assertMatrix(checkNotNull(colorMatrixOf(Sepia(1f))).toColumnMajor4x4(), drawn.colorMatrix, "the clip")
+    assertMatrix(
+      checkNotNull(colorMatrixOf(Contrast(1.5f))).toColumnMajor4x4(),
+      drawn.compositionColorMatrix,
+      "the composition",
+    )
+  }
+
+  // The uniform holds single precision and the fold on this side runs in whatever the host has, so
+  // the two agree to a tolerance rather than bit for bit.
+  private fun assertMatrix(
+    expected: FloatArray,
+    lowered: FloatArray,
+    what: String,
+  ) {
+    assertEquals(expected.size, lowered.size)
+    expected.indices.forEach { index ->
+      assertEquals(
+        expected[index],
+        lowered[index],
+        MATRIX_TOLERANCE,
+        "$what lowered to ${lowered.toList()}, and the matrix it wrote is ${expected.toList()}",
+      )
+    }
+  }
+
+  // The compositor renders into an eight-bit canvas, so there is no domain here for a matrix
+  // written against light. Refused by name rather than lowered as though the frame held a signal,
+  // whatever a later pipeline reports about its own depth.
+  @Test
+  fun colourOnAKeptGradeIsRefused() {
+    val resolver = BuiltInEffectResolver()
+
+    assertIs<EffectResolution.Unsupported>(resolver.resolve(Sepia(), webCapabilities(), attributesOf(HdrTransfer.Pq)))
+    assertIs<EffectResolution.Resolved>(resolver.resolve(Sepia(), webCapabilities(), attributesOf(null)))
+  }
+
+  private fun webCapabilities(): RenderCapabilities =
+    RenderCapabilities(
+      api = RenderApi.WebGl,
+      supportsFragmentShader = true,
+      supportsComputeShader = false,
+      supportsHdr = false,
+      colorSpaces = setOf(ColorSpace.Bt709),
+      maxTextureSize = 4096,
+      features = emptySet(),
+    )
+
+  private fun attributesOf(transfer: HdrTransfer?): Attributes =
+    Attributes(
+      inputSize = Size(1920, 1080),
+      outputSize = Size(1920, 1080),
+      layoutSize = Size(1920, 1080),
+      colorSpace = if (transfer == null) ColorSpace.Bt709 else ColorSpace.Bt2020,
+      hdrTransfer = transfer,
+      frameRate = 30f,
+      span = TimeRange.of(Duration.ZERO, 1.minutes),
+    )
+
+  // A pass this backend did not write owns the name of that uniform as much as this one does, and
+  // spelling it as something other than a mat4 is a lowering the fold leaves alone rather than an
+  // exception out of plan().
+  @Test
+  fun foreignColourUniformThatIsNotAMat4IsLeftOutOfTheFold() {
+    val foreign = BrowserPlanner(listOf(ForeignPassResolver(), BuiltInEffectResolver()))
+    val composition = compositionOf(listOf(Clip(source("a"), effects = listOf(Brightness(0.5f)))))
+
+    val render =
+      assertNotNull(foreign.lower(composition, videoSpec(), device(VideoCodec.H264), infosOf(composition)).render)
+
+    assertTrue(
+      render.clips
+        .single()
+        .colorMatrix
+        .contentEquals(matrixOf(Brightness(1f))),
+      "the clip lowered to ${render.clips.single().colorMatrix.toList()}",
+    )
   }
 
   // Composition geometry resolves against the frame clip geometry leaves behind, not the frame it
@@ -476,10 +581,13 @@ class BrowserPlannerTest {
     val prober = MediaProber { ProbeResult.Failure(ExportError.SourceUnreadable("", "unused by this test")) }
     val engine = BrowserExportEngine(ComponentRegistry.Builder().build(), prober)
     assertEquals(EffectParity.Exact, engine.parityOf(EffectIds.CROP))
-    assertEquals(EffectParity.Exact, engine.parityOf(EffectIds.BRIGHTNESS))
+    COLOR_IDS.forEach { id -> assertEquals(EffectParity.Exact, engine.parityOf(id), id) }
     assertNull(engine.parityOf(EffectIds.ROTATE))
   }
 
+  private fun matrixOf(spec: EffectSpec): FloatArray = checkNotNull(colorMatrixOf(spec)).toColumnMajor4x4()
+
+  // Column-major on both sides, so a row lands at a stride of four, the layout the uniform takes.
   private fun compositionOf(
     clips: List<Clip>,
     effects: List<EffectSpec> = emptyList(),
@@ -537,5 +645,34 @@ class BrowserPlannerTest {
 
   private companion object {
     val IDENTITY_MATRIX = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f)
+    const val MATRIX_TOLERANCE = 1e-5f
+
+    val COLOR_IDS =
+      listOf(
+        EffectIds.BRIGHTNESS,
+        EffectIds.RGB_ADJUSTMENT,
+        EffectIds.CONTRAST,
+        EffectIds.SATURATION,
+        EffectIds.HUE_ROTATE,
+        EffectIds.SEPIA,
+        EffectIds.INVERT,
+        EffectIds.COLOR_MATRIX,
+      )
+  }
+}
+
+// Stands in for a third-party pass that spells a uniform of the same name its own way. The fold has
+// to read past it rather than take it for a mat4.
+private class ForeignPassResolver : EffectResolver {
+  override fun resolve(
+    spec: EffectSpec,
+    capabilities: RenderCapabilities,
+    attributes: Attributes,
+  ): EffectResolution? {
+    if (spec !is Brightness) return null
+
+    return EffectResolution.Resolved(
+      PlatformEffect(WebGlPass("foreign.grade", mapOf("uColorMatrix" to floatArrayOf(1f, 0f, 0f)))),
+    )
   }
 }

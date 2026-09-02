@@ -53,7 +53,7 @@ class BrowserPreviewTest {
           assertEquals(frameTime(index), frame.presentationTime)
 
           val drawn = frame.at(x = 0.5, y = 0.5)
-          val expected = ramp(index).brightened(BRIGHT)
+          val expected = ramp(index).graded(Brightness(BRIGHT))
           assertTrue(drawn.isNear(expected), "frame $index drew $drawn where the export writes $expected")
         }
       } finally {
@@ -187,7 +187,7 @@ class BrowserPreviewTest {
         assertEquals(held, preview.buffered)
         assertTrue(
           after.at(x = 0.5, y = 0.5).red > before.at(x = 0.5, y = 0.5).red,
-          "the brightness change reached no pixel",
+          "the grade change reached no pixel",
         )
       } finally {
         preview.release()
@@ -262,16 +262,6 @@ private fun PreviewFrame.at(
     pixels[offset + 2].toInt() and BYTE_MASK,
   )
 }
-
-/**
- * This colour with the compositor's brightness applied, clamped the way the shader clamps it.
- */
-private fun Rgb.brightened(factor: Float): Rgb =
-  Rgb(
-    (red * factor).toInt().coerceIn(0, BYTE_MASK),
-    (green * factor).toInt().coerceIn(0, BYTE_MASK),
-    (blue * factor).toInt().coerceIn(0, BYTE_MASK),
-  )
 
 private const val RGBA_CHANNELS = 4
 private const val BYTE_MASK = 0xFF

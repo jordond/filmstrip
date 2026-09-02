@@ -3,6 +3,13 @@ package dev.jordond.filmstrip.effects
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.color.ColorMatrix
+import dev.jordond.filmstrip.effects.color.Contrast
+import dev.jordond.filmstrip.effects.color.HueRotate
+import dev.jordond.filmstrip.effects.color.Invert
+import dev.jordond.filmstrip.effects.color.RgbAdjustment
+import dev.jordond.filmstrip.effects.color.Saturation
+import dev.jordond.filmstrip.effects.color.Sepia
 import dev.jordond.filmstrip.effects.geometry.Flip
 import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.effects.geometry.Rotate
@@ -35,6 +42,13 @@ class BuiltInEffectSerializersTest {
         Scale(targetHeight = 720),
         KenBurns(from = NormalizedRect(0.1f, 0.1f, 0.9f, 0.9f), to = NormalizedRect.Full, easing = Easing.EaseOut),
         Brightness(factor = 0.5f),
+        RgbAdjustment(red = 0.9f, green = 1f, blue = 1.2f),
+        Contrast(factor = 1.5f),
+        Saturation(factor = 0.5f),
+        HueRotate(degrees = 90f),
+        Sepia(amount = 0.4f),
+        Invert(amount = 1f),
+        ColorMatrix(rg = 0.5f, bBias = 0.1f),
       )
 
     specs.forEach { spec ->

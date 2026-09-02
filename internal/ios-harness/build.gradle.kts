@@ -6,15 +6,6 @@ plugins {
   alias(libs.plugins.multiplatform)
 }
 
-// The Apple half of the harness. It shares no code with the Android side beyond the design: the
-// still renderer and the KVO glue are Core Image and Objective-C runtime work, and pretending
-// otherwise with a common source set would invent the abstraction this harness exists to test.
-//
-// macOS is here to separate two questions the simulator conflates. If the simulator's decoder
-// refuses a fixture, that says nothing about the mechanism. Running the identical `appleMain` code
-// on the host says whether the code is right.
-//
-// Never published. The framework is consumed by an Xcode harness, which is not a Gradle project.
 kotlin {
   jvmToolchain(
     libs.versions.jvmTarget

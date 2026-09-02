@@ -1,10 +1,15 @@
 package dev.jordond.filmstrip.media3.internal
 
+import android.content.Context
 import android.graphics.Matrix
 import androidx.media3.common.Effect
 import androidx.media3.common.util.Size
+import androidx.media3.effect.GlEffect
+import androidx.media3.effect.GlShaderProgram
 import androidx.media3.effect.MatrixTransformation
 import androidx.media3.effect.RgbMatrix
+import dev.jordond.filmstrip.effects.color.HdrColorMatrixEffect
+import dev.jordond.filmstrip.effects.color.HdrColorMatrixShaderProgram
 import kotlin.concurrent.Volatile
 
 /**
@@ -65,6 +70,45 @@ internal class LiveRgbMatrix(
 
   override fun install(next: Effect) {
     delegate = next as RgbMatrix
+  }
+}
+
+/**
+ * A colour matrix on a kept HDR grade that can be exchanged while the graph runs.
+ *
+ * The pass reads its matrix through this slot on every draw, so a swap reaches the next frame the
+ * same way an [RgbMatrix] swap does. The transfer function is settled with the graph, and a
+ * re-lowering that changed it is refused here as well as by the preview.
+ */
+internal class LiveHdrColorMatrix(
+  initial: HdrColorMatrixEffect,
+) : GlEffect,
+  LiveSlot {
+  @Volatile
+  private var delegate: HdrColorMatrixEffect = initial
+
+  /**
+   * The matrix the next draw reads.
+   */
+  val current: HdrColorMatrixEffect get() = delegate
+
+  override val effect: Effect get() = this
+
+  override fun toGlShaderProgram(
+    context: Context,
+    useHdr: Boolean,
+  ): GlShaderProgram = HdrColorMatrixShaderProgram(useHdr) { delegate }
+
+  // See LiveRgbMatrix. An identity matrix still holds its position.
+  override fun isNoOp(
+    inputWidth: Int,
+    inputHeight: Int,
+  ): Boolean = false
+
+  override fun accepts(next: Effect): Boolean = next is HdrColorMatrixEffect && next.transfer == delegate.transfer
+
+  override fun install(next: Effect) {
+    delegate = next as HdrColorMatrixEffect
   }
 }
 
@@ -144,6 +188,7 @@ internal class FixedSlot(
 internal fun liveSlotFor(effect: Effect): LiveSlot =
   when (effect) {
     is RgbMatrix -> LiveRgbMatrix(effect)
+    is HdrColorMatrixEffect -> LiveHdrColorMatrix(effect)
     is MatrixTransformation -> LiveMatrixTransformation(effect)
     else -> FixedSlot(effect)
   }

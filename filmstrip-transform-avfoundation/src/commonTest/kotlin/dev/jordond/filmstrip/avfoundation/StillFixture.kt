@@ -21,6 +21,8 @@ import platform.CoreGraphics.CGImageRelease
 import platform.CoreGraphics.CGRectMake
 import platform.Foundation.CFBridgingRetain
 import platform.Foundation.NSData
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import platform.Foundation.create
 import platform.ImageIO.CGImageDestinationAddImage
@@ -30,13 +32,39 @@ import platform.posix.memcpy
 import kotlin.test.fail
 
 /**
+ * The path of a flat [color] photo of [size], written under [name] the first time it is asked for.
+ *
+ * The name carries what the photo holds, so a run that changed the size or the colour never reads
+ * back the file an earlier one wrote. The bytes are written beside the name and moved onto it, so a
+ * run that dies part way through leaves nothing a later one would take for a whole PNG.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun photoFixture(
+  name: String,
+  size: Size,
+  color: Triple<Int, Int, Int>,
+): String {
+  val manager = NSFileManager.defaultManager
+  val tint = "${color.first}-${color.second}-${color.third}"
+  val path = "${NSTemporaryDirectory()}$name-${size.width}x${size.height}-$tint.png"
+  if (manager.fileExistsAtPath(path)) return path
+
+  val partial = "$path.partial"
+  manager.removeItemAtPath(partial, error = null)
+  writePhoto(partial, size, color)
+  if (!manager.moveItemAtPath(partial, path, null)) fail("the photo fixture could not be moved onto $path")
+
+  return path
+}
+
+/**
  * Writes a flat [color] photo of [size] to [path] and answers the path.
  *
  * Flat, so a frame drawn from the photo is told from a frame drawn from a generated video fixture
  * by its colour alone, wherever in the frame it is sampled.
  */
 @OptIn(ExperimentalForeignApi::class)
-internal fun writePhoto(
+private fun writePhoto(
   path: String,
   size: Size,
   color: Triple<Int, Int, Int>,

@@ -12,7 +12,7 @@ kotlin {
       implementation(libs.compose.ui.tooling.preview)
     }
 
-    getByName("jvmTest").dependencies {
+    jvmTest.dependencies {
       implementation(compose.desktop.currentOs)
       implementation(libs.compose.ui.test)
       implementation(libs.kotlinx.coroutines.test)

@@ -12,9 +12,8 @@ import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
-import dev.jordond.filmstrip.effects.color.Brightness
-import dev.jordond.filmstrip.effects.color.scale
-import dev.jordond.filmstrip.effects.color.withBrightness
+import dev.jordond.filmstrip.effects.color.colorMatrixOf
+import dev.jordond.filmstrip.effects.color.withColorMatrix
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.CropRect
 import dev.jordond.filmstrip.effects.geometry.Flip
@@ -62,10 +61,22 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       is CropRect -> step { image, _ -> image.cropped(spec.rect) }
       is KenBurns -> spec.toStep()
       is Scale -> step { image, _ -> image.scaledToHeight(spec.targetHeight) }
-      is Brightness -> step { image, frame -> image.withBrightness(spec.scale, frame.attributes.hdrTransfer) }
       is ImageOverlay -> spec.toOverlay()
       is TextOverlay -> spec.toOverlay(capabilities, attributes)
-      else -> null
+      else -> spec.toColorStep()
+    }
+  }
+
+  // Which specs are colour matrices is the shared lowering's answer rather than a list kept here
+  // as well, brightness included: the cheap lowering a kept grade has for a plain scale is chosen
+  // from the matrix's shape there rather than from the type here. The transfer is read off the frame
+  // rather than off the plan, so a preview and the export it previews put the matrix in the same
+  // domain.
+  private fun EffectSpec.toColorStep(): EffectResolution? {
+    val matrix = colorMatrixOf(this) ?: return null
+
+    return step { image, frame ->
+      image.withColorMatrix(matrix, frame.attributes.hdrTransfer, frame.attributes.colorSpace)
     }
   }
 

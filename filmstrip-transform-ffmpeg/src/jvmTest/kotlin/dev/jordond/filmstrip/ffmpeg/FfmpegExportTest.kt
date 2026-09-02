@@ -6,7 +6,14 @@ import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.EffectIds
+import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.color.Contrast
+import dev.jordond.filmstrip.effects.color.Saturation
 import dev.jordond.filmstrip.effects.color.brightness
+import dev.jordond.filmstrip.effects.color.colorMatrixOf
+import dev.jordond.filmstrip.effects.color.transform
+import dev.jordond.filmstrip.effects.color.transformNits
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.geometry.rotate
 import dev.jordond.filmstrip.effects.overlay.textOverlay
@@ -28,12 +35,15 @@ import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.PQ_PEAK_NITS
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.brightnessDisplayGain
 import dev.jordond.filmstrip.media.brightnessSceneGain
+import dev.jordond.filmstrip.media.hlgDisplayNitsFromScene
+import dev.jordond.filmstrip.media.hlgSceneFromDisplayNits
 import dev.jordond.filmstrip.media.hlgSignalFromScene
 import dev.jordond.filmstrip.media.nitsFromPqSignal
 import dev.jordond.filmstrip.media.pqSignalFromNits
@@ -365,12 +375,80 @@ class FfmpegExportTest {
       )
     }
 
-  private suspend fun exportedBrightness(factor: Float): Triple<Int, Int, Int>? {
-    val output = File.createTempFile("filmstrip-brightness-$factor", ".mp4").also { it.delete() }
+  // A brightness is one more grade, so it goes out the same way. A factor of one carries no effect
+  // at all, which is the reference every other factor is read against.
+  private suspend fun exportedBrightness(factor: Float): Triple<Int, Int, Int>? =
+    exportedGrade("brightness-$factor", Brightness(factor).takeIf { factor != 1f })
+
+  // A contrast is three independent lines, so it reaches the file through the per-channel table.
+  // Each channel is read back against what the shared matrix says it should be, which a contrast
+  // pivoting on black would miss by tens of code values.
+  //
+  // A factor that flattens rather than one that stretches, because the fixture is colour bars and
+  // every channel of it already sits on an end of the range. Stretching those only reads back the
+  // clamp, whatever matrix produced it.
+  @Test
+  fun `exports a contrast through the per-channel table`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      assertGraded(Contrast(0.5f), "contrast")
+    }
+
+  // A saturation mixes the channels, so it reaches the file through the lookup table written into
+  // the scratch directory. Reading the pixel back is what proves the file was written, named and
+  // found again.
+  @Test
+  fun `exports a saturation through the table written beside the graph`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      assertGraded(Saturation(0.5f), "saturation")
+    }
+
+  private suspend fun assertGraded(
+    spec: EffectSpec,
+    name: String,
+  ) {
+    val plain = exportedGrade(name, null) ?: return
+    val measured = exportedGrade(name, spec) ?: return
+    val expected = graded(plain, spec)
+
+    assertTrue(
+      abs(measured.first - expected.first) <= CHANNEL_DRIFT &&
+        abs(measured.second - expected.second) <= CHANNEL_DRIFT &&
+        abs(measured.third - expected.third) <= CHANNEL_DRIFT,
+      "the graded centre read $measured against $expected from the shared matrix, on a plain $plain",
+    )
+  }
+
+  // What the shared matrix says the same pixel comes out as, in the code values the readback
+  // reports, so a backend that lowered a different matrix fails here rather than drifting.
+  private fun graded(
+    plain: Triple<Int, Int, Int>,
+    spec: EffectSpec,
+  ): Triple<Int, Int, Int> {
+    val matrix = checkNotNull(colorMatrixOf(spec))
+    val (red, green, blue) =
+      matrix.transform(plain.first / FULL_SCALE, plain.second / FULL_SCALE, plain.third / FULL_SCALE)
+
+    return Triple(
+      (red * FULL_SCALE).roundToInt(),
+      (green * FULL_SCALE).roundToInt(),
+      (blue * FULL_SCALE).roundToInt(),
+    )
+  }
+
+  private suspend fun exportedGrade(
+    name: String,
+    spec: EffectSpec?,
+  ): Triple<Int, Int, Int>? {
+    val stage = if (spec == null) "plain" else "graded"
+    val output = File.createTempFile("filmstrip-$name-$stage", ".mp4").also { it.delete() }
     val composition =
       compositionOf {
         clip(MediaSource.of(landscape.absolutePath))
-        if (factor != 1f) effects { brightness(factor) }
+        if (spec != null) effects { add(spec) }
       }
 
     val verdict = filmstrip.plan(composition, ExportSpec())
@@ -484,17 +562,119 @@ class FfmpegExportTest {
       }
     }
 
+  // A contrast on a kept grade runs on the SDR signal the light decodes to, so it pivots on the
+  // light mid grey makes on an SDR display rather than on the middle of PQ's range. The centre of
+  // the fixture is a saturated patch, so every channel sits somewhere different on the line.
+  @Test
+  fun `a contrast on a kept grade pivots on the light mid grey makes`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+      val capabilities = assertIs<CapabilitiesResult.Success>(filmstrip.capabilities()).capabilities
+      if (!capabilities.supportsHdrEncoding) return@runTest
+
+      val lit = exportedHdrGrade(Brightness(1f))
+      val flattened = exportedHdrGrade(Contrast(HALF))
+
+      val expected = pqCodesGraded(lit, Contrast(HALF))
+      // Pivoting on the middle of the format's own range is the mistake this rules out. It lifts
+      // every channel towards five thousand nits, far outside the drift a real encode leaves.
+      val onTheFormat = lit.map { code -> pqCodeOf(HALF * pqNitsOf(code) + (1f - HALF) * PQ_PEAK_NITS / 2f) }
+
+      lit.litChannels().forEach { channel ->
+        assertGraded(flattened, expected, channel, lit)
+        assertTrue(
+          abs(flattened[channel] - onTheFormat[channel]) > abs(flattened[channel] - expected[channel]),
+          "channel $channel read ${flattened[channel]}, ${expected[channel]} from the shared reading " +
+            "and ${onTheFormat[channel]} from a pivot on the format's range",
+        )
+      }
+    }
+
+  // A contrast above one stretches until the format runs out. The red of the fixture's centre
+  // already sits near PQ's peak, so it asks for more light than the format carries and clips
+  // there, which is PQ's own limit and asserted as one. The other channels land on the reading.
+  @Test
+  fun `a contrast above one on a kept grade stretches until the format runs out`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+      val capabilities = assertIs<CapabilitiesResult.Success>(filmstrip.capabilities()).capabilities
+      if (!capabilities.supportsHdrEncoding) return@runTest
+
+      val lit = exportedHdrGrade(Brightness(1f))
+      val stretched = exportedHdrGrade(Contrast(BRIGHTER))
+      val expected = pqCodesGraded(lit, Contrast(BRIGHTER))
+      // A contrast is the same line on every channel, so the shared reference reads one channel at
+      // a time with that channel's own light in all three.
+      val matrix = checkNotNull(colorMatrixOf(Contrast(BRIGHTER)))
+
+      lit.litChannels().forEach { channel ->
+        // The shared reference stops at the format's peak, so a channel that landed there asked for
+        // at least that much light and one below it did not.
+        val nits = pqNitsOf(lit[channel])
+        val asked = matrix.transformNits(nits, nits, nits, HdrTransfer.Pq)[0]
+        if (asked <= PQ_PEAK_NITS * HEADROOM) {
+          assertGraded(stretched, expected, channel, lit)
+        } else {
+          assertTrue(
+            stretched[channel] >= TEN_BIT_MAX - CODE_DRIFT,
+            "channel $channel asked for $asked nits and read ${stretched[channel]}, short of the format's ceiling",
+          )
+        }
+      }
+    }
+
+  // A saturation mixes the channels, so on a grade it reaches the file through the table written
+  // beside the graph, run between a decode and an encode of the transfer at sixteen bits. The
+  // centre of the fixture is a saturated patch, so pulling it towards grey moves every channel.
+  @Test
+  fun `a saturation on a kept grade mixes the SDR signal through the table`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+      val capabilities = assertIs<CapabilitiesResult.Success>(filmstrip.capabilities()).capabilities
+      if (!capabilities.supportsHdrEncoding) return@runTest
+
+      val lit = exportedHdrGrade(Brightness(1f))
+      val desaturated = exportedHdrGrade(Saturation(HALF))
+      val expected = pqCodesGraded(lit, Saturation(HALF))
+
+      lit.litChannels().forEach { channel -> assertGraded(desaturated, expected, channel, lit) }
+    }
+
+  // The HLG arm. Only the inverse OETF runs here, so the light the line runs on comes through the
+  // per-channel opto-optical transfer, and the reading goes back the same way. The table alone
+  // lands within a code value of the reading on this transfer as on PQ, so the band is the
+  // encoder's and the same one.
+  @Test
+  fun `a contrast on a kept HLG grade pivots on the light mid grey makes`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+      val capabilities = assertIs<CapabilitiesResult.Success>(filmstrip.capabilities()).capabilities
+      if (!capabilities.supportsHdrEncoding) return@runTest
+
+      val lit = exportedHdrGrade(Brightness(1f), hdrHlg)
+      val flattened = exportedHdrGrade(Contrast(HALF), hdrHlg)
+      val expected = hlgCodesGraded(lit, Contrast(HALF))
+
+      lit.litChannels().forEach { channel -> assertGraded(flattened, expected, channel, lit) }
+    }
+
   private suspend fun exportedHdrBrightness(
     factor: Float,
     source: File = hdr,
+  ): List<Int> = exportedHdrGrade(Brightness(factor), source)
+
+  private suspend fun exportedHdrGrade(
+    spec: EffectSpec,
+    source: File = hdr,
   ): List<Int> {
-    val output = File.createTempFile("filmstrip-hdr-brightness-$factor", ".mp4").also { it.delete() }
-    // Carrying the effect even at 1f is what keeps the reference off the copy path, so both runs
-    // came out of the encoder at the same geometry and the same pixel is the same picture.
+    val output = File.createTempFile("filmstrip-hdr-${spec.id}", ".mp4").also { it.delete() }
+    // Carrying an effect even where it lowers to nothing is what keeps the reference off the copy
+    // path, so both runs came out of the encoder at the same geometry and the same pixel is the
+    // same picture.
     val composition =
       compositionOf {
         clip(MediaSource.of(source.absolutePath))
-        effects { brightness(factor) }
+        effects { add(spec) }
       }
 
     val plan = assertIs<Verdict.Capable>(filmstrip.plan(composition, ExportSpec(hdr = HdrMode.KeepHdr))).plan
@@ -524,6 +704,46 @@ class FfmpegExportTest {
 
     return (hlgSignalFromScene(scene * gain) * TEN_BIT_MAX).roundToInt()
   }
+
+  private fun assertGraded(
+    measured: List<Int>,
+    expected: List<Int>,
+    channel: Int,
+    lit: List<Int>,
+  ) {
+    assertTrue(
+      abs(measured[channel] - expected[channel]) <= CODE_DRIFT,
+      "channel $channel read ${measured[channel]}, expected ${expected[channel]} from $lit at full",
+    )
+  }
+
+  // What the shared reading says the same pixel comes out as, in the ten-bit code values the
+  // readback reports, so a lowering that applied the matrix somewhere else fails here rather than
+  // drifting.
+  private fun pqCodesGraded(
+    lit: List<Int>,
+    spec: EffectSpec,
+  ): List<Int> {
+    val matrix = checkNotNull(colorMatrixOf(spec))
+    val graded = matrix.transformNits(pqNitsOf(lit[0]), pqNitsOf(lit[1]), pqNitsOf(lit[2]), HdrTransfer.Pq)
+
+    return graded.map { pqCodeOf(it) }
+  }
+
+  private fun hlgCodesGraded(
+    lit: List<Int>,
+    spec: EffectSpec,
+  ): List<Int> {
+    val matrix = checkNotNull(colorMatrixOf(spec))
+    val nits = lit.map { code -> hlgDisplayNitsFromScene(sceneFromHlgSignal(code / TEN_BIT_MAX)) }
+    val graded = matrix.transformNits(nits[0], nits[1], nits[2], HdrTransfer.Hlg)
+
+    return graded.map { (hlgSignalFromScene(hlgSceneFromDisplayNits(it)) * TEN_BIT_MAX).roundToInt() }
+  }
+
+  private fun pqNitsOf(code: Int): Float = nitsFromPqSignal(code / TEN_BIT_MAX)
+
+  private fun pqCodeOf(nits: Float): Int = (pqSignalFromNits(nits) * TEN_BIT_MAX).roundToInt()
 
   /**
    * The channels of a reference read that carry enough signal to say anything.
@@ -1146,5 +1366,13 @@ class FfmpegExportTest {
     // Halving linear light instead would read about three quarters of the signal, well outside
     // this, which is what makes the band worth asserting rather than a plain "darker".
     const val SIGNAL_DRIFT = 0.05f
+
+    // What a full eight-bit channel reads as, which is what the shared matrix's zero-to-one answer
+    // is scaled by.
+    const val FULL_SCALE = 255f
+
+    // SIGNAL_DRIFT's width in code values. A matrix answers per channel rather than as one signal,
+    // so each channel is given the same band the halved signal gets.
+    const val CHANNEL_DRIFT = (SIGNAL_DRIFT * FULL_SCALE).toInt()
   }
 }

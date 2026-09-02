@@ -3,6 +3,13 @@ package dev.jordond.filmstrip.effects
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.color.ColorMatrix
+import dev.jordond.filmstrip.effects.color.Contrast
+import dev.jordond.filmstrip.effects.color.HueRotate
+import dev.jordond.filmstrip.effects.color.Invert
+import dev.jordond.filmstrip.effects.color.RgbAdjustment
+import dev.jordond.filmstrip.effects.color.Saturation
+import dev.jordond.filmstrip.effects.color.Sepia
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.CropRect
 import dev.jordond.filmstrip.effects.geometry.Flip
@@ -33,6 +40,13 @@ public val builtInEffectSerializers: SerializersModule =
       subclass(KenBurns::class)
       subclass(Scale::class)
       subclass(Brightness::class)
+      subclass(RgbAdjustment::class)
+      subclass(Contrast::class)
+      subclass(Saturation::class)
+      subclass(HueRotate::class)
+      subclass(Sepia::class)
+      subclass(Invert::class)
+      subclass(ColorMatrix::class)
       subclass(ImageOverlay::class)
       subclass(TextOverlay::class)
     }

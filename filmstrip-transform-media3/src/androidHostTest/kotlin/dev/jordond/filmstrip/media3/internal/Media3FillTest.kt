@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.media3.internal
 
+import dev.jordond.filmstrip.effects.MEDIA3_HDR_PEAK_NITS
 import dev.jordond.filmstrip.media.HDR_REFERENCE_WHITE_NITS
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.hdrFillNits

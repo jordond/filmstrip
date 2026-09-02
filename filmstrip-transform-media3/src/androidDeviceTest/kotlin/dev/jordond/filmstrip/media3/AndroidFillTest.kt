@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.color.Contrast
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
@@ -69,6 +70,28 @@ class AndroidFillTest {
       val brightCentre = plain.averageAt(CENTRE_X, CENTRE_Y).luminance()
       val dimCentre = dimmed.averageAt(CENTRE_X, CENTRE_Y).luminance()
       assertTrue(dimCentre < brightCentre, "the centre did not darken: $dimCentre against $brightCentre")
+    }
+
+  // The same regression with a bias in the matrix, which is the half a brightness cannot cover. The
+  // flatten mixes the fill under a pixel by that pixel's alpha, so a bar comes out the fill's own
+  // colour and never picks up the offset the contrast adds to the frame around it.
+  @Test
+  fun aCompositionContrastLeavesASolidFillsBarsUntouched() =
+    runTest(timeout = TIMEOUT) {
+      val source = fixture() ?: return@runTest
+      val plain = frame(export(source, effects = listOf(squareCrop()), fill = Fill.Solid(MAGENTA_ARGB)))
+      val graded =
+        frame(export(source, effects = listOf(squareCrop(), Contrast(0.5f)), fill = Fill.Solid(MAGENTA_ARGB)))
+
+      val bar = graded.averageAt(CENTRE_X, BAR_Y)
+      assertTrue(colourDistance(bar, MAGENTA) < COLOUR_TOLERANCE, "bar $bar is not magenta")
+
+      val before = plain.averageAt(COLOUR_BAR_X, CENTRE_Y)
+      val after = graded.averageAt(COLOUR_BAR_X, CENTRE_Y)
+      assertTrue(
+        colourDistance(before, after) > GRADE_SHIFT,
+        "the frame inside the bars did not change: $after against $before",
+      )
     }
 
   // The §5.1 regression: a colour operation changes a pixel's RGB without touching its alpha, so a
@@ -274,12 +297,17 @@ class AndroidFillTest {
     const val LEFT_X = 0.15f
     const val RIGHT_X = 0.85f
 
+    // The middle of one of the pattern's colour bars, which a contrast has to move. The frame's own
+    // centre sits on the seam between two of them and reads as a mid grey the pivot leaves alone.
+    const val COLOUR_BAR_X = 0.19f
+
     const val MAGENTA_ARGB = 0xFFFF00FF.toInt()
     const val GREY_ARGB = 0xFF808080.toInt()
     val MAGENTA = Rgb(255, 0, 255)
 
     const val BLACK_CEILING = 12
     const val COLOUR_TOLERANCE = 30
+    const val GRADE_SHIFT = 60
     const val FLAT_TOLERANCE = 20
     val DIM_RATIO_RANGE = 0.35f..0.65f
 

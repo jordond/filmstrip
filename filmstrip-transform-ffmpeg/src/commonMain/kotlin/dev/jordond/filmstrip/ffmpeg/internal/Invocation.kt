@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg.internal
 
+import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.export.VideoCodec
@@ -62,6 +63,8 @@ internal sealed interface InputSource {
  * @property seekBase The source time composition time zero maps to, for a caller windowing this
  *   graph with an input seek. Null for a graph whose timeline an input seek cannot window, which is
  *   read forward from the start instead. Unused by an export, which renders the whole timeline.
+ * @property sidecars The files [filterGraph] reads, which the caller writes down and hands back as
+ * paths in this order. Each one is named in the graph by its placeholder until then.
  */
 internal class Invocation(
   val inputs: List<InputSpec>,
@@ -75,7 +78,27 @@ internal class Invocation(
   val hdrTransfer: HdrTransfer? = null,
   val toneMapped: Boolean = false,
   val seekBase: Duration? = null,
+  val sidecars: List<Sidecar> = emptyList(),
 )
+
+/**
+ * The graph with every sidecar placeholder swapped for the path its bytes were written to.
+ *
+ * The path is escaped the way any other filter argument is, since a scratch directory is free to
+ * carry a character the graph's own punctuation uses. One pass over the graph rather than one per
+ * sidecar, so a chain with several lookup tables does not walk the whole text again for each.
+ */
+internal fun Invocation.resolvedGraph(resolvedSidecars: List<String>): String {
+  check(resolvedSidecars.size == sidecars.size) {
+    "The graph reads ${sidecars.size} sidecars and ${resolvedSidecars.size} paths were resolved."
+  }
+  if (sidecars.isEmpty()) return filterGraph
+
+  val paths =
+    sidecars.mapIndexed { index, sidecar -> sidecar.placeholder to escapeFilterValue(resolvedSidecars[index]) }.toMap()
+
+  return Regex(paths.keys.joinToString("|") { Regex.escape(it) }).replace(filterGraph) { paths.getValue(it.value) }
+}
 
 /**
  * Builds the argument list.
@@ -87,6 +110,7 @@ internal fun Invocation.arguments(
   toolchain: Toolchain,
   config: FfmpegConfig,
   resolvedInputs: List<String>,
+  resolvedSidecars: List<String>,
   outputPath: String,
 ): List<String> =
   buildList {
@@ -132,7 +156,7 @@ internal fun Invocation.arguments(
       add("copy")
     } else {
       add("-filter_complex")
-      add(filterGraph)
+      add(resolvedGraph(resolvedSidecars))
 
       videoLabel?.let {
         add("-map")

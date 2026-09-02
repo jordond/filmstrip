@@ -229,11 +229,7 @@ class AppleImageExportTest {
   /**
    * The flat photo every case draws from, written into the temporary directory once.
    */
-  private fun photoFile(): String {
-    val path = NSTemporaryDirectory() + "filmstrip-apple-photo.png"
-    if (NSFileManager.defaultManager.fileExistsAtPath(path)) return path
-    return writePhoto(path, PHOTO_SIZE, PHOTO_COLOR)
-  }
+  private fun photoFile(): String = photoFixture("filmstrip-apple-photo", PHOTO_SIZE, PHOTO_COLOR)
 
   private fun fixture(name: String): String? {
     val directory = fixtures ?: return null

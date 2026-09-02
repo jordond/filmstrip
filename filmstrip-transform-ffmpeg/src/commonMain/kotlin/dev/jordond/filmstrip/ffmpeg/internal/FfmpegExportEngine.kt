@@ -124,6 +124,7 @@ public class FfmpegExportEngine internal constructor(
               is InputSource.Generated -> source.description
             }
           }
+        val resolvedSidecars = invocation.sidecars.map { scratch.write(it) }
 
         send(ExportStatus.Started)
 
@@ -133,7 +134,7 @@ public class FfmpegExportEngine internal constructor(
         // channelFlow rather than flow: the reader callbacks run on their own coroutines, and
         // progress that only arrives once the process has exited is a progress bar that jumps from
         // nothing to done.
-        val command = invocation.arguments(toolchain, config, resolvedInputs, outputPath)
+        val command = invocation.arguments(toolchain, config, resolvedInputs, resolvedSidecars, outputPath)
         components.report(BACKEND, "invocation", mapOf("command" to command.joinToString(" ")))
 
         val exitCode =
@@ -240,16 +241,25 @@ public class FfmpegExportEngine internal constructor(
       lowered.invocation ?: return PreviewStreamResult.Refused(lowered.export.refusal())
 
     val scratch = Scratch.create()
-    val resolvedInputs =
-      invocation.inputs.map { input ->
-        when (val source = input.source) {
-          is InputSource.OfPath -> source.path
-          is InputSource.OfImage -> scratch.materialise(source.image)
-          is InputSource.Generated -> source.description
-        }
-      }
+    // Materialising an input or a sidecar touches the file system, and a directory that fails part
+    // way through is still a directory. The export path is wrapped for the same reason.
+    val command =
+      try {
+        val resolvedInputs =
+          invocation.inputs.map { input ->
+            when (val source = input.source) {
+              is InputSource.OfPath -> source.path
+              is InputSource.OfImage -> scratch.materialise(source.image)
+              is InputSource.Generated -> source.description
+            }
+          }
+        val resolvedSidecars = invocation.sidecars.map { scratch.write(it) }
 
-    val command = invocation.previewArguments(toolchain, config, resolvedInputs, at)
+        invocation.previewArguments(toolchain, config, resolvedInputs, resolvedSidecars, at)
+      } catch (throwable: Throwable) {
+        scratch.delete()
+        throw throwable
+      }
     components.report(BACKEND, "preview", mapOf("command" to command.joinToString(" ")))
 
     val frames = runtime.frames(command)

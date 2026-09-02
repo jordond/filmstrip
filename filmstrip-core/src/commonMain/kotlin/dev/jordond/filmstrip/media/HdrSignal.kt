@@ -50,6 +50,22 @@ public const val SDR_DISPLAY_GAMMA: Double = 2.2
 public const val HLG_SYSTEM_GAMMA: Double = 1.2
 
 /**
+ * The power that takes HLG scene light to the SDR signal of [sdrSignalFromNits], per channel.
+ *
+ * Scene light reaches display light through [HLG_SYSTEM_GAMMA] and display light reaches the signal
+ * through the inverse of [SDR_DISPLAY_GAMMA]. A backend that spells the pair as one exponent reads
+ * it here rather than dividing the two again.
+ */
+@InternalFilmstripApi
+public const val HLG_SCENE_TO_SDR_SIGNAL_GAMMA: Double = HLG_SYSTEM_GAMMA / SDR_DISPLAY_GAMMA
+
+/**
+ * The power back from that signal to HLG scene light, the inverse of [HLG_SCENE_TO_SDR_SIGNAL_GAMMA].
+ */
+@InternalFilmstripApi
+public const val SDR_SIGNAL_TO_HLG_SCENE_GAMMA: Double = SDR_DISPLAY_GAMMA / HLG_SYSTEM_GAMMA
+
+/**
  * What display light is multiplied by when an SDR brightness of [factor] is applied to an HDR
  * grade.
  *
@@ -87,6 +103,96 @@ public fun brightnessSceneGain(factor: Float): Float =
  */
 @InternalFilmstripApi
 public fun linearDimGain(dim: Float): Float = brightnessDisplayGain(1f - dim.coerceIn(0f, 1f))
+
+/**
+ * Encodes [nits] of display light as the signal an SDR display sitting at [HDR_REFERENCE_WHITE_NITS]
+ * would have been fed to show it.
+ *
+ * The inverse of [SDR_DISPLAY_GAMMA] with white at reference white, left unclamped above one so a
+ * highlight keeps its headroom. A colour effect authored against an encoded SDR signal is applied in
+ * this domain on a kept grade, and [nitsFromSdrSignal] takes the result back to light.
+ */
+@InternalFilmstripApi
+public fun sdrSignalFromNits(nits: Float): Float =
+  (nits.coerceAtLeast(0f) / HDR_REFERENCE_WHITE_NITS)
+    .toDouble()
+    .pow(1.0 / SDR_DISPLAY_GAMMA)
+    .toFloat()
+
+/**
+ * Decodes an SDR [signal], as [sdrSignalFromNits] produces it, back to display light in cd/m2.
+ *
+ * A negative signal is read as black, which is the floor a colour matrix's output gets.
+ */
+@InternalFilmstripApi
+public fun nitsFromSdrSignal(signal: Float): Float =
+  (signal.coerceAtLeast(0f).toDouble().pow(SDR_DISPLAY_GAMMA) * HDR_REFERENCE_WHITE_NITS).toFloat()
+
+/**
+ * The brightest display light this transfer carries, in cd/m2.
+ */
+@InternalFilmstripApi
+public val HdrTransfer.peakNits: Float
+  get() =
+    when (this) {
+      HdrTransfer.Pq -> PQ_PEAK_NITS
+      HdrTransfer.Hlg -> HLG_NOMINAL_PEAK_NITS
+    }
+
+/**
+ * The SDR signal this transfer's peak encodes to under [sdrSignalFromNits].
+ *
+ * A colour matrix applied on a kept grade is clamped here rather than at one, because that is where
+ * the format runs out.
+ */
+@InternalFilmstripApi
+public val HdrTransfer.sdrSignalCeiling: Float get() = sdrSignalFromNits(peakNits)
+
+/**
+ * Where [sdrSignalCeiling] sits for a backend holding display light with reference white at one.
+ *
+ * The same ceiling as [sdrSignalCeiling], in the domain a linear pipeline clamps in, so a backend
+ * that multiplies light rather than the signal clamps in the same place as one that does not.
+ */
+@InternalFilmstripApi
+public val HdrTransfer.displayLightCeiling: Float get() = peakNits / HDR_REFERENCE_WHITE_NITS
+
+/**
+ * The display light one channel of HLG [scene] light lands on at [HLG_NOMINAL_PEAK_NITS], in cd/m2.
+ *
+ * The opto-optical transfer raises each channel by [HLG_SYSTEM_GAMMA] on its own, which is the
+ * reading [brightnessSceneGain] is built on.
+ */
+@InternalFilmstripApi
+public fun hlgDisplayNitsFromScene(scene: Float): Float =
+  (scene.coerceAtLeast(0f).toDouble().pow(HLG_SYSTEM_GAMMA) * HLG_NOMINAL_PEAK_NITS).toFloat()
+
+/**
+ * The HLG scene light one channel of display light in [nits] came from, the inverse of
+ * [hlgDisplayNitsFromScene].
+ */
+@InternalFilmstripApi
+public fun hlgSceneFromDisplayNits(nits: Float): Float =
+  (nits.coerceAtLeast(0f) / HLG_NOMINAL_PEAK_NITS)
+    .toDouble()
+    .pow(1.0 / HLG_SYSTEM_GAMMA)
+    .toFloat()
+
+/**
+ * Encodes one channel of HLG [scene] light as the SDR signal of [sdrSignalFromNits], through the
+ * per channel opto-optical transfer.
+ *
+ * What a backend holding scene light computes before it applies a colour matrix.
+ */
+@InternalFilmstripApi
+public fun sdrSignalFromHlgScene(scene: Float): Float = sdrSignalFromNits(hlgDisplayNitsFromScene(scene))
+
+/**
+ * Decodes an SDR [signal] back to one channel of HLG scene light, the inverse of
+ * [sdrSignalFromHlgScene].
+ */
+@InternalFilmstripApi
+public fun hlgSceneFromSdrSignal(signal: Float): Float = hlgSceneFromDisplayNits(nitsFromSdrSignal(signal))
 
 /**
  * Encodes [nits] of linear light as a PQ signal, in the range zero to one.

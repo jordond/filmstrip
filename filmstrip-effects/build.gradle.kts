@@ -13,21 +13,17 @@ kotlin {
       api(projects.filmstripCore)
     }
 
-    androidMain.dependencies {
-      api(libs.media3.effect)
-      api(libs.media3.common)
-      // NOT media3-transformer or media3-exoplayer, checkLayeringFilmstripEffects fails the build.
+    androidMain {
+      languageSettings.optIn("androidx.media3.common.util.UnstableApi")
+      dependencies {
+        api(libs.media3.effect)
+        api(libs.media3.common)
+        implementation(libs.androidx.core)
+      }
     }
-
-    // appleMain: Core Image ships with Kotlin/Native.
 
     named("androidDeviceTest").dependencies {
       implementation(libs.androidx.test.runner)
     }
-  }
-
-  // Media3's effect surface is almost entirely @UnstableApi, so scope the opt-in to androidMain.
-  sourceSets.androidMain {
-    languageSettings.optIn("androidx.media3.common.util.UnstableApi")
   }
 }

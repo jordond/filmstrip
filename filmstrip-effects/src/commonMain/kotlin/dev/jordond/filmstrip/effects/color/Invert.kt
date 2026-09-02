@@ -15,6 +15,9 @@ import kotlinx.serialization.Serializable
  * the one opposite it. A partial [amount] moves each channel that fraction of the way towards its
  * reflection, which is what `filter: invert()` in a browser does.
  *
+ * On an export that keeps an HDR grade the reflection is anchored at SDR white, so anything
+ * brighter than reference white inverts to black.
+ *
  * @property amount How far to invert, where `0f` leaves the frame unchanged and `1f` is the full
  * negative. Values outside that range are clamped to it, and a NaN is read as `0f`.
  */

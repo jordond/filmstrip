@@ -21,7 +21,7 @@ public const val MAX_OVERLAYS_PER_EFFECT: Int = 15
 /**
  * Lowers a resolved placement onto media3's two-anchor overlay settings.
  *
- * Media3 rendezvous the overlay's anchor with the background's, and both are normalised device
+ * Media3 rendezvous the overlay's anchor with the background's, and both are normalized device
  * coordinates rather than fractions: centre origin, `-1..1`, and +Y up where filmstrip authors +Y
  * down. Its scale is a multiplier on the overlay bitmap's own pixel size rather than a fraction of
  * the frame, so the drawn size is `bitmap * scale` and the multiplier is what turns one into the
@@ -30,7 +30,7 @@ public const val MAX_OVERLAYS_PER_EFFECT: Int = 15
  * The renderer brings the two anchors together itself, so the placement's pair crosses over as it
  * stands rather than through [OverlayPlacement.rectOn].
  *
- * @param bitmap The rasterised overlay's pixel size.
+ * @param bitmap The rasterized overlay's pixel size.
  * @param opacity Alpha applied to the whole overlay.
  */
 internal fun OverlayPlacement.toOverlaySettings(
@@ -48,7 +48,7 @@ internal fun OverlayPlacement.toOverlaySettings(
 
 /**
  * The same settings with the overlay scaled out of sight, for the frames a timed overlay sits
- * outside of.
+ * outside.
  *
  * `TextureOverlay` is asked for its settings once per frame, so switching between the two is the
  * supported way to time an overlay and costs nothing beyond the comparison.

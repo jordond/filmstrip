@@ -547,14 +547,21 @@ public final class dev/jordond/filmstrip/effect/DegradationReason : java/lang/En
 
 public final class dev/jordond/filmstrip/effect/EffectIds {
 	public static final field BRIGHTNESS Ljava/lang/String;
+	public static final field COLOR_MATRIX Ljava/lang/String;
+	public static final field CONTRAST Ljava/lang/String;
 	public static final field CROP Ljava/lang/String;
 	public static final field CROP_RECT Ljava/lang/String;
 	public static final field FLIP Ljava/lang/String;
+	public static final field HUE_ROTATE Ljava/lang/String;
 	public static final field IMAGE_OVERLAY Ljava/lang/String;
 	public static final field INSTANCE Ldev/jordond/filmstrip/effect/EffectIds;
+	public static final field INVERT Ljava/lang/String;
 	public static final field KEN_BURNS Ljava/lang/String;
+	public static final field RGB_ADJUSTMENT Ljava/lang/String;
 	public static final field ROTATE Ljava/lang/String;
+	public static final field SATURATION Ljava/lang/String;
 	public static final field SCALE Ljava/lang/String;
+	public static final field SEPIA Ljava/lang/String;
 	public static final field TEXT_OVERLAY Ljava/lang/String;
 }
 
@@ -636,12 +643,13 @@ public final class dev/jordond/filmstrip/effect/FilterArgument {
 
 public final class dev/jordond/filmstrip/effect/FilterFragment {
 	public fun <init> ()V
-	public fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterNode;)V
-	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterNode;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterNode;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterNode;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAuxInputs ()Ljava/util/List;
 	public final fun getChain ()Ljava/util/List;
 	public final fun getMerge ()Ldev/jordond/filmstrip/effect/FilterNode;
+	public final fun getSidecars ()Ljava/util/List;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
@@ -698,6 +706,16 @@ public final class dev/jordond/filmstrip/effect/RenderFeature : java/lang/Enum {
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/effect/RenderFeature;
 	public static fun values ()[Ldev/jordond/filmstrip/effect/RenderFeature;
+}
+
+public final class dev/jordond/filmstrip/effect/Sidecar {
+	public fun <init> ([BLjava/lang/String;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBytes ()[B
+	public final fun getExtension ()Ljava/lang/String;
+	public final fun getPlaceholder ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class dev/jordond/filmstrip/export/Adjustment {

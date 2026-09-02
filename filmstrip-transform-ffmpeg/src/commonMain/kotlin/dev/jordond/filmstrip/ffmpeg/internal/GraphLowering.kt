@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.AuxInput
 import dev.jordond.filmstrip.effect.FilterArgument
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
@@ -41,6 +42,10 @@ internal class GraphLowering(
   private val inputs = mutableListOf<InputSpec>()
   private val clipInput = mutableListOf<MutableList<Int>>()
   private val graph = FilterGraphBuilder()
+
+  // Every file the graph's nodes reach for by placeholder, gathered as the fragments carrying them
+  // are consumed.
+  private val sidecars = mutableListOf<Sidecar>()
 
   // The pixel format every clip's tail is pinned to, so concat sees uniform inputs. Falls back to
   // yuv420p whenever there is no grade to carry or the resolved encoder has no HDR profile.
@@ -129,6 +134,9 @@ internal class GraphLowering(
       hdrTransfer = negotiated.hdrTransfer,
       toneMapped = negotiated.hdr == ResolvedHdr.ToneMap,
       seekBase = seekBase,
+      // Two clips carrying the same grade lower to the same file, and a placeholder names its
+      // contents, so the one path serves both references.
+      sidecars = sidecars.distinct(),
     )
   }
 
@@ -172,6 +180,7 @@ internal class GraphLowering(
     // to be fanned onto each clip, and the negotiator already did that.
     negotiated.compositionEffects.forEachIndexed { index, resolved ->
       val fragment = resolved.effect.fragment
+      sidecars += fragment.sidecars
       val label = "vfx$index"
       val merge = fragment.merge
       if (merge == null) {
@@ -278,6 +287,7 @@ internal class GraphLowering(
 
     clip.effects.forEach { resolved ->
       val fragment = resolved.effect.fragment
+      sidecars += fragment.sidecars
       pending += fragment.chain
       val merge = fragment.merge ?: return@forEach
       val label = "v${input}m$merged"

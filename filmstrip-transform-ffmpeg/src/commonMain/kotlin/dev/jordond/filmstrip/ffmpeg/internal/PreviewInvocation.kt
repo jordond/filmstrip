@@ -34,6 +34,7 @@ internal fun Invocation.previewArguments(
   toolchain: Toolchain,
   config: FfmpegConfig,
   resolvedInputs: List<String>,
+  resolvedSidecars: List<String>,
   at: Duration,
 ): List<String> =
   buildList {
@@ -82,7 +83,7 @@ internal fun Invocation.previewArguments(
       add("${output.size.width}x${output.size.height}")
     } else {
       add("-filter_complex")
-      add(filterGraph)
+      add(resolvedGraph(resolvedSidecars))
 
       // ffmpeg refuses a graph with an output nothing reads, so the audio branch this backend does
       // not monitor is still mapped, into a muxer that writes nothing.

@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.color.brightness
+import dev.jordond.filmstrip.effects.color.contrast
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.geometry.scale
 import dev.jordond.filmstrip.export.ExportError
@@ -20,6 +21,7 @@ import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.matchers.shouldBe
@@ -244,6 +246,51 @@ class AppleExportTest {
 
       remove(plain)
       remove(dimmed)
+    }
+
+  // The same claim for the half of a matrix a brightness does not have. A contrast carries a bias,
+  // Core Image holds the frame premultiplied, and an offset landing where the picture has no alpha
+  // is exactly what would tint the bar the fill was given to own. The clip is a flat photo, so the
+  // centre is a colour the effect is predicted to move rather than one that merely differs.
+  @Test
+  fun `a composition contrast leaves a solid fill's bars untouched`() =
+    runTest(timeout = TIMEOUT) {
+      val teal = Triple(0x11, 0xC2, 0xAA)
+
+      suspend fun exportedWith(
+        name: String,
+        factor: Float?,
+      ): String {
+        val composition =
+          compositionOf {
+            image(ImageSource.of(photoFile()), PHOTO)
+            fill(Fill.Solid(teal.toArgb()))
+            effects {
+              crop(AspectRatio.Square, Fit.Contain)
+              if (factor != null) contrast(factor)
+            }
+          }
+        val output = temporaryPath("solid-fill-contrast-$name")
+        exported(composition, ExportSpec(), output)
+        return output
+      }
+
+      val plain = exportedWith("plain", null)
+      val firmer = exportedWith("firmer", FIRMER)
+
+      val graded = frameOf(firmer, PHOTO * MIDDLE)
+      assertClose(graded.average(0.5f, 0.05f), teal, "top bar")
+      assertClose(graded.average(0.5f, 0.95f), teal, "bottom bar")
+
+      val before = frameOf(plain, PHOTO * MIDDLE).average(0.5f, 0.5f)
+      val after = graded.average(0.5f, 0.5f)
+      assertTrue(
+        distance(before, after) > COLOR_TOLERANCE,
+        "the contrast never reached the picture, which read $before plain and $after graded",
+      )
+
+      remove(plain)
+      remove(firmer)
     }
 
   // Nothing here authors a fill, so this pins the default against a regression: the bars stay
@@ -627,6 +674,11 @@ class AppleExportTest {
     }
   }
 
+  /**
+   * The flat photo the fill's contrast case draws from, written into the temporary directory once.
+   */
+  private fun photoFile(): String = photoFixture("filmstrip-apple-export-photo", PHOTO_SIZE, PHOTO_COLOR)
+
   private fun temporaryPath(name: String): String = NSTemporaryDirectory() + "filmstrip-apple-$name.mp4"
 
   private fun remove(path: String) {
@@ -640,5 +692,17 @@ class AppleExportTest {
     const val SIMULATOR_DEVICE_NAME = "SIMULATOR_DEVICE_NAME"
     val TIMEOUT = 2.seconds * 60
     val BLACK = Triple(0, 0, 0)
+
+    // The photo the contrast case lays over the fill, held long enough to read inside its span
+    // rather than on either edge of it.
+    val PHOTO = 1.seconds
+    const val MIDDLE = 0.4
+    val PHOTO_SIZE = Size(640, 360)
+
+    // Mid-range on all three channels, so the gain moves every one of them without any running out
+    // of range and clamping to the same answer a broken lowering would give.
+    val PHOTO_COLOR = Triple(0x66, 0x99, 0xCC)
+
+    const val FIRMER = 1.5f
   }
 }

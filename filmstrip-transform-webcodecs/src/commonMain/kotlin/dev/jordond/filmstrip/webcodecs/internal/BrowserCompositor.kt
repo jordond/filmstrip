@@ -12,8 +12,8 @@ import kotlin.math.ceil
 import kotlin.math.exp
 
 /**
- * One WebGL pass over a decoded frame: the texture matrix an effect resolved to, a brightness, and
- * a quad sized to letterbox a clip whose aspect does not match the output.
+ * One WebGL pass over a decoded frame: the texture matrix an effect resolved to, a colour matrix,
+ * and a quad sized to letterbox a clip whose aspect does not match the output.
  *
  * The context is created per export and handed back on [release]. A browser holds only about
  * sixteen live contexts and drops the oldest to make room, so an exporter that never releases
@@ -29,7 +29,8 @@ internal class BrowserCompositor private constructor(
   private val texture: JsAny,
   private val texMatrix: JsAny?,
   private val quadScale: JsAny?,
-  private val brightness: JsAny?,
+  private val colorMatrix: JsAny?,
+  private val compositionColorMatrix: JsAny?,
   private val blur: BlurPass?,
 ) {
   private var current: RenderedClip? = null
@@ -44,7 +45,8 @@ internal class BrowserCompositor private constructor(
     current = clip
     gl.uniformMatrix3fv(texMatrix, false, clip.matrix.toFloat32Array())
     gl.uniform2f(quadScale, clip.quadHalfW, clip.quadHalfH)
-    gl.uniform1f(brightness, clip.brightness)
+    gl.uniformMatrix4fv(colorMatrix, false, clip.colorMatrix.toFloat32Array())
+    gl.uniformMatrix4fv(compositionColorMatrix, false, clip.compositionColorMatrix.toFloat32Array())
   }
 
   /**
@@ -52,7 +54,7 @@ internal class BrowserCompositor private constructor(
    *
    * The clear is per frame rather than per export: a clip narrower than the one before it would
    * otherwise letterbox onto the previous clip's pixels. The blend composites the frame over
-   * whatever the fill cleared to, so a bar keeps the fill's own colour whatever brightness the clip
+   * whatever the fill cleared to, so a bar keeps the fill's own colour whatever grade the clip
    * or the composition sets. That is a requirement every backend honours, not a side effect of this
    * one's single pass, so a second pass added here later still has to draw after the clear rather
    * than fold into it.
@@ -96,7 +98,7 @@ internal class BrowserCompositor private constructor(
    * The letterboxed clip's background: the frame scaled to cover the output, blurred across two
    * passes and dimmed, drawn straight into the canvas ahead of the sharp foreground.
    *
-   * The background is the clip's own pixels, so it is drawn with the clip's brightness still set.
+   * The background is the clip's own pixels, so it is drawn with the clip's colour matrix still set.
    * Every other backend splits the frame for its blur after the effect chain has run, and dimming
    * only the sharp copy would leave a bright halo around a dimmed frame.
    *
@@ -226,7 +228,8 @@ internal class BrowserCompositor private constructor(
         texture = texture,
         texMatrix = gl.getUniformLocation(program, "uTexMatrix"),
         quadScale = gl.getUniformLocation(program, "uQuadScale"),
-        brightness = gl.getUniformLocation(program, "uBrightness"),
+        colorMatrix = gl.getUniformLocation(program, "uColorMatrix"),
+        compositionColorMatrix = gl.getUniformLocation(program, "uCompositionColorMatrix"),
         blur = blur,
       )
     }
@@ -396,17 +399,24 @@ private val VERTEX_SHADER =
   }
   """.trimIndent()
 
+// The clip's grade and the composition's are two matrices with a clamp between them rather than one
+// product, because the planner folds a run of colour effects per stage and every backend writes the
+// clip's stage into a frame before the composition's runs. The colour arithmetic is highp: mediump
+// is fp16 on a mobile GPU, and a matrix with a bias moves an eight-bit code by one there.
 private val FRAGMENT_SHADER =
   """
   #version 300 es
   precision mediump float;
   uniform sampler2D uTexSampler;
-  uniform float uBrightness;
+  uniform highp mat4 uColorMatrix;
+  uniform highp mat4 uCompositionColorMatrix;
   in vec2 vTexCoord;
   out vec4 outColor;
   void main() {
     vec4 c = texture(uTexSampler, vTexCoord);
-    outColor = vec4(clamp(c.rgb * uBrightness, 0.0, 1.0), c.a);
+    highp vec3 graded = clamp((uColorMatrix * vec4(c.rgb, 1.0)).rgb, 0.0, 1.0);
+    graded = clamp((uCompositionColorMatrix * vec4(graded, 1.0)).rgb, 0.0, 1.0);
+    outColor = vec4(graded, c.a);
   }
   """.trimIndent()
 

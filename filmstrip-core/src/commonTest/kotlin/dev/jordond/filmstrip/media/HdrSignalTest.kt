@@ -101,6 +101,63 @@ class HdrSignalTest {
     hlgSignalFromScene(0f) shouldBeNear 0f
   }
 
+  @Test
+  fun `an SDR signal decodes back to the light it was encoded from`() {
+    listOf(1f, 44f, 100f, HDR_REFERENCE_WHITE_NITS, 1_000f, PQ_PEAK_NITS).forEach { nits ->
+      nitsFromSdrSignal(sdrSignalFromNits(nits)) shouldBeNear nits
+    }
+  }
+
+  @Test
+  fun `reference white is one and the signal is not clamped above it`() {
+    sdrSignalFromNits(HDR_REFERENCE_WHITE_NITS) shouldBeNear 1f
+    // The middle of the range, where a linear reading and a gamma one part company.
+    sdrSignalFromNits(100f) shouldBeNear 0.724818f
+    assertTrue(sdrSignalFromNits(1_000f) > 1f, "the signal was clamped at white")
+    nitsFromSdrSignal(-0.5f) shouldBeNear 0f
+  }
+
+  @Test
+  fun `a brightness factor on the signal is the display gain on the light`() {
+    listOf(0.25f, 0.5f, 0.75f, 1.5f, 2f).forEach { factor ->
+      listOf(10f, 100f, 500f).forEach { nits ->
+        val throughSignal = nitsFromSdrSignal(factor * sdrSignalFromNits(nits))
+
+        throughSignal shouldBeNear brightnessDisplayGain(factor) * nits
+      }
+    }
+  }
+
+  @Test
+  fun `the signal ceiling is where each format runs out`() {
+    HdrTransfer.Pq.peakNits shouldBeNear PQ_PEAK_NITS
+    HdrTransfer.Hlg.peakNits shouldBeNear HLG_NOMINAL_PEAK_NITS
+    HdrTransfer.Pq.sdrSignalCeiling shouldBeNear 5.87922f
+    HdrTransfer.Hlg.sdrSignalCeiling shouldBeNear 2.06431f
+    nitsFromSdrSignal(HdrTransfer.Pq.sdrSignalCeiling) shouldBeNear PQ_PEAK_NITS
+  }
+
+  @Test
+  fun `HLG scene light decodes back through the per channel opto-optical transfer`() {
+    listOf(0.01f, 0.1f, 0.25f, 0.5f, 1f).forEach { scene ->
+      hlgSceneFromDisplayNits(hlgDisplayNitsFromScene(scene)) shouldBeNear scene
+      hlgSceneFromSdrSignal(sdrSignalFromHlgScene(scene)) shouldBeNear scene
+    }
+    hlgDisplayNitsFromScene(1f) shouldBeNear HLG_NOMINAL_PEAK_NITS
+    hlgDisplayNitsFromScene(0.5f) shouldBeNear 435.275f
+  }
+
+  @Test
+  fun `a brightness factor on the signal is the scene gain on HLG scene light`() {
+    listOf(0.5f, 1.5f).forEach { factor ->
+      listOf(0.1f, 0.3f).forEach { scene ->
+        val throughSignal = hlgSceneFromSdrSignal(factor * sdrSignalFromHlgScene(scene))
+
+        throughSignal shouldBeNear brightnessSceneGain(factor) * scene
+      }
+    }
+  }
+
   private infix fun Float.shouldBeNear(expected: Float) {
     val tolerance = if (abs(expected) > 1f) abs(expected) * 1e-3f else 1e-3f
     assertTrue(abs(this - expected) <= tolerance, "expected $expected but was $this")
