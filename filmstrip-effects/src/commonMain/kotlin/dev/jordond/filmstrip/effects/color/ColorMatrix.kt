@@ -239,24 +239,13 @@ public fun ColorMatrix.transformNits(
  * it.
  */
 @InternalFilmstripApi
+@Suppress("ktlint:standard:argument-list-wrapping")
 public fun ColorMatrix.toColumnMajor4x4(): FloatArray =
   floatArrayOf(
-    rr,
-    gr,
-    br,
-    0f,
-    rg,
-    gg,
-    bg,
-    0f,
-    rb,
-    gb,
-    bb,
-    0f,
-    rBias,
-    gBias,
-    bBias,
-    1f,
+    rr, gr, br, 0f,
+    rg, gg, bg, 0f,
+    rb, gb, bb, 0f,
+    rBias, gBias, bBias, 1f,
   )
 
 /**
