@@ -28,6 +28,15 @@ final class dev.jordond.filmstrip.test/TestFrame { // dev.jordond.filmstrip.test
         final fun <get-size>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.test/TestFrame.size.<get-size>|<get-size>(){}[0]
 }
 
+final object dev.jordond.filmstrip.test/ToneAnalysis { // dev.jordond.filmstrip.test/ToneAnalysis|null[0]
+    final const val MEASURED_GAIN_TOLERANCE // dev.jordond.filmstrip.test/ToneAnalysis.MEASURED_GAIN_TOLERANCE|{}MEASURED_GAIN_TOLERANCE[0]
+        final fun <get-MEASURED_GAIN_TOLERANCE>(): kotlin/Float // dev.jordond.filmstrip.test/ToneAnalysis.MEASURED_GAIN_TOLERANCE.<get-MEASURED_GAIN_TOLERANCE>|<get-MEASURED_GAIN_TOLERANCE>(){}[0]
+
+    final fun amplitudeOf(kotlin/FloatArray, kotlin/Int, kotlin/Int): kotlin/Float // dev.jordond.filmstrip.test/ToneAnalysis.amplitudeOf|amplitudeOf(kotlin.FloatArray;kotlin.Int;kotlin.Int){}[0]
+    final fun amplitudeOver(kotlin/FloatArray, kotlin/Int, kotlin/Int, kotlin/Int, kotlin/Int): kotlin/Float // dev.jordond.filmstrip.test/ToneAnalysis.amplitudeOver|amplitudeOver(kotlin.FloatArray;kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Int){}[0]
+    final fun toMono(kotlin/FloatArray, kotlin/Int): kotlin/FloatArray // dev.jordond.filmstrip.test/ToneAnalysis.toMono|toMono(kotlin.FloatArray;kotlin.Int){}[0]
+}
+
 final const val dev.jordond.filmstrip.test/DEFAULT_MIN_PSNR_DB // dev.jordond.filmstrip.test/DEFAULT_MIN_PSNR_DB|{}DEFAULT_MIN_PSNR_DB[0]
     final fun <get-DEFAULT_MIN_PSNR_DB>(): kotlin/Double // dev.jordond.filmstrip.test/DEFAULT_MIN_PSNR_DB.<get-DEFAULT_MIN_PSNR_DB>|<get-DEFAULT_MIN_PSNR_DB>(){}[0]
 final const val dev.jordond.filmstrip.test/DEFAULT_MIN_SSIM // dev.jordond.filmstrip.test/DEFAULT_MIN_SSIM|{}DEFAULT_MIN_SSIM[0]

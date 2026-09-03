@@ -24,6 +24,7 @@ import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.transform.internal.NegotiatedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedEffect
+import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.backgroundGain
@@ -310,7 +311,7 @@ class GraphLoweringTest {
         start = Duration.ZERO,
         end = duration,
         effects = clipEffects,
-        gain = 1f,
+        gain = ResolvedGain.constant(1f, Duration.ZERO, duration),
         startsAtKeyFrame = false,
         span = TimeRange.of(trackStart, trackStart + duration),
       )

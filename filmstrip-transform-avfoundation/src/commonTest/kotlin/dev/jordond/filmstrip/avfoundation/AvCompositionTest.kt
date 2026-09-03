@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.avfoundation
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.avfoundation.internal.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.toAvComposition
+import dev.jordond.filmstrip.avfoundation.internal.toCMTime
 import dev.jordond.filmstrip.avfoundation.internal.toDuration
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
@@ -22,13 +23,23 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.imageMediaInfoOf
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.transform.internal.GainSegment
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.FloatVar
+import kotlinx.cinterop.alloc
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.ptr
+import kotlinx.cinterop.readValue
+import kotlinx.cinterop.value
+import platform.AVFoundation.AVAudioMixInputParameters
+import platform.CoreMedia.CMTimeRange
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSProcessInfo
 import kotlin.test.Test
@@ -92,6 +103,87 @@ class AvCompositionTest {
       composition.spans.count { it.covers(probe) } shouldBe 1
       probe += PROBE_STEP
     }
+  }
+
+  @Test
+  fun `builds no audio mix when every clip's curve is unity`() {
+    val composition = threeClips() ?: return
+
+    composition.audioMix shouldBe null
+  }
+
+  @Test
+  fun `writes a flat gain below unity as a single volume`() {
+    val first = fixture("apple_export_a.mp4") ?: return
+    val gain = ResolvedGain.constant(0.5f, Duration.ZERO, 500.milliseconds)
+
+    val composition = resolved(listOf(clip(first, Size(640, 360), Duration.ZERO, 500.milliseconds, gain)), 500.milliseconds)
+
+    val ramp = composition.soleAudioParameters()?.rampAt(Duration.ZERO) ?: error("expected a volume at time zero")
+    ramp.start shouldBe 0.5f
+    ramp.end shouldBe 0.5f
+  }
+
+  // The mapping from a curve's own time onto the composition timeline has to add the clip's
+  // placement, not just carry the segment's own times across. The ramping clip sits second, behind
+  // a 300ms clip, so a formula that dropped the placement, or used it in place of the segment's own
+  // time, lands on the wrong instant here even though both agree at a clip's own start.
+  @Test
+  fun `ramps a clip's gain across the audio mix at the breakpoints its own curve holds`() {
+    val first = fixture("apple_export_a.mp4") ?: return
+    val second = fixture("apple_export_b.mp4") ?: return
+    val ramp =
+      ResolvedGain(
+        listOf(
+          GainSegment(Duration.ZERO, 400.milliseconds, 0.2f, 0.8f),
+          GainSegment(400.milliseconds, 1_000.milliseconds, 0.8f, 0.3f),
+        ),
+      )
+
+    val composition =
+      resolved(
+        listOf(
+          clip(first, Size(640, 360), Duration.ZERO, 300.milliseconds),
+          clip(second, Size(480, 270), Duration.ZERO, 1_000.milliseconds, ramp),
+        ),
+        1_300.milliseconds,
+      )
+    val parameters = composition.soleAudioParameters() ?: error("expected an audio mix")
+
+    val firstLeg = parameters.rampAt(500.milliseconds) ?: error("expected a ramp at 500ms")
+    firstLeg.start shouldBe 0.2f
+    firstLeg.end shouldBe 0.8f
+    firstLeg.rangeStart shouldBe 300.milliseconds
+    firstLeg.rangeLength shouldBe 400.milliseconds
+
+    val secondLeg = parameters.rampAt(1_000.milliseconds) ?: error("expected a ramp at 1000ms")
+    secondLeg.start shouldBe 0.8f
+    secondLeg.end shouldBe 0.3f
+    secondLeg.rangeStart shouldBe 700.milliseconds
+    secondLeg.rangeLength shouldBe 600.milliseconds
+  }
+
+  // Two envelope points pinned at the same clip time fold into a zero-length segment, which is a
+  // step rather than a ramp, since AVFoundation has no ramp to hold across no time.
+  @Test
+  fun `writes a zero-length segment as a step rather than a ramp`() {
+    val first = fixture("apple_export_a.mp4") ?: return
+    val step =
+      ResolvedGain(
+        listOf(
+          GainSegment(Duration.ZERO, 400.milliseconds, 1f, 1f),
+          GainSegment(400.milliseconds, 400.milliseconds, 1f, 0f),
+          GainSegment(400.milliseconds, 1_000.milliseconds, 0f, 0f),
+        ),
+      )
+
+    val composition = resolved(listOf(clip(first, Size(640, 360), Duration.ZERO, 1_000.milliseconds, step)), 1_000.milliseconds)
+    val parameters = composition.soleAudioParameters() ?: error("expected an audio mix")
+
+    parameters.rampAt(200.milliseconds)?.start shouldBe 1f
+    val afterStep = parameters.rampAt(700.milliseconds) ?: error("expected a volume after the step")
+    afterStep.start shouldBe 0f
+    afterStep.end shouldBe 0f
   }
 
   // Handing the composition-geometry step a frame already pinned to the output leaves a
@@ -177,7 +269,7 @@ class AvCompositionTest {
       start = Duration.ZERO,
       end = duration,
       effects = emptyList(),
-      gain = 1f,
+      gain = ResolvedGain.constant(1f, Duration.ZERO, duration),
       startsAtKeyFrame = false,
       span = TimeRange.of(Duration.ZERO, duration),
     )
@@ -284,6 +376,7 @@ class AvCompositionTest {
     size: Size,
     start: Duration,
     end: Duration,
+    gain: ResolvedGain = ResolvedGain.constant(1f, Duration.ZERO, end - start),
   ): ResolvedClip =
     ResolvedClip(
       source = MediaSource.of(path),
@@ -309,7 +402,7 @@ class AvCompositionTest {
       start = start,
       end = end,
       effects = emptyList(),
-      gain = 1f,
+      gain = gain,
       startsAtKeyFrame = false,
       span = TimeRange.of(Duration.ZERO, end - start),
     )
@@ -331,3 +424,31 @@ class AvCompositionTest {
     val PROBE_STEP = 37.milliseconds
   }
 }
+
+/**
+ * The one track's input parameters, when this composition carries exactly one.
+ */
+private fun AvComposition.soleAudioParameters(): AVAudioMixInputParameters? =
+  audioMix?.inputParameters?.filterIsInstance<AVAudioMixInputParameters>()?.singleOrNull()
+
+/**
+ * The volume ramp AVFoundation holds at [time] for this track, or null where none was written.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private fun AVAudioMixInputParameters.rampAt(time: Duration): VolumeRamp? =
+  memScoped {
+    val start = alloc<FloatVar>()
+    val end = alloc<FloatVar>()
+    val range = alloc<CMTimeRange>()
+    val found =
+      getVolumeRampForTime(time.toCMTime(), startVolume = start.ptr, endVolume = end.ptr, timeRange = range.ptr)
+    if (!found) return@memScoped null
+    VolumeRamp(start.value, end.value, range.start.readValue().toDuration(), range.duration.readValue().toDuration())
+  }
+
+private class VolumeRamp(
+  val start: Float,
+  val end: Float,
+  val rangeStart: Duration,
+  val rangeLength: Duration,
+)

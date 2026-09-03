@@ -254,6 +254,93 @@ public sealed interface AudioLevel {
   public class Volume(
     public val gain: Float,
   ) : AudioLevel
+
+  /**
+   * Contribute at a gain that moves over time.
+   *
+   * The gain ramps linearly between neighbouring points, and holds flat before the first and after
+   * the last. Two points rising from zero are a fade in, two falling to zero anchored at the end
+   * are a fade out, and a dip in the middle is a duck under whatever else is playing. No points at
+   * all leaves the enclosing scope's level alone.
+   *
+   * A curve that is not a straight line is written as more points. Nothing here is smoothed, so
+   * what a backend applies is the polyline as given.
+   *
+   * @property points Where the gain is pinned. Times are read against the scope this level is set
+   *   on, which is the trimmed clip for a clip and the whole run of clips for a track.
+   */
+  @Serializable
+  @SerialName("envelope")
+  @Poko
+  public class Envelope(
+    public val points: List<EnvelopePoint>,
+  ) : AudioLevel
+}
+
+/**
+ * One pinned gain in an [AudioLevel.Envelope].
+ *
+ * @property at How far this point sits from the edge named by [from].
+ * @property gain The scale here, where `1f` is unchanged and `0f` is silence.
+ * @property from Which edge of the scope [at] is measured from.
+ */
+@Serializable
+@Poko
+public class EnvelopePoint(
+  public val at: Duration,
+  public val gain: Float,
+  public val from: EnvelopeAnchor = EnvelopeAnchor.Start,
+)
+
+/**
+ * This level with a fade in over [fadeIn] and a fade out over [fadeOut] pinned onto it.
+ *
+ * A constant level becomes an [AudioLevel.Envelope] rising to and falling from that constant, so a
+ * ramp reaches the volume that was asked for rather than one. Silence stays silence. An envelope
+ * that was written out by hand keeps its own points and the fade's are added to them, so a caller
+ * describing a whole curve should pin its edges there instead of asking for a fade as well.
+ *
+ * Neither duration is measured against the scope here, because how long the scope runs is only
+ * known once its sources have been probed. [EnvelopeAnchor.End] carries the fade out until then.
+ */
+internal fun AudioLevel.withFades(
+  fadeIn: Duration,
+  fadeOut: Duration,
+): AudioLevel {
+  if (fadeIn <= Duration.ZERO && fadeOut <= Duration.ZERO) return this
+  if (this is AudioLevel.Mute) return this
+  val peak = (this as? AudioLevel.Volume)?.gain ?: 1f
+  val ramp =
+    buildList {
+      if (fadeIn > Duration.ZERO) {
+        add(EnvelopePoint(Duration.ZERO, 0f))
+        add(EnvelopePoint(fadeIn, peak))
+      }
+      if (fadeOut > Duration.ZERO) {
+        add(EnvelopePoint(fadeOut, peak, EnvelopeAnchor.End))
+        add(EnvelopePoint(Duration.ZERO, 0f, EnvelopeAnchor.End))
+      }
+    }
+  return AudioLevel.Envelope((this as? AudioLevel.Envelope)?.points.orEmpty() + ramp)
+}
+
+/**
+ * Which edge of a clip or track an [EnvelopePoint] is measured from.
+ *
+ * How long a scope runs is only known once its sources have been probed, so a point that has to
+ * land at the end is written against [End] and placed when the plan settles the length.
+ */
+@Serializable
+public enum class EnvelopeAnchor {
+  /**
+   * Measured forward from the start of the scope, so zero is its first sample.
+   */
+  Start,
+
+  /**
+   * Measured back from the end of the scope, so zero is its last sample.
+   */
+  End,
 }
 
 /**

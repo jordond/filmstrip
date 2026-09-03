@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.capability.VideoEncoderCapability
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.EnvelopePoint
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -26,12 +27,14 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.export.VideoCodec
+import dev.jordond.filmstrip.ffmpeg.internal.EXPRESSION_SEGMENTS
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegParity
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPlanner
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegVersion
 import dev.jordond.filmstrip.ffmpeg.internal.Toolchain
 import dev.jordond.filmstrip.ffmpeg.internal.ffmpegEncoderNamed
 import dev.jordond.filmstrip.ffmpeg.internal.ffmpegEncoders
+import dev.jordond.filmstrip.ffmpeg.internal.formatSeconds
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
@@ -46,16 +49,23 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.transform.internal.curveOver
 import dev.jordond.filmstrip.transform.internal.stillUnsupportedMessage
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.DurationUnit
 
 private val TONE_MAPPING = setOf("overlay", "concat", "amix", "zscale")
 private val LIBPLACEBO_TONE_MAPPING = setOf("overlay", "concat", "amix", "libplacebo")
+
+// Enough pinned points that the curve they resolve to outruns what one volume node carries, laid
+// close enough together to stay inside the landscape fixture's own length.
+private const val MANY_POINTS = 60
 
 class PlannerTest {
   private val landscape = MediaSource.of("/clips/landscape.mp4")
@@ -327,6 +337,61 @@ class PlannerTest {
     graph shouldContain "amix=inputs=2:duration=longest:dropout_transition=0:normalize=0"
     graph shouldContain "adelay=delays=1000:all=1"
     graph shouldContain "volume=volume=0.3"
+    // A gain that holds one number needs neither a per-frame read nor the frames a ramp is cut to.
+    graph shouldNotContain "asetnsamples"
+    graph shouldNotContain "eval=frame"
+  }
+
+  // The curve the planner folded is what the expression has to spell, so the breakpoint and the
+  // gains either side of it are read off it rather than written out again.
+  @Test
+  fun `a clip fade lowers to a volume expression over the curve it resolved`() {
+    val fade = 1_000.milliseconds
+    val level = AudioLevel.Envelope(listOf(EnvelopePoint(Duration.ZERO, 0f), EnvelopePoint(fade, 1f)))
+    val composition = EditComposition(listOf(Track(listOf(Clip(landscape, audio = level)))))
+
+    val graph = capableGraph(composition, ExportSpec())
+    val clipLength = infos.getValue(landscape).duration
+    val curve = level.curveOver(clipLength)
+    val ramp = curve.segments.first()
+
+    graph shouldContain "eval=frame"
+    graph shouldContain "if(lt(t\\,${formatSeconds(ramp.end.toDouble(DurationUnit.SECONDS))})"
+    graph shouldContain "${ramp.startGain}+(${ramp.endGain}-${ramp.startGain})*clip("
+    // The gain the curve holds once the fade is over, which is the chain's innermost branch.
+    graph shouldContain "\\,${curve.gainAt(clipLength)})"
+  }
+
+  // ffmpeg's expression parser refuses a nest much deeper than a hundred ifs, and a curve folded
+  // from an envelope runs past that, so a long one is chained across several nodes that multiply
+  // back to it. How many they split into is read off the curve rather than counted out here.
+  @Test
+  fun `a curve too long for one volume node is chained across several`() {
+    val level =
+      AudioLevel.Envelope(
+        (0..MANY_POINTS).map { EnvelopePoint((it * 50).milliseconds, it.toFloat() / MANY_POINTS) },
+      )
+    val composition = EditComposition(listOf(Track(listOf(Clip(landscape, audio = level)))))
+
+    val graph = capableGraph(composition, ExportSpec())
+    val segments = level.curveOver(infos.getValue(landscape).duration).segments.size
+
+    Regex("volume=volume=").findAll(graph).count() shouldBe
+      (segments + EXPRESSION_SEGMENTS - 1) / EXPRESSION_SEGMENTS
+    Regex(":eval=frame").findAll(graph).count() shouldBe
+      (segments + EXPRESSION_SEGMENTS - 1) / EXPRESSION_SEGMENTS
+    // One asetnsamples for the branch, not one for each node the curve was split across.
+    Regex("asetnsamples").findAll(graph).count() shouldBe 1
+  }
+
+  // volume reads its expression once per frame, so the frame size is ffmpeg's own bound on how
+  // finely a ramp steps. The literal pins that bound, not anything the shared curve says.
+  @Test
+  fun `a ramping gain cuts the frames volume steps on`() {
+    val level = AudioLevel.Envelope(listOf(EnvelopePoint(Duration.ZERO, 0f), EnvelopePoint(1_000.milliseconds, 1f)))
+    val composition = EditComposition(listOf(Track(listOf(Clip(landscape, audio = level)))))
+
+    capableGraph(composition, ExportSpec()) shouldContain "asetnsamples=n=64:p=0"
   }
 
   @Test

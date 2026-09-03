@@ -98,8 +98,9 @@ public class ResolvedTrack(
 /**
  * One clip of a [ResolvedTrack], with its trim resolved against the source's real duration.
  *
- * @property gain The audio gain this clip contributes at, with every scope's level already
- *   multiplied in. Zero for silence.
+ * @property gain The audio gain this clip contributes at, in the clip's own time, with every
+ *   scope's level already multiplied in. A flat curve at zero is silence, and a backend that can
+ *   only scale by one number reads [ResolvedGain.constant] rather than folding the scopes again.
  * @property startsAtKeyFrame Whether this clip's trim is asserted to open on a sync sample, which
  *   is what lets the clipping stream-copy without transcoding.
  * @property span This clip's slot on the composition timeline, counted from the start of the whole
@@ -115,7 +116,7 @@ public class ResolvedClip(
   public val start: Duration,
   public val end: Duration,
   public val effects: List<ResolvedEffect>,
-  public val gain: Float,
+  public val gain: ResolvedGain,
   public val startsAtKeyFrame: Boolean,
   public val span: TimeRange,
 ) {

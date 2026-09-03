@@ -2,6 +2,8 @@ package dev.jordond.filmstrip
 
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.EnvelopeAnchor
+import dev.jordond.filmstrip.edit.EnvelopePoint
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.geometry.Fill
@@ -9,6 +11,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
@@ -121,6 +124,98 @@ class CompositionModelTest {
     assertEquals(AudioLevel.Mute, composition.clips.first().audio)
     assertEquals(AudioLevel.Volume(0.3f), composition.tracks[1].audio)
     assertEquals(AudioLevel.Inherit, composition.tracks.first().audio)
+  }
+
+  @Test
+  fun aFadeRisesToTheVolumeTheScopeAskedForRatherThanToOne() {
+    val composition =
+      compositionOf {
+        clip(source("dialogue")) { trim(0.milliseconds, 5_000.milliseconds) }
+        track(TrackContent.Audio) {
+          clip(source("music")) { trim(0.milliseconds, 5_000.milliseconds) }
+          audio(AudioLevel.Volume(0.3f))
+          fadeIn(1_000.milliseconds)
+          fadeOut(2_000.milliseconds)
+        }
+      }
+
+    val envelope = assertIs<AudioLevel.Envelope>(composition.tracks[1].audio)
+    assertEquals(
+      listOf(
+        EnvelopePoint(0.milliseconds, 0f),
+        EnvelopePoint(1_000.milliseconds, 0.3f),
+        EnvelopePoint(2_000.milliseconds, 0.3f, EnvelopeAnchor.End),
+        EnvelopePoint(0.milliseconds, 0f, EnvelopeAnchor.End),
+      ),
+      envelope.points,
+    )
+  }
+
+  @Test
+  fun whereAFadeIsWrittenAgainstTheVolumeMakesNoDifference() {
+    val before =
+      compositionOf {
+        clip(source("a")) {
+          fadeIn(1_000.milliseconds)
+          audio(AudioLevel.Volume(0.5f))
+        }
+      }
+    val after =
+      compositionOf {
+        clip(source("a")) {
+          audio(AudioLevel.Volume(0.5f))
+          fadeIn(1_000.milliseconds)
+        }
+      }
+
+    assertEquals(before.clips.first().audio, after.clips.first().audio)
+  }
+
+  @Test
+  fun fadingSilenceLeavesSilence() {
+    val composition =
+      compositionOf {
+        clip(source("a")) {
+          audio(AudioLevel.Mute)
+          fadeIn(1_000.milliseconds)
+        }
+      }
+
+    assertEquals(AudioLevel.Mute, composition.clips.first().audio)
+  }
+
+  @Test
+  fun aLoopingTrackDropsItsFadeOutBecauseItHasNoEnd() {
+    val composition =
+      compositionOf {
+        clip(source("a")) { trim(0.milliseconds, 5_000.milliseconds) }
+        track(TrackContent.Audio) {
+          clip(source("music")) { trim(0.milliseconds, 1_000.milliseconds) }
+          fadeIn(500.milliseconds)
+          fadeOut(500.milliseconds)
+          looping()
+        }
+      }
+
+    val envelope = assertIs<AudioLevel.Envelope>(composition.tracks[1].audio)
+    assertEquals(listOf(EnvelopePoint(0.milliseconds, 0f), EnvelopePoint(500.milliseconds, 1f)), envelope.points)
+  }
+
+  @Test
+  fun anEnvelopeRoundTripsThroughJson() {
+    val composition =
+      compositionOf {
+        clip(source("a")) {
+          trim(0.milliseconds, 5_000.milliseconds)
+          fadeIn(1_000.milliseconds)
+          fadeOut(1_000.milliseconds)
+        }
+      }
+
+    val json = Json.encodeToString(EditComposition.serializer(), composition)
+
+    assertEquals(composition, Json.decodeFromString(EditComposition.serializer(), json))
+    assertTrue(json.contains("\"envelope\""), "an envelope is persisted by its stable name")
   }
 
   @Test

@@ -91,7 +91,7 @@ abstract class GenerateTestMediaTask
             "-f",
             "lavfi",
             "-i",
-            "sine=frequency=440:sample_rate=${spec.sampleRate}:duration=${spec.durationSeconds}",
+            "sine=frequency=${spec.toneHz}:sample_rate=${spec.sampleRate}:duration=${spec.durationSeconds}",
           ),
         )
         // Seeded noise, so the clips carry camera-like entropy instead of testsrc's ~0.5 Mbps.

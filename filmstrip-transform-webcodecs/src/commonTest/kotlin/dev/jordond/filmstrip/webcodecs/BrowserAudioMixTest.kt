@@ -10,7 +10,9 @@ import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.transform.internal.GainSegment
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import kotlinx.coroutines.await
 import kotlinx.coroutines.test.runTest
@@ -20,6 +22,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -35,7 +38,7 @@ class BrowserAudioMixTest {
       val buffer = context.createBuffer(1, HALF_SECOND, SAMPLE_RATE)
       buffer.copyToChannel(FloatArray(HALF_SECOND) { 1f }.toFloat32Array(), 0, 0)
 
-      BrowserAudioMix.schedule(context, buffer, gain = 0.5f, offsetSeconds = 0.0, looping = false)
+      BrowserAudioMix.schedule(context, buffer, gain = flat(0.5f), offsetSeconds = 0.0, looping = false)
 
       val samples = context.startRendering().await().getChannelData(0)
       assertNear(0.5f, samples.at(HALF_SECOND / 2))
@@ -48,7 +51,7 @@ class BrowserAudioMixTest {
       val buffer = context.createBuffer(1, QUARTER_SECOND, SAMPLE_RATE)
       buffer.copyToChannel(FloatArray(QUARTER_SECOND) { 1f }.toFloat32Array(), 0, 0)
 
-      BrowserAudioMix.schedule(context, buffer, gain = 1f, offsetSeconds = 0.25, looping = false)
+      BrowserAudioMix.schedule(context, buffer, gain = flat(1f), offsetSeconds = 0.25, looping = false)
 
       val samples = context.startRendering().await().getChannelData(0)
       assertNear(0f, samples.at(QUARTER_SECOND / 2))
@@ -64,8 +67,8 @@ class BrowserAudioMixTest {
       val bufferB = context.createBuffer(1, HALF_SECOND, SAMPLE_RATE)
       bufferB.copyToChannel(FloatArray(HALF_SECOND) { 1f }.toFloat32Array(), 0, 0)
 
-      BrowserAudioMix.schedule(context, bufferA, gain = 0.5f, offsetSeconds = 0.0, looping = false)
-      BrowserAudioMix.schedule(context, bufferB, gain = 0.5f, offsetSeconds = 0.0, looping = false)
+      BrowserAudioMix.schedule(context, bufferA, gain = flat(0.5f), offsetSeconds = 0.0, looping = false)
+      BrowserAudioMix.schedule(context, bufferB, gain = flat(0.5f), offsetSeconds = 0.0, looping = false)
 
       val samples = context.startRendering().await().getChannelData(0)
       assertNear(1f, samples.at(HALF_SECOND / 2))
@@ -78,10 +81,29 @@ class BrowserAudioMixTest {
       val short = context.createBuffer(1, TENTH_SECOND, SAMPLE_RATE)
       short.copyToChannel(FloatArray(TENTH_SECOND) { 1f }.toFloat32Array(), 0, 0)
 
-      BrowserAudioMix.schedule(context, short, gain = 1f, offsetSeconds = 0.0, looping = true)
+      BrowserAudioMix.schedule(context, short, gain = flat(1f), offsetSeconds = 0.0, looping = true)
 
       val samples = context.startRendering().await().getChannelData(0)
       assertNear(1f, samples.at(SAMPLE_RATE.toInt() - TENTH_SECOND))
+    }
+
+  // A curve that ramps is scheduled as automation rather than written once, so the samples have to
+  // follow it through the middle of its run. Only its two ends would agree with a flat gain read
+  // off either end of the same curve.
+  @Test
+  fun aRampingGainFollowsItsCurve() =
+    runTest {
+      val context = OfflineAudioContext(1, SAMPLE_RATE.toInt(), SAMPLE_RATE)
+      val buffer = context.createBuffer(1, HALF_SECOND, SAMPLE_RATE)
+      buffer.copyToChannel(FloatArray(HALF_SECOND) { 1f }.toFloat32Array(), 0, 0)
+      val ramp = ResolvedGain(listOf(GainSegment(Duration.ZERO, HALF_SECOND_SPAN, 0.2f, 1f)))
+
+      BrowserAudioMix.schedule(context, buffer, gain = ramp, offsetSeconds = 0.0, looping = false)
+
+      val samples = context.startRendering().await().getChannelData(0)
+      listOf(0.25, 0.5, 0.75).forEach { fraction ->
+        assertNear(ramp.gainAt(HALF_SECOND_SPAN * fraction), samples.at((HALF_SECOND * fraction).toInt()))
+      }
     }
 
   // Rendering a window at a time is what makes an hour cost the same as a minute. If this ever
@@ -105,6 +127,10 @@ class BrowserAudioMixTest {
     assertTrue(long > short * 2, "a 20 minute loop cost $long against a 5 second loop at $short")
   }
 
+  // The span a flat curve covers never reaches the graph, since a constant is one write on the gain
+  // parameter rather than any automation.
+  private fun flat(gain: Float): ResolvedGain = ResolvedGain.constant(gain, Duration.ZERO, HALF_SECOND_SPAN)
+
   private fun trackOf(
     duration: Duration,
     looping: Boolean = false,
@@ -127,7 +153,7 @@ class BrowserAudioMixTest {
             start = Duration.ZERO,
             end = duration,
             effects = emptyList(),
-            gain = 1f,
+            gain = flat(1f),
             startsAtKeyFrame = true,
             span = TimeRange.of(Duration.ZERO, duration),
           ),
@@ -146,6 +172,7 @@ class BrowserAudioMixTest {
     const val HALF_SECOND = 4_000
     const val QUARTER_SECOND = 2_000
     const val TENTH_SECOND = 800
+    val HALF_SECOND_SPAN = 500.milliseconds
     const val EPSILON = 0.01f
   }
 }

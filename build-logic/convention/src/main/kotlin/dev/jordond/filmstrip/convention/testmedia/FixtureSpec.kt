@@ -22,6 +22,9 @@ import java.io.Serializable
  * @param patch A flat square painted over the middle of the frame, or null to leave the pattern
  * alone. A test that reads one pixel and predicts what an operation did to it needs somewhere the
  * reading does not depend on how the encoder handled the pixel next door.
+ * @param toneHz The frequency of the sine the clip carries. A test that mixes two sources and has
+ * to say which one it is hearing needs them at different frequencies, since two tones at the same
+ * one sum by their relative phase and the level that reaches the file stops being predictable.
  */
 data class FixtureSpec(
   val name: String,
@@ -32,6 +35,7 @@ data class FixtureSpec(
   val sampleRate: Int,
   val channelCount: Int,
   val bitrateKbps: Int,
+  val toneHz: Int = 440,
   val hue: Int = 0,
   val transfer: FixtureTransfer? = null,
   val rotationDegrees: Int = 0,

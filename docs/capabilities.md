@@ -58,8 +58,8 @@ A backend is registered on the `Filmstrip` builder.
 Registrations go in at the front, so registering a second engine after the first makes the second
 one win.
 
-`capabilities()`, `plan()` and `export()` all run for real on media3, AVFoundation and WebCodecs.
-Per-effect gaps are listed in the Effects table below.
+`capabilities()`, `plan()` and `export()` all run for real on every one of them. Per-effect gaps
+are listed in the Effects table below.
 
 ## Effects
 
@@ -155,13 +155,13 @@ metrics and measured extent are exact on both platforms.
 
 ## Codecs
 
-| Codec | Android | Apple | Browser              | ffmpeg        |
-|-------|---------|-------|----------------------|---------------|
-| H.264 | yes     | yes   | yes                  | yes (libx264) |
-| HEVC  | yes     | yes   | yes                  | yes (libx265) |
-| VP9   | no      | no    | yes                  | no            |
-| AAC   | yes     | yes   | pending [^web-audio] | yes           |
-| ALAC  | no      | no    | no                   | yes           |
+| Codec | Android | Apple | Browser        | ffmpeg        |
+|-------|---------|-------|----------------|---------------|
+| H.264 | yes     | yes   | yes            | yes (libx264) |
+| HEVC  | yes     | yes   | yes            | yes (libx265) |
+| VP9   | no      | no    | yes            | no            |
+| AAC   | yes     | yes   | yes [^web-aac] | yes           |
+| ALAC  | no      | no    | no             | yes           |
 
 HDR: Android reports HEVC Main 10 support, Apple infers it from HEVC availability, and the browser
 reports VP9 Profile 2 [^web-hdr]. `HdrMode` is resolved once up front, and both preview and export
@@ -181,24 +181,31 @@ the device, asked once per clip at plan time. An HEVC Main 10 source, which is w
 writes, has no software decoder in any browser measured, so its grade survives only through a stream
 copy of an untouched clip. Anything that has to be re-encoded is refused by name.
 
+[^web-aac]: Chrome hands AAC encoding to the platform rather than carrying an encoder of its own,
+so it is there on macOS and Windows and absent on Linux. `capabilities()` probes for it instead of
+assuming it, and a browser that lists no audio encoder resolves the plan's audio codec to `None`,
+so the export writes video on its own. Decoding is built in everywhere, which is why a stream copy
+carries a source's AAC across on a browser that can write none.
+
 ## Compositions
 
-What each working export backend accepts. The Apple export pipeline has not landed, so there is no
-column for it: `plan()` and `export()` both refuse by name there and `capabilities()` is real.
+What each export backend accepts. Every backend renders video from the primary track alone, so a
+second track has to be audio-only, and a second video track is refused by name.
 
-| Feature                                 | Android             | Browser          | ffmpeg            |
-|-----------------------------------------|---------------------|------------------|-------------------|
-| One video track, clips end to end       | yes                 | yes              | yes               |
-| Clip trim                               | yes [^android-trim] | yes [^trim]      | yes [^trim]       |
-| Per-clip and per-track effects          | yes                 | yes              | yes               |
-| Composition-level effects               | yes                 | yes              | yes               |
-| Second audio-only track                 | yes                 | no [^web-audio]  | yes               |
-| Second video track (picture in picture) | no [^compositor]    | no [^compositor] | no [^compositor]  |
-| Looping track                           | yes                 | no               | yes               |
-| `AudioSpec.Keep`, `Mute`, `Volume`      | yes                 | no [^web-audio]  | yes               |
-| `AudioSpec.Remove`, `AudioCodec.None`   | yes                 | yes              | yes               |
-| `AudioSpec.AudioOnly`                   | yes [^audio-only]   | no [^web-audio]  | yes [^audio-only] |
-| `AudioLevel` per clip and per track     | yes                 | no [^web-audio]  | yes               |
+| Feature                                 | Android             | Apple             | Browser           | ffmpeg                 |
+|-----------------------------------------|---------------------|-------------------|-------------------|------------------------|
+| One video track, clips end to end       | yes                 | yes               | yes               | yes                    |
+| Clip trim                               | yes [^android-trim] | yes               | yes [^trim]       | yes [^trim]            |
+| Per-clip and per-track effects          | yes                 | yes               | yes               | yes                    |
+| Composition-level effects               | yes                 | yes               | yes               | yes                    |
+| Second audio-only track                 | yes                 | yes               | yes               | yes                    |
+| Second video track (picture in picture) | no                  | no                | no                | no                     |
+| Looping track                           | yes [^media3-loop]  | yes               | partial [^web-loop] | partial [^ffmpeg-loop] |
+| `AudioSpec.Keep`, `Mute`, `Volume`      | yes                 | yes               | yes               | yes                    |
+| `AudioSpec.Remove`, `AudioCodec.None`   | yes                 | yes               | yes               | yes                    |
+| `AudioSpec.AudioOnly`                   | yes [^audio-only]   | yes [^audio-only] | yes [^audio-only] | yes [^audio-only]      |
+| `AudioLevel` per clip and per track     | yes                 | yes               | yes               | yes                    |
+| `AudioLevel.Envelope` and fades         | yes                 | yes               | yes               | yes [^ffmpeg-volume]   |
 
 [^trim]: `TrimStrategy.Fast` and `Auto` both resolve to `Precise` on these backends, and the plan
 reports the adjustment. The browser decodes frame by frame, so every trim lands exactly where it was
@@ -213,11 +220,54 @@ decode.
 the video codec the plan resolved, which then goes unwritten. Over a `TrackContent.Video` track it
 is refused, because nothing would be left to write.
 
-[^web-audio]: The browser audio pipeline has not landed. Remove the audio with `AudioSpec.Remove` or
-`AudioCodec.None` to export video on its own.
+[^ffmpeg-loop]: A looping audio track repeats for the whole run when it holds one clip and that clip
+is untrimmed. A trimmed clip, or a track carrying more than one, still gets an `atrim` written for
+the clip's own window, and `-stream_loop` carries every later pass at timestamps past that window,
+so only the first pass reaches the mix. The video half takes no such exemption: a looping track
+carrying video writes a `trim` unconditionally, so its picture stops after one pass while the audio
+runs the full length. Loop a track that carries audio alone, and leave it untrimmed.
 
-[^compositor]: Every backend renders video from the primary track only. A second video track needs a
-compositor, which none of them has.
+[^media3-loop]: A looping track repeats correctly, trimmed or not and however many clips it holds,
+but its `start` is carried differently from the other three. media3 takes the offset as the first
+item of the sequence it repeats, so a pass opens every `start + clipLength`, where the others lay
+the offset down once and open a pass every `clipLength`. The same edit therefore places a bed's
+later passes at different times on Android than elsewhere. Give a looping track a zero `start` to
+stay clear of it.
+
+[^web-loop]: A looping track holding one clip repeats correctly. A track carrying more than one
+plays all of its clips at once rather than in turn, and a looping track's video runs for one pass
+and then stops. Loop a track that carries audio alone and holds a single clip.
+
+[^ffmpeg-volume]: `volume` reads its expression through ffmpeg's own parser, which refuses a nest of
+about a hundred `if`s, and a curve folded from an envelope and a fade runs to hundreds of segments.
+A long curve is split across a chain of `volume` nodes carrying 48 segments each, reading one
+everywhere outside their own run. The nodes multiply, so the chain lands on the gain a single node
+would have rather than on an approximation of it.
+
+### Audio levels
+
+`AudioLevel` is set on a clip or a track and `AudioSpec` on the composition. Every scope's level is
+folded into one curve per clip before a backend sees it, so a mute at any scope silences everything
+below it, and a level on two scopes multiplies rather than one replacing the other.
+
+`AudioLevel.Envelope` is a piecewise-linear gain curve. Each `EnvelopePoint` carries an `at`, a
+`gain` and a `from`, where `from` is `EnvelopeAnchor.Start` or `EnvelopeAnchor.End`. An end-anchored
+point is placed once the plan settles how long the scope runs, so a fade out can be written before
+the clip's length is known. The gain ramps linearly between neighbouring points and holds flat
+before the first and after the last. A point reaching past the end of its scope is refused, and so
+is a negative gain.
+
+`fadeIn(duration)` and `fadeOut(duration)` on the clip and the track builder write those points, and
+both are `@ExperimentalFilmstripApi`. A fade rises to whatever `audio(...)` set rather than to one,
+and where the two are written makes no difference. A looping track drops its fade out, since it has
+no end to measure the ramp back from.
+
+Every backend ramps the gain rather than stepping it. media3 runs a `GainProcessor` over a
+`GainProvider` that reads the curve at each frame. AVFoundation writes one
+`setVolumeRampFromStartVolume:toEndVolume:timeRange:` per segment onto the audio mix. The browser
+writes `linearRampToValueAtTime` automation onto the gain node each clip plays through. ffmpeg reads
+a `volume` expression once per frame, with `asetnsamples=n=64` in front of it so the frame the
+expression steps at is 1.3 ms at 48 kHz rather than the 21 ms a default 1024-sample frame gives.
 
 ## Sources and sinks
 

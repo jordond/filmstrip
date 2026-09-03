@@ -2,12 +2,17 @@ package dev.jordond.filmstrip.media3
 
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.CapabilitiesResult
+import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.export.AdjustmentKind
@@ -20,6 +25,10 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.media.chainedProber
+import dev.jordond.filmstrip.test.ToneAnalysis.MEASURED_GAIN_TOLERANCE
+import dev.jordond.filmstrip.transform.internal.ResolveResult
+import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
@@ -52,6 +61,12 @@ import kotlin.time.Duration.Companion.seconds
 class AndroidExportTest {
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
   private val filmstrip = Filmstrip(context) { media3Backend() }
+
+  // The engine `filmstrip` exports through, built again here because only it can hand back the
+  // lowered composition. A test that wants the gain an export applies has to read the plan's own
+  // fold rather than multiply the levels a second time.
+  private val components = ComponentRegistry.Builder().add(BuiltInEffectResolver()).build()
+  private val engine = media3ExportEngine(chainedProber(components), components.effectResolvers)
 
   @Test
   fun reportsWhatTheEncodersCanDo() =
@@ -142,6 +157,118 @@ class AndroidExportTest {
       assertTrue(audio.sampleRate > 0, "expected a sane sample rate, got ${audio.sampleRate}")
       assertNull(written.video, "AudioSpec.AudioOnly must not leave a video track behind")
       written.duration shouldBeCloseTo 2_000.milliseconds
+    }
+
+  /**
+   * A music bed mixed under the primary, read back out of the file the encoder wrote.
+   *
+   * The two sources carry different tones, so a level measured in the output can be attributed to
+   * one of them instead of to their sum. The bed opens late and its clip is trimmed short enough to
+   * repeat inside the primary's two seconds, which is what puts a later pass under the middle of
+   * the timeline where an offset that never applied and a loop that never repeated both show up.
+   */
+  @Test
+  fun mixesALoopingBedUnderThePrimaryAtTheGainThePlanFolded() =
+    runTest(timeout = TIMEOUT) {
+      val primaryFile = fixtureFile(CLIP_A) ?: return@runTest
+      val bedFile = fixtureFile(CLIP_BED) ?: return@runTest
+      val spec = ExportSpec(targetHeight = 240)
+      val edit =
+        EditComposition(
+          listOf(
+            Track(listOf(Clip(MediaSource.of(primaryFile.path)))),
+            Track(
+              clips = listOf(Clip(MediaSource.of(bedFile.path), trim = TimeRange.of(Duration.ZERO, BED_PASS))),
+              content = TrackContent.Audio,
+              audio = AudioLevel.Volume(BED_VOLUME),
+              start = BED_START,
+              looping = true,
+            ),
+          ),
+        )
+
+      val lowered = lowered(edit, spec)
+      val primaryClip = lowered.tracks[0].clips.single()
+      val bedClip = lowered.tracks[1].clips.single()
+      val tones = sourceTones(primaryFile, bedFile)
+
+      val written = decodeAudio(exportedFile(capablePlan(edit, spec)))
+
+      assertTrue(
+        written.duration >= MIDDLE_AT + WINDOW,
+        "the decode ran out at ${written.duration}, before the window this measures",
+      )
+
+      // Before the bed opens the plan has it silent, which is what a track that ignored its start
+      // breaks.
+      val early = EARLY_AT + WINDOW / 2
+      val beforeStart = written.bedGainAt(early, WINDOW, tones, primaryClip.gain.gainAt(early))
+      assertTrue(
+        beforeStart <= MEASURED_GAIN_TOLERANCE,
+        "the bed plays at $beforeStart before it starts, so the start never applied",
+      )
+
+      // The middle of the timeline, inside a pass the bed only reaches by repeating. Passes run
+      // back to back from BED_START, so where this window falls inside one is the elapsed time
+      // wrapped by the pass length, and the leading gap is no part of it.
+      val middle = MIDDLE_AT + WINDOW / 2
+      val intoPass = ((middle - BED_START).inWholeMilliseconds % BED_PASS.inWholeMilliseconds).milliseconds
+      val measured = written.bedGainAt(middle, WINDOW, tones, primaryClip.gain.gainAt(middle))
+      val expected = bedClip.gain.gainAt(intoPass)
+      assertTrue(
+        abs(measured - expected) <= MEASURED_GAIN_TOLERANCE,
+        "the bed plays at $measured a loop pass past its own end, where the plan folded $expected",
+      )
+    }
+
+  /**
+   * A fade on the bed, read off the written file at points across the ramp rather than at its ends.
+   *
+   * Written through the DSL, which is where a looping track drops a fade out for want of an end to
+   * anchor it to, so the ramp under test is the fade in. Each point is compared against the curve
+   * the planner folded at the same instant. A midpoint on its own would not be enough, since a
+   * symmetric ramp reads the same at its centre whichever way it runs.
+   */
+  @Test
+  fun fadesTheBedInAlongTheCurveThePlanFolded() =
+    runTest(timeout = TIMEOUT) {
+      val primaryFile = fixtureFile(CLIP_A) ?: return@runTest
+      val bedFile = fixtureFile(CLIP_BED) ?: return@runTest
+      val spec = ExportSpec(targetHeight = 240)
+      val edit =
+        compositionOf {
+          clip(MediaSource.of(primaryFile.path))
+          track(TrackContent.Audio) {
+            clip(MediaSource.of(bedFile.path)) { trim(Duration.ZERO, FADE_PASS) }
+            fadeIn(FADE_LENGTH)
+            startAt(BED_START)
+            looping()
+          }
+        }
+
+      val lowered = lowered(edit, spec)
+      val primaryClip = lowered.tracks[0].clips.single()
+      val bedClip = lowered.tracks[1].clips.single()
+      val tones = sourceTones(primaryFile, bedFile)
+
+      val written = decodeAudio(exportedFile(capablePlan(edit, spec)))
+
+      assertTrue(
+        written.duration >= BED_START + RAMP_AT.last() + RAMP_WINDOW,
+        "the decode ran out at ${written.duration}, before the ramp this measures",
+      )
+
+      // The bed's first pass, so what is read is the fade itself rather than whatever a repeat does
+      // with the processor's sample counter.
+      RAMP_AT.forEach { inClip ->
+        val at = BED_START + inClip
+        val measured = written.bedGainAt(at, RAMP_WINDOW, tones, primaryClip.gain.gainAt(at))
+        val expected = bedClip.gain.gainAt(inClip)
+        assertTrue(
+          abs(measured - expected) <= MEASURED_GAIN_TOLERANCE,
+          "the bed plays at $measured $inClip into its pass, where the plan folded $expected",
+        )
+      }
     }
 
   // The top of the encoder's range, which nothing else here reaches. A phone that cannot do 2160
@@ -277,6 +404,82 @@ class AndroidExportTest {
     return source
   }
 
+  /**
+   * The graph an export of [composition] would run, which is where the folded gain curves live.
+   *
+   * A curve is indexed by its own clip's time, so a caller sampling one converts from the
+   * composition timeline itself rather than being handed a number for a fixed instant.
+   */
+  private suspend fun lowered(
+    composition: EditComposition,
+    spec: ExportSpec,
+  ): ResolvedComposition =
+    when (val result = engine.resolve(composition, spec)) {
+      is ResolveResult.Resolved -> result.composition
+      is ResolveResult.Refused -> throw AssertionError("the mix would not lower: ${result.error.message}")
+    }
+
+  /**
+   * The tone each fixture carries, measured rather than assumed.
+   *
+   * What every assertion here compares is a gain, so the level the two sines happen to be written
+   * at has to divide out along with the codec's. Read past the head of the file, where an AAC
+   * decoder emits its priming samples.
+   */
+  private fun sourceTones(
+    primary: File,
+    bed: File,
+  ): SourceTones =
+    SourceTones(
+      primary = decodeAudio(primary).amplitudeOver(EARLY_AT, WINDOW, PRIMARY_HZ),
+      bed = decodeAudio(bed).amplitudeOver(EARLY_AT, WINDOW, BED_HZ),
+    )
+
+  /**
+   * How loud each source's own tone is before anything is done to it.
+   */
+  private class SourceTones(
+    val primary: Float,
+    val bed: Float,
+  )
+
+  /**
+   * The gain the bed plays at over the [window] centred on [at], on the scale the plan folds to.
+   *
+   * Both tones ride the same encode, so dividing one by the other cancels whatever the codec did to
+   * the absolute level and leaves the ratio the two gains stand in. [primaryGain] is what the plan
+   * folded for the track being divided by, so a primary that is itself scaled cannot read as a
+   * louder bed.
+   *
+   * A window over a linear ramp reads its mean, which for a window centred on the point being asked
+   * about is the value at that point.
+   */
+  private fun DecodedAudio.bedGainAt(
+    at: Duration,
+    window: Duration,
+    tones: SourceTones,
+    primaryGain: Float,
+  ): Float {
+    val from = at - window / 2
+    val bed = amplitudeOver(from, window, BED_HZ)
+    val primary = amplitudeOver(from, window, PRIMARY_HZ)
+    // Guards the division rather than bounding an error. The primary plays across every window
+    // measured here, so one that reads nothing is a decode that stopped, not a bed that behaved.
+    assertTrue(primary > tones.primary * AUDIBLE, "the primary reads $primary at $at, so nothing was decoded there")
+    return bed / primary * primaryGain * (tones.primary / tones.bed)
+  }
+
+  private suspend fun exportedFile(plan: ExportPlan): File {
+    val statuses = withContext(Dispatchers.Default) { filmstrip.export(plan, MediaSink.temporary()).toList() }
+
+    val finished = statuses.last()
+    if (finished is ExportStatus.Failure) throw AssertionError("export failed: ${finished.error.message}")
+    return when (val output = assertIs<ExportStatus.Success>(finished).output) {
+      is MediaSink.Path -> File(output.path)
+      else -> throw AssertionError("a finished export resolves to a real path, and gave $output")
+    }
+  }
+
   private suspend fun capablePlan(
     composition: EditComposition,
     spec: ExportSpec,
@@ -326,11 +529,16 @@ class AndroidExportTest {
   /**
    * Copies a packaged fixture into the cache, or null when the build had no ffmpeg to make one.
    */
-  private fun fixture(name: String): MediaSource? {
+  private fun fixture(name: String): MediaSource? = fixtureFile(name)?.let { MediaSource.of(it.path) }
+
+  /**
+   * The same fixture as a file, for a test that reads its samples rather than editing it.
+   */
+  private fun fixtureFile(name: String): File? {
     val stream = javaClass.classLoader?.getResourceAsStream(name) ?: return null
     val file = File(context.cacheDir, name)
     stream.use { input -> file.outputStream().use(input::copyTo) }
-    return MediaSource.of(file.path)
+    return file
   }
 
   private fun MediaSink.asSource(): MediaSource =
@@ -353,6 +561,48 @@ class AndroidExportTest {
     const val CLIP_B = "android_export_b.mp4"
     const val CLIP_LONG = "android_export_long.mp4"
     const val CLIP_ROTATED = "android_export_rotated.mp4"
+    const val CLIP_BED = "tone_bed_880.mp4"
+
+    // The one frequency the bed carries and no other fixture does, against the one every other
+    // fixture carries. Separating them is what lets a level in the mix be read back to a source.
+    const val PRIMARY_HZ = 440
+    const val BED_HZ = 880
+
+    const val BED_VOLUME = 0.5f
+
+    // The bed's clip, and the gap in front of it. Different lengths on purpose. A pass has to open
+    // every BED_PASS once the bed has started, the way it does on the other three backends, and a
+    // reading that counted the gap into the period would open one every BED_START + BED_PASS and
+    // leave silence between. Equal lengths hide that, since a pass lands under MIDDLE_AT either way.
+    val BED_START = 600.milliseconds
+    val BED_PASS = 400.milliseconds
+
+    // Two windows into the primary's two seconds: one in the gap before the bed opens, one in a
+    // stretch the bed only covers when its passes run back to back. A period that counted the gap
+    // in would be silent across the second of them. Both sit 100ms clear of a boundary, which is
+    // more than the priming an AAC decoder can shift the whole run by.
+    val EARLY_AT = 100.milliseconds
+    val MIDDLE_AT = 1_200.milliseconds
+    val WINDOW = 200.milliseconds
+
+    // The fade test's own bed, whose pass is longer than the loop test's so the ramp has room to be
+    // read across its range, with a stretch past the ramp's top to read the plateau on.
+    val FADE_PASS = 1_200.milliseconds
+    val FADE_LENGTH = 800.milliseconds
+
+    // Where the ramp is read, in the bed clip's own time. Three points across it and one past its
+    // top, which is what says the ramp stopped at the peak instead of climbing through it. Every
+    // window sits 150ms clear of the stretch it measures.
+    val RAMP_AT = listOf(200.milliseconds, 400.milliseconds, 600.milliseconds, 1_000.milliseconds)
+
+    // Short enough to sit inside the stretch it measures, and a whole number of cycles of both
+    // tones, so neither leaks into the other's reading.
+    val RAMP_WINDOW = 100.milliseconds
+
+    // The floor a window's primary tone has to clear against its own source level for the division
+    // that recovers a gain to mean anything. Not an accuracy bound, which is
+    // ToneAnalysis.MEASURED_GAIN_TOLERANCE and shared with the other three backends.
+    const val AUDIBLE = 0.5f
 
     // How long the muxer gets to create the file, and how often it is looked for.
     val MUXER_OPENS = 10.seconds

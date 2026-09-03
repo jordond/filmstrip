@@ -3,6 +3,7 @@
 package dev.jordond.filmstrip.webcodecs.internal
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.time.Duration
@@ -125,7 +126,7 @@ public class BrowserAudioPreview internal constructor(
     BrowserAudioMix.placed(tracks()).forEach { placed ->
       val clip = placed.clip
       val period = clip.duration
-      if (clip.gain <= 0f || period <= Duration.ZERO) return@forEach
+      if (clip.gain.peak <= 0f || period <= Duration.ZERO) return@forEach
 
       val start = maxOf(placed.offset, from)
       val end = minOf(placed.offset + period, to)
@@ -137,11 +138,15 @@ public class BrowserAudioPreview internal constructor(
       val buffer =
         BrowserAudioMix.decode(audioTrack, into.asSeconds(), until.asSeconds(), context) ?: return@forEach
 
+      // The preview does not follow a ramp yet, so a clip's curve is sampled where the slice opens
+      // and held flat across it. Auditioning a fade is a later change.
+      val level = ResolvedGain.constant(clip.gain.gainAt(start - placed.offset), Duration.ZERO, end - start)
+
       sounding +=
         BrowserAudioMix.schedule(
           context = context,
           buffer = buffer,
-          gain = clip.gain,
+          gain = level,
           offsetSeconds = contextTimeFor(start),
           looping = false,
           into = master,

@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.media.imageMediaInfoOf
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import io.kotest.matchers.shouldBe
@@ -217,7 +218,7 @@ class Media3ImageItemTest {
       start = Duration.ZERO,
       end = span,
       effects = emptyList(),
-      gain = 1f,
+      gain = ResolvedGain.constant(1f, Duration.ZERO, span),
       startsAtKeyFrame = false,
       span = TimeRange.of(Duration.ZERO, span),
     )
@@ -250,7 +251,7 @@ class Media3ImageItemTest {
       start = Duration.ZERO,
       end = 1.seconds,
       effects = emptyList(),
-      gain = 1f,
+      gain = ResolvedGain.constant(1f, Duration.ZERO, 1.seconds),
       startsAtKeyFrame = false,
       span = TimeRange.of(Duration.ZERO, 1.seconds),
     )

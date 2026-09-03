@@ -212,6 +212,30 @@ public final class dev/jordond/filmstrip/edit/AudioLevel$Companion {
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
+public final class dev/jordond/filmstrip/edit/AudioLevel$Envelope : dev/jordond/filmstrip/edit/AudioLevel {
+	public static final field Companion Ldev/jordond/filmstrip/edit/AudioLevel$Envelope$Companion;
+	public fun <init> (Ljava/util/List;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPoints ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class dev/jordond/filmstrip/edit/AudioLevel$Envelope$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/edit/AudioLevel$Envelope$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/edit/AudioLevel$Envelope;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/edit/AudioLevel$Envelope;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/edit/AudioLevel$Envelope$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
 public final class dev/jordond/filmstrip/edit/AudioLevel$Inherit : dev/jordond/filmstrip/edit/AudioLevel {
 	public static final field INSTANCE Ldev/jordond/filmstrip/edit/AudioLevel$Inherit;
 	public fun equals (Ljava/lang/Object;)Z
@@ -354,6 +378,8 @@ public final class dev/jordond/filmstrip/edit/ClipBuilder {
 	public final fun audio (Ldev/jordond/filmstrip/edit/AudioLevel;)Ldev/jordond/filmstrip/edit/ClipBuilder;
 	public final fun build ()Ldev/jordond/filmstrip/edit/Clip;
 	public final fun effects (Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/ClipBuilder;
+	public final fun fadeIn-LRDsOJo (J)Ldev/jordond/filmstrip/edit/ClipBuilder;
+	public final fun fadeOut-LRDsOJo (J)Ldev/jordond/filmstrip/edit/ClipBuilder;
 	public final fun trim (Ldev/jordond/filmstrip/edit/TimeRange;)Ldev/jordond/filmstrip/edit/ClipBuilder;
 	public final fun trim (Lkotlin/ranges/ClosedRange;)Ldev/jordond/filmstrip/edit/ClipBuilder;
 	public final fun trim-QTBD994 (JJ)Ldev/jordond/filmstrip/edit/ClipBuilder;
@@ -420,6 +446,46 @@ public final class dev/jordond/filmstrip/edit/EffectsBuilder {
 	public final fun add (Ldev/jordond/filmstrip/effect/EffectSpec;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 	public final fun addAll (Ljava/util/List;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 	public final fun build ()Ljava/util/List;
+}
+
+public final class dev/jordond/filmstrip/edit/EnvelopeAnchor : java/lang/Enum {
+	public static final field Companion Ldev/jordond/filmstrip/edit/EnvelopeAnchor$Companion;
+	public static final field End Ldev/jordond/filmstrip/edit/EnvelopeAnchor;
+	public static final field Start Ldev/jordond/filmstrip/edit/EnvelopeAnchor;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/edit/EnvelopeAnchor;
+	public static fun values ()[Ldev/jordond/filmstrip/edit/EnvelopeAnchor;
+}
+
+public final class dev/jordond/filmstrip/edit/EnvelopeAnchor$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/edit/EnvelopePoint {
+	public static final field Companion Ldev/jordond/filmstrip/edit/EnvelopePoint$Companion;
+	public synthetic fun <init> (JFLdev/jordond/filmstrip/edit/EnvelopeAnchor;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (JFLdev/jordond/filmstrip/edit/EnvelopeAnchor;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAt-UwyO8pc ()J
+	public final fun getFrom ()Ldev/jordond/filmstrip/edit/EnvelopeAnchor;
+	public final fun getGain ()F
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class dev/jordond/filmstrip/edit/EnvelopePoint$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Ldev/jordond/filmstrip/edit/EnvelopePoint$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/edit/EnvelopePoint;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/edit/EnvelopePoint;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/edit/EnvelopePoint$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public abstract interface annotation class dev/jordond/filmstrip/edit/FilmstripDsl : java/lang/annotation/Annotation {
@@ -504,6 +570,8 @@ public final class dev/jordond/filmstrip/edit/TrackBuilder {
 	public final fun clip (Ldev/jordond/filmstrip/media/MediaSource;Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/TrackBuilder;
 	public static synthetic fun clip$default (Ldev/jordond/filmstrip/edit/TrackBuilder;Ldev/jordond/filmstrip/media/MediaSource;Lkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/TrackBuilder;
 	public final fun effects (Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/TrackBuilder;
+	public final fun fadeIn-LRDsOJo (J)Ldev/jordond/filmstrip/edit/TrackBuilder;
+	public final fun fadeOut-LRDsOJo (J)Ldev/jordond/filmstrip/edit/TrackBuilder;
 	public final fun image-8Mi8wO0 (Ldev/jordond/filmstrip/media/ImageSource;JLkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/TrackBuilder;
 	public static synthetic fun image-8Mi8wO0$default (Ldev/jordond/filmstrip/edit/TrackBuilder;Ldev/jordond/filmstrip/media/ImageSource;JLkotlin/jvm/functions/Function1;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/TrackBuilder;
 	public final fun looping (Z)Ldev/jordond/filmstrip/edit/TrackBuilder;

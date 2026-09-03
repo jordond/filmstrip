@@ -88,7 +88,7 @@ public class BrowserPreview internal constructor(
   public val carriesAudio: Boolean
     get() =
       render.audioFormat != null &&
-        render.audioTracks.any { track -> track.clips.any { it.gain > 0f && it.info.audio != null } }
+        render.audioTracks.any { track -> track.clips.any { it.gain.peak > 0f && it.info.audio != null } }
 
   /**
    * The live audio graph for this composition, built on first use, or null when nothing here is

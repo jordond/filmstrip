@@ -23,6 +23,7 @@ kotlin {
 
     named("androidDeviceTest").dependencies {
       implementation(kotlin("test"))
+      implementation(projects.filmstripTest)
       implementation(libs.kotlinx.coroutines.test)
       implementation(libs.androidx.test.runner)
       implementation(libs.androidx.test.core)
@@ -40,6 +41,9 @@ val exportFixtures =
     specs =
       listOf(
         FixtureSpec("android_export_a", 640, 360, 30, 2.0, 48000, 2, bitrateKbps = 1_500),
+        // A bed to mix under the others. Its tone is the one frequency no other fixture carries,
+        // so a test measuring the mix can say which source a level belongs to.
+        FixtureSpec("tone_bed_880", 320, 240, 30, 3.0, 48000, 2, bitrateKbps = 500, toneHz = 880),
         FixtureSpec("android_export_b", 480, 270, 30, 2.0, 48000, 2, bitrateKbps = 1_000, hue = 120),
         // Long enough that there is still an export running when the collector is cancelled. A
         // phone encodes two seconds of 240p in about as long as it takes to ask it to stop.

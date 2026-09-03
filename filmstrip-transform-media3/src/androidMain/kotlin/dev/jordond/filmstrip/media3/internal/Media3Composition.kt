@@ -20,6 +20,7 @@ import androidx.media3.transformer.Effects
 import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effects.overlay.MAX_OVERLAYS_PER_EFFECT
 import dev.jordond.filmstrip.export.AudioCodec
@@ -34,6 +35,7 @@ import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedEffect
+import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.showsFill
@@ -99,9 +101,16 @@ internal fun ResolvedComposition.toMedia3(wrapper: EffectWrapper): Composition {
       val builder = EditedMediaItemSequence.Builder(trackTypes)
       if (track.start > Duration.ZERO) builder.addGap(track.start.inWholeMicroseconds)
 
+      // media3 repeats a sequence by its item index, and the leading gap is one of those items, so
+      // a looping track that starts late would open a pass every start plus length where the other
+      // three backends open one every length. A track with an offset therefore lays its own passes
+      // and does not ask media3 to loop, which is the only way to keep the gap out of the repeat.
+      val laysOwnPasses = track.looping && track.start > Duration.ZERO
+      val clips = if (laysOwnPasses) track.clips.passesCovering(duration - track.start) else track.clips
+
       // A lone clip at full volume is already the format the sequence outputs, so it doesn't need mixing.
-      val mixesAudio = track.clips.size > 1
-      track.clips.forEach { clip ->
+      val mixesAudio = clips.size > 1
+      clips.forEach { clip ->
         builder.addItem(
           clip.toItem(
             content = track.content,
@@ -118,7 +127,7 @@ internal fun ResolvedComposition.toMedia3(wrapper: EffectWrapper): Composition {
         )
       }
 
-      builder.setIsLooping(track.looping).build()
+      builder.setIsLooping(track.looping && !laysOwnPasses).build()
     }
 
   if (sequences.isEmpty()) {
@@ -403,23 +412,74 @@ internal fun ResolvedClip.clipVideoEffects(
 /**
  * The processors an audio-carrying clip runs through.
  *
- * Every item in a sequence has to reach the same output format, and a gain is applied by scaling
- * the mixing matrix that gets it there. Pinning 16-bit PCM and a channel count is what makes a
- * concatenation of a mono clip and a stereo clip mix at all, so it is done whenever a sequence has
- * more than one clip rather than only when a gain is asked for.
+ * Every item in a sequence has to reach the same output format, and a constant gain is applied by
+ * scaling the mixing matrix that gets it there. Pinning 16-bit PCM and a channel count is what
+ * makes a concatenation of a mono clip and a stereo clip mix at all, so it is done whenever a
+ * sequence has more than one clip rather than only when a gain is asked for.
+ *
+ * A curve that ramps cannot ride on the matrix, which holds one number for the whole item, so the
+ * matrix stays at unity and [rampProcessorFor] appends a processor that walks the curve after it.
+ *
+ * `internal` rather than `private` so a test can inspect the chain without building a full
+ * [EditedMediaItem].
  */
-private fun audioProcessors(
-  gain: Float,
+internal fun audioProcessors(
+  gain: ResolvedGain,
   mixes: Boolean,
 ): List<AudioProcessor> {
-  if (!mixes && gain == 1f) return emptyList()
+  val constant = gain.constant
+  if (!mixes && constant == 1f) return emptyList()
 
   val mixer = ChannelMixingAudioProcessor()
   INPUT_CHANNEL_COUNTS.forEach { inputs ->
-    mixer.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(inputs, CHANNEL_COUNT).scaleBy(gain))
+    mixer.putChannelMixingMatrix(
+      ChannelMixingMatrix.createForConstantGain(inputs, CHANNEL_COUNT).scaleBy(constant ?: 1f),
+    )
   }
-  return listOf(ToInt16PcmAudioProcessor(), mixer)
+
+  return listOf(ToInt16PcmAudioProcessor(), mixer) + listOfNotNull(rampProcessorFor(gain))
 }
+
+/**
+ * This run of clips laid down enough times to cover [fill], with the last one cut where it runs
+ * past.
+ *
+ * A sequence that is not looping ends where its items end, and the longest sequence is what sets
+ * the composition's length, so a pass allowed to overshoot would lengthen the whole export.
+ */
+internal fun List<ResolvedClip>.passesCovering(fill: Duration): List<ResolvedClip> {
+  val length = fold(Duration.ZERO) { total, clip -> total + clip.duration }
+  if (length <= Duration.ZERO || fill <= Duration.ZERO) return this
+
+  val laid = mutableListOf<ResolvedClip>()
+  var remaining = fill
+  while (remaining > Duration.ZERO) {
+    for (clip in this) {
+      if (remaining <= Duration.ZERO) break
+      laid += if (clip.duration <= remaining) clip else clip.cutTo(remaining)
+      remaining -= clip.duration
+    }
+  }
+  return laid
+}
+
+/**
+ * A copy of this clip keeping only its first [length].
+ *
+ * The gain travels with the cut, so the part of the curve the shortened clip never reaches is not
+ * left pinned to a segment that runs past its end.
+ */
+internal fun ResolvedClip.cutTo(length: Duration): ResolvedClip =
+  ResolvedClip(
+    source = source,
+    info = info,
+    start = start,
+    end = start + length,
+    effects = effects,
+    gain = gain.window(Duration.ZERO, length),
+    startsAtKeyFrame = startsAtKeyFrame,
+    span = TimeRange.of(span.start, span.start + length),
+  )
 
 private fun ResolvedTrack.trackTypes(
   keepAudio: Boolean,

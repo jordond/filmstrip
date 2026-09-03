@@ -9,8 +9,10 @@ import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.transform.internal.GainSegment
 import dev.jordond.filmstrip.transform.internal.NegotiatedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.paintsFillAfterEffects
 import kotlin.time.Duration
@@ -361,12 +363,18 @@ internal class GraphLowering(
 
     val trackLabels =
       contributing.map { (trackIndex, track) ->
+        // Only a lone clip covering its whole source is left unwindowed for the repeat. Leaving a
+        // concat's branches unwindowed does not fail loudly: the first one never ends, so concat
+        // waits on it forever, every later clip is dropped without a word and the atrim after the
+        // mix is what stops the run. A windowed concat plays its first pass and then goes silent,
+        // which is wrong too, and both are recorded against this backend in docs/capabilities.md.
+        val repeats = track.looping && track.clips.size == 1
         val segments =
           track.clips.mapIndexed { clipIndex, clip ->
             val label = "a${clipInput[trackIndex][clipIndex]}"
             graph.chain(
               listOf(audioPad(clip, clipInput[trackIndex][clipIndex], format.sampleRate)),
-              audioNodes(clip),
+              audioNodes(clip, repeats),
               label,
             )
             label
@@ -453,10 +461,18 @@ internal class GraphLowering(
     return "$generated:a"
   }
 
-  private fun audioNodes(clip: ResolvedClip): List<FilterNode> =
+  private fun audioNodes(
+    clip: ResolvedClip,
+    repeats: Boolean,
+  ): List<FilterNode> =
     buildList {
       val format = output.audioFormat ?: error("audioNodes needs an audio format")
-      if (clip.hasAudio) {
+      // An input opened with -stream_loop carries each repeat at later timestamps, so a window
+      // written for the clip's own run drops every pass after the first. A repeating clip that
+      // already spans its whole source has nothing to cut, and the atrim after the mix is what
+      // bounds the run instead.
+      val windowed = clip.hasAudio && !(repeats && clip.spansWholeSource)
+      if (windowed) {
         add(
           FilterNode(
             "atrim",
@@ -469,7 +485,18 @@ internal class GraphLowering(
       add(aformat(format.sampleRate, format.channelCount))
       // Every scope's level is already multiplied into this, the composition's included, so the mix
       // carries no gain node of its own.
-      if (clip.gain != 1f) add(FilterNode("volume", "volume" to clip.gain.toString()))
+      val constant = clip.gain.constant
+      if (constant != null) {
+        if (constant != 1f) add(FilterNode("volume", "volume" to constant.toString()))
+      } else {
+        // volume's limit, not the curve's: it reads its expression once per frame, so the frame
+        // size is what the ramp steps at. A default 1024-sample frame steps a fade every 21 ms,
+        // which zippers on a tone, so the frames are cut to RAMP_FRAME_SAMPLES ahead of it. Padding
+        // is off because asetnsamples otherwise rounds the last frame up with silence, and the
+        // concat below would lay that between this clip and the next.
+        add(FilterNode("asetnsamples", "n" to RAMP_FRAME_SAMPLES.toString(), "p" to "0"))
+        volumeExpressions(clip.gain).forEach { add(FilterNode("volume", "volume" to it, "eval" to "frame")) }
+      }
     }
 
   private fun silence(
@@ -514,4 +541,72 @@ internal class GraphLowering(
 
 private val ResolvedClip.hasAudio: Boolean get() = info.audio != null
 
+// Whether the clip's window is the source's whole run, which is what an untrimmed clip resolves to.
+private val ResolvedClip.spansWholeSource: Boolean
+  get() = start == Duration.ZERO && end == info.duration
+
 private fun Duration.seconds(): Double = toDouble(DurationUnit.SECONDS)
+
+/**
+ * One clip's gain curve as the `volume` expressions a chain of nodes reads, in the clip's own time.
+ *
+ * ffmpeg's own limit, not the curve's: its expression parser refuses a nest much deeper than a
+ * hundred `if`s, and a curve folded from an envelope and a fade runs to hundreds of segments. So a
+ * long curve is handed to several nodes, each holding one run of it and reading one everywhere
+ * else. `volume` nodes multiply, so the chain lands on the same gain a single node would have
+ * rather than on an approximation of it.
+ */
+private fun volumeExpressions(gain: ResolvedGain): List<String> {
+  val segments = gain.segments
+  if (segments.size <= EXPRESSION_SEGMENTS) return listOf(gainExpression(segments))
+
+  return segments.chunked(EXPRESSION_SEGMENTS).map { run ->
+    gainExpression(
+      buildList {
+        if (run.first().start > gain.start) add(GainSegment(gain.start, run.first().start, 1f, 1f))
+        addAll(run)
+        if (run.last().end < gain.end) add(GainSegment(run.last().end, gain.end, 1f, 1f))
+      },
+    )
+  }
+}
+
+/**
+ * One run of segments as an expression read against the frame time.
+ *
+ * The segments are selected the way [ResolvedGain.gainAt] selects them, the last one whose start
+ * the frame has reached, which an `if` chain walked from the end spells directly.
+ */
+private fun gainExpression(segments: List<GainSegment>): String {
+  var expression = segmentExpression(segments.last())
+  for (index in segments.lastIndex - 1 downTo 0) {
+    val next = formatSeconds(segments[index + 1].start.seconds())
+    expression = "if(lt(t,$next),${segmentExpression(segments[index])},$expression)"
+  }
+  return expression
+}
+
+/**
+ * One segment as the clamped ramp [GainSegment.gainAt] describes.
+ *
+ * The clamp is what holds the curve flat either side of the whole run, since the first and last
+ * segments are the ones a frame outside the clip's own range lands in.
+ */
+private fun segmentExpression(segment: GainSegment): String {
+  val span = segment.end - segment.start
+  // A flat run and a zero length step both hold the one number their end carries.
+  if (segment.isFlat || span <= Duration.ZERO) return segment.endGain.toString()
+  val start = formatSeconds(segment.start.seconds())
+  val length = formatSeconds(span.seconds())
+  return "${segment.startGain}+(${segment.endGain}-${segment.startGain})*clip((t-$start)/$length,0,1)"
+}
+
+// The frame size a ramping branch is cut to, a literal because it pins ffmpeg's own granularity
+// rather than anything the shared curve says. 64 samples is 1.3 ms at 48 kHz, against the 21 ms a
+// default 1024-sample frame would step a fade at.
+private const val RAMP_FRAME_SAMPLES = 64
+
+// How many segments one volume node's expression carries. ffmpeg 9.0.1 refuses a nest of about a
+// hundred ifs, so this leaves the parser twice the room it needs even once a run has been padded
+// flat at both ends.
+internal const val EXPRESSION_SEGMENTS = 48

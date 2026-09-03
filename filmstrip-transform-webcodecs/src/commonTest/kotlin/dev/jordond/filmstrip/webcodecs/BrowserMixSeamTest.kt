@@ -10,7 +10,9 @@ import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.transform.internal.GainSegment
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.webcodecs.BrowserMixSeamTest.Companion.MAX_STEP
 import dev.jordond.filmstrip.webcodecs.internal.AudioBuffer
@@ -30,6 +32,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
+import kotlin.time.toDuration
 
 /**
  * What a mixed timeline has to look like end to end, whatever the mixer does internally to build
@@ -80,16 +83,35 @@ class BrowserMixSeamTest {
       assertTrue(worst < MAX_DIVERGENCE, "windowed and one-shot mixes diverged by $worst")
     }
 
+  // The mixer schedules a fade as automation inside each window it renders, so a window boundary is
+  // where the fade is handed over and where it breaks: a window that pins the curve at the curve's
+  // own start rather than at where the fade had reached restarts the fade in every window it opens.
+  // Dividing the faded mix by a flat one of the same fixture leaves the gain the node applied, with
+  // the tone, the codec and the resampler all divided back out.
+  @Test
+  fun aFadeCrossingWindowBoundariesFollowsItsCurve() =
+    runTest {
+      val bytes = makeClipWithAudio(frames = CLIP_FRAMES, sampleRate = SOURCE_RATE)
+      val fade = ResolvedGain(listOf(GainSegment(Duration.ZERO, CLIP_DURATION, FADE_FROM, FADE_TO)))
+      val flat = mixToneOf(sampleRate = SOURCE_RATE, bytes = bytes)
+      val faded = mixToneOf(sampleRate = SOURCE_RATE, bytes = bytes, gain = fade)
+
+      assertEquals(flat.length, faded.length)
+      assertFollows(faded, flat, fade)
+    }
+
   private suspend fun mixToneOf(
     sampleRate: Int,
     window: Duration = WINDOW,
+    gain: ResolvedGain = FLAT,
+    bytes: ByteArray? = null,
   ): Float32Array {
-    val source = MediaSource.Bytes(makeClipWithAudio(frames = CLIP_FRAMES, sampleRate = sampleRate))
+    val source = MediaSource.Bytes(bytes ?: makeClipWithAudio(frames = CLIP_FRAMES, sampleRate = sampleRate))
     val sources = SourceCache()
     try {
       val windows = mutableListOf<AudioBuffer>()
       BrowserAudioMix.mixInto(
-        tracks = listOf(trackOf(source, sampleRate)),
+        tracks = listOf(trackOf(source, sampleRate, gain)),
         format = AudioFormat(sampleRate = OUTPUT_RATE, channelCount = 1),
         duration = MIX_DURATION,
         sources = sources,
@@ -121,6 +143,7 @@ class BrowserMixSeamTest {
   private fun trackOf(
     source: MediaSource,
     sampleRate: Int,
+    gain: ResolvedGain,
   ): ResolvedTrack =
     ResolvedTrack(
       content = TrackContent.AudioAndVideo,
@@ -140,7 +163,7 @@ class BrowserMixSeamTest {
             start = Duration.ZERO,
             end = CLIP_DURATION,
             effects = emptyList(),
-            gain = 1f,
+            gain = gain,
             startsAtKeyFrame = true,
             span = TimeRange.of(Duration.ZERO, CLIP_DURATION),
           ),
@@ -175,29 +198,77 @@ class BrowserMixSeamTest {
     )
   }
 
+  /**
+   * Asserts the gain the mix applied follows [fade] everywhere in the analysed span.
+   *
+   * [faded] and [flat] are the same fixture through the same windows, so the ratio of one block's
+   * energy to the other's is what the gain node contributed and nothing else. Every block is
+   * measured rather than only the ones on a boundary, which puts the assertion through the middle
+   * of each window as well as across its seams. The clip sits at the head of the timeline, so mix
+   * time and clip time are the same time here.
+   */
+  private fun assertFollows(
+    faded: Float32Array,
+    flat: Float32Array,
+    fade: ResolvedGain,
+  ) {
+    val from = (ANALYSIS_MARGIN.toDouble(DurationUnit.SECONDS) * OUTPUT_RATE).roundToInt()
+    val to = faded.length - from
+    val size = (GAIN_BLOCK.toDouble(DurationUnit.SECONDS) * OUTPUT_RATE).roundToInt()
+
+    var measured = 0
+    var worst = 0f
+    var worstAt = Duration.ZERO
+    for (start in from until to - size step size) {
+      val reference = rms(flat, start, size)
+      if (reference <= SILENCE) continue
+      val at = ((start + size / 2).toDouble() / OUTPUT_RATE).toDuration(DurationUnit.SECONDS)
+      val drift = abs(rms(faded, start, size) / reference - fade.gainAt(at))
+      measured++
+      if (drift > worst) {
+        worst = drift
+        worstAt = at
+      }
+    }
+
+    assertTrue(measured > MIN_MEASURED_BLOCKS, "only $measured blocks carried enough tone to measure the fade")
+    assertTrue(worst < MAX_GAIN_DRIFT, "the mix was off its fade by $worst at $worstAt")
+  }
+
   private fun blockEnergy(
     samples: Float32Array,
     from: Int,
     to: Int,
   ): List<Float> {
     val size = (BLOCK.toDouble(DurationUnit.SECONDS) * OUTPUT_RATE).roundToInt()
-    return (from until to - size step size).map { start ->
-      var sum = 0.0
-      for (index in start until start + size) {
-        val value = samples.at(index).toDouble()
-        sum += value * value
-      }
-      sqrt(sum / size).toFloat()
+    return (from until to - size step size).map { start -> rms(samples, start, size) }
+  }
+
+  private fun rms(
+    samples: Float32Array,
+    from: Int,
+    size: Int,
+  ): Float {
+    var sum = 0.0
+    for (index in from until from + size) {
+      val value = samples.at(index).toDouble()
+      sum += value * value
     }
+    return sqrt(sum / size).toFloat()
   }
 
   private fun expectedFrames(): Int = (MIX_DURATION.toDouble(DurationUnit.SECONDS) * OUTPUT_RATE).roundToInt()
 
   private companion object {
     const val OUTPUT_RATE = 48_000
+
+    // A rate the output does not run at, so the fade is measured through the resampler rather than
+    // around it.
+    const val SOURCE_RATE = 44_100
     const val CLIP_FRAMES = 120
     val CLIP_DURATION = 4.seconds
     val MIX_DURATION = 3500.milliseconds
+    val FLAT = ResolvedGain.constant(1f, Duration.ZERO, CLIP_DURATION)
 
     // Opus pads both ends of what it encodes, so the analysed span starts and stops inside the
     // tone rather than at the edges of the buffer.
@@ -213,5 +284,22 @@ class BrowserMixSeamTest {
 
     // Well under the tone's own amplitude, and far under what a dropped or repeated frame costs.
     const val MAX_DIVERGENCE = 0.02f
+
+    // A fade that stays well clear of silence, so a block's energy is a reading of the gain rather
+    // than of what is left of the tone.
+    const val FADE_FROM = 1f
+    const val FADE_TO = 0.25f
+
+    // Long enough that a block's energy settles over several cycles of the tone, short enough that
+    // the fade barely moves inside one.
+    val GAIN_BLOCK = 20.milliseconds
+
+    // The analysed span runs 3.1s at a block every 20ms, so a run measuring far fewer than this
+    // went quiet somewhere rather than faded.
+    const val MIN_MEASURED_BLOCKS = 100
+
+    // A gain node applies its ramp sample by sample, so what is left here is what a block's energy
+    // reading costs rather than anything the automation did.
+    const val MAX_GAIN_DRIFT = 0.02f
   }
 }

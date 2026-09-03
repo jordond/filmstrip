@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.media3.internal.toMedia3Preview
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedEffect
+import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import io.kotest.matchers.floats.plusOrMinus
@@ -226,7 +227,7 @@ class Media3PreviewTest {
       start = Duration.ZERO,
       end = length,
       effects = emptyList(),
-      gain = 1f,
+      gain = ResolvedGain.constant(1f, Duration.ZERO, length),
       startsAtKeyFrame = false,
       span = TimeRange.of(Duration.ZERO, length),
     )

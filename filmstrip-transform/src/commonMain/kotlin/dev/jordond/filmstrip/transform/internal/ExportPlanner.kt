@@ -263,23 +263,38 @@ public class ExportPlanner(
     val asked = mutableListOf<LoweredEffect>()
     val tracks =
       edit.tracks.map { track ->
-        val trackGain = track.audio.appliedTo(compositionGain)
+        // Every clip's window is settled before any gain is folded, because a track's envelope is
+        // written against the whole run of clips and there is no length to anchor a fade out to
+        // until all of them are known.
+        val timings =
+          track.clips.map { clip ->
+            trimWindow(clip, infos.getValue(clip.source))
+              ?: return incapable("Clip ${clip.source.describe()} trims to nothing.")
+          }
+        val trackLength = timings.fold(Duration.ZERO) { total, (from, to) -> total + (to - from) }
+        val trackEnvelope = track.audio as? AudioLevel.Envelope
+        if (trackEnvelope != null && !trackEnvelope.isValidOver(trackLength)) return incapable(TRACK_ENVELOPE)
+        val trackCurve = track.audio.curveOver(trackLength)
         // Where each clip lands on the composition timeline, derived here and nowhere else, since
         // every backend lays its clips end to end from the track's own start and an effect that
         // reads the time has to be measured against the same run on all of them.
         var cursor = track.start
+        var withinTrack = Duration.ZERO
         ResolvedTrack(
           content = track.content,
           looping = track.looping,
           start = track.start,
           clips =
-            track.clips.map { clip ->
+            track.clips.mapIndexed { index, clip ->
               val info = infos.getValue(clip.source)
-              val timing =
-                trimWindow(clip, info) ?: return incapable("Clip ${clip.source.describe()} trims to nothing.")
+              val timing = timings[index]
               val length = timing.second - timing.first
               val span = TimeRange.of(cursor, cursor + length)
               cursor += length
+              val clipStartInTrack = withinTrack
+              withinTrack += length
+              val clipEnvelope = clip.audio as? AudioLevel.Envelope
+              if (clipEnvelope != null && !clipEnvelope.isValidOver(length)) return incapable(CLIP_ENVELOPE)
               val resolved =
                 resolve(
                   stages = listOf(clip.effects + track.effects, fannedGeometry),
@@ -298,7 +313,12 @@ public class ExportPlanner(
                 start = timing.first,
                 end = timing.second,
                 effects = resolved.mapNotNull { it.resolvedEffect },
-                gain = clip.audio.appliedTo(trackGain),
+                // The one place the scopes multiply. A backend reads this curve and never asks an
+                // AudioLevel what it meant again.
+                gain =
+                  clip.audio.curveOver(length) *
+                    trackCurve.window(clipStartInTrack, length) *
+                    ResolvedGain.constant(compositionGain, Duration.ZERO, length),
                 startsAtKeyFrame = supportsFastTrim && spec.trim == TrimStrategy.Fast,
                 span = span,
               )
@@ -742,6 +762,14 @@ public class ExportPlanner(
 
     const val EVERY_TRACK_LOOPS = "Every track loops, so the composition has nothing to bound it."
 
+    const val TRACK_ENVELOPE =
+      "A track's audio envelope has points that fall outside the track, run backwards, or ask for " +
+        "a negative gain."
+
+    const val CLIP_ENVELOPE =
+      "A clip's audio envelope has points that fall outside the clip's trim, run backwards, or ask " +
+        "for a negative gain."
+
     const val UNREADABLE = "The source could not be read, so there is nothing to plan against."
 
     const val NO_ENCODER = "This device has no encoder for the requested codec."
@@ -1096,7 +1124,9 @@ private fun untouchedExceptHdr(
     track.start == Duration.ZERO &&
     clip.trim == null &&
     track.content == TrackContent.AudioAndVideo &&
-    clip.audio.appliedTo(track.audio.appliedTo(edit.audio.gain())) == 1f &&
+    clip.audio.isUnity &&
+    track.audio.isUnity &&
+    edit.audio.gain() == 1f &&
     sourceSize == requestedSize
 }
 
@@ -1131,14 +1161,18 @@ private fun trimWindow(
 }
 
 /**
- * Levels multiply down the scopes, and a mute at any of them silences everything below it.
+ * Whether this level leaves the audio exactly as it was, which is what lets a copy skip the mixer.
+ *
+ * An envelope is never unity here, even one written flat at one, since reading it would mean
+ * folding the curve the copy path does not build.
  */
-private fun AudioLevel.appliedTo(parent: Float): Float =
-  when (this) {
-    is AudioLevel.Inherit -> parent
-    is AudioLevel.Mute -> 0f
-    is AudioLevel.Volume -> parent * gain
-  }
+private val AudioLevel.isUnity: Boolean
+  get() =
+    when (this) {
+      is AudioLevel.Inherit -> true
+      is AudioLevel.Volume -> gain == 1f
+      is AudioLevel.Mute, is AudioLevel.Envelope -> false
+    }
 
 private fun AudioSpec.gain(): Float =
   when (this) {

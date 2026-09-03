@@ -136,6 +136,8 @@ public class TrackBuilder public constructor(
   private val clips = mutableListOf<Clip>()
   private val effects = mutableListOf<EffectSpec>()
   private var audio: AudioLevel = AudioLevel.Inherit
+  private var fadeIn: Duration = Duration.ZERO
+  private var fadeOut: Duration = Duration.ZERO
   private var start: Duration = Duration.ZERO
   private var looping: Boolean = false
 
@@ -179,6 +181,23 @@ public class TrackBuilder public constructor(
   public fun audio(level: AudioLevel): TrackBuilder = apply { audio = level }
 
   /**
+   * Ramps this track's audio up from silence over [duration], starting where the track does.
+   *
+   * The ramp rises to whatever [audio] set rather than past it, and composes with [fadeOut]. Where
+   * the two are written makes no difference, since both are folded in once the track is built.
+   */
+  @ExperimentalFilmstripApi
+  public fun fadeIn(duration: Duration): TrackBuilder = apply { fadeIn = duration }
+
+  /**
+   * Ramps this track's audio down to silence over the [duration] before it ends.
+   *
+   * A looping track has no end to measure against, so the fade is dropped there.
+   */
+  @ExperimentalFilmstripApi
+  public fun fadeOut(duration: Duration): TrackBuilder = apply { fadeOut = duration }
+
+  /**
    * Holds the track off until [start] into the composition.
    */
   public fun startAt(start: Duration): TrackBuilder = apply { this.start = start }
@@ -196,7 +215,7 @@ public class TrackBuilder public constructor(
       clips = clips.toList(),
       content = content,
       effects = effects.toList(),
-      audio = audio,
+      audio = audio.withFades(fadeIn, if (looping) Duration.ZERO else fadeOut),
       start = start,
       looping = looping,
     )
@@ -212,6 +231,8 @@ public class ClipBuilder public constructor(
   private var trim: TimeRange? = null
   private val effects = mutableListOf<EffectSpec>()
   private var audio: AudioLevel = AudioLevel.Inherit
+  private var fadeIn: Duration = Duration.ZERO
+  private var fadeOut: Duration = Duration.ZERO
 
   /**
    * Keeps only `[start, endExclusive)` of the source.
@@ -248,9 +269,32 @@ public class ClipBuilder public constructor(
   public fun audio(level: AudioLevel): ClipBuilder = apply { audio = level }
 
   /**
+   * Ramps this clip's audio up from silence over [duration] from its first kept sample.
+   *
+   * The ramp rises to whatever [audio] set rather than past it, and composes with [fadeOut]. Where
+   * the two are written makes no difference, since both are folded in once the clip is built.
+   */
+  @ExperimentalFilmstripApi
+  public fun fadeIn(duration: Duration): ClipBuilder = apply { fadeIn = duration }
+
+  /**
+   * Ramps this clip's audio down to silence over the [duration] before its last kept sample.
+   *
+   * Measured against the trim, so retrimming the clip moves the fade with it.
+   */
+  @ExperimentalFilmstripApi
+  public fun fadeOut(duration: Duration): ClipBuilder = apply { fadeOut = duration }
+
+  /**
    * Freezes what has been described.
    */
-  public fun build(): Clip = Clip(source = source, trim = trim, effects = effects.toList(), audio = audio)
+  public fun build(): Clip =
+    Clip(
+      source = source,
+      trim = trim,
+      effects = effects.toList(),
+      audio = audio.withFades(fadeIn, fadeOut),
+    )
 }
 
 /**

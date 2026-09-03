@@ -25,3 +25,11 @@ public final class dev/jordond/filmstrip/test/TestFrame {
 	public final fun getSize ()Ldev/jordond/filmstrip/geometry/Size;
 }
 
+public final class dev/jordond/filmstrip/test/ToneAnalysis {
+	public static final field INSTANCE Ldev/jordond/filmstrip/test/ToneAnalysis;
+	public static final field MEASURED_GAIN_TOLERANCE F
+	public final fun amplitudeOf ([FII)F
+	public final fun amplitudeOver ([FIIII)F
+	public final fun toMono ([FI)[F
+}
+

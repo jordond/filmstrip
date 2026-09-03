@@ -3,7 +3,9 @@
 package dev.jordond.filmstrip.webcodecs.internal
 
 import dev.jordond.filmstrip.export.AudioFormat
+import dev.jordond.filmstrip.transform.internal.GainSegment
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.webcodecs.internal.BrowserAudioMix.PAD
 import kotlinx.coroutines.await
@@ -15,6 +17,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
+import kotlin.time.toDuration
 
 /**
  * Mixes every track's audio into buffers covering the composition timeline, a window at a time.
@@ -78,8 +81,8 @@ internal object BrowserAudioMix {
 
   /**
    * Schedules whatever of one clip falls inside the context covering `[contextStart, contextEnd)`,
-   * both in output seconds. A clip with no audio track, or a gain of zero, contributes nothing and
-   * is skipped.
+   * both in output seconds. A clip with no audio track, or a curve that is silent everywhere,
+   * contributes nothing and is skipped.
    */
   private suspend fun place(
     placed: Placed,
@@ -91,7 +94,7 @@ internal object BrowserAudioMix {
     looped: MutableMap<Int, AudioBuffer?>,
   ) {
     val clip = placed.clip
-    if (clip.gain <= 0f) return
+    if (clip.gain.peak <= 0f) return
 
     val offset = placed.offset.seconds()
     val period = clip.duration.seconds()
@@ -105,7 +108,8 @@ internal object BrowserAudioMix {
         looped[index] = decode(audioTrack, clip.start.seconds(), clip.end.seconds(), context)
       }
       val buffer = looped[index] ?: return
-      schedule(context, buffer, clip.gain, start - contextStart, looping = true, from = (start - offset) % period)
+      val curve = curveFor(clip.gain, start - offset, contextEnd - start, period, looping = true)
+      schedule(context, buffer, curve, start - contextStart, looping = true, from = (start - offset) % period)
       return
     }
 
@@ -113,12 +117,77 @@ internal object BrowserAudioMix {
     if (end <= start) return
     val trimStart = clip.start.seconds()
     val buffer = decode(audioTrack, trimStart + (start - offset), trimStart + (end - offset), context) ?: return
-    schedule(context, buffer, clip.gain, start - contextStart, looping = false)
+    val curve = curveFor(clip.gain, start - offset, end - start, period, looping = false)
+    schedule(context, buffer, curve, start - contextStart, looping = false)
   }
 
   /**
-   * Wires one decoded buffer into [context]: a gain node set to [gain], started at [offsetSeconds]
-   * on the context's timeline and playing from [from] seconds into the buffer.
+   * The stretch of [gain] one scheduled node is automated from, rebased so the curve's zero sits
+   * where that node starts.
+   *
+   * [elapsed] is how far into the clip the node opens and [length] how long it sounds, both in
+   * seconds. A constant comes back untouched, since a node scaling by one number needs no
+   * breakpoints at all. A looping node replays the clip and so replays the clip's curve, so every
+   * pass the node reaches is laid down end to end into one run of segments.
+   */
+  private fun curveFor(
+    gain: ResolvedGain,
+    elapsed: Double,
+    length: Double,
+    period: Double,
+    looping: Boolean,
+  ): ResolvedGain {
+    if (gain.isConstant) return gain
+    val from = elapsed.asDuration()
+    if (!looping) return gain.window(from, length.asDuration())
+    if (length <= 0.0) return ResolvedGain.constant(gain.gainAt(from), Duration.ZERO, Duration.ZERO)
+
+    val segments = mutableListOf<GainSegment>()
+    var at = 0.0
+    var into = elapsed % period
+    while (at < length) {
+      val span = minOf(length - at, period - into)
+      val shift = at.asDuration()
+      gain.window(into.asDuration(), span.asDuration()).segments.forEach { segment ->
+        segments += GainSegment(segment.start + shift, segment.end + shift, segment.startGain, segment.endGain)
+      }
+      at += span
+      into = 0.0
+    }
+    return ResolvedGain(segments)
+  }
+
+  /**
+   * Writes [curve] onto [param] as automation, with the curve's own zero landing at [atSeconds] on
+   * the context's clock.
+   *
+   * The first event pins the gain the curve already holds where it opens, which is what carries on
+   * a ramp the previous window left half way through rather than starting it over. A segment with
+   * no length is a step, so it is pinned rather than ramped to.
+   */
+  private fun automate(
+    param: AudioParam,
+    curve: ResolvedGain,
+    atSeconds: Double,
+  ) {
+    param.setValueAtTime(curve.gainAt(Duration.ZERO), atSeconds)
+    curve.segments.forEach { segment ->
+      val at = atSeconds + segment.end.seconds()
+      if (segment.start == segment.end) {
+        param.setValueAtTime(segment.endGain, at)
+      } else {
+        param.linearRampToValueAtTime(segment.endGain, at)
+      }
+    }
+  }
+
+  /**
+   * Wires one decoded buffer into [context]: a gain node carrying [gain], started at
+   * [offsetSeconds] on the context's timeline and playing from [from] seconds into the buffer.
+   *
+   * [gain] is read in the node's own time, so a curve handed here has already been rebased to where
+   * the node starts. A constant is one write on the parameter and a ramping curve is scheduled as
+   * automation against the context's clock.
    *
    * @param into Where the gain node feeds, which a live preview points at its own master gain so
    *   monitor volume reaches every clip at once.
@@ -127,14 +196,19 @@ internal object BrowserAudioMix {
   internal fun schedule(
     context: BaseAudioContext,
     buffer: AudioBuffer,
-    gain: Float,
+    gain: ResolvedGain,
     offsetSeconds: Double,
     looping: Boolean,
     from: Double = 0.0,
     into: AudioNode = context.destination,
   ): AudioBufferSourceNode {
     val gainNode = context.createGain()
-    gainNode.gain.value = gain
+    val constant = gain.constant
+    if (constant != null) {
+      gainNode.gain.value = constant
+    } else {
+      automate(gainNode.gain, gain, offsetSeconds)
+    }
     gainNode.connect(into)
 
     val source = context.createBufferSource()
@@ -221,7 +295,7 @@ internal object BrowserAudioMix {
     val reach = minOf(window + PAD, duration)
     val clips =
       placed(tracks)
-        .filter { it.clip.gain > 0f }
+        .filter { it.clip.gain.peak > 0f }
         .sumOf { placed ->
           val audio = placed.clip.info.audio ?: return@sumOf 0L
           val span = if (placed.looping) placed.clip.duration else minOf(placed.clip.duration, reach)
@@ -262,6 +336,8 @@ internal object BrowserAudioMix {
   private fun megabytes(bytes: Long): String = "${bytes / BYTES_PER_MEGABYTE} MB"
 
   internal fun Duration.seconds(): Double = toDouble(DurationUnit.SECONDS)
+
+  private fun Double.asDuration(): Duration = toDuration(DurationUnit.SECONDS)
 
   /**
    * One clip with the place on the output timeline its track puts it at.

@@ -2,11 +2,16 @@ package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.EnvelopePoint
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.Contrast
 import dev.jordond.filmstrip.effects.color.Saturation
@@ -26,6 +31,7 @@ import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.ffmpeg.internal.FFMPEG_ENCODERS
+import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPlanner
 import dev.jordond.filmstrip.ffmpeg.internal.ProcessRunner
 import dev.jordond.filmstrip.ffmpeg.internal.ToolchainLocator
 import dev.jordond.filmstrip.ffmpeg.internal.ToolchainResult
@@ -48,7 +54,11 @@ import dev.jordond.filmstrip.media.hlgSignalFromScene
 import dev.jordond.filmstrip.media.nitsFromPqSignal
 import dev.jordond.filmstrip.media.pqSignalFromNits
 import dev.jordond.filmstrip.media.sceneFromHlgSignal
+import dev.jordond.filmstrip.test.ToneAnalysis
 import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
+import dev.jordond.filmstrip.transform.internal.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import dev.jordond.filmstrip.transform.internal.curveOver
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -59,14 +69,20 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import kotlin.math.abs
+import kotlin.math.floor
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.DurationUnit
 
 /**
  * The end-to-end pass: real clips, a real ffmpeg, a real file, verified with ffprobe.
@@ -79,6 +95,7 @@ class FfmpegExportTest {
   private val landscape = File(fixtures, "export_landscape.mp4")
   private val portrait = File(fixtures, "export_portrait.mp4")
   private val long = File(fixtures, "export_long.mp4")
+  private val bed = File(fixtures, "tone_bed_880.mp4")
   private val hdr = File(fixtures, "export_hdr.mp4")
   private val hdrHlg = File(fixtures, "export_hdr_hlg.mp4")
 
@@ -922,6 +939,292 @@ class FfmpegExportTest {
       output.delete()
     }
 
+  // A ramping gain reaches ffmpeg as an expression rather than a number, so what has to be read
+  // back is the whole ramp. Every reading is compared against the same curve the graph was written
+  // from, at points inside the fade rather than only at its ends, since both ends read the same
+  // under a ramp that runs twice as fast as the one asked for.
+  @Test
+  fun `ramps a clip fade along the curve the plan resolved`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      assertRamps(AudioLevel.Envelope(listOf(EnvelopePoint(Duration.ZERO, 0f), EnvelopePoint(FADE, 1f))))
+    }
+
+  // A curve this long outruns what one volume node's expression can hold, so it reaches ffmpeg as a
+  // chain of them. Reading the ramp back is what proves the chain multiplies to the curve rather
+  // than to some coarser one, and that ffmpeg accepted every node in it.
+  @Test
+  fun `ramps a curve too long for one volume node along the same curve`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val points = (0..CHAINED_POINTS).map { EnvelopePoint(RAMP_STEP * it, it.toFloat() / CHAINED_POINTS) }
+      assertRamps(AudioLevel.Envelope(points))
+    }
+
+  /**
+   * Exports the fixture at [level] and reads the written audio back against the curve [level]
+   * resolves to.
+   *
+   * Every reading is a ratio against the same clip's level at [REFERENCE_AT], scaled by what the
+   * curve says the gain there was, so the fixture's own amplitude never enters the assertion.
+   */
+  private suspend fun assertRamps(level: AudioLevel) {
+    val source = MediaSource.of(landscape.absolutePath)
+    val length = assertIs<ProbeResult.Success>(filmstrip.probe(source)).info.duration
+    val output = File.createTempFile("filmstrip-ramp", ".mp4").also { it.delete() }
+    val composition = compositionOf { clip(source) { audio(level) } }
+
+    val finished = filmstrip.export(composition, ExportSpec(), MediaSink.of(output.absolutePath)).toList().last()
+    if (finished is ExportStatus.Failure) error(finished.error.message)
+    assertIs<ExportStatus.Success>(finished)
+
+    val curve = level.curveOver(length)
+    val samples = decodedAudio(output.absolutePath)
+    val reference = samples.levelAt(REFERENCE_AT) / curve.gainAt(REFERENCE_AT)
+
+    RAMP_READINGS.forEach { at ->
+      val expected = curve.gainAt(at)
+      val measured = samples.levelAt(at) / reference
+      assertTrue(
+        abs(measured - expected) <= ENVELOPE_DRIFT,
+        "at $at the ramp read $measured against $expected from the resolved curve",
+      )
+    }
+
+    output.delete()
+  }
+
+  /**
+   * The exported file's left channel, decoded by ffmpeg itself rather than by anything under test.
+   */
+  private fun decodedAudio(path: String): FloatArray {
+    val process =
+      ProcessBuilder(
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        path,
+        "-vn",
+        "-filter:a",
+        "aformat=sample_fmts=flt:sample_rates=$AUDIO_SAMPLE_RATE:channel_layouts=mono",
+        "-f",
+        "f32le",
+        "-",
+      ).redirectError(ProcessBuilder.Redirect.DISCARD).start()
+    val bytes = process.inputStream.readAllBytes()
+    process.waitFor()
+
+    val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+    return FloatArray(buffer.remaining()).also { buffer.get(it) }
+  }
+
+  /**
+   * The level around [at], as the root mean square of the window centred on it.
+   *
+   * Root mean square rather than a peak because the fixture's tone runs at 440 Hz, and a window
+   * short enough to follow a fade holds too few cycles for its largest sample to mean anything.
+   */
+  private fun FloatArray.levelAt(at: Duration): Float {
+    val centre = (at.toDouble(DurationUnit.SECONDS) * AUDIO_SAMPLE_RATE).toInt()
+    val half = ENVELOPE_WINDOW_SAMPLES / 2
+    val from = (centre - half).coerceIn(0, size)
+    val to = (centre + half).coerceIn(0, size)
+    assertTrue(to > from, "the export carried no samples around $at")
+    var sum = 0.0
+    for (index in from until to) sum += this[index].toDouble() * this[index]
+    return sqrt(sum / (to - from)).toFloat()
+  }
+
+  // A second track is a mix only once both sources reach the file at their own levels. The bed
+  // carries the one tone no other fixture does, so a reading at 880 Hz belongs to it and a reading
+  // at 440 Hz belongs to the primary, and neither is told apart by amplitude.
+  //
+  // Everything is asserted as a ratio of the two tones, because an AAC round trip attenuates the
+  // whole mix and an absolute level would be pinning the codec rather than the gain. The window in
+  // the middle sits past the bed's own length, so a bed that ignored startAt and a bed that played
+  // once instead of looping both fail there while reading correctly at the start.
+  @Test
+  fun `mixes a looping bed under the primary at the level the plan folded`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val primarySource = MediaSource.of(long.absolutePath)
+      val bedSource = MediaSource.of(bed.absolutePath)
+      val composition =
+        compositionOf {
+          clip(primarySource)
+          track(TrackContent.Audio) {
+            clip(bedSource)
+            audio(AudioLevel.Volume(BED_GAIN))
+            startAt(BED_START)
+            looping()
+          }
+        }
+      val spec = ExportSpec(targetHeight = 240)
+
+      val output = File.createTempFile("filmstrip-bed", ".mp4").also { it.delete() }
+      val finished = filmstrip.export(composition, spec, MediaSink.of(output.absolutePath)).toList().last()
+      if (finished is ExportStatus.Failure) error(finished.error.message)
+      assertIs<ExportStatus.Success>(finished)
+
+      val tracks = plannedTracks(composition, spec, listOf(primarySource, bedSource))
+      val primaryGain = tracks.first().onlyClip.gain
+      val bedGain = tracks.last().onlyClip.gain
+
+      // The bed's length comes from the curve the planner built over it, so where a loop pass falls
+      // is read off the plan rather than off the fixture's advertised duration.
+      val bedLength = bedGain.end - bedGain.start
+      val elapsed = MIXED_READING - BED_START
+      val passes = floor(elapsed / bedLength).toInt()
+      assertTrue(passes >= 1, "$MIXED_READING is only $passes passes into a $bedLength bed")
+      val withinBed = elapsed - bedLength * passes
+
+      val written = decodedAudio(output.absolutePath)
+      // The fixtures' own tones, so how loud either source was recorded divides out of the ratio.
+      val bedTone = decodedAudio(bed.absolutePath).toneAt(FIXTURE_READING, BED_HZ)
+      val primaryTone = decodedAudio(long.absolutePath).toneAt(FIXTURE_READING, PRIMARY_HZ)
+
+      val expected =
+        (bedTone / primaryTone) * (bedGain.gainAt(withinBed) / primaryGain.gainAt(MIXED_READING))
+      val measured = written.toneAt(MIXED_READING, BED_HZ) / written.toneAt(MIXED_READING, PRIMARY_HZ)
+      assertTrue(
+        abs(measured - expected) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
+        "at $MIXED_READING the bed read $measured against $expected from the folded gain",
+      )
+
+      // Before the track starts the bed contributes nothing, so its reading is held to the same
+      // tolerance every other one is, against a gain of zero.
+      val before = written.toneAt(QUIET_READING, BED_HZ) / written.toneAt(QUIET_READING, PRIMARY_HZ)
+      assertTrue(
+        before <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
+        "the bed read $before at $QUIET_READING, before it starts",
+      )
+
+      output.delete()
+    }
+
+  // The bed from the test above, ramped at both ends by the track builder's own fadeIn and fadeOut
+  // rather than by an envelope written out by hand. The track does not loop, because a looping one
+  // has no end for a fade out to anchor to and the builder drops it. What loops is covered next
+  // door, and what ramps is covered here.
+  //
+  // Volume sits under both fades, so the curve reaching the file is a constant multiplied by a ramp
+  // rather than either alone. Each reading is taken inside a ramp rather than at its ends, at a
+  // quarter and three quarters along, since the midpoint alone reads the same whether the fade ran
+  // forwards or backwards. The two fades are different lengths for the same reason.
+  @Test
+  fun `ramps a bed in and out along the fades the plan folded`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val primarySource = MediaSource.of(long.absolutePath)
+      val bedSource = MediaSource.of(bed.absolutePath)
+      val composition =
+        compositionOf {
+          clip(primarySource)
+          track(TrackContent.Audio) {
+            clip(bedSource)
+            audio(AudioLevel.Volume(BED_GAIN))
+            startAt(BED_START)
+            fadeIn(BED_FADE_IN)
+            fadeOut(BED_FADE_OUT)
+          }
+        }
+      val spec = ExportSpec(targetHeight = 240)
+
+      val output = File.createTempFile("filmstrip-fade", ".mp4").also { it.delete() }
+      val finished = filmstrip.export(composition, spec, MediaSink.of(output.absolutePath)).toList().last()
+      if (finished is ExportStatus.Failure) error(finished.error.message)
+      assertIs<ExportStatus.Success>(finished)
+
+      val tracks = plannedTracks(composition, spec, listOf(primarySource, bedSource))
+      val primaryGain = tracks.first().onlyClip.gain
+      val bedGain = tracks.last().onlyClip.gain
+      // Without this the fades could have been dropped before the plan and every reading below
+      // would agree with a flat curve, passing while proving nothing.
+      assertNull(bedGain.constant, "the folded bed gain never ramps, so there is no fade to read")
+
+      // Where the ramps sit is derived from the bed's own length as the planner resolved it, so the
+      // readings follow the fades rather than pinning instants that a different fixture would move.
+      val bedLength = bedGain.end - bedGain.start
+      val readings =
+        listOf(
+          BED_FADE_IN * 0.25,
+          BED_FADE_IN * 0.75,
+          (BED_FADE_IN + bedLength - BED_FADE_OUT) / 2,
+          bedLength - BED_FADE_OUT * 0.75,
+          bedLength - BED_FADE_OUT * 0.25,
+        )
+
+      val written = decodedAudio(output.absolutePath)
+      val bedTone = decodedAudio(bed.absolutePath).toneAt(FIXTURE_READING, BED_HZ)
+      val primaryTone = decodedAudio(long.absolutePath).toneAt(FIXTURE_READING, PRIMARY_HZ)
+
+      readings.forEach { withinBed ->
+        val at = BED_START + withinBed
+        val expected =
+          (bedTone / primaryTone) * (bedGain.gainAt(withinBed) / primaryGain.gainAt(at))
+        val measured = written.toneAt(at, BED_HZ) / written.toneAt(at, PRIMARY_HZ)
+        assertTrue(
+          abs(measured - expected) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
+          "at $withinBed into the bed it read $measured against $expected from the folded curve",
+        )
+      }
+
+      val before = written.toneAt(QUIET_READING, BED_HZ) / written.toneAt(QUIET_READING, PRIMARY_HZ)
+      assertTrue(
+        before <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
+        "the bed read $before at $QUIET_READING, before it starts",
+      )
+
+      output.delete()
+    }
+
+  /**
+   * The tracks the planner resolved for [composition], so a reading is measured against the gain the
+   * export ran rather than against a number written here.
+   */
+  private suspend fun plannedTracks(
+    composition: EditComposition,
+    spec: ExportSpec,
+    sources: List<MediaSource>,
+  ): List<ResolvedTrack> {
+    val located = ToolchainLocator(FfmpegConfig(), ProcessRunner()).toolchain()
+    val toolchain = assertIs<ToolchainResult.Available>(located).toolchain
+    val device = assertIs<CapabilitiesResult.Success>(filmstrip.capabilities()).capabilities
+    val infos = sources.associateWith { assertIs<ProbeResult.Success>(filmstrip.probe(it)).info }
+    val lowering = FfmpegPlanner(toolchain, listOf(BuiltInEffectResolver())).lower(composition, spec, device, infos)
+    return assertNotNull(lowering.export.composition).tracks
+  }
+
+  private val ResolvedTrack.onlyClip: ResolvedClip get() = clips.single()
+
+  /**
+   * How much of [frequencyHz] the window opening at [at] carries.
+   *
+   * Measured by the analysis every backend's mix test shares, so four readings of one bed cannot
+   * disagree about what they measured.
+   *
+   * The window is centred on [at] rather than opened there, because a reading taken across a ramp
+   * is the mean gain over the window and a linear ramp's mean sits at its middle. Anchoring the
+   * window's start instead would read a fade high by half the window's own rise.
+   */
+  private fun FloatArray.toneAt(
+    at: Duration,
+    frequencyHz: Int,
+  ): Float =
+    ToneAnalysis.amplitudeOver(
+      samples = this,
+      from = (at.toDouble(DurationUnit.SECONDS) * AUDIO_SAMPLE_RATE).toInt() - TONE_WINDOW_SAMPLES / 2,
+      length = TONE_WINDOW_SAMPLES,
+      frequencyHz = frequencyHz,
+      sampleRate = AUDIO_SAMPLE_RATE,
+    )
+
   // The probe looks for libvpx before allowing VP9. Nothing else in the pipeline is VP9-aware, so
   // the check is that a whole export survives it.
   @Test
@@ -1374,5 +1677,62 @@ class FfmpegExportTest {
     // SIGNAL_DRIFT's width in code values. A matrix answers per channel rather than as one signal,
     // so each channel is given the same band the halved signal gets.
     const val CHANNEL_DRIFT = (SIGNAL_DRIFT * FULL_SCALE).toInt()
+
+    // Half of the two-second fixture, so the curve still holds flat for a second afterwards.
+    val FADE = 1_000.milliseconds
+
+    // Where the ramp is read back. Quarters of the fade, so what is asserted is the middle of the
+    // range as much as its ends, and every one of them lands inside both curves under test.
+    val RAMP_READINGS = listOf(250.milliseconds, 500.milliseconds, 750.milliseconds, FADE)
+
+    // Where the reading every other one is scaled by comes from, clear of the fixture's own end.
+    val REFERENCE_AT = 1_500.milliseconds
+
+    // Enough pinned points to outrun what one volume node's expression carries, laid close enough
+    // together to stay inside the two-second fixture.
+    const val CHAINED_POINTS = 120
+    val RAMP_STEP = 16.milliseconds
+
+    // The rate the readback decodes to, which is also the rate every fixture carries.
+    const val AUDIO_SAMPLE_RATE = 48_000
+
+    // Twenty milliseconds, more than eight cycles of the fixture's own 440 Hz tone. Long enough for
+    // the root mean square to settle and short enough that the curve barely moves across it.
+    const val ENVELOPE_WINDOW_SAMPLES = AUDIO_SAMPLE_RATE / 50
+
+    // How far a reading of the ramp may sit from the curve. What this separates is a fade of the
+    // wrong length or shape, which misses by a quarter of full scale at the points asserted.
+    const val ENVELOPE_DRIFT = 0.03f
+
+    // The bed's tone and the one every other fixture carries. Two frequencies rather than one is
+    // what lets a reading of the mix say which source it belongs to.
+    const val BED_HZ = 880
+    const val PRIMARY_HZ = 440
+
+    // Half, so a bed that reached the file untouched reads twice what the plan folded.
+    const val BED_GAIN = 0.5f
+
+    // Late enough to leave a stretch of the timeline with no bed on it, and early enough that the
+    // three second bed is laid down again before the middle of the twelve second primary.
+    val BED_START = 1_000.milliseconds
+
+    // Long enough that a measurement window sits well inside either ramp with room to spare, and
+    // different from each other so a fade in swapped for a fade out is not the same curve twice.
+    // Together they leave the three second bed a stretch at full level between them.
+    val BED_FADE_IN = 1_200.milliseconds
+    val BED_FADE_OUT = 900.milliseconds
+
+    // Before the bed starts, where the mix carries the primary alone.
+    val QUIET_READING = 500.milliseconds
+
+    // The middle of the timeline, which by then is a loop pass past the bed's own end.
+    val MIXED_READING = 5_500.milliseconds
+
+    // Where a fixture's own tone is read, clear of both its ends.
+    val FIXTURE_READING = 1_000.milliseconds
+
+    // A hundred milliseconds, eighty-eight cycles of the bed's tone. Long enough for the two
+    // frequencies to separate cleanly and short enough to sit inside one loop pass.
+    const val TONE_WINDOW_SAMPLES = AUDIO_SAMPLE_RATE / 10
   }
 }

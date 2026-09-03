@@ -581,10 +581,29 @@ internal external interface AudioNode : JsAny {
 }
 
 /**
- * A parameter a node exposes for automation, read here only for its current value.
+ * A parameter a node exposes for automation, either written outright or scheduled against the
+ * context's own clock.
  */
 internal external interface AudioParam : JsAny {
   var value: Float
+
+  /**
+   * Holds the parameter at [value] from [atSeconds], which is also the value a ramp scheduled after
+   * it starts from.
+   */
+  fun setValueAtTime(
+    value: Float,
+    atSeconds: Double,
+  ): AudioParam
+
+  /**
+   * Moves the parameter in a straight line from whatever the previous event left it at, arriving at
+   * [value] at [atSeconds].
+   */
+  fun linearRampToValueAtTime(
+    value: Float,
+    atSeconds: Double,
+  ): AudioParam
 }
 
 /**

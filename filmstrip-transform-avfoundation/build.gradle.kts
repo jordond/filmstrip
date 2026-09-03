@@ -28,6 +28,9 @@ val appleFixtures =
     specs =
       listOf(
         FixtureSpec("apple_export_a", 640, 360, 30, 2.0, 48000, 2, bitrateKbps = 1_500),
+        // A bed to mix under the others. Its tone is the one frequency no other fixture carries,
+        // so a test measuring the mix can say which source a level belongs to.
+        FixtureSpec("tone_bed_880", 320, 240, 30, 3.0, 48000, 2, bitrateKbps = 500, toneHz = 880),
         FixtureSpec("apple_export_b", 480, 270, 30, 2.0, 48000, 2, bitrateKbps = 1_000, hue = 120),
         FixtureSpec("apple_export_portrait", 360, 640, 30, 2.0, 48000, 2, bitrateKbps = 1_500, hue = 240),
         FixtureSpec("apple_export_long", 1280, 720, 30, 12.0, 48000, 2, bitrateKbps = 6_000),

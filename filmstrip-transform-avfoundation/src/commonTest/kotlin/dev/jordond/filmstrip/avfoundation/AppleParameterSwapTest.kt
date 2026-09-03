@@ -26,6 +26,7 @@ import dev.jordond.filmstrip.test.assertFramesDiffer
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedEffect
+import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -220,7 +221,7 @@ class AppleParameterSwapTest {
       start = Duration.ZERO,
       end = end,
       effects = effects,
-      gain = 1f,
+      gain = ResolvedGain.constant(1f, Duration.ZERO, end),
       startsAtKeyFrame = false,
       span = TimeRange.of(Duration.ZERO, end),
     )
