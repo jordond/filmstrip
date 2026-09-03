@@ -75,16 +75,15 @@ internal class AppleLoweringFailure(
  * @property still The image every frame of this span draws, or null when the clip is video and what
  *   AVFoundation decoded is already the picture.
  */
-@InternalFilmstripApi
-public class ClipSpan(
-  public val start: Duration,
-  public val end: Duration,
-  public val rotationDegrees: Int,
-  public val attributes: Attributes,
-  public val effects: List<ResolvedEffect>,
-  public val still: ImageSource? = null,
+internal class ClipSpan(
+  val start: Duration,
+  val end: Duration,
+  val rotationDegrees: Int,
+  val attributes: Attributes,
+  val effects: List<ResolvedEffect>,
+  val still: ImageSource? = null,
 ) {
-  public fun covers(time: Duration): Boolean = time in start..<end
+  fun covers(time: Duration): Boolean = time in start..<end
 }
 
 /**
@@ -97,7 +96,7 @@ public class ClipSpan(
  *   asked for.
  */
 @InternalFilmstripApi
-public class AvComposition(
+public class AvComposition internal constructor(
   public val composition: AVMutableComposition,
   public val videoComposition: AVMutableVideoComposition?,
   public val audioMix: AVMutableAudioMix?,
@@ -112,7 +111,7 @@ public class AvComposition(
    * Read off the chain wherever there is one, so a parameter swap shows here rather than leaving
    * this describing an edit that stopped rendering.
    */
-  public val spans: List<ClipSpan> get() = chain?.spans ?: laidSpans
+  internal val spans: List<ClipSpan> get() = chain?.spans ?: laidSpans
 
   /**
    * What the filter handler could not draw, or null when every frame went through.

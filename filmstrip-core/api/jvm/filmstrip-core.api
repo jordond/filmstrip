@@ -1804,7 +1804,6 @@ public final class dev/jordond/filmstrip/media/MediaSource$Uri$Companion {
 }
 
 public final class dev/jordond/filmstrip/media/PlatformImage : java/lang/AutoCloseable {
-	public fun <init> (Ljava/awt/image/BufferedImage;)V
 	public final fun asBufferedImage ()Ljava/awt/image/BufferedImage;
 	public fun close ()V
 	public final fun getHeightPx ()I

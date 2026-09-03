@@ -1,7 +1,5 @@
 package dev.jordond.filmstrip.effect
 
-import dev.jordond.filmstrip.InternalFilmstripApi
-
 /**
  * The Android form, holding an `androidx.media3.common.Effect` as an untyped handle.
  *
@@ -11,5 +9,5 @@ import dev.jordond.filmstrip.InternalFilmstripApi
  * @property handle The media3 `Effect` this wraps.
  */
 public actual class PlatformEffect(
-  @property:InternalFilmstripApi public val handle: Any,
+  public val handle: Any,
 )

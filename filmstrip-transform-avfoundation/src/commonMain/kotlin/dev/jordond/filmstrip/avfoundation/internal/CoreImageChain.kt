@@ -65,7 +65,7 @@ import kotlin.time.Duration
  */
 @InternalFilmstripApi
 @OptIn(ExperimentalForeignApi::class)
-public class CoreImageChain(
+public class CoreImageChain internal constructor(
   resolved: ResolvedComposition,
   spans: List<ClipSpan>,
   encodesHdr: Boolean,
@@ -91,7 +91,7 @@ public class CoreImageChain(
   /**
    * Where each clip sits on the timeline, and what it draws, as of the last swap.
    */
-  public val spans: List<ClipSpan> get() = snapshot.spans
+  internal val spans: List<ClipSpan> get() = snapshot.spans
 
   /**
    * Built once and reused for every frame, or null when this process cannot build one at all.

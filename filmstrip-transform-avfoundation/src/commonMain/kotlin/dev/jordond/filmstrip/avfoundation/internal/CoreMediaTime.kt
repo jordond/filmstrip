@@ -18,8 +18,7 @@ import kotlin.time.Duration.Companion.seconds
  * on a whole tick instead of being rounded onto one. Mixing timescales inside one composition is
  * what makes clip spans fail to tile, so there is exactly one.
  */
-@InternalFilmstripApi
-public const val MEDIA_TIMESCALE: Int = 600
+internal const val MEDIA_TIMESCALE: Int = 600
 
 /**
  * This duration as a [CMTime] at [MEDIA_TIMESCALE].

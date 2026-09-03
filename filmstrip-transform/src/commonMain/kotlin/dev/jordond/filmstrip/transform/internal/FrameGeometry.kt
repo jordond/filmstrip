@@ -65,8 +65,7 @@ public fun frameAfter(
  * stages separately rather than sorting every spec together is what keeps this the frame a backend
  * actually draws against.
  */
-@InternalFilmstripApi
-public fun frameThrough(
+internal fun frameThrough(
   sourceSize: Size,
   stages: List<List<EffectSpec>>,
 ): Size = stages.flatMap { it.inCanonicalOrder() }.fold(sourceSize) { size, spec -> frameAfter(spec, size) }

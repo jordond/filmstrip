@@ -637,6 +637,7 @@ public final class dev/jordond/filmstrip/effect/EffectStage : java/lang/Enum {
 
 public final class dev/jordond/filmstrip/effect/PlatformEffect {
 	public fun <init> (Ljava/lang/Object;)V
+	public final fun getHandle ()Ljava/lang/Object;
 }
 
 public final class dev/jordond/filmstrip/effect/RenderApi : java/lang/Enum {
@@ -1760,7 +1761,6 @@ public final class dev/jordond/filmstrip/media/MediaSource$Uri$Companion {
 }
 
 public final class dev/jordond/filmstrip/media/PlatformImage : java/lang/AutoCloseable {
-	public fun <init> (Landroid/graphics/Bitmap;)V
 	public final fun asBitmap ()Landroid/graphics/Bitmap;
 	public fun close ()V
 	public final fun getHeightPx ()I

@@ -269,8 +269,7 @@ public fun colorMatrixOfColumnMajor4x4OrNull(columns: FloatArray): ColorMatrix? 
  *
  * @param columns Sixteen floats, column-major, as [toColumnMajor4x4] lays them out.
  */
-@InternalFilmstripApi
-public fun colorMatrixOfColumnMajor4x4(columns: FloatArray): ColorMatrix {
+internal fun colorMatrixOfColumnMajor4x4(columns: FloatArray): ColorMatrix {
   require(columns.size == MAT4_SIZE) { "A mat4 holds $MAT4_SIZE floats, not ${columns.size}." }
 
   return ColorMatrix(

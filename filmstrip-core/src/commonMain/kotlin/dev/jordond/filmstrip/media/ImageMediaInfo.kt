@@ -72,8 +72,7 @@ public fun imageMediaInfoOf(
  * carries no mirror, so a mirrored orientation reports the turn it shares with its unmirrored twin.
  * A value outside the range reads as no rotation.
  */
-@InternalFilmstripApi
-public fun imageRotationOf(exifOrientation: Int): Int =
+internal fun imageRotationOf(exifOrientation: Int): Int =
   when (exifOrientation) {
     EXIF_ORIENTATION_NORMAL, ORIENTATION_FLIP_HORIZONTAL -> 0
     ORIENTATION_ROTATE_180, ORIENTATION_FLIP_VERTICAL -> HALF_TURN

@@ -191,8 +191,7 @@ public fun sdrSignalFromHlgScene(scene: Float): Float = sdrSignalFromNits(hlgDis
  * Decodes an SDR [signal] back to one channel of HLG scene light, the inverse of
  * [sdrSignalFromHlgScene].
  */
-@InternalFilmstripApi
-public fun hlgSceneFromSdrSignal(signal: Float): Float = hlgSceneFromDisplayNits(nitsFromSdrSignal(signal))
+internal fun hlgSceneFromSdrSignal(signal: Float): Float = hlgSceneFromDisplayNits(nitsFromSdrSignal(signal))
 
 /**
  * Encodes [nits] of linear light as a PQ signal, in the range zero to one.
