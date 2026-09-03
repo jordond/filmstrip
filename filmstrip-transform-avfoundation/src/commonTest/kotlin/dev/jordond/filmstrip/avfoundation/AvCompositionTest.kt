@@ -117,7 +117,8 @@ class AvCompositionTest {
     val first = fixture("apple_export_a.mp4") ?: return
     val gain = ResolvedGain.constant(0.5f, Duration.ZERO, 500.milliseconds)
 
-    val composition = resolved(listOf(clip(first, Size(640, 360), Duration.ZERO, 500.milliseconds, gain)), 500.milliseconds)
+    val composition =
+      resolved(listOf(clip(first, Size(640, 360), Duration.ZERO, 500.milliseconds, gain)), 500.milliseconds)
 
     val ramp = composition.soleAudioParameters()?.rampAt(Duration.ZERO) ?: error("expected a volume at time zero")
     ramp.start shouldBe 0.5f
@@ -177,7 +178,8 @@ class AvCompositionTest {
         ),
       )
 
-    val composition = resolved(listOf(clip(first, Size(640, 360), Duration.ZERO, 1_000.milliseconds, step)), 1_000.milliseconds)
+    val composition =
+      resolved(listOf(clip(first, Size(640, 360), Duration.ZERO, 1_000.milliseconds, step)), 1_000.milliseconds)
     val parameters = composition.soleAudioParameters() ?: error("expected an audio mix")
 
     parameters.rampAt(200.milliseconds)?.start shouldBe 1f
