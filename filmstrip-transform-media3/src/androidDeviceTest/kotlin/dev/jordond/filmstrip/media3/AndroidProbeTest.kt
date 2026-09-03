@@ -4,6 +4,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.media.CodecKind
 import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.FormatHint
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
@@ -82,6 +83,42 @@ class AndroidProbeTest {
 
       assertEquals(8, video.bitDepth, "H.264 High is eight bit")
     }
+
+  @Test
+  fun readsABufferTheSameWayItReadsTheFileItCameFrom() =
+    runTest(timeout = TIMEOUT) {
+      val bytes = bytesOf(CLIP_A) ?: return@runTest
+      val fromFile = probe(CLIP_A) ?: return@runTest
+
+      val fromBytes =
+        assertIs<ProbeResult.Success>(
+          filmstrip.probe(MediaSource.ofBytes(bytes, FormatHint.Mp4)),
+        ).info
+
+      // The buffer is written to the cache and probed as the file it landed on, so the two readings
+      // are of the same container and every field has to agree.
+      assertEquals(fromFile.duration, fromBytes.duration, "duration")
+      assertEquals(fromFile.video?.codec?.kind, fromBytes.video?.codec?.kind, "video codec")
+      assertEquals(fromFile.video?.displaySize, fromBytes.video?.displaySize, "frame")
+      assertEquals(fromFile.video?.frameRate, fromBytes.video?.frameRate, "frame rate")
+      assertEquals(fromFile.audio?.codec?.kind, fromBytes.audio?.codec?.kind, "audio codec")
+      assertEquals(fromFile.audio?.sampleRate, fromBytes.audio?.sampleRate, "sample rate")
+    }
+
+  @Test
+  fun readsAnUnhintedBufferBySniffingIt() =
+    runTest(timeout = TIMEOUT) {
+      val bytes = bytesOf(CLIP_A) ?: return@runTest
+
+      // Nothing names the container, so the file is written under a name that claims nothing and
+      // the retriever has to work it out from the bytes.
+      val info = assertIs<ProbeResult.Success>(filmstrip.probe(MediaSource.ofBytes(bytes))).info
+
+      assertEquals(CodecKind.H264, assertNotNull(info.video, "no video track").codec.kind)
+    }
+
+  private fun bytesOf(name: String): ByteArray? =
+    javaClass.classLoader?.getResourceAsStream(name)?.use { it.readBytes() }
 
   private suspend fun probe(name: String): MediaInfo? {
     val stream = javaClass.classLoader?.getResourceAsStream(name) ?: return null

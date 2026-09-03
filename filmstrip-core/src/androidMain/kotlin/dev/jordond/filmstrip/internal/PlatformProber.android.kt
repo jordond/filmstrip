@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.media.probeImage
 import dev.jordond.filmstrip.media.trackCodecOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.io.IOException
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -49,17 +50,56 @@ internal actual class PlatformProber actual constructor() {
           source.readContainer { setDataSource(android, Uri.parse(source.uri)) }
         }
       }
+      // The retriever opens a path, so the buffer is written to the cache and probed as the file it
+      // landed on. The export that follows finds the same file rather than writing its own.
       is MediaSource.Bytes -> {
-        ProbeResult.Failure(
-          ExportError.SourceUnreadable(
-            source = "bytes",
-            message =
-              "In-memory sources are written to a temporary file before probing, " +
-                "which is not implemented yet.",
-          ),
-        )
+        when (val cached = source.cached()) {
+          is Cached.Failed -> ProbeResult.Failure(cached.error)
+          is Cached.Written -> probe(MediaSource.Path(cached.file.path))
+        }
       }
     }
+
+  /**
+   * Writes this source's bytes to the cache, or says why they could not be written.
+   */
+  private suspend fun MediaSource.Bytes.cached(): Cached =
+    withContext(Dispatchers.IO) {
+      val context =
+        FilmstripContext.get()
+          ?: return@withContext Cached.Failed(
+            ExportError.SourceUnreadable(source = describe(), message = FilmstripContext.MISSING_CONTEXT),
+          )
+
+      try {
+        Cached.Written(AndroidScratch.fileFor(context, this@cached))
+      } catch (failure: IOException) {
+        Cached.Failed(unwritable(failure.message))
+      } catch (denied: SecurityException) {
+        Cached.Failed(unwritable(denied.message))
+      }
+    }
+
+  private fun MediaSource.Bytes.unwritable(reason: String?): ExportError.SourceUnreadable =
+    ExportError.SourceUnreadable(
+      source = describe(),
+      message =
+        "An in-memory source is written to a temporary file before probing, and it could not " +
+          "be written: $reason",
+    )
+
+  /**
+   * Where an in-memory source landed, or why it did not land anywhere.
+   */
+  private sealed interface Cached {
+    class Written(
+      val file: File,
+    ) : Cached
+
+    class Failed(
+      val error: ExportError.SourceUnreadable,
+    ) : Cached
+  }
 
   /**
    * Reads this source once [open] has pointed a retriever at it.
@@ -95,7 +135,8 @@ internal actual class PlatformProber actual constructor() {
       when (this) {
         is MediaSource.Path -> extractor.setDataSource(path)
         is MediaSource.Uri -> extractor.setDataSource(FilmstripContext.get() ?: return null, Uri.parse(uri), null)
-        // Neither names a container the extractor can open.
+        // A still names no container, and bytes reach the extractor as the path they were cached
+        // to rather than as themselves.
         is MediaSource.Bytes, is MediaSource.Image -> return null
       }
       extractor.readTracks()

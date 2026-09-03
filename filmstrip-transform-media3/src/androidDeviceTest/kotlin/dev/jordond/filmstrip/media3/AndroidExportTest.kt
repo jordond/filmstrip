@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.media.FormatHint
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
@@ -468,6 +469,22 @@ class AndroidExportTest {
     assertTrue(primary > tones.primary * AUDIBLE, "the primary reads $primary at $at, so nothing was decoded there")
     return bed / primary * primaryGain * (tones.primary / tones.bed)
   }
+
+  @Test
+  fun exportsAClipHandedOverAsBytes() =
+    runTest(timeout = TIMEOUT) {
+      val file = fixtureFile(CLIP_A) ?: return@runTest
+      val source = MediaSource.ofBytes(file.readBytes(), FormatHint.Mp4)
+
+      // Both the probe and the lowering need this as a file, and both reach it through the same
+      // cache, so a buffer that plans is a buffer that encodes.
+      val info = export(capablePlan(composition(source), ExportSpec()))
+
+      info.duration shouldBeCloseTo assertNotNull(probeOf(file)).duration
+    }
+
+  private suspend fun probeOf(file: File): MediaInfo? =
+    (filmstrip.probe(MediaSource.of(file.path)) as? ProbeResult.Success)?.info
 
   private suspend fun exportedFile(plan: ExportPlan): File {
     val statuses = withContext(Dispatchers.Default) { filmstrip.export(plan, MediaSink.temporary()).toList() }

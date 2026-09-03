@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.media3.internal
 
+import android.content.Context
 import android.net.Uri
 import androidx.media3.common.C
 import androidx.media3.common.Effect
@@ -28,7 +29,7 @@ import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.media.FormatHint
+import dev.jordond.filmstrip.internal.AndroidScratch
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
@@ -549,7 +550,9 @@ private fun MediaSource.toAndroidUri(): Uri =
       Uri.parse(uri)
     }
     is MediaSource.Bytes -> {
-      cached(bytes, hint.extension())
+      // The probe already wrote this to the cache under a name taken from the bytes themselves, so
+      // this finds the file rather than writing a second copy of it.
+      cached { context -> AndroidScratch.fileFor(context, this) }
     }
     is MediaSource.Image -> {
       // Lowered by toImageItem, which reaches the still through ImageSource.toAndroidUri instead.
@@ -578,17 +581,14 @@ private fun ImageSource.toAndroidUri(format: String?): Uri =
             "A still handed over as bytes is written to a temporary file before it is encoded, " +
               "and nothing that read it named the format to write it under.",
           )
-      cached(bytes, extension)
+      cached { context -> AndroidScratch.fileFor(context, bytes, extension) }
     }
   }
 
 /**
- * The URI of [bytes] written into the cache under [extension].
+ * The URI of the file [write] put the bytes in.
  */
-private fun cached(
-  bytes: ByteArray,
-  extension: String,
-): Uri {
+private fun cached(write: (Context) -> File): Uri {
   val context =
     FilmstripContext.get()
       ?: throw Media3LoweringFailure(
@@ -597,28 +597,13 @@ private fun cached(
       )
 
   return try {
-    Uri.fromFile(Media3Scratch.fileFor(context, bytes, extension))
+    Uri.fromFile(write(context))
   } catch (failure: IOException) {
     throw Media3LoweringFailure("An in-memory source could not be written to a temporary file: ${failure.message}")
   } catch (denied: SecurityException) {
     throw Media3LoweringFailure("An in-memory source could not be written to a temporary file: ${denied.message}")
   }
 }
-
-/**
- * The extension a buffer with this hint is cached under.
- *
- * media3 sniffs a container rather than trusting the name, so an unhinted buffer is written under a
- * name that claims nothing.
- */
-private fun FormatHint?.extension(): String =
-  when (this) {
-    FormatHint.Mp4 -> "mp4"
-    FormatHint.Mov -> "mov"
-    FormatHint.M4a -> "m4a"
-    FormatHint.ThreeGp -> "3gp"
-    null -> "tmp"
-  }
 
 private const val CHANNEL_COUNT = 2
 private val INPUT_CHANNEL_COUNTS = listOf(1, 2)
