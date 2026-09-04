@@ -7,6 +7,8 @@ plugins {
 
 androidDeviceTests()
 
+// The action body is inlined rather than calling a function declared in this script, since a
+// reference to the script object is one of the things the configuration cache cannot serialize.
 val generateVersionFile =
   tasks.register("generateVersionFile") {
     description = "Create a object containing the version for diagnostics"
@@ -17,7 +19,25 @@ val generateVersionFile =
     outputs.dir(output)
 
     doLast {
-      createVersionFile(output, version)
+      val name = version.get()
+      val file = output.get().asFile.resolve("dev/jordond/filmstrip/FilmstripVersion.kt")
+      file.parentFile.mkdirs()
+      file.writeText(
+        """
+        package dev.jordond.filmstrip
+
+        /**
+         * The version of filmstrip this build was compiled from.
+         */
+        public object FilmstripVersion {
+          /**
+           * The published version, or the snapshot name on a build that is not a release.
+           */
+          public val name: String = "$name"
+        }
+
+        """.trimIndent(),
+      )
     }
   }
 
@@ -48,28 +68,4 @@ kotlin {
       }
     }
   }
-}
-
-private fun createVersionFile(
-  output: Provider<Directory>,
-  version: Provider<String>,
-) {
-  val file = output.get().asFile.resolve("dev/jordond/filmstrip/FilmstripVersion.kt")
-  file.parentFile.mkdirs()
-  file.writeText(
-    """
-    package dev.jordond.filmstrip
-
-    /**
-     * The version of filmstrip this build was compiled from.
-     */
-    public object FilmstripVersion {
-      /**
-       * The published version, or the snapshot name on a build that is not a release.
-       */
-      public val name: String = "${version.get()}"
-    }
-
-    """.trimIndent(),
-  )
 }
