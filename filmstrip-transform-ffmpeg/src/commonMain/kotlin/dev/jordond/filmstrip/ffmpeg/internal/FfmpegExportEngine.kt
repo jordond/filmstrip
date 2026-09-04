@@ -28,6 +28,8 @@ import dev.jordond.filmstrip.media.audioCodecOf
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.videoCodecOf
 import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
+import dev.jordond.filmstrip.transform.internal.HDR_PROBE_SIZE
+import dev.jordond.filmstrip.transform.internal.RESOLUTION_LADDER
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.copyOpenings
 import dev.jordond.filmstrip.transform.internal.refusal
@@ -383,9 +385,7 @@ public class FfmpegExportEngine internal constructor(
       // ranked encoder for it, so probing a different one would claim a grade this backend goes on
       // to hand to an encoder that cannot write it.
       //
-      // Probed at the smallest resolution rung, since this answers a format question rather than a
-      // size one: an encoder that lands Main10 at 720p is trusted to land it at whatever size the
-      // plan asks for, and probing every rung would cost another 8K encode for nothing.
+      // Probed at HDR_PROBE_SIZE, the one rung every backend asks this at.
       val hdrEncoder =
         DEFAULT_HDR_LADDER
           .firstNotNullOfOrNull { codec -> video.firstOrNull { it.codec == codec } }
@@ -393,7 +393,7 @@ public class FfmpegExportEngine internal constructor(
           ?.let { name -> FFMPEG_ENCODERS.values.flatten().firstOrNull { it.name == name } }
       val supportsHdrEncoding =
         hdrEncoder?.hdrPixelFormat?.let { pixelFormat ->
-          canEncode(toolchain, hdrEncoder, RESOLUTION_LADDER.last(), pixelFormat, hdrEncoder.hdrProfile)
+          canEncode(toolchain, hdrEncoder, HDR_PROBE_SIZE, pixelFormat, hdrEncoder.hdrProfile)
         } ?: false
 
       DeviceCapabilities(
@@ -532,9 +532,6 @@ public class FfmpegExportEngine internal constructor(
     const val FRAME_RATE_TOLERANCE = 0.5f
 
     val SAMPLE_RATES = listOf(8_000, 16_000, 22_050, 24_000, 32_000, 44_100, 48_000, 96_000)
-
-    val RESOLUTION_LADDER =
-      listOf(Size(7680, 4320), Size(3840, 2160), Size(1920, 1080), Size(1280, 720))
 
     const val UNREADABLE = "ffprobe could not read the source."
 

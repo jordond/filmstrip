@@ -6,6 +6,8 @@ import dev.jordond.filmstrip.capability.VideoEncoderCapability
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.transform.internal.HDR_PROBE_SIZE
+import dev.jordond.filmstrip.transform.internal.RESOLUTION_LADDER
 import kotlinx.coroutines.await
 
 /**
@@ -138,20 +140,11 @@ internal suspend fun encoderSupports(
 /**
  * Whether this browser encodes the VP9 Profile 2 an HDR export is pinned to.
  *
- * Asked at the smallest rung, so a browser that takes the profile at all answers yes. This is half
+ * Asked at [HDR_PROBE_SIZE], so a browser that takes the profile at all answers yes. This is half
  * of what [DeviceCapabilities.supportsHdrEncoding] rests on, and it is a function rather than a
  * figure so a test can ask the same question rather than rebuilding the config from copies of it.
  */
-internal suspend fun browserEncodesHdrVp9(): Boolean = encoderSupports(HDR_VP9_CODEC, RESOLUTION_LADDER.last())
-
-// Probed largest first, since the probe stops at the first size that succeeds.
-private val RESOLUTION_LADDER =
-  listOf(
-    Size(3840, 2160),
-    Size(1920, 1080),
-    Size(1280, 720),
-    Size(640, 480),
-  )
+internal suspend fun browserEncodesHdrVp9(): Boolean = encoderSupports(HDR_VP9_CODEC, HDR_PROBE_SIZE)
 
 private const val PROBE_BITRATE = 8_000_000
 private const val PROBE_FRAME_RATE = 30

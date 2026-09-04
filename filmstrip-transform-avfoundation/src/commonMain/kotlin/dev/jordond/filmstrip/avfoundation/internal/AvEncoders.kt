@@ -13,6 +13,8 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
+import dev.jordond.filmstrip.transform.internal.HDR_PROBE_SIZE
+import dev.jordond.filmstrip.transform.internal.RESOLUTION_LADDER
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.COpaquePointerVar
 import kotlinx.cinterop.CPointed
@@ -480,18 +482,16 @@ internal fun hdrProbeCodecType(video: List<VideoEncoderCapability>): UInt? {
 }
 
 /**
- * Opens a compression session for [codecType] at HEVC's Main10 profile, at the smallest rung of
- * [RESOLUTION_LADDER], and reports whether it opened.
+ * Opens a compression session for [codecType] at HEVC's Main10 profile, at [HDR_PROBE_SIZE], and
+ * reports whether it opened.
  *
  * The source pixel buffer attributes ask for a ten-bit format too, so the session is genuinely
  * asked to carry ten bits rather than merely tagged with a profile it is free to ignore. Nothing is
  * encoded through the session, and it is invalidated and released on every path before
  * returning.
  *
- * The attributes are built as an `NSMutableDictionary` rather than as a Kotlin map bridged across.
- * iOS runs the encoder out of process and answers 3840 to a bridged map holding anything at all,
- * BGRA and eight-bit included, so the probe reads a device with a Main10 encoder as having none.
- * macOS keeps the encoder in process and takes either.
+ * The attributes come from [tenBitSourceAttributes] rather than from a Kotlin map, which iOS reads
+ * as carrying nothing.
  *
  * `kVTProfileLevel_HEVC_Main10_AutoLevel` is HEVC's own limit, not a filmstrip choice, so it is the
  * one constant this probe hardcodes.
@@ -503,7 +503,7 @@ private fun opensMain10Session(codecType: UInt): Boolean {
   return try {
     memScoped {
       val session = alloc<VTCompressionSessionRefVar>()
-      val size = RESOLUTION_LADDER.last()
+      val size = HDR_PROBE_SIZE
       val status =
         VTCompressionSessionCreate(
           allocator = null,
@@ -567,14 +567,6 @@ private fun tenBitSourceAttributes(): CFDictionaryRef? =
 
 @Suppress("UNCHECKED_CAST")
 private fun Map<*, *>?.orEmptyMap(): Map<Any?, Any?> = this as? Map<Any?, Any?> ?: emptyMap()
-
-private val RESOLUTION_LADDER =
-  listOf(
-    Size(3840, 2160),
-    Size(1920, 1080),
-    Size(1280, 720),
-    Size(640, 480),
-  )
 
 private val VIDEO_CODEC_TYPES: Map<VideoCodec, UInt> =
   mapOf(
