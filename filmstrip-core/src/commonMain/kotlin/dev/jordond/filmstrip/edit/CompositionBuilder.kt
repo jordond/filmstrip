@@ -233,6 +233,7 @@ public class ClipBuilder public constructor(
   private var audio: AudioLevel = AudioLevel.Inherit
   private var fadeIn: Duration = Duration.ZERO
   private var fadeOut: Duration = Duration.ZERO
+  private var snapWithin: Duration = Duration.ZERO
 
   /**
    * Keeps only `[start, endExclusive)` of the source.
@@ -251,6 +252,14 @@ public class ClipBuilder public constructor(
    * Keeps only [range] of the source, treating its end as exclusive.
    */
   public fun trim(range: ClosedRange<Duration>): ClipBuilder = apply { trim = TimeRange(range) }
+
+  /**
+   * Lets the cut move back up to [duration] to reach a sync sample, so a trimmed export can copy
+   * its streams rather than re-encode them.
+   *
+   * Zero, the default, keeps the cut where [trim] put it.
+   */
+  public fun snapWithin(duration: Duration): ClipBuilder = apply { snapWithin = duration }
 
   /**
    * Adds effects that apply to this clip only, before any track or composition effect.
@@ -294,6 +303,7 @@ public class ClipBuilder public constructor(
       trim = trim,
       effects = effects.toList(),
       audio = audio.withFades(fadeIn, fadeOut),
+      snapWithin = snapWithin,
     )
 }
 

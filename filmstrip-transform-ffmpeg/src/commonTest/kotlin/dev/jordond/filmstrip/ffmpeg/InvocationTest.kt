@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
+import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
@@ -205,6 +206,24 @@ class InvocationTest {
     arguments.after("-filter_complex") shouldBe "[0:v]lut3d=file=/scratch/grade\\\\:1/asset0.cube[v]"
   }
 
+  // Ahead of -i, which is the seek the demuxer performs. After -i ffmpeg decodes its way to the
+  // cut and throws the frames away, which is the whole cost a snapped trim exists to avoid.
+  @Test
+  fun `a windowed copy seeks and bounds ahead of the input rather than after it`() {
+    val arguments = copyArguments(startSeconds = 4.5, durationSeconds = 2.75)
+
+    arguments.after("-ss") shouldBe "4.500000"
+    arguments.after("-t") shouldBe "2.750000"
+    arguments.indexOf("-ss") shouldBeLessThan arguments.indexOf("-i")
+    arguments.indexOf("-t") shouldBeLessThan arguments.indexOf("-i")
+  }
+
+  @Test
+  fun `an untrimmed copy carries no window at all`() {
+    copyArguments().shouldNotContain("-ss")
+    copyArguments().shouldNotContain("-t")
+  }
+
   @Test
   fun `a copy still reports progress and moves the moov atom to the front`() {
     val arguments = copyArguments()
@@ -220,9 +239,19 @@ class InvocationTest {
   private fun List<String>.allAfter(flag: String): List<String> =
     withIndex().filter { it.value == flag }.map { this[it.index + 1] }
 
-  private fun copyArguments(): List<String> =
+  private fun copyArguments(
+    startSeconds: Double? = null,
+    durationSeconds: Double? = null,
+  ): List<String> =
     Invocation(
-      inputs = listOf(InputSpec(InputSource.OfPath("/fixtures/a.mp4"))),
+      inputs =
+        listOf(
+          InputSpec(
+            source = InputSource.OfPath("/fixtures/a.mp4"),
+            durationSeconds = durationSeconds,
+            startSeconds = startSeconds,
+          ),
+        ),
       filterGraph = "",
       videoLabel = null,
       audioLabel = null,

@@ -184,6 +184,10 @@ public enum class TrackContent {
  * @property trim The part of the source to keep, or null for all of it.
  * @property effects Effects applied to this clip only.
  * @property audio What to do with this clip's audio.
+ * @property snapWithin How far back the cut may move to reach a sync sample, which is what lets a
+ *   trimmed export copy its streams instead of re-encoding them. Zero, the default, keeps the cut
+ *   where it was asked for. A cut that already lands on a sync sample copies at any value, this one
+ *   included, since reaching it costs no accuracy.
  */
 @Serializable
 @Poko
@@ -192,6 +196,7 @@ public class Clip(
   public val trim: TimeRange? = null,
   public val effects: List<EffectSpec> = emptyList(),
   public val audio: AudioLevel = AudioLevel.Inherit,
+  public val snapWithin: Duration = Duration.ZERO,
 ) {
   /**
    * How long this clip contributes, or null while it is untrimmed or open-ended and the source has
@@ -206,17 +211,22 @@ public class Clip(
   /**
    * A copy trimmed to [trim], or untrimmed when null.
    */
-  public fun withTrim(trim: TimeRange?): Clip = Clip(source, trim, effects, audio)
+  public fun withTrim(trim: TimeRange?): Clip = Clip(source, trim, effects, audio, snapWithin)
 
   /**
    * A copy with different clip-level effects.
    */
-  public fun withEffects(effects: List<EffectSpec>): Clip = Clip(source, trim, effects, audio)
+  public fun withEffects(effects: List<EffectSpec>): Clip = Clip(source, trim, effects, audio, snapWithin)
 
   /**
    * A copy at a different audio level.
    */
-  public fun withAudio(audio: AudioLevel): Clip = Clip(source, trim, effects, audio)
+  public fun withAudio(audio: AudioLevel): Clip = Clip(source, trim, effects, audio, snapWithin)
+
+  /**
+   * A copy that lets the cut move back up to [snapWithin] to reach a sync sample.
+   */
+  public fun withSnapWithin(snapWithin: Duration): Clip = Clip(source, trim, effects, audio, snapWithin)
 }
 
 /**

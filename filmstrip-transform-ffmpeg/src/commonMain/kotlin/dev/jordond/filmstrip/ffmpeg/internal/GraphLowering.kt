@@ -89,7 +89,18 @@ internal class GraphLowering(
       val clip = tracks.first().clips.first()
       val source = InputSource.OfPath(checkNotNull(readablePath(clip.source)) { UNREADABLE_SOURCE })
       return Invocation(
-        inputs = listOf(InputSpec(source)),
+        inputs =
+          listOf(
+            InputSpec(
+              source = source,
+              // Bounds only where the clip actually windows the source. A clip that runs to the
+              // source's own end reads to it rather than asking for a length, and an untrimmed one
+              // copies the container across whole, which is what leaves its bytes untouched.
+              durationSeconds =
+                clip.duration.toDouble(DurationUnit.SECONDS).takeIf { clip.end < clip.info.duration },
+              startSeconds = clip.start.takeIf { it > Duration.ZERO }?.toDouble(DurationUnit.SECONDS),
+            ),
+          ),
         filterGraph = "",
         videoLabel = null,
         audioLabel = null,

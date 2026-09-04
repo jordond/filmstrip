@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.CapabilitiesResult
+import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
@@ -10,10 +11,13 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.Contrast
 import dev.jordond.filmstrip.effects.geometry.CropRect
 import dev.jordond.filmstrip.export.AudioCodec
+import dev.jordond.filmstrip.export.CopyBlocker
+import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
@@ -23,11 +27,16 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.ResolveResult
+import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.webcodecs.internal.BrowserCompositor
+import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
+import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -38,6 +47,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.DurationUnit
 
 /**
  * The whole published pipeline in a real browser: clips are synthesised, planned and exported
@@ -341,6 +351,106 @@ class BrowserExportTest {
       )
     }
 
+  // A trim used to force the encode path. A clip that lets the cut move back to a sync sample stays
+  // on mediabunny's packet copy, and the ramp says which source frame the copy opened on, which a
+  // duration alone would not.
+  @Test
+  fun aSnappedTrimCopiesFromTheOpeningThePlannerResolved() =
+    runTest {
+      val bytes = rampClip()
+      val composition = snappedComposition(bytes, SNAP_WITHIN)
+      val engine = browserEngine()
+
+      val resolved = resolvedClipOf(engine, composition)
+      assertTrue(resolved.startsAtKeyFrame, "the plan did not resolve the cut onto a sync sample")
+      assertTrue(
+        resolved.start < TRIM_START,
+        "the cut resolved to ${resolved.start}, so the fixture never put the trim between two sync samples",
+      )
+
+      val plan = planWith(engine, composition)
+      assertEquals(ExportPath.Transmux, plan.path, "a snapped trim on an untouched clip is meant to copy")
+
+      val ramp = rampOf(bytes)
+      val frames = decodeFrames(outputOf(exportWith(engine, plan)))
+      val openedFrame = ramp.frameOf(frames.first().at(x = 0.5, y = 0.5))
+      assertEquals(
+        frameIndexAt(resolved.start),
+        openedFrame,
+        "the copy opened on frame $openedFrame and the plan resolved the cut to ${resolved.start}",
+      )
+      // Between the window it was asked for and the window plus what the snap put in front of it,
+      // which is what says the tail was bounded as well as the head.
+      assertTrue(
+        frames.size in (TRIM_END_FRAME - TRIM_START_FRAME)..(TRIM_END_FRAME - openedFrame + REORDER_SLACK),
+        "the copy wrote ${frames.size} frames for a window of ${TRIM_END_FRAME - TRIM_START_FRAME}",
+      )
+    }
+
+  // Zero is the default and it keeps the cut where it was asked for. Nothing is a sync sample there,
+  // so the copy is out of reach and the export decodes instead of quietly moving the cut.
+  @Test
+  fun aTrimLeftAtTheDefaultToleranceNeitherMovesNorCopies() =
+    runTest {
+      val bytes = rampClip()
+      val composition = snappedComposition(bytes, Duration.ZERO)
+      val engine = browserEngine()
+
+      val resolved = resolvedClipOf(engine, composition)
+      assertEquals(TRIM_START, resolved.start, "the cut moved with no tolerance to move it")
+      assertFalse(resolved.startsAtKeyFrame, "the cut was reported as opening on a sync sample")
+
+      val plan = planWith(engine, composition)
+      assertEquals(ExportPath.Transcode, plan.path, "a cut off a sync sample is not copyable")
+      assertTrue(
+        CopyBlocker.TrimNotOnSyncSample in plan.copyBlockedBy,
+        "the plan blamed ${plan.copyBlockedBy} for re-encoding",
+      )
+
+      val ramp = rampOf(bytes)
+      val frames = decodeFrames(outputOf(exportWith(engine, plan)))
+      assertEquals(
+        TRIM_START_FRAME,
+        ramp.frameOf(frames.first().at(x = 0.5, y = 0.5)),
+        "the re-encode opened somewhere other than the cut",
+      )
+    }
+
+  // The two tracks are copied separately, so a seek applied to one and not the other leaves an
+  // audio track running the whole source under a video track that stops at the cut.
+  @Test
+  fun aSnappedTrimSeeksTheAudioTrackWithTheVideoTrack() =
+    runTest {
+      val bytes =
+        makeClipWithAudio(
+          frames = SNAPPED_FRAMES,
+          frameRate = SNAPPED_FRAME_RATE,
+          keyFrameSeconds = SNAPPED_KEY_FRAME_SECONDS,
+        )
+      val composition = snappedComposition(bytes, SNAP_WITHIN)
+      val engine = browserEngine()
+
+      val plan = planWith(engine, composition)
+      assertEquals(ExportPath.Transmux, plan.path, "a snapped trim on an untouched clip is meant to copy")
+
+      val output = outputOf(exportWith(engine, plan))
+      val audio = assertNotNull(decodeAudio(output), "the copy dropped the audio track")
+      val frames = decodeFrames(output)
+      val videoStartUs = frames.first().timestampUs
+      val videoEndUs = frames.last().let { it.timestampUs + it.durationUs }
+
+      // Both ends, since a seek applied to one track only leaves the other running the whole
+      // source, and only one end of it would show.
+      assertTrue(
+        abs(audio.startUs - videoStartUs) <= TRACK_SKEW_TOLERANCE_US,
+        "the audio opens at ${audio.startUs}us under video that opens at ${videoStartUs}us",
+      )
+      assertTrue(
+        abs(audio.durationUs - videoEndUs) <= TRACK_SKEW_TOLERANCE_US,
+        "the audio ends at ${audio.durationUs}us under video that ends at ${videoEndUs}us",
+      )
+    }
+
   @Test
   fun aUriSinkHandsBackABlobUrl() =
     runTest {
@@ -612,6 +722,91 @@ class BrowserExportTest {
 
   private fun filmstrip(): Filmstrip = Filmstrip { webCodecsBackend() }
 
+  /**
+   * The engine on its own, for a test that reads what the shared negotiator resolved to rather than
+   * only what the facade published. One engine plans, resolves and exports, so all three answers
+   * come from the same negotiation.
+   */
+  private fun browserEngine(): BrowserExportEngine =
+    browserExportEngine(
+      components = ComponentRegistry.Builder().add(BuiltInEffectResolver()).build(),
+      prober = BrowserProber(),
+    )
+
+  /**
+   * Two seconds of a red ramp with a sync sample every three quarters of a second, so a cut at
+   * [TRIM_START] lands between two of them and the frame the copy opens on says which.
+   */
+  private suspend fun rampClip(): ByteArray =
+    makeClip(
+      frames = SNAPPED_FRAMES,
+      frameRate = SNAPPED_FRAME_RATE,
+      keyFrameSeconds = SNAPPED_KEY_FRAME_SECONDS,
+    ) { index, _ ->
+      Rgb(index * RAMP_STEP, 0, 0)
+    }
+
+  private fun snappedComposition(
+    bytes: ByteArray,
+    snapWithin: Duration,
+  ): EditComposition =
+    EditComposition(
+      tracks =
+        listOf(
+          Track(
+            listOf(
+              Clip(MediaSource.Bytes(bytes), trim = TimeRange(TRIM_START, TRIM_END), snapWithin = snapWithin),
+            ),
+          ),
+        ),
+      audio = AudioSpec.Keep,
+    )
+
+  private suspend fun resolvedClipOf(
+    engine: BrowserExportEngine,
+    composition: EditComposition,
+  ): ResolvedClip =
+    assertIs<ResolveResult.Resolved>(engine.resolve(composition, ExportSpec()))
+      .composition.tracks
+      .first()
+      .clips
+      .single()
+
+  private suspend fun planWith(
+    engine: BrowserExportEngine,
+    composition: EditComposition,
+  ): ExportPlan =
+    when (val verdict = engine.plan(composition, ExportSpec())) {
+      is Verdict.Capable -> verdict.plan
+      is Verdict.Degraded -> verdict.plan
+      is Verdict.Incapable -> throw AssertionError("the plan was refused: ${verdict.reasons.map { it.message }}")
+    }
+
+  private suspend fun exportWith(
+    engine: BrowserExportEngine,
+    plan: ExportPlan,
+  ): ExportStatus.Success {
+    val statuses = engine.export(plan, MediaSink.Uri("")).toList()
+    val failure = statuses.filterIsInstance<ExportStatus.Failure>().firstOrNull()
+    if (failure != null) throw AssertionError("the export failed: ${failure.error.message}")
+    return assertNotNull(
+      statuses.filterIsInstance<ExportStatus.Success>().singleOrNull(),
+      "statuses were ${statuses.map { it::class.simpleName }}",
+    )
+  }
+
+  /**
+   * Which frame of the ramp fixture presents at [at].
+   */
+  private fun frameIndexAt(at: Duration): Int = (at.toDouble(DurationUnit.SECONDS) * SNAPPED_FRAME_RATE).roundToInt()
+
+  /**
+   * The ramp fixture decoded back, so an exported frame is matched against the source through the
+   * same colour round trip rather than against the values it was painted with.
+   */
+  private suspend fun rampOf(bytes: ByteArray): Ramp =
+    Ramp(decodeFrames(MediaSource.Bytes(bytes)).map { it.at(x = 0.5, y = 0.5).red })
+
   private fun compositionOf(source: MediaSource): EditComposition =
     EditComposition(
       tracks = listOf(Track(listOf(Clip(source)))),
@@ -710,6 +905,26 @@ class BrowserExportTest {
     val TRIM_START = 1000.milliseconds
     val TRIM_END = 1500.milliseconds
     const val TRIM_START_FRAME = 30
+    const val TRIM_END_FRAME = 45
+
+    // Wide enough to reach the sync sample before the cut whichever frame the encoder rounded it
+    // onto. Which one it actually reached is read off the plan, never off this.
+    val SNAP_WITHIN = 1.seconds
+
+    // Two seconds at thirty frames a second with a sync sample every three quarters of one, so the
+    // trim above opens between two of them. A cut that already sits on a sync sample snaps nowhere
+    // and would pass whether the snap works or not.
+    const val SNAPPED_FRAMES = 60
+    const val SNAPPED_FRAME_RATE = 30
+    const val SNAPPED_KEY_FRAME_SECONDS = 0.75
+
+    // What the last group of pictures can carry past the cut: a packet presenting after it is held
+    // rather than dropped while a packet before it is still to come in decode order.
+    const val REORDER_SLACK = 4
+
+    // A copy carries whole packets, and an audio packet is a few milliseconds either way of where
+    // a frame boundary falls.
+    const val TRACK_SKEW_TOLERANCE_US = 60_000.0
     const val CONTEXT_CHURN = 24
     const val SILENCE_THRESHOLD = 0.01f
     val AUDIO_ONLY_DURATION = 1.seconds
@@ -718,4 +933,16 @@ class BrowserExportTest {
     // the composition however exact the mix was.
     val DURATION_TOLERANCE = 250.milliseconds
   }
+}
+
+/**
+ * The red channel of every frame of the ramp fixture, decoded back.
+ *
+ * A frame is named by whichever of these its colour sits closest to, so a shift the colour
+ * conversion applies to the export applies to the reference too and cancels.
+ */
+private class Ramp(
+  private val reds: List<Int>,
+) {
+  fun frameOf(colour: Rgb): Int = reds.indices.minBy { abs(reds[it] - colour.red) }
 }

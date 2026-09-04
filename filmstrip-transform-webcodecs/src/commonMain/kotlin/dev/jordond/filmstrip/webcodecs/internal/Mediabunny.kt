@@ -153,6 +153,13 @@ internal external interface EncodedPacket : JsAny {
   val duration: Double
 
   val byteLength: Int
+
+  /**
+   * The same packet with the fields named in [options] replaced, the timestamp among them. A copy
+   * that opens part way into a source rebases every packet through here, since the muxer refuses a
+   * negative timestamp.
+   */
+  fun clone(options: JsAny): EncodedPacket
 }
 
 /**

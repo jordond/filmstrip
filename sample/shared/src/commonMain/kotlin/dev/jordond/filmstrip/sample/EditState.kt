@@ -85,6 +85,7 @@ public class EditState {
   var trimEnabled: Boolean by mutableStateOf(false)
   var trimStartSeconds: Float by mutableStateOf(0f)
   var trimEndSeconds: Float by mutableStateOf(0f)
+  var snapWithinSeconds: Float by mutableStateOf(0f)
   var clipMuted: Boolean by mutableStateOf(false)
 
   var rotationDegrees: Int by mutableStateOf(0)
@@ -300,6 +301,7 @@ public class EditState {
       clip(source) {
         if (trimmed) trimRange(sourceDuration)?.let { trim(it) }
         if (clipMuted) audio(AudioLevel.Mute)
+        snapWithin(snapWithinSeconds.toDouble().seconds)
       }
 
       effects {

@@ -17,12 +17,16 @@ import kotlin.time.Duration
  *   `loop` and `aloop` filters buffer the decoded media in memory, which for a music bed is the
  *   whole track.
  * @property durationSeconds A hard duration for a generated input, which a silence source needs
- *   because it never ends on its own.
+ *   because it never ends on its own. With [startSeconds] set it counts from there rather than from
+ *   the start of the source.
+ * @property startSeconds Where in the source the input opens. This is an input seek, so a stream
+ *   copy opens on the sync sample at or before it rather than decoding its way to the cut.
  */
 internal class InputSpec(
   val source: InputSource,
   val loop: Boolean = false,
   val durationSeconds: Double? = null,
+  val startSeconds: Double? = null,
 )
 
 /**
@@ -135,6 +139,12 @@ internal fun Invocation.arguments(
       if (input.source is InputSource.Generated) {
         add("-f")
         add("lavfi")
+      }
+      // Ahead of -i, which is the seek the demuxer performs. After -i it would decode every frame
+      // up to the cut and throw them away, which is the whole cost a snapped trim exists to avoid.
+      input.startSeconds?.let {
+        add("-ss")
+        add(formatSeconds(it))
       }
       input.durationSeconds?.let {
         add("-t")

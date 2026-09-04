@@ -21,6 +21,11 @@ import kotlin.time.Duration.Companion.seconds
 internal const val MEDIA_TIMESCALE: Int = 600
 
 /**
+ * One tick at [MEDIA_TIMESCALE], the shortest span this backend can name.
+ */
+internal val MEDIA_TICK: Duration = (1.0 / MEDIA_TIMESCALE).seconds
+
+/**
  * This duration as a [CMTime] at [MEDIA_TIMESCALE].
  *
  * Converted through microseconds. A `Double` of seconds cannot hold a tick exactly at the far end

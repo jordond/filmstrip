@@ -342,18 +342,20 @@ public final class dev/jordond/filmstrip/edit/AudioSpec$Volume$Companion {
 
 public final class dev/jordond/filmstrip/edit/Clip {
 	public static final field Companion Ldev/jordond/filmstrip/edit/Clip$Companion;
-	public fun <init> (Ldev/jordond/filmstrip/media/MediaSource;Ldev/jordond/filmstrip/edit/TimeRange;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioLevel;)V
-	public synthetic fun <init> (Ldev/jordond/filmstrip/media/MediaSource;Ldev/jordond/filmstrip/edit/TimeRange;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioLevel;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/media/MediaSource;Ldev/jordond/filmstrip/edit/TimeRange;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioLevel;JILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/media/MediaSource;Ldev/jordond/filmstrip/edit/TimeRange;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioLevel;JLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAudio ()Ldev/jordond/filmstrip/edit/AudioLevel;
 	public final fun getDuration-FghU774 ()Lkotlin/time/Duration;
 	public final fun getEffects ()Ljava/util/List;
+	public final fun getSnapWithin-UwyO8pc ()J
 	public final fun getSource ()Ldev/jordond/filmstrip/media/MediaSource;
 	public final fun getTrim ()Ldev/jordond/filmstrip/edit/TimeRange;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 	public final fun withAudio (Ldev/jordond/filmstrip/edit/AudioLevel;)Ldev/jordond/filmstrip/edit/Clip;
 	public final fun withEffects (Ljava/util/List;)Ldev/jordond/filmstrip/edit/Clip;
+	public final fun withSnapWithin-LRDsOJo (J)Ldev/jordond/filmstrip/edit/Clip;
 	public final fun withTrim (Ldev/jordond/filmstrip/edit/TimeRange;)Ldev/jordond/filmstrip/edit/Clip;
 }
 
@@ -380,6 +382,7 @@ public final class dev/jordond/filmstrip/edit/ClipBuilder {
 	public final fun effects (Lkotlin/jvm/functions/Function1;)Ldev/jordond/filmstrip/edit/ClipBuilder;
 	public final fun fadeIn-LRDsOJo (J)Ldev/jordond/filmstrip/edit/ClipBuilder;
 	public final fun fadeOut-LRDsOJo (J)Ldev/jordond/filmstrip/edit/ClipBuilder;
+	public final fun snapWithin-LRDsOJo (J)Ldev/jordond/filmstrip/edit/ClipBuilder;
 	public final fun trim (Ldev/jordond/filmstrip/edit/TimeRange;)Ldev/jordond/filmstrip/edit/ClipBuilder;
 	public final fun trim (Lkotlin/ranges/ClosedRange;)Ldev/jordond/filmstrip/edit/ClipBuilder;
 	public final fun trim-QTBD994 (JJ)Ldev/jordond/filmstrip/edit/ClipBuilder;
@@ -763,7 +766,6 @@ public final class dev/jordond/filmstrip/export/AdjustmentKind : java/lang/Enum 
 	public static final field HdrToneMapped Ldev/jordond/filmstrip/export/AdjustmentKind;
 	public static final field ResolutionClamped Ldev/jordond/filmstrip/export/AdjustmentKind;
 	public static final field SoftwareFallback Ldev/jordond/filmstrip/export/AdjustmentKind;
-	public static final field TrimStrategyChanged Ldev/jordond/filmstrip/export/AdjustmentKind;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/export/AdjustmentKind;
 	public static fun values ()[Ldev/jordond/filmstrip/export/AdjustmentKind;
@@ -823,6 +825,34 @@ public final class dev/jordond/filmstrip/export/Bitrate$Companion {
 	public final fun mbps (D)Ldev/jordond/filmstrip/export/Bitrate;
 	public final fun mbps (I)Ldev/jordond/filmstrip/export/Bitrate;
 	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jordond/filmstrip/export/CopyBlocker : java/lang/Enum {
+	public static final field AudioCodecNamed Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field AudioSpecChanged Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field BackendCannotCopy Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field BitrateSet Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field ClipGainChanged Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field ClipHasEffects Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field CompositionGainChanged Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field CompositionHasEffects Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field FrameRateSet Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field FrameResized Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field GradeMustToneMap Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field MultipleClips Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field MultipleTracks Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field MuxerRefusesSource Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field SourceCodecUnnameable Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field TargetHeightSet Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field TrackDropsAStream Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field TrackGainChanged Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field TrackHasEffects Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field TrackStartsLate Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field TrimNotOnSyncSample Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field VideoCodecNamed Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static fun values ()[Ldev/jordond/filmstrip/export/CopyBlocker;
 }
 
 public abstract interface class dev/jordond/filmstrip/export/ExportError {
@@ -998,6 +1028,8 @@ public final class dev/jordond/filmstrip/export/ExportPath : java/lang/Enum {
 }
 
 public final class dev/jordond/filmstrip/export/ExportPlan {
+	public final fun getCopyBlockedBy ()Ljava/util/List;
+	public final fun getDuration-UwyO8pc ()J
 	public final fun getEffectOrder ()Ljava/util/List;
 	public final fun getEstimate ()Ldev/jordond/filmstrip/export/ExportEstimate;
 	public final fun getOutput ()Ldev/jordond/filmstrip/export/OutputFormat;
@@ -1009,8 +1041,8 @@ public final class dev/jordond/filmstrip/export/ExportPlan {
 public final class dev/jordond/filmstrip/export/ExportSpec {
 	public static final field Companion Ldev/jordond/filmstrip/export/ExportSpec$Companion;
 	public fun <init> ()V
-	public fun <init> (Ljava/lang/Integer;Ldev/jordond/filmstrip/export/Bitrate;Ldev/jordond/filmstrip/export/VideoCodec;Ldev/jordond/filmstrip/export/AudioCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/export/HdrMode;Ldev/jordond/filmstrip/export/TrimStrategy;Z)V
-	public synthetic fun <init> (Ljava/lang/Integer;Ldev/jordond/filmstrip/export/Bitrate;Ldev/jordond/filmstrip/export/VideoCodec;Ldev/jordond/filmstrip/export/AudioCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/export/HdrMode;Ldev/jordond/filmstrip/export/TrimStrategy;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/Integer;Ldev/jordond/filmstrip/export/Bitrate;Ldev/jordond/filmstrip/export/VideoCodec;Ldev/jordond/filmstrip/export/AudioCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/export/HdrMode;Z)V
+	public synthetic fun <init> (Ljava/lang/Integer;Ldev/jordond/filmstrip/export/Bitrate;Ldev/jordond/filmstrip/export/VideoCodec;Ldev/jordond/filmstrip/export/AudioCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/export/HdrMode;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAudioCodec ()Ldev/jordond/filmstrip/export/AudioCodec;
 	public final fun getBitrate ()Ldev/jordond/filmstrip/export/Bitrate;
@@ -1018,7 +1050,6 @@ public final class dev/jordond/filmstrip/export/ExportSpec {
 	public final fun getHdr ()Ldev/jordond/filmstrip/export/HdrMode;
 	public final fun getStrict ()Z
 	public final fun getTargetHeight ()Ljava/lang/Integer;
-	public final fun getTrim ()Ldev/jordond/filmstrip/export/TrimStrategy;
 	public final fun getVideoCodec ()Ldev/jordond/filmstrip/export/VideoCodec;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
@@ -1130,19 +1161,6 @@ public final class dev/jordond/filmstrip/export/PlannedEffect {
 	public final fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
-}
-
-public final class dev/jordond/filmstrip/export/TrimStrategy : java/lang/Enum {
-	public static final field Companion Ldev/jordond/filmstrip/export/TrimStrategy$Companion;
-	public static final field Fast Ldev/jordond/filmstrip/export/TrimStrategy;
-	public static final field Precise Ldev/jordond/filmstrip/export/TrimStrategy;
-	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/export/TrimStrategy;
-	public static fun values ()[Ldev/jordond/filmstrip/export/TrimStrategy;
-}
-
-public final class dev/jordond/filmstrip/export/TrimStrategy$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public abstract interface class dev/jordond/filmstrip/export/Verdict {

@@ -29,6 +29,7 @@ import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.videoCodecOf
 import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
 import dev.jordond.filmstrip.transform.internal.ResolveResult
+import dev.jordond.filmstrip.transform.internal.copyOpenings
 import dev.jordond.filmstrip.transform.internal.refusal
 import dev.jordond.filmstrip.transform.internal.toResolveResult
 import kotlinx.coroutines.async
@@ -343,9 +344,17 @@ public class FfmpegExportEngine internal constructor(
       infos[clip.source] = info
     }
 
+    // Where a copy could open, read the same way infos is and cached on the runtime for the same
+    // reason: one edit is negotiated to plan it, to resolve it for a preview and again to export
+    // it, and an answer that moved between those would open the three in different places.
+    val openings =
+      copyOpenings(composition) { source, cut ->
+        readablePath(source)?.let { runtime.syncSampleAtOrBefore(toolchain, it, cut) }
+      }
+
     return LoweringResult.Done(
       FfmpegPlanner(toolchain, components.effectResolvers)
-        .lower(composition, spec, device(toolchain), infos, layoutSize = layoutSize),
+        .lower(composition, spec, device(toolchain), infos, openings, layoutSize = layoutSize),
     )
   }
 

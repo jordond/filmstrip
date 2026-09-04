@@ -17,10 +17,12 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSink
+import dev.jordond.filmstrip.media.MediaSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlin.time.Duration
 
 /**
  * Drives an export from a platform's [ExportDriver], owning probing, caching and lowering so the
@@ -53,6 +55,10 @@ public class PlannedExportEngine(
 
   private val probes = ProbeCache(prober)
   private var device: DeviceCapabilities? = null
+
+  // Where a stream copy of each cut could open. An engine negotiates the same edit to plan it, to
+  // resolve it for a preview and again to export it, and the answer cannot move between those.
+  private val openings = mutableMapOf<Pair<MediaSource, Duration>, Duration?>()
 
   override suspend fun capabilities(): CapabilitiesResult = CapabilitiesResult.Success(deviceCapabilities())
 
@@ -99,6 +105,15 @@ public class PlannedExportEngine(
 
   private suspend fun deviceCapabilities(): DeviceCapabilities = device ?: backend.capabilities().also { device = it }
 
+  private suspend fun openingFor(
+    source: MediaSource,
+    cut: Duration,
+  ): Duration? {
+    val key = source to cut
+    if (key in openings) return openings[key]
+    return backend.syncSampleAtOrBefore(source, cut).also { openings[key] = it }
+  }
+
   /**
    * Re-negotiates the plan and hands back whatever it will report.
    *
@@ -132,7 +147,14 @@ public class PlannedExportEngine(
       }
       is ProbeCacheResult.Read -> {
         NegotiationResult.Done(
-          planner.negotiate(composition, spec, deviceCapabilities(), probed.infos, layoutSize = layoutSize),
+          planner.negotiate(
+            composition = composition,
+            spec = spec,
+            device = deviceCapabilities(),
+            infos = probed.infos,
+            openings = copyOpenings(composition, ::openingFor),
+            layoutSize = layoutSize,
+          ),
         )
       }
     }

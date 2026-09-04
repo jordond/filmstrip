@@ -154,10 +154,6 @@ internal class BrowserPlanner(
           "builtInEffects(), or add a resolver that recognises RenderApi.WebGl."
       },
       ladder = BROWSER_LADDER,
-      // A trim always decodes frame by frame here, so a fast trim never snaps to a sync sample. An
-      // untouched clip is a different matter: mediabunny can read its packets straight out of the
-      // source container and write them into a new one, no decode or encoder involved.
-      supportsFastTrim = false,
       supportsPassthrough = true,
       // The single WebGL pass has no tone-map stage of its own, so claiming one here would plan a
       // tone map this backend never actually runs.
@@ -171,6 +167,9 @@ internal class BrowserPlanner(
     )
 
   /**
+   * @param openings Where a stream copy of each source could open, which is the sync sample at or
+   *   before that clip's cut. The negotiator decides from this whether a copy can reach the cut and
+   *   which window it lays, so nothing downstream reads a source's sync samples again.
    * @param layoutSize The output frame text is laid out against, for a caller planning a frame
    *   smaller than the one an export writes. Null lays text out against the frame [spec] settles
    *   on, which is what an export does.
@@ -180,13 +179,23 @@ internal class BrowserPlanner(
     spec: ExportSpec,
     device: DeviceCapabilities,
     infos: Map<MediaSource, MediaInfo>,
+    openings: Map<MediaSource, Duration> = emptyMap(),
     dropped: Set<String> = emptySet(),
     layoutSize: Size? = null,
     opaque: Set<MediaSource> = emptySet(),
   ): BrowserLowering {
     unconditionalRefusal(composition, infos)?.let { return it }
 
-    val export = planner.negotiate(composition, spec, device, infos, dropped, layoutSize)
+    val export =
+      planner.negotiate(
+        composition = composition,
+        spec = spec,
+        device = device,
+        infos = infos,
+        openings = openings,
+        dropped = dropped,
+        layoutSize = layoutSize,
+      )
     val negotiated =
       export.composition ?: return opaqueRefusal(opaque) ?: BrowserLowering(export, null)
     val writesVideo = negotiated.audio != AudioSpec.AudioOnly

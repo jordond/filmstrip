@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.geometry.rotate
 import dev.jordond.filmstrip.effects.overlay.textOverlay
 import dev.jordond.filmstrip.export.AudioCodec
+import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
@@ -32,10 +33,13 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.ffmpeg.internal.FFMPEG_ENCODERS
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPlanner
+import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
 import dev.jordond.filmstrip.ffmpeg.internal.ProcessRunner
 import dev.jordond.filmstrip.ffmpeg.internal.ToolchainLocator
 import dev.jordond.filmstrip.ffmpeg.internal.ToolchainResult
 import dev.jordond.filmstrip.ffmpeg.internal.ffmpegEncoders
+import dev.jordond.filmstrip.ffmpeg.internal.formatSeconds
+import dev.jordond.filmstrip.ffmpeg.internal.readablePath
 import dev.jordond.filmstrip.ffmpeg.internal.toneMapRoute
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fill
@@ -58,7 +62,9 @@ import dev.jordond.filmstrip.test.ToneAnalysis
 import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import dev.jordond.filmstrip.transform.internal.copyOpenings
 import dev.jordond.filmstrip.transform.internal.curveOver
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -82,6 +88,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
 
 /**
@@ -882,6 +889,142 @@ class FfmpegExportTest {
       output.delete()
     }
 
+  // A trim used to force a re-encode on every backend. A snapWithin wide enough to reach the sync
+  // sample before the cut leaves an otherwise untouched clip on the copy path.
+  //
+  // The long fixture carries a sync sample about every second and the window opens between two of
+  // them, so a cut that snapped and one that never moved land on visibly different frames.
+  @Test
+  fun `opens a copied window on the sync sample the planner resolved`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val output = File.createTempFile("filmstrip-snapped-trim", ".mp4").also { it.delete() }
+      val source = MediaSource.of(long.absolutePath)
+      val composition =
+        compositionOf {
+          clip(source) {
+            trim(TimeRange.of(TRIM_START, TRIM_END))
+            snapWithin(SNAP_WITHIN)
+          }
+        }
+
+      // Where the planner moved the cut to. Read back off the resolved clip, since that one answer
+      // is what every backend lays, and cross-checked against the container's own sample table.
+      val opensAt =
+        plannedTracks(composition, ExportSpec(), listOf(source))
+          .single()
+          .clips
+          .single()
+          .start
+      val keyFrame = keyFrameAtOrBefore(long.absolutePath, TRIM_START)
+      assertTrue(keyFrame < TRIM_START, "the window was meant to open between two sync samples")
+      opensAt shouldBe keyFrame
+
+      val plan = assertIs<Verdict.Capable>(filmstrip.plan(composition, ExportSpec())).plan
+      plan.path shouldBe ExportPath.Transmux
+      plan.copyBlockedBy shouldBe emptyList()
+
+      val finished = filmstrip.export(plan, MediaSink.of(output.absolutePath)).toList().last()
+      if (finished is ExportStatus.Failure) error(finished.error.message)
+      val written = assertIs<ExportStatus.Success>(finished).info
+
+      // Nothing was encoded, so the codecs are the source's, and the file is a fraction of it
+      // rather than the whole container remuxed.
+      ffprobe(output.absolutePath).endsWith("h264 aac") shouldBe true
+      assertTrue(
+        output.length() < long.length() / 2,
+        "the copy wrote ${output.length()} bytes against the source's ${long.length()}",
+      )
+
+      // Where the output opens, read as pixels rather than as a timestamp: a length alone would
+      // pass just as well for a copy that bounded its tail and ignored the seek entirely.
+      assertTrue(
+        frameAt(output.absolutePath, Duration.ZERO).contentEquals(frameAt(long.absolutePath, opensAt)),
+        "the copy did not open on the frame at $opensAt that the plan resolved to",
+      )
+
+      // Measured from where the copy opened rather than from the cut, since that is the window the
+      // plan resolved and the one every backend lays.
+      val window = TRIM_END - opensAt
+      assertTrue(
+        written.duration in (window - COPY_SLOP)..(window + COPY_SLOP),
+        "the copy runs for ${written.duration}, where the resolved window is $window",
+      )
+
+      output.delete()
+    }
+
+  // Zero is the default, and it means the cut lands where it was asked. No stream copy can promise
+  // that on a cut which is not already a sync sample, so the export re-encodes and the plan names
+  // the term that cost it the copy.
+  @Test
+  fun `leaves a cut at the default snap where it was asked and re-encodes it`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val output = File.createTempFile("filmstrip-unsnapped-trim", ".mp4").also { it.delete() }
+      val source = MediaSource.of(long.absolutePath)
+      val composition = compositionOf { clip(source) { trim(TimeRange.of(TRIM_START, TRIM_END)) } }
+
+      assertTrue(
+        keyFrameAtOrBefore(long.absolutePath, TRIM_START) < TRIM_START,
+        "the cut was meant to sit between two sync samples",
+      )
+      plannedTracks(composition, ExportSpec(), listOf(source))
+        .single()
+        .clips
+        .single()
+        .start shouldBe TRIM_START
+
+      val plan = assertIs<Verdict.Capable>(filmstrip.plan(composition, ExportSpec())).plan
+      plan.path shouldBe ExportPath.Transcode
+      plan.copyBlockedBy shouldContain CopyBlocker.TrimNotOnSyncSample
+
+      val finished = filmstrip.export(plan, MediaSink.of(output.absolutePath)).toList().last()
+      if (finished is ExportStatus.Failure) error(finished.error.message)
+      val written = assertIs<ExportStatus.Success>(finished).info
+
+      // The snapped window runs longer than the asked one by the whole group of pictures, so a
+      // length is enough to say the cut never moved.
+      val window = TRIM_END - TRIM_START
+      assertTrue(
+        written.duration in (window - COPY_SLOP)..(window + COPY_SLOP),
+        "the export runs for ${written.duration}, where the asked window is $window",
+      )
+
+      output.delete()
+    }
+
+  // Snapping only saves the work it costs accuracy for on a copy. An export with an effect on it
+  // decodes the leading group of pictures anyway, so the cut lands where it was asked and the plan
+  // names the effect rather than the trim as what cost the copy.
+  @Test
+  fun `keeps a snapped cut precise once an effect forces a re-encode`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val source = MediaSource.of(long.absolutePath)
+      val composition =
+        compositionOf {
+          clip(source) {
+            trim(TimeRange.of(TRIM_START, TRIM_END))
+            snapWithin(SNAP_WITHIN)
+            effects { brightness(BRIGHTER) }
+          }
+        }
+
+      val plan = assertIs<Verdict.Capable>(filmstrip.plan(composition, ExportSpec())).plan
+
+      plan.path shouldBe ExportPath.Transcode
+      plan.copyBlockedBy shouldContain CopyBlocker.ClipHasEffects
+      plannedTracks(composition, ExportSpec(), listOf(source))
+        .single()
+        .clips
+        .single()
+        .start shouldBe TRIM_START
+    }
+
   // ffmpeg refuses a map that matches no stream, and a video-only source has no audio stream for
   // the copy path's `0:a` to match.
   @Test
@@ -1197,7 +1340,14 @@ class FfmpegExportTest {
     val toolchain = assertIs<ToolchainResult.Available>(located).toolchain
     val device = assertIs<CapabilitiesResult.Success>(filmstrip.capabilities()).capabilities
     val infos = sources.associateWith { assertIs<ProbeResult.Success>(filmstrip.probe(it)).info }
-    val lowering = FfmpegPlanner(toolchain, listOf(BuiltInEffectResolver())).lower(composition, spec, device, infos)
+    val runtime = FfmpegRuntime.of(FfmpegConfig())
+    val openings =
+      copyOpenings(composition) { source, cut ->
+        runtime.syncSampleAtOrBefore(toolchain, assertNotNull(readablePath(source)), cut)
+      }
+    val lowering =
+      FfmpegPlanner(toolchain, listOf(BuiltInEffectResolver()))
+        .lower(composition, spec, device, infos, openings)
     return assertNotNull(lowering.export.composition).tracks
   }
 
@@ -1397,6 +1547,75 @@ class FfmpegExportTest {
       target.absolutePath,
     ).start().waitFor()
     return target
+  }
+
+  /**
+   * The timestamp of the sync sample at or before [at], read out of the container's own sample
+   * table rather than worked out from the interval the fixtures were encoded with.
+   *
+   * Verified independently of the code under test, the same way [ffprobe] is.
+   */
+  private fun keyFrameAtOrBefore(
+    path: String,
+    at: Duration,
+  ): Duration {
+    val process =
+      ProcessBuilder(
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-skip_frame",
+        "nokey",
+        "-show_entries",
+        "frame=pts_time",
+        "-of",
+        "csv=p=0",
+        path,
+      ).start()
+    val output = process.inputReader().readText()
+    process.waitFor()
+    return output
+      .lineSequence()
+      .mapNotNull { it.substringBefore(',').trim().toDoubleOrNull() }
+      .map { it.seconds }
+      .filter { it <= at }
+      .max()
+  }
+
+  /**
+   * The decoded pixels of the one frame presented at [at], as RGB.
+   *
+   * Two decodes of the same picture agree byte for byte, so this is what says an output opened on
+   * one source frame rather than another. Verified independently of the code under test.
+   */
+  private fun frameAt(
+    path: String,
+    at: Duration,
+  ): ByteArray {
+    val process =
+      ProcessBuilder(
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-ss",
+        formatSeconds(at.toDouble(DurationUnit.SECONDS)),
+        "-i",
+        path,
+        "-frames:v",
+        "1",
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "rgb24",
+        "-",
+      ).start()
+    val frame = process.inputStream.readBytes()
+    process.waitFor()
+    assertTrue(frame.isNotEmpty(), "ffmpeg decoded no frame at $at of $path")
+    return frame
   }
 
   private fun probeStreamTag(
@@ -1642,6 +1861,22 @@ class FfmpegExportTest {
     // floor, so a bar that read halved fails here rather than by accident of a bound written for a
     // different purpose.
     const val HALVED_RED_CEILING = 180
+
+    // A window inside the long fixture's twelve seconds, opening between two of its sync samples
+    // rather than on one, since a cut that already sits on a sync sample snaps nowhere and would
+    // pass whether the snap works or not.
+    val TRIM_START = 4_500.milliseconds
+    val TRIM_END = 7_250.milliseconds
+
+    // Wider than the fixture's own one-second sync interval, so the sample before the cut is
+    // reachable with room to spare rather than only just.
+    val SNAP_WITHIN = 2.seconds
+
+    // How far a written run may sit from the window the plan resolved. A bounded copy ends on a
+    // whole packet rather than on the length it was given, and this build overshoots by around
+    // 80ms of it. Still well short of the group of pictures a cut that snapped when it should not
+    // have, or did not when it should have, would move by.
+    val COPY_SLOP = 200.milliseconds
 
     // How far a remux may land from the source it copied. The mp4 muxer sizes its own padding, and
     // ffmpeg 6 writes a byte more of it than later builds do. A re-encode of this fixture misses by

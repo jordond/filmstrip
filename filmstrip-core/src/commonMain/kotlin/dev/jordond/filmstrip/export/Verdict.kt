@@ -119,11 +119,130 @@ public enum class AdjustmentKind {
    * A hardware path was unavailable and a slower one was substituted.
    */
   SoftwareFallback,
+}
+
+/**
+ * One reason an export re-encodes rather than copying its streams across.
+ *
+ * A copy is near-instant and lossless, so an export that misses it is worth explaining. Every
+ * member names one thing the caller can drop to get the copy back, and [ExportPlan.copyBlockedBy]
+ * lists the ones that applied.
+ *
+ * None of these is an [Adjustment]: the caller asked for an output and got exactly that output, so
+ * nothing was changed behind their back and [ExportSpec.strict] has nothing to refuse.
+ */
+public enum class CopyBlocker {
+  /**
+   * More than one track, which has to be composited.
+   */
+  MultipleTracks,
 
   /**
-   * A requested trim strategy was not applicable and a different one ran.
+   * More than one clip, which has to be joined.
    */
-  TrimStrategyChanged,
+  MultipleClips,
+
+  /**
+   * Composition-level effects, which have to be rendered.
+   */
+  CompositionHasEffects,
+
+  /**
+   * Track-level effects, which have to be rendered.
+   */
+  TrackHasEffects,
+
+  /**
+   * Clip-level effects, which have to be rendered.
+   */
+  ClipHasEffects,
+
+  /**
+   * [ExportSpec.frameRate] names a rate, which only an encoder can deliver.
+   */
+  FrameRateSet,
+
+  /**
+   * [ExportSpec.videoCodec] names a codec rather than leaving it to the source's own.
+   */
+  VideoCodecNamed,
+
+  /**
+   * [ExportSpec.audioCodec] names a codec rather than leaving it to the source's own.
+   */
+  AudioCodecNamed,
+
+  /**
+   * [ExportSpec.targetHeight] asks for a frame the source is not already at.
+   */
+  TargetHeightSet,
+
+  /**
+   * [ExportSpec.bitrate] names a rate, which only an encoder can deliver.
+   */
+  BitrateSet,
+
+  /**
+   * Geometry moves the frame away from the source's, whether from a target height or an effect.
+   */
+  FrameResized,
+
+  /**
+   * [EditComposition.audio] asks for something other than the source's own audio.
+   */
+  AudioSpecChanged,
+
+  /**
+   * The track is held off until after the composition starts, so the output opens on a gap.
+   */
+  TrackStartsLate,
+
+  /**
+   * The track contributes only audio or only video, so a stream the source carries is dropped.
+   */
+  TrackDropsAStream,
+
+  /**
+   * The clip's audio level is not unity, so the samples have to be scaled.
+   */
+  ClipGainChanged,
+
+  /**
+   * The track's audio level is not unity, so the samples have to be scaled.
+   */
+  TrackGainChanged,
+
+  /**
+   * The composition's audio level is not unity, so the samples have to be scaled.
+   */
+  CompositionGainChanged,
+
+  /**
+   * The clip is trimmed and no sync sample sits within [Clip.snapWithin] of the cut, so reaching it
+   * means decoding.
+   */
+  TrimNotOnSyncSample,
+
+  /**
+   * The muxer will not take this source's streams without re-encoding them.
+   */
+  MuxerRefusesSource,
+
+  /**
+   * The source's codecs have no [VideoCodec] or [AudioCodec] member to name them by, so a copy
+   * could not report what it wrote.
+   */
+  SourceCodecUnnameable,
+
+  /**
+   * This backend has no stream copy at all.
+   */
+  BackendCannotCopy,
+
+  /**
+   * The grade has to come down to SDR, which only a decode and re-encode can do.
+   */
+  GradeMustToneMap,
 }
 
 /**
@@ -138,7 +257,17 @@ public enum class AdjustmentKind {
  * @property estimate What the export is expected to cost.
  * @property parity The weakest [EffectParity] across [effectOrder]. [EffectParity.Exact] only when
  *   every effect is.
- * @property composition The composition this plan was resolved from.
+ * @property duration How long the file this export writes will run. A cut that moved back to a sync
+ *   sample opens earlier than it was asked to, so this is measured from where each clip resolved to
+ *   open rather than from where its trim was written. A [ExportPath.Transmux] copy cannot cut a
+ *   packet in half, so its file runs out to the end of the last whole packet and can be a frame or
+ *   two longer than this.
+ * @property copyBlockedBy Why this export re-encodes rather than copying its streams across. Empty
+ *   when [path] is [ExportPath.Transmux], and otherwise every term that applied, so a caller can
+ *   see which field to drop to get the near-instant path back.
+ * @property composition The composition this plan was resolved from, echoed back unchanged so an
+ *   engine can negotiate it again. Nothing resolved is folded into it, so read [duration] for the
+ *   length this export writes rather than measuring its trims.
  * @property spec The spec this plan was resolved from.
  */
 public class ExportPlan
@@ -149,11 +278,13 @@ public class ExportPlan
     public val effectOrder: List<PlannedEffect>,
     public val estimate: ExportEstimate,
     public val parity: EffectParity,
+    public val duration: Duration,
+    public val copyBlockedBy: List<CopyBlocker>,
     @property:InternalFilmstripApi public val composition: EditComposition,
     @property:InternalFilmstripApi public val spec: ExportSpec,
   ) {
     override fun toString(): String =
-      "ExportPlan(path=$path, output=$output, effects=${effectOrder.size}, parity=$parity)"
+      "ExportPlan(path=$path, output=$output, duration=$duration, effects=${effectOrder.size}, parity=$parity)"
   }
 
 /**

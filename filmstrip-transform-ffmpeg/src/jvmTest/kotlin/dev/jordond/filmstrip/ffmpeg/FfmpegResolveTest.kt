@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -24,7 +25,9 @@ import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * What the ffmpeg engine hands a preview, and what it costs to ask twice.
@@ -103,6 +106,38 @@ class FfmpegResolveTest {
       runtime.probeSpawns shouldBe 1
     }
 
+  // One edit is negotiated to plan it, to resolve it for a preview and again to export it. A sync
+  // sample read fresh each time could move between those, and a window that opened in one place for
+  // the preview and another for the file is exactly what the snap exists to stop.
+  @Test
+  fun `planning and resolving a snapped trim spawns one sync-sample probe`() =
+    runTest(timeout = TIMEOUT) {
+      if (!landscape.isFile) return@runTest
+
+      val runtime = FfmpegRuntime.unshared(FfmpegConfig())
+      val engine =
+        FfmpegExportEngine(ComponentRegistry.Builder().add(BuiltInEffectResolver()).build(), runtime)
+      val trimmed =
+        EditComposition(
+          listOf(
+            Track(
+              listOf(
+                Clip(
+                  source = MediaSource.of(landscape.absolutePath),
+                  trim = TimeRange.of(TRIM_START, TRIM_END),
+                  snapWithin = SNAP_WITHIN,
+                ),
+              ),
+            ),
+          ),
+        )
+
+      engine.plan(trimmed, ExportSpec())
+      assertIs<ResolveResult.Resolved>(engine.resolve(trimmed, ExportSpec()))
+
+      runtime.syncSampleSpawns shouldBe 1
+    }
+
   // Everything the backend builds resolves through one runtime per config, so the second engine to
   // see a clip probes nothing. A count rather than an instance check, since what the sharing is for
   // is the cache rather than the object.
@@ -145,6 +180,13 @@ class FfmpegResolveTest {
 
   private companion object {
     val TIMEOUT = 5.minutes
+
+    // A window inside the landscape fixture, opening between two of its sync samples so the snap
+    // has somewhere to move the cut to.
+    val TRIM_START = 1_500.milliseconds
+    val TRIM_END = 3_000.milliseconds
+    val SNAP_WITHIN = 2.seconds
+
     const val CAP_FRACTION = 0.6f
     const val CAPPED_HEIGHT = 216
     const val BRIGHTNESS = 0.5f

@@ -65,7 +65,13 @@ internal fun Invocation.previewArguments(
         add("-f")
         add("lavfi")
       }
-      input.durationSeconds?.let {
+      // The seek has already eaten [at] of the window the input bounds, so what is left of it is
+      // shorter by the same amount. Every other input is read from its own start and keeps its own
+      // bound.
+      val windowed = index == 0 && seekBase != null
+      val length =
+        input.durationSeconds?.let { if (windowed) it - at.toDouble(DurationUnit.SECONDS) else it }
+      length?.let {
         add("-t")
         add(formatSeconds(it))
       }

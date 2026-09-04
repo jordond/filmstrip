@@ -7,12 +7,18 @@ import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSink
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.ExportDriver
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.withContext
+import platform.AVFoundation.AVAssetTrack
+import platform.AVFoundation.AVMediaTypeVideo
+import platform.AVFoundation.AVURLAsset
+import platform.AVFoundation.tracksWithMediaType
+import kotlin.time.Duration
 
 /**
  * The Apple export driver, on an AVFoundation reader and writer.
@@ -32,6 +38,24 @@ internal class AvFoundationDriver(
     outputSize: Size,
     hdr: Boolean,
   ): RenderCapabilities = coreImageRenderCapabilities(outputSize, hdr)
+
+  override suspend fun syncSampleAtOrBefore(
+    source: MediaSource,
+    cut: Duration,
+  ): Duration? =
+    withContext(Dispatchers.Default) {
+      val url =
+        try {
+          source.toNSURL()
+        } catch (_: AppleLoweringFailure) {
+          return@withContext null
+        }
+      val track =
+        AVURLAsset(uRL = url, options = null)
+          .tracksWithMediaType(AVMediaTypeVideo)
+          .firstOrNull() as? AVAssetTrack
+      track?.syncSampleAtOrBefore(cut)
+    }
 
   override fun unclaimed(specId: String): String =
     "No resolver claimed $specId on the Apple backend. Register the built-in catalogue with " +

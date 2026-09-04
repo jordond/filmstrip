@@ -18,7 +18,6 @@ import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
-import dev.jordond.filmstrip.export.TrimStrategy
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.media.MediaInfo
@@ -170,7 +169,6 @@ public class SampleAppState(
   var bitrateMbps: Int? by mutableStateOf(4)
   var frameRate: Int? by mutableStateOf(null)
   var hdr: HdrMode by mutableStateOf(HdrMode.Auto)
-  var trimStrategy: TrimStrategy by mutableStateOf(TrimStrategy.Precise)
   var strict: Boolean by mutableStateOf(false)
 
   var planning: Boolean by mutableStateOf(false)
@@ -375,7 +373,6 @@ public class SampleAppState(
     audioCodec = audioCodec,
     frameRate = frameRate,
     hdr = hdr,
-    trim = trimStrategy,
     strict = strict,
   )
 

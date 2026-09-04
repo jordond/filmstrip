@@ -34,11 +34,11 @@ import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.AudioCodec
+import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
-import dev.jordond.filmstrip.export.TrimStrategy
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.AspectRatio
@@ -85,7 +85,8 @@ class BrowserPlannerTest {
     infos: Map<MediaSource, MediaInfo> = composition.clips.map { it.source to info() }.toMap(),
     device: DeviceCapabilities = device(VideoCodec.H264, VideoCodec.Vp9),
     opaque: Set<MediaSource> = emptySet(),
-  ): BrowserLowering = planner.lower(composition, spec, device, infos, opaque = opaque)
+    openings: Map<MediaSource, Duration> = emptyMap(),
+  ): BrowserLowering = planner.lower(composition, spec, device, infos, openings, opaque = opaque)
 
   private fun infosOf(composition: EditComposition): Map<MediaSource, MediaInfo> =
     composition.clips.map { it.source to info() }.toMap()
@@ -374,14 +375,81 @@ class BrowserPlannerTest {
     assertTrue(verdict.reasons.any { it is ExportError.NoEncoder })
   }
 
+  // A trim used to force the encode path. A clip that lets the cut move back far enough to reach a
+  // sync sample stays on mediabunny's packet copy, and the window it copies opens on that sample
+  // rather than on the cut. The tolerance is taken between the two, since a copy that ignored it
+  // and one that always honoured it agree at either end.
   @Test
-  fun trimIsAlwaysPrecise() {
-    val clip = Clip(source("a"), trim = TimeRange(100.milliseconds, 1000.milliseconds))
-    val spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None, trim = TrimStrategy.Fast)
-    val verdict = lower(compositionOf(listOf(clip)), spec).verdict
-    assertIs<Verdict.Degraded>(verdict)
-    assertTrue(verdict.adjustments.any { it.kind == AdjustmentKind.TrimStrategyChanged })
-    assertEquals(900.milliseconds, verdict.plan.composition.duration)
+  fun aReachableOpeningCopiesFromTheSyncSampleRatherThanTheCut() {
+    val clip = Clip(source("a"), trim = TimeRange(TRIM_START, TRIM_END), snapWithin = REACHES)
+    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+
+    val lowering = lower(composition, ExportSpec(), openings = mapOf(clip.source to OPENING))
+
+    val plan = assertIs<Verdict.Capable>(lowering.verdict).plan
+    assertEquals(ExportPath.Transmux, plan.path)
+    assertTrue(plan.copyBlockedBy.isEmpty(), "the copy was blocked by ${plan.copyBlockedBy}")
+    val render = assertNotNull(lowering.render)
+    assertEquals(TRIM_END - OPENING, render.duration)
+    val rendered = render.clips.single()
+    assertEquals(OPENING.inWholeMicroseconds.toDouble(), rendered.trimStartUs)
+    assertEquals(TRIM_END.inWholeMicroseconds.toDouble(), rendered.trimEndUs)
+  }
+
+  // The same opening, with a tolerance that does not reach it. The cut stays where it was asked
+  // for and the plan names the trim as what cost the copy.
+  @Test
+  fun anOpeningOutOfReachBlocksTheCopyAndLeavesTheCutAlone() {
+    val clip = Clip(source("a"), trim = TimeRange(TRIM_START, TRIM_END), snapWithin = FALLS_SHORT)
+    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+
+    val lowering = lower(composition, ExportSpec(), openings = mapOf(clip.source to OPENING))
+
+    val plan = assertIs<Verdict.Capable>(lowering.verdict).plan
+    assertEquals(ExportPath.Transcode, plan.path)
+    assertTrue(CopyBlocker.TrimNotOnSyncSample in plan.copyBlockedBy, "the plan blamed ${plan.copyBlockedBy}")
+    val render = assertNotNull(lowering.render)
+    assertEquals(TRIM_END - TRIM_START, render.duration)
+    assertEquals(TRIM_START.inWholeMicroseconds.toDouble(), render.clips.single().trimStartUs)
+  }
+
+  // Zero is the default, and it says the cut lands where it was asked for however close a sync
+  // sample sits to it.
+  @Test
+  fun aTrimLeftAtTheDefaultToleranceBlocksTheCopy() {
+    val clip = Clip(source("a"), trim = TimeRange(TRIM_START, TRIM_END))
+    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+
+    val lowering = lower(composition, ExportSpec(), openings = mapOf(clip.source to OPENING))
+
+    val plan = assertIs<Verdict.Capable>(lowering.verdict).plan
+    assertEquals(ExportPath.Transcode, plan.path)
+    assertTrue(CopyBlocker.TrimNotOnSyncSample in plan.copyBlockedBy, "the plan blamed ${plan.copyBlockedBy}")
+    assertEquals(TRIM_START.inWholeMicroseconds.toDouble(), assertNotNull(lowering.render).clips.single().trimStartUs)
+  }
+
+  // Snapping only saves the work it costs accuracy for on a copy. Anything that re-encodes decodes
+  // the leading group of pictures anyway, so the cut lands where it was asked whatever the
+  // tolerance allowed.
+  @Test
+  fun anEffectedClipTranscodesFromTheCutEvenWithAReachableOpening() {
+    val clip =
+      Clip(
+        source("a"),
+        trim = TimeRange(TRIM_START, TRIM_END),
+        effects = listOf(Brightness(0.5f)),
+        snapWithin = REACHES,
+      )
+    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+
+    val lowering = lower(composition, ExportSpec(), openings = mapOf(clip.source to OPENING))
+
+    val plan = assertIs<Verdict.Capable>(lowering.verdict).plan
+    assertEquals(ExportPath.Transcode, plan.path)
+    assertTrue(CopyBlocker.ClipHasEffects in plan.copyBlockedBy, "the plan blamed ${plan.copyBlockedBy}")
+    val render = assertNotNull(lowering.render)
+    assertEquals(TRIM_END - TRIM_START, render.duration)
+    assertEquals(TRIM_START.inWholeMicroseconds.toDouble(), render.clips.single().trimStartUs)
   }
 
   // An HDR source goes through the same HdrMode negotiation media3 and AVFoundation use, so it is
@@ -703,6 +771,17 @@ class BrowserPlannerTest {
     )
 
   private companion object {
+    // A window inside the fabricated source's two seconds, clear of both its ends, so a lowering
+    // that dropped one bound cannot land on the same answer by accident.
+    val TRIM_START = 700.milliseconds
+    val TRIM_END = 1_500.milliseconds
+
+    // The sync sample a copy would open on, four hundred milliseconds back from the cut, with a
+    // tolerance either side of that gap so neither answer is the one a broken snap gives anyway.
+    val OPENING = 300.milliseconds
+    val REACHES = 600.milliseconds
+    val FALLS_SHORT = 200.milliseconds
+
     val IDENTITY_MATRIX = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f)
     const val MATRIX_TOLERANCE = 1e-5f
 

@@ -455,7 +455,8 @@ class AppleExportTest {
    *
    * An encoder stamps its own name into the format description, so the source's survives a copy and
    * not a re-encode. The trim is the control: it is the same export down to the path the planner
-   * picks, and a reader that always answered null would pass the first claim on its own.
+   * picks, and a reader that always answered null would pass the first claim on its own. It cuts
+   * off a sync sample and says nothing about moving, which is what leaves the copy out of reach.
    */
   @Test
   fun `copies the streams across when nothing touches them`() =
@@ -474,8 +475,10 @@ class AppleExportTest {
       val reEncoded = temporaryPath("transcode")
       val trimmed =
         compositionOf {
-          clip(MediaSource.of(landscape)) { trim(0.seconds, 1.seconds) }
+          clip(MediaSource.of(landscape)) { trim(500.milliseconds, 1.seconds) }
         }
+      val control = assertIs<Verdict.Capable>(filmstrip.plan(trimmed, ExportSpec())).plan
+      control.path shouldBe ExportPath.Transcode
       exported(trimmed, ExportSpec(), reEncoded)
       assertTrue(formatName(reEncoded) != source, "the trimmed export passed the source's format off as its own")
 

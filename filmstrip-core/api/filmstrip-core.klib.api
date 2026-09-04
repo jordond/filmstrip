@@ -172,7 +172,6 @@ final enum class dev.jordond.filmstrip.export/AdjustmentKind : kotlin/Enum<dev.j
     enum entry HdrToneMapped // dev.jordond.filmstrip.export/AdjustmentKind.HdrToneMapped|null[0]
     enum entry ResolutionClamped // dev.jordond.filmstrip.export/AdjustmentKind.ResolutionClamped|null[0]
     enum entry SoftwareFallback // dev.jordond.filmstrip.export/AdjustmentKind.SoftwareFallback|null[0]
-    enum entry TrimStrategyChanged // dev.jordond.filmstrip.export/AdjustmentKind.TrimStrategyChanged|null[0]
 
     final val entries // dev.jordond.filmstrip.export/AdjustmentKind.entries|#static{}entries[0]
         final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.export/AdjustmentKind> // dev.jordond.filmstrip.export/AdjustmentKind.entries.<get-entries>|<get-entries>#static(){}[0]
@@ -203,6 +202,37 @@ final enum class dev.jordond.filmstrip.export/AudioCodec : kotlin/Enum<dev.jordo
     }
 }
 
+final enum class dev.jordond.filmstrip.export/CopyBlocker : kotlin/Enum<dev.jordond.filmstrip.export/CopyBlocker> { // dev.jordond.filmstrip.export/CopyBlocker|null[0]
+    enum entry AudioCodecNamed // dev.jordond.filmstrip.export/CopyBlocker.AudioCodecNamed|null[0]
+    enum entry AudioSpecChanged // dev.jordond.filmstrip.export/CopyBlocker.AudioSpecChanged|null[0]
+    enum entry BackendCannotCopy // dev.jordond.filmstrip.export/CopyBlocker.BackendCannotCopy|null[0]
+    enum entry BitrateSet // dev.jordond.filmstrip.export/CopyBlocker.BitrateSet|null[0]
+    enum entry ClipGainChanged // dev.jordond.filmstrip.export/CopyBlocker.ClipGainChanged|null[0]
+    enum entry ClipHasEffects // dev.jordond.filmstrip.export/CopyBlocker.ClipHasEffects|null[0]
+    enum entry CompositionGainChanged // dev.jordond.filmstrip.export/CopyBlocker.CompositionGainChanged|null[0]
+    enum entry CompositionHasEffects // dev.jordond.filmstrip.export/CopyBlocker.CompositionHasEffects|null[0]
+    enum entry FrameRateSet // dev.jordond.filmstrip.export/CopyBlocker.FrameRateSet|null[0]
+    enum entry FrameResized // dev.jordond.filmstrip.export/CopyBlocker.FrameResized|null[0]
+    enum entry GradeMustToneMap // dev.jordond.filmstrip.export/CopyBlocker.GradeMustToneMap|null[0]
+    enum entry MultipleClips // dev.jordond.filmstrip.export/CopyBlocker.MultipleClips|null[0]
+    enum entry MultipleTracks // dev.jordond.filmstrip.export/CopyBlocker.MultipleTracks|null[0]
+    enum entry MuxerRefusesSource // dev.jordond.filmstrip.export/CopyBlocker.MuxerRefusesSource|null[0]
+    enum entry SourceCodecUnnameable // dev.jordond.filmstrip.export/CopyBlocker.SourceCodecUnnameable|null[0]
+    enum entry TargetHeightSet // dev.jordond.filmstrip.export/CopyBlocker.TargetHeightSet|null[0]
+    enum entry TrackDropsAStream // dev.jordond.filmstrip.export/CopyBlocker.TrackDropsAStream|null[0]
+    enum entry TrackGainChanged // dev.jordond.filmstrip.export/CopyBlocker.TrackGainChanged|null[0]
+    enum entry TrackHasEffects // dev.jordond.filmstrip.export/CopyBlocker.TrackHasEffects|null[0]
+    enum entry TrackStartsLate // dev.jordond.filmstrip.export/CopyBlocker.TrackStartsLate|null[0]
+    enum entry TrimNotOnSyncSample // dev.jordond.filmstrip.export/CopyBlocker.TrimNotOnSyncSample|null[0]
+    enum entry VideoCodecNamed // dev.jordond.filmstrip.export/CopyBlocker.VideoCodecNamed|null[0]
+
+    final val entries // dev.jordond.filmstrip.export/CopyBlocker.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.export/CopyBlocker> // dev.jordond.filmstrip.export/CopyBlocker.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.jordond.filmstrip.export/CopyBlocker // dev.jordond.filmstrip.export/CopyBlocker.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.jordond.filmstrip.export/CopyBlocker> // dev.jordond.filmstrip.export/CopyBlocker.values|values#static(){}[0]
+}
+
 final enum class dev.jordond.filmstrip.export/ExportPath : kotlin/Enum<dev.jordond.filmstrip.export/ExportPath> { // dev.jordond.filmstrip.export/ExportPath|null[0]
     enum entry Transcode // dev.jordond.filmstrip.export/ExportPath.Transcode|null[0]
     enum entry Transmux // dev.jordond.filmstrip.export/ExportPath.Transmux|null[0]
@@ -229,22 +259,6 @@ final enum class dev.jordond.filmstrip.export/HdrMode : kotlin/Enum<dev.jordond.
     final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.export/HdrMode.Companion|null[0]
         final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.export/HdrMode> // dev.jordond.filmstrip.export/HdrMode.Companion.serializer|serializer(){}[0]
         final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.export/HdrMode.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
-    }
-}
-
-final enum class dev.jordond.filmstrip.export/TrimStrategy : kotlin/Enum<dev.jordond.filmstrip.export/TrimStrategy> { // dev.jordond.filmstrip.export/TrimStrategy|null[0]
-    enum entry Fast // dev.jordond.filmstrip.export/TrimStrategy.Fast|null[0]
-    enum entry Precise // dev.jordond.filmstrip.export/TrimStrategy.Precise|null[0]
-
-    final val entries // dev.jordond.filmstrip.export/TrimStrategy.entries|#static{}entries[0]
-        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.export/TrimStrategy> // dev.jordond.filmstrip.export/TrimStrategy.entries.<get-entries>|<get-entries>#static(){}[0]
-
-    final fun valueOf(kotlin/String): dev.jordond.filmstrip.export/TrimStrategy // dev.jordond.filmstrip.export/TrimStrategy.valueOf|valueOf#static(kotlin.String){}[0]
-    final fun values(): kotlin/Array<dev.jordond.filmstrip.export/TrimStrategy> // dev.jordond.filmstrip.export/TrimStrategy.values|values#static(){}[0]
-
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.export/TrimStrategy.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.export/TrimStrategy> // dev.jordond.filmstrip.export/TrimStrategy.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.export/TrimStrategy.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
     }
 }
 
@@ -2029,7 +2043,7 @@ final class dev.jordond.filmstrip.diagnostics/DiagnosticEvent { // dev.jordond.f
 }
 
 final class dev.jordond.filmstrip.edit/Clip { // dev.jordond.filmstrip.edit/Clip|null[0]
-    constructor <init>(dev.jordond.filmstrip.media/MediaSource, dev.jordond.filmstrip.edit/TimeRange? = ..., kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec> = ..., dev.jordond.filmstrip.edit/AudioLevel = ...) // dev.jordond.filmstrip.edit/Clip.<init>|<init>(dev.jordond.filmstrip.media.MediaSource;dev.jordond.filmstrip.edit.TimeRange?;kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>;dev.jordond.filmstrip.edit.AudioLevel){}[0]
+    constructor <init>(dev.jordond.filmstrip.media/MediaSource, dev.jordond.filmstrip.edit/TimeRange? = ..., kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec> = ..., dev.jordond.filmstrip.edit/AudioLevel = ..., kotlin.time/Duration = ...) // dev.jordond.filmstrip.edit/Clip.<init>|<init>(dev.jordond.filmstrip.media.MediaSource;dev.jordond.filmstrip.edit.TimeRange?;kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>;dev.jordond.filmstrip.edit.AudioLevel;kotlin.time.Duration){}[0]
 
     final val audio // dev.jordond.filmstrip.edit/Clip.audio|{}audio[0]
         final fun <get-audio>(): dev.jordond.filmstrip.edit/AudioLevel // dev.jordond.filmstrip.edit/Clip.audio.<get-audio>|<get-audio>(){}[0]
@@ -2037,6 +2051,8 @@ final class dev.jordond.filmstrip.edit/Clip { // dev.jordond.filmstrip.edit/Clip
         final fun <get-duration>(): kotlin.time/Duration? // dev.jordond.filmstrip.edit/Clip.duration.<get-duration>|<get-duration>(){}[0]
     final val effects // dev.jordond.filmstrip.edit/Clip.effects|{}effects[0]
         final fun <get-effects>(): kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec> // dev.jordond.filmstrip.edit/Clip.effects.<get-effects>|<get-effects>(){}[0]
+    final val snapWithin // dev.jordond.filmstrip.edit/Clip.snapWithin|{}snapWithin[0]
+        final fun <get-snapWithin>(): kotlin.time/Duration // dev.jordond.filmstrip.edit/Clip.snapWithin.<get-snapWithin>|<get-snapWithin>(){}[0]
     final val source // dev.jordond.filmstrip.edit/Clip.source|{}source[0]
         final fun <get-source>(): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.edit/Clip.source.<get-source>|<get-source>(){}[0]
     final val trim // dev.jordond.filmstrip.edit/Clip.trim|{}trim[0]
@@ -2047,6 +2063,7 @@ final class dev.jordond.filmstrip.edit/Clip { // dev.jordond.filmstrip.edit/Clip
     final fun toString(): kotlin/String // dev.jordond.filmstrip.edit/Clip.toString|toString(){}[0]
     final fun withAudio(dev.jordond.filmstrip.edit/AudioLevel): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/Clip.withAudio|withAudio(dev.jordond.filmstrip.edit.AudioLevel){}[0]
     final fun withEffects(kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec>): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/Clip.withEffects|withEffects(kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>){}[0]
+    final fun withSnapWithin(kotlin.time/Duration): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/Clip.withSnapWithin|withSnapWithin(kotlin.time.Duration){}[0]
     final fun withTrim(dev.jordond.filmstrip.edit/TimeRange?): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/Clip.withTrim|withTrim(dev.jordond.filmstrip.edit.TimeRange?){}[0]
 
     final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.edit/Clip> { // dev.jordond.filmstrip.edit/Clip.$serializer|null[0]
@@ -2074,6 +2091,7 @@ final class dev.jordond.filmstrip.edit/ClipBuilder { // dev.jordond.filmstrip.ed
     final fun effects(kotlin/Function1<dev.jordond.filmstrip.edit/EffectsBuilder, kotlin/Unit>): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.effects|effects(kotlin.Function1<dev.jordond.filmstrip.edit.EffectsBuilder,kotlin.Unit>){}[0]
     final fun fadeIn(kotlin.time/Duration): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.fadeIn|fadeIn(kotlin.time.Duration){}[0]
     final fun fadeOut(kotlin.time/Duration): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.fadeOut|fadeOut(kotlin.time.Duration){}[0]
+    final fun snapWithin(kotlin.time/Duration): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.snapWithin|snapWithin(kotlin.time.Duration){}[0]
     final fun trim(dev.jordond.filmstrip.edit/TimeRange): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.trim|trim(dev.jordond.filmstrip.edit.TimeRange){}[0]
     final fun trim(kotlin.ranges/ClosedRange<kotlin.time/Duration>): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.trim|trim(kotlin.ranges.ClosedRange<kotlin.time.Duration>){}[0]
     final fun trim(kotlin.time/Duration, kotlin.time/Duration): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.trim|trim(kotlin.time.Duration;kotlin.time.Duration){}[0]
@@ -2395,6 +2413,10 @@ final class dev.jordond.filmstrip.export/ExportEstimate { // dev.jordond.filmstr
 }
 
 final class dev.jordond.filmstrip.export/ExportPlan { // dev.jordond.filmstrip.export/ExportPlan|null[0]
+    final val copyBlockedBy // dev.jordond.filmstrip.export/ExportPlan.copyBlockedBy|{}copyBlockedBy[0]
+        final fun <get-copyBlockedBy>(): kotlin.collections/List<dev.jordond.filmstrip.export/CopyBlocker> // dev.jordond.filmstrip.export/ExportPlan.copyBlockedBy.<get-copyBlockedBy>|<get-copyBlockedBy>(){}[0]
+    final val duration // dev.jordond.filmstrip.export/ExportPlan.duration|{}duration[0]
+        final fun <get-duration>(): kotlin.time/Duration // dev.jordond.filmstrip.export/ExportPlan.duration.<get-duration>|<get-duration>(){}[0]
     final val effectOrder // dev.jordond.filmstrip.export/ExportPlan.effectOrder|{}effectOrder[0]
         final fun <get-effectOrder>(): kotlin.collections/List<dev.jordond.filmstrip.export/PlannedEffect> // dev.jordond.filmstrip.export/ExportPlan.effectOrder.<get-effectOrder>|<get-effectOrder>(){}[0]
     final val estimate // dev.jordond.filmstrip.export/ExportPlan.estimate|{}estimate[0]
@@ -2410,7 +2432,7 @@ final class dev.jordond.filmstrip.export/ExportPlan { // dev.jordond.filmstrip.e
 }
 
 final class dev.jordond.filmstrip.export/ExportSpec { // dev.jordond.filmstrip.export/ExportSpec|null[0]
-    constructor <init>(kotlin/Int? = ..., dev.jordond.filmstrip.export/Bitrate? = ..., dev.jordond.filmstrip.export/VideoCodec = ..., dev.jordond.filmstrip.export/AudioCodec = ..., kotlin/Int? = ..., dev.jordond.filmstrip.export/HdrMode = ..., dev.jordond.filmstrip.export/TrimStrategy = ..., kotlin/Boolean = ...) // dev.jordond.filmstrip.export/ExportSpec.<init>|<init>(kotlin.Int?;dev.jordond.filmstrip.export.Bitrate?;dev.jordond.filmstrip.export.VideoCodec;dev.jordond.filmstrip.export.AudioCodec;kotlin.Int?;dev.jordond.filmstrip.export.HdrMode;dev.jordond.filmstrip.export.TrimStrategy;kotlin.Boolean){}[0]
+    constructor <init>(kotlin/Int? = ..., dev.jordond.filmstrip.export/Bitrate? = ..., dev.jordond.filmstrip.export/VideoCodec = ..., dev.jordond.filmstrip.export/AudioCodec = ..., kotlin/Int? = ..., dev.jordond.filmstrip.export/HdrMode = ..., kotlin/Boolean = ...) // dev.jordond.filmstrip.export/ExportSpec.<init>|<init>(kotlin.Int?;dev.jordond.filmstrip.export.Bitrate?;dev.jordond.filmstrip.export.VideoCodec;dev.jordond.filmstrip.export.AudioCodec;kotlin.Int?;dev.jordond.filmstrip.export.HdrMode;kotlin.Boolean){}[0]
 
     final val audioCodec // dev.jordond.filmstrip.export/ExportSpec.audioCodec|{}audioCodec[0]
         final fun <get-audioCodec>(): dev.jordond.filmstrip.export/AudioCodec // dev.jordond.filmstrip.export/ExportSpec.audioCodec.<get-audioCodec>|<get-audioCodec>(){}[0]
@@ -2424,8 +2446,6 @@ final class dev.jordond.filmstrip.export/ExportSpec { // dev.jordond.filmstrip.e
         final fun <get-strict>(): kotlin/Boolean // dev.jordond.filmstrip.export/ExportSpec.strict.<get-strict>|<get-strict>(){}[0]
     final val targetHeight // dev.jordond.filmstrip.export/ExportSpec.targetHeight|{}targetHeight[0]
         final fun <get-targetHeight>(): kotlin/Int? // dev.jordond.filmstrip.export/ExportSpec.targetHeight.<get-targetHeight>|<get-targetHeight>(){}[0]
-    final val trim // dev.jordond.filmstrip.export/ExportSpec.trim|{}trim[0]
-        final fun <get-trim>(): dev.jordond.filmstrip.export/TrimStrategy // dev.jordond.filmstrip.export/ExportSpec.trim.<get-trim>|<get-trim>(){}[0]
     final val videoCodec // dev.jordond.filmstrip.export/ExportSpec.videoCodec|{}videoCodec[0]
         final fun <get-videoCodec>(): dev.jordond.filmstrip.export/VideoCodec // dev.jordond.filmstrip.export/ExportSpec.videoCodec.<get-videoCodec>|<get-videoCodec>(){}[0]
 

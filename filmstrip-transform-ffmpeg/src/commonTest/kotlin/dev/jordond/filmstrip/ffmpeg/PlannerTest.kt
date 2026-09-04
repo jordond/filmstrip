@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.AudioCodec
+import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
@@ -51,6 +52,7 @@ import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.transform.internal.curveOver
 import dev.jordond.filmstrip.transform.internal.stillUnsupportedMessage
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -67,6 +69,20 @@ private val LIBPLACEBO_TONE_MAPPING = setOf("overlay", "concat", "amix", "libpla
 // close enough together to stay inside the landscape fixture's own length.
 private const val MANY_POINTS = 60
 
+// A window inside the landscape source's four seconds, clear of both ends and of the middle, so a
+// lowering that dropped one bound cannot land on the same answer by accident.
+private val TRIM_START = 1_200.milliseconds
+private val TRIM_END = 2_800.milliseconds
+
+// Where a copy of the landscape source could open for that cut, standing in for what the engine's
+// own ffprobe reads. Behind the cut rather than on it, so a snap either moves or is refused and
+// neither reading passes for the other.
+private val SYNC_SAMPLE = 1_000.milliseconds
+
+// Wide enough to reach SYNC_SAMPLE with room to spare, so the test pins the reachable case rather
+// than the boundary one.
+private val SNAP_WITHIN = 500.milliseconds
+
 class PlannerTest {
   private val landscape = MediaSource.of("/clips/landscape.mp4")
   private val portrait = MediaSource.of("/clips/portrait.mp4")
@@ -81,6 +97,9 @@ class PlannerTest {
       graded to info(Size(1920, 1080), 4_000.milliseconds, hdr = HdrTransfer.Pq),
       music to MediaInfo(10_000.milliseconds, null, AudioTrackInfo(trackCodecOf("mp4a"), 44_100, 2, null), true),
     )
+
+  // What the engine hands the planner once ffprobe has named the sync sample ahead of the cut.
+  private val openings = mapOf(landscape to SYNC_SAMPLE)
 
   @Test
   fun `reframes to the requested aspect and height`() {
@@ -215,6 +234,99 @@ class PlannerTest {
     val verdict = planner().lower(composition, ExportSpec(), device(), infos).verdict
 
     assertIs<Verdict.Capable>(verdict).plan.path shouldBe ExportPath.Transmux
+  }
+
+  // A trim used to force a re-encode on every backend. A snapWithin wide enough to reach the sync
+  // sample before the cut leaves an otherwise untouched clip on the copy path, and the window has
+  // to reach the input's own bounds since a copy runs no graph to carry it.
+  @Test
+  fun `a reachable snap on an untouched clip copies the window rather than re-encoding it`() {
+    val composition = trimmed(snapWithin = SNAP_WITHIN)
+
+    val lowering = planner().lower(composition, ExportSpec(), device(), infos, openings)
+
+    assertIs<Verdict.Capable>(lowering.verdict).plan.path shouldBe ExportPath.Transmux
+    val clip =
+      lowering.export.composition!!
+        .tracks
+        .single()
+        .clips
+        .single()
+    clip.startsAtKeyFrame shouldBe true
+    // The planner already moved the cut back, so the input lays that window and derives nothing of
+    // its own.
+    clip.start shouldBe SYNC_SAMPLE
+    val input = lowering.invocation!!.inputs.single()
+    input.startSeconds shouldBe clip.start.toDouble(DurationUnit.SECONDS)
+    input.durationSeconds shouldBe clip.duration.toDouble(DurationUnit.SECONDS)
+  }
+
+  // Snapping only saves the work it costs accuracy for on a copy. An export with an effect on it
+  // decodes the leading group of pictures anyway, so the cut lands where it was asked and the
+  // caller is told which term cost them the copy.
+  @Test
+  fun `a snapped clip with an effect transcodes from the cut it asked for`() {
+    val composition =
+      EditComposition(
+        listOf(
+          Track(
+            listOf(
+              Clip(
+                source = landscape,
+                trim = TimeRange.of(TRIM_START, TRIM_END),
+                effects = listOf(Rotate(180)),
+                snapWithin = SNAP_WITHIN,
+              ),
+            ),
+          ),
+        ),
+      )
+
+    val lowering = planner().lower(composition, ExportSpec(), device(), infos, openings)
+
+    val verdict = assertIs<Verdict.Capable>(lowering.verdict)
+    verdict.plan.path shouldBe ExportPath.Transcode
+    verdict.plan.copyBlockedBy shouldContain CopyBlocker.ClipHasEffects
+    val clip =
+      lowering.export.composition!!
+        .tracks
+        .single()
+        .clips
+        .single()
+    clip.startsAtKeyFrame shouldBe false
+    clip.start shouldBe TRIM_START
+  }
+
+  // Zero is the default, and it means the cut lands where it was asked, which no stream copy can
+  // promise on a cut that is not already a sync sample. The trim therefore goes on re-encoding and
+  // the plan names the term that cost it the copy.
+  @Test
+  fun `a cut left at the default snap does not move and does not copy`() {
+    val composition = trimmed()
+
+    val lowering = planner().lower(composition, ExportSpec(), device(), infos, openings)
+
+    val verdict = assertIs<Verdict.Capable>(lowering.verdict)
+    verdict.plan.path shouldBe ExportPath.Transcode
+    verdict.plan.copyBlockedBy shouldContain CopyBlocker.TrimNotOnSyncSample
+    lowering.export.composition!!
+      .tracks
+      .single()
+      .clips
+      .single()
+      .start shouldBe TRIM_START
+  }
+
+  // The snap is a bound, not a licence to move as far as the nearest sync sample happens to sit.
+  @Test
+  fun `a snap too narrow to reach the sync sample leaves the cut where it was asked`() {
+    val composition = trimmed(snapWithin = TRIM_START - SYNC_SAMPLE - 1.milliseconds)
+
+    val lowering = planner().lower(composition, ExportSpec(), device(), infos, openings)
+
+    val verdict = assertIs<Verdict.Capable>(lowering.verdict)
+    verdict.plan.path shouldBe ExportPath.Transcode
+    verdict.plan.copyBlockedBy shouldContain CopyBlocker.TrimNotOnSyncSample
   }
 
   // The device measured an HDR-capable encoder, so the grade rides straight through to it instead
@@ -558,6 +670,11 @@ class PlannerTest {
   }
 
   private fun planner(toolchain: Toolchain = toolchain()) = FfmpegPlanner(toolchain, listOf(BuiltInEffectResolver()))
+
+  private fun trimmed(snapWithin: Duration = Duration.ZERO): EditComposition =
+    EditComposition(
+      listOf(Track(listOf(Clip(landscape, trim = TimeRange.of(TRIM_START, TRIM_END), snapWithin = snapWithin)))),
+    )
 
   private fun device(
     codecs: List<VideoCodec> = listOf(VideoCodec.H264),

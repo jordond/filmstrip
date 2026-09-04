@@ -27,6 +27,7 @@ import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.transform.internal.ProbeCache
 import dev.jordond.filmstrip.transform.internal.ProbeCacheResult
 import dev.jordond.filmstrip.transform.internal.ResolveResult
+import dev.jordond.filmstrip.transform.internal.copyOpenings
 import dev.jordond.filmstrip.transform.internal.refusal
 import dev.jordond.filmstrip.transform.internal.toResolveResult
 import kotlinx.coroutines.flow.Flow
@@ -58,6 +59,10 @@ public class BrowserExportEngine(
   private val planner = BrowserPlanner(components.effectResolvers)
   private var device: DeviceCapabilities? = null
   private val probes = ProbeCache(prober)
+
+  // Where a stream copy of each cut could open. The same edit is negotiated to plan it, to resolve
+  // it for a preview and again to export it, and the answer cannot move between those.
+  private val openings = mutableMapOf<Pair<MediaSource, Duration>, Duration?>()
 
   override suspend fun capabilities(): CapabilitiesResult = CapabilitiesResult.Success(backend.capabilities())
 
@@ -135,6 +140,7 @@ public class BrowserExportEngine(
             spec,
             if (opaque.isEmpty()) device else device.withoutHdrEncoding(),
             probed.infos,
+            openings = copyOpenings(composition, ::openingFor),
             layoutSize = layoutSize,
             opaque = opaque,
           ),
@@ -319,6 +325,19 @@ public class BrowserExportEngine(
     )
 
   private suspend fun deviceCapabilities(): DeviceCapabilities = device ?: backend.capabilities().also { device = it }
+
+  /**
+   * The sync sample a stream copy of [source] could open on for a cut at [cut], read once per pair
+   * and held for the life of the engine.
+   */
+  private suspend fun openingFor(
+    source: MediaSource,
+    cut: Duration,
+  ): Duration? {
+    val key = source to cut
+    if (key in openings) return openings[key]
+    return sources.open(source)?.syncSampleAtOrBefore(cut).also { openings[key] = it }
+  }
 
   private fun infoOf(
     verified: VerifiedFile,

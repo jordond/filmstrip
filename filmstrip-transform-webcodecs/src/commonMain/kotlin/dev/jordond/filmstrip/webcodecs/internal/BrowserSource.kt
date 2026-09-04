@@ -6,6 +6,9 @@ import dev.jordond.filmstrip.media.MediaSource
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
+import kotlin.time.DurationUnit
 
 /**
  * What a source's video track turned out to be, read from the container without decoding a frame.
@@ -138,6 +141,19 @@ internal class SourceReader(
     val track = videoTrack() ?: return null
     val packet = EncodedPacketSink(track).getKeyPacket(timestampUs / MICROS_PER_SECOND).await() ?: return null
     return packet.timestamp * MICROS_PER_SECOND
+  }
+
+  /**
+   * Where a stream copy of this source could open for a cut at [cut], which is the sync sample at
+   * or before it, or null when there is none for a copy to open on.
+   *
+   * A source with no video track has nothing to look in, and a sample mediabunny names past the cut
+   * would leave the copy opening after the frame it has to carry, so both read as none at all. The
+   * planner decides from this whether the copy is reachable, and this backend never asks again.
+   */
+  suspend fun syncSampleAtOrBefore(cut: Duration): Duration? {
+    val keyUs = keyFrameAt(cut.toDouble(DurationUnit.MICROSECONDS)) ?: return null
+    return keyUs.microseconds.takeIf { it <= cut }
   }
 
   /**

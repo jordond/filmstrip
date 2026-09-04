@@ -26,6 +26,7 @@ import dev.jordond.filmstrip.transform.internal.showsFill
 import dev.jordond.filmstrip.transform.internal.sigmaFor
 import dev.jordond.filmstrip.transform.internal.stillUnsupportedMessage
 import kotlin.math.roundToInt
+import kotlin.time.Duration
 
 /**
  * What a plan resolved to: what the shared negotiator settled on, and the graph that runs when it is
@@ -70,9 +71,6 @@ internal class FfmpegPlanner(
       },
       ladder = CODEC_LADDER,
       noteOf = FfmpegParity::noteFor,
-      // ffmpeg has no single-pass form that stream-copies around a trim, so a trim always decodes
-      // and re-encodes rather than snapping to a sync sample.
-      supportsFastTrim = false,
       supportsPassthrough = true,
       // Every export here writes mp4, so a copy is allowed for exactly what mp4 carries.
       canCopy = { info -> Mp4Copy.accepts(info) },
@@ -86,6 +84,9 @@ internal class FfmpegPlanner(
     )
 
   /**
+   * @param openings Where a stream copy of each source could open, which the engine reads with
+   *   [FfmpegRuntime.syncSampleAtOrBefore] the way it reads [infos]. The negotiator decides from
+   *   these whether the copy is reachable and where the window then opens.
    * @param layoutSize The output frame text is laid out against, for a caller planning a frame
    *   smaller than the one an export writes. Null lays text out against the frame [spec] settles
    *   on, which is what an export does.
@@ -95,6 +96,7 @@ internal class FfmpegPlanner(
     spec: ExportSpec,
     device: DeviceCapabilities,
     infos: Map<MediaSource, MediaInfo>,
+    openings: Map<MediaSource, Duration> = emptyMap(),
     dropped: Set<String> = emptySet(),
     layoutSize: Size? = null,
   ): Lowering {
@@ -106,7 +108,7 @@ internal class FfmpegPlanner(
       readablePath(clip.source) ?: return unreadable(clip.source)
     }
 
-    val export = planner.negotiate(composition, spec, device, infos, dropped, layoutSize)
+    val export = planner.negotiate(composition, spec, device, infos, openings, dropped, layoutSize)
     val negotiated = export.composition ?: return Lowering(export, null)
     val fill = negotiated.fill
     if (fill is Fill.Blurred && negotiated.showsFill) {

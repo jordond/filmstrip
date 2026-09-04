@@ -31,6 +31,7 @@ import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.AudioFormat
+import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportEstimate
 import dev.jordond.filmstrip.export.ExportPath
@@ -39,7 +40,6 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.export.PlannedEffect
-import dev.jordond.filmstrip.export.TrimStrategy
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fit
@@ -78,10 +78,9 @@ public val DEFAULT_HDR_LADDER: List<VideoCodec> = listOf(VideoCodec.Hevc)
  * effect to a platform object, [renderCapabilities] says what that platform can render, [ladder] is
  * the order this engine tries video codecs in, most preferred first, [hdrLadder] is the same but for
  * an export that keeps HDR, [noteOf] is what to tell a caller about an effect this engine only
- * approximates, [supportsFastTrim] says whether it can snap a trim to a sync sample rather than
- * decoding to reach it, [supportsPassthrough] says whether it can copy a stream across without an
- * encoder at all, [canCopy] says whether the muxer will take a source's streams without re-encoding
- * them, [canToneMap] says whether it can bring an HDR grade down to SDR, and
+ * approximates, [supportsPassthrough] says whether it can copy a stream across without an encoder at
+ * all, [canCopy] says whether the muxer will take a source's streams without re-encoding them,
+ * [canToneMap] says whether it can bring an HDR grade down to SDR, and
  * [compositionGeometryPerClip] says whether composition-level geometry has to run on each clip's own
  * frame.
  */
@@ -95,7 +94,6 @@ public class ExportPlanner(
   private val supportsPassthrough: Boolean,
   private val canCopy: (MediaInfo) -> Boolean,
   private val noteOf: (String) -> String? = { null },
-  private val supportsFastTrim: Boolean = true,
   private val canToneMap: Boolean = true,
   private val compositionGeometryPerClip: Boolean = false,
   private val hdrLadder: List<VideoCodec> = DEFAULT_HDR_LADDER,
@@ -115,6 +113,9 @@ public class ExportPlanner(
   /**
    * Negotiates [composition] against [device] into a verdict and the graph an export would run.
    *
+   * @param openings Where a stream copy of each source could open, which is the sync sample at or
+   *   before that clip's cut. A source with no entry names none, and a trim over it blocks the copy.
+   *   Only an engine can read this, so it probes and hands the answers in the way it does `infos`.
    * @param dropped Effect ids to leave out of the graph entirely.
    * @param layoutSize The output frame text is laid out against, for a caller planning a frame
    *   smaller than the one an export writes. Null lays text out against the frame this negotiation
@@ -125,6 +126,7 @@ public class ExportPlanner(
     spec: ExportSpec,
     device: DeviceCapabilities,
     infos: Map<MediaSource, MediaInfo>,
+    openings: Map<MediaSource, Duration> = emptyMap(),
     dropped: Set<String> = emptySet(),
     layoutSize: Size? = null,
   ): NegotiatedExport {
@@ -199,11 +201,17 @@ public class ExportPlanner(
     // clamp to. This has to be known before HDR is resolved, since
     // it is one of the things that decides whether the grade can be kept.
     val firstInfo = infos.getValue(firstClip.source)
-    val copyKeepsHdr =
-      supportsPassthrough &&
-        untouchedExceptHdr(edit, spec, firstVideo.displaySize, requestedSize) &&
-        canCopy(firstInfo) &&
-        codecsAreNameable(firstInfo)
+    // The one clip a copy could ever cover, since a copy needs a single track carrying a single
+    // clip. Where that copy would open is settled here and nowhere else, so a backend lays the
+    // window this resolves to rather than reading the source's sync samples again.
+    val onlyClip =
+      edit.tracks
+        .singleOrNull()
+        ?.clips
+        ?.singleOrNull()
+    val copyOpening = onlyClip?.let { copyOpening(it, openings[it.source]) }
+    val blockers = copyBlockers(edit, spec, firstVideo.displaySize, requestedSize, copyOpening, firstInfo)
+    val copyKeepsHdr = blockers.isEmpty()
     val hdr =
       resolveHdr(spec.hdr, sourceIsHdr, gradesAgree, device.supportsHdrEncoding, canToneMap, copyKeepsHdr)
         ?: return incapable(
@@ -217,6 +225,12 @@ public class ExportPlanner(
     // codec to HEVC for a stream nobody is going to encode.
     val encodesHdr = sourceIsHdr && hdr == ResolvedHdr.Keep && !copyKeepsHdr
     val path = exportPath(copyKeepsHdr, hdr)
+    // A copy the grade alone ruled out has nothing else wrong with it, so that is the only term
+    // left to report.
+    val copyBlockedBy =
+      if (copyKeepsHdr && path != ExportPath.Transmux) listOf(CopyBlocker.GradeMustToneMap) else blockers
+    // Non-null only on a copy, and then it is the window every backend lays.
+    val copyOpensAt = copyOpening.takeIf { path == ExportPath.Transmux }
     // A source that is HLG must not be written as PQ, so the transfer travels with the grade.
     // Keeping a grade already means the sources agree on one, so there is exactly one to take.
     val hdrTransfer = if (hdr == ResolvedHdr.Keep) sourceTransfers.singleOrNull() else null
@@ -268,7 +282,7 @@ public class ExportPlanner(
         // until all of them are known.
         val timings =
           track.clips.map { clip ->
-            trimWindow(clip, infos.getValue(clip.source))
+            trimWindow(clip, infos.getValue(clip.source), copyOpensAt)
               ?: return incapable("Clip ${clip.source.describe()} trims to nothing.")
           }
         val trackLength = timings.fold(Duration.ZERO) { total, (from, to) -> total + (to - from) }
@@ -319,7 +333,7 @@ public class ExportPlanner(
                   clip.audio.curveOver(length) *
                     trackCurve.window(clipStartInTrack, length) *
                     ResolvedGain.constant(compositionGain, Duration.ZERO, length),
-                startsAtKeyFrame = supportsFastTrim && spec.trim == TrimStrategy.Fast,
+                startsAtKeyFrame = path == ExportPath.Transmux,
                 span = span,
               )
             },
@@ -366,7 +380,7 @@ public class ExportPlanner(
       resolved.unsupported?.let { message -> resolved.sources.forEach { unsupported[it.id] = message } }
     }
     if (unsupported.isNotEmpty()) {
-      return incapableWithFallback(composition, spec, device, infos, dropped, unsupported, layoutSize)
+      return incapableWithFallback(composition, spec, device, infos, openings, dropped, unsupported, layoutSize)
     }
 
     val planned = plannedEffects(edit)
@@ -431,6 +445,8 @@ public class ExportPlanner(
         effectOrder = planned,
         estimate = estimate(spec, duration, path),
         parity = planned.minByOrNull { it.parity.ordinal }?.parity ?: EffectParity.Exact,
+        duration = duration,
+        copyBlockedBy = copyBlockedBy,
         composition = edit,
         spec = spec,
       )
@@ -555,6 +571,7 @@ public class ExportPlanner(
     spec: ExportSpec,
     device: DeviceCapabilities,
     infos: Map<MediaSource, MediaInfo>,
+    openings: Map<MediaSource, Duration>,
     dropped: Set<String>,
     unsupported: Map<String, String>,
     layoutSize: Size?,
@@ -563,7 +580,7 @@ public class ExportPlanner(
 
     val fallback =
       if (dropped.isEmpty()) {
-        when (val retry = negotiate(composition, spec, device, infos, unsupported.keys, layoutSize).verdict) {
+        when (val retry = negotiate(composition, spec, device, infos, openings, unsupported.keys, layoutSize).verdict) {
           is Verdict.Capable -> retry.plan
           is Verdict.Degraded -> retry.plan
           is Verdict.Incapable -> null
@@ -643,17 +660,6 @@ public class ExportPlanner(
   ): List<Adjustment> =
     buildList {
       addAll(codec)
-      val trimmed = edit.tracks.any { track -> track.clips.any { it.trim != null } }
-      if (!supportsFastTrim && spec.trim == TrimStrategy.Fast && trimmed) {
-        add(
-          Adjustment(
-            kind = AdjustmentKind.TrimStrategyChanged,
-            requested = spec.trim.name,
-            resolved = TrimStrategy.Precise.name,
-            message = TRIM_ALWAYS_PRECISE,
-          ),
-        )
-      }
       if (requestedSize != outputSize) {
         add(
           Adjustment(
@@ -715,6 +721,59 @@ public class ExportPlanner(
           ),
         )
       }
+    }
+
+  /**
+   * Every reason this export cannot copy its streams across, HDR set aside.
+   *
+   * HDR is left out on purpose, because whether a copy can carry the grade is itself one of the
+   * things that decides HDR, so this has to be answerable before that decision is made.
+   *
+   * [copyOpening] is where the copy would open, and null is a cut no copy can reach. [requestedSize]
+   * is the frame the composition asks for, before any encoder ceiling is applied, since a copy runs
+   * no encoder and so has no ceiling to be held to. Comparing it against [sourceSize] is what says
+   * the geometry is identity.
+   */
+  private fun copyBlockers(
+    edit: EditComposition,
+    spec: ExportSpec,
+    sourceSize: Size,
+    requestedSize: Size,
+    copyOpening: Duration?,
+    info: MediaInfo,
+  ): List<CopyBlocker> =
+    buildList {
+      if (!supportsPassthrough) add(CopyBlocker.BackendCannotCopy)
+      if (!canCopy(info)) add(CopyBlocker.MuxerRefusesSource)
+      if (!codecsAreNameable(info)) add(CopyBlocker.SourceCodecUnnameable)
+      if (spec.frameRate != null) add(CopyBlocker.FrameRateSet)
+      if (spec.videoCodec != VideoCodec.Auto) add(CopyBlocker.VideoCodecNamed)
+      if (spec.audioCodec != AudioCodec.Auto) add(CopyBlocker.AudioCodecNamed)
+      if (spec.targetHeight != null) add(CopyBlocker.TargetHeightSet)
+      if (spec.bitrate != null) add(CopyBlocker.BitrateSet)
+      if (sourceSize != requestedSize) add(CopyBlocker.FrameResized)
+      if (edit.effects.isNotEmpty()) add(CopyBlocker.CompositionHasEffects)
+      if (edit.audio != AudioSpec.Keep) add(CopyBlocker.AudioSpecChanged)
+      if (edit.audio.gain() != 1f) add(CopyBlocker.CompositionGainChanged)
+
+      val track = edit.tracks.singleOrNull()
+      if (track == null) {
+        add(CopyBlocker.MultipleTracks)
+        return@buildList
+      }
+      if (track.effects.isNotEmpty()) add(CopyBlocker.TrackHasEffects)
+      if (track.start > Duration.ZERO) add(CopyBlocker.TrackStartsLate)
+      if (track.content != TrackContent.AudioAndVideo) add(CopyBlocker.TrackDropsAStream)
+      if (!track.audio.isUnity) add(CopyBlocker.TrackGainChanged)
+
+      val clip = track.clips.singleOrNull()
+      if (clip == null) {
+        add(CopyBlocker.MultipleClips)
+        return@buildList
+      }
+      if (clip.effects.isNotEmpty()) add(CopyBlocker.ClipHasEffects)
+      if (!clip.audio.isUnity) add(CopyBlocker.ClipGainChanged)
+      if (copyOpening == null) add(CopyBlocker.TrimNotOnSyncSample)
     }
 
   private fun estimate(
@@ -802,10 +861,6 @@ public class ExportPlanner(
       "This effect reads where a frame sits inside the run it is drawn over, and a looping track " +
         "lays its clips down more than once, so there is no single run to measure against. Take " +
         "the loop off the track, or take the effect off the clip."
-
-    const val TRIM_ALWAYS_PRECISE =
-      "This engine decodes frame by frame, so every trim lands exactly where it was asked to rather " +
-        "than snapping to a sync sample."
   }
 }
 
@@ -1093,41 +1148,46 @@ private fun exportPath(
 ): ExportPath = if (copyKeepsHdr && hdr == ResolvedHdr.Keep) ExportPath.Transmux else ExportPath.Transcode
 
 /**
- * Whether nothing about the composition or the spec asks for more than a stream copy could give,
- * HDR set aside.
+ * Reads where a stream copy of [composition] could open, keyed the way [ExportPlanner.negotiate]
+ * reads it.
  *
- * HDR is left out on purpose: whether a copy can carry the grade is itself one of the things that
- * decides HDR, so this has to be answerable before that decision is made.
- *
- * [requestedSize] is the frame the composition asks for, before any encoder ceiling is applied. A
- * copy runs no encoder, so a source larger than one could take, or one an encoder would round to
- * its alignment, still copies. Comparing it to [sourceSize] is what says the geometry is identity,
- * which also means the fill is never visible on this path.
+ * Only a single clip on a single track can ever be copied, and only a cut past zero has a sync
+ * sample to look for, so at most one [probe] runs. It runs whatever else the spec asks for, because
+ * a plan that skipped the probe could not tell a caller whether the trim was the term that cost
+ * them the copy.
  */
-private fun untouchedExceptHdr(
-  edit: EditComposition,
-  spec: ExportSpec,
-  sourceSize: Size,
-  requestedSize: Size,
-): Boolean {
-  val track = edit.tracks.singleOrNull() ?: return false
-  val clip = track.clips.singleOrNull() ?: return false
-  return edit.effects.isEmpty() &&
-    track.effects.isEmpty() &&
-    clip.effects.isEmpty() &&
-    spec.frameRate == null &&
-    spec.videoCodec == VideoCodec.Auto &&
-    spec.targetHeight == null &&
-    spec.bitrate == null &&
-    spec.audioCodec == AudioCodec.Auto &&
-    edit.audio == AudioSpec.Keep &&
-    track.start == Duration.ZERO &&
-    clip.trim == null &&
-    track.content == TrackContent.AudioAndVideo &&
-    clip.audio.isUnity &&
-    track.audio.isUnity &&
-    edit.audio.gain() == 1f &&
-    sourceSize == requestedSize
+@InternalFilmstripApi
+public suspend fun copyOpenings(
+  composition: EditComposition,
+  probe: suspend (MediaSource, Duration) -> Duration?,
+): Map<MediaSource, Duration> {
+  val clip =
+    composition.tracks
+      .singleOrNull()
+      ?.clips
+      ?.singleOrNull() ?: return emptyMap()
+  if (clip.source is MediaSource.Image) return emptyMap()
+  val cut = clip.trim?.start?.takeIf { it > Duration.ZERO } ?: return emptyMap()
+  return probe(clip.source, cut)?.let { mapOf(clip.source to it) } ?: emptyMap()
+}
+
+/**
+ * Where a stream copy of [clip] would open, or null when no copy can reach its cut.
+ *
+ * An untrimmed clip opens at zero, which every stream starts on. A trimmed one opens on [opening],
+ * the sync sample at or before its cut, and only while that sits no further back than
+ * [Clip.snapWithin] allows. A cut already on a sync sample is reached at any tolerance, zero
+ * included, because opening there costs no accuracy.
+ */
+private fun copyOpening(
+  clip: Clip,
+  opening: Duration?,
+): Duration? {
+  val asked = clip.trim?.start ?: return Duration.ZERO
+  if (asked == Duration.ZERO) return Duration.ZERO
+  val sync = opening ?: return null
+  if (sync > asked) return null
+  return sync.takeIf { asked - it <= clip.snapWithin }
 }
 
 /**
@@ -1146,16 +1206,21 @@ private fun codecsAreNameable(info: MediaInfo): Boolean =
  * A still holds the same pixels for its whole span, so a trim over one takes nothing away but
  * length. The window it resolves to therefore opens at zero and runs for as long as the trim kept,
  * which is what leaves every backend a span to lay and no samples it has to clip.
+ *
+ * [openAt] overrides where the window opens on a copy, which is the sync sample the cut moved back
+ * to. Every length the plan reports is folded from these windows, so a copy that opened earlier than
+ * asked has to be measured from where it opened.
  */
 private fun trimWindow(
   clip: Clip,
   info: MediaInfo,
+  openAt: Duration? = null,
 ): Pair<Duration, Duration>? {
   if (clip.source is MediaSource.Image) {
     val hold = stillHold(info.duration, clip.trim)
     return if (hold <= Duration.ZERO) null else Duration.ZERO to hold
   }
-  val start = clip.trim?.start ?: Duration.ZERO
+  val start = openAt ?: clip.trim?.start ?: Duration.ZERO
   val end = (clip.trim?.endExclusive ?: info.duration).coerceAtMost(info.duration)
   return if (end <= start) null else start to end
 }

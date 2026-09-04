@@ -218,7 +218,8 @@ private class Placement(
 )
 
 /**
- * Opens each source once, however many clips read from it.
+ * Opens each source once, however many clips read from it and however many tracks each is laid
+ * onto.
  */
 private class AssetCache {
   private val assets = mutableMapOf<MediaSource, AVURLAsset>()
@@ -234,6 +235,10 @@ private class AssetCache {
  * silent clip in the middle of a sequence shifts nothing after it. A still has no track of any type
  * and cannot hold its slot that way, since AVFoundation discards a trailing empty range, so on the
  * video track it takes a real segment cut from [stillSeed] and empty time everywhere else.
+ *
+ * Each clip holds exactly the window the plan resolved it to. A cut that moved back to open a copy
+ * on a sync sample has already moved by the time it arrives here, so nothing is re-derived and
+ * nothing runs longer than [ResolvedClip.duration].
  *
  * @param stillFrameRate The cadence a still's segment is cut at, which only the video track reads.
  */

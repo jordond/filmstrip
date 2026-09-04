@@ -30,7 +30,6 @@ import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.HdrMode
-import dev.jordond.filmstrip.export.TrimStrategy
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.sample.SampleAppState
@@ -167,13 +166,13 @@ private fun OutputControls(state: SampleAppState) {
     )
   }
 
-  ControlGroup("Trim strategy") {
+  ControlGroup("Snap the cut back to a key frame") {
     ChipGroup(
-      options = listOf("Precise" to TrimStrategy.Precise, "Fast" to TrimStrategy.Fast),
-      selected = state.trimStrategy,
+      options = listOf("Never" to 0f, "0.5s" to 0.5f, "2s" to 2f, "5s" to 5f),
+      selected = state.edit.snapWithinSeconds,
       enabled = !busy,
       onSelect = {
-        state.trimStrategy = it
+        state.edit.snapWithinSeconds = it
         state.onEditChanged()
       },
     )
@@ -268,6 +267,9 @@ private fun PlanSummary(
     output.bitrate?.let { StatRow("Bitrate", "${it.bitsPerSecond / 1_000_000} Mbps") }
     output.frameRate?.let { StatRow("Frame rate", "$it fps") }
     StatRow("Path", plan.path.name.lowercase())
+    if (plan.copyBlockedBy.isNotEmpty()) {
+      StatRow("No copy because", plan.copyBlockedBy.joinToString { it.name })
+    }
     StatRow("Parity", plan.parity.name.lowercase())
     if (minBytes != null && maxBytes != null) {
       StatRow("Estimated size", "${formatBytes(minBytes)} to ${formatBytes(maxBytes)}")

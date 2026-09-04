@@ -38,6 +38,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.DurationUnit
 
 // GraphLowering is exercised directly, on a hand-built NegotiatedComposition, so a fit and a fill
 // can be asserted on without a toolchain to gate them or a full composition to negotiate.
@@ -250,6 +251,42 @@ class GraphLoweringTest {
     invocation.sidecars shouldBe listOf(sidecar)
   }
 
+  // A copy runs no graph, so the only place a trim can land is the input's own bounds. Without
+  // them ffmpeg would remux the whole source and the window would disappear silently.
+  @Test
+  fun `a windowed copy carries the clip's bounds onto its input`() {
+    val clip = trimmedClip()
+
+    val input = copyInvocationFor(clip).inputs.single()
+
+    input.startSeconds shouldBe clip.start.toDouble(DurationUnit.SECONDS)
+    input.durationSeconds shouldBe clip.duration.toDouble(DurationUnit.SECONDS)
+  }
+
+  // Nothing is windowed away, so bounds would only ask ffmpeg to trim the container to the length
+  // it already has, and a rounded one at that.
+  @Test
+  fun `an untrimmed copy carries no bounds at all`() {
+    val clip = trimmedClip(start = Duration.ZERO, end = SOURCE_LENGTH)
+
+    val input = copyInvocationFor(clip).inputs.single()
+
+    input.startSeconds shouldBe null
+    input.durationSeconds shouldBe null
+  }
+
+  // Only the start moved, so the copy runs to the source's own end and asking for a length would
+  // clip the tail by however far the trim start was rounded.
+  @Test
+  fun `a copy trimmed only at the front seeks without bounding its length`() {
+    val clip = trimmedClip(end = SOURCE_LENGTH)
+
+    val input = copyInvocationFor(clip).inputs.single()
+
+    input.startSeconds shouldBe clip.start.toDouble(DurationUnit.SECONDS)
+    input.durationSeconds shouldBe null
+  }
+
   private fun compositionEffect(): ResolvedEffect =
     ResolvedEffect(
       specId = "test.brightness",
@@ -346,7 +383,89 @@ class GraphLoweringTest {
 
     return GraphLowering(negotiated, toneMapRoute = null, hdrPixelFormat = null).build()
   }
+
+  /**
+   * A clip windowed inside a longer source, so neither bound sits on an end the lowering could hit
+   * by ignoring one of them.
+   */
+  private fun trimmedClip(
+    start: Duration = TRIM_START,
+    end: Duration = TRIM_END,
+  ): ResolvedClip =
+    ResolvedClip(
+      source = source,
+      info =
+        MediaInfo(
+          duration = SOURCE_LENGTH,
+          video =
+            VideoTrackInfo(
+              codedSize = Size(1920, 1080),
+              displaySize = Size(1920, 1080),
+              rotationDegrees = 0,
+              pixelAspectRatio = 1f,
+              frameRate = 30f,
+              codec = trackCodecOf("avc1"),
+              bitDepth = 8,
+              colorSpace = ColorSpace.Bt709,
+              hdrTransfer = null,
+              bitrate = null,
+            ),
+          audio = null,
+          isExportable = true,
+        ),
+      start = start,
+      end = end,
+      effects = emptyList(),
+      gain = ResolvedGain.constant(1f, Duration.ZERO, end - start),
+      startsAtKeyFrame = true,
+      span = TimeRange.of(Duration.ZERO, end - start),
+    )
+
+  private fun copyInvocationFor(clip: ResolvedClip): Invocation {
+    val output = Size(1920, 1080)
+    val negotiated =
+      NegotiatedComposition(
+        tracks =
+          listOf(
+            ResolvedTrack(
+              content = TrackContent.AudioAndVideo,
+              looping = false,
+              start = Duration.ZERO,
+              clips = listOf(clip),
+            ),
+          ),
+        compositionGeometry = emptyList(),
+        compositionInputSize = output,
+        compositionEffects = emptyList(),
+        output =
+          OutputFormat(
+            size = output,
+            videoCodec = VideoCodec.H264,
+            audioCodec = AudioCodec.Aac,
+            bitrate = null,
+            frameRate = 30,
+            audioFormat = null,
+          ),
+        layoutSize = output,
+        fit = Fit.Contain,
+        fill = Fill.Black,
+        duration = clip.duration,
+        hdr = ResolvedHdr.Keep,
+        hdrTransfer = null,
+        path = ExportPath.Transmux,
+        audio = AudioSpec.Keep,
+        adjustments = emptyList(),
+        encoderName = null,
+      )
+
+    return GraphLowering(negotiated, toneMapRoute = null, hdrPixelFormat = null).build()
+  }
 }
+
+// A source long enough to hold a window clear of both its ends, and a window that sits there.
+private val SOURCE_LENGTH = 12.seconds
+private val TRIM_START = 4_500.milliseconds
+private val TRIM_END = 7_250.milliseconds
 
 // gblur's own ceiling on sigma, a literal here on purpose: it pins what ffmpeg accepts rather than
 // anything the shared contract says.

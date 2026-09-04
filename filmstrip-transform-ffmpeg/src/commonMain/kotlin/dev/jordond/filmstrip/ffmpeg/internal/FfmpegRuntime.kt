@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime.Companion.of
 import dev.jordond.filmstrip.media.MediaInfo
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.time.Duration
 
 /**
  * The binaries, and what has already been asked of them.
@@ -23,12 +24,18 @@ internal class FfmpegRuntime private constructor(
   private val locator = ToolchainLocator(config, runner)
   private val probeLock = Mutex()
   private val probes = mutableMapOf<String, MediaInfo?>()
+  private val syncSampleLock = Mutex()
+  private val syncSamples = mutableMapOf<Pair<String, Duration>, Duration?>()
   private val capabilityLock = Mutex()
   private var capabilities: DeviceCapabilities? = null
 
   // How many times ffprobe was actually spawned. The cache is what holds this to one per path
   // however often the same edit is lowered.
   var probeSpawns: Int = 0
+    private set
+
+  // How many times the sync-sample probe was actually spawned, counted the same way.
+  var syncSampleSpawns: Int = 0
     private set
 
   // How many times the encoder ladder was actually measured, counted the same way.
@@ -84,6 +91,23 @@ internal class FfmpegRuntime private constructor(
     }
 
   /**
+   * The sync sample at or before [at] in [path]'s video stream, or null when there is none.
+   *
+   * Cached by path and cut, negatives included, so the plan, the resolve behind a preview and the
+   * export of one edit read the same answer rather than three that could disagree.
+   */
+  suspend fun syncSampleAtOrBefore(
+    toolchain: Toolchain,
+    path: String,
+    at: Duration,
+  ): Duration? =
+    syncSampleLock.withLock {
+      val key = path to at
+      if (syncSamples.containsKey(key)) return@withLock syncSamples[key]
+      readSyncSample(toolchain, path, at).also { syncSamples[key] = it }
+    }
+
+  /**
    * Reads [path] again, replacing whatever was cached for it.
    *
    * For a file this process has just written. The cache is keyed by path, and a path written twice
@@ -104,6 +128,16 @@ internal class FfmpegRuntime private constructor(
     probeSpawns++
     val output = capture(listOf(toolchain.ffprobe) + PROBE_ARGUMENTS + path)
     return if (output.started && output.exitCode == 0) parseMediaInfo(output.stdout) else null
+  }
+
+  private suspend fun readSyncSample(
+    toolchain: Toolchain,
+    path: String,
+    at: Duration,
+  ): Duration? {
+    syncSampleSpawns++
+    val output = capture(syncSampleArguments(toolchain, path, at))
+    return if (output.started && output.exitCode == 0) parseSyncSample(output.stdout, at) else null
   }
 
   /**

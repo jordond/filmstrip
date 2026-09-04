@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.export.AdjustmentKind
+import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
@@ -368,6 +369,59 @@ class AndroidExportTest {
       assertEquals(rotation, written.rotationDegrees, "coded ${written.codedSize}, display ${written.displaySize}")
     }
 
+  // A trim used to force a re-encode on every backend. A snap tolerance wide enough to reach the
+  // sync sample at or before the cut is what leaves an otherwise untouched clip on the copy path,
+  // so the claim is both that the path is a copy and that the window survives it.
+  @Test
+  fun aSnappedTrimCopiesTheWindowRatherThanReEncodingIt() =
+    runTest(timeout = TIMEOUT) {
+      val source = fixture(CLIP_LONG) ?: return@runTest
+      val trimmed =
+        composition(Clip(source, trim = TimeRange.of(TRIM_START, TRIM_END), snapWithin = SNAP_WITHIN))
+
+      val plan = capablePlan(trimmed, ExportSpec())
+      assertEquals(ExportPath.Transmux, plan.path, "a snapped trim on an untouched clip is meant to copy")
+      val clip =
+        lowered(trimmed, ExportSpec())
+          .tracks
+          .first()
+          .clips
+          .single()
+      assertTrue(clip.startsAtKeyFrame, "the copy has no decoder to walk to the cut with")
+
+      val written = export(plan)
+
+      // The cut may open earlier than asked, since a copy has to begin on a sync sample, so the
+      // written run is the window at least and the window plus the group it opened in at most.
+      assertTrue(
+        written.duration >= clip.duration - DURATION_TOLERANCE,
+        "the copy wrote ${written.duration} for a window of ${clip.duration}",
+      )
+      assertTrue(
+        written.duration < clip.info.duration - DURATION_TOLERANCE,
+        "the copy wrote ${written.duration}, which is the whole ${clip.info.duration} source",
+      )
+    }
+
+  // A tolerance too narrow to reach a sync sample leaves nothing for the copy to open on, so this
+  // trim decodes to its cut like any other, and the plan is left to say why rather than an
+  // adjustment nobody asked to be told about.
+  @Test
+  fun aTrimBeyondItsSnapToleranceTranscodesAndReportsTheBlocker() =
+    runTest(timeout = TIMEOUT) {
+      val source = fixture(CLIP_LONG) ?: return@runTest
+      val trimmed =
+        composition(Clip(source, trim = TimeRange.of(TRIM_START, TRIM_END), snapWithin = TOO_NARROW_TO_SNAP))
+
+      val plan = capablePlan(trimmed, ExportSpec())
+
+      assertEquals(ExportPath.Transcode, plan.path, "a cut the tolerance cannot reach has to decode to it")
+      assertTrue(
+        CopyBlocker.TrimNotOnSyncSample in plan.copyBlockedBy,
+        "the caller was not told why the copy was skipped: ${plan.copyBlockedBy}",
+      )
+    }
+
   @Test
   fun writesARotateEffectToTheContainerRatherThanTheFrames() =
     runTest(timeout = TIMEOUT) {
@@ -579,6 +633,19 @@ class AndroidExportTest {
     const val CLIP_LONG = "android_export_long.mp4"
     const val CLIP_ROTATED = "android_export_rotated.mp4"
     const val CLIP_BED = "tone_bed_880.mp4"
+
+    // A window inside CLIP_LONG's twelve seconds, opening between two of its sync samples rather
+    // than on one, since a cut that already sits on a key frame snaps nowhere and would pass
+    // whether the snap works or not. CLIP_LONG is encoded with a key frame every second, so this
+    // cut sits half a second past the sync sample it snaps back to.
+    val TRIM_START = 4_500.milliseconds
+    val TRIM_END = 7_250.milliseconds
+
+    // Comfortably past the half second gap TRIM_START leaves to reach a sync sample.
+    val SNAP_WITHIN = 1.seconds
+
+    // Comfortably short of that same gap, so the cut is never mistaken for one the snap reaches.
+    val TOO_NARROW_TO_SNAP = 100.milliseconds
 
     // The one frequency the bed carries and no other fixture does, against the one every other
     // fixture carries. Separating them is what lets a level in the mix be read back to a source.

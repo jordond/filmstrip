@@ -230,13 +230,14 @@ private fun ExportSpec.summary(): String =
     "audio $audioCodec",
     frameRate?.let { "$it fps" },
     "hdr $hdr",
-    "trim $trim",
     if (strict) "strict" else null,
   ).joinToString(", ")
 
-private fun ExportPlan.summary(): String =
-  "Plan: $path, ${output.size.width}x${output.size.height} ${output.videoCodec}, " +
-      "${effectOrder.size} effects, parity $parity"
+private fun ExportPlan.summary(): String {
+  val blocked = if (copyBlockedBy.isEmpty()) "" else ", no copy because ${copyBlockedBy.joinToString { it.name }}"
+  return "Plan: $path, ${output.size.width}x${output.size.height} ${output.videoCodec}, " +
+      "${effectOrder.size} effects, parity $parity$blocked"
+}
 
 private fun Adjustment.summary(): String = "$kind: $requested became $resolved. $message"
 
@@ -263,6 +264,7 @@ private fun EditComposition.redacted(): EditComposition = EditComposition(
           trim = clip.trim,
           effects = clip.effects,
           audio = clip.audio,
+          snapWithin = clip.snapWithin,
         )
       },
       content = track.content,

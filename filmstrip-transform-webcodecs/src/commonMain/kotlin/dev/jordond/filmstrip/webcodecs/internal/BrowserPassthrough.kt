@@ -53,16 +53,36 @@ internal class BrowserPassthrough(
 
       output.start().await()
 
+      val videoSink = EncodedPacketSink(videoTrack)
+      val audioSink = audioTrack?.let { EncodedPacketSink(it) }
+      // Already the opening the plan resolved to, so the copy lays exactly this window rather than
+      // looking for a sync sample of its own. Both tracks open from the same source time, which is
+      // what carries sound across everything the copy carries picture across.
+      val start = clip.trimStartUs / MICROS_PER_SECOND
+      val end = clip.trimEndUs / MICROS_PER_SECOND
+      val videoStart = videoSink.openAt(start)
+      val audioStart = audioSink?.openAt(start)
+      // What every written timestamp is measured from. Taking the earlier of the two keeps both
+      // tracks off a negative timestamp, which the muxer refuses, and moves them by the same amount
+      // so the gap the source had between them survives.
+      val origin = listOfNotNull(videoStart?.timestamp, audioStart?.timestamp).minOrNull() ?: 0.0
+
       val copied =
         copyPackets(
-          sink = EncodedPacketSink(videoTrack),
+          sink = videoSink,
+          from = videoStart,
+          endSeconds = end,
+          origin = origin,
           decoderConfig = videoTrack.getDecoderConfig().await(),
           add = { packet, meta -> videoSource.addPacket(packet, meta) },
           onPacket = onProgress,
         )
-      if (audioTrack != null && audioSource != null) {
+      if (audioTrack != null && audioSource != null && audioSink != null) {
         copyPackets(
-          sink = EncodedPacketSink(audioTrack),
+          sink = audioSink,
+          from = audioStart,
+          endSeconds = end,
+          origin = origin,
           decoderConfig = audioTrack.getDecoderConfig().await(),
           add = { packet, meta -> audioSource.addPacket(packet, meta) },
           onPacket = { _, _ -> },
@@ -79,25 +99,36 @@ internal class BrowserPassthrough(
   }
 
   /**
-   * Reads every packet from [sink] and hands each to [add] in decode order, the decoder config on
-   * the first call and nothing after. Returns how many packets were copied.
+   * Reads [sink] from [from] and hands each packet [copyWindow] keeps to [add] in decode order,
+   * rebased onto [origin] and stopping at [endSeconds], with the decoder config on the first call
+   * and nothing after. Returns how many packets were copied.
    */
   private suspend fun copyPackets(
     sink: EncodedPacketSink,
+    from: EncodedPacket?,
+    endSeconds: Double,
+    origin: Double,
     decoderConfig: JsAny?,
     add: suspend (EncodedPacket, JsAny?) -> Unit,
     onPacket: suspend (Long, Double) -> Unit,
   ): Long {
     var meta = decoderConfig?.let { JsOptions().put("decoderConfig", it).build() }
     var count = 0L
-    val stream = PacketStream(sink.packets())
+    // Named rather than passed as a nullable, since mediabunny reads an omitted argument and an
+    // explicit null differently and only the omitted one means "from the start".
+    val stream = PacketStream(if (from == null) sink.packets() else sink.packets(from))
+
     try {
-      while (true) {
-        val packet = stream.next() ?: break
-        add(packet, meta)
+      copyWindow(
+        endSeconds = endSeconds,
+        next = { stream.next() },
+        timestampOf = { it.timestamp },
+        isKeyPacket = { it.isKeyPacket },
+      ) { packet ->
+        add(packet.rebasedOnto(origin), meta)
         meta = null
         count++
-        onPacket(count, packet.timestamp * MICROS_PER_SECOND)
+        onPacket(count, (packet.timestamp - origin) * MICROS_PER_SECOND)
       }
     } finally {
       stream.close()
@@ -112,6 +143,28 @@ internal class BrowserPassthrough(
     const val MP4_MIME_TYPE = "video/mp4"
   }
 }
+
+private const val KEY_PACKET_TYPE = "key"
+
+/**
+ * Whether this packet is a sync sample, which is where a stream copy is allowed to open and where a
+ * group of pictures nothing before it presents into begins.
+ */
+private val EncodedPacket.isKeyPacket: Boolean
+  get() = type.toString() == KEY_PACKET_TYPE
+
+/**
+ * The packet this copy opens on for a window opening at [seconds], or null when the track names
+ * none there and the walk reads from its own start instead.
+ */
+private suspend fun EncodedPacketSink.openAt(seconds: Double): EncodedPacket? = getKeyPacket(seconds).await()
+
+/**
+ * The same packet with [origin] taken off its timestamp, or the packet itself when there is nothing
+ * to take off.
+ */
+private fun EncodedPacket.rebasedOnto(origin: Double): EncodedPacket =
+  if (origin == 0.0) this else clone(JsOptions().put("timestamp", timestamp - origin).build())
 
 private suspend fun InputVideoTrack.codecString(): String =
   getCodec().await()?.toString()

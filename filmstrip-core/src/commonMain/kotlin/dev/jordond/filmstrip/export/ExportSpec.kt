@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.export
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.edit.AudioSpec
-import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import kotlinx.serialization.Serializable
 
@@ -19,7 +18,6 @@ import kotlinx.serialization.Serializable
  * @property audioCodec The codec to encode audio with.
  * @property frameRate Output frame rate, or null to keep the source's.
  * @property hdr What to do about high dynamic range.
- * @property trim How to honour a [Clip.trim].
  * @property strict Fail rather than accept a fallback. False by default: fall back, and report
  *   every adjustment. Set it when a byte budget or a codec requirement is non-negotiable.
  */
@@ -32,7 +30,6 @@ public class ExportSpec(
   public val audioCodec: AudioCodec = AudioCodec.Auto,
   public val frameRate: Int? = null,
   public val hdr: HdrMode = HdrMode.Auto,
-  public val trim: TrimStrategy = TrimStrategy.Precise,
   public val strict: Boolean = false,
 ) {
   public companion object {
@@ -197,25 +194,4 @@ public enum class HdrMode {
    * Always tone-map to SDR.
    */
   ToneMapToSdr,
-}
-
-/**
- * How to honour a [Clip.trim].
- */
-@Serializable
-public enum class TrimStrategy {
-  /**
-   * Exact frame boundaries, by re-encoding the leading group of pictures.
-   *
-   * The default. The cut lands where it was asked for.
-   */
-  Precise,
-
-  /**
-   * Start the cut on a key frame so the clipping can stream-copy instead of re-encoding.
-   *
-   * Near-instant, and the cut may open earlier than asked: a stream copy has to begin at a sync
-   * sample. Worth it for a trim with no other edit on it, where re-encoding buys nothing.
-   */
-  Fast,
 }

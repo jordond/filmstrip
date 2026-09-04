@@ -173,6 +173,7 @@ public class ResolvedGain(
     return ceil(sqrt(bow / PRODUCT_TOLERANCE)).toInt().coerceIn(1, MAX_PRODUCT_CHORDS)
   }
 
+  @InternalFilmstripApi
   public companion object {
     /**
      * How far a folded curve may sit from the real product, in gain.
