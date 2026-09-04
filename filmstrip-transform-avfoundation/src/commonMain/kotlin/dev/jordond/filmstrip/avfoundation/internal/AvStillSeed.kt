@@ -29,9 +29,6 @@ import platform.CoreVideo.CVPixelBufferRef
 import platform.CoreVideo.CVPixelBufferRefVar
 import platform.CoreVideo.CVPixelBufferRelease
 import platform.CoreVideo.CVPixelBufferUnlockBaseAddress
-import platform.CoreVideo.kCVPixelBufferHeightKey
-import platform.CoreVideo.kCVPixelBufferPixelFormatTypeKey
-import platform.CoreVideo.kCVPixelBufferWidthKey
 import platform.CoreVideo.kCVPixelFormatType_32BGRA
 import platform.CoreVideo.kCVReturnSuccess
 import platform.Foundation.NSFileManager
@@ -204,12 +201,7 @@ private fun writeSeedMovie(
   val adaptor =
     AVAssetWriterInputPixelBufferAdaptor(
       assetWriterInput = input,
-      sourcePixelBufferAttributes =
-        mapOf(
-          kCVPixelBufferPixelFormatTypeKey to kCVPixelFormatType_32BGRA,
-          kCVPixelBufferWidthKey to SEED_SIDE,
-          kCVPixelBufferHeightKey to SEED_SIDE,
-        ),
+      sourcePixelBufferAttributes = stillSeedBufferAttributes(),
     )
 
   if (!writer.canAddInput(input)) return false
@@ -230,6 +222,16 @@ private fun writeSeedMovie(
   writer.endSessionAtSourceTime(STILL_SEED_LENGTH.toCMTime())
   return writer.finishAndWait()
 }
+
+/**
+ * The buffers the seed writer's adaptor hands out: BGRA at the seed's own size.
+ */
+internal fun stillSeedBufferAttributes(): Map<Any?, Any?> =
+  mapOf(
+    PIXEL_FORMAT_KEY to kCVPixelFormatType_32BGRA.toInt(),
+    PIXEL_BUFFER_WIDTH_KEY to SEED_SIDE,
+    PIXEL_BUFFER_HEIGHT_KEY to SEED_SIDE,
+  )
 
 /**
  * How many frames a seed at [frameRate] carries, which is one for every frame the output holds over

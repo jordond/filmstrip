@@ -15,10 +15,13 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.COpaquePointerVar
+import kotlinx.cinterop.CPointed
 import kotlinx.cinterop.CValuesRef
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.IntVar
+import kotlinx.cinterop.UIntVar
 import kotlinx.cinterop.alloc
+import kotlinx.cinterop.allocArrayOf
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.reinterpret
@@ -67,18 +70,21 @@ import platform.CoreFoundation.CFArrayGetValueAtIndex
 import platform.CoreFoundation.CFArrayRefVar
 import platform.CoreFoundation.CFBooleanGetValue
 import platform.CoreFoundation.CFBooleanRef
+import platform.CoreFoundation.CFDictionaryCreate
 import platform.CoreFoundation.CFDictionaryGetValue
 import platform.CoreFoundation.CFDictionaryRef
+import platform.CoreFoundation.CFNumberCreate
 import platform.CoreFoundation.CFNumberGetValue
 import platform.CoreFoundation.CFRelease
 import platform.CoreFoundation.kCFNumberSInt32Type
+import platform.CoreFoundation.kCFTypeDictionaryKeyCallBacks
+import platform.CoreFoundation.kCFTypeDictionaryValueCallBacks
 import platform.CoreMedia.CMVideoFormatDescriptionRef
 import platform.CoreMedia.kCMVideoCodecType_H264
 import platform.CoreMedia.kCMVideoCodecType_HEVC
+import platform.CoreVideo.kCVPixelBufferPixelFormatTypeKey
 import platform.CoreVideo.kCVPixelFormatType_32BGRA
 import platform.CoreVideo.kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
-import platform.Foundation.CFBridgingRetain
-import platform.Foundation.NSDictionary
 import platform.VideoToolbox.VTCompressionSessionCreate
 import platform.VideoToolbox.VTCompressionSessionInvalidate
 import platform.VideoToolbox.VTCompressionSessionRef
@@ -239,9 +245,6 @@ internal fun pcmReaderSettings(output: OutputFormat): Map<Any?, Any?> {
  */
 internal fun videoReaderSettings(encodesHdr: Boolean): Map<Any?, Any?> {
   val format = if (encodesHdr) kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange else kCVPixelFormatType_32BGRA
-  // The CoreVideo key constants are CFStringRef and do not bridge into a Kotlin map as NSString
-  // keys. AVFoundation raises on the whole dictionary as carrying no recognised keys. The literal
-  // is the documented value of kCVPixelBufferPixelFormatTypeKey.
   return mapOf(PIXEL_FORMAT_KEY to format.toInt())
 }
 
@@ -485,13 +488,17 @@ internal fun hdrProbeCodecType(video: List<VideoEncoderCapability>): UInt? {
  * encoded through the session, and it is invalidated and released on every path before
  * returning.
  *
+ * The attributes are built as an `NSMutableDictionary` rather than as a Kotlin map bridged across.
+ * iOS runs the encoder out of process and answers 3840 to a bridged map holding anything at all,
+ * BGRA and eight-bit included, so the probe reads a device with a Main10 encoder as having none.
+ * macOS keeps the encoder in process and takes either.
+ *
  * `kVTProfileLevel_HEVC_Main10_AutoLevel` is HEVC's own limit, not a filmstrip choice, so it is the
  * one constant this probe hardcodes.
  */
 @OptIn(ExperimentalForeignApi::class)
 private fun opensMain10Session(codecType: UInt): Boolean {
-  val attributes = mapOf<Any?, Any?>(PIXEL_FORMAT_KEY to kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange.toInt())
-  val sourceAttributes = CFBridgingRetain(attributes as NSDictionary) ?: return false
+  val sourceAttributes = tenBitSourceAttributes() ?: return false
 
   return try {
     memScoped {
@@ -504,7 +511,7 @@ private fun opensMain10Session(codecType: UInt): Boolean {
           height = size.height,
           codecType = codecType,
           encoderSpecification = null,
-          sourceImageBufferAttributes = sourceAttributes.asDictionary(),
+          sourceImageBufferAttributes = sourceAttributes,
           compressedDataAllocator = null,
           outputCallback = null,
           outputCallbackRefCon = null,
@@ -526,6 +533,37 @@ private fun opensMain10Session(codecType: UInt): Boolean {
     CFRelease(sourceAttributes)
   }
 }
+
+/**
+ * A retained one-entry `CFDictionary` naming the ten-bit 4:2:0 pixel format, for the caller to
+ * release.
+ *
+ * Built through Core Foundation rather than by bridging a Kotlin map into an `NSDictionary`. iOS
+ * runs the encoder out of process and answers 3840 to a bridged map holding anything at all, BGRA
+ * and eight-bit included, which reads back as a device with no Main10 encoder. macOS keeps the
+ * encoder in process and takes either.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private fun tenBitSourceAttributes(): CFDictionaryRef? =
+  memScoped {
+    val format = alloc<UIntVar>()
+    format.value = kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
+    val value = CFNumberCreate(null, kCFNumberSInt32Type, format.ptr) ?: return@memScoped null
+
+    val keys = allocArrayOf(kCVPixelBufferPixelFormatTypeKey)
+    val values = allocArrayOf(value.reinterpret<CPointed>())
+    val dictionary =
+      CFDictionaryCreate(
+        allocator = null,
+        keys = keys.reinterpret(),
+        values = values.reinterpret(),
+        numValues = 1,
+        keyCallBacks = kCFTypeDictionaryKeyCallBacks.ptr,
+        valueCallBacks = kCFTypeDictionaryValueCallBacks.ptr,
+      )
+    CFRelease(value)
+    dictionary
+  }
 
 @Suppress("UNCHECKED_CAST")
 private fun Map<*, *>?.orEmptyMap(): Map<Any?, Any?> = this as? Map<Any?, Any?> ?: emptyMap()
@@ -558,6 +596,5 @@ private const val QHD_SIDE = 960
 private const val SD_SIDE = 640
 
 private const val HEVC_MAIN_10 = "HEVC_Main10_AutoLevel"
-private const val PIXEL_FORMAT_KEY = "PixelFormatType"
 
 private val SUPPORTED_SAMPLE_RATES = listOf(44_100, 48_000)
