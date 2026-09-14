@@ -576,6 +576,99 @@ class ExportPlannerTest {
     adjustment.message shouldBe "This device cannot encode HDR, so the grade is tone-mapped to SDR."
   }
 
+  // The same drop, reached the way a caller actually reaches it: the muxer would have copied this
+  // source, and the edit written over it is what asked for an encoder no HDR fits through.
+  @Test
+  fun `an auto export tone-maps and reports it when the edit is what forced the encode`() {
+    val verdict = plan(composition(clip(hdr = HdrTransfer.Hlg, effects = listOf(Brightness(0.5f)))))
+
+    val degraded = assertIs<Verdict.Degraded>(verdict)
+    degraded.plan.path shouldBe ExportPath.Transcode
+    val adjustment = degraded.adjustments.single()
+    adjustment.kind shouldBe AdjustmentKind.HdrToneMapped
+    adjustment.requested shouldBe HdrMode.Auto.name
+    adjustment.resolved shouldBe HdrMode.ToneMapToSdr.name
+    adjustment.message shouldBe "This device cannot encode HDR, so the grade is tone-mapped to SDR."
+  }
+
+  // The adjustment and the graph are read from the same negotiation, so a report that said one
+  // thing while the composition did another would show up here.
+  @Test
+  fun `the tone map an auto export reports is the one the composition resolves to`() {
+    val resolved = resolve(composition(clip(hdr = HdrTransfer.Hlg, effects = listOf(Brightness(0.5f)))))
+
+    resolved.hdr shouldBe ResolvedHdr.ToneMap
+    resolved.hdrTransfer shouldBe null
+  }
+
+  // The middle of the range the device answer covers: no HDR encoder is not itself a drop, since a
+  // copy carries the grade without one, and reporting a tone map that never happened is as wrong
+  // as staying quiet about one that did.
+  @Test
+  fun `an auto export keeps the grade through a copy on a device with no hdr encoder`() {
+    val verdict = plan(composition(clip(hdr = HdrTransfer.Pq)))
+
+    val plan = assertIs<Verdict.Capable>(verdict).plan
+    plan.path shouldBe ExportPath.Transmux
+    plan.copyBlockedBy.shouldBeEmpty()
+  }
+
+  // The other end: a device that encodes the grade keeps it through the encoder the edit forced,
+  // so there is still nothing to report.
+  @Test
+  fun `an auto export that encodes the grade itself reports nothing`() {
+    val composition = composition(clip(hdr = HdrTransfer.Pq, effects = listOf(Brightness(0.5f))))
+    val verdict = plan(composition, device = device(hdr = true))
+
+    val plan = assertIs<Verdict.Capable>(verdict).plan
+    plan.path shouldBe ExportPath.Transcode
+    plan.output.videoCodec shouldBe VideoCodec.Hevc
+    resolve(composition, device = device(hdr = true)).hdrTransfer shouldBe HdrTransfer.Pq
+  }
+
+  // A mix is a reason on its own, so it stays the reason on a device that could not have encoded
+  // the grade either. Blaming the encoder would have whoever reads it fix the wrong thing: another
+  // device would tone-map this mix too.
+  @Test
+  fun `a mixed grade on a device with no hdr encoder still blames the mix`() {
+    val verdict = plan(composition(clip(hdr = HdrTransfer.Pq), clip()))
+
+    val degraded = assertIs<Verdict.Degraded>(verdict)
+    val adjustment = degraded.adjustments.single()
+    adjustment.kind shouldBe AdjustmentKind.HdrToneMapped
+    adjustment.message shouldBe
+      "These sources do not share one HDR transfer, so no single grade describes the output and " +
+      "they are tone-mapped to SDR together."
+  }
+
+  // Asking for the tone map is what got it here too. The device could not have kept the grade
+  // either, but a caller who named the outcome learns nothing from being told they reached it.
+  @Test
+  fun `an asked-for tone map reports nothing on a device that could not have kept the grade`() {
+    val verdict =
+      plan(
+        composition(clip(hdr = HdrTransfer.Hlg, effects = listOf(Brightness(0.5f)))),
+        ExportSpec(hdr = HdrMode.ToneMapToSdr),
+      )
+
+    assertIs<Verdict.Capable>(verdict).plan.path shouldBe ExportPath.Transcode
+  }
+
+  // strict is a caller saying they wanted no surprises, and a dropped grade is the surprise the
+  // whole adjustment exists for.
+  @Test
+  fun `a strict auto export refuses the tone map it did not ask for`() {
+    val verdict =
+      plan(
+        composition(clip(hdr = HdrTransfer.Hlg, effects = listOf(Brightness(0.5f)))),
+        ExportSpec(strict = true),
+      )
+
+    val reason = assertIs<Verdict.Incapable>(verdict).reasons.single()
+    assertIs<ExportError.InvalidComposition>(reason).message shouldBe
+      "This device cannot encode HDR, so the grade is tone-mapped to SDR."
+  }
+
   @Test
   fun `an asked-for tone map is not an adjustment`() {
     // Auto is the mode that can land somewhere else, so it is the one that reports. Asking for a

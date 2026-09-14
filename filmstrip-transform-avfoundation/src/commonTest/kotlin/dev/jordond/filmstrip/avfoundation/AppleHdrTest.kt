@@ -63,11 +63,11 @@ class AppleHdrTest {
       if (written.hdrTransfer == null) {
         assertTrue(
           run.toneMapped,
-          "HDR was dropped without an Adjusted reporting it, so the caller was told nothing",
+          "HDR was dropped without an adjustment reporting it, so the caller was told nothing",
         )
       } else {
         assertEquals(HdrTransfer.Pq, written.hdrTransfer, "PQ went in and something else came out")
-        assertTrue(!run.toneMapped, "HDR survived but an Adjusted said it was tone mapped")
+        assertTrue(!run.toneMapped, "HDR survived but an adjustment said it was tone mapped")
       }
     }
 
@@ -96,7 +96,7 @@ class AppleHdrTest {
       // report. Either it kept the grade silently or it dropped it and said so.
       if (encodesHdr()) {
         assertEquals(HdrTransfer.Pq, written.hdrTransfer, "the device encodes HDR but Auto did not keep it")
-        assertTrue(!run.toneMapped, "HDR survived but an Adjusted said it was tone mapped")
+        assertTrue(!run.toneMapped, "HDR survived but an adjustment said it was tone mapped")
       } else {
         assertNull(written.hdrTransfer, "the device encodes no HDR but Auto wrote a transfer function")
         assertTrue(run.toneMapped, "Auto tone mapped without reporting it")
@@ -153,10 +153,10 @@ class AppleHdrTest {
     if (finished is ExportStatus.Failure) error("export failed: ${finished.error.message}")
 
     val success = assertIs<ExportStatus.Success>(finished)
-    val toneMapped =
-      statuses.filterIsInstance<ExportStatus.Adjusted>().any { status ->
-        status.adjustments.any { it.kind == AdjustmentKind.HdrToneMapped }
-      }
+    // Read off Success rather than ExportStatus.Adjusted. Adjusted belongs to the overload that
+    // plans as well, and this runs a plan the test already holds, so nothing here ever emits one
+    // and a test that looked there would read every export as having reported nothing.
+    val toneMapped = success.adjustments.any { it.kind == AdjustmentKind.HdrToneMapped }
     val path = assertIs<MediaSink.Path>(success.output).path
 
     try {

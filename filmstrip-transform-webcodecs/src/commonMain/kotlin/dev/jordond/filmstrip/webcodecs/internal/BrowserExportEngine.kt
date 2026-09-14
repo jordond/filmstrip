@@ -177,7 +177,9 @@ public class BrowserExportEngine(
       return
     }
 
-    if (render.adjustments.isNotEmpty()) emit(ExportStatus.Adjusted(render.adjustments))
+    // No ExportStatus.Adjusted here. This runs a plan, and a plan only ever came from a verdict the
+    // caller already read the adjustments off. Filmstrip.export emits the one Adjusted an export
+    // gets, so emitting a second from in here would report the same list twice.
 
     val path = pathOf(lowering.verdict)
     val total = render.estimatedFrames.coerceAtLeast(1)

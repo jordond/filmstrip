@@ -486,7 +486,10 @@ public class SampleAppState(
     exportedInfo = null
     exportFailure = null
     exportProgress = null
-    exportAdjustments = emptyList()
+    // Running a plan emits no ExportStatus.Adjusted, since the verdict this plan came from already
+    // carried the list. Reading it off the verdict is what puts the tone map in front of whoever
+    // pressed export rather than only in the diagnostics report.
+    exportAdjustments = (verdict as? Verdict.Degraded)?.adjustments.orEmpty()
     pause()
 
     // The flag is flipped here rather than inside the coroutine, and cleared only by the run that
@@ -509,6 +512,9 @@ public class SampleAppState(
             is ExportStatus.Progress -> exportProgress = status
             is ExportStatus.Success -> {
               exported = status
+              // What the backend gave up on once it had the real encoders is only on Success, so
+              // this is the list rather than an addition to it.
+              exportAdjustments = status.adjustments
               exportedInfo = filmstrip.probe(status.output.asSource())
               recorder.record("export.succeeded", "output" to status.info.toString())
               backStack.remove(SampleRoute.Export)

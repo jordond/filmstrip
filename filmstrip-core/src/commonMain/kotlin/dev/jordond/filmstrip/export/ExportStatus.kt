@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.export
 
 import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import kotlin.time.Duration
@@ -30,6 +31,10 @@ public sealed interface ExportStatus {
 
   /**
    * Emitted at most once, before any [Progress], when the plan differs from the request.
+   *
+   * Only the [Filmstrip.export] that plans emits this. Running an [ExportPlan] emits none, since
+   * the verdict that plan came from already carried the list, and [Success.adjustments] carries it
+   * again at the end whichever overload was called.
    *
    * @property adjustments What filmstrip changed to make the export possible, in the order applied.
    */
