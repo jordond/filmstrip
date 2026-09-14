@@ -148,9 +148,9 @@ public class Track(
 /**
  * Which media streams a track contributes to the output.
  *
- * A music bed is [Audio], a picture-in-picture inset is [Video], and anything read straight from a
- * camera roll is [AudioAndVideo]. Selecting one here drops the other before mixing, rather than
- * muting it.
+ * A music bed is [Audio], and anything read straight from a camera roll is [AudioAndVideo]. Only the primary track
+ * may carry video, so a later track set to [Video] or [AudioAndVideo] is refused at plan time. Selecting one here
+ * drops the other before mixing, rather than muting it.
  */
 @Serializable
 public enum class TrackContent {

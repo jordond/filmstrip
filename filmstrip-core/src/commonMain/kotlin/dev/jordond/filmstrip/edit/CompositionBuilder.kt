@@ -69,7 +69,8 @@ public class CompositionBuilder public constructor() {
   /**
    * Adds a track that plays alongside the primary one, configured by [block].
    *
-   * Its audio is mixed with everything else and its video is composited under the primary track.
+   * An audio-only track is mixed with the other tracks' audio. A track that carries video is refused at plan time
+   * unless it is the primary one.
    *
    * @param content Which media streams this track contributes. A music bed is
    *   [TrackContent.Audio].
