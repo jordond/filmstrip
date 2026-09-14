@@ -10,9 +10,10 @@ Legend:
 | ⚠️     | Works, with a documented limit. See the footnote.                    |
 | ❌     | Not implemented. Refused by name at plan time, never silently wrong. |
 
-Nothing in filmstrip fails silently. An unsupported effect comes back as
+Nothing in filmstrip is meant to fail silently. An unsupported effect comes back as
 `EffectResolution.Unsupported` with a message, and an unsupported composition comes back as
-`Verdict.Incapable` with a list of `ExportError`s.
+`Verdict.Incapable` with a list of `ExportError`s. Looping a track is the known exception, and
+[Audio overlays](#audio-overlays) says where.
 
 ## Targets
 
@@ -248,31 +249,24 @@ copy of an untouched clip. Anything that has to be re-encoded is refused by name
 
 ## Compositions
 
-What each export backend accepts. Every backend renders video from the primary track alone, so a
-second track has to be audio-only, and a second video track is refused by name.
+What each export backend accepts. Extra tracks, looping and gain are covered under
+[Audio overlays](#audio-overlays).
 
-| Feature                                 | Android          | Apple            | Browser          | ffmpeg              |
-| --------------------------------------- | ---------------- | ---------------- | ---------------- | ------------------- |
-| One video track, clips end to end       | ✅               | ✅               | ✅               | ✅                  |
-| Clip trim                               | ✅               | ✅               | ✅               | ✅                  |
-| Per-clip and per-track effects          | ✅               | ✅               | ✅               | ✅                  |
-| Composition-level effects               | ✅               | ✅               | ✅               | ✅                  |
-| `Fill.Solid` behind bars and gaps       | ✅               | ✅               | ✅               | ✅                  |
-| `Fill.Blurred`                          | ✅               | ✅               | ✅               | ⚠️ [^ffmpeg-blur]   |
-| Second audio-only track                 | ✅               | ✅               | ✅               | ✅                  |
-| Second video track (picture in picture) | ❌               | ❌               | ❌               | ❌                  |
-| Looping track                           | ✅               | ✅               | ⚠️ [^web-loop]   | ⚠️ [^ffmpeg-loop]   |
-| `AudioSpec.Keep`, `Mute`, `Volume`      | ✅               | ✅               | ✅               | ✅                  |
-| `AudioSpec.Remove`, `AudioCodec.None`   | ✅               | ✅               | ✅               | ✅                  |
-| `AudioSpec.AudioOnly`                   | ✅ [^audio-only] | ✅ [^audio-only] | ✅ [^audio-only] | ✅ [^audio-only]    |
-| `AudioLevel` per clip and per track     | ✅               | ✅               | ✅               | ✅                  |
-| `AudioLevel.Envelope` and fades         | ✅               | ✅               | ✅               | ✅ [^ffmpeg-volume] |
+| Feature                               | Android          | Apple            | Browser          | ffmpeg            |
+| ------------------------------------- | ---------------- | ---------------- | ---------------- | ----------------- |
+| One video track, clips end to end     | ✅               | ✅               | ✅               | ✅                |
+| Clip trim                             | ✅               | ✅               | ✅               | ✅                |
+| Per-clip and per-track effects        | ✅               | ✅               | ✅               | ✅                |
+| Composition-level effects             | ✅               | ✅               | ✅               | ✅                |
+| `Fill.Solid` behind bars and gaps     | ✅               | ✅               | ✅               | ✅                |
+| `Fill.Blurred`                        | ✅               | ✅               | ✅               | ⚠️ [^ffmpeg-blur] |
+| `AudioSpec.Keep`, `Mute`, `Volume`    | ✅               | ✅               | ✅               | ✅                |
+| `AudioSpec.Remove`, `AudioCodec.None` | ✅               | ✅               | ✅               | ✅                |
+| `AudioSpec.AudioOnly`                 | ✅ [^audio-only] | ✅ [^audio-only] | ✅ [^audio-only] | ✅ [^audio-only]  |
 
-More than one track, `fadeIn` and `fadeOut` are `@ExperimentalFilmstripApi`.
-
-A composition where every track loops has nothing to bound it and is refused. `ExportPath` declares
-`TrimOptimized`, but no backend resolves to it today: a plan is `Transmux` when the whole thing can
-be stream-copied and `Transcode` otherwise, and a snapped trim is a `Transmux` like any other copy.
+`ExportPath` declares `TrimOptimized`, but no backend resolves to it today: a plan is `Transmux`
+when the whole thing can be stream-copied and `Transcode` otherwise, and a snapped trim is a
+`Transmux` like any other copy.
 
 A copy needs more than a reachable cut. `ExportSpec.targetHeight`, `bitrate`, a named codec, any
 effect, a second clip and a non-unity gain each take an export off the copy path on their own, and
@@ -285,24 +279,85 @@ forty.
     actually darkens the background. A build missing either refuses by name and says which filter is
     absent.
 
-[^ffmpeg-loop]:
-    A looping audio track repeats for the whole run when it holds one clip and that clip
-    is untrimmed. A trimmed clip, or a track carrying more than one, still gets an `atrim` written for
-    the clip's own window, and `-stream_loop` carries every later pass at timestamps past that window,
-    so only the first pass reaches the mix. The video half takes no such exemption: a looping track
-    carrying video writes a `trim` unconditionally, so its picture stops after one pass while the audio
-    runs the full length. Loop a track that carries audio alone, and leave it untrimmed.
-
-[^web-loop]:
-    A looping track holding one clip repeats correctly. On a track carrying more than one,
-    each clip repeats on its own period from its own offset, so later passes overlap instead of
-    following one another, and a looping track's video runs for one pass and then stops. Loop a track
-    that carries audio alone and holds a single clip.
-
 [^audio-only]:
     The output has no video track, and `OutputFormat` has no way to say that: it reports
     the video codec the plan resolved, which then goes unwritten. Over a `TrackContent.Video` track it
     is refused, because nothing would be left to write.
+
+## Audio overlays
+
+A composition can carry tracks besides the primary one, and they play alongside it rather than after
+it. Every backend draws video from the primary track alone, so an extra track is audio: a music bed, a
+voice over, a sound effect.
+
+| Feature                                    | Android | Apple            | Browser        | ffmpeg              |
+| ------------------------------------------ | ------- | ---------------- | -------------- | ------------------- |
+| Extra audio-only track                     | ✅      | ✅               | ✅             | ✅                  |
+| `startAt` on an audio track                | ✅      | ✅               | ✅             | ✅                  |
+| Looping track holding one clip             | ✅      | ⚠️ [^apple-loop] | ✅             | ⚠️ [^ffmpeg-loop]   |
+| Looping track holding several clips        | ✅      | ⚠️ [^apple-loop] | ⚠️ [^web-loop] | ⚠️ [^ffmpeg-loop]   |
+| Looping track carrying video               | ✅      | ⚠️ [^apple-loop] | ⚠️ [^web-loop] | ⚠️ [^ffmpeg-loop]   |
+| `AudioLevel` per clip and per track        | ✅      | ✅               | ✅             | ✅                  |
+| `AudioLevel.Envelope`, `fadeIn`, `fadeOut` | ✅      | ✅               | ✅             | ✅ [^ffmpeg-volume] |
+| Second track carrying video                | ❌      | ❌               | ❌             | ❌                  |
+
+### Tracks
+
+`track(content) { ... }` adds a track alongside the primary one, and `addTrack(track)` adds one that
+was already built. `EditComposition.withTracks` swaps the whole list on an existing edit. The first
+track is the primary one. It sets the output frame, and it is the only track any backend draws video
+from. A composition with no `clip(...)` of its own takes its first `track` as the primary, so that
+one has to carry video.
+
+`track()` defaults to `TrackContent.AudioAndVideo`, so an overlay has to name `TrackContent.Audio`.
+Any track after the first whose content is something else is refused at plan time, the default
+included, because drawing a second picture needs a compositor no backend has yet. `plan()` answers
+`Verdict.Incapable` holding one `ExportError.InvalidComposition` that says so, and
+`export(composition, spec, to)` emits `ExportStatus.Failure` carrying the same error and writes
+nothing.
+
+`startAt(duration)` holds a track off until that far into the composition, and the track is silent
+until then. media3 lays a gap at the head of the sequence, AVFoundation inserts an empty time range,
+the browser starts the clip's source node late, and ffmpeg writes an `adelay`. The composition runs as
+long as its longest non-looping track, offset included, so a bed that runs past the picture sets the
+length rather than being cut to it.
+
+### Looping
+
+`looping()` repeats a track from the top until the longest non-looping track ends. A looping track
+never decides the duration, so a composition where every track loops has nothing to bound it and is
+refused with `ExportError.InvalidComposition`. A looping track also drops its `fadeOut`, since it has
+no end to measure the ramp back from, and a clip-only effect on any of its clips is refused by name.
+
+Looping is where the backends still disagree. None of the gaps in the table is refused at plan time,
+so the plan does not flag them and the export succeeds with the wrong result. Read the footnotes
+before relying on a loop.
+
+A gain curve on a looping track is resolved against one pass. Apple and the browser play it again
+from the top of every pass, so a `fadeIn` on a looping bed fades in each time it repeats. ffmpeg reads
+the curve against the whole run instead, so the fade plays once and every later pass holds the gain it
+ended on. On Android only the first pass has been measured.
+
+[^apple-loop]:
+    AVFoundation lays a looping track down a whole pass at a time until it reaches the end
+    of the composition, and does not cut the last pass short. The reader is not bounded to the plan's
+    duration either, so when a pass does not land exactly on the end the file runs on past it by
+    whatever is left of that pass, and the `MediaInfo` on `ExportStatus.Success` reports the longer
+    length. Trims, several clips and video all repeat correctly up to that point.
+
+[^ffmpeg-loop]:
+    Every clip on a looping track is opened with `-stream_loop -1`, which carries each later
+    pass at timestamps past the first. A track holding one untrimmed clip is left unwindowed and repeats
+    for the whole run. A trimmed clip, or a track holding more than one, still gets an `atrim` for the
+    clip's own window, so only the first pass reaches the mix and the track goes silent after it. Video
+    takes no such exemption: a looping track carrying video writes a `trim` for every clip, so the
+    picture stops after one pass. Loop a track that carries audio alone and holds one untrimmed clip.
+
+[^web-loop]:
+    A looping track holding one clip repeats correctly, trimmed or not. On a track holding
+    more than one, each clip loops on its own from where it first opens, so they play over one another
+    instead of taking turns. The renderer walks the primary track's clips once, so a looping track's
+    picture stops after one pass. Loop a track that carries audio alone and holds a single clip.
 
 [^ffmpeg-volume]:
     `volume` reads its expression through ffmpeg's own parser, which refuses a nest of
@@ -311,22 +366,37 @@ forty.
     everywhere outside their own run. The nodes multiply, so the chain lands on the gain a single node
     would have rather than on an approximation of it.
 
-### Audio levels
+### Gain
 
-`AudioLevel` is set on a clip or a track and `AudioSpec` on the composition. Every scope's level is
-folded into one curve per clip before a backend sees it, so a mute at any scope silences everything
-below it, and a level on two scopes multiplies rather than one replacing the other.
+`AudioLevel` is set on a clip or a track and `AudioSpec` on the composition. `Inherit`, the default,
+leaves the enclosing scope alone, `Mute` contributes silence without changing timing, and `Volume`
+scales by a constant. Every scope's level is folded into one curve per clip before a backend sees it,
+so a mute at any scope silences everything below it, and a level on two scopes multiplies rather than
+one replacing the other.
 
 `AudioLevel.Envelope` is a piecewise-linear gain curve. Each `EnvelopePoint` carries an `at`, a
 `gain` and a `from`, where `from` is `EnvelopeAnchor.Start` or `EnvelopeAnchor.End`. An end-anchored
 point is placed once the plan settles how long the scope runs, so a fade out can be written before
 the clip's length is known. The gain ramps linearly between neighbouring points and holds flat
-before the first and after the last. A point reaching past the end of its scope is refused, and so
-is a negative gain.
+before the first and after the last. A clip's envelope is read against its trimmed length, and a
+track's against its whole run of clips, measured from where the track starts.
 
-`fadeIn(duration)` and `fadeOut(duration)` on the clip and the track builder write those points. A
-fade rises to whatever `audio(...)` set rather than to one, and where the two are written makes no
-difference. A looping track drops its fade out, since it has no end to measure the ramp back from.
+The plan refuses an envelope with a point outside its scope, a negative gain, or points that fall out
+of time order once the end-anchored ones are placed, each with `ExportError.InvalidComposition`. A
+fade longer than its scope trips the first of those, and a `fadeIn` and `fadeOut` that together run
+longer than their scope trip the last, since the two ramps would cross.
+
+`fadeIn(duration)` and `fadeOut(duration)` exist on both the clip builder and the track builder, and
+write those points for you. A clip's fades are measured against its trim, so retrimming the clip moves
+them with it. A track's fade in starts where the track does and its fade out ends where its last clip
+does. A fade rises to whatever `audio(...)` set rather than to one, so `AudioLevel.Volume(0.5f)` with a
+fade in ramps from silence to half, and where the two calls are written makes no difference. Fading a
+`Mute` leaves it muted. On an `Envelope` written by hand the fade's points are added to the ones
+already there, so a curve written out in full should pin its own edges instead.
+
+Fades on different scopes compose the same way levels do. A clip fade under a track fade multiplies,
+so a clip that fades in at the top of a track that also fades in comes up along the product of the two
+ramps rather than along either one.
 
 Every backend ramps the gain rather than stepping it. media3 runs a `GainProcessor` over a
 `GainProvider` that reads the curve at each frame. AVFoundation writes one
