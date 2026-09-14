@@ -133,7 +133,7 @@ public enum class AdjustmentKind {
  */
 public enum class CopyBlocker {
   /**
-   * More than one track, which has to be composited.
+   * More than one track, whose audio has to be mixed.
    */
   MultipleTracks,
 

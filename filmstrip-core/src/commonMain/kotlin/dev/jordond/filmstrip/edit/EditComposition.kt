@@ -93,9 +93,9 @@ public class EditComposition(
 /**
  * One layer of a composition: clips laid end to end, playing alongside the other tracks.
  *
- * Tracks run at the same time, so a second one is a music bed, a picture-in-picture inset or an
- * overlay reel, and its audio is mixed with the rest. The first track is the primary one: it sets
- * the output frame, and it is drawn on top.
+ * Tracks run at the same time. The first track is the primary one, which sets the output frame and is the
+ * only one that may carry video. Every later track is an audio-only bed, like music or a voice over, and
+ * its audio is mixed with the rest. A later track that carries video is refused at plan time.
  *
  * Track effects apply to every clip on the track, which is the cheap way to grade a run of clips at
  * once. They are lowered onto each clip individually, so an effect whose result depends on where a
