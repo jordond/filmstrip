@@ -271,8 +271,8 @@ when the whole thing can be stream-copied and `Transcode` otherwise, and a snapp
 `Transmux` like any other copy.
 
 A copy needs more than a reachable cut. `ExportSpec.targetHeight`, `bitrate`, a named codec, any
-effect, a second clip and a non-unity gain each take an export off the copy path on their own, and
-`ExportSpec.Upload` trips three of them at once. `ExportPlan.copyBlockedBy` lists every term that
+effect, a second clip, a non-unity gain and a fade each take an export off the copy path on their
+own, and `ExportSpec.Upload` trips three of them at once. `ExportPlan.copyBlockedBy` lists every term that
 applied, so a caller can see which field to drop rather than guess why a three second export took
 forty.
 
@@ -390,19 +390,22 @@ before the first and after the last. A clip's envelope is read against its trimm
 track's against its whole run of clips, measured from where the track starts.
 
 The plan refuses an envelope with a point outside its scope, a negative gain, or points that fall out
-of time order once the end-anchored ones are placed, each with `ExportError.InvalidComposition`. A
-fade longer than its scope trips the first of those, and a `fadeIn` and `fadeOut` that together run
-longer than their scope trip the last, since the two ramps would cross.
+of time order once the end-anchored ones are placed, each with `ExportError.InvalidComposition`.
 
 `fadeIn(duration)` and `fadeOut(duration)` exist on both the clip builder and the track builder, and
-write those points for you. A clip's fades are measured against its trim, so retrimming the clip moves
-them with it. A track's fade in starts where the track does and its fade out ends where its last clip
-does. A fade rises to whatever `audio(...)` set rather than to one, so `AudioLevel.Volume(0.5f)` with a
-fade in ramps from silence to half, and where the two calls are written makes no difference. Fading a
-`Mute` leaves it muted. On an `Envelope` written by hand the fade's points are appended after its
-own, and the plan reads points in the order they were written. So `fadeIn` on an envelope with any
-point past zero, or `fadeOut` on one with any point later than where the fade out begins, is refused
-today with `ExportError.InvalidComposition`. Write the edges into the envelope itself instead.
+are kept on `Clip` and `Track` as durations of their own rather than folded into the level. A clip's
+fades are measured against its trim, so retrimming the clip moves them with it. A track's fade in
+starts where the track does and its fade out ends where its last clip does. The plan turns the pair
+into a curve peaking at one and multiplies it into the level, the same product a clip level and a
+track level already go through. So a fade rises to whatever `audio(...)` set rather than to one,
+`AudioLevel.Volume(0.5f)` with a fade in ramps from silence to half, fading a `Mute` leaves it muted,
+and where the two calls are written makes no difference. On an `Envelope` written by hand the fade
+scales the curve the envelope describes, leaving its points as they were, so a two second envelope
+falling from one to a half with a one second fade in reads 0.75 a second in rather than one.
+
+Fades have refusals of their own, each `ExportError.InvalidComposition` with a message naming the
+fade rather than the envelope: a negative fade, a fade longer than its scope, and a `fadeIn` and
+`fadeOut` that together run longer than their scope, since the two ramps would cross.
 
 Fades on different scopes compose the same way levels do. A clip fade under a track fade multiplies,
 so a clip that fades in at the top of a track that also fades in comes up along the product of the two
