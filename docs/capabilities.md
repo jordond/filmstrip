@@ -9,11 +9,13 @@ Legend:
 | ✅     | Implemented.                                                         |
 | ⚠️     | Works, with a documented limit. See the footnote.                    |
 | ❌     | Not implemented. Refused by name at plan time, never silently wrong. |
+| ❗     | Exports without an error, and the result is wrong. See the footnote. |
+| ❔     | Lowered, but no test covers it yet. See the footnote.                |
 
 Nothing in filmstrip is meant to fail silently. An unsupported effect comes back as
 `EffectResolution.Unsupported` with a message, and an unsupported composition comes back as
-`Verdict.Incapable` with a list of `ExportError`s. Looping a track is the known exception, and
-[Audio overlays](#audio-overlays) says where.
+`Verdict.Incapable` with a list of `ExportError`s. Some gaps still get past the plan without an
+error, and the footnote on each one says so.
 
 ## Targets
 
@@ -290,16 +292,16 @@ A composition can carry tracks besides the primary one, and they play alongside 
 it. Every backend draws video from the primary track alone, so an extra track is audio: a music bed, a
 voice over, a sound effect.
 
-| Feature                                    | Android | Apple            | Browser        | ffmpeg              |
-| ------------------------------------------ | ------- | ---------------- | -------------- | ------------------- |
-| Extra audio-only track                     | ✅      | ✅               | ✅             | ✅                  |
-| `startAt` on an audio track                | ✅      | ✅               | ✅             | ✅                  |
-| Looping track holding one clip             | ✅      | ⚠️ [^apple-loop] | ✅             | ⚠️ [^ffmpeg-loop]   |
-| Looping track holding several clips        | ✅      | ⚠️ [^apple-loop] | ⚠️ [^web-loop] | ⚠️ [^ffmpeg-loop]   |
-| Looping track carrying video               | ✅      | ⚠️ [^apple-loop] | ⚠️ [^web-loop] | ⚠️ [^ffmpeg-loop]   |
-| `AudioLevel` per clip and per track        | ✅      | ✅               | ✅             | ✅                  |
-| `AudioLevel.Envelope`, `fadeIn`, `fadeOut` | ✅      | ✅               | ✅             | ✅ [^ffmpeg-volume] |
-| Second track carrying video                | ❌      | ❌               | ❌             | ❌                  |
+| Feature                                    | Android          | Apple           | Browser        | ffmpeg              |
+| ------------------------------------------ | ---------------- | --------------- | -------------- | ------------------- |
+| Extra audio-only track                     | ✅               | ✅              | ✅             | ✅                  |
+| `startAt` on an audio track                | ✅               | ✅              | ✅             | ✅                  |
+| Looping track holding one clip             | ✅               | ❗ [^apple-loop] | ✅             | ❗ [^ffmpeg-loop]    |
+| Looping track holding several clips        | ❔ [^media3-loop] | ❗ [^apple-loop] | ❗ [^web-loop]  | ❗ [^ffmpeg-loop]    |
+| Looping track carrying video               | ❔ [^media3-loop] | ❗ [^apple-loop] | ❗ [^web-loop]  | ❗ [^ffmpeg-loop]    |
+| `AudioLevel` per clip and per track        | ✅               | ✅              | ✅             | ✅                  |
+| `AudioLevel.Envelope`, `fadeIn`, `fadeOut` | ✅               | ✅              | ✅             | ✅ [^ffmpeg-volume] |
+| Second track carrying video                | ❌               | ❌              | ❌             | ❌                  |
 
 ### Tracks
 
@@ -329,14 +331,20 @@ never decides the duration, so a composition where every track loops has nothing
 refused with `ExportError.InvalidComposition`. A looping track also drops its `fadeOut`, since it has
 no end to measure the ramp back from, and a clip-only effect on any of its clips is refused by name.
 
-Looping is where the backends still disagree. None of the gaps in the table is refused at plan time,
-so the plan does not flag them and the export succeeds with the wrong result. Read the footnotes
-before relying on a loop.
+Looping is where the backends still disagree. None of the ❗ cells in the table is refused at plan
+time, so the plan does not flag them and the export succeeds with the wrong result. Read the
+footnotes before relying on a loop.
 
 A gain curve on a looping track is resolved against one pass. Apple and the browser play it again
 from the top of every pass, so a `fadeIn` on a looping bed fades in each time it repeats. ffmpeg reads
 the curve against the whole run instead, so the fade plays once and every later pass holds the gain it
 ended on. On Android only the first pass has been measured.
+
+[^media3-loop]:
+    media3 is asked to loop a track that starts at zero, and a track with an offset lays its
+    own passes instead. The only device test runs one trimmed audio clip with an offset, which takes the
+    second path. A looping track holding several clips, or carrying video, is lowered on both paths, but
+    no device test covers either, so whether it comes out right on a device is not confirmed.
 
 [^apple-loop]:
     AVFoundation lays a looping track down a whole pass at a time until it reaches the end
@@ -391,8 +399,10 @@ write those points for you. A clip's fades are measured against its trim, so ret
 them with it. A track's fade in starts where the track does and its fade out ends where its last clip
 does. A fade rises to whatever `audio(...)` set rather than to one, so `AudioLevel.Volume(0.5f)` with a
 fade in ramps from silence to half, and where the two calls are written makes no difference. Fading a
-`Mute` leaves it muted. On an `Envelope` written by hand the fade's points are added to the ones
-already there, so a curve written out in full should pin its own edges instead.
+`Mute` leaves it muted. On an `Envelope` written by hand the fade's points are appended after its
+own, and the plan reads points in the order they were written. So `fadeIn` on an envelope with any
+point past zero, or `fadeOut` on one with any point later than where the fade out begins, is refused
+today with `ExportError.InvalidComposition`. Write the edges into the envelope itself instead.
 
 Fades on different scopes compose the same way levels do. A clip fade under a track fade multiplies,
 so a clip that fades in at the top of a track that also fades in comes up along the product of the two
