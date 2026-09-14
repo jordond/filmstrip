@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.edit
 
 import androidx.compose.runtime.Immutable
 import dev.drewhamilton.poko.Poko
-import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Fill
@@ -19,7 +18,6 @@ import kotlin.time.Duration
  *
  * Clips live on [Track]s, which play at the same time as each other rather than one after another.
  * Most edits have a single track and never name one. [clips] reads it and the composition builder fills it.
- * More than one track is [ExperimentalFilmstripApi].
  *
  * Serializable, so an edit list can be persisted, moved between devices, and rendered on the other platform.
  * Third-party [EffectSpec] implementations must be registered with `filmstripSerializersModule` to round-trip.
@@ -70,7 +68,6 @@ public class EditComposition(
   /**
    * A copy with different tracks.
    */
-  @ExperimentalFilmstripApi
   public fun withTracks(tracks: List<Track>): EditComposition =
     EditComposition(tracks = tracks, effects = effects, audio = audio, fill = fill)
 

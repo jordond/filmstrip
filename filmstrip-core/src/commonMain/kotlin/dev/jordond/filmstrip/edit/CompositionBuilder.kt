@@ -74,7 +74,6 @@ public class CompositionBuilder public constructor() {
    * @param content Which media streams this track contributes. A music bed is
    *   [TrackContent.Audio].
    */
-  @ExperimentalFilmstripApi
   public fun track(
     content: TrackContent = TrackContent.AudioAndVideo,
     block: TrackBuilder.() -> Unit,
@@ -83,7 +82,6 @@ public class CompositionBuilder public constructor() {
   /**
    * Adds an already-built track alongside the primary one.
    */
-  @ExperimentalFilmstripApi
   public fun addTrack(track: Track): CompositionBuilder = apply { extraTracks += track }
 
   /**
@@ -186,7 +184,6 @@ public class TrackBuilder public constructor(
    * The ramp rises to whatever [audio] set rather than past it, and composes with [fadeOut]. Where
    * the two are written makes no difference, since both are folded in once the track is built.
    */
-  @ExperimentalFilmstripApi
   public fun fadeIn(duration: Duration): TrackBuilder = apply { fadeIn = duration }
 
   /**
@@ -194,7 +191,6 @@ public class TrackBuilder public constructor(
    *
    * A looping track has no end to measure against, so the fade is dropped there.
    */
-  @ExperimentalFilmstripApi
   public fun fadeOut(duration: Duration): TrackBuilder = apply { fadeOut = duration }
 
   /**
@@ -283,7 +279,6 @@ public class ClipBuilder public constructor(
    * The ramp rises to whatever [audio] set rather than past it, and composes with [fadeOut]. Where
    * the two are written makes no difference, since both are folded in once the clip is built.
    */
-  @ExperimentalFilmstripApi
   public fun fadeIn(duration: Duration): ClipBuilder = apply { fadeIn = duration }
 
   /**
@@ -291,7 +286,6 @@ public class ClipBuilder public constructor(
    *
    * Measured against the trim, so retrimming the clip moves the fade with it.
    */
-  @ExperimentalFilmstripApi
   public fun fadeOut(duration: Duration): ClipBuilder = apply { fadeOut = duration }
 
   /**
