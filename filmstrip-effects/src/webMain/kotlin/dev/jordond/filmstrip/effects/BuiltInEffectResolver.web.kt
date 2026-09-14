@@ -36,8 +36,9 @@ import dev.jordond.filmstrip.geometry.NormalizedRect
  * Lowers the built-in catalogue onto WebGL pass declarations.
  *
  * Only the effects that are a texture-space transform or a colour matrix resolve here. Rotate and
- * Scale change the size of the render target rather than adding a pass, which makes them pipeline
- * setup, and no browser pipeline has landed to set up.
+ * Scale would resize the render target rather than adding a pass, and the browser pipeline sizes
+ * its compositor once from the output spec when export starts, with no path for a resolved effect
+ * to resize it afterward.
  */
 @OptIn(ExperimentalFilmstripApi::class, InternalFilmstripApi::class)
 public actual class BuiltInEffectResolver actual constructor() : EffectResolver {
@@ -128,8 +129,8 @@ private const val COLOR_MATRIX = "uColorMatrix"
 
 private const val RESIZING_PENDING =
   "Rotate and Scale change the size of the render target rather than adding a pass, so they " +
-    "are pipeline setup rather than a resolved effect. No browser pipeline has landed to set " +
-    "up."
+    "are pipeline setup rather than a resolved effect. The browser pipeline sizes its compositor " +
+    "once from the output spec and has no path for a resolved effect to resize it afterward."
 
 private const val PAN_PENDING =
   "A pan moves the region it shows on every frame, and a pass here carries one texture matrix " +
