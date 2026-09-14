@@ -675,7 +675,7 @@ internal class BrowserCompositor private constructor(
       gl.vertexAttribPointer(position, 2, GL_FLOAT, false, 0, 0)
     }
 
-    private fun link(
+    internal fun link(
       gl: WebGl2,
       vertexSource: String,
       fragmentSource: String,
@@ -844,7 +844,7 @@ private val VERTEX_SHADER =
 // A full-screen quad with no letterbox and no texture matrix: the blur, unpack, pack and present
 // passes all read a texture that already covers the whole viewport, so there is nothing left to
 // scale or warp.
-private val FULLSCREEN_VERTEX_SHADER =
+internal val FULLSCREEN_VERTEX_SHADER =
   """
   #version 300 es
   in vec2 aPosition;
@@ -941,7 +941,7 @@ private fun blurFragmentShader(transfer: HdrTransfer?): String =
  * in. HLG's opto-optical transfer runs per channel, which is the reading media3 and ffmpeg apply
  * and the one `sdrSignalFromHlgScene` already spells.
  */
-private fun unpackShader(transfer: HdrTransfer): String =
+internal fun unpackShader(transfer: HdrTransfer): String =
   """
   #version 300 es
   precision highp float;
@@ -979,7 +979,7 @@ private fun unpackShader(transfer: HdrTransfer): String =
  * A read back row is bottom-up, so a buffer row maps to its own framebuffer row directly and the
  * flip happens where the linear texture is sampled instead.
  */
-private fun packShader(transfer: HdrTransfer): String =
+internal fun packShader(transfer: HdrTransfer): String =
   """
   #version 300 es
   precision highp float;
