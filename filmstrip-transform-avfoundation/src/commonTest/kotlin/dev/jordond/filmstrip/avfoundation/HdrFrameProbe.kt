@@ -2,7 +2,10 @@ package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.avfoundation.internal.videoReaderSettings
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.UShortVar
 import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.get
+import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.useContents
 import kotlinx.cinterop.usePinned
 import platform.AVFoundation.AVAssetReader
@@ -19,10 +22,16 @@ import platform.CoreImage.CIContext
 import platform.CoreImage.CIImage
 import platform.CoreImage.kCIFormatRGBAf
 import platform.CoreMedia.CMSampleBufferGetImageBuffer
+import platform.CoreVideo.CVPixelBufferGetBaseAddressOfPlane
+import platform.CoreVideo.CVPixelBufferGetBytesPerRowOfPlane
+import platform.CoreVideo.CVPixelBufferLockBaseAddress
+import platform.CoreVideo.CVPixelBufferUnlockBaseAddress
+import platform.CoreVideo.kCVPixelBufferLock_ReadOnly
 import platform.Foundation.NSURL
 
 /**
- * One decoded frame of an HDR file, held as linear BT.2020 light.
+ * One decoded frame of an HDR file, held both as linear BT.2020 light and as the ten-bit codes the
+ * file stores.
  *
  * [FrameProbe] draws through an eight-bit device RGB context, which tone-maps a grade away before
  * anything can be measured on it. This reads the frame Core Image's own way instead: display
@@ -33,6 +42,8 @@ internal class HdrFrameProbe(
   private val width: Int,
   private val height: Int,
   private val pixels: FloatArray,
+  private val luma: IntArray,
+  private val chroma: IntArray,
 ) {
   /**
    * The linear red, green and blue at ([xFraction], [yFraction]), in cd/m2.
@@ -48,13 +59,31 @@ internal class HdrFrameProbe(
     return List(3) { pixels[offset + it] * HDR_DISPLAY_UNIT_NITS }
   }
 
+  /**
+   * The luma, Cb and Cr codes at ([xFraction], [yFraction]).
+   *
+   * These are VideoToolbox's decode of the file in the reader's ten-bit video range format, read off
+   * its planes with no colour conversion.
+   */
+  fun codesAt(
+    xFraction: Float,
+    yFraction: Float,
+  ): List<Int> {
+    val x = (width * xFraction).toInt().coerceIn(0, width - 1)
+    val y = (height * yFraction).toInt().coerceIn(0, height - 1)
+    val pair = ((y / 2) * chromaWidthOf(width) + x / 2) * 2
+
+    return listOf(luma[y * width + x], chroma[pair], chroma[pair + 1])
+  }
+
   private companion object {
     const val CHANNELS = 4
   }
 }
 
 /**
- * Decodes the first video frame of [path] as linear light, or null when there is no video track.
+ * Decodes the first video frame of [path] as linear light and copies its ten-bit planes, or null when
+ * there is no video track.
  *
  * The reader is asked for a ten-bit buffer rather than whatever the file happens to carry, so a
  * frame that arrives eight-bit is the decode being wrong rather than the measurement.
@@ -81,6 +110,26 @@ internal fun hdrFrameOf(path: String): HdrFrameProbe? {
   val (width, height) = extent
   val pixels = FloatArray(width * height * CHANNELS)
 
+  val chromaWidth = chromaWidthOf(width)
+  val luma = IntArray(width * height)
+  val chroma = IntArray(chromaWidth * ((height + 1) / 2) * 2)
+  CVPixelBufferLockBaseAddress(buffer, kCVPixelBufferLock_ReadOnly)
+  try {
+    val lumaPlane = CVPixelBufferGetBaseAddressOfPlane(buffer, 0u)?.reinterpret<UShortVar>() ?: return null
+    val chromaPlane = CVPixelBufferGetBaseAddressOfPlane(buffer, 1u)?.reinterpret<UShortVar>() ?: return null
+    val lumaStride = CVPixelBufferGetBytesPerRowOfPlane(buffer, 0u).toInt() / Short.SIZE_BYTES
+    val chromaStride = CVPixelBufferGetBytesPerRowOfPlane(buffer, 1u).toInt() / Short.SIZE_BYTES
+
+    luma.indices.forEach { luma[it] = lumaPlane[it / width * lumaStride + it % width].toInt() shr CODE_SHIFT }
+    chroma.indices.forEach {
+      val pair = it / 2
+      val offset = pair / chromaWidth * chromaStride + pair % chromaWidth * 2 + it % 2
+      chroma[it] = chromaPlane[offset].toInt() shr CODE_SHIFT
+    }
+  } finally {
+    CVPixelBufferUnlockBaseAddress(buffer, kCVPixelBufferLock_ReadOnly)
+  }
+
   val colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceExtendedLinearITUR_2020)
   try {
     pixels.usePinned { pinned ->
@@ -98,7 +147,7 @@ internal fun hdrFrameOf(path: String): HdrFrameProbe? {
   }
   reader.cancelReading()
 
-  return HdrFrameProbe(width, height, pixels)
+  return HdrFrameProbe(width, height, pixels, luma, chroma)
 }
 
 /**
@@ -109,4 +158,9 @@ internal fun hdrFrameOf(path: String): HdrFrameProbe? {
  */
 internal const val HDR_DISPLAY_UNIT_NITS: Float = 203f
 
+private fun chromaWidthOf(width: Int): Int = (width + 1) / 2
+
 private const val CHANNELS = 4
+
+// The ten-bit biplanar format the reader asks for left-aligns each code in a sixteen-bit sample.
+private const val CODE_SHIFT = 6
