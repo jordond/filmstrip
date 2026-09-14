@@ -29,6 +29,7 @@ import dev.jordond.filmstrip.transform.internal.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
@@ -149,6 +150,72 @@ class AppleParameterSwapTest {
     }
   }
 
+  // The invariant a looping track needs from a swap: one span per laid pass, each rebuilt from the
+  // clip at its own index. A pass of the plan is a clip of its own now, so the two lists have to
+  // stay the same length and stay in step.
+  @Test
+  fun `a swap over a looping track respans every pass with that pass's own clip`() {
+    val source = fixture() ?: return
+
+    val laid = loopedClips(source)
+    val chain = assertNotNull(loopingComposition(laid).toAvComposition().chain)
+    val swapped = loopingComposition(loopedClips(source, scale = BRIGHT))
+    chain.updateParameters(swapped)
+
+    chain.spans.size shouldBe laid.size
+    swapped.tracks.single().clips.forEachIndexed { index, clip ->
+      assertSame(clip.effects, chain.spans[index].effects, "pass $index kept another pass's effects")
+    }
+  }
+
+  /**
+   * One clip laid down three times, the last pass cut, carrying the spans the planner would have
+   * derived for it.
+   */
+  private fun loopedClips(
+    source: String,
+    scale: Double = DIM,
+  ): List<ResolvedClip> {
+    var at = Duration.ZERO
+    return listOf(CLIP, CLIP, LOOP_CUT).map { end ->
+      clip(source, end, listOf(scaling(scale)), at = at).also { at += end }
+    }
+  }
+
+  private fun loopingComposition(clips: List<ResolvedClip>): ResolvedComposition =
+    ResolvedComposition(
+      tracks =
+        listOf(
+          ResolvedTrack(
+            content = TrackContent.AudioAndVideo,
+            looping = true,
+            start = Duration.ZERO,
+            clips = clips,
+          ),
+        ),
+      compositionGeometry = emptyList(),
+      compositionInputSize = SOURCE,
+      compositionEffects = emptyList(),
+      output =
+        OutputFormat(
+          size = OUTPUT,
+          videoCodec = VideoCodec.H264,
+          audioCodec = AudioCodec.Aac,
+          bitrate = null,
+          frameRate = 30,
+          audioFormat = null,
+        ),
+      layoutSize = OUTPUT,
+      fit = Fit.Contain,
+      fill = Fill.Black,
+      duration = clips.fold(Duration.ZERO) { total, clip -> total + clip.duration },
+      hdr = ResolvedHdr.Keep,
+      hdrTransfer = null,
+      audio = AudioSpec.Keep,
+      adjustments = emptyList(),
+      path = ExportPath.Transcode,
+    )
+
   /**
    * One clip with one grading effect on it, at whatever [scale] the parameter is set to.
    */
@@ -196,6 +263,8 @@ class AppleParameterSwapTest {
     path: String,
     end: Duration,
     effects: List<ResolvedEffect>,
+    sourceIndex: Int = 0,
+    at: Duration = Duration.ZERO,
   ): ResolvedClip =
     ResolvedClip(
       source = MediaSource.of(path),
@@ -223,7 +292,8 @@ class AppleParameterSwapTest {
       effects = effects,
       gain = ResolvedGain.constant(1f, Duration.ZERO, end),
       startsAtKeyFrame = false,
-      span = TimeRange.of(Duration.ZERO, end),
+      span = TimeRange.of(at, at + end),
+      sourceIndex = sourceIndex,
     )
 
   /**
@@ -320,6 +390,9 @@ class AppleParameterSwapTest {
     val OUTPUT = Size(320, 180)
     val CLIP = 1.seconds
     val PROBE = 500.milliseconds
+
+    // What the run has left for its last pass, which does not divide the clip evenly.
+    val LOOP_CUT = 400.milliseconds
 
     // Far enough apart that no encoder rounding could account for the difference.
     const val DIM = 0.2

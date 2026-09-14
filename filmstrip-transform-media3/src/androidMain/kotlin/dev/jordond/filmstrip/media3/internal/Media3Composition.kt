@@ -21,7 +21,6 @@ import androidx.media3.transformer.Effects
 import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.AudioSpec
-import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effects.overlay.MAX_OVERLAYS_PER_EFFECT
 import dev.jordond.filmstrip.export.AudioCodec
@@ -102,16 +101,12 @@ internal fun ResolvedComposition.toMedia3(wrapper: EffectWrapper): Composition {
       val builder = EditedMediaItemSequence.Builder(trackTypes)
       if (track.start > Duration.ZERO) builder.addGap(track.start.inWholeMicroseconds)
 
-      // media3 repeats a sequence by its item index, and the leading gap is one of those items, so
-      // a looping track that starts late would open a pass every start plus length where the other
-      // three backends open one every length. A track with an offset therefore lays its own passes
-      // and does not ask media3 to loop, which is the only way to keep the gap out of the repeat.
-      val laysOwnPasses = track.looping && track.start > Duration.ZERO
-      val clips = if (laysOwnPasses) track.clips.passesCovering(duration - track.start) else track.clips
-
       // A lone clip at full volume is already the format the sequence outputs, so it doesn't need mixing.
-      val mixesAudio = clips.size > 1
-      clips.forEach { clip ->
+      val mixesAudio = track.clips.size > 1
+      // The plan already holds every pass a looping track lays, so the sequence is never asked to
+      // repeat itself. media3 repeats by item index and a leading gap is one of those items, which
+      // would open a pass every start plus length where the other three open one every length.
+      track.clips.forEach { clip ->
         builder.addItem(
           clip.toItem(
             content = track.content,
@@ -128,7 +123,7 @@ internal fun ResolvedComposition.toMedia3(wrapper: EffectWrapper): Composition {
         )
       }
 
-      builder.setIsLooping(track.looping && !laysOwnPasses).build()
+      builder.build()
     }
 
   if (sequences.isEmpty()) {
@@ -440,47 +435,6 @@ internal fun audioProcessors(
 
   return listOf(ToInt16PcmAudioProcessor(), mixer) + listOfNotNull(rampProcessorFor(gain))
 }
-
-/**
- * This run of clips laid down enough times to cover [fill], with the last one cut where it runs
- * past.
- *
- * A sequence that is not looping ends where its items end, and the longest sequence is what sets
- * the composition's length, so a pass allowed to overshoot would lengthen the whole export.
- */
-internal fun List<ResolvedClip>.passesCovering(fill: Duration): List<ResolvedClip> {
-  val length = fold(Duration.ZERO) { total, clip -> total + clip.duration }
-  if (length <= Duration.ZERO || fill <= Duration.ZERO) return this
-
-  val laid = mutableListOf<ResolvedClip>()
-  var remaining = fill
-  while (remaining > Duration.ZERO) {
-    for (clip in this) {
-      if (remaining <= Duration.ZERO) break
-      laid += if (clip.duration <= remaining) clip else clip.cutTo(remaining)
-      remaining -= clip.duration
-    }
-  }
-  return laid
-}
-
-/**
- * A copy of this clip keeping only its first [length].
- *
- * The gain travels with the cut, so the part of the curve the shortened clip never reaches is not
- * left pinned to a segment that runs past its end.
- */
-internal fun ResolvedClip.cutTo(length: Duration): ResolvedClip =
-  ResolvedClip(
-    source = source,
-    info = info,
-    start = start,
-    end = start + length,
-    effects = effects,
-    gain = gain.window(Duration.ZERO, length),
-    startsAtKeyFrame = startsAtKeyFrame,
-    span = TimeRange.of(span.start, span.start + length),
-  )
 
 private fun ResolvedTrack.trackTypes(
   keepAudio: Boolean,

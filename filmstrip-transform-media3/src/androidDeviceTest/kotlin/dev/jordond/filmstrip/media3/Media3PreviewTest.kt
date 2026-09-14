@@ -230,6 +230,7 @@ class Media3PreviewTest {
       gain = ResolvedGain.constant(1f, Duration.ZERO, length),
       startsAtKeyFrame = false,
       span = TimeRange.of(Duration.ZERO, length),
+      sourceIndex = 0,
     )
 
   private companion object {

@@ -71,6 +71,27 @@ class AvCompositionTest {
     }
   }
 
+  // A pass used to be laid whole and only then measured against the end, so a track handed a
+  // composition longer than its own laid run opened another pass and ran the file past it. The
+  // plan's duration is deliberately past the laid run here, which is what that loop read.
+  @Test
+  fun `lays one span per pass of a looping track and stops where the laid list ends`() {
+    val first = fixture("apple_export_a.mp4") ?: return
+    val laid =
+      laidFrom(
+        BED_START,
+        listOf(1_100.milliseconds, 1_100.milliseconds, 1_100.milliseconds, 800.milliseconds)
+          .map { length -> clip(first, Size(640, 360), 200.milliseconds, 200.milliseconds + length) },
+      )
+    val run = laid.fold(Duration.ZERO) { total, clip -> total + clip.duration }
+    val composition = loopingComposition(laid, start = BED_START, duration = BED_START + run + BEYOND_THE_RUN)
+
+    composition.spans.size shouldBe laid.size
+    composition.spans.first().start shouldBe BED_START
+    composition.spans.zipWithNext().forEach { (first, second) -> first.end shouldBe second.start }
+    composition.composition.duration.toDuration() shouldBe BED_START + run
+  }
+
   @Test
   fun `runs the last span to the composition's own duration`() {
     val composition = threeClips() ?: return
@@ -274,6 +295,7 @@ class AvCompositionTest {
       gain = ResolvedGain.constant(1f, Duration.ZERO, duration),
       startsAtKeyFrame = false,
       span = TimeRange.of(Duration.ZERO, duration),
+      sourceIndex = 0,
     )
 
   // A swap rebuilds the spans over the slots they already hold, and a still dropped on the way
@@ -293,6 +315,73 @@ class AvCompositionTest {
     duration: Duration,
   ): AvComposition = resolvedComposition(clips, duration).toAvComposition()
 
+  /**
+   * These clips carrying the spans a planner would have derived for them, laid end to end from
+   * [from]. The lowering reads the span rather than working an offset out again, so a fixture has
+   * to hold the same slots a plan would.
+   */
+  private fun laidFrom(
+    from: Duration,
+    clips: List<ResolvedClip>,
+  ): List<ResolvedClip> {
+    var at = from
+    return clips.map { clip -> clip.laidAt(at).also { at += clip.duration } }
+  }
+
+  private fun ResolvedClip.laidAt(at: Duration): ResolvedClip =
+    ResolvedClip(
+      source = source,
+      info = info,
+      start = start,
+      end = end,
+      effects = effects,
+      gain = gain,
+      startsAtKeyFrame = startsAtKeyFrame,
+      span = TimeRange.of(at, at + duration),
+      sourceIndex = sourceIndex,
+    )
+
+  /**
+   * A looping track already laid out as the planner lays one, offset by [start].
+   */
+  private fun loopingComposition(
+    clips: List<ResolvedClip>,
+    start: Duration,
+    duration: Duration,
+  ): AvComposition =
+    ResolvedComposition(
+      tracks =
+        listOf(
+          ResolvedTrack(
+            content = TrackContent.AudioAndVideo,
+            looping = true,
+            start = start,
+            clips = clips,
+          ),
+        ),
+      compositionGeometry = emptyList(),
+      compositionInputSize = OUTPUT,
+      compositionEffects = emptyList(),
+      output =
+        OutputFormat(
+          size = OUTPUT,
+          videoCodec = VideoCodec.H264,
+          audioCodec = AudioCodec.Aac,
+          bitrate = null,
+          frameRate = 30,
+          audioFormat = null,
+        ),
+      layoutSize = OUTPUT,
+      fit = Fit.Contain,
+      fill = Fill.Black,
+      duration = duration,
+      hdr = ResolvedHdr.Keep,
+      hdrTransfer = null,
+      audio = AudioSpec.Keep,
+      adjustments = emptyList(),
+      path = ExportPath.Transcode,
+    ).toAvComposition()
+
   private fun resolvedComposition(
     clips: List<ResolvedClip>,
     duration: Duration,
@@ -304,7 +393,7 @@ class AvCompositionTest {
             content = TrackContent.AudioAndVideo,
             looping = false,
             start = Duration.ZERO,
-            clips = clips,
+            clips = laidFrom(Duration.ZERO, clips),
           ),
         ),
       compositionGeometry = emptyList(),
@@ -342,10 +431,13 @@ class AvCompositionTest {
             looping = false,
             start = Duration.ZERO,
             clips =
-              listOf(
-                clip(first, Size(640, 360), Duration.ZERO, 700.milliseconds),
-                clip(second, Size(480, 270), 250.milliseconds, 1_100.milliseconds),
-                clip(first, Size(640, 360), 300.milliseconds, 1_333.milliseconds),
+              laidFrom(
+                Duration.ZERO,
+                listOf(
+                  clip(first, Size(640, 360), Duration.ZERO, 700.milliseconds),
+                  clip(second, Size(480, 270), 250.milliseconds, 1_100.milliseconds),
+                  clip(first, Size(640, 360), 300.milliseconds, 1_333.milliseconds),
+                ),
               ),
           ),
         ),
@@ -379,6 +471,7 @@ class AvCompositionTest {
     start: Duration,
     end: Duration,
     gain: ResolvedGain = ResolvedGain.constant(1f, Duration.ZERO, end - start),
+    sourceIndex: Int = 0,
   ): ResolvedClip =
     ResolvedClip(
       source = MediaSource.of(path),
@@ -407,6 +500,7 @@ class AvCompositionTest {
       gain = gain,
       startsAtKeyFrame = false,
       span = TimeRange.of(Duration.ZERO, end - start),
+      sourceIndex = sourceIndex,
     )
 
   private fun fixture(name: String): String? {
@@ -424,6 +518,14 @@ class AvCompositionTest {
     val PHOTO_IMAGE = ImageSource.of("/filmstrip/does-not-exist.png")
     val COMPOSITION_INPUT = Size(640, 360)
     val PROBE_STEP = 37.milliseconds
+
+    // A track offset that divides neither the pass length nor the run, so a span counted from the
+    // wrong place lands somewhere the tiling assertion can see.
+    val BED_START = 700.milliseconds
+
+    // How far the composition runs past the track's own laid run, which is the room a pass laid
+    // whole and only then measured would have overrun into.
+    val BEYOND_THE_RUN = 900.milliseconds
   }
 }
 

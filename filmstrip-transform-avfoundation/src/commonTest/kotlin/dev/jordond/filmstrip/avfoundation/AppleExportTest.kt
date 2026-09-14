@@ -567,16 +567,15 @@ class AppleExportTest {
       val spec = ExportSpec(targetHeight = 240)
       val resolved = resolved(composition, spec)
       val bedTrack = resolved.tracks.single { it.content == TrackContent.Audio }
-      val bedClip = bedTrack.clips.single()
       val primaryTrack = resolved.tracks.single { it.content != TrackContent.Audio }
       val primaryClip = primaryTrack.clips.single()
 
-      // Where the second window lands on the bed's own repeat, which is what says it is measuring a
-      // pass the loop laid down rather than the bed's first and only run.
+      // The plan holds one clip per pass, so which pass the window's middle lands in is read off
+      // the laid list rather than worked out from the bed's own length.
       val middle = LOOPED + WINDOW / 2
-      val intoBed = middle - bedTrack.start
-      val pass = (intoBed / bedClip.duration).toInt()
-      assertTrue(pass >= 1, "the window at $middle sits in pass $pass, which the loop never had to lay down")
+      val pass = bedTrack.clips.indexOfLast { it.span.start <= middle }
+      assertTrue(pass >= 1, "the window at $middle sits in pass ${pass + 1}, which the loop never had to lay down")
+      val bedClip = bedTrack.clips[pass]
 
       val output = temporaryPath("audio-bed")
       exported(composition, spec, output)
@@ -586,8 +585,8 @@ class AppleExportTest {
       val bedTone = audio.toneOver(LOOPED, WINDOW, BED_HZ)
       val beforePrimary = audio.toneOver(BEFORE_BED, WINDOW, PRIMARY_HZ)
       val beforeBed = audio.toneOver(BEFORE_BED, WINDOW, BED_HZ)
-      println("440Hz: $beforePrimary before the bed, $primaryTone inside pass $pass")
-      println("880Hz: $beforeBed before the bed, $bedTone inside pass $pass")
+      println("440Hz: $beforePrimary before the bed, $primaryTone inside pass ${pass + 1}")
+      println("880Hz: $beforeBed before the bed, $bedTone inside pass ${pass + 1}")
 
       assertTrue(primaryTone > AUDIBLE, "the primary's own tone never reached the file, reading $primaryTone")
       assertTrue(beforePrimary > AUDIBLE, "the window before the bed carries no primary, reading $beforePrimary")
@@ -597,8 +596,8 @@ class AppleExportTest {
       )
 
       // The gain the planner folded, read off the plan rather than typed here, and sampled in the
-      // clip's own time at the point inside the pass the window's middle lands on.
-      val expected = bedClip.gain.gainAt(intoBed - bedClip.duration * pass) / primaryClip.gain.gainAt(middle)
+      // pass's own time at the point inside it the window's middle lands on.
+      val expected = bedClip.gain.gainAt(middle - bedClip.span.start) / primaryClip.gain.gainAt(middle)
       val measured = bedTone / primaryTone
       assertTrue(
         abs(measured - expected) <= GAIN_TOLERANCE,

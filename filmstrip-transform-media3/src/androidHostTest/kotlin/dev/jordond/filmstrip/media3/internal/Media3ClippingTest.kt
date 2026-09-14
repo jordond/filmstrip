@@ -174,6 +174,7 @@ class Media3ClippingTest {
       gain = ResolvedGain.constant(1f, Duration.ZERO, end - start),
       startsAtKeyFrame = startsAtKeyFrame,
       span = TimeRange.of(Duration.ZERO, end - start),
+      sourceIndex = 0,
     )
 
   private companion object {

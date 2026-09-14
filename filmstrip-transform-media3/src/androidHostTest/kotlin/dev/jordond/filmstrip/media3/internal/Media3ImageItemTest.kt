@@ -221,6 +221,7 @@ class Media3ImageItemTest {
       gain = ResolvedGain.constant(1f, Duration.ZERO, span),
       startsAtKeyFrame = false,
       span = TimeRange.of(Duration.ZERO, span),
+      sourceIndex = 0,
     )
 
   /**
@@ -254,5 +255,6 @@ class Media3ImageItemTest {
       gain = ResolvedGain.constant(1f, Duration.ZERO, 1.seconds),
       startsAtKeyFrame = false,
       span = TimeRange.of(Duration.ZERO, 1.seconds),
+      sourceIndex = 0,
     )
 }

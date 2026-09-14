@@ -151,7 +151,7 @@ public fun ResolvedComposition.toAvComposition(): AvComposition {
         // composition ignores it. Every clip bakes its own rotation instead, so this says the frames
         // are already the way round they should be shown.
         media.preferredTransform = CGAffineTransformIdentity.readValue()
-        track.layOnto(media, AVMediaTypeVideo, duration, assets, output.frameRate)
+        track.layOnto(media, AVMediaTypeVideo, assets, output.frameRate)
       }.orEmpty()
 
   val mixed =
@@ -161,7 +161,7 @@ public fun ResolvedComposition.toAvComposition(): AvComposition {
         val media =
           composition.addMutableTrackWithMediaType(AVMediaTypeAudio, kCMPersistentTrackID_Invalid)
             ?: return@mapNotNull null
-        media to track.layOnto(media, AVMediaTypeAudio, duration, assets, output.frameRate)
+        media to track.layOnto(media, AVMediaTypeAudio, assets, output.frameRate)
       }
 
   if (placements.isEmpty() && mixed.all { it.second.isEmpty() }) {
@@ -246,59 +246,41 @@ private class AssetCache {
 private fun ResolvedTrack.layOnto(
   media: AVMutableCompositionTrack,
   mediaType: String?,
-  limit: Duration,
   assets: AssetCache,
   stillFrameRate: Int?,
 ): List<Placement> {
-  val placements = mutableListOf<Placement>()
-  var cursor = Duration.ZERO
+  if (start > Duration.ZERO) media.insertEmptyTimeRange(timeRangeOf(Duration.ZERO, start))
 
-  if (start > Duration.ZERO) {
-    media.insertEmptyTimeRange(timeRangeOf(Duration.ZERO, start))
-    cursor = start
-  }
-
-  // A looping track is laid down again from the top until it covers everything a non-looping one
-  // bounds, which is what `limit` already is.
-  do {
-    val passStart = cursor
-    clips.forEach { clip ->
-      val still = clip.source is MediaSource.Image
-      val inserted =
-        when {
-          still && mediaType == AVMediaTypeVideo -> {
-            media.insertStill(cursor, clip.duration, stillFrameRate)
-            true
-          }
-          still -> {
-            false
-          }
-          else -> {
-            val source = assets.of(clip.source).tracksWithMediaType(mediaType).firstOrNull() as? AVAssetTrack
-            source != null &&
-              media.insertTimeRange(
-                timeRange = timeRangeOf(clip.start, clip.duration),
-                ofTrack = source,
-                atTime = cursor.toCMTime(),
-                error = null,
-              )
-          }
+  return clips.map { clip ->
+    // The slot this clip holds, read off the plan rather than accumulated here a second time. The
+    // planner derives it once so an effect reading the time measures against the same run on every
+    // backend, and a looping track's later passes carry their own.
+    val at = clip.span.start
+    val still = clip.source is MediaSource.Image
+    val inserted =
+      when {
+        still && mediaType == AVMediaTypeVideo -> {
+          media.insertStill(at, clip.duration, stillFrameRate)
+          true
         }
-      if (!inserted) media.insertEmptyTimeRange(timeRangeOf(cursor, clip.duration))
+        still -> {
+          false
+        }
+        else -> {
+          val source = assets.of(clip.source).tracksWithMediaType(mediaType).firstOrNull() as? AVAssetTrack
+          source != null &&
+            media.insertTimeRange(
+              timeRange = timeRangeOf(clip.start, clip.duration),
+              ofTrack = source,
+              atTime = at.toCMTime(),
+              error = null,
+            )
+        }
+      }
+    if (!inserted) media.insertEmptyTimeRange(timeRangeOf(at, clip.duration))
 
-      placements +=
-        Placement(
-          clip = clip,
-          start = cursor,
-          end = cursor + clip.duration,
-        )
-      cursor += clip.duration
-    }
-    // A pass that advances nothing would spin forever, and an empty clip list is reachable on an
-    // audio track the planner left alone.
-  } while (looping && cursor < limit && cursor > passStart)
-
-  return placements
+    Placement(clip = clip, start = at, end = at + clip.duration)
+  }
 }
 
 /**
@@ -371,15 +353,19 @@ private fun List<Placement>.toSpans(
  * rather than derived again. Deriving them again would mean laying the whole composition down a
  * second time, which is the work a swap exists to avoid.
  *
- * A looping track lays its clips down more than once, so the clip behind a span is found by
- * wrapping round the list the same way [layOnto] wrapped when it produced the placements.
+ * The plan holds one clip per pass and [layOnto] lays one placement per clip, so a span and the clip
+ * behind it line up by index.
  */
 internal fun List<ClipSpan>.respannedOnto(resolved: ResolvedComposition): List<ClipSpan> {
   val clips = resolved.videoTrack?.clips.orEmpty()
   if (clips.isEmpty()) return emptyList()
+  require(size == clips.size) {
+    "This composition holds $size spans and the swap lays ${clips.size} clips, so a span has no " +
+      "clip of its own to be rebuilt from."
+  }
 
   return mapIndexed { index, span ->
-    clips[index % clips.size].spanning(
+    clips[index].spanning(
       start = span.start,
       end = span.end,
       rotationDegrees = span.rotationDegrees,

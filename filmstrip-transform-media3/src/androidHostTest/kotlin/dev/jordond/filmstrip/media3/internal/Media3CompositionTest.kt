@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.media3.internal
 
+import android.net.Uri
 import androidx.media3.common.C
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.GainProcessor
@@ -34,7 +35,12 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.floats.plusOrMinus
 import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkAll
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.test.Test
@@ -273,54 +279,39 @@ class Media3CompositionTest {
     return ShortArray(output.remaining()) { output.get(it) }
   }
 
-  // Stands in for whatever a resolver hands back for a colour effect, which media3 merges with its
-  // neighbours. Only the type it lowered to decides where the boundary goes.
+  // Asking media3 to loop would leave one item for the whole run, and it repeats by item index, so
+  // a leading gap would be repeated along with them. The plan holds every pass instead.
   @Test
-  fun `a looping track lays a whole pass for every length that fits`() {
-    // media3 repeats a sequence by item index, and a leading gap is one of those items, so an
-    // offset looping track lays its own passes instead. Two and a half lengths of room is two whole
-    // passes and a cut one, which is what tells this apart from a gap counted into the period.
-    val passes = listOf(clip()).passesCovering(2_500.milliseconds)
+  fun `a looping track lays one item per pass and never asks media3 to repeat`() {
+    // Building real items reaches android.net.Uri, which a host test has no implementation of.
+    // Video alone, since the audio processors reach android.util.SparseArray for the same reason
+    // and what is counted here is the items rather than what they carry.
+    mockkStatic(Uri::class)
+    every { Uri.fromFile(any()) } returns mockk(relaxed = true)
+    try {
+      val laid = List(4) { clip() }
+      val sequence =
+        composition(
+          fit = Fit.Contain,
+          clips = laid,
+          looping = true,
+          trackStart = 700.milliseconds,
+          content = TrackContent.Video,
+        ).toMedia3()
+          .sequences
+          .single()
 
-    passes.size shouldBe 3
-    passes.dropLast(1).forEach { it.duration shouldBe 1.seconds }
-    passes.last().duration shouldBe 500.milliseconds
-  }
-
-  @Test
-  fun `the passes a looping track lays fill exactly what it was given`() {
-    // Anything longer would lengthen the export, since the sequence no longer loops and the longest
-    // sequence is what sets the composition's own duration.
-    listOf(clip())
-      .passesCovering(2_600.milliseconds)
-      .fold(Duration.ZERO) { total, clip -> total + clip.duration } shouldBe 2_600.milliseconds
-  }
-
-  @Test
-  fun `a run of clips repeats in order rather than one clip at a time`() {
-    val first = clip()
-    val second = clip()
-
-    val passes = listOf(first, second).passesCovering(3.seconds)
-
-    passes.size shouldBe 3
-    passes[0].source shouldBe first.source
-    passes[1].source shouldBe second.source
-    passes[2].source shouldBe first.source
-  }
-
-  @Test
-  fun `a pass cut short carries only the part of its gain curve it reaches`() {
-    // The curve ramps across the clip's whole second, so a pass cut at 600ms has to end on what the
-    // curve reads there rather than on the one it would have reached had the pass run out.
-    val ramp = ResolvedGain(listOf(GainSegment(Duration.ZERO, 1.seconds, 0f, 1f)))
-    val faded = clip().let { ResolvedClip(it.source, it.info, it.start, it.end, it.effects, ramp, false, it.span) }
-
-    val cut = listOf(faded).passesCovering(1_600.milliseconds).last()
-
-    cut.duration shouldBe 600.milliseconds
-    cut.gain.gainAt(600.milliseconds) shouldBe (ramp.gainAt(600.milliseconds) plusOrMinus 0.001f)
-    cut.gain.end shouldBe 600.milliseconds
+      sequence.isLooping shouldBe false
+      // The leading gap plus one item per laid pass. Asked to loop, media3 would hold one item here
+      // and repeat it along with the gap.
+      sequence.editedMediaItems.size shouldBe laid.size + 1
+      sequence.editedMediaItems
+        .first()
+        .mediaItem.localConfiguration shouldBe null
+      sequence.editedMediaItems.drop(1).forEach { it.mediaItem.localConfiguration shouldNotBe null }
+    } finally {
+      unmockkAll()
+    }
   }
 
   private fun matrix(): RgbMatrix =
@@ -332,14 +323,17 @@ class Media3CompositionTest {
     compositionEffects: List<ResolvedEffect> = emptyList(),
     clips: List<ResolvedClip> = listOf(clip()),
     hdrTransfer: HdrTransfer? = null,
+    looping: Boolean = false,
+    trackStart: Duration = Duration.ZERO,
+    content: TrackContent = TrackContent.AudioAndVideo,
   ): ResolvedComposition =
     ResolvedComposition(
       tracks =
         listOf(
           ResolvedTrack(
-            content = TrackContent.AudioAndVideo,
-            looping = false,
-            start = Duration.ZERO,
+            content = content,
+            looping = looping,
+            start = trackStart,
             clips = clips,
           ),
         ),
@@ -397,6 +391,7 @@ class Media3CompositionTest {
       gain = ResolvedGain.constant(1f, Duration.ZERO, 1.seconds),
       startsAtKeyFrame = false,
       span = TimeRange.of(Duration.ZERO, 1.seconds),
+      sourceIndex = 0,
     )
 
   private fun resolvedEffect(handle: Any): ResolvedEffect = ResolvedEffect("test", PlatformEffect(handle))
