@@ -314,6 +314,35 @@ class Media3CompositionTest {
     }
   }
 
+  // The track above opens on a gap, which is the shape asking media3 to loop always got wrong. A
+  // track that starts at zero has no gap, so looping one item reproduced the same run and this is
+  // the case the old lowering still got right. What it never got right is the cut last pass, which
+  // only shows up as the item count.
+  @Test
+  fun `a looping track that starts at zero still lays one item per pass`() {
+    mockkStatic(Uri::class)
+    every { Uri.fromFile(any()) } returns mockk(relaxed = true)
+    try {
+      val laid = List(4) { clip() }
+      val sequence =
+        composition(
+          fit = Fit.Contain,
+          clips = laid,
+          looping = true,
+          trackStart = Duration.ZERO,
+          content = TrackContent.Video,
+        ).toMedia3()
+          .sequences
+          .single()
+
+      sequence.isLooping shouldBe false
+      sequence.editedMediaItems.size shouldBe laid.size
+      sequence.editedMediaItems.forEach { it.mediaItem.localConfiguration shouldNotBe null }
+    } finally {
+      unmockkAll()
+    }
+  }
+
   private fun matrix(): RgbMatrix =
     RgbMatrix { _, _ -> floatArrayOf(1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f) }
 
