@@ -985,6 +985,153 @@ class ExportPlannerTest {
   }
 
   @Test
+  fun `a fade multiplies a hand written envelope rather than landing among its points`() {
+    // Two seconds falling from one to a half, under a fade in across the first of them. A polyline
+    // through the union of the two would read one at a second in, where the product reads 0.75.
+    val envelope =
+      AudioLevel.Envelope(listOf(EnvelopePoint(Duration.ZERO, 1f), EnvelopePoint(2_000.milliseconds, 0.5f)))
+    val faded =
+      clip(trim = TimeRange.of(Duration.ZERO, 2_000.milliseconds), fadeIn = 1_000.milliseconds).withAudio(envelope)
+
+    assertIs<Verdict.Capable>(plan(composition(faded)))
+    val gain = firstClipOf(resolve(composition(faded))).gain
+    gain.gainAt(Duration.ZERO) shouldBe 0f
+    gain.gainAt(500.milliseconds) shouldBe (0.4375f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
+    gain.gainAt(1_000.milliseconds) shouldBe (0.75f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
+    gain.gainAt(1_500.milliseconds) shouldBe (0.625f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
+    gain.gainAt(2_000.milliseconds) shouldBe (0.5f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
+  }
+
+  @Test
+  fun `a fade out multiplies a hand written envelope across the overlap`() {
+    // An envelope rising across the whole clip under a fade out over its last second, read in the
+    // middle of the overlap rather than at either end of it.
+    val envelope =
+      AudioLevel.Envelope(listOf(EnvelopePoint(Duration.ZERO, 0.5f), EnvelopePoint(2_000.milliseconds, 1f)))
+    val faded =
+      clip(trim = TimeRange.of(Duration.ZERO, 2_000.milliseconds), fadeOut = 1_000.milliseconds).withAudio(envelope)
+
+    val gain = firstClipOf(resolve(composition(faded))).gain
+    gain.gainAt(1_000.milliseconds) shouldBe (0.75f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
+    gain.gainAt(1_500.milliseconds) shouldBe (0.4375f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
+    gain.gainAt(2_000.milliseconds) shouldBe 0f
+  }
+
+  @Test
+  fun `a fade under a volume rises to that volume`() {
+    val faded = clip(fadeIn = 2_000.milliseconds).withAudio(AudioLevel.Volume(0.3f))
+
+    val gain = firstClipOf(resolve(composition(faded))).gain
+    gain.gainAt(Duration.ZERO) shouldBe 0f
+    gain.gainAt(1_000.milliseconds) shouldBe (0.15f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
+    gain.gainAt(2_000.milliseconds) shouldBe (0.3f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
+    gain.gainAt(5_000.milliseconds) shouldBe (0.3f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
+  }
+
+  @Test
+  fun `a fade over silence stays silent`() {
+    val faded = clip(fadeIn = 2_000.milliseconds, fadeOut = 2_000.milliseconds).withAudio(AudioLevel.Mute)
+
+    val gain = firstClipOf(resolve(composition(faded))).gain
+    gain.gainAt(Duration.ZERO) shouldBe 0f
+    gain.gainAt(1_000.milliseconds) shouldBe 0f
+    gain.gainAt(3_000.milliseconds) shouldBe 0f
+    gain.gainAt(5_000.milliseconds) shouldBe 0f
+  }
+
+  @Test
+  fun `a track fade multiplies into every clip window of the track`() {
+    // Two six second clips make a twelve second track, so a fade across the whole of it is still
+    // climbing when the second clip opens and has to be read in that clip's own time.
+    val composition = EditComposition(listOf(Track(clips = listOf(clip(), clip()), fadeIn = 12_000.milliseconds)))
+
+    val clips = resolve(composition).tracks.single().clips
+    clips.first().gain.gainAt(3_000.milliseconds) shouldBe (0.25f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
+    clips.last().gain.gainAt(3_000.milliseconds) shouldBe (0.75f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
+  }
+
+  @Test
+  fun `a looping track's fade out is ignored and its fade in is not`() {
+    val bed =
+      Track(
+        clips = listOf(clip()),
+        content = TrackContent.Audio,
+        looping = true,
+        fadeIn = 2_000.milliseconds,
+        fadeOut = 2_000.milliseconds,
+      )
+    val composition = EditComposition(listOf(Track(listOf(clip())), bed))
+
+    val gain =
+      resolve(composition)
+        .tracks
+        .last()
+        .clips
+        .single()
+        .gain
+    gain.gainAt(1_000.milliseconds) shouldBe (0.5f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
+    gain.gainAt(2_000.milliseconds) shouldBe (1f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
+    // Where the fade out would have run, had the loop had an end to anchor it to.
+    gain.gainAt(5_000.milliseconds) shouldBe (1f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
+    gain.gainAt(6_000.milliseconds) shouldBe (1f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
+  }
+
+  @Test
+  fun `a fade in and a fade out that exactly fill the clip meet at its apex`() {
+    // Three seconds up and three down over a six second clip, the longest pair that fits. The two
+    // ramps meet rather than cross, so the apex still reaches the level underneath them.
+    val faded = clip(fadeIn = 3_000.milliseconds, fadeOut = 3_000.milliseconds)
+
+    assertIs<Verdict.Capable>(plan(composition(faded)))
+    val gain = firstClipOf(resolve(composition(faded))).gain
+    gain.gainAt(Duration.ZERO) shouldBe 0f
+    gain.gainAt(1_500.milliseconds) shouldBe (0.5f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
+    gain.gainAt(3_000.milliseconds) shouldBe (1f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
+    gain.gainAt(4_500.milliseconds) shouldBe (0.5f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
+    gain.gainAt(6_000.milliseconds) shouldBe 0f
+  }
+
+  @Test
+  fun `a negative fade is refused by name`() {
+    val verdict = plan(composition(clip(fadeIn = -1_000.milliseconds)))
+
+    val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
+    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+      "A clip's fade is negative, longer than the clip's trim, or its fade in and fade out " +
+      "together run longer than the trim, so the two ramps would cross."
+  }
+
+  @Test
+  fun `a fade longer than the clip is refused by name`() {
+    val verdict = plan(composition(clip(fadeIn = 9_000.milliseconds)))
+
+    val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
+    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+      "A clip's fade is negative, longer than the clip's trim, or its fade in and fade out " +
+      "together run longer than the trim, so the two ramps would cross."
+  }
+
+  @Test
+  fun `a fade in and a fade out that would cross are refused by name`() {
+    val verdict = plan(composition(clip(fadeIn = 4_000.milliseconds, fadeOut = 4_000.milliseconds)))
+
+    val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
+    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+      "A clip's fade is negative, longer than the clip's trim, or its fade in and fade out " +
+      "together run longer than the trim, so the two ramps would cross."
+  }
+
+  @Test
+  fun `a track fade longer than the track is refused by name`() {
+    val composition = EditComposition(listOf(Track(listOf(clip()), fadeOut = 9_000.milliseconds)))
+
+    val error = assertIs<Verdict.Incapable>(plan(composition)).reasons.single()
+    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+      "A track's fade is negative, longer than the track, or its fade in and fade out together " +
+      "run longer than the track, so the two ramps would cross."
+  }
+
+  @Test
   fun `an envelope reaching past the scope is refused`() {
     val past = AudioLevel.Envelope(listOf(EnvelopePoint(9_000.milliseconds, 1f)))
     val verdict = plan(EditComposition(listOf(Track(listOf(clip().withAudio(past))))))
@@ -1011,6 +1158,26 @@ class ExportPlannerTest {
   }
 
   @Test
+  fun `a fade keeps a clip off the copy path even where the level is untouched`() {
+    val faded = clip(fadeIn = 1_000.milliseconds)
+    val verdict = plan(composition(faded))
+
+    assertIs<Verdict.Capable>(verdict)
+    verdict.plan.copyBlockedBy shouldBe listOf(CopyBlocker.ClipGainChanged)
+    resolve(composition(faded)).path shouldBe ExportPath.Transcode
+  }
+
+  @Test
+  fun `a track fade keeps an export off the copy path`() {
+    val composition = EditComposition(listOf(Track(listOf(clip()), fadeOut = 1_000.milliseconds)))
+    val verdict = plan(composition)
+
+    assertIs<Verdict.Capable>(verdict)
+    verdict.plan.copyBlockedBy shouldBe listOf(CopyBlocker.TrackGainChanged)
+    resolve(composition).path shouldBe ExportPath.Transcode
+  }
+
+  @Test
   fun `a long envelope crossed with a slow fade does not explode into segments`() {
     // The fold subdivides only where both sides bow, and a slow track fade barely moves across one
     // step of a detailed clip envelope. Without that, every step would split and hand the backends
@@ -1021,7 +1188,7 @@ class ExportPlannerTest {
       )
     val composition =
       EditComposition(
-        listOf(Track(clips = listOf(clip().withAudio(detailed)), audio = fadeIn(6_000.milliseconds))),
+        listOf(Track(clips = listOf(clip().withAudio(detailed)), fadeIn = 6_000.milliseconds)),
       )
 
     val gain = firstClipOf(resolve(composition)).gain
@@ -1835,6 +2002,8 @@ class ExportPlannerTest {
     codec: String? = null,
     frameRate: Float = 30f,
     snapWithin: Duration = Duration.ZERO,
+    fadeIn: Duration = Duration.ZERO,
+    fadeOut: Duration = Duration.ZERO,
   ): Clip {
     val source = MediaSource.of("/fixtures/clip-${INFOS.size}.mp4")
     INFOS[source] =
@@ -1856,7 +2025,7 @@ class ExportPlannerTest {
         audio = audioRate?.let { AudioTrackInfo(trackCodecOf("mp4a"), it, 2, null) },
         isExportable = exportable,
       )
-    return Clip(source, trim, effects, snapWithin = snapWithin)
+    return Clip(source, trim, effects, snapWithin = snapWithin, fadeIn = fadeIn, fadeOut = fadeOut)
   }
 
   /**

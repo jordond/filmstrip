@@ -98,7 +98,12 @@ private fun EditComposition.rendering(): Rendering =
         TrackRendering(
           effects = track.effects.inCanonicalOrder(),
           audio = track.audio,
-          clips = track.clips.map { ClipRendering(it.effects.inCanonicalOrder(), it.audio) },
+          fadeIn = track.fadeIn,
+          fadeOut = track.fadeOut,
+          clips =
+            track.clips.map {
+              ClipRendering(it.effects.inCanonicalOrder(), it.audio, it.fadeIn, it.fadeOut)
+            },
         )
       },
   )
@@ -129,12 +134,16 @@ private data class Rendering(
 private data class TrackRendering(
   val effects: List<EffectSpec>,
   val audio: AudioLevel,
+  val fadeIn: Duration,
+  val fadeOut: Duration,
   val clips: List<ClipRendering>,
 )
 
 private data class ClipRendering(
   val effects: List<EffectSpec>,
   val audio: AudioLevel,
+  val fadeIn: Duration,
+  val fadeOut: Duration,
 )
 
 // A 64-bit multiplicative accumulator over each part's hashCode, so the revision has more headroom

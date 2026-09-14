@@ -1252,7 +1252,7 @@ class FfmpegExportTest {
 
   // The bed from the test above, ramped at both ends by the track builder's own fadeIn and fadeOut
   // rather than by an envelope written out by hand. The track does not loop, because a looping one
-  // has no end for a fade out to anchor to and the builder drops it. What loops is covered next
+  // has no end for a fade out to anchor to and the plan ignores it. What loops is covered next
   // door, and what ramps is covered here.
   //
   // Volume sits under both fades, so the curve reaching the file is a constant multiplied by a ramp

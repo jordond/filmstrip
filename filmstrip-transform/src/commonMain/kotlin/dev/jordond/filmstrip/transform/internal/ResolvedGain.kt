@@ -259,6 +259,31 @@ public fun AudioSpec.curveOver(length: Duration): ResolvedGain =
   }
 
 /**
+ * A fade in over [fadeIn] and a fade out over [fadeOut] as a level of their own, with no points at
+ * all when neither is asked for.
+ *
+ * Both ramps run between `0f` and `1f`, so multiplying this into another level leaves that level's
+ * own gain at the top of the ramp. The fade out is written against [EnvelopeAnchor.End], which is
+ * where a point lands once the plan settles how long the scope runs.
+ */
+internal fun fadeEnvelope(
+  fadeIn: Duration,
+  fadeOut: Duration,
+): AudioLevel.Envelope =
+  AudioLevel.Envelope(
+    buildList {
+      if (fadeIn > Duration.ZERO) {
+        add(EnvelopePoint(Duration.ZERO, 0f))
+        add(EnvelopePoint(fadeIn, 1f))
+      }
+      if (fadeOut > Duration.ZERO) {
+        add(EnvelopePoint(fadeOut, 1f, EnvelopeAnchor.End))
+        add(EnvelopePoint(Duration.ZERO, 0f, EnvelopeAnchor.End))
+      }
+    },
+  )
+
+/**
  * Whether every point sits inside `[0, length]` once anchored, with times that do not run backwards
  * and gains that are not negative.
  *

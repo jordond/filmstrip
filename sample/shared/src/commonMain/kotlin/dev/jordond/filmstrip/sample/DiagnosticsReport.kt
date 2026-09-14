@@ -265,6 +265,8 @@ private fun EditComposition.redacted(): EditComposition = EditComposition(
           effects = clip.effects,
           audio = clip.audio,
           snapWithin = clip.snapWithin,
+          fadeIn = clip.fadeIn,
+          fadeOut = clip.fadeOut,
         )
       },
       content = track.content,
@@ -272,6 +274,8 @@ private fun EditComposition.redacted(): EditComposition = EditComposition(
       audio = track.audio,
       start = track.start,
       looping = track.looping,
+      fadeIn = track.fadeIn,
+      fadeOut = track.fadeOut,
     )
   },
   effects = effects,

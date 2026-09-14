@@ -2,7 +2,6 @@ package dev.jordond.filmstrip
 
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.EditComposition
-import dev.jordond.filmstrip.edit.EnvelopeAnchor
 import dev.jordond.filmstrip.edit.EnvelopePoint
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
@@ -11,7 +10,6 @@ import dev.jordond.filmstrip.media.MediaSource
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
@@ -127,7 +125,7 @@ class CompositionModelTest {
   }
 
   @Test
-  fun aFadeRisesToTheVolumeTheScopeAskedForRatherThanToOne() {
+  fun aFadeIsStoredApartFromTheLevelItRamps() {
     val composition =
       compositionOf {
         clip(source("dialogue")) { trim(0.milliseconds, 5_000.milliseconds) }
@@ -139,16 +137,10 @@ class CompositionModelTest {
         }
       }
 
-    val envelope = assertIs<AudioLevel.Envelope>(composition.tracks[1].audio)
-    assertEquals(
-      listOf(
-        EnvelopePoint(0.milliseconds, 0f),
-        EnvelopePoint(1_000.milliseconds, 0.3f),
-        EnvelopePoint(2_000.milliseconds, 0.3f, EnvelopeAnchor.End),
-        EnvelopePoint(0.milliseconds, 0f, EnvelopeAnchor.End),
-      ),
-      envelope.points,
-    )
+    val track = composition.tracks[1]
+    assertEquals(AudioLevel.Volume(0.3f), track.audio)
+    assertEquals(1_000.milliseconds, track.fadeIn)
+    assertEquals(2_000.milliseconds, track.fadeOut)
   }
 
   @Test
@@ -168,24 +160,32 @@ class CompositionModelTest {
         }
       }
 
-    assertEquals(before.clips.first().audio, after.clips.first().audio)
+    assertEquals(before.clips.first(), after.clips.first())
   }
 
   @Test
-  fun fadingSilenceLeavesSilence() {
+  fun aFadeLeavesAHandWrittenEnvelopeAlone() {
+    // The fade is its own curve the plan multiplies in, so nothing is appended to the points here
+    // and the envelope still reads in the order it was written.
+    val envelope =
+      AudioLevel.Envelope(listOf(EnvelopePoint(0.milliseconds, 1f), EnvelopePoint(2_000.milliseconds, 0.5f)))
     val composition =
       compositionOf {
         clip(source("a")) {
-          audio(AudioLevel.Mute)
+          trim(0.milliseconds, 2_000.milliseconds)
+          audio(envelope)
           fadeIn(1_000.milliseconds)
         }
       }
 
-    assertEquals(AudioLevel.Mute, composition.clips.first().audio)
+    val clip = composition.clips.first()
+    assertEquals(envelope, clip.audio)
+    assertEquals(1_000.milliseconds, clip.fadeIn)
   }
 
   @Test
-  fun aLoopingTrackDropsItsFadeOutBecauseItHasNoEnd() {
+  fun aLoopingTrackStillCarriesItsFadeOut() {
+    // Whether a loop can anchor a fade out is the plan's call, so the builder passes it through.
     val composition =
       compositionOf {
         clip(source("a")) { trim(0.milliseconds, 5_000.milliseconds) }
@@ -197,24 +197,29 @@ class CompositionModelTest {
         }
       }
 
-    val envelope = assertIs<AudioLevel.Envelope>(composition.tracks[1].audio)
-    assertEquals(listOf(EnvelopePoint(0.milliseconds, 0f), EnvelopePoint(500.milliseconds, 1f)), envelope.points)
+    val track = composition.tracks[1]
+    assertEquals(500.milliseconds, track.fadeIn)
+    assertEquals(500.milliseconds, track.fadeOut)
   }
 
   @Test
-  fun anEnvelopeRoundTripsThroughJson() {
+  fun anEnvelopeAndTheFadesOverItRoundTripThroughJson() {
     val composition =
       compositionOf {
         clip(source("a")) {
           trim(0.milliseconds, 5_000.milliseconds)
+          audio(AudioLevel.Envelope(listOf(EnvelopePoint(2_000.milliseconds, 0.5f))))
           fadeIn(1_000.milliseconds)
           fadeOut(1_000.milliseconds)
         }
       }
 
     val json = Json.encodeToString(EditComposition.serializer(), composition)
+    val decoded = Json.decodeFromString(EditComposition.serializer(), json)
 
-    assertEquals(composition, Json.decodeFromString(EditComposition.serializer(), json))
+    assertEquals(composition, decoded)
+    assertEquals(1_000.milliseconds, decoded.clips.first().fadeIn)
+    assertEquals(1_000.milliseconds, decoded.clips.first().fadeOut)
     assertTrue(json.contains("\"envelope\""), "an envelope is persisted by its stable name")
   }
 

@@ -109,6 +109,11 @@ public class EditComposition(
  *   black on the primary track.
  * @property looping Whether the track repeats until the longest non-looping track ends. A
  *   composition needs at least one non-looping track to have a duration at all.
+ * @property fadeIn How long the audio takes to rise from silence, starting where the track does.
+ *   It multiplies [audio] rather than replacing it, so a fade over a level or an envelope reaches
+ *   what that asked for.
+ * @property fadeOut How long the audio takes to fall to silence before the last clip ends. A
+ *   [looping] track has no end to measure back from, so the plan ignores it there.
  */
 @Serializable
 @Poko
@@ -119,6 +124,8 @@ public class Track(
   public val audio: AudioLevel = AudioLevel.Inherit,
   public val start: Duration = Duration.ZERO,
   public val looping: Boolean = false,
+  public val fadeIn: Duration = Duration.ZERO,
+  public val fadeOut: Duration = Duration.ZERO,
 ) {
   /**
    * How long this track runs, counting from the start of the composition.
@@ -132,17 +139,20 @@ public class Track(
   /**
    * A copy with different clips.
    */
-  public fun withClips(clips: List<Clip>): Track = Track(clips, content, effects, audio, start, looping)
+  public fun withClips(clips: List<Clip>): Track =
+    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut)
 
   /**
    * A copy with different track-level effects.
    */
-  public fun withEffects(effects: List<EffectSpec>): Track = Track(clips, content, effects, audio, start, looping)
+  public fun withEffects(effects: List<EffectSpec>): Track =
+    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut)
 
   /**
    * A copy at a different audio level.
    */
-  public fun withAudio(audio: AudioLevel): Track = Track(clips, content, effects, audio, start, looping)
+  public fun withAudio(audio: AudioLevel): Track =
+    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut)
 }
 
 /**
@@ -185,6 +195,11 @@ public enum class TrackContent {
  *   trimmed export copy its streams instead of re-encoding them. Zero, the default, keeps the cut
  *   where it was asked for. A cut that already lands on a sync sample copies at any value, this one
  *   included, since reaching it costs no accuracy.
+ * @property fadeIn How long the audio takes to rise from silence, starting at the first kept
+ *   sample. It multiplies [audio] rather than replacing it, so a fade over a level or an envelope
+ *   reaches what that asked for.
+ * @property fadeOut How long the audio takes to fall to silence before the last kept sample.
+ *   Measured against [trim], so retrimming the clip moves the fade with it.
  */
 @Serializable
 @Poko
@@ -194,6 +209,8 @@ public class Clip(
   public val effects: List<EffectSpec> = emptyList(),
   public val audio: AudioLevel = AudioLevel.Inherit,
   public val snapWithin: Duration = Duration.ZERO,
+  public val fadeIn: Duration = Duration.ZERO,
+  public val fadeOut: Duration = Duration.ZERO,
 ) {
   /**
    * How long this clip contributes, or null while it is untrimmed or open-ended and the source has
@@ -208,22 +225,24 @@ public class Clip(
   /**
    * A copy trimmed to [trim], or untrimmed when null.
    */
-  public fun withTrim(trim: TimeRange?): Clip = Clip(source, trim, effects, audio, snapWithin)
+  public fun withTrim(trim: TimeRange?): Clip = Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut)
 
   /**
    * A copy with different clip-level effects.
    */
-  public fun withEffects(effects: List<EffectSpec>): Clip = Clip(source, trim, effects, audio, snapWithin)
+  public fun withEffects(effects: List<EffectSpec>): Clip =
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut)
 
   /**
    * A copy at a different audio level.
    */
-  public fun withAudio(audio: AudioLevel): Clip = Clip(source, trim, effects, audio, snapWithin)
+  public fun withAudio(audio: AudioLevel): Clip = Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut)
 
   /**
    * A copy that lets the cut move back up to [snapWithin] to reach a sync sample.
    */
-  public fun withSnapWithin(snapWithin: Duration): Clip = Clip(source, trim, effects, audio, snapWithin)
+  public fun withSnapWithin(snapWithin: Duration): Clip =
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut)
 }
 
 /**
@@ -298,38 +317,6 @@ public class EnvelopePoint(
   public val gain: Float,
   public val from: EnvelopeAnchor = EnvelopeAnchor.Start,
 )
-
-/**
- * This level with a fade in over [fadeIn] and a fade out over [fadeOut] pinned onto it.
- *
- * A constant level becomes an [AudioLevel.Envelope] rising to and falling from that constant, so a
- * ramp reaches the volume that was asked for rather than one. Silence stays silence. An envelope
- * that was written out by hand keeps its own points and the fade's are added to them, so a caller
- * describing a whole curve should pin its edges there instead of asking for a fade as well.
- *
- * Neither duration is measured against the scope here, because how long the scope runs is only
- * known once its sources have been probed. [EnvelopeAnchor.End] carries the fade out until then.
- */
-internal fun AudioLevel.withFades(
-  fadeIn: Duration,
-  fadeOut: Duration,
-): AudioLevel {
-  if (fadeIn <= Duration.ZERO && fadeOut <= Duration.ZERO) return this
-  if (this is AudioLevel.Mute) return this
-  val peak = (this as? AudioLevel.Volume)?.gain ?: 1f
-  val ramp =
-    buildList {
-      if (fadeIn > Duration.ZERO) {
-        add(EnvelopePoint(Duration.ZERO, 0f))
-        add(EnvelopePoint(fadeIn, peak))
-      }
-      if (fadeOut > Duration.ZERO) {
-        add(EnvelopePoint(fadeOut, peak, EnvelopeAnchor.End))
-        add(EnvelopePoint(Duration.ZERO, 0f, EnvelopeAnchor.End))
-      }
-    }
-  return AudioLevel.Envelope((this as? AudioLevel.Envelope)?.points.orEmpty() + ramp)
-}
 
 /**
  * Which edge of a clip or track an [EnvelopePoint] is measured from.

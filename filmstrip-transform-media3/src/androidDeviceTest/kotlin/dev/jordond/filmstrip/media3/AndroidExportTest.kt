@@ -226,7 +226,7 @@ class AndroidExportTest {
   /**
    * A fade on the bed, read off the written file at points across the ramp rather than at its ends.
    *
-   * Written through the DSL, which is where a looping track drops a fade out for want of an end to
+   * Written through the DSL, and the plan ignores a looping track's fade out for want of an end to
    * anchor it to, so the ramp under test is the fade in. Each point is compared against the curve
    * the planner folded at the same instant. A midpoint on its own would not be enough, since a
    * symmetric ramp reads the same at its centre whichever way it runs.
