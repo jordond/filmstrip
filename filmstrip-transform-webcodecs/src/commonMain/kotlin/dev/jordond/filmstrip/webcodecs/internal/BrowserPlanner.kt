@@ -300,8 +300,8 @@ internal class BrowserPlanner(
  * A clip's own effects and the composition's, resolved separately by the negotiator, are one
  * combined texture matrix and one combined colour matrix here, because a single pass has no
  * intermediate canvas to apply them on separately. [composition] is the same one negotiation ran
- * against: dropping an unsupported effect's id never changes a clip's trim or its count, so clips
- * line up by index.
+ * against: dropping an unsupported effect's id never changes a clip's trim or its count, so the
+ * clip a resolved one was laid from is the one its [ResolvedClip.sourceIndex] names.
  *
  * A [ExportPath.Transmux] render never opens an encoder, and `videoCodec` there is the source's
  * own codec rather than the ladder's pick, which [webCodecString] and [muxCodecKey] refuse to
@@ -322,31 +322,39 @@ internal fun browserRenderOf(
   // when a caller builds an OutputFormat by hand, which a resolved composition never does.
   val frameRate = checkNotNull(plan.output.frameRate)
 
-  var offset = Duration.ZERO
+  val primary = plan.tracks.first()
   val clips =
-    plan.tracks.first().clips.zip(track.clips).map { (resolved, raw) ->
+    primary.clips.map { resolved ->
+      val raw = track.clips[resolved.sourceIndex]
       val ownGeometry = (raw.effects + track.effects).inCanonicalOrder()
       val drawnSize =
         ownGeometry.fold(resolved.info.video?.displaySize ?: outputSize) { size, spec -> frameAfter(spec, size) }
       val chain = resolved.effects + plan.compositionGeometry + plan.compositionEffects
-      val rendered =
-        RenderedClip(
-          source = resolved.source,
-          trimStartUs = resolved.start.microseconds(),
-          trimEndUs = if (raw.trim?.endExclusive == null) OPEN_END else resolved.end.microseconds(),
-          offsetUs = offset.microseconds(),
-          quadHalfW = drawnSize.width * containScale(drawnSize, outputSize) / outputSize.width,
-          quadHalfH = drawnSize.height * containScale(drawnSize, outputSize) / outputSize.height,
-          coverHalfW = drawnSize.width * coverScale(drawnSize, outputSize) / outputSize.width,
-          coverHalfH = drawnSize.height * coverScale(drawnSize, outputSize) / outputSize.height,
-          hasBars = !matchesOutputAspect(drawnSize, outputSize),
-          matrix = chain.matrix(),
-          colorMatrix = resolved.effects.colorMatrix(),
-          compositionColorMatrix = (plan.compositionGeometry + plan.compositionEffects).colorMatrix(),
-          frames = framesIn(resolved.duration, frameRate),
-        )
-      offset += resolved.duration
-      rendered
+      RenderedClip(
+        source = resolved.source,
+        trimStartUs = resolved.start.microseconds(),
+        // Open ended only where the pass really does read to the source's end. A looping track
+        // cuts its last pass, and that one carries a bound even though the clip it was laid from
+        // was never trimmed.
+        trimEndUs =
+          if (raw.trim?.endExclusive == null && resolved.end >= resolved.info.duration) {
+            OPEN_END
+          } else {
+            resolved.end.microseconds()
+          },
+        // The slot the planner laid this pass at, less the track's own start, since the renderer
+        // draws from zero and the leading gap is filled elsewhere.
+        offsetUs = (resolved.span.start - primary.start).microseconds(),
+        quadHalfW = drawnSize.width * containScale(drawnSize, outputSize) / outputSize.width,
+        quadHalfH = drawnSize.height * containScale(drawnSize, outputSize) / outputSize.height,
+        coverHalfW = drawnSize.width * coverScale(drawnSize, outputSize) / outputSize.width,
+        coverHalfH = drawnSize.height * coverScale(drawnSize, outputSize) / outputSize.height,
+        hasBars = !matchesOutputAspect(drawnSize, outputSize),
+        matrix = chain.matrix(),
+        colorMatrix = resolved.effects.colorMatrix(),
+        compositionColorMatrix = (plan.compositionGeometry + plan.compositionEffects).colorMatrix(),
+        frames = framesIn(resolved.duration, frameRate),
+      )
     }
 
   return BrowserRender(

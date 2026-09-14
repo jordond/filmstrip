@@ -3,7 +3,7 @@
 package dev.jordond.filmstrip.webcodecs.internal
 
 import dev.jordond.filmstrip.export.AudioFormat
-import dev.jordond.filmstrip.transform.internal.GainSegment
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
@@ -23,9 +23,9 @@ import kotlin.time.toDuration
  * Mixes every track's audio into buffers covering the composition timeline, a window at a time.
  *
  * Each clip is decoded to its own buffer, then played through a gain node into an
- * [OfflineAudioContext], which resamples every source to the context's own rate, sums whatever
- * overlaps, and loops a clip on a track whose [ResolvedTrack.looping] asks for it. Nothing here
- * sums or resamples a single sample by hand.
+ * [OfflineAudioContext], which resamples every source to the context's own rate and sums whatever
+ * overlaps. Nothing here sums or resamples a single sample by hand, and nothing here repeats a
+ * clip: the plan already holds one clip per pass a looping track lays.
  */
 internal object BrowserAudioMix {
   /**
@@ -37,11 +37,13 @@ internal object BrowserAudioMix {
    * is dropped again: a clip carried across a boundary starts a fresh resampler that has none of
    * its own history, and the transient that costs lands in the lead instead of in the output.
    *
-   * A looping clip is decoded whole and kept for the run, since any window can reach any part of
-   * it. Its cost is the clip's own length, not the timeline's.
+   * Decoded slices are cached on what was asked for, so a looping track's repeated passes of one
+   * clip decode once. Only a pass a window boundary cuts asks for a slice of its own.
    *
    * @param window How much of the timeline one pass covers. A test drives this smaller so a short
    *   fixture still crosses boundaries.
+   * @param decoded Where decoded slices are held, the way [sources] holds readers. Emptied at every
+   *   window boundary, since a buffer belongs to the context that made it.
    */
   suspend fun mixInto(
     tracks: List<ResolvedTrack>,
@@ -49,6 +51,7 @@ internal object BrowserAudioMix {
     duration: Duration,
     sources: SourceCache,
     window: Duration = WINDOW,
+    decoded: DecodeCache = DecodeCache(),
     sink: suspend (AudioBuffer) -> Unit,
   ) {
     val peak = peakBytes(tracks, format, duration, window)
@@ -59,7 +62,6 @@ internal object BrowserAudioMix {
     val total = frames(duration, rate)
     val windowFrames = frames(window, rate)
     val pad = frames(PAD, rate)
-    val looped = mutableMapOf<Int, AudioBuffer?>()
 
     var start = 0
     while (start < total) {
@@ -70,8 +72,9 @@ internal object BrowserAudioMix {
       val context = OfflineAudioContext(format.channelCount, lead + length, rate.toFloat())
       val from = (start - lead).toDouble() / rate
       val to = (start + length).toDouble() / rate
+      decoded.clear()
 
-      placed.forEachIndexed { index, clip -> place(clip, index, context, from, to, sources, looped) }
+      placed.forEach { clip -> place(clip, context, from, to, sources, decoded) }
 
       val rendered = context.startRendering().await()
       sink(if (lead == 0) rendered else withoutLead(context, rendered, lead, length))
@@ -86,12 +89,11 @@ internal object BrowserAudioMix {
    */
   private suspend fun place(
     placed: Placed,
-    index: Int,
     context: OfflineAudioContext,
     contextStart: Double,
     contextEnd: Double,
     sources: SourceCache,
-    looped: MutableMap<Int, AudioBuffer?>,
+    decoded: DecodeCache,
   ) {
     val clip = placed.clip
     if (clip.gain.peak <= 0f) return
@@ -102,23 +104,23 @@ internal object BrowserAudioMix {
 
     val audioTrack = sources.open(clip.source)?.audioTrack() ?: return
     val start = maxOf(offset, contextStart)
-
-    if (placed.looping) {
-      if (index !in looped) {
-        looped[index] = decode(audioTrack, clip.start.seconds(), clip.end.seconds(), context)
-      }
-      val buffer = looped[index] ?: return
-      val curve = curveFor(clip.gain, start - offset, contextEnd - start, period, looping = true)
-      schedule(context, buffer, curve, start - contextStart, looping = true, from = (start - offset) % period)
-      return
-    }
-
     val end = minOf(offset + period, contextEnd)
     if (end <= start) return
+
+    // A pass the window holds whole asks for the clip's own trim, spelled from the trim itself so
+    // every pass of one clip asks for the identical stretch and the run of them costs one decode.
+    // Measuring the end back from the pass's own offset instead lands an ulp apart on each of them,
+    // which is a decode each.
     val trimStart = clip.start.seconds()
-    val buffer = decode(audioTrack, trimStart + (start - offset), trimStart + (end - offset), context) ?: return
-    val curve = curveFor(clip.gain, start - offset, end - start, period, looping = false)
-    schedule(context, buffer, curve, start - contextStart, looping = false)
+    val slice =
+      if (offset >= contextStart && offset + period <= contextEnd) {
+        DecodeCache.Slice(clip.source, trimStart, clip.end.seconds())
+      } else {
+        DecodeCache.Slice(clip.source, trimStart + (start - offset), trimStart + (end - offset))
+      }
+    val buffer = decoded.of(slice) { decode(audioTrack, slice.fromSeconds, slice.toSeconds, context) } ?: return
+    val curve = curveFor(clip.gain, start - offset, end - start)
+    schedule(context, buffer, curve, start - contextStart)
   }
 
   /**
@@ -127,34 +129,15 @@ internal object BrowserAudioMix {
    *
    * [elapsed] is how far into the clip the node opens and [length] how long it sounds, both in
    * seconds. A constant comes back untouched, since a node scaling by one number needs no
-   * breakpoints at all. A looping node replays the clip and so replays the clip's curve, so every
-   * pass the node reaches is laid down end to end into one run of segments.
+   * breakpoints at all.
    */
   private fun curveFor(
     gain: ResolvedGain,
     elapsed: Double,
     length: Double,
-    period: Double,
-    looping: Boolean,
   ): ResolvedGain {
     if (gain.isConstant) return gain
-    val from = elapsed.asDuration()
-    if (!looping) return gain.window(from, length.asDuration())
-    if (length <= 0.0) return ResolvedGain.constant(gain.gainAt(from), Duration.ZERO, Duration.ZERO)
-
-    val segments = mutableListOf<GainSegment>()
-    var at = 0.0
-    var into = elapsed % period
-    while (at < length) {
-      val span = minOf(length - at, period - into)
-      val shift = at.asDuration()
-      gain.window(into.asDuration(), span.asDuration()).segments.forEach { segment ->
-        segments += GainSegment(segment.start + shift, segment.end + shift, segment.startGain, segment.endGain)
-      }
-      at += span
-      into = 0.0
-    }
-    return ResolvedGain(segments)
+    return gain.window(elapsed.asDuration(), length.asDuration())
   }
 
   /**
@@ -183,7 +166,7 @@ internal object BrowserAudioMix {
 
   /**
    * Wires one decoded buffer into [context]: a gain node carrying [gain], started at
-   * [offsetSeconds] on the context's timeline and playing from [from] seconds into the buffer.
+   * [offsetSeconds] on the context's timeline and playing the buffer from its own start.
    *
    * [gain] is read in the node's own time, so a curve handed here has already been rebased to where
    * the node starts. A constant is one write on the parameter and a ramping curve is scheduled as
@@ -198,8 +181,6 @@ internal object BrowserAudioMix {
     buffer: AudioBuffer,
     gain: ResolvedGain,
     offsetSeconds: Double,
-    looping: Boolean,
-    from: Double = 0.0,
     into: AudioNode = context.destination,
   ): AudioBufferSourceNode {
     val gainNode = context.createGain()
@@ -213,9 +194,8 @@ internal object BrowserAudioMix {
 
     val source = context.createBufferSource()
     source.buffer = buffer
-    source.loop = looping
     source.connect(gainNode)
-    source.start(offsetSeconds, from)
+    source.start(offsetSeconds)
     return source
   }
 
@@ -277,10 +257,13 @@ internal object BrowserAudioMix {
   /**
    * What rendering [tracks] into [format] over [duration] costs at its peak.
    *
-   * One window of output plus the slice of every clip that a window reaches, which is what a clip
-   * runs to when it is shorter than a window. A looping clip counts whole, since it is decoded once
-   * and held. Nothing here grows with [duration] past the first window, which is the point of
-   * rendering in windows at all.
+   * One window of output plus what the decode cache holds over that window, counted over the
+   * cache's own key. Every pass a window holds whole asks for its clip's own trim, so a looping
+   * track's run of passes shares one buffer and so do two tracks reading the same trim. A window
+   * has two edges and the pass each one cuts asks for a stretch of its own, which costs a track one
+   * more buffer per edge, and only a track laying more passes than it has clips has any to pay:
+   * a track whose passes are all different clips is already counted a buffer each. Nothing here
+   * grows with [duration] past the first window, which is the point of rendering in windows at all.
    *
    * A clip decodes at its own rate and channel count rather than [format]'s, so a 96kHz 5.1 source
    * costs six times what a 48kHz stereo one does over the same span. A silent clip is never decoded
@@ -293,15 +276,15 @@ internal object BrowserAudioMix {
     window: Duration = WINDOW,
   ): Long {
     val reach = minOf(window + PAD, duration)
-    val clips =
-      placed(tracks)
-        .filter { it.clip.gain.peak > 0f }
-        .sumOf { placed ->
-          val audio = placed.clip.info.audio ?: return@sumOf 0L
-          val span = if (placed.looping) placed.clip.duration else minOf(placed.clip.duration, reach)
-          bytesOf(span, audio.sampleRate, audio.channelCount)
-        }
-    return bytesOf(minOf(window, duration), format.sampleRate, format.channelCount) + clips
+    val sounding = tracks.map { track -> track.clips.filter { it.gain.peak > 0f } }
+    val shared = sounding.flatten().distinctByTrim().sumOf { bytesOf(it, reach) }
+    val cutByAnEdge =
+      sounding.sumOf { clips ->
+        val distinct = clips.distinctByTrim().size
+        val extra = minOf(clips.size, distinct + WINDOW_EDGES) - distinct
+        (clips.maxOfOrNull { bytesOf(it, reach) } ?: 0L) * extra
+      }
+    return bytesOf(minOf(window, duration), format.sampleRate, format.channelCount) + shared + cutByAnEdge
   }
 
   /**
@@ -309,7 +292,7 @@ internal object BrowserAudioMix {
    */
   fun tooLarge(peak: Long): String =
     "This export's audio needs ${megabytes(peak)} to mix, past the ${megabytes(MAX_MIX_BYTES)} the " +
-      "browser mixer holds at once. Fewer overlapping audio tracks, or shorter looping clips, both " +
+      "browser mixer holds at once. Fewer overlapping audio tracks, or shorter clips on them, both " +
       "bring it down."
 
   /**
@@ -321,17 +304,26 @@ internal object BrowserAudioMix {
     sampleRate: Int,
   ): Int = (duration.seconds() * sampleRate).roundToInt().coerceAtLeast(1)
 
-  internal fun placed(tracks: List<ResolvedTrack>): List<Placed> =
-    tracks.flatMap { track ->
-      var offset = track.start
-      track.clips.map { clip -> Placed(clip, offset, track.looping).also { offset += clip.duration } }
-    }
+  internal fun placed(tracks: List<ResolvedTrack>): List<Placed> = tracks.flatMap { it.clips }.map(::Placed)
 
   private fun bytesOf(
     duration: Duration,
     sampleRate: Int,
     channelCount: Int,
   ): Long = (duration.seconds() * sampleRate).toLong() * channelCount * BYTES_PER_SAMPLE
+
+  // What one buffer of this clip costs, which is however much of it a window reaches.
+  private fun bytesOf(
+    clip: ResolvedClip,
+    reach: Duration,
+  ): Long {
+    val audio = clip.info.audio ?: return 0L
+    return bytesOf(minOf(clip.duration, reach), audio.sampleRate, audio.channelCount)
+  }
+
+  // The clips a window holds one buffer each for, which is the cache's own whole-pass key.
+  private fun List<ResolvedClip>.distinctByTrim(): List<ResolvedClip> =
+    distinctBy { Triple(it.source, it.start, it.end) }
 
   private fun megabytes(bytes: Long): String = "${bytes / BYTES_PER_MEGABYTE} MB"
 
@@ -340,13 +332,13 @@ internal object BrowserAudioMix {
   private fun Double.asDuration(): Duration = toDuration(DurationUnit.SECONDS)
 
   /**
-   * One clip with the place on the output timeline its track puts it at.
+   * One clip with the place on the output timeline the plan laid it at.
    */
   internal class Placed(
     val clip: ResolvedClip,
-    val offset: Duration,
-    val looping: Boolean,
-  )
+  ) {
+    val offset: Duration get() = clip.span.start
+  }
 
   /**
    * The most memory one render is allowed to allocate. A window at a time keeps a real timeline far
@@ -368,4 +360,49 @@ internal object BrowserAudioMix {
   // Float32, which is what an AudioBuffer stores whatever the source was encoded as.
   private const val BYTES_PER_SAMPLE = 4L
   private const val BYTES_PER_MEGABYTE = 1024L * 1024
+
+  // A window opens at one edge and closes at another, and each can cut a pass in half.
+  private const val WINDOW_EDGES = 2
+}
+
+/**
+ * The buffers the passes of one window were decoded into, keyed on the stretch of source each asked
+ * for.
+ *
+ * A looping track lays the same clip down over and over, and every pass a window holds whole asks
+ * for that clip's own trim, so a run of them costs one decode between them. A buffer belongs to the
+ * context that made it, so [clear] drops the lot at each window boundary. [decodes] keeps counting
+ * across them, which is what says a repeated pass added none.
+ */
+internal class DecodeCache {
+  private val buffers = mutableMapOf<Slice, AudioBuffer?>()
+
+  var decodes: Int = 0
+    private set
+
+  /**
+   * The buffer [slice] decodes to, running [decode] only the first time this window is asked for
+   * it. A slice that carries no audio is remembered as nothing rather than decoded again.
+   */
+  suspend fun of(
+    slice: Slice,
+    decode: suspend () -> AudioBuffer?,
+  ): AudioBuffer? {
+    if (slice !in buffers) {
+      decodes++
+      buffers[slice] = decode()
+    }
+    return buffers[slice]
+  }
+
+  fun clear(): Unit = buffers.clear()
+
+  /**
+   * One stretch of one source, in the source's own seconds, as a decode was asked for it.
+   */
+  internal data class Slice(
+    val source: MediaSource,
+    val fromSeconds: Double,
+    val toSeconds: Double,
+  )
 }

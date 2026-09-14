@@ -38,7 +38,7 @@ class BrowserAudioMixTest {
       val buffer = context.createBuffer(1, HALF_SECOND, SAMPLE_RATE)
       buffer.copyToChannel(FloatArray(HALF_SECOND) { 1f }.toFloat32Array(), 0, 0)
 
-      BrowserAudioMix.schedule(context, buffer, gain = flat(0.5f), offsetSeconds = 0.0, looping = false)
+      BrowserAudioMix.schedule(context, buffer, gain = flat(0.5f), offsetSeconds = 0.0)
 
       val samples = context.startRendering().await().getChannelData(0)
       assertNear(0.5f, samples.at(HALF_SECOND / 2))
@@ -51,7 +51,7 @@ class BrowserAudioMixTest {
       val buffer = context.createBuffer(1, QUARTER_SECOND, SAMPLE_RATE)
       buffer.copyToChannel(FloatArray(QUARTER_SECOND) { 1f }.toFloat32Array(), 0, 0)
 
-      BrowserAudioMix.schedule(context, buffer, gain = flat(1f), offsetSeconds = 0.25, looping = false)
+      BrowserAudioMix.schedule(context, buffer, gain = flat(1f), offsetSeconds = 0.25)
 
       val samples = context.startRendering().await().getChannelData(0)
       assertNear(0f, samples.at(QUARTER_SECOND / 2))
@@ -67,24 +67,11 @@ class BrowserAudioMixTest {
       val bufferB = context.createBuffer(1, HALF_SECOND, SAMPLE_RATE)
       bufferB.copyToChannel(FloatArray(HALF_SECOND) { 1f }.toFloat32Array(), 0, 0)
 
-      BrowserAudioMix.schedule(context, bufferA, gain = flat(0.5f), offsetSeconds = 0.0, looping = false)
-      BrowserAudioMix.schedule(context, bufferB, gain = flat(0.5f), offsetSeconds = 0.0, looping = false)
+      BrowserAudioMix.schedule(context, bufferA, gain = flat(0.5f), offsetSeconds = 0.0)
+      BrowserAudioMix.schedule(context, bufferB, gain = flat(0.5f), offsetSeconds = 0.0)
 
       val samples = context.startRendering().await().getChannelData(0)
       assertNear(1f, samples.at(HALF_SECOND / 2))
-    }
-
-  @Test
-  fun loopingBufferOutlastsItsOwnLength() =
-    runTest {
-      val context = OfflineAudioContext(1, SAMPLE_RATE.toInt(), SAMPLE_RATE)
-      val short = context.createBuffer(1, TENTH_SECOND, SAMPLE_RATE)
-      short.copyToChannel(FloatArray(TENTH_SECOND) { 1f }.toFloat32Array(), 0, 0)
-
-      BrowserAudioMix.schedule(context, short, gain = flat(1f), offsetSeconds = 0.0, looping = true)
-
-      val samples = context.startRendering().await().getChannelData(0)
-      assertNear(1f, samples.at(SAMPLE_RATE.toInt() - TENTH_SECOND))
     }
 
   // A curve that ramps is scheduled as automation rather than written once, so the samples have to
@@ -98,7 +85,7 @@ class BrowserAudioMixTest {
       buffer.copyToChannel(FloatArray(HALF_SECOND) { 1f }.toFloat32Array(), 0, 0)
       val ramp = ResolvedGain(listOf(GainSegment(Duration.ZERO, HALF_SECOND_SPAN, 0.2f, 1f)))
 
-      BrowserAudioMix.schedule(context, buffer, gain = ramp, offsetSeconds = 0.0, looping = false)
+      BrowserAudioMix.schedule(context, buffer, gain = ramp, offsetSeconds = 0.0)
 
       val samples = context.startRendering().await().getChannelData(0)
       listOf(0.25, 0.5, 0.75).forEach { fraction ->
@@ -117,32 +104,95 @@ class BrowserAudioMixTest {
     assertTrue(hour < BrowserAudioMix.MAX_MIX_BYTES, "one window of an hour cost $hour")
   }
 
-  // A looping clip is decoded whole and held for the run, so unlike every other clip its own length
-  // is what it costs.
+  // Every pass of a looping clip asks the decode cache for the same slice, so a bed laid a thousand
+  // times costs a window no more than one laid a handful of times. Counting the passes instead
+  // would refuse a real loop long before it ran out of memory.
   @Test
-  fun aLoopingClipCostsItsWholeLength() {
-    val short = BrowserAudioMix.peakBytes(listOf(trackOf(5.seconds, looping = true)), OUTPUT, 60.minutes)
-    val long = BrowserAudioMix.peakBytes(listOf(trackOf(20.minutes, looping = true)), OUTPUT, 60.minutes)
+  fun theRepeatedPassesOfALoopingClipCostOneBufferBetweenThem() {
+    val few = BrowserAudioMix.peakBytes(listOf(trackOf(3.seconds, looping = true, passes = 4)), OUTPUT, 60.minutes)
+    val many =
+      BrowserAudioMix.peakBytes(listOf(trackOf(3.seconds, looping = true, passes = 1_200)), OUTPUT, 60.minutes)
 
-    assertTrue(long > short * 2, "a 20 minute loop cost $long against a 5 second loop at $short")
+    assertEquals(few, many)
+    assertTrue(many < BrowserAudioMix.MAX_MIX_BYTES, "1200 passes of a three second bed cost $many")
+  }
+
+  // Nothing here repeats, so every clip holds a buffer of its own and there is no shared one for a
+  // window's edge to cut a second copy off. Charging an edge allowance per clip instead would
+  // report three times what a plain composition actually holds, and refuse at a third of the real
+  // ceiling. The expected figure comes from the same function over one clip at a time.
+  @Test
+  fun aCompositionThatRepeatsNothingCostsOneBufferPerClip() {
+    val lengths = listOf(2.seconds, 5.seconds, 11.seconds)
+    val total = lengths.fold(Duration.ZERO, Duration::plus)
+    val output = BrowserAudioMix.peakBytes(emptyList(), OUTPUT, total)
+    val expected = output + lengths.sumOf { BrowserAudioMix.peakBytes(listOf(trackOf(it)), OUTPUT, total) - output }
+
+    assertEquals(expected, BrowserAudioMix.peakBytes(listOf(trackOf(lengths)), OUTPUT, total))
+  }
+
+  // One source read by several tracks is one buffer in the cache, since every track asks for the
+  // same trim, and only the pass each window edge cuts is a track's own.
+  @Test
+  fun tracksSharingOneTrimShareItsBuffer() {
+    val bed = trackOf(3.seconds, looping = true, passes = 4)
+    val one = BrowserAudioMix.peakBytes(listOf(bed), OUTPUT, 60.minutes)
+    val output = BrowserAudioMix.peakBytes(emptyList(), OUTPUT, 60.minutes)
+    val four = BrowserAudioMix.peakBytes(List(4) { bed }, OUTPUT, 60.minutes)
+
+    assertTrue(four - output < (one - output) * 4, "four tracks over one trim cost ${four - output}")
+  }
+
+  // Every pass sounds at the slot the planner laid it at, read off the plan rather than worked out
+  // again here, so a plan that moved a pass moves the mix with it.
+  @Test
+  fun aLoopingTrackPlacesEveryPassWhereThePlanLaidIt() {
+    val track = trackOf(1_700.milliseconds, looping = true, passes = 4, start = 700.milliseconds)
+
+    val placed = BrowserAudioMix.placed(listOf(track))
+
+    assertEquals(track.clips.size, placed.size)
+    placed.forEachIndexed { index, one ->
+      assertEquals(track.clips[index].span.start, one.offset, "pass $index opened at ${one.offset}")
+    }
   }
 
   // The span a flat curve covers never reaches the graph, since a constant is one write on the gain
   // parameter rather than any automation.
   private fun flat(gain: Float): ResolvedGain = ResolvedGain.constant(gain, Duration.ZERO, HALF_SECOND_SPAN)
 
+  /**
+   * A track carrying [passes] copies of one clip, laid end to end the way the planner lays a
+   * looping track.
+   */
   private fun trackOf(
     duration: Duration,
     looping: Boolean = false,
-  ): ResolvedTrack =
-    ResolvedTrack(
+    passes: Int = 1,
+    start: Duration = Duration.ZERO,
+  ): ResolvedTrack = trackOf(List(passes) { duration }, looping, start, repeating = true)
+
+  /**
+   * A track carrying one clip of each of [lengths], which for distinct lengths repeats nothing.
+   */
+  private fun trackOf(lengths: List<Duration>): ResolvedTrack = trackOf(lengths, repeating = false)
+
+  private fun trackOf(
+    lengths: List<Duration>,
+    looping: Boolean = false,
+    start: Duration = Duration.ZERO,
+    repeating: Boolean = false,
+  ): ResolvedTrack {
+    val source = MediaSource.Bytes(ByteArray(1))
+    var offset = start
+    return ResolvedTrack(
       content = TrackContent.AudioAndVideo,
       looping = looping,
-      start = Duration.ZERO,
+      start = start,
       clips =
-        listOf(
+        lengths.mapIndexed { index, duration ->
           ResolvedClip(
-            source = MediaSource.Bytes(ByteArray(1)),
+            source = source,
             info =
               MediaInfo(
                 duration = duration,
@@ -155,10 +205,12 @@ class BrowserAudioMixTest {
             effects = emptyList(),
             gain = flat(1f),
             startsAtKeyFrame = true,
-            span = TimeRange.of(Duration.ZERO, duration),
-          ),
-        ),
+            span = TimeRange.of(offset, offset + duration).also { offset += duration },
+            sourceIndex = if (repeating) 0 else index,
+          )
+        },
     )
+  }
 
   private fun assertNear(
     expected: Float,
@@ -171,7 +223,6 @@ class BrowserAudioMixTest {
     const val SAMPLE_RATE = 8_000f
     const val HALF_SECOND = 4_000
     const val QUARTER_SECOND = 2_000
-    const val TENTH_SECOND = 800
     val HALF_SECOND_SPAN = 500.milliseconds
     const val EPSILON = 0.01f
   }

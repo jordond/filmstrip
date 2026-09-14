@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.webcodecs.BrowserMixSeamTest.Companion.MAX_STEP
 import dev.jordond.filmstrip.webcodecs.internal.AudioBuffer
 import dev.jordond.filmstrip.webcodecs.internal.BrowserAudioMix
+import dev.jordond.filmstrip.webcodecs.internal.DecodeCache
 import dev.jordond.filmstrip.webcodecs.internal.Float32Array
 import dev.jordond.filmstrip.webcodecs.internal.OfflineAudioContext
 import dev.jordond.filmstrip.webcodecs.internal.SourceCache
@@ -100,6 +101,73 @@ class BrowserMixSeamTest {
       assertFollows(faded, flat, fade)
     }
 
+  // A looping track lays the same clip down over and over, and every pass a window holds whole asks
+  // the source for the same stretch, so the run of them is one decode. A key measured from each
+  // pass's own offset drifts by an ulp between passes and decodes every one of them, which nothing
+  // in the rendered output would show.
+  @Test
+  fun everyWholePassOfALoopingClipDecodesOnce() =
+    runTest {
+      val source = MediaSource.Bytes(makeClipWithAudio(frames = CLIP_FRAMES, sampleRate = SOURCE_RATE))
+      val sources = SourceCache()
+      val decoded = DecodeCache()
+      val run = LOOP_PASS * LOOP_PASSES + LOOP_SLACK
+      val windows = mutableListOf<AudioBuffer>()
+      try {
+        BrowserAudioMix.mixInto(
+          tracks = listOf(loopedTrackOf(source)),
+          format = AudioFormat(sampleRate = OUTPUT_RATE, channelCount = 1),
+          duration = run,
+          sources = sources,
+          window = run,
+          decoded = decoded,
+        ) { windows += it }
+      } finally {
+        sources.close()
+      }
+
+      // Without a tone in the output the decode could have come back empty and been cached as
+      // nothing, which would count one decode and prove nothing.
+      val samples = joined(windows)
+      val middle = samples.length / 2
+      val size = (GAIN_BLOCK.toDouble(DurationUnit.SECONDS) * OUTPUT_RATE).roundToInt()
+      assertTrue(rms(samples, middle, size) > SILENCE, "the looped mix was silent, so nothing was decoded")
+      assertEquals(1, decoded.decodes, "$LOOP_PASSES passes of one clip cost ${decoded.decodes} decodes")
+    }
+
+  /**
+   * One short window of [source] laid down [LOOP_PASSES] times, the way the planner lays a looping
+   * track, with each pass carrying the slot it was laid at.
+   */
+  private fun loopedTrackOf(source: MediaSource): ResolvedTrack {
+    var at = Duration.ZERO
+    return ResolvedTrack(
+      content = TrackContent.Audio,
+      looping = true,
+      start = Duration.ZERO,
+      clips =
+        List(LOOP_PASSES) {
+          ResolvedClip(
+            source = source,
+            info =
+              MediaInfo(
+                duration = CLIP_DURATION,
+                video = null,
+                audio = AudioTrackInfo(trackCodecOf("opus"), SOURCE_RATE, 1, null),
+                isExportable = true,
+              ),
+            start = Duration.ZERO,
+            end = LOOP_PASS,
+            effects = emptyList(),
+            gain = ResolvedGain.constant(1f, Duration.ZERO, LOOP_PASS),
+            startsAtKeyFrame = true,
+            span = TimeRange.of(at, at + LOOP_PASS).also { at += LOOP_PASS },
+            sourceIndex = 0,
+          )
+        },
+    )
+  }
+
   private suspend fun mixToneOf(
     sampleRate: Int,
     window: Duration = WINDOW,
@@ -166,6 +234,7 @@ class BrowserMixSeamTest {
             gain = gain,
             startsAtKeyFrame = true,
             span = TimeRange.of(Duration.ZERO, CLIP_DURATION),
+            sourceIndex = 0,
           ),
         ),
     )
@@ -267,6 +336,16 @@ class BrowserMixSeamTest {
     const val SOURCE_RATE = 44_100
     const val CLIP_FRAMES = 120
     val CLIP_DURATION = 4.seconds
+
+    // Short enough that several passes of it fit inside one window whole, which is where a repeated
+    // pass is meant to cost nothing, and not a round binary fraction: a key measured from each
+    // pass's own offset lands on the same double for a half second whatever the offset, so a half
+    // second would collapse to one slice however the key was built.
+    val LOOP_PASS = 1_700.milliseconds
+    const val LOOP_PASSES = 4
+
+    // Room past the last pass, so no pass sits an ulp outside the window and takes the cut path.
+    val LOOP_SLACK = 200.milliseconds
     val MIX_DURATION = 3500.milliseconds
     val FLAT = ResolvedGain.constant(1f, Duration.ZERO, CLIP_DURATION)
 

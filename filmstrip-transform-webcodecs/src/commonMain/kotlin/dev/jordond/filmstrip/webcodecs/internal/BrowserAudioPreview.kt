@@ -148,7 +148,6 @@ public class BrowserAudioPreview internal constructor(
           buffer = buffer,
           gain = level,
           offsetSeconds = contextTimeFor(start),
-          looping = false,
           into = master,
         )
     }
