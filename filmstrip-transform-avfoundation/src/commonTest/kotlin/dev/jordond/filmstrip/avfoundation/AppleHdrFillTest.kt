@@ -11,17 +11,13 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
-import dev.jordond.filmstrip.media.BT2020_CB_SCALE
-import dev.jordond.filmstrip.media.BT2020_CR_SCALE
-import dev.jordond.filmstrip.media.BT2020_LUMA_B
-import dev.jordond.filmstrip.media.BT2020_LUMA_G
-import dev.jordond.filmstrip.media.BT2020_LUMA_R
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.transform.internal.hdrFillNits
 import dev.jordond.filmstrip.transform.internal.signalFromNits
+import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
@@ -30,7 +26,6 @@ import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSProcessInfo
 import kotlin.math.abs
-import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -40,9 +35,9 @@ import kotlin.time.Duration.Companion.minutes
 /**
  * The letterbox fill on an export that keeps its grade, read back out of the written file.
  *
- * A square crop of the 16:9 HDR fixtures leaves a bar above and below the picture that only the fill
- * paints. The bar is held to [signalFromNits] of [hdrFillNits], the signal every backend writes
- * there, so a white fill lands at reference white rather than at the format's peak.
+ * A square crop of the 16:9 HDR fixtures leaves a bar above and below the picture that only the fill paints. The bar is
+ * held to [signalFromNits] of [hdrFillNits], the signal every backend writes there, so a white fill lands at reference
+ * white rather than at the format's peak.
  *
  * Skipped when the fixtures are absent, as in [AppleHdrTest].
  */
@@ -85,7 +80,7 @@ class AppleHdrFillTest {
     transfer: HdrTransfer,
     color: Int,
   ) {
-    val expected = codesOf(transfer.signalFromNits(hdrFillNits(color)))
+    val expected = tenBitCodesFromSignal(transfer.signalFromNits(hdrFillNits(color))).toList()
     val read = frame.codesAt(CENTRE, BAR)
 
     assertTrue(
@@ -108,16 +103,6 @@ class AppleHdrFillTest {
         "the $transfer bar read $read nits and the shared fill asks for ${expected.toList()}",
       )
     }
-  }
-
-  private fun codesOf(signal: FloatArray): List<Int> {
-    val luma = BT2020_LUMA_R * signal[0] + BT2020_LUMA_G * signal[1] + BT2020_LUMA_B * signal[2]
-
-    return listOf(
-      LUMA_FLOOR + LUMA_RANGE * luma,
-      CHROMA_MID + CHROMA_RANGE * (signal[2] - luma) / BT2020_CB_SCALE,
-      CHROMA_MID + CHROMA_RANGE * (signal[0] - luma) / BT2020_CR_SCALE,
-    ).map { it.roundToInt() }
   }
 
   private suspend fun exportedFrame(
@@ -182,12 +167,6 @@ class AppleHdrFillTest {
 
     const val WHITE = 0xFFFFFFFF.toInt()
     const val MID_BLUE = 0xFF6699CC.toInt()
-
-    // Ten-bit video range, the layout the reader's biplanar buffer stores its codes in.
-    const val LUMA_FLOOR = 64f
-    const val LUMA_RANGE = 876f
-    const val CHROMA_MID = 512f
-    const val CHROMA_RANGE = 896f
 
     // What a hardware encode leaves on a flat colour, a code or two either way.
     const val CODE_TOLERANCE = 2

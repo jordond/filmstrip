@@ -27,6 +27,11 @@ import dev.jordond.filmstrip.media.PQ_PEAK_NITS
 import dev.jordond.filmstrip.media.SDR_DISPLAY_GAMMA
 import dev.jordond.filmstrip.media.hlgDisplayNitsFromScene
 import dev.jordond.filmstrip.media.linearDimGain
+import dev.jordond.filmstrip.transform.internal.TEN_BIT_CHROMA_MID
+import dev.jordond.filmstrip.transform.internal.TEN_BIT_CHROMA_RANGE
+import dev.jordond.filmstrip.transform.internal.TEN_BIT_LUMA_FLOOR
+import dev.jordond.filmstrip.transform.internal.TEN_BIT_LUMA_RANGE
+import dev.jordond.filmstrip.transform.internal.TEN_BIT_MAX_CODE
 import dev.jordond.filmstrip.transform.internal.backgroundGain
 import dev.jordond.filmstrip.transform.internal.hdrFillNits
 import dev.jordond.filmstrip.transform.internal.hlgSceneFromNits
@@ -951,9 +956,9 @@ private fun unpackShader(transfer: HdrTransfer): String =
   }
   ${if (transfer == HdrTransfer.Pq) PQ_EOTF_GLSL else HLG_EOTF_GLSL}
   void main() {
-    float y = (code(uY) - $LUMA_FLOOR.0) / $LUMA_RANGE.0;
-    float cb = (code(uU) - $CHROMA_MID.0) / $CHROMA_RANGE.0;
-    float cr = (code(uV) - $CHROMA_MID.0) / $CHROMA_RANGE.0;
+    float y = (code(uY) - ${TEN_BIT_LUMA_FLOOR.glsl()}) / ${TEN_BIT_LUMA_RANGE.glsl()};
+    float cb = (code(uU) - ${TEN_BIT_CHROMA_MID.glsl()}) / ${TEN_BIT_CHROMA_RANGE.glsl()};
+    float cr = (code(uV) - ${TEN_BIT_CHROMA_MID.glsl()}) / ${TEN_BIT_CHROMA_RANGE.glsl()};
     float r = y + ${BT2020_CR_SCALE.glsl()} * cr;
     float b = y + ${BT2020_CB_SCALE.glsl()} * cb;
     float g = (y - ${BT2020_LUMA_R.glsl()} * r - ${BT2020_LUMA_B.glsl()} * b) / ${BT2020_LUMA_G.glsl()};
@@ -991,8 +996,8 @@ private fun packShader(transfer: HdrTransfer): String =
     return vec3(y, (rgb.b - y) / ${BT2020_CB_SCALE.glsl()}, (rgb.r - y) / ${BT2020_CR_SCALE.glsl()});
   }
   vec4 pack2(float first, float second) {
-    float a = clamp(floor(first + 0.5), 0.0, $MAX_TEN_BIT_CODE.0);
-    float b = clamp(floor(second + 0.5), 0.0, $MAX_TEN_BIT_CODE.0);
+    float a = clamp(floor(first + 0.5), 0.0, ${TEN_BIT_MAX_CODE.glsl()});
+    float b = clamp(floor(second + 0.5), 0.0, ${TEN_BIT_MAX_CODE.glsl()});
     return vec4(mod(a, 256.0), floor(a / 256.0), mod(b, 256.0), floor(b / 256.0)) / 255.0;
   }
   void main() {
@@ -1003,7 +1008,11 @@ private fun packShader(transfer: HdrTransfer): String =
       float row = h - 1.0 - y;
       float first = ycc(signalAt(vec2(2.0 * x, row))).x;
       float second = ycc(signalAt(vec2(2.0 * x + 1.0, row))).x;
-      outColor = pack2($LUMA_FLOOR.0 + $LUMA_RANGE.0 * first, $LUMA_FLOOR.0 + $LUMA_RANGE.0 * second);
+      outColor =
+        pack2(
+          ${TEN_BIT_LUMA_FLOOR.glsl()} + ${TEN_BIT_LUMA_RANGE.glsl()} * first,
+          ${TEN_BIT_LUMA_FLOOR.glsl()} + ${TEN_BIT_LUMA_RANGE.glsl()} * second
+        );
       return;
     }
     if (x >= uSize.x / 4.0) {
@@ -1026,8 +1035,8 @@ private fun packShader(transfer: HdrTransfer): String =
     }
     outColor =
       pack2(
-        $CHROMA_MID.0 + $CHROMA_RANGE.0 * samples[0],
-        $CHROMA_MID.0 + $CHROMA_RANGE.0 * samples[1]
+        ${TEN_BIT_CHROMA_MID.glsl()} + ${TEN_BIT_CHROMA_RANGE.glsl()} * samples[0],
+        ${TEN_BIT_CHROMA_MID.glsl()} + ${TEN_BIT_CHROMA_RANGE.glsl()} * samples[1]
       );
   }
   """.trimIndent()
@@ -1208,14 +1217,6 @@ private const val RED_SHIFT = 16
 private const val GREEN_SHIFT = 8
 private const val BYTE_MASK = 0xFF
 private const val MAX_CHANNEL = 255f
-
-// The limited range a ten-bit BT.709 or BT.2020 signal is stored in. Black sits at 64, white at
-// 940, and a chroma channel is centred on 512 spanning 896 codes.
-private const val LUMA_FLOOR = 64
-private const val LUMA_RANGE = 876
-private const val CHROMA_MID = 512
-private const val CHROMA_RANGE = 896
-private const val MAX_TEN_BIT_CODE = 1023
 
 private const val PLANES = 3
 private const val SAMPLE_BYTES = 2

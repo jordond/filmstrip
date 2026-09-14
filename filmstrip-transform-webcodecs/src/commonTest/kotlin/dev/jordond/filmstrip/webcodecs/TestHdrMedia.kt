@@ -15,6 +15,11 @@ import dev.jordond.filmstrip.media.hlgSignalFromScene
 import dev.jordond.filmstrip.media.nitsFromPqSignal
 import dev.jordond.filmstrip.media.pqSignalFromNits
 import dev.jordond.filmstrip.media.sceneFromHlgSignal
+import dev.jordond.filmstrip.transform.internal.TEN_BIT_CHROMA_MID
+import dev.jordond.filmstrip.transform.internal.TEN_BIT_CHROMA_RANGE
+import dev.jordond.filmstrip.transform.internal.TEN_BIT_LUMA_FLOOR
+import dev.jordond.filmstrip.transform.internal.TEN_BIT_LUMA_RANGE
+import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
 import dev.jordond.filmstrip.webcodecs.internal.ArrayBuffer
 import dev.jordond.filmstrip.webcodecs.internal.BufferTarget
 import dev.jordond.filmstrip.webcodecs.internal.HDR_VP9_CODEC
@@ -31,7 +36,6 @@ import dev.jordond.filmstrip.webcodecs.internal.toUint8Array
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.get
-import kotlin.math.roundToInt
 
 // Ten-bit fixtures and read-back, so an HDR test can look at code values rather than at the
 // eight-bit picture a canvas would give it. The fixtures are built here rather than committed, the
@@ -117,12 +121,12 @@ private fun tenBitPlanes(
   val bytes = ByteArray(lumaBytes + 2 * chromaBytes)
 
   for (y in 0 until height) {
-    val luma = lumaCodeOf(signals[y])
+    val luma = tenBitCodesFromSignal(signals[y])[0]
     for (x in 0 until width) bytes.putCode((y * width + x) * SAMPLE_BYTES, luma)
   }
   for (y in 0 until height / 2) {
     val mean = FloatArray(3) { (signals[2 * y][it] + signals[2 * y + 1][it]) / 2f }
-    val (cb, cr) = chromaCodesOf(mean)
+    val (_, cb, cr) = tenBitCodesFromSignal(mean)
     for (x in 0 until width / 2) {
       val offset = (y * (width / 2) + x) * SAMPLE_BYTES
       bytes.putCode(lumaBytes + offset, cb)
@@ -242,23 +246,6 @@ internal suspend fun decodeTenBitFrames(
 }
 
 /**
- * The limited-range ten-bit luma code one channel triple of signal encodes to.
- */
-internal fun lumaCodeOf(signal: FloatArray): Int =
-  (LUMA_FLOOR + LUMA_RANGE * lumaOf(signal)).roundToInt().coerceIn(0, MAX_CODE)
-
-/**
- * The limited-range ten-bit Cb and Cr codes one channel triple of signal encodes to.
- */
-internal fun chromaCodesOf(signal: FloatArray): Pair<Int, Int> {
-  val luma = lumaOf(signal)
-  val cb = (signal[2] - luma) / BT2020_CB_SCALE
-  val cr = (signal[0] - luma) / BT2020_CR_SCALE
-  return (CHROMA_MID + CHROMA_RANGE * cb).roundToInt().coerceIn(0, MAX_CODE) to
-    (CHROMA_MID + CHROMA_RANGE * cr).roundToInt().coerceIn(0, MAX_CODE)
-}
-
-/**
  * The signal a picture pixel of [nits] of display light encodes to, per channel.
  *
  * The inverse of [displayNitsFromSignal], and what every backend keeping a grade writes for a
@@ -293,17 +280,14 @@ internal fun colorSpaceOf(transfer: HdrTransfer) =
     .put("fullRange", false)
     .build()
 
-private fun lumaOf(signal: FloatArray): Float =
-  BT2020_LUMA_R * signal[0] + BT2020_LUMA_G * signal[1] + BT2020_LUMA_B * signal[2]
-
 private fun signalOf(
   luma: Int,
   cb: Int,
   cr: Int,
 ): FloatArray {
-  val y = (luma - LUMA_FLOOR) / LUMA_RANGE
-  val blueDiff = (cb - CHROMA_MID) / CHROMA_RANGE
-  val redDiff = (cr - CHROMA_MID) / CHROMA_RANGE
+  val y = (luma - TEN_BIT_LUMA_FLOOR).toFloat() / TEN_BIT_LUMA_RANGE
+  val blueDiff = (cb - TEN_BIT_CHROMA_MID).toFloat() / TEN_BIT_CHROMA_RANGE
+  val redDiff = (cr - TEN_BIT_CHROMA_MID).toFloat() / TEN_BIT_CHROMA_RANGE
   val red = y + BT2020_CR_SCALE * redDiff
   val blue = y + BT2020_CB_SCALE * blueDiff
   val green = (y - BT2020_LUMA_R * red - BT2020_LUMA_B * blue) / BT2020_LUMA_G
@@ -324,9 +308,4 @@ private const val PLANES = 3
 private const val SAMPLE_BYTES = 2
 private const val BYTE_BITS = 8
 private const val BYTE_MASK = 0xFF
-private const val MAX_CODE = 1023
-private const val LUMA_FLOOR = 64
-private const val LUMA_RANGE = 876f
-private const val CHROMA_MID = 512
-private const val CHROMA_RANGE = 896f
 private const val HDR_FIXTURE_BITRATE = 12_000_000

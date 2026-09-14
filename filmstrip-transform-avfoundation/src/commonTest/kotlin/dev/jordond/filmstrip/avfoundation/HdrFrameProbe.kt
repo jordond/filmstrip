@@ -30,8 +30,7 @@ import platform.CoreVideo.kCVPixelBufferLock_ReadOnly
 import platform.Foundation.NSURL
 
 /**
- * One decoded frame of an HDR file, held both as linear BT.2020 light and as the ten-bit codes the
- * file stores.
+ * One decoded frame of an HDR file, held both as linear BT.2020 light and as the ten-bit codes the file stores.
  *
  * [FrameProbe] draws through an eight-bit device RGB context, which tone-maps a grade away before
  * anything can be measured on it. This reads the frame Core Image's own way instead: display
@@ -62,8 +61,7 @@ internal class HdrFrameProbe(
   /**
    * The luma, Cb and Cr codes at ([xFraction], [yFraction]).
    *
-   * These are VideoToolbox's decode of the file in the reader's ten-bit video range format, read off
-   * its planes with no colour conversion.
+   * These are VideoToolbox's decode of the file in the reader's ten-bit video range format, with no colour conversion.
    */
   fun codesAt(
     xFraction: Float,
@@ -82,11 +80,10 @@ internal class HdrFrameProbe(
 }
 
 /**
- * Decodes the first video frame of [path] as linear light and copies its ten-bit planes, or null when
- * there is no video track.
+ * Decodes the first video frame of [path] as linear light and copies its ten-bit planes, or null without a video track.
  *
- * The reader is asked for a ten-bit buffer rather than whatever the file happens to carry, so a
- * frame that arrives eight-bit is the decode being wrong rather than the measurement.
+ * The reader is asked for a ten-bit buffer rather than whatever the file happens to carry, so a frame that arrives
+ * eight-bit is the decode being wrong rather than the measurement.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun hdrFrameOf(path: String): HdrFrameProbe? {

@@ -30,6 +30,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.linearDimGain
 import dev.jordond.filmstrip.transform.internal.hdrFillNits
 import dev.jordond.filmstrip.transform.internal.signalFromNits
+import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
 import dev.jordond.filmstrip.webcodecs.internal.SourceReader
 import kotlinx.coroutines.await
 import kotlinx.coroutines.flow.toList
@@ -70,11 +71,10 @@ class BrowserHdrTest {
       assertTag(output, "pq")
 
       val frame = assertNotNull(decodeTenBitFrames(output, HdrTransfer.Pq).firstOrNull())
-      val expected = HdrTransfer.Pq.pictureSignalOf(DIM)
+      val (expectedLuma, expectedCb, expectedCr) = tenBitCodesFromSignal(HdrTransfer.Pq.pictureSignalOf(DIM))
       for (y in listOf(0.2, 0.5, 0.8)) {
-        assertNear(lumaCodeOf(expected), frame.lumaAt(x = 0.5, y = y), LUMA_TOLERANCE, "luma at $y")
+        assertNear(expectedLuma, frame.lumaAt(x = 0.5, y = y), LUMA_TOLERANCE, "luma at $y")
         val (cb, cr) = frame.chromaAt(x = 0.5, y = y)
-        val (expectedCb, expectedCr) = chromaCodesOf(expected)
         assertNear(expectedCb, cb, CHROMA_TOLERANCE, "Cb at $y")
         assertNear(expectedCr, cr, CHROMA_TOLERANCE, "Cr at $y")
       }
@@ -115,9 +115,9 @@ class BrowserHdrTest {
           )
 
         val expected = transfer.signalFromNits(hdrFillNits(PURPLE_ARGB))
-        val (expectedCb, expectedCr) = chromaCodesOf(expected)
+        val (expectedLuma, expectedCb, expectedCr) = tenBitCodesFromSignal(expected)
         val (cb, cr) = frame.chromaAt(x = 0.5, y = BAR)
-        assertNear(lumaCodeOf(expected), frame.lumaAt(x = 0.5, y = BAR), LUMA_TOLERANCE, "$transfer bar luma")
+        assertNear(expectedLuma, frame.lumaAt(x = 0.5, y = BAR), LUMA_TOLERANCE, "$transfer bar luma")
         assertNear(expectedCb, cb, CHROMA_TOLERANCE, "$transfer bar Cb")
         assertNear(expectedCr, cr, CHROMA_TOLERANCE, "$transfer bar Cr")
       }

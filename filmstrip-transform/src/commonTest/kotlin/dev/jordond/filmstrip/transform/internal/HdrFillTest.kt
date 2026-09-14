@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertTrue
 
 class HdrFillTest {
@@ -91,6 +92,19 @@ class HdrFillTest {
     hlgSceneFromNits(hdrFillNits(WHITE))[0] shouldBeNear 0.264797f
     hlgSceneFromNits(floatArrayOf(HLG_NOMINAL_PEAK_NITS, HLG_NOMINAL_PEAK_NITS, HLG_NOMINAL_PEAK_NITS))[0] shouldBeNear
       1f
+  }
+
+  // Black and white pin the luma range, pure red pins how far chroma travels, and a signal past either
+  // end pins that end's clamp. The mid colour is where a matrix reading the wrong channel would part
+  // from the right one.
+  @Test
+  fun `a signal lands on the ten-bit video range codes BT2020 defines`() {
+    assertContentEquals(intArrayOf(64, 512, 512), tenBitCodesFromSignal(floatArrayOf(0f, 0f, 0f)))
+    assertContentEquals(intArrayOf(940, 512, 512), tenBitCodesFromSignal(floatArrayOf(1f, 1f, 1f)))
+    assertContentEquals(intArrayOf(294, 387, 960), tenBitCodesFromSignal(floatArrayOf(1f, 0f, 0f)))
+    assertContentEquals(intArrayOf(464, 544, 494), tenBitCodesFromSignal(floatArrayOf(0.4272f, 0.462f, 0.523f)))
+    assertContentEquals(intArrayOf(1023, 512, 512), tenBitCodesFromSignal(floatArrayOf(2f, 2f, 2f)))
+    assertContentEquals(intArrayOf(0, 512, 512), tenBitCodesFromSignal(floatArrayOf(-1f, -1f, -1f)))
   }
 
   private infix fun Float.shouldBeNear(expected: Float) {
