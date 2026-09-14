@@ -328,8 +328,8 @@ length rather than being cut to it.
 
 `looping()` repeats a track from the top until the longest non-looping track ends. A looping track
 never decides the duration, so a composition where every track loops has nothing to bound it and is
-refused with `ExportError.InvalidComposition`. A looping track also drops its `fadeOut`, since it has
-no end to measure the ramp back from, and a clip-only effect on any of its clips is refused by name.
+refused with `ExportError.InvalidComposition`. A clip-only effect on any of its clips is refused by
+name.
 
 Looping is where the backends still disagree. None of the ❗ cells in the table is refused at plan
 time, so the plan does not flag them and the export succeeds with the wrong result. Read the

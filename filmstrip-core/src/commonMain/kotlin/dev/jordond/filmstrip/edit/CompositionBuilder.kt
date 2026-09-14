@@ -190,8 +190,8 @@ public class TrackBuilder public constructor(
   /**
    * Ramps this track's audio down to silence over the [duration] before it ends.
    *
-   * The ramp multiplies whatever [audio] set, an envelope included. A looping track has no end to
-   * measure back from, so the plan ignores it there.
+   * The ramp multiplies whatever [audio] set, an envelope included, and composes with [fadeIn]. A
+   * looping track ends where the composition does, so the ramp lands there.
    */
   public fun fadeOut(duration: Duration): TrackBuilder = apply { fadeOut = duration }
 
@@ -202,6 +202,9 @@ public class TrackBuilder public constructor(
 
   /**
    * Repeats the track until the longest non-looping one ends.
+   *
+   * The run of clips is laid down again from the top as many times as it takes, and the last pass is
+   * cut where it runs past the end.
    */
   public fun looping(looping: Boolean = true): TrackBuilder = apply { this.looping = looping }
 

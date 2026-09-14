@@ -84,6 +84,10 @@ public val ResolvedComposition.paintsFillAfterEffects: Boolean
 
 /**
  * One track of a [ResolvedComposition].
+ *
+ * @property clips Every pass this track lays, in the order it lays them. A looping track repeats its
+ *   run from the top until the composition ends, with the last pass cut where it runs past, so a
+ *   backend lays exactly what is here and works out no repeat of its own.
  */
 @InternalFilmstripApi
 public class ResolvedTrack(
@@ -106,8 +110,9 @@ public class ResolvedTrack(
  * @property span This clip's slot on the composition timeline, counted from the start of the whole
  *   composition. Derived once by the planner, since every backend lays its clips end to end from
  *   the track's own start and an effect that reads the time has to be measured against the same run
- *   on all of them. A looping track lays its clips down again from the top, and this describes the
- *   first pass.
+ *   on all of them.
+ * @property sourceIndex Which clip of the track this was laid from. A looping track lays the same
+ *   clip down more than once, so several resolved clips can name one.
  */
 @InternalFilmstripApi
 public class ResolvedClip(
@@ -119,6 +124,7 @@ public class ResolvedClip(
   public val gain: ResolvedGain,
   public val startsAtKeyFrame: Boolean,
   public val span: TimeRange,
+  public val sourceIndex: Int,
 ) {
   public val duration: Duration get() = end - start
 }

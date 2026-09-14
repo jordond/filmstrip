@@ -275,45 +275,65 @@ public class ExportPlanner(
     val compositionGain = edit.audio.gain()
     val fannedGeometry = if (compositionGeometryPerClip) compositionGeometrySpecs else emptyList()
     val asked = mutableListOf<LoweredEffect>()
-    val tracks =
+    // Every clip's window is settled before any gain is folded, because a looping track's curve is
+    // written against the run it covers and there is no length to anchor a fade out to until the
+    // composition's own duration is known.
+    val trackTimings =
       edit.tracks.map { track ->
-        // Every clip's window is settled before any gain is folded, because a track's envelope is
-        // written against the whole run of clips and there is no length to anchor a fade out to
-        // until all of them are known.
-        val timings =
-          track.clips.map { clip ->
-            trimWindow(clip, infos.getValue(clip.source), copyOpensAt)
-              ?: return incapable("Clip ${clip.source.describe()} trims to nothing.")
+        track.clips.map { clip ->
+          trimWindow(clip, infos.getValue(clip.source), copyOpensAt)
+            ?: return incapable("Clip ${clip.source.describe()} trims to nothing.")
+        }
+      }
+    val duration =
+      edit.tracks
+        .withIndex()
+        .filterNot { (_, track) -> track.looping }
+        .maxOfOrNull { (index, track) ->
+          trackTimings[index].fold(track.start) { total, (from, to) -> total + (to - from) }
+        } ?: return incapable(EVERY_TRACK_LOOPS)
+    val compositionSpan = TimeRange.of(Duration.ZERO, duration)
+
+    val tracks =
+      edit.tracks.mapIndexed { trackIndex, track ->
+        val timings = trackTimings[trackIndex]
+        val lengths = timings.map { (from, to) -> to - from }
+        track.clips.forEachIndexed { index, clip ->
+          val clipEnvelope = clip.audio as? AudioLevel.Envelope
+          if (clipEnvelope != null && !clipEnvelope.isValidOver(lengths[index])) return incapable(CLIP_ENVELOPE)
+          if (!fadesFit(clip.fadeIn, clip.fadeOut, lengths[index])) return incapable(CLIP_FADE)
+        }
+        // A looping track's scope is everything from where it starts to the composition's end, and
+        // a track laid down once covers its own clips.
+        val runLength =
+          if (track.looping) {
+            maxOf(duration - track.start, Duration.ZERO)
+          } else {
+            lengths.fold(Duration.ZERO, Duration::plus)
           }
-        val trackLength = timings.fold(Duration.ZERO) { total, (from, to) -> total + (to - from) }
         val trackEnvelope = track.audio as? AudioLevel.Envelope
-        if (trackEnvelope != null && !trackEnvelope.isValidOver(trackLength)) return incapable(TRACK_ENVELOPE)
-        val trackFadeOut = track.foldedFadeOut
-        if (!fadesFit(track.fadeIn, trackFadeOut, trackLength)) return incapable(TRACK_FADE)
-        // The track's level times its fade, both read against the whole run of clips.
+        if (trackEnvelope != null && !trackEnvelope.isValidOver(runLength)) return incapable(TRACK_ENVELOPE)
+        if (!fadesFit(track.fadeIn, track.fadeOut, runLength)) return incapable(TRACK_FADE)
+        // The track's level times its fade, both read against the whole run the track covers.
         val trackCurve =
-          track.audio.curveOver(trackLength) * fadeEnvelope(track.fadeIn, trackFadeOut).curveOver(trackLength)
-        // Where each clip lands on the composition timeline, derived here and nowhere else, since
-        // every backend lays its clips end to end from the track's own start and an effect that
-        // reads the time has to be measured against the same run on all of them.
-        var cursor = track.start
-        var withinTrack = Duration.ZERO
+          track.audio.curveOver(runLength) * fadeEnvelope(track.fadeIn, track.fadeOut).curveOver(runLength)
+
         ResolvedTrack(
           content = track.content,
           looping = track.looping,
           start = track.start,
+          // Where each pass lands on the composition timeline, derived here and nowhere else, since
+          // a backend lays what this list says and an effect that reads the time has to be measured
+          // against the same run on all of them.
           clips =
-            track.clips.mapIndexed { index, clip ->
+            passesCovering(lengths, runLength).map { pass ->
+              val clip = track.clips[pass.index]
               val info = infos.getValue(clip.source)
-              val timing = timings[index]
-              val length = timing.second - timing.first
-              val span = TimeRange.of(cursor, cursor + length)
-              cursor += length
-              val clipStartInTrack = withinTrack
-              withinTrack += length
-              val clipEnvelope = clip.audio as? AudioLevel.Envelope
-              if (clipEnvelope != null && !clipEnvelope.isValidOver(length)) return incapable(CLIP_ENVELOPE)
-              if (!fadesFit(clip.fadeIn, clip.fadeOut, length)) return incapable(CLIP_FADE)
+              val from = timings[pass.index].first
+              // The clip's own trimmed length, which its curve and its fades are written over
+              // whichever part of it this pass reaches.
+              val full = lengths[pass.index]
+              val span = TimeRange.of(track.start + pass.offset, track.start + pass.offset + pass.length)
               val resolved =
                 resolve(
                   stages = listOf(clip.effects + track.effects, fannedGeometry),
@@ -326,29 +346,33 @@ public class ExportPlanner(
                   span = span,
                 )
               asked += resolved
+              // The clip's own curve over its whole trim, cut only where the run stopped this pass
+              // short of it, so a pass that plays the trim out reaches exactly the curve it would
+              // have without the loop.
+              val clipCurve =
+                (clip.audio.curveOver(full) * fadeEnvelope(clip.fadeIn, clip.fadeOut).curveOver(full))
+                  .let { curve -> if (pass.length < full) curve.window(Duration.ZERO, pass.length) else curve }
               ResolvedClip(
                 source = clip.source,
                 info = info,
-                start = timing.first,
-                end = timing.second,
+                start = from,
+                end = from + pass.length,
                 effects = resolved.mapNotNull { it.resolvedEffect },
                 // The one place the scopes multiply. A backend reads this curve and never asks an
                 // AudioLevel what it meant again.
                 gain =
-                  clip.audio.curveOver(length) *
-                    fadeEnvelope(clip.fadeIn, clip.fadeOut).curveOver(length) *
-                    trackCurve.window(clipStartInTrack, length) *
-                    ResolvedGain.constant(compositionGain, Duration.ZERO, length),
+                  clipCurve *
+                    trackCurve.window(pass.offset, pass.length) *
+                    ResolvedGain.constant(compositionGain, Duration.ZERO, pass.length),
                 startsAtKeyFrame = path == ExportPath.Transmux,
                 span = span,
+                sourceIndex = pass.index,
               )
             },
         )
       }
 
-    val duration =
-      tracks.filterNot { it.looping }.maxOfOrNull { it.duration } ?: return incapable(EVERY_TRACK_LOOPS)
-    val compositionSpan = TimeRange.of(Duration.ZERO, duration)
+    if (tracks.first().clips.isEmpty()) return incapable(PRIMARY_LAYS_NOTHING)
 
     val compositionGeometry =
       if (compositionGeometryPerClip) {
@@ -827,6 +851,8 @@ public class ExportPlanner(
 
     const val EVERY_TRACK_LOOPS = "Every track loops, so the composition has nothing to bound it."
 
+    const val PRIMARY_LAYS_NOTHING = "The primary track starts at or after the composition ends."
+
     const val TRACK_ENVELOPE =
       "A track's audio envelope has points that fall outside the track, run backwards, or ask for " +
         "a negative gain."
@@ -1252,11 +1278,6 @@ private val AudioLevel.isUnity: Boolean
       is AudioLevel.Volume -> gain == 1f
       is AudioLevel.Mute, is AudioLevel.Envelope -> false
     }
-
-// How long this track's audio takes to fall to silence, which is nothing at all while it loops,
-// since a looping track has no end for the ramp to measure back from.
-private val Track.foldedFadeOut: Duration
-  get() = if (looping) Duration.ZERO else fadeOut
 
 // A fade is carried apart from the level, so a copy has to be blocked by either of them.
 private val Track.altersGain: Boolean

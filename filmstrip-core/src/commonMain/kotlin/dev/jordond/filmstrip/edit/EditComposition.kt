@@ -107,13 +107,15 @@ public class EditComposition(
  * @property audio What to do with this track's audio before it is mixed.
  * @property start Where in the composition this track begins. Anything before it is silence, or
  *   black on the primary track.
- * @property looping Whether the track repeats until the longest non-looping track ends. A
- *   composition needs at least one non-looping track to have a duration at all.
+ * @property looping Whether the track repeats until the longest non-looping track ends. The run of
+ *   clips is laid down again from the top as many times as it takes, and the last pass is cut where
+ *   it runs past the end. A composition needs at least one non-looping track to have a duration at
+ *   all.
  * @property fadeIn How long the audio takes to rise from silence, starting where the track does.
  *   It multiplies [audio] rather than replacing it, so a fade over a level or an envelope reaches
  *   what that asked for.
- * @property fadeOut How long the audio takes to fall to silence before the last clip ends. A
- *   [looping] track has no end to measure back from, so the plan ignores it there.
+ * @property fadeOut How long the audio takes to fall to silence before the track ends, which for a
+ *   [looping] track is where the composition ends.
  */
 @Serializable
 @Poko
@@ -293,7 +295,8 @@ public sealed interface AudioLevel {
    * what a backend applies is the polyline as given.
    *
    * @property points Where the gain is pinned. Times are read against the scope this level is set
-   *   on, which is the trimmed clip for a clip and the whole run of clips for a track.
+   *   on, which is the trimmed clip for a clip and the whole run a track covers. A looping track
+   *   covers every pass, so a point anchored to its end lands where the composition ends.
    */
   @Serializable
   @SerialName("envelope")
