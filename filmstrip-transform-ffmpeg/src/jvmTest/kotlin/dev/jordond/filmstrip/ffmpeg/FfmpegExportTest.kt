@@ -78,7 +78,6 @@ import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.abs
-import kotlin.math.floor
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 import kotlin.test.Test
@@ -1216,15 +1215,14 @@ class FfmpegExportTest {
 
       val tracks = plannedTracks(composition, spec, listOf(primarySource, bedSource))
       val primaryGain = tracks.first().onlyClip.gain
-      val bedGain = tracks.last().onlyClip.gain
 
-      // The bed's length comes from the curve the planner built over it, so where a loop pass falls
-      // is read off the plan rather than off the fixture's advertised duration.
-      val bedLength = bedGain.end - bedGain.start
-      val elapsed = MIXED_READING - BED_START
-      val passes = floor(elapsed / bedLength).toInt()
-      assertTrue(passes >= 1, "$MIXED_READING is only $passes passes into a $bedLength bed")
-      val withinBed = elapsed - bedLength * passes
+      // The plan holds one clip per pass, so the pass that covers the reading and how far into it
+      // that reading sits both come off the laid list rather than off the fixture's own length.
+      val laid = tracks.last().clips
+      val pass = laid.indexOfLast { it.span.start <= MIXED_READING }
+      assertTrue(pass >= 1, "$MIXED_READING lands in pass ${pass + 1} of a ${laid.size} pass bed")
+      val bedGain = laid[pass].gain
+      val withinBed = MIXED_READING - laid[pass].span.start
 
       val written = decodedAudio(output.absolutePath)
       // The fixtures' own tones, so how loud either source was recorded divides out of the ratio.
@@ -1251,9 +1249,8 @@ class FfmpegExportTest {
     }
 
   // The bed from the test above, ramped at both ends by the track builder's own fadeIn and fadeOut
-  // rather than by an envelope written out by hand. The track does not loop, because a looping one
-  // has no end for a fade out to anchor to and the plan ignores it. What loops is covered next
-  // door, and what ramps is covered here.
+  // rather than by an envelope written out by hand. The track does not loop, so the two ramps sit
+  // inside one pass. What loops is covered next door, and what ramps is covered here.
   //
   // Volume sits under both fades, so the curve reaching the file is a constant multiplied by a ramp
   // rather than either alone. Each reading is taken inside a ramp rather than at its ends, at a

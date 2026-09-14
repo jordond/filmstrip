@@ -79,11 +79,22 @@ internal class FilterGraphBuilder {
   fun split(
     input: String,
     outputs: List<String>,
+  ): Unit = fanOut("split", input, outputs)
+
+  fun asplit(
+    input: String,
+    outputs: List<String>,
+  ): Unit = fanOut("asplit", input, outputs)
+
+  private fun fanOut(
+    filter: String,
+    input: String,
+    outputs: List<String>,
   ) {
     require(outputs.size >= 2) { "A split needs at least two outputs" }
     outputs.forEach { output -> require(produced.add(output)) { "Pad [$output] is written twice" } }
     consumed += input
-    chains += "[$input]split=${outputs.size}" + outputs.joinToString("") { "[$it]" }
+    chains += "[$input]$filter=${outputs.size}" + outputs.joinToString("") { "[$it]" }
   }
 
   fun build(vararg terminals: String): String {

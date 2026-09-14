@@ -8,14 +8,21 @@ import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.AudioCodec
+import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.export.VideoCodec
+import dev.jordond.filmstrip.ffmpeg.internal.FfmpegVersion
 import dev.jordond.filmstrip.ffmpeg.internal.GraphLowering
+import dev.jordond.filmstrip.ffmpeg.internal.InputSource
 import dev.jordond.filmstrip.ffmpeg.internal.Invocation
+import dev.jordond.filmstrip.ffmpeg.internal.Toolchain
+import dev.jordond.filmstrip.ffmpeg.internal.arguments
+import dev.jordond.filmstrip.ffmpeg.internal.formatSeconds
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
@@ -28,7 +35,9 @@ import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.backgroundGain
+import dev.jordond.filmstrip.transform.internal.passesCovering
 import dev.jordond.filmstrip.transform.internal.sigmaFor
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -287,6 +296,142 @@ class GraphLoweringTest {
     input.durationSeconds shouldBe null
   }
 
+  // A looping track names the same clip once per pass, and one decoder per pass would mean opening
+  // the same file five times for a run of two.
+  @Test
+  fun `a looping track opens each of its clips once and splits the branch per pass`() {
+    val laid = loopingTrack()
+    val invocation = loopingInvocationFor(laid)
+
+    invocation.inputs.count { it.source is InputSource.OfPath } shouldBe laid.clips.distinctBy { it.sourceIndex }.size
+    laid.clips.distinctBy { it.sourceIndex }.forEachIndexed { input, clip ->
+      val passes = laid.clips.count { it.sourceIndex == clip.sourceIndex }
+      // Anchored on the pad, since "split=n" is a substring of "asplit=n" and either assertion
+      // alone would then be carried by the other node.
+      invocation.filterGraph shouldContain "[$input:v]split=$passes"
+      invocation.filterGraph shouldContain "[$input:a]asplit=$passes"
+    }
+  }
+
+  // -stream_loop carries each repeat at rising timestamps, which is what used to make an atrim
+  // written for the clip's own window drop every pass after the first.
+  @Test
+  fun `a looping track asks ffmpeg for no stream loop`() {
+    val laid = loopingTrack()
+    val arguments =
+      loopingInvocationFor(laid)
+        .arguments(TOOLCHAIN, FfmpegConfig(), laid.clips.map { "/clips/source.mp4" }, emptyList(), "/out.mp4")
+
+    arguments.shouldNotContain("-stream_loop")
+  }
+
+  // Every pass reads a branch of its own off the split and windows that, the cut last pass
+  // included, so a pass stops where the plan said rather than where its source ends. Opening one
+  // input per pass would window the input pads instead, which is what this pins against.
+  @Test
+  fun `every laid pass windows the branch it was split onto and the concat joins them all`() {
+    val laid = loopingTrack()
+    val graph = loopingInvocationFor(laid).filterGraph
+
+    val passes = mutableMapOf<Int, Int>()
+    laid.clips.forEach { clip ->
+      // The track is the first, so its inputs open in the order its clips first appear, which for
+      // this fixture is the source index itself.
+      val pass = passes.getOrElse(clip.sourceIndex) { 0 }
+      passes[clip.sourceIndex] = pass + 1
+      val start = formatSeconds(clip.start.toDouble(DurationUnit.SECONDS))
+      val end = formatSeconds(clip.end.toDouble(DurationUnit.SECONDS))
+      graph shouldContain "[v${clip.sourceIndex}p$pass]trim=start=$start:end=$end"
+      graph shouldContain "[a${clip.sourceIndex}p$pass]atrim=start=$start:end=$end"
+    }
+    graph shouldContain "]concat=n=${laid.clips.size}:v=1:a=0"
+  }
+
+  /**
+   * Two clips laid down two and a half times over, scheduled by the shared [passesCovering] rather
+   * than written out here, so a change to how a run is laid reaches this backend's test too.
+   */
+  private fun loopingTrack(): ResolvedTrack {
+    val clips =
+      passesCovering(listOf(A_LENGTH, B_LENGTH), RUN).map { pass ->
+        loopedClip(
+          start = if (pass.index == 0) A_START else B_START,
+          length = pass.length,
+          offset = pass.offset,
+          sourceIndex = pass.index,
+        )
+      }
+    return ResolvedTrack(content = TrackContent.AudioAndVideo, looping = true, start = Duration.ZERO, clips = clips)
+  }
+
+  private fun loopedClip(
+    start: Duration,
+    length: Duration,
+    offset: Duration,
+    sourceIndex: Int,
+  ): ResolvedClip =
+    ResolvedClip(
+      source = source,
+      info =
+        MediaInfo(
+          duration = SOURCE_LENGTH,
+          video =
+            VideoTrackInfo(
+              codedSize = Size(1920, 1080),
+              displaySize = Size(1920, 1080),
+              rotationDegrees = 0,
+              pixelAspectRatio = 1f,
+              frameRate = 30f,
+              codec = trackCodecOf("avc1"),
+              bitDepth = 8,
+              colorSpace = ColorSpace.Bt709,
+              hdrTransfer = null,
+              bitrate = null,
+            ),
+          audio = AudioTrackInfo(trackCodecOf("mp4a"), 48_000, 2, null),
+          isExportable = true,
+        ),
+      start = start,
+      end = start + length,
+      effects = emptyList(),
+      gain = ResolvedGain.constant(1f, Duration.ZERO, length),
+      startsAtKeyFrame = false,
+      span = TimeRange.of(offset, offset + length),
+      sourceIndex = sourceIndex,
+    )
+
+  private fun loopingInvocationFor(track: ResolvedTrack): Invocation {
+    val output = Size(1920, 1080)
+    val negotiated =
+      NegotiatedComposition(
+        tracks = listOf(track),
+        compositionGeometry = emptyList(),
+        compositionInputSize = output,
+        compositionEffects = emptyList(),
+        output =
+          OutputFormat(
+            size = output,
+            videoCodec = VideoCodec.H264,
+            audioCodec = AudioCodec.Aac,
+            bitrate = null,
+            frameRate = 30,
+            audioFormat = AudioFormat(sampleRate = 48_000, channelCount = 2),
+          ),
+        layoutSize = output,
+        fit = Fit.Contain,
+        fill = Fill.Black,
+        duration = track.duration,
+        hdr = ResolvedHdr.Keep,
+        hdrTransfer = null,
+        path = ExportPath.Transcode,
+        audio = AudioSpec.Keep,
+        adjustments = emptyList(),
+        encoderName = "libx264",
+      )
+
+    return GraphLowering(negotiated, toneMapRoute = null, hdrPixelFormat = null).build()
+  }
+
   private fun compositionEffect(): ResolvedEffect =
     ResolvedEffect(
       specId = "test.brightness",
@@ -351,6 +496,7 @@ class GraphLoweringTest {
         gain = ResolvedGain.constant(1f, Duration.ZERO, duration),
         startsAtKeyFrame = false,
         span = TimeRange.of(trackStart, trackStart + duration),
+        sourceIndex = 0,
       )
     val track =
       ResolvedTrack(content = TrackContent.Video, looping = false, start = trackStart, clips = listOf(clip))
@@ -419,6 +565,7 @@ class GraphLoweringTest {
       gain = ResolvedGain.constant(1f, Duration.ZERO, end - start),
       startsAtKeyFrame = true,
       span = TimeRange.of(Duration.ZERO, end - start),
+      sourceIndex = 0,
     )
 
   private fun copyInvocationFor(clip: ResolvedClip): Invocation {
@@ -466,6 +613,24 @@ class GraphLoweringTest {
 private val SOURCE_LENGTH = 12.seconds
 private val TRIM_START = 4_500.milliseconds
 private val TRIM_END = 7_250.milliseconds
+
+// Two windows of a looping run and the run they cover. No two of them divide evenly, so the run
+// lays A B A B and then cuts a fifth pass short, and a pass counted the wrong way round lands
+// somewhere the assertions can see.
+private val A_START = 200.milliseconds
+private val A_LENGTH = 1_100.milliseconds
+private val B_START = 1_400.milliseconds
+private val B_LENGTH = 900.milliseconds
+private val RUN = 4_800.milliseconds
+
+private val TOOLCHAIN =
+  Toolchain(
+    ffmpeg = "ffmpeg",
+    ffprobe = "ffprobe",
+    version = FfmpegVersion(banner = "ffmpeg version 9.0.1", major = 9, minor = 0),
+    filters = emptySet(),
+    encoders = setOf("libx264"),
+  )
 
 // gblur's own ceiling on sigma, a literal here on purpose: it pins what ffmpeg accepts rather than
 // anything the shared contract says.

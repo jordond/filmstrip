@@ -42,8 +42,16 @@ internal class GraphLowering(
   private val frameRate = checkNotNull(output.frameRate) { "The negotiated output has no frame rate." }
 
   private val inputs = mutableListOf<InputSpec>()
-  private val clipInput = mutableListOf<MutableList<Int>>()
+
+  // The input each track's clips are opened through, by track and then by
+  // ResolvedClip.sourceIndex, so every pass of one clip reads the same decoder.
+  private val clipInput = mutableListOf<Map<Int, Int>>()
   private val graph = FilterGraphBuilder()
+
+  // The pads waiting to be handed out for an input whose branch was split, keyed by the pad the
+  // split reads. Filled the first time a pass asks for a branch of a clip the plan laid more than
+  // once, and drained in the order the passes are lowered.
+  private val branches = mutableMapOf<String, ArrayDeque<String>>()
 
   // Every file the graph's nodes reach for by placeholder, gathered as the fragments carrying them
   // are consumed.
@@ -120,15 +128,19 @@ internal class GraphLowering(
       "Composition geometry reached the graph, which lowers it per clip and has nowhere to put it."
     }
 
+    // One input per clip the caller wrote, not per pass the plan laid. A looping track names the
+    // same clip once for every pass, and a second decoder on the same file would decode it again.
+    // The split those passes read from is not free either: it clones every frame onto all of its
+    // outputs out of one buffer, and concat pulls from the branch it is on and no other, so the
+    // frames every branch behind it has been handed sit in the graph until concat reaches them.
+    // That is up to one pass of decoded frames held per branch still waiting.
     tracks.forEach { track ->
-      val indices = mutableListOf<Int>()
+      val indices = mutableMapOf<Int, Int>()
       track.clips.forEach { clip ->
-        indices += inputs.size
-        inputs +=
-          InputSpec(
-            source = InputSource.OfPath(checkNotNull(readablePath(clip.source)) { UNREADABLE_SOURCE }),
-            loop = track.looping,
-          )
+        indices.getOrPut(clip.sourceIndex) {
+          val path = checkNotNull(readablePath(clip.source)) { UNREADABLE_SOURCE }
+          inputs.size.also { inputs += InputSpec(source = InputSource.OfPath(path)) }
+        }
       }
       clipInput += indices
     }
@@ -153,9 +165,37 @@ internal class GraphLowering(
     )
   }
 
+  /**
+   * The pad the [index]th laid clip of [trackIndex] reads its own branch from.
+   *
+   * A pad may be read only once, so a clip the plan laid more than once cannot have every pass read
+   * its input directly. The first pass to ask splits the branch into one pad per pass, and the rest
+   * take theirs from what that left.
+   */
+  private fun branchPad(
+    trackIndex: Int,
+    index: Int,
+    audio: Boolean,
+  ): String {
+    val clips = tracks[trackIndex].clips
+    val sourceIndex = clips[index].sourceIndex
+    val input = clipInput[trackIndex].getValue(sourceIndex)
+    val pad = if (audio) "$input:a" else "$input:v"
+    val passes = clips.count { it.sourceIndex == sourceIndex }
+    if (passes == 1) return pad
+
+    return branches
+      .getOrPut(pad) {
+        val outlets = List(passes) { pass -> "${if (audio) "a" else "v"}${input}p$pass" }
+        if (audio) graph.asplit(pad, outlets) else graph.split(pad, outlets)
+        ArrayDeque(outlets)
+      }.removeFirst()
+  }
+
   private fun buildVideo(): String {
     val primary = tracks.first()
-    val segments = primary.clips.mapIndexed { index, clip -> buildClip(clip, clipInput[0][index]) }
+    val segments =
+      primary.clips.mapIndexed { index, clip -> buildClip(clip, index, branchPad(0, index, audio = false)) }
 
     var current =
       if (segments.size == 1) {
@@ -277,9 +317,10 @@ internal class GraphLowering(
    */
   private fun buildClip(
     clip: ResolvedClip,
-    input: Int,
+    index: Int,
+    branch: String,
   ): String {
-    var pad = "$input:v"
+    var pad = branch
     var merged = 0
     val pending =
       mutableListOf(
@@ -303,7 +344,7 @@ internal class GraphLowering(
       sidecars += fragment.sidecars
       pending += fragment.chain
       val merge = fragment.merge ?: return@forEach
-      val label = "v${input}m$merged"
+      val label = "v${index}m$merged"
       graph.chain(listOf(pad) + auxPads(fragment.auxInputs, label), pending + merge, label)
       pending.clear()
       pad = label
@@ -312,11 +353,11 @@ internal class GraphLowering(
 
     val fill = negotiated.fill
     if (negotiated.fit == Fit.Contain && fill is Fill.Blurred) {
-      return buildBlurredTail(pad, pending, fill, input)
+      return buildBlurredTail(pad, pending, fill, index)
     }
 
     pending += tailNodes(output.size, negotiated.fit, padColor, frameRate, tailPixelFormat)
-    return "v$input".also { graph.chain(listOf(pad), pending, it) }
+    return "v$index".also { graph.chain(listOf(pad), pending, it) }
   }
 
   /**
@@ -331,22 +372,22 @@ internal class GraphLowering(
     pad: String,
     pending: List<FilterNode>,
     fill: Fill.Blurred,
-    input: Int,
+    index: Int,
   ): String {
-    val pre = "v${input}pre"
+    val pre = "v${index}pre"
     graph.chain(listOf(pad), pending, pre)
 
-    val background = "v${input}bg"
-    val foreground = "v${input}fg"
+    val background = "v${index}bg"
+    val foreground = "v${index}fg"
     graph.split(pre, listOf(background, foreground))
 
-    val blurred = "v${input}blur"
+    val blurred = "v${index}blur"
     graph.chain(listOf(background), coverBlurNodes(output.size, fill), blurred)
 
-    val sharp = "v${input}sharp"
+    val sharp = "v${index}sharp"
     graph.chain(listOf(foreground), containNodes(output.size), sharp)
 
-    return "v$input".also {
+    return "v$index".also {
       graph.chain(listOf(blurred, sharp), overlayNodes() + trailingNodes(frameRate, tailPixelFormat), it)
     }
   }
@@ -374,18 +415,12 @@ internal class GraphLowering(
 
     val trackLabels =
       contributing.map { (trackIndex, track) ->
-        // Only a lone clip covering its whole source is left unwindowed for the repeat. Leaving a
-        // concat's branches unwindowed does not fail loudly: the first one never ends, so concat
-        // waits on it forever, every later clip is dropped without a word and the atrim after the
-        // mix is what stops the run. A windowed concat plays its first pass and then goes silent,
-        // which is wrong too, and both are recorded against this backend in docs/capabilities.md.
-        val repeats = track.looping && track.clips.size == 1
         val segments =
           track.clips.mapIndexed { clipIndex, clip ->
-            val label = "a${clipInput[trackIndex][clipIndex]}"
+            val label = "a${trackIndex}c$clipIndex"
             graph.chain(
-              listOf(audioPad(clip, clipInput[trackIndex][clipIndex], format.sampleRate)),
-              audioNodes(clip, repeats),
+              listOf(audioPad(clip, trackIndex, clipIndex, format.sampleRate)),
+              audioNodes(clip),
               label,
             )
             label
@@ -456,13 +491,16 @@ internal class GraphLowering(
   }
 
   // A clip whose source carries no audio still occupies time on the track, so it contributes
-  // silence for exactly its own length. Without that a concat drifts by the silent clip.
+  // silence for exactly its own length. Without that a concat drifts by the silent clip. The filler
+  // is per pass rather than split off one input, since a pass the run cut short holds less time
+  // than the ones before it.
   private fun audioPad(
     clip: ResolvedClip,
-    inputIndex: Int,
+    trackIndex: Int,
+    clipIndex: Int,
     sampleRate: Int,
   ): String {
-    if (clip.hasAudio) return "$inputIndex:a"
+    if (clip.hasAudio) return branchPad(trackIndex, clipIndex, audio = true)
     val generated = inputs.size
     inputs +=
       InputSpec(
@@ -472,18 +510,10 @@ internal class GraphLowering(
     return "$generated:a"
   }
 
-  private fun audioNodes(
-    clip: ResolvedClip,
-    repeats: Boolean,
-  ): List<FilterNode> =
+  private fun audioNodes(clip: ResolvedClip): List<FilterNode> =
     buildList {
       val format = output.audioFormat ?: error("audioNodes needs an audio format")
-      // An input opened with -stream_loop carries each repeat at later timestamps, so a window
-      // written for the clip's own run drops every pass after the first. A repeating clip that
-      // already spans its whole source has nothing to cut, and the atrim after the mix is what
-      // bounds the run instead.
-      val windowed = clip.hasAudio && !(repeats && clip.spansWholeSource)
-      if (windowed) {
+      if (clip.hasAudio) {
         add(
           FilterNode(
             "atrim",
@@ -551,10 +581,6 @@ internal class GraphLowering(
 }
 
 private val ResolvedClip.hasAudio: Boolean get() = info.audio != null
-
-// Whether the clip's window is the source's whole run, which is what an untrimmed clip resolves to.
-private val ResolvedClip.spansWholeSource: Boolean
-  get() = start == Duration.ZERO && end == info.duration
 
 private fun Duration.seconds(): Double = toDouble(DurationUnit.SECONDS)
 

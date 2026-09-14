@@ -57,10 +57,6 @@ internal fun Invocation.previewArguments(
         add("-ss")
         add(formatSeconds(seek.toDouble(DurationUnit.SECONDS)))
       }
-      if (input.loop) {
-        add("-stream_loop")
-        add("-1")
-      }
       if (input.source is InputSource.Generated) {
         add("-f")
         add("lavfi")

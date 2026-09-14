@@ -13,9 +13,6 @@ import kotlin.time.Duration
  * One input the graph reads, in the order it is declared.
  *
  * @property source Where the bytes come from.
- * @property loop Whether the input repeats. This is an input option rather than a filter: the
- *   `loop` and `aloop` filters buffer the decoded media in memory, which for a music bed is the
- *   whole track.
  * @property durationSeconds A hard duration for a generated input, which a silence source needs
  *   because it never ends on its own. With [startSeconds] set it counts from there rather than from
  *   the start of the source.
@@ -24,7 +21,6 @@ import kotlin.time.Duration
  */
 internal class InputSpec(
   val source: InputSource,
-  val loop: Boolean = false,
   val durationSeconds: Double? = null,
   val startSeconds: Double? = null,
 )
@@ -132,10 +128,6 @@ internal fun Invocation.arguments(
     add("-y")
 
     inputs.forEachIndexed { index, input ->
-      if (input.loop) {
-        add("-stream_loop")
-        add("-1")
-      }
       if (input.source is InputSource.Generated) {
         add("-f")
         add("lavfi")
