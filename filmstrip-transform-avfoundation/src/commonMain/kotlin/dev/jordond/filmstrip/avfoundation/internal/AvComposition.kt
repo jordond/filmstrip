@@ -458,19 +458,24 @@ private fun List<Pair<AVMutableCompositionTrack, List<Placement>>>.toAudioMix():
  * Writes this placement's gain curve onto [parameters], in the composition time [parameters]
  * already reads.
  *
- * A constant curve is one `setVolume:atTime:`, same as a flat clip has always been written. A
- * ramping curve is one `setVolumeRampFromStartVolume:toEndVolume:timeRange:` per [GainSegment],
- * with the segment's clip-relative `start`/`end` shifted onto the timeline by this placement's own
- * [Placement.start], since a curve is measured from zero at the clip's own start and AVFoundation
- * only understands the composition's time. A zero-length segment is a step rather than a ramp, and
- * AVFoundation has no ramp to hold across no time, so it is written as a plain `setVolume:atTime:`
- * at the instant the step lands on.
+ * A constant curve is one `setVolumeRampFromStartVolume:toEndVolume:timeRange:` holding that level
+ * at both ends of the placement's own span, so the level stays where it was written until the next
+ * placement writes its own. A ramping curve is one ramp per [GainSegment], with the segment's
+ * clip-relative `start`/`end` shifted onto the timeline by this placement's own [Placement.start],
+ * since a curve is measured from zero at the clip's own start and AVFoundation only understands the
+ * composition's time. A zero-length segment is a step rather than a ramp, and AVFoundation has no
+ * ramp to hold across no time, so it is written as a plain `setVolume:atTime:` at the instant the
+ * step lands on.
  */
 @OptIn(ExperimentalForeignApi::class)
 private fun Placement.writeGain(parameters: AVMutableAudioMixInputParameters) {
   val constant = clip.gain.constant
   if (constant != null) {
-    parameters.setVolume(constant, atTime = start.toCMTime())
+    parameters.setVolumeRampFromStartVolume(
+      constant,
+      toEndVolume = constant,
+      timeRange = timeRangeOf(start, end - start),
+    )
     return
   }
 

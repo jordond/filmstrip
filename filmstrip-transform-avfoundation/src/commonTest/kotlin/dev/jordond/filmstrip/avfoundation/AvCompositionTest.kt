@@ -134,7 +134,7 @@ class AvCompositionTest {
   }
 
   @Test
-  fun `writes a flat gain below unity as a single volume`() {
+  fun `writes a flat gain below unity as a ramp across the placement`() {
     val first = fixture("apple_export_a.mp4") ?: return
     val gain = ResolvedGain.constant(0.5f, Duration.ZERO, 500.milliseconds)
 
@@ -144,6 +144,50 @@ class AvCompositionTest {
     val ramp = composition.soleAudioParameters()?.rampAt(Duration.ZERO) ?: error("expected a volume at time zero")
     ramp.start shouldBe 0.5f
     ramp.end shouldBe 0.5f
+    ramp.rangeStart shouldBe Duration.ZERO
+    ramp.rangeLength shouldBe 500.milliseconds
+  }
+
+  // AVFoundation interpolates from a volume point to whatever point comes next, so a constant
+  // written as a bare point slides across its own clip the moment the clip behind it sits at
+  // another level. The two levels here are far enough apart for the slide to show at the middle of
+  // either span.
+  @Test
+  fun `holds each constant clip's own level across its own span`() {
+    val first = fixture("apple_export_a.mp4") ?: return
+    val second = fixture("apple_export_b.mp4") ?: return
+    val clips =
+      listOf(
+        clip(first, Size(640, 360), Duration.ZERO, LEADING),
+        clip(
+          second,
+          Size(480, 270),
+          Duration.ZERO,
+          TRAILING,
+          ResolvedGain.constant(0.4f, Duration.ZERO, TRAILING),
+        ),
+      )
+    val leading = clips[0].gain.constant ?: error("the leading clip should carry a constant")
+    val trailing = clips[1].gain.constant ?: error("the trailing clip should carry a constant")
+
+    val composition = resolved(clips, LEADING + TRAILING)
+    val parameters = composition.soleAudioParameters() ?: error("expected an audio mix")
+
+    listOf(Duration.ZERO, 300.milliseconds, 500.milliseconds).forEach { at ->
+      val ramp = parameters.rampAt(at) ?: error("expected a ramp at $at")
+      ramp.start shouldBe leading
+      ramp.end shouldBe leading
+      ramp.rangeStart shouldBe Duration.ZERO
+      ramp.rangeLength shouldBe LEADING
+    }
+
+    listOf(LEADING, 1_000.milliseconds, 1_400.milliseconds).forEach { at ->
+      val ramp = parameters.rampAt(at) ?: error("expected a ramp at $at")
+      ramp.start shouldBe trailing
+      ramp.end shouldBe trailing
+      ramp.rangeStart shouldBe LEADING
+      ramp.rangeLength shouldBe TRAILING
+    }
   }
 
   // The mapping from a curve's own time onto the composition timeline has to add the clip's
@@ -526,6 +570,11 @@ class AvCompositionTest {
     // How far the composition runs past the track's own laid run, which is the room a pass laid
     // whole and only then measured would have overrun into.
     val BEYOND_THE_RUN = 900.milliseconds
+
+    // Two spans of unequal length, both whole numbers of ticks at the backend's timescale, so a
+    // ramp read back off AVFoundation matches what was written rather than a rounding of it.
+    val LEADING = 600.milliseconds
+    val TRAILING = 900.milliseconds
   }
 }
 
