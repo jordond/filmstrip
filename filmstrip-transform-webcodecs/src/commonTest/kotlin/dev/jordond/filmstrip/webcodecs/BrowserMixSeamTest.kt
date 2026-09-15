@@ -3,12 +3,26 @@
 package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.capability.AudioEncoderCapability
+import dev.jordond.filmstrip.capability.DeviceCapabilities
+import dev.jordond.filmstrip.capability.VideoEncoderCapability
+import dev.jordond.filmstrip.edit.AudioLevel
+import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.Clip
+import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.AudioFormat
+import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.VideoCodec
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.transform.internal.GainSegment
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
@@ -17,6 +31,8 @@ import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.webcodecs.BrowserMixSeamTest.Companion.MAX_STEP
 import dev.jordond.filmstrip.webcodecs.internal.AudioBuffer
 import dev.jordond.filmstrip.webcodecs.internal.BrowserAudioMix
+import dev.jordond.filmstrip.webcodecs.internal.BrowserPlanner
+import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
 import dev.jordond.filmstrip.webcodecs.internal.DecodeCache
 import dev.jordond.filmstrip.webcodecs.internal.Float32Array
 import dev.jordond.filmstrip.webcodecs.internal.OfflineAudioContext
@@ -28,6 +44,8 @@ import kotlin.math.roundToInt
 import kotlin.math.sqrt
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -134,6 +152,230 @@ class BrowserMixSeamTest {
       assertTrue(rms(samples, middle, size) > SILENCE, "the looped mix was silent, so nothing was decoded")
       assertEquals(1, decoded.decodes, "$LOOP_PASSES passes of one clip cost ${decoded.decodes} decodes")
     }
+
+  /**
+   * One trimmed clip on a looping track that opens late, under a track fade written over the whole
+   * run. Every pass has to sound at the level the plan folded for where that pass falls in the
+   * fade, and the run has to stop where the composition does rather than at the end of a pass.
+   *
+   * The two readings inside the ramp sit a quarter and three quarters along it, since a reading at
+   * its midpoint agrees with a curve that is off by a factor as well as with the right one.
+   */
+  @Test
+  fun aLoopingBedFollowsItsTrackFadeThroughEveryPass() =
+    runTest {
+      val bed = MediaSource.Bytes(makeClipWithAudio(frames = BED_FRAMES, sampleRate = SOURCE_RATE))
+      val composition =
+        EditComposition(
+          tracks =
+            listOf(
+              Track(listOf(Clip(silentPrimary(), trim = TimeRange.of(Duration.ZERO, RUN)))),
+              Track(
+                clips = listOf(Clip(bed, trim = TimeRange.of(FADED_FROM, FADED_TO))),
+                content = TrackContent.Audio,
+                start = FADED_OPENS,
+                looping = true,
+                fadeIn = TRACK_FADE,
+              ),
+            ),
+          audio = AudioSpec.Keep,
+        )
+      val mix = mixOf(composition)
+
+      assertEquals(RUN, mix.duration)
+      assertEquals(FADED_OFFSETS, mix.laid.map { (it.span.start - FADED_OPENS).inWholeMilliseconds })
+      assertEquals(FADED_CUT, mix.laid.last().duration)
+      assertEquals(framesOf(RUN), mix.faded.length)
+
+      // A planner that restarted the ramp in every pass would fold each of them the same way and
+      // the mix would agree with it, so what says the fade is one ramp over the whole run is that
+      // each pass opens on the gain the pass before it closed on.
+      mix.laid.zipWithNext { earlier, later ->
+        val closes = earlier.gain.gainAt(earlier.duration)
+        val opens = later.gain.gainAt(Duration.ZERO)
+        assertTrue(
+          abs(opens - closes) < ResolvedGain.PRODUCT_TOLERANCE,
+          "a pass closed on $closes and the next opened on $opens, so the fade restarted",
+        )
+      }
+
+      val beforeTheBed = mix.laid[0].span.start - LEAD_IN
+      assertTrue(rmsAt(mix.faded, beforeTheBed) <= SILENCE, "the bed sounded at $beforeTheBed, before its track opens")
+      assertLevelAt(mix, pass = 0, into = 750.milliseconds)
+      assertLevelAt(mix, pass = 1, into = 550.milliseconds)
+      assertLevelAt(mix, pass = 2, into = 400.milliseconds)
+      assertLevelAt(mix, pass = 3, into = 1_100.milliseconds)
+    }
+
+  /**
+   * Two clips on one looping track, told apart by the level the plan folded for each of them. Every
+   * pass lays the loud clip then the quiet one, and the run cuts the loud one short in the last
+   * pass.
+   *
+   * The quiet clip is read in two different passes, which is what separates a track laid pass by
+   * pass from one that played its first pass and stopped.
+   */
+  @Test
+  fun eachClipOfALoopingBedKeepsItsOwnLevelInEveryPass() =
+    runTest {
+      val bed = MediaSource.Bytes(makeClipWithAudio(frames = BED_FRAMES, sampleRate = SOURCE_RATE))
+      val composition =
+        EditComposition(
+          tracks =
+            listOf(
+              Track(listOf(Clip(silentPrimary(), trim = TimeRange.of(Duration.ZERO, RUN)))),
+              Track(
+                clips =
+                  listOf(
+                    Clip(bed, trim = TimeRange.of(Duration.ZERO, LOUD_TO)),
+                    Clip(bed, trim = TimeRange.of(QUIET_FROM, QUIET_TO), audio = AudioLevel.Volume(QUIET_LEVEL)),
+                  ),
+                content = TrackContent.Audio,
+                start = PAIR_OPENS,
+                looping = true,
+              ),
+            ),
+          audio = AudioSpec.Keep,
+        )
+      val mix = mixOf(composition)
+
+      assertEquals(RUN, mix.duration)
+      assertEquals(PAIR_OFFSETS, mix.laid.map { (it.span.start - PAIR_OPENS).inWholeMilliseconds })
+      assertEquals(PAIR_CUT, mix.laid.last().duration)
+      assertEquals(framesOf(RUN), mix.faded.length)
+
+      // Two ways this fails: the bed going silent after its first pass, which the tone reading
+      // catches, and the quiet clip playing over the loud one rather than after it, which reads as
+      // the two summed rather than as the quieter alone and so misses the level the plan folded.
+      val loud = assertLevelAt(mix, pass = 2, into = 500.milliseconds)
+      assertTrue(rmsAt(mix.faded, loud) > SILENCE, "the bed went silent at $loud, after its first pass")
+      assertLevelAt(mix, pass = 3, into = 600.milliseconds)
+      assertLevelAt(mix, pass = 5, into = 500.milliseconds)
+      assertLevelAt(mix, pass = 6, into = 500.milliseconds)
+    }
+
+  /**
+   * The bed track as the planner laid it, and that plan mixed twice: once at the gains it folded,
+   * and once with every one of them at unity.
+   */
+  private class LaidMix(
+    val laid: List<ResolvedClip>,
+    val duration: Duration,
+    val faded: Float32Array,
+    val flat: Float32Array,
+  )
+
+  /**
+   * Plans [composition] the way an export does and mixes what it laid, so every expectation below
+   * is the planner's own rather than a number written out again here.
+   */
+  private suspend fun mixOf(composition: EditComposition): LaidMix {
+    val lowering =
+      BrowserPlanner(listOf(BuiltInEffectResolver())).lower(
+        composition = composition,
+        spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac),
+        device = MIX_DEVICE,
+        infos = probed(composition),
+      )
+    val render = assertNotNull(lowering.render, "the looping composition lowered to no render")
+    val tracks = render.audioTracks
+    return LaidMix(
+      laid = tracks[BED_TRACK].clips,
+      duration = render.duration,
+      faded = mixed(tracks, render.duration),
+      flat = mixed(tracks.atUnity(), render.duration),
+    )
+  }
+
+  /**
+   * Asserts the gain the mix applied [into] pass [pass] is the one the plan folded there, and hands
+   * back the instant it read so a caller measuring the same place again spells the pass once.
+   *
+   * The instant comes off the slot the planner laid rather than being worked out here. The reading
+   * is the ratio of this mix's block energy to the same block of the same schedule at unity, which
+   * divides the tone, the codec and the resampler back out and leaves the gain. The fixtures carry
+   * one tone between them, so a level is what tells two clips apart here rather than a frequency.
+   */
+  private fun assertLevelAt(
+    mix: LaidMix,
+    pass: Int,
+    into: Duration,
+  ): Duration {
+    val at = mix.laid[pass].span.start + into
+    val reference = rmsAt(mix.flat, at)
+    assertTrue(reference > SILENCE, "the same schedule at unity carried no tone at $at, so nothing there reads a gain")
+
+    val measured = rmsAt(mix.faded, at) / reference
+    val expected = mix.laid[pass].gain.gainAt(into)
+    assertTrue(
+      abs(measured - expected) < MAX_GAIN_DRIFT,
+      "the mix read $measured at $at, and pass $pass of the plan folds to $expected $into in",
+    )
+    return at
+  }
+
+  /**
+   * A clip long enough to hold the composition open for the whole run, carrying no audio track of
+   * its own. The fixtures here have one tone between them, so a primary that sounded would be
+   * measured along with the bed rather than under it.
+   */
+  private suspend fun silentPrimary(): MediaSource =
+    MediaSource.Bytes(makeClip(frames = PRIMARY_FRAMES, frameRate = PRIMARY_RATE))
+
+  private suspend fun probed(composition: EditComposition): Map<MediaSource, MediaInfo> {
+    val prober = BrowserProber()
+    return composition.tracks
+      .flatMap { it.clips }
+      .map { it.source }
+      .distinct()
+      .associateWith { source -> assertIs<ProbeResult.Success>(prober.probe(source)).info }
+  }
+
+  /**
+   * The same schedule with every laid gain at unity, which is what a reading is divided by.
+   */
+  private fun List<ResolvedTrack>.atUnity(): List<ResolvedTrack> =
+    map { track ->
+      ResolvedTrack(
+        content = track.content,
+        looping = track.looping,
+        start = track.start,
+        clips =
+          track.clips.map { clip ->
+            ResolvedClip(
+              source = clip.source,
+              info = clip.info,
+              start = clip.start,
+              end = clip.end,
+              effects = clip.effects,
+              gain = ResolvedGain.constant(1f, Duration.ZERO, clip.duration),
+              startsAtKeyFrame = clip.startsAtKeyFrame,
+              span = clip.span,
+              sourceIndex = clip.sourceIndex,
+            )
+          },
+      )
+    }
+
+  private suspend fun mixed(
+    tracks: List<ResolvedTrack>,
+    duration: Duration,
+  ): Float32Array {
+    val sources = SourceCache()
+    try {
+      val windows = mutableListOf<AudioBuffer>()
+      BrowserAudioMix.mixInto(
+        tracks = tracks,
+        format = AudioFormat(sampleRate = OUTPUT_RATE, channelCount = 1),
+        duration = duration,
+        sources = sources,
+        window = WINDOW,
+      ) { windows += it }
+      return joined(windows)
+    } finally {
+      sources.close()
+    }
+  }
 
   /**
    * One short window of [source] laid down [LOOP_PASSES] times, the way the planner lays a looping
@@ -326,7 +568,20 @@ class BrowserMixSeamTest {
     return sqrt(sum / size).toFloat()
   }
 
-  private fun expectedFrames(): Int = (MIX_DURATION.toDouble(DurationUnit.SECONDS) * OUTPUT_RATE).roundToInt()
+  /**
+   * The energy of one block centred on [at], which is what a reading at an instant measures.
+   */
+  private fun rmsAt(
+    samples: Float32Array,
+    at: Duration,
+  ): Float {
+    val size = framesOf(GAIN_BLOCK)
+    return rms(samples, framesOf(at) - size / 2, size)
+  }
+
+  private fun framesOf(duration: Duration): Int = (duration.toDouble(DurationUnit.SECONDS) * OUTPUT_RATE).roundToInt()
+
+  private fun expectedFrames(): Int = framesOf(MIX_DURATION)
 
   private companion object {
     const val OUTPUT_RATE = 48_000
@@ -380,5 +635,48 @@ class BrowserMixSeamTest {
     // A gain node applies its ramp sample by sample, so what is left here is what a block's energy
     // reading costs rather than anything the automation did.
     const val MAX_GAIN_DRIFT = 0.02f
+
+    // The looping cases every backend runs, at the lengths they all share so a divergence shows.
+    // No two of a track's opening, its pass and the composition divide evenly, and the last pass is
+    // always cut, so a backend that laid whole passes or rounded one off lands somewhere else.
+    val RUN = 7_300.milliseconds
+    const val BED_TRACK = 1
+
+    // How far ahead of the first pass the mix is read for a bed that should not be there yet, clear
+    // of both the composition's own start and the pass's.
+    val LEAD_IN = 400.milliseconds
+
+    // Three seconds of bed at thirty frames a second, and a primary long enough to hold the
+    // composition open for the whole run.
+    const val BED_FRAMES = 90
+    const val PRIMARY_FRAMES = 80
+    const val PRIMARY_RATE = 10
+
+    // Case 1: one clip, opening late, under a fade written over the whole run.
+    val FADED_OPENS = 700.milliseconds
+    val FADED_FROM = 200.milliseconds
+    val FADED_TO = 1_900.milliseconds
+    val TRACK_FADE = 3.seconds
+    val FADED_OFFSETS = listOf(0L, 1_700L, 3_400L, 5_100L)
+    val FADED_CUT = 1_500.milliseconds
+
+    // Case 2: two clips of one source, told apart by the level the second carries.
+    val PAIR_OPENS = 500.milliseconds
+    val LOUD_TO = 1_100.milliseconds
+    val QUIET_FROM = 1_400.milliseconds
+    val QUIET_TO = 2_300.milliseconds
+    const val QUIET_LEVEL = 0.4f
+    val PAIR_OFFSETS = listOf(0L, 1_100L, 2_000L, 3_100L, 4_000L, 5_100L, 6_000L)
+    val PAIR_CUT = 800.milliseconds
+
+    // Enough for the planner to settle on a transcode with a mix, which is the path an export
+    // carrying a bed takes. Nothing here is measured, so the ladder's own picks never show.
+    val MIX_DEVICE =
+      DeviceCapabilities(
+        video = listOf(VideoEncoderCapability(VideoCodec.H264, null, Size(3840, 2160), null, null, false, 2)),
+        audio = listOf(AudioEncoderCapability(AudioCodec.Aac, listOf(OUTPUT_RATE), 2)),
+        supportsHdrEncoding = false,
+        concurrentSessionBudget = null,
+      )
   }
 }

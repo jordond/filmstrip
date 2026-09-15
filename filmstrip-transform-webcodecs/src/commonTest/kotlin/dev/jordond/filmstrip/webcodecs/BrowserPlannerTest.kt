@@ -685,6 +685,68 @@ class BrowserPlannerTest {
     )
   }
 
+  /**
+   * A looping video primary under a longer audio-only track, which is case 3 of the looping suite
+   * every backend runs.
+   *
+   * The render draws the passes the planner laid rather than repeating one clip of its own, so what
+   * is drawn has to be the laid list: the same count, the same slots, and a last pass cut where the
+   * composition ends. There is no encoder here to write the picture, so the passes are pinned on
+   * the render instead of read back out of a file.
+   */
+  @Test
+  fun aLoopingPrimaryDrawsEveryPassThePlannerLaid() {
+    val bed = Clip(source("bed"), trim = TimeRange(LOOP_FROM, LOOP_TO))
+    val under = Clip(source("under"), trim = TimeRange(Duration.ZERO, LOOP_RUN))
+    val tone = AudioTrackInfo(trackCodecOf("mp4a"), 48_000, 2, null)
+    val lowering =
+      planner.lower(
+        composition =
+          EditComposition(
+            tracks =
+              listOf(
+                Track(listOf(bed), looping = true),
+                Track(listOf(under), content = TrackContent.Audio),
+              ),
+            audio = AudioSpec.Keep,
+          ),
+        spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac),
+        device = device(VideoCodec.H264, audio = listOf(AudioEncoderCapability(AudioCodec.Aac, listOf(48_000), 2))),
+        infos =
+          mapOf(
+            bed.source to info(width = 320, height = 240, duration = LOOP_SOURCE, audio = tone),
+            under.source to info(duration = UNDER_SOURCE, audio = tone),
+          ),
+      )
+
+    assertIs<Verdict.Capable>(lowering.verdict)
+    val render = assertNotNull(lowering.render)
+    assertEquals(LOOP_RUN, render.duration)
+
+    // The schedule by name first, so a wrong pass count or an uncut last pass fails before any
+    // geometry is compared.
+    val laid = render.audioTracks.first().clips
+    assertEquals(LOOP_OFFSETS, laid.map { it.span.start.inWholeMilliseconds })
+    assertEquals(LOOP_CUT, laid.last().duration)
+
+    // And the drawn clips against the laid ones rather than against those numbers again, since a
+    // render working the repeat out for itself is what this pins.
+    assertEquals(laid.size, render.clips.size)
+    laid.forEachIndexed { index, pass ->
+      val drawn = render.clips[index]
+      assertEquals(bed.source, drawn.source, "pass $index")
+      assertEquals(micros(pass.span.start), drawn.offsetUs, "pass $index")
+      assertEquals(micros(pass.start), drawn.trimStartUs, "pass $index")
+      assertEquals(micros(pass.end), drawn.trimEndUs, "pass $index")
+    }
+
+    // The track underneath does not loop, so it lays its one clip once across the whole run and
+    // nothing about the primary's repeat reaches it.
+    val beneath = render.audioTracks[1].clips.single()
+    assertEquals(Duration.ZERO, beneath.span.start)
+    assertEquals(LOOP_RUN, beneath.span.endExclusive)
+  }
+
   @Test
   fun secondVideoTrackIsRefused() {
     val composition =
@@ -713,6 +775,9 @@ class BrowserPlannerTest {
   }
 
   private fun matrixOf(spec: EffectSpec): FloatArray = checkNotNull(colorMatrixOf(spec)).toColumnMajor4x4()
+
+  // The render carries its times as WebCodecs microseconds, so a laid clip is compared in those.
+  private fun micros(duration: Duration): Double = duration.inWholeMicroseconds.toDouble()
 
   // Column-major on both sides, so a row lands at a stride of four, the layout the uniform takes.
   private fun compositionOf(
@@ -779,6 +844,17 @@ class BrowserPlannerTest {
     // The sync sample a copy would open on, four hundred milliseconds back from the cut, with a
     // tolerance either side of that gap so neither answer is the one a broken snap gives anyway.
     val OPENING = 300.milliseconds
+
+    // Case 3 of the looping suite every backend runs, at the lengths they all share. No two of the
+    // trim, the pass and the run divide evenly, so a render that rounded a pass off lands
+    // somewhere else, and the fourth pass is cut well short of a whole one.
+    val LOOP_FROM = 100.milliseconds
+    val LOOP_TO = 1_600.milliseconds
+    val LOOP_RUN = 5_300.milliseconds
+    val LOOP_CUT = 800.milliseconds
+    val LOOP_OFFSETS = listOf(0L, 1_500L, 3_000L, 4_500L)
+    val LOOP_SOURCE = 3_000.milliseconds
+    val UNDER_SOURCE = 12_000.milliseconds
     val REACHES = 600.milliseconds
     val FALLS_SHORT = 200.milliseconds
 
