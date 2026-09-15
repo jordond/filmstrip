@@ -9,12 +9,14 @@ import dev.jordond.filmstrip.avfoundation.internal.copyFormatDescription
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.color.brightness
 import dev.jordond.filmstrip.effects.color.contrast
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.geometry.scale
+import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
@@ -26,11 +28,15 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.chainedProber
+import dev.jordond.filmstrip.test.ToneAnalysis
 import dev.jordond.filmstrip.transform.internal.ResolveResult
+import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CompletableDeferred
@@ -607,6 +613,199 @@ class AppleExportTest {
       remove(output)
     }
 
+  /**
+   * Every pass the plan laid, read back out of the written file rather than only the one instant
+   * the test above reaches.
+   *
+   * The bed's trim, the track's offset and the composition's length divide into each other nowhere,
+   * so the last pass is always cut and no reading sits near a pass boundary. The track's fade covers
+   * the whole run instead of restarting each pass, and the readings a quarter and three quarters
+   * along it are what separate the two: a fade replayed per pass opens pass two at silence where
+   * this one opens well up the ramp.
+   */
+  @Test
+  fun `measures every pass of a looping bed against the gain the plan laid`() =
+    runTest(timeout = TIMEOUT) {
+      val long = fixture("apple_export_long.mp4") ?: return@runTest
+      val bed = fixture("tone_bed_880.mp4") ?: return@runTest
+
+      val composition =
+        compositionOf {
+          clip(MediaSource.of(long)) { trim(ONE_CLIP_PRIMARY) }
+          track(TrackContent.Audio) {
+            clip(MediaSource.of(bed)) { trim(ONE_CLIP_TRIM) }
+            startAt(ONE_CLIP_START)
+            fadeIn(ONE_CLIP_FADE_IN)
+            looping()
+          }
+        }
+      val spec = ExportSpec(targetHeight = 240)
+
+      val resolved = resolved(composition, spec)
+      val laid = resolved.tracks.single { it.content == TrackContent.Audio }.clips
+      val primary =
+        resolved.tracks
+          .single { it.content != TrackContent.Audio }
+          .clips
+          .single()
+
+      // Asserted before a sample is measured, so a schedule that laid the wrong passes fails by
+      // name rather than as a level that missed.
+      laid.map { it.span } shouldBe ONE_CLIP_SPANS
+      assertFadeCarriesAcross(laid)
+
+      val output = temporaryPath("loop-passes")
+      assertRunsFor(loopExported(composition, spec, output), resolved.duration)
+
+      val audio = audioOf(output)
+      val fixtures = fixtureRatio(bed, long)
+      ONE_CLIP_READINGS.forEach { (pass, into) ->
+        assertBedLevel(audio, fixtures, laid[pass], primary, into, "pass ${pass + 1}")
+      }
+
+      // Before the track opens the bed contributes nothing, held to the same tolerance every
+      // reading against a folded gain is.
+      val before = audio.bedAgainstPrimary(ONE_CLIP_QUIET)
+      assertTrue(
+        before <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
+        "the bed read $before at $ONE_CLIP_QUIET, before its ${laid.first().span.start} start",
+      )
+
+      remove(output)
+    }
+
+  /**
+   * Two clips on one looping track, told apart by a clip volume rather than by frequency, since
+   * there is only one bed tone to go round.
+   *
+   * Every pass lays A then B, so a reading inside B says the writer kept the two in order and cut
+   * the run where the plan did rather than laying each clip on a loop of its own.
+   */
+  @Test
+  fun `keeps two looping clips apart at the levels the plan laid`() =
+    runTest(timeout = TIMEOUT) {
+      val long = fixture("apple_export_long.mp4") ?: return@runTest
+      val bed = fixture("tone_bed_880.mp4") ?: return@runTest
+
+      val composition =
+        compositionOf {
+          clip(MediaSource.of(long)) { trim(ONE_CLIP_PRIMARY) }
+          track(TrackContent.Audio) {
+            clip(MediaSource.of(bed)) { trim(TWO_CLIP_A) }
+            clip(MediaSource.of(bed)) {
+              trim(TWO_CLIP_B)
+              audio(AudioLevel.Volume(TWO_CLIP_B_GAIN))
+            }
+            startAt(TWO_CLIP_START)
+            looping()
+          }
+        }
+      val spec = ExportSpec(targetHeight = 240)
+
+      val resolved = resolved(composition, spec)
+      val laid = resolved.tracks.single { it.content == TrackContent.Audio }.clips
+      val primary =
+        resolved.tracks
+          .single { it.content != TrackContent.Audio }
+          .clips
+          .single()
+      laid.map { it.span } shouldBe TWO_CLIP_SPANS
+
+      val output = temporaryPath("loop-two-clips")
+      assertRunsFor(loopExported(composition, spec, output), resolved.duration)
+
+      val audio = audioOf(output)
+      val fixtures = fixtureRatio(bed, long)
+
+      // A writer that stopped after the first pass leaves silence from here on, which the levels
+      // below would report as a gain that missed rather than as a bed that never arrived.
+      val (firstPass, firstInto) = TWO_CLIP_READINGS.first()
+      val present = audio.bedAgainstPrimary(laid[firstPass].span.start + firstInto)
+      assertTrue(
+        present > ToneAnalysis.MEASURED_GAIN_TOLERANCE,
+        "the bed read $present a pass past its own end, where it should still be playing",
+      )
+
+      TWO_CLIP_READINGS.forEach { (index, into) ->
+        val clip = if (laid[index].sourceIndex == 0) "clip A" else "clip B"
+        assertBedLevel(audio, fixtures, laid[index], primary, into, "pass ${index / 2 + 1}, $clip")
+      }
+
+      remove(output)
+    }
+
+  /**
+   * A looping video primary under a longer audio-only track, the case where the loop has to carry
+   * pictures as well as samples.
+   *
+   * Before the passes were laid the writer ran the primary once and left the fill from there on, so
+   * the frame inside the third pass is as much of the assertion as the tone is.
+   */
+  @Test
+  fun `loops a video primary under a longer audio track`() =
+    runTest(timeout = TIMEOUT) {
+      val long = fixture("apple_export_long.mp4") ?: return@runTest
+      val bed = fixture("tone_bed_880.mp4") ?: return@runTest
+
+      val composition =
+        compositionOf {
+          // Written as a track rather than as a primary clip, since only a track carries looping
+          // and the builder promotes a leading track to the primary one.
+          track {
+            clip(MediaSource.of(bed)) { trim(LOOP_VIDEO_TRIM) }
+            looping()
+          }
+          track(TrackContent.Audio) {
+            clip(MediaSource.of(long)) { trim(LOOP_VIDEO_TONE) }
+          }
+        }
+      val spec = ExportSpec(targetHeight = 240)
+
+      val resolved = resolved(composition, spec)
+      val laid = resolved.tracks.single { it.content != TrackContent.Audio }.clips
+      val tone =
+        resolved.tracks
+          .single { it.content == TrackContent.Audio }
+          .clips
+          .single()
+      laid.map { it.span } shouldBe LOOP_VIDEO_SPANS
+
+      val output = temporaryPath("loop-video")
+      assertRunsFor(loopExported(composition, spec, output), resolved.duration)
+
+      val audio = audioOf(output)
+      val fixtures = fixtureRatio(bed, long)
+      LOOP_VIDEO_READINGS.forEach { (pass, into) ->
+        assertBedLevel(audio, fixtures, laid[pass], tone, into, "pass ${pass + 1}")
+      }
+
+      // The audio-only track holds one level for the whole composition, so its own tone cannot move
+      // across the readings. A track laid only as far as the primary's first pass reads nothing at
+      // the later ones, which every ratio above would report as the loop being wrong instead.
+      val reference = audio.toneAt(LOOP_VIDEO_REFERENCE, PRIMARY_HZ)
+      LOOP_VIDEO_READINGS.forEach { (pass, into) ->
+        val at = laid[pass].span.start + into
+        val held = audio.toneAt(at, PRIMARY_HZ) / reference
+        assertTrue(
+          abs(held - 1f) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
+          "at $at the audio track read $held of the level it holds at $LOOP_VIDEO_REFERENCE",
+        )
+      }
+
+      // The picture inside a later pass, which is the bed's own pattern rather than the flat colour
+      // a composition with nothing laid on it falls back to.
+      val (picturePass, pictureInto) = LOOP_VIDEO_READINGS.first()
+      val pictureAt = laid[picturePass].span.start + pictureInto
+      val fixtureSpread = spreadOf(frameOf(bed, LOOP_VIDEO_TRIM.start + pictureInto))
+      val spread = spreadOf(frameOf(output, pictureAt))
+      assertTrue(
+        spread >= fixtureSpread * PICTURE_SPREAD_FLOOR,
+        "the frame at $pictureAt spans $spread against the fixture's own $fixtureSpread, so it carries the fill",
+      )
+
+      remove(output)
+    }
+
   @Test
   fun `streams progress that only ever climbs`() =
     runTest(timeout = TIMEOUT) {
@@ -736,6 +935,150 @@ class AppleExportTest {
     }
 
   /**
+   * Exports [composition] to [output] and hands back what the written file says about itself.
+   *
+   * Scaling the long fixture to the spec's target height can land between two widths VideoToolbox
+   * accepts, which the planner reports as an adjustment and which none of the looping tests
+   * measures. That one is let through and every other kind is not.
+   */
+  private suspend fun loopExported(
+    composition: EditComposition,
+    spec: ExportSpec,
+    output: String,
+  ): MediaInfo =
+    withContext(Dispatchers.Default) {
+      when (val verdict = filmstrip.plan(composition, spec)) {
+        is Verdict.Incapable -> {
+          error(verdict.reasons.joinToString { it.message })
+        }
+        is Verdict.Capable -> {
+        }
+        is Verdict.Degraded -> {
+          assertTrue(
+            verdict.adjustments.all { it.kind == AdjustmentKind.ResolutionClamped },
+            "the plan degraded for more than the frame: ${verdict.adjustments.map { it.message }}",
+          )
+        }
+      }
+
+      val statuses = filmstrip.export(composition, spec, MediaSink.of(output)).toList()
+      when (val finished = statuses.last()) {
+        is ExportStatus.Failure -> error(finished.error.message)
+        else -> assertIs<ExportStatus.Success>(finished).info
+      }
+    }
+
+  /**
+   * Asserts [written] runs for as long as [planned], to within one frame of the output.
+   *
+   * A looping track that laid its last pass whole rather than cutting it overruns by the rest of
+   * that pass, most of a second here, so one frame separates the two without pinning how much
+   * padding the writer put at the end.
+   */
+  private fun assertRunsFor(
+    written: MediaInfo,
+    planned: Duration,
+  ) {
+    val frame = 1.seconds / (written.video?.frameRate?.toDouble() ?: OUTPUT_FRAME_RATE)
+    val overrun = written.duration - planned
+    assertTrue(
+      abs(overrun.inWholeMicroseconds) <= frame.inWholeMicroseconds,
+      "the file runs for ${written.duration} against the planned $planned, out by $overrun on a $frame frame",
+    )
+  }
+
+  /**
+   * Asserts each of [laid] opens on the gain the pass before it closed on.
+   *
+   * This is the whole difference between a track fade measured over the run and one replayed every
+   * pass, and it is read off the plan rather than out of the file because a fade that restarts is
+   * already wrong before anything is encoded.
+   */
+  private fun assertFadeCarriesAcross(laid: List<ResolvedClip>) {
+    laid.zipWithNext { earlier, later ->
+      val closed = earlier.gain.gainAt(earlier.duration)
+      val opened = later.gain.gainAt(Duration.ZERO)
+      assertTrue(
+        abs(opened - closed) <= ResolvedGain.PRODUCT_TOLERANCE,
+        "a pass opened at $opened where the one before it closed at $closed, so the fade restarted",
+      )
+    }
+  }
+
+  /**
+   * Asserts the bed reads at [clip]'s laid gain [into] that clip, against the 440 Hz track's own
+   * level at the same instant.
+   *
+   * Where on the composition clock that lands comes off the laid span rather than being written
+   * out here, so the level measured and the gain sampled cannot drift apart. Either curve is
+   * measured from zero at its own clip's start, so [against] is sampled at the instant less that
+   * clip's own span start.
+   */
+  private fun assertBedLevel(
+    audio: AudioProbe,
+    fixtures: Float,
+    clip: ResolvedClip,
+    against: ResolvedClip,
+    into: Duration,
+    what: String,
+  ) {
+    assertTrue(into < clip.duration, "$into runs past $what, which is ${clip.duration} long")
+    val at = clip.span.start + into
+    val expected = fixtures * (clip.gain.gainAt(into) / against.gain.gainAt(at - against.span.start))
+    val measured = audio.bedAgainstPrimary(at)
+    assertTrue(
+      abs(measured - expected) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
+      "at $at, $into into $what, the bed read $measured against $expected from the laid gain",
+    )
+  }
+
+  /**
+   * How loud the bed fixture's tone is against the long fixture's, so how loud either was generated
+   * divides out of every reading taken from the mix.
+   */
+  private fun fixtureRatio(
+    bed: String,
+    primary: String,
+  ): Float = audioOf(bed).toneAt(FIXTURE_READING, BED_HZ) / audioOf(primary).toneAt(FIXTURE_READING, PRIMARY_HZ)
+
+  /**
+   * The 880 Hz tone measured against the 440 Hz one at the same instant.
+   *
+   * Every level is read as a ratio of the two because an AAC round trip attenuates the whole mix,
+   * and an absolute reading would be pinning the codec rather than the gain.
+   */
+  private fun AudioProbe.bedAgainstPrimary(at: Duration): Float = toneAt(at, BED_HZ) / toneAt(at, PRIMARY_HZ)
+
+  /**
+   * How much of [frequencyHz] the file carries around [at].
+   *
+   * The window is centred on [at] rather than opened there, because a reading taken across a ramp
+   * is the mean gain over the window and a linear ramp's mean sits at its middle. Anchoring the
+   * window's start instead would read a fade high by half the window's own rise.
+   */
+  private fun AudioProbe.toneAt(
+    at: Duration,
+    frequencyHz: Int,
+  ): Float = toneOver(at - TONE_WINDOW / 2, TONE_WINDOW, frequencyHz)
+
+  /**
+   * How far apart the lightest and darkest of a grid of samples across [frame] sit.
+   *
+   * A fill is one flat colour and reads near nothing here, where the fixture's own pattern spans
+   * most of the range, so this says whether a frame carries a picture at all. A grid rather than
+   * every pixel because a few dozen points already separate a pattern from a flat colour.
+   */
+  private fun spreadOf(frame: FrameProbe): Int {
+    val samples =
+      (0 until PICTURE_GRID).flatMap { row ->
+        (0 until PICTURE_GRID).map { column ->
+          luminance(frame.at((column + HALF) / PICTURE_GRID, (row + HALF) / PICTURE_GRID))
+        }
+      }
+    return samples.max() - samples.min()
+  }
+
+  /**
    * The graph an export of [composition] runs, which is where the folded gain a backend consumes
    * lives.
    *
@@ -831,5 +1174,102 @@ class AppleExportTest {
     const val AUDIBLE = 0.02f
     const val SILENT = 0.15f
     const val GAIN_TOLERANCE = 0.05f
+
+    // A hundred milliseconds, eighty-eight cycles of the bed's tone. Long enough for the two
+    // frequencies to separate cleanly and short enough to sit well inside one pass.
+    val TONE_WINDOW = 100.milliseconds
+
+    // Inside both fixtures, where each holds its own steady tone.
+    val FIXTURE_READING = 500.milliseconds
+
+    // The fixtures' own rate, read only when a written file names none.
+    const val OUTPUT_FRAME_RATE = 30.0
+
+    // Every length below is shared with the other backends' looping tests, so a lowering that
+    // disagrees about a pass fails the same reading in more than one suite. None of them divides
+    // evenly into any other, which is what keeps the last pass cut and every reading clear of a
+    // pass boundary by more than the measurement window.
+    val ONE_CLIP_PRIMARY = TimeRange.of(Duration.ZERO, 7_300.milliseconds)
+
+    // One clip, trimmed off both ends, offset into the composition and looped under it.
+    val ONE_CLIP_TRIM = TimeRange.of(200.milliseconds, 1_900.milliseconds)
+    val ONE_CLIP_START = 700.milliseconds
+
+    // Long enough to cover the first two passes, so the fade is still climbing where pass two opens
+    // and a fade that restarted would read nothing like it.
+    val ONE_CLIP_FADE_IN = 3_000.milliseconds
+    val ONE_CLIP_SPANS =
+      listOf(
+        TimeRange.of(700.milliseconds, 2_400.milliseconds),
+        TimeRange.of(2_400.milliseconds, 4_100.milliseconds),
+        TimeRange.of(4_100.milliseconds, 5_800.milliseconds),
+        TimeRange.of(5_800.milliseconds, 7_300.milliseconds),
+      )
+
+    // Which laid pass each reading falls in and how far into it, which is what puts it on the
+    // composition clock. Taking the instant off the laid span rather than writing it out is what
+    // keeps the level measured and the gain sampled at the same place.
+    //
+    // A quarter and three quarters into the track's fade, then the plateau past it, then the pass
+    // the run cut short.
+    val ONE_CLIP_READINGS =
+      listOf(
+        0 to 750.milliseconds,
+        1 to 550.milliseconds,
+        2 to 400.milliseconds,
+        3 to 1_100.milliseconds,
+      )
+
+    // Before the track opens, where the mix carries the primary alone.
+    val ONE_CLIP_QUIET = 300.milliseconds
+
+    val TWO_CLIP_START = 500.milliseconds
+    val TWO_CLIP_A = TimeRange.of(Duration.ZERO, 1_100.milliseconds)
+    val TWO_CLIP_B = TimeRange.of(1_400.milliseconds, 2_300.milliseconds)
+
+    // Far enough under clip A to tell the two apart at a glance, and far enough off zero that a
+    // clip which arrived muted is not mistaken for it.
+    const val TWO_CLIP_B_GAIN = 0.4f
+    val TWO_CLIP_SPANS =
+      listOf(
+        TimeRange.of(500.milliseconds, 1_600.milliseconds),
+        TimeRange.of(1_600.milliseconds, 2_500.milliseconds),
+        TimeRange.of(2_500.milliseconds, 3_600.milliseconds),
+        TimeRange.of(3_600.milliseconds, 4_500.milliseconds),
+        TimeRange.of(4_500.milliseconds, 5_600.milliseconds),
+        TimeRange.of(5_600.milliseconds, 6_500.milliseconds),
+        TimeRange.of(6_500.milliseconds, 7_300.milliseconds),
+      )
+
+    // Clip A and clip B inside pass two, clip B inside pass three, then the clip A the run cut.
+    val TWO_CLIP_READINGS =
+      listOf(
+        2 to 500.milliseconds,
+        3 to 600.milliseconds,
+        5 to 500.milliseconds,
+        6 to 500.milliseconds,
+      )
+
+    val LOOP_VIDEO_TRIM = TimeRange.of(100.milliseconds, 1_600.milliseconds)
+    val LOOP_VIDEO_TONE = TimeRange.of(Duration.ZERO, 5_300.milliseconds)
+    val LOOP_VIDEO_SPANS =
+      listOf(
+        TimeRange.of(Duration.ZERO, 1_500.milliseconds),
+        TimeRange.of(1_500.milliseconds, 3_000.milliseconds),
+        TimeRange.of(3_000.milliseconds, 4_500.milliseconds),
+        TimeRange.of(4_500.milliseconds, 5_300.milliseconds),
+      )
+    val LOOP_VIDEO_READINGS = listOf(2 to 400.milliseconds, 3 to 400.milliseconds)
+
+    // Inside the first pass, where the audio track's level is read before the loop repeats.
+    val LOOP_VIDEO_REFERENCE = 500.milliseconds
+
+    // How much of the fixture's own range a written frame has to span to count as carrying its
+    // picture. A flat fill spans almost nothing, so half is generous and still nowhere near it.
+    const val PICTURE_SPREAD_FLOOR = 0.5f
+
+    // Points across a frame's width and height, sampled at the middle of each cell.
+    const val PICTURE_GRID = 8
+    const val HALF = 0.5f
   }
 }
