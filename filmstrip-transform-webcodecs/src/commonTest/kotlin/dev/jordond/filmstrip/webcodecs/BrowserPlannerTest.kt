@@ -726,12 +726,14 @@ class BrowserPlannerTest {
     assertEquals(LoopingCases.UNDERLAY_RUN, render.duration)
 
     // The schedule by name first, so a wrong pass count or an uncut last pass fails before any
-    // geometry is compared. It comes off the same function the planner laid with rather than off a
-    // list written out here, which would only say that two people typed the same schedule.
-    val laid = render.audioTracks.first().clips
-    val passes = passesCovering(LoopingCases.VIDEO_LENGTHS, render.duration)
-    assertEquals(passes.map { it.offset }, laid.map { it.span.start })
-    assertEquals(passes.map { it.length }, laid.map { it.duration })
+    // geometry is compared.
+    val track = render.audioTracks.first()
+    val laid = track.clips
+    val expected =
+      passesCovering(LoopingCases.VIDEO_LENGTHS, render.duration - track.start).map { pass ->
+        Triple(pass.index, track.start + pass.offset, track.start + pass.offset + pass.length)
+      }
+    assertEquals(expected, laid.map { Triple(it.sourceIndex, it.span.start, it.span.endExclusive) })
 
     // And the drawn clips against the laid ones rather than against those numbers again, since a
     // render working the repeat out for itself is what this pins.

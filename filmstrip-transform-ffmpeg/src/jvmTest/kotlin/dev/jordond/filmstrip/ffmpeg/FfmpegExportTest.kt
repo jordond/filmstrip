@@ -1500,12 +1500,8 @@ class FfmpegExportTest {
   }
 
   /**
-   * Asserts this track laid the run [passesCovering] derives for [lengths] over a composition of
-   * [duration], each pass pinned by which clip of the track it plays, where it opens and how long it
-   * holds.
-   *
-   * The expectation goes through the same function the planner laid with rather than through a
-   * schedule written out here, which would only say that two people typed the same list.
+   * Pins every laid pass of this track by which clip of the track it plays and by the span it holds,
+   * against the run [passesCovering] derives for [lengths] over a composition of [duration].
    */
   private fun ResolvedTrack.assertLaysPasses(
     lengths: List<Duration>,
@@ -1513,9 +1509,9 @@ class FfmpegExportTest {
   ) {
     val expected =
       passesCovering(lengths, duration - start).map { pass ->
-        Triple(pass.index, start + pass.offset, pass.length)
+        Triple(pass.index, start + pass.offset, start + pass.offset + pass.length)
       }
-    clips.map { Triple(it.sourceIndex, it.span.start, it.duration) } shouldBe expected
+    clips.map { Triple(it.sourceIndex, it.span.start, it.span.endExclusive) } shouldBe expected
   }
 
   /**

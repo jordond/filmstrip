@@ -730,25 +730,21 @@ class AndroidExportTest {
   }
 
   /**
-   * Holds this track's laid clips to the run [passesCovering] derives for [lengths] over a
-   * composition of [duration].
-   *
-   * Every clip is pinned, by which entry of the track it was laid from and by the slot it holds, so
-   * a pass in the wrong place or laid from the wrong clip fails by name before any level is read.
-   * The expectation runs through the same function the planner laid with rather than through a list
-   * written out here, which would only say that two people typed the same schedule.
+   * Pins every laid pass of this track by which clip of the track it plays and by the span it holds,
+   * against the run [passesCovering] derives for [lengths] over a composition of [duration].
    */
   private fun ResolvedTrack.pinSchedule(
     lengths: List<Duration>,
     duration: Duration,
   ) {
-    val fill = if (looping) duration - start else lengths.fold(Duration.ZERO, Duration::plus)
     val expected =
-      passesCovering(lengths, fill).map { Triple(it.index, start + it.offset, start + it.offset + it.length) }
+      passesCovering(lengths, duration - start).map { pass ->
+        Triple(pass.index, start + pass.offset, start + pass.offset + pass.length)
+      }
 
     assertEquals(
       expected,
-      clips.map { Triple(it.sourceIndex, it.span.start, it.span.start + it.duration) },
+      clips.map { Triple(it.sourceIndex, it.span.start, it.span.endExclusive) },
       "the laid clips are not the run passesCovering derives",
     )
   }

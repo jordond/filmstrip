@@ -101,8 +101,8 @@ private val LAYERING: Map<String, Layer> =
       ),
     ":filmstrip-transform" to
       Layer(
-        allowedProjects = setOf(":filmstrip-core", ":filmstrip-effects"),
-        directProjects = setOf(":filmstrip-core", ":filmstrip-effects"),
+        allowedProjects = setOf(":filmstrip-core", ":filmstrip-effects") + TEST_FIXTURES,
+        directProjects = setOf(":filmstrip-core", ":filmstrip-effects") + TEST_FIXTURES,
         forbiddenExternals = COMPOSE + setOf("androidx.media3:media3-transformer"),
         forbiddenImports =
           COMPOSE +
@@ -119,8 +119,10 @@ private val LAYERING: Map<String, Layer> =
       ),
     ":filmstrip-transform-media3" to
       Layer(
-        allowedProjects = setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform"),
-        directProjects = setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform"),
+        allowedProjects =
+          setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform") + TEST_FIXTURES,
+        directProjects =
+          setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform") + TEST_FIXTURES,
         forbiddenExternals = COMPOSE,
         forbiddenImports = COMPOSE + setOf("androidx.media3.exoplayer"),
       ),
@@ -135,16 +137,20 @@ private val LAYERING: Map<String, Layer> =
       ),
     ":filmstrip-transform-webcodecs" to
       Layer(
-        allowedProjects = setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform"),
-        directProjects = setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform"),
+        allowedProjects =
+          setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform") + TEST_FIXTURES,
+        directProjects =
+          setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform") + TEST_FIXTURES,
         forbiddenExternals = COMPOSE + setOf("androidx.media3"),
         forbiddenImports = COMPOSE + setOf("androidx.media3"),
         allowedNpm = setOf("mediabunny"),
       ),
     ":filmstrip-transform-ffmpeg" to
       Layer(
-        allowedProjects = setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform"),
-        directProjects = setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform"),
+        allowedProjects =
+          setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform") + TEST_FIXTURES,
+        directProjects =
+          setOf(":filmstrip-core", ":filmstrip-effects", ":filmstrip-transform") + TEST_FIXTURES,
         forbiddenExternals = COMPOSE + setOf("androidx.media3", "org.bytedeco"),
         forbiddenImports =
           COMPOSE +

@@ -290,18 +290,15 @@ class BrowserMixSeamTest {
   }
 
   /**
-   * Asserts the bed track laid the run [passesCovering] derives for [lengths], each pass pinned by
-   * which clip of the track it plays, where it opens and how long it holds.
-   *
-   * The expectation goes through the same function the planner laid with rather than through a
-   * schedule written out here, which would only say that two people typed the same list.
+   * Pins every laid pass of the bed track by which clip of the track it plays and by the span it
+   * holds, against the run [passesCovering] derives for [lengths] over this mix.
    */
   private fun LaidMix.assertLaysPasses(lengths: List<Duration>) {
     val expected =
       passesCovering(lengths, duration - start).map { pass ->
-        Triple(pass.index, start + pass.offset, pass.length)
+        Triple(pass.index, start + pass.offset, start + pass.offset + pass.length)
       }
-    assertEquals(expected, laid.map { Triple(it.sourceIndex, it.span.start, it.duration) })
+    assertEquals(expected, laid.map { Triple(it.sourceIndex, it.span.start, it.span.endExclusive) })
   }
 
   /**

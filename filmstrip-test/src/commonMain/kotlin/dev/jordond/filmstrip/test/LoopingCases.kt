@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.test
 
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -17,9 +18,11 @@ import kotlin.time.Duration.Companion.milliseconds
  * keeps the last pass cut and every reading clear of a pass boundary. Fixture paths, sample rates
  * and tolerances stay with the suite that measures them.
  */
+@InternalFilmstripApi
 public object LoopingCases {
   private val BED_FROM = 200.milliseconds
   private val BED_TO = 1_900.milliseconds
+  private val LOUD_FROM = Duration.ZERO
   private val LOUD_TO = 1_100.milliseconds
   private val QUIET_FROM = 1_400.milliseconds
   private val QUIET_TO = 2_300.milliseconds
@@ -80,7 +83,7 @@ public object LoopingCases {
   /**
    * The first clip of case two's track, which carries whatever level the track holds.
    */
-  public val LOUD_TRIM: TimeRange = TimeRange.of(Duration.ZERO, LOUD_TO)
+  public val LOUD_TRIM: TimeRange = TimeRange.of(LOUD_FROM, LOUD_TO)
 
   /**
    * The second clip of case two's track, a different length from the first so a pass is neither of
@@ -91,7 +94,7 @@ public object LoopingCases {
   /**
    * The lengths case two's looping track repeats, in the order it lays them.
    */
-  public val PAIR_LENGTHS: List<Duration> = listOf(LOUD_TO, QUIET_TO - QUIET_FROM)
+  public val PAIR_LENGTHS: List<Duration> = listOf(LOUD_TO - LOUD_FROM, QUIET_TO - QUIET_FROM)
 
   /**
    * The volume the second clip of case two carries. Far enough under the first to tell the two apart
@@ -144,6 +147,7 @@ public object LoopingCases {
    * @property pass The index into the laid list, counting every clip of every repeat.
    * @property into How far into that pass the reading sits, on the pass's own clock.
    */
+  @InternalFilmstripApi
   public data class Reading(
     public val pass: Int,
     public val into: Duration,
