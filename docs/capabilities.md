@@ -9,13 +9,10 @@ Legend:
 | ✅     | Implemented.                                                         |
 | ⚠️     | Works, with a documented limit. See the footnote.                    |
 | ❌     | Not implemented. Refused by name at plan time, never silently wrong. |
-| ❗     | Exports without an error, and the result is wrong. See the footnote. |
-| ❔     | Lowered, but no test covers it yet. See the footnote.                |
 
 Nothing in filmstrip is meant to fail silently. An unsupported effect comes back as
 `EffectResolution.Unsupported` with a message, and an unsupported composition comes back as
-`Verdict.Incapable` with a list of `ExportError`s. Some gaps still get past the plan without an
-error, and the footnote on each one says so.
+`Verdict.Incapable` with a list of `ExportError`s.
 
 ## Targets
 
@@ -292,16 +289,16 @@ A composition can carry tracks besides the primary one, and they play alongside 
 it. Every backend draws video from the primary track alone, so an extra track is audio: a music bed, a
 voice over, a sound effect.
 
-| Feature                                    | Android          | Apple           | Browser        | ffmpeg              |
-| ------------------------------------------ | ---------------- | --------------- | -------------- | ------------------- |
-| Extra audio-only track                     | ✅               | ✅              | ✅             | ✅                  |
-| `startAt` on an audio track                | ✅               | ✅              | ✅             | ✅                  |
-| Looping track holding one clip             | ✅               | ❗ [^apple-loop] | ✅             | ❗ [^ffmpeg-loop]    |
-| Looping track holding several clips        | ❔ [^media3-loop] | ❗ [^apple-loop] | ❗ [^web-loop]  | ❗ [^ffmpeg-loop]    |
-| Looping track carrying video               | ❔ [^media3-loop] | ❗ [^apple-loop] | ❗ [^web-loop]  | ❗ [^ffmpeg-loop]    |
-| `AudioLevel` per clip and per track        | ✅               | ✅              | ✅             | ✅                  |
-| `AudioLevel.Envelope`, `fadeIn`, `fadeOut` | ✅               | ✅              | ✅             | ✅ [^ffmpeg-volume] |
-| Second track carrying video                | ❌               | ❌              | ❌             | ❌                  |
+| Feature                                    | Android           | Apple | Browser | ffmpeg              |
+| ------------------------------------------ | ----------------- | ----- | ------- | ------------------- |
+| Extra audio-only track                     | ✅                | ✅    | ✅      | ✅                  |
+| `startAt` on an audio track                | ✅                | ✅    | ✅      | ✅                  |
+| Looping track holding one clip             | ⚠️ [^media3-tail] | ✅    | ✅      | ✅                  |
+| Looping track holding several clips        | ⚠️ [^media3-tail] | ✅    | ✅      | ✅                  |
+| Looping track carrying video               | ⚠️ [^media3-tail] | ✅    | ✅      | ✅ [^ffmpeg-split]  |
+| `AudioLevel` per clip and per track        | ✅                | ✅    | ✅      | ✅                  |
+| `AudioLevel.Envelope`, `fadeIn`, `fadeOut` | ✅                | ✅    | ✅      | ✅ [^ffmpeg-volume] |
+| Second track carrying video                | ❌                | ❌    | ❌      | ❌                  |
 
 ### Tracks
 
@@ -331,41 +328,35 @@ never decides the duration, so a composition where every track loops has nothing
 refused with `ExportError.InvalidComposition`. A clip-only effect on any of its clips is refused by
 name.
 
-Looping is where the backends still disagree. None of the ❗ cells in the table is refused at plan
-time, so the plan does not flag them and the export succeeds with the wrong result. Read the
-footnotes before relying on a loop.
+The planner lays every pass once, from where the track starts until the composition ends, and cuts
+the last pass where it runs past. Every backend lowers that list rather than looping on its own:
+media3 lays the passes into its sequence, AVFoundation inserts each one and stops where the plan
+does, and ffmpeg opens one input per clip and splits it into one branch per pass. The browser
+schedules each pass and walks all of them when it draws, so a looping track carrying video keeps its
+picture the whole way. Nothing bounds the pass count, so a very short clip under a very long
+composition lays a very long list.
 
-A gain curve on a looping track is resolved against one pass. Apple and the browser play it again
-from the top of every pass, so a `fadeIn` on a looping bed fades in each time it repeats. ffmpeg reads
-the curve against the whole run instead, so the fade plays once and every later pass holds the gain it
-ended on. On Android only the first pass has been measured.
+A looping track's audio scope is its whole run. A track `fadeIn` plays once at the start, a track
+`fadeOut` ramps down at the composition's end, and an `EnvelopeAnchor.End` point lands there too. A
+clip's own fade or envelope is read against the clip, so it replays on every pass, and a cut last
+pass stops on whatever its clip curve reads there. All four backends agree, each measured on a
+trimmed clip with an offset, on two clips told apart by their levels, and on a looping video primary.
+ffmpeg and AVFoundation were read back from the written file, media3 from its device suite on an
+emulator, and the browser from its offline mix and its render plan, since the test browser has no
+encoder.
 
-[^media3-loop]:
-    media3 is asked to loop a track that starts at zero, and a track with an offset lays its
-    own passes instead. The only device test runs one trimmed audio clip with an offset, which takes the
-    second path. A looping track holding several clips, or carrying video, is lowered on both paths, but
-    no device test covers either, so whether it comes out right on a device is not confirmed.
+[^media3-tail]:
+    The written file runs a little past the plan's duration, with silence in the tail. The
+    device suite allows one output frame plus one AAC access unit at the file's sample rate: the flush
+    rounds up to a whole output frame, and a clip starting partway through an access unit costs another,
+    since millisecond clipping opens on the unit before the start. On the emulator that measured 27 to
+    48 ms. Every gain reading lands where the plan folded it.
 
-[^apple-loop]:
-    AVFoundation lays a looping track down a whole pass at a time until it reaches the end
-    of the composition, and does not cut the last pass short. The reader is not bounded to the plan's
-    duration either, so when a pass does not land exactly on the end the file runs on past it by
-    whatever is left of that pass, and the `MediaInfo` on `ExportStatus.Success` reports the longer
-    length. Trims, several clips and video all repeat correctly up to that point.
-
-[^ffmpeg-loop]:
-    Every clip on a looping track is opened with `-stream_loop -1`, which carries each later
-    pass at timestamps past the first. A track holding one untrimmed clip is left unwindowed and repeats
-    for the whole run. A trimmed clip, or a track holding more than one, still gets an `atrim` for the
-    clip's own window, so only the first pass reaches the mix and the track goes silent after it. Video
-    takes no such exemption: a looping track carrying video writes a `trim` for every clip, so the
-    picture stops after one pass. Loop a track that carries audio alone and holds one untrimmed clip.
-
-[^web-loop]:
-    A looping track holding one clip repeats correctly, trimmed or not. On a track holding
-    more than one, each clip loops on its own from where it first opens, so they play over one another
-    instead of taking turns. The renderer walks the primary track's clips once, so a looping track's
-    picture stops after one pass. Loop a track that carries audio alone and holds a single clip.
+[^ffmpeg-split]:
+    One input per clip, split into one branch per pass. A split clones every frame onto
+    all its outputs out of one buffer and concat pulls from the branch it is on and no other, so up to
+    one pass of decoded frames sits in the graph per branch still waiting. The cost scales with the pass
+    count, so a long looping track at a high resolution is where it shows.
 
 [^ffmpeg-volume]:
     `volume` reads its expression through ffmpeg's own parser, which refuses a nest of
@@ -387,7 +378,8 @@ one replacing the other.
 point is placed once the plan settles how long the scope runs, so a fade out can be written before
 the clip's length is known. The gain ramps linearly between neighbouring points and holds flat
 before the first and after the last. A clip's envelope is read against its trimmed length, and a
-track's against its whole run of clips, measured from where the track starts.
+track's against its whole run of clips, measured from where the track starts. A looping track runs
+until the composition ends, so that is where its end-anchored points land, not at the end of a pass.
 
 The plan refuses an envelope with a point outside its scope, a negative gain, or points that fall out
 of time order once the end-anchored ones are placed, each with `ExportError.InvalidComposition`.
@@ -395,13 +387,14 @@ of time order once the end-anchored ones are placed, each with `ExportError.Inva
 `fadeIn(duration)` and `fadeOut(duration)` exist on both the clip builder and the track builder, and
 are kept on `Clip` and `Track` as durations of their own rather than folded into the level. A clip's
 fades are measured against its trim, so retrimming the clip moves them with it. A track's fade in
-starts where the track does and its fade out ends where its last clip does. The plan turns the pair
-into a curve peaking at one and multiplies it into the level, the same product a clip level and a
-track level already go through. So a fade rises to whatever `audio(...)` set rather than to one,
-`AudioLevel.Volume(0.5f)` with a fade in ramps from silence to half, fading a `Mute` leaves it muted,
-and where the two calls are written makes no difference. On an `Envelope` written by hand the fade
-scales the curve the envelope describes, leaving its points as they were, so a two second envelope
-falling from one to a half with a one second fade in reads 0.75 a second in rather than one.
+starts where the track does and its fade out ends where its last clip does, or at the composition's
+end when the track loops. The plan turns the pair into a curve peaking at one and multiplies it into
+the level, the same product a clip level and a track level already go through. So a fade rises to
+whatever `audio(...)` set rather than to one, `AudioLevel.Volume(0.5f)` with a fade in ramps from
+silence to half, fading a `Mute` leaves it muted, and where the two calls are written makes no
+difference. On an `Envelope` written by hand the fade scales the curve the envelope describes,
+leaving its points as they were, so a two second envelope falling from one to a half with a one
+second fade in reads 0.75 a second in rather than one.
 
 Fades have refusals of their own, each `ExportError.InvalidComposition` with a message naming the
 fade rather than the envelope: a negative fade, a fade longer than its scope, and a `fadeIn` and
