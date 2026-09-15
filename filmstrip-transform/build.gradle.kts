@@ -8,5 +8,9 @@ kotlin {
       api(projects.filmstripCore)
       api(projects.filmstripEffects)
     }
+
+    commonTest.dependencies {
+      implementation(projects.filmstripTest)
+    }
   }
 }

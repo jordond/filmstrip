@@ -19,6 +19,40 @@ public final class dev/jordond/filmstrip/test/FrameComparisonKt {
 	public static final fun compareFrames (Ldev/jordond/filmstrip/test/TestFrame;Ldev/jordond/filmstrip/test/TestFrame;)Ldev/jordond/filmstrip/test/FrameComparison;
 }
 
+public final class dev/jordond/filmstrip/test/LoopingCases {
+	public static final field INSTANCE Ldev/jordond/filmstrip/test/LoopingCases;
+	public static final field QUIET_VOLUME F
+	public final fun getBED_LENGTHS ()Ljava/util/List;
+	public final fun getBED_READINGS ()Ljava/util/List;
+	public final fun getBED_START-UwyO8pc ()J
+	public final fun getBED_TRIM ()Ldev/jordond/filmstrip/edit/TimeRange;
+	public final fun getBEFORE_BED-UwyO8pc ()J
+	public final fun getLOUD_TRIM ()Ldev/jordond/filmstrip/edit/TimeRange;
+	public final fun getPAIR_LENGTHS ()Ljava/util/List;
+	public final fun getPAIR_READINGS ()Ljava/util/List;
+	public final fun getPAIR_START-UwyO8pc ()J
+	public final fun getPRIMARY_RUN-UwyO8pc ()J
+	public final fun getQUIET_TRIM ()Ldev/jordond/filmstrip/edit/TimeRange;
+	public final fun getTRACK_FADE-UwyO8pc ()J
+	public final fun getUNDERLAY_RUN-UwyO8pc ()J
+	public final fun getVIDEO_LENGTHS ()Ljava/util/List;
+	public final fun getVIDEO_READINGS ()Ljava/util/List;
+	public final fun getVIDEO_TRIM ()Ldev/jordond/filmstrip/edit/TimeRange;
+}
+
+public final class dev/jordond/filmstrip/test/LoopingCases$Reading {
+	public synthetic fun <init> (IJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2-UwyO8pc ()J
+	public final fun copy-HG0u8IE (IJ)Ldev/jordond/filmstrip/test/LoopingCases$Reading;
+	public static synthetic fun copy-HG0u8IE$default (Ldev/jordond/filmstrip/test/LoopingCases$Reading;IJILjava/lang/Object;)Ldev/jordond/filmstrip/test/LoopingCases$Reading;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getInto-UwyO8pc ()J
+	public final fun getPass ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class dev/jordond/filmstrip/test/TestFrame {
 	public fun <init> ([BLdev/jordond/filmstrip/geometry/Size;)V
 	public final fun getPixels ()[B

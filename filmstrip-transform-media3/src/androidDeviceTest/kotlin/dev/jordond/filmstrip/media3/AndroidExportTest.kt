@@ -29,6 +29,7 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.chainedProber
+import dev.jordond.filmstrip.test.LoopingCases
 import dev.jordond.filmstrip.test.ToneAnalysis.MEASURED_GAIN_TOLERANCE
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
@@ -299,11 +300,11 @@ class AndroidExportTest {
       val spec = ExportSpec(targetHeight = 240)
       val edit =
         compositionOf {
-          clip(MediaSource.of(primaryFile.path)) { trim(Duration.ZERO, PRIMARY_RUN) }
+          clip(MediaSource.of(primaryFile.path)) { trim(Duration.ZERO, LoopingCases.PRIMARY_RUN) }
           track(TrackContent.Audio) {
-            clip(MediaSource.of(bedFile.path)) { trim(LOOP_BED_TRIM) }
-            fadeIn(TRACK_FADE)
-            startAt(LOOP_BED_START)
+            clip(MediaSource.of(bedFile.path)) { trim(LoopingCases.BED_TRIM) }
+            fadeIn(LoopingCases.TRACK_FADE)
+            startAt(LoopingCases.BED_START)
             looping()
           }
         }
@@ -311,7 +312,7 @@ class AndroidExportTest {
       val lowered = lowered(edit, spec)
       val primaryClip = lowered.tracks[0].clips.single()
       val laid = lowered.tracks[1].clips
-      lowered.tracks[1].pinSchedule(edit.tracks[1], lowered.duration, CASE_ONE_PASSES, CASE_ONE_CUT)
+      lowered.tracks[1].pinSchedule(LoopingCases.BED_LENGTHS, lowered.duration)
       // Without this the whole case reads zero against zero and passes while the fade replays.
       assertTrue(
         laid[1].gain.gainAt(Duration.ZERO) > MEASURED_GAIN_TOLERANCE,
@@ -323,10 +324,11 @@ class AndroidExportTest {
       val file = exportedFile(plan)
       val written = decodeAudio(file)
 
-      val quiet = written.bedGainAt(BEFORE_BED, LOOP_WINDOW, tones, primaryClip.gain.gainAt(BEFORE_BED))
-      assertTrue(quiet <= MEASURED_GAIN_TOLERANCE, "the bed plays at $quiet at $BEFORE_BED, before it starts")
+      val before = LoopingCases.BEFORE_BED
+      val quiet = written.bedGainAt(before, LOOP_WINDOW, tones, primaryClip.gain.gainAt(before))
+      assertTrue(quiet <= MEASURED_GAIN_TOLERANCE, "the bed plays at $quiet at $before, before it starts")
 
-      CASE_ONE_READINGS.forEach { written.readBed(laid, it, tones, primaryClip) }
+      LoopingCases.BED_READINGS.forEach { written.readBed(laid, it, tones, primaryClip) }
 
       assertRunsFor(assertNotNull(probeOf(file)), written, tones, plan)
     }
@@ -347,17 +349,17 @@ class AndroidExportTest {
       val spec = ExportSpec(targetHeight = 240)
       val edit =
         compositionOf {
-          clip(MediaSource.of(primaryFile.path)) { trim(Duration.ZERO, PRIMARY_RUN) }
+          clip(MediaSource.of(primaryFile.path)) { trim(Duration.ZERO, LoopingCases.PRIMARY_RUN) }
           track(TrackContent.Audio) {
             clip(MediaSource.of(bedFile.path)) {
-              trim(LOUD_CLIP_TRIM)
+              trim(LoopingCases.LOUD_TRIM)
               audio(AudioLevel.Inherit)
             }
             clip(MediaSource.of(bedFile.path)) {
-              trim(QUIET_CLIP_TRIM)
-              audio(AudioLevel.Volume(QUIET_CLIP_VOLUME))
+              trim(LoopingCases.QUIET_TRIM)
+              audio(AudioLevel.Volume(LoopingCases.QUIET_VOLUME))
             }
-            startAt(PAIR_BED_START)
+            startAt(LoopingCases.PAIR_START)
             looping()
           }
         }
@@ -365,19 +367,14 @@ class AndroidExportTest {
       val lowered = lowered(edit, spec)
       val primaryClip = lowered.tracks[0].clips.single()
       val laid = lowered.tracks[1].clips
-      lowered.tracks[1].pinSchedule(edit.tracks[1], lowered.duration, CASE_TWO_PASSES, CASE_TWO_CUT)
-      assertEquals(
-        CASE_TWO_CLIPS,
-        laid.map { it.sourceIndex },
-        "the two clips of the run did not alternate, so a pass was laid from the wrong one",
-      )
+      lowered.tracks[1].pinSchedule(LoopingCases.PAIR_LENGTHS, lowered.duration)
       val tones = sourceTones(primaryFile, bedFile)
 
       val plan = capablePlan(edit, spec)
       val file = exportedFile(plan)
       val written = decodeAudio(file)
 
-      val levels = CASE_TWO_READINGS.map { written.readBed(laid, it, tones, primaryClip) }
+      val levels = LoopingCases.PAIR_READINGS.map { written.readBed(laid, it, tones, primaryClip) }
       val (loud, quiet) = levels
 
       assertTrue(loud > MEASURED_GAIN_TOLERANCE, "the bed read $loud a pass past its first, so it went silent")
@@ -409,11 +406,17 @@ class AndroidExportTest {
         EditComposition(
           listOf(
             Track(
-              clips = listOf(Clip(MediaSource.of(bedFile.path), trim = VIDEO_LOOP_TRIM)),
+              clips = listOf(Clip(MediaSource.of(bedFile.path), trim = LoopingCases.VIDEO_TRIM)),
               looping = true,
             ),
             Track(
-              clips = listOf(Clip(MediaSource.of(toneFile.path), trim = TimeRange.of(Duration.ZERO, UNDERLAY_RUN))),
+              clips =
+                listOf(
+                  Clip(
+                    MediaSource.of(toneFile.path),
+                    trim = TimeRange.of(Duration.ZERO, LoopingCases.UNDERLAY_RUN),
+                  ),
+                ),
               content = TrackContent.Audio,
             ),
           ),
@@ -421,7 +424,7 @@ class AndroidExportTest {
 
       val lowered = lowered(edit, spec)
       val laid = lowered.tracks[0].clips
-      lowered.tracks[0].pinSchedule(edit.tracks[0], lowered.duration, CASE_THREE_PASSES, CASE_THREE_CUT)
+      lowered.tracks[0].pinSchedule(LoopingCases.VIDEO_LENGTHS, lowered.duration)
       val underlay = lowered.tracks[1].clips.single()
       val tones = sourceTones(toneFile, bedFile)
 
@@ -431,13 +434,13 @@ class AndroidExportTest {
 
       val early = written.amplitudeOver(EARLY_AT, LOOP_WINDOW, PRIMARY_HZ)
       assertTrue(early > tones.primary * AUDIBLE, "the audio-only track reads $early at $EARLY_AT")
-      CASE_THREE_READINGS.forEach { written.readBed(laid, it, tones, underlay) }
+      LoopingCases.VIDEO_READINGS.forEach { written.readBed(laid, it, tones, underlay) }
 
       // The same distance into two passes is the same instant of the source, so the two frames are
       // the same picture unless the primary stopped repeating. A third frame at a different instant
       // of the source is what says the band being compared moves at all, since a run that froze on
       // one frame would match itself everywhere.
-      val repeated = frameOf(file, laid[CASE_THREE_READINGS.first().pass].span.start + FRAME_INTO)
+      val repeated = frameOf(file, laid[LoopingCases.VIDEO_READINGS.first().pass].span.start + FRAME_INTO)
       val first = frameOf(file, laid.first().span.start + FRAME_INTO)
       val elsewhere = frameOf(file, laid.first().span.start + FRAME_ELSEWHERE)
       assertTrue(
@@ -713,18 +716,6 @@ class AndroidExportTest {
   }
 
   /**
-   * Where a level is read: which laid pass, and how far into that pass.
-   *
-   * The instant on the composition clock and the level to expect both come off the same laid clip,
-   * so a schedule that moved takes the reading with it rather than measuring the wrong stretch at
-   * the right number.
-   */
-  private class Reading(
-    val pass: Int,
-    val into: Duration,
-  )
-
-  /**
    * Which laid pass covers [at].
    */
   private fun List<ResolvedClip>.passCovering(at: Duration): Int {
@@ -739,8 +730,8 @@ class AndroidExportTest {
   }
 
   /**
-   * Holds this track's laid clips to the run [passesCovering] derives for [raw] over a composition
-   * of [duration], and to [passes] passes with the last cut to [cut].
+   * Holds this track's laid clips to the run [passesCovering] derives for [lengths] over a
+   * composition of [duration].
    *
    * Every clip is pinned, by which entry of the track it was laid from and by the slot it holds, so
    * a pass in the wrong place or laid from the wrong clip fails by name before any level is read.
@@ -748,18 +739,13 @@ class AndroidExportTest {
    * written out here, which would only say that two people typed the same schedule.
    */
   private fun ResolvedTrack.pinSchedule(
-    raw: Track,
+    lengths: List<Duration>,
     duration: Duration,
-    passes: Int,
-    cut: Duration,
   ) {
-    val lengths = raw.clips.map { assertNotNull(it.duration, "every clip of a pinned track is trimmed") }
     val fill = if (looping) duration - start else lengths.fold(Duration.ZERO, Duration::plus)
     val expected =
       passesCovering(lengths, fill).map { Triple(it.index, start + it.offset, start + it.offset + it.length) }
 
-    assertEquals(passes, clips.size, "the track laid ${clips.map { it.span }}")
-    assertEquals(cut, clips.last().duration, "the last pass was not cut where the composition ends")
     assertEquals(
       expected,
       clips.map { Triple(it.sourceIndex, it.span.start, it.span.start + it.duration) },
@@ -772,7 +758,7 @@ class AndroidExportTest {
    */
   private fun DecodedAudio.readBed(
     laid: List<ResolvedClip>,
-    reading: Reading,
+    reading: LoopingCases.Reading,
     tones: SourceTones,
     under: ResolvedClip,
   ): Float {
@@ -1024,71 +1010,9 @@ class AndroidExportTest {
     // Encoders align to their own multiple, which is 2 on most and 16 on some.
     const val SIZE_TOLERANCE = 16
 
-    // The three looping cases below carry the same figures on all four backends, so a lowering that
-    // lays its passes differently shows up as a divergence rather than as a local tolerance. No two
-    // of the offset, the pass length and the composition's own length divide evenly, and the last
-    // pass is always cut.
-    val PRIMARY_RUN = 7_300.milliseconds
-
     // Long enough to hold every tone in a window without reaching a pass boundary, and a whole
     // number of cycles of both frequencies so neither leaks into the other's reading.
     val LOOP_WINDOW = 200.milliseconds
-
-    // Case one: one trimmed clip, an offset that is no multiple of the pass, and a track fade still
-    // climbing when pass two opens.
-    val LOOP_BED_TRIM = TimeRange.of(200.milliseconds, 1_900.milliseconds)
-    val LOOP_BED_START = 700.milliseconds
-    val TRACK_FADE = 3_000.milliseconds
-    val BEFORE_BED = 300.milliseconds
-    const val CASE_ONE_PASSES = 4
-    val CASE_ONE_CUT = 1_500.milliseconds
-
-    // A quarter and three quarters of the way up the fade, then the plateau, then the cut pass. The
-    // two ramp readings sit in different passes, which a fade that restarted each pass gets wrong.
-    val CASE_ONE_READINGS =
-      listOf(
-        Reading(pass = 0, into = 750.milliseconds),
-        Reading(pass = 1, into = 550.milliseconds),
-        Reading(pass = 2, into = 400.milliseconds),
-        Reading(pass = 3, into = 1_100.milliseconds),
-      )
-
-    // Case two: two clips of one looping track, separated in the mix by the second one's volume.
-    // Their lengths differ so a pass is neither of them alone.
-    val LOUD_CLIP_TRIM = TimeRange.of(Duration.ZERO, 1_100.milliseconds)
-    val QUIET_CLIP_TRIM = TimeRange.of(1_400.milliseconds, 2_300.milliseconds)
-    const val QUIET_CLIP_VOLUME = 0.4f
-    val PAIR_BED_START = 500.milliseconds
-    const val CASE_TWO_PASSES = 7
-    val CASE_TWO_CUT = 800.milliseconds
-
-    // The loud clip and the quiet one inside pass two, the quiet one again a pass later, and the
-    // loud one inside the cut pass. The first two are the pair the level comparison is made on, so
-    // they lead the list.
-    // Which clip of the track each pass is laid from, alternating until the run is covered and the
-    // cut pass lands back on the first.
-    val CASE_TWO_CLIPS = listOf(0, 1, 0, 1, 0, 1, 0)
-
-    val CASE_TWO_READINGS =
-      listOf(
-        Reading(pass = 2, into = 500.milliseconds),
-        Reading(pass = 3, into = 600.milliseconds),
-        Reading(pass = 5, into = 500.milliseconds),
-        Reading(pass = 6, into = 500.milliseconds),
-      )
-
-    // Case three: a looping video primary under an audio-only track that outlasts it, which is what
-    // fixes the composition's length.
-    val VIDEO_LOOP_TRIM = TimeRange.of(100.milliseconds, 1_600.milliseconds)
-    val UNDERLAY_RUN = 5_300.milliseconds
-    const val CASE_THREE_PASSES = 4
-    val CASE_THREE_CUT = 800.milliseconds
-
-    val CASE_THREE_READINGS =
-      listOf(
-        Reading(pass = 2, into = 400.milliseconds),
-        Reading(pass = 3, into = 400.milliseconds),
-      )
 
     // How far into a pass the two matching frames are read. The same distance into two passes is
     // the same instant of the source, so the pictures have to match. FRAME_ELSEWHERE is a second

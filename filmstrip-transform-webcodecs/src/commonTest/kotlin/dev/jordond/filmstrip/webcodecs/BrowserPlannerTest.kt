@@ -56,6 +56,8 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.test.LoopingCases
+import dev.jordond.filmstrip.transform.internal.passesCovering
 import dev.jordond.filmstrip.transform.internal.stillUnsupportedMessage
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
 import dev.jordond.filmstrip.webcodecs.internal.BrowserLowering
@@ -696,8 +698,8 @@ class BrowserPlannerTest {
    */
   @Test
   fun aLoopingPrimaryDrawsEveryPassThePlannerLaid() {
-    val bed = Clip(source("bed"), trim = TimeRange(LOOP_FROM, LOOP_TO))
-    val under = Clip(source("under"), trim = TimeRange(Duration.ZERO, LOOP_RUN))
+    val bed = Clip(source("bed"), trim = LoopingCases.VIDEO_TRIM)
+    val under = Clip(source("under"), trim = TimeRange(Duration.ZERO, LoopingCases.UNDERLAY_RUN))
     val tone = AudioTrackInfo(trackCodecOf("mp4a"), 48_000, 2, null)
     val lowering =
       planner.lower(
@@ -721,13 +723,15 @@ class BrowserPlannerTest {
 
     assertIs<Verdict.Capable>(lowering.verdict)
     val render = assertNotNull(lowering.render)
-    assertEquals(LOOP_RUN, render.duration)
+    assertEquals(LoopingCases.UNDERLAY_RUN, render.duration)
 
     // The schedule by name first, so a wrong pass count or an uncut last pass fails before any
-    // geometry is compared.
+    // geometry is compared. It comes off the same function the planner laid with rather than off a
+    // list written out here, which would only say that two people typed the same schedule.
     val laid = render.audioTracks.first().clips
-    assertEquals(LOOP_OFFSETS, laid.map { it.span.start.inWholeMilliseconds })
-    assertEquals(LOOP_CUT, laid.last().duration)
+    val passes = passesCovering(LoopingCases.VIDEO_LENGTHS, render.duration)
+    assertEquals(passes.map { it.offset }, laid.map { it.span.start })
+    assertEquals(passes.map { it.length }, laid.map { it.duration })
 
     // And the drawn clips against the laid ones rather than against those numbers again, since a
     // render working the repeat out for itself is what this pins.
@@ -744,7 +748,7 @@ class BrowserPlannerTest {
     // nothing about the primary's repeat reaches it.
     val beneath = render.audioTracks[1].clips.single()
     assertEquals(Duration.ZERO, beneath.span.start)
-    assertEquals(LOOP_RUN, beneath.span.endExclusive)
+    assertEquals(LoopingCases.UNDERLAY_RUN, beneath.span.endExclusive)
   }
 
   @Test
@@ -845,14 +849,8 @@ class BrowserPlannerTest {
     // tolerance either side of that gap so neither answer is the one a broken snap gives anyway.
     val OPENING = 300.milliseconds
 
-    // Case 3 of the looping suite every backend runs, at the lengths they all share. No two of the
-    // trim, the pass and the run divide evenly, so a render that rounded a pass off lands
-    // somewhere else, and the fourth pass is cut well short of a whole one.
-    val LOOP_FROM = 100.milliseconds
-    val LOOP_TO = 1_600.milliseconds
-    val LOOP_RUN = 5_300.milliseconds
-    val LOOP_CUT = 800.milliseconds
-    val LOOP_OFFSETS = listOf(0L, 1_500L, 3_000L, 4_500L)
+    // The fabricated sources case 3 of the looping suite is probed with, both longer than the trims
+    // taken out of them.
     val LOOP_SOURCE = 3_000.milliseconds
     val UNDER_SOURCE = 12_000.milliseconds
     val REACHES = 600.milliseconds

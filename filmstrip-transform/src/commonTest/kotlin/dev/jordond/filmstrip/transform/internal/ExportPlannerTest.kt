@@ -58,6 +58,7 @@ import dev.jordond.filmstrip.media.imageMediaInfoOf
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.media.videoCodecOf
 import dev.jordond.filmstrip.motion.Easing
+import dev.jordond.filmstrip.test.LoopingCases
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.floats.plusOrMinus
@@ -1149,7 +1150,7 @@ class ExportPlannerTest {
     val bedClip =
       clip(
         duration = 3_000.milliseconds,
-        trim = TimeRange.of(BED_TRIM_START, BED_TRIM_END),
+        trim = LoopingCases.BED_TRIM,
         fadeIn = clipFadeIn,
         fadeOut = clipFadeOut,
       )
@@ -2192,13 +2193,15 @@ class ExportPlannerTest {
   private val INFOS = mutableMapOf<MediaSource, MediaInfo>()
 
   private companion object {
-    // No two of these divide evenly, so a pass counted from the wrong place lands somewhere the
-    // readings can see, and the run always cuts its last pass.
-    val PRIMARY_LENGTH = 7_300.milliseconds
-    val BED_START = 700.milliseconds
-    val BED_TRIM_START = 200.milliseconds
-    val BED_TRIM_END = 1_900.milliseconds
-    val PASS = BED_TRIM_END - BED_TRIM_START
+    // Case one of the looping suite every backend measures, so the schedule the looping tests spell
+    // out is the one the four export suites build their edit from. No two of these divide evenly, so
+    // a pass counted from the wrong place lands somewhere the readings can see, and the run always
+    // cuts its last pass.
+    val PRIMARY_LENGTH = LoopingCases.PRIMARY_RUN
+    val BED_START = LoopingCases.BED_START
+    val BED_TRIM_START = LoopingCases.BED_TRIM.start
+    val PASS = LoopingCases.BED_LENGTHS.single()
+    val BED_TRIM_END = BED_TRIM_START + PASS
     val RUN = PRIMARY_LENGTH - BED_START
     val CUT_PASS = RUN - PASS * 3
   }

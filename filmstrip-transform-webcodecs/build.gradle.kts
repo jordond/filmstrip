@@ -10,5 +10,9 @@ kotlin {
       api(projects.filmstripTransform)
       implementation(npm("mediabunny", "1.55.1"))
     }
+
+    commonTest.dependencies {
+      implementation(projects.filmstripTest)
+    }
   }
 }

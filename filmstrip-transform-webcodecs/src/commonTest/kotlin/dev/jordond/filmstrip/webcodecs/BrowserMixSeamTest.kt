@@ -24,10 +24,12 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.test.LoopingCases
 import dev.jordond.filmstrip.transform.internal.GainSegment
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import dev.jordond.filmstrip.transform.internal.passesCovering
 import dev.jordond.filmstrip.webcodecs.BrowserMixSeamTest.Companion.MAX_STEP
 import dev.jordond.filmstrip.webcodecs.internal.AudioBuffer
 import dev.jordond.filmstrip.webcodecs.internal.BrowserAudioMix
@@ -169,23 +171,22 @@ class BrowserMixSeamTest {
         EditComposition(
           tracks =
             listOf(
-              Track(listOf(Clip(silentPrimary(), trim = TimeRange.of(Duration.ZERO, RUN)))),
+              Track(listOf(Clip(silentPrimary(), trim = TimeRange.of(Duration.ZERO, LoopingCases.PRIMARY_RUN)))),
               Track(
-                clips = listOf(Clip(bed, trim = TimeRange.of(FADED_FROM, FADED_TO))),
+                clips = listOf(Clip(bed, trim = LoopingCases.BED_TRIM)),
                 content = TrackContent.Audio,
-                start = FADED_OPENS,
+                start = LoopingCases.BED_START,
                 looping = true,
-                fadeIn = TRACK_FADE,
+                fadeIn = LoopingCases.TRACK_FADE,
               ),
             ),
           audio = AudioSpec.Keep,
         )
       val mix = mixOf(composition)
 
-      assertEquals(RUN, mix.duration)
-      assertEquals(FADED_OFFSETS, mix.laid.map { (it.span.start - FADED_OPENS).inWholeMilliseconds })
-      assertEquals(FADED_CUT, mix.laid.last().duration)
-      assertEquals(framesOf(RUN), mix.faded.length)
+      assertEquals(LoopingCases.PRIMARY_RUN, mix.duration)
+      mix.assertLaysPasses(LoopingCases.BED_LENGTHS)
+      assertEquals(framesOf(LoopingCases.PRIMARY_RUN), mix.faded.length)
 
       // A planner that restarted the ramp in every pass would fold each of them the same way and
       // the mix would agree with it, so what says the fade is one ramp over the whole run is that
@@ -199,12 +200,9 @@ class BrowserMixSeamTest {
         )
       }
 
-      val beforeTheBed = mix.laid[0].span.start - LEAD_IN
+      val beforeTheBed = LoopingCases.BEFORE_BED
       assertTrue(rmsAt(mix.faded, beforeTheBed) <= SILENCE, "the bed sounded at $beforeTheBed, before its track opens")
-      assertLevelAt(mix, pass = 0, into = 750.milliseconds)
-      assertLevelAt(mix, pass = 1, into = 550.milliseconds)
-      assertLevelAt(mix, pass = 2, into = 400.milliseconds)
-      assertLevelAt(mix, pass = 3, into = 1_100.milliseconds)
+      LoopingCases.BED_READINGS.forEach { assertLevelAt(mix, it.pass, it.into) }
     }
 
   /**
@@ -223,15 +221,19 @@ class BrowserMixSeamTest {
         EditComposition(
           tracks =
             listOf(
-              Track(listOf(Clip(silentPrimary(), trim = TimeRange.of(Duration.ZERO, RUN)))),
+              Track(listOf(Clip(silentPrimary(), trim = TimeRange.of(Duration.ZERO, LoopingCases.PRIMARY_RUN)))),
               Track(
                 clips =
                   listOf(
-                    Clip(bed, trim = TimeRange.of(Duration.ZERO, LOUD_TO)),
-                    Clip(bed, trim = TimeRange.of(QUIET_FROM, QUIET_TO), audio = AudioLevel.Volume(QUIET_LEVEL)),
+                    Clip(bed, trim = LoopingCases.LOUD_TRIM),
+                    Clip(
+                      bed,
+                      trim = LoopingCases.QUIET_TRIM,
+                      audio = AudioLevel.Volume(LoopingCases.QUIET_VOLUME),
+                    ),
                   ),
                 content = TrackContent.Audio,
-                start = PAIR_OPENS,
+                start = LoopingCases.PAIR_START,
                 looping = true,
               ),
             ),
@@ -239,19 +241,17 @@ class BrowserMixSeamTest {
         )
       val mix = mixOf(composition)
 
-      assertEquals(RUN, mix.duration)
-      assertEquals(PAIR_OFFSETS, mix.laid.map { (it.span.start - PAIR_OPENS).inWholeMilliseconds })
-      assertEquals(PAIR_CUT, mix.laid.last().duration)
-      assertEquals(framesOf(RUN), mix.faded.length)
+      assertEquals(LoopingCases.PRIMARY_RUN, mix.duration)
+      mix.assertLaysPasses(LoopingCases.PAIR_LENGTHS)
+      assertEquals(framesOf(LoopingCases.PRIMARY_RUN), mix.faded.length)
 
       // Two ways this fails: the bed going silent after its first pass, which the tone reading
       // catches, and the quiet clip playing over the loud one rather than after it, which reads as
       // the two summed rather than as the quieter alone and so misses the level the plan folded.
-      val loud = assertLevelAt(mix, pass = 2, into = 500.milliseconds)
+      val readings = LoopingCases.PAIR_READINGS
+      val loud = assertLevelAt(mix, readings.first().pass, readings.first().into)
       assertTrue(rmsAt(mix.faded, loud) > SILENCE, "the bed went silent at $loud, after its first pass")
-      assertLevelAt(mix, pass = 3, into = 600.milliseconds)
-      assertLevelAt(mix, pass = 5, into = 500.milliseconds)
-      assertLevelAt(mix, pass = 6, into = 500.milliseconds)
+      readings.drop(1).forEach { assertLevelAt(mix, it.pass, it.into) }
     }
 
   /**
@@ -260,6 +260,7 @@ class BrowserMixSeamTest {
    */
   private class LaidMix(
     val laid: List<ResolvedClip>,
+    val start: Duration,
     val duration: Duration,
     val faded: Float32Array,
     val flat: Float32Array,
@@ -281,10 +282,26 @@ class BrowserMixSeamTest {
     val tracks = render.audioTracks
     return LaidMix(
       laid = tracks[BED_TRACK].clips,
+      start = tracks[BED_TRACK].start,
       duration = render.duration,
       faded = mixed(tracks, render.duration),
       flat = mixed(tracks.atUnity(), render.duration),
     )
+  }
+
+  /**
+   * Asserts the bed track laid the run [passesCovering] derives for [lengths], each pass pinned by
+   * which clip of the track it plays, where it opens and how long it holds.
+   *
+   * The expectation goes through the same function the planner laid with rather than through a
+   * schedule written out here, which would only say that two people typed the same list.
+   */
+  private fun LaidMix.assertLaysPasses(lengths: List<Duration>) {
+    val expected =
+      passesCovering(lengths, duration - start).map { pass ->
+        Triple(pass.index, start + pass.offset, pass.length)
+      }
+    assertEquals(expected, laid.map { Triple(it.sourceIndex, it.span.start, it.duration) })
   }
 
   /**
@@ -636,38 +653,14 @@ class BrowserMixSeamTest {
     // reading costs rather than anything the automation did.
     const val MAX_GAIN_DRIFT = 0.02f
 
-    // The looping cases every backend runs, at the lengths they all share so a divergence shows.
-    // No two of a track's opening, its pass and the composition divide evenly, and the last pass is
-    // always cut, so a backend that laid whole passes or rounded one off lands somewhere else.
-    val RUN = 7_300.milliseconds
+    // Which track of the looping cases the bed is, once the planner has laid them.
     const val BED_TRACK = 1
-
-    // How far ahead of the first pass the mix is read for a bed that should not be there yet, clear
-    // of both the composition's own start and the pass's.
-    val LEAD_IN = 400.milliseconds
 
     // Three seconds of bed at thirty frames a second, and a primary long enough to hold the
     // composition open for the whole run.
     const val BED_FRAMES = 90
     const val PRIMARY_FRAMES = 80
     const val PRIMARY_RATE = 10
-
-    // Case 1: one clip, opening late, under a fade written over the whole run.
-    val FADED_OPENS = 700.milliseconds
-    val FADED_FROM = 200.milliseconds
-    val FADED_TO = 1_900.milliseconds
-    val TRACK_FADE = 3.seconds
-    val FADED_OFFSETS = listOf(0L, 1_700L, 3_400L, 5_100L)
-    val FADED_CUT = 1_500.milliseconds
-
-    // Case 2: two clips of one source, told apart by the level the second carries.
-    val PAIR_OPENS = 500.milliseconds
-    val LOUD_TO = 1_100.milliseconds
-    val QUIET_FROM = 1_400.milliseconds
-    val QUIET_TO = 2_300.milliseconds
-    const val QUIET_LEVEL = 0.4f
-    val PAIR_OFFSETS = listOf(0L, 1_100L, 2_000L, 3_100L, 4_000L, 5_100L, 6_000L)
-    val PAIR_CUT = 800.milliseconds
 
     // Enough for the planner to settle on a transcode with a mix, which is the path an export
     // carrying a bed takes. Nothing here is measured, so the ladder's own picks never show.
