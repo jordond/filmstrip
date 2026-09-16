@@ -190,12 +190,6 @@ class StillEncodeWebTest {
  */
 internal external fun createImageBitmap(image: Blob): Promise<ImageBitmap>
 
-internal external interface ImageBitmap : JsAny {
-  val width: Int
-
-  val height: Int
-}
-
 /**
  * One channel of a decoded pixel. Reading into an `ImageData` is one of the few things js and
  * wasmJs spell differently.
