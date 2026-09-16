@@ -42,6 +42,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.DurationUnit
 
 /**
  * The ten-bit path end to end in a real browser: a graded clip is planned, composited through the
@@ -120,6 +122,40 @@ class BrowserHdrTest {
         assertNear(expectedLuma, frame.lumaAt(x = 0.5, y = BAR), LUMA_TOLERANCE, "$transfer bar luma")
         assertNear(expectedCb, cb, CHROMA_TOLERANCE, "$transfer bar Cb")
         assertNear(expectedCr, cr, CHROMA_TOLERANCE, "$transfer bar Cr")
+      }
+    }
+
+  // A gap in front of a late primary is the fill and nothing else, so on a kept grade it carries the
+  // signal a bar does, on either transfer. It is read in the middle of the gap, and the clip in the
+  // middle of its own run.
+  @Test
+  fun aLateStartCarriesTheFillsOwnSignalThroughItsGapOnBothTransfers() =
+    runTest {
+      if (!claimsHdr()) return@runTest
+
+      HdrTransfer.entries.forEach { transfer ->
+        val bytes = makeHdrClip(transfer) { BRIGHT }
+        val composition =
+          EditComposition(
+            tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))), start = LATE_START)),
+            audio = AudioSpec.Remove,
+            fill = Fill.Solid(PURPLE_ARGB),
+          )
+        val frames = decodeTenBitFrames(outputOf(exportOf(composition, transfer)), transfer)
+        val startUs = LATE_START.toDouble(DurationUnit.MICROSECONDS)
+
+        val gap = frames.minBy { abs(it.timestampUs - startUs / 2) }
+        assertTrue(gap.timestampUs < startUs, "the $transfer file has no frame in front of ${startUs}us")
+        val (fillLuma, fillCb, fillCr) = tenBitCodesFromSignal(transfer.signalFromNits(hdrFillNits(PURPLE_ARGB)))
+        val (gapCb, gapCr) = gap.chromaAt(x = 0.5, y = 0.5)
+        assertNear(fillLuma, gap.lumaAt(x = 0.5, y = 0.5), LUMA_TOLERANCE, "$transfer gap luma")
+        assertNear(fillCb, gapCb, CHROMA_TOLERANCE, "$transfer gap Cb")
+        assertNear(fillCr, gapCr, CHROMA_TOLERANCE, "$transfer gap Cr")
+
+        val run = frames.filter { it.timestampUs >= startUs }
+        val clip = run[run.size / 2]
+        val clipLuma = tenBitCodesFromSignal(transfer.pictureSignalOf(BRIGHT))[0]
+        assertNear(clipLuma, clip.lumaAt(x = 0.5, y = 0.5), LUMA_TOLERANCE, "$transfer clip luma")
       }
     }
 
@@ -329,6 +365,9 @@ class BrowserHdrTest {
     const val MUTED = 0.4f
     const val HALF_DIM = 0.5f
     const val PURPLE_ARGB = 0xFFA060C8.toInt()
+
+    // Six slots of gap at the fixture's thirty frames a second.
+    val LATE_START = 200.milliseconds
 
     // Middle of the range on both transfers, and off-white on every channel, so a matrix that mixes
     // channels has something to mix and a gain above one has headroom to move into.

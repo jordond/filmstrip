@@ -105,17 +105,18 @@ public class EditComposition(
  * @property content Which media streams this track contributes.
  * @property effects Effects applied to every clip on this track, after each clip's own.
  * @property audio What to do with this track's audio before it is mixed.
- * @property start Where in the composition this track begins. Anything before it is silence, or
- *   black on the primary track.
+ * @property start Where in the composition this track begins. The track is silent before it, and the primary track
+ * shows the composition's [EditComposition.fill] there. A negative start is refused with
+ * [dev.jordond.filmstrip.export.ExportError.InvalidComposition] when the composition is planned.
  * @property looping Whether the track repeats until the longest non-looping track ends. The run of
- *   clips is laid down again from the top as many times as it takes, and the last pass is cut where
- *   it runs past the end. A composition needs at least one non-looping track to have a duration at
- *   all.
+ * clips is laid down again from the top as many times as it takes, and the last pass is cut where
+ * it runs past the end. A composition needs at least one non-looping track to have a duration at
+ * all.
  * @property fadeIn How long the audio takes to rise from silence, starting where the track does.
- *   It multiplies [audio] rather than replacing it, so a fade over a level or an envelope reaches
- *   what that asked for.
+ * It multiplies [audio] rather than replacing it, so a fade over a level or an envelope reaches
+ * what that asked for.
  * @property fadeOut How long the audio takes to fall to silence before the track ends, which for a
- *   [looping] track is where the composition ends.
+ * [looping] track is where the composition ends.
  */
 @Serializable
 @Poko

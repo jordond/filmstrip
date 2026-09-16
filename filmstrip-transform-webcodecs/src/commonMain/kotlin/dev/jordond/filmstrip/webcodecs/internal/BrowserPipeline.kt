@@ -36,7 +36,7 @@ internal class BrowserPipeline(
       val encoder = BrowserEncoder.open(render)
       var finished = false
       try {
-        var emitted = 0L
+        var emitted = encodeLead(compositor, encoder, onProgress)
         for (clip in render.clips) {
           emitted = encodeClip(clip, compositor, encoder, emitted, onProgress)
         }
@@ -73,6 +73,29 @@ internal class BrowserPipeline(
     } finally {
       if (!finished) encoder.cancel()
     }
+  }
+
+  /**
+   * Encodes the fill once for each of the render's lead slots, from the start of the composition, so the picture opens
+   * where the audio mix does.
+   *
+   * @return How many frames went in, which is where the clips carry the count on from.
+   */
+  private suspend fun encodeLead(
+    compositor: BrowserCompositor,
+    encoder: BrowserEncoder,
+    onProgress: suspend (Long, Double) -> Unit,
+  ): Long {
+    val stepUs = MICROS_PER_SECOND / render.frameRate
+    for (slot in 0 until render.leadFrames) {
+      currentCoroutineContext().ensureActive()
+
+      compositor.drawFill()
+      val outputUs = slot * stepUs
+      encodeFrame(compositor, encoder, outputUs, stepUs)
+      onProgress(slot + 1, outputUs)
+    }
+    return render.leadFrames
   }
 
   /**
@@ -114,12 +137,7 @@ internal class BrowserPipeline(
         compositor.draw(chosen)
 
         val outputUs = clip.offsetUs + slot * stepUs
-        val frame = compositor.snapshot(outputUs, stepUs)
-        try {
-          encoder.add(frame)
-        } finally {
-          frame.close()
-        }
+        encodeFrame(compositor, encoder, outputUs, stepUs)
 
         emitted++
         onProgress(emitted, outputUs)
@@ -130,6 +148,20 @@ internal class BrowserPipeline(
       stream.close()
     }
     return emitted
+  }
+
+  private suspend fun encodeFrame(
+    compositor: BrowserCompositor,
+    encoder: BrowserEncoder,
+    outputUs: Double,
+    stepUs: Double,
+  ) {
+    val frame = compositor.snapshot(outputUs, stepUs)
+    try {
+      encoder.add(frame)
+    } finally {
+      frame.close()
+    }
   }
 
   private fun nearest(

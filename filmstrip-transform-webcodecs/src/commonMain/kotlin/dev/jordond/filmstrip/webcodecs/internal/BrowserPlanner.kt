@@ -94,20 +94,23 @@ internal class RenderedClip(
  * Everything the pipeline needs that is not per-frame.
  *
  * @property writesVideo Whether the output carries a video track. False for an [AudioSpec.AudioOnly]
- *   export, where [clips] is empty, [encoderCodec], [muxCodec] and [container] are null, and the
- *   frame geometry, the bitrate and [estimatedFrames] all read zero because nothing is drawn.
+ * export, where [clips] is empty, [encoderCodec], [muxCodec] and [container] are null, and the
+ * frame geometry, the bitrate and [estimatedFrames] all read zero because nothing is drawn.
  * @property encoderCodec The WebCodecs string [BrowserEncoder] opens its encoder with, or null on a
- *   [dev.jordond.filmstrip.export.ExportPath.Transmux] render, which never opens one.
+ * [dev.jordond.filmstrip.export.ExportPath.Transmux] render, which never opens one.
  * @property muxCodec The codec key [BrowserEncoder] hands mediabunny, or null for the same reason.
  * @property container The container [BrowserEncoder] writes, or null for the same reason.
- *   [BrowserPassthrough] always writes mp4 regardless of what a copy's source codec would map to.
+ * [BrowserPassthrough] always writes mp4 regardless of what a copy's source codec would map to.
  * @property audioFormat The format the composition's audio is normalised to, or null when there is
- *   none to mix.
+ * none to mix.
  * @property audioTracks Every track of the negotiated composition, video and audio-only alike, for
- *   [BrowserAudioMix] to mix. [clips] carries only the primary track's video.
+ * [BrowserAudioMix] to mix. [clips] carries only the primary track's video.
+ * @property leadFrames How many output slots the primary track's leading gap fills, from [leadFramesIn]. Each of these
+ * slots is the fill alone, and the last of them lands before the first clip.
+ * @property estimatedFrames Every slot the pipeline encodes, [leadFrames] included.
  * @property fill What the compositor fills the frame with where no clip's pixels land.
  * @property hdrTransfer The transfer function the written video carries, or null for SDR or for a
- *   render that writes none.
+ * render that writes none.
  */
 internal class BrowserRender(
   val writesVideo: Boolean,
@@ -120,6 +123,7 @@ internal class BrowserRender(
   val muxCodec: String?,
   val container: String?,
   val bitrate: Int,
+  val leadFrames: Long,
   val estimatedFrames: Long,
   val adjustments: List<Adjustment>,
   val audioFormat: AudioFormat?,
@@ -342,9 +346,9 @@ internal fun browserRenderOf(
           } else {
             resolved.end.microseconds()
           },
-        // The slot the planner laid this pass at, less the track's own start, since the renderer
-        // draws from zero and the leading gap is filled elsewhere.
-        offsetUs = (resolved.span.start - primary.start).microseconds(),
+        // The slot the planner laid this pass at on the composition timeline, the track's own start
+        // included. The slots in front of the first pass are the render's lead frames.
+        offsetUs = resolved.span.start.microseconds(),
         quadHalfW = drawnSize.width * containScale(drawnSize, outputSize) / outputSize.width,
         quadHalfH = drawnSize.height * containScale(drawnSize, outputSize) / outputSize.height,
         coverHalfW = drawnSize.width * coverScale(drawnSize, outputSize) / outputSize.width,
@@ -356,6 +360,7 @@ internal fun browserRenderOf(
         frames = framesIn(resolved.duration, frameRate),
       )
     }
+  val leadFrames = leadFramesIn(primary.start, frameRate)
 
   return BrowserRender(
     writesVideo = true,
@@ -372,9 +377,10 @@ internal fun browserRenderOf(
         .coerceAtMost(
           Int.MAX_VALUE.toLong(),
         ).toInt(),
-    // Summed from the clips, not the duration, so what progress measures against is exactly
-    // what the pipeline walks.
-    estimatedFrames = clips.sumOf { it.frames },
+    leadFrames = leadFrames,
+    // Summed from the gap and the clips, not the duration, so what progress measures against is
+    // exactly what the pipeline walks.
+    estimatedFrames = leadFrames + clips.sumOf { it.frames },
     adjustments = plan.adjustments,
     audioFormat = plan.output.audioFormat,
     audioTracks = plan.tracks,
@@ -402,6 +408,7 @@ private fun audioOnlyRender(plan: ResolvedComposition): BrowserRender =
     muxCodec = null,
     container = null,
     bitrate = 0,
+    leadFrames = 0,
     estimatedFrames = 0,
     adjustments = plan.adjustments,
     audioFormat = plan.output.audioFormat,
@@ -514,10 +521,24 @@ private fun framesIn(
 ): Long = ceil(duration.toDouble(DurationUnit.SECONDS) * frameRate).toLong().coerceAtLeast(1)
 
 /**
+ * How many output slots the gap in front of a track that starts at [start] fills at [frameRate].
+ *
+ * The start is rounded to the nearest slot in whole microseconds, and a start exactly halfway between two slots rounds
+ * up. A start under half a slot, or at or before zero, fills none.
+ */
+internal fun leadFramesIn(
+  start: Duration,
+  frameRate: Int,
+): Long =
+  ((start.inWholeMicroseconds * frameRate * 2 + WHOLE_MICROS_PER_SECOND) / (2 * WHOLE_MICROS_PER_SECOND))
+    .coerceAtLeast(0)
+
+/**
  * WebCodecs timestamps are microseconds, as a double.
  */
 private fun Duration.microseconds(): Double = toDouble(DurationUnit.MICROSECONDS)
 
+private const val WHOLE_MICROS_PER_SECOND = 1_000_000L
 private const val MAX_TEXTURE_FLOOR = 16_384
 private val IDENTITY = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f)
 

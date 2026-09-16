@@ -137,6 +137,7 @@ public class ExportPlanner(
     if (primary.clips.isEmpty()) return incapable("The primary track has no clips.")
     if (primary.content == TrackContent.Audio) return incapable(NO_PRIMARY_VIDEO)
     if (edit.tracks.all { it.looping }) return incapable(EVERY_TRACK_LOOPS)
+    if (edit.tracks.any { it.start < Duration.ZERO }) return incapable(TRACK_STARTS_EARLY)
 
     // What each scope asks for can cancel out: an audio-only output over a video-only track, or a
     // kept-audio output over a source that carries none, leaves no track to write.
@@ -852,6 +853,10 @@ public class ExportPlanner(
     const val EVERY_TRACK_LOOPS = "Every track loops, so the composition has nothing to bound it."
 
     const val PRIMARY_LAYS_NOTHING = "The primary track starts at or after the composition ends."
+
+    const val TRACK_STARTS_EARLY =
+      "A track's start is negative, so it would begin before the composition does. A start is " +
+        "measured from the start of the composition and has to be zero or later."
 
     const val TRACK_ENVELOPE =
       "A track's audio envelope has points that fall outside the track, run backwards, or ask for " +

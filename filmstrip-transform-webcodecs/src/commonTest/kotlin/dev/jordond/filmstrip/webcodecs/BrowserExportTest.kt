@@ -32,6 +32,7 @@ import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.webcodecs.internal.BrowserCompositor
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
 import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
+import dev.jordond.filmstrip.webcodecs.internal.MICROS_PER_SECOND
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -193,6 +194,71 @@ class BrowserExportTest {
         "the clip's own pixels read ${letterboxed.at(0.5, 0.6)}, and half of ${Rgb.Blue} is $dimmedBlue",
       )
     }
+
+  // The picture opens where the composition does, so a primary that starts late sits behind the fill
+  // until then rather than being drawn from zero ahead of its own audio. The start is eighteen slots
+  // in, right on the frame grid.
+  @Test
+  fun aPrimaryThatStartsLateOpensOnTheFill() = runTest { assertOpensOnTheFill(ON_GRID_START, gapFrames = 18) }
+
+  // Fifteen slots and three tenths of another. The gap rounds to the nearer slot, so its last frame
+  // and the clip's first never land on the same timestamp in the file.
+  @Test
+  fun aPrimaryThatStartsBetweenTwoSlotsWritesEveryFrameOnce() =
+    runTest { assertOpensOnTheFill(OFF_GRID_START, gapFrames = 15) }
+
+  /**
+   * Exports a one second clip behind a gap of [start], then checks the file holds [gapFrames] frames of fill and the
+   * clip's own frames after them, each later than the one before. The gap and the clip are each read in their middle,
+   * since a file that dropped the gap still opens and closes on a frame.
+   */
+  private suspend fun assertOpensOnTheFill(
+    start: Duration,
+    gapFrames: Int,
+  ) {
+    val bytes = makeClip(frames = LATE_CLIP_FRAMES, frameRate = LATE_FRAME_RATE, colour = Rgb.Green)
+    val composition =
+      EditComposition(
+        tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))), start = start)),
+        audio = AudioSpec.Remove,
+        fill = Fill.Solid(PURPLE_ARGB),
+      )
+    val engine = browserEngine()
+
+    val resolved = assertIs<ResolveResult.Resolved>(engine.resolve(composition, ExportSpec())).composition
+    assertEquals(LATE_FRAME_RATE, resolved.output.frameRate, "the slot counts here are for $LATE_FRAME_RATE fps")
+    val primary = resolved.tracks.first()
+    val clip = primary.clips.single()
+    val stepUs = MICROS_PER_SECOND / LATE_FRAME_RATE
+    val startUs = micros(clip.span.start)
+    val frames = decodeFrames(outputOf(exportWith(engine, planWith(engine, composition))))
+
+    assertEquals(gapFrames + LATE_CLIP_FRAMES, frames.size, "a gap of $start wrote ${frames.size} frames")
+    frames.zipWithNext().forEach { (before, after) ->
+      assertTrue(
+        after.timestampUs > before.timestampUs,
+        "a frame at ${after.timestampUs}us follows one at ${before.timestampUs}us",
+      )
+    }
+    val filled = frames.count { it.at(x = 0.5, y = 0.5).isNear(PURPLE_RGB) }
+    assertEquals(gapFrames, filled, "a gap of $start wrote $filled frames of fill")
+
+    val inGap = frames.nearestTo(startUs / 2).at(x = 0.5, y = 0.5)
+    assertTrue(inGap.isNear(PURPLE_RGB), "the middle of the gap was $inGap, and the fill was $PURPLE_RGB")
+    val inClip = frames.nearestTo(micros(clip.span.start + clip.duration / 2)).at(x = 0.5, y = 0.5)
+    assertTrue(inClip.isNear(Rgb.Green), "the middle of the clip was $inClip, and the clip was ${Rgb.Green}")
+
+    val opening = assertNotNull(frames.firstOrNull { it.at(x = 0.5, y = 0.5).isNear(Rgb.Green) })
+    assertTrue(
+      abs(opening.timestampUs - startUs) < stepUs,
+      "the clip opened at ${opening.timestampUs}us, and the track starts at ${startUs}us",
+    )
+    val endUs = frames.last().let { it.timestampUs + it.durationUs }
+    assertTrue(
+      abs(endUs - micros(resolved.duration)) < stepUs,
+      "the video ends at ${endUs}us, and the composition runs ${micros(resolved.duration)}us",
+    )
+  }
 
   @Test
   fun aBlurredFillPaintsBarsThatAreNotFlat() =
@@ -807,6 +873,11 @@ class BrowserExportTest {
   private suspend fun rampOf(bytes: ByteArray): Ramp =
     Ramp(decodeFrames(MediaSource.Bytes(bytes)).map { it.at(x = 0.5, y = 0.5).red })
 
+  private fun List<OutputFrame>.nearestTo(timestampUs: Double): OutputFrame =
+    minBy { abs(it.timestampUs - timestampUs) }
+
+  private fun micros(duration: Duration): Double = duration.toDouble(DurationUnit.MICROSECONDS)
+
   private fun compositionOf(source: MediaSource): EditComposition =
     EditComposition(
       tracks = listOf(Track(listOf(Clip(source)))),
@@ -900,6 +971,13 @@ class BrowserExportTest {
     const val HALF_DIM_TOLERANCE = 24
     const val PURPLE_ARGB = 0xFFA060C8.toInt()
     val PURPLE_RGB = Rgb(0xA0, 0x60, 0xC8)
+
+    // Both starts sit ahead of a clip a second long at thirty frames a second. The first is on the
+    // frame grid and the second falls between two slots.
+    val ON_GRID_START = 600.milliseconds
+    val OFF_GRID_START = 510.milliseconds
+    const val LATE_CLIP_FRAMES = 30
+    const val LATE_FRAME_RATE = 30
     const val RATE_TOLERANCE = 2f
     const val RAMP_STEP = 4
     val TRIM_START = 1000.milliseconds

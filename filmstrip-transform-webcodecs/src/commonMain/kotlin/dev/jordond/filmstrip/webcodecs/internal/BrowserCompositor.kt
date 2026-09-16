@@ -129,6 +129,19 @@ internal class BrowserCompositor private constructor(
   }
 
   /**
+   * Clears the framebuffer to the fill and draws no clip over it, for an output slot no clip
+   * covers, like the gap in front of a primary track that starts late.
+   *
+   * A blurred fill has no frame to blur there, so its background passes are skipped and the slot
+   * keeps the plain clear colour. [snapshot] and [present] read the result like any drawn frame,
+   * so a kept grade still packs the fill into ten-bit codes.
+   */
+  fun drawFill() {
+    gl.bindFramebuffer(GL_FRAMEBUFFER, hdr?.outputFbo)
+    gl.clear(GL_COLOR_BUFFER_BIT)
+  }
+
+  /**
    * The SDR upload: the decoded frame straight into one RGBA texture.
    *
    * `UNPACK_FLIP_Y_WEBGL` is what makes the upload match the +Y-up texture convention every
@@ -1112,7 +1125,7 @@ private val HLG_OETF_GLSL =
 /**
  * The clear colour [Fill.Solid] paints outright. A blurred fill has no single colour of its own, so
  * every pixel it reaches is drawn over before the frame is handed back, and this is only what a
- * stray uncovered one would fall back to.
+ * stray uncovered one or a slot with no clip at all falls back to.
  *
  * On a kept grade the colour is linear light rather than an encoded value. HLG is pre-distorted
  * through the inverse of the per-channel transfer the pack pass runs, so what ends up in the file

@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.VideoCodec
+import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.ResolveResult
@@ -194,6 +195,109 @@ class BrowserPreviewTest {
       }
     }
 
+  // The export writes the fill until a late primary starts, so the preview draws it there too, and
+  // a frame after the start is the one that far into the clip rather than that far into the
+  // composition. Both are read in the middle of their run.
+  @Test
+  fun aPrimaryThatStartsLateShowsTheFillUntilItDoes() =
+    runTest {
+      val preview = previewOf(lateComposition(Fill.Solid(PURPLE_ARGB)))
+
+      try {
+        val gap = frameTime(GAP_PROBE)
+        val filled = assertNotNull(preview.frameAt(gap), "no preview frame in the gap")
+        assertEquals(gap, filled.presentationTime)
+        assertTrue(filled.at(x = 0.5, y = 0.5).isNear(PURPLE_RGB), "the gap drew ${filled.at(0.5, 0.5)}")
+
+        // Nothing is decoded in the gap, so a relaxed seek stays put and the look-ahead reads the
+        // clip that comes next.
+        assertEquals(gap, preview.syncSampleAt(gap))
+        preview.fillAhead(gap)
+        assertTrue(preview.buffered > 0, "the look-ahead decoded nothing ahead of the clip")
+
+        val into = frameTime(LATE_SLOTS + CLIP_PROBE)
+        val drawn = assertNotNull(preview.frameAt(into), "no preview frame after the start")
+        assertEquals(into, drawn.presentationTime)
+        assertTrue(
+          drawn.at(x = 0.5, y = 0.5).isNear(ramp(CLIP_PROBE)),
+          "the clip drew ${drawn.at(0.5, 0.5)} where its frame $CLIP_PROBE is ${ramp(CLIP_PROBE)}",
+        )
+      } finally {
+        preview.release()
+      }
+    }
+
+  // A start between two slots leaves the gap the export writes, fifteen slots here, so the grid slot
+  // just short of the start is already the clip's opening frame. A relaxed seek into the clip lands on
+  // that same frame rather than on the fill in front of it.
+  @Test
+  fun aPrimaryThatStartsBetweenTwoSlotsOpensWhereTheExportDoes() =
+    runTest {
+      val preview = previewOf(lateComposition(Fill.Solid(PURPLE_ARGB), start = OFF_GRID_START))
+
+      try {
+        val filled = assertNotNull(preview.frameAt(frameTime(GAP_PROBE)), "no preview frame in the gap")
+        assertTrue(filled.at(x = 0.5, y = 0.5).isNear(PURPLE_RGB), "the gap drew ${filled.at(0.5, 0.5)}")
+
+        // Ten milliseconds short of the start and a whole slot past the last gap frame.
+        val shortOfStart = frameTime(OFF_GRID_LEAD)
+        assertTrue(shortOfStart < OFF_GRID_START, "the probe at $shortOfStart is not short of $OFF_GRID_START")
+        val opening = assertNotNull(preview.frameAt(shortOfStart), "no preview frame at $shortOfStart")
+        assertTrue(
+          opening.at(x = 0.5, y = 0.5).isNear(ramp(0)),
+          "$shortOfStart drew ${opening.at(0.5, 0.5)} where the clip opens on ${ramp(0)}",
+        )
+        // The clip's own sync sample sits after this position, so a relaxed seek has nowhere earlier
+        // to go and stays put.
+        val shortSeek = preview.syncSampleAt(shortOfStart)
+        assertTrue(shortSeek <= shortOfStart, "a relaxed seek to $shortOfStart moved forward to $shortSeek")
+
+        val inClip = OFF_GRID_START + frameTime(CLIP_PROBE)
+        val seek = preview.syncSampleAt(inClip)
+        assertTrue(seek <= inClip, "a relaxed seek to $inClip moved forward to $seek")
+        val landed = assertNotNull(preview.frameAt(seek), "no preview frame at $seek")
+        assertTrue(
+          landed.at(x = 0.5, y = 0.5).isNear(ramp(0)),
+          "a relaxed seek landed on $seek and drew ${landed.at(0.5, 0.5)} where the clip opens on ${ramp(0)}",
+        )
+      } finally {
+        preview.release()
+      }
+    }
+
+  // A blurred fill has nothing to blur in the gap, so the gap is its plain black even straight after
+  // a letterboxed frame ran the background passes through the same compositor.
+  @Test
+  fun aBlurredFillLeavesTheGapBlack() =
+    runTest {
+      val filler = makeClip(width = WIDTH, height = HEIGHT, frames = SHORT_FRAMES, frameRate = FRAME_RATE)
+      val wide =
+        makeClip(width = WIDTH, height = HEIGHT / 2, frames = SHORT_FRAMES, frameRate = FRAME_RATE, colour = Rgb.Red)
+      val preview = previewOf(lateComposition(Fill.Blur, clips = listOf(filler, wide)))
+
+      try {
+        val letterboxed = assertNotNull(preview.frameAt(frameTime(LATE_SLOTS + SHORT_FRAMES + WIDE_PROBE)))
+        val bar = letterboxed.at(x = 0.5, y = BAR)
+        assertTrue(!bar.isNear(Rgb.Black), "the bar read $bar, so the background passes never ran")
+
+        val filled = assertNotNull(preview.frameAt(frameTime(GAP_PROBE)))
+        assertTrue(filled.at(x = 0.5, y = 0.5).isNear(Rgb.Black), "the gap drew ${filled.at(0.5, 0.5)}")
+      } finally {
+        preview.release()
+      }
+    }
+
+  private suspend fun lateComposition(
+    fill: Fill,
+    start: Duration = frameTime(LATE_SLOTS),
+    clips: List<ByteArray>? = null,
+  ): EditComposition =
+    EditComposition(
+      tracks = listOf(Track((clips ?: listOf(rampClip())).map { Clip(MediaSource.Bytes(it)) }, start = start)),
+      audio = AudioSpec.Remove,
+      fill = fill,
+    )
+
   private suspend fun previewOf(composition: EditComposition): BrowserPreview =
     resolve(composition).toBrowserPreview(composition)
 
@@ -237,6 +341,23 @@ class BrowserPreviewTest {
     // One inside the look-ahead, one well past it, so both the buffered path and the sampler path
     // are compared against the export rather than only whichever the window happened to serve.
     val PROBE_FRAMES = listOf(3, 21)
+
+    // A late primary starts eighteen slots in, and each run is probed at its middle.
+    const val LATE_SLOTS = 18
+    const val GAP_PROBE = 9
+    const val CLIP_PROBE = 15
+
+    // Fifteen slots and three tenths of another, which leaves fifteen slots of gap.
+    val OFF_GRID_START = 510.milliseconds
+    const val OFF_GRID_LEAD = 15
+
+    // Two short clips, the second half as tall as the output, probed in its middle and in its top bar.
+    const val SHORT_FRAMES = 12
+    const val WIDE_PROBE = 6
+    const val BAR = 0.1
+
+    const val PURPLE_ARGB = 0xFFA060C8.toInt()
+    val PURPLE_RGB = Rgb(0xA0, 0x60, 0xC8)
 
     const val RAMP_STEP = 6
     const val RAMP_BASE = 20

@@ -319,7 +319,8 @@ nothing.
 until then. media3 lays a gap at the head of the sequence, AVFoundation inserts an empty time range,
 the browser starts the clip's source node late, and ffmpeg writes an `adelay`. The composition runs as
 long as its longest non-looping track, offset included, so a bed that runs past the picture sets the
-length rather than being cut to it.
+length rather than being cut to it. A negative start on any track is refused with
+`ExportError.InvalidComposition`, since a track cannot begin before the composition does.
 
 ### Looping
 

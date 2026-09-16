@@ -1225,6 +1225,34 @@ class ExportPlannerTest {
   }
 
   @Test
+  fun `a primary track that starts before the composition is refused by name`() {
+    val composition = EditComposition(listOf(Track(listOf(clip()), start = (-500).milliseconds)))
+
+    val error = assertIs<Verdict.Incapable>(plan(composition)).reasons.single()
+    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+      "A track's start is negative, so it would begin before the composition does. A start is " +
+      "measured from the start of the composition and has to be zero or later."
+  }
+
+  // Every track is measured from the same start, so a bed that starts early is refused the same way
+  // a primary track is.
+  @Test
+  fun `an audio track that starts before the composition is refused by name`() {
+    val composition =
+      EditComposition(
+        listOf(
+          Track(listOf(clip())),
+          Track(listOf(clip(audioRate = 48_000)), content = TrackContent.Audio, start = (-500).milliseconds),
+        ),
+      )
+
+    val error = assertIs<Verdict.Incapable>(plan(composition)).reasons.single()
+    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+      "A track's start is negative, so it would begin before the composition does. A start is " +
+      "measured from the start of the composition and has to be zero or later."
+  }
+
+  @Test
   fun `a track fade longer than the track is refused by name`() {
     val composition = EditComposition(listOf(Track(listOf(clip()), fadeOut = 9_000.milliseconds)))
 

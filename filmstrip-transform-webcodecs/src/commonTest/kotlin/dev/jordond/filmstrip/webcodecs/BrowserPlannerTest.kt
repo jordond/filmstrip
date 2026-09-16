@@ -63,6 +63,7 @@ import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
 import dev.jordond.filmstrip.webcodecs.internal.BrowserLowering
 import dev.jordond.filmstrip.webcodecs.internal.BrowserPlanner
 import dev.jordond.filmstrip.webcodecs.internal.HDR_VP9_CODEC
+import dev.jordond.filmstrip.webcodecs.internal.MICROS_PER_SECOND
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -753,6 +754,71 @@ class BrowserPlannerTest {
     assertEquals(LoopingCases.UNDERLAY_RUN, beneath.span.endExclusive)
   }
 
+  // A primary that starts late draws every pass where the planner laid it, and the slots in front of
+  // the first one belong to the render. The start sits off the frame grid, so the gap rounds to its
+  // nearest slot and the last gap frame still lands before the first clip's.
+  @Test
+  fun aPrimaryThatStartsLateLeadsWithTheGapAndDrawsWhereItWasLaid() {
+    val first = Clip(source("a"))
+    val second = Clip(source("b"), trim = TimeRange(TRIM_START, TRIM_END))
+    val composition =
+      EditComposition(tracks = listOf(Track(listOf(first, second), start = LATE_START)), audio = AudioSpec.Remove)
+
+    val render = assertNotNull(lower(composition).render)
+
+    val laid = render.audioTracks.first().clips
+    assertEquals(LATE_START, laid.first().span.start)
+    assertEquals(laid.size, render.clips.size)
+    laid.forEachIndexed { index, pass ->
+      assertEquals(micros(pass.span.start), render.clips[index].offsetUs, "clip $index")
+    }
+
+    assertEquals(15L, render.leadFrames)
+    assertEquals(render.leadFrames + render.clips.sumOf { it.frames }, render.estimatedFrames)
+    // No gap slot reaches the first clip, so the timestamps the pipeline writes keep climbing
+    // across the seam.
+    val stepUs = MICROS_PER_SECOND / render.frameRate
+    val openingUs = render.clips.first().offsetUs
+    assertTrue((render.leadFrames - 1) * stepUs < openingUs, "the last gap slot lands on or past $openingUs")
+  }
+
+  // The gap is the start rounded to the nearest slot, with a start on a half rounded up, which is
+  // what ffmpeg's tpad pads the same start with. The literals pin that rule, so they are not copied
+  // from the function they check.
+  @Test
+  fun aLateStartRoundsToTheNearestSlot() {
+    assertEquals(15L, leadOf(510.milliseconds, frameRate = 30))
+    assertEquals(16L, leadOf(520.milliseconds, frameRate = 30))
+    assertEquals(8L, leadOf(250.milliseconds, frameRate = 30))
+    // Exactly half of a forty millisecond slot.
+    assertEquals(1L, leadOf(20.milliseconds, frameRate = 25))
+    // Under half a slot.
+    assertEquals(0L, leadOf(10.milliseconds, frameRate = 30))
+  }
+
+  private fun leadOf(
+    start: Duration,
+    frameRate: Int,
+  ): Long {
+    val composition =
+      EditComposition(tracks = listOf(Track(listOf(Clip(source("a"))), start = start)), audio = AudioSpec.Remove)
+    val spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None, frameRate = frameRate)
+
+    val render = assertNotNull(lower(composition, spec).render)
+    assertEquals(frameRate, render.frameRate, "the plan ran at another rate than $start was measured against")
+    return render.leadFrames
+  }
+
+  // A primary with no gap leads with nothing, and its first clip opens the composition.
+  @Test
+  fun aPrimaryThatStartsWithTheCompositionHasNoLead() {
+    val render = assertNotNull(lower(compositionOf(listOf(Clip(source("a"))))).render)
+
+    assertEquals(0L, render.leadFrames)
+    assertEquals(0.0, render.clips.single().offsetUs)
+    assertEquals(render.clips.single().frames, render.estimatedFrames)
+  }
+
   @Test
   fun secondVideoTrackIsRefused() {
     val composition =
@@ -850,6 +916,9 @@ class BrowserPlannerTest {
     // The sync sample a copy would open on, four hundred milliseconds back from the cut, with a
     // tolerance either side of that gap so neither answer is the one a broken snap gives anyway.
     val OPENING = 300.milliseconds
+
+    // Fifteen slots and three tenths of another at the fabricated sources' thirty frames a second.
+    val LATE_START = 510.milliseconds
 
     // The fabricated sources case 3 of the looping suite is probed with, both longer than the trims
     // taken out of them.

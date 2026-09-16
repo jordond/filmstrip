@@ -118,7 +118,8 @@ public class BrowserPreview internal constructor(
    * Draws the frame at [position] and reads it back, or null when the composition has none there.
    *
    * The position is snapped to the output frame grid first, so the decoded frame chosen is the one
-   * the export pipeline fills that same slot with.
+   * the export pipeline fills that same slot with. A slot in front of a primary track that starts
+   * late draws the fill alone, as the export does.
    */
   public suspend fun frameAt(position: Duration): PreviewFrame? = exclusively { draw(position) }
 
@@ -154,8 +155,9 @@ public class BrowserPreview internal constructor(
   /**
    * The composition time of the sync sample at or before [position].
    *
-   * What a relaxed seek lands on. A clip with no sync sample before the position, and a source the
-   * container cannot answer for, both come back as [position] itself.
+   * What a relaxed seek lands on. A clip with no sync sample before the position, a source the
+   * container cannot answer for, and a position in the gap before the primary track starts all come
+   * back as [position] itself.
    */
   public suspend fun syncSampleAt(position: Duration): Duration = exclusively { syncSample(position) } ?: position
 
@@ -254,6 +256,7 @@ public class BrowserPreview internal constructor(
   }
 
   private suspend fun draw(position: Duration): PreviewFrame? {
+    leadAt(position)?.let { return fillFrame(it) }
     val slot = slotAt(position) ?: return null
     val sourceUs = slot.sourceUs
 
@@ -274,6 +277,8 @@ public class BrowserPreview internal constructor(
   }
 
   private suspend fun decodeAhead(from: Duration) {
+    // Inside the leading gap this is the first clip's opening slot, so playback finds that clip
+    // already decoded when it gets there.
     val slot = slotAt(from) ?: return
     if (!window.holds(slot.index) || window.startsAfter(slot.sourceUs)) {
       val sampler = sampler(playbackSamplers, slot) ?: return
@@ -284,6 +289,7 @@ public class BrowserPreview internal constructor(
   }
 
   private suspend fun syncSample(position: Duration): Duration {
+    if (leadAt(position) != null) return position
     val slot = slotAt(position) ?: return position
     val reader = sources.open(slot.clip.source) ?: return position
     val keyUs = reader.keyFrameAt(slot.sourceUs) ?: return position
@@ -294,7 +300,9 @@ public class BrowserPreview internal constructor(
     val outputUs = slot.clip.offsetUs + (keyUs - slot.clip.trimStartUs)
     val step = stepUs
     val landed = floor((outputUs - slot.clip.offsetUs) / step) * step + slot.clip.offsetUs
-    return landed.coerceAtLeast(0.0).microseconds
+    // A clip that opens between two grid slots is reached from a position just short of it, and a
+    // seek never lands later than it was asked to.
+    return landed.coerceAtLeast(0.0).microseconds.coerceAtMost(position)
   }
 
   /**
@@ -307,8 +315,23 @@ public class BrowserPreview internal constructor(
     val pass = compositor()
     pass.clip(slot.clip)
     pass.draw(sample)
+    return readBack(pass, slot.outputUs)
+  }
 
-    val shot = pass.present(slot.outputUs, stepUs)
+  /**
+   * Draws the fill with no clip over it, for a slot in the gap before the primary track starts.
+   */
+  private suspend fun fillFrame(outputUs: Double): PreviewFrame {
+    val pass = compositor()
+    pass.drawFill()
+    return readBack(pass, outputUs)
+  }
+
+  private suspend fun readBack(
+    pass: BrowserCompositor,
+    outputUs: Double,
+  ): PreviewFrame {
+    val shot = pass.present(outputUs, stepUs)
     try {
       val options = JsOptions().put("format", "RGBA").build()
       val target = Uint8Array(shot.allocationSize(options))
@@ -316,7 +339,7 @@ public class BrowserPreview internal constructor(
       return PreviewFrame(
         pixels = target.toByteArray(),
         size = Size(render.width, render.height),
-        presentationTime = slot.outputUs.microseconds,
+        presentationTime = outputUs.microseconds,
       )
     } finally {
       shot.close()
@@ -340,10 +363,28 @@ public class BrowserPreview internal constructor(
   private val stepUs: Double get() = MICROS_PER_SECOND / render.frameRate
 
   /**
+   * The output time of the grid slot [position] rounds to when that slot is one of the render's lead slots, or null
+   * when it is not.
+   *
+   * The lead slots sit on the grid from zero and there are [BrowserRender.leadFrames] of them, the same count the
+   * export encodes. A position that rounds to a later slot is left to [slotAt], which puts one short of the first clip
+   * on that clip's opening slot.
+   */
+  private fun leadAt(position: Duration): Double? {
+    if (render.leadFrames == 0L || render.frameRate <= 0) return null
+    val step = stepUs
+    val positionUs = position.toDouble(DurationUnit.MICROSECONDS).coerceAtLeast(0.0)
+
+    val slot = (positionUs / step).roundToLong()
+    return if (slot < render.leadFrames) slot * step else null
+  }
+
+  /**
    * Which clip is on screen at [position], and which of its output slots the position falls in.
    *
    * A position past the end holds on the composition's last frame rather than answering with
-   * nothing, so a playhead sitting on the duration still has a picture.
+   * nothing, so a playhead sitting on the duration still has a picture. One before the first clip
+   * lands on that clip's opening slot, so [leadAt] is asked first wherever the gap is drawn.
    */
   private fun slotAt(position: Duration): Slot? {
     if (render.clips.isEmpty() || render.frameRate <= 0) return null
