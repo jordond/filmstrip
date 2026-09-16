@@ -437,7 +437,7 @@ class BrowserExportTest {
       val plan = planWith(engine, composition)
       assertEquals(ExportPath.Transmux, plan.path, "a snapped trim on an untouched clip is meant to copy")
 
-      val ramp = rampOf(bytes)
+      val ramp = rampOf(MediaSource.Bytes(bytes))
       val frames = decodeFrames(outputOf(exportWith(engine, plan)))
       val openedFrame = ramp.frameOf(frames.first().at(x = 0.5, y = 0.5))
       assertEquals(
@@ -473,7 +473,7 @@ class BrowserExportTest {
         "the plan blamed ${plan.copyBlockedBy} for re-encoding",
       )
 
-      val ramp = rampOf(bytes)
+      val ramp = reencodedRampOf(engine, bytes)
       val frames = decodeFrames(outputOf(exportWith(engine, plan)))
       assertEquals(
         TRIM_START_FRAME,
@@ -841,8 +841,9 @@ class BrowserExportTest {
   private suspend fun planWith(
     engine: BrowserExportEngine,
     composition: EditComposition,
+    spec: ExportSpec = ExportSpec(),
   ): ExportPlan =
-    when (val verdict = engine.plan(composition, ExportSpec())) {
+    when (val verdict = engine.plan(composition, spec)) {
       is Verdict.Capable -> verdict.plan
       is Verdict.Degraded -> verdict.plan
       is Verdict.Incapable -> throw AssertionError("the plan was refused: ${verdict.reasons.map { it.message }}")
@@ -867,11 +868,27 @@ class BrowserExportTest {
   private fun frameIndexAt(at: Duration): Int = (at.toDouble(DurationUnit.SECONDS) * SNAPPED_FRAME_RATE).roundToInt()
 
   /**
-   * The ramp fixture decoded back, so an exported frame is matched against the source through the
+   * The whole ramp fixture after one more trip through the encoder, which is what a frame the export
+   * re-encoded has to be matched against.
+   *
+   * Every trip through the encoder can move a colour by a level or two, so a re-encoded frame sits
+   * one trip further from the painted value than the fixture does. Naming a frame rate sends the
+   * whole clip through the encoder without dropping or moving a frame.
+   */
+  private suspend fun reencodedRampOf(
+    engine: BrowserExportEngine,
+    bytes: ByteArray,
+  ): Ramp {
+    val plan = planWith(engine, compositionOf(MediaSource.Bytes(bytes)), ExportSpec(frameRate = SNAPPED_FRAME_RATE))
+    assertEquals(ExportPath.Transcode, plan.path, "the reference ramp was meant to be re-encoded")
+    return rampOf(outputOf(exportWith(engine, plan)))
+  }
+
+  /**
+   * A ramp fixture decoded back, so an exported frame is matched against the source through the
    * same colour round trip rather than against the values it was painted with.
    */
-  private suspend fun rampOf(bytes: ByteArray): Ramp =
-    Ramp(decodeFrames(MediaSource.Bytes(bytes)).map { it.at(x = 0.5, y = 0.5).red })
+  private suspend fun rampOf(source: MediaSource): Ramp = Ramp(decodeFrames(source).map { it.at(x = 0.5, y = 0.5).red })
 
   private fun List<OutputFrame>.nearestTo(timestampUs: Double): OutputFrame =
     minBy { abs(it.timestampUs - timestampUs) }
@@ -1017,7 +1034,8 @@ class BrowserExportTest {
  * The red channel of every frame of the ramp fixture, decoded back.
  *
  * A frame is named by whichever of these its colour sits closest to, so a shift the colour
- * conversion applies to the export applies to the reference too and cancels.
+ * conversion applies to the export applies to the reference too and cancels. That only holds while
+ * both have been through the encoder the same number of times.
  */
 private class Ramp(
   private val reds: List<Int>,
