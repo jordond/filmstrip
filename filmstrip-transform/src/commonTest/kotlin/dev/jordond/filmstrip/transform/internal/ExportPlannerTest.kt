@@ -455,14 +455,16 @@ class ExportPlannerTest {
     recorder.specs.map { it.id } shouldBe listOf(EffectIds.BRIGHTNESS, EffectIds.SEPIA)
   }
 
-  // The other order: registered before the catalogue, it never wins for those effects anyway, so the
-  // run folds the way it does for every backend.
+  // The other order: registered after the catalogue, it never wins for those effects anyway, so the
+  // run folds the way it does for every backend. Rendered with Software, which no target's catalogue
+  // claims, so the folded run falls through to the recorder on every target. Android's catalogue
+  // would claim it under OpenGlEs and the recorder would never be asked.
   @Test
   fun `a resolver behind the catalogue still sees the folded run`() {
     val recorder = RecordingResolver()
     val composition = composition(clip(effects = listOf(Brightness(4f), Sepia(1f))))
 
-    resolve(composition, resolvers = listOf(BuiltInEffectResolver(), recorder))
+    resolve(composition, resolvers = listOf(BuiltInEffectResolver(), recorder), renderApi = RenderApi.Software)
 
     recorder.specs.map { it.id } shouldBe listOf(EffectIds.COLOR_MATRIX)
   }
@@ -2083,8 +2085,9 @@ class ExportPlannerTest {
     canToneMap: Boolean = true,
     canCopy: (MediaInfo) -> Boolean = { true },
     openings: Map<MediaSource, Duration> = emptyMap(),
+    renderApi: RenderApi = RenderApi.OpenGlEs,
   ) = assertNotNull(
-    planner(resolvers, canToneMap = canToneMap, canCopy = canCopy)
+    planner(resolvers, canToneMap = canToneMap, canCopy = canCopy, renderApi = renderApi)
       .negotiate(composition, spec, device, infos(composition), openings)
       .composition,
   )
@@ -2093,11 +2096,12 @@ class ExportPlannerTest {
     resolvers: List<EffectResolver> = listOf(FakeResolver()),
     canToneMap: Boolean = true,
     canCopy: (MediaInfo) -> Boolean = { true },
+    renderApi: RenderApi = RenderApi.OpenGlEs,
   ) = ExportPlanner(
     resolvers = resolvers,
     renderCapabilities = { size, hdr ->
       RenderCapabilities(
-        api = RenderApi.OpenGlEs,
+        api = renderApi,
         supportsFragmentShader = true,
         supportsComputeShader = false,
         supportsHdr = hdr,
