@@ -25,3 +25,17 @@ internal fun Project.configureSpotless() {
     }
   }
 }
+
+// build-logic is a separate included build, so its spotlessCheck doesn't run just because the
+// root project's does. Wire it in so both do.
+internal fun Project.configureBuildLogicSpotless() {
+  val buildLogic = gradle.includedBuild("build-logic")
+
+  tasks.named("spotlessCheck") {
+    dependsOn(buildLogic.task(":convention:spotlessCheck"))
+  }
+
+  tasks.named("spotlessApply") {
+    dependsOn(buildLogic.task(":convention:spotlessApply"))
+  }
+}
