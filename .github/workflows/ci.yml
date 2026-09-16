@@ -158,6 +158,10 @@ jobs:
           api-level: 30
           arch: x86_64
           target: google_apis
+          # The runner's defaults plus -HardwareDecoder, which leaves video to the software decoder.
+          # The API 30 image's host-backed OMX.android.goldfish.h264.decoder drops frames it was
+          # told to render, and media3 waits 20s for them on an emulator at every seek and release.
+          emulator-options: "-no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -feature -HardwareDecoder"
           script: ./gradlew connectedAndroidDeviceTest --scan
 
       - name: Upload test reports
