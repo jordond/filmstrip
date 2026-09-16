@@ -1,7 +1,9 @@
 package dev.jordond.filmstrip.playback
 
+import android.os.Build
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.FrameResult
@@ -85,17 +87,8 @@ class AndroidThumbnailContractTest {
 
       try {
         thumbnails.size shouldBe requests.size
-        for (thumbnail in thumbnails) {
-          thumbnail.frame().size shouldBe FIXTURE_FRAME
-
-          val exported = androidExportFrame(composition, thumbnail.presentationTime)
-          assertFramesSimilar(
-            expected = exported,
-            actual = thumbnail.frame(),
-            minSsim = RELAXED_MIN_SSIM,
-            message = "a run's thumbnail and the export disagree at ${thumbnail.presentationTime}",
-          )
-        }
+        thumbnails.forEach { it.frame().size shouldBe FIXTURE_FRAME }
+        assertRelaxedTilesMatch(scope, composition, thumbnails, "a run's thumbnail")
       } finally {
         thumbnails.forEach { it.image.close() }
       }
@@ -114,15 +107,7 @@ class AndroidThumbnailContractTest {
       try {
         // The first run is the one pinned to the file, so a pair that differs is the second having
         // drawn something of its own rather than both having drifted together.
-        val exportable = androidFixtureComposition(listOf(Brightness(DIM)))
-        for (thumbnail in dim) {
-          assertFramesSimilar(
-            expected = androidExportFrame(exportable, thumbnail.presentationTime),
-            actual = thumbnail.frame(),
-            minSsim = RELAXED_MIN_SSIM,
-            message = "the first run and the export disagree at ${thumbnail.presentationTime}",
-          )
-        }
+        assertRelaxedTilesMatch(scope, androidFixtureComposition(listOf(Brightness(DIM))), dim, "the first run")
 
         RUN_POSITIONS.indices.forEach { at ->
           val regrade = compareFrames(dim[at].frame(), lit[at].frame()).meanAbsoluteDifference
@@ -163,17 +148,7 @@ class AndroidThumbnailContractTest {
       // run inherits, so a whole run after this one is what shows the handover happened.
       val after = source(scope).awaitThumbnails(runRequests(DIM, REVISION))
       try {
-        val exportable = androidFixtureComposition(listOf(Brightness(DIM)))
-        for (thumbnail in after) {
-          assertFramesSimilar(
-            expected = androidExportFrame(exportable, thumbnail.presentationTime),
-            actual = thumbnail.frame(),
-            minSsim = RELAXED_MIN_SSIM,
-            message =
-              "a run after a cancelled one disagrees with the export " +
-                "at ${thumbnail.presentationTime}",
-          )
-        }
+        assertRelaxedTilesMatch(scope, composition, after, "a run after a cancelled one")
       } finally {
         after.forEach { it.image.close() }
       }
@@ -232,6 +207,52 @@ class AndroidThumbnailContractTest {
   ): List<ThumbnailRequest> {
     val composition = androidFixtureComposition(listOf(Brightness(brightness)))
     return RUN_POSITIONS.map { ThumbnailRequest(composition, it, FIXTURE_FRAME.height, revision, precise = false) }
+  }
+
+  /**
+   * Holds each relaxed tile in [tiles] to the frame [composition] draws at the time the tile reports. A failure names
+   * the run as [subject].
+   *
+   * The reference is a precise tile rendered on an extractor of its own, so nothing is encoded between the two and a
+   * tile that landed where it says is the same picture. The export is checked too, where the platform encoder keeps
+   * enough of a sync sample for [RELAXED_MIN_SSIM] to tell a landing from a miss.
+   */
+  private suspend fun assertRelaxedTilesMatch(
+    scope: CoroutineScope,
+    composition: EditComposition,
+    tiles: List<ThumbnailResult.Success>,
+    subject: String,
+  ) {
+    val references = source(scope)
+    tiles.forEachIndexed { index, tile ->
+      val at = tile.presentationTime
+      val reference =
+        references.awaitThumbnail(
+          ThumbnailRequest(composition, at, FIXTURE_FRAME.height, REFERENCE_REVISION + index, precise = true),
+        )
+      try {
+        assertFramesSimilar(
+          expected = reference.frame(),
+          actual = tile.frame(),
+          minPsnrDb = RENDERED_MIN_PSNR_DB,
+          minSsim = RENDERED_MIN_SSIM,
+          message = "$subject at $at is not the precise frame drawn there",
+        )
+      } finally {
+        reference.image.close()
+      }
+
+      // The API 30 system AVC encoder keeps less of the fixture's sync samples than this floor allows. They read 0.978
+      // and 0.980 against the export there, and 0.985 and 0.984 on API 36, which the floor was set on.
+      if (Build.VERSION.SDK_INT > Build.VERSION_CODES.R) {
+        assertFramesSimilar(
+          expected = androidExportFrame(composition, at),
+          actual = tile.frame(),
+          minSsim = RELAXED_MIN_SSIM,
+          message = "$subject and the export disagree at $at",
+        )
+      }
+    }
   }
 
   private fun source(scope: CoroutineScope): ThumbnailSource =
@@ -407,6 +428,15 @@ class AndroidThumbnailContractTest {
     // rather than the sample it landed on reads 0.973 and 0.974, and the export a frame step
     // either side of the one reported reads 0.980 and 0.981.
     const val RELAXED_MIN_SSIM = 0.982
+
+    // A relaxed tile against a precise one drawn at the time it reports. Nothing is encoded between them, so a tile
+    // that landed where it says matches exactly, and the nearest miss, a frame step to either side, reads 44.0 dB and
+    // 0.984.
+    const val RENDERED_MIN_PSNR_DB = 50.0
+    const val RENDERED_MIN_SSIM = 0.999
+
+    // Where the precise references are served from, clear of every revision a run in this suite asks under.
+    const val REFERENCE_REVISION = 100L
 
     // Twice DIM, and under the factor at which a channel saturates.
     const val LIT = 0.8f
