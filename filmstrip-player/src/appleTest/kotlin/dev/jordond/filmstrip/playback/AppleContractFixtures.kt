@@ -127,7 +127,7 @@ internal suspend fun appleExportLowering(composition: EditComposition): Resolved
  * @param duration How long the asset runs, which is how far the reader may go.
  */
 @OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
-internal fun AVAsset.readFrame(
+internal suspend fun AVAsset.readFrame(
   composition: AVVideoComposition?,
   duration: Duration,
   position: Duration,

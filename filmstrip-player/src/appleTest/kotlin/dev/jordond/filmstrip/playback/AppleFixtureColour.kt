@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.avfoundation.internal.toCMTime
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.PlatformImage
+import dev.jordond.filmstrip.playback.contract.CONTRACT_TIMEOUT
 import dev.jordond.filmstrip.playback.contract.awaitStep
 import dev.jordond.filmstrip.test.DEFAULT_MIN_PSNR_DB
 import dev.jordond.filmstrip.test.DEFAULT_MIN_SSIM
@@ -112,12 +113,15 @@ private fun passThroughComposition(asset: AVAsset): AVMutableVideoComposition =
  * The frame an image generator draws from this asset at [position], through [composition].
  *
  * Both tolerances are pinned to zero, so the frame is the one a reader hands back at the same time.
+ *
+ * @param timeout How long the draw may take before the test fails.
  */
 @OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
 @Suppress("DEPRECATION")
-private suspend fun AVAsset.generateFrame(
+internal suspend fun AVAsset.generateFrame(
   composition: AVVideoComposition,
   position: Duration,
+  timeout: Duration = CONTRACT_TIMEOUT,
 ): TestFrame {
   val generator =
     AVAssetImageGenerator(asset = this).apply {
@@ -127,7 +131,7 @@ private suspend fun AVAsset.generateFrame(
     }
 
   val (image, reason) =
-    awaitStep<Pair<PlatformImage?, String?>>("the image generator to draw $position") {
+    awaitStep<Pair<PlatformImage?, String?>>("the image generator to draw $position", timeout) {
       suspendCancellableCoroutine { continuation ->
         generator.generateCGImagesAsynchronouslyForTimes(
           listOf(NSValue.valueWithCMTime(position.toCMTime())),

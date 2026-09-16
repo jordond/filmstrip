@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.playback
 
 import dev.jordond.filmstrip.playback.contract.contractPump
+import dev.jordond.filmstrip.playback.contract.contractWarmUp
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.CoreFoundation.CFRunLoopRunInMode
 import platform.CoreFoundation.kCFRunLoopDefaultMode
@@ -14,11 +15,15 @@ import platform.CoreFoundation.kCFRunLoopDefaultMode
  * is the main one, and pumping the main loop moves the item to `readyToPlay` in under a second. A
  * host app runs that loop all the time, and a Kotlin test parks it, so the suite runs it instead.
  *
+ * It also installs [warmUpAppleMediaStack] as the suite's warm-up, so whichever Apple contract class runs first in a
+ * process pays for loading the media stack before its first wait starts.
+ *
  * Idempotent, so every Apple contract class can call it from its own initialiser.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun pumpMainRunLoopDuringContracts() {
   contractPump = { CFRunLoopRunInMode(kCFRunLoopDefaultMode, PUMP_SECONDS, true) }
+  contractWarmUp = ::warmUpAppleMediaStack
 }
 
 // Short enough that the suite's own polling stays responsive, long enough that the main thread is

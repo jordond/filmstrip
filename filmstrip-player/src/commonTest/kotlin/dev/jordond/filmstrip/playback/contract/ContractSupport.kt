@@ -11,13 +11,17 @@ import dev.jordond.filmstrip.player.ReadbackFrame
 import dev.jordond.filmstrip.player.ReadbackResult
 import dev.jordond.filmstrip.player.SetCompositionRequest
 import dev.jordond.filmstrip.player.SetCompositionResult
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.test.TestResult
 import kotlinx.coroutines.test.runTest
@@ -132,6 +136,10 @@ class ContractMark(
  * from the same one its callbacks arrive on. Real time rather than virtual: a device backend
  * settles on the platform's own clock, which no test scheduler can advance.
  *
+ * When [contractWarmUp] is set, the first contract test in the process runs it before its body, on the same
+ * dispatcher, and gets [WARM_UP_BUDGET] on top of its own budget to pay for it. Every later test runs without it and
+ * keeps its own budget, whether the warm-up succeeded, threw or ran out of time.
+ *
  * @param timeout How long the whole body may take. The default covers a backend that decodes on the
  *   host. A backend that has to encode something to compare against needs longer and says so.
  * @param body Receives the scope engines should be built on. It is cancelled when the test ends.
@@ -140,33 +148,85 @@ class ContractMark(
 internal fun contractTest(
   timeout: Duration = CONTRACT_BODY_TIMEOUT,
   body: suspend (CoroutineScope) -> Unit,
-): TestResult =
-  runTest(timeout = timeout) {
+): TestResult {
+  val warmUp = contractWarmUp?.takeUnless { warmUpTaken }
+  if (warmUp != null) warmUpTaken = true
+  val warmUpBudget = if (warmUp == null) Duration.ZERO else WARM_UP_BUDGET
+  return runTest(timeout = timeout + warmUpBudget) {
     currentStep = null
     val dispatcher = Dispatchers.Default.limitedParallelism(1)
     val engineScope = CoroutineScope(dispatcher + Job())
     try {
       when (val pump = contractPump) {
         null -> {
-          withContext(dispatcher) { body(engineScope) }
+          withContext(dispatcher) {
+            if (warmUp != null) runWarmUp(warmUp)
+            body(engineScope)
+          }
         }
         else -> {
-          val work = engineScope.async { body(engineScope) }
-          val deadline = TimeSource.Monotonic.markNow() + PUMP_BUDGET
-          while (!work.isCompleted) {
-            if (deadline.hasPassedNow()) {
-              val step = currentStep?.let { "The last wait it started was for $it." } ?: "It started no named wait."
-              fail("The contract body did not finish within $PUMP_BUDGET of pumping. $step")
-            }
-            pump()
+          if (warmUp != null) {
+            engineScope
+              .async { runWarmUp(warmUp) }
+              .pumpUntilDone(pump, WARM_UP_BUDGET, "Timed out after $WARM_UP_BUDGET waiting for $WARM_UP_STEP.")
           }
-          work.await()
+          engineScope
+            .async { body(engineScope) }
+            .pumpUntilDone(pump, PUMP_BUDGET, "The contract body did not finish within $PUMP_BUDGET of pumping.")
         }
       }
     } finally {
       engineScope.cancel()
     }
   }
+}
+
+/**
+ * Runs [pump] until this work completes, and fails with [overrun] once [budget] is spent.
+ *
+ * The failure also names the last step the work started, unless [overrun] already does.
+ */
+private suspend fun <T> Deferred<T>.pumpUntilDone(
+  pump: () -> Unit,
+  budget: Duration,
+  overrun: String,
+): T {
+  val deadline = TimeSource.Monotonic.markNow() + budget
+  while (!isCompleted) {
+    if (deadline.hasPassedNow()) {
+      val step = currentStep
+      val detail =
+        when {
+          step == null -> " It started no named wait."
+          step in overrun -> ""
+          else -> " The last wait it started was for $step."
+        }
+      fail(overrun + detail)
+    }
+    pump()
+  }
+  return await()
+}
+
+/**
+ * Runs [warmUp] as the step [WARM_UP_STEP], failing the test when it throws or takes longer than [WARM_UP_BUDGET].
+ *
+ * A failure names the warm-up and keeps what it threw as its cause. The step is cleared afterwards only while the test
+ * that ran it is still active, so a warm-up left running after its test ended leaves later tests' steps alone.
+ */
+private suspend fun runWarmUp(warmUp: suspend () -> Unit) {
+  awaitStep(WARM_UP_STEP, WARM_UP_BUDGET) {
+    try {
+      warmUp()
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (cause: Throwable) {
+      throw AssertionError("The simulator's media stack did not warm up: ${cause.message}", cause)
+    }
+  }
+  currentCoroutineContext().ensureActive()
+  currentStep = null
+}
 
 /**
  * Runs the platform's own event loop for a moment, or null where a backend needs none.
@@ -179,6 +239,25 @@ internal fun contractTest(
  * leaves it null gets exactly the harness it had before.
  */
 internal var contractPump: (() -> Unit)? = null
+
+/**
+ * Loads the platform's media stack before the first contract body in a process, or null where a backend needs no
+ * warm-up.
+ *
+ * The first test to find it set runs it as the step [WARM_UP_STEP], within [WARM_UP_BUDGET]. It runs once per
+ * process whatever the outcome. A warm-up that throws or runs out of time fails only the test that ran it, and no
+ * later test runs it again. Like [contractPump], it is set once per test class, and a backend that leaves it null gets
+ * exactly the harness it had before.
+ */
+internal var contractWarmUp: (suspend () -> Unit)? = null
+
+/**
+ * Whether a contract test in this process has already taken the [contractWarmUp], however it went.
+ *
+ * [contractTest] reads and sets it on the thread that starts each test, before the warm-up runs.
+ */
+@Volatile
+private var warmUpTaken: Boolean = false
 
 /**
  * The wait the running contract body started most recently, or null before it starts one.
@@ -242,8 +321,12 @@ internal suspend fun <T : Any> awaitStep(
  *
  * This is for a wait that blocks its thread, which no coroutine timeout can interrupt. A pumped body
  * that runs out of budget names the step recorded here.
+ *
+ * Work whose test has already ended is cancelled, and stops here without recording anything, so it cannot rename the
+ * step a later test is on.
  */
-internal fun markStep(description: String) {
+internal suspend fun markStep(description: String) {
+  currentCoroutineContext().ensureActive()
   currentStep = description
 }
 
@@ -344,3 +427,13 @@ private val PUMP_BUDGET: Duration = 3.minutes
  * How long a contract body gets by default, which is `runTest`'s own budget.
  */
 private val CONTRACT_BODY_TIMEOUT: Duration = 60.seconds
+
+/**
+ * How long a [contractWarmUp] may take, on top of the budget of the test that runs it.
+ *
+ * A freshly booted simulator loads media frameworks from disk the first time a process touches them, and on a busy
+ * machine that takes minutes rather than the seconds a steady-state wait gets.
+ */
+private val WARM_UP_BUDGET: Duration = 3.minutes
+
+private const val WARM_UP_STEP = "the simulator's media stack to warm up"
