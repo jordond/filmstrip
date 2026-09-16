@@ -6,7 +6,7 @@ import org.gradle.api.Project
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.TaskAction
-import org.gradle.kotlin.dsl.property
+import org.gradle.kotlin.dsl.named
 import org.gradle.kotlin.dsl.register
 import org.gradle.kotlin.dsl.withType
 import org.gradle.process.ExecOperations
@@ -74,19 +74,18 @@ abstract class BootSimulatorTask : DefaultTask() {
  * on its own.
  */
 fun Project.bootIosSimulatorForTests() {
-  val simulatorDevice = objects.property<String>()
-
   val bootIosSimulator =
     tasks.register<BootSimulatorTask>("bootIosSimulator") {
       description = "Boots the simulator the iOS test task spawns into."
-      device.set(simulatorDevice)
+      device.set(project.tasks.named<KotlinNativeSimulatorTest>(IOS_SIMULATOR_TEST).flatMap { it.device })
     }
 
   tasks.withType<KotlinNativeSimulatorTest>().configureEach {
-    if (name != "iosSimulatorArm64Test") return@configureEach
+    if (name != IOS_SIMULATOR_TEST) return@configureEach
 
     standalone.set(false)
-    simulatorDevice.set(device)
     dependsOn(bootIosSimulator)
   }
 }
+
+private const val IOS_SIMULATOR_TEST = "iosSimulatorArm64Test"

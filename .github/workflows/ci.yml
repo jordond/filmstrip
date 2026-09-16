@@ -112,6 +112,13 @@ jobs:
       - name: Gradle Wrapper Validation
         uses: gradle/actions/wrapper-validation@v6
 
+      # Boots the simulator the tests spawn into before the test build starts. A fresh iOS runtime
+      # keeps the machine busy with first boot work for minutes after it reports booted, and booting
+      # here moves that work under compilation instead of under the first tests.
+      - name: Boot iOS simulator
+        if: matrix.config.target == 'ios-simulator'
+        run: ./gradlew :filmstrip-player:bootIosSimulator
+
       - name: Run ${{ matrix.config.target }} tests
         run: ./gradlew ${{ matrix.config.tasks }} --scan
 
