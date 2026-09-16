@@ -26,69 +26,69 @@ import javax.inject.Inject
  * older commit's manifest still names the object it was written against.
  */
 abstract class PublishTestMediaTask
-    @Inject
-    constructor(
-        private val exec: ExecOperations,
-    ) : DefaultTask() {
-        @get:InputDirectory
-        @get:PathSensitive(PathSensitivity.RELATIVE)
-        abstract val fixtures: DirectoryProperty
+  @Inject
+  constructor(
+    private val exec: ExecOperations,
+  ) : DefaultTask() {
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val fixtures: DirectoryProperty
 
-        @get:OutputFile
-        abstract val manifest: RegularFileProperty
+    @get:OutputFile
+    abstract val manifest: RegularFileProperty
 
-        @get:Internal
-        @get:Option(option = "no-upload", description = "Write the manifest and print the keys without uploading.")
-        abstract val noUpload: Property<Boolean>
+    @get:Internal
+    @get:Option(option = "no-upload", description = "Write the manifest and print the keys without uploading.")
+    abstract val noUpload: Property<Boolean>
 
-        @get:Internal
-        @get:Option(option = "account", description = "Cloudflare account that owns the bucket.")
-        abstract val account: Property<String>
+    @get:Internal
+    @get:Option(option = "account", description = "Cloudflare account that owns the bucket.")
+    abstract val account: Property<String>
 
-        @TaskAction
-        fun publish() {
-            val directory = fixtures.get().asFile
-            val clips =
-                directory
-                    .listFiles { file -> file.isFile && file.extension == "mp4" }
-                    ?.sortedBy { it.name }
-                    .orEmpty()
+    @TaskAction
+    fun publish() {
+      val directory = fixtures.get().asFile
+      val clips =
+        directory
+          .listFiles { file -> file.isFile && file.extension == "mp4" }
+          ?.sortedBy { it.name }
+          .orEmpty()
 
-            if (clips.isEmpty()) throw GradleException("no clips in $directory, run the generate task first")
+      if (clips.isEmpty()) throw GradleException("no clips in $directory, run the generate task first")
 
-            val entries =
-                clips.map {
-                    TestMediaEntry(fileName = it.name, sha256 = TestMediaManifest.digestOf(it), bytes = it.length())
-                }
-
-            TestMediaManifest.write(manifest.get().asFile, entries)
-
-            if (noUpload.getOrElse(false)) {
-                entries.forEach {
-                    logger.lifecycle("${it.fileName}  ${it.bytes} bytes  ${TestMediaManifest.urlFor(it.sha256)}")
-                }
-                return
-            }
-
-            entries.forEach { entry ->
-                logger.lifecycle("publishing ${entry.fileName}")
-                exec.exec {
-                    commandLine(
-                        "wrangler",
-                        "r2",
-                        "object",
-                        "put",
-                        "${TestMediaManifest.BUCKET}/${TestMediaManifest.keyFor(entry.sha256)}",
-                        "--file",
-                        directory.resolve(entry.fileName).absolutePath,
-                        "--content-type",
-                        "video/mp4",
-                        "--remote",
-                    )
-                    account.orNull?.let { environment("CLOUDFLARE_ACCOUNT_ID", it) }
-                }
-            }
-
-            logger.lifecycle("published ${entries.size} clips, ${manifest.get().asFile.name} written")
+      val entries =
+        clips.map {
+          TestMediaEntry(fileName = it.name, sha256 = TestMediaManifest.digestOf(it), bytes = it.length())
         }
+
+      TestMediaManifest.write(manifest.get().asFile, entries)
+
+      if (noUpload.getOrElse(false)) {
+        entries.forEach {
+          logger.lifecycle("${it.fileName}  ${it.bytes} bytes  ${TestMediaManifest.urlFor(it.sha256)}")
+        }
+        return
+      }
+
+      entries.forEach { entry ->
+        logger.lifecycle("publishing ${entry.fileName}")
+        exec.exec {
+          commandLine(
+            "wrangler",
+            "r2",
+            "object",
+            "put",
+            "${TestMediaManifest.BUCKET}/${TestMediaManifest.keyFor(entry.sha256)}",
+            "--file",
+            directory.resolve(entry.fileName).absolutePath,
+            "--content-type",
+            "video/mp4",
+            "--remote",
+          )
+          account.orNull?.let { environment("CLOUDFLARE_ACCOUNT_ID", it) }
+        }
+      }
+
+      logger.lifecycle("published ${entries.size} clips, ${manifest.get().asFile.name} written")
     }
+  }

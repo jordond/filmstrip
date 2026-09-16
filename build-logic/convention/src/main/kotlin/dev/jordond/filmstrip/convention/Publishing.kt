@@ -12,9 +12,7 @@ import org.gradle.kotlin.dsl.configure
  * `dev.jordond.filmstrip:filmstrip-core`. The version comes from `VERSION_NAME`, which a release
  * overrides with `ORG_GRADLE_PROJECT_VERSION_NAME`.
  */
-internal fun Project.configurePublishing(
-  license: (MavenPomLicenseSpec.() -> Unit)? = null
-) {
+internal fun Project.configurePublishing(license: (MavenPomLicenseSpec.() -> Unit)? = null) {
   val repo = "https://github.com/jordond/filmstrip"
 
   extensions.configure<MavenPublishBaseExtension> {

@@ -33,70 +33,70 @@ import java.util.UUID
  * reason the clips are published rather than rolled per run.
  */
 abstract class DownloadTestMediaTask : DefaultTask() {
-    @get:InputFile
-    @get:PathSensitive(PathSensitivity.NONE)
-    abstract val manifest: RegularFileProperty
+  @get:InputFile
+  @get:PathSensitive(PathSensitivity.NONE)
+  abstract val manifest: RegularFileProperty
 
-    @get:OutputDirectory
-    abstract val outputDirectory: DirectoryProperty
+  @get:OutputDirectory
+  abstract val outputDirectory: DirectoryProperty
 
-    @get:Internal
-    abstract val cacheDirectory: DirectoryProperty
+  @get:Internal
+  abstract val cacheDirectory: DirectoryProperty
 
-    /**
-     * Where the objects are served from, without the key.
-     */
-    @get:Internal
-    abstract val baseUrl: Property<String>
+  /**
+   * Where the objects are served from, without the key.
+   */
+  @get:Internal
+  abstract val baseUrl: Property<String>
 
-    @TaskAction
-    fun download() {
-        val entries = TestMediaManifest.read(manifest.get().asFile)
-        val outputDir = outputDirectory.get().asFile
-        val cacheDir = cacheDirectory.get().asFile
-        Files.createDirectories(outputDir.toPath())
-        Files.createDirectories(cacheDir.toPath())
+  @TaskAction
+  fun download() {
+    val entries = TestMediaManifest.read(manifest.get().asFile)
+    val outputDir = outputDirectory.get().asFile
+    val cacheDir = cacheDirectory.get().asFile
+    Files.createDirectories(outputDir.toPath())
+    Files.createDirectories(cacheDir.toPath())
 
-        entries.forEach { entry ->
-            val cached = cacheDir.resolve("${entry.sha256}.mp4")
-            if (!cached.holds(entry)) {
-                runCatching { fetch(entry, cached) }.onFailure { error ->
-                    if (!cached.holds(entry)) throw error
-                    logger.info("fetching ${entry.fileName} failed, using the copy another build cached", error)
-                }
-            }
-
-            val target = outputDir.resolve(entry.fileName)
-            if (target.holds(entry)) return@forEach
-            target.replaceWith { partial -> Files.copy(cached.toPath(), partial) }
+    entries.forEach { entry ->
+      val cached = cacheDir.resolve("${entry.sha256}.mp4")
+      if (!cached.holds(entry)) {
+        runCatching { fetch(entry, cached) }.onFailure { error ->
+          if (!cached.holds(entry)) throw error
+          logger.info("fetching ${entry.fileName} failed, using the copy another build cached", error)
         }
+      }
+
+      val target = outputDir.resolve(entry.fileName)
+      if (target.holds(entry)) return@forEach
+      target.replaceWith { partial -> Files.copy(cached.toPath(), partial) }
     }
+  }
 
-    private fun fetch(
-        entry: TestMediaEntry,
-        target: File,
-    ) {
-        val url = "${baseUrl.get()}/${TestMediaManifest.keyFor(entry.sha256)}"
+  private fun fetch(
+    entry: TestMediaEntry,
+    target: File,
+  ) {
+    val url = "${baseUrl.get()}/${TestMediaManifest.keyFor(entry.sha256)}"
 
-        logger.lifecycle("fetching ${entry.fileName}")
-        target.replaceWith { partial ->
-            runCatching {
-                URI(url).toURL().openStream().use { stream -> Files.copy(stream, partial) }
-            }.onFailure {
-                throw GradleException("could not fetch ${entry.fileName} from $url", it)
-            }
+    logger.lifecycle("fetching ${entry.fileName}")
+    target.replaceWith { partial ->
+      runCatching {
+        URI(url).toURL().openStream().use { stream -> Files.copy(stream, partial) }
+      }.onFailure {
+        throw GradleException("could not fetch ${entry.fileName} from $url", it)
+      }
 
-            // Hashing what arrived is what makes a replaced object a build failure rather than a test
-            // failure somewhere else entirely.
-            val digest = TestMediaManifest.digestOf(partial.toFile())
-            if (digest != entry.sha256) {
-                throw GradleException(
-                    "${entry.fileName} at $url hashes to $digest, and ${TestMediaManifest.FILE_NAME} says " +
-                        "${entry.sha256}. Either the object was replaced or the manifest is stale.",
-                )
-            }
-        }
+      // Hashing what arrived is what makes a replaced object a build failure rather than a test
+      // failure somewhere else entirely.
+      val digest = TestMediaManifest.digestOf(partial.toFile())
+      if (digest != entry.sha256) {
+        throw GradleException(
+          "${entry.fileName} at $url hashes to $digest, and ${TestMediaManifest.FILE_NAME} says " +
+            "${entry.sha256}. Either the object was replaced or the manifest is stale.",
+        )
+      }
     }
+  }
 }
 
 private fun File.holds(entry: TestMediaEntry): Boolean = isFile && TestMediaManifest.digestOf(this) == entry.sha256
@@ -108,11 +108,11 @@ private fun File.holds(entry: TestMediaEntry): Boolean = isFile && TestMediaMani
  * rename swaps the file in one step, so a reader sees either the old file or the whole new one.
  */
 private fun File.replaceWith(write: (Path) -> Unit) {
-    val partial = toPath().resolveSibling("$name.${UUID.randomUUID()}.part")
-    try {
-        write(partial)
-        Files.move(partial, toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-    } finally {
-        Files.deleteIfExists(partial)
-    }
+  val partial = toPath().resolveSibling("$name.${UUID.randomUUID()}.part")
+  try {
+    write(partial)
+    Files.move(partial, toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+  } finally {
+    Files.deleteIfExists(partial)
+  }
 }

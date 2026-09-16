@@ -14,10 +14,10 @@ import java.io.File
  * @property directory Where the clips end up, whichever task put them there.
  */
 class TestMedia(
-    val download: TaskProvider<DownloadTestMediaTask>,
-    val generate: TaskProvider<GenerateTestMediaTask>,
-    val publish: TaskProvider<PublishTestMediaTask>,
-    val directory: File,
+  val download: TaskProvider<DownloadTestMediaTask>,
+  val generate: TaskProvider<GenerateTestMediaTask>,
+  val publish: TaskProvider<PublishTestMediaTask>,
+  val directory: File,
 )
 
 /**
@@ -31,44 +31,48 @@ class TestMedia(
  * @param specs The clips, which [GenerateTestMediaTask] both encodes and verifies.
  */
 fun Project.testMedia(
-    name: String,
-    specs: List<FixtureSpec>,
+  name: String,
+  specs: List<FixtureSpec>,
 ): TestMedia {
-    val directory = layout.buildDirectory.dir("test-fixtures").get().asFile
-    val manifestFile = layout.projectDirectory.file(TestMediaManifest.FILE_NAME).asFile
-    val capitalised = name.replaceFirstChar { it.uppercase() }
+  val directory =
+    layout.buildDirectory
+      .dir("test-fixtures")
+      .get()
+      .asFile
+  val manifestFile = layout.projectDirectory.file(TestMediaManifest.FILE_NAME).asFile
+  val capitalised = name.replaceFirstChar { it.uppercase() }
 
-    val generate =
-        tasks.register("generate${capitalised}TestMedia", GenerateTestMediaTask::class.java) {
-            group = TASK_GROUP
-            description = "Encodes the $name fixtures with host ffmpeg. Only needed to change one."
-            this.specs.set(specs)
-            outputDirectory.set(directory)
-            manifest.set(layout.buildDirectory.file("test-fixtures/fixtures.txt"))
-        }
+  val generate =
+    tasks.register("generate${capitalised}TestMedia", GenerateTestMediaTask::class.java) {
+      group = TASK_GROUP
+      description = "Encodes the $name fixtures with host ffmpeg. Only needed to change one."
+      this.specs.set(specs)
+      outputDirectory.set(directory)
+      manifest.set(layout.buildDirectory.file("test-fixtures/fixtures.txt"))
+    }
 
-    val download =
-        tasks.register("download${capitalised}TestMedia", DownloadTestMediaTask::class.java) {
-            group = TASK_GROUP
-            description = "Fetches the published $name fixtures."
-            manifest.set(manifestFile)
-            outputDirectory.set(directory)
-            // Outside the project tree on purpose: one fetch serves every module, branch and
-            // worktree on the machine.
-            cacheDirectory.set(gradle.gradleUserHomeDir.resolve("filmstrip/test-media"))
-            baseUrl.set(TestMediaManifest.HOST)
-        }
+  val download =
+    tasks.register("download${capitalised}TestMedia", DownloadTestMediaTask::class.java) {
+      group = TASK_GROUP
+      description = "Fetches the published $name fixtures."
+      manifest.set(manifestFile)
+      outputDirectory.set(directory)
+      // Outside the project tree on purpose: one fetch serves every module, branch and
+      // worktree on the machine.
+      cacheDirectory.set(gradle.gradleUserHomeDir.resolve("filmstrip/test-media"))
+      baseUrl.set(TestMediaManifest.HOST)
+    }
 
-    val publish =
-        tasks.register("publish${capitalised}TestMedia", PublishTestMediaTask::class.java) {
-            group = TASK_GROUP
-            description = "Publishes the $name fixtures and writes the manifest that pins them."
-            dependsOn(generate)
-            fixtures.set(directory)
-            manifest.set(manifestFile)
-        }
+  val publish =
+    tasks.register("publish${capitalised}TestMedia", PublishTestMediaTask::class.java) {
+      group = TASK_GROUP
+      description = "Publishes the $name fixtures and writes the manifest that pins them."
+      dependsOn(generate)
+      fixtures.set(directory)
+      manifest.set(manifestFile)
+    }
 
-    return TestMedia(download, generate, publish, directory)
+  return TestMedia(download, generate, publish, directory)
 }
 
 private const val TASK_GROUP = "test media"
