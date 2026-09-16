@@ -22,6 +22,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.test.TestResult
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.concurrent.Volatile
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -141,6 +142,7 @@ internal fun contractTest(
   body: suspend (CoroutineScope) -> Unit,
 ): TestResult =
   runTest(timeout = timeout) {
+    currentStep = null
     val dispatcher = Dispatchers.Default.limitedParallelism(1)
     val engineScope = CoroutineScope(dispatcher + Job())
     try {
@@ -152,7 +154,10 @@ internal fun contractTest(
           val work = engineScope.async { body(engineScope) }
           val deadline = TimeSource.Monotonic.markNow() + PUMP_BUDGET
           while (!work.isCompleted) {
-            if (deadline.hasPassedNow()) fail("The contract body did not finish within $PUMP_BUDGET of pumping.")
+            if (deadline.hasPassedNow()) {
+              val step = currentStep?.let { "The last wait it started was for $it." } ?: "It started no named wait."
+              fail("The contract body did not finish within $PUMP_BUDGET of pumping. $step")
+            }
             pump()
           }
           work.await()
@@ -174,6 +179,14 @@ internal fun contractTest(
  * leaves it null gets exactly the harness it had before.
  */
 internal var contractPump: (() -> Unit)? = null
+
+/**
+ * The wait the running contract body started most recently, or null before it starts one.
+ *
+ * The body writes it from its own dispatcher, and the pumped path reads it from the main thread.
+ */
+@Volatile
+private var currentStep: String? = null
 
 /**
  * Registers a recorder on [engine], runs [body], and disposes the engine afterwards.
@@ -200,11 +213,38 @@ internal suspend fun awaitContract(
   timeout: Duration = CONTRACT_TIMEOUT,
   condition: () -> Boolean,
 ) {
+  markStep(description)
   val deadline = TimeSource.Monotonic.markNow() + timeout
   while (!condition()) {
     if (deadline.hasPassedNow()) fail("Timed out after $timeout waiting for $description.")
     delay(POLL_INTERVAL)
   }
+}
+
+/**
+ * Runs [block] as the step named by [description], failing the test when it has not finished within
+ * [timeout].
+ *
+ * The timeout cancels [block], so a callback it registered is released through its own cancellation
+ * handler.
+ */
+internal suspend fun <T : Any> awaitStep(
+  description: String,
+  timeout: Duration = CONTRACT_TIMEOUT,
+  block: suspend () -> T,
+): T {
+  markStep(description)
+  return withTimeoutOrNull(timeout) { block() } ?: fail("Timed out after $timeout waiting for $description.")
+}
+
+/**
+ * Records [description] as the step the contract body is on, without putting a bound on it.
+ *
+ * This is for a wait that blocks its thread, which no coroutine timeout can interrupt. A pumped body
+ * that runs out of budget names the step recorded here.
+ */
+internal fun markStep(description: String) {
+  currentStep = description
 }
 
 /**
@@ -226,43 +266,49 @@ internal suspend fun settleForAbsence() {
 }
 
 /**
- * Loads [composition] and suspends until the engine reports the outcome.
+ * Loads [composition] and suspends until the engine reports the outcome, failing the test when none
+ * arrives within [CONTRACT_TIMEOUT].
  */
 internal suspend fun PlayerEngine.awaitComposition(
   composition: EditComposition,
   startAt: Duration? = null,
   playWhenReady: Boolean = false,
 ): SetCompositionResult =
-  suspendCancellableCoroutine { continuation ->
-    val request = SetCompositionRequest(composition, startAt, playWhenReady)
-    val handle =
-      setComposition(request) { result ->
-        if (continuation.isActive) continuation.resume(result)
-      }
-    continuation.invokeOnCancellation { handle.cancel() }
+  awaitStep("the engine to settle a composition") {
+    suspendCancellableCoroutine { continuation ->
+      val request = SetCompositionRequest(composition, startAt, playWhenReady)
+      val handle =
+        setComposition(request) { result ->
+          if (continuation.isActive) continuation.resume(result)
+        }
+      continuation.invokeOnCancellation { handle.cancel() }
+    }
   }
 
 /**
- * Reads one rendered preview frame back, failing the test when the pipeline cannot produce it.
+ * Reads one rendered preview frame back, failing the test when the pipeline cannot produce it or
+ * takes longer than [CONTRACT_TIMEOUT].
  */
 internal suspend fun PreviewFrameReadback.awaitFrame(position: Duration): ReadbackFrame =
-  suspendCancellableCoroutine { continuation ->
-    val handle =
-      requestFrame(position) { result ->
-        if (continuation.isActive) {
-          when (result) {
-            is ReadbackResult.Success -> {
-              continuation.resume(result.frame)
-            }
-            is ReadbackResult.Failure -> {
-              continuation.resumeWithException(
-                AssertionError("Readback at $position failed: ${result.error.message}"),
-              )
+  awaitStep("a readback at $position") {
+    suspendCancellableCoroutine { continuation ->
+      val handle =
+        requestFrame(position) { result ->
+          if (continuation.isActive) {
+            when (result) {
+              is ReadbackResult.Success -> {
+                continuation.resume(result.frame)
+              }
+              is ReadbackResult.Failure -> {
+                continuation.resumeWithException(
+                  AssertionError("Readback at $position failed: ${result.error.message}"),
+                )
+              }
             }
           }
         }
-      }
-    continuation.invokeOnCancellation { handle.cancel() }
+      continuation.invokeOnCancellation { handle.cancel() }
+    }
   }
 
 /**

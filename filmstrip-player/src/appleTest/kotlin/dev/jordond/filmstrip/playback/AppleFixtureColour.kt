@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.avfoundation.internal.toCMTime
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.PlatformImage
+import dev.jordond.filmstrip.playback.contract.awaitStep
 import dev.jordond.filmstrip.test.DEFAULT_MIN_PSNR_DB
 import dev.jordond.filmstrip.test.DEFAULT_MIN_SSIM
 import dev.jordond.filmstrip.test.TestFrame
@@ -126,18 +127,21 @@ private suspend fun AVAsset.generateFrame(
     }
 
   val (image, reason) =
-    suspendCancellableCoroutine { continuation ->
-      generator.generateCGImagesAsynchronouslyForTimes(
-        listOf(NSValue.valueWithCMTime(position.toCMTime())),
-      ) { _, image, _, result, error ->
-        val drawn = image?.takeIf { result == AVAssetImageGeneratorSucceeded }?.let { PlatformImage(CGImageRetain(it)) }
-        if (continuation.isActive) {
-          continuation.resume(drawn to error?.localizedDescription)
-        } else {
-          drawn?.close()
+    awaitStep<Pair<PlatformImage?, String?>>("the image generator to draw $position") {
+      suspendCancellableCoroutine { continuation ->
+        generator.generateCGImagesAsynchronouslyForTimes(
+          listOf(NSValue.valueWithCMTime(position.toCMTime())),
+        ) { _, image, _, result, error ->
+          val drawn =
+            image?.takeIf { result == AVAssetImageGeneratorSucceeded }?.let { PlatformImage(CGImageRetain(it)) }
+          if (continuation.isActive) {
+            continuation.resume(drawn to error?.localizedDescription)
+          } else {
+            drawn?.close()
+          }
         }
+        continuation.invokeOnCancellation { generator.cancelAllCGImageGeneration() }
       }
-      continuation.invokeOnCancellation { generator.cancelAllCGImageGeneration() }
     }
 
   val frame = image ?: fail("the generator drew nothing at $position: ${reason ?: "no reason given"}")

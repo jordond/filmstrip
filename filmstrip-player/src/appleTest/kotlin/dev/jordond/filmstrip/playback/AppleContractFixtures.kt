@@ -16,6 +16,7 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.chainedProber
+import dev.jordond.filmstrip.playback.contract.markStep
 import dev.jordond.filmstrip.style.TextStyle
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.transform.internal.ResolveResult
@@ -108,6 +109,7 @@ internal suspend fun appleExportLowering(composition: EditComposition): Resolved
       prober = chainedProber(CONTRACT_COMPONENTS),
       resolvers = CONTRACT_COMPONENTS.effectResolvers,
     )
+  markStep("the export to resolve the fixture")
   return when (val result = engine.resolve(composition, ExportSpec())) {
     is ResolveResult.Refused -> fail("the export refused the fixture: ${result.error.message}")
     is ResolveResult.Resolved -> result.composition
@@ -130,6 +132,7 @@ internal fun AVAsset.readFrame(
   duration: Duration,
   position: Duration,
 ): TestFrame {
+  markStep("the export reader to reach $position")
   val tracks = tracksWithMediaType(AVMediaTypeVideo).filterIsInstance<AVAssetTrack>()
   val output =
     AVAssetReaderVideoCompositionOutput(

@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.PlatformImage
+import dev.jordond.filmstrip.playback.contract.awaitStep
 import dev.jordond.filmstrip.playback.contract.contractTest
 import dev.jordond.filmstrip.playback.contract.settleForAbsence
 import dev.jordond.filmstrip.test.TestFrame
@@ -185,19 +186,22 @@ class AppleThumbnailContractTest {
 }
 
 /**
- * Asks for one thumbnail and suspends until it arrives, failing the test when it cannot be made.
+ * Asks for one thumbnail and suspends until it arrives, failing the test when it cannot be made or
+ * does not arrive in time.
  */
 private suspend fun ThumbnailSource.awaitThumbnail(request: ThumbnailRequest): ThumbnailResult.Success =
-  suspendCancellableCoroutine { continuation ->
-    val handle: Cancellable =
-      requestThumbnail(request) { result ->
-        if (!continuation.isActive) return@requestThumbnail
-        when (result) {
-          is ThumbnailResult.Success -> continuation.resume(result)
-          is ThumbnailResult.Failure -> continuation.resume(fail("the thumbnail failed: ${result.error.message}"))
+  awaitStep("a thumbnail at ${request.position}") {
+    suspendCancellableCoroutine { continuation ->
+      val handle: Cancellable =
+        requestThumbnail(request) { result ->
+          if (!continuation.isActive) return@requestThumbnail
+          when (result) {
+            is ThumbnailResult.Success -> continuation.resume(result)
+            is ThumbnailResult.Failure -> continuation.resume(fail("the thumbnail failed: ${result.error.message}"))
+          }
         }
-      }
-    continuation.invokeOnCancellation { handle.cancel() }
+      continuation.invokeOnCancellation { handle.cancel() }
+    }
   }
 
 /**
