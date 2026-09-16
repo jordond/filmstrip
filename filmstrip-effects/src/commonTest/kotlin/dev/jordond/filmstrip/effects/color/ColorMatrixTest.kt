@@ -138,12 +138,12 @@ class ColorMatrixTest {
     val gl = matrix.toColumnMajor4x4()
 
     assertEquals(16, gl.size)
-    assertEquals(matrix.rr, gl[0])
-    assertEquals(matrix.rg, gl[4])
-    assertEquals(matrix.rb, gl[8])
-    assertEquals(matrix.rBias, gl[12])
-    assertEquals(matrix.gr, gl[1])
-    assertEquals(matrix.bb, gl[10])
+    assertEquals(matrix.rr.stored(), gl[0])
+    assertEquals(matrix.rg.stored(), gl[4])
+    assertEquals(matrix.rb.stored(), gl[8])
+    assertEquals(matrix.rBias.stored(), gl[12])
+    assertEquals(matrix.gr.stored(), gl[1])
+    assertEquals(matrix.bb.stored(), gl[10])
     assertEquals(1f, gl[15])
     assertEquals(listOf(0f, 0f, 0f), listOf(gl[3], gl[7], gl[11]))
   }
@@ -243,7 +243,9 @@ class ColorMatrixTest {
   fun theColumnMajorFormReadsBackToTheSameMatrix() {
     val matrix = checkNotNull(colorMatrixOf(Sepia(0.7f))).then(checkNotNull(colorMatrixOf(Contrast(1.3f))))
 
-    assertEquals(matrix, colorMatrixOfColumnMajor4x4(matrix.toColumnMajor4x4()))
+    val readBack = colorMatrixOfColumnMajor4x4(matrix.toColumnMajor4x4())
+
+    assertEquals(matrix.entries.map { it.stored() }, readBack.entries)
   }
 
   // The middle of the range, worked out by hand: 100 nits is a signal of 0.7249, a contrast of 1.5
@@ -308,6 +310,13 @@ class ColorMatrixTest {
     assertEquals(green, pixel[1], TOLERANCE, "green of ${pixel.toList()}")
     assertEquals(blue, pixel[2], TOLERANCE, "blue of ${pixel.toList()}")
   }
+
+  // A Float on js is a double until it lands in a FloatArray, which holds 32 bits there as it does
+  // everywhere else. An entry read back out of a uniform is compared at the width the uniform holds.
+  private fun Float.stored(): Float = floatArrayOf(this)[0]
+
+  private val ColorMatrix.entries: List<Float>
+    get() = listOf(rr, rg, rb, rBias, gr, gg, gb, gBias, br, bg, bb, bBias)
 
   private companion object {
     const val RED = 0.8f
