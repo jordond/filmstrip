@@ -158,10 +158,15 @@ jobs:
           api-level: 30
           arch: x86_64
           target: google_apis
-          # The runner's defaults plus -HardwareDecoder, which leaves video to the software decoder.
-          # The API 30 image's host-backed OMX.android.goldfish.h264.decoder drops frames it was
-          # told to render, and media3 waits 20s for them on an emulator at every seek and release.
-          emulator-options: "-no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -feature -HardwareDecoder"
+          # The runner's defaults with two changes.
+          # -HardwareDecoder leaves video to the software decoder. The API 30 image's host-backed
+          # OMX.android.goldfish.h264.decoder drops frames it was told to render, and media3 waits
+          # 20s for them on an emulator at every seek and release.
+          # swangle_indirect renders through ANGLE on SwiftShader's Vulkan device. The legacy
+          # SwiftShader GLES behind swiftshader_indirect spends 10 to 18s of one host core on the
+          # first draw of each blurred fill shader, which runs an export past media3's 25s wait for
+          # its first muxer sample.
+          emulator-options: "-no-window -gpu swangle_indirect -no-snapshot -noaudio -no-boot-anim -feature -HardwareDecoder"
           script: ./gradlew connectedAndroidDeviceTest --scan
 
       - name: Upload test reports
