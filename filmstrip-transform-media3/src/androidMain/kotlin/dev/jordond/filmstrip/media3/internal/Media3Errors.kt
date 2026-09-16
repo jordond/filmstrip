@@ -3,6 +3,8 @@ package dev.jordond.filmstrip.media3.internal
 import androidx.media3.transformer.ExportException
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.VideoCodec
+import java.util.Collections
+import java.util.IdentityHashMap
 
 /**
  * Classifies what media3 reported into filmstrip's own error model.
@@ -10,10 +12,14 @@ import dev.jordond.filmstrip.export.VideoCodec
  * The numeric codes are the stable part of the contract, so they are what this branches on. An
  * unrecognized one keeps its code rather than being flattened.
  *
+ * The message is media3's own followed by the message of every cause under it, joined with colons. media3 only names
+ * the stage that failed, such as "Muxer error", and the cause says what went wrong in it. A cause that repeats the
+ * message above it is left out.
+ *
  * @param codec The codec the plan asked for, named when the failure is about encoding.
  */
 internal fun ExportException.toExportError(codec: VideoCodec): ExportError {
-  val detail = message ?: cause?.message ?: "media3 reported error code $errorCode."
+  val detail = causeMessages().joinToString(": ").ifEmpty { "media3 reported error code $errorCode." }
 
   return when (errorCode) {
     ExportException.ERROR_CODE_IO_FILE_NOT_FOUND,
@@ -37,5 +43,21 @@ internal fun ExportException.toExportError(codec: VideoCodec): ExportError {
     ExportException.ERROR_CODE_MUXING_APPEND,
     -> ExportError.SinkUnwritable("output", detail)
     else -> ExportError.Underlying(errorCode, detail)
+  }
+}
+
+// A wrapper built from a bare cause copies that cause's toString() as its own message, so a cause whose toString() is
+// the message above it has nothing to add.
+private fun Throwable.causeMessages(): List<String> {
+  val seen = Collections.newSetFromMap(IdentityHashMap<Throwable, Boolean>())
+  val chain = generateSequence(this) { it.cause }.takeWhile(seen::add)
+
+  return buildList {
+    for (throwable in chain) {
+      val message = throwable.message
+      val above = lastOrNull()
+      if (message.isNullOrBlank() || message == above || throwable.toString() == above) continue
+      add(message)
+    }
   }
 }
