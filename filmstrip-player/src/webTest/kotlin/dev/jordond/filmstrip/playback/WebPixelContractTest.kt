@@ -43,14 +43,12 @@ class WebPixelContractTest : PlayerPixelContractTest() {
   ): TestFrame = webExportFrame(composition, position)
 
   // Only the structural threshold is relaxed, and only by what the encode costs. The pair measures
-  // 46.9 dB and 0.990 on this fixture, so the noise floor is well inside the default decibel bar and
-  // just under the default structural one, which colour bars through an encoder are hard on.
-  override val minSsim: Double get() = MIN_SSIM
+  // 46.9 dB on Chrome 153 and 44.6 dB on 151 and 152, so the noise floor is well inside the default
+  // decibel bar and under the default structural one, which colour bars through an encoder are hard on.
+  override val minSsim: Double get() = encodedMinSsim()
 
   private companion object {
     const val DIM = 0.4f
     const val BRIGHT = 1.6f
-
-    const val MIN_SSIM = 0.985
   }
 }

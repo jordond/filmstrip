@@ -44,7 +44,7 @@ class WebThumbnailContractTest {
         assertFramesSimilar(
           expected = exported,
           actual = thumbnail.frame(),
-          minSsim = ENCODED_MIN_SSIM,
+          minSsim = encodedMinSsim(),
           message = "the thumbnail and the export disagree at ${thumbnail.presentationTime}",
         )
       } finally {
@@ -105,10 +105,6 @@ class WebThumbnailContractTest {
     // An effect over the whole composition, so a source that quietly skipped the chain would hand
     // back the source frame and fail rather than pass.
     const val DIM = 0.4f
-
-    // The threshold WebPixelContractTest measured for a rendered frame against one that has been
-    // through the encoder.
-    const val ENCODED_MIN_SSIM = 0.985
   }
 }
 

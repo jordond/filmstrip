@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalWasmJsInterop::class)
+
 package dev.jordond.filmstrip.playback
 
 import dev.jordond.filmstrip.ComponentRegistry
@@ -24,6 +26,8 @@ import dev.jordond.filmstrip.webcodecs.internal.toBrowserPreview
 import dev.jordond.filmstrip.webcodecs.webCodecsBackend
 import kotlinx.coroutines.flow.toList
 import kotlin.io.encoding.Base64
+import kotlin.js.ExperimentalWasmJsInterop
+import kotlin.js.JsAny
 import kotlin.test.fail
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -127,6 +131,38 @@ internal val FIXTURE_FRAME: Size = Size(128, 96)
  * Composition times the pixel suite compares at, each landing exactly on the fixture's 30fps grid.
  */
 internal val PROBE_POSITIONS: List<Duration> = listOf(300.milliseconds, 900.milliseconds)
+
+/**
+ * How similar in structure a frame the preview drew has to be to the same frame read back out of
+ * the export, for the browser the suite is running in.
+ *
+ * The export is one H.264 round trip further on than the preview. Chrome 151 and 152 move a flat
+ * colour by a level or two on that round trip, and the fixture scores 0.980 on both at 300ms, so
+ * Chrome 152 and older get the lower floor. Chrome 153 scores 0.990 and keeps the strict one, as
+ * does a user agent this cannot read a Chrome version out of.
+ *
+ * @param userAgent The browser's user agent string.
+ * @return the lowest SSIM a preview frame and its exported twin may score.
+ */
+internal fun encodedMinSsim(userAgent: String = navigator.userAgent): Double {
+  val major = CHROME_VERSION.find(userAgent)?.let { it.groupValues[1].toIntOrNull() }
+  return if (major != null && major <= LAST_SHIFTING_CHROME) SHIFTING_MIN_SSIM else ENCODED_MIN_SSIM
+}
+
+// The Chrome 151 and 152 round trip shift, and the last version measured with it.
+private const val LAST_SHIFTING_CHROME = 152
+private const val SHIFTING_MIN_SSIM = 0.975
+
+private const val ENCODED_MIN_SSIM = 0.985
+
+// Headless Chrome reports itself as HeadlessChrome, which this matches as well.
+private val CHROME_VERSION = Regex("""Chrome/(\d+)""")
+
+private external interface Navigator : JsAny {
+  val userAgent: String
+}
+
+private external val navigator: Navigator
 
 /**
  * How long one frame of the fixture runs for, at the 30fps it was encoded at.
