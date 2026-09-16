@@ -58,7 +58,7 @@ class ApplePixelContractTest : PlayerPixelContractTest() {
   override suspend fun exportFrame(
     composition: EditComposition,
     position: Duration,
-  ): TestFrame = appleExportFrame(composition, position)
+  ): TestFrame = appleFixtureExportFrame(composition, position)
 
   /**
    * The readback under a cap, against the export scaled to the same frame.
@@ -83,7 +83,7 @@ class ApplePixelContractTest : PlayerPixelContractTest() {
         preview.size.height shouldBe CAP_HEIGHT
         preview.renderScale shouldBe CAP_FRACTION
 
-        val exported = appleExportFrame(composition, preview.presentationTime)
+        val exported = appleFixtureExportFrame(composition, preview.presentationTime)
         exported.size shouldBe FIXTURE_FRAME
 
         assertFramesSimilar(

@@ -45,7 +45,7 @@ class AppleThumbnailContractTest {
       try {
         thumbnail.frame().size shouldBe FIXTURE_FRAME
 
-        val exported = appleExportFrame(composition, thumbnail.presentationTime)
+        val exported = appleFixtureExportFrame(composition, thumbnail.presentationTime)
         assertFramesSimilar(
           expected = exported,
           actual = thumbnail.frame(),
@@ -73,7 +73,7 @@ class AppleThumbnailContractTest {
         val frame = thumbnail.frame()
         frame.size.height shouldBe CAP_HEIGHT
 
-        val exported = appleExportFrame(composition, thumbnail.presentationTime)
+        val exported = appleFixtureExportFrame(composition, thumbnail.presentationTime)
         exported.size shouldBe FIXTURE_FRAME
 
         assertFramesSimilar(

@@ -19,14 +19,17 @@ import dev.jordond.filmstrip.media.chainedProber
 import dev.jordond.filmstrip.style.TextStyle
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.transform.internal.ResolveResult
+import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.get
 import kotlinx.cinterop.reinterpret
+import platform.AVFoundation.AVAsset
 import platform.AVFoundation.AVAssetReader
 import platform.AVFoundation.AVAssetReaderVideoCompositionOutput
 import platform.AVFoundation.AVAssetTrack
 import platform.AVFoundation.AVMediaTypeVideo
+import platform.AVFoundation.AVVideoComposition
 import platform.AVFoundation.tracksWithMediaType
 import platform.CoreFoundation.CFRelease
 import platform.CoreMedia.CMSampleBufferGetImageBuffer
@@ -83,38 +86,59 @@ internal fun appleFixtureComposition(effects: List<EffectSpec> = emptyList()): E
  * own chain, and pulled through the `AVAssetReaderVideoCompositionOutput` the writer run itself
  * uses, with the pixel format the writer run asks for. Only VideoToolbox is left out, and what the
  * encoder does to a frame is the one thing a preview is documented not to carry.
- *
- * Frames are pulled from the start of the composition rather than by seeking the reader to
- * [position]. The reader renders on the video composition's own frame grid counted from its time
- * range's start, so a range that opens mid-frame would hand back a composition time neither side
- * asked for.
  */
 @OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
 internal suspend fun appleExportFrame(
   composition: EditComposition,
   position: Duration,
 ): TestFrame {
+  val resolved = appleExportLowering(composition)
+  val av = resolved.toAvComposition()
+  return av.composition.readFrame(av.videoComposition, resolved.duration, position)
+}
+
+/**
+ * [composition] as the AVFoundation export engine resolves it, failing the test when the engine
+ * refuses it.
+ */
+@OptIn(InternalFilmstripApi::class)
+internal suspend fun appleExportLowering(composition: EditComposition): ResolvedComposition {
   val engine =
     avFoundationExportEngine(
       prober = chainedProber(CONTRACT_COMPONENTS),
       resolvers = CONTRACT_COMPONENTS.effectResolvers,
     )
-  val resolved =
-    when (val result = engine.resolve(composition, ExportSpec())) {
-      is ResolveResult.Refused -> fail("the export refused the fixture: ${result.error.message}")
-      is ResolveResult.Resolved -> result.composition
-    }
+  return when (val result = engine.resolve(composition, ExportSpec())) {
+    is ResolveResult.Refused -> fail("the export refused the fixture: ${result.error.message}")
+    is ResolveResult.Resolved -> result.composition
+  }
+}
 
-  val av = resolved.toAvComposition()
-  val tracks = av.composition.tracksWithMediaType(AVMediaTypeVideo).filterIsInstance<AVAssetTrack>()
+/**
+ * The frame a reader pulls from this asset at [position], through [composition] and in the pixel
+ * format the writer run asks for.
+ *
+ * Frames are pulled from the start of the asset rather than by seeking the reader to [position].
+ * The reader renders on the video composition's own frame grid counted from its time range's start,
+ * so a range that opens mid-frame would hand back a composition time neither side asked for.
+ *
+ * @param duration How long the asset runs, which is how far the reader may go.
+ */
+@OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
+internal fun AVAsset.readFrame(
+  composition: AVVideoComposition?,
+  duration: Duration,
+  position: Duration,
+): TestFrame {
+  val tracks = tracksWithMediaType(AVMediaTypeVideo).filterIsInstance<AVAssetTrack>()
   val output =
     AVAssetReaderVideoCompositionOutput(
       videoTracks = tracks,
       videoSettings = mapOf(PIXEL_FORMAT_KEY to kCVPixelFormatType_32BGRA.toInt()),
-    ).apply { videoComposition = av.videoComposition }
+    ).apply { videoComposition = composition }
 
-  val reader = AVAssetReader.assetReaderWithAsset(av.composition, error = null) ?: fail("no reader for the fixture")
-  reader.timeRange = CMTimeRangeMake(Duration.ZERO.toCMTime(), resolved.duration.toCMTime())
+  val reader = AVAssetReader.assetReaderWithAsset(this, error = null) ?: fail("no reader for the fixture")
+  reader.timeRange = CMTimeRangeMake(Duration.ZERO.toCMTime(), duration.toCMTime())
   reader.addOutput(output)
   if (!reader.startReading()) fail("the export reader refused to start: ${reader.error?.localizedDescription}")
 
