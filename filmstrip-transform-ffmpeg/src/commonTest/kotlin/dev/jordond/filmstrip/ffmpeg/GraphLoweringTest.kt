@@ -347,6 +347,22 @@ class GraphLoweringTest {
     graph shouldContain "]concat=n=${laid.clips.size}:v=1:a=0"
   }
 
+  // amix below ffmpeg 7 throws away what it still holds of its first input once that input ends,
+  // which cost a looping first track every pass after its first. Silence reads first instead, as long
+  // as the longest track rather than the first one, so it neither cuts the mix short nor pads it.
+  @Test
+  fun `a mix reads silence as long as its longest track ahead of every track`() {
+    val looping = loopingTrack()
+    val underlay = underlayTrack()
+    assertTrue(underlay.duration > looping.duration, "the underlay has to outlast the loop to tell them apart")
+
+    val graph = loopingInvocationFor(looping, underlay).filterGraph
+
+    val longest = formatSeconds(underlay.duration.toDouble(DurationUnit.SECONDS))
+    graph shouldContain "anullsrc=r=48000:cl=stereo,atrim=end=$longest,"
+    graph shouldContain "[alead][at0][ad1]amix=inputs=3:"
+  }
+
   /**
    * Two clips laid down two and a half times over, scheduled by the shared [passesCovering] rather
    * than written out here, so a change to how a run is laid reaches this backend's test too.
@@ -362,6 +378,14 @@ class GraphLoweringTest {
         )
       }
     return ResolvedTrack(content = TrackContent.AudioAndVideo, looping = true, start = Duration.ZERO, clips = clips)
+  }
+
+  /**
+   * An audio-only track that opens after the loop does and ends after it too.
+   */
+  private fun underlayTrack(): ResolvedTrack {
+    val clip = loopedClip(start = Duration.ZERO, length = UNDERLAY_LENGTH, offset = UNDERLAY_START, sourceIndex = 0)
+    return ResolvedTrack(content = TrackContent.Audio, looping = false, start = UNDERLAY_START, clips = listOf(clip))
   }
 
   private fun loopedClip(
@@ -400,11 +424,11 @@ class GraphLoweringTest {
       sourceIndex = sourceIndex,
     )
 
-  private fun loopingInvocationFor(track: ResolvedTrack): Invocation {
+  private fun loopingInvocationFor(vararg tracks: ResolvedTrack): Invocation {
     val output = Size(1920, 1080)
     val negotiated =
       NegotiatedComposition(
-        tracks = listOf(track),
+        tracks = tracks.toList(),
         compositionGeometry = emptyList(),
         compositionInputSize = output,
         compositionEffects = emptyList(),
@@ -420,7 +444,7 @@ class GraphLoweringTest {
         layoutSize = output,
         fit = Fit.Contain,
         fill = Fill.Black,
-        duration = track.duration,
+        duration = tracks.maxOf { it.duration },
         hdr = ResolvedHdr.Keep,
         hdrTransfer = null,
         path = ExportPath.Transcode,
@@ -622,6 +646,10 @@ private val A_LENGTH = 1_100.milliseconds
 private val B_START = 1_400.milliseconds
 private val B_LENGTH = 900.milliseconds
 private val RUN = 4_800.milliseconds
+
+// An audio-only track opening inside the loop's first pass and running past the loop's end.
+private val UNDERLAY_START = 700.milliseconds
+private val UNDERLAY_LENGTH = 4_600.milliseconds
 
 private val TOOLCHAIN =
   Toolchain(

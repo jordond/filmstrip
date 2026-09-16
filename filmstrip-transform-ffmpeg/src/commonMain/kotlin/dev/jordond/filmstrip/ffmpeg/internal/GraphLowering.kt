@@ -455,9 +455,24 @@ internal class GraphLowering(
       if (trackLabels.size == 1) {
         trackLabels.single()
       } else {
+        // amix's limit, not the mix's: below ffmpeg 7 it stops reading its first input the moment
+        // that input ends and throws away whatever of it has not been mixed yet. On ffmpeg 6 a
+        // looping track hands its later passes over in one burst just before it ends, so as the
+        // first input it lost every pass after the first. Silence as long as the longest track takes
+        // that place instead, and it only ends once amix asks for more of it, when none is waiting.
+        val lead = "alead"
+        graph.chain(
+          emptyList(),
+          listOf(
+            FilterNode("anullsrc", "r" to format.sampleRate.toString(), "cl" to "stereo"),
+            atrimTo(contributing.maxOf { (_, track) -> track.duration }),
+            aformat(format.sampleRate, format.channelCount),
+          ),
+          lead,
+        )
         "amixed".also { label ->
           graph.chain(
-            trackLabels,
+            listOf(lead) + trackLabels,
             // normalize defaults to true and divides the output by the input count, which would
             // silently halve the dialogue the moment a music bed is added. dropout_transition
             // defaults to a two-second ramp when an input ends, which would fade the primary track
@@ -465,7 +480,7 @@ internal class GraphLowering(
             listOf(
               FilterNode(
                 "amix",
-                "inputs" to trackLabels.size.toString(),
+                "inputs" to (trackLabels.size + 1).toString(),
                 "duration" to "longest",
                 "dropout_transition" to "0",
                 "normalize" to "0",

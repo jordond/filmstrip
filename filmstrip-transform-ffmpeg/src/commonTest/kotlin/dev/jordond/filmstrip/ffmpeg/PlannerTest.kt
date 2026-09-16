@@ -446,7 +446,8 @@ class PlannerTest {
 
     val graph = capableGraph(composition, ExportSpec())
 
-    graph shouldContain "amix=inputs=2:duration=longest:dropout_transition=0:normalize=0"
+    // Two tracks and the silence the mix reads ahead of them.
+    graph shouldContain "amix=inputs=3:duration=longest:dropout_transition=0:normalize=0"
     graph shouldContain "adelay=delays=1000:all=1"
     graph shouldContain "volume=volume=0.3"
     // A gain that holds one number needs neither a per-frame read nor the frames a ramp is cut to.
