@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.playback
 
 import android.hardware.display.DisplayManager
+import android.os.Build
 import android.view.Display
 import androidx.media3.transformer.CompositionPlayer
 import dev.jordond.filmstrip.edit.EditComposition
@@ -193,11 +194,19 @@ class AndroidEngineContractTest : PlayerEngineContractTest() {
 
   /**
    * What the platform says the display can show, read the way a host would read it.
+   *
+   * A display mode only lists its HDR types from API 34, so an older device is read through the display's own HDR
+   * capabilities.
    */
   private fun displayAdvertisesHdr(): Boolean {
     val manager = contractContext().getSystemService(DisplayManager::class.java) ?: return false
     val display = manager.getDisplay(Display.DEFAULT_DISPLAY) ?: return false
-    return display.mode.supportedHdrTypes.isNotEmpty()
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+      display.mode.supportedHdrTypes.isNotEmpty()
+    } else {
+      @Suppress("DEPRECATION")
+      display.hdrCapabilities?.supportedHdrTypes?.isNotEmpty() == true
+    }
   }
 
   private companion object {

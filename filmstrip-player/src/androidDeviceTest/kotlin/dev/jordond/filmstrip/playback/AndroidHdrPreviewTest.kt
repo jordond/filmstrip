@@ -82,6 +82,12 @@ class AndroidHdrPreviewTest {
   fun anHdrCompositionReachesARealSurfaceAndTheSystemSaysWhatItDidWithIt() =
     runTest(timeout = TIMEOUT) {
       realTime {
+        // The panel's HDR types and live headroom are only readable from API 34, so an older device
+        // is skipped before anything is played.
+        assumeTrue(
+          "the display's HDR types and headroom need API 34, this device runs ${Build.VERSION.SDK_INT}",
+          Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE,
+        )
         // A device that cannot decode the fixture has nothing here to measure, so the run is
         // recorded as skipped rather than passed, which would read as covered. Every emulator image
         // is one of these.
