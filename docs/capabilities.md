@@ -478,6 +478,14 @@ with media3's `SeekParameters`, Apple with a zero seek tolerance, and the browse
 forward from a sync sample either way, so every frame there is the exact one. A photo on Android is
 drawn rather than extracted, and is always exact.
 
+On a Mac with no hardware colour converter, a virtual machine for one, an Apple preview frame or
+thumbnail of an SD clip with no colour tags can differ in colour from its export. VideoToolbox
+guesses SMPTE-C primaries and a BT.601 matrix for such a clip, and AVFoundation converts it to
+Rec.709 before filmstrip sees a frame. Without the converter, the `AVAssetReader` an export reads
+through converts the gamut, while the `AVAssetImageGenerator` behind readback and thumbnails only
+swaps the matrix. This is AVFoundation's limit. A source already tagged Rec.709 needs no conversion
+and is not affected.
+
 [^web-ramp]:
     The picture is the compositor the encoder takes its frames from, so it is exact. The
     audio is not: the preview samples a clip's gain curve where the slice opens and holds it flat
