@@ -1,7 +1,5 @@
 package dev.jordond.filmstrip.motion
 
-import kotlinx.serialization.Serializable
-
 /**
  * How a value is paced between where it starts and where it ends.
  *
@@ -9,7 +7,6 @@ import kotlinx.serialization.Serializable
  * What separates them is the middle, so an effect reading this is only paced differently between
  * its two ends.
  */
-@Serializable
 public enum class Easing {
   /**
    * Constant rate from end to end.

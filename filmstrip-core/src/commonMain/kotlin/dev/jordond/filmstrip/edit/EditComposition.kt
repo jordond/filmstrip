@@ -6,8 +6,6 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.MediaSource
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import kotlin.time.Duration
 
 /**
@@ -19,15 +17,11 @@ import kotlin.time.Duration
  * Clips live on [Track]s, which play at the same time as each other rather than one after another.
  * Most edits have a single track and never name one. [clips] reads it and the composition builder fills it.
  *
- * Serializable, so an edit list can be persisted, moved between devices, and rendered on the other platform.
- * Third-party [EffectSpec] implementations must be registered with `filmstripSerializersModule` to round-trip.
- *
  * @property tracks The layers to render, the first of which is the primary one.
  * @property effects Effects applied to the composited output, after every track's own effects.
  * @property audio What to do with the composition's audio once every track has been mixed.
  * @property fill What fills the frame where no clip's pixels land.
  */
-@Serializable
 @Immutable
 @Poko
 public class EditComposition(
@@ -118,7 +112,6 @@ public class EditComposition(
  * @property fadeOut How long the audio takes to fall to silence before the track ends, which for a
  * [looping] track is where the composition ends.
  */
-@Serializable
 @Poko
 public class Track(
   public val clips: List<Clip>,
@@ -165,7 +158,6 @@ public class Track(
  * may carry video, so a later track set to [Video] or [AudioAndVideo] is refused at plan time. Selecting one here
  * drops the other before mixing, rather than muting it.
  */
-@Serializable
 public enum class TrackContent {
   /**
    * Audio only. Video from these clips is never decoded.
@@ -204,7 +196,6 @@ public enum class TrackContent {
  * @property fadeOut How long the audio takes to fall to silence before the last kept sample.
  *   Measured against [trim], so retrimming the clip moves the fade with it.
  */
-@Serializable
 @Poko
 public class Clip(
   public val source: MediaSource,
@@ -255,21 +246,16 @@ public class Clip(
  * track, or keeping audio while dropping video, is set on the composition. Levels multiply down the
  * scopes, and a [Mute] at any of them silences everything below it.
  */
-@Serializable
 public sealed interface AudioLevel {
   /**
    * Take the level from the enclosing scope, which is the track for a clip and the composition for
    * a track.
    */
-  @Serializable
-  @SerialName("inherit")
   public data object Inherit : AudioLevel
 
   /**
    * Contribute silence, without changing timing or the output's track count.
    */
-  @Serializable
-  @SerialName("mute")
   public data object Mute : AudioLevel
 
   /**
@@ -277,8 +263,6 @@ public sealed interface AudioLevel {
    *
    * @property gain The scale to apply, where `1f` is unchanged and `0f` matches [Mute].
    */
-  @Serializable
-  @SerialName("volume")
   @Poko
   public class Volume(
     public val gain: Float,
@@ -299,8 +283,6 @@ public sealed interface AudioLevel {
    *   on, which is the trimmed clip for a clip and the whole run a track covers. A looping track
    *   covers every pass, so a point anchored to its end lands where the composition ends.
    */
-  @Serializable
-  @SerialName("envelope")
   @Poko
   public class Envelope(
     public val points: List<EnvelopePoint>,
@@ -314,7 +296,6 @@ public sealed interface AudioLevel {
  * @property gain The scale here, where `1f` is unchanged and `0f` is silence.
  * @property from Which edge of the scope [at] is measured from.
  */
-@Serializable
 @Poko
 public class EnvelopePoint(
   public val at: Duration,
@@ -328,7 +309,6 @@ public class EnvelopePoint(
  * How long a scope runs is only known once its sources have been probed, so a point that has to
  * land at the end is written against [End] and placed when the plan settles the length.
  */
-@Serializable
 public enum class EnvelopeAnchor {
   /**
    * Measured forward from the start of the scope, so zero is its first sample.
@@ -347,34 +327,25 @@ public enum class EnvelopeAnchor {
  * [Mute] keeps a silent track in the output, [Remove] writes no audio track at all. To quieten one
  * clip or one track rather than the whole edit, see [AudioLevel].
  */
-@Serializable
 public sealed interface AudioSpec {
   /**
    * Pass audio through unchanged.
    */
-  @Serializable
-  @SerialName("keep")
   public data object Keep : AudioSpec
 
   /**
    * Keep the track and write silence, preserving track count and timing.
    */
-  @Serializable
-  @SerialName("mute")
   public data object Mute : AudioSpec
 
   /**
    * Drop the audio track entirely. A different operation from [Mute].
    */
-  @Serializable
-  @SerialName("remove")
   public data object Remove : AudioSpec
 
   /**
    * Keep audio and drop video.
    */
-  @Serializable
-  @SerialName("audioOnly")
   public data object AudioOnly : AudioSpec
 
   /**
@@ -382,8 +353,6 @@ public sealed interface AudioSpec {
    *
    * @property gain The scale to apply, where `1f` is unchanged and `0f` matches [Mute].
    */
-  @Serializable
-  @SerialName("volume")
   @Poko
   public class Volume(
     public val gain: Float,

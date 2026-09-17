@@ -5,8 +5,6 @@ import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 
 /**
  * Turn every colour into its negative.
@@ -21,8 +19,6 @@ import kotlinx.serialization.Serializable
  * @property amount How far to invert, where `0f` leaves the frame unchanged and `1f` is the full
  * negative. Values outside that range are clamped to it, and a NaN is read as `0f`.
  */
-@Serializable
-@SerialName(EffectIds.INVERT)
 @Poko
 public class Invert(
   public val amount: Float = 1f,

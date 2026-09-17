@@ -205,15 +205,9 @@ public abstract interface class dev/jordond/filmstrip/diagnostics/DiagnosticList
 }
 
 public abstract interface class dev/jordond/filmstrip/edit/AudioLevel {
-	public static final field Companion Ldev/jordond/filmstrip/edit/AudioLevel$Companion;
-}
-
-public final class dev/jordond/filmstrip/edit/AudioLevel$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/edit/AudioLevel$Envelope : dev/jordond/filmstrip/edit/AudioLevel {
-	public static final field Companion Ldev/jordond/filmstrip/edit/AudioLevel$Envelope$Companion;
 	public fun <init> (Ljava/util/List;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getPoints ()Ljava/util/List;
@@ -221,26 +215,10 @@ public final class dev/jordond/filmstrip/edit/AudioLevel$Envelope : dev/jordond/
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/edit/AudioLevel$Envelope$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/edit/AudioLevel$Envelope$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/edit/AudioLevel$Envelope;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/edit/AudioLevel$Envelope;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/edit/AudioLevel$Envelope$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/edit/AudioLevel$Inherit : dev/jordond/filmstrip/edit/AudioLevel {
 	public static final field INSTANCE Ldev/jordond/filmstrip/edit/AudioLevel$Inherit;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 	public fun toString ()Ljava/lang/String;
 }
 
@@ -248,12 +226,10 @@ public final class dev/jordond/filmstrip/edit/AudioLevel$Mute : dev/jordond/film
 	public static final field INSTANCE Ldev/jordond/filmstrip/edit/AudioLevel$Mute;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 	public fun toString ()Ljava/lang/String;
 }
 
 public final class dev/jordond/filmstrip/edit/AudioLevel$Volume : dev/jordond/filmstrip/edit/AudioLevel {
-	public static final field Companion Ldev/jordond/filmstrip/edit/AudioLevel$Volume$Companion;
 	public fun <init> (F)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getGain ()F
@@ -261,42 +237,20 @@ public final class dev/jordond/filmstrip/edit/AudioLevel$Volume : dev/jordond/fi
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/edit/AudioLevel$Volume$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/edit/AudioLevel$Volume$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/edit/AudioLevel$Volume;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/edit/AudioLevel$Volume;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/edit/AudioLevel$Volume$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public abstract interface class dev/jordond/filmstrip/edit/AudioSpec {
-	public static final field Companion Ldev/jordond/filmstrip/edit/AudioSpec$Companion;
 }
 
 public final class dev/jordond/filmstrip/edit/AudioSpec$AudioOnly : dev/jordond/filmstrip/edit/AudioSpec {
 	public static final field INSTANCE Ldev/jordond/filmstrip/edit/AudioSpec$AudioOnly;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 	public fun toString ()Ljava/lang/String;
-}
-
-public final class dev/jordond/filmstrip/edit/AudioSpec$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/edit/AudioSpec$Keep : dev/jordond/filmstrip/edit/AudioSpec {
 	public static final field INSTANCE Ldev/jordond/filmstrip/edit/AudioSpec$Keep;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 	public fun toString ()Ljava/lang/String;
 }
 
@@ -304,7 +258,6 @@ public final class dev/jordond/filmstrip/edit/AudioSpec$Mute : dev/jordond/films
 	public static final field INSTANCE Ldev/jordond/filmstrip/edit/AudioSpec$Mute;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 	public fun toString ()Ljava/lang/String;
 }
 
@@ -312,12 +265,10 @@ public final class dev/jordond/filmstrip/edit/AudioSpec$Remove : dev/jordond/fil
 	public static final field INSTANCE Ldev/jordond/filmstrip/edit/AudioSpec$Remove;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 	public fun toString ()Ljava/lang/String;
 }
 
 public final class dev/jordond/filmstrip/edit/AudioSpec$Volume : dev/jordond/filmstrip/edit/AudioSpec {
-	public static final field Companion Ldev/jordond/filmstrip/edit/AudioSpec$Volume$Companion;
 	public fun <init> (F)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getGain ()F
@@ -325,23 +276,7 @@ public final class dev/jordond/filmstrip/edit/AudioSpec$Volume : dev/jordond/fil
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/edit/AudioSpec$Volume$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/edit/AudioSpec$Volume$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/edit/AudioSpec$Volume;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/edit/AudioSpec$Volume;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/edit/AudioSpec$Volume$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/edit/Clip {
-	public static final field Companion Ldev/jordond/filmstrip/edit/Clip$Companion;
 	public synthetic fun <init> (Ldev/jordond/filmstrip/media/MediaSource;Ldev/jordond/filmstrip/edit/TimeRange;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioLevel;JJJILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (Ldev/jordond/filmstrip/media/MediaSource;Ldev/jordond/filmstrip/edit/TimeRange;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioLevel;JJJLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
@@ -359,21 +294,6 @@ public final class dev/jordond/filmstrip/edit/Clip {
 	public final fun withEffects (Ljava/util/List;)Ldev/jordond/filmstrip/edit/Clip;
 	public final fun withSnapWithin-LRDsOJo (J)Ldev/jordond/filmstrip/edit/Clip;
 	public final fun withTrim (Ldev/jordond/filmstrip/edit/TimeRange;)Ldev/jordond/filmstrip/edit/Clip;
-}
-
-public final synthetic class dev/jordond/filmstrip/edit/Clip$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/edit/Clip$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/edit/Clip;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/edit/Clip;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/edit/Clip$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/edit/ClipBuilder {
@@ -412,7 +332,6 @@ public final class dev/jordond/filmstrip/edit/CompositionBuilderKt {
 }
 
 public final class dev/jordond/filmstrip/edit/EditComposition {
-	public static final field Companion Ldev/jordond/filmstrip/edit/EditComposition$Companion;
 	public fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioSpec;Ldev/jordond/filmstrip/geometry/Fill;)V
 	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioSpec;Ldev/jordond/filmstrip/geometry/Fill;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
@@ -431,21 +350,6 @@ public final class dev/jordond/filmstrip/edit/EditComposition {
 	public final fun withTracks (Ljava/util/List;)Ldev/jordond/filmstrip/edit/EditComposition;
 }
 
-public final synthetic class dev/jordond/filmstrip/edit/EditComposition$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/edit/EditComposition$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/edit/EditComposition;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/edit/EditComposition;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/edit/EditComposition$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/edit/EffectsBuilder {
 	public fun <init> ()V
 	public final fun add (Ldev/jordond/filmstrip/effect/EffectSpec;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
@@ -454,7 +358,6 @@ public final class dev/jordond/filmstrip/edit/EffectsBuilder {
 }
 
 public final class dev/jordond/filmstrip/edit/EnvelopeAnchor : java/lang/Enum {
-	public static final field Companion Ldev/jordond/filmstrip/edit/EnvelopeAnchor$Companion;
 	public static final field End Ldev/jordond/filmstrip/edit/EnvelopeAnchor;
 	public static final field Start Ldev/jordond/filmstrip/edit/EnvelopeAnchor;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
@@ -462,12 +365,7 @@ public final class dev/jordond/filmstrip/edit/EnvelopeAnchor : java/lang/Enum {
 	public static fun values ()[Ldev/jordond/filmstrip/edit/EnvelopeAnchor;
 }
 
-public final class dev/jordond/filmstrip/edit/EnvelopeAnchor$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/edit/EnvelopePoint {
-	public static final field Companion Ldev/jordond/filmstrip/edit/EnvelopePoint$Companion;
 	public synthetic fun <init> (JFLdev/jordond/filmstrip/edit/EnvelopeAnchor;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (JFLdev/jordond/filmstrip/edit/EnvelopeAnchor;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
@@ -476,21 +374,6 @@ public final class dev/jordond/filmstrip/edit/EnvelopePoint {
 	public final fun getGain ()F
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
-}
-
-public final synthetic class dev/jordond/filmstrip/edit/EnvelopePoint$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/edit/EnvelopePoint$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/edit/EnvelopePoint;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/edit/EnvelopePoint;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/edit/EnvelopePoint$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public abstract interface annotation class dev/jordond/filmstrip/edit/FilmstripDsl : java/lang/annotation/Annotation {
@@ -509,21 +392,9 @@ public final class dev/jordond/filmstrip/edit/TimeRange {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/edit/TimeRange$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/edit/TimeRange$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/edit/TimeRange;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/edit/TimeRange;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/edit/TimeRange$Companion {
 	public final fun from-LRDsOJo (J)Ldev/jordond/filmstrip/edit/TimeRange;
 	public final fun of-QTBD994 (JJ)Ldev/jordond/filmstrip/edit/TimeRange;
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/edit/TimeRangeKt {
@@ -531,7 +402,6 @@ public final class dev/jordond/filmstrip/edit/TimeRangeKt {
 }
 
 public final class dev/jordond/filmstrip/edit/Track {
-	public static final field Companion Ldev/jordond/filmstrip/edit/Track$Companion;
 	public synthetic fun <init> (Ljava/util/List;Ldev/jordond/filmstrip/edit/TrackContent;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioLevel;JZJJILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (Ljava/util/List;Ldev/jordond/filmstrip/edit/TrackContent;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioLevel;JZJJLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
@@ -549,21 +419,6 @@ public final class dev/jordond/filmstrip/edit/Track {
 	public final fun withAudio (Ldev/jordond/filmstrip/edit/AudioLevel;)Ldev/jordond/filmstrip/edit/Track;
 	public final fun withClips (Ljava/util/List;)Ldev/jordond/filmstrip/edit/Track;
 	public final fun withEffects (Ljava/util/List;)Ldev/jordond/filmstrip/edit/Track;
-}
-
-public final synthetic class dev/jordond/filmstrip/edit/Track$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/edit/Track$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/edit/Track;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/edit/Track;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/edit/Track$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/edit/TrackBuilder {
@@ -589,15 +444,10 @@ public final class dev/jordond/filmstrip/edit/TrackBuilder {
 public final class dev/jordond/filmstrip/edit/TrackContent : java/lang/Enum {
 	public static final field Audio Ldev/jordond/filmstrip/edit/TrackContent;
 	public static final field AudioAndVideo Ldev/jordond/filmstrip/edit/TrackContent;
-	public static final field Companion Ldev/jordond/filmstrip/edit/TrackContent$Companion;
 	public static final field Video Ldev/jordond/filmstrip/edit/TrackContent;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/edit/TrackContent;
 	public static fun values ()[Ldev/jordond/filmstrip/edit/TrackContent;
-}
-
-public final class dev/jordond/filmstrip/edit/TrackContent$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/effect/Attributes {
@@ -779,7 +629,6 @@ public final class dev/jordond/filmstrip/export/AudioCodec : java/lang/Enum {
 	public static final field Aac Ldev/jordond/filmstrip/export/AudioCodec;
 	public static final field Alac Ldev/jordond/filmstrip/export/AudioCodec;
 	public static final field Auto Ldev/jordond/filmstrip/export/AudioCodec;
-	public static final field Companion Ldev/jordond/filmstrip/export/AudioCodec$Companion;
 	public static final field Flac Ldev/jordond/filmstrip/export/AudioCodec;
 	public static final field Mp3 Ldev/jordond/filmstrip/export/AudioCodec;
 	public static final field None Ldev/jordond/filmstrip/export/AudioCodec;
@@ -788,10 +637,6 @@ public final class dev/jordond/filmstrip/export/AudioCodec : java/lang/Enum {
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/export/AudioCodec;
 	public static fun values ()[Ldev/jordond/filmstrip/export/AudioCodec;
-}
-
-public final class dev/jordond/filmstrip/export/AudioCodec$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/export/AudioFormat {
@@ -812,23 +657,11 @@ public final class dev/jordond/filmstrip/export/Bitrate {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/export/Bitrate$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/export/Bitrate$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/export/Bitrate;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/export/Bitrate;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/export/Bitrate$Companion {
 	public final fun kbps (D)Ldev/jordond/filmstrip/export/Bitrate;
 	public final fun kbps (I)Ldev/jordond/filmstrip/export/Bitrate;
 	public final fun mbps (D)Ldev/jordond/filmstrip/export/Bitrate;
 	public final fun mbps (I)Ldev/jordond/filmstrip/export/Bitrate;
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/export/CopyBlocker : java/lang/Enum {
@@ -1059,20 +892,8 @@ public final class dev/jordond/filmstrip/export/ExportSpec {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/export/ExportSpec$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/export/ExportSpec$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/export/ExportSpec;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/export/ExportSpec;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/export/ExportSpec$Companion {
 	public final fun getUpload ()Ldev/jordond/filmstrip/export/ExportSpec;
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/export/ExportSpecKt {
@@ -1131,16 +952,11 @@ public final class dev/jordond/filmstrip/export/ExportStatus$Success : dev/jordo
 
 public final class dev/jordond/filmstrip/export/HdrMode : java/lang/Enum {
 	public static final field Auto Ldev/jordond/filmstrip/export/HdrMode;
-	public static final field Companion Ldev/jordond/filmstrip/export/HdrMode$Companion;
 	public static final field KeepHdr Ldev/jordond/filmstrip/export/HdrMode;
 	public static final field ToneMapToSdr Ldev/jordond/filmstrip/export/HdrMode;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/export/HdrMode;
 	public static fun values ()[Ldev/jordond/filmstrip/export/HdrMode;
-}
-
-public final class dev/jordond/filmstrip/export/HdrMode$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/export/OutputFormat {
@@ -1199,7 +1015,6 @@ public final class dev/jordond/filmstrip/export/Verdict$Incapable : dev/jordond/
 public final class dev/jordond/filmstrip/export/VideoCodec : java/lang/Enum {
 	public static final field Auto Ldev/jordond/filmstrip/export/VideoCodec;
 	public static final field Av1 Ldev/jordond/filmstrip/export/VideoCodec;
-	public static final field Companion Ldev/jordond/filmstrip/export/VideoCodec$Companion;
 	public static final field H264 Ldev/jordond/filmstrip/export/VideoCodec;
 	public static final field Hevc Ldev/jordond/filmstrip/export/VideoCodec;
 	public static final field Vp8 Ldev/jordond/filmstrip/export/VideoCodec;
@@ -1207,10 +1022,6 @@ public final class dev/jordond/filmstrip/export/VideoCodec : java/lang/Enum {
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/export/VideoCodec;
 	public static fun values ()[Ldev/jordond/filmstrip/export/VideoCodec;
-}
-
-public final class dev/jordond/filmstrip/export/VideoCodec$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/geometry/Anchor {
@@ -1223,17 +1034,6 @@ public final class dev/jordond/filmstrip/geometry/Anchor {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/geometry/Anchor$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/geometry/Anchor$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/geometry/Anchor;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/geometry/Anchor;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/geometry/Anchor$Companion {
 	public final fun getBottomCenter ()Ldev/jordond/filmstrip/geometry/Anchor;
 	public final fun getBottomEnd ()Ldev/jordond/filmstrip/geometry/Anchor;
@@ -1244,7 +1044,6 @@ public final class dev/jordond/filmstrip/geometry/Anchor$Companion {
 	public final fun getTopCenter ()Ldev/jordond/filmstrip/geometry/Anchor;
 	public final fun getTopEnd ()Ldev/jordond/filmstrip/geometry/Anchor;
 	public final fun getTopStart ()Ldev/jordond/filmstrip/geometry/Anchor;
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/geometry/AspectRatio {
@@ -1258,17 +1057,6 @@ public final class dev/jordond/filmstrip/geometry/AspectRatio {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/geometry/AspectRatio$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/geometry/AspectRatio$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/geometry/AspectRatio;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/geometry/AspectRatio;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/geometry/AspectRatio$Companion {
 	public final fun getCinema ()Ldev/jordond/filmstrip/geometry/AspectRatio;
 	public final fun getClassic ()Ldev/jordond/filmstrip/geometry/AspectRatio;
@@ -1276,13 +1064,11 @@ public final class dev/jordond/filmstrip/geometry/AspectRatio$Companion {
 	public final fun getLandscape ()Ldev/jordond/filmstrip/geometry/AspectRatio;
 	public final fun getPortrait ()Ldev/jordond/filmstrip/geometry/AspectRatio;
 	public final fun getSquare ()Ldev/jordond/filmstrip/geometry/AspectRatio;
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/geometry/Corner : java/lang/Enum {
 	public static final field BottomEnd Ldev/jordond/filmstrip/geometry/Corner;
 	public static final field BottomStart Ldev/jordond/filmstrip/geometry/Corner;
-	public static final field Companion Ldev/jordond/filmstrip/geometry/Corner$Companion;
 	public static final field TopEnd Ldev/jordond/filmstrip/geometry/Corner;
 	public static final field TopStart Ldev/jordond/filmstrip/geometry/Corner;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
@@ -1290,16 +1076,11 @@ public final class dev/jordond/filmstrip/geometry/Corner : java/lang/Enum {
 	public static fun values ()[Ldev/jordond/filmstrip/geometry/Corner;
 }
 
-public final class dev/jordond/filmstrip/geometry/Corner$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public abstract interface class dev/jordond/filmstrip/geometry/Fill {
 	public static final field Companion Ldev/jordond/filmstrip/geometry/Fill$Companion;
 }
 
 public final class dev/jordond/filmstrip/geometry/Fill$Blurred : dev/jordond/filmstrip/geometry/Fill {
-	public static final field Companion Ldev/jordond/filmstrip/geometry/Fill$Blurred$Companion;
 	public fun <init> ()V
 	public fun <init> (FF)V
 	public synthetic fun <init> (FFILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -1310,30 +1091,13 @@ public final class dev/jordond/filmstrip/geometry/Fill$Blurred : dev/jordond/fil
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/geometry/Fill$Blurred$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/geometry/Fill$Blurred$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/geometry/Fill$Blurred;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/geometry/Fill$Blurred;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/geometry/Fill$Blurred$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/geometry/Fill$Companion {
 	public final fun getBlack ()Ldev/jordond/filmstrip/geometry/Fill;
 	public final fun getBlur ()Ldev/jordond/filmstrip/geometry/Fill;
 	public final fun getWhite ()Ldev/jordond/filmstrip/geometry/Fill;
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/geometry/Fill$Solid : dev/jordond/filmstrip/geometry/Fill {
-	public static final field Companion Ldev/jordond/filmstrip/geometry/Fill$Solid$Companion;
 	public fun <init> ()V
 	public fun <init> (I)V
 	public synthetic fun <init> (IILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -1341,21 +1105,6 @@ public final class dev/jordond/filmstrip/geometry/Fill$Solid : dev/jordond/films
 	public final fun getColor ()I
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
-}
-
-public final synthetic class dev/jordond/filmstrip/geometry/Fill$Solid$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/geometry/Fill$Solid$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/geometry/Fill$Solid;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/geometry/Fill$Solid;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/geometry/Fill$Solid$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/geometry/Fit : java/lang/Enum {
@@ -1368,16 +1117,11 @@ public final class dev/jordond/filmstrip/geometry/Fit : java/lang/Enum {
 }
 
 public final class dev/jordond/filmstrip/geometry/FlipAxis : java/lang/Enum {
-	public static final field Companion Ldev/jordond/filmstrip/geometry/FlipAxis$Companion;
 	public static final field Horizontal Ldev/jordond/filmstrip/geometry/FlipAxis;
 	public static final field Vertical Ldev/jordond/filmstrip/geometry/FlipAxis;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/geometry/FlipAxis;
 	public static fun values ()[Ldev/jordond/filmstrip/geometry/FlipAxis;
-}
-
-public final class dev/jordond/filmstrip/geometry/FlipAxis$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/geometry/NormalizedRect {
@@ -1395,24 +1139,11 @@ public final class dev/jordond/filmstrip/geometry/NormalizedRect {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/geometry/NormalizedRect$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/geometry/NormalizedRect$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/geometry/NormalizedRect;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/geometry/NormalizedRect;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/geometry/NormalizedRect$Companion {
 	public final fun getFull ()Ldev/jordond/filmstrip/geometry/NormalizedRect;
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/geometry/Size {
-	public static final field Companion Ldev/jordond/filmstrip/geometry/Size$Companion;
 	public fun <init> (II)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAspect ()F
@@ -1422,23 +1153,7 @@ public final class dev/jordond/filmstrip/geometry/Size {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/geometry/Size$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/geometry/Size$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/geometry/Size;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/geometry/Size;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/geometry/Size$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/media/AudioTrackInfo {
-	public static final field Companion Ldev/jordond/filmstrip/media/AudioTrackInfo$Companion;
 	public fun <init> (Ldev/jordond/filmstrip/media/TrackCodec;IILdev/jordond/filmstrip/export/Bitrate;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getBitrate ()Ldev/jordond/filmstrip/export/Bitrate;
@@ -1449,25 +1164,9 @@ public final class dev/jordond/filmstrip/media/AudioTrackInfo {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/media/AudioTrackInfo$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/media/AudioTrackInfo$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/media/AudioTrackInfo;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/media/AudioTrackInfo;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/media/AudioTrackInfo$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/media/CodecKind : java/lang/Enum {
 	public static final field Aac Ldev/jordond/filmstrip/media/CodecKind;
 	public static final field Av1 Ldev/jordond/filmstrip/media/CodecKind;
-	public static final field Companion Ldev/jordond/filmstrip/media/CodecKind$Companion;
 	public static final field Flac Ldev/jordond/filmstrip/media/CodecKind;
 	public static final field H264 Ldev/jordond/filmstrip/media/CodecKind;
 	public static final field Hevc Ldev/jordond/filmstrip/media/CodecKind;
@@ -1483,27 +1182,17 @@ public final class dev/jordond/filmstrip/media/CodecKind : java/lang/Enum {
 	public static fun values ()[Ldev/jordond/filmstrip/media/CodecKind;
 }
 
-public final class dev/jordond/filmstrip/media/CodecKind$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/media/ColorSpace : java/lang/Enum {
 	public static final field Bt2020 Ldev/jordond/filmstrip/media/ColorSpace;
 	public static final field Bt601 Ldev/jordond/filmstrip/media/ColorSpace;
 	public static final field Bt709 Ldev/jordond/filmstrip/media/ColorSpace;
-	public static final field Companion Ldev/jordond/filmstrip/media/ColorSpace$Companion;
 	public static final field Unknown Ldev/jordond/filmstrip/media/ColorSpace;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/media/ColorSpace;
 	public static fun values ()[Ldev/jordond/filmstrip/media/ColorSpace;
 }
 
-public final class dev/jordond/filmstrip/media/ColorSpace$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/media/FormatHint : java/lang/Enum {
-	public static final field Companion Ldev/jordond/filmstrip/media/FormatHint$Companion;
 	public static final field M4a Ldev/jordond/filmstrip/media/FormatHint;
 	public static final field Mov Ldev/jordond/filmstrip/media/FormatHint;
 	public static final field Mp4 Ldev/jordond/filmstrip/media/FormatHint;
@@ -1511,10 +1200,6 @@ public final class dev/jordond/filmstrip/media/FormatHint : java/lang/Enum {
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/media/FormatHint;
 	public static fun values ()[Ldev/jordond/filmstrip/media/FormatHint;
-}
-
-public final class dev/jordond/filmstrip/media/FormatHint$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public abstract interface class dev/jordond/filmstrip/media/FrameRenderer {
@@ -1549,7 +1234,6 @@ public final class dev/jordond/filmstrip/media/FrameResult$Success : dev/jordond
 }
 
 public final class dev/jordond/filmstrip/media/HdrTransfer : java/lang/Enum {
-	public static final field Companion Ldev/jordond/filmstrip/media/HdrTransfer$Companion;
 	public static final field Hlg Ldev/jordond/filmstrip/media/HdrTransfer;
 	public static final field Pq Ldev/jordond/filmstrip/media/HdrTransfer;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
@@ -1557,16 +1241,11 @@ public final class dev/jordond/filmstrip/media/HdrTransfer : java/lang/Enum {
 	public static fun values ()[Ldev/jordond/filmstrip/media/HdrTransfer;
 }
 
-public final class dev/jordond/filmstrip/media/HdrTransfer$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public abstract interface class dev/jordond/filmstrip/media/ImageSource {
 	public static final field Companion Ldev/jordond/filmstrip/media/ImageSource$Companion;
 }
 
 public final class dev/jordond/filmstrip/media/ImageSource$Bytes : dev/jordond/filmstrip/media/ImageSource {
-	public static final field Companion Ldev/jordond/filmstrip/media/ImageSource$Bytes$Companion;
 	public fun <init> ([B)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getBytes ()[B
@@ -1574,30 +1253,13 @@ public final class dev/jordond/filmstrip/media/ImageSource$Bytes : dev/jordond/f
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/media/ImageSource$Bytes$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/media/ImageSource$Bytes$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/media/ImageSource$Bytes;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/media/ImageSource$Bytes;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/media/ImageSource$Bytes$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/media/ImageSource$Companion {
 	public final fun of (Ljava/lang/String;)Ldev/jordond/filmstrip/media/ImageSource;
 	public final fun ofBytes ([B)Ldev/jordond/filmstrip/media/ImageSource;
 	public final fun ofUri (Ljava/lang/String;)Ldev/jordond/filmstrip/media/ImageSource;
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/media/ImageSource$Path : dev/jordond/filmstrip/media/ImageSource {
-	public static final field Companion Ldev/jordond/filmstrip/media/ImageSource$Path$Companion;
 	public fun <init> (Ljava/lang/String;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getPath ()Ljava/lang/String;
@@ -1605,23 +1267,7 @@ public final class dev/jordond/filmstrip/media/ImageSource$Path : dev/jordond/fi
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/media/ImageSource$Path$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/media/ImageSource$Path$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/media/ImageSource$Path;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/media/ImageSource$Path;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/media/ImageSource$Path$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/media/ImageSource$Uri : dev/jordond/filmstrip/media/ImageSource {
-	public static final field Companion Ldev/jordond/filmstrip/media/ImageSource$Uri$Companion;
 	public fun <init> (Ljava/lang/String;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getUri ()Ljava/lang/String;
@@ -1629,23 +1275,7 @@ public final class dev/jordond/filmstrip/media/ImageSource$Uri : dev/jordond/fil
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/media/ImageSource$Uri$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/media/ImageSource$Uri$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/media/ImageSource$Uri;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/media/ImageSource$Uri;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/media/ImageSource$Uri$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/media/MediaInfo {
-	public static final field Companion Ldev/jordond/filmstrip/media/MediaInfo$Companion;
 	public synthetic fun <init> (JLdev/jordond/filmstrip/media/VideoTrackInfo;Ldev/jordond/filmstrip/media/AudioTrackInfo;ZLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAudio ()Ldev/jordond/filmstrip/media/AudioTrackInfo;
@@ -1656,21 +1286,6 @@ public final class dev/jordond/filmstrip/media/MediaInfo {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/media/MediaInfo$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/media/MediaInfo$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/media/MediaInfo;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/media/MediaInfo;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/media/MediaInfo$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public abstract interface class dev/jordond/filmstrip/media/MediaSink {
 	public static final field Companion Ldev/jordond/filmstrip/media/MediaSink$Companion;
 }
@@ -1678,12 +1293,10 @@ public abstract interface class dev/jordond/filmstrip/media/MediaSink {
 public final class dev/jordond/filmstrip/media/MediaSink$Companion {
 	public final fun of (Ljava/lang/String;)Ldev/jordond/filmstrip/media/MediaSink;
 	public final fun ofUri (Ljava/lang/String;)Ldev/jordond/filmstrip/media/MediaSink;
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 	public final fun temporary ()Ldev/jordond/filmstrip/media/MediaSink;
 }
 
 public final class dev/jordond/filmstrip/media/MediaSink$Path : dev/jordond/filmstrip/media/MediaSink {
-	public static final field Companion Ldev/jordond/filmstrip/media/MediaSink$Path$Companion;
 	public fun <init> (Ljava/lang/String;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getPath ()Ljava/lang/String;
@@ -1691,31 +1304,14 @@ public final class dev/jordond/filmstrip/media/MediaSink$Path : dev/jordond/film
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/media/MediaSink$Path$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/media/MediaSink$Path$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/media/MediaSink$Path;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/media/MediaSink$Path;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/media/MediaSink$Path$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/media/MediaSink$Temporary : dev/jordond/filmstrip/media/MediaSink {
 	public static final field INSTANCE Ldev/jordond/filmstrip/media/MediaSink$Temporary;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 	public fun toString ()Ljava/lang/String;
 }
 
 public final class dev/jordond/filmstrip/media/MediaSink$Uri : dev/jordond/filmstrip/media/MediaSink {
-	public static final field Companion Ldev/jordond/filmstrip/media/MediaSink$Uri$Companion;
 	public fun <init> (Ljava/lang/String;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getUri ()Ljava/lang/String;
@@ -1723,27 +1319,11 @@ public final class dev/jordond/filmstrip/media/MediaSink$Uri : dev/jordond/films
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/media/MediaSink$Uri$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/media/MediaSink$Uri$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/media/MediaSink$Uri;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/media/MediaSink$Uri;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/media/MediaSink$Uri$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public abstract interface class dev/jordond/filmstrip/media/MediaSource {
 	public static final field Companion Ldev/jordond/filmstrip/media/MediaSource$Companion;
 }
 
 public final class dev/jordond/filmstrip/media/MediaSource$Bytes : dev/jordond/filmstrip/media/MediaSource {
-	public static final field Companion Ldev/jordond/filmstrip/media/MediaSource$Bytes$Companion;
 	public fun <init> ([BLdev/jordond/filmstrip/media/FormatHint;)V
 	public synthetic fun <init> ([BLdev/jordond/filmstrip/media/FormatHint;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
@@ -1753,32 +1333,15 @@ public final class dev/jordond/filmstrip/media/MediaSource$Bytes : dev/jordond/f
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/media/MediaSource$Bytes$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/media/MediaSource$Bytes$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/media/MediaSource$Bytes;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/media/MediaSource$Bytes;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/media/MediaSource$Bytes$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/media/MediaSource$Companion {
 	public final fun of (Ljava/lang/String;)Ldev/jordond/filmstrip/media/MediaSource;
 	public final fun ofBytes ([BLdev/jordond/filmstrip/media/FormatHint;)Ldev/jordond/filmstrip/media/MediaSource;
 	public static synthetic fun ofBytes$default (Ldev/jordond/filmstrip/media/MediaSource$Companion;[BLdev/jordond/filmstrip/media/FormatHint;ILjava/lang/Object;)Ldev/jordond/filmstrip/media/MediaSource;
 	public final fun ofImage-HG0u8IE (Ldev/jordond/filmstrip/media/ImageSource;J)Ldev/jordond/filmstrip/media/MediaSource;
 	public final fun ofUri (Ljava/lang/String;)Ldev/jordond/filmstrip/media/MediaSource;
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/media/MediaSource$Image : dev/jordond/filmstrip/media/MediaSource {
-	public static final field Companion Ldev/jordond/filmstrip/media/MediaSource$Image$Companion;
 	public synthetic fun <init> (Ldev/jordond/filmstrip/media/ImageSource;JLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getDuration-UwyO8pc ()J
@@ -1787,23 +1350,7 @@ public final class dev/jordond/filmstrip/media/MediaSource$Image : dev/jordond/f
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/media/MediaSource$Image$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/media/MediaSource$Image$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/media/MediaSource$Image;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/media/MediaSource$Image;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/media/MediaSource$Image$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/media/MediaSource$Path : dev/jordond/filmstrip/media/MediaSource {
-	public static final field Companion Ldev/jordond/filmstrip/media/MediaSource$Path$Companion;
 	public fun <init> (Ljava/lang/String;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getPath ()Ljava/lang/String;
@@ -1811,43 +1358,12 @@ public final class dev/jordond/filmstrip/media/MediaSource$Path : dev/jordond/fi
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/media/MediaSource$Path$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/media/MediaSource$Path$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/media/MediaSource$Path;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/media/MediaSource$Path;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/media/MediaSource$Path$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/media/MediaSource$Uri : dev/jordond/filmstrip/media/MediaSource {
-	public static final field Companion Ldev/jordond/filmstrip/media/MediaSource$Uri$Companion;
 	public fun <init> (Ljava/lang/String;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getUri ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
-}
-
-public final synthetic class dev/jordond/filmstrip/media/MediaSource$Uri$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/media/MediaSource$Uri$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/media/MediaSource$Uri;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/media/MediaSource$Uri;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/media/MediaSource$Uri$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/media/PlatformImage : java/lang/AutoCloseable {
@@ -1899,17 +1415,12 @@ public final class dev/jordond/filmstrip/media/StillBytes$Success : dev/jordond/
 }
 
 public final class dev/jordond/filmstrip/media/StillFormat : java/lang/Enum {
-	public static final field Companion Ldev/jordond/filmstrip/media/StillFormat$Companion;
 	public static final field Jpeg Ldev/jordond/filmstrip/media/StillFormat;
 	public static final field Png Ldev/jordond/filmstrip/media/StillFormat;
 	public static final field Webp Ldev/jordond/filmstrip/media/StillFormat;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/media/StillFormat;
 	public static fun values ()[Ldev/jordond/filmstrip/media/StillFormat;
-}
-
-public final class dev/jordond/filmstrip/media/StillFormat$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/media/StillImageKt {
@@ -1945,7 +1456,6 @@ public final class dev/jordond/filmstrip/media/StillResult$Success : dev/jordond
 }
 
 public final class dev/jordond/filmstrip/media/StillSpec {
-	public static final field Companion Ldev/jordond/filmstrip/media/StillSpec$Companion;
 	public fun <init> ()V
 	public fun <init> (Ldev/jordond/filmstrip/media/StillFormat;ILjava/lang/Integer;)V
 	public synthetic fun <init> (Ldev/jordond/filmstrip/media/StillFormat;ILjava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -1957,23 +1467,7 @@ public final class dev/jordond/filmstrip/media/StillSpec {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/media/StillSpec$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/media/StillSpec$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/media/StillSpec;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/media/StillSpec;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/media/StillSpec$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/media/TrackCodec {
-	public static final field Companion Ldev/jordond/filmstrip/media/TrackCodec$Companion;
 	public fun <init> (Ljava/lang/String;Ldev/jordond/filmstrip/media/CodecKind;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getKind ()Ldev/jordond/filmstrip/media/CodecKind;
@@ -1982,23 +1476,7 @@ public final class dev/jordond/filmstrip/media/TrackCodec {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/media/TrackCodec$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/media/TrackCodec$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/media/TrackCodec;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/media/TrackCodec;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/media/TrackCodec$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/media/VideoTrackInfo {
-	public static final field Companion Ldev/jordond/filmstrip/media/VideoTrackInfo$Companion;
 	public fun <init> (Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/geometry/Size;IFLjava/lang/Float;Ldev/jordond/filmstrip/media/TrackCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/media/ColorSpace;Ldev/jordond/filmstrip/media/HdrTransfer;Ldev/jordond/filmstrip/export/Bitrate;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getBitDepth ()Ljava/lang/Integer;
@@ -2015,23 +1493,7 @@ public final class dev/jordond/filmstrip/media/VideoTrackInfo {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/media/VideoTrackInfo$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/media/VideoTrackInfo$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/media/VideoTrackInfo;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/media/VideoTrackInfo;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
-public final class dev/jordond/filmstrip/media/VideoTrackInfo$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/motion/Easing : java/lang/Enum {
-	public static final field Companion Ldev/jordond/filmstrip/motion/Easing$Companion;
 	public static final field EaseIn Ldev/jordond/filmstrip/motion/Easing;
 	public static final field EaseInOut Ldev/jordond/filmstrip/motion/Easing;
 	public static final field EaseOut Ldev/jordond/filmstrip/motion/Easing;
@@ -2039,10 +1501,6 @@ public final class dev/jordond/filmstrip/motion/Easing : java/lang/Enum {
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/motion/Easing;
 	public static fun values ()[Ldev/jordond/filmstrip/motion/Easing;
-}
-
-public final class dev/jordond/filmstrip/motion/Easing$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/motion/EasingKt {
@@ -2482,7 +1940,6 @@ public final class dev/jordond/filmstrip/player/VideoPlayer$DefaultImpls {
 
 public final class dev/jordond/filmstrip/style/FontWeight : java/lang/Enum {
 	public static final field Bold Ldev/jordond/filmstrip/style/FontWeight;
-	public static final field Companion Ldev/jordond/filmstrip/style/FontWeight$Companion;
 	public static final field Medium Ldev/jordond/filmstrip/style/FontWeight;
 	public static final field Regular Ldev/jordond/filmstrip/style/FontWeight;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
@@ -2490,22 +1947,13 @@ public final class dev/jordond/filmstrip/style/FontWeight : java/lang/Enum {
 	public static fun values ()[Ldev/jordond/filmstrip/style/FontWeight;
 }
 
-public final class dev/jordond/filmstrip/style/FontWeight$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/style/TextAlignment : java/lang/Enum {
 	public static final field Center Ldev/jordond/filmstrip/style/TextAlignment;
-	public static final field Companion Ldev/jordond/filmstrip/style/TextAlignment$Companion;
 	public static final field End Ldev/jordond/filmstrip/style/TextAlignment;
 	public static final field Start Ldev/jordond/filmstrip/style/TextAlignment;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/style/TextAlignment;
 	public static fun values ()[Ldev/jordond/filmstrip/style/TextAlignment;
-}
-
-public final class dev/jordond/filmstrip/style/TextAlignment$Companion {
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class dev/jordond/filmstrip/style/TextStyle {
@@ -2525,20 +1973,8 @@ public final class dev/jordond/filmstrip/style/TextStyle {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final synthetic class dev/jordond/filmstrip/style/TextStyle$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
-	public static final field INSTANCE Ldev/jordond/filmstrip/style/TextStyle$$serializer;
-	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
-	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jordond/filmstrip/style/TextStyle;
-	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
-	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
-	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jordond/filmstrip/style/TextStyle;)V
-	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
-	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
-}
-
 public final class dev/jordond/filmstrip/style/TextStyle$Companion {
 	public final fun getDefault ()Ldev/jordond/filmstrip/style/TextStyle;
-	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public abstract interface class dev/jordond/filmstrip/thumbnail/ThumbnailBatchCallback {

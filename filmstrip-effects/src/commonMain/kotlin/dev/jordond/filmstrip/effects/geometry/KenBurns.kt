@@ -11,8 +11,6 @@ import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.motion.Easing
 import dev.jordond.filmstrip.motion.paced
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import kotlin.time.Duration
 
 /**
@@ -33,8 +31,6 @@ import kotlin.time.Duration
  * @property to The region visible at the end.
  * @property easing How the motion is paced between them.
  */
-@Serializable
-@SerialName(EffectIds.KEN_BURNS)
 @Poko
 @ExperimentalFilmstripApi
 public class KenBurns(

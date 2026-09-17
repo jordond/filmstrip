@@ -2,7 +2,6 @@ import dev.jordond.filmstrip.convention.androidDeviceTests
 
 plugins {
   id("filmstrip.library")
-  alias(libs.plugins.kotlin.serialization)
 }
 
 androidDeviceTests()

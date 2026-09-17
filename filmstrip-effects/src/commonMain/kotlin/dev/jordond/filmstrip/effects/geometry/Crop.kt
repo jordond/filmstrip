@@ -10,8 +10,6 @@ import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 
 /**
  * Reframe to an aspect ratio, keeping the region around [anchor].
@@ -20,8 +18,6 @@ import kotlinx.serialization.Serializable
  * @property fit How the frame is fitted to [aspect].
  * @property anchor Where the retained region sits when [fit] is [Fit.Crop]. Centred by default.
  */
-@Serializable
-@SerialName(EffectIds.CROP)
 @Poko
 public class Crop(
   public val aspect: AspectRatio,

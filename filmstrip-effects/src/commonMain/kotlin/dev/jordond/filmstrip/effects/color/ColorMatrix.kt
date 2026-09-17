@@ -10,8 +10,6 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.nitsFromSdrSignal
 import dev.jordond.filmstrip.media.peakNits
 import dev.jordond.filmstrip.media.sdrSignalFromNits
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import kotlin.math.abs
 
 /**
@@ -48,8 +46,6 @@ import kotlin.math.abs
  * @property bb How much input blue contributes to output blue.
  * @property bBias What is added to output blue.
  */
-@Serializable
-@SerialName(EffectIds.COLOR_MATRIX)
 @Poko
 public class ColorMatrix(
   public val rr: Float = 1f,

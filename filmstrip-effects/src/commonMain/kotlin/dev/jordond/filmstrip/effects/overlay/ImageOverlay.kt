@@ -7,9 +7,6 @@ import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -28,8 +25,6 @@ import kotlin.math.roundToInt
  * @property visibleDuring When the overlay is visible, or null for the whole composition.
  * @property animation How the overlay is drawn at each frame of its run, or null to hold it still.
  */
-@Serializable
-@SerialName(EffectIds.IMAGE_OVERLAY)
 @Poko
 public class ImageOverlay(
   public val image: ImageSource,
@@ -38,7 +33,7 @@ public class ImageOverlay(
   public val scale: Float = DEFAULT_SCALE,
   public val opacity: Float = 1f,
   override val visibleDuring: TimeRange? = null,
-  @Transient override val animation: OverlayAnimation? = null,
+  override val animation: OverlayAnimation? = null,
 ) : OverlayEffect {
   override val id: String get() = EffectIds.IMAGE_OVERLAY
 

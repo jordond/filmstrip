@@ -6,28 +6,16 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
-import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * The image arm on the model: what it persists as, what it makes a clip's duration, and what the
- * builders write when an edit names a photo.
+ * The image arm on the model: what it makes a clip's duration, and what the builders write when an
+ * edit names a photo.
  */
 class ImageClipTest {
-  @Test
-  fun anImageSourceRoundTripsThroughTheWireFormat() {
-    val source: MediaSource = MediaSource.Image(ImageSource.of("/photos/beach.jpg"), 5.seconds)
-
-    val json = Json.encodeToString(MediaSource.serializer(), source)
-
-    assertTrue(json.contains("\"image\""), "the arm persists under its own discriminator: $json")
-    assertEquals(source, Json.decodeFromString(MediaSource.serializer(), json))
-  }
-
   @Test
   fun anImageSourceHoldingTheSameStillAndTheSameLengthIsEqual() {
     val a = MediaSource.Image(ImageSource.of("/photos/beach.jpg"), 5.seconds)

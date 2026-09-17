@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.geometry
 
 import androidx.compose.runtime.Immutable
 import dev.drewhamilton.poko.Poko
-import kotlinx.serialization.Serializable
 
 /**
  * A size in whole pixels.
@@ -13,7 +12,6 @@ import kotlinx.serialization.Serializable
  * @property width Width in pixels.
  * @property height Height in pixels.
  */
-@Serializable
 @Poko
 @Immutable
 public class Size(
@@ -35,7 +33,6 @@ public class Size(
  * @property width The width side of the ratio.
  * @property height The height side of the ratio.
  */
-@Serializable
 @Poko
 @Immutable
 public class AspectRatio(
@@ -113,7 +110,6 @@ public enum class Fit {
  * @property right Right edge as a fraction of the frame width.
  * @property bottom Bottom edge as a fraction of the frame height.
  */
-@Serializable
 @Poko
 @Immutable
 public class NormalizedRect(
@@ -159,7 +155,6 @@ public class NormalizedRect(
  * @property x Horizontal position as a fraction of the frame width.
  * @property y Vertical position as a fraction of the frame height.
  */
-@Serializable
 @Poko
 @Immutable
 public class Anchor(
@@ -182,7 +177,6 @@ public class Anchor(
 /**
  * One of the four corners of the output frame.
  */
-@Serializable
 public enum class Corner {
   TopStart,
   TopEnd,
@@ -193,7 +187,6 @@ public enum class Corner {
 /**
  * Which axis to mirror across.
  */
-@Serializable
 public enum class FlipAxis {
   /**
    * Mirror left to right.

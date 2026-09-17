@@ -6,8 +6,6 @@ import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.geometry.Fit
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 
 /**
  * Set the output height in pixels. The width follows from the composition's aspect.
@@ -16,8 +14,6 @@ import kotlinx.serialization.Serializable
  * rounding is reported.
  * @property fit How the frame is fitted to [targetHeight].
  */
-@Serializable
-@SerialName(EffectIds.SCALE)
 @Poko
 public class Scale(
   public val targetHeight: Int,

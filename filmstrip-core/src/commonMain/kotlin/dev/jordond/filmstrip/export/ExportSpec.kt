@@ -3,7 +3,6 @@ package dev.jordond.filmstrip.export
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.EditComposition
-import kotlinx.serialization.Serializable
 
 /**
  * What the output should look like.
@@ -21,7 +20,6 @@ import kotlinx.serialization.Serializable
  * @property strict Fail rather than accept a fallback. False by default: fall back, and report
  *   every adjustment. Set it when a byte budget or a codec requirement is non-negotiable.
  */
-@Serializable
 @Poko
 public class ExportSpec(
   public val targetHeight: Int? = null,
@@ -46,7 +44,6 @@ public class ExportSpec(
  *
  * @property bitsPerSecond The rate, in bits per second.
  */
-@Serializable
 @Poko
 public class Bitrate(
   public val bitsPerSecond: Long,
@@ -91,7 +88,6 @@ public val Int.Kbps: Bitrate get() = Bitrate.kbps(this)
  * H.264 is encodable everywhere and HEVC almost everywhere. VP9 is a browser encode target too.
  * The rest are never an encode target on any backend today and only ever reach an output by copy.
  */
-@Serializable
 public enum class VideoCodec {
   /**
    * Let filmstrip choose, preferring the source's codec when the device can encode it.
@@ -129,7 +125,6 @@ public enum class VideoCodec {
  * An audio codec filmstrip can produce, whether by encoding to it or by copying it across from a
  * source untouched.
  */
-@Serializable
 public enum class AudioCodec {
   /**
    * Let filmstrip choose.
@@ -178,7 +173,6 @@ public enum class AudioCodec {
  * Resolved once, up front, and the resolved mode is used by both the preview and the export, so the
  * grade a user looks at is the grade they get.
  */
-@Serializable
 public enum class HdrMode {
   /**
    * Keep HDR if the device can encode it, otherwise tone-map and report the adjustment.

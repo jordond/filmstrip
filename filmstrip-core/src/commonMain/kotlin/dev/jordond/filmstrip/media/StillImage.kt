@@ -5,7 +5,6 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.geometry.Size
-import kotlinx.serialization.Serializable
 import kotlin.time.Duration
 
 /**
@@ -13,7 +12,6 @@ import kotlin.time.Duration
  *
  * [Png] and [Jpeg] are writable on every target. [Webp] is not, and says so on its own entry.
  */
-@Serializable
 public enum class StillFormat {
   /**
    * PNG. Lossless, so [StillSpec.quality] has no effect on it.
@@ -47,7 +45,6 @@ public enum class StillFormat {
  *   would scale the frame past the largest still filmstrip encodes is held to that size instead,
  *   so an upscale can grow a frame only so far.
  */
-@Serializable
 @Poko
 public class StillSpec(
   public val format: StillFormat = StillFormat.Jpeg,

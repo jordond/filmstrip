@@ -2,7 +2,6 @@ import dev.jordond.filmstrip.convention.androidDeviceTests
 
 plugins {
   id("filmstrip.library")
-  alias(libs.plugins.kotlin.serialization)
 }
 
 androidDeviceTests()
@@ -48,7 +47,6 @@ kotlin {
 
       dependencies {
         api(libs.kotlinx.coroutines.core)
-        api(libs.kotlinx.serialization.json)
         implementation(libs.kotlinx.io.core)
         api(libs.compose.annotation)
       }

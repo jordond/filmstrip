@@ -92,7 +92,7 @@ public interface Filmstrip :
    *
    * A plan comes only from [Verdict.Capable] or [Verdict.Degraded], so a caller always has the list
    * of what this device will change before a render starts. Cancel by cancelling the collecting
-   * scope. Exports are serialized on an internal lock, so the flow may wait before emitting
+   * scope. Exports run one at a time behind an internal lock, so the flow may wait before emitting
    * [ExportStatus.Started].
    *
    * @param plan The plan to run.

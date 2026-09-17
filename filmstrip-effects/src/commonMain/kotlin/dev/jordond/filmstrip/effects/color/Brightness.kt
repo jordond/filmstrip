@@ -5,8 +5,6 @@ import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 
 /**
  * Multiply every colour channel of the frame.
@@ -27,8 +25,6 @@ import kotlinx.serialization.Serializable
  * @property factor The multiplier, where `1f` leaves the frame unchanged and `0f` writes black.
  * Negative values are read as `0f`, and anything that is not a finite number as `1f`.
  */
-@Serializable
-@SerialName(EffectIds.BRIGHTNESS)
 @Poko
 public class Brightness(
   public val factor: Float,

@@ -5,7 +5,6 @@ import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.export.Bitrate
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.geometry.Size
-import kotlinx.serialization.Serializable
 import kotlin.time.Duration
 
 /**
@@ -20,7 +19,6 @@ import kotlin.time.Duration
  * @property isExportable False for DRM-protected assets and anything else the platform refuses to
  *   export. Such a source can neither be exported nor previewed, so check it first.
  */
-@Serializable
 @Poko
 public class MediaInfo(
   public val duration: Duration,
@@ -46,7 +44,6 @@ public class MediaInfo(
  * @property hdrTransfer The HDR transfer function, or null for SDR.
  * @property bitrate The track's bitrate, or null when the container does not report one.
  */
-@Serializable
 @Poko
 public class VideoTrackInfo(
   public val codedSize: Size,
@@ -69,7 +66,6 @@ public class VideoTrackInfo(
  * @property channelCount How many channels the track carries.
  * @property bitrate The track's bitrate, or null when the container does not report one.
  */
-@Serializable
 @Poko
 public class AudioTrackInfo(
   public val codec: TrackCodec,
@@ -89,7 +85,6 @@ public class AudioTrackInfo(
  * name it.
  * @property kind What filmstrip made of [name], or [CodecKind.Other] for anything it does not recognize.
  */
-@Serializable
 @Poko
 public class TrackCodec(
   public val name: String,
@@ -102,7 +97,6 @@ public class TrackCodec(
  * Covers video and audio alike. Which media type a codec belongs to is already settled by whether
  * it arrived on a [VideoTrackInfo] or an [AudioTrackInfo].
  */
-@Serializable
 public enum class CodecKind {
   H264,
   Hevc,
@@ -127,7 +121,6 @@ public enum class CodecKind {
  *
  * Describes what a source is. The composition declares the space its output is rendered in.
  */
-@Serializable
 public enum class ColorSpace {
   Bt601,
   Bt709,
@@ -138,7 +131,6 @@ public enum class ColorSpace {
 /**
  * An HDR transfer function.
  */
-@Serializable
 public enum class HdrTransfer {
   Hlg,
   Pq,

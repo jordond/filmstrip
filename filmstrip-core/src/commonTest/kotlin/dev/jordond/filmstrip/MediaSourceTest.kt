@@ -2,12 +2,9 @@ package dev.jordond.filmstrip
 
 import dev.jordond.filmstrip.media.FormatHint
 import dev.jordond.filmstrip.media.MediaSource
-import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
-import kotlin.test.assertTrue
 
 /**
  * [MediaSource.Bytes] is used as a map key on the probe path, so its hash is memoized. These pin
@@ -73,17 +70,5 @@ class MediaSourceTest {
     assertEquals("probed", cache[key])
     assertEquals("probed", cache[MediaSource.Bytes(byteArrayOf(4, 5, 6), FormatHint.M4a)])
     assertEquals(1, listOf(key, MediaSource.Bytes(byteArrayOf(4, 5, 6), FormatHint.M4a)).distinct().size)
-  }
-
-  @Test
-  fun theMemoizedHashStaysOutOfTheSerialForm() {
-    val source: MediaSource = MediaSource.Bytes(byteArrayOf(1, 2, 3), FormatHint.Mp4)
-    source.hashCode()
-
-    val json = Json.encodeToString(MediaSource.serializer(), source)
-
-    assertFalse(json.contains("emoizedHash"), "the hash memo is not part of the wire format")
-    assertTrue(json.contains("\"bytes\""), "the payload is still persisted")
-    assertEquals(source, Json.decodeFromString(MediaSource.serializer(), json))
   }
 }

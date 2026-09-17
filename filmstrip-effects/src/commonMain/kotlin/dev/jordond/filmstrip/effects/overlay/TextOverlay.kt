@@ -8,9 +8,6 @@ import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.style.TextStyle
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
 import kotlin.math.roundToInt
 import kotlin.time.Duration
 
@@ -27,15 +24,13 @@ import kotlin.time.Duration
  * @property animation How the text is drawn at each frame of its run, or null to hold it still. It
  * never re-lays the glyphs, so a scale resamples the block a line break already landed in.
  */
-@Serializable
-@SerialName(EffectIds.TEXT_OVERLAY)
 @Poko
 public class TextOverlay(
   public val text: String,
   public val style: TextStyle = TextStyle.Default,
   public val anchor: Anchor = Anchor.BottomCenter,
   override val visibleDuring: TimeRange? = null,
-  @Transient override val animation: OverlayAnimation? = null,
+  override val animation: OverlayAnimation? = null,
 ) : OverlayEffect {
   override val id: String get() = EffectIds.TEXT_OVERLAY
 }

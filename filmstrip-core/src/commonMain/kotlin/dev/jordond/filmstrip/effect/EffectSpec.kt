@@ -1,23 +1,23 @@
 package dev.jordond.filmstrip.effect
 
 /**
- * A declaration of an effect: pure, serializable data describing intent rather than realization.
+ * A declaration of an effect: pure data describing intent rather than realization.
  *
  * Contains no platform types and no rendering logic. An [EffectResolver] turns one spec into a
  * platform object, once per pipeline.
  *
- * Implementations must be `@Serializable` so edit lists persist and move between devices, and must
- * carry a stable [id] so a persisted list survives a refactor.
+ * Implementations must carry a stable [id], which is what names the effect in a plan and in the
+ * canonical pipeline order.
  *
  * Implementations must also compare by value, which a `data class` or `@Poko` gives for free.
  * filmstrip decides whether a composition changed, and whether a cached thumbnail is still good,
- * by comparing specs. An implementation left on identity equality reports every reloaded edit as
+ * by comparing specs. An implementation left on identity equality reports every rebuilt edit as
  * different, so setting an equal composition rebuilds the graph and every thumbnail cache key
- * changes when an edit list is deserialized.
+ * changes.
  */
 public interface EffectSpec {
   /**
-   * Stable identifier, used for persistence and diagnostics.
+   * Stable identifier, used for pipeline ordering and diagnostics.
    *
    * Namespace it like a package, `acme.filmgrain`, so two libraries cannot collide. Never derive it
    * from the class name, which changes under refactoring and under Objective-C export.
@@ -103,8 +103,8 @@ public enum class EffectStage {
 /**
  * The identifiers of filmstrip's built-in effects.
  *
- * They are part of the persisted contract, so an edit list written against them keeps
- * deserializing.
+ * They are part of the public contract and do not change, so anything that reads an id, like the
+ * canonical pipeline order, keeps matching across releases.
  */
 public object EffectIds {
   public const val ROTATE: String = "filmstrip.rotate"

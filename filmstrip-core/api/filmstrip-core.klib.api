@@ -71,11 +71,6 @@ final enum class dev.jordond.filmstrip.edit/EnvelopeAnchor : kotlin/Enum<dev.jor
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.edit/EnvelopeAnchor // dev.jordond.filmstrip.edit/EnvelopeAnchor.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.edit/EnvelopeAnchor> // dev.jordond.filmstrip.edit/EnvelopeAnchor.values|values#static(){}[0]
-
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.edit/EnvelopeAnchor.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.edit/EnvelopeAnchor> // dev.jordond.filmstrip.edit/EnvelopeAnchor.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.edit/EnvelopeAnchor.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
-    }
 }
 
 final enum class dev.jordond.filmstrip.edit/TrackContent : kotlin/Enum<dev.jordond.filmstrip.edit/TrackContent> { // dev.jordond.filmstrip.edit/TrackContent|null[0]
@@ -88,11 +83,6 @@ final enum class dev.jordond.filmstrip.edit/TrackContent : kotlin/Enum<dev.jordo
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.edit/TrackContent // dev.jordond.filmstrip.edit/TrackContent.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.edit/TrackContent> // dev.jordond.filmstrip.edit/TrackContent.values|values#static(){}[0]
-
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.edit/TrackContent.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.edit/TrackContent> // dev.jordond.filmstrip.edit/TrackContent.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.edit/TrackContent.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
-    }
 }
 
 final enum class dev.jordond.filmstrip.effect/DegradationReason : kotlin/Enum<dev.jordond.filmstrip.effect/DegradationReason> { // dev.jordond.filmstrip.effect/DegradationReason|null[0]
@@ -195,11 +185,6 @@ final enum class dev.jordond.filmstrip.export/AudioCodec : kotlin/Enum<dev.jordo
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.export/AudioCodec // dev.jordond.filmstrip.export/AudioCodec.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.export/AudioCodec> // dev.jordond.filmstrip.export/AudioCodec.values|values#static(){}[0]
-
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.export/AudioCodec.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.export/AudioCodec> // dev.jordond.filmstrip.export/AudioCodec.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.export/AudioCodec.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
-    }
 }
 
 final enum class dev.jordond.filmstrip.export/CopyBlocker : kotlin/Enum<dev.jordond.filmstrip.export/CopyBlocker> { // dev.jordond.filmstrip.export/CopyBlocker|null[0]
@@ -255,11 +240,6 @@ final enum class dev.jordond.filmstrip.export/HdrMode : kotlin/Enum<dev.jordond.
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.export/HdrMode // dev.jordond.filmstrip.export/HdrMode.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.export/HdrMode> // dev.jordond.filmstrip.export/HdrMode.values|values#static(){}[0]
-
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.export/HdrMode.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.export/HdrMode> // dev.jordond.filmstrip.export/HdrMode.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.export/HdrMode.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
-    }
 }
 
 final enum class dev.jordond.filmstrip.export/VideoCodec : kotlin/Enum<dev.jordond.filmstrip.export/VideoCodec> { // dev.jordond.filmstrip.export/VideoCodec|null[0]
@@ -275,11 +255,6 @@ final enum class dev.jordond.filmstrip.export/VideoCodec : kotlin/Enum<dev.jordo
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.export/VideoCodec // dev.jordond.filmstrip.export/VideoCodec.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.export/VideoCodec> // dev.jordond.filmstrip.export/VideoCodec.values|values#static(){}[0]
-
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.export/VideoCodec.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.export/VideoCodec> // dev.jordond.filmstrip.export/VideoCodec.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.export/VideoCodec.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
-    }
 }
 
 final enum class dev.jordond.filmstrip.geometry/Corner : kotlin/Enum<dev.jordond.filmstrip.geometry/Corner> { // dev.jordond.filmstrip.geometry/Corner|null[0]
@@ -293,11 +268,6 @@ final enum class dev.jordond.filmstrip.geometry/Corner : kotlin/Enum<dev.jordond
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.geometry/Corner // dev.jordond.filmstrip.geometry/Corner.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.geometry/Corner> // dev.jordond.filmstrip.geometry/Corner.values|values#static(){}[0]
-
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.geometry/Corner.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.geometry/Corner> // dev.jordond.filmstrip.geometry/Corner.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.geometry/Corner.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
-    }
 }
 
 final enum class dev.jordond.filmstrip.geometry/Fit : kotlin/Enum<dev.jordond.filmstrip.geometry/Fit> { // dev.jordond.filmstrip.geometry/Fit|null[0]
@@ -321,11 +291,6 @@ final enum class dev.jordond.filmstrip.geometry/FlipAxis : kotlin/Enum<dev.jordo
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.geometry/FlipAxis // dev.jordond.filmstrip.geometry/FlipAxis.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.geometry/FlipAxis> // dev.jordond.filmstrip.geometry/FlipAxis.values|values#static(){}[0]
-
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.geometry/FlipAxis.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.geometry/FlipAxis> // dev.jordond.filmstrip.geometry/FlipAxis.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.geometry/FlipAxis.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
-    }
 }
 
 final enum class dev.jordond.filmstrip.media/CodecKind : kotlin/Enum<dev.jordond.filmstrip.media/CodecKind> { // dev.jordond.filmstrip.media/CodecKind|null[0]
@@ -347,11 +312,6 @@ final enum class dev.jordond.filmstrip.media/CodecKind : kotlin/Enum<dev.jordond
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.media/CodecKind // dev.jordond.filmstrip.media/CodecKind.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.media/CodecKind> // dev.jordond.filmstrip.media/CodecKind.values|values#static(){}[0]
-
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.media/CodecKind.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/CodecKind> // dev.jordond.filmstrip.media/CodecKind.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.media/CodecKind.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
-    }
 }
 
 final enum class dev.jordond.filmstrip.media/ColorSpace : kotlin/Enum<dev.jordond.filmstrip.media/ColorSpace> { // dev.jordond.filmstrip.media/ColorSpace|null[0]
@@ -365,11 +325,6 @@ final enum class dev.jordond.filmstrip.media/ColorSpace : kotlin/Enum<dev.jordon
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.media/ColorSpace // dev.jordond.filmstrip.media/ColorSpace.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.media/ColorSpace> // dev.jordond.filmstrip.media/ColorSpace.values|values#static(){}[0]
-
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.media/ColorSpace.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/ColorSpace> // dev.jordond.filmstrip.media/ColorSpace.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.media/ColorSpace.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
-    }
 }
 
 final enum class dev.jordond.filmstrip.media/FormatHint : kotlin/Enum<dev.jordond.filmstrip.media/FormatHint> { // dev.jordond.filmstrip.media/FormatHint|null[0]
@@ -383,11 +338,6 @@ final enum class dev.jordond.filmstrip.media/FormatHint : kotlin/Enum<dev.jordon
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.media/FormatHint // dev.jordond.filmstrip.media/FormatHint.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.media/FormatHint> // dev.jordond.filmstrip.media/FormatHint.values|values#static(){}[0]
-
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.media/FormatHint.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/FormatHint> // dev.jordond.filmstrip.media/FormatHint.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.media/FormatHint.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
-    }
 }
 
 final enum class dev.jordond.filmstrip.media/HdrTransfer : kotlin/Enum<dev.jordond.filmstrip.media/HdrTransfer> { // dev.jordond.filmstrip.media/HdrTransfer|null[0]
@@ -399,11 +349,6 @@ final enum class dev.jordond.filmstrip.media/HdrTransfer : kotlin/Enum<dev.jordo
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.media/HdrTransfer // dev.jordond.filmstrip.media/HdrTransfer.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.media/HdrTransfer> // dev.jordond.filmstrip.media/HdrTransfer.values|values#static(){}[0]
-
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.media/HdrTransfer.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/HdrTransfer> // dev.jordond.filmstrip.media/HdrTransfer.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.media/HdrTransfer.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
-    }
 }
 
 final enum class dev.jordond.filmstrip.media/StillFormat : kotlin/Enum<dev.jordond.filmstrip.media/StillFormat> { // dev.jordond.filmstrip.media/StillFormat|null[0]
@@ -416,11 +361,6 @@ final enum class dev.jordond.filmstrip.media/StillFormat : kotlin/Enum<dev.jordo
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.media/StillFormat // dev.jordond.filmstrip.media/StillFormat.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.media/StillFormat> // dev.jordond.filmstrip.media/StillFormat.values|values#static(){}[0]
-
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.media/StillFormat.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/StillFormat> // dev.jordond.filmstrip.media/StillFormat.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.media/StillFormat.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
-    }
 }
 
 final enum class dev.jordond.filmstrip.motion/Easing : kotlin/Enum<dev.jordond.filmstrip.motion/Easing> { // dev.jordond.filmstrip.motion/Easing|null[0]
@@ -434,11 +374,6 @@ final enum class dev.jordond.filmstrip.motion/Easing : kotlin/Enum<dev.jordond.f
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.motion/Easing // dev.jordond.filmstrip.motion/Easing.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.motion/Easing> // dev.jordond.filmstrip.motion/Easing.values|values#static(){}[0]
-
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.motion/Easing.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.motion/Easing> // dev.jordond.filmstrip.motion/Easing.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.motion/Easing.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
-    }
 }
 
 final enum class dev.jordond.filmstrip.player/PlayerFeature : kotlin/Enum<dev.jordond.filmstrip.player/PlayerFeature> { // dev.jordond.filmstrip.player/PlayerFeature|null[0]
@@ -477,11 +412,6 @@ final enum class dev.jordond.filmstrip.style/FontWeight : kotlin/Enum<dev.jordon
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.style/FontWeight // dev.jordond.filmstrip.style/FontWeight.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.style/FontWeight> // dev.jordond.filmstrip.style/FontWeight.values|values#static(){}[0]
-
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.style/FontWeight.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.style/FontWeight> // dev.jordond.filmstrip.style/FontWeight.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.style/FontWeight.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
-    }
 }
 
 final enum class dev.jordond.filmstrip.style/TextAlignment : kotlin/Enum<dev.jordond.filmstrip.style/TextAlignment> { // dev.jordond.filmstrip.style/TextAlignment|null[0]
@@ -494,11 +424,6 @@ final enum class dev.jordond.filmstrip.style/TextAlignment : kotlin/Enum<dev.jor
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.style/TextAlignment // dev.jordond.filmstrip.style/TextAlignment.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.style/TextAlignment> // dev.jordond.filmstrip.style/TextAlignment.values|values#static(){}[0]
-
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.style/TextAlignment.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.style/TextAlignment> // dev.jordond.filmstrip.style/TextAlignment.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.style/TextAlignment.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
-    }
 }
 
 abstract fun interface dev.jordond.filmstrip.diagnostics/DiagnosticListener { // dev.jordond.filmstrip.diagnostics/DiagnosticListener|null[0]
@@ -666,21 +591,6 @@ sealed interface dev.jordond.filmstrip.edit/AudioLevel { // dev.jordond.filmstri
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.edit/AudioLevel.Envelope.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.edit/AudioLevel.Envelope.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.edit/AudioLevel.Envelope.toString|toString(){}[0]
-
-        final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.edit/AudioLevel.Envelope> { // dev.jordond.filmstrip.edit/AudioLevel.Envelope.$serializer|null[0]
-            final val descriptor // dev.jordond.filmstrip.edit/AudioLevel.Envelope.$serializer.descriptor|{}descriptor[0]
-                final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.edit/AudioLevel.Envelope.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-            final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.edit/AudioLevel.Envelope.$serializer.childSerializers|childSerializers(){}[0]
-            final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.edit/AudioLevel.Envelope // dev.jordond.filmstrip.edit/AudioLevel.Envelope.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-            final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.edit/AudioLevel.Envelope) // dev.jordond.filmstrip.edit/AudioLevel.Envelope.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.edit.AudioLevel.Envelope){}[0]
-        }
-
-        final object Companion { // dev.jordond.filmstrip.edit/AudioLevel.Envelope.Companion|null[0]
-            final val $childSerializers // dev.jordond.filmstrip.edit/AudioLevel.Envelope.Companion.$childSerializers|{}$childSerializers[0]
-
-            final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.edit/AudioLevel.Envelope> // dev.jordond.filmstrip.edit/AudioLevel.Envelope.Companion.serializer|serializer(){}[0]
-        }
     }
 
     final class Volume : dev.jordond.filmstrip.edit/AudioLevel { // dev.jordond.filmstrip.edit/AudioLevel.Volume|null[0]
@@ -692,39 +602,17 @@ sealed interface dev.jordond.filmstrip.edit/AudioLevel { // dev.jordond.filmstri
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.edit/AudioLevel.Volume.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.edit/AudioLevel.Volume.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.edit/AudioLevel.Volume.toString|toString(){}[0]
-
-        final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.edit/AudioLevel.Volume> { // dev.jordond.filmstrip.edit/AudioLevel.Volume.$serializer|null[0]
-            final val descriptor // dev.jordond.filmstrip.edit/AudioLevel.Volume.$serializer.descriptor|{}descriptor[0]
-                final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.edit/AudioLevel.Volume.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-            final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.edit/AudioLevel.Volume.$serializer.childSerializers|childSerializers(){}[0]
-            final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.edit/AudioLevel.Volume // dev.jordond.filmstrip.edit/AudioLevel.Volume.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-            final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.edit/AudioLevel.Volume) // dev.jordond.filmstrip.edit/AudioLevel.Volume.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.edit.AudioLevel.Volume){}[0]
-        }
-
-        final object Companion { // dev.jordond.filmstrip.edit/AudioLevel.Volume.Companion|null[0]
-            final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.edit/AudioLevel.Volume> // dev.jordond.filmstrip.edit/AudioLevel.Volume.Companion.serializer|serializer(){}[0]
-        }
     }
 
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.edit/AudioLevel.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.edit/AudioLevel> // dev.jordond.filmstrip.edit/AudioLevel.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.edit/AudioLevel.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
-    }
-
-    final object Inherit : dev.jordond.filmstrip.edit/AudioLevel, kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.edit/AudioLevel.Inherit|null[0]
+    final object Inherit : dev.jordond.filmstrip.edit/AudioLevel { // dev.jordond.filmstrip.edit/AudioLevel.Inherit|null[0]
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.edit/AudioLevel.Inherit.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.edit/AudioLevel.Inherit.hashCode|hashCode(){}[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.edit/AudioLevel.Inherit> // dev.jordond.filmstrip.edit/AudioLevel.Inherit.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.edit/AudioLevel.Inherit.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.edit/AudioLevel.Inherit.toString|toString(){}[0]
     }
 
-    final object Mute : dev.jordond.filmstrip.edit/AudioLevel, kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.edit/AudioLevel.Mute|null[0]
+    final object Mute : dev.jordond.filmstrip.edit/AudioLevel { // dev.jordond.filmstrip.edit/AudioLevel.Mute|null[0]
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.edit/AudioLevel.Mute.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.edit/AudioLevel.Mute.hashCode|hashCode(){}[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.edit/AudioLevel.Mute> // dev.jordond.filmstrip.edit/AudioLevel.Mute.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.edit/AudioLevel.Mute.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.edit/AudioLevel.Mute.toString|toString(){}[0]
     }
 }
@@ -739,55 +627,29 @@ sealed interface dev.jordond.filmstrip.edit/AudioSpec { // dev.jordond.filmstrip
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.edit/AudioSpec.Volume.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.edit/AudioSpec.Volume.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.edit/AudioSpec.Volume.toString|toString(){}[0]
-
-        final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.edit/AudioSpec.Volume> { // dev.jordond.filmstrip.edit/AudioSpec.Volume.$serializer|null[0]
-            final val descriptor // dev.jordond.filmstrip.edit/AudioSpec.Volume.$serializer.descriptor|{}descriptor[0]
-                final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.edit/AudioSpec.Volume.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-            final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.edit/AudioSpec.Volume.$serializer.childSerializers|childSerializers(){}[0]
-            final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.edit/AudioSpec.Volume // dev.jordond.filmstrip.edit/AudioSpec.Volume.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-            final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.edit/AudioSpec.Volume) // dev.jordond.filmstrip.edit/AudioSpec.Volume.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.edit.AudioSpec.Volume){}[0]
-        }
-
-        final object Companion { // dev.jordond.filmstrip.edit/AudioSpec.Volume.Companion|null[0]
-            final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.edit/AudioSpec.Volume> // dev.jordond.filmstrip.edit/AudioSpec.Volume.Companion.serializer|serializer(){}[0]
-        }
     }
 
-    final object AudioOnly : dev.jordond.filmstrip.edit/AudioSpec, kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.edit/AudioSpec.AudioOnly|null[0]
+    final object AudioOnly : dev.jordond.filmstrip.edit/AudioSpec { // dev.jordond.filmstrip.edit/AudioSpec.AudioOnly|null[0]
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.edit/AudioSpec.AudioOnly.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.edit/AudioSpec.AudioOnly.hashCode|hashCode(){}[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.edit/AudioSpec.AudioOnly> // dev.jordond.filmstrip.edit/AudioSpec.AudioOnly.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.edit/AudioSpec.AudioOnly.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.edit/AudioSpec.AudioOnly.toString|toString(){}[0]
     }
 
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.edit/AudioSpec.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.edit/AudioSpec> // dev.jordond.filmstrip.edit/AudioSpec.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.edit/AudioSpec.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
-    }
-
-    final object Keep : dev.jordond.filmstrip.edit/AudioSpec, kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.edit/AudioSpec.Keep|null[0]
+    final object Keep : dev.jordond.filmstrip.edit/AudioSpec { // dev.jordond.filmstrip.edit/AudioSpec.Keep|null[0]
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.edit/AudioSpec.Keep.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.edit/AudioSpec.Keep.hashCode|hashCode(){}[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.edit/AudioSpec.Keep> // dev.jordond.filmstrip.edit/AudioSpec.Keep.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.edit/AudioSpec.Keep.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.edit/AudioSpec.Keep.toString|toString(){}[0]
     }
 
-    final object Mute : dev.jordond.filmstrip.edit/AudioSpec, kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.edit/AudioSpec.Mute|null[0]
+    final object Mute : dev.jordond.filmstrip.edit/AudioSpec { // dev.jordond.filmstrip.edit/AudioSpec.Mute|null[0]
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.edit/AudioSpec.Mute.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.edit/AudioSpec.Mute.hashCode|hashCode(){}[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.edit/AudioSpec.Mute> // dev.jordond.filmstrip.edit/AudioSpec.Mute.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.edit/AudioSpec.Mute.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.edit/AudioSpec.Mute.toString|toString(){}[0]
     }
 
-    final object Remove : dev.jordond.filmstrip.edit/AudioSpec, kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.edit/AudioSpec.Remove|null[0]
+    final object Remove : dev.jordond.filmstrip.edit/AudioSpec { // dev.jordond.filmstrip.edit/AudioSpec.Remove|null[0]
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.edit/AudioSpec.Remove.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.edit/AudioSpec.Remove.hashCode|hashCode(){}[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.edit/AudioSpec.Remove> // dev.jordond.filmstrip.edit/AudioSpec.Remove.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.edit/AudioSpec.Remove.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.edit/AudioSpec.Remove.toString|toString(){}[0]
     }
 }
@@ -1162,19 +1024,6 @@ sealed interface dev.jordond.filmstrip.geometry/Fill { // dev.jordond.filmstrip.
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.geometry/Fill.Blurred.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.geometry/Fill.Blurred.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.geometry/Fill.Blurred.toString|toString(){}[0]
-
-        final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.geometry/Fill.Blurred> { // dev.jordond.filmstrip.geometry/Fill.Blurred.$serializer|null[0]
-            final val descriptor // dev.jordond.filmstrip.geometry/Fill.Blurred.$serializer.descriptor|{}descriptor[0]
-                final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.geometry/Fill.Blurred.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-            final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.geometry/Fill.Blurred.$serializer.childSerializers|childSerializers(){}[0]
-            final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.geometry/Fill.Blurred // dev.jordond.filmstrip.geometry/Fill.Blurred.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-            final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.geometry/Fill.Blurred) // dev.jordond.filmstrip.geometry/Fill.Blurred.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.geometry.Fill.Blurred){}[0]
-        }
-
-        final object Companion { // dev.jordond.filmstrip.geometry/Fill.Blurred.Companion|null[0]
-            final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.geometry/Fill.Blurred> // dev.jordond.filmstrip.geometry/Fill.Blurred.Companion.serializer|serializer(){}[0]
-        }
     }
 
     final class Solid : dev.jordond.filmstrip.geometry/Fill { // dev.jordond.filmstrip.geometry/Fill.Solid|null[0]
@@ -1186,31 +1035,15 @@ sealed interface dev.jordond.filmstrip.geometry/Fill { // dev.jordond.filmstrip.
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.geometry/Fill.Solid.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.geometry/Fill.Solid.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.geometry/Fill.Solid.toString|toString(){}[0]
-
-        final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.geometry/Fill.Solid> { // dev.jordond.filmstrip.geometry/Fill.Solid.$serializer|null[0]
-            final val descriptor // dev.jordond.filmstrip.geometry/Fill.Solid.$serializer.descriptor|{}descriptor[0]
-                final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.geometry/Fill.Solid.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-            final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.geometry/Fill.Solid.$serializer.childSerializers|childSerializers(){}[0]
-            final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.geometry/Fill.Solid // dev.jordond.filmstrip.geometry/Fill.Solid.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-            final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.geometry/Fill.Solid) // dev.jordond.filmstrip.geometry/Fill.Solid.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.geometry.Fill.Solid){}[0]
-        }
-
-        final object Companion { // dev.jordond.filmstrip.geometry/Fill.Solid.Companion|null[0]
-            final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.geometry/Fill.Solid> // dev.jordond.filmstrip.geometry/Fill.Solid.Companion.serializer|serializer(){}[0]
-        }
     }
 
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.geometry/Fill.Companion|null[0]
+    final object Companion { // dev.jordond.filmstrip.geometry/Fill.Companion|null[0]
         final val Black // dev.jordond.filmstrip.geometry/Fill.Companion.Black|{}Black[0]
             final fun <get-Black>(): dev.jordond.filmstrip.geometry/Fill // dev.jordond.filmstrip.geometry/Fill.Companion.Black.<get-Black>|<get-Black>(){}[0]
         final val Blur // dev.jordond.filmstrip.geometry/Fill.Companion.Blur|{}Blur[0]
             final fun <get-Blur>(): dev.jordond.filmstrip.geometry/Fill // dev.jordond.filmstrip.geometry/Fill.Companion.Blur.<get-Blur>|<get-Blur>(){}[0]
         final val White // dev.jordond.filmstrip.geometry/Fill.Companion.White|{}White[0]
             final fun <get-White>(): dev.jordond.filmstrip.geometry/Fill // dev.jordond.filmstrip.geometry/Fill.Companion.White.<get-White>|<get-White>(){}[0]
-
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.geometry/Fill> // dev.jordond.filmstrip.geometry/Fill.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.geometry/Fill.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
     }
 }
 
@@ -1252,19 +1085,6 @@ sealed interface dev.jordond.filmstrip.media/ImageSource { // dev.jordond.filmst
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/ImageSource.Bytes.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/ImageSource.Bytes.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.media/ImageSource.Bytes.toString|toString(){}[0]
-
-        final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.media/ImageSource.Bytes> { // dev.jordond.filmstrip.media/ImageSource.Bytes.$serializer|null[0]
-            final val descriptor // dev.jordond.filmstrip.media/ImageSource.Bytes.$serializer.descriptor|{}descriptor[0]
-                final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.media/ImageSource.Bytes.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-            final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.media/ImageSource.Bytes.$serializer.childSerializers|childSerializers(){}[0]
-            final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.media/ImageSource.Bytes // dev.jordond.filmstrip.media/ImageSource.Bytes.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-            final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.media/ImageSource.Bytes) // dev.jordond.filmstrip.media/ImageSource.Bytes.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.media.ImageSource.Bytes){}[0]
-        }
-
-        final object Companion { // dev.jordond.filmstrip.media/ImageSource.Bytes.Companion|null[0]
-            final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/ImageSource.Bytes> // dev.jordond.filmstrip.media/ImageSource.Bytes.Companion.serializer|serializer(){}[0]
-        }
     }
 
     final class Path : dev.jordond.filmstrip.media/ImageSource { // dev.jordond.filmstrip.media/ImageSource.Path|null[0]
@@ -1276,19 +1096,6 @@ sealed interface dev.jordond.filmstrip.media/ImageSource { // dev.jordond.filmst
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/ImageSource.Path.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/ImageSource.Path.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.media/ImageSource.Path.toString|toString(){}[0]
-
-        final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.media/ImageSource.Path> { // dev.jordond.filmstrip.media/ImageSource.Path.$serializer|null[0]
-            final val descriptor // dev.jordond.filmstrip.media/ImageSource.Path.$serializer.descriptor|{}descriptor[0]
-                final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.media/ImageSource.Path.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-            final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.media/ImageSource.Path.$serializer.childSerializers|childSerializers(){}[0]
-            final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.media/ImageSource.Path // dev.jordond.filmstrip.media/ImageSource.Path.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-            final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.media/ImageSource.Path) // dev.jordond.filmstrip.media/ImageSource.Path.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.media.ImageSource.Path){}[0]
-        }
-
-        final object Companion { // dev.jordond.filmstrip.media/ImageSource.Path.Companion|null[0]
-            final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/ImageSource.Path> // dev.jordond.filmstrip.media/ImageSource.Path.Companion.serializer|serializer(){}[0]
-        }
     }
 
     final class Uri : dev.jordond.filmstrip.media/ImageSource { // dev.jordond.filmstrip.media/ImageSource.Uri|null[0]
@@ -1300,27 +1107,12 @@ sealed interface dev.jordond.filmstrip.media/ImageSource { // dev.jordond.filmst
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/ImageSource.Uri.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/ImageSource.Uri.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.media/ImageSource.Uri.toString|toString(){}[0]
-
-        final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.media/ImageSource.Uri> { // dev.jordond.filmstrip.media/ImageSource.Uri.$serializer|null[0]
-            final val descriptor // dev.jordond.filmstrip.media/ImageSource.Uri.$serializer.descriptor|{}descriptor[0]
-                final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.media/ImageSource.Uri.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-            final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.media/ImageSource.Uri.$serializer.childSerializers|childSerializers(){}[0]
-            final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.media/ImageSource.Uri // dev.jordond.filmstrip.media/ImageSource.Uri.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-            final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.media/ImageSource.Uri) // dev.jordond.filmstrip.media/ImageSource.Uri.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.media.ImageSource.Uri){}[0]
-        }
-
-        final object Companion { // dev.jordond.filmstrip.media/ImageSource.Uri.Companion|null[0]
-            final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/ImageSource.Uri> // dev.jordond.filmstrip.media/ImageSource.Uri.Companion.serializer|serializer(){}[0]
-        }
     }
 
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.media/ImageSource.Companion|null[0]
+    final object Companion { // dev.jordond.filmstrip.media/ImageSource.Companion|null[0]
         final fun of(kotlin/String): dev.jordond.filmstrip.media/ImageSource // dev.jordond.filmstrip.media/ImageSource.Companion.of|of(kotlin.String){}[0]
         final fun ofBytes(kotlin/ByteArray): dev.jordond.filmstrip.media/ImageSource // dev.jordond.filmstrip.media/ImageSource.Companion.ofBytes|ofBytes(kotlin.ByteArray){}[0]
         final fun ofUri(kotlin/String): dev.jordond.filmstrip.media/ImageSource // dev.jordond.filmstrip.media/ImageSource.Companion.ofUri|ofUri(kotlin.String){}[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/ImageSource> // dev.jordond.filmstrip.media/ImageSource.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.media/ImageSource.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
     }
 }
 
@@ -1334,19 +1126,6 @@ sealed interface dev.jordond.filmstrip.media/MediaSink { // dev.jordond.filmstri
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/MediaSink.Path.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/MediaSink.Path.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.media/MediaSink.Path.toString|toString(){}[0]
-
-        final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.media/MediaSink.Path> { // dev.jordond.filmstrip.media/MediaSink.Path.$serializer|null[0]
-            final val descriptor // dev.jordond.filmstrip.media/MediaSink.Path.$serializer.descriptor|{}descriptor[0]
-                final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.media/MediaSink.Path.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-            final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.media/MediaSink.Path.$serializer.childSerializers|childSerializers(){}[0]
-            final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.media/MediaSink.Path // dev.jordond.filmstrip.media/MediaSink.Path.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-            final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.media/MediaSink.Path) // dev.jordond.filmstrip.media/MediaSink.Path.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.media.MediaSink.Path){}[0]
-        }
-
-        final object Companion { // dev.jordond.filmstrip.media/MediaSink.Path.Companion|null[0]
-            final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/MediaSink.Path> // dev.jordond.filmstrip.media/MediaSink.Path.Companion.serializer|serializer(){}[0]
-        }
     }
 
     final class Uri : dev.jordond.filmstrip.media/MediaSink { // dev.jordond.filmstrip.media/MediaSink.Uri|null[0]
@@ -1358,34 +1137,17 @@ sealed interface dev.jordond.filmstrip.media/MediaSink { // dev.jordond.filmstri
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/MediaSink.Uri.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/MediaSink.Uri.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.media/MediaSink.Uri.toString|toString(){}[0]
-
-        final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.media/MediaSink.Uri> { // dev.jordond.filmstrip.media/MediaSink.Uri.$serializer|null[0]
-            final val descriptor // dev.jordond.filmstrip.media/MediaSink.Uri.$serializer.descriptor|{}descriptor[0]
-                final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.media/MediaSink.Uri.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-            final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.media/MediaSink.Uri.$serializer.childSerializers|childSerializers(){}[0]
-            final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.media/MediaSink.Uri // dev.jordond.filmstrip.media/MediaSink.Uri.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-            final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.media/MediaSink.Uri) // dev.jordond.filmstrip.media/MediaSink.Uri.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.media.MediaSink.Uri){}[0]
-        }
-
-        final object Companion { // dev.jordond.filmstrip.media/MediaSink.Uri.Companion|null[0]
-            final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/MediaSink.Uri> // dev.jordond.filmstrip.media/MediaSink.Uri.Companion.serializer|serializer(){}[0]
-        }
     }
 
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.media/MediaSink.Companion|null[0]
+    final object Companion { // dev.jordond.filmstrip.media/MediaSink.Companion|null[0]
         final fun of(kotlin/String): dev.jordond.filmstrip.media/MediaSink // dev.jordond.filmstrip.media/MediaSink.Companion.of|of(kotlin.String){}[0]
         final fun ofUri(kotlin/String): dev.jordond.filmstrip.media/MediaSink // dev.jordond.filmstrip.media/MediaSink.Companion.ofUri|ofUri(kotlin.String){}[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/MediaSink> // dev.jordond.filmstrip.media/MediaSink.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.media/MediaSink.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
         final fun temporary(): dev.jordond.filmstrip.media/MediaSink // dev.jordond.filmstrip.media/MediaSink.Companion.temporary|temporary(){}[0]
     }
 
-    final object Temporary : dev.jordond.filmstrip.media/MediaSink, kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.media/MediaSink.Temporary|null[0]
+    final object Temporary : dev.jordond.filmstrip.media/MediaSink { // dev.jordond.filmstrip.media/MediaSink.Temporary|null[0]
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/MediaSink.Temporary.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/MediaSink.Temporary.hashCode|hashCode(){}[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/MediaSink.Temporary> // dev.jordond.filmstrip.media/MediaSink.Temporary.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.media/MediaSink.Temporary.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.media/MediaSink.Temporary.toString|toString(){}[0]
     }
 }
@@ -1402,21 +1164,6 @@ sealed interface dev.jordond.filmstrip.media/MediaSource { // dev.jordond.filmst
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/MediaSource.Bytes.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/MediaSource.Bytes.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.media/MediaSource.Bytes.toString|toString(){}[0]
-
-        final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.media/MediaSource.Bytes> { // dev.jordond.filmstrip.media/MediaSource.Bytes.$serializer|null[0]
-            final val descriptor // dev.jordond.filmstrip.media/MediaSource.Bytes.$serializer.descriptor|{}descriptor[0]
-                final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.media/MediaSource.Bytes.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-            final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.media/MediaSource.Bytes.$serializer.childSerializers|childSerializers(){}[0]
-            final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.media/MediaSource.Bytes // dev.jordond.filmstrip.media/MediaSource.Bytes.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-            final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.media/MediaSource.Bytes) // dev.jordond.filmstrip.media/MediaSource.Bytes.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.media.MediaSource.Bytes){}[0]
-        }
-
-        final object Companion { // dev.jordond.filmstrip.media/MediaSource.Bytes.Companion|null[0]
-            final val $childSerializers // dev.jordond.filmstrip.media/MediaSource.Bytes.Companion.$childSerializers|{}$childSerializers[0]
-
-            final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/MediaSource.Bytes> // dev.jordond.filmstrip.media/MediaSource.Bytes.Companion.serializer|serializer(){}[0]
-        }
     }
 
     final class Image : dev.jordond.filmstrip.media/MediaSource { // dev.jordond.filmstrip.media/MediaSource.Image|null[0]
@@ -1430,21 +1177,6 @@ sealed interface dev.jordond.filmstrip.media/MediaSource { // dev.jordond.filmst
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/MediaSource.Image.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/MediaSource.Image.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.media/MediaSource.Image.toString|toString(){}[0]
-
-        final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.media/MediaSource.Image> { // dev.jordond.filmstrip.media/MediaSource.Image.$serializer|null[0]
-            final val descriptor // dev.jordond.filmstrip.media/MediaSource.Image.$serializer.descriptor|{}descriptor[0]
-                final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.media/MediaSource.Image.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-            final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.media/MediaSource.Image.$serializer.childSerializers|childSerializers(){}[0]
-            final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.media/MediaSource.Image // dev.jordond.filmstrip.media/MediaSource.Image.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-            final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.media/MediaSource.Image) // dev.jordond.filmstrip.media/MediaSource.Image.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.media.MediaSource.Image){}[0]
-        }
-
-        final object Companion { // dev.jordond.filmstrip.media/MediaSource.Image.Companion|null[0]
-            final val $childSerializers // dev.jordond.filmstrip.media/MediaSource.Image.Companion.$childSerializers|{}$childSerializers[0]
-
-            final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/MediaSource.Image> // dev.jordond.filmstrip.media/MediaSource.Image.Companion.serializer|serializer(){}[0]
-        }
     }
 
     final class Path : dev.jordond.filmstrip.media/MediaSource { // dev.jordond.filmstrip.media/MediaSource.Path|null[0]
@@ -1456,19 +1188,6 @@ sealed interface dev.jordond.filmstrip.media/MediaSource { // dev.jordond.filmst
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/MediaSource.Path.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/MediaSource.Path.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.media/MediaSource.Path.toString|toString(){}[0]
-
-        final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.media/MediaSource.Path> { // dev.jordond.filmstrip.media/MediaSource.Path.$serializer|null[0]
-            final val descriptor // dev.jordond.filmstrip.media/MediaSource.Path.$serializer.descriptor|{}descriptor[0]
-                final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.media/MediaSource.Path.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-            final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.media/MediaSource.Path.$serializer.childSerializers|childSerializers(){}[0]
-            final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.media/MediaSource.Path // dev.jordond.filmstrip.media/MediaSource.Path.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-            final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.media/MediaSource.Path) // dev.jordond.filmstrip.media/MediaSource.Path.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.media.MediaSource.Path){}[0]
-        }
-
-        final object Companion { // dev.jordond.filmstrip.media/MediaSource.Path.Companion|null[0]
-            final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/MediaSource.Path> // dev.jordond.filmstrip.media/MediaSource.Path.Companion.serializer|serializer(){}[0]
-        }
     }
 
     final class Uri : dev.jordond.filmstrip.media/MediaSource { // dev.jordond.filmstrip.media/MediaSource.Uri|null[0]
@@ -1480,28 +1199,13 @@ sealed interface dev.jordond.filmstrip.media/MediaSource { // dev.jordond.filmst
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/MediaSource.Uri.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/MediaSource.Uri.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.jordond.filmstrip.media/MediaSource.Uri.toString|toString(){}[0]
-
-        final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.media/MediaSource.Uri> { // dev.jordond.filmstrip.media/MediaSource.Uri.$serializer|null[0]
-            final val descriptor // dev.jordond.filmstrip.media/MediaSource.Uri.$serializer.descriptor|{}descriptor[0]
-                final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.media/MediaSource.Uri.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-            final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.media/MediaSource.Uri.$serializer.childSerializers|childSerializers(){}[0]
-            final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.media/MediaSource.Uri // dev.jordond.filmstrip.media/MediaSource.Uri.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-            final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.media/MediaSource.Uri) // dev.jordond.filmstrip.media/MediaSource.Uri.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.media.MediaSource.Uri){}[0]
-        }
-
-        final object Companion { // dev.jordond.filmstrip.media/MediaSource.Uri.Companion|null[0]
-            final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/MediaSource.Uri> // dev.jordond.filmstrip.media/MediaSource.Uri.Companion.serializer|serializer(){}[0]
-        }
     }
 
-    final object Companion : kotlinx.serialization.internal/SerializerFactory { // dev.jordond.filmstrip.media/MediaSource.Companion|null[0]
+    final object Companion { // dev.jordond.filmstrip.media/MediaSource.Companion|null[0]
         final fun of(kotlin/String): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.media/MediaSource.Companion.of|of(kotlin.String){}[0]
         final fun ofBytes(kotlin/ByteArray, dev.jordond.filmstrip.media/FormatHint? = ...): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.media/MediaSource.Companion.ofBytes|ofBytes(kotlin.ByteArray;dev.jordond.filmstrip.media.FormatHint?){}[0]
         final fun ofImage(dev.jordond.filmstrip.media/ImageSource, kotlin.time/Duration): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.media/MediaSource.Companion.ofImage|ofImage(dev.jordond.filmstrip.media.ImageSource;kotlin.time.Duration){}[0]
         final fun ofUri(kotlin/String): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.media/MediaSource.Companion.ofUri|ofUri(kotlin.String){}[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/MediaSource> // dev.jordond.filmstrip.media/MediaSource.Companion.serializer|serializer(){}[0]
-        final fun serializer(kotlin/Array<out kotlinx.serialization/KSerializer<*>>...): kotlinx.serialization/KSerializer<*> // dev.jordond.filmstrip.media/MediaSource.Companion.serializer|serializer(kotlin.Array<out|kotlinx.serialization.KSerializer<*>>...){}[0]
     }
 }
 
@@ -2069,21 +1773,6 @@ final class dev.jordond.filmstrip.edit/Clip { // dev.jordond.filmstrip.edit/Clip
     final fun withEffects(kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec>): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/Clip.withEffects|withEffects(kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>){}[0]
     final fun withSnapWithin(kotlin.time/Duration): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/Clip.withSnapWithin|withSnapWithin(kotlin.time.Duration){}[0]
     final fun withTrim(dev.jordond.filmstrip.edit/TimeRange?): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/Clip.withTrim|withTrim(dev.jordond.filmstrip.edit.TimeRange?){}[0]
-
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.edit/Clip> { // dev.jordond.filmstrip.edit/Clip.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.edit/Clip.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.edit/Clip.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.edit/Clip.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/Clip.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.edit/Clip) // dev.jordond.filmstrip.edit/Clip.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.edit.Clip){}[0]
-    }
-
-    final object Companion { // dev.jordond.filmstrip.edit/Clip.Companion|null[0]
-        final val $childSerializers // dev.jordond.filmstrip.edit/Clip.Companion.$childSerializers|{}$childSerializers[0]
-
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.edit/Clip> // dev.jordond.filmstrip.edit/Clip.Companion.serializer|serializer(){}[0]
-    }
 }
 
 final class dev.jordond.filmstrip.edit/ClipBuilder { // dev.jordond.filmstrip.edit/ClipBuilder|null[0]
@@ -2140,21 +1829,6 @@ final class dev.jordond.filmstrip.edit/EditComposition { // dev.jordond.filmstri
     final fun withEffects(kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec>): dev.jordond.filmstrip.edit/EditComposition // dev.jordond.filmstrip.edit/EditComposition.withEffects|withEffects(kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>){}[0]
     final fun withFill(dev.jordond.filmstrip.geometry/Fill): dev.jordond.filmstrip.edit/EditComposition // dev.jordond.filmstrip.edit/EditComposition.withFill|withFill(dev.jordond.filmstrip.geometry.Fill){}[0]
     final fun withTracks(kotlin.collections/List<dev.jordond.filmstrip.edit/Track>): dev.jordond.filmstrip.edit/EditComposition // dev.jordond.filmstrip.edit/EditComposition.withTracks|withTracks(kotlin.collections.List<dev.jordond.filmstrip.edit.Track>){}[0]
-
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.edit/EditComposition> { // dev.jordond.filmstrip.edit/EditComposition.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.edit/EditComposition.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.edit/EditComposition.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.edit/EditComposition.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.edit/EditComposition // dev.jordond.filmstrip.edit/EditComposition.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.edit/EditComposition) // dev.jordond.filmstrip.edit/EditComposition.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.edit.EditComposition){}[0]
-    }
-
-    final object Companion { // dev.jordond.filmstrip.edit/EditComposition.Companion|null[0]
-        final val $childSerializers // dev.jordond.filmstrip.edit/EditComposition.Companion.$childSerializers|{}$childSerializers[0]
-
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.edit/EditComposition> // dev.jordond.filmstrip.edit/EditComposition.Companion.serializer|serializer(){}[0]
-    }
 }
 
 final class dev.jordond.filmstrip.edit/EffectsBuilder { // dev.jordond.filmstrip.edit/EffectsBuilder|null[0]
@@ -2178,21 +1852,6 @@ final class dev.jordond.filmstrip.edit/EnvelopePoint { // dev.jordond.filmstrip.
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.edit/EnvelopePoint.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.edit/EnvelopePoint.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.jordond.filmstrip.edit/EnvelopePoint.toString|toString(){}[0]
-
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.edit/EnvelopePoint> { // dev.jordond.filmstrip.edit/EnvelopePoint.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.edit/EnvelopePoint.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.edit/EnvelopePoint.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.edit/EnvelopePoint.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.edit/EnvelopePoint // dev.jordond.filmstrip.edit/EnvelopePoint.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.edit/EnvelopePoint) // dev.jordond.filmstrip.edit/EnvelopePoint.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.edit.EnvelopePoint){}[0]
-    }
-
-    final object Companion { // dev.jordond.filmstrip.edit/EnvelopePoint.Companion|null[0]
-        final val $childSerializers // dev.jordond.filmstrip.edit/EnvelopePoint.Companion.$childSerializers|{}$childSerializers[0]
-
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.edit/EnvelopePoint> // dev.jordond.filmstrip.edit/EnvelopePoint.Companion.serializer|serializer(){}[0]
-    }
 }
 
 final class dev.jordond.filmstrip.edit/TimeRange { // dev.jordond.filmstrip.edit/TimeRange|null[0]
@@ -2210,19 +1869,9 @@ final class dev.jordond.filmstrip.edit/TimeRange { // dev.jordond.filmstrip.edit
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.edit/TimeRange.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.jordond.filmstrip.edit/TimeRange.toString|toString(){}[0]
 
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.edit/TimeRange> { // dev.jordond.filmstrip.edit/TimeRange.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.edit/TimeRange.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.edit/TimeRange.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.edit/TimeRange.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.edit/TimeRange // dev.jordond.filmstrip.edit/TimeRange.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.edit/TimeRange) // dev.jordond.filmstrip.edit/TimeRange.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.edit.TimeRange){}[0]
-    }
-
     final object Companion { // dev.jordond.filmstrip.edit/TimeRange.Companion|null[0]
         final fun from(kotlin.time/Duration): dev.jordond.filmstrip.edit/TimeRange // dev.jordond.filmstrip.edit/TimeRange.Companion.from|from(kotlin.time.Duration){}[0]
         final fun of(kotlin.time/Duration, kotlin.time/Duration): dev.jordond.filmstrip.edit/TimeRange // dev.jordond.filmstrip.edit/TimeRange.Companion.of|of(kotlin.time.Duration;kotlin.time.Duration){}[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.edit/TimeRange> // dev.jordond.filmstrip.edit/TimeRange.Companion.serializer|serializer(){}[0]
     }
 }
 
@@ -2254,21 +1903,6 @@ final class dev.jordond.filmstrip.edit/Track { // dev.jordond.filmstrip.edit/Tra
     final fun withAudio(dev.jordond.filmstrip.edit/AudioLevel): dev.jordond.filmstrip.edit/Track // dev.jordond.filmstrip.edit/Track.withAudio|withAudio(dev.jordond.filmstrip.edit.AudioLevel){}[0]
     final fun withClips(kotlin.collections/List<dev.jordond.filmstrip.edit/Clip>): dev.jordond.filmstrip.edit/Track // dev.jordond.filmstrip.edit/Track.withClips|withClips(kotlin.collections.List<dev.jordond.filmstrip.edit.Clip>){}[0]
     final fun withEffects(kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec>): dev.jordond.filmstrip.edit/Track // dev.jordond.filmstrip.edit/Track.withEffects|withEffects(kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>){}[0]
-
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.edit/Track> { // dev.jordond.filmstrip.edit/Track.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.edit/Track.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.edit/Track.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.edit/Track.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.edit/Track // dev.jordond.filmstrip.edit/Track.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.edit/Track) // dev.jordond.filmstrip.edit/Track.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.edit.Track){}[0]
-    }
-
-    final object Companion { // dev.jordond.filmstrip.edit/Track.Companion|null[0]
-        final val $childSerializers // dev.jordond.filmstrip.edit/Track.Companion.$childSerializers|{}$childSerializers[0]
-
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.edit/Track> // dev.jordond.filmstrip.edit/Track.Companion.serializer|serializer(){}[0]
-    }
 }
 
 final class dev.jordond.filmstrip.edit/TrackBuilder { // dev.jordond.filmstrip.edit/TrackBuilder|null[0]
@@ -2385,21 +2019,11 @@ final class dev.jordond.filmstrip.export/Bitrate { // dev.jordond.filmstrip.expo
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.export/Bitrate.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.jordond.filmstrip.export/Bitrate.toString|toString(){}[0]
 
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.export/Bitrate> { // dev.jordond.filmstrip.export/Bitrate.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.export/Bitrate.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.export/Bitrate.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.export/Bitrate.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.export/Bitrate // dev.jordond.filmstrip.export/Bitrate.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.export/Bitrate) // dev.jordond.filmstrip.export/Bitrate.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.export.Bitrate){}[0]
-    }
-
     final object Companion { // dev.jordond.filmstrip.export/Bitrate.Companion|null[0]
         final fun kbps(kotlin/Double): dev.jordond.filmstrip.export/Bitrate // dev.jordond.filmstrip.export/Bitrate.Companion.kbps|kbps(kotlin.Double){}[0]
         final fun kbps(kotlin/Int): dev.jordond.filmstrip.export/Bitrate // dev.jordond.filmstrip.export/Bitrate.Companion.kbps|kbps(kotlin.Int){}[0]
         final fun mbps(kotlin/Double): dev.jordond.filmstrip.export/Bitrate // dev.jordond.filmstrip.export/Bitrate.Companion.mbps|mbps(kotlin.Double){}[0]
         final fun mbps(kotlin/Int): dev.jordond.filmstrip.export/Bitrate // dev.jordond.filmstrip.export/Bitrate.Companion.mbps|mbps(kotlin.Int){}[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.export/Bitrate> // dev.jordond.filmstrip.export/Bitrate.Companion.serializer|serializer(){}[0]
     }
 }
 
@@ -2461,21 +2085,9 @@ final class dev.jordond.filmstrip.export/ExportSpec { // dev.jordond.filmstrip.e
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.export/ExportSpec.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.jordond.filmstrip.export/ExportSpec.toString|toString(){}[0]
 
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.export/ExportSpec> { // dev.jordond.filmstrip.export/ExportSpec.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.export/ExportSpec.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.export/ExportSpec.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.export/ExportSpec.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.export/ExportSpec // dev.jordond.filmstrip.export/ExportSpec.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.export/ExportSpec) // dev.jordond.filmstrip.export/ExportSpec.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.export.ExportSpec){}[0]
-    }
-
     final object Companion { // dev.jordond.filmstrip.export/ExportSpec.Companion|null[0]
-        final val $childSerializers // dev.jordond.filmstrip.export/ExportSpec.Companion.$childSerializers|{}$childSerializers[0]
         final val Upload // dev.jordond.filmstrip.export/ExportSpec.Companion.Upload|{}Upload[0]
             final fun <get-Upload>(): dev.jordond.filmstrip.export/ExportSpec // dev.jordond.filmstrip.export/ExportSpec.Companion.Upload.<get-Upload>|<get-Upload>(){}[0]
-
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.export/ExportSpec> // dev.jordond.filmstrip.export/ExportSpec.Companion.serializer|serializer(){}[0]
     }
 }
 
@@ -2529,15 +2141,6 @@ final class dev.jordond.filmstrip.geometry/Anchor { // dev.jordond.filmstrip.geo
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.geometry/Anchor.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.jordond.filmstrip.geometry/Anchor.toString|toString(){}[0]
 
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.geometry/Anchor> { // dev.jordond.filmstrip.geometry/Anchor.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.geometry/Anchor.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.geometry/Anchor.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.geometry/Anchor.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.geometry/Anchor // dev.jordond.filmstrip.geometry/Anchor.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.geometry/Anchor) // dev.jordond.filmstrip.geometry/Anchor.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.geometry.Anchor){}[0]
-    }
-
     final object Companion { // dev.jordond.filmstrip.geometry/Anchor.Companion|null[0]
         final val BottomCenter // dev.jordond.filmstrip.geometry/Anchor.Companion.BottomCenter|{}BottomCenter[0]
             final fun <get-BottomCenter>(): dev.jordond.filmstrip.geometry/Anchor // dev.jordond.filmstrip.geometry/Anchor.Companion.BottomCenter.<get-BottomCenter>|<get-BottomCenter>(){}[0]
@@ -2557,8 +2160,6 @@ final class dev.jordond.filmstrip.geometry/Anchor { // dev.jordond.filmstrip.geo
             final fun <get-TopEnd>(): dev.jordond.filmstrip.geometry/Anchor // dev.jordond.filmstrip.geometry/Anchor.Companion.TopEnd.<get-TopEnd>|<get-TopEnd>(){}[0]
         final val TopStart // dev.jordond.filmstrip.geometry/Anchor.Companion.TopStart|{}TopStart[0]
             final fun <get-TopStart>(): dev.jordond.filmstrip.geometry/Anchor // dev.jordond.filmstrip.geometry/Anchor.Companion.TopStart.<get-TopStart>|<get-TopStart>(){}[0]
-
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.geometry/Anchor> // dev.jordond.filmstrip.geometry/Anchor.Companion.serializer|serializer(){}[0]
     }
 }
 
@@ -2576,15 +2177,6 @@ final class dev.jordond.filmstrip.geometry/AspectRatio { // dev.jordond.filmstri
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.geometry/AspectRatio.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.jordond.filmstrip.geometry/AspectRatio.toString|toString(){}[0]
 
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.geometry/AspectRatio> { // dev.jordond.filmstrip.geometry/AspectRatio.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.geometry/AspectRatio.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.geometry/AspectRatio.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.geometry/AspectRatio.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.geometry/AspectRatio // dev.jordond.filmstrip.geometry/AspectRatio.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.geometry/AspectRatio) // dev.jordond.filmstrip.geometry/AspectRatio.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.geometry.AspectRatio){}[0]
-    }
-
     final object Companion { // dev.jordond.filmstrip.geometry/AspectRatio.Companion|null[0]
         final val Cinema // dev.jordond.filmstrip.geometry/AspectRatio.Companion.Cinema|{}Cinema[0]
             final fun <get-Cinema>(): dev.jordond.filmstrip.geometry/AspectRatio // dev.jordond.filmstrip.geometry/AspectRatio.Companion.Cinema.<get-Cinema>|<get-Cinema>(){}[0]
@@ -2598,8 +2190,6 @@ final class dev.jordond.filmstrip.geometry/AspectRatio { // dev.jordond.filmstri
             final fun <get-Portrait>(): dev.jordond.filmstrip.geometry/AspectRatio // dev.jordond.filmstrip.geometry/AspectRatio.Companion.Portrait.<get-Portrait>|<get-Portrait>(){}[0]
         final val Square // dev.jordond.filmstrip.geometry/AspectRatio.Companion.Square|{}Square[0]
             final fun <get-Square>(): dev.jordond.filmstrip.geometry/AspectRatio // dev.jordond.filmstrip.geometry/AspectRatio.Companion.Square.<get-Square>|<get-Square>(){}[0]
-
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.geometry/AspectRatio> // dev.jordond.filmstrip.geometry/AspectRatio.Companion.serializer|serializer(){}[0]
     }
 }
 
@@ -2625,20 +2215,9 @@ final class dev.jordond.filmstrip.geometry/NormalizedRect { // dev.jordond.films
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.geometry/NormalizedRect.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.jordond.filmstrip.geometry/NormalizedRect.toString|toString(){}[0]
 
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.geometry/NormalizedRect> { // dev.jordond.filmstrip.geometry/NormalizedRect.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.geometry/NormalizedRect.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.geometry/NormalizedRect.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.geometry/NormalizedRect.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.geometry/NormalizedRect.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.geometry/NormalizedRect) // dev.jordond.filmstrip.geometry/NormalizedRect.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.geometry.NormalizedRect){}[0]
-    }
-
     final object Companion { // dev.jordond.filmstrip.geometry/NormalizedRect.Companion|null[0]
         final val Full // dev.jordond.filmstrip.geometry/NormalizedRect.Companion.Full|{}Full[0]
             final fun <get-Full>(): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.geometry/NormalizedRect.Companion.Full.<get-Full>|<get-Full>(){}[0]
-
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.geometry/NormalizedRect> // dev.jordond.filmstrip.geometry/NormalizedRect.Companion.serializer|serializer(){}[0]
     }
 }
 
@@ -2655,19 +2234,6 @@ final class dev.jordond.filmstrip.geometry/Size { // dev.jordond.filmstrip.geome
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.geometry/Size.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.geometry/Size.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.jordond.filmstrip.geometry/Size.toString|toString(){}[0]
-
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.geometry/Size> { // dev.jordond.filmstrip.geometry/Size.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.geometry/Size.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.geometry/Size.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.geometry/Size.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.geometry/Size.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.geometry/Size) // dev.jordond.filmstrip.geometry/Size.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.geometry.Size){}[0]
-    }
-
-    final object Companion { // dev.jordond.filmstrip.geometry/Size.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.geometry/Size> // dev.jordond.filmstrip.geometry/Size.Companion.serializer|serializer(){}[0]
-    }
 }
 
 final class dev.jordond.filmstrip.media/AudioTrackInfo { // dev.jordond.filmstrip.media/AudioTrackInfo|null[0]
@@ -2685,19 +2251,6 @@ final class dev.jordond.filmstrip.media/AudioTrackInfo { // dev.jordond.filmstri
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/AudioTrackInfo.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/AudioTrackInfo.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.jordond.filmstrip.media/AudioTrackInfo.toString|toString(){}[0]
-
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.media/AudioTrackInfo> { // dev.jordond.filmstrip.media/AudioTrackInfo.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.media/AudioTrackInfo.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.media/AudioTrackInfo.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.media/AudioTrackInfo.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.media/AudioTrackInfo // dev.jordond.filmstrip.media/AudioTrackInfo.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.media/AudioTrackInfo) // dev.jordond.filmstrip.media/AudioTrackInfo.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.media.AudioTrackInfo){}[0]
-    }
-
-    final object Companion { // dev.jordond.filmstrip.media/AudioTrackInfo.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/AudioTrackInfo> // dev.jordond.filmstrip.media/AudioTrackInfo.Companion.serializer|serializer(){}[0]
-    }
 }
 
 final class dev.jordond.filmstrip.media/MediaInfo { // dev.jordond.filmstrip.media/MediaInfo|null[0]
@@ -2715,19 +2268,6 @@ final class dev.jordond.filmstrip.media/MediaInfo { // dev.jordond.filmstrip.med
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/MediaInfo.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/MediaInfo.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.jordond.filmstrip.media/MediaInfo.toString|toString(){}[0]
-
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.media/MediaInfo> { // dev.jordond.filmstrip.media/MediaInfo.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.media/MediaInfo.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.media/MediaInfo.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.media/MediaInfo.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.media/MediaInfo // dev.jordond.filmstrip.media/MediaInfo.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.media/MediaInfo) // dev.jordond.filmstrip.media/MediaInfo.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.media.MediaInfo){}[0]
-    }
-
-    final object Companion { // dev.jordond.filmstrip.media/MediaInfo.Companion|null[0]
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/MediaInfo> // dev.jordond.filmstrip.media/MediaInfo.Companion.serializer|serializer(){}[0]
-    }
 }
 
 final class dev.jordond.filmstrip.media/PlatformImage : kotlin/AutoCloseable { // dev.jordond.filmstrip.media/PlatformImage|null[0]
@@ -2759,21 +2299,6 @@ final class dev.jordond.filmstrip.media/StillSpec { // dev.jordond.filmstrip.med
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/StillSpec.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/StillSpec.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.jordond.filmstrip.media/StillSpec.toString|toString(){}[0]
-
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.media/StillSpec> { // dev.jordond.filmstrip.media/StillSpec.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.media/StillSpec.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.media/StillSpec.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.media/StillSpec.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.media/StillSpec // dev.jordond.filmstrip.media/StillSpec.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.media/StillSpec) // dev.jordond.filmstrip.media/StillSpec.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.media.StillSpec){}[0]
-    }
-
-    final object Companion { // dev.jordond.filmstrip.media/StillSpec.Companion|null[0]
-        final val $childSerializers // dev.jordond.filmstrip.media/StillSpec.Companion.$childSerializers|{}$childSerializers[0]
-
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/StillSpec> // dev.jordond.filmstrip.media/StillSpec.Companion.serializer|serializer(){}[0]
-    }
 }
 
 final class dev.jordond.filmstrip.media/TrackCodec { // dev.jordond.filmstrip.media/TrackCodec|null[0]
@@ -2787,21 +2312,6 @@ final class dev.jordond.filmstrip.media/TrackCodec { // dev.jordond.filmstrip.me
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/TrackCodec.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/TrackCodec.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.jordond.filmstrip.media/TrackCodec.toString|toString(){}[0]
-
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.media/TrackCodec> { // dev.jordond.filmstrip.media/TrackCodec.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.media/TrackCodec.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.media/TrackCodec.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.media/TrackCodec.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.media/TrackCodec // dev.jordond.filmstrip.media/TrackCodec.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.media/TrackCodec) // dev.jordond.filmstrip.media/TrackCodec.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.media.TrackCodec){}[0]
-    }
-
-    final object Companion { // dev.jordond.filmstrip.media/TrackCodec.Companion|null[0]
-        final val $childSerializers // dev.jordond.filmstrip.media/TrackCodec.Companion.$childSerializers|{}$childSerializers[0]
-
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/TrackCodec> // dev.jordond.filmstrip.media/TrackCodec.Companion.serializer|serializer(){}[0]
-    }
 }
 
 final class dev.jordond.filmstrip.media/VideoTrackInfo { // dev.jordond.filmstrip.media/VideoTrackInfo|null[0]
@@ -2831,21 +2341,6 @@ final class dev.jordond.filmstrip.media/VideoTrackInfo { // dev.jordond.filmstri
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.media/VideoTrackInfo.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.media/VideoTrackInfo.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.jordond.filmstrip.media/VideoTrackInfo.toString|toString(){}[0]
-
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.media/VideoTrackInfo> { // dev.jordond.filmstrip.media/VideoTrackInfo.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.media/VideoTrackInfo.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.media/VideoTrackInfo.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.media/VideoTrackInfo.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.media/VideoTrackInfo // dev.jordond.filmstrip.media/VideoTrackInfo.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.media/VideoTrackInfo) // dev.jordond.filmstrip.media/VideoTrackInfo.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.media.VideoTrackInfo){}[0]
-    }
-
-    final object Companion { // dev.jordond.filmstrip.media/VideoTrackInfo.Companion|null[0]
-        final val $childSerializers // dev.jordond.filmstrip.media/VideoTrackInfo.Companion.$childSerializers|{}$childSerializers[0]
-
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.media/VideoTrackInfo> // dev.jordond.filmstrip.media/VideoTrackInfo.Companion.serializer|serializer(){}[0]
-    }
 }
 
 final class dev.jordond.filmstrip.player/PlayerConfig { // dev.jordond.filmstrip.player/PlayerConfig|null[0]
@@ -2964,21 +2459,9 @@ final class dev.jordond.filmstrip.style/TextStyle { // dev.jordond.filmstrip.sty
     final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.style/TextStyle.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.jordond.filmstrip.style/TextStyle.toString|toString(){}[0]
 
-    final object $serializer : kotlinx.serialization.internal/GeneratedSerializer<dev.jordond.filmstrip.style/TextStyle> { // dev.jordond.filmstrip.style/TextStyle.$serializer|null[0]
-        final val descriptor // dev.jordond.filmstrip.style/TextStyle.$serializer.descriptor|{}descriptor[0]
-            final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // dev.jordond.filmstrip.style/TextStyle.$serializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
-
-        final fun childSerializers(): kotlin/Array<kotlinx.serialization/KSerializer<*>> // dev.jordond.filmstrip.style/TextStyle.$serializer.childSerializers|childSerializers(){}[0]
-        final fun deserialize(kotlinx.serialization.encoding/Decoder): dev.jordond.filmstrip.style/TextStyle // dev.jordond.filmstrip.style/TextStyle.$serializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
-        final fun serialize(kotlinx.serialization.encoding/Encoder, dev.jordond.filmstrip.style/TextStyle) // dev.jordond.filmstrip.style/TextStyle.$serializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;dev.jordond.filmstrip.style.TextStyle){}[0]
-    }
-
     final object Companion { // dev.jordond.filmstrip.style/TextStyle.Companion|null[0]
-        final val $childSerializers // dev.jordond.filmstrip.style/TextStyle.Companion.$childSerializers|{}$childSerializers[0]
         final val Default // dev.jordond.filmstrip.style/TextStyle.Companion.Default|{}Default[0]
             final fun <get-Default>(): dev.jordond.filmstrip.style/TextStyle // dev.jordond.filmstrip.style/TextStyle.Companion.Default.<get-Default>|<get-Default>(){}[0]
-
-        final fun serializer(): kotlinx.serialization/KSerializer<dev.jordond.filmstrip.style/TextStyle> // dev.jordond.filmstrip.style/TextStyle.Companion.serializer|serializer(){}[0]
     }
 }
 

@@ -3,11 +3,8 @@ package dev.jordond.filmstrip.sample
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.FilmstripVersion
-import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
-import dev.jordond.filmstrip.edit.Track
-import dev.jordond.filmstrip.effects.builtInEffectSerializers
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPlan
@@ -21,6 +18,8 @@ import dev.jordond.filmstrip.sample.ui.asClock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -47,11 +46,7 @@ public class DiagnosticsReport(
 public fun SampleAppState.diagnosticsReport(): DiagnosticsReport =
   DiagnosticsReport(markdown = diagnosticsMarkdown(), json = diagnosticsJson())
 
-private val json = Json {
-  prettyPrint = true
-  encodeDefaults = true
-  serializersModule = builtInEffectSerializers
-}
+private val json = Json { prettyPrint = true }
 
 private fun SampleAppState.diagnosticsMarkdown(): String = buildString {
   val device = deviceInfo()
@@ -112,7 +107,7 @@ private fun SampleAppState.diagnosticsMarkdown(): String = buildString {
 
 private fun SampleAppState.diagnosticsJson(): String {
   val device = deviceInfo()
-  val composition = composition()?.redacted()
+  val composition = composition()
 
   val document = buildJsonObject {
     put("version", FilmstripVersion.name)
@@ -133,11 +128,8 @@ private fun SampleAppState.diagnosticsJson(): String {
       device.details.forEach { (key, value) -> put(key, value) }
     }
     put("source", sourceSummary())
-    put("spec", json.encodeToJsonElement(ExportSpec.serializer(), spec()))
-    put(
-      key = "composition",
-      element = composition?.let { json.encodeToJsonElement(EditComposition.serializer(), it) } ?: JsonNull,
-    )
+    put("spec", spec().asJson())
+    put("composition", composition?.asJson(edit.trimRange(sourceDuration)) ?: JsonNull)
     put("outcome", outcomeSummary())
     putJsonArray("log") {
       recorder.events.forEach { event ->
@@ -253,35 +245,38 @@ private fun EditComposition.effectIds(): List<String> =
   (effects + tracks.flatMap { track -> track.effects + track.clips.flatMap { it.effects } }).map { it.id }
 
 /**
- * The same composition with every source reduced to something that names no file.
+ * The fields of the spec a bug report needs, which is every field a caller can set.
  */
-private fun EditComposition.redacted(): EditComposition = EditComposition(
-  tracks = tracks.map { track ->
-    Track(
-      clips = track.clips.map { clip ->
-        Clip(
-          source = MediaSource.of(clip.source.redactedName()),
-          trim = clip.trim,
-          effects = clip.effects,
-          audio = clip.audio,
-          snapWithin = clip.snapWithin,
-          fadeIn = clip.fadeIn,
-          fadeOut = clip.fadeOut,
-        )
-      },
-      content = track.content,
-      effects = track.effects,
-      audio = track.audio,
-      start = track.start,
-      looping = track.looping,
-      fadeIn = track.fadeIn,
-      fadeOut = track.fadeOut,
-    )
-  },
-  effects = effects,
-  audio = audio,
-  fill = fill,
-)
+private fun ExportSpec.asJson(): JsonObject = buildJsonObject {
+  put("targetHeight", targetHeight)
+  put("bitrate", bitrate?.bitsPerSecond)
+  put("videoCodec", videoCodec.name)
+  put("audioCodec", audioCodec.name)
+  put("frameRate", frameRate)
+  put("hdr", hdr.name)
+  put("strict", strict)
+}
+
+/**
+ * The shape of the composition rather than the composition itself: how many clips sit on each
+ * track, what is applied to them and where the cut is. Sources are named by [redactedName], so no
+ * path reaches the report.
+ */
+private fun EditComposition.asJson(trim: TimeRange?): JsonObject = buildJsonObject {
+  putJsonArray("tracks") {
+    tracks.forEach { track ->
+      add(
+        buildJsonObject {
+          put("content", track.content.name)
+          put("clips", track.clips.size)
+          putJsonArray("sources") { track.clips.forEach { clip -> add(clip.source.redactedName()) } }
+        },
+      )
+    }
+  }
+  putJsonArray("effects") { effectIds().forEach { id -> add(id) } }
+  put("trim", trim.summary())
+}
 
 /**
  * The source reduced to something that names no file.

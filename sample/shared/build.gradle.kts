@@ -51,6 +51,7 @@ kotlin {
       implementation(libs.compose.adaptive.layout)
       implementation(libs.navigation3.runtime)
       implementation(libs.navigation3.ui)
+      implementation(libs.kotlinx.serialization.json)
     }
 
     commonTest.dependencies {

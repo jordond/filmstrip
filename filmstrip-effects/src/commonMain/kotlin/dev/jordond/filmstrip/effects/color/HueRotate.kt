@@ -5,8 +5,6 @@ import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -21,8 +19,6 @@ import kotlin.math.sin
  * @property degrees How far to turn, where `0f` leaves the frame unchanged and `180f` swaps every
  * hue for the one opposite it. Anything that is not a finite number is read as `0f`.
  */
-@Serializable
-@SerialName(EffectIds.HUE_ROTATE)
 @Poko
 public class HueRotate(
   public val degrees: Float,

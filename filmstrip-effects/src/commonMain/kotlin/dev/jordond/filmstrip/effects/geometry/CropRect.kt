@@ -6,8 +6,6 @@ import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.geometry.NormalizedRect
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 
 /**
  * Crop to an explicit rectangle.
@@ -17,8 +15,6 @@ import kotlinx.serialization.Serializable
  *
  * @property rect The region to keep, as fractions of the frame entering the crop.
  */
-@Serializable
-@SerialName(EffectIds.CROP_RECT)
 @Poko
 public class CropRect(
   public val rect: NormalizedRect,

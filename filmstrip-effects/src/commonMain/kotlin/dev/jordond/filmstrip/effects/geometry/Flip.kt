@@ -6,16 +6,12 @@ import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.geometry.FlipAxis
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 
 /**
  * Mirror the frame across an axis.
  *
  * @property axis The axis to mirror across.
  */
-@Serializable
-@SerialName(EffectIds.FLIP)
 @Poko
 public class Flip(
   public val axis: FlipAxis,

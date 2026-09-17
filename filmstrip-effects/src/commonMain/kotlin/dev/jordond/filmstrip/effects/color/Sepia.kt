@@ -5,8 +5,6 @@ import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 
 /**
  * Tone the frame towards the warm brown of an old photograph.
@@ -17,8 +15,6 @@ import kotlinx.serialization.Serializable
  * @property amount How much of the tone to apply, where `0f` leaves the frame unchanged and `1f`
  * is fully toned. Values outside that range are clamped to it, and a NaN is read as `0f`.
  */
-@Serializable
-@SerialName(EffectIds.SEPIA)
 @Poko
 public class Sepia(
   public val amount: Float = 1f,

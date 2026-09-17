@@ -3,9 +3,6 @@ package dev.jordond.filmstrip.media
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.InternalFilmstripApi
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
 import kotlin.time.Duration
 
 /**
@@ -13,15 +10,12 @@ import kotlin.time.Duration
  *
  * Construct one through the companion factories, which are also what a Swift caller uses.
  */
-@Serializable
 public sealed interface MediaSource {
   /**
    * A file on disk.
    *
    * @property path A filesystem path, readable by the calling process.
    */
-  @Serializable
-  @SerialName("path")
   @Poko
   public class Path(
     public val path: String,
@@ -33,8 +27,6 @@ public sealed interface MediaSource {
    * @property uri An `android.net.Uri` string on Android, such as `content://` or `file://`, or an
    *   `NSURL` absolute string on Apple platforms.
    */
-  @Serializable
-  @SerialName("uri")
   @Poko
   public class Uri(
     public val uri: String,
@@ -49,14 +41,11 @@ public sealed interface MediaSource {
    * @property bytes The encoded media, container and all.
    * @property hint What container [bytes] holds, or null to let the backend sniff it.
    */
-  @Serializable
-  @SerialName("bytes")
   @Poko
   public class Bytes(
     @Poko.ReadArrayContent public val bytes: ByteArray,
     public val hint: FormatHint? = null,
   ) : MediaSource {
-    @Transient
     private var memoizedHash: Int = 0
 
     /**
@@ -97,8 +86,6 @@ public sealed interface MediaSource {
    * @property image Where to read the still from.
    * @property duration How long the still is held.
    */
-  @Serializable
-  @SerialName("image")
   @Poko
   @ExperimentalFilmstripApi
   public class Image(
@@ -141,7 +128,6 @@ public sealed interface MediaSource {
  *
  * Covers the containers both platforms read.
  */
-@Serializable
 public enum class FormatHint {
   Mp4,
   Mov,

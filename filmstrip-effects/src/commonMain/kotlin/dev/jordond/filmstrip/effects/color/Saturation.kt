@@ -5,8 +5,6 @@ import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 
 /**
  * Move every pixel towards or away from its own grey.
@@ -19,8 +17,6 @@ import kotlinx.serialization.Serializable
  * @property factor How saturated the frame comes out, where `1f` leaves it unchanged and `0f` is
  * grey. Negative values are read as `0f`, and anything that is not a finite number as `1f`.
  */
-@Serializable
-@SerialName(EffectIds.SATURATION)
 @Poko
 public class Saturation(
   public val factor: Float,

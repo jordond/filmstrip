@@ -5,8 +5,6 @@ import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 
 /**
  * Stretch or flatten every colour channel about mid grey.
@@ -24,8 +22,6 @@ import kotlinx.serialization.Serializable
  * the whole frame mid grey. Negative values are read as `0f`, and anything that is not a finite
  * number as `1f`.
  */
-@Serializable
-@SerialName(EffectIds.CONTRAST)
 @Poko
 public class Contrast(
   public val factor: Float,

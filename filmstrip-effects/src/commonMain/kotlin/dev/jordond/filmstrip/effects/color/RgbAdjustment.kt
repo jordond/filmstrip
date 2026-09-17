@@ -5,8 +5,6 @@ import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 
 /**
  * Multiply each colour channel by its own factor.
@@ -20,8 +18,6 @@ import kotlinx.serialization.Serializable
  * @property green The green multiplier, read the same way.
  * @property blue The blue multiplier, read the same way.
  */
-@Serializable
-@SerialName(EffectIds.RGB_ADJUSTMENT)
 @Poko
 public class RgbAdjustment(
   public val red: Float = 1f,

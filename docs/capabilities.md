@@ -211,11 +211,10 @@ keeps its margin and grows inward. On a `TextOverlay` it resamples the raster: t
 out once at resolve so that a preview and its export break lines on the same words, and an animation
 never re-lays them.
 
-An animation has no serialized form, so an edit list written out and read back comes back drawing the
-overlay as it was authored. It is compared, since two overlays that draw different pictures must not
-share a cached frame, so a caller holds one instance and hands the same one back rather than
-rebuilding it. The built-in helpers compare by value and survive a rebuild. A freshly written lambda
-compares by identity and misses the thumbnail cache every time the composition is rebuilt.
+An animation is compared, since two overlays that draw different pictures must not share a cached
+frame, so a caller holds one instance and hands the same one back rather than rebuilding it. The
+built-in helpers compare by value and survive a rebuild. A freshly written lambda compares by
+identity and misses the thumbnail cache every time the composition is rebuilt.
 
 Each backend drives it its own way. Apple samples inside the Core Image step and scales the alpha
 row of a colour matrix alone, since the filter unpremultiplies and premultiplies around it and

@@ -5,8 +5,6 @@ import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 
 /**
  * Rotate the frame, counter-clockwise.
@@ -16,8 +14,6 @@ import kotlinx.serialization.Serializable
  *
  * @property degrees Degrees counter-clockwise: 0, 90, 180 or 270.
  */
-@Serializable
-@SerialName(EffectIds.ROTATE)
 @Poko
 public class Rotate(
   public val degrees: Int,

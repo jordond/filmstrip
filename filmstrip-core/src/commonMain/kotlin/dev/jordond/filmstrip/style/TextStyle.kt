@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.style
 
 import dev.drewhamilton.poko.Poko
-import kotlinx.serialization.Serializable
 
 /**
  * How burned-in text is drawn.
@@ -19,7 +18,6 @@ import kotlinx.serialization.Serializable
  * @property maxWidth Maximum line width as a fraction of the frame, in `0f..1f`. Text wraps at this
  *   width.
  */
-@Serializable
 @Poko
 public class TextStyle(
   public val fontSize: Float = 0.06f,
@@ -43,7 +41,6 @@ public class TextStyle(
 /**
  * How heavy the typeface is.
  */
-@Serializable
 public enum class FontWeight {
   Regular,
   Medium,
@@ -53,7 +50,6 @@ public enum class FontWeight {
 /**
  * How lines are aligned within the text block.
  */
-@Serializable
 public enum class TextAlignment {
   Start,
   Center,

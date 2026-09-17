@@ -1,8 +1,6 @@
 package dev.jordond.filmstrip.geometry
 
 import dev.drewhamilton.poko.Poko
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 
 /**
  * What fills the frame where no clip's pixels land.
@@ -13,7 +11,6 @@ import kotlinx.serialization.Serializable
  * More arms will arrive as filmstrip adds fill kinds, so a consumer must handle one it does not
  * recognise rather than assume the set is closed.
  */
-@Serializable
 public sealed interface Fill {
   /**
    * A flat colour behind everything.
@@ -21,8 +18,6 @@ public sealed interface Fill {
    * @property color Packed ARGB, as `0xAARRGGBB`. Alpha is ignored, since no output filmstrip
    *   writes carries an alpha channel.
    */
-  @Serializable
-  @SerialName("solid")
   @Poko
   public class Solid(
     public val color: Int = BLACK,
@@ -42,8 +37,6 @@ public sealed interface Fill {
    *   linear light, so a backend whose colour pipeline works in linear light compensates for its
    *   own transfer curve. Applies only to the background, never to the clip's own pixels.
    */
-  @Serializable
-  @SerialName("blurred")
   @Poko
   public class Blurred(
     public val radius: Float = 0.04f,
