@@ -367,10 +367,12 @@ class ExportPlannerTest {
   }
 
   @Test
-  fun `a composition where every track loops is refused`() {
+  fun `a composition where every track loops is refused by name`() {
     val verdict = plan(EditComposition(listOf(Track(listOf(clip()), looping = true))))
 
-    assertIs<Verdict.Incapable>(verdict)
+    val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
+    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+      "Every track loops, so the composition has nothing to bound it."
   }
 
   @Test

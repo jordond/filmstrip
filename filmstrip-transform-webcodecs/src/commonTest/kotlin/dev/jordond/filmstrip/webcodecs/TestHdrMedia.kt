@@ -2,11 +2,6 @@
 
 package dev.jordond.filmstrip.webcodecs
 
-import dev.jordond.filmstrip.media.BT2020_CB_SCALE
-import dev.jordond.filmstrip.media.BT2020_CR_SCALE
-import dev.jordond.filmstrip.media.BT2020_LUMA_B
-import dev.jordond.filmstrip.media.BT2020_LUMA_G
-import dev.jordond.filmstrip.media.BT2020_LUMA_R
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.hlgDisplayNitsFromScene
@@ -15,10 +10,7 @@ import dev.jordond.filmstrip.media.hlgSignalFromScene
 import dev.jordond.filmstrip.media.nitsFromPqSignal
 import dev.jordond.filmstrip.media.pqSignalFromNits
 import dev.jordond.filmstrip.media.sceneFromHlgSignal
-import dev.jordond.filmstrip.transform.internal.TEN_BIT_CHROMA_MID
-import dev.jordond.filmstrip.transform.internal.TEN_BIT_CHROMA_RANGE
-import dev.jordond.filmstrip.transform.internal.TEN_BIT_LUMA_FLOOR
-import dev.jordond.filmstrip.transform.internal.TEN_BIT_LUMA_RANGE
+import dev.jordond.filmstrip.transform.internal.signalFromTenBitCodes
 import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
 import dev.jordond.filmstrip.webcodecs.internal.ArrayBuffer
 import dev.jordond.filmstrip.webcodecs.internal.BufferTarget
@@ -177,7 +169,7 @@ internal class TenBitFrame(
     y: Double,
   ): FloatArray {
     val (cbCode, crCode) = chromaAt(x, y)
-    val signal = signalOf(lumaAt(x, y), cbCode, crCode)
+    val signal = signalFromTenBitCodes(lumaAt(x, y), cbCode, crCode)
     return FloatArray(3) { transfer.displayNitsFromSignal(signal[it]) }
   }
 
@@ -279,20 +271,6 @@ internal fun colorSpaceOf(transfer: HdrTransfer) =
     .put("matrix", "bt2020-ncl")
     .put("fullRange", false)
     .build()
-
-private fun signalOf(
-  luma: Int,
-  cb: Int,
-  cr: Int,
-): FloatArray {
-  val y = (luma - TEN_BIT_LUMA_FLOOR).toFloat() / TEN_BIT_LUMA_RANGE
-  val blueDiff = (cb - TEN_BIT_CHROMA_MID).toFloat() / TEN_BIT_CHROMA_RANGE
-  val redDiff = (cr - TEN_BIT_CHROMA_MID).toFloat() / TEN_BIT_CHROMA_RANGE
-  val red = y + BT2020_CR_SCALE * redDiff
-  val blue = y + BT2020_CB_SCALE * blueDiff
-  val green = (y - BT2020_LUMA_R * red - BT2020_LUMA_B * blue) / BT2020_LUMA_G
-  return floatArrayOf(red.coerceIn(0f, 1f), green.coerceIn(0f, 1f), blue.coerceIn(0f, 1f))
-}
 
 private fun ByteArray.putCode(
   offset: Int,

@@ -70,6 +70,7 @@ import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.copyOpenings
 import dev.jordond.filmstrip.transform.internal.curveOver
 import dev.jordond.filmstrip.transform.internal.passesCovering
+import dev.jordond.filmstrip.transform.internal.runLengthOf
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
@@ -1502,13 +1503,16 @@ class FfmpegExportTest {
   /**
    * Pins every laid pass of this track by which clip of the track it plays and by the span it holds,
    * against the run [passesCovering] derives for [lengths] over a composition of [duration].
+   *
+   * Whether the track loops decides how much of that composition it covers, so a track laid down
+   * once is held to its own clips rather than to the whole run.
    */
   private fun ResolvedTrack.assertLaysPasses(
     lengths: List<Duration>,
     duration: Duration,
   ) {
     val expected =
-      passesCovering(lengths, duration - start).map { pass ->
+      passesCovering(lengths, runLengthOf(looping, start, lengths, duration)).map { pass ->
         Triple(pass.index, start + pass.offset, start + pass.offset + pass.length)
       }
     clips.map { Triple(it.sourceIndex, it.span.start, it.span.endExclusive) } shouldBe expected

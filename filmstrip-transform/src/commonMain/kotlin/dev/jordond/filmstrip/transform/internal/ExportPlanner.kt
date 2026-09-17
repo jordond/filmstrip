@@ -304,14 +304,7 @@ public class ExportPlanner(
           if (clipEnvelope != null && !clipEnvelope.isValidOver(lengths[index])) return incapable(CLIP_ENVELOPE)
           if (!fadesFit(clip.fadeIn, clip.fadeOut, lengths[index])) return incapable(CLIP_FADE)
         }
-        // A looping track's scope is everything from where it starts to the composition's end, and
-        // a track laid down once covers its own clips.
-        val runLength =
-          if (track.looping) {
-            maxOf(duration - track.start, Duration.ZERO)
-          } else {
-            lengths.fold(Duration.ZERO, Duration::plus)
-          }
+        val runLength = runLengthOf(track.looping, track.start, lengths, duration)
         val trackEnvelope = track.audio as? AudioLevel.Envelope
         if (trackEnvelope != null && !trackEnvelope.isValidOver(runLength)) return incapable(TRACK_ENVELOPE)
         if (!fadesFit(track.fadeIn, track.fadeOut, runLength)) return incapable(TRACK_FADE)

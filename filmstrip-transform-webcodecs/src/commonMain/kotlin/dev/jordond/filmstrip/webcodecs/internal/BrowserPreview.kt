@@ -299,7 +299,12 @@ public class BrowserPreview internal constructor(
     // on is one the preview can draw rather than one between two slots.
     val outputUs = slot.clip.offsetUs + (keyUs - slot.clip.trimStartUs)
     val step = stepUs
-    val landed = floor((outputUs - slot.clip.offsetUs) / step) * step + slot.clip.offsetUs
+    // A step that does not divide a whole microsecond count, as thirty frames a second does not,
+    // leaves a slot's own time a hair under the integer it should floor to, so the quotient is
+    // nudged by a fraction of a slot first. Without it a key frame on a whole second lands a slot
+    // early.
+    val slots = floor((outputUs - slot.clip.offsetUs) / step + SLOT_TOLERANCE)
+    val landed = slots * step + slot.clip.offsetUs
     // A clip that opens between two grid slots is reached from a position just short of it, and a
     // seek never lands later than it was asked to.
     return landed.coerceAtLeast(0.0).microseconds.coerceAtMost(position)
@@ -592,3 +597,8 @@ private class FrameWindow(
 internal const val PREVIEW_LOOK_AHEAD: Int = 12
 
 private const val NO_CLIP = -1
+
+// How far under a slot boundary still counts as being on it, as a fraction of a slot. Small enough
+// that a position genuinely between two slots keeps the slot below it, since the closest a real
+// off-grid position comes is a whole microsecond.
+private const val SLOT_TOLERANCE = 1e-3

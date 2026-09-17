@@ -25,6 +25,28 @@ public class LaidPass(
 )
 
 /**
+ * How much of the composition one track covers, counted from the track's own start.
+ *
+ * A looping track runs from where it starts to the end of the composition, and one laid down once runs the sum of its
+ * own [lengths]. This is what [passesCovering] fills, derived here so a backend, the planner and a test all read the
+ * same run rather than each working out where a track stops.
+ *
+ * @param duration How long the whole composition runs.
+ */
+@InternalFilmstripApi
+public fun runLengthOf(
+  looping: Boolean,
+  start: Duration,
+  lengths: List<Duration>,
+  duration: Duration,
+): Duration =
+  if (looping) {
+    maxOf(duration - start, Duration.ZERO)
+  } else {
+    lengths.fold(Duration.ZERO, Duration::plus)
+  }
+
+/**
  * The run described by [lengths] laid down enough times to cover [fill], with the last pass cut
  * where it runs past.
  *

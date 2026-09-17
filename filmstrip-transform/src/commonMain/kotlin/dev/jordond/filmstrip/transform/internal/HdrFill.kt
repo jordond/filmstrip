@@ -160,6 +160,30 @@ public fun tenBitCodesFromSignal(signal: FloatArray): IntArray {
   )
 }
 
+/**
+ * Decodes the ten-bit video range luma, [cb] and [cr] codes a BT.2020 frame stores back to one R'G'B' signal.
+ *
+ * The inverse of [tenBitCodesFromSignal], run on the same matrix so a caller reading a written frame does not carry a
+ * second copy of it. Clamped to the range zero to one, since a code outside video range decodes past it.
+ *
+ * @return Red, green and blue in that order.
+ */
+@InternalFilmstripApi
+public fun signalFromTenBitCodes(
+  luma: Int,
+  cb: Int,
+  cr: Int,
+): FloatArray {
+  val y = (luma - TEN_BIT_LUMA_FLOOR).toFloat() / TEN_BIT_LUMA_RANGE
+  val blueDiff = (cb - TEN_BIT_CHROMA_MID).toFloat() / TEN_BIT_CHROMA_RANGE
+  val redDiff = (cr - TEN_BIT_CHROMA_MID).toFloat() / TEN_BIT_CHROMA_RANGE
+  val red = y + BT2020_CR_SCALE * redDiff
+  val blue = y + BT2020_CB_SCALE * blueDiff
+  val green = (y - BT2020_LUMA_R * red - BT2020_LUMA_B * blue) / BT2020_LUMA_G
+
+  return floatArrayOf(red.coerceIn(0f, 1f), green.coerceIn(0f, 1f), blue.coerceIn(0f, 1f))
+}
+
 private fun tenBitCode(value: Float): Int = value.roundToInt().coerceIn(0, TEN_BIT_MAX_CODE)
 
 /**

@@ -107,6 +107,38 @@ class HdrFillTest {
     assertContentEquals(intArrayOf(0, 512, 512), tenBitCodesFromSignal(floatArrayOf(-1f, -1f, -1f)))
   }
 
+  // A round trip through the middle of the range, where a matrix reading the wrong channel parts
+  // from the right one. The ends come back under either reading, so they are not the case worth
+  // holding. Rounding to the nearest code is all the trip may cost.
+  @Test
+  fun `the ten-bit codes decode back to the signal they were made from`() {
+    val signals =
+      listOf(
+        floatArrayOf(0f, 0f, 0f),
+        floatArrayOf(1f, 1f, 1f),
+        floatArrayOf(1f, 0f, 0f),
+        floatArrayOf(0.4272f, 0.462f, 0.523f),
+      )
+
+    signals.forEach { signal ->
+      val codes = tenBitCodesFromSignal(signal)
+      val decoded = signalFromTenBitCodes(codes[0], codes[1], codes[2])
+
+      decoded.forEachIndexed { channel, value ->
+        assertTrue(
+          abs(value - signal[channel]) <= CODE_TOLERANCE,
+          "channel $channel came back $value from ${codes.toList()}, where it was encoded from ${signal[channel]}",
+        )
+      }
+    }
+  }
+
+  @Test
+  fun `a code outside video range decodes onto the end it ran past`() {
+    assertContentEquals(floatArrayOf(1f, 1f, 1f), signalFromTenBitCodes(TEN_BIT_MAX_CODE, 512, 512))
+    assertContentEquals(floatArrayOf(0f, 0f, 0f), signalFromTenBitCodes(0, 512, 512))
+  }
+
   private infix fun Float.shouldBeNear(expected: Float) {
     val tolerance = if (abs(expected) > 1f) abs(expected) * 1e-3f else 1e-3f
     assertTrue(abs(this - expected) <= tolerance, "expected $expected but was $this")
@@ -116,5 +148,8 @@ class HdrFillTest {
     const val WHITE = 0xFFFFFFFF.toInt()
     const val BLACK = 0xFF000000.toInt()
     const val RED = 0xFFFF0000.toInt()
+
+    // Half a ten-bit luma code plus half a chroma one, once chroma is scaled back into a channel.
+    const val CODE_TOLERANCE = 0.002f
   }
 }

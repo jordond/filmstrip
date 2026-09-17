@@ -8,6 +8,7 @@ import android.media.AudioManager
 import android.os.Build
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import dev.jordond.filmstrip.media3.internal.causeMessages
 import dev.jordond.filmstrip.player.PlaybackError
 
 /**
@@ -97,8 +98,14 @@ internal fun reachedEndOfMedia(reason: Int): Boolean = reason == Player.PLAY_WHE
  * The two arms a preview reaches that an export does not are the effect-pipeline ones, and they
  * carry their code through [PlaybackError.Underlying] rather than being flattened into a decoder
  * failure they are not.
+ *
+ * The description is media3's own message followed by every cause under it, the same shape the
+ * export side reads, because ExoPlayer names only the stage that failed, such as "Source error",
+ * and the cause says what went wrong in it. A failure carrying no message anywhere falls back to
+ * the code's name.
  */
-internal fun PlaybackException.toPlaybackError(): PlaybackError = playbackErrorFor(errorCode, message ?: errorCodeName)
+internal fun PlaybackException.toPlaybackError(): PlaybackError =
+  playbackErrorFor(errorCode, causeMessages().joinToString(": ").ifEmpty { errorCodeName })
 
 /**
  * What media3's [code] means to a player, carrying [reason] through as the description.

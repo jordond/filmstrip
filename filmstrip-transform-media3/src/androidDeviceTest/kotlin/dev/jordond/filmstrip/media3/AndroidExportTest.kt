@@ -36,6 +36,7 @@ import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.passesCovering
+import dev.jordond.filmstrip.transform.internal.runLengthOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
@@ -732,13 +733,16 @@ class AndroidExportTest {
   /**
    * Pins every laid pass of this track by which clip of the track it plays and by the span it holds,
    * against the run [passesCovering] derives for [lengths] over a composition of [duration].
+   *
+   * Whether the track loops decides how much of that composition it covers, so a track laid down
+   * once is held to its own clips rather than to the whole run.
    */
   private fun ResolvedTrack.pinSchedule(
     lengths: List<Duration>,
     duration: Duration,
   ) {
     val expected =
-      passesCovering(lengths, duration - start).map { pass ->
+      passesCovering(lengths, runLengthOf(looping, start, lengths, duration)).map { pass ->
         Triple(pass.index, start + pass.offset, start + pass.offset + pass.length)
       }
 

@@ -265,6 +265,24 @@ class BrowserPreviewTest {
       }
     }
 
+  // A sync sample on a whole second is a grid slot the preview can draw, and the floor that puts a
+  // relaxed seek back on the grid used to land a slot short of it, because a slot at thirty frames
+  // a second is not a whole number of microseconds.
+  @Test
+  fun aRelaxedSeekLandsOnASyncSampleThatSitsOnAWholeSecond() =
+    runTest {
+      val preview = previewOf(compositionOf(MediaSource.Bytes(secondKeyFrameClip())))
+
+      try {
+        val opening = frameTime(FRAME_RATE)
+        val seek = preview.syncSampleAt(opening + frameTime(CLIP_PROBE))
+
+        assertEquals(opening, seek)
+      } finally {
+        preview.release()
+      }
+    }
+
   // A blurred fill has nothing to blur in the gap, so the gap is its plain black even straight after
   // a letterboxed frame ran the background passes through the same compositor.
   @Test
@@ -326,6 +344,15 @@ class BrowserPreviewTest {
   private suspend fun rampClip(): ByteArray =
     makeClip(width = WIDTH, height = HEIGHT, frames = FRAMES, frameRate = FRAME_RATE) { index, _ -> ramp(index) }
 
+  /**
+   * A clip long enough to carry the sync sample the fixtures write every second, painted in a step
+   * of its own so a frame past that second is still a colour a channel can hold.
+   */
+  private suspend fun secondKeyFrameClip(): ByteArray =
+    makeClip(width = WIDTH, height = HEIGHT, frames = KEY_FRAME_FRAMES, frameRate = FRAME_RATE) { index, _ ->
+      Rgb(RAMP_BASE + index, RAMP_BASE + index, MAX_CHANNEL - index)
+    }
+
   private fun frameTime(index: Int): Duration = (index * MILLIS_PER_SECOND / FRAME_RATE).milliseconds
 
   private companion object {
@@ -358,6 +385,10 @@ class BrowserPreviewTest {
 
     const val PURPLE_ARGB = 0xFFA060C8.toInt()
     val PURPLE_RGB = Rgb(0xA0, 0x60, 0xC8)
+
+    // Half a second past the sync sample the fixtures write on the second, so a seek has somewhere
+    // to come back from.
+    const val KEY_FRAME_FRAMES = 45
 
     const val RAMP_STEP = 6
     const val RAMP_BASE = 20
