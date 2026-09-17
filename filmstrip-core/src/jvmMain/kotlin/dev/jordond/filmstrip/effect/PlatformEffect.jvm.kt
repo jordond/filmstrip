@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.effect
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.media.ImageSource
 import java.security.MessageDigest
+import kotlin.time.Duration
 
 /**
  * The JVM form: a fragment of a filter graph.
@@ -87,11 +88,32 @@ public class FilterArgument(
  *
  * @property image The image to read.
  * @property chain Nodes applied to the image before it reaches [FilterFragment.merge].
+ * @property timeline The run this input's branch has to cover, or null to read the image once.
  */
 @Poko
 public class AuxInput(
   public val image: ImageSource,
   public val chain: List<FilterNode> = emptyList(),
+  public val timeline: AuxTimeline? = null,
+)
+
+/**
+ * How long an [AuxInput]'s branch runs for, and at what rate it advances.
+ *
+ * A branch fed by a single still ends on its first frame, which leaves a time-varying filter on it
+ * with nothing to run on and lets the merge downstream stop drawing it. Repeating the still at
+ * [frameRate] for [duration] keeps the branch alive for as long as the one it merges onto.
+ *
+ * [duration] is counted from the branch's own start rather than from the composition's, so a clip
+ * effect names its clip's length and a composition effect names the whole composition's.
+ *
+ * @property frameRate Frames per second the branch advances at.
+ * @property duration How long the branch runs.
+ */
+@Poko
+public class AuxTimeline(
+  public val frameRate: Float,
+  public val duration: Duration,
 )
 
 /**

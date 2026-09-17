@@ -243,6 +243,16 @@ class BrowserExportTest {
     val filled = frames.count { it.at(x = 0.5, y = 0.5).isNear(PURPLE_RGB) }
     assertEquals(gapFrames, filled, "a gap of $start wrote $filled frames of fill")
 
+    // Each gap slot is drawn by the fill, and the time the fill is handed is the time the encoder
+    // writes, so the frames land one per slot of the grid rather than bunched at its opening.
+    frames.take(gapFrames).forEachIndexed { slot, frame ->
+      val slotUs = slot * stepUs
+      assertTrue(
+        abs(frame.timestampUs - slotUs) < TIMESTAMP_TOLERANCE_US,
+        "gap frame $slot landed at ${frame.timestampUs}us where its slot sits at ${slotUs}us",
+      )
+    }
+
     val inGap = frames.nearestTo(startUs / 2).at(x = 0.5, y = 0.5)
     assertTrue(inGap.isNear(PURPLE_RGB), "the middle of the gap was $inGap, and the fill was $PURPLE_RGB")
     val inClip = frames.nearestTo(micros(clip.span.start + clip.duration / 2)).at(x = 0.5, y = 0.5)
@@ -995,6 +1005,10 @@ class BrowserExportTest {
     val OFF_GRID_START = 510.milliseconds
     const val LATE_CLIP_FRAMES = 30
     const val LATE_FRAME_RATE = 30
+
+    // The encoder takes seconds and the container writes them on its own timescale, so a written
+    // timestamp comes back a hair off the slot it was handed.
+    const val TIMESTAMP_TOLERANCE_US = 1.0
     const val RATE_TOLERANCE = 2f
     const val RAMP_STEP = 4
     val TRIM_START = 1000.milliseconds

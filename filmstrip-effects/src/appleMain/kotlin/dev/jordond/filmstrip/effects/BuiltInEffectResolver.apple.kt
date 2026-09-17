@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.effects
 
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
-import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.CoreImageEffect
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -24,12 +23,15 @@ import dev.jordond.filmstrip.effects.geometry.regionAt
 import dev.jordond.filmstrip.effects.geometry.retainedRect
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
+import dev.jordond.filmstrip.effects.overlay.animatedBy
 import dev.jordond.filmstrip.effects.overlay.compositedOnto
 import dev.jordond.filmstrip.effects.overlay.decode
 import dev.jordond.filmstrip.effects.overlay.drawnTextSize
+import dev.jordond.filmstrip.effects.overlay.frameWithin
 import dev.jordond.filmstrip.effects.overlay.pixelSize
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rasterizeText
+import dev.jordond.filmstrip.effects.overlay.runWithin
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -61,7 +63,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       is CropRect -> step { image, _ -> image.cropped(spec.rect) }
       is KenBurns -> spec.toStep()
       is Scale -> step { image, _ -> image.scaledToHeight(spec.targetHeight) }
-      is ImageOverlay -> spec.toOverlay()
+      is ImageOverlay -> spec.toOverlay(attributes)
       is TextOverlay -> spec.toOverlay(capabilities, attributes)
       else -> spec.toColorStep()
     }
@@ -89,17 +91,21 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
 
   // Rasterised at resolve and placed at apply. Where an overlay lands depends on the frame entering
   // it, and the preview and the export hand different frames to the same resolved effect, so a
-  // placement settled here would be right on one path and wrong on the other.
-  private fun ImageOverlay.toOverlay(): EffectResolution {
+  // placement settled here would be right on one path and wrong on the other. The run is not one of
+  // those: the slot an effect is handed is settled before any frame is drawn, so it is derived once
+  // here and every frame samples within it.
+  private fun ImageOverlay.toOverlay(attributes: Attributes): EffectResolution {
     val raster = image.decode() ?: return EffectResolution.Unsupported(id, UNREADABLE_IMAGE)
     val size = raster.pixelSize()
+    val run = runWithin(attributes.span)
 
     return step { image, frame ->
-      if (!frame.shows(visibleDuring)) {
+      val sampled = frameWithin(run, frame.compositionTime)
+      if (sampled == null) {
         image
       } else {
         val input = frame.attributes.inputSize
-        raster.compositedOnto(image, placedOn(input, size), input, opacity)
+        raster.compositedOnto(image, placedOn(input, size).animatedBy(sampled), input, sampled.opacity)
       }
     }
   }
@@ -113,27 +119,21 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       rasterizeText(text, style, attributes.layoutSize)
         ?: return EffectResolution.Unsupported(id, EMPTY_TEXT)
     val size = raster.pixelSize()
+    val run = runWithin(attributes.span)
 
     return step { image, frame ->
-      if (!frame.shows(visibleDuring)) {
+      val sampled = frameWithin(run, frame.compositionTime)
+      if (sampled == null) {
         image
       } else {
         // Laid out once against the frame an export writes and only resampled here, so a preview
-        // and the export it previews break their lines on the same words.
+        // and the export it previews break their lines on the same words. An animated scale
+        // resamples that raster too rather than re-laying the glyphs at a new size.
         val drawn = frame.attributes.drawnTextSize(size)
-        raster.compositedOnto(image, placedOn(drawn), frame.attributes.inputSize, 1f)
+        raster.compositedOnto(image, placedOn(drawn).animatedBy(sampled), frame.attributes.inputSize, sampled.opacity)
       }
     }
   }
-
-  /**
-   * Whether an overlay timed to [range] is drawn on this frame.
-   *
-   * The composition's timeline is the base on every backend. media3 hands its overlays a
-   * presentation time, ffmpeg gates on the filtergraph's `t`, and Core Image gets it from the
-   * filter request. A null range is the whole composition.
-   */
-  private fun FrameInfo.shows(range: TimeRange?): Boolean = range == null || compositionTime in range
 
   private fun step(block: (CIImage, FrameInfo) -> CIImage): EffectResolution =
     EffectResolution.Resolved(PlatformEffect(CoreImageEffect(block)))

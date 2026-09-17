@@ -35,8 +35,8 @@ import dev.jordond.filmstrip.effects.overlay.decode
 import dev.jordond.filmstrip.effects.overlay.drawnTextSize
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rasterizeText
+import dev.jordond.filmstrip.effects.overlay.runWithin
 import dev.jordond.filmstrip.effects.overlay.size
-import dev.jordond.filmstrip.effects.overlay.toOverlaySettings
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -114,7 +114,9 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     val bitmap = image.decode(FilmstripContext.get()) ?: return unsupported(id, UNREADABLE_IMAGE)
     val size = bitmap.size()
     val placement = placedOn(attributes.inputSize, size)
-    return resolved(RasterOverlay(bitmap, placement.toOverlaySettings(size, opacity), visibleDuring), capabilities)
+    // Derived here so the per-frame sampling reads a range rather than rebuilding one on the GL
+    // thread for every frame of the export.
+    return resolved(RasterOverlay(bitmap, this, placement, size, runWithin(attributes.span)), capabilities)
   }
 
   private fun TextOverlay.toOverlay(
@@ -128,7 +130,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     // smaller than that breaks its lines on the same words. The two frames agree for an export,
     // which composites one to one.
     val drawn = attributes.drawnTextSize(size)
-    return resolved(RasterOverlay(bitmap, placedOn(drawn).toOverlaySettings(size, 1f), visibleDuring), capabilities)
+    return resolved(RasterOverlay(bitmap, this, placedOn(drawn), size, runWithin(attributes.span)), capabilities)
   }
 
   private fun resolved(effect: Effect): EffectResolution = EffectResolution.Resolved(PlatformEffect(effect))

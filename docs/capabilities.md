@@ -67,18 +67,19 @@ listed in the Effects table below.
 Which built-in effects each render backend can lower. A backend only sees effects whose `RenderApi`
 it recognises, and declines the rest so the next resolver gets a look.
 
-| Effect                                  | Android               | Apple             | Browser            | ffmpeg             |
-| --------------------------------------- | --------------------- | ----------------- | ------------------ | ------------------ |
-| `Rotate`                                | ✅                    | ✅                | ❌ [^web-resize]   | ✅                 |
-| `Flip`                                  | ✅                    | ✅                | ✅                 | ✅                 |
-| `Crop` (aspect)                         | ✅                    | ✅                | ✅                 | ✅                 |
-| `CropRect`                              | ✅                    | ✅                | ✅                 | ✅                 |
-| `Scale`                                 | ✅ [^android-fit]     | ✅                | ❌ [^web-resize]   | ✅ [^ffmpeg-scale] |
-| `KenBurns`                              | ✅ [^clip-only]       | ✅ [^clip-only]   | ❌ [^pan-pending]  | ❌ [^pan-pending]  |
-| `Brightness` [^hdr-brightness]          | ✅                    | ✅                | ✅                 | ✅                 |
-| Colour matrices [^matrix] [^sdr-matrix] | ✅                    | ✅                | ✅                 | ✅                 |
-| `ImageOverlay`                          | ✅ [^android-overlay] | ✅                | ❌ [^web-overlays] | ✅                 |
-| `TextOverlay`                           | ✅ [^text-raster]     | ✅ [^text-raster] | ❌ [^web-overlays] | ❌ [^ffmpeg-text]  |
+| Effect                                  | Android               | Apple             | Browser            | ffmpeg                 |
+| --------------------------------------- | --------------------- | ----------------- | ------------------ | ---------------------- |
+| `Rotate`                                | ✅                    | ✅                | ❌ [^web-resize]   | ✅                     |
+| `Flip`                                  | ✅                    | ✅                | ✅                 | ✅                     |
+| `Crop` (aspect)                         | ✅                    | ✅                | ✅                 | ✅                     |
+| `CropRect`                              | ✅                    | ✅                | ✅                 | ✅                     |
+| `Scale`                                 | ✅ [^android-fit]     | ✅                | ❌ [^web-resize]   | ✅ [^ffmpeg-scale]     |
+| `KenBurns`                              | ✅ [^clip-only]       | ✅ [^clip-only]   | ❌ [^pan-pending]  | ❌ [^pan-pending]      |
+| `Brightness` [^hdr-brightness]          | ✅                    | ✅                | ✅                 | ✅                     |
+| Colour matrices [^matrix] [^sdr-matrix] | ✅                    | ✅                | ✅                 | ✅                     |
+| `ImageOverlay`                          | ✅ [^android-overlay] | ✅                | ❌ [^web-overlays] | ✅                     |
+| `TextOverlay`                           | ✅ [^text-raster]     | ✅ [^text-raster] | ❌ [^web-overlays] | ❌ [^ffmpeg-text]      |
+| Overlay animation                       | ✅ [^media3-anchor]   | ✅                | ❌ [^web-overlays] | ✅ [^ffmpeg-animation] |
 
 [^matrix]:
     `RgbAdjustment`, `Contrast`, `Saturation`, `HueRotate`, `Sepia`, `Invert` and
@@ -122,8 +123,9 @@ it recognises, and declines the rest so the next resolver gets a look.
     draw.
 
 [^web-overlays]:
-    Overlay effects rasterise text and images into the frame, which needs a canvas the
-    resolver does not have.
+    Overlay effects rasterise text and images into the frame, which needs a compositing
+    pass this backend does not have yet. The composition time of the frame being drawn reaches the
+    draw call already, so an animation would have a clock to read once the pass lands.
 
 [^hdr-brightness]:
     The factor is a multiply on an encoded SDR signal. On an export that keeps an HDR
@@ -166,6 +168,66 @@ it recognises, and declines the rest so the next resolver gets a look.
     newline, so `TextStyle.maxWidth` cannot be honoured. Text layout has to be exact, so it is refused
     rather than rendered differently.
 
+[^media3-anchor]:
+    Both frame anchors are held in `-1f..1f`, which is the range media3 documents on
+    `StaticOverlaySettings.Builder` and which implementing `OverlaySettings` directly walks past rather
+    than lifts. An overlay animated off the frame stops at the edge here and keeps going on Apple and
+    ffmpeg.
+
+[^ffmpeg-animation]:
+    The animation is sampled once per output frame of the run and written into a
+    `sendcmd` sidecar, one interval per frame that moved, so the alpha, the size and the position are
+    driven mid-stream rather than settled once. It needs a frame rate to sample onto and a closed run
+    to sample across, and refuses by name without either. It also reads the overlay image's header
+    through the JDK's `ImageIO`, to size the drawn picture off the picture's own pixels, so an animated
+    overlay needs a format the JDK decodes: a WebP or HEIC still draws here unanimated, since ffmpeg
+    opens it itself, and refuses by name once an animation is attached. ffmpeg draws no `TextOverlay`
+    at all, so this is `ImageOverlay` alone.
+
+### Overlay animation
+
+`ImageOverlay` and `TextOverlay` both take an `animation`, and `OverlayEffect` declares it, so an
+overlay of your own carries one without being rewritten. An `OverlayAnimation` is asked once per
+output frame for an `OverlayFrame`, which holds an opacity, an `OverlayOffset` and a scale. The
+`OverlayTime` it reads carries `elapsed`, `remaining` and the frame's own `composition` time.
+
+`fadeIn`, `fadeOut` and `fade` ramp the opacity, `slideIn` and `slideOut` travel the offset, and
+`plus` runs two animations over the same frame, multiplying the opacities and the scales and adding
+the offsets. Every built-in ramp is linear. Anything else is a lambda, since `OverlayAnimation` is a
+`fun interface`.
+
+`elapsed` and `remaining` are counted from the run the overlay is drawn over, which is
+`visibleDuring` clipped to the scope the effect was added at, or that scope itself when no window was
+named. An overlay carrying no window is drawn on every frame it is handed, so a backend whose own
+timestamp lands on either bound of the scope cannot drop a frame nothing asked to hide. A run with no
+end reads `remaining` as infinite, and a ramp measured off an infinite remainder never begins, so a
+`fadeOut` holds full opacity and a `slideOut` holds its authored position.
+
+The offset is a fraction of the frame the overlay is placed against, positive x towards the end edge
+and positive y down, the same origin every other normalised measurement here uses. An offset large
+enough to carry the overlay off the frame is allowed, and the part that leaves is not drawn. The
+scale multiplies the drawn size about the point the overlay is anchored by, so a corner watermark
+keeps its margin and grows inward. On a `TextOverlay` it resamples the raster: the glyphs are laid
+out once at resolve so that a preview and its export break lines on the same words, and an animation
+never re-lays them.
+
+An animation has no serialized form, so an edit list written out and read back comes back drawing the
+overlay as it was authored. It is compared, since two overlays that draw different pictures must not
+share a cached frame, so a caller holds one instance and hands the same one back rather than
+rebuilding it. The built-in helpers compare by value and survive a rebuild. A freshly written lambda
+compares by identity and misses the thumbnail cache every time the composition is rebuilt.
+
+Each backend drives it its own way. Apple samples inside the Core Image step and scales the alpha
+row of a colour matrix alone, since the filter unpremultiplies and premultiplies around it and
+scaling the colour rows as well draws the overlay at the square of the alpha it was given. media3
+rewrites one `OverlaySettings` for the frame being drawn rather than holding a prebuilt one. ffmpeg
+samples onto the output frame grid at resolve and drives named `colorchannelmixer`, `scale` and
+`overlay` nodes from its sidecar, and loops the overlay image's own branch at the output rate for as
+long as the branch it merges onto, so a watermark is drawn for the whole of its run rather than on
+its first frame alone. An overlay added to a clip merges onto that clip's own branch and reads its
+window against the clip's clock, which opens where the clip does rather than where the composition
+does. The browser draws no overlay, so it draws no animation either.
+
 ### Parity
 
 `parityOf(specId)` says how closely a preview matches its export, and every backend keeps its own
@@ -182,6 +244,12 @@ table.
 are exact on both platforms. `Scale` on ffmpeg goes through swscale's bicubic kernel, which is not
 the one a preview resamples with. Anything with no entry answers null from `parityOf`, and the plan
 reads a null as `Exact`.
+
+An overlay animation is outside what these tables report, since the spec `parityOf` is asked about is
+the same one animated or not. It plays back the same way it exports on a preview read from the top.
+On ffmpeg a preview scrubbed into shows the animation's opening frame instead: only the first input
+carries the seek, because an overlay image seeked into delivers nothing at all, so the overlay's own
+branch restarts wherever the scrub lands.
 
 ## Codecs
 

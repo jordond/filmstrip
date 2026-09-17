@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.style.TextStyle
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlin.math.roundToInt
 import kotlin.time.Duration
 
@@ -23,6 +24,8 @@ import kotlin.time.Duration
  * @property style How the text is drawn.
  * @property anchor Where the text sits in the frame.
  * @property visibleDuring When the text is visible, or null for the whole composition.
+ * @property animation How the text is drawn at each frame of its run, or null to hold it still. It
+ * never re-lays the glyphs, so a scale resamples the block a line break already landed in.
  */
 @Serializable
 @SerialName(EffectIds.TEXT_OVERLAY)
@@ -32,6 +35,7 @@ public class TextOverlay(
   public val style: TextStyle = TextStyle.Default,
   public val anchor: Anchor = Anchor.BottomCenter,
   override val visibleDuring: TimeRange? = null,
+  @Transient override val animation: OverlayAnimation? = null,
 ) : OverlayEffect {
   override val id: String get() = EffectIds.TEXT_OVERLAY
 }
@@ -44,7 +48,8 @@ public fun EffectsBuilder.textOverlay(
   style: TextStyle = TextStyle.Default,
   anchor: Anchor = Anchor.BottomCenter,
   visibleDuring: TimeRange? = null,
-): EffectsBuilder = add(TextOverlay(text, style, anchor, visibleDuring))
+  animation: OverlayAnimation? = null,
+): EffectsBuilder = add(TextOverlay(text, style, anchor, visibleDuring, animation))
 
 /**
  * Burn [text] into the video, visible only during [at].
@@ -54,7 +59,8 @@ public fun EffectsBuilder.textOverlay(
   at: ClosedRange<Duration>,
   style: TextStyle = TextStyle.Default,
   anchor: Anchor = Anchor.BottomCenter,
-): EffectsBuilder = add(TextOverlay(text, style, anchor, TimeRange(at)))
+  animation: OverlayAnimation? = null,
+): EffectsBuilder = add(TextOverlay(text, style, anchor, TimeRange(at), animation))
 
 /**
  * Resolves this text against the frame it is burned into.

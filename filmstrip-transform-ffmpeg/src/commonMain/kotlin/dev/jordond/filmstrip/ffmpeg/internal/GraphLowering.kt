@@ -239,7 +239,17 @@ internal class GraphLowering(
       if (merge == null) {
         graph.chain(listOf(current), fragment.chain.ifEmpty { listOf(NULL_VIDEO) }, label)
       } else {
-        graph.chain(listOf(current) + auxPads(fragment.auxInputs, label), fragment.chain + merge, label)
+        // A chain's input labels link to its first filter, so anything this effect contributes
+        // ahead of the merge goes onto a pad of its own rather than between the labels and the
+        // merge that reads them. An effect contributing nothing reads the pad it was handed, which
+        // is every overlay in the catalogue and leaves their graphs as they were.
+        val read =
+          if (fragment.chain.isEmpty()) {
+            current
+          } else {
+            "${label}pre".also { graph.chain(listOf(current), fragment.chain, it) }
+          }
+        graph.chain(listOf(read) + auxPads(fragment.auxInputs, label), listOf(merge), label)
       }
       current = label
     }
@@ -344,9 +354,16 @@ internal class GraphLowering(
       sidecars += fragment.sidecars
       pending += fragment.chain
       val merge = fragment.merge ?: return@forEach
-      val label = "v${index}m$merged"
-      graph.chain(listOf(pad) + auxPads(fragment.auxInputs, label), pending + merge, label)
+      // A chain's input labels are linked to its first filter, so the nodes waiting here cannot sit
+      // between the labels and the merge that reads them: ffmpeg refuses the graph with "More input
+      // link labels specified for filter 'trim' than it has inputs". They go onto a pad of their
+      // own instead, and the merge reads that pad alongside the images it composites.
+      val prepared = "v${index}m${merged}pre"
+      graph.chain(listOf(pad), pending.ifEmpty { listOf(NULL_VIDEO) }, prepared)
       pending.clear()
+
+      val label = "v${index}m$merged"
+      graph.chain(listOf(prepared) + auxPads(fragment.auxInputs, label), listOf(merge), label)
       pad = label
       merged++
     }
@@ -394,6 +411,10 @@ internal class GraphLowering(
 
   /**
    * The extra inputs a merging effect composites, each prepared on a pad of its own.
+   *
+   * An input naming a timeline is looped for a frame longer than the run it covers. Overshooting
+   * costs nothing, since the graph's own `trim=duration=` is what cuts the output, while
+   * undershooting drops the overlay from the frame the branch runs out with no diagnostic at all.
    */
   private fun auxPads(
     auxInputs: List<AuxInput>,
@@ -401,7 +422,12 @@ internal class GraphLowering(
   ): List<String> =
     auxInputs.mapIndexed { index, aux ->
       val input = inputs.size
-      inputs += InputSpec(source = InputSource.OfImage(aux.image))
+      inputs +=
+        InputSpec(
+          source = InputSource.OfImage(aux.image),
+          durationSeconds = aux.timeline?.let { it.duration.seconds() + 1.0 / it.frameRate },
+          loopFrameRate = aux.timeline?.frameRate,
+        )
       "${label}a$index".also { graph.chain(listOf("$input:v"), aux.chain.ifEmpty { listOf(NULL_VIDEO) }, it) }
     }
 

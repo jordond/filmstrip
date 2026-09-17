@@ -198,6 +198,68 @@ class OverlayGeometryTest {
     assertClose(full.margin, quarter.margin)
   }
 
+  @Test
+  fun `an identity frame leaves the placement where it was`() {
+    val placement = imageOverlay().placedOn(LANDSCAPE, SQUARE_IMAGE)
+
+    assertEquals(placement, placement.animatedBy(OverlayFrame.Identity))
+  }
+
+  @Test
+  fun `an offset moves the rectangle by the fraction it names`() {
+    val placement = imageOverlay(corner = Corner.BottomEnd).placedOn(LANDSCAPE, SQUARE_IMAGE)
+    val before = placement.rectOn(LANDSCAPE)
+
+    val after = placement.animatedBy(OverlayFrame(offset = OverlayOffset(-0.1f, 0.05f))).rectOn(LANDSCAPE)
+
+    assertClose(before.left - 0.1f, after.left)
+    assertClose(before.right - 0.1f, after.right)
+    assertClose(before.top + 0.05f, after.top)
+    assertClose(before.bottom + 0.05f, after.bottom)
+  }
+
+  @Test
+  fun `a scale grows the overlay away from the point it is pinned by`() {
+    val placement = imageOverlay(corner = Corner.BottomEnd).placedOn(LANDSCAPE, SQUARE_IMAGE)
+    val before = placement.rectOn(LANDSCAPE)
+
+    val after = placement.animatedBy(OverlayFrame(scale = 2f)).rectOn(LANDSCAPE)
+
+    // Pinned at its bottom-end corner, so that corner holds still and the rest doubles inward.
+    assertClose(before.right, after.right)
+    assertClose(before.bottom, after.bottom)
+    assertClose(2f * (before.right - before.left), after.right - after.left)
+    assertClose(2f * (before.bottom - before.top), after.bottom - after.top)
+  }
+
+  @Test
+  fun `a corner watermark keeps its authored margin as it grows`() {
+    val placement = imageOverlay(corner = Corner.BottomEnd).placedOn(LANDSCAPE, SQUARE_IMAGE)
+
+    val rect = placement.animatedBy(OverlayFrame(scale = 1.5f)).rectOn(LANDSCAPE)
+
+    val inset = ImageOverlay.DEFAULT_MARGIN * min(LANDSCAPE.width, LANDSCAPE.height)
+    assertClose(inset, (1f - rect.right) * LANDSCAPE.width)
+    assertClose(inset, (1f - rect.bottom) * LANDSCAPE.height)
+  }
+
+  @Test
+  fun `an offset carries the rectangle off the frame`() {
+    val placement = imageOverlay(corner = Corner.TopStart).placedOn(LANDSCAPE, SQUARE_IMAGE)
+
+    val rect = placement.animatedBy(OverlayFrame(offset = OverlayOffset(-0.5f, 0f))).rectOn(LANDSCAPE)
+
+    assertTrue(rect.left < 0f, "expected the overlay to leave the start edge, was ${rect.left}")
+    assertTrue(!rect.isValid)
+  }
+
+  @Test
+  fun `a scale reaching zero still leaves a pixel to draw`() {
+    val placement = imageOverlay().placedOn(LANDSCAPE, SQUARE_IMAGE)
+
+    assertEquals(Size(1, 1), placement.animatedBy(OverlayFrame(scale = 0f)).size)
+  }
+
   private fun imageOverlay(
     corner: Corner = Corner.BottomEnd,
     margin: Float = ImageOverlay.DEFAULT_MARGIN,

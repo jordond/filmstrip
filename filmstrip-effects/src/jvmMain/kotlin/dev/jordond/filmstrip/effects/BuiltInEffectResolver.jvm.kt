@@ -1,8 +1,10 @@
 package dev.jordond.filmstrip.effects
 
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.AuxInput
+import dev.jordond.filmstrip.effect.AuxTimeline
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -33,7 +35,13 @@ import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.geometry.retainedRect
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.OverlayFrame
+import dev.jordond.filmstrip.effects.overlay.OverlayPlacement
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
+import dev.jordond.filmstrip.effects.overlay.animatedBy
+import dev.jordond.filmstrip.effects.overlay.frameWithin
+import dev.jordond.filmstrip.effects.overlay.placedOn
+import dev.jordond.filmstrip.effects.overlay.runWithin
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
@@ -43,6 +51,7 @@ import dev.jordond.filmstrip.media.HLG_B
 import dev.jordond.filmstrip.media.HLG_C
 import dev.jordond.filmstrip.media.HLG_SCENE_TO_SDR_SIGNAL_GAMMA
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.PQ_C1
 import dev.jordond.filmstrip.media.PQ_C2
 import dev.jordond.filmstrip.media.PQ_C3
@@ -51,9 +60,16 @@ import dev.jordond.filmstrip.media.PQ_M2
 import dev.jordond.filmstrip.media.SDR_DISPLAY_GAMMA
 import dev.jordond.filmstrip.media.SDR_SIGNAL_TO_HLG_SCENE_GAMMA
 import dev.jordond.filmstrip.media.sdrSignalCeiling
+import java.io.ByteArrayInputStream
+import java.io.File
+import java.io.IOException
 import java.util.Locale
+import javax.imageio.ImageIO
+import javax.imageio.stream.ImageInputStream
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
 
 /**
@@ -61,6 +77,8 @@ import kotlin.time.DurationUnit
  *
  * Every lowering is a pure function of the spec and the resolved [Attributes], so it is assertable
  * in a unit test with no toolchain installed, which neither of the other two resolvers can manage.
+ * An animated overlay is the one lowering that reads anything: it needs the overlay picture's own
+ * pixel size, which it takes from the image's header rather than by decoding it.
  */
 @OptIn(ExperimentalFilmstripApi::class)
 public actual class BuiltInEffectResolver actual constructor() : EffectResolver {
@@ -90,7 +108,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       is Invert,
       is ColorMatrix,
       -> colorMatrix(spec, attributes.hdrTransfer)
-      is ImageOverlay -> imageOverlay(spec, attributes.outputSize)
+      is ImageOverlay -> imageOverlay(spec, attributes)
       is TextOverlay -> EffectResolution.Unsupported(spec.id, textMessage(capabilities))
       else -> null
     }
@@ -338,16 +356,35 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   // output frame's shorter side and the planner already knows both numbers.
   private fun imageOverlay(
     spec: ImageOverlay,
-    outputSize: Size,
+    attributes: Attributes,
   ): EffectResolution {
+    val outputSize = attributes.outputSize
+    val span = attributes.span
+    val run = spec.runWithin(span)
     val margin = (minOf(outputSize.width, outputSize.height) * spec.margin).roundToInt()
     val overlayWidth = (outputSize.width * spec.scale).roundToInt().coerceAtLeast(1)
+    val driven = spec.commandsFor(attributes, run)
+    if (driven is Driven.Refused) return EffectResolution.Unsupported(spec.id, driven.message)
+    val animated = driven as? Driven.Commands
+    val instance = animated?.instance.orEmpty()
 
     val prepare =
       buildList {
-        add(FilterNode("scale", "w" to overlayWidth.toString(), "h" to "-1"))
+        animated?.let { add(FilterNode("sendcmd", "f" to it.sidecar.placeholder)) }
+        add(FilterNode("scale$instance", "w" to overlayWidth.toString(), "h" to "-1"))
         add(FilterNode("format", "pix_fmts" to "rgba"))
-        if (spec.opacity < 1f) add(FilterNode("colorchannelmixer", "aa" to spec.opacity.toString()))
+        when {
+          // The sampler has already folded the authored opacity into every value it answers, so the
+          // node the commands drive opens at one rather than at what was authored.
+          animated != null -> add(FilterNode("colorchannelmixer$instance", "aa" to "1"))
+          spec.opacity < 1f -> add(FilterNode("colorchannelmixer", "aa" to spec.opacity.toString()))
+        }
+        // ffmpeg's own limit, and only where a command can resize the branch. Where the frames the
+        // overlay merges onto carry alpha, which is what a deferred fill leaves them holding, the
+        // converter ffmpeg inserts to bring both inputs to one pixel format is a scale pinned to
+        // the size it was configured at, and it silently undoes a commanded resize. A scale of its
+        // own input's size, re-read every frame, carries the new size past it.
+        animated?.let { add(FilterNode("scale", "w" to "iw", "h" to "ih", "eval" to "frame")) }
       }
 
     val placement =
@@ -355,23 +392,201 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
         add(FilterArgument("x", if (spec.corner.isTrailing) "W-w-$margin" else "$margin"))
         add(FilterArgument("y", if (spec.corner.isBottom) "H-h-$margin" else "$margin"))
         add(FilterArgument("format", "auto"))
-        // The overlay is a still, so it ends on its first frame. Without this the main video ends
-        // with it.
+        // What overlay does once the image branch ends: hand the main frame on undrawn. The branch
+        // is looped for as long as the one it merges onto, so nothing reaches it.
         add(FilterArgument("eof_action", "pass"))
-        spec.visibleDuring?.let { range ->
-          val end = range.endExclusive ?: return@let
-          add(FilterArgument("enable", "between(t,${range.start.toSeconds()},${end.toSeconds()})"))
+        // A clip's branch opens with setpts=PTS-STARTPTS, so t on it counts from the clip's own
+        // start rather than from the composition's. The window is the shared run, already clipped
+        // to the span and closed wherever the span is, and the span's start is what moves it onto
+        // the branch's clock. A composition effect's span opens at zero, so nothing moves there.
+        if (spec.visibleDuring != null) {
+          run.endExclusive?.let { end ->
+            add(FilterArgument("enable", "between(t,${branchSeconds(run.start, span)},${branchSeconds(end, span)})"))
+          }
         }
       }
 
     return EffectResolution.Resolved(
       PlatformEffect(
         FilterFragment(
-          auxInputs = listOf(AuxInput(spec.image, prepare)),
-          merge = FilterNode("overlay", placement),
+          auxInputs = listOf(AuxInput(spec.image, prepare, attributes.auxTimeline())),
+          merge = FilterNode("overlay$instance", placement),
+          sidecars = listOfNotNull(animated?.sidecar),
         ),
       ),
     )
+  }
+
+  // What an animated overlay's branch has to be driven by. The animation is sampled once per output
+  // frame of the run, and each frame whose values differ from the one before writes one sendcmd
+  // interval. A command written at exactly a frame's own time lands on that frame, so the intervals
+  // are the frame grid itself rather than anything nudged off it, and the clock is the branch's,
+  // the same one the enable gate reads.
+  private fun ImageOverlay.commandsFor(
+    attributes: Attributes,
+    run: TimeRange,
+  ): Driven {
+    if (animation == null) return Driven.Still
+    val rate = attributes.frameRate?.takeIf { it > 0f } ?: return Driven.Refused(ANIMATION_NO_GRID)
+    val end = run.endExclusive ?: return Driven.Refused(ANIMATION_NO_RUN)
+    val imageSize = measureOverlay(image) ?: return Driven.Refused(UNREADABLE_IMAGE)
+    val span = attributes.span
+    val outputSize = attributes.outputSize
+    val base = placedOn(outputSize, imageSize)
+
+    val first = frameIndexAt(run.start, span, rate)
+    val last = frameIndexAt(end, span, rate)
+    val written =
+      buildString {
+        // What the driven filters are holding, which is every value sampled so far whether it was
+        // written or not, since a frame writes only what moved. A frame the sampler draws nothing
+        // on leaves it alone: nothing was sent, so the filters still hold what they held.
+        var previous = emptyMap<String, String>()
+        for (index in first until last) {
+          val at = index.toDouble() / rate
+          val frame = frameWithin(run, span.start + at.seconds) ?: continue
+          val values = commandValues(frame, base.animatedBy(frame), outputSize)
+          val changed = values.filterNot { (command, value) -> previous[command] == value }
+          previous = values
+          if (changed.isEmpty()) continue
+
+          append(commandSeconds(at))
+          append('-')
+          append(commandSeconds((index + 1).toDouble() / rate))
+          append(' ')
+          append(changed.entries.joinToString(", ") { (command, value) -> "$command $value" })
+          append(";\n")
+        }
+      }
+    // A run reaching no output frame, which is a window falling outside the span or one shorter
+    // than a frame. There is nothing to drive, and the window on the merge already draws nothing.
+    if (written.isEmpty()) return Driven.Still
+
+    val name = instanceNameOf(written)
+    return Driven.Commands(Sidecar(written.replace(INSTANCE_SLOT, name).encodeToByteArray(), "cmd"), name)
+  }
+
+  // What each driven filter is set to on one frame, keyed by the target and option the command
+  // names, so a frame writes only the ones that moved. Every number is the shared placement's:
+  // animatedBy scales both sides and moves the frame anchor, and the point inside the overlay that
+  // the anchor holds is what turns the pair into a position.
+  private fun commandValues(
+    frame: OverlayFrame,
+    drawn: OverlayPlacement,
+    outputSize: Size,
+  ): Map<String, String> {
+    val width = drawn.size.width
+    val height = drawn.size.height
+    val anchorX = (drawn.frameAnchor.x * outputSize.width).roundToInt()
+    val anchorY = (drawn.frameAnchor.y * outputSize.height).roundToInt()
+
+    return mapOf(
+      "colorchannelmixer$INSTANCE_SLOT aa" to alphaValue(frame.opacity),
+      "scale$INSTANCE_SLOT w" to width.toString(),
+      "scale$INSTANCE_SLOT h" to height.toString(),
+      "overlay$INSTANCE_SLOT x" to (anchorX - (drawn.overlayAnchor.x * width).roundToInt()).toString(),
+      "overlay$INSTANCE_SLOT y" to (anchorY - (drawn.overlayAnchor.y * height).roundToInt()).toString(),
+    )
+  }
+
+  /**
+   * The overlay image's stored pixel size, or null when this process cannot read it.
+   *
+   * ImageIO picks a reader off the stream's own magic bytes and answers the bounds out of the
+   * header, so nothing here pulls the picture into memory. A URI is read as the file path the
+   * backend materialises it to, which is the file ffmpeg itself opens.
+   */
+  private fun measureOverlay(image: ImageSource): Size? {
+    val stream = image.openHeader() ?: return null
+
+    return try {
+      val reader = ImageIO.getImageReaders(stream).asSequence().firstOrNull()
+      reader?.let {
+        try {
+          it.input = stream
+          Size(it.getWidth(FIRST_IMAGE), it.getHeight(FIRST_IMAGE))
+        } finally {
+          it.dispose()
+        }
+      }
+    } catch (unreadable: IOException) {
+      null
+    } finally {
+      stream.close()
+    }
+  }
+
+  private fun ImageSource.openHeader(): ImageInputStream? =
+    try {
+      when (this) {
+        is ImageSource.Path -> {
+          File(path).takeIf { it.isFile }?.let(ImageIO::createImageInputStream)
+        }
+        is ImageSource.Uri -> {
+          File(
+            uri.removePrefix(FILE_SCHEME),
+          ).takeIf { it.isFile }?.let(ImageIO::createImageInputStream)
+        }
+        is ImageSource.Bytes -> {
+          ImageIO.createImageInputStream(ByteArrayInputStream(bytes))
+        }
+      }
+    } catch (unreadable: IOException) {
+      null
+    }
+
+  // colorchannelmixer documents its coefficients in -2..2, which is this filter's own limit. The
+  // shared sampler already answers an opacity in 0f..1f, so this pins that guarantee rather than
+  // bending a value.
+  private fun alphaValue(opacity: Float): String =
+    String.format(Locale.ROOT, COMMAND_FORMAT, opacity.coerceIn(MIXER_FLOOR, MIXER_CEILING))
+
+  // The first output frame at or after a composition time, counted on the branch's own clock. The
+  // tolerance is a millionth of a frame, so a boundary that lands on the grid is not pushed onto
+  // the next frame by the last bit of the division.
+  private fun frameIndexAt(
+    time: Duration,
+    span: TimeRange,
+    rate: Float,
+  ): Int = ceil((time - span.start).toDouble(DurationUnit.SECONDS) * rate - GRID_TOLERANCE).toInt().coerceAtLeast(0)
+
+  private fun commandSeconds(value: Double): String = String.format(Locale.ROOT, COMMAND_FORMAT, value)
+
+  // The instance names have to be unique across the graph, and they are part of the file that
+  // drives them, so the name is taken from a digest of the commands before they are named. Sidecar
+  // already answers a digest of what it holds, so the throwaway one here is that hash rather than a
+  // second file. Two overlays whose commands differ are named apart. Two whose commands are
+  // identical share one name and one sidecar, which is harmless: identical commands draw the same
+  // picture, so either branch's copy drives both the same way.
+  private fun instanceNameOf(commands: String): String =
+    "@fs" +
+      Sidecar(commands.encodeToByteArray(), "cmd")
+        .placeholder
+        .trim('<', '>')
+        .substringAfterLast('-')
+
+  private sealed interface Driven {
+    // Nothing to drive: an overlay holding still, or one whose run reaches no output frame.
+    object Still : Driven
+
+    class Refused(
+      val message: String,
+    ) : Driven
+
+    class Commands(
+      val sidecar: Sidecar,
+      val instance: String,
+    ) : Driven
+  }
+
+  // An image input is one frame at t = 0, and a branch carrying one frame ends on it. The overlay
+  // is drawn for as long as the branch it merges onto, so the still is repeated across that whole
+  // run. A pipeline that resolved neither a rate nor a bounded span has nothing to repeat it over.
+  private fun Attributes.auxTimeline(): AuxTimeline? {
+    val rate = frameRate?.takeIf { it > 0f } ?: return null
+    val length = span.duration ?: return null
+
+    return AuxTimeline(rate, length)
   }
 
   private fun textMessage(capabilities: RenderCapabilities): String =
@@ -383,8 +598,50 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   private val Corner.isBottom: Boolean
     get() = this == Corner.BottomStart || this == Corner.BottomEnd
 
-  private fun Duration.toSeconds(): String = toDouble(DurationUnit.SECONDS).toString()
+  // Where a composition time lands on the branch the effect runs on, which is the clock every time
+  // expression and every runtime command on that branch is read against.
+  private fun branchSeconds(
+    time: Duration,
+    span: TimeRange,
+  ): String = (time - span.start).toDouble(DurationUnit.SECONDS).toString()
 }
+
+// The token the instance names are written with while the commands are being built, since the name
+// itself is a digest of what they say. It is replaced once, on the way into the file.
+private const val INSTANCE_SLOT = "@fs?"
+
+// Six decimals. A frame time on any rate this backend writes stops moving well before that, and it
+// is what a command's own value is written to as well, so one format serves both.
+private const val COMMAND_FORMAT = "%.6f"
+
+// colorchannelmixer's documented coefficient range, which is this filter's own limit.
+private const val MIXER_FLOOR = -2f
+private const val MIXER_CEILING = 2f
+
+// A millionth of a frame, so a run boundary already sitting on the grid is not read as the frame
+// after it by the last bit of the division.
+private const val GRID_TOLERANCE = 1e-6
+
+// The image in an ImageIO stream, which is the only one a still carries.
+private const val FIRST_IMAGE = 0
+
+// What Scratch strips from a URI before handing the path to ffmpeg, so a header read here opens the
+// same file the graph does.
+private const val FILE_SCHEME = "file://"
+
+private const val ANIMATION_NO_GRID =
+  "An animated overlay is sampled once per output frame, and this composition resolved no frame " +
+    "rate to sample it onto. Give the export a frame rate, or drop the animation to draw the " +
+    "overlay still."
+
+private const val ANIMATION_NO_RUN =
+  "An animated overlay is sampled across the run it is drawn over, and this composition names no " +
+    "end for that run. Give the export a duration, or drop the animation to draw the overlay still."
+
+private const val UNREADABLE_IMAGE =
+  "The overlay image could not be read. An animated overlay is sized against the picture's own " +
+    "pixels, so this backend reads its header. Check that the path or URL is readable by this " +
+    "process, and that the bytes are PNG, JPEG or another format the JDK decodes."
 
 // The only depth this backend writes HDR at, so the lut runs on planar RGB of the same depth
 // rather than on whatever the auto-negotiated conversion would have picked.

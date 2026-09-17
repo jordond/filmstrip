@@ -156,10 +156,62 @@ class PlannerTest {
 
     val invocation = planner().lower(composition, ExportSpec(), device(), infos).invocation!!
 
-    invocation.filterGraph shouldContain "overlay=x=43:y=43:format=auto:eof_action=pass"
+    // A chain's input labels link to its first filter, so the clip's own trim sits on a pad of its
+    // own and the merge reads that pad. Written in one chain the graph is refused outright.
+    invocation.filterGraph shouldContain "[v0m0pre][v0m0a0]overlay=x=43:y=43:format=auto:eof_action=pass"
     // The image claims an input after both clips, so the graph reads it at index 2.
     invocation.filterGraph shouldContain "[2:v]scale=w=384:h=-1,format=pix_fmts=rgba"
     invocation.inputs.size shouldBe 3
+  }
+
+  // An image input carries one frame at t = 0, so the branch ends on it and overlay hands every
+  // frame after the first on undrawn. The branch is looped over the clip the overlay is drawn on,
+  // a frame longer than the clip so a length that does not divide the frame interval cannot land
+  // short.
+  @Test
+  fun `loops the overlay image across the clip it is drawn on`() {
+    val mark = ImageOverlay(ImageSource.of("/logo.png"), Corner.TopStart)
+    val composition =
+      EditComposition(listOf(Track(listOf(Clip(landscape, effects = listOf(mark)), Clip(portrait)))))
+
+    val invocation = planner().lower(composition, ExportSpec(), device(), infos).invocation!!
+
+    val image = invocation.inputs[2]
+    image.loopFrameRate shouldBe 30f
+    image.durationSeconds shouldBe 4.0 + 1.0 / 30f
+  }
+
+  // The span the planner hands a clip effect is that clip's slot on the composition, and the branch
+  // it lowers onto counts from its own start, so the window has to be moved onto that clock. The
+  // second clip here occupies four to seven seconds, and a window over five to six is its own one
+  // to two.
+  @Test
+  fun `writes a clip's window against the clip's own clock`() {
+    val mark =
+      ImageOverlay(
+        image = ImageSource.of("/logo.png"),
+        corner = Corner.TopStart,
+        visibleDuring = TimeRange.of(5_000.milliseconds, 6_000.milliseconds),
+      )
+    val composition =
+      EditComposition(listOf(Track(listOf(Clip(landscape), Clip(portrait, effects = listOf(mark))))))
+
+    val graph = planner().lower(composition, ExportSpec(), device(), infos).invocation!!.filterGraph
+
+    graph shouldContain """enable=between(t\,1.0\,2.0)"""
+  }
+
+  // A composition overlay merges onto the joined timeline, so its branch has to cover both clips
+  // rather than the first one.
+  @Test
+  fun `loops a composition overlay across the whole composition`() {
+    val mark = ImageOverlay(ImageSource.of("/logo.png"), Corner.TopStart)
+    val composition =
+      EditComposition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))), effects = listOf(mark))
+
+    val invocation = planner().lower(composition, ExportSpec(), device(), infos).invocation!!
+
+    invocation.inputs.last().durationSeconds shouldBe 7.0 + 1.0 / 30f
   }
 
   // Nothing here encodes HDR, so an untouched grade written into an 8-bit file is the washed-out

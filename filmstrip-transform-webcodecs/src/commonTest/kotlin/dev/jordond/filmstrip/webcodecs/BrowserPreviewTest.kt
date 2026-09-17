@@ -29,6 +29,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -57,6 +58,25 @@ class BrowserPreviewTest {
           val expected = ramp(index).graded(Brightness(BRIGHT))
           assertTrue(drawn.isNear(expected), "frame $index drew $drawn where the export writes $expected")
         }
+      } finally {
+        preview.release()
+      }
+    }
+
+  // A pass whose uniforms vary with time reads the slot's composition time at the draw, so the draw
+  // has to be told where the slot sits rather than deriving it again. The gap and the clip are both
+  // read, since they reach the compositor through different entry points.
+  @Test
+  fun everyDrawnSlotTellsTheCompositorWhereItSits() =
+    runTest {
+      val preview = previewOf(lateComposition(Fill.Black))
+
+      try {
+        val filled = assertNotNull(preview.frameAt(frameTime(GAP_PROBE)), "no preview frame in the gap")
+        assertEquals(filled.presentationTime, preview.drawnAtUs?.microseconds)
+
+        val drawn = assertNotNull(preview.frameAt(frameTime(LATE_SLOTS + CLIP_PROBE)), "no preview frame in the clip")
+        assertEquals(drawn.presentationTime, preview.drawnAtUs?.microseconds)
       } finally {
         preview.release()
       }

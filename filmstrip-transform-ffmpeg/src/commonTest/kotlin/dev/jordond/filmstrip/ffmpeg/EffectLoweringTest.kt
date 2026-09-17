@@ -27,7 +27,13 @@ import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
+import dev.jordond.filmstrip.effects.overlay.OverlayFrame
+import dev.jordond.filmstrip.effects.overlay.OverlayOffset
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
+import dev.jordond.filmstrip.effects.overlay.fadeIn
+import dev.jordond.filmstrip.effects.overlay.frameAt
+import dev.jordond.filmstrip.effects.overlay.slideIn
 import dev.jordond.filmstrip.ffmpeg.internal.render
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
@@ -44,12 +50,25 @@ import dev.jordond.filmstrip.media.SDR_DISPLAY_GAMMA
 import dev.jordond.filmstrip.media.SDR_SIGNAL_TO_HLG_SCENE_GAMMA
 import dev.jordond.filmstrip.media.sdrSignalCeiling
 import io.kotest.matchers.shouldBe
+import java.awt.Color
+import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
 import java.util.Locale
+import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+
+// The output frame rate the lowering samples an animation onto, matching what attributes() carries.
+private const val RATE = 30.0
+
+// The overlay pictures the animated lowerings are measured against.
+private val SQUARE = Size(64, 64)
+private val WIDE = Size(200, 50)
 
 // The platform object is data here, so the whole catalogue is assertable with no ffmpeg installed.
 @OptIn(ExperimentalFilmstripApi::class)
@@ -113,6 +132,238 @@ class EffectLoweringTest {
       .chain
       .render() shouldBe "scale=w=128:h=-1,format=pix_fmts=rgba,colorchannelmixer=aa=0.8"
     fragment.merge!!.render() shouldBe "overlay=x=W-w-14:y=H-h-14:format=auto:eof_action=pass"
+  }
+
+  // A clip's branch opens with setpts=PTS-STARTPTS, so t on it counts from the clip's own start.
+  // A window written in composition time gates a clip occupying 2 to 6 seconds over the wrong two
+  // of them.
+  @Test
+  fun `counts a clip's window from the clip rather than the composition`() {
+    val spec =
+      ImageOverlay(
+        image = ImageSource.of("logo.png"),
+        corner = Corner.TopStart,
+        visibleDuring = TimeRange.of(3.seconds, 4.seconds),
+      )
+    val onSecondClip = attributes(Size(640, 360), span = TimeRange.of(2.seconds, 6.seconds))
+
+    val merge = fragmentOf(spec, onSecondClip).merge!!.render()
+
+    merge.substringAfter("enable=") shouldBe """between(t\,1.0\,2.0)"""
+  }
+
+  // A composition effect's span opens at zero, so the window it lowers to is unchanged.
+  @Test
+  fun `leaves a composition window where it was written`() {
+    val spec =
+      ImageOverlay(
+        image = ImageSource.of("logo.png"),
+        corner = Corner.TopStart,
+        visibleDuring = TimeRange.of(1.seconds, 2.seconds),
+      )
+    val wholeComposition = attributes(Size(640, 360), span = TimeRange.of(Duration.ZERO, 6.seconds))
+
+    val merge = fragmentOf(spec, wholeComposition).merge!!.render()
+
+    merge.substringAfter("enable=") shouldBe """between(t\,1.0\,2.0)"""
+  }
+
+  // The window is taken from the shared run rather than read off the spec, so a window reaching
+  // past the span is cut where the branch ends rather than gating past it.
+  @Test
+  fun `clips a window that outlasts the span`() {
+    val spec =
+      ImageOverlay(
+        image = ImageSource.of("logo.png"),
+        corner = Corner.TopStart,
+        visibleDuring = TimeRange.of(1.seconds, 9.seconds),
+      )
+    val wholeComposition = attributes(Size(640, 360), span = TimeRange.of(Duration.ZERO, 6.seconds))
+
+    val merge = fragmentOf(spec, wholeComposition).merge!!.render()
+
+    merge.substringAfter("enable=") shouldBe """between(t\,1.0\,6.0)"""
+  }
+
+  // One interval per output frame of the run, starting at exactly that frame's own branch-local
+  // time, because a command written there lands on that frame and one written half a frame late
+  // lands on the next.
+  @Test
+  fun `samples an animated overlay onto the output frame grid`() {
+    val spec = ImageOverlay(overlayImage(SQUARE), Corner.TopStart, animation = fadeIn(1.seconds))
+    val attributes = attributes(Size(640, 360))
+
+    val lines = commandsOf(spec, attributes)
+
+    lines.size shouldBe 30
+    assertTrue(lines.first().startsWith("0.000000-0.033333 "), lines.first())
+    assertTrue(lines.last().startsWith("0.966667-1.000000 "), lines.last())
+    // The first frame sets everything the commands drive and the rest only the alpha, since nothing
+    // else moves under a fade.
+    lines.first().count { it == ',' } shouldBe 4
+    lines[1].count { it == ',' } shouldBe 0
+  }
+
+  // The values are the shared sampler's, which has already folded the authored opacity into them,
+  // so the node the commands drive opens at one rather than at what was authored.
+  @Test
+  fun `writes the alpha the shared sampler answers`() {
+    val fade = fadeIn(1.seconds)
+    val spec = ImageOverlay(overlayImage(SQUARE), Corner.TopStart, opacity = 0.5f, animation = fade)
+    val attributes = attributes(Size(640, 360))
+
+    val fragment = fragmentOf(spec, attributes)
+
+    val instance = instanceOf(fragment)
+    assertTrue(
+      fragment.auxInputs
+        .single()
+        .chain
+        .render()
+        .contains("colorchannelmixer$instance=aa=1"),
+    )
+    valuesOf(commandsOf(spec, attributes), "aa").forEachIndexed { index, written ->
+      val sampled = assertNotNull(spec.frameAt((index / RATE).seconds, attributes.span)).opacity
+      written shouldBe String.format(Locale.ROOT, "%.6f", sampled)
+    }
+  }
+
+  // The sendcmd node heads the aux chain, ahead of the scale it drives, and the three filters the
+  // commands reach carry an instance name of their own so a second overlay's commands cannot
+  // reach them.
+  @Test
+  fun `names the filters an animated overlay's commands drive`() {
+    val spec = ImageOverlay(overlayImage(SQUARE), Corner.TopStart, animation = fadeIn(1.seconds))
+
+    val fragment = fragmentOf(spec, attributes(Size(640, 360)))
+
+    val instance = instanceOf(fragment)
+    val placeholder = fragment.sidecars.single().placeholder
+    fragment.auxInputs
+      .single()
+      .chain
+      .render() shouldBe
+      "sendcmd=f=$placeholder,scale$instance=w=128:h=-1,format=pix_fmts=rgba," +
+      "colorchannelmixer$instance=aa=1,scale=w=iw:h=ih:eval=frame"
+    fragment.merge!!.name shouldBe "overlay$instance"
+  }
+
+  // colorchannelmixer takes its coefficients in -2..2, its own documented limit, and the shared
+  // sampler holds an opacity in 0f..1f, so nothing an animation answers reaches the graph outside
+  // the filter's range.
+  @Test
+  fun `writes every alpha inside colorchannelmixer's range`() {
+    val wild = OverlayAnimation { time -> OverlayFrame(opacity = if (time.elapsed < 500.milliseconds) -8f else 8f) }
+    val spec = ImageOverlay(overlayImage(SQUARE), Corner.TopStart, animation = wild)
+
+    val alphas = valuesOf(commandsOf(spec, attributes(Size(640, 360))), "aa").map { it.toFloat() }
+
+    alphas.forEach { assertTrue(it in -2f..2f, "an alpha of $it reached the graph") }
+    alphas.min() shouldBe 0f
+    alphas.max() shouldBe 1f
+  }
+
+  // scale refuses a zero dimension, and the shared placement holds each side at a pixel. Both
+  // sides are commanded, so the shorter one of a picture that is not square cannot round to nothing
+  // while the longer one still has pixels left.
+  @Test
+  fun `holds both sides of a shrinking overlay at a pixel`() {
+    val vanish = OverlayAnimation { time -> OverlayFrame(scale = 1f - (time.elapsed / 500.milliseconds).toFloat()) }
+    val spec = ImageOverlay(overlayImage(WIDE), Corner.TopStart, animation = vanish)
+    val lines = commandsOf(spec, attributes(Size(640, 360)))
+
+    val widths = valuesOf(lines, "w").map { it.toInt() }
+    val heights = valuesOf(lines, "h").map { it.toInt() }
+    widths.min() shouldBe 1
+    heights.min() shouldBe 1
+    // The picture is four times as wide as it is tall, so the height is the side that reaches the
+    // floor first and the one an aspect-derived height would have rounded away.
+    heights.max() shouldBe widths.max() / 4
+  }
+
+  // The position comes out of the shared placement: the offset moves the frame anchor, and the
+  // point inside the overlay that a bottom trailing corner holds is its own far corner, so both
+  // sides of the drawn size come off the anchor.
+  @Test
+  fun `writes a bottom corner off the drawn size`() {
+    val slide = slideIn(OverlayOffset(0.25f, 0f), 1.seconds)
+    val spec = ImageOverlay(overlayImage(SQUARE), Corner.BottomEnd, animation = slide)
+
+    val opening = commandsOf(spec, attributes(Size(640, 360))).first()
+
+    // 640 less a 14 pixel margin is 626, plus a quarter of the frame is 786, less the 128 the
+    // overlay is drawn at. The vertical anchor is 346 less the same 128.
+    assertTrue(opening.contains(" x 658"), opening)
+    assertTrue(opening.contains(" y 218"), opening)
+  }
+
+  // The image is measured, not guessed, so a picture this process cannot open is refused by name
+  // rather than lowered against a size that was never read.
+  @Test
+  fun `refuses an animated overlay it cannot measure`() {
+    val spec = ImageOverlay(ImageSource.of("/no/such/logo.png"), Corner.TopStart, animation = fadeIn(1.seconds))
+
+    val resolution = resolver.resolve(spec, capabilities(), attributes(Size(640, 360)))
+
+    assertIs<EffectResolution.Unsupported>(resolution)
+    assertTrue(resolution.message.contains("header"), resolution.message)
+  }
+
+  // An unmeasurable image is only the animated path's problem. A still overlay hands the file
+  // straight to ffmpeg, which reads formats the JDK does not.
+  @Test
+  fun `lowers a still overlay it cannot measure`() {
+    val spec = ImageOverlay(ImageSource.of("/no/such/logo.png"), Corner.TopStart)
+
+    assertIs<EffectResolution.Resolved>(resolver.resolve(spec, capabilities(), attributes(Size(640, 360))))
+  }
+
+  // The animation is sampled onto the output frame grid, so a composition that resolved no rate has
+  // nothing to sample it onto and says so rather than drawing the overlay still.
+  @Test
+  fun `refuses an animated overlay with no frame rate`() {
+    val spec = ImageOverlay(overlayImage(SQUARE), Corner.TopStart, animation = fadeIn(1.seconds))
+
+    val resolution = resolver.resolve(spec, capabilities(), attributes(Size(640, 360), frameRate = null))
+
+    assertIs<EffectResolution.Unsupported>(resolution)
+    assertTrue(resolution.message.contains("frame rate"), resolution.message)
+  }
+
+  // An open-ended window used to skip the gate altogether, which drew the overlay from the branch's
+  // first frame. The run closes it against the span, and that is what the gate carries.
+  @Test
+  fun `gates an open-ended window on the run`() {
+    val spec =
+      ImageOverlay(
+        image = ImageSource.of("logo.png"),
+        corner = Corner.TopStart,
+        visibleDuring = TimeRange.from(1.seconds),
+      )
+    val wholeComposition = attributes(Size(640, 360), span = TimeRange.of(Duration.ZERO, 6.seconds))
+
+    val merge = fragmentOf(spec, wholeComposition).merge!!.render()
+
+    merge.substringAfter("enable=") shouldBe """between(t\,1.0\,6.0)"""
+  }
+
+  // A window outside the span draws nothing, and an animation over it has nothing to drive. It is
+  // not a refusal: the same overlay without the animation lowers the same way.
+  @Test
+  fun `drives nothing when the window falls outside the span`() {
+    val spec =
+      ImageOverlay(
+        image = overlayImage(SQUARE),
+        corner = Corner.TopStart,
+        visibleDuring = TimeRange.of(10.seconds, 12.seconds),
+        animation = fadeIn(1.seconds),
+      )
+
+    val fragment = fragmentOf(spec, attributes(Size(640, 360), span = TimeRange.of(Duration.ZERO, 6.seconds)))
+
+    fragment.sidecars shouldBe emptyList()
+    fragment.merge!!.name shouldBe "overlay"
+    fragment.merge!!.render().substringAfter("enable=") shouldBe """between(t\,6.0\,6.0)"""
   }
 
   @Test
@@ -474,6 +725,43 @@ class EffectLoweringTest {
     return resolution.effect.fragment
   }
 
+  // The animated lowering reads the overlay image's header, since the drawn size is the picture's
+  // own scaled by the animation, so a test hands it real bytes rather than a path nothing opens.
+  private fun overlayImage(size: Size): ImageSource {
+    val image = BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_ARGB)
+    val graphics = image.createGraphics()
+    graphics.color = Color.WHITE
+    graphics.fillRect(0, 0, size.width, size.height)
+    graphics.dispose()
+
+    return ImageSource.ofBytes(ByteArrayOutputStream().also { ImageIO.write(image, "png", it) }.toByteArray())
+  }
+
+  private fun commandsOf(
+    spec: ImageOverlay,
+    attributes: Attributes,
+  ): List<String> =
+    fragmentOf(spec, attributes)
+      .sidecars
+      .single()
+      .bytes
+      .decodeToString()
+      .trim()
+      .lines()
+
+  // The instance name is a digest of the commands, so a test reads it off the graph rather than
+  // spelling it out.
+  private fun instanceOf(fragment: FilterFragment): String = fragment.merge!!.name.substringAfter("overlay")
+
+  // What one option was set to on each interval that set it, in the order they are written.
+  private fun valuesOf(
+    lines: List<String>,
+    option: String,
+  ): List<String> =
+    lines.flatMap { line ->
+      Regex("""@fs\w+ $option (\S+?)[,;]""").findAll(line).map { it.groupValues[1] }.toList()
+    }
+
   private fun chainOf(
     spec: EffectSpec,
     attributes: Attributes = attributes(),
@@ -488,6 +776,8 @@ class EffectLoweringTest {
     inputSize: Size = Size(1920, 1080),
     outputSize: Size = inputSize,
     hdrTransfer: HdrTransfer? = null,
+    span: TimeRange = TimeRange.of(Duration.ZERO, 1.seconds),
+    frameRate: Float? = RATE.toFloat(),
   ): Attributes =
     Attributes(
       inputSize = inputSize,
@@ -495,8 +785,8 @@ class EffectLoweringTest {
       layoutSize = inputSize,
       colorSpace = if (hdrTransfer == null) ColorSpace.Bt709 else ColorSpace.Bt2020,
       hdrTransfer = hdrTransfer,
-      frameRate = 30f,
-      span = TimeRange.of(Duration.ZERO, 1.seconds),
+      frameRate = frameRate,
+      span = span,
     )
 
   private fun capabilities(

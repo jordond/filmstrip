@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayEffect
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
+import dev.jordond.filmstrip.effects.overlay.fadeIn
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
@@ -26,6 +27,9 @@ import kotlinx.serialization.PolymorphicSerializer
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
+import kotlin.time.Duration.Companion.seconds
 
 // Reading builtInEffectSerializers at all is half the test. Without the serialization plugin on
 // this module the property throws while it initialises.
@@ -68,6 +72,29 @@ class BuiltInEffectSerializersTest {
     overlays.forEach { overlay ->
       val encoded = json.encodeToString(PolymorphicSerializer(OverlayEffect::class), overlay)
       assertEquals(overlay, json.decodeFromString(PolymorphicSerializer(OverlayEffect::class), encoded))
+    }
+  }
+
+  @Test
+  fun dropsAnOverlayAnimationOnTheWayThroughJson() {
+    val animated: List<OverlayEffect> =
+      listOf(
+        ImageOverlay(ImageSource.of("/logo.png"), Corner.BottomEnd, animation = fadeIn(1.seconds)),
+        TextOverlay("caption", animation = fadeIn(1.seconds)),
+      )
+    val plain: List<OverlayEffect> =
+      listOf(
+        ImageOverlay(ImageSource.of("/logo.png"), Corner.BottomEnd),
+        TextOverlay("caption"),
+      )
+
+    animated.zip(plain).forEach { (overlay, withoutAnimation) ->
+      val encoded = json.encodeToString(PolymorphicSerializer(OverlayEffect::class), overlay)
+      val decoded = json.decodeFromString(PolymorphicSerializer(OverlayEffect::class), encoded)
+
+      assertNull(decoded.animation)
+      assertEquals(withoutAnimation, decoded)
+      assertNotEquals(overlay, decoded)
     }
   }
 }

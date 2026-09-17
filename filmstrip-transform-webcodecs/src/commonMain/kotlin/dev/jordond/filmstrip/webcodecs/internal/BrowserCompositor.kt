@@ -75,6 +75,16 @@ internal class BrowserCompositor private constructor(
   private var current: RenderedClip? = null
 
   /**
+   * Where the slot being drawn sits on the output timeline, in microseconds.
+   *
+   * [draw] and [drawFill] set it as they open, so it means something only inside the draw that set
+   * it. A pass whose uniforms vary with time reads it there, never from [snapshot] or [present],
+   * which run once the draw is over.
+   */
+  var compositionUs: Double = 0.0
+    private set
+
+  /**
    * Sets the state one clip draws with. Everything here is constant for the length of a clip.
    *
    * The clip itself is kept around, not just its uniforms, because [draw] needs its cover geometry
@@ -105,8 +115,16 @@ internal class BrowserCompositor private constructor(
    *
    * Suspends only on a grade, where the frame's planes are copied out of the decoder before
    * anything can be uploaded.
+   *
+   * @param compositionUs Where this slot sits on the output timeline. Everything [clip] sets holds
+   *   for the length of a clip, so this is where a pass that varies with time uploads its per-frame
+   *   uniforms.
    */
-  suspend fun draw(frame: VideoSample) {
+  suspend fun draw(
+    frame: VideoSample,
+    compositionUs: Double,
+  ) {
+    this.compositionUs = compositionUs
     val clip = checkNotNull(current) { "clip() must run before draw()" }
     val source = if (hdr != null) unpack(hdr, frame) else uploadImage(frame)
     val target = hdr?.outputFbo
@@ -135,8 +153,12 @@ internal class BrowserCompositor private constructor(
    * A blurred fill has no frame to blur there, so its background passes are skipped and the slot
    * keeps the plain clear colour. [snapshot] and [present] read the result like any drawn frame,
    * so a kept grade still packs the fill into ten-bit codes.
+   *
+   * @param compositionUs Where this slot sits on the output timeline, the same value [draw] takes,
+   *   so a gap slot carries the clock a drawn one does.
    */
-  fun drawFill() {
+  fun drawFill(compositionUs: Double) {
+    this.compositionUs = compositionUs
     gl.bindFramebuffer(GL_FRAMEBUFFER, hdr?.outputFbo)
     gl.clear(GL_COLOR_BUFFER_BIT)
   }

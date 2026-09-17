@@ -134,8 +134,8 @@ private const val RESIZING_PENDING =
 
 private const val PAN_PENDING =
   "A pan moves the region it shows on every frame, and a pass here carries one texture matrix " +
-    "settled at resolve. The per-frame form has not landed yet."
+    "settled at resolve. A pass that moves it per frame has not landed on this backend yet."
 
 private const val OVERLAYS_PENDING =
-  "Overlay effects rasterise text and images into the frame, which needs a canvas the resolver " +
-    "does not have. Their browser lowering has not landed yet."
+  "Overlay effects rasterise text and images into the frame, which needs a compositing pass this " +
+    "backend does not have yet."

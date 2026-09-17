@@ -599,11 +599,21 @@ public final class dev/jordond/filmstrip/effect/Attributes {
 }
 
 public final class dev/jordond/filmstrip/effect/AuxInput {
-	public fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ljava/util/List;)V
-	public synthetic fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ljava/util/List;Ldev/jordond/filmstrip/effect/AuxTimeline;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ljava/util/List;Ldev/jordond/filmstrip/effect/AuxTimeline;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getChain ()Ljava/util/List;
 	public final fun getImage ()Ldev/jordond/filmstrip/media/ImageSource;
+	public final fun getTimeline ()Ldev/jordond/filmstrip/effect/AuxTimeline;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effect/AuxTimeline {
+	public synthetic fun <init> (FJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDuration-UwyO8pc ()J
+	public final fun getFrameRate ()F
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }

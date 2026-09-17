@@ -115,6 +115,12 @@ public class BrowserPreview internal constructor(
   internal val openedFrames: Int get() = window.opened
 
   /**
+   * Where the slot drawn last sits on the output timeline, in microseconds, or null while the
+   * preview holds no compositor.
+   */
+  internal val drawnAtUs: Double? get() = compositor?.compositionUs
+
+  /**
    * Draws the frame at [position] and reads it back, or null when the composition has none there.
    *
    * The position is snapped to the output frame grid first, so the decoded frame chosen is the one
@@ -318,9 +324,10 @@ public class BrowserPreview internal constructor(
     sample: VideoSample,
   ): PreviewFrame {
     val pass = compositor()
+    val outputUs = slot.outputUs
     pass.clip(slot.clip)
-    pass.draw(sample)
-    return readBack(pass, slot.outputUs)
+    pass.draw(sample, outputUs)
+    return readBack(pass, outputUs)
   }
 
   /**
@@ -328,7 +335,7 @@ public class BrowserPreview internal constructor(
    */
   private suspend fun fillFrame(outputUs: Double): PreviewFrame {
     val pass = compositor()
-    pass.drawFill()
+    pass.drawFill(outputUs)
     return readBack(pass, outputUs)
   }
 

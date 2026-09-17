@@ -149,9 +149,12 @@ public class NormalizedRect(
 }
 
 /**
- * A point in `0f..1f` of the frame, origin top-left, with constants for the nine common positions.
+ * A point on the frame as a fraction of it, origin top-left, with constants for the nine common
+ * positions.
  *
- * An anchor names a spot in the output frame, after every geometry effect has run.
+ * An anchor names a spot in the output frame, after every geometry effect has run. A value outside
+ * `0f..1f` names a spot off the frame, which is what an overlay animated past an edge is brought
+ * to, and the part that leaves the frame is not drawn.
  *
  * @property x Horizontal position as a fraction of the frame width.
  * @property y Vertical position as a fraction of the frame height.

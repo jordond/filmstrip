@@ -502,9 +502,10 @@ public final class dev/jordond/filmstrip/effects/overlay/ImageOverlay : dev/jord
 	public static final field Companion Ldev/jordond/filmstrip/effects/overlay/ImageOverlay$Companion;
 	public static final field DEFAULT_MARGIN F
 	public static final field DEFAULT_SCALE F
-	public fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;FFFLdev/jordond/filmstrip/edit/TimeRange;)V
-	public synthetic fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;FFFLdev/jordond/filmstrip/edit/TimeRange;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;FFFLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;FFFLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
+	public fun getAnimation ()Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
 	public final fun getCorner ()Ldev/jordond/filmstrip/geometry/Corner;
 	public fun getId ()Ljava/lang/String;
 	public final fun getImage ()Ldev/jordond/filmstrip/media/ImageSource;
@@ -534,19 +535,65 @@ public final class dev/jordond/filmstrip/effects/overlay/ImageOverlay$Companion 
 }
 
 public final class dev/jordond/filmstrip/effects/overlay/ImageOverlayKt {
-	public static final fun imageOverlay (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;FFFLdev/jordond/filmstrip/edit/TimeRange;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static synthetic fun imageOverlay$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;FFFLdev/jordond/filmstrip/edit/TimeRange;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static final fun imageOverlay (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;FFFLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun imageOverlay$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ldev/jordond/filmstrip/media/ImageSource;Ldev/jordond/filmstrip/geometry/Corner;FFFLdev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 	public static final fun placedOn (Ldev/jordond/filmstrip/effects/overlay/ImageOverlay;Ldev/jordond/filmstrip/geometry/Size;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/effects/overlay/OverlayPlacement;
 }
 
+public abstract interface class dev/jordond/filmstrip/effects/overlay/OverlayAnimation {
+	public abstract fun frameAt (Ldev/jordond/filmstrip/effects/overlay/OverlayTime;)Ldev/jordond/filmstrip/effects/overlay/OverlayFrame;
+}
+
+public final class dev/jordond/filmstrip/effects/overlay/OverlayAnimationKt {
+	public static final fun fade-QTBD994 (JJ)Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
+	public static final fun fadeIn-LRDsOJo (J)Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
+	public static final fun fadeOut-LRDsOJo (J)Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
+	public static final fun plus (Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;)Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
+	public static final fun slideIn-HG0u8IE (Ldev/jordond/filmstrip/effects/overlay/OverlayOffset;J)Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
+	public static final fun slideOut-HG0u8IE (Ldev/jordond/filmstrip/effects/overlay/OverlayOffset;J)Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
+}
+
 public abstract interface class dev/jordond/filmstrip/effects/overlay/OverlayEffect : dev/jordond/filmstrip/effect/EffectSpec {
+	public fun getAnimation ()Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
 	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
 	public abstract fun getVisibleDuring ()Ldev/jordond/filmstrip/edit/TimeRange;
 }
 
 public final class dev/jordond/filmstrip/effects/overlay/OverlayEffect$DefaultImpls {
+	public static fun getAnimation (Ldev/jordond/filmstrip/effects/overlay/OverlayEffect;)Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
 	public static fun getScope (Ldev/jordond/filmstrip/effects/overlay/OverlayEffect;)Ldev/jordond/filmstrip/effect/EffectScope;
 	public static fun getStage (Ldev/jordond/filmstrip/effects/overlay/OverlayEffect;)Ldev/jordond/filmstrip/effect/EffectStage;
+}
+
+public final class dev/jordond/filmstrip/effects/overlay/OverlayFrame {
+	public static final field Companion Ldev/jordond/filmstrip/effects/overlay/OverlayFrame$Companion;
+	public fun <init> ()V
+	public fun <init> (FLdev/jordond/filmstrip/effects/overlay/OverlayOffset;F)V
+	public synthetic fun <init> (FLdev/jordond/filmstrip/effects/overlay/OverlayOffset;FILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getOffset ()Ldev/jordond/filmstrip/effects/overlay/OverlayOffset;
+	public final fun getOpacity ()F
+	public final fun getScale ()F
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/overlay/OverlayFrame$Companion {
+	public final fun getIdentity ()Ldev/jordond/filmstrip/effects/overlay/OverlayFrame;
+}
+
+public final class dev/jordond/filmstrip/effects/overlay/OverlayOffset {
+	public static final field Companion Ldev/jordond/filmstrip/effects/overlay/OverlayOffset$Companion;
+	public fun <init> (FF)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getX ()F
+	public final fun getY ()F
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/overlay/OverlayOffset$Companion {
+	public final fun getZero ()Ldev/jordond/filmstrip/effects/overlay/OverlayOffset;
 }
 
 public final class dev/jordond/filmstrip/effects/overlay/OverlayPlacement {
@@ -563,12 +610,23 @@ public final class dev/jordond/filmstrip/effects/overlay/OverlayPlacementKt {
 	public static final fun rectOn (Ldev/jordond/filmstrip/effects/overlay/OverlayPlacement;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/geometry/NormalizedRect;
 }
 
+public final class dev/jordond/filmstrip/effects/overlay/OverlayTime {
+	public synthetic fun <init> (JJJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getComposition-UwyO8pc ()J
+	public final fun getElapsed-UwyO8pc ()J
+	public final fun getRemaining-UwyO8pc ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class dev/jordond/filmstrip/effects/overlay/TextOverlay : dev/jordond/filmstrip/effects/overlay/OverlayEffect {
 	public static final field Companion Ldev/jordond/filmstrip/effects/overlay/TextOverlay$Companion;
-	public fun <init> (Ljava/lang/String;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/edit/TimeRange;)V
-	public synthetic fun <init> (Ljava/lang/String;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/edit/TimeRange;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;)V
+	public synthetic fun <init> (Ljava/lang/String;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAnchor ()Ldev/jordond/filmstrip/geometry/Anchor;
+	public fun getAnimation ()Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
 	public fun getId ()Ljava/lang/String;
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
 	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
@@ -596,9 +654,9 @@ public final class dev/jordond/filmstrip/effects/overlay/TextOverlay$Companion {
 
 public final class dev/jordond/filmstrip/effects/overlay/TextOverlayKt {
 	public static final fun placedOn (Ldev/jordond/filmstrip/effects/overlay/TextOverlay;Ldev/jordond/filmstrip/geometry/Size;)Ldev/jordond/filmstrip/effects/overlay/OverlayPlacement;
-	public static final fun textOverlay (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/edit/TimeRange;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static final fun textOverlay (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Lkotlin/ranges/ClosedRange;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static synthetic fun textOverlay$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/edit/TimeRange;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
-	public static synthetic fun textOverlay$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Lkotlin/ranges/ClosedRange;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static final fun textOverlay (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static final fun textOverlay (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Lkotlin/ranges/ClosedRange;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun textOverlay$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun textOverlay$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;Ljava/lang/String;Lkotlin/ranges/ClosedRange;Ldev/jordond/filmstrip/style/TextStyle;Ldev/jordond/filmstrip/geometry/Anchor;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;ILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
 }
 

@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.ffmpeg
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.effect.AuxInput
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.PlatformEffect
@@ -24,6 +25,7 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
@@ -454,6 +456,52 @@ class GraphLoweringTest {
       )
 
     return GraphLowering(negotiated, toneMapRoute = null, hdrPixelFormat = null).build()
+  }
+
+  // A chain's input labels link to its first filter, so an effect bringing both a chain and a merge
+  // cannot have the chain written between the labels and the merge. ffmpeg refuses that graph
+  // outright, and nothing in the catalogue produces one today, so this builds the shape by hand.
+  @Test
+  fun `flushes a merging composition effect's chain onto its own pad`() {
+    val merging =
+      ResolvedEffect(
+        specId = "test.merging",
+        effect =
+          PlatformEffect(
+            FilterFragment(
+              chain = listOf(FilterNode("eq", "brightness" to "0.1")),
+              auxInputs = listOf(AuxInput(ImageSource.of("/logo.png"))),
+              merge = FilterNode("overlay", "x" to "0", "y" to "0"),
+            ),
+          ),
+      )
+
+    val graph = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(merging))
+
+    graph shouldContain "eq=brightness=0.1[vfx0pre]"
+    graph shouldContain "[vfx0pre][vfx0a0]overlay=x=0:y=0[vfx0]"
+  }
+
+  // An effect contributing nothing ahead of its merge reads the pad it was handed, which is every
+  // overlay in the catalogue and leaves the graph they have always written unchanged.
+  @Test
+  fun `leaves a merging effect with no chain reading the pad it was handed`() {
+    val overlay =
+      ResolvedEffect(
+        specId = "test.overlay",
+        effect =
+          PlatformEffect(
+            FilterFragment(
+              auxInputs = listOf(AuxInput(ImageSource.of("/logo.png"))),
+              merge = FilterNode("overlay", "x" to "0", "y" to "0"),
+            ),
+          ),
+      )
+
+    val graph = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(overlay))
+
+    graph shouldNotContain "vfx0pre"
+    graph shouldContain "[vfx0a0]overlay=x=0:y=0[vfx0]"
   }
 
   private fun compositionEffect(): ResolvedEffect =

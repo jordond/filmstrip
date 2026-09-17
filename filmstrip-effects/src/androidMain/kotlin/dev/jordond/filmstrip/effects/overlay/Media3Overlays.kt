@@ -1,9 +1,11 @@
 package dev.jordond.filmstrip.effects.overlay
 
+import androidx.media3.common.OverlaySettings
 import androidx.media3.effect.StaticOverlaySettings
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Size
+import android.util.Pair as AndroidPair
 import androidx.media3.effect.OverlayEffect as Media3OverlayEffect
 
 /**
@@ -36,35 +38,105 @@ public const val MAX_OVERLAYS_PER_EFFECT: Int = 15
 internal fun OverlayPlacement.toOverlaySettings(
   bitmap: Size,
   opacity: Float,
-): StaticOverlaySettings =
-  StaticOverlaySettings
-    .Builder()
-    .setOverlayFrameAnchor(overlayAnchor.ndcX(), overlayAnchor.ndcY())
-    .setBackgroundFrameAnchor(frameAnchor.ndcX(), frameAnchor.ndcY())
-    .setScale(size.width.ratioTo(bitmap.width), size.height.ratioTo(bitmap.height))
-    .setAlphaScale(opacity.coerceAtLeast(0f))
-    .setHdrLuminanceMultiplier(SDR_LUMINANCE)
-    .build()
+): StaticOverlaySettings = AnimatedOverlaySettings().update(this, bitmap, opacity).fixed()
 
 /**
- * The same settings with the overlay scaled out of sight, for the frames a timed overlay sits
+ * The same settings with the overlay's alpha taken to zero, for the frames a timed overlay sits
  * outside.
  *
- * `TextureOverlay` is asked for its settings once per frame, so switching between the two is the
- * supported way to time an overlay and costs nothing beyond the comparison.
+ * `OverlayShaderProgram.drawFrame` asks each overlay for its settings twice, once for the HDR
+ * luminance multiplier and once for the matrix and the alpha, so handing back a settings object
+ * that was already built is what keeps timing an overlay free.
  */
-internal fun StaticOverlaySettings.hidden(): StaticOverlaySettings =
+internal fun StaticOverlaySettings.hidden(): StaticOverlaySettings = fixed(alpha = 0f)
+
+/**
+ * One overlay's settings for the frame being drawn, rewritten in place each time it is asked for.
+ *
+ * `OverlayShaderProgram` reads the object inside `drawFrame` and keeps no reference to it, so a
+ * single instance the overlay updates and hands back serves a whole export. Each pair is replaced
+ * only when its numbers move, which leaves an overlay animating opacity alone allocating nothing
+ * per frame.
+ *
+ * Mutating it in place is safe because the instance belongs to one overlay on one GL thread, and
+ * both of `drawFrame`'s reads of a frame happen inside that one call, so nothing holds the values
+ * across the next frame's rewrite.
+ *
+ * Its HDR luminance multiplier is the one [toOverlaySettings] writes, since that lowering runs
+ * through [update] too, and the HDR branch reading the multiplier sees no difference between an
+ * animated overlay and a still one.
+ */
+internal class AnimatedOverlaySettings : OverlaySettings {
+  private var alpha: Float = OverlaySettings.DEFAULT_ALPHA_SCALE
+  private var overlay: AndroidPair<Float, Float> = OverlaySettings.DEFAULT_OVERLAY_FRAME_ANCHOR
+  private var background: AndroidPair<Float, Float> = OverlaySettings.DEFAULT_BACKGROUND_FRAME_ANCHOR
+  private var scale: AndroidPair<Float, Float> = OverlaySettings.DEFAULT_SCALE
+
+  override fun getAlphaScale(): Float = alpha
+
+  override fun getOverlayFrameAnchor(): AndroidPair<Float, Float> = overlay
+
+  override fun getBackgroundFrameAnchor(): AndroidPair<Float, Float> = background
+
+  override fun getScale(): AndroidPair<Float, Float> = scale
+
+  override fun getHdrLuminanceMultiplier(): Float = SDR_LUMINANCE
+
+  /**
+   * Rewrites these settings to draw [placement] at [opacity], and answers them.
+   *
+   * The one place a placement is turned into media3's numbers, which is why the settings built once
+   * at resolve come through here as well.
+   *
+   * @param placement Where the overlay lands on the frame being drawn.
+   * @param bitmap The rasterized overlay's pixel size.
+   * @param opacity Alpha applied to the whole overlay.
+   */
+  fun update(
+    placement: OverlayPlacement,
+    bitmap: Size,
+    opacity: Float,
+  ): OverlaySettings {
+    alpha = opacity.coerceAtLeast(0f)
+    overlay = overlay.movedTo(placement.overlayAnchor.ndcX(), placement.overlayAnchor.ndcY())
+    background = background.movedTo(placement.frameAnchor.ndcX(), placement.frameAnchor.ndcY())
+    scale =
+      scale.movedTo(
+        placement.size.width.ratioTo(bitmap.width),
+        placement.size.height.ratioTo(bitmap.height),
+      )
+    return this
+  }
+}
+
+// Copies what any settings answer into an immutable set, at [alpha] rather than their own when one
+// is named. The builder range-checks the anchors, which the numbers reaching it have already been
+// held inside.
+private fun OverlaySettings.fixed(alpha: Float = alphaScale): StaticOverlaySettings =
   StaticOverlaySettings
     .Builder()
     .setOverlayFrameAnchor(overlayFrameAnchor.first, overlayFrameAnchor.second)
     .setBackgroundFrameAnchor(backgroundFrameAnchor.first, backgroundFrameAnchor.second)
     .setScale(scale.first, scale.second)
-    .setAlphaScale(0f)
+    .setAlphaScale(alpha)
     .setHdrLuminanceMultiplier(hdrLuminanceMultiplier)
     .build()
 
-// Media3 range-checks both anchors and throws outside -1..1, so a margin wider than the frame is
-// held at the edge rather than allowed to reach the builder.
+// Both sides are unboxed before the comparison, or the boxing is the allocation the reuse was
+// meant to save.
+private fun AndroidPair<Float, Float>.movedTo(
+  x: Float,
+  y: Float,
+): AndroidPair<Float, Float> {
+  val heldX: Float = first
+  val heldY: Float = second
+  return if (heldX == x && heldY == y) this else AndroidPair(x, y)
+}
+
+// Media3 documents both anchors as @FloatRange(from = -1, to = 1) on StaticOverlaySettings.Builder,
+// and implementing OverlaySettings directly walks past that check rather than lifting the limit, so
+// an anchor an animation carried off the frame is held at the edge here. It is media3's limit and
+// no other backend's: the same slide keeps going on Apple and on ffmpeg.
 private fun Anchor.ndcX(): Float = (2f * x - 1f).coerceIn(-1f, 1f)
 
 private fun Anchor.ndcY(): Float = (1f - 2f * y).coerceIn(-1f, 1f)

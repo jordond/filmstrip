@@ -92,6 +92,69 @@ internal fun Bitmap.badgeSpan(fy: Float): Float {
 }
 
 /**
+ * Where the badge's middle sits across one full-width row, as a fraction of the width, or null when
+ * no sample on the row reads as the badge.
+ */
+internal fun Bitmap.badgeCentre(fy: Float): Float? {
+  var sum = 0f
+  var hits = 0
+  for (column in 0 until CENTRE_SAMPLES) {
+    val fx = (column + 0.5f) / CENTRE_SAMPLES
+    if (isBadgeAt(fx, fy)) {
+      sum += fx
+      hits++
+    }
+  }
+  return if (hits == 0) null else sum / hits
+}
+
+/**
+ * The alpha the badge was drawn with over [region], read off three exports of the same composition
+ * at the same timestamp.
+ *
+ * [plain] carries no overlay and [opaque] carries it at full opacity, so every channel here sits
+ * that alpha of the way from one to the other. Projecting the measured difference onto the full one
+ * lets all three channels vote and cancels whatever the test pattern was already drawing, which is
+ * the same reason [gainedOver] measures an increase rather than an absolute count.
+ */
+internal fun Bitmap.blendedOver(
+  plain: Bitmap,
+  opaque: Bitmap,
+  region: Region,
+): Float {
+  var numerator = 0.0
+  var denominator = 0.0
+
+  fun accumulate(
+    here: Int,
+    under: Int,
+    full: Int,
+  ) {
+    val reach = (full - under).toDouble()
+    numerator += (here - under) * reach
+    denominator += reach * reach
+  }
+
+  for (row in 0 until CELLS) {
+    for (column in 0 until CELLS) {
+      val x = region.left + (region.right - region.left) * (column + 0.5f) / CELLS
+      val y = region.top + (region.bottom - region.top) * (row + 0.5f) / CELLS
+      val here = averageAt(x, y)
+      val under = plain.averageAt(x, y)
+      val full = opaque.averageAt(x, y)
+      accumulate(here.first, under.first, full.first)
+      accumulate(here.second, under.second, full.second)
+      accumulate(here.third, under.third, full.third)
+    }
+  }
+
+  require(
+    denominator > BLEND_FLOOR,
+  ) { "an opaque badge barely moves this region, so no alpha can be read: $denominator" }
+  return (numerator / denominator).toFloat()
+}
+
+/**
  * Whether the badge covers ([fx], [fy]).
  *
  * Averaged over a patch, because a single pixel lands wherever chroma subsampling left it, and read
@@ -159,6 +222,13 @@ internal const val CHANNEL_SPAN = 140
 internal const val CELLS = 6
 internal const val PATCH = 4
 internal const val SPAN_SAMPLES = 40
+
+// Finer than a span reading, because a centroid is compared against a position rather than a width.
+internal const val CENTRE_SAMPLES = 80
+
+// Squared channel reach summed over every cell and channel. Below this the badge and whatever sits
+// under it are too close in colour for the ratio between them to mean anything.
+internal const val BLEND_FLOOR = 50_000.0
 private const val PNG_QUALITY = 100
 
 /**

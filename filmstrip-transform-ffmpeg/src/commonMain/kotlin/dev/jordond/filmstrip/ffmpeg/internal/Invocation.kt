@@ -18,11 +18,15 @@ import kotlin.time.Duration
  *   the start of the source.
  * @property startSeconds Where in the source the input opens. This is an input seek, so a stream
  *   copy opens on the sync sample at or before it rather than decoding its way to the cut.
+ * @property loopFrameRate The rate a still is repeated at, or null to read it once. It turns one
+ *   image into a stream, which is what keeps a filter on that branch running and stops the merge
+ *   downstream seeing the branch end.
  */
 internal class InputSpec(
   val source: InputSource,
   val durationSeconds: Double? = null,
   val startSeconds: Double? = null,
+  val loopFrameRate: Float? = null,
 )
 
 /**
@@ -132,6 +136,7 @@ internal fun Invocation.arguments(
         add("-f")
         add("lavfi")
       }
+      addAll(input.loopArguments())
       // Ahead of -i, which is the seek the demuxer performs. After -i it would decode every frame
       // up to the cut and throw them away, which is the whole cost a snapped trim exists to avoid.
       input.startSeconds?.let {
@@ -185,6 +190,16 @@ internal fun Invocation.arguments(
     addAll(config.extraArgs)
     add(outputPath)
   }
+
+/**
+ * The demuxer options that turn a still into a stream, or nothing for an input read once.
+ *
+ * Both go ahead of `-i`, beside the seek and the bound, because they configure the demuxer rather
+ * than the encoder. `-framerate` is the rate the repeated frames are stamped at, so a filter on the
+ * branch runs once per output frame and a command written for one lands on it.
+ */
+internal fun InputSpec.loopArguments(): List<String> =
+  loopFrameRate?.let { listOf("-loop", "1", "-framerate", it.toString()) }.orEmpty()
 
 private fun Invocation.videoArguments(): List<String> =
   buildList {

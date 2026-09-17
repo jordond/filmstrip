@@ -21,6 +21,16 @@ import dev.jordond.filmstrip.effects.color.transform
 import dev.jordond.filmstrip.effects.color.transformNits
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.geometry.rotate
+import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
+import dev.jordond.filmstrip.effects.overlay.OverlayFrame
+import dev.jordond.filmstrip.effects.overlay.OverlayOffset
+import dev.jordond.filmstrip.effects.overlay.animatedBy
+import dev.jordond.filmstrip.effects.overlay.fadeIn
+import dev.jordond.filmstrip.effects.overlay.frameAt
+import dev.jordond.filmstrip.effects.overlay.placedOn
+import dev.jordond.filmstrip.effects.overlay.rectOn
+import dev.jordond.filmstrip.effects.overlay.slideIn
 import dev.jordond.filmstrip.effects.overlay.textOverlay
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.AudioCodec
@@ -44,10 +54,13 @@ import dev.jordond.filmstrip.ffmpeg.internal.formatSeconds
 import dev.jordond.filmstrip.ffmpeg.internal.readablePath
 import dev.jordond.filmstrip.ffmpeg.internal.toneMapRoute
 import dev.jordond.filmstrip.geometry.AspectRatio
+import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
@@ -81,9 +94,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.awt.Color
+import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import javax.imageio.ImageIO
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -1843,6 +1860,245 @@ class FfmpegExportTest {
       incapable.withoutUnsupported!!.effectOrder.none { it.spec.id == EffectIds.TEXT_OVERLAY } shouldBe true
     }
 
+  // An image input carries one frame at t = 0, and a branch carrying one frame ends on it, at which
+  // point overlay's eof_action hands every later frame on undrawn. The reads are in the middle of
+  // the run and on its last frame, which is where that was visible and where an aux branch cut a
+  // frame short shows up.
+  @Test
+  fun `draws a watermark across the whole clip`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val bare = exportedWatermark("filmstrip-overlay-bare", null)
+      val marked = exportedWatermark("filmstrip-overlay-still", watermark())
+      val size = marked.plan.output.size
+      val probe = centreOf(watermark().placedOn(size, WATERMARK).rectOn(size), size)
+
+      listOf(Duration.ZERO, marked.plan.duration / 2, marked.plan.duration - FRAME).forEach { at ->
+        assertTrue(
+          drawnAt(bare, marked, probe, at),
+          "the watermark is missing at $at of ${marked.plan.duration}",
+        )
+      }
+
+      bare.file.delete()
+      marked.file.delete()
+    }
+
+  // A clip opens its chain with its own trim, and a chain's input labels link to its first filter,
+  // so a merge written behind one is refused with "More input link labels specified for filter
+  // 'trim' than it has inputs". Nothing caught that because every overlay test until now asserted
+  // on the graph text rather than running it.
+  @Test
+  fun `draws a watermark declared on a clip`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val bare = exportedWatermark("filmstrip-overlay-clip-bare", null, onClip = true)
+      val marked = exportedWatermark("filmstrip-overlay-clip", watermark(), onClip = true)
+      val size = marked.plan.output.size
+      val probe = centreOf(watermark().placedOn(size, WATERMARK).rectOn(size), size)
+
+      listOf(Duration.ZERO, marked.plan.duration / 2, marked.plan.duration - FRAME).forEach { at ->
+        assertTrue(drawnAt(bare, marked, probe, at), "the watermark is missing at $at of ${marked.plan.duration}")
+      }
+
+      bare.file.delete()
+      marked.file.delete()
+    }
+
+  // The window is authored in composition time and the clip's branch counts from its own start, so
+  // a window on the second of two clips is drawn a clip's length early unless the lowering moves it.
+  @Test
+  fun `shows a clip's window where the composition asked for it`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val windowed = watermark().let { mark -> ImageOverlay(mark.image, mark.corner, visibleDuring = WINDOW) }
+      val bare = exportedWatermark("filmstrip-overlay-window-bare", null, clips = 2, onClip = true)
+      val marked = exportedWatermark("filmstrip-overlay-window", windowed, clips = 2, onClip = true)
+      val size = marked.plan.output.size
+      val probe = centreOf(windowed.placedOn(size, WATERMARK).rectOn(size), size)
+
+      marked.plan.duration shouldBe 4.seconds
+      assertTrue(drawnAt(bare, marked, probe, INSIDE_WINDOW), "the watermark is missing inside its window")
+      OUTSIDE_WINDOW.forEach { at ->
+        assertTrue(!drawnAt(bare, marked, probe, at), "the watermark is drawn at $at, outside its window")
+      }
+
+      bare.file.delete()
+      marked.file.delete()
+    }
+
+  // Read at a quarter and at three quarters of the ramp. The ends agree under both an additive and
+  // a multiplicative reading, so a test that only read them would pass while the middle was wrong.
+  @Test
+  fun `fades a watermark by the ratio the sampler answers`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val solid = watermark(corner = Corner.BottomEnd)
+      val fading = watermark(corner = Corner.BottomEnd, animation = fadeIn(RAMP))
+      val bare = exportedWatermark("filmstrip-overlay-fade-bare", null)
+      val opaque = exportedWatermark("filmstrip-overlay-fade-solid", solid)
+      val faded = exportedWatermark("filmstrip-overlay-fade", fading)
+      val size = faded.plan.output.size
+      val span = TimeRange.of(Duration.ZERO, faded.plan.duration)
+      val probe = centreOf(fading.placedOn(size, WATERMARK).rectOn(size), size)
+
+      listOf(RAMP / 4, RAMP * 3 / 4).forEach { at ->
+        val expected = assertNotNull(fading.frameAt(at, span)).opacity
+        val measured =
+          blendAlpha(
+            regionAverage(bare.file.absolutePath, probe.first, probe.second, PROBE_SIDE, at),
+            regionAverage(opaque.file.absolutePath, probe.first, probe.second, PROBE_SIDE, at),
+            regionAverage(faded.file.absolutePath, probe.first, probe.second, PROBE_SIDE, at),
+          )
+        assertTrue(
+          abs(measured - expected) < ALPHA_TOLERANCE,
+          "at $at the file blended at $measured where the sampler answers $expected",
+        )
+      }
+
+      // An aux branch a frame short drops the overlay from where it runs out, silently, so every
+      // overlay test reads the last frame of the run as well as the middle of it.
+      val last = faded.plan.duration - FRAME
+      assertTrue(drawnAt(bare, faded, probe, last), "the watermark is gone by $last")
+
+      listOf(bare, opaque, faded).forEach { it.file.delete() }
+    }
+
+  // Where the overlay lands is taken from the shared placement rather than from a number this test
+  // writes down, and the two readings are far enough apart that neither rectangle covers the other's
+  // probe.
+  @Test
+  fun `slides a watermark to where the shared placement puts it`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val sliding = watermark(animation = slideIn(OverlayOffset(SLIDE_FRACTION, 0f), RAMP))
+      val bare = exportedWatermark("filmstrip-overlay-slide-bare", null)
+      val slid = exportedWatermark("filmstrip-overlay-slide", sliding)
+      val size = slid.plan.output.size
+      val span = TimeRange.of(Duration.ZERO, slid.plan.duration)
+      val quarter = RAMP / 4
+      val threeQuarters = RAMP * 3 / 4
+      val early = drawnProbe(sliding, size, span, quarter)
+      val late = drawnProbe(sliding, size, span, threeQuarters)
+
+      assertTrue(drawnAt(bare, slid, early, quarter), "the watermark is not where the sampler puts it at $quarter")
+      assertTrue(drawnAt(bare, slid, late, threeQuarters), "the watermark is not there at $threeQuarters")
+      assertTrue(!drawnAt(bare, slid, late, quarter), "the watermark has already arrived at $quarter")
+      assertTrue(!drawnAt(bare, slid, early, threeQuarters), "the watermark has not moved on by $threeQuarters")
+
+      val last = slid.plan.duration - FRAME
+      assertTrue(drawnAt(bare, slid, drawnProbe(sliding, size, span, last), last), "the watermark is gone by $last")
+
+      listOf(bare, slid).forEach { it.file.delete() }
+    }
+
+  // Both dimensions grow, which the probe between the two rectangles' far corners reads: it is
+  // outside the early one on each axis and inside the late one on both.
+  //
+  // This is a composition overlay, so the fill is deferred and the frames it merges onto carry
+  // alpha. That is the case the aux chain's trailing `scale=iw:ih:eval=frame` exists for: without
+  // it the converter ffmpeg inserts to bring both inputs to one pixel format holds the overlay at
+  // the size it was configured with, and this reads 128 wide at both points rather than growing.
+  @Test
+  fun `grows a watermark by the factor the sampler answers`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val growing = watermark(animation = GROW)
+      val bare = exportedWatermark("filmstrip-overlay-scale-bare", null)
+      val grown = exportedWatermark("filmstrip-overlay-scale", growing)
+      val size = grown.plan.output.size
+      val span = TimeRange.of(Duration.ZERO, grown.plan.duration)
+      val quarter = RAMP / 4
+      val threeQuarters = RAMP * 3 / 4
+      val early = drawnRect(growing, size, span, quarter)
+      val late = drawnRect(growing, size, span, threeQuarters)
+      val inside = centreOf(early, size)
+      val onlyLate = pointIn((early.right + late.right) / 2, (early.bottom + late.bottom) / 2, size)
+
+      assertTrue(drawnAt(bare, grown, inside, quarter), "the watermark is missing at $quarter")
+      assertTrue(drawnAt(bare, grown, inside, threeQuarters), "the watermark is missing at $threeQuarters")
+      assertTrue(!drawnAt(bare, grown, onlyLate, quarter), "the watermark has already grown at $quarter")
+      assertTrue(drawnAt(bare, grown, onlyLate, threeQuarters), "the watermark has not grown by $threeQuarters")
+
+      val last = grown.plan.duration - FRAME
+      assertTrue(drawnAt(bare, grown, inside, last), "the watermark is gone by $last")
+
+      listOf(bare, grown).forEach { it.file.delete() }
+    }
+
+  // The sidecar's clock is the clip's own, so an animation on the second of two clips is read
+  // against the time the clip has been running rather than against the composition's.
+  @Test
+  fun `fades a clip's watermark on the clip's own clock`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val fading = watermark(animation = fadeIn(RAMP))
+      val bare = exportedWatermark("filmstrip-overlay-clipfade-bare", null, clips = 2, onClip = true)
+      val opaque = exportedWatermark("filmstrip-overlay-clipfade-solid", watermark(), clips = 2, onClip = true)
+      val faded = exportedWatermark("filmstrip-overlay-clipfade", fading, clips = 2, onClip = true)
+      val size = faded.plan.output.size
+      val slot = TimeRange.of(faded.plan.duration / 2, faded.plan.duration)
+      val probe = centreOf(fading.placedOn(size, WATERMARK).rectOn(size), size)
+
+      faded.plan.duration shouldBe 4.seconds
+      listOf(slot.start + RAMP / 4, slot.start + RAMP * 3 / 4).forEach { at ->
+        val expected = assertNotNull(fading.frameAt(at, slot)).opacity
+        val measured =
+          blendAlpha(
+            regionAverage(bare.file.absolutePath, probe.first, probe.second, PROBE_SIDE, at),
+            regionAverage(opaque.file.absolutePath, probe.first, probe.second, PROBE_SIDE, at),
+            regionAverage(faded.file.absolutePath, probe.first, probe.second, PROBE_SIDE, at),
+          )
+        assertTrue(
+          abs(measured - expected) < ALPHA_TOLERANCE,
+          "at $at the file blended at $measured where the sampler answers $expected",
+        )
+      }
+
+      val last = faded.plan.duration - FRAME
+      assertTrue(drawnAt(bare, faded, probe, last), "the watermark is gone by $last")
+
+      listOf(bare, opaque, faded).forEach { it.file.delete() }
+    }
+
+  // The drawn height is the picture's own aspect scaled, and a wide overlay's short side reaches
+  // the one pixel floor while its long side still has room. Left to the aspect-derived h the short
+  // side rounds to nothing and the filter aborts with "Rescaled dimensions 4x0 are invalid", so
+  // both sides are commanded out of the shared placement, which holds each at a pixel.
+  @Test
+  fun `shrinks a wide watermark without aborting the export`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val shrinking = watermark(animation = VANISH, image = WIDE_WATERMARK)
+      val bare = exportedWatermark("filmstrip-overlay-wide-bare", null)
+      val shrunk = exportedWatermark("filmstrip-overlay-wide", shrinking)
+      val size = shrunk.plan.output.size
+      val span = TimeRange.of(Duration.ZERO, shrunk.plan.duration)
+
+      val early = RAMP / 8
+      assertTrue(
+        drawnAt(bare, shrunk, drawnProbe(shrinking, size, span, early, WIDE_WATERMARK), early),
+        "the wide watermark is missing at $early",
+      )
+      // The ramp really does run both sides down to the floor by the end, so the export above is
+      // the size a graph left to derive the height would have refused.
+      val last = shrunk.plan.duration - FRAME
+      shrinking
+        .placedOn(size, WIDE_WATERMARK)
+        .animatedBy(assertNotNull(shrinking.frameAt(last, span)))
+        .size shouldBe Size(1, 1)
+
+      listOf(bare, shrunk).forEach { it.file.delete() }
+    }
+
   @Test
   fun `reports a missing binary as a value`() =
     runTest(timeout = TIMEOUT) {
@@ -2010,10 +2266,15 @@ class FfmpegExportTest {
   }
 
   /**
-   * The RGB value of one pixel, read by asking ffmpeg itself to crop the frame down to it.
+   * The RGB value of one pixel of the frame presented at [at], read by asking ffmpeg itself to crop
+   * the frame down to it.
    *
    * Cropped to 2x2 rather than 1x1: `crop` rounds a size that is not a multiple of yuv420p's
    * chroma subsampling down to zero unless told otherwise, and only the first pixel is read back.
+   *
+   * [at] puts `-ss` ahead of `-i`, so the decoder opens on the frame rather than reading its way
+   * to it. An overlay is drawn on every frame of its run, and a read that only ever opens the file
+   * says nothing about the rest of them.
    *
    * Verified independently of the code under test, the same way [ffprobe] is.
    */
@@ -2021,29 +2282,211 @@ class FfmpegExportTest {
     path: String,
     x: Int,
     y: Int,
+    at: Duration = Duration.ZERO,
   ): Triple<Int, Int, Int> {
+    val pixels = regionOf(path, x, y, side = 2, at = at)
+    return Triple(pixels[0].toInt() and 0xFF, pixels[1].toInt() and 0xFF, pixels[2].toInt() and 0xFF)
+  }
+
+  /**
+   * The mean RGB of a [side] by [side] square of the frame presented at [at].
+   *
+   * Averaged rather than sampled, because the fixtures carry seeded noise and a re-encode moves one
+   * pixel by more than a step of the ramps these tests measure.
+   */
+  private fun regionAverage(
+    path: String,
+    x: Int,
+    y: Int,
+    side: Int,
+    at: Duration,
+  ): Triple<Double, Double, Double> {
+    val pixels = regionOf(path, x, y, side, at)
+    assertTrue(pixels.size >= side * side * RGB_CHANNELS, "ffmpeg read ${pixels.size} bytes at $at of $path")
+    val sums = DoubleArray(RGB_CHANNELS)
+    pixels.forEachIndexed { index, byte -> sums[index % RGB_CHANNELS] += (byte.toInt() and 0xFF).toDouble() }
+    val count = (pixels.size / RGB_CHANNELS).toDouble()
+    return Triple(sums[0] / count, sums[1] / count, sums[2] / count)
+  }
+
+  private fun regionOf(
+    path: String,
+    x: Int,
+    y: Int,
+    side: Int,
+    at: Duration,
+  ): ByteArray {
+    val seek = if (at > Duration.ZERO) listOf("-ss", formatSeconds(at.toDouble(DurationUnit.SECONDS))) else emptyList()
     val process =
       ProcessBuilder(
-        "ffmpeg",
-        "-y",
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-i",
-        path,
-        "-vf",
-        "crop=2:2:$x:$y",
-        "-vframes",
-        "1",
-        "-f",
-        "rawvideo",
-        "-pix_fmt",
-        "rgb24",
-        "-",
+        listOf("ffmpeg", "-y", "-hide_banner", "-loglevel", "error") + seek +
+          listOf(
+            "-i",
+            path,
+            "-vf",
+            "crop=$side:$side:$x:$y",
+            "-vframes",
+            "1",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgb24",
+            "-",
+          ),
       ).start()
-    val pixel = process.inputStream.readNBytes(3)
+    val pixels = process.inputStream.readNBytes(side * side * RGB_CHANNELS)
     process.waitFor()
-    return Triple(pixel[0].toInt() and 0xFF, pixel[1].toInt() and 0xFF, pixel[2].toInt() and 0xFF)
+    return pixels
+  }
+
+  /**
+   * One export of the landscape fixture, with [overlay] drawn on its only clip or with nothing at
+   * all.
+   *
+   * The plan comes back with it, because the output frame and the composition's length are what the
+   * shared overlay sampler is asked against and reading them off the plan is what keeps a test from
+   * restating a fixture's dimensions.
+   */
+  private suspend fun exportedWatermark(
+    name: String,
+    overlay: ImageOverlay?,
+    clips: Int = 1,
+    onClip: Boolean = false,
+  ): ExportedOverlay {
+    val output = File.createTempFile(name, ".mp4").also { it.delete() }
+    val composition =
+      compositionOf {
+        repeat(clips) { index ->
+          clip(MediaSource.of(landscape.absolutePath)) {
+            if (onClip && index == clips - 1) overlay?.let { mark -> effects { add(mark) } }
+          }
+        }
+        if (!onClip) overlay?.let { mark -> effects { add(mark) } }
+      }
+
+    val plan =
+      when (val verdict = filmstrip.plan(composition, ExportSpec())) {
+        is Verdict.Capable -> verdict.plan
+        is Verdict.Degraded -> verdict.plan
+        is Verdict.Incapable -> error(verdict.reasons.joinToString { it.message })
+      }
+    val finished = filmstrip.export(plan, MediaSink.of(output.absolutePath)).toList().last()
+    if (finished is ExportStatus.Failure) error(finished.error.message)
+    assertIs<ExportStatus.Success>(finished)
+
+    return ExportedOverlay(output, plan)
+  }
+
+  private class ExportedOverlay(
+    val file: File,
+    val plan: ExportPlan,
+  )
+
+  // A flat square in a colour no bar of the testsrc fixture carries, so the blend under it is well
+  // conditioned in every channel wherever the overlay lands.
+  private fun watermark(
+    corner: Corner = Corner.TopStart,
+    opacity: Float = 1f,
+    animation: OverlayAnimation? = null,
+    image: Size = WATERMARK,
+  ): ImageOverlay =
+    ImageOverlay(
+      image = ImageSource.ofBytes(watermarkPng(image)),
+      corner = corner,
+      opacity = opacity,
+      animation = animation,
+    )
+
+  private val watermarkPngs = mutableMapOf<Size, ByteArray>()
+
+  private fun watermarkPng(size: Size): ByteArray =
+    watermarkPngs.getOrPut(size) {
+      val image = BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_ARGB)
+      val graphics = image.createGraphics()
+      graphics.color = Color(WATERMARK_RED, WATERMARK_GREEN, WATERMARK_BLUE)
+      graphics.fillRect(0, 0, size.width, size.height)
+      graphics.dispose()
+      ByteArrayOutputStream().also { ImageIO.write(image, "png", it) }.toByteArray()
+    }
+
+  private fun centreOf(
+    rect: NormalizedRect,
+    frame: Size,
+  ): Pair<Int, Int> = pointIn(rect.left + rect.width / 2, rect.top + rect.height / 2, frame)
+
+  // Where the shared sampler and the shared placement put the overlay at one instant, which is what
+  // the written file is read against rather than a rectangle this test works out for itself.
+  private fun drawnRect(
+    spec: ImageOverlay,
+    frame: Size,
+    span: TimeRange,
+    at: Duration,
+    image: Size = WATERMARK,
+  ): NormalizedRect =
+    spec
+      .placedOn(frame, image)
+      .animatedBy(assertNotNull(spec.frameAt(at, span)))
+      .rectOn(frame)
+
+  private fun drawnProbe(
+    spec: ImageOverlay,
+    frame: Size,
+    span: TimeRange,
+    at: Duration,
+    image: Size = WATERMARK,
+  ): Pair<Int, Int> = centreOf(drawnRect(spec, frame, span, at, image), frame)
+
+  /**
+   * How much of the watermark the blended frame carries, solved from the same probe read out of
+   * three exports: one with no overlay, one with an opaque overlay, and the animated one.
+   *
+   * Every channel contributes, weighted by how far apart the two references are on it, so a probe
+   * where the watermark happens to match the frame under it on one channel is carried by the other
+   * two rather than dividing by nothing.
+   */
+  private fun blendAlpha(
+    bare: Triple<Double, Double, Double>,
+    opaque: Triple<Double, Double, Double>,
+    blended: Triple<Double, Double, Double>,
+  ): Float {
+    val under = bare.toList()
+    val over = opaque.toList()
+    val measured = blended.toList()
+    var numerator = 0.0
+    var denominator = 0.0
+    over.forEachIndexed { channel, value ->
+      val range = value - under[channel]
+      numerator += (measured[channel] - under[channel]) * range
+      denominator += range * range
+    }
+    assertTrue(denominator > BLEND_RANGE_FLOOR, "the watermark reads the same as the frame under it")
+
+    return (numerator / denominator).toFloat()
+  }
+
+  // Rounded down to an even pixel, since crop on a subsampled frame refuses an odd offset.
+  private fun pointIn(
+    x: Float,
+    y: Float,
+    frame: Size,
+  ): Pair<Int, Int> = (x * frame.width).toInt() / 2 * 2 to (y * frame.height).toInt() / 2 * 2
+
+  /**
+   * Whether the overlay covers [probe] at [at], read as a difference against the same export with
+   * no overlay on it.
+   *
+   * Comparing two exports rather than naming a colour is what keeps this honest wherever the
+   * overlay lands: both files decode the same source frame, so everything but the overlay agrees.
+   */
+  private fun drawnAt(
+    bare: ExportedOverlay,
+    marked: ExportedOverlay,
+    probe: Pair<Int, Int>,
+    at: Duration,
+  ): Boolean {
+    val under = regionAverage(bare.file.absolutePath, probe.first, probe.second, PROBE_SIDE, at)
+    val over = regionAverage(marked.file.absolutePath, probe.first, probe.second, PROBE_SIDE, at)
+    return under.toList().zip(over.toList()).maxOf { (a, b) -> abs(a - b) } > DRAWN_DIFFERENCE
   }
 
   // A flat red region survives H264 losslessly enough that only rounding at the YUV boundary is
@@ -2318,5 +2761,62 @@ class FfmpegExportTest {
     // How much of the fixture's own range a written frame has to span to count as carrying its
     // picture. A flat fill spans almost nothing, so half is generous and still nowhere near it.
     const val PICTURE_SPREAD_FLOOR = 0.5f
+
+    const val RGB_CHANNELS = 3
+
+    // Just over one frame of the fixtures' thirty per second. A read lands on the first frame at or
+    // after where it opens, so this reaches the last frame of a run rather than running off the end.
+    val FRAME = 40.milliseconds
+
+    // The overlay image: square, so the height swscale derives from a commanded width is the one
+    // the shared placement answers, and large enough that scaling it up stays sharp.
+    val WATERMARK = Size(64, 64)
+    const val WATERMARK_RED = 230
+    const val WATERMARK_GREEN = 120
+    const val WATERMARK_BLUE = 20
+
+    // Read over a block rather than a pixel: the fixtures carry seeded noise, and a re-encode moves
+    // one pixel by more than a step of the ramps these tests measure.
+    const val PROBE_SIDE = 8
+
+    // Half the smallest gap between the watermark's colour and any bar of the fixture it is drawn
+    // over, so a covered probe and an uncovered one cannot be confused for each other.
+    const val DRAWN_DIFFERENCE = 50.0
+
+    // A window over the second of two two-second clips, clear of the join at both ends so a window
+    // read against the wrong clock lands outside it rather than on its edge.
+    val WINDOW = TimeRange.of(2_500.milliseconds, 3_500.milliseconds)
+
+    // The whole of a fixture clip, so a quarter and three quarters of the ramp are half a second
+    // and a second and a half into it.
+    val RAMP = 2.seconds
+
+    // Far enough that the rectangle at a quarter of the slide and the one at three quarters do not
+    // overlap, so each reading's probe is bare in the other.
+    const val SLIDE_FRACTION = 0.3f
+
+    // Doubles the overlay over the ramp. There is no built-in scale helper, and holding the one
+    // instance is what keeps the export and the expectation reading the same animation.
+    val GROW =
+      OverlayAnimation { time ->
+        OverlayFrame(scale = 1f + (time.elapsed / RAMP).toFloat().coerceIn(0f, 1f))
+      }
+
+    // Runs the overlay down to nothing over the first half of the ramp and holds it there, so the
+    // export covers both the shrinking stretch and the floor.
+    val VANISH = OverlayAnimation { time -> OverlayFrame(scale = 1f - (time.elapsed / (RAMP / 2)).toFloat()) }
+
+    // Four times as wide as it is tall, so the two sides do not reach the one pixel floor together.
+    val WIDE_WATERMARK = Size(200, 50)
+
+    // A little over what the H264 round trip moves a flat region by, read as a fraction of the
+    // range between the bare frame and the opaque overlay.
+    const val ALPHA_TOLERANCE = 0.1f
+
+    // Below this the two references are too close together for the blend to be solved at all, which
+    // is a probe point chosen badly rather than a lowering that went wrong.
+    const val BLEND_RANGE_FLOOR = 1_000.0
+    val INSIDE_WINDOW = 3.seconds
+    val OUTSIDE_WINDOW = listOf(2_200.milliseconds, 3_800.milliseconds)
   }
 }

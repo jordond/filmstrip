@@ -15,5 +15,15 @@ import dev.jordond.filmstrip.effect.EffectStage
 public interface OverlayEffect : EffectSpec {
   public val visibleDuring: TimeRange?
 
+  /**
+   * How the overlay is drawn at each frame of its run, or null to draw it the same way throughout.
+   *
+   * A callback has no serialized form, so a persisted edit list comes back with this null and the
+   * overlay draws as it was authored. It is compared, so a caller holds one instance and reuses it
+   * rather than rebuilding it: the built-in helpers compare by value and survive a rebuild, while a
+   * lambda compares by identity and a rebuilt composition misses its thumbnail cache.
+   */
+  public val animation: OverlayAnimation? get() = null
+
   override val stage: EffectStage get() = EffectStage.Composite
 }

@@ -61,6 +61,7 @@ internal fun Invocation.previewArguments(
         add("-f")
         add("lavfi")
       }
+      addAll(input.loopArguments())
       // The seek has already eaten [at] of the window the input bounds, so what is left of it is
       // shorter by the same amount. Every other input is read from its own start and keeps its own
       // bound.

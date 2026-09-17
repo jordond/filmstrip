@@ -4,18 +4,32 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
+import dev.jordond.filmstrip.effects.overlay.OverlayFrame
+import dev.jordond.filmstrip.effects.overlay.OverlayOffset
+import dev.jordond.filmstrip.effects.overlay.OverlayPlacement
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
+import dev.jordond.filmstrip.effects.overlay.animatedBy
+import dev.jordond.filmstrip.effects.overlay.fadeIn
+import dev.jordond.filmstrip.effects.overlay.fadeOut
+import dev.jordond.filmstrip.effects.overlay.frameAt
+import dev.jordond.filmstrip.effects.overlay.placedOn
+import dev.jordond.filmstrip.effects.overlay.rectOn
+import dev.jordond.filmstrip.effects.overlay.slideIn
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Corner
+import dev.jordond.filmstrip.geometry.NormalizedRect
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
@@ -25,12 +39,14 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Overlays, checked against the pixels that were written, not the plan.
@@ -42,8 +58,14 @@ import kotlin.time.Duration.Companion.minutes
  * the increase over the same region of the same frame of the plain export that is asserted on, not
  * an absolute count, so whatever the pattern was already drawing there cancels out.
  *
+ * The animation tests read the written file at a quarter and at three quarters of a two second ramp
+ * and compare what they measure against what the shared sampler answers for the same instant, never
+ * against a copied number. The endpoints are left out on purpose: they agree under both an additive
+ * and a multiplicative reading of a ramp, so only the middle says whether the whole range is right.
+ *
  * Skipped when the fixtures are absent, as in [AndroidExportTest].
  */
+@OptIn(InternalFilmstripApi::class)
 class AndroidOverlayTest {
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
   private val filmstrip = Filmstrip(context) { media3Backend() }
@@ -174,7 +196,7 @@ class AndroidOverlayTest {
       val clippedSpan = clipped.badgeSpan(BADGE_ROW)
       assertTrue(composedSpan > SPAN_FLOOR, "no watermark to measure: $composedSpan")
       assertTrue(
-        kotlin.math.abs(composedSpan - clippedSpan) < SPAN_TOLERANCE,
+        abs(composedSpan - clippedSpan) < SPAN_TOLERANCE,
         "clip-scoped span $clippedSpan does not match composition-scoped $composedSpan",
       )
     }
@@ -206,6 +228,147 @@ class AndroidOverlayTest {
     }
 
   @Test
+  fun aFadedWatermarkIsDrawnAtTheOpacityTheSamplerAnswers() =
+    runTest(timeout = TIMEOUT) {
+      val source = fixture() ?: return@runTest
+      val still = watermark(Corner.BottomEnd)
+      val faded = watermark(Corner.BottomEnd, animation = fadeIn(RAMP))
+
+      val plain = export(source, emptyList())
+      val opaque = export(source, listOf(still))
+      val written = export(source, listOf(faded))
+
+      RAMP_POINTS.forEach { at ->
+        val here = frame(written, at)
+        val frameSize = here.frameSize()
+        val expected = faded.frameAt(at, SPAN)?.opacity ?: error("the watermark is not drawn at $at")
+        val measured =
+          here.blendedOver(
+            frame(plain, at),
+            frame(opaque, at),
+            still.placedOn(frameSize, BADGE).core(frameSize),
+          )
+
+        assertTrue(
+          abs(measured - expected) < ALPHA_TOLERANCE,
+          "at $at the fade measured $measured where the sampler says $expected",
+        )
+      }
+    }
+
+  @Test
+  fun aFadingWatermarkIsDrawnAtTheOpacityTheRunsEndAnswers() =
+    runTest(timeout = TIMEOUT) {
+      val source = fixture() ?: return@runTest
+      val still = watermark(Corner.BottomEnd)
+      val leaving = watermark(Corner.BottomEnd, animation = fadeOut(RAMP))
+
+      val plain = export(source, emptyList())
+      val opaque = export(source, listOf(still))
+      val written = export(source, listOf(leaving))
+
+      // A fade out counts back from the run's last frame rather than forward from its first, so
+      // this is the reading that says the span's end reached the overlay at all.
+      RAMP_POINTS.forEach { at ->
+        val here = frame(written, at)
+        val frameSize = here.frameSize()
+        val expected = leaving.frameAt(at, SPAN)?.opacity ?: error("the watermark is not drawn at $at")
+        val measured =
+          here.blendedOver(
+            frame(plain, at),
+            frame(opaque, at),
+            still.placedOn(frameSize, BADGE).core(frameSize),
+          )
+
+        assertTrue(
+          abs(measured - expected) < ALPHA_TOLERANCE,
+          "at $at the fade out measured $measured where the sampler says $expected",
+        )
+      }
+    }
+
+  @Test
+  fun anUnwindowedClipOverlayIsDrawnOnTheFirstAndLastFrameOfItsSlot() =
+    runTest(timeout = TIMEOUT) {
+      val first = fixture() ?: return@runTest
+      val second = fixture(CLIP_B) ?: return@runTest
+      val plain = export(joined(first, second, emptyList()))
+      val written = export(joined(first, second, timed(null)))
+
+      // The second clip's slot opens at two seconds and closes at four. Both ends are where a
+      // half-open window and a timestamp that rounds the wrong way would drop a frame, and an
+      // overlay that named no window has to survive both.
+      listOf(SLOT_OPENS, SLOT_CLOSES).forEach { at ->
+        val gained = frame(written, at).gainedOver(frame(plain, at), BOTTOM_END)
+
+        assertTrue(gained > COVERED, "no watermark at $at, which is inside the clip's own slot")
+      }
+    }
+
+  @Test
+  fun aSlidingWatermarkSitsWhereTheSharedGeometryPutsIt() =
+    runTest(timeout = TIMEOUT) {
+      val source = fixture() ?: return@runTest
+      val sliding = watermark(Corner.BottomEnd, animation = slideIn(SLIDE_FROM, RAMP))
+      val written = export(source, listOf(sliding))
+
+      RAMP_POINTS.forEach { at ->
+        val here = frame(written, at)
+        val rect = sliding.rectAt(at, here.frameSize())
+        val measured = here.badgeCentre(rect.midY) ?: error("no watermark on the row at $at")
+
+        assertTrue(
+          abs(measured - rect.midX) < POSITION_TOLERANCE,
+          "at $at the watermark sits at $measured where the offset puts it at ${rect.midX}",
+        )
+      }
+    }
+
+  @Test
+  fun aGrowingWatermarkIsDrawnAtTheWidthTheSharedGeometryPutsIt() =
+    runTest(timeout = TIMEOUT) {
+      val source = fixture() ?: return@runTest
+      val growing = watermark(Corner.BottomEnd, animation = GROW)
+      val written = export(source, listOf(growing))
+
+      RAMP_POINTS.forEach { at ->
+        val here = frame(written, at)
+        val rect = growing.rectAt(at, here.frameSize())
+        val measured = here.badgeSpan(rect.midY)
+
+        assertTrue(
+          abs(measured - rect.width) < SPAN_TOLERANCE,
+          "at $at the watermark spans $measured where the scale makes it ${rect.width}",
+        )
+      }
+    }
+
+  @Test
+  fun aWatermarkCarriedOffTheFrameStopsAtMedia3sAnchorLimit() =
+    runTest(timeout = TIMEOUT) {
+      val source = fixture() ?: return@runTest
+      val leaving = watermark(Corner.BottomEnd, animation = slideIn(PAST_THE_EDGE, RAMP))
+      val written = export(source, listOf(leaving))
+
+      val here = frame(written, QUARTER)
+      val rect = leaving.rectAt(QUARTER, here.frameSize())
+      assertTrue(rect.right > 1f, "this offset does not carry the watermark off the frame: $rect")
+
+      // media3 documents both anchors as @FloatRange(from = -1, to = 1) on
+      // StaticOverlaySettings.Builder, so the background anchor is held at the frame's right edge
+      // and the watermark stops with its own right edge there. The width still comes from the
+      // shared geometry. Apple and ffmpeg let the same slide carry on, which is the one place the
+      // three backends are meant to disagree.
+      val held = 1f - rect.width / 2f
+      val measured = here.badgeCentre(rect.midY) ?: error("the watermark left the frame entirely")
+
+      assertTrue(
+        abs(measured - held) < POSITION_TOLERANCE,
+        "the clamp left the watermark at $measured where media3's limit puts it at $held",
+      )
+    }
+
+  @Test
   fun anUnreadableWatermarkIsRefusedWhilePlanning() =
     runTest(timeout = TIMEOUT) {
       val source = fixture() ?: return@runTest
@@ -222,7 +385,27 @@ class AndroidOverlayTest {
     corner: Corner,
     margin: Float = DEFAULT_MARGIN,
     visibleDuring: TimeRange? = null,
-  ) = ImageOverlay(ImageSource.of(badgeFile(context).path), corner, margin, BADGE_SCALE, 1f, visibleDuring)
+    animation: OverlayAnimation? = null,
+  ) = ImageOverlay(ImageSource.of(badgeFile(context).path), corner, margin, BADGE_SCALE, 1f, visibleDuring, animation)
+
+  // Where the shared geometry puts the watermark on the frame written at `at`. The badge is square
+  // and the fixture is one clip on the composition, so the frame it is measured against is the one
+  // the export wrote.
+  private fun ImageOverlay.rectAt(
+    at: Duration,
+    frame: Size,
+  ): NormalizedRect {
+    val sampled = frameAt(at, SPAN) ?: error("the watermark is not drawn at $at")
+    return placedOn(frame, BADGE).animatedBy(sampled).rectOn(frame)
+  }
+
+  // A patch well inside the badge, clear of the edges chroma subsampling smears.
+  private fun OverlayPlacement.core(frame: Size): Region {
+    val rect = rectOn(frame)
+    val insetX = rect.width * EDGE_INSET
+    val insetY = rect.height * EDGE_INSET
+    return Region(rect.left + insetX, rect.top + insetY, rect.right - insetX, rect.bottom - insetY)
+  }
 
   // Plated in the badge colour instead of the usual dark one, so text is measured the same way a
   // watermark is.
@@ -286,6 +469,11 @@ class AndroidOverlayTest {
 
     // Both clips run two seconds, so the second one occupies the composition's third second.
     val IN_SECOND_CLIP = 2_300.milliseconds
+
+    // The first frame of the second clip's slot, and the last, which is the frame nearest a time
+    // inside the final thirtieth of the composition.
+    val SLOT_OPENS = 2_000.milliseconds
+    val SLOT_CLOSES = 3_990.milliseconds
     val COMPOSITION_WINDOW = TimeRange.of(2_000.milliseconds, 2_700.milliseconds)
     val CLIP_WINDOW = TimeRange.of(Duration.ZERO, 700.milliseconds)
 
@@ -309,5 +497,37 @@ class AndroidOverlayTest {
 
     // The last few percent of the frame, which a zero margin reaches and any margin does not.
     val CORNER = Region(0.95f, 0.95f, 1f, 1f)
+
+    val BADGE = Size(BADGE_PX, BADGE_PX)
+
+    // The clip runs two seconds and carries the whole composition, so this is the span the planner
+    // hands a composition-scoped effect. A fade out measures against its end, which is where a
+    // frame of drift between the fixture's nominal length and its written one would show up, and
+    // that is a thirtieth of the ramp against a tolerance twice that.
+    val RAMP = 2.seconds
+    val SPAN = TimeRange.of(Duration.ZERO, RAMP)
+    val QUARTER = 500.milliseconds
+    val RAMP_POINTS = listOf(QUARTER, 1_500.milliseconds)
+
+    // Far enough that the two readings are two thirds of a badge width apart, and near enough that
+    // the badge stays on the frame at both, which keeps media3's anchor clamp out of this
+    // measurement.
+    val SLIDE_FROM = OverlayOffset(-0.4f, 0f)
+
+    // Well past the right edge, so the anchor the clamp is asked about is out of range at both ends.
+    val PAST_THE_EDGE = OverlayOffset(0.6f, 0f)
+
+    // No built-in helper ramps size, which is the point: a caller writes the curve in the callback.
+    val GROW = OverlayAnimation { time -> OverlayFrame(scale = 1f + (time.elapsed / RAMP).toFloat().coerceIn(0f, 1f)) }
+
+    const val ALPHA_TOLERANCE = 0.12f
+    const val POSITION_TOLERANCE = 0.05f
+    const val EDGE_INSET = 0.25f
   }
 }
+
+private fun Bitmap.frameSize() = Size(width, height)
+
+private val NormalizedRect.midX: Float get() = (left + right) / 2f
+
+private val NormalizedRect.midY: Float get() = (top + bottom) / 2f

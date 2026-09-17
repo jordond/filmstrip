@@ -90,8 +90,8 @@ internal class BrowserPipeline(
     for (slot in 0 until render.leadFrames) {
       currentCoroutineContext().ensureActive()
 
-      compositor.drawFill()
       val outputUs = slot * stepUs
+      compositor.drawFill(outputUs)
       encodeFrame(compositor, encoder, outputUs, stepUs)
       onProgress(slot + 1, outputUs)
     }
@@ -134,9 +134,9 @@ internal class BrowserPipeline(
         }
 
         val chosen = nearest(current, ahead, sourceUs) ?: break
-        compositor.draw(chosen)
-
         val outputUs = clip.offsetUs + slot * stepUs
+        compositor.draw(chosen, outputUs)
+
         encodeFrame(compositor, encoder, outputUs, stepUs)
 
         emitted++

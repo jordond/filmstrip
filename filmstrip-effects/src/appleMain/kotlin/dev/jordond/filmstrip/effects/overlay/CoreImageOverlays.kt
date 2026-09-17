@@ -61,9 +61,10 @@ internal fun CIImage.compositedOnto(
 /**
  * Scales the whole image's alpha.
  *
- * Core Image works in premultiplied colour, so all four row vectors are scaled, the colour ones
- * included. Scaling alpha alone leaves the pixels brighter than their alpha says, and the composite
- * reads that as a halo.
+ * `CIColorMatrix` unpremultiplies its input and premultiplies its output, so scaling the alpha row
+ * is all it takes to scale how much of the frame the overlay covers. Scaling the colour rows as
+ * well dims the colour a second time on the way back, which draws the overlay at the square of the
+ * alpha it was asked for.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun CIImage.withAlpha(alpha: Float): CIImage {
@@ -72,11 +73,6 @@ internal fun CIImage.withAlpha(alpha: Float): CIImage {
 
   return imageByApplyingFilter(
     "CIColorMatrix",
-    mapOf(
-      "inputRVector" to CIVector.vectorWithX(scale, 0.0, 0.0, 0.0),
-      "inputGVector" to CIVector.vectorWithX(0.0, scale, 0.0, 0.0),
-      "inputBVector" to CIVector.vectorWithX(0.0, 0.0, scale, 0.0),
-      "inputAVector" to CIVector.vectorWithX(0.0, 0.0, 0.0, scale),
-    ),
+    mapOf("inputAVector" to CIVector.vectorWithX(0.0, 0.0, 0.0, scale)),
   )
 }

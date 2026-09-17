@@ -6,9 +6,15 @@
 // - Show declarations: true
 
 // Library unique name: <filmstrip-root:filmstrip-effects>
+abstract fun interface dev.jordond.filmstrip.effects.overlay/OverlayAnimation { // dev.jordond.filmstrip.effects.overlay/OverlayAnimation|null[0]
+    abstract fun frameAt(dev.jordond.filmstrip.effects.overlay/OverlayTime): dev.jordond.filmstrip.effects.overlay/OverlayFrame // dev.jordond.filmstrip.effects.overlay/OverlayAnimation.frameAt|frameAt(dev.jordond.filmstrip.effects.overlay.OverlayTime){}[0]
+}
+
 abstract interface dev.jordond.filmstrip.effects.overlay/OverlayEffect : dev.jordond.filmstrip.effect/EffectSpec { // dev.jordond.filmstrip.effects.overlay/OverlayEffect|null[0]
     abstract val visibleDuring // dev.jordond.filmstrip.effects.overlay/OverlayEffect.visibleDuring|{}visibleDuring[0]
         abstract fun <get-visibleDuring>(): dev.jordond.filmstrip.edit/TimeRange? // dev.jordond.filmstrip.effects.overlay/OverlayEffect.visibleDuring.<get-visibleDuring>|<get-visibleDuring>(){}[0]
+    open val animation // dev.jordond.filmstrip.effects.overlay/OverlayEffect.animation|{}animation[0]
+        open fun <get-animation>(): dev.jordond.filmstrip.effects.overlay/OverlayAnimation? // dev.jordond.filmstrip.effects.overlay/OverlayEffect.animation.<get-animation>|<get-animation>(){}[0]
     open val stage // dev.jordond.filmstrip.effects.overlay/OverlayEffect.stage|{}stage[0]
         open fun <get-stage>(): dev.jordond.filmstrip.effect/EffectStage // dev.jordond.filmstrip.effects.overlay/OverlayEffect.stage.<get-stage>|<get-stage>(){}[0]
 }
@@ -468,8 +474,10 @@ final class dev.jordond.filmstrip.effects.overlay/CornerInset { // dev.jordond.f
 }
 
 final class dev.jordond.filmstrip.effects.overlay/ImageOverlay : dev.jordond.filmstrip.effects.overlay/OverlayEffect { // dev.jordond.filmstrip.effects.overlay/ImageOverlay|null[0]
-    constructor <init>(dev.jordond.filmstrip.media/ImageSource, dev.jordond.filmstrip.geometry/Corner, kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., dev.jordond.filmstrip.edit/TimeRange? = ...) // dev.jordond.filmstrip.effects.overlay/ImageOverlay.<init>|<init>(dev.jordond.filmstrip.media.ImageSource;dev.jordond.filmstrip.geometry.Corner;kotlin.Float;kotlin.Float;kotlin.Float;dev.jordond.filmstrip.edit.TimeRange?){}[0]
+    constructor <init>(dev.jordond.filmstrip.media/ImageSource, dev.jordond.filmstrip.geometry/Corner, kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., dev.jordond.filmstrip.edit/TimeRange? = ..., dev.jordond.filmstrip.effects.overlay/OverlayAnimation? = ...) // dev.jordond.filmstrip.effects.overlay/ImageOverlay.<init>|<init>(dev.jordond.filmstrip.media.ImageSource;dev.jordond.filmstrip.geometry.Corner;kotlin.Float;kotlin.Float;kotlin.Float;dev.jordond.filmstrip.edit.TimeRange?;dev.jordond.filmstrip.effects.overlay.OverlayAnimation?){}[0]
 
+    final val animation // dev.jordond.filmstrip.effects.overlay/ImageOverlay.animation|{}animation[0]
+        final fun <get-animation>(): dev.jordond.filmstrip.effects.overlay/OverlayAnimation? // dev.jordond.filmstrip.effects.overlay/ImageOverlay.animation.<get-animation>|<get-animation>(){}[0]
     final val corner // dev.jordond.filmstrip.effects.overlay/ImageOverlay.corner|{}corner[0]
         final fun <get-corner>(): dev.jordond.filmstrip.geometry/Corner // dev.jordond.filmstrip.effects.overlay/ImageOverlay.corner.<get-corner>|<get-corner>(){}[0]
     final val id // dev.jordond.filmstrip.effects.overlay/ImageOverlay.id|{}id[0]
@@ -510,6 +518,44 @@ final class dev.jordond.filmstrip.effects.overlay/ImageOverlay : dev.jordond.fil
     }
 }
 
+final class dev.jordond.filmstrip.effects.overlay/OverlayFrame { // dev.jordond.filmstrip.effects.overlay/OverlayFrame|null[0]
+    constructor <init>(kotlin/Float = ..., dev.jordond.filmstrip.effects.overlay/OverlayOffset = ..., kotlin/Float = ...) // dev.jordond.filmstrip.effects.overlay/OverlayFrame.<init>|<init>(kotlin.Float;dev.jordond.filmstrip.effects.overlay.OverlayOffset;kotlin.Float){}[0]
+
+    final val offset // dev.jordond.filmstrip.effects.overlay/OverlayFrame.offset|{}offset[0]
+        final fun <get-offset>(): dev.jordond.filmstrip.effects.overlay/OverlayOffset // dev.jordond.filmstrip.effects.overlay/OverlayFrame.offset.<get-offset>|<get-offset>(){}[0]
+    final val opacity // dev.jordond.filmstrip.effects.overlay/OverlayFrame.opacity|{}opacity[0]
+        final fun <get-opacity>(): kotlin/Float // dev.jordond.filmstrip.effects.overlay/OverlayFrame.opacity.<get-opacity>|<get-opacity>(){}[0]
+    final val scale // dev.jordond.filmstrip.effects.overlay/OverlayFrame.scale|{}scale[0]
+        final fun <get-scale>(): kotlin/Float // dev.jordond.filmstrip.effects.overlay/OverlayFrame.scale.<get-scale>|<get-scale>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.overlay/OverlayFrame.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.overlay/OverlayFrame.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.overlay/OverlayFrame.toString|toString(){}[0]
+
+    final object Companion { // dev.jordond.filmstrip.effects.overlay/OverlayFrame.Companion|null[0]
+        final val Identity // dev.jordond.filmstrip.effects.overlay/OverlayFrame.Companion.Identity|{}Identity[0]
+            final fun <get-Identity>(): dev.jordond.filmstrip.effects.overlay/OverlayFrame // dev.jordond.filmstrip.effects.overlay/OverlayFrame.Companion.Identity.<get-Identity>|<get-Identity>(){}[0]
+    }
+}
+
+final class dev.jordond.filmstrip.effects.overlay/OverlayOffset { // dev.jordond.filmstrip.effects.overlay/OverlayOffset|null[0]
+    constructor <init>(kotlin/Float, kotlin/Float) // dev.jordond.filmstrip.effects.overlay/OverlayOffset.<init>|<init>(kotlin.Float;kotlin.Float){}[0]
+
+    final val x // dev.jordond.filmstrip.effects.overlay/OverlayOffset.x|{}x[0]
+        final fun <get-x>(): kotlin/Float // dev.jordond.filmstrip.effects.overlay/OverlayOffset.x.<get-x>|<get-x>(){}[0]
+    final val y // dev.jordond.filmstrip.effects.overlay/OverlayOffset.y|{}y[0]
+        final fun <get-y>(): kotlin/Float // dev.jordond.filmstrip.effects.overlay/OverlayOffset.y.<get-y>|<get-y>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.overlay/OverlayOffset.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.overlay/OverlayOffset.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.overlay/OverlayOffset.toString|toString(){}[0]
+
+    final object Companion { // dev.jordond.filmstrip.effects.overlay/OverlayOffset.Companion|null[0]
+        final val Zero // dev.jordond.filmstrip.effects.overlay/OverlayOffset.Companion.Zero|{}Zero[0]
+            final fun <get-Zero>(): dev.jordond.filmstrip.effects.overlay/OverlayOffset // dev.jordond.filmstrip.effects.overlay/OverlayOffset.Companion.Zero.<get-Zero>|<get-Zero>(){}[0]
+    }
+}
+
 final class dev.jordond.filmstrip.effects.overlay/OverlayPlacement { // dev.jordond.filmstrip.effects.overlay/OverlayPlacement|null[0]
     constructor <init>(dev.jordond.filmstrip.geometry/Size, dev.jordond.filmstrip.geometry/Anchor, dev.jordond.filmstrip.geometry/Anchor) // dev.jordond.filmstrip.effects.overlay/OverlayPlacement.<init>|<init>(dev.jordond.filmstrip.geometry.Size;dev.jordond.filmstrip.geometry.Anchor;dev.jordond.filmstrip.geometry.Anchor){}[0]
 
@@ -525,11 +571,28 @@ final class dev.jordond.filmstrip.effects.overlay/OverlayPlacement { // dev.jord
     final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.overlay/OverlayPlacement.toString|toString(){}[0]
 }
 
+final class dev.jordond.filmstrip.effects.overlay/OverlayTime { // dev.jordond.filmstrip.effects.overlay/OverlayTime|null[0]
+    constructor <init>(kotlin.time/Duration, kotlin.time/Duration, kotlin.time/Duration) // dev.jordond.filmstrip.effects.overlay/OverlayTime.<init>|<init>(kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration){}[0]
+
+    final val composition // dev.jordond.filmstrip.effects.overlay/OverlayTime.composition|{}composition[0]
+        final fun <get-composition>(): kotlin.time/Duration // dev.jordond.filmstrip.effects.overlay/OverlayTime.composition.<get-composition>|<get-composition>(){}[0]
+    final val elapsed // dev.jordond.filmstrip.effects.overlay/OverlayTime.elapsed|{}elapsed[0]
+        final fun <get-elapsed>(): kotlin.time/Duration // dev.jordond.filmstrip.effects.overlay/OverlayTime.elapsed.<get-elapsed>|<get-elapsed>(){}[0]
+    final val remaining // dev.jordond.filmstrip.effects.overlay/OverlayTime.remaining|{}remaining[0]
+        final fun <get-remaining>(): kotlin.time/Duration // dev.jordond.filmstrip.effects.overlay/OverlayTime.remaining.<get-remaining>|<get-remaining>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effects.overlay/OverlayTime.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effects.overlay/OverlayTime.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effects.overlay/OverlayTime.toString|toString(){}[0]
+}
+
 final class dev.jordond.filmstrip.effects.overlay/TextOverlay : dev.jordond.filmstrip.effects.overlay/OverlayEffect { // dev.jordond.filmstrip.effects.overlay/TextOverlay|null[0]
-    constructor <init>(kotlin/String, dev.jordond.filmstrip.style/TextStyle = ..., dev.jordond.filmstrip.geometry/Anchor = ..., dev.jordond.filmstrip.edit/TimeRange? = ...) // dev.jordond.filmstrip.effects.overlay/TextOverlay.<init>|<init>(kotlin.String;dev.jordond.filmstrip.style.TextStyle;dev.jordond.filmstrip.geometry.Anchor;dev.jordond.filmstrip.edit.TimeRange?){}[0]
+    constructor <init>(kotlin/String, dev.jordond.filmstrip.style/TextStyle = ..., dev.jordond.filmstrip.geometry/Anchor = ..., dev.jordond.filmstrip.edit/TimeRange? = ..., dev.jordond.filmstrip.effects.overlay/OverlayAnimation? = ...) // dev.jordond.filmstrip.effects.overlay/TextOverlay.<init>|<init>(kotlin.String;dev.jordond.filmstrip.style.TextStyle;dev.jordond.filmstrip.geometry.Anchor;dev.jordond.filmstrip.edit.TimeRange?;dev.jordond.filmstrip.effects.overlay.OverlayAnimation?){}[0]
 
     final val anchor // dev.jordond.filmstrip.effects.overlay/TextOverlay.anchor|{}anchor[0]
         final fun <get-anchor>(): dev.jordond.filmstrip.geometry/Anchor // dev.jordond.filmstrip.effects.overlay/TextOverlay.anchor.<get-anchor>|<get-anchor>(){}[0]
+    final val animation // dev.jordond.filmstrip.effects.overlay/TextOverlay.animation|{}animation[0]
+        final fun <get-animation>(): dev.jordond.filmstrip.effects.overlay/OverlayAnimation? // dev.jordond.filmstrip.effects.overlay/TextOverlay.animation.<get-animation>|<get-animation>(){}[0]
     final val id // dev.jordond.filmstrip.effects.overlay/TextOverlay.id|{}id[0]
         final fun <get-id>(): kotlin/String // dev.jordond.filmstrip.effects.overlay/TextOverlay.id.<get-id>|<get-id>(){}[0]
     final val style // dev.jordond.filmstrip.effects.overlay/TextOverlay.style|{}style[0]
@@ -581,14 +644,20 @@ final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effe
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.geometry/kenBurns(dev.jordond.filmstrip.geometry/NormalizedRect, dev.jordond.filmstrip.geometry/NormalizedRect, dev.jordond.filmstrip.motion/Easing = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.geometry/kenBurns|kenBurns@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.geometry.NormalizedRect;dev.jordond.filmstrip.geometry.NormalizedRect;dev.jordond.filmstrip.motion.Easing){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.geometry/rotate(kotlin/Int): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.geometry/rotate|rotate@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Int){}[0]
 final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.geometry/scale(kotlin/Int, dev.jordond.filmstrip.geometry/Fit = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.geometry/scale|scale@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.Int;dev.jordond.filmstrip.geometry.Fit){}[0]
-final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.overlay/imageOverlay(dev.jordond.filmstrip.media/ImageSource, dev.jordond.filmstrip.geometry/Corner, kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., dev.jordond.filmstrip.edit/TimeRange? = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.overlay/imageOverlay|imageOverlay@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.media.ImageSource;dev.jordond.filmstrip.geometry.Corner;kotlin.Float;kotlin.Float;kotlin.Float;dev.jordond.filmstrip.edit.TimeRange?){}[0]
-final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.overlay/textOverlay(kotlin/String, dev.jordond.filmstrip.style/TextStyle = ..., dev.jordond.filmstrip.geometry/Anchor = ..., dev.jordond.filmstrip.edit/TimeRange? = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.overlay/textOverlay|textOverlay@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.String;dev.jordond.filmstrip.style.TextStyle;dev.jordond.filmstrip.geometry.Anchor;dev.jordond.filmstrip.edit.TimeRange?){}[0]
-final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.overlay/textOverlay(kotlin/String, kotlin.ranges/ClosedRange<kotlin.time/Duration>, dev.jordond.filmstrip.style/TextStyle = ..., dev.jordond.filmstrip.geometry/Anchor = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.overlay/textOverlay|textOverlay@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.String;kotlin.ranges.ClosedRange<kotlin.time.Duration>;dev.jordond.filmstrip.style.TextStyle;dev.jordond.filmstrip.geometry.Anchor){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.overlay/imageOverlay(dev.jordond.filmstrip.media/ImageSource, dev.jordond.filmstrip.geometry/Corner, kotlin/Float = ..., kotlin/Float = ..., kotlin/Float = ..., dev.jordond.filmstrip.edit/TimeRange? = ..., dev.jordond.filmstrip.effects.overlay/OverlayAnimation? = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.overlay/imageOverlay|imageOverlay@dev.jordond.filmstrip.edit.EffectsBuilder(dev.jordond.filmstrip.media.ImageSource;dev.jordond.filmstrip.geometry.Corner;kotlin.Float;kotlin.Float;kotlin.Float;dev.jordond.filmstrip.edit.TimeRange?;dev.jordond.filmstrip.effects.overlay.OverlayAnimation?){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.overlay/textOverlay(kotlin/String, dev.jordond.filmstrip.style/TextStyle = ..., dev.jordond.filmstrip.geometry/Anchor = ..., dev.jordond.filmstrip.edit/TimeRange? = ..., dev.jordond.filmstrip.effects.overlay/OverlayAnimation? = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.overlay/textOverlay|textOverlay@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.String;dev.jordond.filmstrip.style.TextStyle;dev.jordond.filmstrip.geometry.Anchor;dev.jordond.filmstrip.edit.TimeRange?;dev.jordond.filmstrip.effects.overlay.OverlayAnimation?){}[0]
+final fun (dev.jordond.filmstrip.edit/EffectsBuilder).dev.jordond.filmstrip.effects.overlay/textOverlay(kotlin/String, kotlin.ranges/ClosedRange<kotlin.time/Duration>, dev.jordond.filmstrip.style/TextStyle = ..., dev.jordond.filmstrip.geometry/Anchor = ..., dev.jordond.filmstrip.effects.overlay/OverlayAnimation? = ...): dev.jordond.filmstrip.edit/EffectsBuilder // dev.jordond.filmstrip.effects.overlay/textOverlay|textOverlay@dev.jordond.filmstrip.edit.EffectsBuilder(kotlin.String;kotlin.ranges.ClosedRange<kotlin.time.Duration>;dev.jordond.filmstrip.style.TextStyle;dev.jordond.filmstrip.geometry.Anchor;dev.jordond.filmstrip.effects.overlay.OverlayAnimation?){}[0]
 final fun (dev.jordond.filmstrip.effects.geometry/Crop).dev.jordond.filmstrip.effects.geometry/retainedRect(dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.effects.geometry/retainedRect|retainedRect@dev.jordond.filmstrip.effects.geometry.Crop(dev.jordond.filmstrip.geometry.Size){}[0]
 final fun (dev.jordond.filmstrip.effects.geometry/KenBurns).dev.jordond.filmstrip.effects.geometry/regionAt(kotlin.time/Duration, dev.jordond.filmstrip.edit/TimeRange): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.effects.geometry/regionAt|regionAt@dev.jordond.filmstrip.effects.geometry.KenBurns(kotlin.time.Duration;dev.jordond.filmstrip.edit.TimeRange){}[0]
 final fun (dev.jordond.filmstrip.effects.overlay/ImageOverlay).dev.jordond.filmstrip.effects.overlay/placedOn(dev.jordond.filmstrip.geometry/Size, dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.effects.overlay/OverlayPlacement // dev.jordond.filmstrip.effects.overlay/placedOn|placedOn@dev.jordond.filmstrip.effects.overlay.ImageOverlay(dev.jordond.filmstrip.geometry.Size;dev.jordond.filmstrip.geometry.Size){}[0]
+final fun (dev.jordond.filmstrip.effects.overlay/OverlayAnimation).dev.jordond.filmstrip.effects.overlay/plus(dev.jordond.filmstrip.effects.overlay/OverlayAnimation): dev.jordond.filmstrip.effects.overlay/OverlayAnimation // dev.jordond.filmstrip.effects.overlay/plus|plus@dev.jordond.filmstrip.effects.overlay.OverlayAnimation(dev.jordond.filmstrip.effects.overlay.OverlayAnimation){}[0]
 final fun (dev.jordond.filmstrip.effects.overlay/OverlayPlacement).dev.jordond.filmstrip.effects.overlay/rectOn(dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.geometry/NormalizedRect // dev.jordond.filmstrip.effects.overlay/rectOn|rectOn@dev.jordond.filmstrip.effects.overlay.OverlayPlacement(dev.jordond.filmstrip.geometry.Size){}[0]
 final fun (dev.jordond.filmstrip.effects.overlay/TextOverlay).dev.jordond.filmstrip.effects.overlay/placedOn(dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.effects.overlay/OverlayPlacement // dev.jordond.filmstrip.effects.overlay/placedOn|placedOn@dev.jordond.filmstrip.effects.overlay.TextOverlay(dev.jordond.filmstrip.geometry.Size){}[0]
 final fun (dev.jordond.filmstrip.geometry/Anchor).dev.jordond.filmstrip.effects.overlay/nearestCornerInset(dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.effects.overlay/CornerInset // dev.jordond.filmstrip.effects.overlay/nearestCornerInset|nearestCornerInset@dev.jordond.filmstrip.geometry.Anchor(dev.jordond.filmstrip.geometry.Size){}[0]
 final fun (dev.jordond.filmstrip.geometry/NormalizedRect).dev.jordond.filmstrip.effects.geometry/applyTo(dev.jordond.filmstrip.geometry/Size): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.effects.geometry/applyTo|applyTo@dev.jordond.filmstrip.geometry.NormalizedRect(dev.jordond.filmstrip.geometry.Size){}[0]
 final fun (dev.jordond.filmstrip/FilmstripBuilder).dev.jordond.filmstrip.effects/builtInEffects(): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip.effects/builtInEffects|builtInEffects@dev.jordond.filmstrip.FilmstripBuilder(){}[0]
+final fun dev.jordond.filmstrip.effects.overlay/fade(kotlin.time/Duration, kotlin.time/Duration): dev.jordond.filmstrip.effects.overlay/OverlayAnimation // dev.jordond.filmstrip.effects.overlay/fade|fade(kotlin.time.Duration;kotlin.time.Duration){}[0]
+final fun dev.jordond.filmstrip.effects.overlay/fadeIn(kotlin.time/Duration): dev.jordond.filmstrip.effects.overlay/OverlayAnimation // dev.jordond.filmstrip.effects.overlay/fadeIn|fadeIn(kotlin.time.Duration){}[0]
+final fun dev.jordond.filmstrip.effects.overlay/fadeOut(kotlin.time/Duration): dev.jordond.filmstrip.effects.overlay/OverlayAnimation // dev.jordond.filmstrip.effects.overlay/fadeOut|fadeOut(kotlin.time.Duration){}[0]
+final fun dev.jordond.filmstrip.effects.overlay/slideIn(dev.jordond.filmstrip.effects.overlay/OverlayOffset, kotlin.time/Duration): dev.jordond.filmstrip.effects.overlay/OverlayAnimation // dev.jordond.filmstrip.effects.overlay/slideIn|slideIn(dev.jordond.filmstrip.effects.overlay.OverlayOffset;kotlin.time.Duration){}[0]
+final fun dev.jordond.filmstrip.effects.overlay/slideOut(dev.jordond.filmstrip.effects.overlay/OverlayOffset, kotlin.time/Duration): dev.jordond.filmstrip.effects.overlay/OverlayAnimation // dev.jordond.filmstrip.effects.overlay/slideOut|slideOut(dev.jordond.filmstrip.effects.overlay.OverlayOffset;kotlin.time.Duration){}[0]
