@@ -22,26 +22,26 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import kotlin.concurrent.Volatile
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 
 /**
  * The Android export driver, on media3's Transformer.
  *
- * What the encoders can do is read in [encoderCapabilities], what runs is built in [toMedia3], and
- * driving media3 is [TransformerRun].
+ * What the encoders can do is read once per process in [encoderCapabilities], what runs is built in
+ * [toMedia3], and driving media3 is [TransformerRun].
  */
 @OptIn(InternalFilmstripApi::class)
 internal class Media3Driver(
   private val prober: MediaProber,
 ) : ExportDriver {
-  private var cached: DeviceCapabilities? = null
-
-  override suspend fun capabilities(): DeviceCapabilities =
-    cached ?: withContext(Dispatchers.Default) { encoderCapabilities().also { cached = it } }
+  override suspend fun capabilities(): DeviceCapabilities = ProcessEncoderCapabilities.read()
 
   override fun renderCapabilities(
     outputSize: Size,
@@ -149,6 +149,31 @@ internal class Media3Driver(
       val error: ExportError,
     ) : Preparation
   }
+}
+
+/**
+ * The one encoder capability answer this process reads.
+ *
+ * [encoderCapabilities] walks the platform's codec list and reads the published limits off every
+ * encoder on it, and what those encoders report belongs to the device rather than to whichever
+ * driver asked. A process builds a driver per export engine, and the preview builds one per player,
+ * so the first caller pays for the walk and every later one reads the same answer. The lock stops
+ * two racing first calls from both probing.
+ */
+private object ProcessEncoderCapabilities {
+  private val lock = Mutex()
+
+  @Volatile
+  private var probed: DeviceCapabilities? = null
+
+  suspend fun read(): DeviceCapabilities =
+    probed ?: lock.withLock {
+      probed ?: withContext(Dispatchers.Default) {
+        // Assigned here rather than on the way out, so a probe that finished is kept even when the
+        // caller that paid for it is cancelled.
+        encoderCapabilities().also { probed = it }
+      }
+    }
 }
 
 /**
