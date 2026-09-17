@@ -106,7 +106,7 @@ import platform.darwin.noErr
  *
  * Apple publishes no size or rate ceiling, so the only honest answer for those comes from trying.
  * Each codec walks a resolution ladder largest first and stops at the first size that opens. The
- * session is invalidated once it has answered, and nothing is encoded through it. Hardware
+ * session is torn down once it has answered, and nothing is encoded through it. Hardware
  * acceleration is read off that same session when it will say, and falls back to
  * [VTCopyVideoEncoderList]'s encoder list when it will not.
  */
@@ -408,9 +408,9 @@ private fun CFDictionaryRef.codecType(): UInt? {
 /**
  * Opens a compression session at [size], or null when it will not open at all.
  *
- * The session answers [SessionProbe.hardwareAccelerated] itself before it is invalidated, so the
- * flag is read off the actual session a real export would open, not merely the codec's presence in
- * an encoder list.
+ * The session answers [SessionProbe.hardwareAccelerated] itself before it is invalidated and
+ * released, so the flag is read off the actual session a real export would open, not merely the
+ * codec's presence in an encoder list.
  */
 @OptIn(ExperimentalForeignApi::class)
 private fun canEncode(
@@ -437,7 +437,10 @@ private fun canEncode(
     if (status != noErr.toInt() || opened == null) return@memScoped null
 
     val hardware = opened.usesHardwareAcceleration()
+    // Create hands back a retained session, so tearing it down is invalidate followed by a
+    // release. Invalidate alone frees the encoder but leaks the reference.
     VTCompressionSessionInvalidate(opened)
+    CFRelease(opened)
     SessionProbe(hardware)
   }
 
