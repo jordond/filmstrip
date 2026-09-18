@@ -28,13 +28,7 @@ public actual fun PlatformFile.toMediaSink(): MediaSink =
     is AndroidFile.UriWrapper -> MediaSink.ofUri(file.uri.toString())
   }
 
-/**
- * Hands an export result back to FileKit, for a share sheet or a save dialog.
- *
- * @throws IllegalStateException on [MediaSink.Temporary], which is a request rather than a
- *   location. Read the resolved path off `ExportStatus.Success.output` instead.
- */
-public fun MediaSink.toPlatformFile(): PlatformFile =
+public actual fun MediaSink.toPlatformFile(): PlatformFile =
   when (this) {
     is MediaSink.Path -> PlatformFile(File(path))
     is MediaSink.Uri -> PlatformFile(Uri.parse(uri))

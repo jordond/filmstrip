@@ -63,6 +63,7 @@ include(
   ":filmstrip-compose-ui",
   ":filmstrip-test",
   ":filmstrip-io-filekit",
+  ":filmstrip-io-filekit-compose",
   ":filmstrip-io-okio",
   ":filmstrip-io-kotlinx",
 )

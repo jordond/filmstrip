@@ -17,7 +17,7 @@ Nothing in filmstrip is meant to fail silently. An unsupported effect comes back
 ## Targets
 
 Every published module targets the same list, except the four engine artifacts, each of which only
-runs where its engine does, and the two Compose ones, which have no desktop Apple surface in v1.
+runs where its engine does, and the three Compose ones, which have no desktop Apple surface in v1.
 
 | Artifact                           | Android | iOS (arm64, sim arm64) | macOS (arm64) | JVM | Browser (js, wasmJs) |
 | ---------------------------------- | ------- | ---------------------- | ------------- | --- | -------------------- |
@@ -34,6 +34,7 @@ runs where its engine does, and the two Compose ones, which have no desktop Appl
 | `filmstrip-compose-ui`             | ✅      | ✅                     | ❌            | ✅  | ✅                   |
 | `filmstrip-test`                   | ✅      | ✅                     | ✅            | ✅  | ✅                   |
 | `filmstrip-io-filekit`             | ✅      | ✅                     | ✅            | ✅  | ✅                   |
+| `filmstrip-io-filekit-compose`     | ✅      | ✅                     | ❌            | ✅  | ✅                   |
 | `filmstrip-io-okio`                | ✅      | ✅                     | ✅            | ✅  | ✅                   |
 | `filmstrip-io-kotlinx`             | ✅      | ✅                     | ✅            | ✅  | ✅                   |
 
@@ -642,4 +643,7 @@ them adds an arm of its own: `filmstrip-io-filekit` turns a picked `PlatformFile
 that target's backend reads and turns a sink back into a `PlatformFile`, `filmstrip-io-okio` and
 `filmstrip-io-kotlinx` turn a `Path` into `Path` and a stream into `Bytes`. Whatever the table above
 says about an arm is what the adapter gets you, so a `Path` from either io module is still refused
-in the browser and a stream is still the only thing that reads there.
+in the browser and a stream is still the only thing that reads there. `filmstrip-io-filekit-compose`
+wraps FileKit's Compose launchers so a pick, a save location and a share sheet arrive already on
+those arms. A pick in a browser mints an object URL that lives until the page unloads, and
+`MediaSource.release` on the source frees it early.

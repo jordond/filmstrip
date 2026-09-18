@@ -58,6 +58,7 @@ import dev.jordond.filmstrip.media.PQ_M1
 import dev.jordond.filmstrip.media.PQ_M2
 import dev.jordond.filmstrip.media.SDR_DISPLAY_GAMMA
 import dev.jordond.filmstrip.media.SDR_SIGNAL_TO_HLG_SCENE_GAMMA
+import dev.jordond.filmstrip.media.filePathOf
 import dev.jordond.filmstrip.media.sdrSignalCeiling
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -559,9 +560,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
           File(path).takeIf { it.isFile }?.let(ImageIO::createImageInputStream)
         }
         is ImageSource.Uri -> {
-          File(
-            uri.removePrefix(FILE_SCHEME),
-          ).takeIf { it.isFile }?.let(ImageIO::createImageInputStream)
+          filePathOf(uri)?.let(::File)?.takeIf { it.isFile }?.let(ImageIO::createImageInputStream)
         }
         is ImageSource.Bytes -> {
           ImageIO.createImageInputStream(ByteArrayInputStream(bytes))
@@ -668,10 +667,6 @@ private const val GRID_TOLERANCE = 1e-6
 
 // The image in an ImageIO stream, which is the only one a still carries.
 private const val FIRST_IMAGE = 0
-
-// What Scratch strips from a URI before handing the path to ffmpeg, so a header read here opens the
-// same file the graph does.
-private const val FILE_SCHEME = "file://"
 
 private const val ANIMATION_NO_GRID =
   "An animated overlay is sampled once per output frame, and this composition resolved no frame " +

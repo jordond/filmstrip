@@ -40,7 +40,7 @@ import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.effects.color.ColorMatrix
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
-import dev.jordond.filmstrip.filekit.toImageSource
+import dev.jordond.filmstrip.filekit.compose.rememberImagePickerLauncher
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fit
@@ -64,8 +64,6 @@ import dev.jordond.filmstrip.sample.ui.formatFraction
 import dev.jordond.filmstrip.sample.ui.formatPercent
 import dev.jordond.filmstrip.style.FontWeight
 import dev.jordond.filmstrip.style.TextAlignment
-import io.github.vinceglb.filekit.dialogs.FileKitType
-import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
 import io.github.vinceglb.filekit.name
 import kotlin.time.Duration.Companion.seconds
 
@@ -868,16 +866,13 @@ private fun TextPanel(state: SampleAppState) {
 private fun WatermarkPanel(state: SampleAppState) {
   val edit = state.edit
   val duration = state.editedDurationSeconds
-  val picker = rememberFilePickerLauncher(
-    type = FileKitType.Image,
-    onResult = { file ->
-      if (file != null) {
-        edit.watermarkImage = file.toImageSource()
-        edit.watermarkLabel = file.name
-        state.onEditChanged()
-      }
-    },
-  )
+  val picker = rememberImagePickerLauncher { picked ->
+    if (picked != null) {
+      edit.watermarkImage = picked.source
+      edit.watermarkLabel = picked.file.name
+      state.onEditChanged()
+    }
+  }
 
   ControlGroup("Image") {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {

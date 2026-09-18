@@ -1,0 +1,54 @@
+// Klib ABI Dump
+// Targets: [iosArm64, iosSimulatorArm64, js, wasmJs]
+// Alias: ios => [iosArm64, iosSimulatorArm64]
+// Rendering settings:
+// - Signature version: 2
+// - Show manifest properties: true
+// - Show declarations: true
+
+// Library unique name: <filmstrip-root:filmstrip-io-filekit-compose>
+abstract interface dev.jordond.filmstrip.filekit.compose/ShareLauncher { // dev.jordond.filmstrip.filekit.compose/ShareLauncher|null[0]
+    abstract fun launch(dev.jordond.filmstrip.media/MediaSink) // dev.jordond.filmstrip.filekit.compose/ShareLauncher.launch|launch(dev.jordond.filmstrip.media.MediaSink){}[0]
+    abstract fun launch(io.github.vinceglb.filekit/PlatformFile) // dev.jordond.filmstrip.filekit.compose/ShareLauncher.launch|launch(io.github.vinceglb.filekit.PlatformFile){}[0]
+}
+
+final class dev.jordond.filmstrip.filekit.compose/ExportSaverLauncher { // dev.jordond.filmstrip.filekit.compose/ExportSaverLauncher|null[0]
+    final fun launch(kotlin/String, kotlin/String? = ..., io.github.vinceglb.filekit/PlatformFile? = ...) // dev.jordond.filmstrip.filekit.compose/ExportSaverLauncher.launch|launch(kotlin.String;kotlin.String?;io.github.vinceglb.filekit.PlatformFile?){}[0]
+}
+
+final class dev.jordond.filmstrip.filekit.compose/PickedImage { // dev.jordond.filmstrip.filekit.compose/PickedImage|null[0]
+    final val file // dev.jordond.filmstrip.filekit.compose/PickedImage.file|{}file[0]
+        final fun <get-file>(): io.github.vinceglb.filekit/PlatformFile // dev.jordond.filmstrip.filekit.compose/PickedImage.file.<get-file>|<get-file>(){}[0]
+    final val source // dev.jordond.filmstrip.filekit.compose/PickedImage.source|{}source[0]
+        final fun <get-source>(): dev.jordond.filmstrip.media/ImageSource // dev.jordond.filmstrip.filekit.compose/PickedImage.source.<get-source>|<get-source>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.filekit.compose/PickedImage.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.filekit.compose/PickedImage.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.filekit.compose/PickedImage.toString|toString(){}[0]
+}
+
+final class dev.jordond.filmstrip.filekit.compose/PickedMedia { // dev.jordond.filmstrip.filekit.compose/PickedMedia|null[0]
+    final val file // dev.jordond.filmstrip.filekit.compose/PickedMedia.file|{}file[0]
+        final fun <get-file>(): io.github.vinceglb.filekit/PlatformFile // dev.jordond.filmstrip.filekit.compose/PickedMedia.file.<get-file>|<get-file>(){}[0]
+    final val source // dev.jordond.filmstrip.filekit.compose/PickedMedia.source|{}source[0]
+        final fun <get-source>(): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.filekit.compose/PickedMedia.source.<get-source>|<get-source>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.filekit.compose/PickedMedia.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.filekit.compose/PickedMedia.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.filekit.compose/PickedMedia.toString|toString(){}[0]
+}
+
+final val dev.jordond.filmstrip.filekit.compose/dev_jordond_filmstrip_filekit_compose_ExportSaverLauncher$stableprop // dev.jordond.filmstrip.filekit.compose/dev_jordond_filmstrip_filekit_compose_ExportSaverLauncher$stableprop|#static{}dev_jordond_filmstrip_filekit_compose_ExportSaverLauncher$stableprop[0]
+final val dev.jordond.filmstrip.filekit.compose/dev_jordond_filmstrip_filekit_compose_PickedImage$stableprop // dev.jordond.filmstrip.filekit.compose/dev_jordond_filmstrip_filekit_compose_PickedImage$stableprop|#static{}dev_jordond_filmstrip_filekit_compose_PickedImage$stableprop[0]
+final val dev.jordond.filmstrip.filekit.compose/dev_jordond_filmstrip_filekit_compose_PickedMedia$stableprop // dev.jordond.filmstrip.filekit.compose/dev_jordond_filmstrip_filekit_compose_PickedMedia$stableprop|#static{}dev_jordond_filmstrip_filekit_compose_PickedMedia$stableprop[0]
+
+final fun dev.jordond.filmstrip.filekit.compose/dev_jordond_filmstrip_filekit_compose_ExportSaverLauncher$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.filekit.compose/dev_jordond_filmstrip_filekit_compose_ExportSaverLauncher$stableprop_getter|dev_jordond_filmstrip_filekit_compose_ExportSaverLauncher$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.filekit.compose/dev_jordond_filmstrip_filekit_compose_PickedImage$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.filekit.compose/dev_jordond_filmstrip_filekit_compose_PickedImage$stableprop_getter|dev_jordond_filmstrip_filekit_compose_PickedImage$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.filekit.compose/dev_jordond_filmstrip_filekit_compose_PickedMedia$stableprop_getter(): kotlin/Int // dev.jordond.filmstrip.filekit.compose/dev_jordond_filmstrip_filekit_compose_PickedMedia$stableprop_getter|dev_jordond_filmstrip_filekit_compose_PickedMedia$stableprop_getter(){}[0]
+final fun dev.jordond.filmstrip.filekit.compose/rememberExportSaverLauncher(io.github.vinceglb.filekit.dialogs/FileKitDialogSettings?, kotlin/Function1<io.github.vinceglb.filekit.dialogs/FileKitDialogException, kotlin/Unit>?, kotlin/Function1<dev.jordond.filmstrip.media/MediaSink?, kotlin/Unit>, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int): dev.jordond.filmstrip.filekit.compose/ExportSaverLauncher // dev.jordond.filmstrip.filekit.compose/rememberExportSaverLauncher|rememberExportSaverLauncher(io.github.vinceglb.filekit.dialogs.FileKitDialogSettings?;kotlin.Function1<io.github.vinceglb.filekit.dialogs.FileKitDialogException,kotlin.Unit>?;kotlin.Function1<dev.jordond.filmstrip.media.MediaSink?,kotlin.Unit>;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.filekit.compose/rememberImagePickerLauncher(io.github.vinceglb.filekit.dialogs/FileKitType?, io.github.vinceglb.filekit/PlatformFile?, io.github.vinceglb.filekit.dialogs/FileKitDialogSettings?, kotlin/Function1<io.github.vinceglb.filekit.dialogs/FileKitPickerException, kotlin/Unit>?, kotlin/Function1<dev.jordond.filmstrip.filekit.compose/PickedImage?, kotlin/Unit>, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int): io.github.vinceglb.filekit.dialogs.compose/PickerResultLauncher // dev.jordond.filmstrip.filekit.compose/rememberImagePickerLauncher|rememberImagePickerLauncher(io.github.vinceglb.filekit.dialogs.FileKitType?;io.github.vinceglb.filekit.PlatformFile?;io.github.vinceglb.filekit.dialogs.FileKitDialogSettings?;kotlin.Function1<io.github.vinceglb.filekit.dialogs.FileKitPickerException,kotlin.Unit>?;kotlin.Function1<dev.jordond.filmstrip.filekit.compose.PickedImage?,kotlin.Unit>;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.filekit.compose/rememberMediaPickerLauncher(io.github.vinceglb.filekit.dialogs/FileKitType?, io.github.vinceglb.filekit/PlatformFile?, io.github.vinceglb.filekit.dialogs/FileKitDialogSettings?, kotlin/Function1<io.github.vinceglb.filekit.dialogs/FileKitPickerException, kotlin/Unit>?, kotlin/Function1<dev.jordond.filmstrip.filekit.compose/PickedMedia?, kotlin/Unit>, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int): io.github.vinceglb.filekit.dialogs.compose/PickerResultLauncher // dev.jordond.filmstrip.filekit.compose/rememberMediaPickerLauncher|rememberMediaPickerLauncher(io.github.vinceglb.filekit.dialogs.FileKitType?;io.github.vinceglb.filekit.PlatformFile?;io.github.vinceglb.filekit.dialogs.FileKitDialogSettings?;kotlin.Function1<io.github.vinceglb.filekit.dialogs.FileKitPickerException,kotlin.Unit>?;kotlin.Function1<dev.jordond.filmstrip.filekit.compose.PickedMedia?,kotlin.Unit>;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+final fun dev.jordond.filmstrip.filekit.compose/rememberShareLauncher(kotlin/Function1<io.github.vinceglb.filekit.dialogs/FileKitDialogException, kotlin/Unit>?, androidx.compose.runtime/Composer?, kotlin/Int, kotlin/Int): dev.jordond.filmstrip.filekit.compose/ShareLauncher? // dev.jordond.filmstrip.filekit.compose/rememberShareLauncher|rememberShareLauncher(kotlin.Function1<io.github.vinceglb.filekit.dialogs.FileKitDialogException,kotlin.Unit>?;androidx.compose.runtime.Composer?;kotlin.Int;kotlin.Int){}[0]
+
+// Targets: [ios]
+final fun (io.github.vinceglb.filekit.dialogs.compose/ShareResultLauncher).dev.jordond.filmstrip.filekit.compose/launch(dev.jordond.filmstrip.media/MediaSink) // dev.jordond.filmstrip.filekit.compose/launch|launch@io.github.vinceglb.filekit.dialogs.compose.ShareResultLauncher(dev.jordond.filmstrip.media.MediaSink){}[0]

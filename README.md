@@ -29,10 +29,11 @@ an ffmpeg you installed yourself.
 | `filmstrip-compose-ui` | The drawn timeline: scrolling strip, ruler, playhead, trim handles, scrub gestures. Foundation only, no Material. |
 | `filmstrip-test` | Test fixtures and the frame-similarity harness. |
 | `filmstrip-io-filekit` | FileKit bindings: a picked `PlatformFile` as a source or sink, and an export result back as one. |
+| `filmstrip-io-filekit-compose` | FileKit dialog launchers that hand back a `MediaSource`, `ImageSource` or `MediaSink`: pick, save, share. |
 | `filmstrip-io-okio` | Okio bindings: `Path`, `BufferedSource` and `ByteString` as sources, `Path` as a sink. |
 | `filmstrip-io-kotlinx` | kotlinx-io bindings: `Path` and `Source` as sources, `Path` as a sink. |
 
-Layering is `core -> {effects, io-filekit, io-okio, io-kotlinx}`, then
+Layering is `core -> {effects, io-filekit -> io-filekit-compose, io-okio, io-kotlinx}`, then
 `effects -> {transform -> engines, player} -> {compose -> compose-ui, filmstrip}`. The build enforces it: `check`
 runs a resolved-dependency guard on every module, plus an import guard where one is needed.
 

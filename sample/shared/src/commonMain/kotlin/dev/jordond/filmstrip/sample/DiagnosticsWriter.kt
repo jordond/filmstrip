@@ -9,7 +9,7 @@ import io.github.vinceglb.filekit.PlatformFile
  * a caller that only wants the text still copies it from the pane instead.
  *
  * @param report The report to write.
- * @return The markdown file, ready to hand to [FileSharer], or null where the platform hands it
+ * @return The markdown file, ready to hand to a share sheet, or null where the platform hands it
  *   straight to the user, which is what a browser download does.
  */
 public expect suspend fun writeDiagnostics(report: DiagnosticsReport): PlatformFile?

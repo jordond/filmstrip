@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.media.filePathOf
 import dev.jordond.filmstrip.transform.internal.ExportPlanner
 import dev.jordond.filmstrip.transform.internal.Mp4Copy
 import dev.jordond.filmstrip.transform.internal.NegotiatedComposition
@@ -147,8 +148,9 @@ internal class FfmpegPlanner(
 /**
  * The file a source names, or null when this backend cannot read it.
  *
- * ffmpeg reads files, so a path is a path and a `file://` URI is the same thing spelled with a
- * scheme. Nothing else has a desktop meaning, and in-memory bytes have to be written down first.
+ * ffmpeg reads files, so a path is a path and a `file:` URI is the same file spelled with a scheme,
+ * percent-decoded back into a path. Nothing else has a desktop meaning, and in-memory bytes have to
+ * be written down first.
  */
 internal const val READS_FILES: String =
   "This backend reads files. Use a path or a file:// URI; in-memory bytes have to be written down " +
@@ -160,7 +162,7 @@ internal fun missingBlurFilter(filter: String): String =
 internal fun readablePath(source: MediaSource): String? =
   when (source) {
     is MediaSource.Path -> source.path
-    is MediaSource.Uri -> source.uri.removePrefix("file://").takeIf { !source.uri.contains("://") || it != source.uri }
+    is MediaSource.Uri -> filePathOf(source.uri) ?: source.uri.takeIf { !it.contains("://") }
     is MediaSource.Bytes -> null
     // A still names a file, but not one this backend reads as a clip, and answering with its path
     // would have ffprobe report the file's own zero duration over the one the source declares.

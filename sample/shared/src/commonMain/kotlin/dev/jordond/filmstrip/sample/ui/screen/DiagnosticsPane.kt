@@ -28,9 +28,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import dev.jordond.filmstrip.filekit.compose.rememberShareLauncher
 import dev.jordond.filmstrip.sample.SampleAppState
 import dev.jordond.filmstrip.sample.diagnosticsReport
-import dev.jordond.filmstrip.sample.rememberFileSharer
 import dev.jordond.filmstrip.sample.ui.SampleIcons
 import dev.jordond.filmstrip.sample.writeDiagnostics
 import io.github.vinceglb.filekit.path
@@ -53,7 +53,7 @@ public fun DiagnosticsPane(
 ) {
   val report = state.diagnosticsReport()
   val clipboard = LocalClipboardManager.current
-  val sharer = rememberFileSharer()
+  val sharer = rememberShareLauncher()
   val scope = rememberCoroutineScope()
 
   var saving by remember { mutableStateOf(false) }
@@ -91,7 +91,7 @@ public fun DiagnosticsPane(
             try {
               val file = writeDiagnostics(report)
               saved = file?.path ?: "Downloaded."
-              if (file != null) sharer?.share(file)
+              if (file != null) sharer?.launch(file)
             } finally {
               saving = false
             }

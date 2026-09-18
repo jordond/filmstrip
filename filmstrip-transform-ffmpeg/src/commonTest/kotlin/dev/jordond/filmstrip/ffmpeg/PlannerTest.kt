@@ -32,10 +32,13 @@ import dev.jordond.filmstrip.ffmpeg.internal.EXPRESSION_SEGMENTS
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegParity
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPlanner
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegVersion
+import dev.jordond.filmstrip.ffmpeg.internal.InputSource
+import dev.jordond.filmstrip.ffmpeg.internal.READS_FILES
 import dev.jordond.filmstrip.ffmpeg.internal.Toolchain
 import dev.jordond.filmstrip.ffmpeg.internal.ffmpegEncoderNamed
 import dev.jordond.filmstrip.ffmpeg.internal.ffmpegEncoders
 import dev.jordond.filmstrip.ffmpeg.internal.formatSeconds
+import dev.jordond.filmstrip.ffmpeg.internal.readablePath
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
@@ -616,6 +619,54 @@ class PlannerTest {
 
     val reason = assertIs<Verdict.Incapable>(verdict).reasons.single()
     assertIs<ExportError.SourceNotExportable>(reason).message shouldBe stillUnsupportedMessage("ffmpeg")
+  }
+
+  // How a file: URL reads is filePathOf's answer, pinned in filmstrip-core. What this pins is that
+  // the source arm asks it rather than stripping the scheme itself.
+  @Test
+  fun `reads a file uri as the path it names`() {
+    readablePath(MediaSource.ofUri("file:///clips/my%20holiday.mp4")) shouldBe "/clips/my holiday.mp4"
+  }
+
+  @Test
+  fun `leaves a path alone`() {
+    readablePath(MediaSource.of("/clips/my holiday.mp4")) shouldBe "/clips/my holiday.mp4"
+    readablePath(MediaSource.ofUri("/clips/my holiday.mp4")) shouldBe "/clips/my holiday.mp4"
+  }
+
+  @Test
+  fun `refuses a uri this backend cannot open`() {
+    readablePath(MediaSource.ofUri("http://example.com/clips/one.mp4")) shouldBe null
+    readablePath(MediaSource.ofUri("content://media/external/video/1")) shouldBe null
+  }
+
+  // file://host/one.mp4 names a file on another machine, and stripping the scheme off it would hand
+  // ffmpeg "host/one.mp4", a relative path in whatever directory the process happens to be in.
+  @Test
+  fun `refuses a file uri naming another host`() {
+    readablePath(MediaSource.ofUri("file://host/clips/one.mp4")) shouldBe null
+  }
+
+  @Test
+  fun `opens a clip named by a file uri at the decoded path`() {
+    val source = MediaSource.ofUri("file:///clips/my%20holiday.mp4")
+    val composition = EditComposition(listOf(Track(listOf(Clip(source)))))
+    val infos = mapOf(source to info(Size(1920, 1080), 4_000.milliseconds))
+
+    val invocation = planner().lower(composition, ExportSpec(), device(), infos).invocation!!
+
+    assertIs<InputSource.OfPath>(invocation.inputs.first().source).path shouldBe "/clips/my holiday.mp4"
+  }
+
+  @Test
+  fun `refuses a clip named by a uri this backend cannot open`() {
+    val source = MediaSource.ofUri("content://media/external/video/1")
+    val composition = EditComposition(listOf(Track(listOf(Clip(source)))))
+
+    val verdict = planner().lower(composition, ExportSpec(), device(), emptyMap()).verdict
+
+    val reason = assertIs<Verdict.Incapable>(verdict).reasons.single()
+    assertIs<ExportError.SourceUnreadable>(reason).message shouldBe READS_FILES
   }
 
   @Test

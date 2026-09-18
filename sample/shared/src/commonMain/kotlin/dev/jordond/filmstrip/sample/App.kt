@@ -11,7 +11,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.scene.DialogSceneStrategy
 import androidx.navigation3.scene.SinglePaneSceneStrategy
 import androidx.navigation3.ui.NavDisplay
-import dev.jordond.filmstrip.filekit.toMediaSource
+import dev.jordond.filmstrip.filekit.compose.rememberMediaPickerLauncher
 import dev.jordond.filmstrip.sample.ui.SampleTheme
 import dev.jordond.filmstrip.sample.ui.isCompactWidth
 import dev.jordond.filmstrip.sample.ui.nav.BottomSheetSceneStrategy
@@ -23,18 +23,15 @@ import dev.jordond.filmstrip.sample.ui.screen.EditorScreen
 import dev.jordond.filmstrip.sample.ui.screen.ExportPane
 import dev.jordond.filmstrip.sample.ui.screen.ResultScreen
 import dev.jordond.filmstrip.sample.ui.screen.StartScreen
-import io.github.vinceglb.filekit.dialogs.FileKitType
-import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
 import io.github.vinceglb.filekit.name
 
 @Composable
 fun App(state: SampleAppState) {
   SampleTheme {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-      val picker = rememberFilePickerLauncher(
-        type = FileKitType.Video,
+      val picker = rememberMediaPickerLauncher(
         onError = { state.onPickFailed(it.message) },
-        onResult = { file -> state.onPicked(file?.toMediaSource(), file?.name.orEmpty()) },
+        onResult = { picked -> state.onPicked(picked?.source, picked?.file?.name.orEmpty()) },
       )
 
       val compact = isCompactWidth()
