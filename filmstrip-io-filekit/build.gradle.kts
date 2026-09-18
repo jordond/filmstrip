@@ -8,6 +8,13 @@ androidDeviceTests()
 
 kotlin {
   sourceSets {
+    create("nonWebMain") {
+      dependsOn(commonMain.get())
+      androidMain.get().dependsOn(this)
+      appleMain.get().dependsOn(this)
+      jvmMain.get().dependsOn(this)
+    }
+
     commonMain.dependencies {
       api(projects.filmstripCore)
       api(libs.filekit.core)

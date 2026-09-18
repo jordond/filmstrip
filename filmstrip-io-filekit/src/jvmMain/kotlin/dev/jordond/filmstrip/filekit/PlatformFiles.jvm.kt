@@ -30,7 +30,7 @@ public actual fun PlatformFile.toMediaSink(): MediaSink = MediaSink.of(file.abso
  * @throws IllegalStateException on [MediaSink.Temporary], which is a request rather than a
  *   location. Read the resolved path off `ExportStatus.Success.output` instead.
  */
-public fun MediaSink.toPlatformFile(): PlatformFile =
+public actual fun MediaSink.toPlatformFile(): PlatformFile =
   when (this) {
     is MediaSink.Path -> {
       PlatformFile(File(path))

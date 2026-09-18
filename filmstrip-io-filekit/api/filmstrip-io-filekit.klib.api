@@ -13,3 +13,9 @@ final fun (io.github.vinceglb.filekit/PlatformFile).dev.jordond.filmstrip.fileki
 
 // Targets: [apple]
 final fun (dev.jordond.filmstrip.media/MediaSink).dev.jordond.filmstrip.filekit/toPlatformFile(): io.github.vinceglb.filekit/PlatformFile // dev.jordond.filmstrip.filekit/toPlatformFile|toPlatformFile@dev.jordond.filmstrip.media.MediaSink(){}[0]
+
+// Targets: [apple]
+final suspend fun (io.github.vinceglb.filekit/FileKit).dev.jordond.filmstrip.filekit/saveImageToGallery(dev.jordond.filmstrip.media/MediaSink, kotlin/String? = ...): kotlin/Result<kotlin/Unit> // dev.jordond.filmstrip.filekit/saveImageToGallery|saveImageToGallery@io.github.vinceglb.filekit.FileKit(dev.jordond.filmstrip.media.MediaSink;kotlin.String?){}[0]
+
+// Targets: [apple]
+final suspend fun (io.github.vinceglb.filekit/FileKit).dev.jordond.filmstrip.filekit/saveVideoToGallery(dev.jordond.filmstrip.media/MediaSink, kotlin/String? = ...): kotlin/Result<kotlin/Unit> // dev.jordond.filmstrip.filekit/saveVideoToGallery|saveVideoToGallery@io.github.vinceglb.filekit.FileKit(dev.jordond.filmstrip.media.MediaSink;kotlin.String?){}[0]
