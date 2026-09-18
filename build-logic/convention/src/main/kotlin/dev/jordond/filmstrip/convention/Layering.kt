@@ -24,8 +24,10 @@ internal enum class Layer(
   ComposeUi(setOf(Core, Effects, Transform, Backend, Player, Compose)),
   Umbrella(setOf(Core, Effects, Transform, Backend, Player)),
 
-  // The io adapters branch off core rather than climbing the ladder, and nothing above them takes one.
+  // The io adapters branch off core rather than climbing the ladder. Only io-filekit is taken by anything, and
+  // only by io-filekit-compose.
   Io(setOf(Core)),
+  IoCompose(setOf(Core, Io)),
   Fixtures(setOf(Core)),
 }
 
@@ -47,6 +49,7 @@ private val LAYERS: Map<String, Layer> =
     ":filmstrip-compose-ui" to Layer.ComposeUi,
     ":filmstrip" to Layer.Umbrella,
     ":filmstrip-io-filekit" to Layer.Io,
+    ":filmstrip-io-filekit-compose" to Layer.IoCompose,
     ":filmstrip-io-kotlinx" to Layer.Io,
     ":filmstrip-io-okio" to Layer.Io,
     ":filmstrip-test" to Layer.Fixtures,
@@ -80,6 +83,7 @@ private val FORBIDDEN_EXTERNALS: Map<Layer, Set<String>> =
     Layer.Player to COMPOSE,
     Layer.Umbrella to COMPOSE,
     Layer.Io to COMPOSE + "androidx.media3",
+    Layer.IoCompose to setOf("androidx.media3"),
     Layer.Fixtures to COMPOSE,
   )
 
@@ -114,6 +118,7 @@ private val FORBIDDEN_IMPORTS: Map<Layer, Set<String>> =
     // `material3.adaptive` by prefix, so a tool panel or a styled control cannot be written there.
     Layer.ComposeUi to setOf("androidx.media3.transformer", "androidx.compose.material"),
     Layer.Io to NATIVE_PLAYBACK_AND_EXPORT,
+    Layer.IoCompose to NATIVE_PLAYBACK_AND_EXPORT,
   )
 
 /**
