@@ -304,7 +304,7 @@ public class BrowserPreview internal constructor(
     // Back onto the output timeline, then down onto the frame grid, so the position a seek settles
     // on is one the preview can draw rather than one between two slots.
     val outputUs = slot.clip.offsetUs + (keyUs - slot.clip.trimStartUs)
-    val step = stepUs
+    val step = render.stepUs
     // A step that does not divide a whole microsecond count, as thirty frames a second does not,
     // leaves a slot's own time a hair under the integer it should floor to, so the quotient is
     // nudged by a fraction of a slot first. Without it a key frame on a whole second lands a slot
@@ -343,7 +343,7 @@ public class BrowserPreview internal constructor(
     pass: BrowserCompositor,
     outputUs: Double,
   ): PreviewFrame {
-    val shot = pass.present(outputUs, stepUs)
+    val shot = pass.present(outputUs, render.stepUs)
     try {
       val options = JsOptions().put("format", "RGBA").build()
       val target = Uint8Array(shot.allocationSize(options))
@@ -372,8 +372,6 @@ public class BrowserPreview internal constructor(
     return reader.sampler(tenBit = render.hdrTransfer != null)?.also { cache[slot.index] = it }
   }
 
-  private val stepUs: Double get() = MICROS_PER_SECOND / render.frameRate
-
   /**
    * The output time of the grid slot [position] rounds to when that slot is one of the render's lead slots, or null
    * when it is not.
@@ -384,7 +382,7 @@ public class BrowserPreview internal constructor(
    */
   private fun leadAt(position: Duration): Double? {
     if (render.leadFrames == 0L || render.frameRate <= 0) return null
-    val step = stepUs
+    val step = render.stepUs
     val positionUs = position.toDouble(DurationUnit.MICROSECONDS).coerceAtLeast(0.0)
 
     val slot = (positionUs / step).roundToLong()
@@ -400,7 +398,7 @@ public class BrowserPreview internal constructor(
    */
   private fun slotAt(position: Duration): Slot? {
     if (render.clips.isEmpty() || render.frameRate <= 0) return null
-    val step = stepUs
+    val step = render.stepUs
     val positionUs = position.toDouble(DurationUnit.MICROSECONDS).coerceAtLeast(0.0)
 
     render.clips.forEachIndexed { index, clip ->
@@ -419,9 +417,9 @@ public class BrowserPreview internal constructor(
     val clip: RenderedClip,
     private val slot: Long,
   ) {
-    val sourceUs: Double get() = clip.trimStartUs + slot * stepUs
+    val sourceUs: Double get() = clip.trimStartUs + slot * render.stepUs
 
-    val outputUs: Double get() = clip.offsetUs + slot * stepUs
+    val outputUs: Double get() = clip.offsetUs + slot * render.stepUs
   }
 }
 

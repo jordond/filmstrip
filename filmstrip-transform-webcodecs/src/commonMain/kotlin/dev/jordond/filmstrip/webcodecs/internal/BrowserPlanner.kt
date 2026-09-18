@@ -130,7 +130,13 @@ internal class BrowserRender(
   val audioTracks: List<ResolvedTrack>,
   val fill: Fill,
   val hdrTransfer: HdrTransfer?,
-)
+) {
+  /**
+   * How long one output slot runs in microseconds at [frameRate]. Every pass that walks the output frame by frame
+   * steps on by this, and it is the duration each encoded frame carries.
+   */
+  val stepUs: Double = MICROS_PER_SECOND / frameRate
+}
 
 /**
  * Turns a composition into a browser verdict.

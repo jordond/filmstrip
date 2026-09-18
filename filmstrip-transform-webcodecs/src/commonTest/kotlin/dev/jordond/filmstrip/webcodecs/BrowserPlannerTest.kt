@@ -63,7 +63,6 @@ import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
 import dev.jordond.filmstrip.webcodecs.internal.BrowserLowering
 import dev.jordond.filmstrip.webcodecs.internal.BrowserPlanner
 import dev.jordond.filmstrip.webcodecs.internal.HDR_VP9_CODEC
-import dev.jordond.filmstrip.webcodecs.internal.MICROS_PER_SECOND
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -777,9 +776,8 @@ class BrowserPlannerTest {
     assertEquals(render.leadFrames + render.clips.sumOf { it.frames }, render.estimatedFrames)
     // No gap slot reaches the first clip, so the timestamps the pipeline writes keep climbing
     // across the seam.
-    val stepUs = MICROS_PER_SECOND / render.frameRate
     val openingUs = render.clips.first().offsetUs
-    assertTrue((render.leadFrames - 1) * stepUs < openingUs, "the last gap slot lands on or past $openingUs")
+    assertTrue((render.leadFrames - 1) * render.stepUs < openingUs, "the last gap slot lands on or past $openingUs")
   }
 
   // The gap is the start rounded to the nearest slot, with a start on a half rounded up, which is

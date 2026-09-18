@@ -86,13 +86,12 @@ internal class BrowserPipeline(
     encoder: BrowserEncoder,
     onProgress: suspend (Long, Double) -> Unit,
   ): Long {
-    val stepUs = MICROS_PER_SECOND / render.frameRate
     for (slot in 0 until render.leadFrames) {
       currentCoroutineContext().ensureActive()
 
-      val outputUs = slot * stepUs
+      val outputUs = slot * render.stepUs
       compositor.drawFill(outputUs)
-      encodeFrame(compositor, encoder, outputUs, stepUs)
+      encodeFrame(compositor, encoder, outputUs, render.stepUs)
       onProgress(slot + 1, outputUs)
     }
     return render.leadFrames
@@ -110,7 +109,6 @@ internal class BrowserPipeline(
     encodedSoFar: Long,
     onProgress: suspend (Long, Double) -> Unit,
   ): Long {
-    val stepUs = MICROS_PER_SECOND / render.frameRate
     val stream =
       sources
         .open(clip.source)
@@ -126,7 +124,7 @@ internal class BrowserPipeline(
       for (slot in 0 until clip.frames) {
         currentCoroutineContext().ensureActive()
 
-        val sourceUs = clip.trimStartUs + slot * stepUs
+        val sourceUs = clip.trimStartUs + slot * render.stepUs
         while (ahead != null && ahead.microsecondTimestamp <= sourceUs) {
           current?.close()
           current = ahead
@@ -134,10 +132,10 @@ internal class BrowserPipeline(
         }
 
         val chosen = nearest(current, ahead, sourceUs) ?: break
-        val outputUs = clip.offsetUs + slot * stepUs
+        val outputUs = clip.offsetUs + slot * render.stepUs
         compositor.draw(chosen, outputUs)
 
-        encodeFrame(compositor, encoder, outputUs, stepUs)
+        encodeFrame(compositor, encoder, outputUs, render.stepUs)
 
         emitted++
         onProgress(emitted, outputUs)
