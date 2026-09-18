@@ -1,0 +1,7 @@
+public final class dev/jordond/filmstrip/filekit/PlatformFiles_jvmKt {
+	public static final fun toImageSource (Lio/github/vinceglb/filekit/PlatformFile;)Ldev/jordond/filmstrip/media/ImageSource;
+	public static final fun toMediaSink (Lio/github/vinceglb/filekit/PlatformFile;)Ldev/jordond/filmstrip/media/MediaSink;
+	public static final fun toMediaSource (Lio/github/vinceglb/filekit/PlatformFile;)Ldev/jordond/filmstrip/media/MediaSource;
+	public static final fun toPlatformFile (Ldev/jordond/filmstrip/media/MediaSink;)Lio/github/vinceglb/filekit/PlatformFile;
+}
+

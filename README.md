@@ -28,9 +28,11 @@ an ffmpeg you installed yourself.
 | `filmstrip-compose` | Compose Multiplatform bindings: player state, the frame strip's cache, and bare surfaces. |
 | `filmstrip-compose-ui` | The drawn timeline: scrolling strip, ruler, playhead, trim handles, scrub gestures. Foundation only, no Material. |
 | `filmstrip-test` | Test fixtures and the frame-similarity harness. |
+| `filmstrip-io-filekit` | FileKit bindings: a picked `PlatformFile` as a source or sink, and an export result back as one. |
 
-Layering is `core -> effects -> {transform -> engines, player} -> {compose -> compose-ui, filmstrip}`. The build
-enforces it: `check` runs a resolved-dependency guard on every module, plus an import guard where one is needed.
+Layering is `core -> {effects, io-filekit, io-okio, io-kotlinx}`, then
+`effects -> {transform -> engines, player} -> {compose -> compose-ui, filmstrip}`. The build enforces it: `check`
+runs a resolved-dependency guard on every module, plus an import guard where one is needed.
 
 ## Building
 
