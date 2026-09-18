@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.style.TextAlignment
 import dev.jordond.filmstrip.style.TextStyle
 import io.kotest.matchers.shouldBe
+import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.UByteVar
 import kotlinx.cinterop.allocArray
@@ -16,6 +17,7 @@ import platform.CoreGraphics.CGColorSpaceRelease
 import platform.CoreImage.CIContext
 import platform.CoreImage.CIImage
 import platform.CoreImage.kCIFormatRGBA8
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -56,6 +58,24 @@ class OverlayRasterTest {
     } catch (absent: NullPointerException) {
       null
     }
+
+  @Test
+  fun `draws glyphs in the authored colour`() {
+    val context = renderingContext() ?: return
+
+    // Two saturated colours, since one alone lets a run that swaps a channel read as correct.
+    for (authored in listOf(RED, BLUE)) {
+      val raster = assertNotNull(rasterizeText("H", TextStyle(fontSize = 0.5f, color = authored), FRAME))
+      val drawn = raster.opaqueInk(raster.pixelSize(), context)
+
+      for (shift in listOf(RED_SHIFT, GREEN_SHIFT, BLUE_SHIFT)) {
+        assertTrue(
+          abs(((authored shr shift) and BYTE) - ((drawn shr shift) and BYTE)) <= TOLERANCE,
+          "asked for ${authored.hex()} and drew ${drawn.hex()}",
+        )
+      }
+    }
+  }
 
   @Test
   fun `sizes the block to the glyphs and not to the authored wrap width`() {
@@ -119,26 +139,13 @@ class OverlayRasterTest {
     size: Size,
     context: CIContext,
   ): Pair<Long, Long> =
-    memScoped {
-      val rowBytes = size.width * CHANNELS
-      val pixels = allocArray<UByteVar>(rowBytes * size.height)
-      val space = CGColorSpaceCreateDeviceRGB()
-      context.render(
-        image = this@inkByHalf,
-        toBitmap = pixels,
-        rowBytes = rowBytes.toLong(),
-        bounds = extent,
-        format = kCIFormatRGBA8,
-        colorSpace = space,
-      )
-      CGColorSpaceRelease(space)
-
+    pixels(size, context) { bitmap, rowBytes ->
       var top = 0L
       var bottom = 0L
       for (row in 0 until size.height) {
         var line = 0L
         for (column in 0 until size.width) {
-          line += pixels[row * rowBytes + column * CHANNELS + ALPHA].toLong()
+          line += bitmap[row * rowBytes + column * CHANNELS + ALPHA].toLong()
         }
         // Row zero of the rendered bitmap is the top of the image.
         if (row < size.height / 2) top += line else bottom += line
@@ -146,10 +153,75 @@ class OverlayRasterTest {
       top to bottom
     }
 
+  /**
+   * The colour of the most opaque pixel, packed as `0xRRGGBB`.
+   *
+   * The bitmap is premultiplied, so a pixel at full alpha already carries the colour it was drawn
+   * with and the multiply never has to be undone.
+   */
+  private fun CIImage.opaqueInk(
+    size: Size,
+    context: CIContext,
+  ): Int =
+    pixels(size, context) { bitmap, rowBytes ->
+      var opaque = -1
+      var ink = 0
+      for (row in 0 until size.height) {
+        for (column in 0 until size.width) {
+          val pixel = row * rowBytes + column * CHANNELS
+          val alpha = bitmap[pixel + ALPHA].toInt()
+          if (alpha <= opaque) continue
+          opaque = alpha
+          ink =
+            (bitmap[pixel].toInt() shl RED_SHIFT) or
+            (bitmap[pixel + 1].toInt() shl GREEN_SHIFT) or
+            bitmap[pixel + 2].toInt()
+        }
+      }
+      ink
+    }
+
+  /**
+   * Renders the image to an eight-bit RGBA bitmap and hands [read] the buffer with its row stride.
+   */
+  private fun <T> CIImage.pixels(
+    size: Size,
+    context: CIContext,
+    read: (CPointer<UByteVar>, Int) -> T,
+  ): T =
+    memScoped {
+      val rowBytes = size.width * CHANNELS
+      val bitmap = allocArray<UByteVar>(rowBytes * size.height)
+      val space = CGColorSpaceCreateDeviceRGB()
+      context.render(
+        image = this@pixels,
+        toBitmap = bitmap,
+        rowBytes = rowBytes.toLong(),
+        bounds = extent,
+        format = kCIFormatRGBA8,
+        colorSpace = space,
+      )
+      CGColorSpaceRelease(space)
+      read(bitmap, rowBytes)
+    }
+
+  private fun Int.hex(): String = "0x${toUInt().toString(HEX)}"
+
   private companion object {
     val FRAME = Size(1280, 720)
     const val CHANNELS = 4
     const val ALPHA = 3
     const val BLACK = 0xFF000000.toInt()
+    const val RED = 0xFFFF0000.toInt()
+    const val BLUE = 0xFF0000FF.toInt()
+    const val RED_SHIFT = 16
+    const val GREEN_SHIFT = 8
+    const val BLUE_SHIFT = 0
+    const val BYTE = 0xFF
+    const val HEX = 16
+
+    // Headroom for the trip through Core Image's working space, which need not land back on the
+    // exact code value it started from.
+    const val TOLERANCE = 2
   }
 }

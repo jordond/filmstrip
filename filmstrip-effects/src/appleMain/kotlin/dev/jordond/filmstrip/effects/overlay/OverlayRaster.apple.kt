@@ -35,12 +35,16 @@ import platform.CoreFoundation.kCFTypeDictionaryValueCallBacks
 import platform.CoreGraphics.CGAffineTransformIdentity
 import platform.CoreGraphics.CGBitmapContextCreate
 import platform.CoreGraphics.CGBitmapContextCreateImage
+import platform.CoreGraphics.CGColorCreate
+import platform.CoreGraphics.CGColorRef
+import platform.CoreGraphics.CGColorRelease
 import platform.CoreGraphics.CGColorSpaceCreateDeviceRGB
 import platform.CoreGraphics.CGColorSpaceRelease
 import platform.CoreGraphics.CGContextFillRect
 import platform.CoreGraphics.CGContextRelease
-import platform.CoreGraphics.CGContextSetRGBFillColor
+import platform.CoreGraphics.CGContextSetFillColorWithColor
 import platform.CoreGraphics.CGContextSetTextMatrix
+import platform.CoreGraphics.CGFloatVar
 import platform.CoreGraphics.CGImageAlphaInfo
 import platform.CoreGraphics.CGImageRelease
 import platform.CoreGraphics.CGPathCreateWithRect
@@ -67,6 +71,7 @@ import platform.CoreText.CTTextAlignmentVar
 import platform.CoreText.kCTFontAttributeName
 import platform.CoreText.kCTFontTraitBold
 import platform.CoreText.kCTFontUIFontSystem
+import platform.CoreText.kCTForegroundColorAttributeName
 import platform.CoreText.kCTParagraphStyleAttributeName
 import platform.CoreText.kCTParagraphStyleSpecifierAlignment
 import platform.CoreText.kCTTextAlignmentCenter
@@ -140,7 +145,7 @@ internal fun rasterizeText(
   }
 
   val paragraph = paragraphStyle(style.alignment)
-  val attributes = attributesOf(font, paragraph)
+  val attributes = attributesOf(font, paragraph, style.color)
   val attributed = attributes?.let { CFAttributedStringCreate(null, string, it) }
   val framesetter = attributed?.let { CTFramesetterCreateWithAttributedString(it) }
 
@@ -224,7 +229,6 @@ private fun draw(
     context.fillWith(plate)
     CGContextFillRect(context, CGRectMake(0.0, 0.0, width.toDouble(), height.toDouble()))
   }
-  context.fillWith(style.color)
   CGContextSetTextMatrix(context, CGAffineTransformIdentity.readValue())
 
   val path =
@@ -319,42 +323,67 @@ private fun paragraphStyle(alignment: TextAlignment): CTParagraphStyleRef? =
  * Built through `CFDictionaryCreate`. A Kotlin map will not do, since the attribute names are
  * `CFStringRef` constants and those do not bridge into a dictionary as keys. What comes back is a dictionary with
  * no recognised keys in it, and CoreText silently lays out with its defaults.
+ *
+ * [color] is the foreground colour every glyph run is drawn in.
  */
 @OptIn(ExperimentalForeignApi::class)
 private fun attributesOf(
   font: CTFontRef,
   paragraph: CTParagraphStyleRef?,
-): CFDictionaryRef? =
-  memScoped {
-    val count = if (paragraph == null) 1 else 2
-    val keys = allocArray<COpaquePointerVar>(count)
-    val values = allocArray<COpaquePointerVar>(count)
-    keys[0] = kCTFontAttributeName
-    values[0] = font
-    if (paragraph != null) {
-      keys[1] = kCTParagraphStyleAttributeName
-      values[1] = paragraph
+  color: Int,
+): CFDictionaryRef? {
+  val ink = cgColorOf(color) ?: return null
+  val attributes =
+    memScoped {
+      val count = if (paragraph == null) 2 else 3
+      val keys = allocArray<COpaquePointerVar>(count)
+      val values = allocArray<COpaquePointerVar>(count)
+      keys[0] = kCTFontAttributeName
+      values[0] = font
+      keys[1] = kCTForegroundColorAttributeName
+      values[1] = ink
+      if (paragraph != null) {
+        keys[2] = kCTParagraphStyleAttributeName
+        values[2] = paragraph
+      }
+
+      CFDictionaryCreate(
+        allocator = null,
+        keys = keys,
+        values = values,
+        numValues = count.toLong(),
+        keyCallBacks = kCFTypeDictionaryKeyCallBacks.ptr,
+        valueCallBacks = kCFTypeDictionaryValueCallBacks.ptr,
+      )
     }
 
-    CFDictionaryCreate(
-      allocator = null,
-      keys = keys,
-      values = values,
-      numValues = count.toLong(),
-      keyCallBacks = kCFTypeDictionaryKeyCallBacks.ptr,
-      valueCallBacks = kCFTypeDictionaryValueCallBacks.ptr,
-    )
+  // The dictionary retains what it holds, so this reference has done its job.
+  CGColorRelease(ink)
+  return attributes
+}
+
+/**
+ * The colour [argb] packs, in the same space the bitmap is drawn in so nothing is converted on the way.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private fun cgColorOf(argb: Int): CGColorRef? =
+  memScoped {
+    val space = CGColorSpaceCreateDeviceRGB() ?: return@memScoped null
+    val components = allocArray<CGFloatVar>(RGBA)
+    components[0] = ((argb shr 16) and BYTE) / FULL
+    components[1] = ((argb shr 8) and BYTE) / FULL
+    components[2] = (argb and BYTE) / FULL
+    components[3] = ((argb shr 24) and BYTE) / FULL
+    val color = CGColorCreate(space, components)
+    CGColorSpaceRelease(space)
+    color
   }
 
 @OptIn(ExperimentalForeignApi::class)
 private fun CPointer<*>.fillWith(argb: Int) {
-  CGContextSetRGBFillColor(
-    c = this.reinterpret(),
-    red = ((argb shr 16) and BYTE) / FULL,
-    green = ((argb shr 8) and BYTE) / FULL,
-    blue = (argb and BYTE) / FULL,
-    alpha = ((argb shr 24) and BYTE) / FULL,
-  )
+  val color = cgColorOf(argb) ?: return
+  CGContextSetFillColorWithColor(this.reinterpret(), color)
+  CGColorRelease(color)
 }
 
 private fun TextAlignment.toCoreText(): CTTextAlignment =
@@ -367,6 +396,7 @@ private fun TextAlignment.toCoreText(): CTTextAlignment =
 private const val CAP_PROBE_SIZE = 100.0
 private const val PLATE_PADDING = 0.3
 private const val BITS_PER_COMPONENT = 8uL
+private const val RGBA = 4
 private const val BYTE = 0xFF
 private const val FULL = 255.0
 
