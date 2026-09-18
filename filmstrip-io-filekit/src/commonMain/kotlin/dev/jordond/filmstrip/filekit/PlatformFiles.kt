@@ -29,3 +29,20 @@ public expect fun PlatformFile.toImageSource(): ImageSource
  * file rather than a write into it.
  */
 public expect fun PlatformFile.toMediaSink(): MediaSink
+
+/**
+ * Frees what [toMediaSource] minted for this source, which in a browser is the object URL.
+ *
+ * Calling it is optional. A URL that is never released lives until the page unloads, at the cost of
+ * one blob registry entry and the handle on the picked file. Call it only once nothing reads the
+ * source any more, since an export or a probe still running on a revoked URL fails. Everywhere else
+ * this does nothing.
+ */
+public expect fun MediaSource.release()
+
+/**
+ * Frees what [toImageSource] minted for this source, the way [MediaSource.release] does.
+ *
+ * Optional on the same terms, and safe only once nothing reads the source any more.
+ */
+public expect fun ImageSource.release()

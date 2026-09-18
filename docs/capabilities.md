@@ -645,4 +645,5 @@ that target's backend reads and turns a sink back into a `PlatformFile`, `filmst
 says about an arm is what the adapter gets you, so a `Path` from either io module is still refused
 in the browser and a stream is still the only thing that reads there. `filmstrip-io-filekit-compose`
 wraps FileKit's Compose launchers so a pick, a save location and a share sheet arrive already on
-those arms.
+those arms. A pick in a browser mints an object URL that lives until the page unloads, and
+`MediaSource.release` on the source frees it early.

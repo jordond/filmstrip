@@ -12,3 +12,8 @@ public final class dev/jordond/filmstrip/filekit/PlatformFiles_jvmKt {
 	public static final fun toPlatformFile (Ldev/jordond/filmstrip/media/MediaSink;)Lio/github/vinceglb/filekit/PlatformFile;
 }
 
+public final class dev/jordond/filmstrip/filekit/PlatformFiles_nonWebKt {
+	public static final fun release (Ldev/jordond/filmstrip/media/ImageSource;)V
+	public static final fun release (Ldev/jordond/filmstrip/media/MediaSource;)V
+}
+

@@ -7,6 +7,8 @@
 // - Show declarations: true
 
 // Library unique name: <filmstrip-root:filmstrip-io-filekit>
+final fun (dev.jordond.filmstrip.media/ImageSource).dev.jordond.filmstrip.filekit/release() // dev.jordond.filmstrip.filekit/release|release@dev.jordond.filmstrip.media.ImageSource(){}[0]
+final fun (dev.jordond.filmstrip.media/MediaSource).dev.jordond.filmstrip.filekit/release() // dev.jordond.filmstrip.filekit/release|release@dev.jordond.filmstrip.media.MediaSource(){}[0]
 final fun (io.github.vinceglb.filekit/PlatformFile).dev.jordond.filmstrip.filekit/toImageSource(): dev.jordond.filmstrip.media/ImageSource // dev.jordond.filmstrip.filekit/toImageSource|toImageSource@io.github.vinceglb.filekit.PlatformFile(){}[0]
 final fun (io.github.vinceglb.filekit/PlatformFile).dev.jordond.filmstrip.filekit/toMediaSink(): dev.jordond.filmstrip.media/MediaSink // dev.jordond.filmstrip.filekit/toMediaSink|toMediaSink@io.github.vinceglb.filekit.PlatformFile(){}[0]
 final fun (io.github.vinceglb.filekit/PlatformFile).dev.jordond.filmstrip.filekit/toMediaSource(): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.filekit/toMediaSource|toMediaSource@io.github.vinceglb.filekit.PlatformFile(){}[0]

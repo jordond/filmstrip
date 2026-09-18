@@ -22,6 +22,9 @@ import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
  * resolver on Android, so read it once in the callback and hold the result rather than reading it
  * during composition.
  *
+ * In a browser [source] is an object URL that lives until the page unloads. `MediaSource.release`
+ * frees it earlier, once nothing reads the source any more.
+ *
  * @property file What the picker handed back.
  * @property source The same file on whichever [MediaSource] arm this target's backend reads.
  */
@@ -36,7 +39,7 @@ public class PickedMedia internal constructor(
  * A picked still, as both the file the dialog returned and the source an effect reads it through.
  *
  * Carries the file for the same reasons [PickedMedia] does, the name a caller labels a watermark
- * with among them.
+ * with among them. Its [source] holds a browser's object URL on the terms [PickedMedia] describes.
  *
  * @property file What the picker handed back.
  * @property source The same file on whichever [ImageSource] arm this target's backend reads.
@@ -52,7 +55,7 @@ public class PickedImage internal constructor(
  * Remembers a picker that hands a clip back as a [MediaSource].
  *
  * Single selection only. The conversion runs once per pick, which matters in a browser where it
- * mints an object URL that the caller then owns revoking.
+ * mints an object URL. See [PickedMedia].
  *
  * @param type What the dialog offers, video by default.
  * @param directory Where the dialog opens, on the targets that honour it.
