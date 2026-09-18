@@ -1,8 +1,5 @@
-@file:OptIn(InternalFilmstripApi::class)
-
 package dev.jordond.filmstrip.ffmpeg.internal
 
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.export.Bitrate
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo

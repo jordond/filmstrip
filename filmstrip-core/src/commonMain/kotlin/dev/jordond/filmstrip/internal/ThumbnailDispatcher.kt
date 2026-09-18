@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.internal
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.ComponentRegistry
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.effectsRevision
 import dev.jordond.filmstrip.export.ExportError
@@ -19,7 +18,6 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.time.Duration
 
 // Turns the callback-shaped thumbnail SPI into the suspend and Flow forms the facade exposes.
-@OptIn(InternalFilmstripApi::class)
 internal class ThumbnailDispatcher(
   private val components: ComponentRegistry,
 ) {

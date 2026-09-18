@@ -7,7 +7,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.VideoFrameProcessingException
 import androidx.media3.effect.GlEffect
 import androidx.media3.effect.GlShaderProgram
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.media3.internal.Media3Readback
 import dev.jordond.filmstrip.media3.internal.Media3Span
 import dev.jordond.filmstrip.playback.internal.Media3StillFrames
@@ -66,7 +65,6 @@ class AndroidStillOwnershipTest {
 private fun flatPhoto(): Bitmap =
   Bitmap.createBitmap(PHOTO_EDGE, PHOTO_EDGE, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.WHITE) }
 
-@OptIn(InternalFilmstripApi::class)
 private fun brokenReadback(): Media3Readback =
   Media3Readback(
     span = Media3Span(Duration.ZERO, PHOTO_LENGTH, MediaItem.EMPTY, emptyList(), still = true),

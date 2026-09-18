@@ -6,7 +6,6 @@ import android.os.Handler
 import android.os.HandlerThread
 import androidx.media3.inspector.frame.FrameExtractor
 import dev.jordond.filmstrip.Cancellable
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media3.internal.Media3Preview
@@ -47,7 +46,6 @@ import kotlin.time.Duration
  * @param revision What the loaded edit's frames are decided by, which tells one request's chain
  *   from the last one's.
  */
-@OptIn(InternalFilmstripApi::class)
 internal class Media3FrameReadback(
   private val scope: CoroutineScope,
   private val context: Context,

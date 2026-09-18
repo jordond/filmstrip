@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.playback.internal
 
 import dev.jordond.filmstrip.Cancellable
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.CompositionDiff
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -53,7 +52,6 @@ import kotlin.time.Duration.Companion.seconds
  * @param planner Lowers an edit the way an export of it would be lowered.
  * @param config How the player was built.
  */
-@OptIn(InternalFilmstripApi::class)
 internal class BrowserPlayerEngine(
   parent: CoroutineScope,
   private val planner: BrowserPreviewPlanner,

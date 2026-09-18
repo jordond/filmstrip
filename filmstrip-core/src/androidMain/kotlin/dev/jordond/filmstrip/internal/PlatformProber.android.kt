@@ -6,7 +6,6 @@ import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import dev.jordond.filmstrip.FilmstripContext
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.export.Bitrate
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.geometry.Size
@@ -27,7 +26,6 @@ import java.io.File
 import java.io.IOException
 import kotlin.time.Duration.Companion.milliseconds
 
-@OptIn(InternalFilmstripApi::class)
 internal actual class PlatformProber actual constructor() {
   actual suspend fun probe(source: MediaSource): ProbeResult =
     when (source) {

@@ -6,7 +6,6 @@ import android.media.MediaFormat
 import android.net.Uri
 import androidx.media3.transformer.Composition
 import dev.jordond.filmstrip.FilmstripContext
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.export.ExportError
@@ -37,7 +36,6 @@ import kotlin.time.Duration.Companion.microseconds
  * What the encoders can do is read once per process in [encoderCapabilities], what runs is built in
  * [toMedia3], and driving media3 is [TransformerRun].
  */
-@OptIn(InternalFilmstripApi::class)
 internal class Media3Driver(
   private val prober: MediaProber,
 ) : ExportDriver {

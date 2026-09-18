@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.media3.internal
 
-import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
@@ -17,7 +16,6 @@ import kotlin.time.Duration.Companion.seconds
  * down the whole plan rather than only the copy this one clip asked for.
  */
 class Media3DriverTest {
-  @OptIn(ExperimentalFilmstripApi::class)
   @Test
   fun `a still reports no sync sample rather than throwing`() =
     runTest {

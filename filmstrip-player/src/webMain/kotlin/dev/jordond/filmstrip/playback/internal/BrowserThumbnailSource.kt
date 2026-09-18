@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.playback.internal
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.ComponentRegistry
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.PlatformImage
@@ -38,7 +37,6 @@ import kotlin.coroutines.cancellation.CancellationException
  *   both live on it.
  * @param planner Lowers an edit the way an export of it would be lowered.
  */
-@OptIn(InternalFilmstripApi::class)
 internal class BrowserThumbnailSource(
   private val scope: CoroutineScope,
   private val planner: BrowserThumbnailPlanner,
@@ -135,7 +133,6 @@ internal sealed interface BrowserThumbnailPlan {
  *
  * @param components The components the owning `Filmstrip` was built with.
  */
-@OptIn(InternalFilmstripApi::class)
 internal class BrowserThumbnailPlanner(
   components: ComponentRegistry,
 ) {

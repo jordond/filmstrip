@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.playback.internal
 
 import dev.jordond.filmstrip.ComponentRegistry
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.OutputProperty
@@ -74,7 +73,6 @@ internal sealed interface FfmpegPlanResult {
  *
  * @param components The components the owning `Filmstrip` was built with.
  */
-@OptIn(InternalFilmstripApi::class)
 internal class FfmpegPreviewPlanner(
   components: ComponentRegistry,
 ) {
@@ -157,7 +155,6 @@ internal class FfmpegPreviewPlanner(
  * a preview running against the binaries it named. Falling back builds an engine against a default
  * config, which the host never asked for and which resolves a toolchain of its own.
  */
-@OptIn(InternalFilmstripApi::class)
 internal fun ComponentRegistry.ffmpegEngine(): FfmpegExportEngine =
   exportEngineFactories.firstNotNullOfOrNull { it.create(this) as? FfmpegExportEngine }
     ?: ffmpegExportEngine(this)

@@ -17,7 +17,6 @@ import androidx.media3.common.util.ExperimentalApi
 import androidx.media3.effect.MultipleInputVideoGraph
 import androidx.media3.transformer.CompositionPlayer
 import dev.jordond.filmstrip.Cancellable
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.CompositionDiff
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -71,7 +70,6 @@ import kotlin.time.Duration.Companion.seconds
  * @param config How the player was built.
  */
 @ExperimentalApi
-@OptIn(InternalFilmstripApi::class)
 internal class Media3PlayerEngine(
   parent: CoroutineScope,
   private val context: Context,

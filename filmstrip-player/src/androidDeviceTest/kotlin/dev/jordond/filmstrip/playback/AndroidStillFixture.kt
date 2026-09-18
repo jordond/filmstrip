@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -25,7 +24,6 @@ import kotlin.time.Duration.Companion.milliseconds
  * A still takes its slot on the timeline from a clip of its own rather than from a track, so a
  * frame read back inside that slot is the one worth pinning to the export.
  */
-@OptIn(ExperimentalFilmstripApi::class)
 internal fun androidPhotoComposition(effects: List<EffectSpec> = emptyList()): EditComposition =
   EditComposition(
     tracks =
@@ -44,7 +42,6 @@ internal fun androidPhotoComposition(effects: List<EffectSpec> = emptyList()): E
  * A photo between two runs of video, which is the layout that tells a reader picking one path per
  * span apart from one picking a path per composition.
  */
-@OptIn(ExperimentalFilmstripApi::class)
 internal fun androidSandwichComposition(): EditComposition =
   EditComposition(
     tracks =
@@ -65,7 +62,6 @@ internal fun androidSandwichComposition(): EditComposition =
  * The photo is red on one side of [PHOTO_BOUNDARY] and blue on the other, so two readings inside
  * the span are two different pictures rather than the same flat sheet twice.
  */
-@OptIn(ExperimentalFilmstripApi::class)
 internal fun androidPannedPhotoComposition(): EditComposition =
   EditComposition(
     tracks =
@@ -110,7 +106,6 @@ internal const val PHOTO_BOUNDARY: Float = 0.5f
 /**
  * A composition with nothing on it but the photo, which has no video clip to fall back on.
  */
-@OptIn(ExperimentalFilmstripApi::class)
 internal fun androidPhotoOnlyComposition(effects: List<EffectSpec> = emptyList()): EditComposition =
   EditComposition(
     tracks = listOf(Track(listOf(Clip(MediaSource.Image(ImageSource.of(androidPhotoFile().path), PHOTO_LENGTH))))),

@@ -20,7 +20,6 @@ import dev.jordond.filmstrip.transform.internal.PlannedExportEngine
  *
  * @return This builder.
  */
-@OptIn(InternalFilmstripApi::class)
 public fun FilmstripBuilder.avFoundationBackend(): FilmstripBuilder =
   builtInEffects()
     .addExportEngineFactory { components ->

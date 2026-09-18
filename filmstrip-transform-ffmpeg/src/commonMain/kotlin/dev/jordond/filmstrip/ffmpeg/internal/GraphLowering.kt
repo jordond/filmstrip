@@ -415,6 +415,11 @@ internal class GraphLowering(
    * An input naming a timeline is looped for a frame longer than the run it covers. Overshooting
    * costs nothing, since the graph's own `trim=duration=` is what cuts the output, while
    * undershooting drops the overlay from the frame the branch runs out with no diagnostic at all.
+   *
+   * Every branch closes on a `setpts` back to its own first frame. An export reads the input from
+   * zero and the node changes nothing, while a preview opens the input at the scrub instead, so
+   * anything ahead of the node reads the composition time the frames belong to and the merge below
+   * it still sees the clip's own clock. [InputSpec.rebased] is what tells the preview so.
    */
   private fun auxPads(
     auxInputs: List<AuxInput>,
@@ -427,8 +432,9 @@ internal class GraphLowering(
           source = InputSource.OfImage(aux.image),
           durationSeconds = aux.timeline?.let { it.duration.seconds() + 1.0 / it.frameRate },
           loopFrameRate = aux.timeline?.frameRate,
+          rebased = true,
         )
-      "${label}a$index".also { graph.chain(listOf("$input:v"), aux.chain.ifEmpty { listOf(NULL_VIDEO) }, it) }
+      "${label}a$index".also { graph.chain(listOf("$input:v"), aux.chain + SETPTS, it) }
     }
 
   private fun buildAudio(): String {

@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.avfoundation.internal
 
-import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TrackContent
@@ -242,7 +241,7 @@ private class AssetCache {
  *
  * @param stillFrameRate The cadence a still's segment is cut at, which only the video track reads.
  */
-@OptIn(ExperimentalForeignApi::class, ExperimentalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 private fun ResolvedTrack.layOnto(
   media: AVMutableCompositionTrack,
   mediaType: String?,
@@ -382,7 +381,6 @@ internal fun List<ClipSpan>.respannedOnto(resolved: ResolvedComposition): List<C
  * The one place a span's attributes are derived, so a clip laid down by [layOnto] and the same clip
  * swapped in by [respannedOnto] are measured against the same frame.
  */
-@OptIn(ExperimentalFilmstripApi::class)
 private fun ResolvedClip.spanning(
   start: Duration,
   end: Duration,

@@ -21,12 +21,16 @@ import kotlin.time.Duration
  * @property loopFrameRate The rate a still is repeated at, or null to read it once. It turns one
  *   image into a stream, which is what keeps a filter on that branch running and stops the merge
  *   downstream seeing the branch end.
+ * @property rebased Whether the branch this input feeds ends on a `setpts` back to its own first
+ *   frame, which leaves the branch reaching the merge at zero wherever the input opened. A scrubbed
+ *   preview moves such an input to the scrub with `-itsoffset`.
  */
 internal class InputSpec(
   val source: InputSource,
   val durationSeconds: Double? = null,
   val startSeconds: Double? = null,
   val loopFrameRate: Float? = null,
+  val rebased: Boolean = false,
 )
 
 /**

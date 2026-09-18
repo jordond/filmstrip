@@ -7,7 +7,6 @@ import android.view.PixelCopy
 import android.view.SurfaceView
 import androidx.test.core.app.ActivityScenario
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.geometry.Rotate
@@ -50,7 +49,6 @@ import kotlin.time.Duration.Companion.seconds
  * to be the same picture. A change the standing graph took but could not honour shows up here and
  * nowhere else.
  */
-@OptIn(InternalFilmstripApi::class)
 class AndroidSurfacePixelTest {
   private val context = contractContext()
 

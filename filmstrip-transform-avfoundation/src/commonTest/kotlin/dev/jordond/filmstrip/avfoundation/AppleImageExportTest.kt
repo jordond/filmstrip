@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.compositionOf
@@ -38,7 +37,7 @@ import kotlin.time.Duration.Companion.seconds
  *
  * Skipped where a case needs a video fixture and the build had no host ffmpeg to make one.
  */
-@OptIn(ExperimentalForeignApi::class, ExperimentalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 class AppleImageExportTest {
   private val fixtures = NSProcessInfo.processInfo.environment[FIXTURES] as? String
 

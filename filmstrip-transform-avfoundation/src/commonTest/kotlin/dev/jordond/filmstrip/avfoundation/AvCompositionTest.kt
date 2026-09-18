@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.avfoundation.internal.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.toCMTime
@@ -55,7 +54,7 @@ import kotlin.time.Duration.Companion.seconds
  * render with `AVErrorInvalidVideoComposition`, which names no clip and no time, so it has to be
  * caught where the spans are built, not where they are used.
  */
-@OptIn(ExperimentalForeignApi::class, ExperimentalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 class AvCompositionTest {
   private val fixtures = NSProcessInfo.processInfo.environment[FIXTURES] as? String
 

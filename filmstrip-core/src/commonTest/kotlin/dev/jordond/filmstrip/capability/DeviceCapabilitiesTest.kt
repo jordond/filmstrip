@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.capability
 
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Size
 import kotlin.test.Test
@@ -12,7 +11,6 @@ import kotlin.test.assertNull
  * possible now that an engine can report every encoder it finds rather than just the first. The
  * backend orders the list, and that order is the whole rule.
  */
-@OptIn(InternalFilmstripApi::class)
 class DeviceCapabilitiesTest {
   @Test
   fun `takes the encoder the backend listed first`() {

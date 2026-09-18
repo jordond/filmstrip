@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.playback.internal
 
 import dev.jordond.filmstrip.Cancellable
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.avfoundation.internal.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.toCMTime
@@ -82,7 +81,7 @@ import kotlin.time.Duration.Companion.seconds
  * @param planner Lowers an edit the way an export of it would be lowered.
  * @param config How the player was built.
  */
-@OptIn(InternalFilmstripApi::class, ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class)
 internal class AvPlayerEngine(
   parent: CoroutineScope,
   private val planner: AvPreviewPlanner,

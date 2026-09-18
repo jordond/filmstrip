@@ -184,7 +184,8 @@ class PlannerTest {
   // The span the planner hands a clip effect is that clip's slot on the composition, and the branch
   // it lowers onto counts from its own start, so the window has to be moved onto that clock. The
   // second clip here occupies four to seven seconds, and a window over five to six is its own one
-  // to two.
+  // to two. The gate rides the overlay's branch, so it reaches the graph ahead of the setpts that
+  // closes it.
   @Test
   fun `writes a clip's window against the clip's own clock`() {
     val mark =
@@ -198,7 +199,7 @@ class PlannerTest {
 
     val graph = planner().lower(composition, ExportSpec(), device(), infos).invocation!!.filterGraph
 
-    graph shouldContain """enable=between(t\,1.0\,2.0)"""
+    graph shouldContain """colorchannelmixer=aa=0:enable=not(gte(t\,1.0)*lt(t\,2.0)),setpts=expr=PTS-STARTPTS"""
   }
 
   // A composition overlay merges onto the joined timeline, so its branch has to cover both clips

@@ -8,7 +8,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.effectsRevision
 import dev.jordond.filmstrip.media.FrameRenderer
@@ -36,7 +35,6 @@ import kotlin.time.Duration
  *   height.
  * @return The frame, or null while none has arrived.
  */
-@OptIn(InternalFilmstripApi::class)
 @Composable
 public fun rememberFilmstripFrame(
   renderer: FrameRenderer,

@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.effects.color
 
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.geometry.AspectRatio
@@ -13,7 +12,6 @@ import kotlin.test.assertSame
  * The fold that decides what a run of colour effects means, run once in shared code so a backend
  * that clamps around every effect lands on the same frame as one that clamps at the encoder.
  */
-@OptIn(InternalFilmstripApi::class)
 class ColorFuseTest {
   @Test
   fun stackedBrightnessFactorsMultiply() {

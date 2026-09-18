@@ -1,7 +1,5 @@
 package dev.jordond.filmstrip.effects
 
-import dev.jordond.filmstrip.ExperimentalFilmstripApi
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -40,7 +38,6 @@ import dev.jordond.filmstrip.geometry.NormalizedRect
  * its compositor once from the output spec when export starts, with no path for a resolved effect
  * to resize it afterward.
  */
-@OptIn(ExperimentalFilmstripApi::class, InternalFilmstripApi::class)
 public actual class BuiltInEffectResolver actual constructor() : EffectResolver {
   actual override fun resolve(
     spec: EffectSpec,

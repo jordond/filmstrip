@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.playback.internal
 
 import dev.jordond.filmstrip.Cancellable
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.ffmpeg.PreviewStream
 import dev.jordond.filmstrip.ffmpeg.PreviewStreamResult
@@ -39,7 +38,6 @@ internal class PreviewFrame(
  * @param presented The frame the transport last showed.
  * @param snap Rounds a requested position onto the composition's own frame grid.
  */
-@OptIn(InternalFilmstripApi::class)
 internal class FfmpegFrameReadback(
   private val scope: CoroutineScope,
   private val planner: FfmpegPreviewPlanner,

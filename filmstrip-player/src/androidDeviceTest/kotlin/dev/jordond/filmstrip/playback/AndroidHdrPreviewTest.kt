@@ -9,7 +9,6 @@ import androidx.media3.transformer.Composition
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
@@ -52,7 +51,6 @@ import kotlin.time.Duration.Companion.seconds
  * the panel then do with those frames is the platform's answer, so it is read out of the system's
  * own dumps and printed alongside the run rather than asserted here.
  */
-@OptIn(InternalFilmstripApi::class)
 class AndroidHdrPreviewTest {
   private val context = contractContext()
 

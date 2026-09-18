@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.playback
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -63,7 +62,6 @@ internal fun jvmFixtureComposition(effects: List<EffectSpec> = emptyList()): Edi
  *
  * The file is kept per composition, since the suite asks for several frames of each.
  */
-@OptIn(InternalFilmstripApi::class)
 internal suspend fun jvmExportFrame(
   composition: EditComposition,
   position: Duration,
@@ -72,7 +70,6 @@ internal suspend fun jvmExportFrame(
   return decodeFrame(path, position, FIXTURE_FRAME)
 }
 
-@OptIn(InternalFilmstripApi::class)
 private suspend fun exportOf(composition: EditComposition): String {
   val engine = ffmpegExportEngine(CONTRACT_COMPONENTS)
   val plan =

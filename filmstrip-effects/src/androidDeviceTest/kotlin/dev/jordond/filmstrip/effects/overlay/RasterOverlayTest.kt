@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import android.graphics.Bitmap
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Corner
@@ -24,7 +23,6 @@ import kotlin.time.Duration.Companion.seconds
  * these produce, and this is the half that would not show up there, which is whether a still
  * overlay still costs nothing per frame and where the anchor clamp lands.
  */
-@OptIn(InternalFilmstripApi::class)
 class RasterOverlayTest {
   @Test
   fun aStillOverlayAnswersTheSameSettingsForEveryFrame() {

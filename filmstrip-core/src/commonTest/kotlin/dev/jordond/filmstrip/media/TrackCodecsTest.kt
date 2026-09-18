@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.media
 
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.VideoCodec
 import kotlin.test.Test
@@ -14,7 +13,6 @@ import kotlin.test.assertFailsWith
  * code from AVFoundation, a MIME type from Android's extractor, a bare name or a tag from ffprobe,
  * and a codecs parameter from WebCodecs.
  */
-@OptIn(InternalFilmstripApi::class)
 class TrackCodecsTest {
   @Test
   fun `reads every backend's spelling of the same codec`() {

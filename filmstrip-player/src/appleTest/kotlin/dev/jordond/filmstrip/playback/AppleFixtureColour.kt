@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.playback
 
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.avfoundation.internal.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.toCMTime
 import dev.jordond.filmstrip.edit.EditComposition
@@ -116,7 +115,7 @@ private fun passThroughComposition(asset: AVAsset): AVMutableVideoComposition =
  *
  * @param timeout How long the draw may take before the test fails.
  */
-@OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 @Suppress("DEPRECATION")
 internal suspend fun AVAsset.generateFrame(
   composition: AVVideoComposition,

@@ -305,6 +305,8 @@ public class ExportPlanner(
           if (!fadesFit(clip.fadeIn, clip.fadeOut, lengths[index])) return incapable(CLIP_FADE)
         }
         val runLength = runLengthOf(track.looping, track.start, lengths, duration)
+        // Counted rather than laid, so a run that would bury a backend in passes costs nothing to refuse.
+        if (passCountCovering(lengths, runLength) > MAX_LAID_PASSES) return incapable(tooManyPasses(trackIndex))
         val trackEnvelope = track.audio as? AudioLevel.Envelope
         if (trackEnvelope != null && !trackEnvelope.isValidOver(runLength)) return incapable(TRACK_ENVELOPE)
         if (!fadesFit(track.fadeIn, track.fadeOut, runLength)) return incapable(TRACK_FADE)
@@ -844,6 +846,11 @@ public class ExportPlanner(
         "file with no tracks in it."
 
     const val EVERY_TRACK_LOOPS = "Every track loops, so the composition has nothing to bound it."
+
+    fun tooManyPasses(trackIndex: Int): String =
+      "The track at index $trackIndex lays more than $MAX_LAID_PASSES passes, which is the most one track may " +
+        "lay. A looping track repeats until the composition ends, so a short clip under a long composition asks " +
+        "for a pass per repeat. A track laid once lays one pass per clip."
 
     const val PRIMARY_LAYS_NOTHING = "The primary track starts at or after the composition ends."
 

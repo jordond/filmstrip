@@ -10,7 +10,6 @@ import androidx.startup.Initializer
  * merges into the consuming app.
  */
 public class FilmstripInitializer : Initializer<Unit> {
-  @OptIn(InternalFilmstripApi::class)
   override fun create(context: Context) {
     FilmstripContext.install(context)
   }

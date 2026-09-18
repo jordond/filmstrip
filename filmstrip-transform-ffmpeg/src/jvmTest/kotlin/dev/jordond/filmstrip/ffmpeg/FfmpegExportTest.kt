@@ -1930,6 +1930,65 @@ class FfmpegExportTest {
       marked.file.delete()
     }
 
+  // The window's own edges, on the output grid rather than a third of a second either side of them.
+  // Which frames those are comes off the shared sampler, so the frame sitting on the run's end is
+  // outside the window here for the same reason it is on every other backend.
+  @Test
+  fun `draws a window to its edges and no further`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val windowed = watermark().let { mark -> ImageOverlay(mark.image, mark.corner, visibleDuring = WINDOW) }
+      val bare = exportedWatermark("filmstrip-overlay-edge-bare", null, clips = 2, onClip = true)
+      val marked = exportedWatermark("filmstrip-overlay-edge", windowed, clips = 2, onClip = true)
+      val size = marked.plan.output.size
+      val probe = centreOf(windowed.placedOn(size, WATERMARK).rectOn(size), size)
+      val inside = windowFrames(windowed, marked.plan)
+
+      listOf(inside.first(), inside.last()).forEach { frame ->
+        assertTrue(drawnAt(bare, marked, probe, opensOn(frame, marked.plan)), "no watermark on frame $frame")
+      }
+      listOf(inside.first() - 1, inside.last() + 1).forEach { frame ->
+        assertTrue(!drawnAt(bare, marked, probe, opensOn(frame, marked.plan)), "a watermark on frame $frame")
+      }
+
+      bare.file.delete()
+      marked.file.delete()
+    }
+
+  // A clip's merge sits ahead of the tail's fps, so a clip whose own rate differs from the output's
+  // is drawn on its own frames and resampled onto the output grid afterwards. The resampler builds
+  // two output frames out of one source frame either side of a boundary, so the pair cannot be
+  // drawn differently and an edge lands within one frame of where the sampler puts it. Read a frame
+  // in from each edge, which that cannot reach, and a frame out from each, which it cannot either.
+  @Test
+  fun `opens a resampled clip's window where the shared sampler puts it`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val windowed =
+        watermark().let { mark -> ImageOverlay(mark.image, mark.corner, visibleDuring = RESAMPLED_WINDOW) }
+      val resampled = ExportSpec(frameRate = RESAMPLED_RATE)
+      val bare = exportedWatermark("filmstrip-overlay-rate-bare", null, onClip = true, spec = resampled)
+      val marked = exportedWatermark("filmstrip-overlay-rate", windowed, onClip = true, spec = resampled)
+      val size = marked.plan.output.size
+      val probe = centreOf(windowed.placedOn(size, WATERMARK).rectOn(size), size)
+
+      // The mismatch is the whole point of the fixture, so it is asserted rather than assumed.
+      marked.plan.output.frameRate shouldBe RESAMPLED_RATE
+      val inside = windowFrames(windowed, marked.plan)
+
+      listOf(inside.first() + 1, inside.last() - 1).forEach { frame ->
+        assertTrue(drawnAt(bare, marked, probe, opensOn(frame, marked.plan)), "no watermark on frame $frame")
+      }
+      listOf(inside.first() - 2, inside.last() + 2).forEach { frame ->
+        assertTrue(!drawnAt(bare, marked, probe, opensOn(frame, marked.plan)), "a watermark on frame $frame")
+      }
+
+      bare.file.delete()
+      marked.file.delete()
+    }
+
   // Read at a quarter and at three quarters of the ramp. The ends agree under both an additive and
   // a multiplicative reading, so a test that only read them would pass while the middle was wrong.
   @Test
@@ -2352,6 +2411,7 @@ class FfmpegExportTest {
     overlay: ImageOverlay?,
     clips: Int = 1,
     onClip: Boolean = false,
+    spec: ExportSpec = ExportSpec(),
   ): ExportedOverlay {
     val output = File.createTempFile(name, ".mp4").also { it.delete() }
     val composition =
@@ -2365,7 +2425,7 @@ class FfmpegExportTest {
       }
 
     val plan =
-      when (val verdict = filmstrip.plan(composition, ExportSpec())) {
+      when (val verdict = filmstrip.plan(composition, spec)) {
         is Verdict.Capable -> verdict.plan
         is Verdict.Degraded -> verdict.plan
         is Verdict.Incapable -> error(verdict.reasons.joinToString { it.message })
@@ -2413,6 +2473,36 @@ class FfmpegExportTest {
     rect: NormalizedRect,
     frame: Size,
   ): Pair<Int, Int> = pointIn(rect.left + rect.width / 2, rect.top + rect.height / 2, frame)
+
+  /**
+   * Which output frames the shared sampler draws [spec] on, as indices on [plan]'s own frame grid.
+   *
+   * The window a test reads the file against comes from here rather than from arithmetic of its
+   * own, so a backend drawing a different frame than every other one fails rather than agreeing
+   * with the number a test wrote down beside it.
+   */
+  private fun windowFrames(
+    spec: ImageOverlay,
+    plan: ExportPlan,
+  ): List<Int> {
+    val rate = assertNotNull(plan.output.frameRate, "the plan resolved no frame rate")
+    val span = TimeRange.of(Duration.ZERO, plan.duration)
+    val frames = (plan.duration.toDouble(DurationUnit.SECONDS) * rate).toInt()
+
+    return (0 until frames).filter { index -> spec.frameAt(frameTime(index, rate), span) != null }
+  }
+
+  // Where a read has to open to land on one output frame. A read delivers the first frame at or
+  // after where it is asked for, so this sits inside the period the frame before it occupies.
+  private fun opensOn(
+    index: Int,
+    plan: ExportPlan,
+  ): Duration = frameTime(index, assertNotNull(plan.output.frameRate)) - FRAME_LEAD
+
+  private fun frameTime(
+    index: Int,
+    rate: Int,
+  ): Duration = (index.toDouble() / rate).seconds
 
   // Where the shared sampler and the shared placement put the overlay at one instant, which is what
   // the written file is read against rather than a rectangle this test works out for itself.
@@ -2818,5 +2908,17 @@ class FfmpegExportTest {
     const val BLEND_RANGE_FLOOR = 1_000.0
     val INSIDE_WINDOW = 3.seconds
     val OUTSIDE_WINDOW = listOf(2_200.milliseconds, 3_800.milliseconds)
+
+    // How far ahead of a frame's own time a read opens, so that it lands on that frame rather than
+    // the one after it. Shorter than a frame period at either rate these tests export at.
+    val FRAME_LEAD = 10.milliseconds
+
+    // A rate no fixture is encoded at, so a clip keeps its own thirty frames a second through the
+    // merge and the tail resamples it afterwards.
+    const val RESAMPLED_RATE = 24
+
+    // Edges on neither the source's grid nor the output's, so a window read against the wrong one
+    // lands off both.
+    val RESAMPLED_WINDOW = TimeRange.of(700.milliseconds, 1_300.milliseconds)
   }
 }

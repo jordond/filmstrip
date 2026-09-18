@@ -57,7 +57,6 @@ public class PlayerState
       /**
        * Idle, not wanted, not stalled, not seeking, no duration.
        */
-      @OptIn(InternalFilmstripApi::class)
       public val Initial: PlayerState = PlayerState(PlaybackStatus.Idle, false, false, false, null)
     }
   }

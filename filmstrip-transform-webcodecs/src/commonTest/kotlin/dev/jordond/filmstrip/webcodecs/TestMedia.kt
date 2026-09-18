@@ -2,7 +2,6 @@
 
 package dev.jordond.filmstrip.webcodecs
 
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.color.colorMatrixOf
 import dev.jordond.filmstrip.effects.color.transform
@@ -67,7 +66,6 @@ internal class Rgb(
  * This colour after [spec], taken through the matrix every backend lowers rather than through a
  * number of a test's own.
  */
-@OptIn(InternalFilmstripApi::class)
 internal fun Rgb.graded(spec: EffectSpec): Rgb {
   val matrix = checkNotNull(colorMatrixOf(spec))
   val graded = matrix.transform(red / MAX_CHANNEL, green / MAX_CHANNEL, blue / MAX_CHANNEL)

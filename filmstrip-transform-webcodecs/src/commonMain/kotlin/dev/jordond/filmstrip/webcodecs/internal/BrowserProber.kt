@@ -2,7 +2,6 @@
 
 package dev.jordond.filmstrip.webcodecs.internal
 
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
@@ -30,7 +29,6 @@ import kotlin.time.Duration.Companion.microseconds
  * chained prober for a web source get a real audio track and, for HEVC, a real bit depth, rather
  * than the failure core's own platform prober answers with on a target that carries no demuxer.
  */
-@OptIn(InternalFilmstripApi::class)
 internal class BrowserProber : MediaProber {
   override suspend fun probe(source: MediaSource): ProbeResult {
     val reader = SourceReader.of(source) ?: return unreadable(source)

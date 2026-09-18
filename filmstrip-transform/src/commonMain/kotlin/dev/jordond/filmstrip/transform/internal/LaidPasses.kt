@@ -9,6 +9,16 @@ import kotlin.time.Duration
 // one engine and one length long on another.
 
 /**
+ * The most passes one track may lay. A guard the planner holds every track to, not a limit any backend publishes.
+ *
+ * A pass is an ffmpeg split branch, an AVFoundation time range insertion, an item in a media3 sequence, or a browser
+ * source node scheduled for its slot. The count is read per track, so a composition of several tracks may lay this
+ * many on each of them.
+ */
+@InternalFilmstripApi
+public const val MAX_LAID_PASSES: Int = 2_000
+
+/**
  * One clip of a track, laid down at one place in the run.
  *
  * @property index Which entry of the lengths the schedule was derived from, so which clip of the
@@ -74,4 +84,34 @@ public fun passesCovering(
     }
   }
   return passes
+}
+
+/**
+ * How many passes [passesCovering] would lay over the same run, worked out from [lengths] rather than by laying them.
+ *
+ * Each clip of the run opens one pass per turn that still begins before [fill], counted from where the clip sits
+ * inside the run. A count past [Int.MAX_VALUE] is reported as [Int.MAX_VALUE], which is over any ceiling a caller
+ * reads it against.
+ */
+@InternalFilmstripApi
+public fun passCountCovering(
+  lengths: List<Duration>,
+  fill: Duration,
+): Int {
+  val run = lengths.fold(Duration.ZERO, Duration::plus)
+  if (run <= Duration.ZERO || fill <= Duration.ZERO) return 0
+
+  val runNanos = run.inWholeNanoseconds
+  val most = Int.MAX_VALUE.toLong()
+  var opening = Duration.ZERO
+  var count = 0L
+  lengths.forEach { length ->
+    val room = (fill - opening).inWholeNanoseconds
+    if (room > 0) {
+      val turns = ((room - 1) / runNanos + 1).coerceAtMost(most)
+      count = (count + turns).coerceAtMost(most)
+    }
+    opening += length
+  }
+  return count.toInt()
 }

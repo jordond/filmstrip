@@ -4,7 +4,6 @@ package dev.jordond.filmstrip.playback
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
@@ -69,7 +68,6 @@ internal fun webFixtureComposition(
  * its way to packed RGBA, which is the same conversion the preview's read-back takes, so what is
  * left between the two sides is the lowering and the encode.
  */
-@OptIn(InternalFilmstripApi::class)
 internal suspend fun webExportFrame(
   composition: EditComposition,
   position: Duration,

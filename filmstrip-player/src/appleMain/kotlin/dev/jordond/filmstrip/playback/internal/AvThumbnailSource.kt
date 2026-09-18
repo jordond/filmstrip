@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.playback.internal
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.ComponentRegistry
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.avfoundation.avFoundationExportEngine
 import dev.jordond.filmstrip.avfoundation.internal.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.toAvComposition
@@ -50,7 +49,7 @@ import kotlin.time.Duration
  *   are passed straight through.
  * @param planner Lowers an edit the way an export of it would be lowered.
  */
-@OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 internal class AvThumbnailSource(
   private val scope: CoroutineScope,
   private val planner: AvThumbnailPlanner,
@@ -242,7 +241,6 @@ internal sealed interface AvThumbnailPlan {
  *
  * @param components The components the owning `Filmstrip` was built with.
  */
-@OptIn(InternalFilmstripApi::class)
 internal class AvThumbnailPlanner(
   components: ComponentRegistry,
 ) {

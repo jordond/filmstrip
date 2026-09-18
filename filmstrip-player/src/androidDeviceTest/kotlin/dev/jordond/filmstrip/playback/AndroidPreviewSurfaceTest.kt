@@ -4,7 +4,6 @@ import androidx.media3.common.Player
 import androidx.media3.transformer.CompositionPlayer
 import androidx.test.core.app.ActivityScenario
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -40,7 +39,6 @@ import kotlin.time.Duration.Companion.seconds
  * it is attached to a window, so these run against [SurfaceHostActivity] rather than a detached
  * view.
  */
-@OptIn(InternalFilmstripApi::class)
 class AndroidPreviewSurfaceTest {
   private val context = contractContext()
 

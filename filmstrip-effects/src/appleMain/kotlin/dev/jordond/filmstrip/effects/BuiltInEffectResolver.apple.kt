@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.effects
 
-import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.CoreImageEffect
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -45,7 +44,7 @@ import kotlin.math.PI
 /**
  * Lowers the built-in catalogue onto Core Image.
  */
-@OptIn(ExperimentalForeignApi::class, ExperimentalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 public actual class BuiltInEffectResolver actual constructor() : EffectResolver {
   actual override fun resolve(
     spec: EffectSpec,

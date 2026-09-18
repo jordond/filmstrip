@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.playback
 
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.avfoundation.internal.toAvComposition
 import kotlin.test.fail
 import kotlin.time.Duration
@@ -12,7 +11,6 @@ import kotlin.time.Duration
  * lowering is then read through the export reader to a probe position, and drawn once at that position through an
  * image generator. The draw is left unbounded, and the harness bounds the warm-up as a whole.
  */
-@OptIn(InternalFilmstripApi::class)
 internal suspend fun warmUpAppleMediaStack() {
   val resolved = appleExportLowering(appleFixtureComposition())
   val av = resolved.toAvComposition()

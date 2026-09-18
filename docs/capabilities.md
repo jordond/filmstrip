@@ -176,9 +176,11 @@ it recognises, and declines the rest so the next resolver gets a look.
 
 [^ffmpeg-animation]:
     The animation is sampled once per output frame of the run and written into a
-    `sendcmd` sidecar, one interval per frame that moved, so the alpha, the size and the position are
-    driven mid-stream rather than settled once. It needs a frame rate to sample onto and a closed run
-    to sample across, and refuses by name without either. It also reads the overlay image's header
+    `sendcmd` sidecar, so the alpha, the size and the position are driven mid-stream rather than
+    settled once. Each of them is written as the intervals it holds one value over, which sends a
+    command only where that value moves and still covers every frame of the run, so a branch opened
+    part way through reads what it is holding there. It needs a frame rate to sample onto and a
+    closed run to sample across, and refuses by name without either. It also reads the image's header
     through the JDK's `ImageIO`, to size the drawn picture off the picture's own pixels, so an animated
     overlay needs a format the JDK decodes: a WebP or HEIC still draws here unanimated, since ffmpeg
     opens it itself, and refuses by name once an animation is attached. ffmpeg draws no `TextOverlay`
@@ -223,9 +225,12 @@ rewrites one `OverlaySettings` for the frame being drawn rather than holding a p
 samples onto the output frame grid at resolve and drives named `colorchannelmixer`, `scale` and
 `overlay` nodes from its sidecar, and loops the overlay image's own branch at the output rate for as
 long as the branch it merges onto, so a watermark is drawn for the whole of its run rather than on
-its first frame alone. An overlay added to a clip merges onto that clip's own branch and reads its
-window against the clip's clock, which opens where the clip does rather than where the composition
-does. The browser draws no overlay, so it draws no animation either.
+its first frame alone. The window is gated on that same branch, by zeroing the alpha outside the
+run, so it is read against the clock the sidecar's commands are written against rather than against
+the clip's. An overlay added to a clip merges onto that clip's own branch, ahead of the tail that
+resamples it, so on a clip whose own rate differs from the output's the window's edges land within
+one output frame of where the shared sampler puts them. The browser draws no overlay, so it draws no
+animation either.
 
 ### Parity
 
@@ -245,10 +250,12 @@ the one a preview resamples with. Anything with no entry answers null from `pari
 reads a null as `Exact`.
 
 An overlay animation is outside what these tables report, since the spec `parityOf` is asked about is
-the same one animated or not. It plays back the same way it exports on a preview read from the top.
-On ffmpeg a preview scrubbed into shows the animation's opening frame instead: only the first input
-carries the seek, because an overlay image seeked into delivers nothing at all, so the overlay's own
-branch restarts wherever the scrub lands.
+the same one animated or not. On ffmpeg the opacity, offset and scale it is drawn with, and the
+window `visibleDuring` names, match the export on a scrubbed preview as well as on one read from the
+top. An overlay image seeked into delivers nothing at all, so the overlay's own branch is carried to
+the scrub with `-itsoffset` and the move is taken back off by a `setpts` before the merge. Ahead of
+that `setpts` the branch reads the composition times the sidecar's commands are written against, and
+the window is gated there rather than on the merge, which reads the clip's own clock instead.
 
 ## Codecs
 
@@ -401,8 +408,10 @@ the last pass where it runs past. Every backend lowers that list rather than loo
 media3 lays the passes into its sequence, AVFoundation inserts each one and stops where the plan
 does, and ffmpeg opens one input per clip and splits it into one branch per pass. The browser
 schedules each pass and walks all of them when it draws, so a looping track carrying video keeps its
-picture the whole way. Nothing bounds the pass count, so a very short clip under a very long
-composition lays a very long list.
+picture the whole way. A track may lay at most 2000 passes, and one asking for more is refused with
+`ExportError.InvalidComposition` naming the track. The ceiling is read per track rather than per
+composition, and it bounds a track laid once by its clip count the same way it bounds a looping one
+by its repeats.
 
 A looping track's audio scope is its whole run. A track `fadeIn` plays once at the start, a track
 `fadeOut` ramps down at the composition's end, and an `EnvelopeAnchor.End` point lands there too. A

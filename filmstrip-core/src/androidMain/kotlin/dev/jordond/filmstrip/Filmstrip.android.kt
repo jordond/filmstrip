@@ -23,7 +23,6 @@ public fun Filmstrip(
  * @param context Any context. Its application context is what gets retained.
  * @return A builder, with [context] installed for the process.
  */
-@OptIn(InternalFilmstripApi::class)
 public fun FilmstripBuilder(context: Context): FilmstripBuilder {
   FilmstripContext.install(context)
   return FilmstripBuilder()

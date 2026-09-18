@@ -11,7 +11,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.ImageBitmap
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.effectsRevision
 import dev.jordond.filmstrip.media.FrameRenderer
@@ -273,7 +272,6 @@ public object FilmstripFramesDefaults {
  * @param overscan How many items either side of the visible ones to keep ready.
  * @return State keyed to [renderer], the same instance across recompositions.
  */
-@OptIn(InternalFilmstripApi::class)
 @Composable
 public fun rememberFilmstripFrames(
   renderer: FrameRenderer,

@@ -3,7 +3,6 @@ package dev.jordond.filmstrip.internal
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.effectsRevision
@@ -31,7 +30,6 @@ import kotlin.time.Duration
 // Dispatches the facade's operations to whatever was registered. Probe is the only one core can
 // answer on its own, and only on the targets whose OS hands the metadata over for free.
 // Everything else is a typed failure until its artifact is added.
-@OptIn(InternalFilmstripApi::class)
 internal class DefaultFilmstrip(
   override val components: ComponentRegistry,
 ) : Filmstrip {

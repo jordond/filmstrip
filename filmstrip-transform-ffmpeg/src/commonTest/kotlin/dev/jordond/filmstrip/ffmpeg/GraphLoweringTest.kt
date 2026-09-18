@@ -482,6 +482,33 @@ class GraphLoweringTest {
     graph shouldContain "[vfx0pre][vfx0a0]overlay=x=0:y=0[vfx0]"
   }
 
+  // The branch closes on a setpts back to its own first frame, and says so, so that a preview can
+  // open the image at the scrub and have the move come back off before the merge lines the frames
+  // up. An export reads the image from zero, where the node changes nothing.
+  @Test
+  fun `rebases an overlay's own branch onto its first frame`() {
+    val overlay =
+      ResolvedEffect(
+        specId = "test.overlay",
+        effect =
+          PlatformEffect(
+            FilterFragment(
+              auxInputs =
+                listOf(
+                  AuxInput(ImageSource.of("/logo.png"), listOf(FilterNode("format", "pix_fmts" to "rgba"))),
+                ),
+              merge = FilterNode("overlay", "x" to "0", "y" to "0"),
+            ),
+          ),
+      )
+
+    val invocation = invocationFor(fill = Fill.Solid(0), compositionEffects = listOf(overlay))
+
+    invocation.filterGraph shouldContain "format=pix_fmts=rgba,setpts=expr=PTS-STARTPTS[vfx0a0]"
+    invocation.inputs.single { it.source is InputSource.OfImage }.rebased shouldBe true
+    invocation.inputs.first().rebased shouldBe false
+  }
+
   // An effect contributing nothing ahead of its merge reads the pad it was handed, which is every
   // overlay in the catalogue and leaves the graph they have always written unchanged.
   @Test

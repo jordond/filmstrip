@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.effects.geometry
 
-import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -42,7 +41,7 @@ import kotlin.time.Duration.Companion.seconds
  * Measured away from both ends, which agree under every reading of the travel and so prove nothing
  * on their own, and on a curve as well as on a constant rate.
  */
-@OptIn(ExperimentalForeignApi::class, ExperimentalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 class KenBurnsStepTest {
   private val resolver = BuiltInEffectResolver()
 

@@ -16,7 +16,6 @@ import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
  *
  * @return This builder.
  */
-@OptIn(InternalFilmstripApi::class)
 public fun FilmstripBuilder.webCodecsBackend(): FilmstripBuilder =
   builtInEffects()
     .addExportEngineFactory { components ->

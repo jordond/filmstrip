@@ -5,7 +5,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import androidx.test.platform.app.InstrumentationRegistry
-import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
@@ -48,7 +47,6 @@ import kotlin.time.Duration.Companion.seconds
  * A pan at a constant rate is read at 40% and 60% through the span for that reason, and a pan on a
  * curve at the halfway point, where the curve is furthest from the straight line.
  */
-@OptIn(ExperimentalFilmstripApi::class)
 class AndroidKenBurnsTest {
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
   private val filmstrip = Filmstrip(context) { media3Backend() }

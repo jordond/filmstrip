@@ -1,8 +1,7 @@
-@file:OptIn(ExperimentalWasmJsInterop::class, InternalFilmstripApi::class)
+@file:OptIn(ExperimentalWasmJsInterop::class)
 
 package dev.jordond.filmstrip.webcodecs
 
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.VideoEncoderCapability

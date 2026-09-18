@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.playback.internal
 
 import dev.jordond.filmstrip.Cancellable
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewFrameReadback
@@ -28,7 +27,6 @@ import kotlin.time.Duration
  * @param preview The graph the player is showing, or null before one is loaded.
  * @param renderScale The preview-only downscale in force.
  */
-@OptIn(InternalFilmstripApi::class)
 internal class BrowserFrameReadback(
   private val scope: CoroutineScope,
   private val preview: () -> BrowserPreview?,

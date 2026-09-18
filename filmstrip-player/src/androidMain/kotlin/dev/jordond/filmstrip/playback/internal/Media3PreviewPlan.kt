@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.playback.internal
 
 import dev.jordond.filmstrip.ComponentRegistry
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.OutputProperty
@@ -65,7 +64,6 @@ internal sealed interface Media3PlanResult {
  *
  * @param components The components the owning `Filmstrip` was built with.
  */
-@OptIn(InternalFilmstripApi::class)
 internal open class Media3PreviewPlanner(
   components: ComponentRegistry,
 ) {

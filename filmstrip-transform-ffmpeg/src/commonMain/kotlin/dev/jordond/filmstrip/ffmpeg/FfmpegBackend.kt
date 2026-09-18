@@ -29,7 +29,6 @@ import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
  * @param config How to find ffmpeg and what to pass it.
  * @return This builder.
  */
-@OptIn(InternalFilmstripApi::class)
 public fun FilmstripBuilder.ffmpegBackend(config: FfmpegConfig = FfmpegConfig()): FilmstripBuilder {
   // One runtime behind both, so resolving the binaries, probing a clip and measuring the encoder
   // ladder happen once rather than once per component. The factory runs per caller, so the engine

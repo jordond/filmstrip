@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.playback
 
 import dev.jordond.filmstrip.ComponentRegistry
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.avfoundation.avFoundationExportEngine
 import dev.jordond.filmstrip.avfoundation.internal.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.toCMTime
@@ -88,7 +87,7 @@ internal fun appleFixtureComposition(effects: List<EffectSpec> = emptyList()): E
  * uses, with the pixel format the writer run asks for. Only VideoToolbox is left out, and what the
  * encoder does to a frame is the one thing a preview is documented not to carry.
  */
-@OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 internal suspend fun appleExportFrame(
   composition: EditComposition,
   position: Duration,
@@ -102,7 +101,6 @@ internal suspend fun appleExportFrame(
  * [composition] as the AVFoundation export engine resolves it, failing the test when the engine
  * refuses it.
  */
-@OptIn(InternalFilmstripApi::class)
 internal suspend fun appleExportLowering(composition: EditComposition): ResolvedComposition {
   val engine =
     avFoundationExportEngine(
@@ -126,7 +124,7 @@ internal suspend fun appleExportLowering(composition: EditComposition): Resolved
  *
  * @param duration How long the asset runs, which is how far the reader may go.
  */
-@OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 internal suspend fun AVAsset.readFrame(
   composition: AVVideoComposition?,
   duration: Duration,
@@ -328,6 +326,5 @@ private val HALF_FRAME: Duration = 1.seconds / 60
  * Both sides of the pixel contract lower through this one registry, so a difference between them is
  * a difference in how the graph is built rather than in what was registered.
  */
-@OptIn(InternalFilmstripApi::class)
 internal val CONTRACT_COMPONENTS: ComponentRegistry =
   ComponentRegistry.Builder().add(BuiltInEffectResolver()).build()

@@ -5,8 +5,6 @@ import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.ComponentRegistry
-import dev.jordond.filmstrip.ExperimentalFilmstripApi
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -144,7 +142,6 @@ private fun Bitmap.toTestFrame(): TestFrame {
  * Both sides of the pixel contract lower through this one registry, so a difference between them is
  * a difference in how the graph is built rather than in what was registered.
  */
-@OptIn(InternalFilmstripApi::class)
 internal val CONTRACT_COMPONENTS: ComponentRegistry = ComponentRegistry.Builder().add(BuiltInEffectResolver()).build()
 
 /**
@@ -184,7 +181,6 @@ internal val PANNED_CLIP_START: Duration = CLIP_LENGTH
  * Windows narrow enough that two readings inside a span are plainly different pictures, and linear
  * so every fraction of the travel is a figure both backends work out the same way.
  */
-@OptIn(ExperimentalFilmstripApi::class)
 internal val FIXTURE_PAN: KenBurns =
   KenBurns(
     from = NormalizedRect(0f, 0f, 0.4f, 1f),

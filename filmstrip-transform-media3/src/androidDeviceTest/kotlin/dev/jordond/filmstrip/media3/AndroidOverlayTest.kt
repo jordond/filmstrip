@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -65,7 +64,6 @@ import kotlin.time.Duration.Companion.seconds
  *
  * Skipped when the fixtures are absent, as in [AndroidExportTest].
  */
-@OptIn(InternalFilmstripApi::class)
 class AndroidOverlayTest {
   private val context = InstrumentationRegistry.getInstrumentation().targetContext
   private val filmstrip = Filmstrip(context) { media3Backend() }

@@ -9,7 +9,6 @@ import androidx.media3.inspector.frame.FrameExtractor
 import com.google.common.util.concurrent.ListenableFuture
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.ComponentRegistry
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.PlatformImage
@@ -75,7 +74,6 @@ import kotlin.time.Duration
  * @param context The application context the extractor decodes on.
  * @param planner Lowers an edit the way an export of it would be lowered.
  */
-@OptIn(InternalFilmstripApi::class)
 internal class Media3ThumbnailSource(
   private val scope: CoroutineScope,
   private val context: Context,
@@ -509,7 +507,6 @@ internal sealed interface Media3ThumbnailPlan {
  *
  * @param components The components the owning `Filmstrip` was built with.
  */
-@OptIn(InternalFilmstripApi::class)
 internal class Media3ThumbnailPlanner(
   components: ComponentRegistry,
 ) {

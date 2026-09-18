@@ -5,7 +5,6 @@ import android.text.SpannableString
 import androidx.media3.common.OverlaySettings
 import androidx.media3.effect.BitmapOverlay
 import androidx.media3.effect.StaticOverlaySettings
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.geometry.Size
 import kotlin.time.Duration.Companion.microseconds
@@ -49,7 +48,6 @@ import androidx.media3.effect.TextOverlay as Media3TextOverlay
  * @property raster [bitmap]'s own pixel size, which media3's scale is a multiplier on.
  * @property run The composition time range the overlay is drawn over, from `runWithin`.
  */
-@OptIn(InternalFilmstripApi::class)
 internal class RasterOverlay(
   private val bitmap: Bitmap,
   private val spec: OverlayEffect,

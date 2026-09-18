@@ -14,10 +14,12 @@ import dev.jordond.filmstrip.ffmpeg.internal.arguments
 import dev.jordond.filmstrip.ffmpeg.internal.previewArguments
 import dev.jordond.filmstrip.ffmpeg.internal.previewFrameBytes
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.ImageSource
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
+import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -78,6 +80,60 @@ class PreviewInvocationTest {
     graphed(seekBase = null)
       .previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, emptyList(), 400.milliseconds)
       .shouldNotContain("-ss")
+  }
+
+  // An overlay image seeked into delivers nothing at all, so its branch is moved to the scrub
+  // instead. The offset is the composition time, not the source time the clip is seeked to, because
+  // the graph's own clock is what a sendcmd sidecar's intervals are written against.
+  @Test
+  fun `carries a rebased branch to the scrub rather than seeking it`() {
+    val previewed =
+      overlaid().previewArguments(
+        TOOLCHAIN,
+        FfmpegConfig(),
+        OVERLAY_INPUTS,
+        emptyList(),
+        400.milliseconds,
+      )
+
+    previewed.allAfter("-ss") shouldBe listOf("0.900000")
+    previewed.allAfter("-itsoffset") shouldBe listOf("0.400000")
+    // An input option, so it only moves the input it sits ahead of: past the clip's own -i, and
+    // ahead of the image's.
+    val offset = previewed.indexOf("-itsoffset")
+    assertTrue(offset > previewed.indexOf("-i") && offset < previewed.lastIndexOf("-i"), previewed.toString())
+  }
+
+  // The seek delivers the first frame at or after where it was asked for, so a scrub landing inside
+  // a frame period opens the clip on the frame after it. The branch is moved onto that frame rather
+  // than onto the scrub, because the sidecar's intervals were sampled on the same grid. The seek
+  // itself is not snapped: ffmpeg is already doing that, and it is the source's grid it does it on.
+  @Test
+  fun `snaps a branch onto the frame the seek lands on`() {
+    val previewed = overlaid().previewArguments(TOOLCHAIN, FfmpegConfig(), OVERLAY_INPUTS, emptyList(), OFF_GRID)
+
+    previewed.after("-ss") shouldBe "1.010000"
+    previewed.after("-itsoffset") shouldBe "0.533333"
+  }
+
+  // The offset only cancels where the branch ends on a setpts back to its own first frame. Moving
+  // one that does not would hand the merge frames the clip's have no timestamp in common with.
+  @Test
+  fun `leaves a branch that is not rebased at its own start`() {
+    val previewed =
+      overlaid(rebased = false)
+        .previewArguments(TOOLCHAIN, FfmpegConfig(), OVERLAY_INPUTS, emptyList(), 400.milliseconds)
+
+    previewed.shouldNotContain("-itsoffset")
+  }
+
+  // Nothing is scrubbed past, so nothing needs moving, and an offset of zero is a flag that says so
+  // and costs a parse.
+  @Test
+  fun `offsets no branch for a preview opening at the head`() {
+    overlaid()
+      .previewArguments(TOOLCHAIN, FfmpegConfig(), OVERLAY_INPUTS, emptyList(), Duration.ZERO)
+      .shouldNotContain("-itsoffset")
   }
 
   @Test
@@ -171,6 +227,29 @@ class PreviewInvocationTest {
       seekBase = seekBase,
     )
 
+  // A clip with an overlay merged onto it: the image is looped at the output rate and its branch
+  // ends on the setpts that [InputSpec.rebased] stands for.
+  private fun overlaid(rebased: Boolean = true): Invocation =
+    Invocation(
+      inputs =
+        listOf(
+          InputSpec(InputSource.OfPath("/fixtures/a.mp4")),
+          InputSpec(
+            source = InputSource.OfImage(ImageSource.of("/fixtures/logo.png")),
+            durationSeconds = 1.0,
+            loopFrameRate = 30f,
+            rebased = rebased,
+          ),
+        ),
+      filterGraph = "[0:v]trim=start=0.500000:end=1.500000[v0];[1:v]setpts=expr=PTS-STARTPTS[a0];[v0][a0]overlay[v]",
+      videoLabel = "v",
+      audioLabel = null,
+      output = OUTPUT,
+      videoEncoder = "libx264",
+      duration = 1.seconds,
+      seekBase = 500.milliseconds,
+    )
+
   private fun copied(): Invocation =
     Invocation(
       inputs = listOf(InputSpec(InputSource.OfPath("/fixtures/a.mp4"))),
@@ -186,6 +265,11 @@ class PreviewInvocationTest {
 
   private companion object {
     val INPUTS = listOf("/fixtures/a.mp4")
+    val OVERLAY_INPUTS = listOf("/fixtures/a.mp4", "/fixtures/logo.png")
+
+    // A third of the way into frame 15 of the output's own 30fps grid, so the frame the seek
+    // lands on is frame 16 rather than the one the scrub names.
+    val OFF_GRID = 510.milliseconds
 
     const val CUBE = "LUT_3D_SIZE 2"
 

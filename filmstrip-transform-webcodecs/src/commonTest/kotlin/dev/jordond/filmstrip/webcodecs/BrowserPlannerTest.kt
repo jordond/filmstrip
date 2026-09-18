@@ -1,8 +1,6 @@
 package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.ComponentRegistry
-import dev.jordond.filmstrip.ExperimentalFilmstripApi
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
@@ -77,7 +75,6 @@ import kotlin.time.Duration.Companion.minutes
 
 // The browser planner, with fabricated probes. The lowering is pure, so none of these need
 // mediabunny or a browser beyond what the runner already is.
-@OptIn(InternalFilmstripApi::class, ExperimentalFilmstripApi::class)
 class BrowserPlannerTest {
   private val planner = BrowserPlanner(listOf(BuiltInEffectResolver()))
 

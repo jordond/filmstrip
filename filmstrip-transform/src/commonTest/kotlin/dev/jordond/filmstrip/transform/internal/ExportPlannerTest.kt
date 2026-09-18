@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.transform.internal
 
-import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
@@ -373,6 +372,48 @@ class ExportPlannerTest {
     val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
     assertIs<ExportError.InvalidComposition>(error).message shouldBe
       "Every track loops, so the composition has nothing to bound it."
+  }
+
+  @Test
+  fun `a looping track well under the pass ceiling is laid`() {
+    val laid = resolve(loopingFor(passes = MAX_LAID_PASSES / 2)).tracks.last().clips
+
+    laid.size shouldBe MAX_LAID_PASSES / 2
+  }
+
+  // The ceiling is the last count that lays rather than the first that refuses, so a track sitting
+  // exactly on it still plans.
+  @Test
+  fun `a looping track at the pass ceiling is laid`() {
+    val laid = resolve(loopingFor(passes = MAX_LAID_PASSES)).tracks.last().clips
+
+    laid.size shouldBe MAX_LAID_PASSES
+  }
+
+  // The bed is the second track of the composition, so the message names index one rather than
+  // leaving the caller to work out which of the two ran away.
+  @Test
+  fun `a looping track one pass over the ceiling is refused by name`() {
+    val verdict = plan(loopingFor(passes = MAX_LAID_PASSES + 1))
+
+    val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
+    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+      "The track at index 1 lays more than $MAX_LAID_PASSES passes, which is the most one track may lay. A " +
+      "looping track repeats until the composition ends, so a short clip under a long composition asks for a " +
+      "pass per repeat. A track laid once lays one pass per clip."
+  }
+
+  // A fifty millisecond bed under a ten minute composition, which is the shape that makes the
+  // ceiling worth having.
+  @Test
+  fun `a looping track far over the ceiling is refused by name`() {
+    val verdict = plan(loopingFor(passes = MAX_LAID_PASSES * 6))
+
+    val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
+    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+      "The track at index 1 lays more than $MAX_LAID_PASSES passes, which is the most one track may lay. A " +
+      "looping track repeats until the composition ends, so a short clip under a long composition asks for a " +
+      "pass per repeat. A track laid once lays one pass per clip."
   }
 
   @Test
@@ -1169,6 +1210,21 @@ class ExportPlannerTest {
           fadeIn = fadeIn,
           fadeOut = fadeOut,
         ),
+      ),
+    )
+  }
+
+  /**
+   * A bed looping a [LOOP_PASS] long clip under a primary track long enough to ask for [passes] of
+   * them, which is the shape that reaches the pass ceiling.
+   */
+  private fun loopingFor(passes: Int): EditComposition {
+    val bedClip =
+      clip(duration = 3_000.milliseconds, trim = TimeRange.of(Duration.ZERO, LOOP_PASS), audioRate = 44_100)
+    return EditComposition(
+      listOf(
+        Track(listOf(clip(duration = LOOP_PASS * passes))),
+        Track(clips = listOf(bedClip), content = TrackContent.Audio, looping = true),
       ),
     )
   }
@@ -2238,6 +2294,10 @@ class ExportPlannerTest {
     val BED_TRIM_END = BED_TRIM_START + PASS
     val RUN = PRIMARY_LENGTH - BED_START
     val CUT_PASS = RUN - PASS * 3
+
+    // Short enough that a composition of ordinary length reaches the pass ceiling, and a whole
+    // number of milliseconds so a count derived from it lands on an exact pass.
+    val LOOP_PASS = 50.milliseconds
   }
 }
 
@@ -2276,7 +2336,6 @@ private class FakeResolver(
 
 // A push in from the whole frame to a centred window, which is the shape a pan is normally written
 // as.
-@OptIn(ExperimentalFilmstripApi::class)
 private val PUSH_IN =
   KenBurns(NormalizedRect.Full, NormalizedRect(0.15f, 0.15f, 0.85f, 0.85f), Easing.EaseInOut)
 

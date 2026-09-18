@@ -6,6 +6,7 @@ import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -104,5 +105,46 @@ class LaidPassesTest {
     passesCovering(listOf(Duration.ZERO), 3.seconds).shouldBeEmpty()
     passesCovering(listOf(1.seconds), Duration.ZERO).shouldBeEmpty()
     passesCovering(listOf(1.seconds), -1.seconds).shouldBeEmpty()
+  }
+
+  // The planner refuses against the count before it lays anything, so the two have to agree over a
+  // run that cuts its last pass, one that ends on it, runs holding more than one clip, and a run
+  // carrying an entry of no length, which is laid as a pass that moves the offset nowhere.
+  @Test
+  fun `the count agrees with what laying the same run gives`() {
+    listOf(
+      listOf(1.seconds) to 2_500.milliseconds,
+      listOf(1.seconds) to 3.seconds,
+      listOf(1_100.milliseconds, 900.milliseconds) to 7.seconds,
+      listOf(1_100.milliseconds, 900.milliseconds, 700.milliseconds) to 11_300.milliseconds,
+      listOf(1.seconds, Duration.ZERO) to 2_500.milliseconds,
+      LoopingCases.PAIR_LENGTHS to LoopingCases.PRIMARY_RUN - LoopingCases.PAIR_START,
+    ).forEach { (lengths, fill) ->
+      passCountCovering(lengths, fill) shouldBe passesCovering(lengths, fill).size
+    }
+  }
+
+  // A count read a pass out either refuses a composition that would have laid or lays one that
+  // should have been refused, so the middle of the range is not enough on its own.
+  @Test
+  fun `the count is exact either side of the ceiling`() {
+    val pass = 50.milliseconds
+
+    passCountCovering(listOf(pass), pass * (MAX_LAID_PASSES - 1)) shouldBe MAX_LAID_PASSES - 1
+    passCountCovering(listOf(pass), pass * MAX_LAID_PASSES) shouldBe MAX_LAID_PASSES
+    passCountCovering(listOf(pass), pass * MAX_LAID_PASSES + 1.milliseconds) shouldBe MAX_LAID_PASSES + 1
+  }
+
+  @Test
+  fun `a fifty millisecond loop under a ten minute composition is counted rather than laid`() {
+    passCountCovering(listOf(50.milliseconds), 10.minutes) shouldBe 12_000
+  }
+
+  @Test
+  fun `a run with nothing in it and a fill with nothing to cover both count nothing`() {
+    passCountCovering(emptyList(), 3.seconds) shouldBe 0
+    passCountCovering(listOf(Duration.ZERO), 3.seconds) shouldBe 0
+    passCountCovering(listOf(1.seconds), Duration.ZERO) shouldBe 0
+    passCountCovering(listOf(1.seconds), -1.seconds) shouldBe 0
   }
 }

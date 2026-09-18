@@ -2,7 +2,6 @@
 
 package dev.jordond.filmstrip.webcodecs.internal
 
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.export.AudioFormat
@@ -29,7 +28,6 @@ import kotlin.time.Duration.Companion.seconds
 // [BrowserAudioMix.schedule] is the part of the mixer that touches no decoded media, so it is the
 // part a test can reach without mediabunny or a wired-up pipeline. It runs in real headless Chrome,
 // so the OfflineAudioContext and the rendered samples here are the real ones.
-@OptIn(InternalFilmstripApi::class)
 class BrowserAudioMixTest {
   @Test
   fun gainScalesTheSignal() =

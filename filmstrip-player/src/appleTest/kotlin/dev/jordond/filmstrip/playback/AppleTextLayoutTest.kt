@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.playback
 
 import dev.jordond.filmstrip.ComponentRegistry
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -24,7 +23,6 @@ import kotlin.test.assertIs
  * follow it down: laid out at the preview's own width it wraps on different words than the export.
  * So the lowering carries two frames, and this pins which is which.
  */
-@OptIn(InternalFilmstripApi::class)
 class AppleTextLayoutTest {
   init {
     pumpMainRunLoopDuringContracts()

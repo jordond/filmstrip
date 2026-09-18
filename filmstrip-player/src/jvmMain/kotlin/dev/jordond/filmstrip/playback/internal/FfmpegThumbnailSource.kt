@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.playback.internal
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.ComponentRegistry
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportSpec
@@ -38,7 +37,6 @@ import kotlin.time.Duration
  *   one at a time and each of them waits on a pipe.
  * @param planner Lowers an edit the way an export of it would be lowered, and opens the pump on it.
  */
-@OptIn(InternalFilmstripApi::class)
 internal class FfmpegThumbnailSource(
   private val scope: CoroutineScope,
   private val planner: FfmpegThumbnailPlanner,
@@ -160,7 +158,6 @@ internal sealed interface FfmpegThumbnailPlan {
  *
  * @param components The components the owning `Filmstrip` was built with.
  */
-@OptIn(InternalFilmstripApi::class)
 internal class FfmpegThumbnailPlanner(
   components: ComponentRegistry,
 ) {

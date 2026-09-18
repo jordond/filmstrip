@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.effects
 
-import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.AuxInput
@@ -80,7 +79,6 @@ import kotlin.time.DurationUnit
  * An animated overlay is the one lowering that reads anything: it needs the overlay picture's own
  * pixel size, which it takes from the image's header rather than by decoding it.
  */
-@OptIn(ExperimentalFilmstripApi::class)
 public actual class BuiltInEffectResolver actual constructor() : EffectResolver {
   actual override fun resolve(
     spec: EffectSpec,
@@ -373,6 +371,8 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
         animated?.let { add(FilterNode("sendcmd", "f" to it.sidecar.placeholder)) }
         add(FilterNode("scale$instance", "w" to overlayWidth.toString(), "h" to "-1"))
         add(FilterNode("format", "pix_fmts" to "rgba"))
+        // After the format, which is the node that guarantees the alpha channel the gate zeroes.
+        spec.windowGate(run, span)?.let { add(it) }
         when {
           // The sampler has already folded the authored opacity into every value it answers, so the
           // node the commands drive opens at one rather than at what was authored.
@@ -395,15 +395,6 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
         // What overlay does once the image branch ends: hand the main frame on undrawn. The branch
         // is looped for as long as the one it merges onto, so nothing reaches it.
         add(FilterArgument("eof_action", "pass"))
-        // A clip's branch opens with setpts=PTS-STARTPTS, so t on it counts from the clip's own
-        // start rather than from the composition's. The window is the shared run, already clipped
-        // to the span and closed wherever the span is, and the span's start is what moves it onto
-        // the branch's clock. A composition effect's span opens at zero, so nothing moves there.
-        if (spec.visibleDuring != null) {
-          run.endExclusive?.let { end ->
-            add(FilterArgument("enable", "between(t,${branchSeconds(run.start, span)},${branchSeconds(end, span)})"))
-          }
-        }
       }
 
     return EffectResolution.Resolved(
@@ -417,11 +408,41 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     )
   }
 
+  // The window, as a node on the overlay's own branch: outside the run the branch is handed on
+  // fully transparent, so the merge blends nothing onto the frame under it, and inside it the node
+  // is switched off and passes the picture through untouched.
+  //
+  // t is the image branch's own clock, read ahead of the setpts that rebases it: an export opens
+  // that branch at zero and a scrubbed preview carries it to the seek with -itsoffset, so either
+  // way it reads the composition time the frame belongs to. It counts from the span's own start,
+  // which is what the window is written against.
+  //
+  // The bound is half open, the way TimeRange and frameWithin read it, so the frame sitting on the
+  // run's end is outside it, as it is on every other backend.
+  //
+  // The branch advances on the output frame grid, so the frames this opens over are the ones the
+  // shared sampler names. A clip's merge runs ahead of the tail's fps, and that resampler builds
+  // two output frames out of one source frame either side of a boundary, so on a clip whose own
+  // rate differs from the output's an edge lands within one output frame of the sampler's. That is
+  // the resampler's limit rather than the window's.
+  private fun ImageOverlay.windowGate(
+    run: TimeRange,
+    span: TimeRange,
+  ): FilterNode? {
+    if (visibleDuring == null) return null
+    val end = run.endExclusive ?: return null
+
+    val open = "gte(t,${branchSeconds(run.start, span)})*lt(t,${branchSeconds(end, span)})"
+    return FilterNode("colorchannelmixer", "aa" to "0", "enable" to "not($open)")
+  }
+
   // What an animated overlay's branch has to be driven by. The animation is sampled once per output
-  // frame of the run, and each frame whose values differ from the one before writes one sendcmd
-  // interval. A command written at exactly a frame's own time lands on that frame, so the intervals
-  // are the frame grid itself rather than anything nudged off it, and the clock is the branch's,
-  // the same one the enable gate reads.
+  // frame of the run, and each option is written as the intervals it holds one value over. A
+  // command written at exactly a frame's own time lands on that frame, so an interval opens on the
+  // grid rather than anywhere nudged off it, and the clock is the branch's, the same one the enable
+  // gate reads. An option is still only sent where its own value moves, and its intervals cover the
+  // whole run, so a branch opened part way through reads what it is holding there instead of
+  // whatever the graph configured the filter at.
   private fun ImageOverlay.commandsFor(
     attributes: Attributes,
     run: TimeRange,
@@ -434,42 +455,57 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     val outputSize = attributes.outputSize
     val base = placedOn(outputSize, imageSize)
 
-    val first = frameIndexAt(run.start, span, rate)
     val last = frameIndexAt(end, span, rate)
-    val written =
-      buildString {
-        // What the driven filters are holding, which is every value sampled so far whether it was
-        // written or not, since a frame writes only what moved. A frame the sampler draws nothing
-        // on leaves it alone: nothing was sent, so the filters still hold what they held.
-        var previous = emptyMap<String, String>()
-        for (index in first until last) {
-          val at = index.toDouble() / rate
-          val frame = frameWithin(run, span.start + at.seconds) ?: continue
-          val values = commandValues(frame, base.animatedBy(frame), outputSize)
-          val changed = values.filterNot { (command, value) -> previous[command] == value }
-          previous = values
-          if (changed.isEmpty()) continue
-
-          append(commandSeconds(at))
-          append('-')
-          append(commandSeconds((index + 1).toDouble() / rate))
-          append(' ')
-          append(changed.entries.joinToString(", ") { (command, value) -> "$command $value" })
-          append(";\n")
-        }
+    val sampled =
+      (frameIndexAt(run.start, span, rate) until last).mapNotNull { index ->
+        // A frame the sampler draws nothing on is left out rather than written as a change, so the
+        // interval running across it carries on holding what it held.
+        val frame = frameWithin(run, span.start + (index.toDouble() / rate).seconds) ?: return@mapNotNull null
+        index to commandValues(frame, base.animatedBy(frame), outputSize)
       }
     // A run reaching no output frame, which is a window falling outside the span or one shorter
-    // than a frame. There is nothing to drive, and the window on the merge already draws nothing.
-    if (written.isEmpty()) return Driven.Still
+    // than a frame. There is nothing to drive, and the gate on the branch already draws nothing.
+    if (sampled.isEmpty()) return Driven.Still
+
+    val commands = sampled.first().second.keys
+    val written =
+      commands
+        .flatMap { command -> sampled.holdsOf(command, last) }
+        .sortedBy { it.from }
+        .joinToString("") { hold ->
+          "${commandSeconds(hold.from.toDouble() / rate)}-${commandSeconds(hold.until.toDouble() / rate)} " +
+            "${hold.command};\n"
+        }
 
     val name = instanceNameOf(written)
     return Driven.Commands(Sidecar(written.replace(INSTANCE_SLOT, name).encodeToByteArray(), "cmd"), name)
   }
 
+  // One option's intervals across a sampled run: each opens on the frame the value moves to and
+  // runs to the frame that moves it next, or to the end of the run for the last of them.
+  private fun List<Pair<Int, Map<String, String>>>.holdsOf(
+    command: String,
+    end: Int,
+  ): List<Hold> {
+    val opens =
+      filterIndexed { position, sample ->
+        position == 0 || this[position - 1].second.driving(command) != sample.second.driving(command)
+      }
+
+    return opens.mapIndexed { position, (index, values) ->
+      Hold(index, opens.getOrNull(position + 1)?.first ?: end, "$command ${values.driving(command)}")
+    }
+  }
+
+  // The keys come off the first frame sampled, so a frame answering a different set of them would
+  // otherwise write a file that drives some of the filters and leaves the rest where they were.
+  private fun Map<String, String>.driving(command: String): String =
+    this[command] ?: error("A sampled overlay frame carries no $command, so the commands cannot cover the run.")
+
   // What each driven filter is set to on one frame, keyed by the target and option the command
-  // names, so a frame writes only the ones that moved. Every number is the shared placement's:
-  // animatedBy scales both sides and moves the frame anchor, and the point inside the overlay that
-  // the anchor holds is what turns the pair into a position.
+  // names, so each one can be written over the frames it holds. Every number is the shared
+  // placement's: animatedBy scales both sides and moves the frame anchor, and the point inside the
+  // overlay that the anchor holds is what turns the pair into a position.
   private fun commandValues(
     frame: OverlayFrame,
     drawn: OverlayPlacement,
@@ -564,6 +600,14 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
         .placeholder
         .trim('<', '>')
         .substringAfterLast('-')
+
+  // One sendcmd interval, before it is written as text: the output frames it spans, and the single
+  // command it sends on the frame it opens on.
+  private class Hold(
+    val from: Int,
+    val until: Int,
+    val command: String,
+  )
 
   private sealed interface Driven {
     // Nothing to drive: an overlay holding still, or one whose run reaches no output frame.

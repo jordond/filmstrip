@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.effects.color
 
-import dev.jordond.filmstrip.ExperimentalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -62,7 +61,7 @@ import kotlin.time.Duration.Companion.seconds
  * [transformNits] with reference white at one. The cases there sit above white on one channel and
  * below it on another, which is where the encoded reading and a bare linear one part company.
  */
-@OptIn(ExperimentalForeignApi::class, ExperimentalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 class CoreImageColorTest {
   private val resolver = BuiltInEffectResolver()
 

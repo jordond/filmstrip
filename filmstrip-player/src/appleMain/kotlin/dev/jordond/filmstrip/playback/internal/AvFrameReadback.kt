@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.playback.internal
 
 import dev.jordond.filmstrip.Cancellable
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.avfoundation.internal.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.toCMTime
 import dev.jordond.filmstrip.avfoundation.internal.toDuration
@@ -59,7 +58,7 @@ import kotlin.time.Duration
  * @param composition The graph the player is showing, or null before one is loaded.
  * @param policy How hard the preview may work, which caps the generated frame.
  */
-@OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 internal class AvFrameReadback(
   private val scope: CoroutineScope,
   private val composition: () -> AvComposition?,
