@@ -32,11 +32,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import dev.jordond.filmstrip.filekit.compose.rememberShareLauncher
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.sample.ResultVideoPlayer
 import dev.jordond.filmstrip.sample.SampleAppState
-import dev.jordond.filmstrip.sample.rememberFileSharer
 import dev.jordond.filmstrip.sample.ui.Pill
 import dev.jordond.filmstrip.sample.ui.SampleIcons
 import dev.jordond.filmstrip.sample.ui.StatRow
@@ -62,7 +62,7 @@ public fun ResultScreen(
     MediaSink.Temporary -> null
   }
   val shareable = result.output !is MediaSink.Temporary
-  val sharer = rememberFileSharer()
+  val sharer = rememberShareLauncher()
 
   Scaffold(
     modifier = modifier,
@@ -179,7 +179,7 @@ public fun ResultScreen(
           Text("Keep editing")
         }
         Button(
-          onClick = { sharer?.share(result.output) },
+          onClick = { sharer?.launch(result.output) },
           enabled = sharer != null && shareable,
           shape = RoundedCornerShape(12.dp),
           colors = ButtonDefaults.buttonColors(

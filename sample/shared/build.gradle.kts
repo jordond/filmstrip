@@ -44,7 +44,7 @@ kotlin {
       implementation(projects.filmstripCompose)
       implementation(projects.filmstripComposeUi)
       implementation(projects.filmstripIoFilekit)
-      implementation(libs.filekit.dialogs.compose)
+      implementation(projects.filmstripIoFilekitCompose)
       implementation(libs.compose.runtime)
       implementation(libs.compose.foundation)
       implementation(libs.compose.material3)
