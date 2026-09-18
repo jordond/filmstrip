@@ -2,9 +2,11 @@
 
 package dev.jordond.filmstrip.sample
 
+import io.github.vinceglb.filekit.PlatformFile
+
 // There is no filesystem, so each half is published as a blob and handed to the browser's own
 // download, which is the only way a page gives a user a file.
-public actual suspend fun writeDiagnostics(report: DiagnosticsReport): String? {
+public actual suspend fun writeDiagnostics(report: DiagnosticsReport): PlatformFile? {
   download("filmstrip-report.md", report.markdown, "text/markdown")
   download("filmstrip-report.json", report.json, "application/json")
   return null

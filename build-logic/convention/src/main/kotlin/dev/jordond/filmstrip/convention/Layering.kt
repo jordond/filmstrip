@@ -23,6 +23,9 @@ internal enum class Layer(
   Compose(setOf(Core, Effects, Transform, Backend, Player)),
   ComposeUi(setOf(Core, Effects, Transform, Backend, Player, Compose)),
   Umbrella(setOf(Core, Effects, Transform, Backend, Player)),
+
+  // The io adapters branch off core rather than climbing the ladder, and nothing above them takes one.
+  Io(setOf(Core)),
   Fixtures(setOf(Core)),
 }
 
@@ -43,6 +46,9 @@ private val LAYERS: Map<String, Layer> =
     ":filmstrip-compose" to Layer.Compose,
     ":filmstrip-compose-ui" to Layer.ComposeUi,
     ":filmstrip" to Layer.Umbrella,
+    ":filmstrip-io-filekit" to Layer.Io,
+    ":filmstrip-io-kotlinx" to Layer.Io,
+    ":filmstrip-io-okio" to Layer.Io,
     ":filmstrip-test" to Layer.Fixtures,
   )
 
@@ -73,6 +79,7 @@ private val FORBIDDEN_EXTERNALS: Map<Layer, Set<String>> =
     Layer.Backend to COMPOSE,
     Layer.Player to COMPOSE,
     Layer.Umbrella to COMPOSE,
+    Layer.Io to COMPOSE + "androidx.media3",
     Layer.Fixtures to COMPOSE,
   )
 
@@ -106,6 +113,7 @@ private val FORBIDDEN_IMPORTS: Map<Layer, Set<String>> =
     // The material ban is what keeps compose-ui a foundation-only timeline. It covers `material`, `material3` and
     // `material3.adaptive` by prefix, so a tool panel or a styled control cannot be written there.
     Layer.ComposeUi to setOf("androidx.media3.transformer", "androidx.compose.material"),
+    Layer.Io to NATIVE_PLAYBACK_AND_EXPORT,
   )
 
 /**

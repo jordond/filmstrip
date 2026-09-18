@@ -43,6 +43,7 @@ kotlin {
       api(projects.filmstrip)
       implementation(projects.filmstripCompose)
       implementation(projects.filmstripComposeUi)
+      implementation(projects.filmstripIoFilekit)
       implementation(libs.filekit.dialogs.compose)
       implementation(libs.compose.runtime)
       implementation(libs.compose.foundation)

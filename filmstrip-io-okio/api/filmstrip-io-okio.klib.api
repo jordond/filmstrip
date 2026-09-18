@@ -1,0 +1,15 @@
+// Klib ABI Dump
+// Targets: [iosArm64, iosSimulatorArm64, js, macosArm64, wasmJs]
+// Rendering settings:
+// - Signature version: 2
+// - Show manifest properties: true
+// - Show declarations: true
+
+// Library unique name: <filmstrip-root:filmstrip-io-okio>
+final fun (okio/BufferedSource).dev.jordond.filmstrip.okio/readImageSource(): dev.jordond.filmstrip.media/ImageSource // dev.jordond.filmstrip.okio/readImageSource|readImageSource@okio.BufferedSource(){}[0]
+final fun (okio/BufferedSource).dev.jordond.filmstrip.okio/readMediaSource(dev.jordond.filmstrip.media/FormatHint? = ...): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.okio/readMediaSource|readMediaSource@okio.BufferedSource(dev.jordond.filmstrip.media.FormatHint?){}[0]
+final fun (okio/ByteString).dev.jordond.filmstrip.okio/toImageSource(): dev.jordond.filmstrip.media/ImageSource // dev.jordond.filmstrip.okio/toImageSource|toImageSource@okio.ByteString(){}[0]
+final fun (okio/ByteString).dev.jordond.filmstrip.okio/toMediaSource(dev.jordond.filmstrip.media/FormatHint? = ...): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.okio/toMediaSource|toMediaSource@okio.ByteString(dev.jordond.filmstrip.media.FormatHint?){}[0]
+final fun (okio/Path).dev.jordond.filmstrip.okio/toImageSource(): dev.jordond.filmstrip.media/ImageSource // dev.jordond.filmstrip.okio/toImageSource|toImageSource@okio.Path(){}[0]
+final fun (okio/Path).dev.jordond.filmstrip.okio/toMediaSink(): dev.jordond.filmstrip.media/MediaSink // dev.jordond.filmstrip.okio/toMediaSink|toMediaSink@okio.Path(){}[0]
+final fun (okio/Path).dev.jordond.filmstrip.okio/toMediaSource(): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.okio/toMediaSource|toMediaSource@okio.Path(){}[0]

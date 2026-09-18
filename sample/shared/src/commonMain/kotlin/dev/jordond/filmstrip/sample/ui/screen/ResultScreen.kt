@@ -36,7 +36,7 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.sample.ResultVideoPlayer
 import dev.jordond.filmstrip.sample.SampleAppState
-import dev.jordond.filmstrip.sample.rememberExportSharer
+import dev.jordond.filmstrip.sample.rememberFileSharer
 import dev.jordond.filmstrip.sample.ui.Pill
 import dev.jordond.filmstrip.sample.ui.SampleIcons
 import dev.jordond.filmstrip.sample.ui.StatRow
@@ -54,12 +54,15 @@ public fun ResultScreen(
 ) {
   val result = state.exported ?: return
   val onDismiss = state::navigateBack
+  // Only the player needs a string. Sharing hands the sink over whole, so a content uri reaches
+  // the sheet as a content uri.
   val path = when (val sink = result.output) {
     is MediaSink.Path -> sink.path
     is MediaSink.Uri -> sink.uri
     MediaSink.Temporary -> null
   }
-  val sharer = rememberExportSharer()
+  val shareable = result.output !is MediaSink.Temporary
+  val sharer = rememberFileSharer()
 
   Scaffold(
     modifier = modifier,
@@ -176,8 +179,8 @@ public fun ResultScreen(
           Text("Keep editing")
         }
         Button(
-          onClick = { if (path != null && sharer != null) sharer(path) },
-          enabled = path != null && sharer != null,
+          onClick = { sharer?.share(result.output) },
+          enabled = sharer != null && shareable,
           shape = RoundedCornerShape(12.dp),
           colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary,

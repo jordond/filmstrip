@@ -33,6 +33,9 @@ runs where its engine does, and the two Compose ones, which have no desktop Appl
 | `filmstrip-compose`                | ✅      | ✅                     | ❌            | ✅  | ✅                   |
 | `filmstrip-compose-ui`             | ✅      | ✅                     | ❌            | ✅  | ✅                   |
 | `filmstrip-test`                   | ✅      | ✅                     | ✅            | ✅  | ✅                   |
+| `filmstrip-io-filekit`             | ✅      | ✅                     | ✅            | ✅  | ✅                   |
+| `filmstrip-io-okio`                | ✅      | ✅                     | ✅            | ✅  | ✅                   |
+| `filmstrip-io-kotlinx`             | ✅      | ✅                     | ✅            | ✅  | ✅                   |
 
 Notes:
 
@@ -633,3 +636,10 @@ and is not affected.
 `filmstrip-core` alone. The browser and the JVM have no read-only framework to open a container
 with, so `probe` there answers only for a still until `webCodecsBackend()` or `ffmpegBackend()` is
 registered, and refuses by name until it is.
+
+Three optional adapter modules build these same arms out of a third-party file type, and none of
+them adds an arm of its own: `filmstrip-io-filekit` turns a picked `PlatformFile` into whichever arm
+that target's backend reads and turns a sink back into a `PlatformFile`, `filmstrip-io-okio` and
+`filmstrip-io-kotlinx` turn a `Path` into `Path` and a stream into `Bytes`. Whatever the table above
+says about an arm is what the adapter gets you, so a `Path` from either io module is still refused
+in the browser and a stream is still the only thing that reads there.
