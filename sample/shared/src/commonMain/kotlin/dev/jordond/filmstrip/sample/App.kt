@@ -11,6 +11,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.scene.DialogSceneStrategy
 import androidx.navigation3.scene.SinglePaneSceneStrategy
 import androidx.navigation3.ui.NavDisplay
+import dev.jordond.filmstrip.filekit.toMediaSource
 import dev.jordond.filmstrip.sample.ui.SampleTheme
 import dev.jordond.filmstrip.sample.ui.isCompactWidth
 import dev.jordond.filmstrip.sample.ui.nav.BottomSheetSceneStrategy

@@ -30,9 +30,10 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.sample.SampleAppState
 import dev.jordond.filmstrip.sample.diagnosticsReport
-import dev.jordond.filmstrip.sample.rememberExportSharer
+import dev.jordond.filmstrip.sample.rememberFileSharer
 import dev.jordond.filmstrip.sample.ui.SampleIcons
 import dev.jordond.filmstrip.sample.writeDiagnostics
+import io.github.vinceglb.filekit.path
 import kotlinx.coroutines.launch
 
 private const val BLURB =
@@ -52,7 +53,7 @@ public fun DiagnosticsPane(
 ) {
   val report = state.diagnosticsReport()
   val clipboard = LocalClipboardManager.current
-  val sharer = rememberExportSharer()
+  val sharer = rememberFileSharer()
   val scope = rememberCoroutineScope()
 
   var saving by remember { mutableStateOf(false) }
@@ -88,9 +89,9 @@ public fun DiagnosticsPane(
           saving = true
           scope.launch {
             try {
-              val path = writeDiagnostics(report)
-              saved = path ?: "Downloaded."
-              if (path != null) sharer?.invoke(path)
+              val file = writeDiagnostics(report)
+              saved = file?.path ?: "Downloaded."
+              if (file != null) sharer?.share(file)
             } finally {
               saving = false
             }

@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.effects.color.ColorMatrix
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.filekit.toImageSource
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fit
@@ -49,7 +50,6 @@ import dev.jordond.filmstrip.sample.EditState
 import dev.jordond.filmstrip.sample.EditorTool
 import dev.jordond.filmstrip.sample.FillMode
 import dev.jordond.filmstrip.sample.SampleAppState
-import dev.jordond.filmstrip.sample.toImageSource
 import dev.jordond.filmstrip.sample.ui.AnchorGrid
 import dev.jordond.filmstrip.sample.ui.Chip
 import dev.jordond.filmstrip.sample.ui.ChipGroup
