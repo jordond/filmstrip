@@ -1,0 +1,13 @@
+// Klib ABI Dump
+// Targets: [iosArm64, iosSimulatorArm64, js, macosArm64, wasmJs]
+// Rendering settings:
+// - Signature version: 2
+// - Show manifest properties: true
+// - Show declarations: true
+
+// Library unique name: <filmstrip-root:filmstrip-io-kotlinx>
+final fun (kotlinx.io.files/Path).dev.jordond.filmstrip.kotlinxio/toImageSource(): dev.jordond.filmstrip.media/ImageSource // dev.jordond.filmstrip.kotlinxio/toImageSource|toImageSource@kotlinx.io.files.Path(){}[0]
+final fun (kotlinx.io.files/Path).dev.jordond.filmstrip.kotlinxio/toMediaSink(): dev.jordond.filmstrip.media/MediaSink // dev.jordond.filmstrip.kotlinxio/toMediaSink|toMediaSink@kotlinx.io.files.Path(){}[0]
+final fun (kotlinx.io.files/Path).dev.jordond.filmstrip.kotlinxio/toMediaSource(): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.kotlinxio/toMediaSource|toMediaSource@kotlinx.io.files.Path(){}[0]
+final fun (kotlinx.io/Source).dev.jordond.filmstrip.kotlinxio/readImageSource(): dev.jordond.filmstrip.media/ImageSource // dev.jordond.filmstrip.kotlinxio/readImageSource|readImageSource@kotlinx.io.Source(){}[0]
+final fun (kotlinx.io/Source).dev.jordond.filmstrip.kotlinxio/readMediaSource(dev.jordond.filmstrip.media/FormatHint? = ...): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.kotlinxio/readMediaSource|readMediaSource@kotlinx.io.Source(dev.jordond.filmstrip.media.FormatHint?){}[0]

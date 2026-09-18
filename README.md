@@ -29,6 +29,7 @@ an ffmpeg you installed yourself.
 | `filmstrip-compose-ui` | The drawn timeline: scrolling strip, ruler, playhead, trim handles, scrub gestures. Foundation only, no Material. |
 | `filmstrip-test` | Test fixtures and the frame-similarity harness. |
 | `filmstrip-io-filekit` | FileKit bindings: a picked `PlatformFile` as a source or sink, and an export result back as one. |
+| `filmstrip-io-kotlinx` | kotlinx-io bindings: `Path` and `Source` as sources, `Path` as a sink. |
 
 Layering is `core -> {effects, io-filekit, io-okio, io-kotlinx}`, then
 `effects -> {transform -> engines, player} -> {compose -> compose-ui, filmstrip}`. The build enforces it: `check`

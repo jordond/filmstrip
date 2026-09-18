@@ -47,6 +47,7 @@ private val LAYERS: Map<String, Layer> =
     ":filmstrip-compose-ui" to Layer.ComposeUi,
     ":filmstrip" to Layer.Umbrella,
     ":filmstrip-io-filekit" to Layer.Io,
+    ":filmstrip-io-kotlinx" to Layer.Io,
     ":filmstrip-test" to Layer.Fixtures,
   )
 
