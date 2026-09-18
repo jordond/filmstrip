@@ -7,8 +7,6 @@ import kotlinx.coroutines.withContext
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
-import java.net.URI
-import java.net.URISyntaxException
 import javax.imageio.IIOImage
 import javax.imageio.ImageIO
 import javax.imageio.ImageWriteParam
@@ -118,18 +116,6 @@ private fun jpegBytes(
     writer.dispose()
   }
 }
-
-/**
- * The path a `file:` URL names, or null for anything else. The JVM has no content resolver to hand
- * another scheme to.
- */
-internal fun filePathOf(uri: String): String? =
-  try {
-    val parsed = URI(uri)
-    if (parsed.scheme == "file") parsed.path else null
-  } catch (malformed: URISyntaxException) {
-    null
-  }
 
 private const val TARGET = "The JDK's ImageIO"
 

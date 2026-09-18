@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.ffmpeg.internal
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
+import dev.jordond.filmstrip.media.filePathOf
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
@@ -34,7 +35,7 @@ internal class Scratch private constructor(
   fun materialise(image: ImageSource): String =
     when (image) {
       is ImageSource.Path -> image.path
-      is ImageSource.Uri -> image.uri.removePrefix("file://")
+      is ImageSource.Uri -> filePathOf(image.uri) ?: image.uri
       is ImageSource.Bytes -> write(image.bytes, "png")
     }
 
@@ -64,7 +65,8 @@ internal class Scratch private constructor(
     /**
      * Where the output goes.
      *
-     * A temporary sink resolves outside the scratch directory, because it outlives the export.
+     * A temporary sink resolves outside the scratch directory, because it outlives the export. A
+     * `file:` URI resolves to the path it names, and anything else goes to ffmpeg as it came in.
      */
     fun resolveSink(sink: MediaSink): String =
       when (sink) {
@@ -72,7 +74,7 @@ internal class Scratch private constructor(
           sink.path
         }
         is MediaSink.Uri -> {
-          sink.uri.removePrefix("file://")
+          filePathOf(sink.uri) ?: sink.uri
         }
         is MediaSink.Temporary -> {
           Path(SystemTemporaryDirectory, "filmstrip-export-${Random.nextULong()}.mp4").toString()

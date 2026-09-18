@@ -21,9 +21,8 @@ public actual fun PlatformFile.toMediaSink(): MediaSink = MediaSink.of(file.abso
 /**
  * Hands an export result back to FileKit, for a save dialog or a file manager.
  *
- * A [MediaSink.Uri] is percent-decoded on the way to a path here. The ffmpeg backend does not
- * decode: it reads whatever follows `file://` as-is, so a sink you hand to an export rather than to
- * this function has to name the path already decoded.
+ * A [MediaSink.Uri] is percent-decoded on the way to a path here, the same as the ffmpeg backend
+ * does when it resolves one.
  *
  * @throws IllegalArgumentException on a [MediaSink.Uri] that is not a `file:` URL, or is one the
  *   JVM will not read as a path, since the backend only ever writes to a path.
