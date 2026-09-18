@@ -46,17 +46,7 @@ jobs:
         run: ./gradlew checkKotlinAbi --scan
 
       - name: Architecture guards
-        run: >-
-          ./gradlew --scan
-          checkForbiddenImports
-          checkLayeringFilmstrip checkLayeringFilmstripCore checkLayeringFilmstripEffects
-          checkLayeringFilmstripTransform checkLayeringFilmstripTransformFfmpeg
-          checkLayeringFilmstripPlayer checkLayeringFilmstripCompose
-          checkLayeringFilmstripComposeUi
-          checkNpmDependenciesFilmstrip checkNpmDependenciesFilmstripCore
-          checkNpmDependenciesFilmstripEffects checkNpmDependenciesFilmstripTransform
-          checkNpmDependenciesFilmstripTransformFfmpeg checkNpmDependenciesFilmstripPlayer
-          checkNpmDependenciesFilmstripCompose checkNpmDependenciesFilmstripComposeUi
+        run: ./gradlew --scan checkForbiddenImports checkLayering
 
       - name: Lint
         run: ./gradlew lint --scan
