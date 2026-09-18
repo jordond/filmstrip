@@ -30,7 +30,7 @@ an ffmpeg you installed yourself.
 | `filmstrip-test` | Test fixtures and the frame-similarity harness. |
 
 Layering is `core -> effects -> {transform -> engines, player} -> {compose -> compose-ui, filmstrip}`. The build
-enforces it: `check` runs an import guard and a resolved-dependency guard per module.
+enforces it: `check` runs a resolved-dependency guard on every module, plus an import guard where one is needed.
 
 ## Building
 

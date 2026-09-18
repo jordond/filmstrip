@@ -73,7 +73,7 @@ abstract class ForbiddenImportsTask : DefaultTask() {
           appendLine("Forbidden imports in ${moduleName.get()} (${violations.size}):")
           violations.forEach { appendLine("  $it") }
           appendLine()
-          appendLine("See LAYERING in build-logic Layering.kt for the layering contract.")
+          appendLine("See LAYERS in build-logic Layering.kt for the layering contract.")
         },
       )
     }
