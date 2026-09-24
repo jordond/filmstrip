@@ -233,7 +233,8 @@ internal fun toneMapNodes(route: ToneMapRoute): List<FilterNode> =
  * uniform inputs, and it is why the scale effect emits nothing of its own.
  *
  * [padColor] is the fill's own colour, or transparent while that colour is waiting for composition
- * effects to run before it is painted in. The caller decides which.
+ * effects to run before it is painted in. The caller decides which. [slots] is how many frames the
+ * clip is cut to, as [trailingNodes] takes it.
  */
 internal fun tailNodes(
   outputSize: Size,
@@ -241,6 +242,7 @@ internal fun tailNodes(
   padColor: String,
   frameRate: Int,
   pixelFormat: String,
+  slots: Long,
 ): List<FilterNode> =
   buildList {
     val width = outputSize.width.toString()
@@ -267,7 +269,7 @@ internal fun tailNodes(
         add(FilterNode("scale", "w" to width, "h" to height))
       }
     }
-    addAll(trailingNodes(frameRate, pixelFormat))
+    addAll(trailingNodes(frameRate, pixelFormat, slots))
   }
 
 /**
@@ -339,20 +341,31 @@ internal fun overlayNode(vararg arguments: Pair<String, String>): FilterNode =
  * The stage every tail ends on, blurred letterbox or not.
  *
  * Pins the sample aspect, the frame rate and the pixel format so `concat` sees uniform inputs
- * across every clip. [pixelFormat] is the encoder's own 10-bit format for an HDR export, or
- * `yuv420p` for everything else.
+ * across every clip, and cuts the clip to exactly [slots] frames, the output slots its span covers.
+ * The clip's last frame is cloned ahead of the cut, so a span whose end runs past the source's last
+ * frame still has a frame for every slot it covers. [pixelFormat] is the encoder's own 10-bit
+ * format for an HDR export, or `yuv420p` for everything else.
  */
 internal fun trailingNodes(
   frameRate: Int,
   pixelFormat: String,
+  slots: Long,
 ): List<FilterNode> =
   listOf(
     // scale does not reset the sample aspect ratio and concat refuses to join clips whose sample
     // aspects differ, so this is not cosmetic.
     FilterNode("setsar", "r" to "1"),
     FilterNode("fps", "fps" to frameRate.toString()),
+    FilterNode("tpad", "stop_mode" to "clone", "stop" to HELD_FRAMES.toString()),
+    FilterNode("trim", "end_frame" to slots.toString()),
+    FilterNode("setpts", "expr" to "PTS-STARTPTS"),
     FilterNode("format", "pix_fmts" to pixelFormat),
   )
+
+// ffmpeg's limit rather than the grid's: a snapped end runs at most half a slot past the clip's own
+// end, and fps drops the frame it is part way through when its input ends, so two clones cover the
+// furthest a clip's frames can fall short of its slots. The cut after them drops whatever is spare.
+private const val HELD_FRAMES = 2
 
 /**
  * The alpha-carrying format at [pixelFormat]'s own bit depth and chroma layout, for a clip tail

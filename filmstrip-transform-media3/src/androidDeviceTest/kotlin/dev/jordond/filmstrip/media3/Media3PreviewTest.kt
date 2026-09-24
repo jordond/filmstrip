@@ -14,11 +14,14 @@ import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotTime
+import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.media3.internal.Media3FrameBounds
 import dev.jordond.filmstrip.media3.internal.toMedia3Preview
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
@@ -52,8 +55,8 @@ class Media3PreviewTest {
     val preview =
       composition(
         trackStart = 500.milliseconds,
-        clips = listOf(clip(source = "a.mp4", length = 1.seconds), clip(source = "b.mp4", length = 2.seconds)),
-      ).toMedia3Preview()
+        clips = laid(500.milliseconds, "a.mp4" to 1.seconds, "b.mp4" to 2.seconds),
+      ).toMedia3Preview(Media3FrameBounds.None)
 
     preview.spans.map { it.start } shouldBe listOf(500.milliseconds, 1_500.milliseconds)
     preview.spans.map { it.end } shouldBe listOf(1_500.milliseconds, 3_500.milliseconds)
@@ -66,8 +69,8 @@ class Media3PreviewTest {
     val preview =
       composition(
         trackStart = 500.milliseconds,
-        clips = listOf(clip(source = "a.mp4", length = 1.seconds), clip(source = "b.mp4", length = 2.seconds)),
-      ).toMedia3Preview()
+        clips = laid(500.milliseconds, "a.mp4" to 1.seconds, "b.mp4" to 2.seconds),
+      ).toMedia3Preview(Media3FrameBounds.None)
 
     val first = checkNotNull(preview.spanAt(900.milliseconds))
     first.positionIn(900.milliseconds) shouldBe 400.milliseconds
@@ -76,22 +79,56 @@ class Media3PreviewTest {
     second.positionIn(2_300.milliseconds) shouldBe 800.milliseconds
   }
 
+  // Half a slot in at 25 fps rounds up onto slot one, and the second clip's start half a slot past
+  // its own slot rounds up with it. Each span opens on the slot the export lays its clip on.
+  @Test
+  fun spansOpenOnTheSlotsAnOffGridTrackStartLandsOn() {
+    val clips = laid(HALF_SLOT_IN, "a.mp4" to 1.seconds, "b.mp4" to 2.seconds)
+    val preview =
+      composition(trackStart = HALF_SLOT_IN, clips = clips, frameRate = OFF_GRID_RATE)
+        .toMedia3Preview(Media3FrameBounds.None)
+
+    preview.spans.map { it.start } shouldBe
+      clips.map { outputSlotTime(outputSlotsOf(it.span, OFF_GRID_RATE).first, OFF_GRID_RATE) }
+    preview.spans.map { it.end } shouldBe
+      clips.map { outputSlotTime(outputSlotsOf(it.span, OFF_GRID_RATE).last + 1, OFF_GRID_RATE) }
+  }
+
+  @Test
+  fun aCompositionTimeMapsFromTheSlotItsClipOpensOn() {
+    val clips = laid(HALF_SLOT_IN, "a.mp4" to 1.seconds, "b.mp4" to 2.seconds)
+    val preview =
+      composition(trackStart = HALF_SLOT_IN, clips = clips, frameRate = OFF_GRID_RATE)
+        .toMedia3Preview(Media3FrameBounds.None)
+
+    val first = checkNotNull(preview.spanAt(900.milliseconds))
+    first.positionIn(900.milliseconds) shouldBe 900.milliseconds - outputSlotTime(1, OFF_GRID_RATE)
+
+    val second = checkNotNull(preview.spanAt(2_300.milliseconds))
+    val secondOpens = outputSlotTime(outputSlotsOf(clips[1].span, OFF_GRID_RATE).first, OFF_GRID_RATE)
+    second.positionIn(2_300.milliseconds) shouldBe 2_300.milliseconds - secondOpens
+  }
+
   @Test
   fun theGapTheTrackStartsWithCoversNoClipAtAll() {
     val preview =
-      composition(trackStart = 500.milliseconds, clips = listOf(clip(source = "a.mp4", length = 1.seconds)))
-        .toMedia3Preview()
+      composition(trackStart = 500.milliseconds, clips = laid(500.milliseconds, "a.mp4" to 1.seconds))
+        .toMedia3Preview(Media3FrameBounds.None)
 
     preview.spanAt(200.milliseconds) shouldBe null
   }
 
   @Test
   fun aColourParameterReachesTheStandingChainWithoutItBeingRebuilt() {
-    val preview = composition(compositionEffects = listOf(brightness(DIM))).toMedia3Preview()
+    val preview = composition(compositionEffects = listOf(brightness(DIM))).toMedia3Preview(Media3FrameBounds.None)
     val live = preview.compositionEffects.filterIsInstance<RgbMatrix>().single()
     live.gain() shouldBe (DIM plusOrMinus TOLERANCE)
 
-    preview.updateParameters(composition(compositionEffects = listOf(brightness(BRIGHT)))) shouldBe true
+    preview.updateParameters(
+      composition(compositionEffects = listOf(brightness(BRIGHT))),
+      Media3FrameBounds.None,
+    ) shouldBe
+      true
 
     // The same object, still in the chain the player is drawing with, now answering differently.
     live.gain() shouldBe (BRIGHT plusOrMinus TOLERANCE)
@@ -100,7 +137,7 @@ class Media3PreviewTest {
 
   @Test
   fun aMatrixThatWouldStillBeANoOpKeepsItsPositionInTheChain() {
-    val preview = composition(compositionEffects = listOf(brightness(1f))).toMedia3Preview()
+    val preview = composition(compositionEffects = listOf(brightness(1f))).toMedia3Preview(Media3FrameBounds.None)
     val live = preview.compositionEffects.filterIsInstance<RgbMatrix>().single()
 
     // media3 drops a no-op while it builds the chain, and a dropped position cannot take a later
@@ -110,34 +147,37 @@ class Media3PreviewTest {
 
   @Test
   fun anEffectAddedToTheChainIsRefusedSinceTheShapeMoved() {
-    val preview = composition(compositionEffects = listOf(brightness(DIM))).toMedia3Preview()
+    val preview = composition(compositionEffects = listOf(brightness(DIM))).toMedia3Preview(Media3FrameBounds.None)
 
-    preview.updateParameters(composition(compositionEffects = listOf(brightness(DIM), brightness(BRIGHT)))) shouldBe
+    preview.updateParameters(
+      composition(compositionEffects = listOf(brightness(DIM), brightness(BRIGHT))),
+      Media3FrameBounds.None,
+    ) shouldBe
       false
   }
 
   @Test
   fun aFillColourIsRefusedSinceThePassThatPaintsItIsBuiltOnce() {
-    val preview = composition(fill = Fill.Solid(RED)).toMedia3Preview()
+    val preview = composition(fill = Fill.Solid(RED)).toMedia3Preview(Media3FrameBounds.None)
 
-    preview.updateParameters(composition(fill = Fill.Solid(RED))) shouldBe true
-    preview.updateParameters(composition(fill = Fill.Solid(BLUE))) shouldBe false
+    preview.updateParameters(composition(fill = Fill.Solid(RED)), Media3FrameBounds.None) shouldBe true
+    preview.updateParameters(composition(fill = Fill.Solid(BLUE)), Media3FrameBounds.None) shouldBe false
   }
 
   @Test
   fun anOutputFrameThatMovedIsRefusedWhateverTheChainLooksLike() {
-    val preview = composition().toMedia3Preview()
+    val preview = composition().toMedia3Preview(Media3FrameBounds.None)
 
-    preview.updateParameters(composition(output = Size(160, 90))) shouldBe false
+    preview.updateParameters(composition(output = Size(160, 90)), Media3FrameBounds.None) shouldBe false
   }
 
   // An overlay is the one that matters in practice: it owns a texture media3 uploads and frees on
   // its own render thread, so there is no swap of one on offer and an edit carrying one rebuilds.
   @Test
   fun anEffectThatIsNeitherAColourNorAGeometryMatrixIsRefused() {
-    val preview = composition(compositionEffects = listOf(opaque())).toMedia3Preview()
+    val preview = composition(compositionEffects = listOf(opaque())).toMedia3Preview(Media3FrameBounds.None)
 
-    preview.updateParameters(composition(compositionEffects = listOf(opaque()))) shouldBe false
+    preview.updateParameters(composition(compositionEffects = listOf(opaque())), Media3FrameBounds.None) shouldBe false
   }
 
   private fun RgbMatrix.gain(): Float = getMatrix(0L, false)[0]
@@ -163,7 +203,8 @@ class Media3PreviewTest {
     fill: Fill = Fill.Black,
     trackStart: Duration = Duration.ZERO,
     compositionEffects: List<ResolvedEffect> = emptyList(),
-    clips: List<ResolvedClip> = listOf(clip(source = "a.mp4", length = 1.seconds)),
+    clips: List<ResolvedClip> = laid(Duration.ZERO, "a.mp4" to 1.seconds),
+    frameRate: Int = 30,
   ): ResolvedComposition =
     ResolvedComposition(
       tracks =
@@ -184,7 +225,7 @@ class Media3PreviewTest {
           videoCodec = VideoCodec.H264,
           audioCodec = AudioCodec.Aac,
           bitrate = null,
-          frameRate = 30,
+          frameRate = frameRate,
           audioFormat = null,
         ),
       layoutSize = output,
@@ -198,9 +239,21 @@ class Media3PreviewTest {
       path = ExportPath.Transcode,
     )
 
+  /**
+   * Clips laid end to end from [from], each a whole source of the length it is paired with.
+   */
+  private fun laid(
+    from: Duration,
+    vararg clips: Pair<String, Duration>,
+  ): List<ResolvedClip> {
+    var at = from
+    return clips.map { (source, length) -> clip(source, length, at).also { at += length } }
+  }
+
   private fun clip(
     source: String,
     length: Duration,
+    at: Duration,
     size: Size = FRAME,
   ): ResolvedClip =
     ResolvedClip(
@@ -229,12 +282,16 @@ class Media3PreviewTest {
       effects = emptyList(),
       gain = ResolvedGain.constant(1f, Duration.ZERO, length),
       startsAtKeyFrame = false,
-      span = TimeRange.of(Duration.ZERO, length),
+      span = TimeRange.of(at, at + length),
       sourceIndex = 0,
     )
 
   private companion object {
     val FRAME = Size(320, 180)
+
+    // Half a slot at OFF_GRID_RATE, which rounds up onto the first slot.
+    val HALF_SLOT_IN = 20.milliseconds
+    const val OFF_GRID_RATE = 25
     const val DIM = 0.4f
     const val BRIGHT = 1.4f
     const val TOLERANCE = 0.0001f

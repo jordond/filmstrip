@@ -46,6 +46,7 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.MAX_STILL_FRAME
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.geometry.frameWithin
+import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
@@ -138,6 +139,7 @@ public class ExportPlanner(
     if (primary.content == TrackContent.Audio) return incapable(NO_PRIMARY_VIDEO)
     if (edit.tracks.all { it.looping }) return incapable(EVERY_TRACK_LOOPS)
     if (edit.tracks.any { it.start < Duration.ZERO }) return incapable(TRACK_STARTS_EARLY)
+    spec.frameRate?.let { if (it <= 0) return incapable(frameRateNotPositive(it)) }
 
     // What each scope asks for can cancel out: an audio-only output over a video-only track, or a
     // kept-audio output over a source that carries none, leaves no track to write.
@@ -368,7 +370,15 @@ public class ExportPlanner(
         )
       }
 
-    if (tracks.first().clips.isEmpty()) return incapable(PRIMARY_LAYS_NOTHING)
+    val laidPrimary = tracks.first()
+    if (laidPrimary.clips.isEmpty()) return incapable(PRIMARY_LAYS_NOTHING)
+    // The passes tile the primary's run, so the run covers no output slot exactly when none of its
+    // passes does. An audio-only export writes no picture for it to cover.
+    val lastPass = laidPrimary.clips.last()
+    val primaryRun = TimeRange.of(laidPrimary.start, checkNotNull(lastPass.span.endExclusive))
+    if (keepVideo && outputSlotsOf(primaryRun, frameRate).isEmpty()) {
+      return incapable(primaryCoversNoFrame(checkNotNull(primaryRun.duration), frameRate))
+    }
 
     val compositionGeometry =
       if (compositionGeometryPerClip) {
@@ -854,9 +864,19 @@ public class ExportPlanner(
 
     const val PRIMARY_LAYS_NOTHING = "The primary track starts at or after the composition ends."
 
+    fun primaryCoversNoFrame(
+      run: Duration,
+      frameRate: Int,
+    ): String =
+      "The primary track's video runs $run, starting and ending on the same output frame at $frameRate fps, so " +
+        "it covers none."
+
     const val TRACK_STARTS_EARLY =
       "A track's start is negative, so it would begin before the composition does. A start is " +
         "measured from the start of the composition and has to be zero or later."
+
+    fun frameRateNotPositive(rate: Int): String =
+      "The export asks for $rate fps, and a frame rate has to be positive. Leave it unset to keep the source's rate."
 
     const val TRACK_ENVELOPE =
       "A track's audio envelope has points that fall outside the track, run backwards, or ask for " +

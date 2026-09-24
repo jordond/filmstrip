@@ -20,7 +20,9 @@ import platform.AVFoundation.AVVideoCodecKey
 import platform.AVFoundation.AVVideoCodecTypeH264
 import platform.AVFoundation.AVVideoHeightKey
 import platform.AVFoundation.AVVideoWidthKey
+import platform.AVFoundation.mediaTimeScale
 import platform.AVFoundation.naturalSize
+import platform.AVFoundation.naturalTimeScale
 import platform.AVFoundation.nominalFrameRate
 import platform.AVFoundation.tracksWithMediaType
 import platform.CoreVideo.CVPixelBufferGetBaseAddress
@@ -216,8 +218,8 @@ private val seedLocks = mutableMapOf<Int, NSLock>()
  * The asset at [path] when it is a finished seed for [frameRate], or null when it is not.
  *
  * A movie only becomes readable once its writer has closed it, so one left by a process that died
- * part way through opens carrying no track at all. The shape, length and cadence are read as well,
- * so a file left by a build that cut stills differently is rewritten rather than cut from.
+ * part way through opens carrying no track at all. The shape, length, cadence and timescale are read
+ * as well, so a file left by a build that cut stills differently is rewritten rather than cut from.
  */
 @OptIn(ExperimentalForeignApi::class)
 private fun finishedSeed(
@@ -233,8 +235,9 @@ private fun finishedSeed(
   val sized = track.naturalSize.useContents { width == SEED_SIDE.toDouble() && height == SEED_SIDE.toDouble() }
   val held = (asset.duration.toDuration() - STILL_SEED_LENGTH).absoluteValue <= STILL_SEED_LENGTH / frames
   val paced = abs(track.nominalFrameRate - frames / STILL_SEED_LENGTH.toDouble(DurationUnit.SECONDS)) < HALF_FRAME
+  val timed = track.naturalTimeScale == MEDIA_TIMESCALE
 
-  return asset.takeIf { sized && held && paced }
+  return asset.takeIf { sized && held && paced && timed }
 }
 
 /**
@@ -289,6 +292,8 @@ private fun writeSeedMovie(
         ),
     )
   input.expectsMediaDataInRealTime = false
+  // Each frame goes in on its own tick at the media timescale, and the track keeps it there.
+  input.mediaTimeScale = MEDIA_TIMESCALE
   val adaptor =
     AVAssetWriterInputPixelBufferAdaptor(
       assetWriterInput = input,
@@ -497,4 +502,4 @@ private const val HALF_FRAME = 0.5
 
 // Nothing ever sees these pixels, so the frame is as small as an H.264 encoder will take. Every
 // one of them accepts a whole number of macroblocks on both sides.
-private const val SEED_SIDE = 64
+internal const val SEED_SIDE = 64

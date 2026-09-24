@@ -69,7 +69,7 @@ class AndroidHdrPreviewTest {
         assertEquals(
           Composition.HDR_MODE_KEEP_HDR,
           plan.resolved
-            .toMedia3Preview()
+            .toMedia3Preview(plan.bounds)
             .composition.hdrMode,
           "the media3 composition the preview plays is not in keep-HDR mode",
         )

@@ -23,6 +23,8 @@ import kotlin.time.Duration.Companion.milliseconds
  * @property item The media item, carrying its trim.
  * @property effects The clip's own chain, before the composition's runs.
  * @property still Whether the clip is a photo rather than a run of samples.
+ * @property heldFrom How far into the item its last frame sits when that frame is held to fill the clip's slots, or
+ * null when the item's own frames run to its end.
  */
 @InternalFilmstripApi
 public class Media3Span(
@@ -31,6 +33,7 @@ public class Media3Span(
   public val item: MediaItem,
   public val effects: List<Effect>,
   public val still: Boolean,
+  public val heldFrom: Duration? = null,
 ) {
   /**
    * Whether this clip is on screen at [time].
@@ -39,8 +42,11 @@ public class Media3Span(
 
   /**
    * Where [time] falls inside the trimmed item, which is what a frame reader seeks to.
+   *
+   * A time while the last frame is held reads as that frame's own position, since the item has no samples past it to
+   * seek to.
    */
-  public fun positionIn(time: Duration): Duration = (time - start).coerceIn(Duration.ZERO, end - start)
+  public fun positionIn(time: Duration): Duration = (time - start).coerceIn(Duration.ZERO, heldFrom ?: (end - start))
 }
 
 /**
@@ -60,6 +66,7 @@ public class Media3Preview internal constructor(
   public val spans: List<Media3Span>,
   private val slots: List<LiveSlot>,
   resolved: ResolvedComposition,
+  private var bounds: Media3FrameBounds,
 ) {
   /**
    * The plan the standing graph draws, which a swap replaces.
@@ -130,7 +137,7 @@ public class Media3Preview internal constructor(
   ): List<Media3Readback>? {
     val fresh =
       try {
-        resolved.toMedia3(PassThroughEffects)
+        resolved.toMedia3(PassThroughEffects, bounds)
       } catch (refused: Media3LoweringFailure) {
         // A plan this lowering refuses has no frame to read either.
         return null
@@ -153,6 +160,7 @@ public class Media3Preview internal constructor(
                 .build(),
             effects = span.effects,
             still = span.still,
+            heldFrom = span.heldFrom,
           )
         Media3Readback(stamped, stamped.readbackChain(compositionEffects))
       }
@@ -170,15 +178,19 @@ public class Media3Preview internal constructor(
    * value. Anything else, an overlay or a fill pass, is fixed for the life of the graph and only
    * matches an identical re-lowering.
    *
+   * @param bounds The samples [next]'s clips decode, which frames read from here on are laid by.
    * @return true when the standing graph now draws [next], false when it has to be rebuilt.
    */
   @Suppress("SwallowedException")
-  public fun updateParameters(next: ResolvedComposition): Boolean {
+  public fun updateParameters(
+    next: ResolvedComposition,
+    bounds: Media3FrameBounds,
+  ): Boolean {
     if (next.output != resolved.output || next.hdrTransfer != resolved.hdrTransfer) return false
 
     val incoming = mutableListOf<Effect>()
     try {
-      next.toMedia3(EffectWrapper { effect -> effect.also(incoming::add) })
+      next.toMedia3(EffectWrapper { effect -> effect.also(incoming::add) }, bounds)
     } catch (refused: Media3LoweringFailure) {
       // A plan this lowering refuses is not one the standing graph can take either. The caller
       // rebuilds and hears the same refusal there, where it has somewhere to report it.
@@ -191,6 +203,7 @@ public class Media3Preview internal constructor(
     // Validated whole before anything moves, so a refusal leaves the graph drawing what it was.
     slots.indices.forEach { slots[it].install(incoming[it]) }
     resolved = next
+    this.bounds = bounds
     return true
   }
 }
@@ -231,13 +244,15 @@ private fun Media3Span.readbackChain(compositionEffects: List<Effect>): List<Eff
 /**
  * Lowers this plan for a preview, keeping hold of every position a parameter change can reach.
  *
+ * @param bounds The samples each clip decodes, read off its container by `readFrameBounds`, the same ones an export of
+ * this plan lays its items by.
  * @throws Media3LoweringFailure when an effect or a source cannot be lowered.
  */
 @InternalFilmstripApi
-public fun ResolvedComposition.toMedia3Preview(): Media3Preview {
+public fun ResolvedComposition.toMedia3Preview(bounds: Media3FrameBounds): Media3Preview {
   val slots = mutableListOf<LiveSlot>()
-  val composition = toMedia3(EffectWrapper { effect -> liveSlotFor(effect).also(slots::add).effect })
-  return Media3Preview(composition, composition.videoSpans(), slots, this)
+  val composition = toMedia3(EffectWrapper { effect -> liveSlotFor(effect).also(slots::add).effect }, bounds)
+  return Media3Preview(composition, composition.videoSpans(), slots, this, bounds)
 }
 
 /**
@@ -266,6 +281,7 @@ private fun Composition.videoSpans(): List<Media3Span> {
         // The length a still is held for is what media3 itself routes an item to its image loader
         // by, so it is also what tells a frame reader there are no samples here to seek.
         still = local.imageDurationMs != C.TIME_UNSET,
+        heldFrom = (item.speedProvider as? HeldLastFrame)?.fromUs?.microseconds,
       )
     }
   }

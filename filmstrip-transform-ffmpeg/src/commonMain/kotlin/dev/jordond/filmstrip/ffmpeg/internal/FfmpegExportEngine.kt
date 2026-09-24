@@ -217,9 +217,10 @@ public class FfmpegExportEngine internal constructor(
    * @param composition The edit to preview.
    * @param spec What the export would be asked for.
    * @param layoutSize The output frame text is laid out against, as [resolve] takes it.
-   * @param at Where in the composition the first frame comes from. A composition whose timeline an
-   *   input seek cannot window opens at zero and reports so through
-   *   [dev.jordond.filmstrip.ffmpeg.PreviewStream.startPosition].
+   * @param at Where in the composition the first frame comes from, which the pump opens on the
+   *   output slot it lands on. A composition whose timeline an input seek cannot window opens at zero
+   *   instead. Either way [dev.jordond.filmstrip.ffmpeg.PreviewStream.startPosition] reports where it
+   *   opened.
    * @return The running stream, or why the edit cannot be previewed here.
    */
   @InternalFilmstripApi
@@ -278,7 +279,7 @@ public class FfmpegExportEngine internal constructor(
         frames = frames,
         scratch = scratch,
         size = invocation.output.size,
-        startPosition = if (invocation.seekBase == null) Duration.ZERO else at,
+        startPosition = invocation.previewLanding(at),
         frameBytes = invocation.previewFrameBytes,
       ),
     )

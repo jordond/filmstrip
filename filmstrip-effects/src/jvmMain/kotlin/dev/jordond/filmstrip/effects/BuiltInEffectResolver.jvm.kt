@@ -45,6 +45,8 @@ import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media.HLG_A
 import dev.jordond.filmstrip.media.HLG_B
 import dev.jordond.filmstrip.media.HLG_C
@@ -66,10 +68,9 @@ import java.io.IOException
 import java.util.Locale
 import javax.imageio.ImageIO
 import javax.imageio.stream.ImageInputStream
-import kotlin.math.ceil
 import kotlin.math.roundToInt
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.DurationUnit
 
 /**
@@ -373,7 +374,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
         add(FilterNode("scale$instance", "w" to overlayWidth.toString(), "h" to "-1"))
         add(FilterNode("format", "pix_fmts" to "rgba"))
         // After the format, which is the node that guarantees the alpha channel the gate zeroes.
-        spec.windowGate(run, span)?.let { add(it) }
+        spec.windowGate(run, span, attributes.gridRate)?.let { add(it) }
         when {
           // The sampler has already folded the authored opacity into every value it answers, so the
           // node the commands drive opens at one rather than at what was authored.
@@ -415,8 +416,8 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   //
   // t is the image branch's own clock, read ahead of the setpts that rebases it: an export opens
   // that branch at zero and a scrubbed preview carries it to the seek with -itsoffset, so either
-  // way it reads the composition time the frame belongs to. It counts from the span's own start,
-  // which is what the window is written against.
+  // way it reads the composition time the frame belongs to. It counts from the slot the span opens
+  // on, which is where the branch's first frame sits.
   //
   // The bound is half open, the way TimeRange and frameWithin read it, so the frame sitting on the
   // run's end is outside it, as it is on every other backend.
@@ -429,11 +430,12 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   private fun ImageOverlay.windowGate(
     run: TimeRange,
     span: TimeRange,
+    rate: Int?,
   ): FilterNode? {
     if (visibleDuring == null) return null
     val end = run.endExclusive ?: return null
 
-    val open = "gte(t,${branchSeconds(run.start, span)})*lt(t,${branchSeconds(end, span)})"
+    val open = "gte(t,${branchSeconds(run.start, span, rate)})*lt(t,${branchSeconds(end, span, rate)})"
     return FilterNode("colorchannelmixer", "aa" to "0", "enable" to "not($open)")
   }
 
@@ -449,19 +451,20 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     run: TimeRange,
   ): Driven {
     if (animation == null) return Driven.Still
-    val rate = attributes.frameRate?.takeIf { it > 0f } ?: return Driven.Refused(ANIMATION_NO_GRID)
+    val rate = attributes.gridRate ?: return Driven.Refused(ANIMATION_NO_GRID)
     val end = run.endExclusive ?: return Driven.Refused(ANIMATION_NO_RUN)
     val imageSize = measureOverlay(image) ?: return Driven.Refused(UNREADABLE_IMAGE)
     val span = attributes.span
     val outputSize = attributes.outputSize
     val base = placedOn(outputSize, imageSize)
 
+    val firstSlot = outputSlotOf(span.start, rate)
     val last = frameIndexAt(end, span, rate)
     val sampled =
       (frameIndexAt(run.start, span, rate) until last).mapNotNull { index ->
         // A frame the sampler draws nothing on is left out rather than written as a change, so the
         // interval running across it carries on holding what it held.
-        val frame = frameWithin(run, span.start + (index.toDouble() / rate).seconds) ?: return@mapNotNull null
+        val frame = frameWithin(run, outputSlotTime(firstSlot + index, rate)) ?: return@mapNotNull null
         index to commandValues(frame, base.animatedBy(frame), outputSize)
       }
     // A run reaching no output frame, which is a window falling outside the span or one shorter
@@ -577,13 +580,18 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     String.format(Locale.ROOT, COMMAND_FORMAT, opacity.coerceIn(MIXER_FLOOR, MIXER_CEILING))
 
   // The first output frame at or after a composition time, counted on the branch's own clock. The
-  // tolerance is a millionth of a frame, so a boundary that lands on the grid is not pushed onto
-  // the next frame by the last bit of the division.
+  // branch's frames sit on the output slots from the one the span's start lands on, so this counts
+  // the slots from there to the first one at or after [time]. The comparison is in whole
+  // microseconds, the grid's own unit, so a time sitting on a slot counts as that slot.
   private fun frameIndexAt(
     time: Duration,
     span: TimeRange,
-    rate: Float,
-  ): Int = ceil((time - span.start).toDouble(DurationUnit.SECONDS) * rate - GRID_TOLERANCE).toInt().coerceAtLeast(0)
+    rate: Int,
+  ): Int {
+    val landed = outputSlotOf(time, rate)
+    val atOrAfter = if (outputSlotTime(landed, rate) < time.inWholeMicroseconds.microseconds) landed + 1 else landed
+    return (atOrAfter - outputSlotOf(span.start, rate)).coerceAtLeast(0).toInt()
+  }
 
   private fun commandSeconds(value: Double): String = String.format(Locale.ROOT, COMMAND_FORMAT, value)
 
@@ -642,11 +650,23 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     get() = this == Corner.BottomStart || this == Corner.BottomEnd
 
   // Where a composition time lands on the branch the effect runs on, which is the clock every time
-  // expression and every runtime command on that branch is read against.
+  // expression on that branch is read against. With a rate, the bound sits half a frame ahead of the
+  // first frame at or after [time], so that frame's own time is clear of it however either side
+  // rounds its division. With none, the time is moved onto the branch as it stands.
   private fun branchSeconds(
     time: Duration,
     span: TimeRange,
-  ): String = (time - span.start).toDouble(DurationUnit.SECONDS).toString()
+    rate: Int?,
+  ): String =
+    if (rate == null) {
+      (time - span.start).toDouble(DurationUnit.SECONDS).toString()
+    } else {
+      ((frameIndexAt(time, span, rate) - HALF_FRAME) / rate).toString()
+    }
+
+  // The output rate the planner resolved, which it carries as a Float holding a whole number.
+  private val Attributes.gridRate: Int?
+    get() = frameRate?.takeIf { it > 0f }?.roundToInt()
 }
 
 // The token the instance names are written with while the commands are being built, since the name
@@ -661,9 +681,8 @@ private const val COMMAND_FORMAT = "%.6f"
 private const val MIXER_FLOOR = -2f
 private const val MIXER_CEILING = 2f
 
-// A millionth of a frame, so a run boundary already sitting on the grid is not read as the frame
-// after it by the last bit of the division.
-private const val GRID_TOLERANCE = 1e-6
+// Half a frame, in frames, which is how far ahead of a frame a window bound is written.
+private const val HALF_FRAME = 0.5
 
 // The image in an ImageIO stream, which is the only one a still carries.
 private const val FIRST_IMAGE = 0

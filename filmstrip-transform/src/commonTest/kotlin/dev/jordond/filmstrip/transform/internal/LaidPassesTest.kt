@@ -1,5 +1,7 @@
 package dev.jordond.filmstrip.transform.internal
 
+import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.test.LoopingCases
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -97,6 +99,23 @@ class LaidPassesTest {
       listOf(Duration.ZERO, 1_500.milliseconds, 3_000.milliseconds, 4_500.milliseconds)
     passes.map { it.length } shouldBe
       listOf(1_500.milliseconds, 1_500.milliseconds, 1_500.milliseconds, 800.milliseconds)
+  }
+
+  // A 1.7 second pass is forty two and a half slots at 25 frames a second, so every other boundary
+  // falls on a half. Rounding each pass's length rather than its boundaries drifts a slot every two
+  // passes, which this run is long enough to show.
+  @Test
+  fun `passes laid end to end cover slots that meet and add up to where the run ends`() {
+    val fill = 7_300.milliseconds
+    val slots =
+      passesCovering(listOf(1_700.milliseconds), fill).map { pass ->
+        outputSlotsOf(TimeRange.of(pass.offset, pass.offset + pass.length), frameRate = 25)
+      }
+
+    slots shouldBe listOf(0L..42L, 43L..84L, 85L..127L, 128L..169L, 170L..182L)
+    slots.zipWithNext().forEach { (left, right) -> right.first shouldBe left.last + 1 }
+    slots.first().first shouldBe 0
+    slots.last().last + 1 shouldBe 183
   }
 
   @Test

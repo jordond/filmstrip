@@ -39,6 +39,9 @@ import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
+import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HLG_A
 import dev.jordond.filmstrip.media.HLG_SCENE_TO_SDR_SIGNAL_GAMMA
@@ -49,11 +52,13 @@ import dev.jordond.filmstrip.media.SDR_DISPLAY_GAMMA
 import dev.jordond.filmstrip.media.SDR_SIGNAL_TO_HLG_SCENE_GAMMA
 import dev.jordond.filmstrip.media.sdrSignalCeiling
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldStartWith
 import java.awt.Color
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.util.Locale
 import javax.imageio.ImageIO
+import kotlin.math.ceil
 import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -64,6 +69,9 @@ import kotlin.time.Duration.Companion.seconds
 
 // The output frame rate the lowering samples an animation onto, matching what attributes() carries.
 private const val RATE = 30.0
+
+// The rate the grid tests sample at, whose 40 ms slot puts a half slot on a whole millisecond.
+private const val GRID_RATE = 25
 
 // Half way through a one second run, which is where a value a restarted branch would read differs
 // from the one the run holds there.
@@ -153,9 +161,8 @@ class EffectLoweringTest {
     fragment.auxInputs
       .single()
       .chain
-      .render() shouldBe
-      "scale=w=128:h=-1,format=pix_fmts=rgba," +
-      """colorchannelmixer=aa=0:enable=not(gte(t\,1.0)*lt(t\,2.0))"""
+      .render() shouldStartWith "scale=w=128:h=-1,format=pix_fmts=rgba,colorchannelmixer=aa=0:enable=not(gte(t"
+    gatedFrames(fragment) shouldBe branchFrames(1.seconds, 2.seconds)
     fragment.merge!!.render() shouldBe "overlay=x=14:y=14:format=auto:eof_action=pass"
   }
 
@@ -171,7 +178,7 @@ class EffectLoweringTest {
       )
     val onSecondClip = attributes(Size(640, 360), span = TimeRange.of(2.seconds, 6.seconds))
 
-    gateOf(fragmentOf(spec, onSecondClip)) shouldBe """not(gte(t\,1.0)*lt(t\,2.0))"""
+    gatedFrames(fragmentOf(spec, onSecondClip)) shouldBe branchFrames(1.seconds, 2.seconds)
   }
 
   // A composition effect's span opens at zero, so the window it lowers to is unchanged.
@@ -185,7 +192,7 @@ class EffectLoweringTest {
       )
     val wholeComposition = attributes(Size(640, 360), span = TimeRange.of(Duration.ZERO, 6.seconds))
 
-    gateOf(fragmentOf(spec, wholeComposition)) shouldBe """not(gte(t\,1.0)*lt(t\,2.0))"""
+    gatedFrames(fragmentOf(spec, wholeComposition)) shouldBe branchFrames(1.seconds, 2.seconds)
   }
 
   // The window is taken from the shared run rather than read off the spec, so a window reaching
@@ -200,7 +207,7 @@ class EffectLoweringTest {
       )
     val wholeComposition = attributes(Size(640, 360), span = TimeRange.of(Duration.ZERO, 6.seconds))
 
-    gateOf(fragmentOf(spec, wholeComposition)) shouldBe """not(gte(t\,1.0)*lt(t\,6.0))"""
+    gatedFrames(fragmentOf(spec, wholeComposition)) shouldBe branchFrames(1.seconds, 6.seconds)
   }
 
   // A windowed overlay that is animated as well carries both, on nodes of their own: the gate is
@@ -218,7 +225,7 @@ class EffectLoweringTest {
     val fragment = fragmentOf(spec, attributes(Size(640, 360)))
 
     val instance = instanceOf(fragment)
-    gateOf(fragment) shouldBe """not(gte(t\,0.2)*lt(t\,0.8))"""
+    gatedFrames(fragment) shouldBe branchFrames(200.milliseconds, 800.milliseconds)
     fragment.auxInputs
       .single()
       .chain
@@ -242,6 +249,47 @@ class EffectLoweringTest {
     alpha.last() shouldBe "0.966667-1.000000"
     intervalsOf(lines, "w").single() shouldBe "0.000000-1.000000"
     intervalsOf(lines, "x").single() shouldBe "0.000000-1.000000"
+  }
+
+  // A clip's branch counts its frames from the output slot its span opens on. A span opening at 20 ms
+  // at 25 fps opens on the slot at 40 ms, already inside a window opening at 30 ms, so the branch's
+  // first frame is gated open, driven, and sampled at its own slot's time. Counting from the span's
+  // exact start instead reads that frame as 10 ms in, ahead of the window.
+  @Test
+  fun `counts a clip's frames from the slot its span opens on`() {
+    val window = TimeRange.of(30.milliseconds, 530.milliseconds)
+    val spec =
+      ImageOverlay(overlayImage(SQUARE), Corner.TopStart, visibleDuring = window, animation = fadeIn(200.milliseconds))
+    val span = TimeRange.of(20.milliseconds, 1_020.milliseconds)
+    val opens = outputSlotTime(outputSlotOf(span.start, GRID_RATE), GRID_RATE)
+    assertTrue(opens >= window.start, "the span's first slot at $opens is ahead of the window")
+
+    val fragment = fragmentOf(spec, attributes(Size(640, 360), span = span, frameRate = GRID_RATE.toFloat()))
+    val lines = commandsOf(fragment)
+
+    intervalsOf(lines, "aa").first() shouldStartWith "0.000000-"
+    gatedFrames(fragment, GRID_RATE).first shouldBe 0
+    val sampled = assertNotNull(spec.frameAt(opens, span)).opacity
+    valuesOf(lines, "aa").first() shouldBe String.format(Locale.ROOT, "%.6f", sampled)
+  }
+
+  // Where the span's start and the window's edge both sit on the same side of half a slot, counting
+  // from the span's slot and from its exact start read the same frame.
+  @Test
+  fun `opens a window on the same frame either way where both edges round alike`() {
+    val window = TimeRange.of(500.milliseconds, 900.milliseconds)
+    val spec =
+      ImageOverlay(overlayImage(SQUARE), Corner.TopStart, visibleDuring = window, animation = fadeIn(200.milliseconds))
+    val span = TimeRange.of(30.milliseconds, 1_030.milliseconds)
+    val landed = outputSlotOf(window.start, GRID_RATE)
+    assertTrue(outputSlotTime(landed, GRID_RATE) >= window.start, "the window's slot sits ahead of it")
+    val frame = (landed - outputSlotOf(span.start, GRID_RATE)).toInt()
+
+    val fragment = fragmentOf(spec, attributes(Size(640, 360), span = span, frameRate = GRID_RATE.toFloat()))
+
+    intervalsOf(commandsOf(fragment), "aa").first() shouldStartWith
+      String.format(Locale.ROOT, "%.6f-", frame.toDouble() / GRID_RATE)
+    gatedFrames(fragment, GRID_RATE).first shouldBe frame
   }
 
   // A preview opens the overlay's branch wherever the scrub landed rather than at the top, so the
@@ -278,7 +326,7 @@ class EffectLoweringTest {
         .contains("colorchannelmixer$instance=aa=1"),
     )
     valuesOf(commandsOf(spec, attributes), "aa").forEachIndexed { index, written ->
-      val sampled = assertNotNull(spec.frameAt((index / RATE).seconds, attributes.span)).opacity
+      val sampled = assertNotNull(spec.frameAt(outputSlotTime(index.toLong(), RATE.toInt()), attributes.span)).opacity
       written shouldBe String.format(Locale.ROOT, "%.6f", sampled)
     }
   }
@@ -397,7 +445,7 @@ class EffectLoweringTest {
       )
     val wholeComposition = attributes(Size(640, 360), span = TimeRange.of(Duration.ZERO, 6.seconds))
 
-    gateOf(fragmentOf(spec, wholeComposition)) shouldBe """not(gte(t\,1.0)*lt(t\,6.0))"""
+    gatedFrames(fragmentOf(spec, wholeComposition)) shouldBe branchFrames(1.seconds, 6.seconds)
   }
 
   // A window outside the span draws nothing, and an animation over it has nothing to drive. It is
@@ -418,7 +466,7 @@ class EffectLoweringTest {
     fragment.merge!!.name shouldBe "overlay"
     // The run collapses onto the span's end, which no frame of the branch reaches, so the gate is
     // shut across the whole of it.
-    gateOf(fragment) shouldBe """not(gte(t\,6.0)*lt(t\,6.0))"""
+    gatedFrames(fragment).isEmpty() shouldBe true
   }
 
   @Test
@@ -795,8 +843,10 @@ class EffectLoweringTest {
   private fun commandsOf(
     spec: ImageOverlay,
     attributes: Attributes,
-  ): List<String> =
-    fragmentOf(spec, attributes)
+  ): List<String> = commandsOf(fragmentOf(spec, attributes))
+
+  private fun commandsOf(fragment: FilterFragment): List<String> =
+    fragment
       .sidecars
       .single()
       .bytes
@@ -817,6 +867,28 @@ class EffectLoweringTest {
       .single { node -> node.arguments.any { it.key == "enable" } }
       .render()
       .substringAfter("enable=")
+
+  // The branch frames a window gate lets through at [rate], read off the bounds the graph carries. A
+  // bound is compared against each frame's own time on the branch, so the first frame past it is the
+  // first whose time reaches it.
+  private fun gatedFrames(
+    fragment: FilterFragment,
+    rate: Int = RATE.toInt(),
+  ): IntRange {
+    val bounds = assertNotNull(Regex("""gte\(t\\,([^)]+)\)\*lt\(t\\,([^)]+)\)""").find(gateOf(fragment)))
+    val (open, shut) = bounds.destructured
+    return ceil(open.toDouble() * rate).toInt() until ceil(shut.toDouble() * rate).toInt()
+  }
+
+  // The branch frames a window of [from] to [until] covers, on the branch's own clock at the rate
+  // attributes() carries, for a span that opens on a slot.
+  private fun branchFrames(
+    from: Duration,
+    until: Duration,
+  ): IntRange {
+    val slots = outputSlotsOf(TimeRange.of(from, until), RATE.toInt())
+    return slots.first.toInt()..slots.last.toInt()
+  }
 
   // What one option was set to on each interval that set it, in the order they are written.
   private fun valuesOf(

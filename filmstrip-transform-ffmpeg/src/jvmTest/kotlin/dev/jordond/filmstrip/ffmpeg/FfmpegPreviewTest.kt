@@ -20,6 +20,8 @@ import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPreviewStream
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
@@ -169,31 +171,39 @@ class FfmpegPreviewTest {
       assertFalse(landed.contentEquals(whole), "the settled overlay was drawn at the opacity its node opens on")
     }
 
-  // The seek delivers the first frame at or after where it was asked for, so a scrub landing inside
-  // a frame period opens the clip on the frame after it and the overlay's branch has to be carried
-  // onto that same frame. Every other probe here sits on the grid, where the two agree anyway.
+  // A scrub inside a frame period opens on the output slot it lands on, the clip and the overlay's
+  // branch both, so the frame it hands over is the one reading forward reaches on that slot. Every
+  // other probe here sits on the grid, where every reading of a scrub agrees anyway.
   @Test
   fun `a seek inside a frame period carries the branch onto the frame it lands on`() =
     runTest(timeout = TIMEOUT) {
       val faded = overlaid(watermark(animation = fadeIn(OFF_GRID_FADE)))
+      val slot = outputSlotOf(OFF_GRID_POSITION, FIXTURE_RATE)
 
       val read = open(faded, Duration.ZERO)
       val forward =
         try {
-          repeat(OFF_GRID_FRAME) { assertNotNull(read.next(), "the pump ran out before frame $OFF_GRID_FRAME") }
-          assertNotNull(read.next(), "the pump ran out before frame $OFF_GRID_FRAME")
+          repeat(slot.toInt()) { assertNotNull(read.next(), "the pump ran out before slot $slot") }
+          assertNotNull(read.next(), "the pump ran out before slot $slot")
         } finally {
           read.close()
         }
 
-      val landed = firstFrame(faded, OFF_GRID_POSITION)
+      val seeked = open(faded, OFF_GRID_POSITION)
+      val landed =
+        try {
+          assertNotNull(seeked.next(), "the seeked pump delivered no frame")
+        } finally {
+          seeked.close()
+        }
 
+      seeked.startPosition shouldBe outputSlotTime(slot, FIXTURE_RATE)
       assertTrue(forward.contentEquals(landed), "the branch was read a frame off the one the clip delivered")
     }
 
   // The window rides the overlay's own branch, which the scrub carries to the seek, so a frame
   // reached by seeking is drawn the way the same frame is when it is read forward. All three probes
-  // land inside a frame period, where the seek opens the clip on the frame after the scrub.
+  // land inside a frame period, where the pump opens on the slot each one lands on.
   @Test
   fun `a scrubbed preview opens an overlay's window on time`() =
     runTest(timeout = TIMEOUT) {
@@ -203,9 +213,9 @@ class FfmpegPreviewTest {
       val open = firstFrame(windowed, INSIDE_WINDOW)
       val shut = firstFrame(windowed, AFTER_WINDOW)
 
-      assertTrue(early.contentEquals(forwardFrame(windowed, BEFORE_FRAME)), "the window was open before its start")
-      assertTrue(open.contentEquals(forwardFrame(windowed, INSIDE_FRAME)), "the window was shut at the scrub")
-      assertTrue(shut.contentEquals(forwardFrame(windowed, AFTER_FRAME)), "the window was open past its own end")
+      assertTrue(early.contentEquals(forwardFrame(windowed, BEFORE_WINDOW)), "the window was open before its start")
+      assertTrue(open.contentEquals(forwardFrame(windowed, INSIDE_WINDOW)), "the window was shut at the scrub")
+      assertTrue(shut.contentEquals(forwardFrame(windowed, AFTER_WINDOW)), "the window was open past its own end")
 
       // The overlay is all the two references differ by, read at the same scrub, so a probe that
       // matched both would say nothing about the window.
@@ -285,12 +295,12 @@ class FfmpegPreviewTest {
     at: Duration,
   ): ByteArray = frames(composition, at, 1).single()
 
-  // Frame [index] of a preview read from the head, which is the frame a scrub landing on the same
-  // one of the grid has to agree with.
+  // The frame on the slot [at] lands on, read forward from the head, which is the frame a scrub
+  // landing on the same slot has to agree with.
   private suspend fun forwardFrame(
     composition: EditComposition,
-    index: Int,
-  ): ByteArray = frames(composition, Duration.ZERO, index + 1).last()
+    at: Duration,
+  ): ByteArray = frames(composition, Duration.ZERO, outputSlotOf(at, FIXTURE_RATE).toInt() + 1).last()
 
   private suspend fun frames(
     composition: EditComposition,
@@ -380,7 +390,8 @@ class FfmpegPreviewTest {
     const val PROBE_FRAME = 12
 
     val FIXTURE_LENGTH = 2.seconds
-    val FIXTURE_FRAME_STEP = 1.seconds / 30
+    const val FIXTURE_RATE = 30
+    val FIXTURE_FRAME_STEP = 1.seconds / FIXTURE_RATE
     const val TAIL_FRAMES = 3
 
     // A quarter of the frame width, so the overlay covers enough of the picture that the opacity it
@@ -395,24 +406,19 @@ class FfmpegPreviewTest {
     const val SETTLED_FRAME = 30
     const val SETTLED_OPACITY = 0.5f
 
-    // A third of the way into frame 15's period, so the clip opens on frame 16 and a branch left at
-    // the scrub itself would be driven by frame 15. The fade is steep enough that one frame of it
-    // moves the drawn pixels.
+    // A third of the way into a frame period, so the scrub lands on the slot it sits in while the
+    // first source frame at or after it is the next one. The fade is steep enough that one frame of
+    // it moves the drawn pixels.
     val OFF_GRID_POSITION = 510.milliseconds
     val OFF_GRID_FADE = 1.seconds
-    const val OFF_GRID_FRAME = 16
 
     // A window in the middle of the fixture, with a scrub landing short of it, one well inside it
-    // and one well past it. Every scrub sits a third of the way into a frame period, so the seek
-    // opens the clip on the frame after the one it names and the overlay's branch has to be carried
-    // onto that frame too.
+    // and one well past it. Every scrub sits a third of the way into a frame period, so the pump
+    // opens on the slot it sits in and the overlay's branch has to be carried onto that slot too.
     val WINDOW = TimeRange.of(500.milliseconds, 1_500.milliseconds)
     val BEFORE_WINDOW = 210.milliseconds
-    const val BEFORE_FRAME = 7
     val INSIDE_WINDOW = 810.milliseconds
-    const val INSIDE_FRAME = 25
     val AFTER_WINDOW = 1_610.milliseconds
-    const val AFTER_FRAME = 49
 
     // An animated overlay is sized off the picture's own header through ImageIO, so the bytes have
     // to be a format this process decodes.

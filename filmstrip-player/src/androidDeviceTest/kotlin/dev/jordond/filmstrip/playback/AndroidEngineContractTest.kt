@@ -5,6 +5,8 @@ import android.os.Build
 import android.view.Display
 import androidx.media3.transformer.CompositionPlayer
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.playback.contract.EngineUnderTest
 import dev.jordond.filmstrip.playback.contract.Interruption
 import dev.jordond.filmstrip.playback.contract.PlayerEngineContractTest
@@ -126,6 +128,32 @@ class AndroidEngineContractTest : PlayerEngineContractTest() {
         // honouring Nearest natively would have landed on.
         subject.engine.lastSeekAccuracy shouldBe SeekAccuracy.Exact
         subject.engine.platformPosition shouldBe OFF_GRID
+      }
+    }
+
+  /**
+   * A frame step taken from between two frames lands on the output frame grid.
+   *
+   * The landing is read off the shared grid, one slot on from the one the playhead is nearest. media3 seeks and reports
+   * its playhead in whole milliseconds, so where the player says it went is that slot's time floored to one.
+   */
+  @Test
+  fun aFrameStepFromBetweenTwoFramesLandsOnTheOutputGrid() =
+    contractTest { scope ->
+      val subject = androidEngine(scope)
+      withEngine(subject.engine) { recorder ->
+        subject.engine.awaitComposition(fixture).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
+        val before = recorder.seekCompletions.size
+
+        subject.engine.seekTo(OFF_GRID, SeekAccuracy.Exact)
+        awaitContract("the seek between two frames to land") { recorder.seekCompletions.size == before + 1 }
+        subject.engine.stepFrames(1)
+        awaitContract("the frame step to land") { recorder.seekCompletions.size == before + 2 }
+
+        val landing = outputSlotTime(outputSlotOf(OFF_GRID, FIXTURE_FRAME_RATE) + 1, FIXTURE_FRAME_RATE)
+        recorder.seekCompletions.last().position shouldBe landing
+        subject.engine.platformPosition shouldBe landing.inWholeMilliseconds.milliseconds
       }
     }
 

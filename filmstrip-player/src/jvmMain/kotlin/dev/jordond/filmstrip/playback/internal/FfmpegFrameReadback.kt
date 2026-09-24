@@ -4,6 +4,8 @@ import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.ffmpeg.PreviewStream
 import dev.jordond.filmstrip.ffmpeg.PreviewStreamResult
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewFrameReadback
@@ -21,6 +23,28 @@ internal class PreviewFrame(
   val position: Duration,
   val pixels: ByteArray,
 )
+
+/**
+ * Reads forward to the frame on the output slot [at] lands on at [frameRate].
+ *
+ * A windowed stream opens on that slot, so this takes its first frame and stops. A stream the input seek could not
+ * window opens at its head and is read forward one slot a frame until it gets there. Either way the frame carries the
+ * time of its own slot.
+ *
+ * @return The frame, or null when the stream ends before it.
+ */
+internal suspend fun PreviewStream.frameAt(
+  at: Duration,
+  frameRate: Int,
+): PreviewFrame? {
+  val target = outputSlotOf(at, frameRate)
+  var slot = outputSlotOf(startPosition, frameRate)
+  while (true) {
+    val pixels = next() ?: return null
+    if (slot >= target) return PreviewFrame(outputSlotTime(slot, frameRate), pixels)
+    slot++
+  }
+}
 
 /**
  * Reads a rendered frame back, out of the pump where it is already there and out of a process of
@@ -74,27 +98,11 @@ internal class FfmpegFrameReadback(
 
     try {
       val frame =
-        stream.frameAt(at, step) ?: return ReadbackResult.Failure(PlaybackError.Underlying(NO_CODE, noFrame(at)))
+        stream.frameAt(at, current.frameRate)
+          ?: return ReadbackResult.Failure(PlaybackError.Underlying(NO_CODE, noFrame(at)))
       return ReadbackResult.Success(frame.toReadbackFrame(current))
     } finally {
       stream.close()
-    }
-  }
-
-  /**
-   * Reads forward to [at], for a composition whose timeline the input seek could not window.
-   *
-   * A windowed stream opens on the frame asked for, so this takes its first frame and stops.
-   */
-  private suspend fun PreviewStream.frameAt(
-    at: Duration,
-    step: Duration,
-  ): PreviewFrame? {
-    var position = startPosition
-    while (true) {
-      val pixels = next() ?: return null
-      if (position >= at - step / 2) return PreviewFrame(position, pixels)
-      position += step
     }
   }
 

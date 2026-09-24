@@ -44,6 +44,8 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -692,6 +694,9 @@ class BrowserPlannerTest {
    * is drawn has to be the laid list: the same count, the same slots, and a last pass cut where the
    * composition ends. There is no encoder here to write the picture, so the passes are pinned on
    * the render instead of read back out of a file.
+   *
+   * At twenty five frames a second a pass is thirty seven and a half slots, so every other boundary
+   * falls between two slots and each pass has to open on the slot the grid puts it on.
    */
   @Test
   fun aLoopingPrimaryDrawsEveryPassThePlannerLaid() {
@@ -709,7 +714,7 @@ class BrowserPlannerTest {
               ),
             audio = AudioSpec.Keep,
           ),
-        spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac),
+        spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac, frameRate = GRID_RATE),
         device = device(VideoCodec.H264, audio = listOf(AudioEncoderCapability(AudioCodec.Aac, listOf(48_000), 2))),
         infos =
           mapOf(
@@ -721,6 +726,7 @@ class BrowserPlannerTest {
     assertIs<Verdict.Capable>(lowering.verdict)
     val render = assertNotNull(lowering.render)
     assertEquals(LoopingCases.UNDERLAY_RUN, render.duration)
+    assertEquals(GRID_RATE, render.frameRate)
 
     // The schedule by name first, so a wrong pass count or an uncut last pass fails before any
     // geometry is compared.
@@ -735,13 +741,20 @@ class BrowserPlannerTest {
     // And the drawn clips against the laid ones rather than against those numbers again, since a
     // render working the repeat out for itself is what this pins.
     assertEquals(laid.size, render.clips.size)
+    var opens = render.leadFrames
     laid.forEachIndexed { index, pass ->
       val drawn = render.clips[index]
       assertEquals(bed.source, drawn.source, "pass $index")
-      assertEquals(micros(pass.span.start), drawn.offsetUs, "pass $index")
+      assertEquals(outputSlotOf(pass.span.start, GRID_RATE), drawn.firstSlot, "pass $index")
+      assertEquals(opens, drawn.firstSlot, "pass $index opens away from where the one before it ended")
       assertEquals(micros(pass.start), drawn.trimStartUs, "pass $index")
       assertEquals(micros(pass.end), drawn.trimEndUs, "pass $index")
+      opens = drawn.firstSlot + drawn.frames
     }
+    assertEquals(
+      outputSlotOf(checkNotNull(laid.last().span.endExclusive), GRID_RATE),
+      render.leadFrames + render.clips.sumOf { it.frames },
+    )
 
     // The track underneath does not loop, so it lays its one clip once across the whole run and
     // nothing about the primary's repeat reaches it.
@@ -750,9 +763,9 @@ class BrowserPlannerTest {
     assertEquals(LoopingCases.UNDERLAY_RUN, beneath.span.endExclusive)
   }
 
-  // A primary that starts late draws every pass where the planner laid it, and the slots in front of
-  // the first one belong to the render. The start sits off the frame grid, so the gap rounds to its
-  // nearest slot and the last gap frame still lands before the first clip's.
+  // A primary that starts late draws every pass on the slot the grid puts it on, and the slots in
+  // front of the first one belong to the render. The start sits off the frame grid, so the gap rounds
+  // to its nearest slot and the first clip opens on the slot straight after the last gap frame.
   @Test
   fun aPrimaryThatStartsLateLeadsWithTheGapAndDrawsWhereItWasLaid() {
     val first = Clip(source("a"))
@@ -766,29 +779,32 @@ class BrowserPlannerTest {
     assertEquals(LATE_START, laid.first().span.start)
     assertEquals(laid.size, render.clips.size)
     laid.forEachIndexed { index, pass ->
-      assertEquals(micros(pass.span.start), render.clips[index].offsetUs, "clip $index")
+      assertEquals(outputSlotOf(pass.span.start, render.frameRate), render.clips[index].firstSlot, "clip $index")
     }
 
-    assertEquals(15L, render.leadFrames)
+    assertEquals(outputSlotOf(LATE_START, render.frameRate), render.leadFrames)
     assertEquals(render.leadFrames + render.clips.sumOf { it.frames }, render.estimatedFrames)
     // No gap slot reaches the first clip, so the timestamps the pipeline writes keep climbing
     // across the seam.
-    val openingUs = render.clips.first().offsetUs
-    assertTrue((render.leadFrames - 1) * render.stepUs < openingUs, "the last gap slot lands on or past $openingUs")
+    assertEquals(render.leadFrames, render.clips.first().firstSlot)
   }
 
-  // The gap is the start rounded to the nearest slot, with a start on a half rounded up, which is
-  // what ffmpeg's tpad pads the same start with. The literals pin that rule, so they are not copied
-  // from the function they check.
+  // The gap is the slot the shared grid puts the start on, which is what ffmpeg's tpad pads the same
+  // start with. The rule itself is pinned where the grid is derived, so this reads the count against
+  // the function rather than a copy of its answers.
   @Test
   fun aLateStartRoundsToTheNearestSlot() {
-    assertEquals(15L, leadOf(510.milliseconds, frameRate = 30))
-    assertEquals(16L, leadOf(520.milliseconds, frameRate = 30))
-    assertEquals(8L, leadOf(250.milliseconds, frameRate = 30))
-    // Exactly half of a forty millisecond slot.
-    assertEquals(1L, leadOf(20.milliseconds, frameRate = 25))
-    // Under half a slot.
-    assertEquals(0L, leadOf(10.milliseconds, frameRate = 30))
+    listOf(
+      510.milliseconds to 30,
+      520.milliseconds to 30,
+      250.milliseconds to 30,
+      // Exactly half of a forty millisecond slot.
+      20.milliseconds to 25,
+      // Under half a slot.
+      10.milliseconds to 30,
+    ).forEach { (start, frameRate) ->
+      assertEquals(outputSlotOf(start, frameRate), leadOf(start, frameRate), "a start of $start at $frameRate fps")
+    }
   }
 
   private fun leadOf(
@@ -810,9 +826,65 @@ class BrowserPlannerTest {
     val render = assertNotNull(lower(compositionOf(listOf(Clip(source("a"))))).render)
 
     assertEquals(0L, render.leadFrames)
-    assertEquals(0.0, render.clips.single().offsetUs)
+    assertEquals(0L, render.clips.single().firstSlot)
     assertEquals(render.clips.single().frames, render.estimatedFrames)
   }
+
+  // A clip trimmed a quarter of a slot past a whole one covers the slots its span does and no more,
+  // so the next clip opens on the slot straight after its last and the render runs to where the grid
+  // puts the track's end.
+  @Test
+  fun anOffGridClipEndsOnTheSlotTheNextOneOpensOn() {
+    val first = Clip(source("a"), trim = TimeRange(Duration.ZERO, OFF_GRID_LENGTH))
+    val second = Clip(source("b"))
+
+    val render = assertNotNull(lower(compositionOf(listOf(first, second)), gridSpec()).render)
+
+    val laid = render.audioTracks.first().clips
+    assertEquals(outputSlotsOf(laid.first().span, GRID_RATE).count().toLong(), render.clips.first().frames)
+    assertEquals(render.clips.first().firstSlot + render.clips.first().frames, render.clips.last().firstSlot)
+    assertEquals(outputSlotOf(checkNotNull(laid.last().span.endExclusive), GRID_RATE), render.estimatedFrames)
+  }
+
+  // Exactly half a slot in. The gap takes the slot the grid rounds the start onto, and the first clip
+  // opens on the slot straight after it rather than half way through it.
+  @Test
+  fun aStartHalfASlotInOpensTheFirstClipOnTheSlotAfterTheGap() {
+    val composition =
+      EditComposition(
+        tracks = listOf(Track(listOf(Clip(source("a"))), start = HALF_SLOT_START)),
+        audio = AudioSpec.Remove,
+      )
+
+    val render = assertNotNull(lower(composition, gridSpec()).render)
+
+    assertEquals(outputSlotOf(HALF_SLOT_START, GRID_RATE), render.leadFrames)
+    assertEquals(render.leadFrames, render.clips.first().firstSlot)
+  }
+
+  // Ten milliseconds from a whole second never reaches the point half way to the next slot, so the
+  // clip covers no slot of its own, draws nothing, and the clips either side of it meet.
+  @Test
+  fun aClipUnderHalfASlotBetweenTwoOthersDrawsNothing() {
+    val composition =
+      compositionOf(
+        listOf(
+          Clip(source("a")),
+          Clip(source("b"), trim = TimeRange(Duration.ZERO, UNDER_HALF_SLOT)),
+          Clip(source("c")),
+        ),
+      )
+
+    val render = assertNotNull(lower(composition, gridSpec()).render)
+
+    val laid = render.audioTracks.first().clips
+    assertTrue(outputSlotsOf(laid[1].span, GRID_RATE).isEmpty(), "a span of $UNDER_HALF_SLOT covers a slot of its own")
+    assertEquals(0L, render.clips[1].frames)
+    assertEquals(render.clips[0].firstSlot + render.clips[0].frames, render.clips[2].firstSlot)
+  }
+
+  private fun gridSpec(): ExportSpec =
+    ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None, frameRate = GRID_RATE)
 
   @Test
   fun secondVideoTrackIsRefused() {
@@ -914,6 +986,14 @@ class BrowserPlannerTest {
 
     // Fifteen slots and three tenths of another at the fabricated sources' thirty frames a second.
     val LATE_START = 510.milliseconds
+
+    // A slot runs forty milliseconds at twenty five frames a second, so a start of twenty is exactly
+    // half of one, a clip of 1.010 seconds ends a quarter of the way into one, and ten milliseconds is
+    // a quarter of one.
+    const val GRID_RATE = 25
+    val HALF_SLOT_START = 20.milliseconds
+    val OFF_GRID_LENGTH = 1_010.milliseconds
+    val UNDER_HALF_SLOT = 10.milliseconds
 
     // The fabricated sources case 3 of the looping suite is probed with, both longer than the trims
     // taken out of them.

@@ -6,7 +6,10 @@ import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportError
+import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotTime
+import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
@@ -17,6 +20,7 @@ import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.readValue
 import platform.AVFoundation.AVAssetTrack
@@ -41,12 +45,21 @@ import platform.AVFoundation.setColorPrimaries
 import platform.AVFoundation.setColorTransferFunction
 import platform.AVFoundation.setColorYCbCrMatrix
 import platform.AVFoundation.setPerFrameHDRDisplayMetadataPolicy
+import platform.AVFoundation.timeRange
 import platform.AVFoundation.tracksWithMediaType
 import platform.AVFoundation.videoCompositionWithAsset
 import platform.CoreGraphics.CGAffineTransformIdentity
 import platform.CoreGraphics.CGSizeMake
+import platform.CoreMedia.CMTime
+import platform.CoreMedia.CMTimeAdd
+import platform.CoreMedia.CMTimeCompare
+import platform.CoreMedia.CMTimeConvertScale
 import platform.CoreMedia.CMTimeMake
+import platform.CoreMedia.CMTimeRangeGetEnd
+import platform.CoreMedia.CMTimeRangeMake
+import platform.CoreMedia.CMTimeSubtract
 import platform.CoreMedia.kCMPersistentTrackID_Invalid
+import platform.CoreMedia.kCMTimeRoundingMethod_RoundTowardZero
 import platform.Foundation.NSURL
 import kotlin.time.Duration
 
@@ -150,7 +163,7 @@ public fun ResolvedComposition.toAvComposition(): AvComposition {
         // composition ignores it. Every clip bakes its own rotation instead, so this says the frames
         // are already the way round they should be shown.
         media.preferredTransform = CGAffineTransformIdentity.readValue()
-        track.layOnto(media, AVMediaTypeVideo, assets, output.frameRate)
+        track.layOnto(media, AVMediaTypeVideo, assets, output.frameRate, laysVideoOnGrid)
       }.orEmpty()
 
   val mixed =
@@ -160,7 +173,7 @@ public fun ResolvedComposition.toAvComposition(): AvComposition {
         val media =
           composition.addMutableTrackWithMediaType(AVMediaTypeAudio, kCMPersistentTrackID_Invalid)
             ?: return@mapNotNull null
-        media to track.layOnto(media, AVMediaTypeAudio, assets, output.frameRate)
+        media to track.layOnto(media, AVMediaTypeAudio, assets, output.frameRate, onGrid = false)
       }
 
   if (placements.isEmpty() && mixed.all { it.second.isEmpty() }) {
@@ -235,31 +248,65 @@ private class AssetCache {
  * and cannot hold its slot that way, since AVFoundation discards a trailing empty range, so on the
  * video track it takes a real segment cut from [stillSeed] and empty time everywhere else.
  *
- * Each clip holds exactly the window the plan resolved it to. A cut that moved back to open a copy
- * on a sync sample has already moved by the time it arrives here, so nothing is re-derived and
- * nothing runs longer than [ResolvedClip.duration].
+ * A video track [onGrid] lays every boundary on the output frame grid at [frameRate]. A clip opens
+ * on the slot its span's start lands on and runs to the slot its end lands on, so each frame the
+ * reader writes sits on a slot and one clip's last frame meets the next clip's first. A clip covering
+ * no slot lays nothing and takes no placement. Any other track lays each clip over exactly the span
+ * the plan resolved it to, which for audio is what the mix and each gain curve are measured against.
  *
- * @param stillFrameRate The cadence a still's segment is cut at, which only the video track reads.
+ * Each clip opens at the source time the plan resolved it to. A cut that moved back to open a copy
+ * on a sync sample has already moved by the time it arrives here, so nothing is re-derived. A clip
+ * laid exactly runs no longer than [ResolvedClip.duration], and one on the grid runs as far as its
+ * last slot, which can reach past the source's last frame. [insertHolding] holds that frame until
+ * the slot ends.
+ *
+ * @param frameRate The output's frame rate, which the video track lays its grid and its stills at.
+ * @param onGrid Whether this is a video track whose boundaries land on the output frame grid.
+ * @throws AppleLoweringFailure when the video track has no frame rate to lay its clips at.
  */
 @OptIn(ExperimentalForeignApi::class)
 private fun ResolvedTrack.layOnto(
   media: AVMutableCompositionTrack,
   mediaType: String?,
   assets: AssetCache,
-  stillFrameRate: Int?,
+  frameRate: Int?,
+  onGrid: Boolean,
 ): List<Placement> {
+  val video = mediaType == AVMediaTypeVideo
+  val grid =
+    if (video && onGrid) {
+      frameRate?.takeIf { it > 0 } ?: throw AppleLoweringFailure(NO_FRAME_RATE)
+    } else {
+      null
+    }
   if (start > Duration.ZERO) media.insertEmptyTimeRange(timeRangeOf(Duration.ZERO, start))
 
-  return clips.map { clip ->
+  return clips.mapNotNull { clip ->
     // The slot this clip holds, read off the plan rather than accumulated here a second time. The
     // planner derives it once so an effect reading the time measures against the same run on every
     // backend, and a looping track's later passes carry their own.
-    val at = clip.span.start
+    val at: Duration
+    val end: Duration
+    if (grid == null) {
+      at = clip.span.start
+      end = at + clip.duration
+    } else {
+      val slots = outputSlotsOf(clip.span, grid)
+      if (slots.isEmpty()) return@mapNotNull null
+      // Read back off the tick each end is laid on, so at a rate the timescale does not divide the span
+      // still opens and closes where its segment does, and a frame at the seam finds its own clip.
+      at = outputSlotTime(slots.first, grid).toCMTime().toDuration()
+      end = outputSlotTime(slots.last + 1, grid).toCMTime().toDuration()
+    }
+    // On the grid both ends are rounded onto a tick and the length is what lies between, so the next
+    // clip opens on the tick this one ends on. A length rounded on its own lands a tick either side of
+    // that at 48 fps, which leaves a hole or an overlap at the seam.
+    val length = if (grid == null) clip.duration.toCMTime() else ticksBetween(at, end)
     val still = clip.source is MediaSource.Image
     val inserted =
       when {
-        still && mediaType == AVMediaTypeVideo -> {
-          media.insertStill(at, clip.duration, stillFrameRate)
+        still && video -> {
+          media.insertStill(at, end, frameRate)
           true
         }
         still -> {
@@ -267,23 +314,75 @@ private fun ResolvedTrack.layOnto(
         }
         else -> {
           val source = assets.of(clip.source).tracksWithMediaType(mediaType).firstOrNull() as? AVAssetTrack
-          source != null &&
-            media.insertTimeRange(
-              timeRange = timeRangeOf(clip.start, clip.duration),
-              ofTrack = source,
-              atTime = at.toCMTime(),
-              error = null,
-            )
+          when {
+            source == null -> {
+              false
+            }
+            grid != null -> {
+              media.insertHolding(source, clip.start, at, length)
+            }
+            else -> {
+              media.insertTimeRange(
+                timeRange = CMTimeRangeMake(start = clip.start.toCMTime(), duration = length),
+                ofTrack = source,
+                atTime = at.toCMTime(),
+                error = null,
+              )
+            }
+          }
         }
       }
-    if (!inserted) media.insertEmptyTimeRange(timeRangeOf(at, clip.duration))
+    if (!inserted) media.insertEmptyTimeRange(CMTimeRangeMake(start = at.toCMTime(), duration = length))
 
-    Placement(clip = clip, start = at, end = at + clip.duration)
+    Placement(clip = clip, start = at, end = end)
   }
 }
 
 /**
- * Gives a still its slot on this track, as real segments cut from the seed for [frameRate].
+ * Lays [length] of [source], read from [from], onto this track at [at], holding the source's last
+ * frame over any part of that which runs past the end of its track.
+ *
+ * AVFoundation takes a range reaching past the end of a track without complaint, and the reader
+ * then draws an empty frame from where the track runs out until the segment ends. The range is cut
+ * at the track's end instead, in whole ticks so none of it is past the end, and its final tick is
+ * stretched over the rest of the length. That shows the last frame until the length runs out and
+ * starts no frame of its own where the track did.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private fun AVMutableCompositionTrack.insertHolding(
+  source: AVAssetTrack,
+  from: Duration,
+  at: Duration,
+  length: CValue<CMTime>,
+): Boolean {
+  val tick = CMTimeMake(value = 1, timescale = MEDIA_TIMESCALE)
+  val held =
+    CMTimeConvertScale(
+      CMTimeSubtract(CMTimeRangeGetEnd(source.timeRange), from.toCMTime()),
+      MEDIA_TIMESCALE,
+      kCMTimeRoundingMethod_RoundTowardZero,
+    )
+  val short = CMTimeCompare(held, length) < 0 && CMTimeCompare(held, tick) >= 0
+  val inserted =
+    insertTimeRange(
+      timeRange = CMTimeRangeMake(start = from.toCMTime(), duration = if (short) held else length),
+      ofTrack = source,
+      atTime = at.toCMTime(),
+      error = null,
+    )
+  if (inserted && short) {
+    val lastTick = CMTimeSubtract(CMTimeAdd(at.toCMTime(), held), tick)
+    scaleTimeRange(
+      timeRange = CMTimeRangeMake(start = lastTick, duration = tick),
+      toDuration = CMTimeSubtract(CMTimeAdd(at.toCMTime(), length), lastTick),
+    )
+  }
+  return inserted
+}
+
+/**
+ * Gives a still the slot from [at] until [end] on this track, as real segments cut from the seed
+ * for [frameRate].
  *
  * @throws AppleLoweringFailure when there is no seed to cut from or the track refuses one, which
  *   would otherwise leave the still holding no time and the export running short by however long
@@ -292,7 +391,7 @@ private fun ResolvedTrack.layOnto(
 @OptIn(ExperimentalForeignApi::class)
 private fun AVMutableCompositionTrack.insertStill(
   at: Duration,
-  duration: Duration,
+  end: Duration,
   frameRate: Int?,
 ) {
   val seed =
@@ -300,7 +399,6 @@ private fun AVMutableCompositionTrack.insertStill(
       ?.takeIf { it > 0 }
       ?.let(::stillSeed)
       ?: throw AppleLoweringFailure(NO_STILL_SEED)
-  val end = at + duration
   var cursor = at
 
   // Cut to what the seed holds rather than to STILL_SEED_LENGTH. A seed left by an earlier run can
@@ -310,7 +408,7 @@ private fun AVMutableCompositionTrack.insertStill(
     val piece = minOf(end - cursor, seed.length)
     val inserted =
       insertTimeRange(
-        timeRange = timeRangeOf(Duration.ZERO, piece),
+        timeRange = CMTimeRangeMake(start = Duration.ZERO.toCMTime(), duration = ticksBetween(cursor, cursor + piece)),
         ofTrack = seed.track,
         atTime = cursor.toCMTime(),
         error = null,
@@ -352,11 +450,23 @@ private fun List<Placement>.toSpans(
  * rather than derived again. Deriving them again would mean laying the whole composition down a
  * second time, which is the work a swap exists to avoid.
  *
- * The plan holds one clip per pass and [layOnto] lays one placement per clip, so a span and the clip
- * behind it line up by index.
+ * The plan holds one clip per pass and [layOnto] lays one placement per clip, leaving out a clip
+ * that covers no output slot when it lays on the grid. A span and the clip behind it line up by
+ * index once those are left out here as well.
+ *
+ * @throws AppleLoweringFailure when [resolved] lays its video on the grid and names no frame rate to
+ *   find its clips' slots at, the same way [layOnto] fails for it.
  */
 internal fun List<ClipSpan>.respannedOnto(resolved: ResolvedComposition): List<ClipSpan> {
-  val clips = resolved.videoTrack?.clips.orEmpty()
+  val laid = resolved.videoTrack?.clips.orEmpty()
+  if (laid.isEmpty()) return emptyList()
+  val clips =
+    if (resolved.laysVideoOnGrid) {
+      val frameRate = resolved.output.frameRate?.takeIf { it > 0 } ?: throw AppleLoweringFailure(NO_FRAME_RATE)
+      laid.filterNot { outputSlotsOf(it.span, frameRate).isEmpty() }
+    } else {
+      laid
+    }
   if (clips.isEmpty()) return emptyList()
   require(size == clips.size) {
     "This composition holds $size spans and the swap lays ${clips.size} clips, so a span has no " +
@@ -410,6 +520,15 @@ private fun ResolvedClip.spanning(
     still = (source as? MediaSource.Image)?.image,
   )
 }
+
+/**
+ * Whether the video track lands every clip on the output frame grid.
+ *
+ * A copy writes the source's own samples rather than rendering frames, so it has no output grid to
+ * land on and keeps the exact spans the plan resolved.
+ */
+private val ResolvedComposition.laysVideoOnGrid: Boolean
+  get() = path != ExportPath.Transmux
 
 /**
  * The track whose frames reach the video composition, or null when the output carries no video.
@@ -512,7 +631,7 @@ private fun AVMutableComposition.videoComposition(
 
   composition.setRenderSize(CGSizeMake(output.size.width.toDouble(), output.size.height.toDouble()))
   output.frameRate?.takeIf { it > 0 }?.let { rate ->
-    composition.setFrameDuration(CMTimeMake(value = (MEDIA_TIMESCALE / rate).toLong(), timescale = MEDIA_TIMESCALE))
+    composition.setFrameDuration(CMTimeMake(value = 1, timescale = rate))
   }
 
   if (encodesHdr) {
@@ -540,6 +659,10 @@ private fun AVMutableComposition.videoComposition(
 }
 
 private const val NO_VIDEO_TRACK = "AVFoundation refused a video track on the composition."
+
+private const val NO_FRAME_RATE =
+  "The video track lays every clip on the output's frame grid, and this output names no frame rate " +
+    "to lay it at."
 
 private const val NO_STILL_SEED =
   "A still needs a segment of its own on the timeline, and AVFoundation would neither write nor " +

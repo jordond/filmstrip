@@ -3,7 +3,10 @@ package dev.jordond.filmstrip.avfoundation
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.avfoundation.internal.MEDIA_TICK
 import dev.jordond.filmstrip.avfoundation.internal.copyFormatDescription
+import dev.jordond.filmstrip.avfoundation.internal.toAvComposition
+import dev.jordond.filmstrip.avfoundation.internal.toDuration
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.EditComposition
@@ -25,6 +28,9 @@ import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
+import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
@@ -39,6 +45,7 @@ import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.passesCovering
 import dev.jordond.filmstrip.transform.internal.runLengthOf
+import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CompletableDeferred
@@ -51,10 +58,12 @@ import kotlinx.coroutines.withContext
 import platform.AVFoundation.AVAssetTrack
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.AVURLAsset
+import platform.AVFoundation.timeRange
 import platform.AVFoundation.tracksWithMediaType
 import platform.CoreFoundation.CFRelease
 import platform.CoreFoundation.CFRetain
 import platform.CoreMedia.CMFormatDescriptionGetExtension
+import platform.CoreMedia.CMTimeRangeGetEnd
 import platform.CoreMedia.kCMFormatDescriptionExtension_FormatName
 import platform.Foundation.CFBridgingRelease
 import platform.Foundation.NSFileManager
@@ -67,6 +76,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -812,6 +822,303 @@ class AppleExportTest {
       remove(output)
     }
 
+  /**
+   * A clip trimmed off the frame grid, handed to the next one on it.
+   *
+   * 1.010 s is 30.3 slots at 30 fps and rounds down, and 1.020 s is 30.6 and rounds up, so the seam moves to either
+   * side of where the plan put it. The second fixture is the first one's pattern turned a third of the way round the
+   * colour wheel, so which clip a frame came from reads off which of the two it sits closer to.
+   */
+  @Test
+  fun `hands a clip trimmed off the frame grid to the next one on it`() =
+    runTest(timeout = TIMEOUT) {
+      val first = fixture("apple_export_a.mp4") ?: return@runTest
+      val second = fixture("apple_export_b.mp4") ?: return@runTest
+
+      listOf(1_010.milliseconds, 1_020.milliseconds).forEach { length ->
+        val composition =
+          compositionOf {
+            clip(MediaSource.of(first)) { trim(Duration.ZERO, length) }
+            clip(MediaSource.of(second)) { trim(Duration.ZERO, 1.seconds) }
+          }
+
+        val output = temporaryPath("off-grid-seam")
+        exported(composition, ExportSpec(frameRate = FIXTURE_RATE, targetHeight = 240), output)
+
+        assertOnTheGrid(sampleTimesOf(output), length + 1.seconds, FIXTURE_RATE, "a first clip of $length")
+        val seam = outputSlotOf(length, FIXTURE_RATE)
+        val closing = outputSlotTime(seam - 1, FIXTURE_RATE)
+        val opening = outputSlotTime(seam, FIXTURE_RATE)
+        val fromFirst = frameOf(first, closing)
+        val fromSecond = frameOf(second)
+        assertShows(frameOf(output, closing), fromFirst, fromSecond, "the first clip's last slot at $closing")
+        assertShows(frameOf(output, opening), fromSecond, fromFirst, "the second clip's first slot at $opening")
+
+        remove(output)
+      }
+    }
+
+  /**
+   * A primary that starts part way into a slot writes every frame once, on the grid.
+   *
+   * 17 ms is 0.51 of a slot at 30 fps and 16 ms is 0.48, so one start rounds up and the other down. The clip's first
+   * frame lands on the slot its start rounds to, and the fill holds every slot before that one.
+   */
+  @Test
+  fun `opens a primary that starts inside a slot on the slot its start rounds to`() =
+    runTest(timeout = TIMEOUT) {
+      val landscape = fixture("apple_export_a.mp4") ?: return@runTest
+      val picture = spreadOf(frameOf(landscape))
+
+      listOf(17.milliseconds, 16.milliseconds).forEach { start ->
+        val composition =
+          compositionOf {
+            track {
+              clip(MediaSource.of(landscape)) { trim(Duration.ZERO, 2.seconds) }
+              startAt(start)
+            }
+          }
+
+        val output = temporaryPath("off-grid-start")
+        exported(composition, ExportSpec(frameRate = FIXTURE_RATE, targetHeight = 240), output)
+
+        assertOnTheGrid(sampleTimesOf(output), start + 2.seconds, FIXTURE_RATE, "a primary starting at $start")
+        val opening = outputSlotOf(start, FIXTURE_RATE)
+        (0L..opening).forEach { slot ->
+          val at = outputSlotTime(slot, FIXTURE_RATE)
+          val spread = spreadOf(frameOf(output, at))
+          val carriesPicture = spread >= picture * PICTURE_SPREAD_FLOOR
+          assertTrue(
+            carriesPicture == (slot == opening),
+            "a primary starting at $start opens on slot $opening, and the frame at $at spans $spread against $picture",
+          )
+        }
+
+        remove(output)
+      }
+    }
+
+  /**
+   * A looping clip whose track runs part of a slot past its last frame, laid again on every pass.
+   *
+   * The clip is 26 frames at 25 fps held until 1.030 s, which is 25.75 slots, so a pass that rounds up runs on past
+   * the clip's own end. That slot holds the clip's last frame, read inside the part past the end as well, and the next
+   * pass still opens on its own slot.
+   */
+  @Test
+  fun `holds a looping clip's last frame when a pass runs past its end`() =
+    runTest(timeout = TIMEOUT) {
+      val long = fixture("apple_export_long.mp4") ?: return@runTest
+      val offGrid = NSTemporaryDirectory() + "filmstrip-apple-off-grid-clip.mov"
+      withContext(Dispatchers.Default) { writeOffGridClip(offGrid, OFF_GRID_RATE, OFF_GRID_FRAMES, OFF_GRID_END) }
+
+      val composition =
+        compositionOf {
+          track {
+            clip(MediaSource.of(offGrid))
+            looping()
+          }
+          track(TrackContent.Audio) {
+            clip(MediaSource.of(long)) { trim(TimeRange.of(Duration.ZERO, OFF_GRID_RUN)) }
+          }
+        }
+      val spec = ExportSpec(frameRate = OFF_GRID_RATE)
+      val resolved = resolved(composition, spec)
+      val laid = resolved.tracks.single { it.content != TrackContent.Audio }.clips
+
+      val output = temporaryPath("off-grid-loop")
+      assertRunsFor(loopExported(composition, spec, output), resolved.duration)
+
+      assertOnTheGrid(sampleTimesOf(output), resolved.duration, OFF_GRID_RATE, "a looping clip")
+      val first = outputSlotsOf(laid[0].span, OFF_GRID_RATE)
+      val held = outputSlotTime(first.last, OFF_GRID_RATE)
+      val clipEnds = outputSlotTime(first.first, OFF_GRID_RATE) + OFF_GRID_END
+      val pastTheEnd = clipEnds + (outputSlotTime(first.last + 1, OFF_GRID_RATE) - clipEnds) / 2
+      val reopened = outputSlotTime(outputSlotsOf(laid[1].span, OFF_GRID_RATE).first, OFF_GRID_RATE)
+      frameIndexOf(frameOf(output, held)) shouldBe OFF_GRID_FRAMES - 1
+      frameIndexOf(frameOf(output, pastTheEnd)) shouldBe OFF_GRID_FRAMES - 1
+      frameIndexOf(frameOf(output, reopened)) shouldBe 0
+
+      remove(output)
+      remove(offGrid)
+    }
+
+  /**
+   * A clip whose picture ends a whole slot before its sound does, laid twice from just short of half a slot in.
+   *
+   * The picture runs 1.000 s inside a 1.005 s movie. From 19 ms at 25 fps the first pass covers 26 slots, so its last
+   * slot lies wholly past the picture. The clip's last frame holds from its own slot to the end of the pass, nothing is
+   * written off the grid, and the second pass, which fits inside the picture, opens on its own slot. A thumbnail
+   * rendered from the same lowering shows the held frame as well.
+   */
+  @Test
+  fun `holds a clip's last frame over a whole slot when its sound outlasts its picture`() =
+    runTest(timeout = TIMEOUT) {
+      val offGrid = NSTemporaryDirectory() + "filmstrip-apple-short-picture.mov"
+      withContext(Dispatchers.Default) {
+        writeOffGridClip(offGrid, OFF_GRID_RATE, SHORT_FRAMES, SHORT_PICTURE, audioUntil = SHORT_SOUND)
+      }
+
+      val composition =
+        compositionOf {
+          track {
+            clip(MediaSource.of(offGrid))
+            clip(MediaSource.of(offGrid))
+            startAt(SHORT_START)
+          }
+        }
+      val spec = ExportSpec(frameRate = OFF_GRID_RATE)
+      val resolved = resolved(composition, spec)
+      val laid = resolved.tracks.single().clips
+
+      val output = temporaryPath("short-picture")
+      exported(composition, spec, output)
+
+      val first = outputSlotsOf(laid[0].span, OFF_GRID_RATE)
+      val opens = outputSlotTime(first.first, OFF_GRID_RATE)
+      val lastFrame = opens + SHORT_PICTURE * (SHORT_FRAMES - 1) / SHORT_FRAMES
+      val pictureEnds = opens + SHORT_PICTURE
+      val passEnds = outputSlotTime(first.last + 1, OFF_GRID_RATE)
+      val pastThePicture = pictureEnds + (passEnds - pictureEnds) / 2
+      val lateInTheTail = passEnds - (passEnds - pictureEnds) / 8
+
+      val times = sampleTimesOf(output)
+      times.forEach { time ->
+        val slot = outputSlotTime(outputSlotOf(time, OFF_GRID_RATE), OFF_GRID_RATE)
+        assertTrue(
+          (time - slot).absoluteValue <= SAMPLE_TOLERANCE,
+          "a frame was written at $time, off the grid: $times",
+        )
+      }
+      val written = times.map { outputSlotOf(it, OFF_GRID_RATE) }
+      written shouldBe written.distinct().sorted()
+      val shown =
+        (0 until outputSlotOf(resolved.duration, OFF_GRID_RATE)).filterNot { slot ->
+          slot in first && outputSlotTime(slot, OFF_GRID_RATE) >= pictureEnds
+        }
+      assertTrue(written.containsAll(shown), "every slot inside a picture carries its own frame: $times")
+
+      listOf(lastFrame, pictureEnds, pastThePicture, lateInTheTail).forEach { at ->
+        withClue("the frame at $at") { frameIndexOf(frameOf(output, at)) shouldBe SHORT_FRAMES - 1 }
+      }
+      val second = outputSlotTime(outputSlotsOf(laid[1].span, OFF_GRID_RATE).first, OFF_GRID_RATE)
+      frameIndexOf(frameOf(output, second)) shouldBe 0
+
+      val lowered = resolved.toAvComposition()
+      listOf(pastThePicture, lateInTheTail).forEach { at ->
+        val thumbnail = frameOf(lowered.composition, lowered.videoComposition, at)
+        withClue("the thumbnail at $at") { frameIndexOf(thumbnail) shouldBe SHORT_FRAMES - 1 }
+      }
+
+      remove(output)
+      remove(offGrid)
+    }
+
+  /**
+   * A copy writes the source's own samples and shows them for exactly as long as the trim runs, so a trim ending off
+   * the frame grid shows every sample the source shows before that end.
+   *
+   * 1.010 s is 30.3 frames of the fixture, so a copy cut on the grid would stop at 1.000 s and drop the sample shown
+   * from there. The samples a shown one is decoded from are written as well, past the end the copy stops showing at,
+   * so only the shown ones are compared.
+   */
+  @Test
+  fun `copies a clip trimmed off the frame grid sample for sample`() =
+    runTest(timeout = TIMEOUT) {
+      val landscape = fixture("apple_export_a.mp4") ?: return@runTest
+
+      val composition = compositionOf { clip(MediaSource.of(landscape)) { trim(Duration.ZERO, COPY_TRIM_END) } }
+      assertIs<Verdict.Capable>(filmstrip.plan(composition, ExportSpec())).plan.path shouldBe ExportPath.Transmux
+
+      val output = temporaryPath("off-grid-copy")
+      exported(composition, ExportSpec(), output)
+
+      val shown = videoEndOf(output)
+      assertTrue(
+        (shown - COPY_TRIM_END).absoluteValue <= SAMPLE_TOLERANCE,
+        "the copy shows its picture until $shown, not the $COPY_TRIM_END trim",
+      )
+      sampleTimesOf(output).filter { it < shown } shouldBe sampleTimesOf(landscape).filter { it < COPY_TRIM_END }
+
+      remove(output)
+    }
+
+  /**
+   * A copy of a clip whose sound outlasts its picture writes the picture's own samples, each as long as the source
+   * shows it.
+   *
+   * The picture runs 1.000 s at 25 fps inside 1.030 s of sound, which is 25.75 slots, so a clip laid on the grid would
+   * run a slot past the picture and stretch its last sample over it.
+   */
+  @Test
+  fun `copies a clip whose sound outlasts its picture without stretching a sample`() =
+    runTest(timeout = TIMEOUT) {
+      val offGrid = NSTemporaryDirectory() + "filmstrip-apple-copy-short-picture.mov"
+      withContext(Dispatchers.Default) {
+        writeOffGridClip(offGrid, OFF_GRID_RATE, SHORT_FRAMES, SHORT_PICTURE, COPY_SOUND, encodesAudio = true)
+      }
+
+      val composition = compositionOf { clip(MediaSource.of(offGrid)) }
+      assertIs<Verdict.Capable>(filmstrip.plan(composition, ExportSpec())).plan.path shouldBe ExportPath.Transmux
+
+      val output = temporaryPath("short-picture-copy")
+      exported(composition, ExportSpec(), output)
+
+      videoSamplesOf(output) shouldBe videoSamplesOf(offGrid)
+
+      remove(output)
+      remove(offGrid)
+    }
+
+  /**
+   * A copy of a 48 fps clip written at a timescale that names each frame exactly, which 600 a second does not, keeps
+   * every sample at the time and for the length its source holds it.
+   */
+  @Test
+  fun `copies a clip at the times its source holds each sample`() =
+    runTest(timeout = TIMEOUT) {
+      val source = NSTemporaryDirectory() + "filmstrip-apple-copy-whole-tick.mov"
+      withContext(Dispatchers.Default) {
+        writeOffGridClip(source, WHOLE_TICK_RATE, INDEXED_FRAMES, 1.seconds * INDEXED_FRAMES / WHOLE_TICK_RATE)
+      }
+
+      val composition = compositionOf { clip(MediaSource.of(source)) }
+      assertIs<Verdict.Capable>(filmstrip.plan(composition, ExportSpec())).plan.path shouldBe ExportPath.Transmux
+
+      val output = temporaryPath("whole-tick-copy")
+      exported(composition, ExportSpec(), output)
+
+      videoSamplesOf(output) shouldBe videoSamplesOf(source)
+
+      remove(output)
+      remove(source)
+    }
+
+  /**
+   * A clip at 48 fps and a still after it, at a rate the backend's timescale divides, exported at that rate.
+   *
+   * Every frame, the still's included, is written on its slot's own time, one a slot, and a thumbnail rendered from
+   * the same lowering at each of the clip's slots shows that slot's frame.
+   */
+  @Test
+  fun `writes every frame on its own time at a rate the timescale divides`() =
+    runTest(timeout = TIMEOUT) {
+      assertWritesEveryFrameOnItsSlot(WHOLE_TICK_RATE, SAMPLE_TOLERANCE, "whole-tick-rate")
+    }
+
+  /**
+   * A clip at 32 fps and a still after it, at a rate the backend's timescale does not divide, exported at that rate.
+   *
+   * Every frame, the still's included, is written on its own slot to within a tick, one a slot, and a thumbnail
+   * rendered from the same lowering at each of the clip's slots shows that slot's frame rather than one on some other
+   * cadence.
+   */
+  @Test
+  fun `writes every frame on its slot at a rate the timescale does not divide`() =
+    runTest(timeout = TIMEOUT) {
+      assertWritesEveryFrameOnItsSlot(UNEVEN_RATE, MEDIA_TICK, "uneven-rate")
+    }
+
   @Test
   fun `streams progress that only ever climbs`() =
     runTest(timeout = TIMEOUT) {
@@ -994,6 +1301,108 @@ class AppleExportTest {
   }
 
   /**
+   * Exports a clip written at [frameRate] followed by a still, at that same rate, and asserts every frame lands within
+   * [tolerance] of its own slot, one a slot, and that a thumbnail of the same lowering at each of the clip's slots
+   * shows that slot's frame. The still's frames are cut from the seed for [frameRate], so the seed is held to the grid
+   * too.
+   */
+  private suspend fun assertWritesEveryFrameOnItsSlot(
+    frameRate: Int,
+    tolerance: Duration,
+    name: String,
+  ) {
+    val written = NSTemporaryDirectory() + "filmstrip-apple-$name.mov"
+    withContext(Dispatchers.Default) {
+      writeOffGridClip(written, frameRate, INDEXED_FRAMES, 1.seconds * INDEXED_FRAMES / frameRate)
+    }
+
+    val composition =
+      compositionOf {
+        clip(MediaSource.of(written))
+        image(ImageSource.of(photoFile()), STILL_RUN)
+      }
+    val spec = ExportSpec(frameRate = frameRate)
+    val resolved = resolved(composition, spec)
+
+    val output = temporaryPath(name)
+    exported(composition, spec, output)
+
+    val times = sampleTimesOf(output)
+    val slots = outputSlotOf(resolved.duration, frameRate)
+    assertTrue(
+      times.size.toLong() == slots,
+      "the export wrote ${times.size} frames where the grid holds $slots: $times",
+    )
+    times.forEachIndexed { index, time ->
+      val slot = outputSlotTime(index.toLong(), frameRate)
+      assertTrue(
+        (time - slot).absoluteValue <= tolerance,
+        "frame $index was written at $time, off its slot at $slot",
+      )
+    }
+
+    val lowered = resolved.toAvComposition()
+    (0 until INDEXED_FRAMES).forEach { index ->
+      val at = outputSlotTime(index.toLong(), frameRate)
+      val thumbnail = frameOf(lowered.composition, lowered.videoComposition, at)
+      withClue("the thumbnail at $at") { frameIndexOf(thumbnail) shouldBe index }
+    }
+
+    remove(output)
+    remove(written)
+  }
+
+  /**
+   * Asserts [times] holds one sample for every slot of the output frame grid at [frameRate] up to [end], each on its
+   * own slot.
+   */
+  private fun assertOnTheGrid(
+    times: List<Duration>,
+    end: Duration,
+    frameRate: Int,
+    what: String,
+  ) {
+    val slots = outputSlotOf(end, frameRate)
+    assertTrue(times.size.toLong() == slots, "$what wrote ${times.size} frames where the grid holds $slots: $times")
+    times.forEachIndexed { index, time ->
+      val slot = outputSlotTime(index.toLong(), frameRate)
+      assertTrue(
+        (time - slot).absoluteValue <= SAMPLE_TOLERANCE,
+        "$what wrote frame $index at $time, off its slot at $slot: $times",
+      )
+    }
+  }
+
+  /**
+   * Asserts [frame] reads as [expected] rather than as [other], measured over a grid of patches across all three.
+   */
+  private fun assertShows(
+    frame: FrameProbe,
+    expected: FrameProbe,
+    other: FrameProbe,
+    what: String,
+  ) {
+    val near = differenceOf(frame, expected)
+    val far = differenceOf(frame, other)
+    assertTrue(near < far, "$what sits $near from the clip it should show and $far from the other one")
+  }
+
+  /**
+   * How far apart two frames read, summed over a grid of patches at the same place in each.
+   */
+  private fun differenceOf(
+    first: FrameProbe,
+    second: FrameProbe,
+  ): Int =
+    (0 until PICTURE_GRID).sumOf { row ->
+      (0 until PICTURE_GRID).sumOf { column ->
+        val x = (column + HALF) / PICTURE_GRID
+        val y = (row + HALF) / PICTURE_GRID
+        distance(first.average(x, y), second.average(x, y))
+      }
+    }
+
+  /**
    * Pins every laid pass of this track by which clip of the track it plays and by the span it holds,
    * against the run [passesCovering] derives for [lengths] over a composition of [duration].
    *
@@ -1129,6 +1538,17 @@ class AppleExportTest {
   }
 
   /**
+   * Where the file at [path] stops showing its picture, read off its video track rather than the file's duration.
+   */
+  private fun videoEndOf(path: String): Duration {
+    val track =
+      AVURLAsset(uRL = NSURL.fileURLWithPath(path), options = null)
+        .tracksWithMediaType(AVMediaTypeVideo)
+        .single() as AVAssetTrack
+    return CMTimeRangeGetEnd(track.timeRange).toDuration()
+  }
+
+  /**
    * The name the encoder stamped into this file's video format description.
    */
   private fun formatName(path: String): String? {
@@ -1219,5 +1639,39 @@ class AppleExportTest {
     // Points across a frame's width and height, sampled at the middle of each cell.
     const val PICTURE_GRID = 8
     const val HALF = 0.5f
+
+    // The fixtures' own rate, asked for by the cases that count frames, so every frame written is one the source holds.
+    const val FIXTURE_RATE = 30
+
+    // How far a written sample may sit from its slot, which is the slot's own rounding to whole microseconds.
+    val SAMPLE_TOLERANCE = 1.microseconds
+
+    // A clip written in process, 26 frames at 25 fps held until 1.030 s, so each pass of it is 25.75 slots. The audio
+    // track runs the composition to three passes of it.
+    const val OFF_GRID_RATE = 25
+    const val OFF_GRID_FRAMES = 26
+    val OFF_GRID_END = 1_030.milliseconds
+    val OFF_GRID_RUN = 3_090.milliseconds
+
+    // A clip whose picture runs 25 frames at 25 fps inside a movie its silent sound runs 5 ms longer. Laid from 19 ms,
+    // just short of half a slot, its first pass rounds up to end a whole slot past the picture.
+    const val SHORT_FRAMES = 25
+    val SHORT_PICTURE = 1.seconds
+    val SHORT_SOUND = 1_005.milliseconds
+    val SHORT_START = 19.milliseconds
+
+    // A trim end 0.3 of a frame past a frame of the fixture, and sound running 0.75 of a slot past a picture, both of
+    // which a copy keeps exactly.
+    val COPY_TRIM_END = 1_010.milliseconds
+    val COPY_SOUND = 1_030.milliseconds
+
+    // A rate the backend's timescale divides into whole ticks, one it does not, and a clip short enough to index every
+    // frame of it at either.
+    const val WHOLE_TICK_RATE = 48
+    const val UNEVEN_RATE = 32
+    const val INDEXED_FRAMES = 26
+
+    // How long the still after that clip holds, a whole number of slots at either rate.
+    val STILL_RUN = 500.milliseconds
   }
 }

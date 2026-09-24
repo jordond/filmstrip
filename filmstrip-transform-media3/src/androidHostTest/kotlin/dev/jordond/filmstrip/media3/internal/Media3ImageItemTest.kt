@@ -13,6 +13,8 @@ import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotTime
+import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.EXIF_ORIENTATION_NORMAL
 import dev.jordond.filmstrip.media.ImageSource
@@ -37,7 +39,6 @@ import kotlin.test.Test
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -85,31 +86,46 @@ class Media3ImageItemTest {
     item.mediaItem.clippingConfiguration shouldBe MediaItem.ClippingConfiguration.UNSET
   }
 
-  // media3 counts its own image duration in whole milliseconds, so a span that is not one lands on
-  // the nearest rather than losing the remainder. The length the export lays the picture out by is
-  // the exact one either way.
+  // media3 counts its own image duration in whole milliseconds, which is its limit. A still's slots
+  // at 30 fps are never a whole number of them, so the field lands on the nearest, both ways. The
+  // length the still is laid out by is the exact one either way.
   @Test
-  fun `a still held for part of a millisecond rounds media3's own field to the nearest`() {
-    val down = 3.seconds + 1400.microseconds
-    val up = 3.seconds + 1600.microseconds
+  fun `a still's slots round media3's own millisecond field to the nearest`() {
+    val down = outputSlotTime(31, 30)
+    val up = outputSlotTime(32, 30)
 
     val shorter = composition(clip(declared = down)).firstItem()
     val longer = composition(clip(declared = up)).firstItem()
 
     shorter.durationUs shouldBe down.inWholeMicroseconds
-    assertNotNull(shorter.mediaItem.localConfiguration).imageDurationMs shouldBe 3001
+    assertNotNull(shorter.mediaItem.localConfiguration).imageDurationMs shouldBe 1033
     longer.durationUs shouldBe up.inWholeMicroseconds
-    assertNotNull(longer.mediaItem.localConfiguration).imageDurationMs shouldBe 3002
+    assertNotNull(longer.mediaItem.localConfiguration).imageDurationMs shouldBe 1067
   }
 
-  // media3 rejects a zero on that field, which is what a still shorter than a millisecond would
-  // round down to.
+  // media3 rejects a zero on that field, which is what a slot shorter than a millisecond would round
+  // down to, so the field is clamped to one.
   @Test
-  fun `a still shorter than a millisecond is lowered rather than rejected`() {
-    val item = composition(clip(declared = 400.microseconds)).firstItem()
+  fun `a still one slot shorter than a millisecond is lowered rather than rejected`() {
+    val slot = outputSlotTime(1, SUB_MILLISECOND_RATE)
 
-    item.durationUs shouldBe 400
+    val item = composition(clip(declared = slot), frameRate = SUB_MILLISECOND_RATE).firstItem()
+
+    item.durationUs shouldBe slot.inWholeMicroseconds
     assertNotNull(item.mediaItem.localConfiguration).imageDurationMs shouldBe 1
+  }
+
+  // The rounded field never moves what comes after the still. A clip after one opens on its own
+  // first slot, read in the middle of the timeline where the error would have piled up.
+  @Test
+  fun `the clip after a still opens on its own first slot`() {
+    val still = clip(declared = outputSlotTime(31, 30))
+    val after = videoClip(at = still.span.endExclusive!!)
+    val composition = composition(still, after, content = TrackContent.Video)
+
+    val spans = composition.toMedia3Preview(Media3FrameBounds.None).spans
+
+    spans[1].start shouldBe outputSlotTime(outputSlotsOf(after.span, 30).first, 30)
   }
 
   // Read off the output rather than pinned to a number here, since the cadence a still is held at is
@@ -125,7 +141,7 @@ class Media3ImageItemTest {
   fun `a still with no output rate is refused rather than lowered without one`() {
     val composition = composition(clip(), frameRate = null)
 
-    assertFailsWith<Media3LoweringFailure> { composition.toMedia3() }
+    assertFailsWith<Media3LoweringFailure> { composition.toMedia3(Media3FrameBounds.None) }
   }
 
   // Neither a cached copy of a byte buffer nor a content:// reference is guaranteed to carry a file
@@ -143,7 +159,7 @@ class Media3ImageItemTest {
   fun `only the photo in a run of clips is marked a still`() {
     val composition = composition(videoClip(), clip(span = 3.seconds), videoClip(), content = TrackContent.Video)
 
-    val spans = composition.toMedia3Preview().spans
+    val spans = composition.toMedia3Preview(Media3FrameBounds.None).spans
 
     spans.map { it.still } shouldBe listOf(false, true, false)
   }
@@ -152,7 +168,7 @@ class Media3ImageItemTest {
   fun `a still span covers the length the plan resolved for it`() {
     val composition = composition(videoClip(), clip(span = 3.seconds), videoClip(), content = TrackContent.Video)
 
-    val photo = composition.toMedia3Preview().spans[1]
+    val photo = composition.toMedia3Preview(Media3FrameBounds.None).spans[1]
 
     photo.start shouldBe 1.seconds
     photo.end shouldBe 4.seconds
@@ -160,7 +176,7 @@ class Media3ImageItemTest {
   }
 
   private fun ResolvedComposition.firstItem(): EditedMediaItem =
-    toMedia3()
+    toMedia3(Media3FrameBounds.None)
       .sequences
       .first()
       .editedMediaItems
@@ -227,7 +243,7 @@ class Media3ImageItemTest {
   /**
    * A one second video clip, for the runs a still has to be told apart from.
    */
-  private fun videoClip(): ResolvedClip =
+  private fun videoClip(at: Duration = Duration.ZERO): ResolvedClip =
     ResolvedClip(
       source = MediaSource.of("clip.mp4"),
       info =
@@ -254,7 +270,12 @@ class Media3ImageItemTest {
       effects = emptyList(),
       gain = ResolvedGain.constant(1f, Duration.ZERO, 1.seconds),
       startsAtKeyFrame = false,
-      span = TimeRange.of(Duration.ZERO, 1.seconds),
+      span = TimeRange.of(at, at + 1.seconds),
       sourceIndex = 0,
     )
+
+  private companion object {
+    // A rate whose one slot is shorter than a millisecond.
+    const val SUB_MILLISECOND_RATE = 3_000
+  }
 }

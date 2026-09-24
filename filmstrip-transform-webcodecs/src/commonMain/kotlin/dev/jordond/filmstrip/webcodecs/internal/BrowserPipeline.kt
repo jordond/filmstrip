@@ -89,7 +89,7 @@ internal class BrowserPipeline(
     for (slot in 0 until render.leadFrames) {
       currentCoroutineContext().ensureActive()
 
-      val outputUs = slot * render.stepUs
+      val outputUs = render.slotUs(slot)
       compositor.drawFill(outputUs)
       encodeFrame(compositor, encoder, outputUs, render.stepUs)
       onProgress(slot + 1, outputUs)
@@ -101,6 +101,8 @@ internal class BrowserPipeline(
    * Walks one clip's output slots, which is where the requested frame rate is honoured: a slot is
    * filled with whichever decoded frame sits closest to it, so a source at another rate is
    * duplicated or dropped into place rather than passed through at its own rate.
+   *
+   * A clip that covers no slot is passed over without opening its source.
    */
   private suspend fun encodeClip(
     clip: RenderedClip,
@@ -109,6 +111,7 @@ internal class BrowserPipeline(
     encodedSoFar: Long,
     onProgress: suspend (Long, Double) -> Unit,
   ): Long {
+    if (clip.frames == 0L) return encodedSoFar
     val stream =
       sources
         .open(clip.source)
@@ -132,7 +135,7 @@ internal class BrowserPipeline(
         }
 
         val chosen = nearest(current, ahead, sourceUs) ?: break
-        val outputUs = clip.offsetUs + slot * render.stepUs
+        val outputUs = render.slotUs(clip.firstSlot + slot)
         compositor.draw(chosen, outputUs)
 
         encodeFrame(compositor, encoder, outputUs, render.stepUs)

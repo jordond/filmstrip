@@ -23,6 +23,8 @@ import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
@@ -36,6 +38,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -144,6 +147,29 @@ class AndroidImageExportTest {
       val withStill = capablePlan(composition(Clip(source), Clip(stillSource(PHOTO))), ExportSpec())
 
       withStill.path shouldBe ExportPath.Transcode
+    }
+
+  /**
+   * A still whose slots are no whole number of milliseconds, followed by a clip.
+   *
+   * media3 counts a still's own field in whole milliseconds, and 31 slots at 30 fps are a third of one short of the
+   * next. The still is laid out by its exact length, so the clip after it opens on its own first slot and every sample
+   * of both sits on a slot.
+   */
+  @Test
+  fun theClipAfterAStillOpensOnItsOwnFirstSlot() =
+    runTest(timeout = TIMEOUT) {
+      val source = fixture(CLIP_A) ?: return@runTest
+      val held = outputSlotTime(STILL_SLOTS, FRAME_RATE)
+      val edit = composition(Clip(stillSource(held)), Clip(source, trim = TimeRange.of(Duration.ZERO, 1.seconds)))
+
+      val written = exported(capablePlan(edit, ExportSpec(frameRate = FRAME_RATE)))
+
+      val times = videoSampleTimes(written.file)
+      assertEquals(outputSlotOf(held + 1.seconds, FRAME_RATE), times.size.toLong(), "one sample for each slot: $times")
+      times.forEachIndexed { slot, time ->
+        assertEquals(outputSlotTime(slot.toLong(), FRAME_RATE), time, "sample $slot is off its slot: $times")
+      }
     }
 
   /**
@@ -303,6 +329,9 @@ class AndroidImageExportTest {
     // the file that comes out.
     val DISAGREEING = 500.milliseconds
     const val FRAME_RATE = 30
+
+    // A still's length in slots at FRAME_RATE that is no whole number of milliseconds.
+    const val STILL_SLOTS = 31L
 
     // Far enough inside a span that the frame either side of a boundary is not what gets sampled.
     val EDGE = 200.milliseconds

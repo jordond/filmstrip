@@ -23,6 +23,9 @@ import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
+import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.FormatHint
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
@@ -56,6 +59,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -464,6 +468,214 @@ class AndroidExportTest {
 
       assertRunsFor(assertNotNull(probeOf(file)), written, tones, plan)
     }
+
+  /**
+   * Two clips meeting between two slots, read off the samples the file carries.
+   *
+   * A seam 10ms past a slot rounds back onto it and one 20ms past rounds on to the next, so between them they cover
+   * both ways a boundary lands. Every sample sits on a slot, the file holds one sample for each, and the second clip
+   * first shows on the slot its span opens on.
+   */
+  @Test
+  fun twoClipsMeetOnTheSlotTheirSeamLandsOn() =
+    runTest(timeout = TIMEOUT) {
+      val first = fixture(CLIP_A) ?: return@runTest
+      val second = fixture(CLIP_B) ?: return@runTest
+
+      SEAMS.forEach { seam ->
+        val edit =
+          EditComposition(
+            listOf(
+              Track(
+                listOf(
+                  Clip(first, trim = TimeRange.of(Duration.ZERO, seam)),
+                  Clip(second, trim = TimeRange.of(Duration.ZERO, 1.seconds)),
+                ),
+              ),
+            ),
+          )
+
+        assertLaidOnTheGrid(edit, ExportSpec(targetHeight = 240, frameRate = GRID_RATE))
+      }
+    }
+
+  /**
+   * A clip cut part way into a source frame, which media3 opens on the frame after the cut.
+   *
+   * The clip decodes a partial frame short of the slots it covers, so its last frame is held for the difference and the
+   * next clip still opens on its own slot rather than that much early.
+   */
+  @Test
+  fun aClipCutInsideAFrameHoldsItsLastFrameSoTheNextOneOpensOnItsSlot() =
+    runTest(timeout = TIMEOUT) {
+      val first = fixture(CLIP_A) ?: return@runTest
+      val second = fixture(CLIP_B) ?: return@runTest
+      val edit =
+        EditComposition(
+          listOf(
+            Track(
+              listOf(
+                Clip(first, trim = TimeRange.of(INSIDE_A_FRAME, INSIDE_A_FRAME + 1.seconds)),
+                Clip(second, trim = TimeRange.of(Duration.ZERO, 1.seconds)),
+              ),
+            ),
+          ),
+        )
+
+      assertLaidOnTheGrid(edit, ExportSpec(targetHeight = 240, frameRate = GRID_RATE))
+    }
+
+  /**
+   * A looping clip whose source ends part way into its last frame, so a pass covers slots past the end of what it
+   * decodes.
+   *
+   * The source is cut from a fixture so its last frame sits in the last slot a pass covers and ends before that slot
+   * does. The frame is held to fill the slot, the next pass opens on the slot after, and the file carries one sample
+   * for every slot. The middle pass is the one read, since it is where a pass that ran short would have moved
+   * everything after it.
+   */
+  @Test
+  fun aLoopingClipWhoseSourceEndsInsideItsLastFrameHoldsThatFrameIntoItsLastSlot() =
+    runTest(timeout = TIMEOUT) {
+      val fixture = fixtureFile(CLIP_A) ?: return@runTest
+      val underlay = fixture(CLIP_LONG) ?: return@runTest
+      val short = File(context.cacheDir, SHORT_CLIP)
+      val lastFrame = writePictureEndingInsideItsLastFrame(fixture, short, SHORT_LAST_FRAME_LASTS)
+      val length = assertNotNull(probeOf(short)).duration
+      assertEquals(lastFrame + SHORT_LAST_FRAME_LASTS, length, "the copy does not end where its last frame was cut")
+
+      val spec = ExportSpec(targetHeight = 240, frameRate = GRID_RATE)
+      val edit =
+        EditComposition(
+          listOf(
+            Track(clips = listOf(Clip(MediaSource.of(short.path))), looping = true),
+            Track(
+              clips = listOf(Clip(underlay, trim = TimeRange.of(Duration.ZERO, length * 3))),
+              content = TrackContent.Audio,
+            ),
+          ),
+        )
+      val laid = lowered(edit, spec).tracks[0].clips
+      val heldSlots = outputSlotsOf(laid[0].span, GRID_RATE)
+      assertTrue(
+        outputSlotTime(heldSlots.last + 1, GRID_RATE) > length && outputSlotOf(lastFrame, GRID_RATE) == heldSlots.last,
+        "the first pass covers slots $heldSlots, which have to reach past its $length and end on its last frame",
+      )
+
+      val file = exportedFile(capablePlan(edit, spec))
+
+      assertOneSampleOnEverySlot(
+        videoSampleTimes(file),
+        outputSlotOf(laid.last().span.endExclusive!!, GRID_RATE),
+        GRID_RATE,
+      )
+      val opens = outputSlotsOf(laid[1].span, GRID_RATE).first
+      val held = frameOf(file, outputSlotTime(opens - 1, GRID_RATE)).band()
+      assertTrue(
+        spread(held, frameOf(short, lastFrame).band()) < spread(held, frameOf(short, lastFrame - FIXTURE_FRAME).band()),
+        "the slot before the second pass does not hold the source's last frame",
+      )
+      val secondOpening = frameOf(file, outputSlotTime(opens, GRID_RATE)).band()
+      assertTrue(
+        spread(secondOpening, frameOf(file, Duration.ZERO).band()) < spread(secondOpening, held),
+        "the second pass does not open with the source's first frame on its own slot",
+      )
+    }
+
+  /**
+   * The looping primary of [loopsAVideoPrimaryUnderALongerAudioTrack] at a rate its passes do not divide.
+   *
+   * A pass is 37.5 slots at 25 fps, so the passes open on alternately rounded slots, each on the one its span's start
+   * lands on. The audio-only track under it is exact, so its tone still reads at the exact instants the plan puts each
+   * pass's sound at.
+   */
+  @Test
+  fun aLoopingPrimaryOpensEveryPassOnTheSlotItsStartLandsOn() =
+    runTest(timeout = TIMEOUT) {
+      val bedFile = fixtureFile(CLIP_BED) ?: return@runTest
+      val toneFile = fixtureFile(CLIP_LONG) ?: return@runTest
+      val spec = ExportSpec(targetHeight = 240, frameRate = OFF_GRID_RATE)
+      val edit =
+        EditComposition(
+          listOf(
+            Track(
+              clips = listOf(Clip(MediaSource.of(bedFile.path), trim = LoopingCases.VIDEO_TRIM)),
+              looping = true,
+            ),
+            Track(
+              clips =
+                listOf(
+                  Clip(MediaSource.of(toneFile.path), trim = TimeRange.of(Duration.ZERO, LoopingCases.UNDERLAY_RUN)),
+                ),
+              content = TrackContent.Audio,
+            ),
+          ),
+        )
+
+      val lowered = lowered(edit, spec)
+      val laid = lowered.tracks[0].clips
+      val underlay = lowered.tracks[1].clips.single()
+      val tones = sourceTones(toneFile, bedFile)
+
+      val file = exportedFile(capablePlan(edit, spec))
+
+      val times = videoSampleTimes(file)
+      laid.drop(1).forEach { pass ->
+        val opens = outputSlotTime(outputSlotOf(pass.span.start, OFF_GRID_RATE), OFF_GRID_RATE)
+        assertTrue(opens in times, "the pass laid at ${pass.span.start} does not open on its slot at $opens")
+      }
+      val written = decodeAudio(file)
+      LoopingCases.VIDEO_READINGS.forEach { written.readBed(laid, it, tones, underlay) }
+    }
+
+  /**
+   * Asserts [times] holds exactly one sample on each of the first [slots] slots at [rate].
+   */
+  private fun assertOneSampleOnEverySlot(
+    times: List<Duration>,
+    slots: Long,
+    rate: Int,
+  ) {
+    assertEquals(slots, times.size.toLong(), "the file carries ${times.size} samples for $slots slots: $times")
+    times.forEachIndexed { slot, time ->
+      assertEquals(outputSlotTime(slot.toLong(), rate), time, "sample $slot is off its slot: $times")
+    }
+  }
+
+  /**
+   * Exports [edit] and reads its one track's seams off the file.
+   *
+   * Every sample sits on a slot and the file holds one for each slot the track covers. At each seam the slot before
+   * shows the clip before and the slot it opens on shows the clip after, told apart by which of the two clips' middles
+   * the frame reads closer to.
+   */
+  private suspend fun assertLaidOnTheGrid(
+    edit: EditComposition,
+    spec: ExportSpec,
+  ) {
+    val rate = assertNotNull(spec.frameRate)
+    val laid = lowered(edit, spec).tracks.single().clips
+    val file = exportedFile(capablePlan(edit, spec))
+
+    val times = videoSampleTimes(file)
+    assertOneSampleOnEverySlot(times, outputSlotOf(laid.last().span.endExclusive!!, rate), rate)
+
+    laid.zipWithNext().forEach { (before, after) ->
+      val opens = outputSlotsOf(after.span, rate).first
+      val middleBefore = frameOf(file, before.span.start + before.duration / 2).grid()
+      val middleAfter = frameOf(file, after.span.start + after.duration / 2).grid()
+      val last = frameOf(file, outputSlotTime(opens - 1, rate)).grid()
+      val first = frameOf(file, outputSlotTime(opens, rate)).grid()
+      assertTrue(
+        spread(last, middleBefore) < spread(last, middleAfter),
+        "slot ${opens - 1} does not show the clip before the seam",
+      )
+      assertTrue(
+        spread(first, middleAfter) < spread(first, middleBefore),
+        "slot $opens does not show the clip after the seam",
+      )
+    }
+  }
 
   // The top of the encoder's range, which nothing else here reaches. A phone that cannot do 2160
   // has to say so through the plan, never by writing something smaller in silence.
@@ -939,6 +1151,26 @@ class AndroidExportTest {
 
   private companion object {
     val TIMEOUT = 5.minutes
+
+    // The fixtures' own rate, so every frame of a clip can land on a slot of its own.
+    const val GRID_RATE = 30
+
+    // A rate that a pass of LoopingCases.VIDEO_TRIM is not a whole number of slots at.
+    const val OFF_GRID_RATE = 25
+
+    // A seam just past a slot and one just short of the next, which round opposite ways.
+    val SEAMS = listOf(1_010.milliseconds, 1_020.milliseconds)
+
+    // Half way between the fixture's first two frames.
+    val INSIDE_A_FRAME = 16_667.microseconds
+
+    // One frame of a GRID_RATE fixture.
+    val FIXTURE_FRAME = 1.seconds / GRID_RATE
+
+    // A copy of CLIP_A that ends on its second sync sample, which lasts less than a frame. Past half a
+    // slot, so the slot it sits in is the last one a pass covers, and short of the slot's end.
+    const val SHORT_CLIP = "android_export_short.mp4"
+    val SHORT_LAST_FRAME_LASTS = 23.milliseconds + 334.microseconds
 
     const val CLIP_A = "android_export_a.mp4"
     const val CLIP_B = "android_export_b.mp4"

@@ -49,7 +49,6 @@ import java.util.concurrent.CountDownLatch
 import kotlin.concurrent.Volatile
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * The media3 preview engine.
@@ -405,8 +404,7 @@ internal class Media3PlayerEngine(
     // From the seek already in flight where there is one, so a burst of steps advances by a frame
     // each rather than all landing on the frame the mirror last reported.
     val from = seekTarget ?: readPosition()
-    val landing = from + (1.seconds / rate) * frames
-    if (landing < Duration.ZERO || landing > current.resolved.duration) return
+    val landing = frameStepLanding(from, frames, rate, current.resolved.duration) ?: return
     seekTo(landing, SeekAccuracy.Exact)
   }
 
@@ -446,7 +444,7 @@ internal class Media3PlayerEngine(
     next: Media3PreviewPlan,
     request: SetCompositionRequest,
   ): PlaybackError? {
-    when (loadCostFor(change, preview != null) { preview?.updateParameters(next.resolved) == true }) {
+    when (loadCostFor(change, preview != null) { preview?.updateParameters(next.resolved, next.bounds) == true }) {
       LoadCost.Parameters -> {
         // The replayable cache is what lets a paused frame take the new parameters. A playing one
         // takes them on the next frame the graph draws either way.
@@ -482,7 +480,7 @@ internal class Media3PlayerEngine(
   ): PlaybackError? {
     val lowered =
       try {
-        next.resolved.toMedia3Preview()
+        next.resolved.toMedia3Preview(next.bounds)
       } catch (refused: Media3LoweringFailure) {
         return PlaybackError.UnsupportedFormat(refused.reason)
       }

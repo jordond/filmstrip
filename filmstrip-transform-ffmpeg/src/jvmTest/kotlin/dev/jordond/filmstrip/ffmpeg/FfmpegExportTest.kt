@@ -59,6 +59,9 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
+import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
@@ -84,8 +87,10 @@ import dev.jordond.filmstrip.transform.internal.copyOpenings
 import dev.jordond.filmstrip.transform.internal.curveOver
 import dev.jordond.filmstrip.transform.internal.passesCovering
 import dev.jordond.filmstrip.transform.internal.runLengthOf
+import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
@@ -103,6 +108,7 @@ import java.nio.ByteOrder
 import javax.imageio.ImageIO
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 import kotlin.math.sqrt
 import kotlin.test.Test
 import kotlin.test.assertIs
@@ -110,6 +116,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
@@ -2173,6 +2180,402 @@ class FfmpegExportTest {
       error.foundVersion shouldBe null
     }
 
+  /**
+   * A clip trimmed off the frame grid, handed to the next one on it.
+   *
+   * 1.010 s is 30.3 slots at 30 fps and rounds down, and 1.020 s is 30.6 and rounds up, so the seam moves to either
+   * side of where the trim put it. The first clip holds every slot up to the seam and the second opens on it with its
+   * own first frame.
+   */
+  @Test
+  fun `hands a clip trimmed off the frame grid to the next one on it`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val first = indexedClip(SEAM_RATE, 2.seconds, blue = FIRST_BLUE)
+      val second = indexedClip(SEAM_RATE, 2.seconds, blue = SECOND_BLUE)
+
+      listOf(1_010.milliseconds, 1_020.milliseconds).forEach { length ->
+        val composition =
+          compositionOf {
+            clip(MediaSource.of(first.absolutePath)) { trim(TimeRange.of(Duration.ZERO, length)) }
+            clip(MediaSource.of(second.absolutePath)) { trim(TimeRange.of(Duration.ZERO, 1.seconds)) }
+          }
+        val output = File.createTempFile("filmstrip-grid-seam", ".mp4").also { it.delete() }
+        exported(plannedRun(composition, ExportSpec(frameRate = SEAM_RATE)), output)
+
+        val frames = writtenFrames(output.absolutePath)
+        assertOnTheGrid(frames, outputSlotOf(length + 1.seconds, SEAM_RATE), SEAM_RATE, "a first clip of $length")
+        val seam = outputSlotOf(length, SEAM_RATE).toInt()
+        frames[seam - 1].shown shouldBe Shown(FIRST_BLUE, seam - 1)
+        frames[seam].shown shouldBe Shown(SECOND_BLUE, 0)
+
+        output.delete()
+      }
+
+      first.delete()
+      second.delete()
+    }
+
+  /**
+   * Three clips of 1.010 s meet at 1.010 s and 2.020 s, which land on slots 25 and 51 at 25 fps, so the middle clip
+   * covers 26 slots and the other two 25. Rounding each clip's own length instead gives 25 three times and leaves
+   * the file a frame short of the timeline.
+   */
+  @Test
+  fun `lays back to back clips off the frame grid without drifting`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val blues = listOf(FIRST_BLUE, SECOND_BLUE, THIRD_BLUE)
+      val sources = blues.map { indexedClip(GRID_RATE, 2.seconds, blue = it) }
+      val composition =
+        compositionOf {
+          sources.forEach { clip(MediaSource.of(it.absolutePath)) { trim(TimeRange.of(Duration.ZERO, OFF_GRID_TRIM)) } }
+        }
+      val spec = ExportSpec(frameRate = GRID_RATE)
+      val laid = plannedTracks(composition, spec, sources.map { MediaSource.of(it.absolutePath) }).single().clips
+
+      val output = File.createTempFile("filmstrip-grid-three", ".mp4").also { it.delete() }
+      exported(plannedRun(composition, spec), output)
+
+      val frames = writtenFrames(output.absolutePath)
+      assertOnTheGrid(frames, outputSlotOf(OFF_GRID_TRIM * 3, GRID_RATE), GRID_RATE, "three clips of $OFF_GRID_TRIM")
+      laid.forEachIndexed { index, clip ->
+        val opens = outputSlotOf(clip.span.start, GRID_RATE).toInt()
+        frames[opens].shown shouldBe Shown(blues[index], 0)
+        if (index > 0) frames[opens - 1].shown?.blue shouldBe blues[index - 1]
+      }
+
+      output.delete()
+      sources.forEach { it.delete() }
+    }
+
+  /**
+   * A looping primary whose 1.7 s pass is 42.5 slots at 25 fps, laid until an audio track 7.3 s long ends.
+   *
+   * Every pass opens on the slot its own start lands on, which moves between 42 and 43 slots a pass, and the last one
+   * is cut to what is left of the run. A pass cut to its own rounded length instead drifts a slot every other pass.
+   */
+  @Test
+  fun `opens every looping pass on the slot its start lands on`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val picture = indexedClip(GRID_RATE, 2.seconds, blue = FIRST_BLUE)
+      val pictureSource = MediaSource.of(picture.absolutePath)
+      val toneSource = MediaSource.of(long.absolutePath)
+      val composition =
+        compositionOf {
+          track {
+            clip(pictureSource) { trim(LoopingCases.BED_TRIM) }
+            looping()
+          }
+          track(TrackContent.Audio) {
+            clip(toneSource) { trim(TimeRange.of(Duration.ZERO, LoopingCases.PRIMARY_RUN)) }
+          }
+        }
+      val spec = ExportSpec(frameRate = GRID_RATE)
+      val laid = plannedTracks(composition, spec, listOf(pictureSource, toneSource)).first().clips
+      assertTrue(laid.size > 3, "the run laid ${laid.size} passes, too few for a pass to drift")
+
+      val output = File.createTempFile("filmstrip-grid-loop", ".mp4").also { it.delete() }
+      exported(plannedRun(composition, spec), output)
+
+      val frames = writtenFrames(output.absolutePath)
+      assertOnTheGrid(frames, outputSlotOf(LoopingCases.PRIMARY_RUN, GRID_RATE), GRID_RATE, "a looping primary")
+      // The picture is written at the output's own rate, so the frame the trim opens on is the slot its start lands on.
+      val trimOpens = outputSlotOf(LoopingCases.BED_TRIM.start, GRID_RATE).toInt()
+      laid.forEachIndexed { pass, clip ->
+        val opens = outputSlotOf(clip.span.start, GRID_RATE).toInt()
+        withClue("pass ${pass + 1} opening on slot $opens") {
+          frames[opens].shown shouldBe Shown(FIRST_BLUE, trimOpens)
+          if (pass > 0) frames[opens - 1].shown?.index shouldBe trimOpens + (opens - 1 - previousOpening(laid, pass))
+        }
+      }
+
+      output.delete()
+      picture.delete()
+    }
+
+  /**
+   * A primary that starts half a slot in, which rounds up onto the first slot, so the fill holds slot zero and the
+   * clip opens on the slot after it.
+   */
+  @Test
+  fun `opens a primary that starts half a slot in on the slot after it`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val picture = indexedClip(GRID_RATE, 2.seconds, blue = FIRST_BLUE)
+      val composition =
+        compositionOf {
+          track {
+            clip(MediaSource.of(picture.absolutePath))
+            startAt(HALF_SLOT_START)
+          }
+        }
+
+      val output = File.createTempFile("filmstrip-grid-lead", ".mp4").also { it.delete() }
+      exported(plannedRun(composition, ExportSpec(frameRate = GRID_RATE)), output)
+
+      val frames = writtenFrames(output.absolutePath)
+      assertOnTheGrid(frames, outputSlotOf(HALF_SLOT_START + 2.seconds, GRID_RATE), GRID_RATE, "a half slot start")
+      val opens = outputSlotOf(HALF_SLOT_START, GRID_RATE).toInt()
+      (0 until opens).forEach { slot -> frames[slot].shown shouldBe null }
+      frames[opens].shown shouldBe Shown(FIRST_BLUE, 0)
+
+      output.delete()
+      picture.delete()
+    }
+
+  /**
+   * A clip of 10 ms between two others reaches no point half way between two slots at 25 fps, so it covers none and
+   * lays no picture. Its sound is exact, so the tone only it carries still plays across its own 10 ms.
+   */
+  @Test
+  fun `lays no picture for a clip that covers no slot and keeps its sound`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val before = indexedClip(GRID_RATE, 2.seconds, blue = FIRST_BLUE)
+      val between = indexedClip(GRID_RATE, 2.seconds, blue = SECOND_BLUE, sound = 2.seconds)
+      val after = indexedClip(GRID_RATE, 2.seconds, blue = THIRD_BLUE)
+      val composition =
+        compositionOf {
+          clip(MediaSource.of(before.absolutePath)) { trim(TimeRange.of(Duration.ZERO, 1.seconds)) }
+          clip(MediaSource.of(between.absolutePath)) { trim(TimeRange.of(Duration.ZERO, UNDER_HALF_SLOT)) }
+          clip(MediaSource.of(after.absolutePath)) { trim(TimeRange.of(Duration.ZERO, 1.seconds)) }
+        }
+      val spec = ExportSpec(frameRate = GRID_RATE)
+      val sources = listOf(before, between, after).map { MediaSource.of(it.absolutePath) }
+      val laid = plannedTracks(composition, spec, sources).single().clips
+      assertTrue(outputSlotsOf(laid[1].span, GRID_RATE).isEmpty(), "the middle clip covers a slot")
+
+      val output = File.createTempFile("filmstrip-grid-zero", ".mp4").also { it.delete() }
+      exported(plannedRun(composition, spec), output)
+
+      val frames = writtenFrames(output.absolutePath)
+      val end = assertNotNull(laid.last().span.endExclusive)
+      assertOnTheGrid(frames, outputSlotOf(end, GRID_RATE), GRID_RATE, "a clip covering no slot")
+      frames.forEach { frame -> frame.shown?.blue shouldNotBe SECOND_BLUE }
+      frames[outputSlotOf(laid[2].span.start, GRID_RATE).toInt()].shown shouldBe Shown(THIRD_BLUE, 0)
+
+      // Read against the same tone in the clip it came from, so how loud it was written divides out.
+      val tone = decodedAudio(between.absolutePath).levelAt(1.seconds)
+      val samples = decodedAudio(output.absolutePath)
+      val inside = laid[1].span.start + UNDER_HALF_SLOT / 2
+      assertTrue(samples.levelAt(inside) >= tone * CLIPPED_TONE_FLOOR, "the clip's own tone is missing at $inside")
+      assertTrue(samples.levelAt(QUIET_READING) <= tone * SILENCE_CEILING, "the silent clip carried sound")
+
+      output.delete()
+      listOf(before, between, after).forEach { it.delete() }
+    }
+
+  /**
+   * A clip whose picture ends 30 ms before its sound does, handed to a second clip.
+   *
+   * At 25 fps the first clip's span covers 26 slots and its picture only 25 frames, so the last of those slots holds
+   * the picture's last frame rather than running a frame short, and the second clip still opens on its own slot.
+   */
+  @Test
+  fun `holds the last frame of a picture that ends before its clip does`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val short = indexedClip(GRID_RATE, SHORT_PICTURE, blue = FIRST_BLUE, sound = SHORT_PICTURE + SOUND_OVERHANG)
+      val next = indexedClip(GRID_RATE, 2.seconds, blue = SECOND_BLUE)
+      val sources = listOf(short, next).map { MediaSource.of(it.absolutePath) }
+      val composition =
+        compositionOf {
+          clip(sources[0])
+          clip(sources[1]) { trim(TimeRange.of(Duration.ZERO, 1.seconds)) }
+        }
+      val spec = ExportSpec(frameRate = GRID_RATE)
+      val laid = plannedTracks(composition, spec, sources).single().clips
+      val held = outputSlotsOf(laid[0].span, GRID_RATE)
+      // The picture is written at the output's own rate, so its frames are the slots its length covers from zero.
+      val pictureFrames = outputSlotOf(SHORT_PICTURE, GRID_RATE)
+      assertTrue(held.count() > pictureFrames, "the clip covers ${held.count()} slots, which its frames fill")
+
+      val output = File.createTempFile("filmstrip-grid-held", ".mp4").also { it.delete() }
+      exported(plannedRun(composition, spec), output)
+
+      val frames = writtenFrames(output.absolutePath)
+      val end = assertNotNull(laid.last().span.endExclusive)
+      assertOnTheGrid(frames, outputSlotOf(end, GRID_RATE), GRID_RATE, "a picture shorter than its clip")
+      (pictureFrames - 1..held.last).forEach { slot ->
+        frames[slot.toInt()].shown shouldBe Shown(FIRST_BLUE, pictureFrames.toInt() - 1)
+      }
+      frames[held.last.toInt() + 1].shown shouldBe Shown(SECOND_BLUE, 0)
+
+      output.delete()
+      short.delete()
+      next.delete()
+    }
+
+  // The first slot of the pass before [pass], which the frame ahead of this pass's first slot is counted from.
+  private fun previousOpening(
+    laid: List<ResolvedClip>,
+    pass: Int,
+  ): Int = outputSlotOf(laid[pass - 1].span.start, GRID_RATE).toInt()
+
+  /**
+   * Asserts [frames] holds [slots] frames, each presented on its own slot of the grid at [frameRate].
+   *
+   * ffprobe prints a time to six decimals, so a slot whose time is not a whole number of microseconds reads a
+   * microsecond either side of the floored one.
+   */
+  private fun assertOnTheGrid(
+    frames: List<WrittenFrame>,
+    slots: Long,
+    frameRate: Int,
+    what: String,
+  ) {
+    withClue(what) {
+      frames.size shouldBe slots.toInt()
+      frames.forEachIndexed { slot, frame ->
+        val onSlot = outputSlotTime(slot.toLong(), frameRate)
+        assertTrue(
+          (frame.time - onSlot).absoluteValue <= 1.microseconds,
+          "frame $slot is presented at ${frame.time}, where its slot sits at $onSlot",
+        )
+      }
+    }
+  }
+
+  /**
+   * Writes a clip of flat frames at [frameRate] for [length], with a tone under it for [sound] or no sound at all.
+   *
+   * Each frame's colour names it: [blue] says which clip it came from, and red and green count its own index in tens
+   * and units, so a frame read back out of an export says which source frame it is without a pixel comparison.
+   */
+  private fun indexedClip(
+    frameRate: Int,
+    length: Duration,
+    blue: Int,
+    sound: Duration? = null,
+  ): File {
+    val target = File.createTempFile("filmstrip-grid-source", ".mp4")
+    val seconds = length.toDouble(DurationUnit.SECONDS)
+    val picture =
+      "color=c=black:s=${INDEXED_SIZE.width}x${INDEXED_SIZE.height}:r=$frameRate:d=$seconds,format=gbrp," +
+        "geq=r='$INDEX_FLOOR+mod(N\\,10)*$INDEX_STEP':g='$INDEX_FLOOR+trunc(N/10)*$INDEX_STEP':b=$blue"
+    val command =
+      buildList {
+        addAll(listOf("ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", picture))
+        sound?.let {
+          val tone = "sine=frequency=$PRIMARY_HZ:sample_rate=$AUDIO_SAMPLE_RATE:duration=${it.toDouble(
+            DurationUnit.SECONDS,
+          )}"
+          addAll(listOf("-f", "lavfi", "-i", tone, "-c:a", "aac"))
+        }
+        addAll(listOf("-c:v", "libx264", "-pix_fmt", "yuv420p", target.absolutePath))
+      }
+    val process = ProcessBuilder(command).redirectErrorStream(true).start()
+    val log = process.inputStream.readAllBytes().decodeToString()
+    assertTrue(process.waitFor() == 0, "ffmpeg could not write the indexed clip: $log")
+    return target
+  }
+
+  /**
+   * Every frame of [path] in presentation order, each averaged down to one colour, with the time it is presented at.
+   *
+   * Decoded and probed by ffmpeg itself rather than by anything under test, and passed through as decoded so no frame
+   * is duplicated or dropped on the way out.
+   */
+  private fun writtenFrames(path: String): List<WrittenFrame> {
+    val probe =
+      ProcessBuilder(
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "frame=pts_time",
+        "-of",
+        "csv=p=0",
+        path,
+      ).start()
+    val times =
+      probe
+        .inputReader()
+        .readText()
+        .lineSequence()
+        .mapNotNull { line ->
+          line
+            .trim()
+            .trimEnd(',')
+            .toDoubleOrNull()
+            ?.let { (it * MICROS_PER_SECOND).roundToLong().microseconds }
+        }.toList()
+    probe.waitFor()
+
+    val decode =
+      ProcessBuilder(
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        path,
+        "-map",
+        "0:v:0",
+        "-fps_mode",
+        "passthrough",
+        "-vf",
+        "scale=1:1:flags=area",
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "rgb24",
+        "-",
+      ).redirectError(ProcessBuilder.Redirect.DISCARD).start()
+    val colours = decode.inputStream.readAllBytes()
+    decode.waitFor()
+
+    val count = colours.size / RGB_CHANNELS
+    assertTrue(count == times.size, "ffmpeg decoded $count frames of $path where ffprobe listed ${times.size}")
+    return times.mapIndexed { index, time ->
+      val base = index * RGB_CHANNELS
+      WrittenFrame(
+        time = time,
+        red = colours[base].toInt() and 0xFF,
+        green = colours[base + 1].toInt() and 0xFF,
+        blue = colours[base + 2].toInt() and 0xFF,
+      )
+    }
+  }
+
+  /**
+   * One written frame, averaged down to a single colour, and the time it is presented at.
+   */
+  private data class WrittenFrame(
+    val time: Duration,
+    val red: Int,
+    val green: Int,
+    val blue: Int,
+  ) {
+    // Which indexed clip wrote this frame and which of its frames it is, or null for a frame the fill wrote.
+    val shown: Shown?
+      get() {
+        if (blue < INDEX_FLOOR) return null
+        val units = ((red - INDEX_FLOOR).toFloat() / INDEX_STEP).roundToInt()
+        val tens = ((green - INDEX_FLOOR).toFloat() / INDEX_STEP).roundToInt()
+        val clip = CLIP_BLUES.minBy { abs(it - blue) }
+        return Shown(clip, tens * 10 + units)
+      }
+  }
+
+  /**
+   * An indexed clip's frame: the clip by its blue, and the frame's own index inside it.
+   */
+  private data class Shown(
+    val blue: Int,
+    val index: Int,
+  )
+
   private fun available(): Boolean = landscape.isFile && portrait.isFile
 
   /**
@@ -2725,6 +3128,39 @@ class FfmpegExportTest {
 
   private companion object {
     val TIMEOUT = kotlin.time.Duration.parse("2m")
+
+    // The rates the frame grid is measured at: the fixtures' own thirty, and twenty five, whose 40 ms slot puts a
+    // half slot on a whole millisecond.
+    const val SEAM_RATE = 30
+    const val GRID_RATE = 25
+
+    // A trim a quarter of a slot past a whole number of them at GRID_RATE, a clip that reaches no half way point,
+    // and a start exactly half a slot in.
+    val OFF_GRID_TRIM = 1_010.milliseconds
+    val UNDER_HALF_SLOT = 10.milliseconds
+    val HALF_SLOT_START = 20.milliseconds
+
+    // A picture of a whole second under a sound that runs 30 ms longer, so the clip ends three quarters of a slot
+    // past its last frame.
+    val SHORT_PICTURE = 1.seconds
+    val SOUND_OVERHANG = 30.milliseconds
+
+    // The indexed clips' colours. Blue names the clip, and red and green step by INDEX_STEP from INDEX_FLOOR, far
+    // enough apart that a re-encode moving a flat colour by a few values still reads the same index.
+    val CLIP_BLUES = listOf(60, 140, 220)
+    val FIRST_BLUE = CLIP_BLUES[0]
+    val SECOND_BLUE = CLIP_BLUES[1]
+    val THIRD_BLUE = CLIP_BLUES[2]
+    const val INDEX_FLOOR = 20
+    const val INDEX_STEP = 20
+    val INDEXED_SIZE = Size(320, 180)
+
+    // A 20 ms level window centred on a 10 ms clip holds its tone for half the window, which reads about 0.7 of the
+    // tone's own level. A quarter separates that from a clip whose sound never reached the file.
+    const val CLIPPED_TONE_FLOOR = 0.25f
+    const val SILENCE_CEILING = 0.05f
+
+    const val MICROS_PER_SECOND = 1_000_000.0
 
     // Long enough for a loaded runner to open the encoder, short of the runTest timeout.
     val ENCODE_DEADLINE = kotlin.time.Duration.parse("30s")

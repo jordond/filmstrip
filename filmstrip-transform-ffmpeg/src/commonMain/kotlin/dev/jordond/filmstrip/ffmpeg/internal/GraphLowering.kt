@@ -9,6 +9,8 @@ import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.transform.internal.GainSegment
 import dev.jordond.filmstrip.transform.internal.NegotiatedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
@@ -24,6 +26,8 @@ import kotlin.time.DurationUnit
  * One input per clip in declaration order, then one per overlay image, then one per silence filler.
  * Every clip is normalized to the output frame before it is joined, because `concat` demands
  * uniform inputs, and every audio branch is normalized to one sample format for the same reason.
+ * Each clip's picture is cut to the output slots its span covers, so every clip opens on the slot
+ * its own start lands on. Its sound is cut at its own exact times.
  *
  * @param hdrPixelFormat The format a kept grade is written in, from [hdrPixelFormatFor], or null
  *   for an output that carries none.
@@ -147,6 +151,14 @@ internal class GraphLowering(
 
     val videoLabel = if (negotiated.audio == AudioSpec.AudioOnly) null else buildVideo()
     val audioLabel = if (output.audioFormat == null) null else buildAudio()
+    val primaryEnd =
+      checkNotNull(
+        tracks
+          .first()
+          .clips
+          .last()
+          .span.endExclusive,
+      )
 
     return Invocation(
       inputs = inputs,
@@ -159,6 +171,7 @@ internal class GraphLowering(
       hdrTransfer = negotiated.hdrTransfer,
       toneMapped = negotiated.hdr == ResolvedHdr.ToneMap,
       seekBase = seekBase,
+      videoSlots = videoLabel?.let { outputSlotOf(primaryEnd, frameRate) },
       // Two clips carrying the same grade lower to the same file, and a placeholder names its
       // contents, so the one path serves both references.
       sidecars = sidecars.distinct(),
@@ -181,7 +194,9 @@ internal class GraphLowering(
     val sourceIndex = clips[index].sourceIndex
     val input = clipInput[trackIndex].getValue(sourceIndex)
     val pad = if (audio) "$input:a" else "$input:v"
-    val passes = clips.count { it.sourceIndex == sourceIndex }
+    // A pass that lays no picture reads no video branch, and a split outlet nothing reads is a graph
+    // ffmpeg refuses to run.
+    val passes = clips.count { it.sourceIndex == sourceIndex && (audio || slotsOf(it) > 0) }
     if (passes == 1) return pad
 
     return branches
@@ -194,8 +209,12 @@ internal class GraphLowering(
 
   private fun buildVideo(): String {
     val primary = tracks.first()
+    // A clip covering no output slot lays no picture at all. Its sound is exact, so it still plays.
     val segments =
-      primary.clips.mapIndexed { index, clip -> buildClip(clip, index, branchPad(0, index, audio = false)) }
+      primary.clips.mapIndexedNotNull { index, clip ->
+        slotsOf(clip).takeIf { it > 0 }?.let { slots -> buildClip(clip, index, branchPad(0, index, false), slots) }
+      }
+    check(segments.isNotEmpty()) { "The primary covers no output slot, which the planner refuses before it lowers." }
 
     var current =
       if (segments.size == 1) {
@@ -210,14 +229,17 @@ internal class GraphLowering(
         }
       }
 
-    if (primary.start > Duration.ZERO) {
+    // The gap ahead of a late track is the slots its start covers, so the first clip opens on the slot
+    // its start lands on.
+    val lead = outputSlotOf(primary.start, frameRate)
+    if (lead > 0) {
       val padded = "vlead"
       graph.chain(
         listOf(current),
         listOf(
           FilterNode(
             "tpad",
-            "start_duration" to formatSeconds(primary.start.seconds()),
+            "start" to lead.toString(),
             // A gap has no frame of its own to blur, so it falls back to the same pad colour
             // every other empty region uses: the fill's own, or transparent while that colour is
             // still waiting for composition effects to run.
@@ -329,6 +351,7 @@ internal class GraphLowering(
     clip: ResolvedClip,
     index: Int,
     branch: String,
+    slots: Long,
   ): String {
     var pad = branch
     var merged = 0
@@ -370,10 +393,10 @@ internal class GraphLowering(
 
     val fill = negotiated.fill
     if (negotiated.fit == Fit.Contain && fill is Fill.Blurred) {
-      return buildBlurredTail(pad, pending, fill, index)
+      return buildBlurredTail(pad, pending, fill, index, slots)
     }
 
-    pending += tailNodes(output.size, negotiated.fit, padColor, frameRate, tailPixelFormat)
+    pending += tailNodes(output.size, negotiated.fit, padColor, frameRate, tailPixelFormat, slots)
     return "v$index".also { graph.chain(listOf(pad), pending, it) }
   }
 
@@ -390,6 +413,7 @@ internal class GraphLowering(
     pending: List<FilterNode>,
     fill: Fill.Blurred,
     index: Int,
+    slots: Long,
   ): String {
     val pre = "v${index}pre"
     graph.chain(listOf(pad), pending, pre)
@@ -405,7 +429,7 @@ internal class GraphLowering(
     graph.chain(listOf(foreground), containNodes(output.size), sharp)
 
     return "v$index".also {
-      graph.chain(listOf(blurred, sharp), overlayNodes() + trailingNodes(frameRate, tailPixelFormat), it)
+      graph.chain(listOf(blurred, sharp), overlayNodes() + trailingNodes(frameRate, tailPixelFormat, slots), it)
     }
   }
 
@@ -599,6 +623,10 @@ internal class GraphLowering(
       )
     return "aout".also { graph.chain(listOf("$index:a"), listOf(ASETPTS, aformat(sampleRate, channels)), it) }
   }
+
+  // How many output slots a clip's span covers, which is how many frames its picture is cut to.
+  private fun slotsOf(clip: ResolvedClip): Long =
+    outputSlotsOf(clip.span, frameRate).let { if (it.isEmpty()) 0 else it.last - it.first + 1 }
 
   private fun trimTo(end: Duration): FilterNode = FilterNode("trim", "end" to formatSeconds(end.seconds()))
 

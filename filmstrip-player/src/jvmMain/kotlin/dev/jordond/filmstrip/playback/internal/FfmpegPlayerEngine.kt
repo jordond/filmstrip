@@ -7,6 +7,8 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.diff
 import dev.jordond.filmstrip.ffmpeg.PreviewStream
 import dev.jordond.filmstrip.ffmpeg.PreviewStreamResult
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
@@ -29,7 +31,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeMark
@@ -192,11 +193,13 @@ internal class FfmpegPlayerEngine(
   override fun stepFrames(frames: Int) {
     if (frames == 0) return
     val current = plan ?: return
-    val landing = position + current.frameStep * frames
-    if (landing < Duration.ZERO || landing > current.resolved.duration) return
+    // Counted in slots rather than in steps of time, since a slot's time is whole microseconds and a
+    // step back from the first frame after zero would otherwise land a fraction short of zero.
+    val target = outputSlotTime(outputSlotOf(position, current.frameRate) + frames, current.frameRate)
+    if (target < Duration.ZERO || target > current.resolved.duration) return
     // A step is a seek on this backend, and an expensive one: the process cannot move, so it is
     // replaced.
-    seekTo(landing, SeekAccuracy.Exact)
+    seekTo(target, SeekAccuracy.Exact)
   }
 
   /**
@@ -315,7 +318,7 @@ internal class FfmpegPlayerEngine(
       coroutineScope {
         // The reader runs ahead of the presenter by the look-ahead and then blocks on a full
         // channel, which fills the pipe, which stalls ffmpeg. Coarse flow control, and free.
-        val reader = launch { read(open, step, frames) }
+        val reader = launch { read(open, current.frameRate, frames) }
         present(token, from, step, frames)
         reader.cancel()
       }
@@ -329,15 +332,15 @@ internal class FfmpegPlayerEngine(
 
   private suspend fun read(
     stream: PreviewStream,
-    step: Duration,
+    frameRate: Int,
     frames: SendChannel<PreviewFrame>,
   ) {
-    var at = stream.startPosition
+    var slot = outputSlotOf(stream.startPosition, frameRate)
     try {
       while (true) {
         val pixels = stream.next() ?: break
-        frames.send(PreviewFrame(at, pixels))
-        at += step
+        frames.send(PreviewFrame(outputSlotTime(slot, frameRate), pixels))
+        slot++
       }
     } finally {
       frames.close()
@@ -458,16 +461,16 @@ internal class FfmpegPlayerEngine(
   }
 
   /**
-   * The frame grid position [at] belongs to, clamped inside the composition.
+   * The time of the output slot [at] lands on, clamped to the slots the composition covers.
    *
    * Every frame this backend presents sits on the grid the lowered frame rate defines, so a request
    * that lands between two frames resolves to the one a host is looking at.
    */
   private fun snap(at: Duration): Duration {
     val current = plan ?: return Duration.ZERO
-    val step = current.frameStep
-    val last = ((current.resolved.duration / step).toInt() - 1).coerceAtLeast(0)
-    return step * (at / step).roundToInt().coerceIn(0, last)
+    val rate = current.frameRate
+    val last = (outputSlotOf(current.resolved.duration, rate) - 1).coerceAtLeast(0)
+    return outputSlotTime(outputSlotOf(at, rate).coerceIn(0, last), rate)
   }
 
   private fun settleLanding() {

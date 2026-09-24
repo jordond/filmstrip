@@ -45,6 +45,7 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotOf
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -59,10 +60,13 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
+import kotlin.math.ceil
 import kotlin.test.Test
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
 
 private val TONE_MAPPING = setOf("overlay", "concat", "amix", "zscale")
@@ -202,7 +206,13 @@ class PlannerTest {
 
     val graph = planner().lower(composition, ExportSpec(), device(), infos).invocation!!.filterGraph
 
-    graph shouldContain """colorchannelmixer=aa=0:enable=not(gte(t\,1.0)*lt(t\,2.0)),setpts=expr=PTS-STARTPTS"""
+    val gate =
+      Regex("""colorchannelmixer=aa=0:enable=not\(gte\(t\\,([^)]+)\)\*lt\(t\\,([^)]+)\)\),setpts=expr=PTS-STARTPTS""")
+    val (open, shut) = assertNotNull(gate.find(graph), graph).destructured
+    // A bound is compared against a frame's own time on the branch, so the frames it lets through
+    // run from the first whose time reaches the one bound to the first whose time reaches the other.
+    ceil(open.toDouble() * 30).toLong() shouldBe outputSlotOf(1.seconds, 30)
+    ceil(shut.toDouble() * 30).toLong() shouldBe outputSlotOf(2.seconds, 30)
   }
 
   // A composition overlay merges onto the joined timeline, so its branch has to cover both clips

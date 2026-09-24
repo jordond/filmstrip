@@ -133,6 +133,7 @@ public class CoreImageChain internal constructor(
    * @throws IllegalArgumentException When [resolved] moves something a caller has already read off
    *   this chain or something the spans were laid out against, which needs the whole graph built
    *   again through [toAvComposition] instead.
+   * @throws AppleLoweringFailure When [resolved] names no frame rate to find its clips' slots at.
    */
   public fun updateParameters(resolved: ResolvedComposition) {
     val current = snapshot

@@ -23,6 +23,8 @@ import dev.jordond.filmstrip.ffmpeg.internal.formatSeconds
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.ImageSource
@@ -67,7 +69,7 @@ class GraphLoweringTest {
   fun `the same colour reaches the gap a late-starting track leaves`() {
     val graph = graphFor(fill = Fill.Solid(0xFFFF0000.toInt()), trackStart = 500.milliseconds)
 
-    graph shouldContain "tpad=start_duration=0.500000:color=0xff0000"
+    graph shouldContain "tpad=start=${outputSlotOf(500.milliseconds, 30)}:color=0xff0000"
   }
 
   // A gap has no frame of its own to blur, so it falls back to black rather than reaching for a
@@ -76,7 +78,7 @@ class GraphLoweringTest {
   fun `a blurred fill leaves the gap black`() {
     val graph = graphFor(fill = Fill.Blurred(), trackStart = 500.milliseconds)
 
-    graph shouldContain "tpad=start_duration=0.500000:color=0x000000"
+    graph shouldContain "tpad=start=${outputSlotOf(500.milliseconds, 30)}:color=0x000000"
   }
 
   @Test
@@ -204,7 +206,7 @@ class GraphLoweringTest {
     val graph =
       graphFor(fill = Fill.Blurred(), trackStart = 500.milliseconds, compositionEffects = listOf(compositionEffect()))
 
-    graph shouldContain "tpad=start_duration=0.500000:color=black@0"
+    graph shouldContain "tpad=start=${outputSlotOf(500.milliseconds, 30)}:color=black@0"
     graph shouldContain "format=pix_fmts=yuva420p"
     graph shouldContain "color=c=0x000000:s=1920x1080:r=30"
     graph shouldContain "overlay=shortest=1"
@@ -363,6 +365,157 @@ class GraphLoweringTest {
     val longest = formatSeconds(underlay.duration.toDouble(DurationUnit.SECONDS))
     graph shouldContain "anullsrc=r=48000:cl=stereo,atrim=end=$longest,"
     graph shouldContain "[alead][at0][ad1]amix=inputs=3:"
+  }
+
+  // A clip's frames are cut to the slots its span covers on the output grid, and its last frame is
+  // cloned ahead of the cut so a span that runs past the source still has a frame for every slot.
+  @Test
+  fun `cuts a clip to the slots its span covers and holds its last frame into them`() {
+    val laid = gridTrack(listOf(OFF_GRID_LENGTH))
+    val slots = outputSlotsOf(laid.clips.single().span, GRID_RATE).count()
+
+    val graph = gridInvocationFor(laid).filterGraph
+
+    graph shouldContain
+      "fps=fps=$GRID_RATE,tpad=stop_mode=clone:stop=2,trim=end_frame=$slots,setpts=expr=PTS-STARTPTS," +
+      "format=pix_fmts=yuv420p[v0]"
+  }
+
+  // Three clips of 1.010 s meet on either side of a half slot, so the middle one covers a slot more
+  // than the two either side of it. Rounding each clip's own length instead gives all three the same
+  // count and loses a slot by the end of the third.
+  @Test
+  fun `cuts back to back clips to the slots between their snapped boundaries`() {
+    val laid = gridTrack(List(3) { OFF_GRID_LENGTH })
+    val counts = laid.clips.map { outputSlotsOf(it.span, GRID_RATE).count() }
+    assertTrue(counts.distinct().size > 1, "every clip covers ${counts.first()} slots, so no seam moved")
+
+    val graph = gridInvocationFor(laid).filterGraph
+
+    counts.forEachIndexed { index, slots ->
+      graph shouldContain "trim=end_frame=$slots,setpts=expr=PTS-STARTPTS,format=pix_fmts=yuv420p[v$index]"
+    }
+    graph shouldContain "[v0][v1][v2]concat=n=3:v=1:a=0"
+  }
+
+  // A clip between two others that reaches no point half way between two slots covers none of them,
+  // so it lays no picture at all. Its sound is exact rather than snapped, so the audio still joins it.
+  @Test
+  fun `lays no picture for a clip that covers no slot and keeps its sound`() {
+    val laid = gridTrack(listOf(1.seconds, UNDER_HALF_SLOT, 1.seconds))
+    assertTrue(outputSlotsOf(laid.clips[1].span, GRID_RATE).isEmpty(), "the middle clip covers a slot")
+
+    val graph = gridInvocationFor(laid).filterGraph
+
+    graph shouldContain "[v0][v2]concat=n=2:v=1:a=0"
+    graph shouldNotContain "[1:v]"
+    graph shouldContain "[a0c0][a0c1][a0c2]concat=n=3:v=0:a=1"
+  }
+
+  // A looping pass the run cuts to under half a slot lays no picture, so the split its passes read
+  // their pictures from has one outlet fewer than the one they read their sound from. An outlet
+  // nothing reads is a graph ffmpeg refuses to run.
+  @Test
+  fun `splits a looping clip's picture only onto the passes that lay one`() {
+    val passes =
+      passesCovering(listOf(1.seconds), 2.seconds + UNDER_HALF_SLOT).map { pass ->
+        loopedClip(start = Duration.ZERO, length = pass.length, offset = pass.offset, sourceIndex = pass.index)
+      }
+    val laid = ResolvedTrack(TrackContent.AudioAndVideo, looping = true, start = Duration.ZERO, clips = passes)
+    val pictured = passes.count { !outputSlotsOf(it.span, GRID_RATE).isEmpty() }
+    assertTrue(pictured in 2..<passes.size, "$pictured of ${passes.size} passes lay a picture")
+
+    val graph = gridInvocationFor(laid).filterGraph
+
+    graph shouldContain "[0:v]split=$pictured["
+    graph shouldContain "[0:a]asplit=${passes.size}["
+    graph shouldContain "concat=n=$pictured:v=1:a=0"
+  }
+
+  // The gap ahead of a late track is the slots its start covers, the count the browser encodes and
+  // Apple inserts, rather than a duration ffmpeg rounds for itself. Half a slot rounds up onto one.
+  @Test
+  fun `leads a late track with the slots its start covers`() {
+    val graph = gridInvocationFor(gridTrack(listOf(1.seconds), start = HALF_SLOT_START)).filterGraph
+
+    graph shouldContain "tpad=start=${outputSlotOf(HALF_SLOT_START, GRID_RATE)}:color=0x000000"
+  }
+
+  // A start short of half a slot rounds down onto the first slot, so there is no gap to lay.
+  @Test
+  fun `lays no lead for a start short of half a slot`() {
+    outputSlotOf(SHORT_START, GRID_RATE) shouldBe 0L
+
+    val graph = gridInvocationFor(gridTrack(listOf(1.seconds), start = SHORT_START)).filterGraph
+
+    graph shouldNotContain "tpad=start"
+  }
+
+  // The blurred letterbox closes each clip on the merge of its two copies, and that merge takes the
+  // same cut the plain tail does.
+  @Test
+  fun `closes a blurred tail on the slots its span covers`() {
+    val laid = gridTrack(listOf(OFF_GRID_LENGTH))
+    val slots = outputSlotsOf(laid.clips.single().span, GRID_RATE).count()
+
+    val graph = gridInvocationFor(laid, fill = Fill.Blurred()).filterGraph
+
+    graph shouldContain
+      "overlay=x=(W-w)/2:y=(H-h)/2:format=auto,setsar=r=1,fps=fps=$GRID_RATE,tpad=stop_mode=clone:stop=2," +
+      "trim=end_frame=$slots,"
+  }
+
+  /**
+   * One clip per length, laid end to end from [start] the way the planner lays a track, each reading
+   * the head of a source of its own.
+   */
+  private fun gridTrack(
+    lengths: List<Duration>,
+    start: Duration = Duration.ZERO,
+  ): ResolvedTrack {
+    var offset = start
+    val clips =
+      lengths.mapIndexed { index, length ->
+        loopedClip(start = Duration.ZERO, length = length, offset = offset, sourceIndex = index).also {
+          offset += length
+        }
+      }
+    return ResolvedTrack(content = TrackContent.AudioAndVideo, looping = false, start = start, clips = clips)
+  }
+
+  private fun gridInvocationFor(
+    track: ResolvedTrack,
+    fill: Fill = Fill.Black,
+  ): Invocation {
+    val output = Size(1920, 1080)
+    val negotiated =
+      NegotiatedComposition(
+        tracks = listOf(track),
+        compositionGeometry = emptyList(),
+        compositionInputSize = output,
+        compositionEffects = emptyList(),
+        output =
+          OutputFormat(
+            size = output,
+            videoCodec = VideoCodec.H264,
+            audioCodec = AudioCodec.Aac,
+            bitrate = null,
+            frameRate = GRID_RATE,
+            audioFormat = AudioFormat(sampleRate = 48_000, channelCount = 2),
+          ),
+        layoutSize = output,
+        fit = Fit.Contain,
+        fill = fill,
+        duration = track.duration,
+        hdr = ResolvedHdr.Keep,
+        hdrTransfer = null,
+        path = ExportPath.Transcode,
+        audio = AudioSpec.Keep,
+        adjustments = emptyList(),
+        encoderName = "libx264",
+      )
+
+    return GraphLowering(negotiated, toneMapRoute = null, hdrPixelFormat = null).build()
   }
 
   /**
@@ -725,6 +878,15 @@ private val RUN = 4_800.milliseconds
 // An audio-only track opening inside the loop's first pass and running past the loop's end.
 private val UNDERLAY_START = 700.milliseconds
 private val UNDERLAY_LENGTH = 4_600.milliseconds
+
+// The output rate the grid tests lay clips on, and lengths and starts placed against its 40 ms slot:
+// 1.010 s is a quarter of a slot past a whole number of them, 10 ms covers no half way point, 20 ms
+// is exactly half a slot and 19 ms is just short of it.
+private const val GRID_RATE = 25
+private val OFF_GRID_LENGTH = 1_010.milliseconds
+private val UNDER_HALF_SLOT = 10.milliseconds
+private val HALF_SLOT_START = 20.milliseconds
+private val SHORT_START = 19.milliseconds
 
 private val TOOLCHAIN =
   Toolchain(

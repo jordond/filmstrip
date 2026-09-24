@@ -8,17 +8,25 @@ import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeMake
 import platform.CoreMedia.CMTimeRange
 import platform.CoreMedia.CMTimeRangeMake
+import platform.CoreMedia.CMTimeSubtract
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
  * The timescale every [CMTime] this backend builds is expressed in.
  *
- * 600 divides evenly by 24, 25, 30 and 60, so a frame boundary at any rate filmstrip encodes lands
- * on a whole tick instead of being rounded onto one. Mixing timescales inside one composition is
- * what makes clip spans fail to tile, so there is exactly one.
+ * 3600 divides evenly by 24, 25, 30, 48, 50, 60, 72, 90, 100, 120, 144, 150, 180, 200, 240 and 300,
+ * so a frame boundary at any of those rates lands on a whole tick instead of being rounded onto one.
+ * A rate it does not divide, such as 32 or 96, lands each boundary on its nearest tick, up to half a
+ * tick from the frame itself. The clip ending there and the clip opening there round the same
+ * boundary, so they still meet. Mixing timescales inside one composition is what makes clip spans
+ * fail to tile, so there is exactly one.
+ *
+ * The video composition's frame duration is the one time built at another timescale. It is the
+ * cadence frames are rendered at rather than a range laid on a track, and it is one frame at the
+ * output's own rate.
  */
-internal const val MEDIA_TIMESCALE: Int = 600
+internal const val MEDIA_TIMESCALE: Int = 3600
 
 /**
  * One tick at [MEDIA_TIMESCALE], the shortest span this backend can name.
@@ -57,6 +65,16 @@ internal fun timeRangeOf(
   start: Duration,
   duration: Duration,
 ): CValue<CMTimeRange> = CMTimeRangeMake(start = start.toCMTime(), duration = duration.toCMTime())
+
+/**
+ * How long the stretch from [start] until [end] runs once each end is on its own tick at
+ * [MEDIA_TIMESCALE].
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun ticksBetween(
+  start: Duration,
+  end: Duration,
+): CValue<CMTime> = CMTimeSubtract(end.toCMTime(), start.toCMTime())
 
 /**
  * Whole ticks at [MEDIA_TIMESCALE], rounded to nearest so a duration that falls between two lands

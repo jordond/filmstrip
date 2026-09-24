@@ -1,7 +1,8 @@
 package dev.jordond.filmstrip.ffmpeg.internal
 
-import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
 import kotlin.time.Duration
 import kotlin.time.DurationUnit
 
@@ -25,16 +26,17 @@ internal const val PREVIEW_CHANNELS: Int = 4
  * ffmpeg rebases a seeked input to zero and every trim the graph carries shifts by the seek. With
  * no seek they leave the timestamps exactly where an export sees them.
  *
- * The clip carries the seek. An overlay image seeked into delivers nothing at all, so a branch
- * [InputSpec.rebased] marks is carried to the same point by `-itsoffset` instead: its timestamps
- * move to the composition times the scrub lands on, and the `setpts` that branch ends on takes the
- * move back off before the merge lines the frames up.
+ * The clip carries the seek, to the [previewLanding] of the scrub. An overlay image seeked into
+ * delivers nothing at all, so a branch [InputSpec.rebased] marks is carried to the same point by
+ * `-itsoffset` instead: its timestamps move to the composition times the landing opens on, and the
+ * `setpts` that branch ends on takes the move back off before the merge lines the frames up.
  *
  * [FfmpegConfig.extraArgs] does not reach here. It is documented as going to every encode, and this
  * runs none.
  *
- * @param at Where in the composition the first frame comes from. Ignored when [Invocation.seekBase]
- *   is null, since that timeline cannot be windowed by an input seek and is read forward instead.
+ * @param at Where in the composition the first frame comes from, which the pump opens on the output
+ *   slot it lands on. Ignored when [Invocation.seekBase] is null, since that timeline cannot be
+ *   windowed by an input seek and is read forward instead.
  */
 internal fun Invocation.previewArguments(
   toolchain: Toolchain,
@@ -55,13 +57,12 @@ internal fun Invocation.previewArguments(
     add("-copyts")
     add("-start_at_zero")
 
-    val seek = seekBase?.plus(at)?.positiveSeconds()
+    val landing = previewLanding(at)
+    val seek = seekBase?.plus(landing)?.positiveSeconds()
     // What a rebased branch has to be moved by to land where the seek does. The clip's branch opens
     // with setpts=PTS-STARTPTS, so its clock reads zero at the seek whatever the seek was, and a
-    // branch left at its own start would be read against that zero from the top. The move lands on
-    // the frame the seek delivers rather than on [at] itself, which is the frame after it wherever
-    // the scrub falls inside a frame period.
-    val branchOffset = at.takeIf { seekBase != null && it > Duration.ZERO }?.onFrameGrid(output.frameRate)
+    // branch left at its own start would be read against that zero from the top.
+    val branchOffset = landing.positiveSeconds()
     inputs.forEachIndexed { index, input ->
       // Only the first input carries the seek. It is the clip the graph windows, and an overlay
       // image or a silence filler seeked into delivers nothing at all.
@@ -82,12 +83,12 @@ internal fun Invocation.previewArguments(
         add("lavfi")
       }
       addAll(input.loopArguments())
-      // The seek has already eaten [at] of the window the input bounds, so what is left of it is
-      // shorter by the same amount. Every other input is read from its own start and keeps its own
-      // bound.
+      // The seek has already eaten the landing out of the window the input bounds, so what is left
+      // of it is shorter by the same amount. Every other input is read from its own start and keeps
+      // its own bound.
       val windowed = index == 0 && seekBase != null
       val length =
-        input.durationSeconds?.let { if (windowed) it - at.toDouble(DurationUnit.SECONDS) else it }
+        input.durationSeconds?.let { if (windowed) it - landing.toDouble(DurationUnit.SECONDS) else it }
       length?.let {
         add("-t")
         add(formatSeconds(it))
@@ -120,6 +121,16 @@ internal fun Invocation.previewArguments(
 
       add("-map")
       add("[${checkNotNull(videoLabel) { NO_VIDEO_TO_PREVIEW }}]")
+
+      // The graph cuts each clip to its slots counted from the first frame it is handed, and a
+      // windowed preview hands it the frame on the landing's slot, so that cut falls past the end of
+      // the video. The pump stops on the video's last slot instead.
+      if (seekBase != null) {
+        videoSlots?.let { slots ->
+          add("-frames:v")
+          add((slots - outputSlotOf(landing, checkNotNull(output.frameRate))).coerceAtLeast(0).toString())
+        }
+      }
     }
 
     add("-an")
@@ -146,29 +157,25 @@ internal fun Invocation.previewArguments(
 internal val Invocation.previewFrameBytes: Int
   get() = output.size.width * output.size.height * PREVIEW_CHANNELS
 
+/**
+ * Where a preview asked to open at [at] opens, which is the time of the output slot [at] lands on.
+ *
+ * The clip is seeked there and a rebased branch is moved there, so the first frame the pump hands over is that slot's
+ * own frame and this is the composition time it carries. Zero for a graph an input seek cannot window, which is read
+ * forward from its head instead.
+ */
+internal fun Invocation.previewLanding(at: Duration): Duration {
+  if (seekBase == null) return Duration.ZERO
+  val frameRate = checkNotNull(output.frameRate) { NO_FRAME_GRID }
+  return outputSlotTime(outputSlotOf(at, frameRate), frameRate)
+}
+
 // Seconds, or null where there is nothing to move. A seek to zero costs a seek that lands where the
 // demuxer already is, and an offset of zero moves no timestamp anywhere.
 private fun Duration.positiveSeconds(): Double? = toDouble(DurationUnit.SECONDS).takeIf { it > 0.0 }
 
-/**
- * The first output frame at or after this time, as the seconds that frame opens on.
- *
- * [OutputFormat.frameRate] is the grid the whole plan is sampled onto, the sendcmd sidecar's
- * intervals included, and an input seek delivers the first frame at or after what it was asked for.
- * A branch moved to the raw scrub would therefore be read one frame behind the one the clip hands
- * the merge whenever the scrub falls inside a frame period.
- *
- * The arithmetic is integer so that a scrub already on the grid is not carried onto the frame after
- * it, and the answer divides the same way the sampler writes a frame's own time.
- */
-private fun Duration.onFrameGrid(frameRate: Int?): Double {
-  val rate = frameRate?.takeIf { it > 0 } ?: return toDouble(DurationUnit.SECONDS)
-  val frames = (inWholeNanoseconds * rate + NANOS_PER_SECOND - 1) / NANOS_PER_SECOND
-
-  return frames.toDouble() / rate
-}
-
-private const val NANOS_PER_SECOND = 1_000_000_000L
-
 private const val NO_VIDEO_TO_PREVIEW =
   "The plan writes no video track, so there is nothing for a preview to pump."
+
+private const val NO_FRAME_GRID =
+  "The negotiated output has no frame rate, so a scrub has no output slot to land on."

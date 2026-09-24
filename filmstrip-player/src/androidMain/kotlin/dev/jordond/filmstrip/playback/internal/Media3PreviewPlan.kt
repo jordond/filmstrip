@@ -12,6 +12,8 @@ import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.media.chainedProber
+import dev.jordond.filmstrip.media3.internal.Media3FrameBounds
+import dev.jordond.filmstrip.media3.internal.readFrameBounds
 import dev.jordond.filmstrip.media3.media3ExportEngine
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewInfo
@@ -26,10 +28,13 @@ import dev.jordond.filmstrip.transform.internal.ResolvedComposition
  *   would run.
  * @property info What the preview delivers: the output frame, the preview-only scale and the parity
  *   the plan came back with.
+ * @property bounds The samples each clip decodes, read off the containers the way an export reads
+ * them, which the graph lays its items by.
  */
 internal class Media3PreviewPlan(
   val resolved: ResolvedComposition,
   val info: PreviewInfo,
+  val bounds: Media3FrameBounds,
 )
 
 /**
@@ -108,6 +113,7 @@ internal open class Media3PreviewPlanner(
     return Media3PlanResult.Ready(
       Media3PreviewPlan(
         resolved = capped.composition,
+        bounds = capped.composition.readFrameBounds(),
         info =
           PreviewInfo(
             outputSize = naturalSize,

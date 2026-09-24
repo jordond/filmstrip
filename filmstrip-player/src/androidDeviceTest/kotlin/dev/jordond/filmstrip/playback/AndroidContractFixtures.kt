@@ -204,9 +204,14 @@ internal val FIXTURE_FRAME: Size = Size(640, 360)
 internal val PROBE_POSITIONS: List<Duration> = listOf(300.milliseconds, 900.milliseconds)
 
 /**
- * How long one frame of the fixture runs for, at the 30fps its `FixtureSpec` pins.
+ * The frame rate the fixture's `FixtureSpec` pins, which is the output frame rate a composition of it plays at.
  */
-internal val FIXTURE_FRAME_STEP: Duration = 1.seconds / 30
+internal const val FIXTURE_FRAME_RATE = 30
+
+/**
+ * How long one frame of the fixture runs for, at [FIXTURE_FRAME_RATE].
+ */
+internal val FIXTURE_FRAME_STEP: Duration = 1.seconds / FIXTURE_FRAME_RATE
 
 /**
  * How far apart the fixture's sync samples sit, which is the keyframe interval it was encoded at.

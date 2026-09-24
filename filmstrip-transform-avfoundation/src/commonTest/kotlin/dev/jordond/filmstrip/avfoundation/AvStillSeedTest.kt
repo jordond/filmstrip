@@ -1,6 +1,8 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.avfoundation.internal.FrameAppend
+import dev.jordond.filmstrip.avfoundation.internal.MEDIA_TIMESCALE
+import dev.jordond.filmstrip.avfoundation.internal.SEED_SIDE
 import dev.jordond.filmstrip.avfoundation.internal.STILL_SEED_LENGTH
 import dev.jordond.filmstrip.avfoundation.internal.STILL_SEED_WRITE_BUDGET
 import dev.jordond.filmstrip.avfoundation.internal.SeedAttempt
@@ -15,6 +17,7 @@ import dev.jordond.filmstrip.avfoundation.internal.toDuration
 import dev.jordond.filmstrip.avfoundation.internal.waitsForSeedInput
 import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.ExperimentalForeignApi
+import platform.AVFoundation.AVAssetTrack
 import platform.AVFoundation.AVAssetWriterStatusCancelled
 import platform.AVFoundation.AVAssetWriterStatusCompleted
 import platform.AVFoundation.AVAssetWriterStatusFailed
@@ -22,6 +25,7 @@ import platform.AVFoundation.AVAssetWriterStatusUnknown
 import platform.AVFoundation.AVAssetWriterStatusWriting
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.AVURLAsset
+import platform.AVFoundation.naturalTimeScale
 import platform.AVFoundation.tracksWithMediaType
 import platform.Foundation.NSDate
 import platform.Foundation.NSFileManager
@@ -74,8 +78,9 @@ class AvStillSeedTest {
     val before = seedFiles()
 
     RATES.forEach { rate ->
-      assertNotNull(openedSeed(rate), "no seed was written at $rate fps")
+      val opened = assertNotNull(openedSeed(rate), "no seed was written at $rate fps")
       assertNotNull(openedSeed(rate), "no seed came back on a second ask at $rate fps")
+      (opened.videoTrack() as? AVAssetTrack)?.naturalTimeScale shouldBe MEDIA_TIMESCALE
     }
 
     seedFiles() - before shouldBe RATES.map { stillSeedPath(it).fileName() }.toSet()
@@ -120,6 +125,20 @@ class AvStillSeedTest {
     assertNotNull(openedSeed(OTHER_RATE), "a seed cut at another rate was not rewritten")
 
     assertTrue(modified(other) != AGED, "the seed at $OTHER_RATE fps was read back at $RATE fps")
+  }
+
+  // Everything but the timescale matches, so a seed an earlier build wrote at 600 a second reads as good on its path,
+  // its length, its frame size and its cadence alike.
+  @Test
+  fun `rewrites a seed written at another timescale`() {
+    val path = stillSeedPath(RATE)
+    writeOffGridClip(path, RATE, RATE, STILL_SEED_LENGTH, side = SEED_SIDE, timescale = STALE_TIMESCALE)
+    age(path)
+
+    val asset = assertNotNull(openedSeed(RATE), "no seed was opened at $RATE fps")
+
+    assertTrue(modified(path) != AGED, "the seed written at $STALE_TIMESCALE a second was read back")
+    (asset.videoTrack() as? AVAssetTrack)?.naturalTimeScale shouldBe MEDIA_TIMESCALE
   }
 
   // An input says it has room through one flag and nothing else, so what a poll reads is that flag
@@ -285,6 +304,9 @@ class AvStillSeedTest {
 
     // Every rate a case here can leave a seed at.
     val SEEDED = RATES + setOf(HELD_RATE, FREE_RATE)
+
+    // The timescale an earlier build wrote every seed at.
+    const val STALE_TIMESCALE = 600
 
     // Long enough ago that no write could land on it, and after the reference date so no filesystem
     // clamps it.

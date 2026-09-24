@@ -25,6 +25,9 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.NormalizedRect
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
+import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.ResolveResult
@@ -32,7 +35,6 @@ import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.webcodecs.internal.BrowserCompositor
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
 import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
-import dev.jordond.filmstrip.webcodecs.internal.MICROS_PER_SECOND
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -199,24 +201,30 @@ class BrowserExportTest {
   // until then rather than being drawn from zero ahead of its own audio. The start is eighteen slots
   // in, right on the frame grid.
   @Test
-  fun aPrimaryThatStartsLateOpensOnTheFill() = runTest { assertOpensOnTheFill(ON_GRID_START, gapFrames = 18) }
+  fun aPrimaryThatStartsLateOpensOnTheFill() = runTest { assertOpensOnTheFill(ON_GRID_START) }
 
   // Fifteen slots and three tenths of another. The gap rounds to the nearer slot, so its last frame
   // and the clip's first never land on the same timestamp in the file.
   @Test
-  fun aPrimaryThatStartsBetweenTwoSlotsWritesEveryFrameOnce() =
-    runTest { assertOpensOnTheFill(OFF_GRID_START, gapFrames = 15) }
+  fun aPrimaryThatStartsBetweenTwoSlotsWritesEveryFrameOnce() = runTest { assertOpensOnTheFill(OFF_GRID_START) }
+
+  // Exactly half a slot in. A clip opened at the start itself puts every frame half a tick off the
+  // file's timescale, and the muxer rounds some of them onto the tick of the frame before.
+  @Test
+  fun aPrimaryThatStartsHalfASlotInWritesEveryFrameOnce() =
+    runTest { assertOpensOnTheFill(HALF_SLOT_START, frameRate = GRID_FRAME_RATE, clipFrames = GRID_CLIP_FRAMES) }
 
   /**
-   * Exports a one second clip behind a gap of [start], then checks the file holds [gapFrames] frames of fill and the
-   * clip's own frames after them, each later than the one before. The gap and the clip are each read in their middle,
-   * since a file that dropped the gap still opens and closes on a frame.
+   * Exports a clip of [clipFrames] frames at [frameRate] behind a gap of [start], then checks the file holds the fill
+   * on every slot the grid puts in front of the start and the clip on every slot after, one frame to a slot. The gap
+   * and the clip are each read in their middle, since a file that dropped the gap still opens and closes on a frame.
    */
   private suspend fun assertOpensOnTheFill(
     start: Duration,
-    gapFrames: Int,
+    frameRate: Int = LATE_FRAME_RATE,
+    clipFrames: Int = LATE_CLIP_FRAMES,
   ) {
-    val bytes = makeClip(frames = LATE_CLIP_FRAMES, frameRate = LATE_FRAME_RATE, colour = Rgb.Green)
+    val bytes = makeClip(frames = clipFrames, frameRate = frameRate, colour = Rgb.Green)
     val composition =
       EditComposition(
         tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))), start = start)),
@@ -226,14 +234,22 @@ class BrowserExportTest {
     val engine = browserEngine()
 
     val resolved = assertIs<ResolveResult.Resolved>(engine.resolve(composition, ExportSpec())).composition
-    assertEquals(LATE_FRAME_RATE, resolved.output.frameRate, "the slot counts here are for $LATE_FRAME_RATE fps")
-    val primary = resolved.tracks.first()
-    val clip = primary.clips.single()
-    val stepUs = MICROS_PER_SECOND / LATE_FRAME_RATE
+    assertEquals(frameRate, resolved.output.frameRate, "the slot counts here are for $frameRate fps")
+    val oneSlotUs = micros(1.seconds / frameRate)
+    val clip =
+      resolved.tracks
+        .first()
+        .clips
+        .single()
+    val gapFrames = outputSlotOf(clip.span.start, frameRate).toInt()
     val startUs = micros(clip.span.start)
     val frames = decodeFrames(outputOf(exportWith(engine, planWith(engine, composition))))
 
-    assertEquals(gapFrames + LATE_CLIP_FRAMES, frames.size, "a gap of $start wrote ${frames.size} frames")
+    assertEquals(
+      outputSlotOf(resolved.duration, frameRate).toInt(),
+      frames.size,
+      "a gap of $start wrote ${frames.size} frames",
+    )
     frames.zipWithNext().forEach { (before, after) ->
       assertTrue(
         after.timestampUs > before.timestampUs,
@@ -243,15 +259,9 @@ class BrowserExportTest {
     val filled = frames.count { it.at(x = 0.5, y = 0.5).isNear(PURPLE_RGB) }
     assertEquals(gapFrames, filled, "a gap of $start wrote $filled frames of fill")
 
-    // Each gap slot is drawn by the fill, and the time the fill is handed is the time the encoder
-    // writes, so the frames land one per slot of the grid rather than bunched at its opening.
-    frames.take(gapFrames).forEachIndexed { slot, frame ->
-      val slotUs = slot * stepUs
-      assertTrue(
-        abs(frame.timestampUs - slotUs) < TIMESTAMP_TOLERANCE_US,
-        "gap frame $slot landed at ${frame.timestampUs}us where its slot sits at ${slotUs}us",
-      )
-    }
+    // Each slot is drawn at the time the encoder writes, so the frames land one per slot of the grid
+    // rather than bunched at the gap's opening or strung off the grid from the clip's own start.
+    assertEveryFrameHoldsItsOwnSlot(frames, frameRate)
 
     val inGap = frames.nearestTo(startUs / 2).at(x = 0.5, y = 0.5)
     assertTrue(inGap.isNear(PURPLE_RGB), "the middle of the gap was $inGap, and the fill was $PURPLE_RGB")
@@ -260,14 +270,125 @@ class BrowserExportTest {
 
     val opening = assertNotNull(frames.firstOrNull { it.at(x = 0.5, y = 0.5).isNear(Rgb.Green) })
     assertTrue(
-      abs(opening.timestampUs - startUs) < stepUs,
+      abs(opening.timestampUs - startUs) < oneSlotUs,
       "the clip opened at ${opening.timestampUs}us, and the track starts at ${startUs}us",
     )
     val endUs = frames.last().let { it.timestampUs + it.durationUs }
     assertTrue(
-      abs(endUs - micros(resolved.duration)) < stepUs,
+      abs(endUs - micros(resolved.duration)) < oneSlotUs,
       "the video ends at ${endUs}us, and the composition runs ${micros(resolved.duration)}us",
     )
+  }
+
+  // A clip trimmed between two slots holds only the slots its span rounds onto, so its last frame and
+  // the next clip's first never share a slot and nothing is left between them. One length ends a
+  // quarter of a slot short of half way and the other a quarter past it.
+  @Test
+  fun anOffGridClipMeetsTheNextWithoutAGapOrACollision() =
+    runTest {
+      OFF_GRID_LENGTHS.forEach { length -> assertMeetsTheNext(length) }
+    }
+
+  /**
+   * Exports a green clip trimmed to [length] with a red clip a second long after it, then checks the file holds one
+   * frame on every slot of the grid, the slots either side of the seam each from their own clip, and each clip's colour
+   * in its middle.
+   */
+  private suspend fun assertMeetsTheNext(length: Duration) {
+    val green = makeClip(frames = GRID_CLIP_FRAMES, frameRate = GRID_FRAME_RATE, colour = Rgb.Green)
+    val red = makeClip(frames = GRID_FRAME_RATE, frameRate = GRID_FRAME_RATE, colour = Rgb.Red)
+    val composition =
+      EditComposition(
+        tracks =
+          listOf(
+            Track(
+              listOf(
+                Clip(MediaSource.Bytes(green), trim = TimeRange(Duration.ZERO, length)),
+                Clip(MediaSource.Bytes(red)),
+              ),
+            ),
+          ),
+        audio = AudioSpec.Remove,
+      )
+    val spec = ExportSpec(frameRate = GRID_FRAME_RATE)
+    val engine = browserEngine()
+
+    val resolved = assertIs<ResolveResult.Resolved>(engine.resolve(composition, spec)).composition
+    val frames = decodeFrames(outputOf(exportWith(engine, planWith(engine, composition, spec))))
+
+    assertEquals(
+      outputSlotOf(resolved.duration, GRID_FRAME_RATE).toInt(),
+      frames.size,
+      "a first clip of $length wrote ${frames.size} frames",
+    )
+    assertEveryFrameHoldsItsOwnSlot(frames, GRID_FRAME_RATE)
+
+    val seam = outputSlotOf(length, GRID_FRAME_RATE).toInt()
+    val before = frames[seam - 1].at(x = 0.5, y = 0.5)
+    assertTrue(before.isNear(Rgb.Green), "slot ${seam - 1}, the last before a seam at $length, drew $before")
+    val after = frames[seam].at(x = 0.5, y = 0.5)
+    assertTrue(after.isNear(Rgb.Red), "slot $seam, the first after a seam at $length, drew $after")
+
+    val second =
+      resolved.tracks
+        .first()
+        .clips
+        .last()
+    val inFirst = frames.nearestTo(micros(length / 2)).at(x = 0.5, y = 0.5)
+    assertTrue(inFirst.isNear(Rgb.Green), "the middle of the first clip was $inFirst")
+    val inSecond = frames.nearestTo(micros(second.span.start + second.duration / 2)).at(x = 0.5, y = 0.5)
+    assertTrue(inSecond.isNear(Rgb.Red), "the middle of the second clip was $inSecond")
+  }
+
+  // A pass trimmed to 1.030 seconds covers twenty six slots, so its last slot runs on to 1.040 and past
+  // the end of the window it reads. That slot holds the pass's last frame, the only red one, and the
+  // pass laid after it opens on its first again.
+  @Test
+  fun aSlotThatRunsPastTheEndOfAPassHoldsItsLastFrame() =
+    runTest {
+      val bytes =
+        makeClip(frames = PAST_END_FRAMES, frameRate = GRID_FRAME_RATE) { index, _ ->
+          if (index == PAST_END_FRAMES - 1) Rgb.Red else Rgb.Green
+        }
+      val pass = Clip(MediaSource.Bytes(bytes), trim = TimeRange(Duration.ZERO, PAST_END_TRIM))
+      val composition = EditComposition(tracks = listOf(Track(listOf(pass, pass))), audio = AudioSpec.Remove)
+      val spec = ExportSpec(frameRate = GRID_FRAME_RATE)
+      val engine = browserEngine()
+
+      val resolved = assertIs<ResolveResult.Resolved>(engine.resolve(composition, spec)).composition
+      val frames = decodeFrames(outputOf(exportWith(engine, planWith(engine, composition, spec))))
+
+      assertEquals(outputSlotOf(resolved.duration, GRID_FRAME_RATE).toInt(), frames.size)
+      assertEveryFrameHoldsItsOwnSlot(frames, GRID_FRAME_RATE)
+      resolved.tracks.first().clips.forEach { laid ->
+        val slots = outputSlotsOf(laid.span, GRID_FRAME_RATE)
+        val opening = frames[slots.first.toInt()].at(x = 0.5, y = 0.5)
+        assertTrue(opening.isNear(Rgb.Green), "the pass at ${laid.span.start} opened on $opening")
+        val closing = frames[slots.last.toInt()].at(x = 0.5, y = 0.5)
+        assertTrue(closing.isNear(Rgb.Red), "the pass at ${laid.span.start} closed on $closing")
+      }
+    }
+
+  /**
+   * Checks frame `i` of [frames] sits on slot `i` of the shared grid at [frameRate] and runs one slot, so nothing
+   * landed between two slots, twice on one, or ran short of the next.
+   */
+  private fun assertEveryFrameHoldsItsOwnSlot(
+    frames: List<OutputFrame>,
+    frameRate: Int,
+  ) {
+    val slotUs = micros(1.seconds / frameRate)
+    frames.forEachIndexed { slot, frame ->
+      val opensUs = micros(outputSlotTime(slot.toLong(), frameRate))
+      assertTrue(
+        abs(frame.timestampUs - opensUs) < TIMESTAMP_TOLERANCE_US,
+        "frame $slot landed at ${frame.timestampUs}us where its slot sits at ${opensUs}us",
+      )
+      assertTrue(
+        abs(frame.durationUs - slotUs) < TIMESTAMP_TOLERANCE_US,
+        "frame $slot runs ${frame.durationUs}us where a slot runs ${slotUs}us",
+      )
+    }
   }
 
   @Test
@@ -1006,8 +1127,21 @@ class BrowserExportTest {
     const val LATE_CLIP_FRAMES = 30
     const val LATE_FRAME_RATE = 30
 
-    // The encoder takes seconds and the container writes them on its own timescale, so a written
-    // timestamp comes back a hair off the slot it was handed.
+    // A slot runs forty milliseconds at twenty five frames a second. A start of twenty is exactly half
+    // of one, and a clip of 1.010 or 1.030 seconds ends a quarter of a slot either side of half way.
+    const val GRID_FRAME_RATE = 25
+    const val GRID_CLIP_FRAMES = 50
+    val HALF_SLOT_START = 20.milliseconds
+    val OFF_GRID_LENGTHS = listOf(1_010.milliseconds, 1_030.milliseconds)
+
+    // Twenty six frames at twenty five a second run to 1.040 seconds, and a trim of 1.030 ends inside
+    // the last of them.
+    const val PAST_END_FRAMES = 26
+    val PAST_END_TRIM = 1_030.milliseconds
+
+    // The encoder takes seconds and the container writes them on its own timescale, a decoded frame
+    // carries whole microseconds, and the shared grid reads a slot in whole microseconds rounded down,
+    // so a written time comes back a hair off the slot it was handed.
     const val TIMESTAMP_TOLERANCE_US = 1.0
     const val RATE_TOLERANCE = 2f
     const val RAMP_STEP = 4

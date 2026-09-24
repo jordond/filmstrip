@@ -84,7 +84,7 @@ internal class FfmpegThumbnailSource(
 
     try {
       val frame =
-        stream.frameAt(request.position, plan.resolved.frameStep)
+        stream.frameAt(request.position, plan.resolved.frameRate)
           ?: return ThumbnailResult.Failure(
             ExportError.Underlying(ExportError.Underlying.NO_PLATFORM_CODE, noFrame(request.position)),
           )
@@ -95,23 +95,6 @@ internal class FfmpegThumbnailSource(
       )
     } finally {
       stream.close()
-    }
-  }
-
-  /**
-   * Reads forward to [at], for a composition whose timeline the input seek could not window.
-   *
-   * A windowed stream opens on the frame asked for, so this takes its first frame and stops.
-   */
-  private suspend fun PreviewStream.frameAt(
-    at: Duration,
-    step: Duration,
-  ): PreviewFrame? {
-    var position = startPosition
-    while (true) {
-      val pixels = next() ?: return null
-      if (position >= at - step / 2) return PreviewFrame(position, pixels)
-      position += step
     }
   }
 

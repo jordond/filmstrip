@@ -25,8 +25,9 @@ public interface PreviewStream {
   /**
    * The composition time the first frame carries.
    *
-   * Zero for a composition whose timeline an input seek cannot window, which a caller that asked
-   * for a later position reads forward to.
+   * The time of the output slot the requested position lands on, or zero for a composition whose
+   * timeline an input seek cannot window, which a caller that asked for a later position reads
+   * forward to.
    */
   public val startPosition: Duration
 

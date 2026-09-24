@@ -5,17 +5,15 @@ package dev.jordond.filmstrip.webcodecs.internal
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotOf
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import kotlinx.coroutines.await
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.math.abs
-import kotlin.math.floor
-import kotlin.math.roundToLong
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
-import kotlin.time.DurationUnit
 
 /**
  * One composited preview frame, in the packed form a surface draws and a comparison reads.
@@ -159,11 +157,12 @@ public class BrowserPreview internal constructor(
   }
 
   /**
-   * The composition time of the sync sample at or before [position].
+   * The composition time of the output slot the sync sample at or before [position] lands on, or [position] itself.
    *
-   * What a relaxed seek lands on. A clip with no sync sample before the position, a source the
-   * container cannot answer for, and a position in the gap before the primary track starts all come
-   * back as [position] itself.
+   * What a relaxed seek lands on, which is never later than [position]. A sync sample in front of
+   * the clip's own trim lands on the slot the clip opens on. A clip with no sync sample before the
+   * position, a source the container cannot answer for, and a position in the gap before the
+   * primary track starts all come back as [position] itself.
    */
   public suspend fun syncSampleAt(position: Duration): Duration = exclusively { syncSample(position) } ?: position
 
@@ -301,19 +300,14 @@ public class BrowserPreview internal constructor(
     val keyUs = reader.keyFrameAt(slot.sourceUs) ?: return position
     if (keyUs > slot.sourceUs) return position
 
-    // Back onto the output timeline, then down onto the frame grid, so the position a seek settles
-    // on is one the preview can draw rather than one between two slots.
-    val outputUs = slot.clip.offsetUs + (keyUs - slot.clip.trimStartUs)
-    val step = render.stepUs
-    // A step that does not divide a whole microsecond count, as thirty frames a second does not,
-    // leaves a slot's own time a hair under the integer it should floor to, so the quotient is
-    // nudged by a fraction of a slot first. Without it a key frame on a whole second lands a slot
-    // early.
-    val slots = floor((outputUs - slot.clip.offsetUs) / step + SLOT_TOLERANCE)
-    val landed = slots * step + slot.clip.offsetUs
-    // A clip that opens between two grid slots is reached from a position just short of it, and a
-    // seek never lands later than it was asked to.
-    return landed.coerceAtLeast(0.0).microseconds.coerceAtMost(position)
+    // The sync sample's own time on the composition timeline, counted from the slot the clip opens
+    // on, then put on the grid the way every other time is. One in front of the clip's own trim
+    // lands on the clip's first slot, so a seek never reaches back into the clip before it.
+    val keyAt = (render.slotUs(slot.clip.firstSlot) + (keyUs - slot.clip.trimStartUs)).microseconds
+    val landed = maxOf(outputSlotOf(keyAt, render.frameRate), slot.clip.firstSlot)
+    // A position the grid rounds up sits just short of its own slot, and a seek never lands later
+    // than it was asked to.
+    return render.slotUs(landed).microseconds.coerceAtMost(position)
   }
 
   /**
@@ -373,40 +367,39 @@ public class BrowserPreview internal constructor(
   }
 
   /**
-   * The output time of the grid slot [position] rounds to when that slot is one of the render's lead slots, or null
+   * The output time of the grid slot [position] lands on when that slot is one of the render's lead slots, or null
    * when it is not.
    *
    * The lead slots sit on the grid from zero and there are [BrowserRender.leadFrames] of them, the same count the
-   * export encodes. A position that rounds to a later slot is left to [slotAt], which puts one short of the first clip
-   * on that clip's opening slot.
+   * export encodes. A position on a later slot is left to [slotAt].
    */
   private fun leadAt(position: Duration): Double? {
     if (render.leadFrames == 0L || render.frameRate <= 0) return null
-    val step = render.stepUs
-    val positionUs = position.toDouble(DurationUnit.MICROSECONDS).coerceAtLeast(0.0)
 
-    val slot = (positionUs / step).roundToLong()
-    return if (slot < render.leadFrames) slot * step else null
+    val slot = outputSlotOf(position, render.frameRate)
+    return if (slot < render.leadFrames) render.slotUs(slot) else null
   }
 
   /**
-   * Which clip is on screen at [position], and which of its output slots the position falls in.
+   * Which clip is on screen at [position], and which of that clip's output slots the position lands on.
    *
-   * A position past the end holds on the composition's last frame rather than answering with
-   * nothing, so a playhead sitting on the duration still has a picture. One before the first clip
-   * lands on that clip's opening slot, so [leadAt] is asked first wherever the gap is drawn.
+   * A clip that covers no slot is never on screen. A position past the end holds on the last frame the composition
+   * draws rather than answering with nothing, so a playhead sitting on the duration still has a picture. One before
+   * the first clip lands on that clip's opening slot, so [leadAt] is asked first wherever the gap is drawn.
    */
   private fun slotAt(position: Duration): Slot? {
-    if (render.clips.isEmpty() || render.frameRate <= 0) return null
-    val step = render.stepUs
-    val positionUs = position.toDouble(DurationUnit.MICROSECONDS).coerceAtLeast(0.0)
+    if (render.frameRate <= 0) return null
+    val slot = outputSlotOf(position, render.frameRate)
 
+    var held = NO_CLIP
     render.clips.forEachIndexed { index, clip ->
-      val slot = ((positionUs - clip.offsetUs) / step).roundToLong()
-      if (slot < clip.frames) return Slot(index, clip, slot.coerceAtLeast(0))
+      if (clip.frames == 0L) return@forEachIndexed
+      if (slot < clip.firstSlot + clip.frames) return Slot(index, clip, (slot - clip.firstSlot).coerceAtLeast(0))
+      held = index
     }
-    val last = render.clips.last()
-    return Slot(render.clips.lastIndex, last, last.frames - 1)
+    if (held == NO_CLIP) return null
+    val last = render.clips[held]
+    return Slot(held, last, last.frames - 1)
   }
 
   /**
@@ -419,7 +412,7 @@ public class BrowserPreview internal constructor(
   ) {
     val sourceUs: Double get() = clip.trimStartUs + slot * render.stepUs
 
-    val outputUs: Double get() = clip.offsetUs + slot * render.stepUs
+    val outputUs: Double get() = render.slotUs(clip.firstSlot + slot)
   }
 }
 
@@ -602,8 +595,3 @@ private class FrameWindow(
 internal const val PREVIEW_LOOK_AHEAD: Int = 12
 
 private const val NO_CLIP = -1
-
-// How far under a slot boundary still counts as being on it, as a fraction of a slot. Small enough
-// that a position genuinely between two slots keeps the slot below it, since the closest a real
-// off-grid position comes is a whole microsecond.
-private const val SLOT_TOLERANCE = 1e-3

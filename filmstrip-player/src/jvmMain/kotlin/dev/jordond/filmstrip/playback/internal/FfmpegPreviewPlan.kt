@@ -219,11 +219,22 @@ private val FFMPEG_FIDELITY: List<FidelityNote> =
 
 internal val FfmpegPreviewPlan.frameStep: Duration get() = resolved.frameStep
 
+internal val FfmpegPreviewPlan.frameRate: Int get() = resolved.frameRate
+
+/**
+ * The output frame rate this graph writes, which is the grid every frame it pumps sits on.
+ *
+ * Read off the frame rate the negotiation settled, which is the same number every other backend
+ * lays its frames on.
+ */
+internal val ResolvedComposition.frameRate: Int
+  get() = checkNotNull(output.frameRate) { "The lowered composition has no frame rate." }
+
 /**
  * How long one frame of this graph's output occupies.
  *
- * Read off the frame rate the negotiation settled, which is the same number every other backend
- * steps and snaps against.
+ * One period of [frameRate], for a check that asks whether two positions sit within a frame of each
+ * other rather than which slot either one is on.
  */
 internal val ResolvedComposition.frameStep: Duration
-  get() = 1.seconds / checkNotNull(output.frameRate) { "The lowered composition has no frame rate." }
+  get() = 1.seconds / frameRate

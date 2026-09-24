@@ -13,6 +13,9 @@ import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotTime
+import dev.jordond.filmstrip.internal.outputSlotsOf
+import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
@@ -33,6 +36,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertNotNull
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -58,29 +62,42 @@ class Media3ClippingTest {
   }
 
   // A copy has no decoder to walk to the cut, so the item has to say the start is a sync sample or
-  // Transformer decodes the leading group of pictures to reach it.
+  // Transformer decodes the leading group of pictures to reach it. It writes the source's own samples,
+  // so its window is the exact one in microseconds rather than one moved onto the output grid.
   @Test
   fun `a snapped trim carries its window and opens on a key frame`() {
     val clip = clip(startsAtKeyFrame = true)
 
     val clipping = assertNotNull(composition(clip, ExportPath.Transmux).firstItem().mediaItem.clippingConfiguration)
 
-    clipping.startPositionMs shouldBe clip.start.inWholeMilliseconds
-    clipping.endPositionMs shouldBe clip.end.inWholeMilliseconds
+    clipping.startPositionUs shouldBe clip.start.inWholeMicroseconds
+    clipping.endPositionUs shouldBe clip.end.inWholeMicroseconds
     clipping.startsAtKeyFrame shouldBe true
   }
 
-  // The same window, without the snap. An export that re-encodes decodes to the cut anyway, so the
-  // flag going along for the ride would move a trim the caller asked to land exactly.
+  // Without the snap, the video opens on the cut and runs for the slots its span covers, and the
+  // audio carries the exact window. An export that re-encodes decodes to the cut anyway, so the flag
+  // going along for the ride would move a trim the caller asked to land exactly.
   @Test
-  fun `an unsnapped trim carries the same window and decodes to the cut`() {
+  fun `an unsnapped trim opens its video on the cut and carries the exact window on its audio`() {
     val clip = clip(startsAtKeyFrame = false)
+    val plan = composition(clip, ExportPath.Transcode)
 
-    val clipping = assertNotNull(composition(clip, ExportPath.Transcode).firstItem().mediaItem.clippingConfiguration)
+    val (video, audio) =
+      plan.toMedia3(Media3FrameBounds.None).sequences.map {
+        assertNotNull(
+          it.editedMediaItems
+            .single()
+            .mediaItem.clippingConfiguration,
+        )
+      }
 
-    clipping.startPositionMs shouldBe clip.start.inWholeMilliseconds
-    clipping.endPositionMs shouldBe clip.end.inWholeMilliseconds
-    clipping.startsAtKeyFrame shouldBe false
+    video.startPositionUs shouldBe clip.start.inWholeMicroseconds
+    video.endPositionUs shouldBe clip.gridEndUs(checkNotNull(plan.output.frameRate))
+    video.startsAtKeyFrame shouldBe false
+    audio.startPositionUs shouldBe clip.start.inWholeMicroseconds
+    audio.endPositionUs shouldBe clip.end.inWholeMicroseconds
+    audio.startsAtKeyFrame shouldBe false
   }
 
   // Nothing is clipped away, so a configuration would only tell the extractor to seek somewhere it
@@ -94,8 +111,17 @@ class Media3ClippingTest {
     item.mediaItem.clippingConfiguration shouldBe MediaItem.ClippingConfiguration.UNSET
   }
 
+  // The video's own cut, past which it either runs out of slots to cover or is held on its last frame. Read off the
+  // shared grid rather than copied, since it is the video item's own end rather than the exact window its audio uses.
+  private fun ResolvedClip.gridEndUs(rate: Int): Long {
+    val slots = outputSlotsOf(span, rate)
+    val length = outputSlotTime(slots.last + 1, rate) - outputSlotTime(slots.first, rate)
+    val decoded = end - start
+    return if (decoded > length) (start + length).inWholeMicroseconds else end.inWholeMicroseconds
+  }
+
   private fun ResolvedComposition.firstItem(): EditedMediaItem =
-    toMedia3()
+    toMedia3(Media3FrameBounds.None)
       .sequences
       .first()
       .editedMediaItems
@@ -165,7 +191,7 @@ class Media3ClippingTest {
               hdrTransfer = null,
               bitrate = null,
             ),
-          audio = null,
+          audio = AudioTrackInfo(codec = trackCodecOf("mp4a"), sampleRate = 48_000, channelCount = 2, bitrate = null),
           isExportable = true,
         ),
       start = start,
@@ -181,8 +207,9 @@ class Media3ClippingTest {
     val SOURCE_LENGTH = 12.seconds
 
     // Both clear of either end of the source, and of each other, so a lowering that dropped one
-    // bound or swapped the two cannot land on the same window by accident.
-    val TRIM_START = 4_500.milliseconds
-    val TRIM_END = 7_250.milliseconds
+    // bound or swapped the two cannot land on the same window by accident. Neither is a whole
+    // millisecond, so a window clipped in milliseconds reads differently from one in microseconds.
+    val TRIM_START = 4_500.milliseconds + 250.microseconds
+    val TRIM_END = 7_250.milliseconds + 750.microseconds
   }
 }

@@ -39,6 +39,8 @@ import platform.AVFoundation.AVAssetWriterStatusWriting
 import platform.AVFoundation.AVFileTypeMPEG4
 import platform.AVFoundation.AVMediaTypeAudio
 import platform.AVFoundation.AVMediaTypeVideo
+import platform.AVFoundation.mediaTimeScale
+import platform.AVFoundation.naturalTimeScale
 import platform.AVFoundation.tracksWithMediaType
 import platform.CoreFoundation.CFRelease
 import platform.CoreMedia.CMSampleBufferGetPresentationTimeStamp
@@ -193,6 +195,10 @@ internal class WriterRun(
               },
             sourceFormatHint = videoHint.takeIf { transmux },
           )
+        // An encode writes each frame on the composition's own tick. A copy is always a single clip, since
+        // the plan refuses to copy more than one (CopyBlocker.MultipleClips), so the composition's video
+        // track carries that clip's source timescale and each sample is written at the time its source holds it.
+        input.mediaTimeScale = if (transmux) (videoTracks.first() as AVAssetTrack).naturalTimeScale else MEDIA_TIMESCALE
         pumps += Pump(input, output, reportsProgress = true)
       }
 

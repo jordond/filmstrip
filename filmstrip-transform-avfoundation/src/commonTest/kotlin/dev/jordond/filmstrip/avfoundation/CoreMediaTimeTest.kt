@@ -1,10 +1,13 @@
 package dev.jordond.filmstrip.avfoundation
 
+import dev.jordond.filmstrip.avfoundation.internal.MEDIA_TIMESCALE
 import dev.jordond.filmstrip.avfoundation.internal.timeRangeOf
 import dev.jordond.filmstrip.avfoundation.internal.toCMTime
 import dev.jordond.filmstrip.avfoundation.internal.toDuration
+import dev.jordond.filmstrip.internal.outputSlotTime
 import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.useContents
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.CMTimeRangeGetEnd
 import kotlin.test.Test
@@ -21,14 +24,33 @@ class CoreMediaTimeTest {
     }
   }
 
-  // 600 makes a frame boundary at any rate filmstrip encodes a whole tick. If that stops holding,
-  // spans stop meeting and the failure is a render error with no clip named in it.
+  // The timescale makes a frame boundary at every rate filmstrip is likely to encode a whole tick, 48, 90 and 144 fps
+  // among them. If that stops holding, spans stop meeting and the failure is a render error with no clip named in it.
   @Test
   fun `lands a frame boundary at every encoded rate on a whole tick`() {
-    listOf(24, 25, 30, 60).forEach { rate ->
+    listOf(24, 25, 30, 48, 60, 90, 144).forEach { rate ->
       val frame = (1.seconds / rate)
       CMTimeGetSeconds(frame.toCMTime()) shouldBe 1.0 / rate
     }
+  }
+
+  // A slot at 48 fps is 75 ticks, so every slot lands on its own tick rather than being rounded onto one.
+  @Test
+  fun `lands every slot at 48 fps on its own tick`() {
+    outputSlotTime(1, WHOLE_TICK_RATE).toCMTime().useContents { value } shouldBe 75L
+    (0L..WHOLE_TICK_RATE).forEach { slot ->
+      outputSlotTime(slot, WHOLE_TICK_RATE).toCMTime().useContents { value } shouldBe
+        slot * MEDIA_TIMESCALE / WHOLE_TICK_RATE
+    }
+  }
+
+  // 32 does not divide the timescale, so a slot at 32 fps lands on its nearest tick rather than on the frame itself:
+  // 113 ticks for the first where the frame falls at 112.5. The next slot rounds on its own, which is the tick a clip
+  // ending there and one opening there both land on.
+  @Test
+  fun `lands a slot at a rate the timescale does not divide on its nearest tick`() {
+    outputSlotTime(1, UNEVEN_RATE).toCMTime().useContents { value } shouldBe 113L
+    outputSlotTime(2, UNEVEN_RATE).toCMTime().useContents { value } shouldBe 225L
   }
 
   @Test
@@ -39,5 +61,10 @@ class CoreMediaTimeTest {
   @Test
   fun `builds a range that ends where its start plus its duration says`() {
     CMTimeRangeGetEnd(timeRangeOf(2.seconds, 3.seconds)).toDuration() shouldBe 5.seconds
+  }
+
+  private companion object {
+    const val WHOLE_TICK_RATE = 48
+    const val UNEVEN_RATE = 32
   }
 }

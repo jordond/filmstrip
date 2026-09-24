@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.media.PlatformImage
 import dev.jordond.filmstrip.media.chainedProber
 import dev.jordond.filmstrip.media3.internal.Media3Preview
 import dev.jordond.filmstrip.media3.internal.Media3Readback
+import dev.jordond.filmstrip.media3.internal.readFrameBounds
 import dev.jordond.filmstrip.media3.internal.toMedia3Preview
 import dev.jordond.filmstrip.media3.media3ExportEngine
 import dev.jordond.filmstrip.thumbnail.ThumbnailBatchCallback
@@ -536,8 +537,9 @@ internal class Media3ThumbnailPlanner(
         }
       }
 
+    val bounds = resolved.readFrameBounds()
     return try {
-      Media3ThumbnailPlan.Ready(resolved.toMedia3Preview())
+      Media3ThumbnailPlan.Ready(resolved.toMedia3Preview(bounds))
     } catch (
       @Suppress("TooGenericExceptionCaught") failure: Exception,
     ) {

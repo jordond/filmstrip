@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
@@ -12,6 +13,8 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.webcodecs.internal.BrowserPreview
@@ -248,21 +251,24 @@ class BrowserPreviewTest {
     }
 
   // A start between two slots leaves the gap the export writes, fifteen slots here, so the grid slot
-  // just short of the start is already the clip's opening frame. A relaxed seek into the clip lands on
-  // that same frame rather than on the fill in front of it.
+  // just short of the start is already the clip's opening frame, and every frame of the clip reports
+  // the slot the export writes it on rather than the time the clip was laid at. A relaxed seek into
+  // the clip lands on that same opening slot rather than on the fill in front of it.
   @Test
   fun aPrimaryThatStartsBetweenTwoSlotsOpensWhereTheExportDoes() =
     runTest {
       val preview = previewOf(lateComposition(Fill.Solid(PURPLE_ARGB), start = OFF_GRID_START))
+      val lead = outputSlotOf(OFF_GRID_START, FRAME_RATE)
 
       try {
         val filled = assertNotNull(preview.frameAt(frameTime(GAP_PROBE)), "no preview frame in the gap")
         assertTrue(filled.at(x = 0.5, y = 0.5).isNear(PURPLE_RGB), "the gap drew ${filled.at(0.5, 0.5)}")
 
         // Ten milliseconds short of the start and a whole slot past the last gap frame.
-        val shortOfStart = frameTime(OFF_GRID_LEAD)
+        val shortOfStart = outputSlotTime(lead, FRAME_RATE)
         assertTrue(shortOfStart < OFF_GRID_START, "the probe at $shortOfStart is not short of $OFF_GRID_START")
         val opening = assertNotNull(preview.frameAt(shortOfStart), "no preview frame at $shortOfStart")
+        assertEquals(shortOfStart, opening.presentationTime)
         assertTrue(
           opening.at(x = 0.5, y = 0.5).isNear(ramp(0)),
           "$shortOfStart drew ${opening.at(0.5, 0.5)} where the clip opens on ${ramp(0)}",
@@ -273,12 +279,71 @@ class BrowserPreviewTest {
         assertTrue(shortSeek <= shortOfStart, "a relaxed seek to $shortOfStart moved forward to $shortSeek")
 
         val inClip = OFF_GRID_START + frameTime(CLIP_PROBE)
+        val onGrid = outputSlotOf(inClip, FRAME_RATE)
+        val drawn = assertNotNull(preview.frameAt(inClip), "no preview frame at $inClip")
+        assertEquals(outputSlotTime(onGrid, FRAME_RATE), drawn.presentationTime)
+        val into = (onGrid - lead).toInt()
+        assertTrue(
+          drawn.at(x = 0.5, y = 0.5).isNear(ramp(into)),
+          "$inClip drew ${drawn.at(0.5, 0.5)} where the clip's frame $into is ${ramp(into)}",
+        )
+
         val seek = preview.syncSampleAt(inClip)
-        assertTrue(seek <= inClip, "a relaxed seek to $inClip moved forward to $seek")
+        assertEquals(opening.presentationTime, seek, "a relaxed seek to $inClip missed the slot the clip opens on")
         val landed = assertNotNull(preview.frameAt(seek), "no preview frame at $seek")
         assertTrue(
           landed.at(x = 0.5, y = 0.5).isNear(ramp(0)),
           "a relaxed seek landed on $seek and drew ${landed.at(0.5, 0.5)} where the clip opens on ${ramp(0)}",
+        )
+      } finally {
+        preview.release()
+      }
+    }
+
+  // A first clip trimmed between two slots gives up the slot its end rounds past, so the frame just
+  // after its end is already the next clip's first. Both frames either side of the seam report the
+  // shared grid's own time for their slot, and the one before it sits between two whole microseconds.
+  @Test
+  fun aSeamBetweenTwoSlotsDrawsTheNextClipOnTheSlotTheGridGivesIt() =
+    runTest {
+      val first =
+        makeClip(
+          width = WIDTH,
+          height = HEIGHT,
+          frames = SEAM_SOURCE_FRAMES,
+          frameRate = FRAME_RATE,
+          colour = Rgb.Green,
+        )
+      val composition =
+        EditComposition(
+          tracks =
+            listOf(
+              Track(
+                listOf(
+                  Clip(MediaSource.Bytes(first), trim = TimeRange(Duration.ZERO, OFF_GRID_SEAM)),
+                  Clip(MediaSource.Bytes(rampClip())),
+                ),
+              ),
+            ),
+          audio = AudioSpec.Remove,
+        )
+      val preview = previewOf(composition)
+      val seam = outputSlotOf(OFF_GRID_SEAM, FRAME_RATE)
+
+      try {
+        val opening = assertNotNull(preview.frameAt(OFF_GRID_SEAM), "no preview frame at $OFF_GRID_SEAM")
+        assertEquals(outputSlotTime(seam, FRAME_RATE), opening.presentationTime)
+        assertTrue(
+          opening.at(x = 0.5, y = 0.5).isNear(ramp(0)),
+          "$OFF_GRID_SEAM drew ${opening.at(0.5, 0.5)} where the second clip opens on ${ramp(0)}",
+        )
+
+        val lastOfFirst = outputSlotTime(seam - 1, FRAME_RATE)
+        val closing = assertNotNull(preview.frameAt(lastOfFirst), "no preview frame at $lastOfFirst")
+        assertEquals(lastOfFirst, closing.presentationTime)
+        assertTrue(
+          closing.at(x = 0.5, y = 0.5).isNear(Rgb.Green),
+          "$lastOfFirst drew ${closing.at(0.5, 0.5)} where the first clip is ${Rgb.Green}",
         )
       } finally {
         preview.release()
@@ -298,6 +363,69 @@ class BrowserPreviewTest {
         val seek = preview.syncSampleAt(opening + frameTime(CLIP_PROBE))
 
         assertEquals(opening, seek)
+      } finally {
+        preview.release()
+      }
+    }
+
+  // A trim between two source frames puts the sync sample on the second between two output slots. A
+  // relaxed seek lands on the slot the grid puts that sample on, which is the slot that draws it,
+  // rather than the one before it, which draws the last frame of the group in front.
+  @Test
+  fun aRelaxedSeekLandsOnTheSlotTheGridPutsItsSyncSampleOn() =
+    runTest {
+      val trimmed = Clip(MediaSource.Bytes(secondKeyFrameClip()), trim = TimeRange.from(OFF_FRAME_TRIM))
+      val preview = previewOf(EditComposition(tracks = listOf(Track(listOf(trimmed))), audio = AudioSpec.Remove))
+
+      try {
+        val laid =
+          preview.resolved.tracks
+            .first()
+            .clips
+            .single()
+        val keyAt = laid.span.start + frameTime(FRAME_RATE) - OFF_FRAME_TRIM
+        val position = laid.span.start + frameTime(PAST_THE_KEY)
+
+        val seek = preview.syncSampleAt(position)
+
+        assertEquals(outputSlotTime(outputSlotOf(keyAt, FRAME_RATE), FRAME_RATE), seek)
+      } finally {
+        preview.release()
+      }
+    }
+
+  // A clip trimmed past its own sync sample decodes from one that belongs in front of its trim. A
+  // relaxed seek into it settles on the slot the clip opens on rather than reaching back into the clip
+  // before it.
+  @Test
+  fun aRelaxedSeekIntoAClipTrimmedPastItsSyncSampleStaysInThatClip() =
+    runTest {
+      val trimmed = Clip(MediaSource.Bytes(secondKeyFrameClip()), trim = TimeRange.from(frameTime(MID_GOP_FRAME)))
+      val composition =
+        EditComposition(
+          tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(rampClip())), trimmed))),
+          audio = AudioSpec.Remove,
+        )
+      val preview = previewOf(composition)
+
+      try {
+        val laid =
+          preview.resolved.tracks
+            .first()
+            .clips
+            .last()
+        val opens = outputSlotTime(outputSlotOf(laid.span.start, FRAME_RATE), FRAME_RATE)
+        val inClip = laid.span.start + frameTime(GAP_PROBE)
+
+        val seek = preview.syncSampleAt(inClip)
+
+        assertEquals(opens, seek, "a relaxed seek to $inClip left the clip that opens at $opens")
+        val landed = assertNotNull(preview.frameAt(seek), "no preview frame at $seek")
+        assertTrue(
+          landed.at(x = 0.5, y = 0.5).isNear(keyed(MID_GOP_FRAME)),
+          "a relaxed seek landed on $seek and drew ${landed.at(0.5, 0.5)} where the clip opens on " +
+            "${keyed(MID_GOP_FRAME)}",
+        )
       } finally {
         preview.release()
       }
@@ -370,7 +498,7 @@ class BrowserPreviewTest {
    */
   private suspend fun secondKeyFrameClip(): ByteArray =
     makeClip(width = WIDTH, height = HEIGHT, frames = KEY_FRAME_FRAMES, frameRate = FRAME_RATE) { index, _ ->
-      Rgb(RAMP_BASE + index, RAMP_BASE + index, MAX_CHANNEL - index)
+      keyed(index)
     }
 
   private fun frameTime(index: Int): Duration = (index * MILLIS_PER_SECOND / FRAME_RATE).milliseconds
@@ -394,9 +522,12 @@ class BrowserPreviewTest {
     const val GAP_PROBE = 9
     const val CLIP_PROBE = 15
 
-    // Fifteen slots and three tenths of another, which leaves fifteen slots of gap.
+    // Fifteen slots and three tenths of another.
     val OFF_GRID_START = 510.milliseconds
-    const val OFF_GRID_LEAD = 15
+
+    // Thirty slots and three tenths of another, cut from a clip long enough to carry it.
+    val OFF_GRID_SEAM = 1_010.milliseconds
+    const val SEAM_SOURCE_FRAMES = 45
 
     // Two short clips, the second half as tall as the output, probed in its middle and in its top bar.
     const val SHORT_FRAMES = 12
@@ -410,11 +541,21 @@ class BrowserPreviewTest {
     // to come back from.
     const val KEY_FRAME_FRAMES = 45
 
+    // Half way between the two sync samples that clip carries.
+    const val MID_GOP_FRAME = 15
+
+    // Between that clip's frames at fifteen and sixteen, so its sync sample on the second lands
+    // between two output slots once the trim is taken off, and a slot a little past that sample.
+    val OFF_FRAME_TRIM = 510.milliseconds
+    const val PAST_THE_KEY = 18
+
     const val RAMP_STEP = 6
     const val RAMP_BASE = 20
     const val MAX_CHANNEL = 255
 
     fun ramp(index: Int): Rgb = Rgb(RAMP_BASE + index * RAMP_STEP, RAMP_BASE + index, MAX_CHANNEL - index * RAMP_STEP)
+
+    fun keyed(index: Int): Rgb = Rgb(RAMP_BASE + index, RAMP_BASE + index, MAX_CHANNEL - index)
   }
 }
 

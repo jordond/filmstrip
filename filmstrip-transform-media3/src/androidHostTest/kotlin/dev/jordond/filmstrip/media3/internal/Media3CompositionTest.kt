@@ -297,7 +297,7 @@ class Media3CompositionTest {
           looping = true,
           trackStart = 700.milliseconds,
           content = TrackContent.Video,
-        ).toMedia3()
+        ).toMedia3(Media3FrameBounds.None)
           .sequences
           .single()
 
@@ -331,7 +331,7 @@ class Media3CompositionTest {
           looping = true,
           trackStart = Duration.ZERO,
           content = TrackContent.Video,
-        ).toMedia3()
+        ).toMedia3(Media3FrameBounds.None)
           .sequences
           .single()
 

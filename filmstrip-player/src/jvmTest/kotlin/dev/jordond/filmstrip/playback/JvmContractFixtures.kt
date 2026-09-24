@@ -53,6 +53,29 @@ internal fun jvmFixtureComposition(effects: List<EffectSpec> = emptyList()): Edi
   )
 
 /**
+ * The fixture cut into two clips of [length] between them, which a preview cannot window with an input seek and reads
+ * forward from its head instead.
+ */
+internal fun jvmTwoClipComposition(length: Duration = CLIP_LENGTH): EditComposition {
+  val source = MediaSource.of(jvmFixtureClip())
+  val half = length / 2
+  return EditComposition(
+    tracks =
+      listOf(
+        Track(listOf(Clip(source, TimeRange.of(Duration.ZERO, half)), Clip(source, TimeRange.of(half, length)))),
+      ),
+  )
+}
+
+/**
+ * One clip of the fixture trimmed to [length], for a composition whose end falls between two frames.
+ */
+internal fun jvmTrimmedComposition(length: Duration): EditComposition =
+  EditComposition(
+    tracks = listOf(Track(listOf(Clip(MediaSource.of(jvmFixtureClip()), TimeRange.of(Duration.ZERO, length))))),
+  )
+
+/**
  * The frame the export writes at [position], decoded back out of the written file.
  *
  * This is the export path in full, encoder included, rather than a second run of the preview's own
@@ -150,9 +173,14 @@ internal val FIXTURE_FRAME: Size = Size(640, 360)
 internal val PROBE_POSITIONS: List<Duration> = listOf(300.milliseconds, 900.milliseconds)
 
 /**
+ * The rate the fixture is encoded at, which its `FixtureSpec` pins and an export of it keeps.
+ */
+internal const val FIXTURE_RATE: Int = 30
+
+/**
  * How long one frame of the fixture runs for, at the 30fps its `FixtureSpec` pins.
  */
-internal val FIXTURE_FRAME_STEP: Duration = 1.seconds / 30
+internal val FIXTURE_FRAME_STEP: Duration = 1.seconds / FIXTURE_RATE
 
 /**
  * How far apart the fixture's sync samples sit, which is the keyframe interval it was encoded at.

@@ -3,6 +3,8 @@ package dev.jordond.filmstrip.playback
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media.PlatformImage
 import dev.jordond.filmstrip.playback.contract.awaitContract
 import dev.jordond.filmstrip.playback.contract.contractTest
@@ -23,6 +25,7 @@ import kotlin.coroutines.resume
 import kotlin.test.Test
 import kotlin.test.fail
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * What the strip's frames have to agree with, which is the file an export writes.
@@ -76,6 +79,26 @@ class JvmThumbnailContractTest {
           withClue("precise=$precise landed at ${thumbnail.presentationTime}") {
             thumbnail.driftFrom(MID_GOP_POSITION) shouldBeLessThanOrEqualTo exact
           }
+        } finally {
+          thumbnail.image.close()
+        }
+      }
+    }
+
+  /**
+   * A composition the pump reads forward from its head reports the frame it stopped on at that frame's slot, for a
+   * request that rounds down onto its slot and one that rounds up.
+   */
+  @Test
+  fun `a thumbnail read forward reports the slot it rounds to`() =
+    contractTest {
+      val composition = jvmTwoClipComposition()
+
+      for (position in listOf(LATE_ROUNDS_DOWN, LATE_ROUNDS_UP)) {
+        val request = ThumbnailRequest(composition, position, FIXTURE_FRAME.height, REVISION, precise = true)
+        val thumbnail = source(request).awaitThumbnail(request)
+        try {
+          thumbnail.presentationTime shouldBe outputSlotTime(outputSlotOf(position, FIXTURE_RATE), FIXTURE_RATE)
         } finally {
           thumbnail.image.close()
         }
@@ -136,6 +159,10 @@ class JvmThumbnailContractTest {
     // been through the encoder.
     const val ENCODED_MIN_PSNR_DB = 42.0
     const val ENCODED_MIN_SSIM = 0.985
+
+    // A third of the way into a frame period and three quarters of the way into one.
+    val LATE_ROUNDS_DOWN = 1_010.milliseconds
+    val LATE_ROUNDS_UP = 1_025.milliseconds
   }
 }
 

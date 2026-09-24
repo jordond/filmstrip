@@ -15,7 +15,7 @@ import dev.jordond.filmstrip.edit.EditComposition
  * @property bitrate The video bitrate to aim for, or null to let filmstrip pick one.
  * @property videoCodec The codec to encode video with.
  * @property audioCodec The codec to encode audio with.
- * @property frameRate Output frame rate, or null to keep the source's.
+ * @property frameRate Output frame rate, or null to keep the source's. A rate of zero or less is refused.
  * @property hdr What to do about high dynamic range.
  * @property strict Fail rather than accept a fallback. False by default: fall back, and report
  *   every adjustment. Set it when a byte budget or a codec requirement is non-negotiable.

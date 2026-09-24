@@ -2,7 +2,10 @@ package dev.jordond.filmstrip.playback.internal
 
 import dev.jordond.filmstrip.edit.CompositionDiff
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.player.SeekAccuracy
+import kotlin.time.Duration
 
 /**
  * The accuracy a seek will really run at here, given the one that was asked for.
@@ -23,6 +26,25 @@ internal fun clampedAccuracy(requested: SeekAccuracy): SeekAccuracy =
     SeekAccuracy.Exact -> SeekAccuracy.Exact
     SeekAccuracy.Nearest -> SeekAccuracy.Exact
   }
+
+/**
+ * Where a step of [frames] taken from [from] lands, or null when it would leave the composition.
+ *
+ * The step is counted on the output frame grid from the slot [from] lands on, so a step taken from between two frames
+ * lands on one, and a run of single steps lands where one step of the whole count would.
+ *
+ * @param frameRate The composition's output frame rate.
+ * @param duration How long the composition runs.
+ */
+internal fun frameStepLanding(
+  from: Duration,
+  frames: Int,
+  frameRate: Int,
+  duration: Duration,
+): Duration? {
+  val landing = outputSlotTime(outputSlotOf(from, frameRate) + frames, frameRate)
+  return landing.takeIf { it >= Duration.ZERO && it <= duration }
+}
 
 /**
  * What one `setComposition` costs the platform.

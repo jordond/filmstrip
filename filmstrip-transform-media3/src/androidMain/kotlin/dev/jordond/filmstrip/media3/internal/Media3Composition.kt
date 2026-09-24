@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.Uri
 import androidx.media3.common.C
 import androidx.media3.common.Effect
-import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.ChannelMixingAudioProcessor
@@ -16,7 +15,6 @@ import androidx.media3.effect.RgbMatrix
 import androidx.media3.effect.TextureOverlay
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
-import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
 import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.InternalFilmstripApi
@@ -24,6 +22,7 @@ import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effects.overlay.MAX_OVERLAYS_PER_EFFECT
 import dev.jordond.filmstrip.export.AudioCodec
+import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
@@ -42,7 +41,6 @@ import dev.jordond.filmstrip.transform.internal.showsFill
 import java.io.File
 import java.io.IOException
 import kotlin.math.abs
-import kotlin.time.Duration
 
 /**
  * Why a resolved composition could not be built into a media3 one.
@@ -82,49 +80,47 @@ internal val PassThroughEffects: EffectWrapper = EffectWrapper { it }
  * concatenate. It sits after composition-level geometry and before everything else, so a
  * normalized measurement in a later effect is a fraction of the frame that will really be written.
  *
- * Every clip's chain is lowered before the composition's, in track and clip order, which is the
- * order [wrapper] sees them in.
+ * A track's video lands on the output frame grid and its audio lands exactly where the plan put it, so a track carrying
+ * both lowers to a video sequence followed by an audio one. A copy lays each track as one sequence at the exact times
+ * the plan resolved, since it writes the source's own samples and has no grid to land them on.
  *
- * @throws Media3LoweringFailure when an effect or a source cannot be lowered.
+ * Every clip's chain is lowered before the composition's, in track and clip order, which is the order [wrapper] sees
+ * them in. A clip that covers no slot of the grid lays no video, so its chain is never lowered.
+ *
+ * @param bounds The samples each clip decodes, read off its container by `readFrameBounds`.
+ * @throws Media3LoweringFailure when an effect or a source cannot be lowered, or when video has no frame rate to be
+ * laid at.
  */
 @InternalFilmstripApi
-public fun ResolvedComposition.toMedia3(): Composition = toMedia3(PassThroughEffects)
+public fun ResolvedComposition.toMedia3(bounds: Media3FrameBounds): Composition = toMedia3(PassThroughEffects, bounds)
 
-internal fun ResolvedComposition.toMedia3(wrapper: EffectWrapper): Composition {
+internal fun ResolvedComposition.toMedia3(
+  wrapper: EffectWrapper,
+  bounds: Media3FrameBounds,
+): Composition {
   val keepAudio = output.audioCodec != AudioCodec.None
   val keepVideo = audio != AudioSpec.AudioOnly
+  val lowering = Lowering(this, wrapper, bounds)
   val sequences =
-    tracks.mapNotNull { track ->
-      val trackTypes = track.trackTypes(keepAudio, keepVideo)
-      if (trackTypes.isEmpty() || track.clips.isEmpty()) return@mapNotNull null
-
-      val builder = EditedMediaItemSequence.Builder(trackTypes)
-      if (track.start > Duration.ZERO) builder.addGap(track.start.inWholeMicroseconds)
-
-      // A lone clip at full volume is already the format the sequence outputs, so it doesn't need mixing.
-      val mixesAudio = track.clips.size > 1
-      // The plan already holds every pass a looping track lays, so the sequence is never asked to
-      // repeat itself. media3 repeats by item index and a leading gap is one of those items, which
-      // would open a pass every start plus length where the other three open one every length.
-      track.clips.forEach { clip ->
-        builder.addItem(
-          clip.toItem(
-            content = track.content,
-            keepAudio = keepAudio,
-            keepVideo = keepVideo,
-            frameRate = output.frameRate,
-            startsAtKeyFrame = clip.startsAtKeyFrame,
-            mixesAudio = mixesAudio,
-            fit = fit,
-            fill = fill,
-            outputSize = output.size,
-            wrapper = wrapper,
-          ),
-        )
+    tracks
+      .filter { it.clips.isNotEmpty() }
+      .flatMap { track ->
+        // The plan already holds every pass a looping track lays, so no sequence is ever asked to
+        // repeat itself. media3 repeats by item index and a leading gap is one of those items, which
+        // would open a pass every start plus length where the other three open one every length.
+        if (path == ExportPath.Transmux) {
+          listOfNotNull(lowering.exactSequence(track, track.trackTypes(keepAudio, keepVideo)))
+        } else {
+          listOfNotNull(
+            if (keepVideo && track.content != TrackContent.Audio) lowering.gridSequence(track) else null,
+            if (keepAudio && track.content != TrackContent.Video) {
+              lowering.exactSequence(track, setOf(C.TRACK_TYPE_AUDIO))
+            } else {
+              null
+            },
+          )
+        }
       }
-
-      builder.build()
-    }
 
   if (sequences.isEmpty()) {
     throw Media3LoweringFailure("Nothing in this composition contributes a track to encode.")
@@ -239,139 +235,6 @@ private fun Fill.flattenColor(): Int =
     is Fill.Solid -> color
     else -> BLACK
   }
-
-private fun ResolvedClip.toItem(
-  content: TrackContent,
-  keepAudio: Boolean,
-  keepVideo: Boolean,
-  frameRate: Int?,
-  startsAtKeyFrame: Boolean,
-  mixesAudio: Boolean,
-  fit: Fit,
-  fill: Fill,
-  outputSize: Size,
-  wrapper: EffectWrapper,
-): EditedMediaItem {
-  val removeAudio = !keepAudio || content == TrackContent.Video
-  val removeVideo = !keepVideo || content == TrackContent.Audio
-
-  val still = source as? MediaSource.Image
-  if (still != null) {
-    return toImageItem(still, frameRate, fit, fill, outputSize, wrapper, removeAudio, removeVideo)
-  }
-
-  val mediaItem =
-    MediaItem
-      .Builder()
-      .setUri(source.toAndroidUri())
-      .apply {
-        val trims = start > Duration.ZERO || end < info.duration
-        if (trims) {
-          setClippingConfiguration(
-            MediaItem.ClippingConfiguration
-              .Builder()
-              .setStartPositionMs(start.inWholeMilliseconds)
-              .setEndPositionMs(end.inWholeMilliseconds)
-              .setStartsAtKeyFrame(startsAtKeyFrame)
-              .build(),
-          )
-        }
-      }.build()
-
-  return EditedMediaItem
-    .Builder(mediaItem)
-    .setRemoveAudio(removeAudio)
-    .setRemoveVideo(removeVideo)
-    .apply {
-      // The duration media3 wants is the source's, before any clipping.
-      if (info.duration > Duration.ZERO) {
-        setDurationUs(info.duration.inWholeMicroseconds)
-      }
-
-      // A maximum rather than a target: a higher-rate source has frames dropped, a lower-rate one is left alone.
-      if (frameRate != null && frameRate > 0) {
-        setFrameRate(frameRate)
-      }
-    }.setEffects(
-      Effects(
-        if (removeAudio) emptyList() else audioProcessors(gain, mixesAudio),
-        if (removeVideo) emptyList() else clipVideoEffects(fit, fill, outputSize, wrapper),
-      ),
-    ).build()
-}
-
-/**
- * The item a still lowers to.
- *
- * media3 chooses its image loader by MIME type, and the loader wants both a duration and a rate to
- * hold the picture at, since a still carries neither. The type is the one the probe read out of the
- * image's own header rather than a guess from the URI, because neither a cached copy of a byte
- * buffer nor a `content://` reference is guaranteed to carry a file extension.
- *
- * The span comes from the resolved clip, whose trim the plan has already collapsed into its length.
- * An image item has no samples to clip, so there is no clipping configuration here for one to reach.
- *
- * The removal flags are the ones every other clip in the sequence is built from, read the same way,
- * so a photo and the sequence's own track types cannot disagree about whether it contributes video.
- */
-private fun ResolvedClip.toImageItem(
-  source: MediaSource.Image,
-  frameRate: Int?,
-  fit: Fit,
-  fill: Fill,
-  outputSize: Size,
-  wrapper: EffectWrapper,
-  removeAudio: Boolean,
-  removeVideo: Boolean,
-): EditedMediaItem {
-  val rate =
-    frameRate?.takeIf { it > 0 }
-      ?: throw Media3LoweringFailure(
-        "${source.image.describe()} is a still, which has no cadence of its own, and the plan " +
-          "settled on no frame rate to hold it at.",
-      )
-
-  val mediaItem =
-    MediaItem
-      .Builder()
-      .setUri(source.image.toAndroidUri(stillFormat))
-      .apply { stillFormat?.let { setMimeType("$IMAGE_MIME_PREFIX$it") } }
-      .setImageDurationMs(duration.heldMilliseconds())
-      .build()
-
-  // A still carries no audio of its own, so removing it takes nothing away, and media3 ignores both
-  // flags on an image item. They are set anyway so an audio-only export drops a photo's video
-  // through the same reading that drops every other clip's.
-  return EditedMediaItem
-    .Builder(mediaItem)
-    .setRemoveAudio(removeAudio)
-    .setRemoveVideo(removeVideo)
-    .setDurationUs(duration.inWholeMicroseconds)
-    .setFrameRate(rate)
-    .setEffects(
-      Effects(emptyList(), if (removeVideo) emptyList() else clipVideoEffects(fit, fill, outputSize, wrapper)),
-    ).build()
-}
-
-/**
- * This span in the whole milliseconds media3's own image duration is counted in.
- *
- * media3 takes that field in milliseconds and rejects a zero, so a span that is not a whole number
- * of them rounds to the nearest one and never falls below one. It is what routes the item to the
- * image loader and what a preview holds the picture for. The exact span rides on the edited item's
- * duration, which is what an export lays the picture out by.
- */
-private fun Duration.heldMilliseconds(): Long =
-  ((inWholeMicroseconds + MICROS_PER_MILLISECOND / 2) / MICROS_PER_MILLISECOND).coerceAtLeast(1)
-
-// The still format the probe read out of the image's header, or null when it named none.
-private val ResolvedClip.stillFormat: String?
-  get() =
-    info.video
-      ?.codec
-      ?.name
-      ?.lowercase()
-      ?.takeIf { it.isNotBlank() }
 
 /**
  * A clip's own video effect chain, with a cover-blur pass appended when its frame would otherwise
@@ -495,7 +358,7 @@ private fun List<ResolvedEffect>.toMedia3Effects(): List<Effect> {
   return effects
 }
 
-private fun MediaSource.toAndroidUri(): Uri =
+internal fun MediaSource.toAndroidUri(): Uri =
   when (this) {
     is MediaSource.Path -> {
       Uri.fromFile(File(path))
@@ -509,7 +372,7 @@ private fun MediaSource.toAndroidUri(): Uri =
       cached { context -> AndroidScratch.fileFor(context, this) }
     }
     is MediaSource.Image -> {
-      // Lowered by toImageItem, which reaches the still through ImageSource.toAndroidUri instead.
+      // Lowered by imageItem, which reaches the still through ImageSource.toAndroidUri instead.
       throw Media3LoweringFailure("${image.describe()} is a still, which is not lowered as a plain URI.")
     }
   }
@@ -520,7 +383,7 @@ private fun MediaSource.toAndroidUri(): Uri =
  * @param format The still format the probe named, used as the extension a cached copy is written
  *   under.
  */
-private fun ImageSource.toAndroidUri(format: String?): Uri =
+internal fun ImageSource.toAndroidUri(format: String?): Uri =
   when (this) {
     is ImageSource.Path -> {
       Uri.fromFile(File(path))
@@ -563,11 +426,6 @@ private const val CHANNEL_COUNT = 2
 private val INPUT_CHANNEL_COUNTS = listOf(1, 2)
 
 private const val BLACK = 0xFF000000.toInt()
-
-// What media3 reads an item's MIME type for, which is only ever whether it starts with this.
-private const val IMAGE_MIME_PREFIX = "image/"
-
-private const val MICROS_PER_MILLISECOND = 1000L
 
 // Aspect ratios closer than this are treated as the same shape, so a clip that already fills the
 // output frame is never sent through a blur pass it would draw nothing observable with.

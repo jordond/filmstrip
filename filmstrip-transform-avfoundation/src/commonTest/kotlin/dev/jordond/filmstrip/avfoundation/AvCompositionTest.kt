@@ -1,6 +1,9 @@
 package dev.jordond.filmstrip.avfoundation
 
+import dev.jordond.filmstrip.avfoundation.internal.AppleLoweringFailure
 import dev.jordond.filmstrip.avfoundation.internal.AvComposition
+import dev.jordond.filmstrip.avfoundation.internal.MEDIA_TICK
+import dev.jordond.filmstrip.avfoundation.internal.respannedOnto
 import dev.jordond.filmstrip.avfoundation.internal.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.toCMTime
 import dev.jordond.filmstrip.avfoundation.internal.toDuration
@@ -14,6 +17,9 @@ import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
+import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.EXIF_ORIENTATION_NORMAL
 import dev.jordond.filmstrip.media.ImageSource
@@ -22,12 +28,14 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.imageMediaInfoOf
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.test.LoopingCases
 import dev.jordond.filmstrip.transform.internal.GainSegment
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import dev.jordond.filmstrip.transform.internal.passesCovering
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -36,14 +44,27 @@ import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.readValue
+import kotlinx.cinterop.useContents
 import kotlinx.cinterop.value
+import platform.AVFoundation.AVAssetTrack
+import platform.AVFoundation.AVAssetTrackSegment
 import platform.AVFoundation.AVAudioMixInputParameters
+import platform.AVFoundation.AVMediaTypeAudio
+import platform.AVFoundation.AVMediaTypeVideo
+import platform.AVFoundation.AVURLAsset
+import platform.AVFoundation.segments
+import platform.AVFoundation.timeRange
+import platform.AVFoundation.tracksWithMediaType
 import platform.CoreMedia.CMTimeRange
+import platform.CoreMedia.CMTimeRangeGetEnd
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSProcessInfo
+import platform.Foundation.NSURL
 import kotlin.test.Test
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -130,6 +151,261 @@ class AvCompositionTest {
     val composition = threeClips() ?: return
 
     composition.audioMix shouldBe null
+  }
+
+  // The third clip opens at 1 550 ms, exactly half way between two slots at 30 fps, so it is the one a clip laid at
+  // its exact time would open between two frames.
+  @Test
+  fun `opens each clip's video on the slot the frame grid names`() {
+    val resolved = threeClipsResolved() ?: return
+    val laid = resolved.tracks.single().clips
+    val composition = resolved.toAvComposition()
+
+    val opens = laid.map { gridTime(it.span.start, FRAME_RATE).asLaid() }
+    composition.spans.map { it.start } shouldBe opens
+    composition.spans[2].start shouldNotBe laid[2].span.start
+    val video = composition.segmentsOf(AVMediaTypeVideo)
+    video.map { it.start } shouldBe opens
+    video.last().end shouldBe gridTime(laid.last().span.end(), FRAME_RATE).asLaid()
+  }
+
+  // The same clips with the last one turned down, so its level is written as a ramp. Only the picture moves onto the
+  // grid, so the ramp still covers the span the plan gave the clip rather than the slots its video landed on.
+  @Test
+  fun `leaves each audio placement where the plan laid it`() {
+    val resolved = threeClipsResolved(trailingGain = 0.5f) ?: return
+    val trailing =
+      resolved.tracks
+        .single()
+        .clips
+        .last()
+
+    val parameters = resolved.toAvComposition().soleAudioParameters() ?: error("expected an audio mix")
+    val ramp =
+      parameters.rampAt(trailing.span.start + trailing.duration / 2) ?: error("expected a ramp in the last clip")
+    ramp.rangeStart shouldBe trailing.span.start.asLaid()
+    ramp.rangeLength shouldBe trailing.duration.asLaid()
+  }
+
+  // A 1.7 s pass is 42.5 slots at 25 fps, so every other seam of the bed sits half way between two slots, and the run
+  // stops half way through one too.
+  @Test
+  fun `lays every pass of a looping track onto the frame grid end to end`() {
+    val long = fixture("apple_export_long.mp4") ?: return
+    val trim = LoopingCases.BED_TRIM
+    val laid =
+      laidFrom(
+        Duration.ZERO,
+        passesCovering(LoopingCases.BED_LENGTHS, LoopingCases.PRIMARY_RUN).map { pass ->
+          clip(long, Size(1280, 720), trim.start, trim.start + pass.length)
+        },
+      )
+    val composition = loopingComposition(laid, Duration.ZERO, LoopingCases.PRIMARY_RUN, GRID_RATE)
+
+    val opens = laid.map { gridTime(it.span.start, GRID_RATE).asLaid() }
+    composition.spans.map { it.start } shouldBe opens
+    composition.spans.zipWithNext().forEach { (first, second) -> first.end shouldBe second.start }
+    assertTrue(
+      composition.spans.last().end >= LoopingCases.PRIMARY_RUN,
+      "the last span ends at ${composition.spans.last().end}, short of the ${LoopingCases.PRIMARY_RUN} run",
+    )
+    val video = composition.segmentsOf(AVMediaTypeVideo)
+    video.map { it.start } shouldBe opens
+    video.last().end shouldBe gridTime(LoopingCases.PRIMARY_RUN, GRID_RATE).asLaid()
+  }
+
+  // The middle clip runs from 1.000 to 1.010 s, and at 25 fps both of its ends land on slot 25, so it covers no slot
+  // and has no frame of its own to show. Its sound still plays.
+  @Test
+  fun `lays no video for a clip whose ends land on the same slot`() {
+    val resolved = sliverBetweenTwoClips() ?: return
+    val laid = resolved.tracks.single().clips
+    outputSlotsOf(laid[1].span, GRID_RATE).isEmpty() shouldBe true
+
+    val composition = resolved.toAvComposition()
+
+    val video = composition.segmentsOf(AVMediaTypeVideo)
+    video.map { it.start } shouldBe listOf(laid[0], laid[2]).map { gridTime(it.span.start, GRID_RATE).asLaid() }
+    video.zipWithNext().forEach { (first, second) -> first.end shouldBe second.start }
+    composition.segmentsOf(AVMediaTypeAudio).map { it.start } shouldBe laid.map { it.span.start.asLaid() }
+    composition.spans.map { it.attributes.inputSize } shouldBe
+      listOf(laid[0], laid[2]).map { it.info.video?.displaySize }
+  }
+
+  // The clip covering no slot has no span, so a swap that paired spans with clips by position alone would hand the
+  // last span the middle clip's frame, or refuse the swap for holding one span fewer than there are clips.
+  @Test
+  fun `keeps each span on its own clip across a swap when a clip lays no video`() {
+    val resolved = sliverBetweenTwoClips() ?: return
+    val laid = resolved.tracks.single().clips
+    val composition = resolved.toAvComposition()
+
+    composition.chain?.updateParameters(resolved)
+
+    composition.spans.map { it.attributes.inputSize } shouldBe
+      listOf(laid[0], laid[2]).map { it.info.video?.displaySize }
+  }
+
+  // A swap finds each span's clip by the slots it covers, so a plan naming no frame rate cannot be swapped in. It fails
+  // the way laying that plan down fails rather than dropping every span.
+  @Test
+  fun `refuses a swap onto a plan with no frame rate the way laying it refuses`() {
+    val first = fixture("apple_export_a.mp4") ?: return
+    val clips = listOf(clip(first, Size(640, 360), Duration.ZERO, 1.seconds))
+    val spans = resolvedComposition(clips, 1.seconds).toAvComposition().spans
+
+    listOf(null, 0).forEach { rate ->
+      val unrated = resolvedComposition(clips, 1.seconds, frameRate = rate)
+      val laying = assertFailsWith<AppleLoweringFailure> { unrated.toAvComposition() }
+      val swapping = assertFailsWith<AppleLoweringFailure> { spans.respannedOnto(unrated) }
+      swapping.reason shouldBe laying.reason
+    }
+  }
+
+  // An untrimmed clip runs to the asset's duration, which here outlasts the picture by 30 ms. 2.03 s is 50.75 slots at
+  // 25 fps, so the first pass rounds up past the source's last frame and the second still opens on its own slot.
+  @Test
+  fun `keeps each pass on its slot when the pass runs past its source's picture`() {
+    val first = fixture("apple_export_a.mp4") ?: return
+    val run = OUTLASTING * 2
+    val laid =
+      laidFrom(
+        Duration.ZERO,
+        passesCovering(listOf(OUTLASTING), run).map { pass ->
+          clip(first, Size(640, 360), Duration.ZERO, pass.length, mediaDuration = OUTLASTING)
+        },
+      )
+    val composition = loopingComposition(laid, Duration.ZERO, run, GRID_RATE)
+
+    composition.spans.map { it.start } shouldBe laid.map { gridTime(it.span.start, GRID_RATE).asLaid() }
+    composition.spans.zipWithNext().forEach { (first, second) -> first.end shouldBe second.start }
+    composition.composition.duration.toDuration() shouldBe gridTime(run, GRID_RATE).asLaid()
+  }
+
+  // The first clip reads 30 ms past the two seconds of picture its source holds, and its slots reach 10 ms further.
+  // The last opens a single tick before the picture ends. Each stops reading where the picture does and its last frame
+  // is stretched over the rest of its slots. The middle clip ends well inside its picture and is laid as it reads, one
+  // segment playing as long as it fills.
+  @Test
+  fun `stretches the last frame only for a clip that runs past its source's picture`() {
+    val first = fixture("apple_export_a.mp4") ?: return
+    val picture = videoEndOf(first)
+    val lastTick = picture - MEDIA_TICK
+    val resolved =
+      resolvedComposition(
+        clips =
+          listOf(
+            clip(first, Size(640, 360), Duration.ZERO, OUTLASTING, mediaDuration = OUTLASTING),
+            clip(first, Size(640, 360), Duration.ZERO, 1.seconds),
+            clip(first, Size(640, 360), lastTick, lastTick + 1.seconds),
+          ),
+        duration = OUTLASTING + 2.seconds,
+        frameRate = GRID_RATE,
+      )
+    val laid = resolved.tracks.single().clips
+
+    val video = resolved.toAvComposition().segmentsOf(AVMediaTypeVideo)
+
+    val (overrunning, fitting, lastTickOnly) =
+      laid.map { clip ->
+        val opens = gridTime(clip.span.start, GRID_RATE).asLaid()
+        val closes = gridTime(clip.span.end(), GRID_RATE).asLaid()
+        video.filter { it.start >= opens && it.start < closes } to closes
+      }
+    listOf(overrunning, lastTickOnly).forEach { (segments, closes) ->
+      segments.none { it.empty } shouldBe true
+      segments.last().end shouldBe closes
+      segments.forEach { segment ->
+        assertTrue(segment.sourceEnd <= picture, "a segment reads to ${segment.sourceEnd}, past the $picture picture")
+      }
+      segments.last().sourceEnd shouldBe picture
+    }
+    val plain = fitting.first.single()
+    (plain.sourceEnd - plain.sourceStart) shouldBe (plain.end - plain.start)
+  }
+
+  // 16 ms is 0.48 of a slot at 30 fps and 17 ms is 0.51, so one start rounds down and the other up. The picture opens
+  // on the slot the start rounds to with empty time in front of it only when that slot is not the first, and the
+  // sound opens on the start itself.
+  @Test
+  fun `opens a track's video on the slot its start lands on`() {
+    val first = fixture("apple_export_a.mp4") ?: return
+
+    listOf(16.milliseconds, 17.milliseconds).forEach { start ->
+      val laid = laidFrom(start, listOf(clip(first, Size(640, 360), Duration.ZERO, 1.seconds)))
+      val composition = loopingComposition(laid, start, start + 1.seconds)
+
+      val opening = gridTime(start, FRAME_RATE)
+      val video = composition.segmentsOf(AVMediaTypeVideo)
+      video.map { Triple(it.start, it.end, it.empty) } shouldBe
+        listOfNotNull(
+          Triple(Duration.ZERO, opening.asLaid(), true).takeIf { opening > Duration.ZERO },
+          Triple(opening.asLaid(), gridTime(laid.single().span.end(), FRAME_RATE).asLaid(), false),
+        )
+      val audio = composition.segmentsOf(AVMediaTypeAudio)
+      audio.first { !it.empty }.start shouldBe start.asLaid()
+    }
+  }
+
+  // 32 does not divide the timescale, so an odd slot lands half a tick late. The still and the last clip each open on
+  // an odd slot and close on an even one, where a length rounded on its own would run a tick into the next clip. The
+  // still is cut from the seed the same way. Each span opens on the tick its segment does, since a frame at a seam is
+  // matched to its clip by the span it falls in.
+  @Test
+  fun `meets every clip on one tick at a rate the timescale does not divide`() {
+    val first = fixture("apple_export_a.mp4") ?: return
+    val resolved =
+      resolvedComposition(
+        clips =
+          listOf(
+            clip(first, Size(640, 360), Duration.ZERO, UNEVEN_LONG),
+            imageClip(UNEVEN_SHORT),
+            clip(first, Size(640, 360), Duration.ZERO, UNEVEN_LONG),
+            clip(first, Size(640, 360), Duration.ZERO, UNEVEN_SHORT),
+          ),
+        duration = (UNEVEN_LONG + UNEVEN_SHORT) * 2,
+        frameRate = UNEVEN_RATE,
+      )
+    val laid = resolved.tracks.single().clips
+
+    val composition = resolved.toAvComposition()
+    val video = composition.segmentsOf(AVMediaTypeVideo)
+
+    video.map { it.start } shouldBe laid.map { gridTime(it.span.start, UNEVEN_RATE).asLaid() }
+    video.zipWithNext().forEach { (first, second) -> first.end shouldBe second.start }
+    video.last().end shouldBe gridTime(laid.last().span.end(), UNEVEN_RATE).asLaid()
+    composition.spans.map { it.start } shouldBe video.map { it.start }
+  }
+
+  // Both clips are cut off the grid at 48 fps and their seams land on odd slots, which only a timescale 48 divides
+  // can name exactly. Every span and every segment opens on its frame's own time rather than on a tick beside it.
+  @Test
+  fun `opens every clip on its frame's own time at 48 fps`() {
+    val first = fixture("apple_export_a.mp4") ?: return
+    val resolved =
+      resolvedComposition(
+        clips =
+          listOf(
+            clip(first, Size(640, 360), Duration.ZERO, 1_030.milliseconds),
+            clip(first, Size(640, 360), Duration.ZERO, 1.seconds),
+          ),
+        duration = 2_030.milliseconds,
+        frameRate = WHOLE_TICK_RATE,
+      )
+    val laid = resolved.tracks.single().clips
+
+    val composition = resolved.toAvComposition()
+    val video = composition.segmentsOf(AVMediaTypeVideo)
+
+    val frames = laid.map { frameTimeOf(outputSlotOf(it.span.start, WHOLE_TICK_RATE), WHOLE_TICK_RATE) }
+    listOf(composition.spans.map { it.start }, video.map { it.start }).forEach { opens ->
+      opens.size shouldBe frames.size
+      opens.zip(frames).forEach { (opened, frame) ->
+        assertTrue((opened - frame).absoluteValue <= ON_THE_FRAME, "a clip opens at $opened, off its frame at $frame")
+      }
+    }
+    val closes = frameTimeOf(outputSlotOf(laid.last().span.end(), WHOLE_TICK_RATE), WHOLE_TICK_RATE)
+    assertTrue((video.last().end - closes).absoluteValue <= ON_THE_FRAME, "the video ends at ${video.last().end}")
   }
 
   @Test
@@ -359,6 +635,27 @@ class AvCompositionTest {
   ): AvComposition = resolvedComposition(clips, duration).toAvComposition()
 
   /**
+   * Two one second clips with a 10 ms one between them, at [GRID_RATE], so the middle one covers no slot. It reads its
+   * own size, so a span built from it is told apart from one built from either neighbour.
+   */
+  private fun sliverBetweenTwoClips(): ResolvedComposition? {
+    val first = fixture("apple_export_a.mp4") ?: return null
+    val second = fixture("apple_export_b.mp4") ?: return null
+    val third = fixture("apple_export_portrait.mp4") ?: return null
+
+    return resolvedComposition(
+      clips =
+        listOf(
+          clip(first, Size(640, 360), Duration.ZERO, 1.seconds),
+          clip(second, Size(480, 270), Duration.ZERO, SLIVER),
+          clip(third, Size(360, 640), Duration.ZERO, 1.seconds),
+        ),
+      duration = 2.seconds + SLIVER,
+      frameRate = GRID_RATE,
+    )
+  }
+
+  /**
    * These clips carrying the spans a planner would have derived for them, laid end to end from
    * [from]. The lowering reads the span rather than working an offset out again, so a fixture has
    * to hold the same slots a plan would.
@@ -391,6 +688,7 @@ class AvCompositionTest {
     clips: List<ResolvedClip>,
     start: Duration,
     duration: Duration,
+    frameRate: Int = FRAME_RATE,
   ): AvComposition =
     ResolvedComposition(
       tracks =
@@ -411,7 +709,7 @@ class AvCompositionTest {
           videoCodec = VideoCodec.H264,
           audioCodec = AudioCodec.Aac,
           bitrate = null,
-          frameRate = 30,
+          frameRate = frameRate,
           audioFormat = null,
         ),
       layoutSize = OUTPUT,
@@ -428,6 +726,7 @@ class AvCompositionTest {
   private fun resolvedComposition(
     clips: List<ResolvedClip>,
     duration: Duration,
+    frameRate: Int? = FRAME_RATE,
   ): ResolvedComposition =
     ResolvedComposition(
       tracks =
@@ -448,7 +747,7 @@ class AvCompositionTest {
           videoCodec = VideoCodec.H264,
           audioCodec = AudioCodec.Aac,
           bitrate = null,
-          frameRate = 30,
+          frameRate = frameRate,
           audioFormat = null,
         ),
       layoutSize = OUTPUT,
@@ -462,9 +761,15 @@ class AvCompositionTest {
       path = ExportPath.Transcode,
     )
 
-  private fun threeClips(): AvComposition? {
+  private fun threeClips(): AvComposition? = threeClipsResolved()?.toAvComposition()
+
+  /**
+   * Three clips laid end to end at [FRAME_RATE], the last one held at [trailingGain].
+   */
+  private fun threeClipsResolved(trailingGain: Float = 1f): ResolvedComposition? {
     val first = fixture("apple_export_a.mp4") ?: return null
     val second = fixture("apple_export_b.mp4") ?: return null
+    val trailing = 1_033.milliseconds
 
     return ResolvedComposition(
       tracks =
@@ -479,7 +784,13 @@ class AvCompositionTest {
                 listOf(
                   clip(first, Size(640, 360), Duration.ZERO, 700.milliseconds),
                   clip(second, Size(480, 270), 250.milliseconds, 1_100.milliseconds),
-                  clip(first, Size(640, 360), 300.milliseconds, 1_333.milliseconds),
+                  clip(
+                    first,
+                    Size(640, 360),
+                    300.milliseconds,
+                    300.milliseconds + trailing,
+                    ResolvedGain.constant(trailingGain, Duration.ZERO, trailing),
+                  ),
                 ),
               ),
           ),
@@ -493,7 +804,7 @@ class AvCompositionTest {
           videoCodec = VideoCodec.H264,
           audioCodec = AudioCodec.Aac,
           bitrate = null,
-          frameRate = 30,
+          frameRate = FRAME_RATE,
           audioFormat = null,
         ),
       layoutSize = OUTPUT,
@@ -505,7 +816,7 @@ class AvCompositionTest {
       audio = AudioSpec.Keep,
       adjustments = emptyList(),
       path = ExportPath.Transcode,
-    ).toAvComposition()
+    )
   }
 
   private fun clip(
@@ -515,12 +826,13 @@ class AvCompositionTest {
     end: Duration,
     gain: ResolvedGain = ResolvedGain.constant(1f, Duration.ZERO, end - start),
     sourceIndex: Int = 0,
+    mediaDuration: Duration = 2.seconds,
   ): ResolvedClip =
     ResolvedClip(
       source = MediaSource.of(path),
       info =
         MediaInfo(
-          duration = 2.seconds,
+          duration = mediaDuration,
           video =
             VideoTrackInfo(
               codedSize = size,
@@ -545,6 +857,17 @@ class AvCompositionTest {
       span = TimeRange.of(Duration.ZERO, end - start),
       sourceIndex = sourceIndex,
     )
+
+  /**
+   * Where the picture in the file at [path] ends, read off its video track rather than the asset's duration.
+   */
+  private fun videoEndOf(path: String): Duration {
+    val track =
+      AVURLAsset(uRL = NSURL.fileURLWithPath(path), options = null)
+        .tracksWithMediaType(AVMediaTypeVideo)
+        .single() as AVAssetTrack
+    return CMTimeRangeGetEnd(track.timeRange).toDuration()
+  }
 
   private fun fixture(name: String): String? {
     val directory = fixtures ?: return null
@@ -574,8 +897,91 @@ class AvCompositionTest {
     // ramp read back off AVFoundation matches what was written rather than a rounding of it.
     val LEADING = 600.milliseconds
     val TRAILING = 900.milliseconds
+
+    // The fixtures' own rate, which every case here encodes at unless it says otherwise.
+    const val FRAME_RATE = 30
+
+    // A slot of 40 ms, so a boundary a few milliseconds off a whole slot is plainly off the grid.
+    const val GRID_RATE = 25
+
+    // A rate the backend's timescale does not divide, so a slot lands between two ticks.
+    const val UNEVEN_RATE = 32
+
+    // Seventeen and fifteen slots at UNEVEN_RATE, so laid long, short, long, short every other seam opens on an odd
+    // slot and closes on an even one.
+    val UNEVEN_LONG = 531_250.microseconds
+    val UNEVEN_SHORT = 468_750.microseconds
+
+    // A rate the timescale divides, so every slot is a whole number of ticks.
+    const val WHOLE_TICK_RATE = 48
+
+    // How far a time read back off AVFoundation may sit from the exact frame time, which is its rounding to seconds.
+    val ON_THE_FRAME = 1.microseconds
+
+    // A clip that opens on a whole second and whose end lands on the same slot at GRID_RATE, so it covers none.
+    val SLIVER = 10.milliseconds
+
+    // How long an untrimmed clip of a two second fixture runs when its audio outlasts its picture.
+    val OUTLASTING = 2_030.milliseconds
   }
 }
+
+/**
+ * Where [time] lands on the output frame grid at [frameRate].
+ */
+private fun gridTime(
+  time: Duration,
+  frameRate: Int,
+): Duration = outputSlotTime(outputSlotOf(time, frameRate), frameRate)
+
+/**
+ * When frame [slot] falls at [frameRate], exactly rather than rounded to a whole microsecond.
+ */
+private fun frameTimeOf(
+  slot: Long,
+  frameRate: Int,
+): Duration = (slot.toDouble() / frameRate).seconds
+
+/**
+ * This time as AVFoundation reads it back, once it has been rounded onto the backend's timescale.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private fun Duration.asLaid(): Duration = toCMTime().toDuration()
+
+/**
+ * Where this span ends, which every span the planner lays carries.
+ */
+private fun TimeRange.end(): Duration = checkNotNull(endExclusive) { "a laid span carries an end" }
+
+/**
+ * Where each segment of this composition's one [mediaType] track sits on the timeline, in order.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private fun AvComposition.segmentsOf(mediaType: String?): List<TrackSegment> {
+  val track = composition.tracksWithMediaType(mediaType).single() as AVAssetTrack
+  return track.segments.filterIsInstance<AVAssetTrackSegment>().map { segment ->
+    segment.timeMapping.useContents {
+      TrackSegment(
+        start = target.start.readValue().toDuration(),
+        end = CMTimeRangeGetEnd(target.readValue()).toDuration(),
+        sourceStart = source.start.readValue().toDuration(),
+        sourceEnd = CMTimeRangeGetEnd(source.readValue()).toDuration(),
+        empty = segment.empty,
+      )
+    }
+  }
+}
+
+/**
+ * One segment of a composition track, read back as the timeline range it fills and the source range it plays.
+ */
+private class TrackSegment(
+  val start: Duration,
+  val end: Duration,
+  val sourceStart: Duration,
+  val sourceEnd: Duration,
+  val empty: Boolean,
+)
 
 /**
  * The one track's input parameters, when this composition carries exactly one.

@@ -11,9 +11,13 @@ import dev.jordond.filmstrip.ffmpeg.internal.InputSpec
 import dev.jordond.filmstrip.ffmpeg.internal.Invocation
 import dev.jordond.filmstrip.ffmpeg.internal.Toolchain
 import dev.jordond.filmstrip.ffmpeg.internal.arguments
+import dev.jordond.filmstrip.ffmpeg.internal.formatSeconds
 import dev.jordond.filmstrip.ffmpeg.internal.previewArguments
 import dev.jordond.filmstrip.ffmpeg.internal.previewFrameBytes
+import dev.jordond.filmstrip.ffmpeg.internal.previewLanding
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media.ImageSource
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
@@ -23,6 +27,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.DurationUnit
 
 /**
  * What the pump puts on the command line, and what it shares with the export that wrote the graph.
@@ -104,16 +109,63 @@ class PreviewInvocationTest {
     assertTrue(offset > previewed.indexOf("-i") && offset < previewed.lastIndexOf("-i"), previewed.toString())
   }
 
-  // The seek delivers the first frame at or after where it was asked for, so a scrub landing inside
-  // a frame period opens the clip on the frame after it. The branch is moved onto that frame rather
-  // than onto the scrub, because the sidecar's intervals were sampled on the same grid. The seek
-  // itself is not snapped: ffmpeg is already doing that, and it is the source's grid it does it on.
+  // A scrub inside a frame period opens on the output slot it lands on, so the seek and the branch's
+  // move are both that slot's own time and the first frame the seek delivers is the slot's frame.
+  // One scrub rounds down onto its slot and the other rounds up, so neither a floor nor a ceil
+  // passes both.
   @Test
-  fun `snaps a branch onto the frame the seek lands on`() {
-    val previewed = overlaid().previewArguments(TOOLCHAIN, FfmpegConfig(), OVERLAY_INPUTS, emptyList(), OFF_GRID)
+  fun `seeks and moves a branch onto the slot a scrub lands on`() {
+    listOf(ROUNDS_DOWN, ROUNDS_UP).forEach { at ->
+      val landing = slotOf(at)
+      val previewed = overlaid().previewArguments(TOOLCHAIN, FfmpegConfig(), OVERLAY_INPUTS, emptyList(), at)
 
-    previewed.after("-ss") shouldBe "1.010000"
-    previewed.after("-itsoffset") shouldBe "0.533333"
+      previewed.after("-ss") shouldBe secondsOf(SEEK_BASE + landing)
+      previewed.after("-itsoffset") shouldBe secondsOf(landing)
+    }
+  }
+
+  // The engine reports where the stream starts off the same landing the arguments seek to, so a
+  // player walking the stream counts its frames from the slot the first one actually sits on.
+  @Test
+  fun `lands a windowed preview on the slot and an unwindowed one at the head`() {
+    listOf(ROUNDS_DOWN, ROUNDS_UP, 400.milliseconds).forEach { at ->
+      graphed().previewLanding(at) shouldBe slotOf(at)
+    }
+    graphed(seekBase = null).previewLanding(ROUNDS_UP) shouldBe Duration.ZERO
+  }
+
+  // The seek has already eaten the landing out of a copied window, so what is left of it is shorter
+  // by the slot's time rather than by the scrub's.
+  @Test
+  fun `shortens a copied window by the slot the scrub lands on`() {
+    val previewed =
+      copied(
+        window = 1.seconds,
+      ).previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, emptyList(), ROUNDS_UP)
+
+    previewed.after("-t") shouldBe secondsOf(1.seconds - slotOf(ROUNDS_UP))
+  }
+
+  // The graph cuts a clip to its slot count from the first frame it is handed, and a windowed
+  // preview hands it the frame on the scrub's slot, so that cut falls past the end of the video. The
+  // pump stops on the video's last slot instead, and the bound is an option of the pipe's output
+  // rather than of the null muxer the audio goes to.
+  @Test
+  fun `stops a windowed preview on the last slot the video covers`() {
+    listOf(ROUNDS_DOWN, ROUNDS_UP).forEach { at ->
+      val previewed = previewArgumentsFor(at)
+
+      previewed.after("-frames:v") shouldBe (VIDEO_SLOTS - outputSlotOf(at, RATE)).toString()
+      assertTrue(previewed.indexOf("-frames:v") > previewed.lastIndexOf("-map"), previewed.toString())
+    }
+  }
+
+  // Read forward from the head, the graph's own cuts line up with the clips they were written for.
+  @Test
+  fun `leaves a preview read from the head to the graph's own cut`() {
+    graphed(seekBase = null)
+      .previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, emptyList(), ROUNDS_UP)
+      .shouldNotContain("-frames:v")
   }
 
   // The offset only cancels where the branch ends on a setpts back to its own first frame. Moving
@@ -215,7 +267,7 @@ class PreviewInvocationTest {
   private fun List<String>.allAfter(flag: String): List<String> =
     withIndex().filter { it.value == flag }.map { this[it.index + 1] }
 
-  private fun graphed(seekBase: Duration? = 500.milliseconds): Invocation =
+  private fun graphed(seekBase: Duration? = SEEK_BASE): Invocation =
     Invocation(
       inputs = listOf(InputSpec(InputSource.OfPath("/fixtures/a.mp4"))),
       filterGraph = "[0:v]trim=start=0.500000:end=1.500000[v];[0:a]anull[a]",
@@ -225,6 +277,7 @@ class PreviewInvocationTest {
       videoEncoder = "libx264",
       duration = 1.seconds,
       seekBase = seekBase,
+      videoSlots = VIDEO_SLOTS,
     )
 
   // A clip with an overlay merged onto it: the image is looped at the output rate and its branch
@@ -247,12 +300,19 @@ class PreviewInvocationTest {
       output = OUTPUT,
       videoEncoder = "libx264",
       duration = 1.seconds,
-      seekBase = 500.milliseconds,
+      seekBase = SEEK_BASE,
     )
 
-  private fun copied(): Invocation =
+  private fun slotOf(at: Duration): Duration = outputSlotTime(outputSlotOf(at, RATE), RATE)
+
+  private fun secondsOf(time: Duration): String = formatSeconds(time.toDouble(DurationUnit.SECONDS))
+
+  private fun copied(window: Duration? = null): Invocation =
     Invocation(
-      inputs = listOf(InputSpec(InputSource.OfPath("/fixtures/a.mp4"))),
+      inputs =
+        listOf(
+          InputSpec(InputSource.OfPath("/fixtures/a.mp4"), durationSeconds = window?.toDouble(DurationUnit.SECONDS)),
+        ),
       filterGraph = "",
       videoLabel = null,
       audioLabel = null,
@@ -267,9 +327,19 @@ class PreviewInvocationTest {
     val INPUTS = listOf("/fixtures/a.mp4")
     val OVERLAY_INPUTS = listOf("/fixtures/a.mp4", "/fixtures/logo.png")
 
-    // A third of the way into frame 15 of the output's own 30fps grid, so the frame the seek
-    // lands on is frame 16 rather than the one the scrub names.
-    val OFF_GRID = 510.milliseconds
+    // The output's rate, which is the grid a scrub lands on.
+    const val RATE = 30
+
+    // The slots the graphed clip's one second covers on that grid.
+    val VIDEO_SLOTS = outputSlotOf(1.seconds, RATE)
+
+    // Where the overlaid clip's trim opens, which composition time zero maps to.
+    val SEEK_BASE = 500.milliseconds
+
+    // A third of the way into a frame period of the output's grid, and three quarters of the way
+    // into one, so one lands on the slot it sits in and the other on the slot after it.
+    val ROUNDS_DOWN = 510.milliseconds
+    val ROUNDS_UP = 525.milliseconds
 
     const val CUBE = "LUT_3D_SIZE 2"
 
