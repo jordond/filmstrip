@@ -3,10 +3,13 @@ package dev.jordond.filmstrip.avfoundation.internal
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportStatus
+import dev.jordond.filmstrip.internal.outputSlotOf
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.heldTail
+import dev.jordond.filmstrip.transform.internal.videoSlots
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.ObjCObjectVar
@@ -83,6 +86,13 @@ internal class WriterRun(
   private var writtenMicros = 0L
 
   private val queue = dispatch_queue_create(QUEUE_LABEL, attr = null)
+
+  // A held tail renders a frame every frame duration until the audio ends, which can be up to half a
+  // slot past the last slot, so the video pump stops once it reaches a frame past that slot.
+  private val heldFrameRate: Int? =
+    resolved.output.frameRate?.takeIf {
+      it > 0 && resolved.path != ExportPath.Transmux && !resolved.heldTail.isEmpty()
+    }
 
   fun run(): Flow<ExportStatus> =
     flow {
@@ -391,6 +401,11 @@ internal class WriterRun(
   ) {
     private var drained = 0
 
+    // Set once the video pump stops on the held-tail slot cutoff rather than the output's own end,
+    // which leaves samples the reader never read. finish() checks this before it cancels the reader
+    // for that case, so the cancel it triggers below is never read back as an outside cancel.
+    private var stoppedEarly = false
+
     fun drive(pump: Pump) {
       pump.input.requestMediaDataWhenReadyOnQueue(queue) {
         while (pump.input.isReadyForMoreMediaData()) {
@@ -407,6 +422,14 @@ internal class WriterRun(
      */
     private fun step(pump: Pump): Boolean {
       val buffer: CMSampleBufferRef = pump.output.copyNextSampleBuffer() ?: return false
+      if (heldFrameRate != null && pump.input.mediaType == AVMediaTypeVideo) {
+        val slot = outputSlotOf(CMSampleBufferGetPresentationTimeStamp(buffer).toDuration(), heldFrameRate)
+        if (slot >= resolved.videoSlots) {
+          CFRelease(buffer)
+          stoppedEarly = true
+          return false
+        }
+      }
       val appended = pump.input.appendSampleBuffer(buffer)
       if (appended && pump.reportsProgress) {
         writtenMicros = CMSampleBufferGetPresentationTimeStamp(buffer).toDuration().inWholeMicroseconds
@@ -431,6 +454,9 @@ internal class WriterRun(
       drained++
       if (drained < pumps.size) return
 
+      // A genuine reader failure has to be read before anything cancels the reader, since cancelling
+      // first would turn AVAssetReaderStatusFailed into AVAssetReaderStatusCancelled and report a
+      // real failure as a clean stop.
       val readerFailure = reader.error.takeIf { reader.status == AVAssetReaderStatusFailed }
       if (readerFailure != null) {
         writer.cancelWriting()
@@ -441,6 +467,14 @@ internal class WriterRun(
         writer.cancelWriting()
         outcome.complete(Outcome.Failed(ExportError.InvalidComposition(READ_CANCELLED)))
         return
+      }
+
+      // The video pump stopping on the held-tail cutoff leaves this output's samples unread, and a
+      // hardware decode session is a small shared pool, so the reader is cancelled here rather than
+      // left open. Every pump is drained by this point, so cancelling stops nothing still running,
+      // and only happens once the export is going on to finish normally.
+      if (stoppedEarly) {
+        reader.cancelReading()
       }
 
       // A step that threw is reported over whatever the writer says, because the writer's own

@@ -61,6 +61,9 @@ class ContractRecorder : EngineListener {
   @Volatile
   private var recordedPosition: Duration? = null
 
+  @Volatile
+  private var recordedPlayheads: List<Duration> = emptyList()
+
   /**
    * Every snapshot delivered, in order, duplicates included.
    */
@@ -80,6 +83,11 @@ class ContractRecorder : EngineListener {
    * The most recent playhead reading, or null before one arrives.
    */
   val playhead: Duration? get() = recordedPosition
+
+  /**
+   * Every playhead reading delivered, in order, duplicates included.
+   */
+  val playheads: List<Duration> get() = recordedPlayheads
 
   /**
    * The current snapshot, which registering a listener delivers straight away.
@@ -103,6 +111,7 @@ class ContractRecorder : EngineListener {
 
   override fun onPosition(position: Duration) {
     recordedPosition = position
+    recordedPlayheads = recordedPlayheads + position
   }
 
   override fun onPreviewInfo(info: PreviewInfo) {

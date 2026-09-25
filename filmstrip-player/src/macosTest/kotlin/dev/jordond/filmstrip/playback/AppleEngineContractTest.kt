@@ -24,6 +24,8 @@ class AppleEngineContractTest : PlayerEngineContractTest() {
 
   override val fixture: EditComposition = appleFixtureComposition()
 
+  override val fixtureFrameRate: Int = FIXTURE_FRAME_RATE
+
   /**
    * The one occasion a macOS host process can raise.
    *

@@ -68,6 +68,8 @@ class IosEngineContractTest : PlayerEngineContractTest() {
 
   override val fixture: EditComposition = appleFixtureComposition()
 
+  override val fixtureFrameRate: Int = FIXTURE_FRAME_RATE
+
   override val stageableInterruptions: Set<Interruption> =
     setOf(Interruption.AudioFocusLost, Interruption.OutputRouteChanged, Interruption.AppBackgrounded)
 

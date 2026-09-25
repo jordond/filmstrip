@@ -25,9 +25,9 @@ import dev.jordond.filmstrip.transform.internal.ResolvedComposition
  * An edit lowered for the preview, together with what the preview reports about it.
  *
  * @property resolved The graph the preview builds, which is the graph an export of the same edit
- *   would run.
+ * would run.
  * @property info What the preview delivers: the output frame, the preview-only scale and the parity
- *   the plan came back with.
+ * the plan came back with.
  * @property bounds The samples each clip decodes, read off the containers the way an export reads
  * them, which the graph lays its items by.
  */

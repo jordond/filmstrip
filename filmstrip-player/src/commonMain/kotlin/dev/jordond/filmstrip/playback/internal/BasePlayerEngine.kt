@@ -93,15 +93,16 @@ internal abstract class BasePlayerEngine(
   protected abstract fun isSeekReady(): Boolean
 
   /**
-   * Issues one seek and calls [onComplete] when its frame is presented.
+   * Issues one seek and calls [onComplete] with where it landed once its frame is presented.
    *
-   * Called at most once at a time. A seek still running when a newer one is issued is the
-   * platform's to cancel, and its [onComplete] may then never arrive.
+   * [onComplete] carries the slot time the frame on screen sits on, as [PlatformSeek.seek] describes, and that is what
+   * the playhead and [PlaybackEvent.SeekCompleted] report. Called at most once at a time. A seek still running when a
+   * newer one is issued is the platform's to cancel, and its [onComplete] may then never arrive.
    */
   protected abstract fun performSeek(
     position: Duration,
     accuracy: SeekAccuracy,
-    onComplete: () -> Unit,
+    onComplete: (landed: Duration) -> Unit,
   )
 
   /**

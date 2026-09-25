@@ -40,6 +40,27 @@ class SeekChaseTest {
     }
   }
 
+  @Test
+  fun `a landed seek resolves with where the platform put it`() {
+    chase.request(10.milliseconds, SeekAccuracy.Exact)
+    platform.issued[0].complete(landed = 7.milliseconds)
+
+    resolved shouldBe listOf(7.milliseconds to SeekResolution.Landed)
+  }
+
+  // Nothing was shown for a superseded request, so it keeps the position it asked for while the two the platform ran
+  // carry where they landed.
+  @Test
+  fun `a burst resolves the requests that ran with their landings and the rest with their own`() {
+    val requests = (1..5).map { 10.milliseconds * it }
+    requests.forEach { chase.request(it, SeekAccuracy.Exact) }
+    platform.drain { it - 1.milliseconds }
+
+    resolved.filter { it.second == SeekResolution.Superseded }.map { it.first } shouldBe requests.subList(1, 4)
+    resolved.filter { it.second == SeekResolution.Landed }.map { it.first } shouldBe
+      listOf(requests.first(), requests.last()).map { it - 1.milliseconds }
+  }
+
   // Seeking from inside a completion is the pattern seekTo's KDoc names, and the superseded branch
   // is the one that used to resolve the outgoing request twice while dropping the incoming one.
   @Test

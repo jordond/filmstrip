@@ -29,7 +29,9 @@ public sealed interface PlaybackEvent {
   /**
    * A seek landed and its frame was presented.
    *
-   * @property position Where the seek landed.
+   * @property position Where the seek landed. For a seek that ran, the output slot nearest the request on an exact
+   * seek, or the slot of the sync sample the platform settled on for a relaxed one. For one a newer seek replaced
+   * before it ran, the position it asked for.
    */
   @Poko
   public class SeekCompleted(
@@ -46,7 +48,11 @@ public sealed interface PlaybackEvent {
   /**
    * A loop range wrapped around.
    *
-   * @property range The range that wrapped.
+   * Sent each time playback passes the range's last frame and jumps back to its first. When the composition ends
+   * inside the range this is sent at that end in place of [Ended].
+   *
+   * @property range The range that wrapped, as it was set. A range with no end, or one ending past the composition,
+   * carries its own end rather than the duration it was held to.
    */
   @Poko
   public class RangeLooped(

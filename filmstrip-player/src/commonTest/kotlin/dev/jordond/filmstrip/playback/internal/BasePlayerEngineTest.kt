@@ -44,6 +44,31 @@ class BasePlayerEngineTest {
     }
   }
 
+  @Test
+  fun `a seek reports the slot it landed on and the playhead follows`() {
+    engine.becomeReady(10.seconds)
+
+    engine.seekTo(510.milliseconds, SeekAccuracy.Exact)
+    engine.platform.issued[0].complete(landed = 500.milliseconds)
+
+    listener.seekCompletions.map { it.position } shouldBe listOf(500.milliseconds)
+    listener.positions.last() shouldBe 500.milliseconds
+
+    // 650 is replaced before the platform reaches it, so it reports what it asked for and moves no playhead.
+    engine.seekTo(610.milliseconds, SeekAccuracy.Exact)
+    engine.seekTo(650.milliseconds, SeekAccuracy.Exact)
+    engine.seekTo(690.milliseconds, SeekAccuracy.Exact)
+    listener.seekCompletions.last().position shouldBe 650.milliseconds
+    listener.positions.last() shouldBe 500.milliseconds
+
+    engine.platform.issued[1].complete(landed = 600.milliseconds)
+    engine.platform.issued[2].complete(landed = 680.milliseconds)
+
+    listener.seekCompletions.map { it.position } shouldBe
+      listOf(500.milliseconds, 650.milliseconds, 600.milliseconds, 680.milliseconds)
+    listener.positions.last() shouldBe 680.milliseconds
+  }
+
   // A backend that reaches Ready before the item is seekable says Ready again once it is. The
   // status has not moved, so an early return would strand the queued seek.
   @Test

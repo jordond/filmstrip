@@ -56,7 +56,7 @@ internal class FakePlayerEngine(
   override fun performSeek(
     position: Duration,
     accuracy: SeekAccuracy,
-    onComplete: () -> Unit,
+    onComplete: (landed: Duration) -> Unit,
   ): Unit = platform.seek(position, accuracy, onComplete)
 
   override fun onPlay() {

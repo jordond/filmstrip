@@ -73,7 +73,7 @@ internal sealed interface FfmpegPlanResult {
  *
  * @param components The components the owning `Filmstrip` was built with.
  */
-internal class FfmpegPreviewPlanner(
+internal open class FfmpegPreviewPlanner(
   components: ComponentRegistry,
 ) {
   private val engine = components.ffmpegEngine()
@@ -141,7 +141,7 @@ internal class FfmpegPreviewPlanner(
    * The spec and the layout frame come off the plan rather than being worked out again, so the
    * process runs the graph the plan reported and not a second lowering of the same edit.
    */
-  suspend fun open(
+  open suspend fun open(
     plan: FfmpegPreviewPlan,
     composition: EditComposition,
     at: Duration,
@@ -220,15 +220,6 @@ private val FFMPEG_FIDELITY: List<FidelityNote> =
 internal val FfmpegPreviewPlan.frameStep: Duration get() = resolved.frameStep
 
 internal val FfmpegPreviewPlan.frameRate: Int get() = resolved.frameRate
-
-/**
- * The output frame rate this graph writes, which is the grid every frame it pumps sits on.
- *
- * Read off the frame rate the negotiation settled, which is the same number every other backend
- * lays its frames on.
- */
-internal val ResolvedComposition.frameRate: Int
-  get() = checkNotNull(output.frameRate) { "The lowered composition has no frame rate." }
 
 /**
  * How long one frame of this graph's output occupies.

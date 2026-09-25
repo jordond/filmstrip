@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.edit.CompositionDiff
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.diff
+import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
@@ -30,7 +31,6 @@ import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * The browser preview engine, on WebCodecs and mediabunny.
@@ -76,6 +76,11 @@ internal class BrowserPlayerEngine(
   private var reachedEnd = false
   private var startedAt: Duration? = null
 
+  // Set by the tick that wraps a loop until a seek lands, so a tick in between cannot wrap it again.
+  // Cleared by performSeek on any landing, including a later seek that supersedes the wrap's own in
+  // the chase, and also by rebuild, fail and onRelease.
+  private var wrapping = false
+
   private val onVisibilityChanged: () -> Unit = { if (document.hidden) onPageHidden() }
 
   /**
@@ -86,6 +91,13 @@ internal class BrowserPlayerEngine(
    */
   var platformLoads: Int = 0
     private set
+
+  /**
+   * Where the preview clock has the playhead, which is the time the next frame the surface asks for is drawn at.
+   *
+   * The same reading the position ticker takes while playback runs.
+   */
+  val clockPosition: Duration get() = readPosition()
 
   override val id: String = "filmstrip.webcodecs"
 
@@ -169,27 +181,30 @@ internal class BrowserPlayerEngine(
    * Moves the playhead, which on this backend is the whole of a seek.
    *
    * Nothing is presented, so there is no decoder to wait on: the next frame the surface asks for is
-   * drawn from wherever the playhead now is. [SeekAccuracy.Nearest] lands on the sync sample at or
-   * before the target, which is the same sample a decoder would have had to start from anyway.
+   * drawn from wherever the playhead now is. The playhead lands on an output slot, the one the
+   * target rounds to for [SeekAccuracy.Exact]. [SeekAccuracy.Nearest] lands on the slot of the sync
+   * sample at or before the target, which is the same sample a decoder would have had to start from
+   * anyway.
    */
   override fun performSeek(
     position: Duration,
     accuracy: SeekAccuracy,
-    onComplete: () -> Unit,
+    onComplete: (landed: Duration) -> Unit,
   ) {
     val target = preview
-    if (target == null) {
-      onComplete()
+    val resolved = plan?.resolved
+    if (target == null || resolved == null) {
+      wrapping = false
+      onComplete(position)
       return
     }
 
     scope.launch {
-      val duration = plan?.resolved?.duration ?: Duration.ZERO
-      val requested = position.coerceAtLeast(Duration.ZERO).coerceAtMost(duration)
+      val requested = position.coerceAtLeast(Duration.ZERO).coerceAtMost(resolved.duration)
       val landing =
         when (accuracy) {
-          SeekAccuracy.Exact -> requested
-          SeekAccuracy.Nearest -> target.syncSampleAt(requested)
+          SeekAccuracy.Exact -> resolved.seekLandingOf(requested)
+          SeekAccuracy.Nearest -> resolved.seekLandingOf(target.syncSampleAt(requested))
         }
 
       reachedEnd = false
@@ -199,7 +214,8 @@ internal class BrowserPlayerEngine(
       target.flush()
       clock.moveTo(landing)
       if (wantsPlayback) startTransport(landing)
-      onComplete()
+      wrapping = false
+      onComplete(landing)
     }
   }
 
@@ -219,6 +235,7 @@ internal class BrowserPlayerEngine(
     document.removeEventListener(VISIBILITY_CHANGE, onVisibilityChanged)
     supersedePending()
     wantsPlayback = false
+    wrapping = false
     stopTransport()
     audio = null
     preview?.release()
@@ -227,16 +244,7 @@ internal class BrowserPlayerEngine(
 
   override fun stepFrames(frames: Int) {
     if (frames == 0) return
-    val rate =
-      plan
-        ?.resolved
-        ?.output
-        ?.frameRate
-        ?.takeIf { it > 0 } ?: return
-    val duration = plan?.resolved?.duration ?: return
-
-    val landing = readPosition() + (1.seconds / rate) * frames
-    if (landing < Duration.ZERO || landing > duration) return
+    val landing = plan?.resolved?.frameStepLanding(readPosition(), frames) ?: return
     seekTo(landing, SeekAccuracy.Exact)
   }
 
@@ -313,7 +321,7 @@ internal class BrowserPlayerEngine(
     plan = next
     setDuration(next.resolved.duration)
     emitPreviewInfo(next.info)
-    request.startAt?.let { clock.moveTo(it.coerceAtLeast(Duration.ZERO).coerceAtMost(next.resolved.duration)) }
+    request.startAt?.let { clock.moveTo(next.resolved.seekLandingOf(it)) }
 
     if (!swapped && !confirmFirstFrame()) return
     setStatus(PlaybackStatus.Ready)
@@ -338,6 +346,7 @@ internal class BrowserPlayerEngine(
       }
     clock = audio?.let { AudioClock(it) } ?: MonotonicClock()
     reachedEnd = false
+    wrapping = false
   }
 
   /**
@@ -420,7 +429,8 @@ internal class BrowserPlayerEngine(
    */
   private suspend fun onTransportTick() {
     if (!wantsPlayback) return
-    val duration = plan?.resolved?.duration ?: return
+    val resolved = plan?.resolved ?: return
+    val duration = resolved.duration
     val at = readPosition()
 
     if (refusedToStart()) {
@@ -430,11 +440,16 @@ internal class BrowserPlayerEngine(
 
     audio?.pump(at)
 
-    val wrapAt = loopRange
-    val wrapEnd = wrapAt?.endExclusive
-    if (wrapAt != null && wrapEnd != null && at >= wrapEnd) {
-      seekTo(wrapAt.start, SeekAccuracy.Exact)
-      emitEvent(PlaybackEvent.RangeLooped(wrapAt))
+    // A reading taken before the wrap's seek has landed is one that wrap already answered.
+    if (wrapping) return
+
+    val range = loopRange
+    val rate = resolved.frameRate
+    val wrap = range?.let { loopWrapOf(it, duration, rate) }
+    if (range != null && wrap != null && at >= wrap.at) {
+      wrapping = true
+      seekTo(outputSlotTime(wrap.firstSlot, rate), SeekAccuracy.Exact)
+      emitEvent(PlaybackEvent.RangeLooped(range))
       return
     }
 
@@ -486,6 +501,7 @@ internal class BrowserPlayerEngine(
   }
 
   private fun fail(error: PlaybackError) {
+    wrapping = false
     setStatus(PlaybackStatus.Error(error))
     emitEvent(PlaybackEvent.Failed(error))
     settle(SetCompositionResult.Failure(error))

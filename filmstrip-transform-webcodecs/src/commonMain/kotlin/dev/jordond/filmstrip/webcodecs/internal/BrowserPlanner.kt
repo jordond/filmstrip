@@ -42,6 +42,7 @@ import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.containScale
 import dev.jordond.filmstrip.transform.internal.coverScale
 import dev.jordond.filmstrip.transform.internal.frameAfter
+import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.stillUnsupportedMessage
 import dev.jordond.filmstrip.transform.internal.toResolvedComposition
 import kotlin.time.Duration
@@ -78,6 +79,9 @@ internal class BrowserLowering(
  * @property frames How many output slots this clip's span covers on the grid at the resolved rate,
  *   which is zero for a span too short to reach the point half way between two slots. The pipeline
  *   walks exactly this many slots, so progress is measured against what really gets encoded.
+ * @property heldFrames How many slots past [frames] this clip holds its last covered frame over. That is the
+ * composition's held tail on the last clip that covers a slot, and zero on every other. Each held slot is drawn at the
+ * last covered slot's time and written at its own.
  */
 internal class RenderedClip(
   val source: MediaSource,
@@ -93,6 +97,7 @@ internal class RenderedClip(
   val colorMatrix: FloatArray,
   val compositionColorMatrix: FloatArray,
   val frames: Long,
+  val heldFrames: Long,
 )
 
 /**
@@ -346,6 +351,10 @@ internal fun browserRenderOf(
   val primary = plan.tracks.first()
   val leadFrames = outputSlotOf(primary.start, frameRate)
   val slots = primary.clips.map { outputSlotsOf(it.span, frameRate) }
+  // The last covered slot belongs to the last clip that covers any, so a trailing clip too short to cover one leaves
+  // the hold on the clip before it.
+  val holder = slots.indexOfLast { !it.isEmpty() }
+  val heldFrames = plan.heldTail.size
   val clips =
     primary.clips.mapIndexed { index, resolved ->
       val raw = track.clips[resolved.sourceIndex]
@@ -375,6 +384,7 @@ internal fun browserRenderOf(
         colorMatrix = resolved.effects.colorMatrix(),
         compositionColorMatrix = (plan.compositionGeometry + plan.compositionEffects).colorMatrix(),
         frames = slots[index].size,
+        heldFrames = if (index == holder) heldFrames else 0L,
       )
     }
 
@@ -396,7 +406,7 @@ internal fun browserRenderOf(
     leadFrames = leadFrames,
     // Summed from the gap and the clips, not the duration, so what progress measures against is
     // exactly what the pipeline walks.
-    estimatedFrames = leadFrames + clips.sumOf { it.frames },
+    estimatedFrames = leadFrames + clips.sumOf { it.frames + it.heldFrames },
     adjustments = plan.adjustments,
     audioFormat = plan.output.audioFormat,
     audioTracks = plan.tracks,

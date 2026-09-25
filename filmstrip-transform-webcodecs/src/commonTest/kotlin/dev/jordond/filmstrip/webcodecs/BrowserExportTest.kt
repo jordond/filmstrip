@@ -32,6 +32,8 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.heldTail
+import dev.jordond.filmstrip.transform.internal.videoSlots
 import dev.jordond.filmstrip.webcodecs.internal.BrowserCompositor
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
 import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
@@ -368,6 +370,81 @@ class BrowserExportTest {
         assertTrue(closing.isNear(Rgb.Red), "the pass at ${laid.span.start} closed on $closing")
       }
     }
+
+  // A bed that outlasts the picture sets the composition's length, and the file carries a frame on every slot of it.
+  // Past the primary's last covered slot each one is that slot's frame again, the only red one the primary has.
+  @Test
+  fun aBedThatOutlastsThePrimaryHoldsItsLastFrameToTheEnd() =
+    runTest {
+      val (frames, tail) = exportUnderABed()
+
+      heldProbes(tail).forEach { slot ->
+        val colour = frames[slot].at(x = 0.5, y = 0.5)
+        assertTrue(colour.isNear(Rgb.Red), "slot $slot of a tail over $tail drew $colour, and the primary ends on red")
+      }
+    }
+
+  // The composition's effects are part of the frame that freezes. The last covered slot is graded, and every slot of
+  // the tail reads the same as it rather than as the ungraded source.
+  @Test
+  fun aCompositionEffectHoldsWithTheFrameItGraded() =
+    runTest {
+      val (frames, tail) = exportUnderABed(effects = listOf(Brightness(HALF_BRIGHTNESS)))
+
+      val closing = frames[tail.first.toInt() - 1].at(x = 0.5, y = 0.5)
+      val graded = Rgb.Red.graded(Brightness(HALF_BRIGHTNESS))
+      assertTrue(closing.isNear(graded), "the last covered slot drew $closing, and the primary's red graded is $graded")
+      heldProbes(tail).forEach { slot ->
+        val colour = frames[slot].at(x = 0.5, y = 0.5)
+        assertTrue(
+          colour.isNear(closing, tolerance = HELD_TOLERANCE),
+          "slot $slot of a tail over $tail drew $colour, and the last covered slot drew $closing",
+        )
+      }
+    }
+
+  /**
+   * Exports a primary a second long, whose last frame alone is red, over a bed [BED_FRAMES] frames long on an audio
+   * track of its own, with [effects] on the composition. Checks the file holds one frame on every slot the composition
+   * covers and hands back the decoded frames with the held tail they were read against.
+   *
+   * The bed's source carries no audio, so nothing is mixed and the bed does no more than set how long the composition
+   * runs.
+   */
+  private suspend fun exportUnderABed(effects: List<EffectSpec> = emptyList()): Pair<List<OutputFrame>, LongRange> {
+    val primary =
+      makeClip(frames = GRID_FRAME_RATE, frameRate = GRID_FRAME_RATE) { index, _ ->
+        if (index == GRID_FRAME_RATE - 1) Rgb.Red else Rgb.Green
+      }
+    val bed = makeClip(frames = BED_FRAMES, frameRate = GRID_FRAME_RATE)
+    val composition =
+      EditComposition(
+        tracks =
+          listOf(
+            Track(listOf(Clip(MediaSource.Bytes(primary)))),
+            Track(listOf(Clip(MediaSource.Bytes(bed))), content = TrackContent.Audio),
+          ),
+        effects = effects,
+        audio = AudioSpec.Remove,
+      )
+    val spec = ExportSpec(frameRate = GRID_FRAME_RATE)
+    val engine = browserEngine()
+
+    val resolved = assertIs<ResolveResult.Resolved>(engine.resolve(composition, spec)).composition
+    val tail = resolved.heldTail
+    assertFalse(tail.isEmpty(), "a bed of $BED_FRAMES frames under a shorter primary left no tail")
+    val frames = decodeFrames(outputOf(exportWith(engine, planWith(engine, composition, spec))))
+
+    assertEquals(resolved.videoSlots.toInt(), frames.size, "a tail over $tail wrote ${frames.size} frames")
+    assertEveryFrameHoldsItsOwnSlot(frames, GRID_FRAME_RATE)
+    return frames to tail
+  }
+
+  /**
+   * The slots a held tail is read on: the last one the primary covers, then the tail's first, its middle and its last.
+   */
+  private fun heldProbes(tail: LongRange): List<Int> =
+    listOf(tail.first - 1, tail.first, (tail.first + tail.last) / 2, tail.last).map { it.toInt() }
 
   /**
    * Checks frame `i` of [frames] sits on slot `i` of the shared grid at [frameRate] and runs one slot, so nothing
@@ -1138,6 +1215,13 @@ class BrowserExportTest {
     // the last of them.
     const val PAST_END_FRAMES = 26
     val PAST_END_TRIM = 1_030.milliseconds
+
+    // Three seconds at twenty five frames a second, under a primary of one.
+    const val BED_FRAMES = 75
+
+    // Every held slot goes through the encoder again, so the same picture comes back a level or two apart from one
+    // frame to the next.
+    const val HELD_TOLERANCE = 8
 
     // The encoder takes seconds and the container writes them on its own timescale, a decoded frame
     // carries whole microseconds, and the shared grid reads a slot in whole microseconds rounded down,

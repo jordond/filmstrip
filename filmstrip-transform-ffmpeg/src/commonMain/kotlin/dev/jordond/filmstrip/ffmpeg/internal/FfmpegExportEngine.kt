@@ -247,7 +247,7 @@ public class FfmpegExportEngine internal constructor(
     val scratch = Scratch.create()
     // Materialising an input or a sidecar touches the file system, and a directory that fails part
     // way through is still a directory. The export path is wrapped for the same reason.
-    val command =
+    val (split, command) =
       try {
         val resolvedInputs =
           invocation.inputs.map { input ->
@@ -259,7 +259,10 @@ public class FfmpegExportEngine internal constructor(
           }
         val resolvedSidecars = invocation.sidecars.map { scratch.write(it) }
 
-        invocation.previewArguments(toolchain, config, resolvedInputs, resolvedSidecars, at)
+        // Worked out once here rather than inside previewArguments, so the graph's -frames:v and the
+        // pump's split come off the one split rather than two calls that could drift apart.
+        val split = invocation.previewFrames(at)
+        split to invocation.previewArguments(toolchain, config, resolvedInputs, resolvedSidecars, at, split)
       } catch (throwable: Throwable) {
         scratch.delete()
         throw throwable
@@ -281,6 +284,7 @@ public class FfmpegExportEngine internal constructor(
         size = invocation.output.size,
         startPosition = invocation.previewLanding(at),
         frameBytes = invocation.previewFrameBytes,
+        split = split,
       ),
     )
   }

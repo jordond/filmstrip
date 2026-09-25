@@ -13,10 +13,13 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.brightness
 import dev.jordond.filmstrip.effects.color.contrast
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.geometry.scale
+import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.fadeIn
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPath
@@ -25,6 +28,7 @@ import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.AspectRatio
+import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
@@ -43,8 +47,10 @@ import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.passesCovering
 import dev.jordond.filmstrip.transform.internal.runLengthOf
+import dev.jordond.filmstrip.transform.internal.videoSlots
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -56,6 +62,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.AVFoundation.AVAssetTrack
+import platform.AVFoundation.AVMediaTypeAudio
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.AVURLAsset
 import platform.AVFoundation.timeRange
@@ -1015,6 +1022,90 @@ class AppleExportTest {
     }
 
   /**
+   * A primary whose picture ends seconds before the audio track under it does.
+   *
+   * The clip is 26 frames at 25 fps held until 1.030 s, so its last slot shows its last frame, and the bed runs the
+   * composition to five seconds, then to 0.3 of a slot past that, where the audio outlasts the last slot. The video
+   * track writes one frame a slot up to the last slot and no further, and every frame in the tail is the one the
+   * primary's last slot wrote. A badge fading in over longer than the clip runs is caught part way, and it stays that
+   * way over the tail rather than carrying on or dropping out with the clip. A thumbnail of the same lowering shows the
+   * held frame too.
+   */
+  @Test
+  fun `holds the primary's last frame to the end under a longer audio track`() =
+    runTest(timeout = TIMEOUT) {
+      val long = fixture("apple_export_long.mp4") ?: return@runTest
+      val offGrid = NSTemporaryDirectory() + "filmstrip-apple-held-tail.mov"
+      withContext(Dispatchers.Default) { writeOffGridClip(offGrid, OFF_GRID_RATE, OFF_GRID_FRAMES, OFF_GRID_END) }
+      val badge =
+        ImageOverlay(ImageSource.of(photoFile()), Corner.TopStart, scale = BADGE_SCALE, animation = fadeIn(BADGE_FADE))
+
+      listOf(HELD_RUN, HELD_RUN_PAST_SLOT).forEach { run ->
+        val composition =
+          compositionOf {
+            clip(MediaSource.of(offGrid)) { addEffects(listOf(badge)) }
+            track(TrackContent.Audio) {
+              clip(MediaSource.of(long)) { trim(TimeRange.of(Duration.ZERO, run)) }
+            }
+          }
+        val spec = ExportSpec(frameRate = OFF_GRID_RATE)
+        val resolved = resolved(composition, spec)
+        val tail = resolved.heldTail
+        assertTrue(tail.count() > OFF_GRID_RATE, "under a $run bed the tail holds only $tail, not seconds of it")
+
+        val output = temporaryPath("held-tail")
+        exported(composition, spec, output)
+
+        val times = sampleTimesOf(output)
+        withClue("under a $run bed") { times.size.toLong() shouldBe resolved.videoSlots }
+        assertOnTheGrid(times, resolved.duration, OFF_GRID_RATE, "a primary held under a $run bed")
+        assertTrackEndsAt(output, AVMediaTypeVideo, outputSlotTime(resolved.videoSlots, OFF_GRID_RATE))
+        assertTrackEndsAt(output, AVMediaTypeAudio, resolved.duration)
+
+        val lastCovered = outputSlotTime(tail.first - 1, OFF_GRID_RATE)
+        val held = listOf(tail.first, (tail.first + tail.last) / 2, tail.last).map { outputSlotTime(it, OFF_GRID_RATE) }
+        val covered = frameOf(output, lastCovered)
+        frameIndexOf(covered) shouldBe OFF_GRID_FRAMES - 1
+        val shown = covered.average(BADGE_X, BADGE_Y)
+        assertTrue(
+          distance(shown, covered.average(HALF, HALF)) > BADGE_VISIBLE,
+          "the badge at $lastCovered reads $shown, the same as the frame under it",
+        )
+        held.forEach { at ->
+          val frame = frameOf(output, at)
+          withClue("the frame at $at under a $run bed") { frameIndexOf(frame) shouldBe OFF_GRID_FRAMES - 1 }
+          assertTrue(
+            distance(frame.average(BADGE_X, BADGE_Y), shown) <= BADGE_HELD,
+            "the badge at $at reads ${frame.average(BADGE_X, BADGE_Y)} against $shown on the last covered slot",
+          )
+        }
+
+        val lowered = resolved.toAvComposition()
+        val thumbnail = frameOf(lowered.composition, lowered.videoComposition, held[1])
+        withClue("the thumbnail at ${held[1]}") { frameIndexOf(thumbnail) shouldBe OFF_GRID_FRAMES - 1 }
+
+        remove(output)
+      }
+      remove(offGrid)
+    }
+
+  /**
+   * Asserts the [mediaType] track of the file at [path] ends at [end], to within one tick of the backend's timescale.
+   */
+  private fun assertTrackEndsAt(
+    path: String,
+    mediaType: String?,
+    end: Duration,
+  ) {
+    val track =
+      AVURLAsset(uRL = NSURL.fileURLWithPath(path), options = null)
+        .tracksWithMediaType(mediaType)
+        .single() as AVAssetTrack
+    val ends = CMTimeRangeGetEnd(track.timeRange).toDuration()
+    assertTrue((ends - end).absoluteValue <= MEDIA_TICK, "the $mediaType track ends at $ends, not at $end")
+  }
+
+  /**
    * A copy writes the source's own samples and shows them for exactly as long as the trim runs, so a trim ending off
    * the frame grid shows every sample the source shows before that end.
    *
@@ -1523,7 +1614,7 @@ class AppleExportTest {
     spec: ExportSpec,
   ): ResolvedComposition =
     withContext(Dispatchers.Default) {
-      val components = ComponentRegistry.Builder().build()
+      val components = ComponentRegistry.Builder().add(BuiltInEffectResolver()).build()
       val engine = avFoundationExportEngine(chainedProber(components), components.effectResolvers)
       when (val result = engine.resolve(composition, spec)) {
         is ResolveResult.Refused -> error(result.error.message)
@@ -1659,6 +1750,23 @@ class AppleExportTest {
     val SHORT_PICTURE = 1.seconds
     val SHORT_SOUND = 1_005.milliseconds
     val SHORT_START = 19.milliseconds
+
+    // How long the bed under a held primary runs, seconds past the primary's own picture. The second ends 0.3 of a slot
+    // past a slot at OFF_GRID_RATE, so the audio outlasts the last slot the video writes.
+    val HELD_RUN = 5.seconds
+    val HELD_RUN_PAST_SLOT = 5_012.milliseconds
+
+    // A badge in the top corner of the square off-grid clip, fading in over longer than that clip runs, and where its
+    // middle lands. Well clear of the centre the frame index is read at.
+    const val BADGE_SCALE = 0.4f
+    val BADGE_FADE = 4.seconds
+    const val BADGE_X = 0.24f
+    const val BADGE_Y = 0.15f
+
+    // How far the badge has to move its pixel from the frame under it to count as drawn, and how close two held
+    // readings of it have to be, both summed over three channels.
+    const val BADGE_VISIBLE = 24
+    const val BADGE_HELD = 9
 
     // A trim end 0.3 of a frame past a frame of the fixture, and sound running 0.75 of a slot past a picture, both of
     // which a copy keeps exactly.

@@ -30,6 +30,8 @@ class JvmEngineContractTest : PlayerEngineContractTest() {
   override fun createEngine(scope: CoroutineScope): EngineUnderTest = JvmEngineUnderTest(scope)
 
   override val fixture: EditComposition = jvmFixtureComposition()
+
+  override val fixtureFrameRate: Int = FIXTURE_RATE
 }
 
 /**

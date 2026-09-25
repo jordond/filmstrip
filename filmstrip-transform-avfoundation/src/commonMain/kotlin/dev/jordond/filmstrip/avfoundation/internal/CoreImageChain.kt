@@ -198,21 +198,25 @@ public class CoreImageChain internal constructor(
     val span = state.spans.firstOrNull { it.covers(time) }
     var image = source
 
+    // Inside the held tail every frame is drawn at the primary's last covered slot, so no effect at
+    // any level moves on while the picture holds.
+    val drawnAt = span?.heldFrom?.let { minOf(time, it) } ?: time
+
     if (span != null) {
       // A still is what its whole span draws, so it stands in for the segment AVFoundation decoded
       // before anything measures or grades the frame. Everything after this is the chain a video
       // clip already runs.
       span.still?.let { image = stills.of(it) }
       image = image.rotated(span.rotationDegrees)
-      image = image.stepped(span.effects, FrameInfo(span.attributes, time))
+      image = image.stepped(span.effects, FrameInfo(span.attributes, drawnAt))
     }
 
-    image = image.stepped(resolved.compositionGeometry, FrameInfo(state.geometryAttributes, time))
+    image = image.stepped(resolved.compositionGeometry, FrameInfo(state.geometryAttributes, drawnAt))
 
     // A gap has no real clip frame to blur, only whatever placeholder AVFoundation handed back,
     // so a blurred fill falls back to black there the same way it always has.
     val fill = if (span == null && resolved.fill is Fill.Blurred) Fill.Black else resolved.fill
-    val frame = FrameInfo(state.compositionAttributes, time)
+    val frame = FrameInfo(state.compositionAttributes, drawnAt)
 
     if (fill.derivesFromFrame) {
       // Picture, not furniture: today's order is the contract, so the fill is composited in first

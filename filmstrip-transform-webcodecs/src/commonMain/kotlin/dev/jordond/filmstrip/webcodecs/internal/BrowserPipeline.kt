@@ -102,7 +102,9 @@ internal class BrowserPipeline(
    * filled with whichever decoded frame sits closest to it, so a source at another rate is
    * duplicated or dropped into place rather than passed through at its own rate.
    *
-   * A clip that covers no slot is passed over without opening its source.
+   * A clip that covers no slot is passed over without opening its source. After its own slots a clip walks its
+   * [RenderedClip.heldFrames] as well, each one the last covered slot drawn again at that slot's time and written at
+   * its own, so the finished frame holds still to the end of the composition.
    */
   private suspend fun encodeClip(
     clip: RenderedClip,
@@ -124,10 +126,11 @@ internal class BrowserPipeline(
     var current: VideoSample? = null
     var ahead: VideoSample? = stream.next()
     try {
-      for (slot in 0 until clip.frames) {
+      for (slot in 0 until clip.frames + clip.heldFrames) {
         currentCoroutineContext().ensureActive()
 
-        val sourceUs = clip.trimStartUs + slot * render.stepUs
+        val drawn = minOf(slot, clip.frames - 1)
+        val sourceUs = clip.trimStartUs + drawn * render.stepUs
         while (ahead != null && ahead.microsecondTimestamp <= sourceUs) {
           current?.close()
           current = ahead
@@ -135,9 +138,9 @@ internal class BrowserPipeline(
         }
 
         val chosen = nearest(current, ahead, sourceUs) ?: break
-        val outputUs = render.slotUs(clip.firstSlot + slot)
-        compositor.draw(chosen, outputUs)
+        compositor.draw(chosen, render.slotUs(clip.firstSlot + drawn))
 
+        val outputUs = render.slotUs(clip.firstSlot + slot)
         encodeFrame(compositor, encoder, outputUs, render.stepUs)
 
         emitted++

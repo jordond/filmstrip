@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.ffmpeg.PreviewStream
 import dev.jordond.filmstrip.ffmpeg.PreviewStreamResult
 import dev.jordond.filmstrip.internal.outputSlotOf
 import dev.jordond.filmstrip.internal.outputSlotTime
+import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
@@ -76,7 +77,7 @@ internal class FfmpegPlayerEngine(
   private var pump: Job? = null
   private var stream: PreviewStream? = null
   private var generation = 0
-  private var landing: (() -> Unit)? = null
+  private var landing: ((Duration) -> Unit)? = null
   private var pending: PendingLoad? = null
 
   // Read by the presenter rather than by the transport, because a paused presenter is parked inside
@@ -158,7 +159,7 @@ internal class FfmpegPlayerEngine(
   override fun performSeek(
     position: Duration,
     accuracy: SeekAccuracy,
-    onComplete: () -> Unit,
+    onComplete: (landed: Duration) -> Unit,
   ) {
     val target = snap(position)
     scope.launch {
@@ -174,8 +175,9 @@ internal class FfmpegPlayerEngine(
   override fun onPlay() {
     wanted.value = true
     // A pump that ran to the end left its process closed behind it, so playing again is a spawn
-    // rather than a resume.
-    if (pump?.isActive != true && plan != null) startPump(position, null)
+    // rather than a resume. It also left the playhead on the end, past the last slot, so the spawn
+    // opens on that slot rather than on the end.
+    if (pump?.isActive != true && plan != null) startPump(replayFrom(), null)
   }
 
   override fun onPause() {
@@ -192,11 +194,7 @@ internal class FfmpegPlayerEngine(
 
   override fun stepFrames(frames: Int) {
     if (frames == 0) return
-    val current = plan ?: return
-    // Counted in slots rather than in steps of time, since a slot's time is whole microseconds and a
-    // step back from the first frame after zero would otherwise land a fraction short of zero.
-    val target = outputSlotTime(outputSlotOf(position, current.frameRate) + frames, current.frameRate)
-    if (target < Duration.ZERO || target > current.resolved.duration) return
+    val target = plan?.resolved?.frameStepLanding(position, frames) ?: return
     // A step is a seek on this backend, and an expensive one: the process cannot move, so it is
     // replaced.
     seekTo(target, SeekAccuracy.Exact)
@@ -267,7 +265,7 @@ internal class FfmpegPlayerEngine(
    */
   private fun startPump(
     from: Duration,
-    onLanded: (() -> Unit)?,
+    onLanded: ((Duration) -> Unit)?,
   ) {
     settleLanding()
     landing = onLanded
@@ -311,7 +309,6 @@ internal class FfmpegPlayerEngine(
       }
 
     stream = open
-    val step = current.frameStep
     val frames = Channel<PreviewFrame>(LOOK_AHEAD)
 
     try {
@@ -319,7 +316,7 @@ internal class FfmpegPlayerEngine(
         // The reader runs ahead of the presenter by the look-ahead and then blocks on a full
         // channel, which fills the pipe, which stalls ffmpeg. Coarse flow control, and free.
         val reader = launch { read(open, current.frameRate, frames) }
-        present(token, from, step, frames)
+        present(token, from, current, frames)
         reader.cancel()
       }
     } finally {
@@ -353,17 +350,19 @@ internal class FfmpegPlayerEngine(
    * The anchor is taken on the frame that lands rather than when the process started, so the wait
    * before each frame is measured from a frame that was actually on screen. It is dropped whenever
    * playback parks, since the time spent paused is not time the composition advanced through.
+   *
+   * @param current The plan the pump was opened on, whose grid the frames and the range ends are counted on.
    */
   private suspend fun present(
     token: Int,
     from: Duration,
-    step: Duration,
+    current: FfmpegPreviewPlan,
     frames: ReceiveChannel<PreviewFrame>,
   ) {
     var anchor: TimeMark? = null
     var anchorAt = Duration.ZERO
     var landed = false
-    val half = step / 2
+    val half = current.frameStep / 2
 
     for (frame in frames) {
       if (token != generation) return
@@ -387,7 +386,7 @@ internal class FfmpegPlayerEngine(
         wanted.first { it }
         if (token != generation) return
       }
-      if (reachedEnd(frame.position)) return
+      if (reachedEnd(frame.position, current)) return
 
       val mark =
         anchor ?: TimeSource.Monotonic.markNow().also {
@@ -403,26 +402,56 @@ internal class FfmpegPlayerEngine(
     }
 
     if (token != generation) return
+    // No frame comes past the last slot of a loop range the composition ends inside, so it wraps where the pump runs
+    // out, once that slot is on screen. A pump that ran out anywhere short of it failed, and ends rather than
+    // respawning onto the same failure.
+    val shown = presented?.takeIf { landed }?.let { outputSlotOf(it.position, current.frameRate) }
+    if (wanted.value && wrapLoop(current) { it.reachesEnd && it.lastSlot == shown }) return
     finish(landed)
   }
 
   /**
-   * Wraps a loop range, or stops at the end of a playback range.
+   * Wraps a loop range, or stops a playback range, once [at] lands past the last slot the range carries on the grid of
+   * [current].
    *
    * @return true when [at] is outside what may play, so the caller stops presenting.
    */
-  private fun reachedEnd(at: Duration): Boolean {
-    loopRange?.takeIf { at !in it && at >= it.start }?.let { range ->
-      seekTo(range.start, SeekAccuracy.Exact)
-      emitEvent(PlaybackEvent.RangeLooped(range))
-      return true
-    }
-    playbackRange?.takeIf { at !in it && at >= it.start }?.let {
+  private fun reachedEnd(
+    at: Duration,
+    current: FfmpegPreviewPlan,
+  ): Boolean {
+    val rate = current.frameRate
+    val slot = outputSlotOf(at, rate)
+    if (wrapLoop(current) { slot > it.lastSlot }) return true
+    playbackRange?.takeIf { it.endsBefore(slot, rate) }?.let {
       finish(landed = true)
       return true
     }
     return false
   }
+
+  /**
+   * Seeks to the first slot of the loop range and reports the wrap, when the range has something to loop in [current]
+   * and [due] holds for it.
+   *
+   * @return true when playback wrapped.
+   */
+  private fun wrapLoop(
+    current: FfmpegPreviewPlan,
+    due: (LoopWrap) -> Boolean,
+  ): Boolean {
+    val range = loopRange ?: return false
+    val wrap = loopWrapOf(range, current.resolved.duration, current.frameRate)?.takeIf(due) ?: return false
+    seekTo(outputSlotTime(wrap.firstSlot, current.frameRate), SeekAccuracy.Exact)
+    emitEvent(PlaybackEvent.RangeLooped(range))
+    return true
+  }
+
+  // A range with no end has no last slot, so no slot is past it.
+  private fun TimeRange.endsBefore(
+    slot: Long,
+    rate: Int,
+  ): Boolean = lastSlotOf(this, rate)?.let { slot > it } ?: false
 
   private fun show(frame: PreviewFrame) {
     presented = frame
@@ -437,8 +466,11 @@ internal class FfmpegPlayerEngine(
   /**
    * Reports the end of the stream.
    *
-   * A pump that ran out with playback unwanted is a seek that landed on the tail rather than a
-   * play-through finishing, so it moves nothing but the status it needs to leave presentable.
+   * A pump that ran out with playback unwanted is not a play-through finishing, so no end is reported. When it also
+   * showed no frame, the paused seek that opened it is still waiting. Either the seek landed near the end and the
+   * stream ran out first, or its process failed outright, such as one whose source went missing. That seek lands where
+   * the playhead holds, no later than the end, and the status moves only as far as it needs to leave the preview
+   * presentable.
    */
   private fun finish(landed: Boolean) {
     val current = plan ?: return
@@ -451,32 +483,44 @@ internal class FfmpegPlayerEngine(
       return
     }
 
+    // A seek still waiting here opened a pump that ended before it showed a frame. Every slot a seek
+    // lands on carries one, so that is a process that failed, such as one whose source went missing.
+    // The playhead still holds the slot the seek asked for and it lands there. Settling before the end
+    // is reported leaves the end as the last playhead a listener sees.
+    settleLanding()
     position = playbackRange?.endExclusive ?: current.resolved.duration
     wanted.value = false
     setStatus(PlaybackStatus.Ended)
     setPlayWhenReady(false)
     emitPosition(position)
     emitEvent(PlaybackEvent.Ended(position, current.resolved.duration))
-    settleLanding()
   }
 
-  /**
-   * The time of the output slot [at] lands on, clamped to the slots the composition covers.
-   *
-   * Every frame this backend presents sits on the grid the lowered frame rate defines, so a request
-   * that lands between two frames resolves to the one a host is looking at.
-   */
-  private fun snap(at: Duration): Duration {
-    val current = plan ?: return Duration.ZERO
-    val rate = current.frameRate
-    val last = (outputSlotOf(current.resolved.duration, rate) - 1).coerceAtLeast(0)
-    return outputSlotTime(outputSlotOf(at, rate).coerceIn(0, last), rate)
+  private fun snap(at: Duration): Duration = plan?.resolved?.seekLandingOf(at) ?: Duration.ZERO
+
+  // The slot the playhead lands on, held to the last one a playback range carries.
+  private fun replayFrom(): Duration {
+    val rate = plan?.frameRate ?: return Duration.ZERO
+    val slot = playbackRange?.let { lastSlotOf(it, rate) } ?: return snap(position)
+    return snap(position.coerceAtMost(outputSlotTime(slot, rate)))
+  }
+
+  // The last of the slots a playback range carries at rate, or null for a range with no end. A range that covers no
+  // slot of its own has no last one, so this is the range's own first slot instead, the only slot the pump ever
+  // presents for a range that narrow.
+  private fun lastSlotOf(
+    range: TimeRange,
+    rate: Int,
+  ): Long? {
+    if (range.endExclusive == null) return null
+    val slots = outputSlotsOf(range, rate)
+    return if (slots.isEmpty()) outputSlotOf(range.start, rate) else slots.last
   }
 
   private fun settleLanding() {
     val callback = landing ?: return
     landing = null
-    callback()
+    callback(position)
   }
 
   private fun fail(error: PlaybackError) {

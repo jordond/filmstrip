@@ -111,13 +111,14 @@ class Media3ClippingTest {
     item.mediaItem.clippingConfiguration shouldBe MediaItem.ClippingConfiguration.UNSET
   }
 
-  // The video's own cut, past which it either runs out of slots to cover or is held on its last frame. Read off the
-  // shared grid rather than copied, since it is the video item's own end rather than the exact window its audio uses.
+  // The video's own cut, past which it either runs out of slots to cover or is held on its last frame. The shared grid
+  // gives the slots' length, and the earlier of the source's own end and that length past the clip's start is the cut
+  // regardless of which of those two the lowering's own branch picks, so a wrong branch there fails this rather than
+  // being copied into it.
   private fun ResolvedClip.gridEndUs(rate: Int): Long {
     val slots = outputSlotsOf(span, rate)
     val length = outputSlotTime(slots.last + 1, rate) - outputSlotTime(slots.first, rate)
-    val decoded = end - start
-    return if (decoded > length) (start + length).inWholeMicroseconds else end.inWholeMicroseconds
+    return minOf(start + length, end).inWholeMicroseconds
   }
 
   private fun ResolvedComposition.firstItem(): EditedMediaItem =

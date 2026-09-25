@@ -4,20 +4,23 @@ import dev.jordond.filmstrip.player.SeekAccuracy
 import kotlin.time.Duration
 
 /**
- * Issues one platform seek and calls [onComplete] once it finishes.
+ * Issues one platform seek and calls back with where it landed once it finishes.
  *
  * The whole of what a backend hands [SeekChase]. Cancelling a seek that is still running when a
  * newer one arrives belongs to the platform, and both `AVPlayer` and `CompositionPlayer` already do
- * it, so a cancelled seek's [onComplete] may never arrive and [SeekChase] never waits for it.
+ * it, so a cancelled seek's callback may never arrive and [SeekChase] never waits for it.
  */
 internal fun interface PlatformSeek {
   /**
    * Seeks to [position] and calls [onComplete] when the landing frame is presented.
+   *
+   * [onComplete] carries the slot time the frame on screen sits on. For an exact seek that is [seekLandingOf] of
+   * [position], and for a relaxed one it is the slot of the sync sample the platform settled on.
    */
   fun seek(
     position: Duration,
     accuracy: SeekAccuracy,
-    onComplete: () -> Unit,
+    onComplete: (landed: Duration) -> Unit,
   )
 }
 
@@ -27,11 +30,15 @@ internal fun interface PlatformSeek {
 internal enum class SeekResolution {
   /**
    * A platform seek ran for this request and its frame is presented.
+   *
+   * Resolves with the slot time the platform reported it landed on.
    */
   Landed,
 
   /**
    * A newer request replaced this one, or the chase was released, before the platform reached it.
+   *
+   * Resolves with the position the request asked for, since no frame was presented for it.
    */
   Superseded,
 }
@@ -53,10 +60,9 @@ internal enum class SeekResolution {
  * posted to.
  *
  * @param platformSeek How to run one seek.
- * @param isReady Whether the platform can seek yet. A request made before it can waits, and
- *   [onReady] releases it.
- * @param onResolved Called once per [request]. A thrown-away request resolves the moment it is
- *   replaced, so resolutions do not arrive in request order.
+ * @param isReady Whether the platform can seek yet. A request made before it can waits, and [onReady] releases it.
+ * @param onResolved Called once per [request], with where a landed request landed or where a superseded one asked to
+ * go. A thrown-away request resolves the moment it is replaced, so resolutions do not arrive in request order.
  */
 internal class SeekChase(
   private val platformSeek: PlatformSeek,
@@ -117,12 +123,12 @@ internal class SeekChase(
 
     chaseTime = null
     inFlight = request
-    platformSeek.seek(request.position, request.accuracy) {
+    platformSeek.seek(request.position, request.accuracy) { landed ->
       // Identity, not a boolean: it rejects a second callback for the same seek and a callback
       // that arrives after release() already synthesised this request's resolution.
       if (inFlight === request) {
         inFlight = null
-        onResolved(request.position, SeekResolution.Landed)
+        onResolved(landed, SeekResolution.Landed)
         trySeekToChaseTime()
       }
     }

@@ -23,6 +23,8 @@ class FakeEngineContractTest : PlayerEngineContractTest() {
       tracks = listOf(Track(listOf(Clip(MediaSource.of("contract.mp4"), TimeRange.of(Duration.ZERO, 8.seconds))))),
     )
 
+  override val fixtureFrameRate: Int = FAKE_FRAME_RATE
+
   // Nothing is out of reach for a fake, so it takes everything short of the two occasions no
   // platform exposes at all.
   override val stageableInterruptions: Set<Interruption> =

@@ -57,8 +57,11 @@ import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.test.LoopingCases
+import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.passesCovering
 import dev.jordond.filmstrip.transform.internal.stillUnsupportedMessage
+import dev.jordond.filmstrip.transform.internal.toResolvedComposition
+import dev.jordond.filmstrip.transform.internal.videoSlots
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
 import dev.jordond.filmstrip.webcodecs.internal.BrowserLowering
 import dev.jordond.filmstrip.webcodecs.internal.BrowserPlanner
@@ -755,6 +758,8 @@ class BrowserPlannerTest {
       outputSlotOf(checkNotNull(laid.last().span.endExclusive), GRID_RATE),
       render.leadFrames + render.clips.sumOf { it.frames },
     )
+    // The loop runs the primary to the composition's end, so nothing is left for a held frame to cover.
+    render.clips.forEachIndexed { index, drawn -> assertEquals(0L, drawn.heldFrames, "pass $index") }
 
     // The track underneath does not loop, so it lays its one clip once across the whole run and
     // nothing about the primary's repeat reaches it.
@@ -883,6 +888,83 @@ class BrowserPlannerTest {
     assertEquals(render.clips[0].firstSlot + render.clips[0].frames, render.clips[2].firstSlot)
   }
 
+  // A bed that outlasts the primary sets the composition's length, and the render holds the primary's last clip over
+  // every slot past it. The last clip still draws only the slots its own span covers, and the tail opens on the slot
+  // straight after them.
+  @Test
+  fun aBedThatOutlastsThePrimaryHoldsItsLastClipOverTheTail() {
+    val primary =
+      listOf(
+        Clip(source("a"), trim = TimeRange(Duration.ZERO, TRIM_START)),
+        Clip(source("b"), trim = TimeRange(Duration.ZERO, OFF_GRID_LENGTH)),
+      )
+    val lowering = lowerUnderABed(primary)
+
+    val resolved = checkNotNull(lowering.export.composition).toResolvedComposition()
+    val render = assertNotNull(lowering.render)
+    val tail = resolved.heldTail
+    assertFalse(tail.isEmpty(), "a bed of $BED_SOURCE under a shorter primary left no tail")
+
+    val laid = render.audioTracks.first().clips
+    val last = render.clips.last()
+    assertEquals(outputSlotsOf(laid.last().span, GRID_RATE).count().toLong(), last.frames)
+    assertEquals(tail.count().toLong(), last.heldFrames)
+    assertEquals(last.firstSlot + last.frames, tail.first)
+    render.clips.dropLast(1).forEachIndexed { index, clip -> assertEquals(0L, clip.heldFrames, "clip $index") }
+    assertEquals(resolved.videoSlots, render.estimatedFrames)
+  }
+
+  // Nothing outlasts the primary here, so no clip holds and the render walks the slots the grid gives the composition.
+  @Test
+  fun aPrimaryNothingOutlastsHoldsNoFrames() {
+    val composition =
+      compositionOf(listOf(Clip(source("a")), Clip(source("b"), trim = TimeRange(Duration.ZERO, OFF_GRID_LENGTH))))
+    val lowering = lower(composition, gridSpec())
+
+    val resolved = checkNotNull(lowering.export.composition).toResolvedComposition()
+    val render = assertNotNull(lowering.render)
+    assertTrue(resolved.heldTail.isEmpty(), "a primary with nothing under it left a tail of ${resolved.heldTail}")
+    render.clips.forEachIndexed { index, clip -> assertEquals(0L, clip.heldFrames, "clip $index") }
+    assertEquals(resolved.videoSlots, render.estimatedFrames)
+  }
+
+  // A last clip too short to cover a slot draws nothing, so the frame held over the tail is the one the clip before it
+  // closes on, and the hold sits on that clip instead.
+  @Test
+  fun aLastClipThatCoversNoSlotLeavesTheHoldOnTheClipBeforeIt() {
+    val lowering =
+      lowerUnderABed(listOf(Clip(source("a")), Clip(source("b"), trim = TimeRange(Duration.ZERO, UNDER_HALF_SLOT))))
+
+    val resolved = checkNotNull(lowering.export.composition).toResolvedComposition()
+    val render = assertNotNull(lowering.render)
+    val tail = resolved.heldTail
+    assertFalse(tail.isEmpty(), "a bed of $BED_SOURCE under a shorter primary left no tail")
+
+    val (covered, empty) = render.clips
+    assertEquals(0L, empty.frames)
+    assertEquals(0L, empty.heldFrames)
+    assertEquals(tail.count().toLong(), covered.heldFrames)
+    assertEquals(covered.firstSlot + covered.frames, tail.first)
+    assertEquals(resolved.videoSlots, render.estimatedFrames)
+  }
+
+  /**
+   * Lowers [primary] at [GRID_RATE] over a bed of [BED_SOURCE] on an audio track of its own.
+   *
+   * The bed's source carries no audio, so nothing is mixed and the bed does no more than set how long the composition
+   * runs.
+   */
+  private fun lowerUnderABed(primary: List<Clip>): BrowserLowering {
+    val bed = Clip(source("bed"))
+    val composition =
+      EditComposition(
+        tracks = listOf(Track(primary), Track(listOf(bed), content = TrackContent.Audio)),
+        audio = AudioSpec.Remove,
+      )
+    val infos = primary.associate { it.source to info() } + (bed.source to info(duration = BED_SOURCE))
+    return lower(composition, gridSpec(), infos = infos)
+  }
+
   private fun gridSpec(): ExportSpec =
     ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None, frameRate = GRID_RATE)
 
@@ -994,6 +1076,9 @@ class BrowserPlannerTest {
     val HALF_SLOT_START = 20.milliseconds
     val OFF_GRID_LENGTH = 1_010.milliseconds
     val UNDER_HALF_SLOT = 10.milliseconds
+
+    // Longer than any primary the tail cases lay over it.
+    val BED_SOURCE = 5_000.milliseconds
 
     // The fabricated sources case 3 of the looping suite is probed with, both longer than the trims
     // taken out of them.

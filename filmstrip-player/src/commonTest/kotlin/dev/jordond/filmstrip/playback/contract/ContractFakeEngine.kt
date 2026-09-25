@@ -7,7 +7,10 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.diff
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.playback.internal.BasePlayerEngine
+import dev.jordond.filmstrip.playback.internal.loopWrapOf
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.PlayerFeature
@@ -20,6 +23,7 @@ import dev.jordond.filmstrip.player.SetCompositionCallback
 import dev.jordond.filmstrip.player.SetCompositionRequest
 import dev.jordond.filmstrip.player.SetCompositionResult
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
@@ -30,8 +34,9 @@ import kotlin.time.Duration.Companion.seconds
  * A backend with no platform under it, shaped the way a real one is.
  *
  * Unlike the fake in `BasePlayerEngineTest`, this one classifies a composition change, counts what
- * a platform load would have cost and completes a seek on its own timer. That is what makes it a
- * subject the contract suite can run against rather than a puppet a test drives step by step.
+ * a platform load would have cost, completes a seek on its own timer and plays one output slot per
+ * frame in real time. That is what makes it a subject the contract suite can run against rather than
+ * a puppet a test drives step by step.
  */
 internal class ContractFakeEngine(
   parent: CoroutineScope,
@@ -51,6 +56,9 @@ internal class ContractFakeEngine(
 
   private var loaded: EditComposition? = null
   private var playhead: Duration = Duration.ZERO
+  private var loopRange: TimeRange? = null
+  private var transport: Job? = null
+  private var isLanding = false
 
   override val id: String = "filmstrip.contract-fake"
 
@@ -95,18 +103,42 @@ internal class ContractFakeEngine(
   override fun performSeek(
     position: Duration,
     accuracy: SeekAccuracy,
-    onComplete: () -> Unit,
+    onComplete: (landed: Duration) -> Unit,
   ) {
+    isLanding = true
     scope.launch {
       delay(seekLatency)
-      playhead = position
-      onComplete()
+      playhead = landingOf(position)
+      isLanding = false
+      onComplete(playhead)
     }
   }
 
-  override fun onPlay(): Unit = Unit
+  /**
+   * Where a seek to [position] lands, which is the output slot it rounds to at [FAKE_FRAME_RATE].
+   *
+   * Clamped to the slots the laid down clips cover, so a seek past the end lands on the last one.
+   */
+  private fun landingOf(position: Duration): Duration {
+    val last = (outputSlotOf(platformDuration ?: Duration.ZERO, FAKE_FRAME_RATE) - 1).coerceAtLeast(0)
+    return outputSlotTime(outputSlotOf(position, FAKE_FRAME_RATE).coerceIn(0, last), FAKE_FRAME_RATE)
+  }
 
-  override fun onPause(): Unit = Unit
+  override fun onPlay() {
+    if (transport?.isActive == true) return
+    transport =
+      scope.launch {
+        while (true) {
+          delay(FRAME)
+          if (!isLanding) advance()
+        }
+      }
+  }
+
+  override fun onPause() {
+    transport?.cancel()
+    transport = null
+  }
 
   override fun onRelease(): Unit = Unit
 
@@ -114,11 +146,47 @@ internal class ContractFakeEngine(
 
   override fun setVolume(volume: Float): Unit = Unit
 
-  override fun setLoopRange(range: TimeRange?): Unit = Unit
+  override fun setLoopRange(range: TimeRange?) {
+    loopRange = range
+  }
 
   override fun setPlaybackRange(range: TimeRange?): Unit = Unit
 
   override fun setQualityPolicy(policy: PreviewQualityPolicy): Unit = Unit
+
+  /**
+   * Moves the playhead on one output slot at [FAKE_FRAME_RATE].
+   *
+   * Past the last slot of the loop range it wraps to the range's first, which is also what happens at the end of a
+   * composition that ends inside the range. Past the composition's last slot with no range to wrap it ends.
+   */
+  private fun advance() {
+    val length = platformDuration ?: return
+    val next = outputSlotOf(playhead, FAKE_FRAME_RATE) + 1
+    val range = loopRange
+    val wrap = range?.let { loopWrapOf(it, length, FAKE_FRAME_RATE) }
+    when {
+      range != null && wrap != null && next > wrap.lastSlot -> {
+        seekTo(outputSlotTime(wrap.firstSlot, FAKE_FRAME_RATE), SeekAccuracy.Exact)
+        emitEvent(PlaybackEvent.RangeLooped(range))
+      }
+      next >= outputSlotOf(length, FAKE_FRAME_RATE) -> {
+        end(length)
+      }
+      else -> {
+        playhead = outputSlotTime(next, FAKE_FRAME_RATE)
+      }
+    }
+  }
+
+  private fun end(length: Duration) {
+    playhead = length
+    onPause()
+    setStatus(PlaybackStatus.Ended)
+    setPlayWhenReady(false)
+    emitPosition(playhead)
+    emitEvent(PlaybackEvent.Ended(playhead, length))
+  }
 
   /**
    * Takes playback away the way a system callback would.
@@ -128,6 +196,7 @@ internal class ContractFakeEngine(
    */
   fun raise() {
     reportExternalPlayWhenReady(false)
+    onPause()
   }
 
   /**
@@ -151,6 +220,8 @@ internal class ContractFakeEngine(
     // short enough that a suite of them finishes in a moment.
     val SEEK_LATENCY = 5.milliseconds
 
+    val FRAME = 1.seconds / FAKE_FRAME_RATE
+
     // What the fake would have probed for a composition whose clips are untrimmed.
     val UNTRIMMED_DURATION = 30.seconds
 
@@ -166,6 +237,13 @@ internal class ContractFakeEngine(
       )
   }
 }
+
+/**
+ * The output frame rate [ContractFakeEngine] pretends to present at.
+ *
+ * Every seek into the fake lands on this grid, the way a real backend lands on the one its lowered composition carries.
+ */
+internal const val FAKE_FRAME_RATE: Int = 30
 
 /**
  * The fake wired up as a contract subject.

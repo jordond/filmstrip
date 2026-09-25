@@ -2,26 +2,37 @@ package dev.jordond.filmstrip.playback.contract
 
 import dev.jordond.filmstrip.edit.CompositionDiff
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.diff
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
+import dev.jordond.filmstrip.playback.internal.loopWrapOf
+import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.SetCompositionResult
 import io.kotest.matchers.comparables.shouldBeGreaterThan
+import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
+import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.test.TestResult
 import kotlin.test.Test
 import kotlin.test.fail
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The contracts every player backend must honour that need nothing but an engine and a
  * composition.
  *
- * A backend inherits this, supplies [createEngine] and [fixture], and gets the five behaviours that
- * drift silently between backends: the duration a snapshot reports, what the preview reports it is
- * delivering, one completion per issued seek, an equal composition doing no platform work, and how
- * an interruption from outside filmstrip reaches a listener.
+ * A backend inherits this, supplies [createEngine], [fixture] and [fixtureFrameRate], and gets the seven behaviours
+ * that drift silently between backends: the duration a snapshot reports, what the preview reports it is delivering, one
+ * completion per issued seek, the slot a seek reports it landed on, an equal composition doing no platform work, how
+ * an interruption from outside filmstrip reaches a listener, and a loop range the composition ends inside wrapping at
+ * that end rather than ending there.
  *
  * Pixel work is in [PlayerPixelContractTest] instead, so a backend with no export to compare
  * against is not made to stub out half of one class.
@@ -52,6 +63,11 @@ abstract class PlayerEngineContractTest {
    * route changes need a real audio session. Nothing in [UNSTAGEABLE_INTERRUPTIONS] may appear.
    */
   protected open val stageableInterruptions: Set<Interruption> get() = emptySet()
+
+  /**
+   * The output frame rate [fixture] plays at, which is the grid every seek into it lands on.
+   */
+  protected abstract val fixtureFrameRate: Int
 
   @Test
   fun theReportedDurationMatchesTheResolvedCompositionAndThePlatform() =
@@ -126,6 +142,63 @@ abstract class PlayerEngineContractTest {
     }
 
   @Test
+  fun anExactSeekBetweenTwoFramesReportsTheSlotItLandedOn() =
+    contractTest { scope ->
+      val subject = createEngine(scope)
+      withEngine(subject.engine) { recorder ->
+        subject.engine.awaitComposition(fixture).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
+        val duration = recorder.lastState.duration ?: fail("The engine reported no duration to seek within.")
+        val rate = fixtureFrameRate
+
+        // One a third of a slot past its slot and one a third short of it, so a landing that rounds either way wrong
+        // lands a slot off.
+        val positions =
+          listOf(
+            offGrid(duration, ROUNDS_DOWN_AT, rate, thirds = 1),
+            offGrid(duration, ROUNDS_UP_AT, rate, thirds = -1),
+          )
+        for (at in positions) {
+          val landing = outputSlotTime(outputSlotOf(at, rate), rate)
+          val before = recorder.seekCompletions.size
+          subject.engine.seekTo(at, SeekAccuracy.Exact)
+          awaitContract("the seek to $at to complete") { recorder.seekCompletions.size > before }
+
+          recorder.seekCompletions.last().position shouldBe landing
+          recorder.playhead shouldBe landing
+
+          settle()
+          recorder.playhead shouldBe landing
+        }
+      }
+    }
+
+  @Test
+  fun aRelaxedSeekReportsASlotThePlayheadAgreesWith() =
+    contractTest { scope ->
+      val subject = createEngine(scope)
+      withEngine(subject.engine) { recorder ->
+        subject.engine.awaitComposition(fixture).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
+        val duration = recorder.lastState.duration ?: fail("The engine reported no duration to seek within.")
+        val rate = fixtureFrameRate
+
+        val at = offGrid(duration, RELAXED_AT, rate, thirds = 1)
+        val exact = outputSlotTime(outputSlotOf(at, rate), rate)
+        val before = recorder.seekCompletions.size
+        subject.engine.seekTo(at, SeekAccuracy.Nearest)
+        awaitContract("the relaxed seek to $at to complete") { recorder.seekCompletions.size > before }
+
+        val reported = recorder.seekCompletions.last().position
+        outputSlotTime(outputSlotOf(reported, rate), rate) shouldBe reported
+        reported shouldBeLessThanOrEqualTo exact
+
+        settle()
+        recorder.playhead shouldBe reported
+      }
+    }
+
+  @Test
   fun anEqualCompositionDoesNoPlatformWork() =
     contractTest { scope ->
       val subject = createEngine(scope)
@@ -177,8 +250,107 @@ abstract class PlayerEngineContractTest {
     stageableInterruptions.intersect(UNSTAGEABLE_INTERRUPTIONS) shouldBe emptySet<Interruption>()
   }
 
+  @Test
+  fun anOpenLoopRangeWrapsAtTheCompositionEnd() =
+    wrapsAtTheCompositionEnd(thirds = -1) { start, _ -> TimeRange.from(start) }
+
+  @Test
+  fun aLoopRangeEndingOnTheDurationWrapsAtTheCompositionEnd() =
+    wrapsAtTheCompositionEnd(thirds = 1) { start, duration -> TimeRange.of(start, duration) }
+
+  @Test
+  fun aLoopRangeEndingPastTheDurationWrapsAtTheCompositionEnd() =
+    wrapsAtTheCompositionEnd(thirds = -1) { start, duration -> TimeRange.of(start, duration + duration / 2) }
+
+  /**
+   * Plays into the end of a composition that ends inside the loop range [shape] builds, and checks it wraps there
+   * twice.
+   *
+   * [shape] gets the range's start and the composition's duration. The start sits well inside the composition,
+   * [thirds] thirds of a slot off the slot it rounds to, so a wrap that lands on the raw start rather than on that slot
+   * is caught. Playback starts close to the end, so the first pass is short. The second wrap is what shows playback
+   * ran the whole range again.
+   */
+  private fun wrapsAtTheCompositionEnd(
+    thirds: Int,
+    shape: (start: Duration, duration: Duration) -> TimeRange,
+  ): TestResult =
+    contractTest { scope ->
+      val subject = createEngine(scope)
+      withEngine(subject.engine) { recorder ->
+        subject.engine.awaitComposition(fixture).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
+        val duration = recorder.lastState.duration ?: fail("The engine reported no duration to loop within.")
+        val rate = fixtureFrameRate
+
+        val range = shape(offGrid(duration, LOOP_FROM, rate, thirds), duration)
+        val wrap = loopWrapOf(range, duration, rate) ?: fail("The loop range at ${range.start} has nothing to loop.")
+        val firstSlot = outputSlotTime(wrap.firstSlot, rate)
+        subject.engine.setLoopRange(range)
+
+        val approach = outputSlotTime(outputSlotOf(duration * APPROACH_AT, rate), rate)
+        val seeks = recorder.seekCompletions.size
+        subject.engine.seekTo(approach, SeekAccuracy.Exact)
+        awaitContract("the seek to $approach to complete") { recorder.seekCompletions.size > seeks }
+
+        val eventsMark = recorder.events.size
+        val positionsMark = recorder.playheads.size
+        subject.engine.play()
+        awaitLoopWraps(recorder, eventsMark, positionsMark, count = 2)
+
+        // A wrap landing between the events read and the playheads read below, or the landing playhead
+        // arriving a moment before the RangeLooped event that explains it, is what makes this flaky.
+        // Confirming playback is still running before pausing it, then waiting for that pause to settle,
+        // means both reads see the same still record instead of racing a wrap in progress.
+        recorder.lastState.playWhenReady shouldBe true
+        recorder.lastState.status shouldNotBe PlaybackStatus.Ended
+        subject.engine.pause()
+        awaitContract("the play axis to settle after pausing") { !recorder.lastState.playWhenReady }
+        settle()
+
+        val since = recorder.events.drop(eventsMark)
+        since.filterIsInstance<PlaybackEvent.Ended>() shouldBe emptyList()
+        val looped = since.filterIsInstance<PlaybackEvent.RangeLooped>()
+        looped.forEach { it.range shouldBe range }
+
+        val positions = recorder.playheads.drop(positionsMark)
+        val drops = dropIndices(positions)
+        drops.map { index -> positions[index] }.forEach { it shouldBe firstSlot }
+        drops.size shouldBe looped.size
+        positions.drop(drops.first()).forEach { it shouldBeGreaterThanOrEqualTo firstSlot }
+      }
+    }
+
+  /**
+   * Waits for playback to have wrapped [count] times, with at least [count] drops recorded in the playhead since
+   * [positionsMark].
+   *
+   * Fails as soon as the end is reported, rather than waiting out the budget for a wrap that is not coming.
+   */
+  private suspend fun awaitLoopWraps(
+    recorder: ContractRecorder,
+    eventsMark: Int,
+    positionsMark: Int,
+    count: Int,
+  ) {
+    awaitContract("playback to wrap $count times") {
+      val since = recorder.events.drop(eventsMark)
+      since.firstOrNull { it is PlaybackEvent.Ended }?.let { fail("Playback reported $it instead of wrapping.") }
+      val looped = since.count { it is PlaybackEvent.RangeLooped }
+      looped >= count && dropIndices(recorder.playheads.drop(positionsMark)).size >= count
+    }
+  }
+
   private companion object {
     val BURST_SIZES = listOf(1, 2, 5, 9)
+
+    /**
+     * The index of every reading in [readings] that is lower than the one straight before it.
+     *
+     * That is what a wrap looks like in an ordered position record: a drop, not a plateau or a climb.
+     */
+    fun dropIndices(readings: List<Duration>): List<Int> =
+      (1 until readings.size).filter { index -> readings[index] < readings[index - 1] }
 
     /**
      * [count] positions spread evenly across `(0, duration)`, touching neither end.
@@ -190,5 +362,33 @@ abstract class PlayerEngineContractTest {
       duration: Duration,
       count: Int,
     ): List<Duration> = (1..count).map { step -> duration * (step / (count + 1.0)) }
+
+    // Where across the composition the seeks in the landing tests aim. Well inside it, and the relaxed one mid GOP for
+    // every fixture's keyframe interval.
+    const val ROUNDS_DOWN_AT = 0.3
+    const val ROUNDS_UP_AT = 0.6
+    const val RELAXED_AT = 0.45
+
+    // Where across the composition the loop range starts, and where playback into its end begins.
+    const val LOOP_FROM = 0.7
+    const val APPROACH_AT = 0.9
+
+    /**
+     * A time [thirds] thirds of a slot away from the output slot nearest [fraction] of [duration], at [rate].
+     *
+     * A third either side of a slot still rounds to it. Fails when that slot is the first or the last, since a seek
+     * near either end lands there under any reading.
+     */
+    fun offGrid(
+      duration: Duration,
+      fraction: Double,
+      rate: Int,
+      thirds: Int,
+    ): Duration {
+      val slot = outputSlotOf(duration * fraction, rate)
+      val last = outputSlotOf(duration, rate) - 1
+      check(slot in 1 until last) { "Slot $slot is not strictly inside $duration at $rate fps." }
+      return outputSlotTime(slot, rate) + (1.seconds / rate / 3) * thirds
+    }
   }
 }

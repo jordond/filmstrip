@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
@@ -17,6 +18,8 @@ import dev.jordond.filmstrip.internal.outputSlotOf
 import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.ResolveResult
+import dev.jordond.filmstrip.transform.internal.heldTail
+import dev.jordond.filmstrip.transform.internal.videoSlots
 import dev.jordond.filmstrip.webcodecs.internal.BrowserPreview
 import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
 import dev.jordond.filmstrip.webcodecs.internal.PREVIEW_LOOK_AHEAD
@@ -27,6 +30,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -453,6 +457,106 @@ class BrowserPreviewTest {
       }
     }
 
+  // A bed that outlasts the primary leaves a tail the export holds the primary's last frame over. A position in its
+  // middle draws that frame at the last covered slot's time, as the export does, and reports the slot it was asked
+  // for, which is where the export writes it. The playhead sitting on the duration reports the last slot the file has.
+  @Test
+  fun aSlotInTheHeldTailDrawsThePrimarysLastFrameWhereTheExportWritesIt() =
+    runTest {
+      val preview = previewOf(heldTailComposition())
+
+      try {
+        val tail = preview.resolved.heldTail
+        assertFalse(tail.isEmpty(), "a bed of $BED_FRAMES frames under a shorter primary left no tail")
+        val lastCovered = outputSlotTime(tail.first - 1, FRAME_RATE)
+        val middle = outputSlotTime((tail.first + tail.last) / 2, FRAME_RATE)
+
+        val held = assertNotNull(preview.frameAt(middle), "no preview frame at $middle")
+        assertEquals(middle, held.presentationTime)
+        assertEquals(lastCovered, preview.drawnAtUs?.microseconds)
+        assertTrue(
+          held.at(x = 0.5, y = 0.5).isNear(ramp(FRAMES - 1)),
+          "$middle drew ${held.at(0.5, 0.5)} where the primary closes on ${ramp(FRAMES - 1)}",
+        )
+
+        val end = assertNotNull(preview.frameAt(preview.resolved.duration), "no preview frame at the duration")
+        assertEquals(outputSlotTime(preview.resolved.videoSlots - 1, FRAME_RATE), end.presentationTime)
+      } finally {
+        preview.release()
+      }
+    }
+
+  // Every slot of the held tail draws the same held frame, so a relaxed seek into it has nothing to decode and lands on
+  // the slot it was asked for. Either side of a slot in the middle, the tail's first slot and the duration are read.
+  @Test
+  fun aRelaxedSeekIntoTheHeldTailLandsOnItsOwnSlot() =
+    runTest {
+      val preview = previewOf(heldTailComposition())
+
+      try {
+        val tail = preview.resolved.heldTail
+        assertFalse(tail.isEmpty(), "a bed of $BED_FRAMES frames under a shorter primary left no tail")
+        val middle = (tail.first + tail.last) / 2
+        val third = frameTime(1) / 3
+
+        val roundsDown = outputSlotTime(middle, FRAME_RATE) + third
+        val down = preview.syncSampleAt(roundsDown)
+        assertEquals(outputSlotTime(middle, FRAME_RATE), down, "a relaxed seek to $roundsDown left slot $middle")
+        val landed = assertNotNull(preview.frameAt(down), "no preview frame at $down")
+        assertEquals(outputSlotTime(middle, FRAME_RATE), landed.presentationTime)
+
+        val roundsUp = outputSlotTime(middle, FRAME_RATE) - third
+        assertEquals(middle, outputSlotOf(roundsUp, FRAME_RATE), "the probe at $roundsUp is not on slot $middle")
+        val up = preview.syncSampleAt(roundsUp)
+        assertTrue(up <= roundsUp, "a relaxed seek to $roundsUp moved forward to $up")
+        assertEquals(middle, outputSlotOf(up, FRAME_RATE), "a relaxed seek to $roundsUp left slot $middle")
+
+        val opening = outputSlotTime(tail.first, FRAME_RATE)
+        assertEquals(opening, preview.syncSampleAt(opening), "a relaxed seek to the tail's first slot moved")
+
+        val end = preview.syncSampleAt(preview.resolved.duration)
+        assertEquals(outputSlotTime(tail.last, FRAME_RATE), end, "a relaxed seek to the duration left the tail")
+      } finally {
+        preview.release()
+      }
+    }
+
+  // The primary's last covered slot is a decoded frame like any other, so a relaxed seek there still goes back to the
+  // sync sample the ramp opens on, however long the tail after it runs.
+  @Test
+  fun aRelaxedSeekToThePrimarysLastCoveredSlotLandsOnItsSyncSample() =
+    runTest {
+      val preview = previewOf(heldTailComposition())
+
+      try {
+        val tail = preview.resolved.heldTail
+        assertFalse(tail.isEmpty(), "a bed of $BED_FRAMES frames under a shorter primary left no tail")
+        val laid =
+          preview.resolved.tracks
+            .first()
+            .clips
+            .single()
+        val opens = outputSlotTime(outputSlotOf(laid.span.start, FRAME_RATE), FRAME_RATE)
+        val lastCovered = outputSlotTime(tail.first - 1, FRAME_RATE)
+
+        assertEquals(opens, preview.syncSampleAt(lastCovered), "a relaxed seek to $lastCovered missed the sync sample")
+      } finally {
+        preview.release()
+      }
+    }
+
+  private suspend fun heldTailComposition(): EditComposition {
+    val bed = makeClip(width = WIDTH, height = HEIGHT, frames = BED_FRAMES, frameRate = FRAME_RATE)
+    return EditComposition(
+      tracks =
+        listOf(
+          Track(listOf(Clip(MediaSource.Bytes(rampClip())))),
+          Track(listOf(Clip(MediaSource.Bytes(bed))), content = TrackContent.Audio),
+        ),
+      audio = AudioSpec.Remove,
+    )
+  }
+
   private suspend fun lateComposition(
     fill: Fill,
     start: Duration = frameTime(LATE_SLOTS),
@@ -531,6 +635,9 @@ class BrowserPreviewTest {
 
     // Two short clips, the second half as tall as the output, probed in its middle and in its top bar.
     const val SHORT_FRAMES = 12
+
+    // Two seconds, under the one second primary the ramp fixture is.
+    const val BED_FRAMES = 60
     const val WIDE_PROBE = 6
     const val BAR = 0.1
 

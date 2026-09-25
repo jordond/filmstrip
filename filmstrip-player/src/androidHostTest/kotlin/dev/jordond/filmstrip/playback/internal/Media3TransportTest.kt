@@ -4,16 +4,11 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import dev.jordond.filmstrip.edit.CompositionDiff
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.SeekAccuracy
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * The decisions the media3 engine makes about a transport change, taken apart from the player that
@@ -152,41 +147,7 @@ class Media3TransportTest {
     loadCostFor(CompositionDiff.ParametersOnly, hasGraph = false) { true } shouldBe LoadCost.Rebuild
   }
 
-  /**
-   * A step taken from between two frames lands on a frame, counted from the one the playhead is nearest.
-   *
-   * media3 reports its playhead in whole milliseconds, which at most rates is never on a frame at all.
-   */
-  @Test
-  fun `a frame step from between two frames lands on the output grid`() {
-    val slot = outputSlotOf(BETWEEN_FRAMES, RATE)
-
-    frameStepLanding(BETWEEN_FRAMES, 1, RATE, LENGTH) shouldBe outputSlotTime(slot + 1, RATE)
-    frameStepLanding(BETWEEN_FRAMES, -1, RATE, LENGTH) shouldBe outputSlotTime(slot - 1, RATE)
-  }
-
-  @Test
-  fun `a run of single frame steps lands where one step of the whole count does`() {
-    val stepped = (1..STEPS).fold(Duration.ZERO) { at, _ -> frameStepLanding(at, 1, RATE, LENGTH).shouldNotBeNull() }
-
-    stepped shouldBe outputSlotTime(STEPS.toLong(), RATE)
-    stepped shouldBe frameStepLanding(Duration.ZERO, STEPS, RATE, LENGTH)
-  }
-
-  @Test
-  fun `a frame step that would leave the composition is refused`() {
-    frameStepLanding(Duration.ZERO, -1, RATE, LENGTH) shouldBe null
-    frameStepLanding(LENGTH, 1, RATE, LENGTH) shouldBe null
-    frameStepLanding(LENGTH, -1, RATE, LENGTH) shouldBe outputSlotTime(outputSlotOf(LENGTH, RATE) - 1, RATE)
-  }
-
   private companion object {
     const val WHY = "the decoder gave up"
-
-    // A frame at this rate is not a whole number of microseconds, so adding frame lengths drifts off the grid.
-    const val RATE = 30
-    const val STEPS = 30
-    val LENGTH: Duration = 1500.milliseconds
-    val BETWEEN_FRAMES: Duration = 717.milliseconds
   }
 }

@@ -2,20 +2,33 @@ package dev.jordond.filmstrip.playback
 
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.playback.contract.EngineUnderTest
 import dev.jordond.filmstrip.playback.contract.Interruption
 import dev.jordond.filmstrip.playback.contract.PlayerEngineContractTest
 import dev.jordond.filmstrip.playback.contract.awaitComposition
 import dev.jordond.filmstrip.playback.contract.awaitContract
+import dev.jordond.filmstrip.playback.contract.awaitFrame
 import dev.jordond.filmstrip.playback.contract.contractTest
+import dev.jordond.filmstrip.playback.contract.settle
 import dev.jordond.filmstrip.playback.contract.withEngine
+import dev.jordond.filmstrip.playback.internal.loopWrapOf
+import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlayerFeature
+import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.SetCompositionResult
+import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
+import io.kotest.matchers.comparables.shouldBeLessThan
+import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CoroutineScope
 import kotlin.test.Test
+import kotlin.test.fail
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * The shared engine contracts, run against real WebCodecs in a real browser.
@@ -36,6 +49,8 @@ class WebEngineContractTest : PlayerEngineContractTest() {
   override fun createEngine(scope: CoroutineScope): EngineUnderTest = WebEngineUnderTest(scope)
 
   override val fixture: EditComposition = webFixtureComposition()
+
+  override val fixtureFrameRate: Int = FIXTURE_FRAME_RATE
 
   override val stageableInterruptions: Set<Interruption> =
     setOf(Interruption.AutoplayBlocked, Interruption.AppBackgrounded)
@@ -83,7 +98,145 @@ class WebEngineContractTest : PlayerEngineContractTest() {
       }
     }
 
+  /**
+   * A relaxed seek lands on the slot the sync sample at or before the target sits on.
+   *
+   * That sample is never more than one keyframe interval behind the slot an exact seek would land on. The completion,
+   * the playhead, the clock and the frame drawn at the reported time all have to agree on it.
+   */
+  @Test
+  fun `a relaxed seek reports the sync sample's slot`() =
+    contractTest { scope ->
+      val subject = WebEngineUnderTest(scope)
+      withEngine(subject.engine) { recorder ->
+        subject.engine.awaitComposition(fixture).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
+
+        for (at in eitherSideOf(MID_GOP_POSITION)) {
+          val exact = slotTimeOf(at)
+          val before = recorder.seekCompletions.size
+          subject.engine.seekTo(at, SeekAccuracy.Nearest)
+          awaitContract("the relaxed seek to $at to complete") { recorder.seekCompletions.size > before }
+
+          val reported = recorder.seekCompletions.last().position
+          slotTimeOf(reported) shouldBe reported
+          reported shouldBeLessThanOrEqualTo exact
+          reported shouldBeGreaterThanOrEqualTo exact - FIXTURE_SYNC_INTERVAL
+          recorder.playhead shouldBe reported
+          subject.engine.clockPosition shouldBe reported
+          subject.engine.readback
+            .awaitFrame(reported)
+            .presentationTime shouldBe reported
+        }
+      }
+    }
+
+  /**
+   * A frame step counts output slots from the one the playhead sits on.
+   *
+   * After an exact seek between two frames the step lands on the slot after the one that seek rounded to, rather than
+   * one frame length past the time that was asked for.
+   */
+  @Test
+  fun `a frame step from between two frames lands on the grid`() =
+    contractTest { scope ->
+      val subject = WebEngineUnderTest(scope)
+      withEngine(subject.engine) { recorder ->
+        subject.engine.awaitComposition(fixture).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
+
+        for (at in eitherSideOf(MID_GOP_POSITION)) {
+          val seeked = recorder.seekCompletions.size
+          subject.engine.seekTo(at, SeekAccuracy.Exact)
+          awaitContract("the seek to $at to complete") { recorder.seekCompletions.size > seeked }
+
+          val landing = outputSlotTime(outputSlotOf(at, FIXTURE_FRAME_RATE) + 1, FIXTURE_FRAME_RATE)
+          val stepped = recorder.seekCompletions.size
+          subject.engine.stepFrames(1)
+          awaitContract("the frame step from $at to complete") { recorder.seekCompletions.size > stepped }
+
+          recorder.seekCompletions.last().position shouldBe landing
+          recorder.playhead shouldBe landing
+        }
+      }
+    }
+
+  /**
+   * A loop range the composition runs on past wraps at its own last slot, onto the slot its start lands on.
+   *
+   * Both ends sit a third of a slot off the grid, so a wrap that lands on the raw start rather than on its slot is
+   * caught. Playback starts inside the range and has to wrap twice without ever reaching the composition's end.
+   */
+  @Test
+  fun `a loop range ending before the composition wraps onto its first slot`() =
+    contractTest { scope ->
+      val subject = WebEngineUnderTest(scope)
+      withEngine(subject.engine) { recorder ->
+        subject.engine.awaitComposition(fixture).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
+        val duration = recorder.lastState.duration ?: fail("The engine reported no duration to loop within.")
+
+        val range = TimeRange.of(LOOP_START, LOOP_END)
+        val wrap = loopWrapOf(range, duration, FIXTURE_FRAME_RATE) ?: fail("The loop range $range has nothing to loop.")
+        wrap.reachesEnd shouldBe false
+        val firstSlot = outputSlotTime(wrap.firstSlot, FIXTURE_FRAME_RATE)
+        subject.engine.setLoopRange(range)
+
+        val seeks = recorder.seekCompletions.size
+        subject.engine.seekTo(LOOP_APPROACH, SeekAccuracy.Exact)
+        awaitContract("the seek to $LOOP_APPROACH to complete") { recorder.seekCompletions.size > seeks }
+
+        val eventsMark = recorder.events.size
+        val positionsMark = recorder.playheads.size
+        subject.engine.play()
+        awaitContract("playback to wrap twice") {
+          val looped = recorder.events.drop(eventsMark).count { it is PlaybackEvent.RangeLooped }
+          looped >= 2 && dropIndices(recorder.playheads.drop(positionsMark)).size >= 2
+        }
+        // Paused before reading anything back, so a wrap whose seek is still landing cannot split the two counts.
+        subject.engine.pause()
+        settle()
+
+        val since = recorder.events.drop(eventsMark)
+        since.filterIsInstance<PlaybackEvent.Ended>() shouldBe emptyList()
+        val looped = since.filterIsInstance<PlaybackEvent.RangeLooped>()
+        looped.forEach { it.range shouldBe range }
+
+        val positions = recorder.playheads.drop(positionsMark)
+        val drops = dropIndices(positions)
+        drops.map { index -> positions[index] }.forEach { it shouldBe firstSlot }
+        drops.size shouldBe looped.size
+        positions.drop(drops.first()).forEach { it shouldBeGreaterThanOrEqualTo firstSlot }
+        positions.forEach { it shouldBeLessThan duration }
+      }
+    }
+
   private companion object {
     const val HALF_VOLUME = 0.5f
+
+    // A loop range with both ends a third of a slot past a slot and well clear of the fixture's last one, and where
+    // playback into it starts.
+    val LOOP_START: Duration = 700.milliseconds + FIXTURE_FRAME_STEP / 3
+    val LOOP_END: Duration = 1000.milliseconds + FIXTURE_FRAME_STEP / 3
+    val LOOP_APPROACH: Duration = 900.milliseconds
+
+    /**
+     * The index of every reading in [readings] that is lower than the one straight before it.
+     *
+     * That is what a wrap looks like in an ordered position record.
+     */
+    fun dropIndices(readings: List<Duration>): List<Int> =
+      (1 until readings.size).filter { index -> readings[index] < readings[index - 1] }
+
+    // A third of a slot past the slot nearest anchor and a third short of it, so one rounds down to it and one up.
+    fun eitherSideOf(anchor: Duration): List<Duration> {
+      val slot = outputSlotOf(anchor, FIXTURE_FRAME_RATE)
+      val last = outputSlotOf(CLIP_LENGTH, FIXTURE_FRAME_RATE) - 1
+      check(slot in 1 until last - 1) { "Slot $slot and the one after it are not strictly inside the fixture." }
+      val time = outputSlotTime(slot, FIXTURE_FRAME_RATE)
+      return listOf(time + FIXTURE_FRAME_STEP / 3, time - FIXTURE_FRAME_STEP / 3)
+    }
+
+    fun slotTimeOf(at: Duration): Duration = outputSlotTime(outputSlotOf(at, FIXTURE_FRAME_RATE), FIXTURE_FRAME_RATE)
   }
 }

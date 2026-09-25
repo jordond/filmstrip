@@ -397,8 +397,10 @@ nothing.
 until then. media3 lays a gap at the head of the sequence, AVFoundation inserts an empty time range,
 the browser starts the clip's source node late, and ffmpeg writes an `adelay`. The composition runs as
 long as its longest non-looping track, offset included, so a bed that runs past the picture sets the
-length rather than being cut to it. A negative start on any track is refused with
-`ExportError.InvalidComposition`, since a track cannot begin before the composition does.
+length rather than being cut to it. The picture holds the primary's last frame to the end, effects
+included, on ffmpeg, Apple and the browser.[^media3-video-tail] A negative start on any track is
+refused with `ExportError.InvalidComposition`, since a track cannot begin before the composition
+does.
 
 ### Looping
 
@@ -432,6 +434,11 @@ encoder.
     rounds up to a whole output frame, and a clip starting partway through an access unit costs another,
     since millisecond clipping opens on the unit before the start. On the emulator that measured 27 to
     48 ms. Every gain reading lands where the plan folded it.
+
+[^media3-video-tail]:
+    On media3 the video track ends with the primary and only the audio runs on
+    through the rest of the bed, since media3 has no way to re-emit a decoded frame across that
+    stretch on export ([androidx/media#921](https://github.com/androidx/media/issues/921)).
 
 [^ffmpeg-split]:
     One input per clip, split into one branch per pass. A split clones every frame onto

@@ -369,6 +369,7 @@ class GraphLoweringTest {
 
   // A clip's frames are cut to the slots its span covers on the output grid, and its last frame is
   // cloned ahead of the cut so a span that runs past the source still has a frame for every slot.
+  // A branch ending on its last frame's own time has that end moved a slot on ahead of fps.
   @Test
   fun `cuts a clip to the slots its span covers and holds its last frame into them`() {
     val laid = gridTrack(listOf(OFF_GRID_LENGTH))
@@ -377,8 +378,8 @@ class GraphLoweringTest {
     val graph = gridInvocationFor(laid).filterGraph
 
     graph shouldContain
-      "fps=fps=$GRID_RATE,tpad=stop_mode=clone:stop=2,trim=end_frame=$slots,setpts=expr=PTS-STARTPTS," +
-      "format=pix_fmts=yuv420p[v0]"
+      "setsar=r=1,setpts=expr=PTS+eq(PTS\\,PREV_INPTS)/($GRID_RATE*TB),fps=fps=$GRID_RATE," +
+      "tpad=stop_mode=clone:stop=2,trim=end_frame=$slots,setpts=expr=PTS-STARTPTS,format=pix_fmts=yuv420p[v0]"
   }
 
   // Three clips of 1.010 s meet on either side of a half slot, so the middle one covers a slot more
@@ -461,8 +462,8 @@ class GraphLoweringTest {
     val graph = gridInvocationFor(laid, fill = Fill.Blurred()).filterGraph
 
     graph shouldContain
-      "overlay=x=(W-w)/2:y=(H-h)/2:format=auto,setsar=r=1,fps=fps=$GRID_RATE,tpad=stop_mode=clone:stop=2," +
-      "trim=end_frame=$slots,"
+      "overlay=x=(W-w)/2:y=(H-h)/2:format=auto,setsar=r=1,setpts=expr=PTS+eq(PTS\\,PREV_INPTS)/($GRID_RATE*TB)," +
+      "fps=fps=$GRID_RATE,tpad=stop_mode=clone:stop=2,trim=end_frame=$slots,"
   }
 
   /**

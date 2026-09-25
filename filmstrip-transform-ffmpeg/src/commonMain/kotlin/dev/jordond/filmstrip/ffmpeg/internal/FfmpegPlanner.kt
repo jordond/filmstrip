@@ -343,8 +343,10 @@ internal fun overlayNode(vararg arguments: Pair<String, String>): FilterNode =
  * Pins the sample aspect, the frame rate and the pixel format so `concat` sees uniform inputs
  * across every clip, and cuts the clip to exactly [slots] frames, the output slots its span covers.
  * The clip's last frame is cloned ahead of the cut, so a span whose end runs past the source's last
- * frame still has a frame for every slot it covers. [pixelFormat] is the encoder's own 10-bit
- * format for an HDR export, or `yuv420p` for everything else.
+ * frame still has a frame for every slot it covers. A branch that ends on its last frame's own time
+ * has that end moved a slot on before `fps` reads it, so the frame is written rather than dropped.
+ * [pixelFormat] is the encoder's own 10-bit format for an HDR export, or `yuv420p` for everything
+ * else.
  */
 internal fun trailingNodes(
   frameRate: Int,
@@ -355,6 +357,11 @@ internal fun trailingNodes(
     // scale does not reset the sample aspect ratio and concat refuses to join clips whose sample
     // aspects differ, so this is not cosmetic.
     FilterNode("setsar", "r" to "1"),
+    // ffmpeg 6.1.1 ends an overlay on its last frame's own time rather than after it, and fps drops
+    // the frame its input ends on. setpts evaluates the end too, and only there does PTS equal the
+    // frame before it, so that end moves a slot on and every frame keeps its time. Builds that end
+    // after the frame pass through unchanged.
+    FilterNode("setpts", "expr" to "PTS+eq(PTS,PREV_INPTS)/($frameRate*TB)"),
     FilterNode("fps", "fps" to frameRate.toString()),
     FilterNode("tpad", "stop_mode" to "clone", "stop" to HELD_FRAMES.toString()),
     FilterNode("trim", "end_frame" to slots.toString()),

@@ -7,11 +7,13 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.effects.overlay.fadeIn
+import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
@@ -25,6 +27,11 @@ import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.ResolveResult
+import dev.jordond.filmstrip.transform.internal.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.heldTail
+import dev.jordond.filmstrip.transform.internal.videoSlots
+import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -227,6 +234,141 @@ class FfmpegPreviewTest {
       assertTrue(shut.contentEquals(firstFrame(hidden, AFTER_WINDOW)), "the overlay was still drawn past the window")
     }
 
+  // The clip has no frame past its own end to seek to, so a scrub into the held tail opens on the last one it covers
+  // and the graph clones it from there. Every frame to the end is the one reading forward reaches on that last slot,
+  // which is also what a thumbnail or a readback takes first, and the stream still says it opened where the scrub
+  // landed.
+  @Test
+  fun `a scrub into the held tail delivers the primary's last frame to the end`() =
+    runTest(timeout = TIMEOUT) {
+      val edit = underBed()
+      val resolved = resolved(edit)
+      val rate = checkNotNull(resolved.output.frameRate)
+      val at = insideTail(resolved)
+      val held = forwardFrame(edit, outputSlotTime(resolved.heldTail.first - 1, rate))
+
+      val stream = open(edit, at)
+      val delivered = mutableListOf<ByteArray>()
+      try {
+        while (true) delivered += stream.next() ?: break
+        stream.startPosition shouldBe outputSlotTime(outputSlotOf(at, rate), rate)
+      } finally {
+        stream.close()
+      }
+
+      delivered.size shouldBe (resolved.videoSlots - outputSlotOf(at, rate)).toInt()
+      delivered.forEachIndexed { index, frame ->
+        assertTrue(frame.contentEquals(held), "frame $index of the scrub is not the primary's last")
+      }
+    }
+
+  // The overlay's window closes with the primary, so a branch carried to the scrub itself reads a time past it and
+  // draws nothing. The branch is carried to the slot the clip opens on instead, so the held frame carries the overlay
+  // the way the export's does.
+  @Test
+  fun `a scrub into the held tail draws the overlay the last frame carried`() =
+    runTest(timeout = TIMEOUT) {
+      val closing = underBed(watermark(visibleDuring = CLOSES_WITH_PRIMARY))
+      val resolved = resolved(closing)
+      val rate = checkNotNull(resolved.output.frameRate)
+      val at = insideTail(resolved)
+
+      val landed = firstFrame(closing, at)
+
+      val lastCovered = outputSlotTime(resolved.heldTail.first - 1, rate)
+      assertTrue(landed.contentEquals(forwardFrame(closing, lastCovered)), "the scrub drew another frame than the last")
+      val hidden = firstFrame(underBed(watermark(opacity = 0f)), at)
+      assertFalse(landed.contentEquals(hidden), "the held frame carries no overlay")
+    }
+
+  // The fade on the composition runs the whole bed, so it is still moving when the primary runs out, and the tail
+  // only holds still if it freezes the frame the last covered slot finished on, fade included. Playing from a few
+  // slots short of the tail into its middle, every frame is the one reading forward from the head writes on its slot,
+  // which runs the export's graph from where the export does, and every tail frame is that held one.
+  @Test
+  fun `playing from a scrub into the held tail freezes the last covered frame`() =
+    runTest(timeout = TIMEOUT) {
+      val faded = underBed(watermark(animation = fadeIn(FIXTURE_LENGTH)))
+      val resolved = resolved(faded)
+      val rate = checkNotNull(resolved.output.frameRate)
+      val tail = resolved.heldTail
+      val lastCovered = tail.first - 1
+      val opening = tail.first - PLAY_IN_SLOTS
+      val middle = tail.first + (tail.last - tail.first) / 2
+
+      val forward = frames(faded, Duration.ZERO, (middle + 1).toInt())
+      val held = forward[lastCovered.toInt()]
+      val scrub = outputSlotTime(lastCovered, rate)
+      assertFalse(held.contentEquals(firstFrame(underBed(watermark(opacity = 0f)), scrub)), "the fade had not begun")
+      assertFalse(held.contentEquals(firstFrame(underBed(watermark()), scrub)), "the fade was over before the tail")
+
+      val played = frames(faded, outputSlotTime(opening, rate), (middle - opening + 1).toInt())
+      val strayed =
+        (opening..middle).filterNot { slot -> played[(slot - opening).toInt()].contentEquals(forward[slot.toInt()]) }
+      val moved = (tail.first..middle).filterNot { slot -> played[(slot - opening).toInt()].contentEquals(held) }
+      withClue("slots played differently than reading from the head") { strayed shouldBe emptyList() }
+      withClue("tail slots that are not the frame slot $lastCovered finished on") { moved shouldBe emptyList() }
+
+      // Landing the scrub itself on the last covered slot rather than short of it, the edge the split works out from.
+      // The graph still renders that one frame and the pump holds it over the same tail.
+      val playedFromEdge = frames(faded, scrub, (middle - lastCovered + 1).toInt())
+      val strayedFromEdge =
+        (lastCovered..middle).filterNot { slot ->
+          playedFromEdge[(slot - lastCovered).toInt()].contentEquals(forward[slot.toInt()])
+        }
+      withClue("slots played from the edge differently than reading from the head") {
+        strayedFromEdge shouldBe emptyList()
+      }
+    }
+
+  // With the overlay on the primary's own clip, its branch ends on the merge, and a scrub onto the clip's last slot or
+  // into the tail opens that branch on its last frame alone. Both scrubs deliver the frame reading forward reaches on
+  // that last slot, with the overlay drawn on it, and reading forward does not hold the frame before it there.
+  @Test
+  fun `a scrub onto a clip overlay's last slot or into the tail delivers the clip's last frame`() =
+    runTest(timeout = TIMEOUT) {
+      val marked = underBed(watermark(), onClip = true)
+      val hidden = underBed(watermark(opacity = 0f), onClip = true)
+      val resolved = resolved(marked)
+      val rate = checkNotNull(resolved.output.frameRate)
+      val covered = resolved.heldTail.first
+      val forward = frames(marked, Duration.ZERO, covered.toInt())
+      val last = forward.last()
+      assertFalse(last.contentEquals(forward[forward.size - 2]), "reading forward holds the frame before the last")
+
+      listOf(outputSlotTime(covered - 1, rate), insideTail(resolved)).forEach { at ->
+        val landed = firstFrame(marked, at)
+        assertTrue(landed.contentEquals(last), "the scrub to $at delivered another frame than the clip's last")
+        assertFalse(landed.contentEquals(firstFrame(hidden, at)), "the scrub to $at drew no overlay")
+      }
+    }
+
+  // A copy runs no graph to cut it, and its input bound still takes in the source frame on the slot a trim's end rounds
+  // down past. The pump hands over one frame for each slot the export writes from where it opened and none past them,
+  // opened at the head and at a scrub inside the clip. One trim ends a third of the way into a frame period and one
+  // three fifths of the way in, so one end rounds down and the other up.
+  @Test
+  fun `a trimmed copy pumps only the slots the export writes`() =
+    runTest(timeout = TIMEOUT) {
+      listOf(ROUNDS_DOWN_TRIM, ROUNDS_UP_TRIM).forEach { end ->
+        val edit = copied(end)
+        val resolved = resolved(edit)
+        val rate = checkNotNull(resolved.output.frameRate)
+        resolved.path shouldBe ExportPath.Transmux
+
+        listOf(Duration.ZERO, OFF_GRID_POSITION).forEach { at ->
+          val stream = open(edit, at)
+          var delivered = 0L
+          try {
+            while (stream.next() != null) delivered++
+          } finally {
+            stream.close()
+          }
+          delivered shouldBe resolved.videoSlots - outputSlotOf(at, rate)
+        }
+      }
+    }
+
   @Test
   fun `a frame is the composition's own frame, tightly packed`() =
     runTest(timeout = TIMEOUT) {
@@ -342,11 +484,48 @@ class FfmpegPreviewTest {
       animation = animation,
     )
 
+  // The fixture's first second as the primary under the whole fixture laid as an audio track, which runs a second past
+  // it, with [overlay] on the composition or on the primary's own clip.
+  private fun underBed(
+    overlay: ImageOverlay? = null,
+    onClip: Boolean = false,
+  ): EditComposition {
+    assertTrue(landscape.isFile, "the fixture ${landscape.absolutePath} was not downloaded")
+    val source = MediaSource.of(landscape.absolutePath)
+    val primary =
+      Clip(source, TimeRange.of(Duration.ZERO, 1.seconds), effects = listOfNotNull(overlay.takeIf { onClip }))
+    return EditComposition(
+      tracks =
+        listOf(
+          Track(listOf(primary)),
+          Track(listOf(Clip(source)), content = TrackContent.Audio),
+        ),
+      effects = listOfNotNull(overlay.takeIf { !onClip }),
+    )
+  }
+
+  private suspend fun resolved(composition: EditComposition): ResolvedComposition =
+    assertIs<ResolveResult.Resolved>(engine.resolve(composition, ExportSpec())).composition
+
+  // The middle of the held tail and a third of a slot on, so the scrub lands on a slot it is not sitting on.
+  private fun insideTail(resolved: ResolvedComposition): Duration {
+    val tail = resolved.heldTail
+    return outputSlotTime(tail.first + (tail.last - tail.first) / 2, checkNotNull(resolved.output.frameRate)) + OFF_SLOT
+  }
+
   private fun graded(): EditComposition {
     assertTrue(landscape.isFile, "the fixture ${landscape.absolutePath} was not downloaded")
     return EditComposition(
       tracks = listOf(Track(listOf(Clip(MediaSource.of(landscape.absolutePath))))),
       effects = listOf(Brightness(BRIGHTNESS)),
+    )
+  }
+
+  // The fixture's opening up to [end], with nothing else on the edit, which a stream copy covers.
+  private fun copied(end: Duration): EditComposition {
+    assertTrue(landscape.isFile, "the fixture ${landscape.absolutePath} was not downloaded")
+    return EditComposition(
+      tracks = listOf(Track(listOf(Clip(MediaSource.of(landscape.absolutePath), TimeRange.of(Duration.ZERO, end))))),
     )
   }
 
@@ -412,6 +591,11 @@ class FfmpegPreviewTest {
     val OFF_GRID_POSITION = 510.milliseconds
     val OFF_GRID_FADE = 1.seconds
 
+    // Trims ending three tenths and three fifths of the way into a frame period, well inside the fixture, so the
+    // first one's end rounds down to its slot and the second one's rounds up.
+    val ROUNDS_DOWN_TRIM = 1_010.milliseconds
+    val ROUNDS_UP_TRIM = 1_020.milliseconds
+
     // A window in the middle of the fixture, with a scrub landing short of it, one well inside it
     // and one well past it. Every scrub sits a third of the way into a frame period, so the pump
     // opens on the slot it sits in and the overlay's branch has to be carried onto that slot too.
@@ -419,6 +603,14 @@ class FfmpegPreviewTest {
     val BEFORE_WINDOW = 210.milliseconds
     val INSIDE_WINDOW = 810.milliseconds
     val AFTER_WINDOW = 1_610.milliseconds
+
+    // A window over the second half of the one second primary laid over the bed, closing with it, and a third of a
+    // frame period for a scrub to sit off its slot by.
+    val CLOSES_WITH_PRIMARY = TimeRange.of(500.milliseconds, 1.seconds)
+    val OFF_SLOT = 10.milliseconds
+
+    // Past the two frames each clip clones ahead of its cut, so a play from there runs the clip's own frames out first.
+    const val PLAY_IN_SLOTS = 3L
 
     // An animated overlay is sized off the picture's own header through ImageIO, so the bytes have
     // to be a format this process decodes.

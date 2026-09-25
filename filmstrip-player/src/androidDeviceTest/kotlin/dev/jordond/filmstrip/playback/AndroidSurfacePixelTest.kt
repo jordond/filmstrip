@@ -12,11 +12,15 @@ import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.internal.outputSlotTime
+import dev.jordond.filmstrip.playback.internal.toMediaMs
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.VideoPlayer
 import dev.jordond.filmstrip.test.TestFrame
+import dev.jordond.filmstrip.test.assertFramesDiffer
 import dev.jordond.filmstrip.test.assertFramesSimilar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
@@ -28,6 +32,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.test.fail
@@ -44,10 +50,13 @@ import kotlin.time.Duration.Companion.seconds
  * picture whatever state the player's standing graph is in. Only a copy off the surface sees what
  * the player is really rendering.
  *
- * Each case loads one edit into a running preview, changes it, and compares the surface against a
+ * Most cases load one edit into a running preview, change it, and compare the surface against a
  * second preview that loaded the changed edit from nothing. The two are the same edit, so they have
  * to be the same picture. A change the standing graph took but could not honour shows up here and
  * nowhere else.
+ *
+ * One case seeks instead, and compares the surface against the export's frame at the slot the seek
+ * landed on and the frames either side of it.
  */
 class AndroidSurfacePixelTest {
   private val context = contractContext()
@@ -91,6 +100,90 @@ class AndroidSurfacePixelTest {
       first = androidFixtureComposition(listOf(Rotate(QUARTER), Brightness(DIM))),
       second = androidFixtureComposition(listOf(Rotate(QUARTER), Brightness(BRIGHT))),
     )
+
+  /**
+   * A seek to a slot whose time falls between two whole milliseconds shows that slot's frame.
+   *
+   * media3 takes a seek in whole milliseconds, so the engine hands it the slot's time floored and the player shows the
+   * first frame at or after that. Rounding up instead shows the next slot, and a player that showed the last frame at
+   * or before the position would show the one before, so either change lands a slot off here.
+   *
+   * The probe sits inside the panned clip, where the picture moves a long way between two frames. The plain fixture's
+   * neighbouring frames differ by little more than grain, so its surface cannot be told apart from either neighbour.
+   */
+  @Test
+  fun aSeekToASlotThatIsNotWholeMillisecondsShowsThatSlot() =
+    runTest(timeout = TIMEOUT) {
+      realTime {
+        val composition = androidPannedClipComposition()
+        // One on from a slot that sits on a whole millisecond, so its own time falls between two.
+        val slot = outputSlotOf(PANNED_CLIP_START + MID_GOP_POSITION, FIXTURE_FRAME_RATE) + 1
+        val landing = outputSlotTime(slot, FIXTURE_FRAME_RATE)
+        assertNotEquals(landing, landing.toMediaMs().milliseconds, "the probe slot sits on a whole millisecond")
+
+        val before = androidExportFrame(composition, outputSlotTime(slot - 1, FIXTURE_FRAME_RATE))
+        val exported = androidExportFrame(composition, landing)
+        val after = androidExportFrame(composition, outputSlotTime(slot + 1, FIXTURE_FRAME_RATE))
+        // Neighbours that matched each other would let a surface a slot off pass as this one.
+        assertFramesDiffer(exported, before, SEEK_MIN_PSNR_DB, SEEK_MIN_SSIM, "slot $slot exports like the one before")
+        assertFramesDiffer(exported, after, SEEK_MIN_PSNR_DB, SEEK_MIN_SSIM, "slot $slot exports like the one after")
+
+        val (shown, reported) = surfaceAfterSeek(composition, landing)
+
+        assertEquals(landing, reported, "the seek reported a landing other than its slot")
+        assertFramesSimilar(
+          expected = exported,
+          actual = shown,
+          minPsnrDb = SEEK_MIN_PSNR_DB,
+          minSsim = SEEK_MIN_SSIM,
+          message = "a seek to slot $slot at $landing showed another frame",
+        )
+      }
+    }
+
+  /**
+   * Plays [composition] on a real surface, pauses it, seeks to [at], and copies what the surface shows at the size of
+   * the frame the export writes.
+   *
+   * @return the copy, and the position the seek reported it landed on.
+   */
+  private suspend fun surfaceAfterSeek(
+    composition: EditComposition,
+    at: Duration,
+  ): Pair<TestFrame, Duration> =
+    coroutineScope {
+      var captured: Pair<TestFrame, Duration>? = null
+      ActivityScenario.launch(SurfaceHostActivity::class.java).use { scenario ->
+        var host: SurfaceHostActivity? = null
+        scenario.onActivity { activity -> host = activity }
+        val activity = assertNotNull(host, "the host activity never started")
+        assertTrue(activity.awaitSurface(), "the host window produced no surface")
+
+        val player = Filmstrip(context) { playerBackend() }.preview(composition)
+        val events = mutableListOf<PlaybackEvent>()
+        val collector = launch { player.events.collect { events += it } }
+
+        try {
+          player.attachPreviewSurface(activity.surfaceView)
+          player.awaitReady()
+          player.play()
+          awaitOrFail("the composition to render") { events.any { it is PlaybackEvent.FirstFrameRendered } }
+          player.pause()
+          player.seekTo(at, SeekAccuracy.Exact)
+          awaitOrFail("the seek to $at to land") {
+            events.filterIsInstance<PlaybackEvent.SeekCompleted>().isNotEmpty()
+          }
+          delay(SETTLE)
+
+          val landed = events.filterIsInstance<PlaybackEvent.SeekCompleted>().last().position
+          captured = activity.surfaceView.copyPixels(FIXTURE_FRAME) to landed
+        } finally {
+          collector.cancel()
+          player.close()
+        }
+      }
+      assertNotNull(captured, "nothing was copied off the surface")
+    }
 
   /**
    * Loads [first], then [second], and compares the surface against a preview that only ever loaded
@@ -170,8 +263,8 @@ class AndroidSurfacePixelTest {
       assertNotNull(captured, "nothing was copied off the surface")
     }
 
-  private suspend fun SurfaceView.copyPixels(): TestFrame {
-    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+  private suspend fun SurfaceView.copyPixels(size: Size = Size(width, height)): TestFrame {
+    val bitmap = Bitmap.createBitmap(size.width, size.height, Bitmap.Config.ARGB_8888)
     val status =
       suspendCancellableCoroutine { continuation ->
         PixelCopy.request(this, bitmap, { result -> continuation.resume(result) }, Handler(Looper.getMainLooper()))
@@ -252,5 +345,11 @@ class AndroidSurfacePixelTest {
     // difference. Well below the rebuild-versus-swap gap this exists to catch.
     const val MIN_PSNR_DB = 35.0
     const val MIN_SSIM = 0.97
+
+    // The surface against the export at the slot it showed, across the pan: 35.2 dB and 0.990, and 36.5 dB and 0.990
+    // a slot later. A slot off scores 14.6 dB and 0.90, and two neighbouring exports the same, so the floor sits well
+    // clear of both.
+    const val SEEK_MIN_PSNR_DB = 32.0
+    const val SEEK_MIN_SSIM = 0.975
   }
 }

@@ -13,16 +13,17 @@ internal class FakePlatformSeek : PlatformSeek {
   override fun seek(
     position: Duration,
     accuracy: SeekAccuracy,
-    onComplete: () -> Unit,
+    onComplete: (landed: Duration) -> Unit,
   ) {
     issued += IssuedSeek(position, accuracy, onComplete)
   }
 
-  // Completes the seek still waiting, and repeats until the chase stops dispatching new ones.
-  fun drain() {
+  // Completes the seek still waiting, and repeats until the chase stops dispatching new ones. Each one lands
+  // where landing maps its position, which by default is the position itself.
+  fun drain(landing: (Duration) -> Duration = { it }) {
     var next = issued.firstOrNull { !it.isComplete }
     while (next != null) {
-      next.complete()
+      next.complete(landed = landing(next.position))
       next = issued.firstOrNull { !it.isComplete }
     }
   }
@@ -31,19 +32,19 @@ internal class FakePlatformSeek : PlatformSeek {
 internal class IssuedSeek(
   val position: Duration,
   val accuracy: SeekAccuracy,
-  private val onComplete: () -> Unit,
+  private val onComplete: (landed: Duration) -> Unit,
 ) {
   var isComplete: Boolean = false
     private set
 
-  fun complete() {
+  fun complete(landed: Duration = position) {
     isComplete = true
-    onComplete()
+    onComplete(landed)
   }
 
   // Calls back a second time, or calls back for a seek the platform already cancelled. Both are
   // things a real player does and neither may produce a second resolution.
-  fun completeAgain() {
-    onComplete()
+  fun completeAgain(landed: Duration = position) {
+    onComplete(landed)
   }
 }

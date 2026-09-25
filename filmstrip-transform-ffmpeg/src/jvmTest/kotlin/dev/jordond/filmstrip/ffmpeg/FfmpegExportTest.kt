@@ -46,6 +46,7 @@ import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.ffmpeg.internal.FFMPEG_ENCODERS
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPlanner
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
+import dev.jordond.filmstrip.ffmpeg.internal.Lowering
 import dev.jordond.filmstrip.ffmpeg.internal.ProcessRunner
 import dev.jordond.filmstrip.ffmpeg.internal.ToolchainLocator
 import dev.jordond.filmstrip.ffmpeg.internal.ToolchainResult
@@ -80,13 +81,16 @@ import dev.jordond.filmstrip.media.sceneFromHlgSignal
 import dev.jordond.filmstrip.test.LoopingCases
 import dev.jordond.filmstrip.test.ToneAnalysis
 import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
+import dev.jordond.filmstrip.transform.internal.NegotiatedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.copyOpenings
 import dev.jordond.filmstrip.transform.internal.curveOver
+import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.passesCovering
 import dev.jordond.filmstrip.transform.internal.runLengthOf
+import dev.jordond.filmstrip.transform.internal.videoSlots
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
@@ -1701,7 +1705,17 @@ class FfmpegExportTest {
     composition: EditComposition,
     spec: ExportSpec,
     sources: List<MediaSource>,
-  ): List<ResolvedTrack> {
+  ): List<ResolvedTrack> = assertNotNull(plannedLowering(composition, spec, sources).export.composition).tracks
+
+  /**
+   * What the planner lowered [composition] to, so a count is read off the composition it negotiated and the graph it
+   * wrote rather than off a number worked out here.
+   */
+  private suspend fun plannedLowering(
+    composition: EditComposition,
+    spec: ExportSpec,
+    sources: List<MediaSource>,
+  ): Lowering {
     val located = ToolchainLocator(FfmpegConfig(), ProcessRunner()).toolchain()
     val toolchain = assertIs<ToolchainResult.Available>(located).toolchain
     val device = assertIs<CapabilitiesResult.Success>(filmstrip.capabilities()).capabilities
@@ -1711,10 +1725,8 @@ class FfmpegExportTest {
       copyOpenings(composition) { source, cut ->
         runtime.syncSampleAtOrBefore(toolchain, assertNotNull(readablePath(source)), cut)
       }
-    val lowering =
-      FfmpegPlanner(toolchain, listOf(BuiltInEffectResolver()))
-        .lower(composition, spec, device, infos, openings)
-    return assertNotNull(lowering.export.composition).tracks
+    return FfmpegPlanner(toolchain, listOf(BuiltInEffectResolver()))
+      .lower(composition, spec, device, infos, openings)
   }
 
   private val ResolvedTrack.onlyClip: ResolvedClip get() = clips.single()
@@ -2414,6 +2426,293 @@ class FfmpegExportTest {
       next.delete()
     }
 
+  /**
+   * A second of picture under a tone that runs on for four more.
+   *
+   * The video runs to the composition's end on the picture's last frame, so the slot before the held tail, the one it
+   * opens on, the one in its middle and its last all read that frame. The tone carries on under it at the level it
+   * held beside the picture, and the audio runs as long as the bed does.
+   */
+  @Test
+  fun `holds the primary's last frame under an audio track that outlasts it`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val picture = indexedClip(GRID_RATE, TAIL_PICTURE, blue = FIRST_BLUE)
+      val sources = listOf(MediaSource.of(picture.absolutePath), MediaSource.of(long.absolutePath))
+      val composition = underBed(sources[0], sources[1])
+      val spec = ExportSpec(frameRate = GRID_RATE)
+      val negotiated = assertNotNull(plannedLowering(composition, spec, sources).export.composition)
+      val tail = negotiated.heldTail
+      assertTrue(!tail.isEmpty(), "the bed does not outlast the picture")
+
+      val output = File.createTempFile("filmstrip-tail-held", ".mp4").also { it.delete() }
+      exported(plannedRun(composition, spec), output)
+
+      val frames = writtenFrames(output.absolutePath)
+      assertOnTheGrid(frames, negotiated.videoSlots, GRID_RATE, "a picture held under a longer bed")
+      val held = lastShown(negotiated)
+      tail.readings().forEach { slot -> withClue("slot $slot") { frames[slot.toInt()].shown shouldBe held } }
+
+      val samples = decodedAudio(output.absolutePath)
+      val bedSamples = (negotiated.duration.toDouble(DurationUnit.SECONDS) * AUDIO_SAMPLE_RATE).roundToInt()
+      assertTrue(
+        abs(samples.size - bedSamples) <= AAC_UNIT_SAMPLES,
+        "the audio decodes to ${samples.size} samples where the bed runs $bedSamples",
+      )
+      val middle = outputSlotTime(tail.middle(), GRID_RATE)
+      val level = samples.toneAt(middle, PRIMARY_HZ) / samples.toneAt(BESIDE_PICTURE, PRIMARY_HZ)
+      assertTrue(
+        abs(level - 1f) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
+        "at $middle the bed read $level of the level it held beside the picture",
+      )
+
+      output.delete()
+      picture.delete()
+    }
+
+  // The overlay's window closes with the clip, so a tail drawn at its own time would have shut it. The tail clones the
+  // finished frame instead, so the overlay is still there wherever the tail is read.
+  @Test
+  fun `freezes a clip's overlay on the frame the tail holds`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      assertOverlayHeld(onClip = true, what = "clip")
+    }
+
+  // A composition overlay holds the fill back to a final overlay that ends with the shorter of its inputs, and the
+  // clones come after it. The frame count and the overlay both read off the file, so the clones following that
+  // overlay is measured here rather than assumed.
+  @Test
+  fun `freezes a composition overlay on the frame the tail holds`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      assertOverlayHeld(onClip = false, what = "composition")
+    }
+
+  // With no window of its own the overlay is drawn on every slot the clip covers, so the tail freezes it over the
+  // clip's last frame rather than over the one before it.
+  @Test
+  fun `freezes an always visible clip overlay on the clip's last frame`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      assertOverlayHeld(onClip = true, what = "always visible clip", window = null)
+    }
+
+  // The overlay merges onto the first clip's own branch ahead of the cut to its slots, so that branch ends on the
+  // merge rather than on the source.
+  @Test
+  fun `ends a clip carrying an overlay on its own last frame`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      assertEachClipEndsOnItsLastFrame(
+        what = "a clip overlay",
+        reaching = "[v0m0a0]overlay",
+      ) { first, second ->
+        compositionOf {
+          clip(first) { effects { add(watermark()) } }
+          clip(second)
+        }
+      }
+    }
+
+  // Every clip ends on the merge of its sharp copy over its blurred one.
+  @Test
+  fun `ends every clip under a blurred fill on its own last frame`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      assertEachClipEndsOnItsLastFrame(
+        what = "a blurred fill",
+        reaching = "[v0blur][v0sharp]overlay",
+      ) { first, second ->
+        compositionOf {
+          clip(first)
+          clip(second)
+          effects { crop(AspectRatio.Portrait, fit = Fit.Contain) }
+          fill(Fill.Blur)
+        }
+      }
+    }
+
+  /**
+   * Exports two indexed clips of [TAIL_PICTURE] back to back as [composed] lays them, and reads every slot each one
+   * covers off the middle of the file, clear of any corner an overlay is drawn in and of the bars a fill paints.
+   *
+   * Each slot shows its own clip's frame of that index, so a clip's last slot shows its last frame rather than a clone
+   * of the one before it. [reaching] is a filter the graph has to carry, so the shape under test is the one exported.
+   */
+  private suspend fun assertEachClipEndsOnItsLastFrame(
+    what: String,
+    reaching: String,
+    composed: (MediaSource, MediaSource) -> EditComposition,
+  ) {
+    val blues = listOf(FIRST_BLUE, SECOND_BLUE)
+    val pictures = blues.map { indexedClip(GRID_RATE, TAIL_PICTURE, blue = it) }
+    val sources = pictures.map { MediaSource.of(it.absolutePath) }
+    val composition = composed(sources[0], sources[1])
+    val spec = ExportSpec(frameRate = GRID_RATE)
+    val lowering = plannedLowering(composition, spec, sources)
+    val graph = assertNotNull(lowering.invocation).filterGraph
+    assertTrue(reaching in graph, "the export of $what carries no $reaching: $graph")
+    val laid = assertNotNull(lowering.export.composition).tracks.single().clips
+
+    val output = File.createTempFile("filmstrip-last-frame", ".mp4").also { it.delete() }
+    exported(plannedRun(composition, spec), output)
+
+    val frames = writtenFrames(output.absolutePath, middleOnly = true)
+    val end = assertNotNull(laid.last().span.endExclusive)
+    assertOnTheGrid(frames, outputSlotOf(end, GRID_RATE), GRID_RATE, what)
+    laid.forEachIndexed { index, clip ->
+      val covered = outputSlotsOf(clip.span, GRID_RATE)
+      covered.forEach { slot ->
+        withClue("$what, clip $index on slot $slot") {
+          frames[slot.toInt()].shown shouldBe Shown(blues[index], (slot - covered.first).toInt())
+        }
+      }
+    }
+
+    output.delete()
+    pictures.forEach { it.delete() }
+  }
+
+  // The bed opens after the picture has ended, so the composition runs to the bed's own end and the picture holds
+  // across the silence and under the bed.
+  @Test
+  fun `holds the primary's last frame to a late audio track's end`() =
+    runTest(timeout = TIMEOUT) {
+      if (!available()) return@runTest
+
+      val picture = indexedClip(GRID_RATE, TAIL_PICTURE, blue = FIRST_BLUE)
+      val sources = listOf(MediaSource.of(picture.absolutePath), MediaSource.of(long.absolutePath))
+      val composition = underBed(sources[0], sources[1], bedStart = LATE_BED_START, bedLength = LATE_BED)
+      val spec = ExportSpec(frameRate = GRID_RATE)
+      val negotiated = assertNotNull(plannedLowering(composition, spec, sources).export.composition)
+      negotiated.duration shouldBe LATE_BED_START + LATE_BED
+
+      val output = File.createTempFile("filmstrip-tail-late", ".mp4").also { it.delete() }
+      exported(plannedRun(composition, spec), output)
+
+      val frames = writtenFrames(output.absolutePath)
+      assertOnTheGrid(frames, negotiated.videoSlots, GRID_RATE, "a picture held to a late bed's end")
+      val held = lastShown(negotiated)
+      negotiated.heldTail.readings().forEach { slot ->
+        withClue("slot $slot") { frames[slot.toInt()].shown shouldBe held }
+      }
+
+      output.delete()
+      picture.delete()
+    }
+
+  /**
+   * Exports the indexed picture under the bed with an overlay shown over [window], once bare and once with the overlay
+   * on the clip or on the composition, and reads both across the held tail.
+   *
+   * The overlay has to be drawn on the last covered slot and on every tail reading, and the picture under it has to be
+   * the primary's own last frame. A reading ahead of a window pins that the window is live at all, and an overlay with
+   * no window is drawn there too.
+   */
+  private suspend fun assertOverlayHeld(
+    onClip: Boolean,
+    what: String,
+    window: TimeRange? = CLOSES_WITH_PICTURE,
+  ) {
+    val picture = indexedClip(GRID_RATE, TAIL_PICTURE, blue = FIRST_BLUE)
+    val sources = listOf(MediaSource.of(picture.absolutePath), MediaSource.of(long.absolutePath))
+    val overlay = watermark().let { mark -> ImageOverlay(mark.image, mark.corner, visibleDuring = window) }
+    val spec = ExportSpec(frameRate = GRID_RATE)
+    val composition = underBed(sources[0], sources[1], overlay = overlay, onClip = onClip)
+    val lowering = plannedLowering(composition, spec, sources)
+    val negotiated = assertNotNull(lowering.export.composition)
+    // Only a composition effect defers the fill, which is the shape a clip overlay's export never reaches.
+    if (!onClip) {
+      val graph = assertNotNull(lowering.invocation).filterGraph
+      assertTrue("shortest=1" in graph, "the composition overlay left the fill painted ahead of it: $graph")
+    }
+
+    val bare = exportedAs("filmstrip-tail-$what-bare", underBed(sources[0], sources[1]), spec)
+    val marked = exportedAs("filmstrip-tail-$what", composition, spec)
+    val size = marked.plan.output.size
+    val probe = centreOf(overlay.placedOn(size, WATERMARK).rectOn(size), size)
+    val tail = negotiated.heldTail
+    val held = lastShown(negotiated)
+
+    assertOnTheGrid(writtenFrames(marked.file.absolutePath), negotiated.videoSlots, GRID_RATE, "a $what overlay")
+    val drawnEarly = drawnAt(bare, marked, probe, BEFORE_CLOSING)
+    if (window == null) {
+      assertTrue(drawnEarly, "the $what overlay is missing ahead of the tail")
+    } else {
+      assertTrue(!drawnEarly, "the $what overlay is drawn ahead of its window")
+    }
+    tail.readings().forEach { slot ->
+      val at = opensOn(slot.toInt(), marked.plan)
+      assertTrue(drawnAt(bare, marked, probe, at), "the $what overlay is gone from slot $slot")
+      withClue("the $what overlay on slot $slot") { shownAt(marked.file.absolutePath, size, at) shouldBe held }
+    }
+
+    listOf(bare, marked).forEach { it.file.delete() }
+    picture.delete()
+  }
+
+  /**
+   * The indexed [picture] as the primary, under [TAIL_BED] of the long fixture's tone opening at [bedStart], with
+   * [overlay] on the picture's clip or on the whole composition.
+   */
+  private fun underBed(
+    picture: MediaSource,
+    tone: MediaSource,
+    bedStart: Duration = Duration.ZERO,
+    bedLength: Duration = TAIL_BED,
+    overlay: ImageOverlay? = null,
+    onClip: Boolean = false,
+  ): EditComposition =
+    compositionOf {
+      clip(picture) { if (onClip) overlay?.let { mark -> effects { add(mark) } } }
+      track(TrackContent.Audio) {
+        clip(tone) { trim(TimeRange.of(Duration.ZERO, bedLength)) }
+        startAt(bedStart)
+      }
+      if (!onClip) overlay?.let { mark -> effects { add(mark) } }
+    }
+
+  private suspend fun exportedAs(
+    name: String,
+    composition: EditComposition,
+    spec: ExportSpec,
+  ): ExportedOverlay {
+    val output = File.createTempFile(name, ".mp4").also { it.delete() }
+    val plan = plannedRun(composition, spec)
+    exported(plan, output)
+    return ExportedOverlay(output, plan)
+  }
+
+  // The primary's own frame on the last slot it covers. The picture is written at the output's rate from its first
+  // frame, so that is the frame whose index is one short of the slots its span covers.
+  private fun lastShown(negotiated: NegotiatedComposition): Shown {
+    val primary = negotiated.tracks.first().onlyClip
+    return Shown(FIRST_BLUE, outputSlotsOf(primary.span, GRID_RATE).count() - 1)
+  }
+
+  // The indexed frame the middle of [size] shows at [at], clear of any corner an overlay is drawn in.
+  private fun shownAt(
+    path: String,
+    size: Size,
+    at: Duration,
+  ): Shown? {
+    val (x, y) = pointIn(HALF, HALF, size)
+    val (red, green, blue) = regionAverage(path, x, y, PROBE_SIDE, at)
+    return WrittenFrame(at, red.roundToInt(), green.roundToInt(), blue.roundToInt()).shown
+  }
+
+  // The slot ahead of the tail, the one it opens on, the one in its middle and its last.
+  private fun LongRange.readings(): List<Long> = listOf(first - 1, first, middle(), last)
+
+  private fun LongRange.middle(): Long = first + (last - first) / 2
+
   // The first slot of the pass before [pass], which the frame ahead of this pass's first slot is counted from.
   private fun previousOpening(
     laid: List<ResolvedClip>,
@@ -2482,9 +2781,13 @@ class FfmpegExportTest {
    * Every frame of [path] in presentation order, each averaged down to one colour, with the time it is presented at.
    *
    * Decoded and probed by ffmpeg itself rather than by anything under test, and passed through as decoded so no frame
-   * is duplicated or dropped on the way out.
+   * is duplicated or dropped on the way out. [middleOnly] averages the middle sixteenth of each frame instead, clear of
+   * any corner an overlay is drawn in and of the bars a fill paints.
    */
-  private fun writtenFrames(path: String): List<WrittenFrame> {
+  private fun writtenFrames(
+    path: String,
+    middleOnly: Boolean = false,
+  ): List<WrittenFrame> {
     val probe =
       ProcessBuilder(
         "ffprobe",
@@ -2525,7 +2828,7 @@ class FfmpegExportTest {
         "-fps_mode",
         "passthrough",
         "-vf",
-        "scale=1:1:flags=area",
+        if (middleOnly) "$MIDDLE_CROP,scale=1:1:flags=area" else "scale=1:1:flags=area",
         "-f",
         "rawvideo",
         "-pix_fmt",
@@ -3145,6 +3448,24 @@ class FfmpegExportTest {
     val SHORT_PICTURE = 1.seconds
     val SOUND_OVERHANG = 30.milliseconds
 
+    // A second of picture under a bed that runs on past it and ends 6 ms past a slot rather than on one. The tone is
+    // read beside the picture before it is read in the tail.
+    val TAIL_PICTURE = 1.seconds
+    val TAIL_BED = 5_006.milliseconds
+    val BESIDE_PICTURE = 500.milliseconds
+
+    // A bed opening long after the picture has ended, and the composition running to its end.
+    val LATE_BED_START = 4_500.milliseconds
+    val LATE_BED = 1.seconds
+
+    // An overlay window over the picture's second half that closes with it, and a reading ahead of it.
+    val CLOSES_WITH_PICTURE = TimeRange.of(500.milliseconds, 1.seconds)
+    val BEFORE_CLOSING = 200.milliseconds
+
+    // AAC's own frame. The encoder pads the last one out, and whether a decode trims that padding back off depends on
+    // the build, so the decoded bed may run up to one frame past its length.
+    const val AAC_UNIT_SAMPLES = 1_024
+
     // The indexed clips' colours. Blue names the clip, and red and green step by INDEX_STEP from INDEX_FLOOR, far
     // enough apart that a re-encode moving a flat colour by a few values still reads the same index.
     val CLIP_BLUES = listOf(60, 140, 220)
@@ -3154,6 +3475,9 @@ class FfmpegExportTest {
     const val INDEX_FLOOR = 20
     const val INDEX_STEP = 20
     val INDEXED_SIZE = Size(320, 180)
+
+    // A quarter of each side, centred, which crop does when it is given no offset.
+    const val MIDDLE_CROP = "crop=w=iw/4:h=ih/4"
 
     // A 20 ms level window centred on a 10 ms clip holds its tone for half the window, which reads about 0.7 of the
     // tone's own level. A quarter separates that from a clip whose sound never reached the file.

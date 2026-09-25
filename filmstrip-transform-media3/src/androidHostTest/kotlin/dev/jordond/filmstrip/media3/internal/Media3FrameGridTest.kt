@@ -32,6 +32,7 @@ import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import io.kotest.matchers.longs.shouldBeInRange
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.mockk.every
@@ -44,9 +45,12 @@ import io.mockk.unmockkAll
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.assertFailsWith
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -125,6 +129,55 @@ class Media3FrameGridTest {
     item.presentationDurationUs shouldBe length
     SpeedProviderUtil.getDurationAfterSpeedProviderApplied(item.speedProvider, decoded) shouldBe length
     SpeedProviderMapper(item.speedProvider).getAdjustedTimeUs(decoded) shouldBe length
+  }
+
+  // One frame of the source held for four seconds, which is a speed near 0.008. Both of media3's readings of the held
+  // length land on it exactly.
+  @Test
+  fun `a frame held for seconds runs for exactly the length asked`() {
+    val from = sample(SOURCE_RATE - 1).inWholeMicroseconds
+    val decoded = sample(SOURCE_RATE).inWholeMicroseconds
+
+    listOf(1.seconds, 2_500.milliseconds, 4.seconds).forEach { held ->
+      val length = from + held.inWholeMicroseconds
+      val hold = HeldLastFrame(from, decoded, length)
+
+      SpeedProviderUtil.getDurationAfterSpeedProviderApplied(hold, decoded) shouldBe length
+      SpeedProviderMapper(hold).getAdjustedTimeUs(decoded) shouldBe length
+    }
+  }
+
+  // Past what a float speed can land to the microsecond, a hold runs a little long and never short, by no more than
+  // media3's own step between two speeds. At least one of these misses, which is what says the limit is real.
+  @Test
+  fun `a frame held past what a float speed can land runs at most one speed step long`() {
+    val from = sample(SOURCE_RATE - 1).inWholeMicroseconds
+    val decoded = sample(SOURCE_RATE).inWholeMicroseconds
+
+    val misses =
+      listOf(30.seconds, 3.minutes, 1.hours).map { held ->
+        val length = from + held.inWholeMicroseconds
+        val hold = HeldLastFrame(from, decoded, length)
+        val readings =
+          listOf(
+            SpeedProviderUtil.getDurationAfterSpeedProviderApplied(hold, decoded),
+            SpeedProviderMapper(hold).getAdjustedTimeUs(decoded),
+          )
+
+        readings.forEach { (it - length) shouldBeInRange 0L..speedStepUs(length - from) }
+        readings.maxOf { it - length }
+      }
+    misses.any { it > 0 } shouldBe true
+  }
+
+  // A hold only slows a frame down, so it refuses one that already reached its length or decoded no more of it.
+  @Test
+  fun `a hold refuses a frame that already reached its length or decoded nothing more of it`() {
+    val from = sample(SOURCE_RATE - 1).inWholeMicroseconds
+    val decoded = sample(SOURCE_RATE).inWholeMicroseconds
+
+    assertFailsWith<IllegalArgumentException> { HeldLastFrame(fromUs = from, decodedUs = from, lengthUs = decoded) }
+    assertFailsWith<IllegalArgumentException> { HeldLastFrame(fromUs = from, decodedUs = decoded, lengthUs = decoded) }
   }
 
   // Only what follows the last frame is slowed, so a frame in the middle of the item and the last

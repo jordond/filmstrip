@@ -16,7 +16,9 @@ import dev.jordond.filmstrip.transform.internal.NegotiatedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedHdr
+import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.paintsFillAfterEffects
+import dev.jordond.filmstrip.transform.internal.videoSlots
 import kotlin.time.Duration
 import kotlin.time.DurationUnit
 
@@ -27,7 +29,8 @@ import kotlin.time.DurationUnit
  * Every clip is normalized to the output frame before it is joined, because `concat` demands
  * uniform inputs, and every audio branch is normalized to one sample format for the same reason.
  * Each clip's picture is cut to the output slots its span covers, so every clip opens on the slot
- * its own start lands on. Its sound is cut at its own exact times.
+ * its own start lands on. Its sound is cut at its own exact times. Where an audio track runs past the
+ * primary, the primary's last finished frame is held to the composition's end.
  *
  * @param hdrPixelFormat The format a kept grade is written in, from [hdrPixelFormatFor], or null
  *   for an output that carries none.
@@ -122,6 +125,7 @@ internal class GraphLowering(
         copy = true,
         hdrTransfer = negotiated.hdrTransfer,
         seekBase = seekBase,
+        videoSlots = negotiated.videoSlots,
       )
     }
 
@@ -151,14 +155,6 @@ internal class GraphLowering(
 
     val videoLabel = if (negotiated.audio == AudioSpec.AudioOnly) null else buildVideo()
     val audioLabel = if (output.audioFormat == null) null else buildAudio()
-    val primaryEnd =
-      checkNotNull(
-        tracks
-          .first()
-          .clips
-          .last()
-          .span.endExclusive,
-      )
 
     return Invocation(
       inputs = inputs,
@@ -171,7 +167,8 @@ internal class GraphLowering(
       hdrTransfer = negotiated.hdrTransfer,
       toneMapped = negotiated.hdr == ResolvedHdr.ToneMap,
       seekBase = seekBase,
-      videoSlots = videoLabel?.let { outputSlotOf(primaryEnd, frameRate) },
+      videoSlots = videoLabel?.let { negotiated.videoSlots },
+      heldTail = if (videoLabel == null) LongRange.EMPTY else negotiated.heldTail,
       // Two clips carrying the same grade lower to the same file, and a placeholder names its
       // contents, so the one path serves both references.
       sidecars = sidecars.distinct(),
@@ -303,20 +300,34 @@ internal class GraphLowering(
       )
       graph.chain(
         listOf(background, current),
-        listOf(
-          overlayNode("shortest" to "1"),
-          FilterNode("format", "pix_fmts" to pixelFormat),
-          trimTo(duration),
-          SETPTS,
-        ),
+        listOf(overlayNode("shortest" to "1"), FilterNode("format", "pix_fmts" to pixelFormat)) +
+          heldTailNodes() +
+          listOf(trimTo(duration), SETPTS),
         out,
       )
     } else {
       // A terminal chain, so the mapped pad has a name of its own and the composition's duration is
       // enforced in the graph rather than trusted from the inputs.
-      graph.chain(listOf(current), listOf(trimTo(duration), SETPTS), out)
+      graph.chain(listOf(current), heldTailNodes() + listOf(trimTo(duration), SETPTS), out)
     }
     return out
+  }
+
+  /**
+   * Clones the frame on the primary's last covered slot over the held tail, then cuts the video to one frame per slot
+   * the composition covers.
+   *
+   * Sits after the composition effects and the deferred fill, so the frame held is the finished one with every effect
+   * frozen where it was on that slot. Nothing when no audio track outlasts the primary.
+   */
+  private fun heldTailNodes(): List<FilterNode> {
+    val tail = negotiated.heldTail
+    if (tail.isEmpty()) return emptyList()
+
+    return listOf(
+      FilterNode("tpad", "stop_mode" to "clone", "stop" to (tail.last - tail.first + 1).toString()),
+      FilterNode("trim", "end_frame" to negotiated.videoSlots.toString()),
+    )
   }
 
   /**

@@ -35,6 +35,7 @@ import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.passesCovering
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -93,7 +94,8 @@ class AvCompositionTest {
 
   // A pass used to be laid whole and only then measured against the end, so a track handed a
   // composition longer than its own laid run opened another pass and ran the file past it. The
-  // plan's duration is deliberately past the laid run here, which is what that loop read.
+  // plan's duration is deliberately past the laid run here, which is what that loop read. The
+  // time past the run is held on the last pass's last frame rather than laid as another pass.
   @Test
   fun `lays one span per pass of a looping track and stops where the laid list ends`() {
     val first = fixture("apple_export_a.mp4") ?: return
@@ -104,12 +106,15 @@ class AvCompositionTest {
           .map { length -> clip(first, Size(640, 360), 200.milliseconds, 200.milliseconds + length) },
       )
     val run = laid.fold(Duration.ZERO) { total, clip -> total + clip.duration }
-    val composition = loopingComposition(laid, start = BED_START, duration = BED_START + run + BEYOND_THE_RUN)
+    val resolved = loopingResolved(laid, start = BED_START, duration = BED_START + run + BEYOND_THE_RUN)
+    val composition = resolved.toAvComposition()
 
     composition.spans.size shouldBe laid.size
     composition.spans.first().start shouldBe BED_START
     composition.spans.zipWithNext().forEach { (first, second) -> first.end shouldBe second.start }
-    composition.composition.duration.toDuration() shouldBe BED_START + run
+    composition.spans.last().heldFrom shouldBe outputSlotTime(resolved.heldTail.first - 1, FRAME_RATE)
+    composition.composition.duration.toDuration() shouldBe
+      outputSlotTime(resolved.heldTail.last + 1, FRAME_RATE).asLaid()
   }
 
   @Test
@@ -322,6 +327,90 @@ class AvCompositionTest {
     }
     val plain = fitting.first.single()
     (plain.sourceEnd - plain.sourceStart) shouldBe (plain.end - plain.start)
+  }
+
+  // The primary is cut from 300 ms to 1.3 s of a two second source, so reading on past its last slot would play frames
+  // the edit cut away. At 25 fps from a 30 fps source the last slot shows an earlier frame than the one just before
+  // the cut, so holding the cut's frame would not be holding what that slot wrote.
+  @Test
+  fun `runs the primary's last clip to the end of the held tail on its last slot's frame`() {
+    val first = fixture("apple_export_a.mp4") ?: return
+    val bed = fixture("apple_export_long.mp4") ?: return
+    val resolved = underBed(clip(first, Size(640, 360), TRIM_FROM, TRIM_FROM + 1.seconds), bed, BED_RUN)
+    val primary =
+      resolved.tracks
+        .first()
+        .clips
+        .single()
+    val tail = resolved.heldTail
+    tail.isEmpty() shouldBe false
+    val lastCovered = outputSlotTime(tail.first - 1, GRID_RATE)
+    val opens = gridTime(primary.span.start, GRID_RATE)
+
+    val composition = resolved.toAvComposition()
+
+    val video = composition.segmentsOf(AVMediaTypeVideo)
+    video.last().end shouldBe outputSlotTime(tail.last + 1, GRID_RATE).asLaid()
+    video.forEach { segment ->
+      assertTrue(
+        segment.sourceEnd <= primary.end,
+        "a segment reads to ${segment.sourceEnd}, past the ${primary.end} cut",
+      )
+    }
+    val held = video.last()
+    held.start shouldBe lastCovered.asLaid()
+    held.sourceStart shouldBe (primary.start + lastCovered - opens).asLaid()
+    held.sourceEnd shouldBe (held.sourceStart + MEDIA_TICK).asLaid()
+    composition.spans.last().heldFrom shouldBe lastCovered
+    assertTrue(composition.spans.last().end >= resolved.duration, "the last span ends short of the bed")
+
+    composition.chain?.updateParameters(resolved)
+    composition.spans.last().heldFrom shouldBe lastCovered
+  }
+
+  // The primary's own cut outlasts its source's picture by 30 ms, same as apple_export_a.mp4 does in the
+  // picture-overrun test, and it sits under a bed that outlasts it by seconds more. insertHolding's
+  // CMTimeMinimum picks the nearer of the two: the picture ends first, so the in-clip hold is what stretches
+  // the last frame, and the held tail is what keeps that frame on screen out to the bed's own end.
+  @Test
+  fun `combines the in-clip hold with the held tail when the primary's last clip outruns its own picture`() {
+    val first = fixture("apple_export_a.mp4") ?: return
+    val bed = fixture("apple_export_long.mp4") ?: return
+    val picture = videoEndOf(first)
+    val resolved =
+      underBed(clip(first, Size(640, 360), Duration.ZERO, OUTLASTING, mediaDuration = OUTLASTING), bed, BED_RUN)
+    val tail = resolved.heldTail
+    tail.isEmpty() shouldBe false
+
+    val composition = resolved.toAvComposition()
+
+    val held = composition.segmentsOf(AVMediaTypeVideo).last()
+    held.sourceEnd shouldBe picture
+    held.end shouldBe outputSlotTime(tail.last + 1, GRID_RATE).asLaid()
+    composition.spans.last().heldFrom shouldBe outputSlotTime(tail.first - 1, GRID_RATE)
+  }
+
+  // A still is drawn from its image on every slot, so its tail only needs the segments to reach the end.
+  @Test
+  fun `runs a still primary to the end of the held tail`() {
+    val bed = fixture("apple_export_long.mp4") ?: return
+    val resolved = underBed(imageClip(1.seconds), bed, BED_RUN)
+    val tail = resolved.heldTail
+
+    val composition = resolved.toAvComposition()
+
+    val video = composition.segmentsOf(AVMediaTypeVideo)
+    video.last().end shouldBe outputSlotTime(tail.last + 1, GRID_RATE).asLaid()
+    video.none { it.empty } shouldBe true
+    composition.spans.single().heldFrom shouldBe outputSlotTime(tail.first - 1, GRID_RATE)
+  }
+
+  @Test
+  fun `holds no frame when nothing outlasts the primary`() {
+    val resolved = threeClipsResolved() ?: return
+    resolved.heldTail.isEmpty() shouldBe true
+
+    resolved.toAvComposition().spans.forEach { it.heldFrom shouldBe null }
   }
 
   // 16 ms is 0.48 of a slot at 30 fps and 17 ms is 0.51, so one start rounds down and the other up. The picture opens
@@ -635,6 +724,41 @@ class AvCompositionTest {
   ): AvComposition = resolvedComposition(clips, duration).toAvComposition()
 
   /**
+   * [primary] alone on the first track at [GRID_RATE], under an audio track reading [run] of [bed], so the
+   * composition runs as long as the bed does.
+   */
+  private fun underBed(
+    primary: ResolvedClip,
+    bed: String,
+    run: Duration,
+  ): ResolvedComposition {
+    val single = resolvedComposition(listOf(primary), primary.duration, GRID_RATE)
+    val audio =
+      ResolvedTrack(
+        content = TrackContent.Audio,
+        looping = false,
+        start = Duration.ZERO,
+        clips = laidFrom(Duration.ZERO, listOf(clip(bed, Size(1280, 720), Duration.ZERO, run))),
+      )
+    return ResolvedComposition(
+      tracks = single.tracks + audio,
+      compositionGeometry = single.compositionGeometry,
+      compositionInputSize = single.compositionInputSize,
+      compositionEffects = single.compositionEffects,
+      output = single.output,
+      layoutSize = single.layoutSize,
+      fit = single.fit,
+      fill = single.fill,
+      duration = run,
+      hdr = single.hdr,
+      hdrTransfer = single.hdrTransfer,
+      audio = single.audio,
+      adjustments = single.adjustments,
+      path = single.path,
+    )
+  }
+
+  /**
    * Two one second clips with a 10 ms one between them, at [GRID_RATE], so the middle one covers no slot. It reads its
    * own size, so a span built from it is told apart from one built from either neighbour.
    */
@@ -689,7 +813,14 @@ class AvCompositionTest {
     start: Duration,
     duration: Duration,
     frameRate: Int = FRAME_RATE,
-  ): AvComposition =
+  ): AvComposition = loopingResolved(clips, start, duration, frameRate).toAvComposition()
+
+  private fun loopingResolved(
+    clips: List<ResolvedClip>,
+    start: Duration,
+    duration: Duration,
+    frameRate: Int = FRAME_RATE,
+  ): ResolvedComposition =
     ResolvedComposition(
       tracks =
         listOf(
@@ -721,7 +852,7 @@ class AvCompositionTest {
       audio = AudioSpec.Keep,
       adjustments = emptyList(),
       path = ExportPath.Transcode,
-    ).toAvComposition()
+    )
 
   private fun resolvedComposition(
     clips: List<ResolvedClip>,
@@ -923,6 +1054,10 @@ class AvCompositionTest {
 
     // How long an untrimmed clip of a two second fixture runs when its audio outlasts its picture.
     val OUTLASTING = 2_030.milliseconds
+
+    // Where a primary cut out of the middle of its source opens, and how long the bed under it runs.
+    val TRIM_FROM = 300.milliseconds
+    val BED_RUN = 5.seconds
   }
 }
 

@@ -77,6 +77,9 @@ public interface PlayerEngine {
    * Every issued seek must eventually yield exactly one completion, real or synthesised, or an
    * unseekable source wedges the caller's scrubber.
    *
+   * Completes with [PlaybackEvent.SeekCompleted] carrying the frame it landed on, which is the output slot nearest
+   * [position] on an exact seek, or the slot of the sync sample the platform settled on for a relaxed one.
+   *
    * @param accuracy How exact the landing frame has to be.
    */
   public fun seekTo(
@@ -109,6 +112,13 @@ public interface PlayerEngine {
 
   /**
    * Loops within [range], or plays straight through when null.
+   *
+   * Playback that passes the range's last frame wraps to the output slot its start lands on and reports
+   * [PlaybackEvent.RangeLooped]. When the composition ends inside the range, playback wraps at that end instead of
+   * stopping and reports no [PlaybackEvent.Ended]. That covers a range with no end, one ending exactly on the
+   * composition's duration, and one ending past it, whose end is held to the duration. A range that starts at or past
+   * the composition's end has nothing to loop, so playback runs to the end and reports [PlaybackEvent.Ended] as though
+   * no range were set. The playhead reports the slot a wrap lands on.
    */
   public fun setLoopRange(range: TimeRange?)
 

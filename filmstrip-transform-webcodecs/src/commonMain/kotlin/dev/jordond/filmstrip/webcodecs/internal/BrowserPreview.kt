@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.outputSlotOf
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.heldTail
 import kotlinx.coroutines.await
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -160,9 +161,11 @@ public class BrowserPreview internal constructor(
    * The composition time of the output slot the sync sample at or before [position] lands on, or [position] itself.
    *
    * What a relaxed seek lands on, which is never later than [position]. A sync sample in front of
-   * the clip's own trim lands on the slot the clip opens on. A clip with no sync sample before the
-   * position, a source the container cannot answer for, and a position in the gap before the
-   * primary track starts all come back as [position] itself.
+   * the clip's own trim lands on the slot the clip opens on. A position in the held tail is its own
+   * sync sample, since every slot there draws the primary's last frame, and one past the tail lands
+   * on its last slot. A clip with no sync sample before the position, a source the container cannot
+   * answer for, and a position in the gap before the primary track starts all come back as
+   * [position] itself.
    */
   public suspend fun syncSampleAt(position: Duration): Duration = exclusively { syncSample(position) } ?: position
 
@@ -296,18 +299,39 @@ public class BrowserPreview internal constructor(
   private suspend fun syncSample(position: Duration): Duration {
     if (leadAt(position) != null) return position
     val slot = slotAt(position) ?: return position
-    val reader = sources.open(slot.clip.source) ?: return position
-    val keyUs = reader.keyFrameAt(slot.sourceUs) ?: return position
-    if (keyUs > slot.sourceUs) return position
+    val landed = heldSlotAt(position) ?: syncSlotOf(slot) ?: return position
+    // A position the grid rounds up sits just short of its own slot, and a seek never lands later
+    // than it was asked to.
+    return render.slotUs(landed).microseconds.coerceAtMost(position)
+  }
+
+  /**
+   * The slot [position] lands on when that slot is in the composition's held tail, or null when it comes before the
+   * tail or there is none.
+   *
+   * Every slot in the tail draws the primary's last frame, so each one is its own sync sample. A position past the tail
+   * lands on its last slot, the last one the file has.
+   */
+  private fun heldSlotAt(position: Duration): Long? {
+    val tail = resolved.heldTail
+    val slot = outputSlotOf(position, render.frameRate)
+    return if (tail.isEmpty() || slot < tail.first) null else minOf(slot, tail.last)
+  }
+
+  /**
+   * The output slot the sync sample at or before [slot]'s source time lands on, or null when the source has none there
+   * or cannot say.
+   */
+  private suspend fun syncSlotOf(slot: Slot): Long? {
+    val reader = sources.open(slot.clip.source) ?: return null
+    val keyUs = reader.keyFrameAt(slot.sourceUs) ?: return null
+    if (keyUs > slot.sourceUs) return null
 
     // The sync sample's own time on the composition timeline, counted from the slot the clip opens
     // on, then put on the grid the way every other time is. One in front of the clip's own trim
     // lands on the clip's first slot, so a seek never reaches back into the clip before it.
     val keyAt = (render.slotUs(slot.clip.firstSlot) + (keyUs - slot.clip.trimStartUs)).microseconds
-    val landed = maxOf(outputSlotOf(keyAt, render.frameRate), slot.clip.firstSlot)
-    // A position the grid rounds up sits just short of its own slot, and a seek never lands later
-    // than it was asked to.
-    return render.slotUs(landed).microseconds.coerceAtMost(position)
+    return maxOf(outputSlotOf(keyAt, render.frameRate), slot.clip.firstSlot)
   }
 
   /**
@@ -318,10 +342,9 @@ public class BrowserPreview internal constructor(
     sample: VideoSample,
   ): PreviewFrame {
     val pass = compositor()
-    val outputUs = slot.outputUs
     pass.clip(slot.clip)
-    pass.draw(sample, outputUs)
-    return readBack(pass, outputUs)
+    pass.draw(sample, slot.outputUs)
+    return readBack(pass, slot.writtenUs)
   }
 
   /**
@@ -399,7 +422,9 @@ public class BrowserPreview internal constructor(
     }
     if (held == NO_CLIP) return null
     val last = render.clips[held]
-    return Slot(held, last, last.frames - 1)
+    // a held slot reports the slot the export writes it on, up to the last one the file has.
+    val lastWritten = last.firstSlot + last.frames + last.heldFrames - 1
+    return Slot(held, last, last.frames - 1, writtenSlot = minOf(slot, lastWritten))
   }
 
   /**
@@ -409,10 +434,13 @@ public class BrowserPreview internal constructor(
     val index: Int,
     val clip: RenderedClip,
     private val slot: Long,
+    private val writtenSlot: Long = clip.firstSlot + slot,
   ) {
     val sourceUs: Double get() = clip.trimStartUs + slot * render.stepUs
 
     val outputUs: Double get() = render.slotUs(clip.firstSlot + slot)
+
+    val writtenUs: Double get() = render.slotUs(writtenSlot)
   }
 }
 

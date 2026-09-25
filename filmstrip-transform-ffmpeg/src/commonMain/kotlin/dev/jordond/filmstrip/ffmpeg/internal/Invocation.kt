@@ -72,7 +72,10 @@ internal sealed interface InputSource {
  *   graph with an input seek. Null for a graph whose timeline an input seek cannot window, which is
  *   read forward from the start instead. Unused by an export, which renders the whole timeline.
  * @property videoSlots How many output slots the video covers, which is how many frames the graph
- *   writes. Null for a copy, which writes the source's own frames, and for an output with no video.
+ *   writes. A copy writes the source's own frames out to a whole packet, so on a copy this is only
+ *   how many of them a preview pumps. Null for an output with no video.
+ * @property heldTail The output slots the graph holds the primary's last frame over, because an audio
+ * track runs past it. Empty when nothing does, and for an output with no video.
  * @property sidecars The files [filterGraph] reads, which the caller writes down and hands back as
  * paths in this order. Each one is named in the graph by its placeholder until then.
  */
@@ -89,6 +92,7 @@ internal class Invocation(
   val toneMapped: Boolean = false,
   val seekBase: Duration? = null,
   val videoSlots: Long? = null,
+  val heldTail: LongRange = LongRange.EMPTY,
   val sidecars: List<Sidecar> = emptyList(),
 )
 

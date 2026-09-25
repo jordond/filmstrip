@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.diff
 import dev.jordond.filmstrip.edit.effectsRevision
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media3.internal.Media3LoweringFailure
 import dev.jordond.filmstrip.media3.internal.Media3Preview
 import dev.jordond.filmstrip.media3.internal.toMedia3Preview
@@ -132,8 +133,17 @@ internal class Media3PlayerEngine(
   private var firstFrameEmitted = false
   private var failure: PlaybackError? = null
 
-  private var seekCompletion: (() -> Unit)? = null
+  private var seekCompletion: ((Duration) -> Unit)? = null
   private var seekTarget: Duration? = null
+
+  // The slot time the last seek handed to media3 was aimed at, which the playhead reports while media3 reads the
+  // floored millisecond it was given.
+  private var seekLanding: Duration? = null
+
+  // Where a loop wrap is taking playback, from the moment it is issued until its seek lands. A reading or an end
+  // media3 reports in that window is from before the wrap.
+  private var wrapLanding: Duration? = null
+
   private var loopRange: TimeRange? = null
   private var playbackRange: TimeRange? = null
 
@@ -283,20 +293,26 @@ internal class Media3PlayerEngine(
     }
   }
 
-  override fun readPosition(): Duration = platformPositionMs.milliseconds
+  override fun readPosition(): Duration = wrapLanding ?: playheadOf(platformPositionMs, seekLanding)
 
   override fun isSeekReady(): Boolean = preview != null && platformState != Player.STATE_IDLE
 
   override fun performSeek(
     position: Duration,
     accuracy: SeekAccuracy,
-    onComplete: () -> Unit,
+    onComplete: (landed: Duration) -> Unit,
   ) {
+    val resolved = plan?.resolved
+    if (resolved == null) {
+      onComplete(position)
+      return
+    }
+
     lastSeekAccuracy = clampedAccuracy(accuracy)
 
-    val duration = plan?.resolved?.duration
-    val target = if (duration == null) position else position.coerceIn(Duration.ZERO, duration)
+    val target = resolved.seekLandingOf(position)
     seekTarget = target
+    seekLanding = target
     seekCompletion = onComplete
     ended = false
     endReported = false
@@ -306,7 +322,7 @@ internal class Media3PlayerEngine(
       if (standing == null) {
         scope.launch { completeSeek() }
       } else {
-        standing.seekTo(target.inWholeMilliseconds)
+        standing.seekTo(target.toMediaMs())
       }
     }
   }
@@ -379,6 +395,9 @@ internal class Media3PlayerEngine(
   override fun onRelease() {
     supersedePending()
     mirroring = false
+    wrapLanding = null
+    seekCompletion = null
+    seekTarget = null
     interruptions.dispose()
     readback.dispose()
     shutter.dispose()
@@ -397,14 +416,11 @@ internal class Media3PlayerEngine(
   override fun stepFrames(frames: Int) {
     if (frames == 0) return
     val current = plan ?: return
-    val rate =
-      current.resolved.output.frameRate
-        ?.takeIf { it > 0 } ?: return
 
     // From the seek already in flight where there is one, so a burst of steps advances by a frame
     // each rather than all landing on the frame the mirror last reported.
     val from = seekTarget ?: readPosition()
-    val landing = frameStepLanding(from, frames, rate, current.resolved.duration) ?: return
+    val landing = current.resolved.frameStepLanding(from, frames) ?: return
     seekTo(landing, SeekAccuracy.Exact)
   }
 
@@ -500,7 +516,10 @@ internal class Media3PlayerEngine(
     preview = lowered
     setStatus(PlaybackStatus.Preparing)
 
-    val startMs = (startAt ?: readPosition()).coerceIn(Duration.ZERO, next.resolved.duration).inWholeMilliseconds
+    val start = next.resolved.seekLandingOf(startAt ?: readPosition())
+    val startMs = start.toMediaMs()
+    seekLanding = start
+    wrapLanding = null
     val multipleInputs = lowered.videoSequences > 1
     handler.post {
       val target = playerFor(multipleInputs)
@@ -610,6 +629,8 @@ internal class Media3PlayerEngine(
     platformPositionMs = positionMs
     platformDurationMs = durationMs
 
+    if (state == Player.STATE_ENDED && wrapsAtEnd()) return
+
     when (state) {
       Player.STATE_READY -> {
         presentable = true
@@ -689,16 +710,19 @@ internal class Media3PlayerEngine(
   private fun fail(error: PlaybackError) {
     failure = error
     graphUp = false
+    wrapLanding = null
     shutter.reveal()
     publishStatus()
     emitEvent(PlaybackEvent.Failed(error))
   }
 
   private fun completeSeek() {
+    wrapLanding = null
     val completion = seekCompletion ?: return
+    val landed = seekTarget ?: readPosition()
     seekCompletion = null
     seekTarget = null
-    completion()
+    completion(landed)
   }
 
   /**
@@ -710,19 +734,22 @@ internal class Media3PlayerEngine(
   private fun mirrorPlayhead() {
     val standing = player ?: return
     val position = standing.currentPosition
-    platformPositionMs = position
-    scope.launch { onPlayhead(position.milliseconds) }
+    // Recorded beside the loop check rather than here, so the playhead never reads a position past the wrap before the
+    // wrap has been issued.
+    scope.launch {
+      platformPositionMs = position
+      onPlayhead(position.milliseconds)
+    }
     if (mirroring) handler.postDelayed(mirrorTick, MIRROR_INTERVAL_MS)
   }
 
   private fun onPlayhead(position: Duration) {
+    if (wrapLanding != null) return
+
     val loop = loopRange
-    val wrapAt = loop?.endExclusive
-    if (loop != null && wrapAt != null && position >= wrapAt) {
-      // Moved before the seek is issued, so the next mirror reading cannot wrap the same lap twice.
-      platformPositionMs = loop.start.inWholeMilliseconds
-      seekTo(loop.start, SeekAccuracy.Exact)
-      emitEvent(PlaybackEvent.RangeLooped(loop))
+    val wrap = loop?.let(::loopWrapIn)
+    if (loop != null && wrap != null && position >= wrap.at) {
+      wrapLoop(loop, wrap)
       return
     }
 
@@ -732,6 +759,45 @@ internal class Media3PlayerEngine(
       pause()
       seekTo(stopAt, SeekAccuracy.Exact)
     }
+  }
+
+  /**
+   * Answers media3 reaching the end of the composition inside the loop range, which is a wrap rather than an ending.
+   *
+   * The end is the only signal that always arrives, since the mirror stops reading once playback stops and may never
+   * read a position at or past where the range stops. An end reported while a wrap is on its way is one that wrap
+   * already answered, from before its seek reached the player.
+   *
+   * @return whether the end was a wrap, and so is not reported as an ending.
+   */
+  private fun wrapsAtEnd(): Boolean {
+    if (wrapLanding != null) return true
+    val loop = loopRange ?: return false
+    val wrap = loopWrapIn(loop) ?: return false
+    wrapLoop(loop, wrap)
+    return true
+  }
+
+  private fun loopWrapIn(range: TimeRange): LoopWrap? {
+    val resolved = plan?.resolved ?: return null
+    return loopWrapOf(range, resolved.duration, resolved.frameRate)
+  }
+
+  /**
+   * Takes playback back to the slot [range] starts on, as [wrap] places it, and reports the lap.
+   *
+   * The playhead reports that slot from here on, rather than whatever media3 reads until the seek reaches it.
+   */
+  private fun wrapLoop(
+    range: TimeRange,
+    wrap: LoopWrap,
+  ) {
+    val rate = plan?.resolved?.frameRate ?: return
+    val landing = outputSlotTime(wrap.firstSlot, rate)
+    wrapLanding = landing
+    seekTo(landing, SeekAccuracy.Exact)
+    emitEvent(PlaybackEvent.RangeLooped(range))
+    emitPosition(landing)
   }
 
   private fun settle(result: SetCompositionResult) {
@@ -884,6 +950,18 @@ private fun displayShowsHdr(context: Context): Boolean {
     display.hdrCapabilities?.supportedHdrTypes?.isNotEmpty() == true
   }
 }
+
+/**
+ * The playhead a media3 reading of [positionMs] reports, given the slot time [landing] the last seek was aimed at.
+ *
+ * A seek reaches media3 floored to a whole millisecond by [toMediaMs], so a player resting on the slot it landed on
+ * reads up to a millisecond before that slot's time. A reading of exactly that floored millisecond reports [landing]
+ * itself, and every other reading is reported as media3 gave it.
+ */
+internal fun playheadOf(
+  positionMs: Long,
+  landing: Duration?,
+): Duration = landing?.takeIf { it.toMediaMs() == positionMs } ?: positionMs.milliseconds
 
 /**
  * The engine driving [player], or null when filmstrip did not build it.
