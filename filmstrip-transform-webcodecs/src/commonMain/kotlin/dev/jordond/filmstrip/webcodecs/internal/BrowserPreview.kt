@@ -258,6 +258,8 @@ public class BrowserPreview internal constructor(
       compositor?.release()
       compositor = null
     }
+    // The swap resolved every overlay again, so what the old plan uploaded is never drawn.
+    compositor?.forgetOverlays()
     render = incoming
     resolved = next
     return true
@@ -342,8 +344,8 @@ public class BrowserPreview internal constructor(
     sample: VideoSample,
   ): PreviewFrame {
     val pass = compositor()
-    pass.clip(slot.clip)
-    pass.draw(sample, slot.outputUs)
+    pass.clip(slot.clip, render.compositionGeometryMatrix)
+    pass.draw(sample, slot.outputUs, render.compositionOverlays)
     return readBack(pass, slot.writtenUs)
   }
 
@@ -352,7 +354,7 @@ public class BrowserPreview internal constructor(
    */
   private suspend fun fillFrame(outputUs: Double): PreviewFrame {
     val pass = compositor()
-    pass.drawFill(outputUs)
+    pass.drawFill(outputUs, render.compositionOverlays)
     return readBack(pass, outputUs)
   }
 

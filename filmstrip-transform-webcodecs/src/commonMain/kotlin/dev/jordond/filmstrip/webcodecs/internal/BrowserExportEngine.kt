@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.export.Bitrate
 import dev.jordond.filmstrip.export.ExportEngine
 import dev.jordond.filmstrip.export.ExportError
@@ -57,6 +58,10 @@ public class BrowserExportEngine(
   private val backend = WebCodecsCapabilities()
   private val sources = SourceCache()
   private val planner = BrowserPlanner(components.effectResolvers)
+
+  // A browser decodes an overlay image only asynchronously and a resolver cannot wait, so every built-in resolver
+  // decodes the composition's images before it is lowered.
+  private val preloading = components.effectResolvers.filterIsInstance<BuiltInEffectResolver>()
   private var device: DeviceCapabilities? = null
   private val probes = ProbeCache(prober)
 
@@ -129,6 +134,7 @@ public class BrowserExportEngine(
         NegotiationResult.Failed(probed.error)
       }
       is ProbeCacheResult.Read -> {
+        preloading.forEach { it.preload(composition) }
         val device = deviceCapabilities()
         // Only worth asking where the device would otherwise take the grade. Where it would not,
         // the refusal is already about the device and probing would open a reader a plan-only

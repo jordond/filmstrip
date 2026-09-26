@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.geometry.NormalizedRect
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.motion.Easing
@@ -143,13 +144,14 @@ internal fun applePhotoFile(): String =
   }
 
 /**
- * Draws a photo the shape of the fixture's frame with [paint] and writes it to [name] once.
+ * Draws a photo of [size] with [paint] and writes it to [name] in the temporary directory once.
  *
  * @return The path it landed at.
  */
 @OptIn(ExperimentalForeignApi::class)
-private fun photoWritten(
+internal fun photoWritten(
   name: String,
+  size: Size = FIXTURE_FRAME,
   paint: (CGContextRef) -> Unit,
 ): String {
   val path = NSTemporaryDirectory() + name
@@ -159,8 +161,8 @@ private fun photoWritten(
   val context =
     CGBitmapContextCreate(
       data = null,
-      width = FIXTURE_FRAME.width.toULong(),
-      height = FIXTURE_FRAME.height.toULong(),
+      width = size.width.toULong(),
+      height = size.height.toULong(),
       bitsPerComponent = BITS_PER_COMPONENT,
       bytesPerRow = 0uL,
       space = space,

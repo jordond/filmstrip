@@ -1,10 +1,8 @@
 package dev.jordond.filmstrip.media3
 
 import android.graphics.Bitmap
-import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.ComponentRegistry
-import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
@@ -30,8 +28,10 @@ import dev.jordond.filmstrip.media.FormatHint
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.chainedProber
+import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP
+import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP_B
+import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.test.LoopingCases
 import dev.jordond.filmstrip.test.ToneAnalysis.MEASURED_GAIN_TOLERANCE
 import dev.jordond.filmstrip.transform.internal.ResolveResult
@@ -49,6 +49,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.junit.Assume.assumeTrue
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -61,7 +62,6 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -72,8 +72,7 @@ import kotlin.time.Duration.Companion.seconds
  * ffmpeg at build time and a machine without one has nothing to export from.
  */
 class AndroidExportTest {
-  private val context = InstrumentationRegistry.getInstrumentation().targetContext
-  private val filmstrip = Filmstrip(context) { media3Backend() }
+  private val probe = Media3ExportProbe()
 
   // The engine `filmstrip` exports through, built again here because only it can hand back the
   // lowered composition. A test that wants the gain an export applies has to read the plan's own
@@ -84,7 +83,7 @@ class AndroidExportTest {
   @Test
   fun reportsWhatTheEncodersCanDo() =
     runTest(timeout = TIMEOUT) {
-      val result = filmstrip.capabilities()
+      val result = probe.filmstrip.capabilities()
 
       assertIs<CapabilitiesResult.Success>(result)
       assertTrue(result.capabilities.video.isNotEmpty(), "expected at least one video encoder")
@@ -93,9 +92,9 @@ class AndroidExportTest {
   @Test
   fun downscalesAClipAndWritesWhatThePlanPromised() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(CLIP_A) ?: return@runTest
+      val source = probe.fixture(CLIP)
 
-      val written = export(capablePlan(composition(source), ExportSpec(targetHeight = 240)))
+      val written = export(probe.plan(composition(source), ExportSpec(targetHeight = 240)))
 
       written.video?.displaySize?.height shouldBeCloseTo 240
       written.duration shouldBeCloseTo 2_000.milliseconds
@@ -104,10 +103,10 @@ class AndroidExportTest {
   @Test
   fun honoursAScaleEffectTheSameWayAsATargetHeight() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(CLIP_A) ?: return@runTest
+      val source = probe.fixture(CLIP)
       val scaled = composition(Clip(source, effects = listOf(Scale(targetHeight = 240))))
 
-      val written = export(capablePlan(scaled, ExportSpec()))
+      val written = export(probe.plan(scaled, ExportSpec()))
 
       written.video?.displaySize?.height shouldBeCloseTo 240
     }
@@ -115,10 +114,10 @@ class AndroidExportTest {
   @Test
   fun trimsToTheRequestedWindow() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(CLIP_A) ?: return@runTest
+      val source = probe.fixture(CLIP)
       val trimmed = composition(Clip(source, trim = TimeRange.of(500.milliseconds, 1_500.milliseconds)))
 
-      val written = export(capablePlan(trimmed, ExportSpec(targetHeight = 240)))
+      val written = export(probe.plan(trimmed, ExportSpec(targetHeight = 240)))
 
       written.duration shouldBeCloseTo 1_000.milliseconds
     }
@@ -126,11 +125,11 @@ class AndroidExportTest {
   @Test
   fun concatenatesTwoClipsOfDifferingSizes() =
     runTest(timeout = TIMEOUT) {
-      val first = fixture(CLIP_A) ?: return@runTest
-      val second = fixture(CLIP_B) ?: return@runTest
+      val first = probe.fixture(CLIP)
+      val second = probe.fixture(CLIP_B)
       val joined = EditComposition(listOf(Track(listOf(Clip(first), Clip(second)))))
 
-      val written = export(capablePlan(joined, ExportSpec(targetHeight = 240)))
+      val written = export(probe.plan(joined, ExportSpec(targetHeight = 240)))
 
       written.duration shouldBeCloseTo 4_000.milliseconds
       written.video?.displaySize?.height shouldBeCloseTo 240
@@ -139,10 +138,10 @@ class AndroidExportTest {
   @Test
   fun removingAudioWritesNoAudioTrack() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(CLIP_A) ?: return@runTest
+      val source = probe.fixture(CLIP)
       val silent = composition(source).withAudio(AudioSpec.Remove)
 
-      val written = export(capablePlan(silent, ExportSpec(targetHeight = 240)))
+      val written = export(probe.plan(silent, ExportSpec(targetHeight = 240)))
 
       assertNull(written.audio, "AudioSpec.Remove must not leave an audio track behind")
     }
@@ -153,11 +152,11 @@ class AndroidExportTest {
   @Test
   fun audioOnlyWritesAnAudioTrackAndNoVideoTrack() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(CLIP_A) ?: return@runTest
+      val source = probe.fixture(CLIP)
       val audioOnly = composition(source).withAudio(AudioSpec.AudioOnly)
 
-      val plan = capablePlan(audioOnly, ExportSpec())
-      val statuses = withContext(Dispatchers.Default) { filmstrip.export(plan, MediaSink.temporary()).toList() }
+      val plan = probe.plan(audioOnly, ExportSpec())
+      val statuses = withContext(Dispatchers.Default) { probe.filmstrip.export(plan, MediaSink.temporary()).toList() }
 
       assertTrue(statuses.first() is ExportStatus.Started, "the first status is always Started")
       val finished = statuses.last()
@@ -165,7 +164,7 @@ class AndroidExportTest {
       val success = assertIs<ExportStatus.Success>(finished)
 
       // Read it back the way a caller would, without trusting what the encoder reported.
-      val written = assertIs<ProbeResult.Success>(filmstrip.probe(success.output.asSource())).info
+      val written = probe.infoOf(success.output.asSource())
       val audio = assertNotNull(written.audio, "the written file has no audio track")
       assertTrue(audio.sampleRate > 0, "expected a sane sample rate, got ${audio.sampleRate}")
       assertNull(written.video, "AudioSpec.AudioOnly must not leave a video track behind")
@@ -183,8 +182,8 @@ class AndroidExportTest {
   @Test
   fun mixesALoopingBedUnderThePrimaryAtTheGainThePlanFolded() =
     runTest(timeout = TIMEOUT) {
-      val primaryFile = fixtureFile(CLIP_A) ?: return@runTest
-      val bedFile = fixtureFile(CLIP_BED) ?: return@runTest
+      val primaryFile = probe.fixtureFile(CLIP)
+      val bedFile = probe.fixtureFile(CLIP_BED)
       val spec = ExportSpec(targetHeight = 240)
       val edit =
         EditComposition(
@@ -205,7 +204,7 @@ class AndroidExportTest {
       val laid = lowered.tracks[1].clips
       val tones = sourceTones(primaryFile, bedFile)
 
-      val written = decodeAudio(exportedFile(capablePlan(edit, spec)))
+      val written = decodeAudio(probe.export(probe.plan(edit, spec)))
 
       assertTrue(
         written.duration >= MIDDLE_AT + WINDOW,
@@ -249,8 +248,8 @@ class AndroidExportTest {
   @Test
   fun fadesTheBedInAlongTheCurveThePlanFolded() =
     runTest(timeout = TIMEOUT) {
-      val primaryFile = fixtureFile(CLIP_A) ?: return@runTest
-      val bedFile = fixtureFile(CLIP_BED) ?: return@runTest
+      val primaryFile = probe.fixtureFile(CLIP)
+      val bedFile = probe.fixtureFile(CLIP_BED)
       val spec = ExportSpec(targetHeight = 240)
       val edit =
         compositionOf {
@@ -268,7 +267,7 @@ class AndroidExportTest {
       val bedClip = lowered.tracks[1].clips.first()
       val tones = sourceTones(primaryFile, bedFile)
 
-      val written = decodeAudio(exportedFile(capablePlan(edit, spec)))
+      val written = decodeAudio(probe.export(probe.plan(edit, spec)))
 
       assertTrue(
         written.duration >= BED_START + RAMP_AT.last() + RAMP_WINDOW,
@@ -300,8 +299,8 @@ class AndroidExportTest {
   @Test
   fun measuresEveryPassOfALoopingBedAgainstTheLaidGain() =
     runTest(timeout = TIMEOUT) {
-      val primaryFile = fixtureFile(CLIP_LONG) ?: return@runTest
-      val bedFile = fixtureFile(CLIP_BED) ?: return@runTest
+      val primaryFile = probe.fixtureFile(CLIP_LONG)
+      val bedFile = probe.fixtureFile(CLIP_BED)
       val spec = ExportSpec(targetHeight = 240)
       val edit =
         compositionOf {
@@ -325,8 +324,8 @@ class AndroidExportTest {
       )
       val tones = sourceTones(primaryFile, bedFile)
 
-      val plan = capablePlan(edit, spec)
-      val file = exportedFile(plan)
+      val plan = probe.plan(edit, spec)
+      val file = probe.export(plan)
       val written = decodeAudio(file)
 
       val before = LoopingCases.BEFORE_BED
@@ -335,7 +334,7 @@ class AndroidExportTest {
 
       LoopingCases.BED_READINGS.forEach { written.readBed(laid, it, tones, primaryClip) }
 
-      assertRunsFor(assertNotNull(probeOf(file)), written, tones, plan)
+      assertRunsFor(probe.infoOf(MediaSource.of(file.path)), written, tones, plan)
     }
 
   /**
@@ -349,8 +348,8 @@ class AndroidExportTest {
   @Test
   fun tellsTwoLoopingBedClipsApartByTheVolumeTheyCarry() =
     runTest(timeout = TIMEOUT) {
-      val primaryFile = fixtureFile(CLIP_LONG) ?: return@runTest
-      val bedFile = fixtureFile(CLIP_BED) ?: return@runTest
+      val primaryFile = probe.fixtureFile(CLIP_LONG)
+      val bedFile = probe.fixtureFile(CLIP_BED)
       val spec = ExportSpec(targetHeight = 240)
       val edit =
         compositionOf {
@@ -375,8 +374,8 @@ class AndroidExportTest {
       lowered.tracks[1].pinSchedule(LoopingCases.PAIR_LENGTHS, lowered.duration)
       val tones = sourceTones(primaryFile, bedFile)
 
-      val plan = capablePlan(edit, spec)
-      val file = exportedFile(plan)
+      val plan = probe.plan(edit, spec)
+      val file = probe.export(plan)
       val written = decodeAudio(file)
 
       val levels = LoopingCases.PAIR_READINGS.map { written.readBed(laid, it, tones, primaryClip) }
@@ -388,7 +387,7 @@ class AndroidExportTest {
         "the quiet clip read $quiet against the loud clip's $loud, so the two play over each other",
       )
 
-      assertRunsFor(assertNotNull(probeOf(file)), written, tones, plan)
+      assertRunsFor(probe.infoOf(MediaSource.of(file.path)), written, tones, plan)
     }
 
   /**
@@ -403,8 +402,8 @@ class AndroidExportTest {
   @Test
   fun loopsAVideoPrimaryUnderALongerAudioTrack() =
     runTest(timeout = TIMEOUT) {
-      val bedFile = fixtureFile(CLIP_BED) ?: return@runTest
-      val toneFile = fixtureFile(CLIP_LONG) ?: return@runTest
+      val bedFile = probe.fixtureFile(CLIP_BED)
+      val toneFile = probe.fixtureFile(CLIP_LONG)
       val spec = ExportSpec(targetHeight = 240)
       // The primary track is the looping one here, which the builder has no verb for.
       val edit =
@@ -433,8 +432,8 @@ class AndroidExportTest {
       val underlay = lowered.tracks[1].clips.single()
       val tones = sourceTones(toneFile, bedFile)
 
-      val plan = capablePlan(edit, spec)
-      val file = exportedFile(plan)
+      val plan = probe.plan(edit, spec)
+      val file = probe.export(plan)
       val written = decodeAudio(file)
 
       val early = written.amplitudeOver(EARLY_AT, LOOP_WINDOW, PRIMARY_HZ)
@@ -466,7 +465,7 @@ class AndroidExportTest {
           "$sameInstant apart at the same one, so it is not moving and the comparison says nothing",
       )
 
-      assertRunsFor(assertNotNull(probeOf(file)), written, tones, plan)
+      assertRunsFor(probe.infoOf(MediaSource.of(file.path)), written, tones, plan)
     }
 
   /**
@@ -479,8 +478,8 @@ class AndroidExportTest {
   @Test
   fun twoClipsMeetOnTheSlotTheirSeamLandsOn() =
     runTest(timeout = TIMEOUT) {
-      val first = fixture(CLIP_A) ?: return@runTest
-      val second = fixture(CLIP_B) ?: return@runTest
+      val first = probe.fixture(CLIP)
+      val second = probe.fixture(CLIP_B)
 
       SEAMS.forEach { seam ->
         val edit =
@@ -508,8 +507,8 @@ class AndroidExportTest {
   @Test
   fun aClipCutInsideAFrameHoldsItsLastFrameSoTheNextOneOpensOnItsSlot() =
     runTest(timeout = TIMEOUT) {
-      val first = fixture(CLIP_A) ?: return@runTest
-      val second = fixture(CLIP_B) ?: return@runTest
+      val first = probe.fixture(CLIP)
+      val second = probe.fixture(CLIP_B)
       val edit =
         EditComposition(
           listOf(
@@ -537,11 +536,11 @@ class AndroidExportTest {
   @Test
   fun aLoopingClipWhoseSourceEndsInsideItsLastFrameHoldsThatFrameIntoItsLastSlot() =
     runTest(timeout = TIMEOUT) {
-      val fixture = fixtureFile(CLIP_A) ?: return@runTest
-      val underlay = fixture(CLIP_LONG) ?: return@runTest
-      val short = File(context.cacheDir, SHORT_CLIP)
+      val fixture = probe.fixtureFile(CLIP)
+      val underlay = probe.fixture(CLIP_LONG)
+      val short = File(probe.context.cacheDir, SHORT_CLIP)
       val lastFrame = writePictureEndingInsideItsLastFrame(fixture, short, SHORT_LAST_FRAME_LASTS)
-      val length = assertNotNull(probeOf(short)).duration
+      val length = probe.infoOf(MediaSource.of(short.path)).duration
       assertEquals(lastFrame + SHORT_LAST_FRAME_LASTS, length, "the copy does not end where its last frame was cut")
 
       val spec = ExportSpec(targetHeight = 240, frameRate = GRID_RATE)
@@ -562,7 +561,7 @@ class AndroidExportTest {
         "the first pass covers slots $heldSlots, which have to reach past its $length and end on its last frame",
       )
 
-      val file = exportedFile(capablePlan(edit, spec))
+      val file = probe.export(probe.plan(edit, spec))
 
       assertOneSampleOnEverySlot(
         videoSampleTimes(file),
@@ -592,8 +591,8 @@ class AndroidExportTest {
   @Test
   fun aLoopingPrimaryOpensEveryPassOnTheSlotItsStartLandsOn() =
     runTest(timeout = TIMEOUT) {
-      val bedFile = fixtureFile(CLIP_BED) ?: return@runTest
-      val toneFile = fixtureFile(CLIP_LONG) ?: return@runTest
+      val bedFile = probe.fixtureFile(CLIP_BED)
+      val toneFile = probe.fixtureFile(CLIP_LONG)
       val spec = ExportSpec(targetHeight = 240, frameRate = OFF_GRID_RATE)
       val edit =
         EditComposition(
@@ -617,7 +616,7 @@ class AndroidExportTest {
       val underlay = lowered.tracks[1].clips.single()
       val tones = sourceTones(toneFile, bedFile)
 
-      val file = exportedFile(capablePlan(edit, spec))
+      val file = probe.export(probe.plan(edit, spec))
 
       val times = videoSampleTimes(file)
       laid.drop(1).forEach { pass ->
@@ -655,7 +654,7 @@ class AndroidExportTest {
   ) {
     val rate = assertNotNull(spec.frameRate)
     val laid = lowered(edit, spec).tracks.single().clips
-    val file = exportedFile(capablePlan(edit, spec))
+    val file = probe.export(probe.plan(edit, spec))
 
     val times = videoSampleTimes(file)
     assertOneSampleOnEverySlot(times, outputSlotOf(laid.last().span.endExclusive!!, rate), rate)
@@ -682,12 +681,12 @@ class AndroidExportTest {
   @Test
   fun exportsAtFourKOrReportsTheClamp() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(CLIP_LONG) ?: return@runTest
+      val source = probe.fixture(CLIP_LONG)
       // A software encoder will accept a 4K request and then write whatever it feels like, so the
       // claim below is about hardware. The emulator is the case this skips.
-      if (!hasHardwareEncoder()) return@runTest
+      assumeTrue("this device has no hardware video encoder", hasHardwareEncoder())
 
-      val verdict = filmstrip.plan(composition(source), ExportSpec(targetHeight = 2_160))
+      val verdict = probe.filmstrip.plan(composition(source), ExportSpec(targetHeight = 2_160))
 
       val plan =
         when (verdict) {
@@ -715,13 +714,13 @@ class AndroidExportTest {
   @Test
   fun cancellingLeavesNoPartialFile() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(CLIP_LONG) ?: return@runTest
+      val source = probe.fixture(CLIP_LONG)
       // Not the cache. A destination the caller named is the one the guarantee is about, and an
       // intermediate under cacheDir would be swept up whether or not the guarantee holds.
-      val output = File(context.filesDir, "cancelled.mp4")
+      val output = File(probe.context.filesDir, "cancelled.mp4")
       output.delete()
 
-      val plan = capablePlan(composition(source), ExportSpec(targetHeight = 360))
+      val plan = probe.plan(composition(source), ExportSpec(targetHeight = 360))
       // Real time, not the test scheduler's: the point is to stop an export that is under way.
       // Cancelled on Started, not after a fixed window, since a hardware encode outruns
       // any window worth waiting for and a run that finished first would be checking that a
@@ -730,7 +729,7 @@ class AndroidExportTest {
         val started = CompletableDeferred<Unit>()
         val job =
           launch {
-            filmstrip.export(plan, MediaSink.of(output.path)).collect {
+            probe.filmstrip.export(plan, MediaSink.of(output.path)).collect {
               if (it is ExportStatus.Started) started.complete(Unit)
             }
           }
@@ -748,10 +747,11 @@ class AndroidExportTest {
   @Test
   fun carriesTheSourceRotationIntoTheOutputContainerWhenItReEncodes() =
     runTest(timeout = TIMEOUT) {
-      val source = rotatedFixture() ?: return@runTest
-      val rotation = assertNotNull(assertIs<ProbeResult.Success>(filmstrip.probe(source)).info.video).rotationDegrees
+      val source = rotatedFixture()
+      val probed = probe.infoOf(source)
+      val rotation = assertNotNull(probed.video).rotationDegrees
 
-      val written = assertNotNull(export(capablePlan(composition(source), ExportSpec(targetHeight = 240))).video)
+      val written = assertNotNull(export(probe.plan(composition(source), ExportSpec(targetHeight = 240))).video)
 
       assertEquals(rotation, written.rotationDegrees, "coded ${written.codedSize}, display ${written.displaySize}")
       assertTrue(
@@ -763,9 +763,10 @@ class AndroidExportTest {
   @Test
   fun carriesTheSourceRotationIntoTheOutputContainerWhenItTransmuxes() =
     runTest(timeout = TIMEOUT) {
-      val source = rotatedFixture() ?: return@runTest
-      val rotation = assertNotNull(assertIs<ProbeResult.Success>(filmstrip.probe(source)).info.video).rotationDegrees
-      val plan = capablePlan(composition(source), ExportSpec())
+      val source = rotatedFixture()
+      val probed = probe.infoOf(source)
+      val rotation = assertNotNull(probed.video).rotationDegrees
+      val plan = probe.plan(composition(source), ExportSpec())
       assertEquals(ExportPath.Transmux, plan.path, "this export was meant to copy the streams across")
 
       val written = assertNotNull(export(plan).video)
@@ -779,11 +780,11 @@ class AndroidExportTest {
   @Test
   fun aSnappedTrimCopiesTheWindowRatherThanReEncodingIt() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(CLIP_LONG) ?: return@runTest
+      val source = probe.fixture(CLIP_LONG)
       val trimmed =
         composition(Clip(source, trim = TimeRange.of(TRIM_START, TRIM_END), snapWithin = SNAP_WITHIN))
 
-      val plan = capablePlan(trimmed, ExportSpec())
+      val plan = probe.plan(trimmed, ExportSpec())
       assertEquals(ExportPath.Transmux, plan.path, "a snapped trim on an untouched clip is meant to copy")
       val clip =
         lowered(trimmed, ExportSpec())
@@ -813,11 +814,11 @@ class AndroidExportTest {
   @Test
   fun aTrimBeyondItsSnapToleranceTranscodesAndReportsTheBlocker() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(CLIP_LONG) ?: return@runTest
+      val source = probe.fixture(CLIP_LONG)
       val trimmed =
         composition(Clip(source, trim = TimeRange.of(TRIM_START, TRIM_END), snapWithin = TOO_NARROW_TO_SNAP))
 
-      val plan = capablePlan(trimmed, ExportSpec())
+      val plan = probe.plan(trimmed, ExportSpec())
 
       assertEquals(ExportPath.Transcode, plan.path, "a cut the tolerance cannot reach has to decode to it")
       assertTrue(
@@ -829,10 +830,10 @@ class AndroidExportTest {
   @Test
   fun writesARotateEffectToTheContainerRatherThanTheFrames() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(CLIP_A) ?: return@runTest
+      val source = probe.fixture(CLIP)
       val turned = composition(Clip(source, effects = listOf(Rotate(degrees = 90))))
 
-      val written = assertNotNull(export(capablePlan(turned, ExportSpec())).video)
+      val written = assertNotNull(export(probe.plan(turned, ExportSpec())).video)
 
       // The quarter turn has to land somewhere, and it is not in the frames: they come back the
       // landscape size they went in at, with the container carrying the turn.
@@ -853,9 +854,9 @@ class AndroidExportTest {
    * A fixture that lost its rotation somewhere between ffmpeg and the device would make the
    * rotation tests pass by describing a clip that was never rotated.
    */
-  private suspend fun rotatedFixture(): MediaSource? {
-    val source = fixture(CLIP_ROTATED) ?: return null
-    val video = assertNotNull(assertIs<ProbeResult.Success>(filmstrip.probe(source)).info.video)
+  private suspend fun rotatedFixture(): MediaSource {
+    val source = probe.fixture(CLIP_ROTATED)
+    val video = assertNotNull(probe.infoOf(source).video)
 
     assertTrue(video.rotationDegrees != 0, "the fixture arrived without its rotation")
     assertTrue(video.codedSize.width > video.codedSize.height, "the fixture's frames are not landscape")
@@ -1051,43 +1052,20 @@ class AndroidExportTest {
   @Test
   fun exportsAClipHandedOverAsBytes() =
     runTest(timeout = TIMEOUT) {
-      val file = fixtureFile(CLIP_A) ?: return@runTest
+      val file = probe.fixtureFile(CLIP)
       val source = MediaSource.ofBytes(file.readBytes(), FormatHint.Mp4)
 
       // Both the probe and the lowering need this as a file, and both reach it through the same
       // cache, so a buffer that plans is a buffer that encodes.
-      val info = export(capablePlan(composition(source), ExportSpec()))
+      val info = export(probe.plan(composition(source), ExportSpec()))
 
-      info.duration shouldBeCloseTo assertNotNull(probeOf(file)).duration
+      info.duration shouldBeCloseTo probe.infoOf(MediaSource.of(file.path)).duration
     }
-
-  private suspend fun probeOf(file: File): MediaInfo? =
-    (filmstrip.probe(MediaSource.of(file.path)) as? ProbeResult.Success)?.info
-
-  private suspend fun exportedFile(plan: ExportPlan): File {
-    val statuses = withContext(Dispatchers.Default) { filmstrip.export(plan, MediaSink.temporary()).toList() }
-
-    val finished = statuses.last()
-    if (finished is ExportStatus.Failure) throw AssertionError("export failed: ${finished.error.message}")
-    return when (val output = assertIs<ExportStatus.Success>(finished).output) {
-      is MediaSink.Path -> File(output.path)
-      else -> throw AssertionError("a finished export resolves to a real path, and gave $output")
-    }
-  }
-
-  private suspend fun capablePlan(
-    composition: EditComposition,
-    spec: ExportSpec,
-  ) = when (val verdict = filmstrip.plan(composition, spec)) {
-    is Verdict.Capable -> verdict.plan
-    is Verdict.Degraded -> verdict.plan
-    is Verdict.Incapable -> throw AssertionError("refused: ${verdict.reasons.map { it.message }}")
-  }
 
   // Collected off the test scheduler, whose virtual clock would spin the backend's progress poll
   // instead of pacing it.
   private suspend fun export(plan: ExportPlan): MediaInfo {
-    val statuses = withContext(Dispatchers.Default) { filmstrip.export(plan, MediaSink.temporary()).toList() }
+    val statuses = withContext(Dispatchers.Default) { probe.filmstrip.export(plan, MediaSink.temporary()).toList() }
 
     assertTrue(statuses.first() is ExportStatus.Started, "the first status is always Started")
     val finished = statuses.last()
@@ -1100,7 +1078,7 @@ class AndroidExportTest {
       ?.displaySize
       ?.height shouldBeCloseTo plan.output.size.height
     // Read it back the way a caller would, without trusting what the encoder reported.
-    return assertIs<ProbeResult.Success>(filmstrip.probe(success.output.asSource())).info.also {
+    return probe.infoOf(success.output.asSource()).also {
       assertNotNull(it.video, "the written file has no video track")
     }
   }
@@ -1112,7 +1090,7 @@ class AndroidExportTest {
     } ?: false
 
   private suspend fun hasHardwareEncoder(): Boolean =
-    (filmstrip.capabilities() as? CapabilitiesResult.Success)
+    (probe.filmstrip.capabilities() as? CapabilitiesResult.Success)
       ?.capabilities
       ?.video
       ?.any { it.isHardwareAccelerated == true } == true
@@ -1120,21 +1098,6 @@ class AndroidExportTest {
   private fun composition(source: MediaSource) = EditComposition(listOf(Track(listOf(Clip(source)))))
 
   private fun composition(clip: Clip) = EditComposition(listOf(Track(listOf(clip))))
-
-  /**
-   * Copies a packaged fixture into the cache, or null when the build had no ffmpeg to make one.
-   */
-  private fun fixture(name: String): MediaSource? = fixtureFile(name)?.let { MediaSource.of(it.path) }
-
-  /**
-   * The same fixture as a file, for a test that reads its samples rather than editing it.
-   */
-  private fun fixtureFile(name: String): File? {
-    val stream = javaClass.classLoader?.getResourceAsStream(name) ?: return null
-    val file = File(context.cacheDir, name)
-    stream.use { input -> file.outputStream().use(input::copyTo) }
-    return file
-  }
 
   private fun MediaSink.asSource(): MediaSource =
     when (this) {
@@ -1150,8 +1113,6 @@ class AndroidExportTest {
     assertTrue(this != null && abs(this - expected) <= SIZE_TOLERANCE, "expected about $expected, got $this")
 
   private companion object {
-    val TIMEOUT = 5.minutes
-
     // The fixtures' own rate, so every frame of a clip can land on a slot of its own.
     const val GRID_RATE = 30
 
@@ -1167,13 +1128,11 @@ class AndroidExportTest {
     // One frame of a GRID_RATE fixture.
     val FIXTURE_FRAME = 1.seconds / GRID_RATE
 
-    // A copy of CLIP_A that ends on its second sync sample, which lasts less than a frame. Past half a
+    // A copy of CLIP that ends on its second sync sample, which lasts less than a frame. Past half a
     // slot, so the slot it sits in is the last one a pass covers, and short of the slot's end.
     const val SHORT_CLIP = "android_export_short.mp4"
     val SHORT_LAST_FRAME_LASTS = 23.milliseconds + 334.microseconds
 
-    const val CLIP_A = "android_export_a.mp4"
-    const val CLIP_B = "android_export_b.mp4"
     const val CLIP_LONG = "android_export_long.mp4"
     const val CLIP_ROTATED = "android_export_rotated.mp4"
     const val CLIP_BED = "tone_bed_880.mp4"

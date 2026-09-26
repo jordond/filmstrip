@@ -29,7 +29,7 @@ internal class Lowering(
    *
    * The track waits for the slot its start lands on, and each clip runs from the slot its span opens on to the one its
    * span closes on. Every item therefore opens where the one before it ended, and every boundary sits on a slot. A clip
-   * covering no slot lays nothing.
+   * covering no slot lays nothing. The wait, and the slots of a clip with no picture of its own, hold [gapItem]s.
    *
    * @throws Media3LoweringFailure when the plan settled on no frame rate to lay the grid at.
    */
@@ -37,7 +37,7 @@ internal class Lowering(
     val rate = plan.output.frameRate?.takeIf { it > 0 } ?: throw Media3LoweringFailure(NO_FRAME_RATE)
     val builder = EditedMediaItemSequence.Builder(setOf(C.TRACK_TYPE_VIDEO))
     val lead = outputSlotTime(outputSlotOf(track.start, rate), rate)
-    if (lead > Duration.ZERO) builder.addGap(lead.inWholeMicroseconds)
+    if (lead > Duration.ZERO) builder.addItem(gapItem(lead, rate))
 
     var laid = false
     track.clips.forEach { clip ->
@@ -47,8 +47,7 @@ internal class Lowering(
       val still = clip.source as? MediaSource.Image
       when {
         still != null -> builder.addItem(clip.imageItem(still, length, removeAudio = true, removeVideo = false))
-        // A source with no picture of its own holds its slots with the sequence's blank frames.
-        clip.info.video == null -> builder.addGap(length.inWholeMicroseconds)
+        clip.info.video == null -> builder.addItem(gapItem(length, rate))
         else -> builder.addItem(clip.gridItem(length, rate))
       }
       laid = true
@@ -61,6 +60,7 @@ internal class Lowering(
    *
    * This is the audio of a track whose video went on the grid, and the whole of a track on the copy path. A clip with
    * nothing to contribute to an audio-only sequence, a still or a source with no sound, holds its span with silence.
+   * Every gap here is media3's own, since a copy writes no frame of its own and has no fill to show through one.
    */
   fun exactSequence(
     track: ResolvedTrack,
@@ -89,6 +89,33 @@ internal class Lowering(
       }
     }
     return builder.build()
+  }
+
+  /**
+   * A fully transparent still held for [length], which the flatten pass paints the fill across edge to edge.
+   *
+   * An overlay after that pass draws over the fill. The item carries [GAP_MEDIA_ID] so a preview can tell it from a
+   * clip.
+   */
+  private fun gapItem(
+    length: Duration,
+    rate: Int,
+  ): EditedMediaItem {
+    val mediaItem =
+      MediaItem
+        .Builder()
+        .setMediaId(GAP_MEDIA_ID)
+        .setUri(GAP_FRAME_URI)
+        .setMimeType(GAP_FRAME_MIME)
+        .setImageDurationMs(length.heldMilliseconds())
+        .build()
+
+    return EditedMediaItem
+      .Builder(mediaItem)
+      .setRemoveAudio(true)
+      .setDurationUs(length.inWholeMicroseconds)
+      .setFrameRate(rate)
+      .build()
   }
 
   /**
@@ -258,8 +285,28 @@ private val ResolvedClip.stillFormat: String?
       ?.lowercase()
       ?.takeIf { it.isNotBlank() }
 
+/**
+ * The media id a gap in the video grid carries, which a preview reads to leave it out of the clips a frame reader can
+ * draw.
+ */
+internal const val GAP_MEDIA_ID = "filmstrip:gap"
+
+/**
+ * Whether this item holds a gap rather than a clip, either one media3 laid itself or the transparent still the video
+ * grid lays in its place.
+ */
+internal val EditedMediaItem.isGap: Boolean
+  get() = mediaItem.localConfiguration == null || mediaItem.mediaId == GAP_MEDIA_ID
+
+// A 16 by 16 PNG with every pixel at zero alpha. media3 reads a data URI through its default data source.
+private const val GAP_FRAME_URI =
+  "data:image/png;base64," +
+    "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAEklEQVR42mNgGAWjYBSMAggAAAQQAAGvRYgsAAAAAElFTkSuQmCC"
+
 // What media3 reads an item's MIME type for, which is only ever whether it starts with this.
 private const val IMAGE_MIME_PREFIX = "image/"
+
+private const val GAP_FRAME_MIME = "${IMAGE_MIME_PREFIX}png"
 
 private const val MICROS_PER_MILLISECOND = 1000L
 

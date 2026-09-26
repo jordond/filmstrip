@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.ExportPath
@@ -135,11 +136,15 @@ public class ResolvedClip(
  * The id travels with the platform object because an engine that cannot use what a resolver handed
  * back has to be able to say which effect it was. A folded run of colour effects carries every id
  * the caller wrote into it, comma separated, rather than the one the fold made up.
+ *
+ * @property stage The pipeline stage the effect runs in. A folded run takes the stage of the effects
+ *   it was folded from, which always share one.
  */
 @InternalFilmstripApi
 public class ResolvedEffect(
   public val specId: String,
   public val effect: PlatformEffect,
+  public val stage: EffectStage,
 )
 
 /**

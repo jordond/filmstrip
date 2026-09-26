@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
+import dev.jordond.filmstrip.effect.WebGlOverlay
 import dev.jordond.filmstrip.effect.inCanonicalOrder
 import dev.jordond.filmstrip.effects.color.ColorMatrix
 import dev.jordond.filmstrip.effects.color.colorMatrixOfColumnMajor4x4OrNull
@@ -41,6 +42,8 @@ import dev.jordond.filmstrip.transform.internal.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.containScale
 import dev.jordond.filmstrip.transform.internal.coverScale
+import dev.jordond.filmstrip.transform.internal.effectsOverFill
+import dev.jordond.filmstrip.transform.internal.effectsUnderFill
 import dev.jordond.filmstrip.transform.internal.frameAfter
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.stillUnsupportedMessage
@@ -82,6 +85,8 @@ internal class BrowserLowering(
  * @property heldFrames How many slots past [frames] this clip holds its last covered frame over. That is the
  * composition's held tail on the last clip that covers a slot, and zero on every other. Each held slot is drawn at the
  * last covered slot's time and written at its own.
+ * @property overlays The rasters the clip's own chain composites over it, in chain order. Each one is placed on the
+ * clip's frame, so it is drawn inside the clip's quad and cut at its edge.
  */
 internal class RenderedClip(
   val source: MediaSource,
@@ -98,6 +103,7 @@ internal class RenderedClip(
   val compositionColorMatrix: FloatArray,
   val frames: Long,
   val heldFrames: Long,
+  val overlays: List<WebGlOverlay>,
 )
 
 /**
@@ -121,6 +127,11 @@ internal class RenderedClip(
  * @property fill What the compositor fills the frame with where no clip's pixels land.
  * @property hdrTransfer The transfer function the written video carries, or null for SDR or for a
  * render that writes none.
+ * @property compositionOverlays The rasters the composition composites over the whole output frame after the fill,
+ * bars and gaps included, in chain order.
+ * @property compositionGeometryMatrix The texture matrix the composition's own geometry lowers to, the same nine
+ * floats a clip's [RenderedClip.matrix] folds in after the clip's own. A clip overlay is drawn through it, so a
+ * composition crop or flip moves the overlay with the picture.
  */
 internal class BrowserRender(
   val writesVideo: Boolean,
@@ -140,6 +151,8 @@ internal class BrowserRender(
   val audioTracks: List<ResolvedTrack>,
   val fill: Fill,
   val hdrTransfer: HdrTransfer?,
+  val compositionOverlays: List<WebGlOverlay>,
+  val compositionGeometryMatrix: FloatArray,
 ) {
   /**
    * How long one output slot runs in microseconds at [frameRate]. Every pass that walks the output frame by frame
@@ -355,13 +368,16 @@ internal fun browserRenderOf(
   // the hold on the clip before it.
   val holder = slots.indexOfLast { !it.isEmpty() }
   val heldFrames = plan.heldTail.size
+  // The composition's overlays run after the fill and are drawn on their own, so the passes folded into each clip stop
+  // short of them.
+  val compositionChain = plan.compositionGeometry + plan.effectsUnderFill
   val clips =
     primary.clips.mapIndexed { index, resolved ->
       val raw = track.clips[resolved.sourceIndex]
       val ownGeometry = (raw.effects + track.effects).inCanonicalOrder()
       val drawnSize =
         ownGeometry.fold(resolved.info.video?.displaySize ?: outputSize) { size, spec -> frameAfter(spec, size) }
-      val chain = resolved.effects + plan.compositionGeometry + plan.compositionEffects
+      val chain = resolved.effects + compositionChain
       RenderedClip(
         source = resolved.source,
         trimStartUs = resolved.start.microseconds(),
@@ -382,9 +398,10 @@ internal fun browserRenderOf(
         hasBars = !matchesOutputAspect(drawnSize, outputSize),
         matrix = chain.matrix(),
         colorMatrix = resolved.effects.colorMatrix(),
-        compositionColorMatrix = (plan.compositionGeometry + plan.compositionEffects).colorMatrix(),
+        compositionColorMatrix = compositionChain.colorMatrix(),
         frames = slots[index].size,
         heldFrames = if (index == holder) heldFrames else 0L,
+        overlays = resolved.effects.mapNotNull { it.effect.overlay },
       )
     }
 
@@ -412,6 +429,8 @@ internal fun browserRenderOf(
     audioTracks = plan.tracks,
     fill = plan.fill,
     hdrTransfer = plan.hdrTransfer,
+    compositionOverlays = plan.effectsOverFill.mapNotNull { it.effect.overlay },
+    compositionGeometryMatrix = compositionChain.matrix(),
   )
 }
 
@@ -441,6 +460,8 @@ private fun audioOnlyRender(plan: ResolvedComposition): BrowserRender =
     audioTracks = plan.tracks,
     fill = plan.fill,
     hdrTransfer = null,
+    compositionOverlays = emptyList(),
+    compositionGeometryMatrix = IDENTITY.copyOf(),
   )
 
 /**
@@ -473,6 +494,8 @@ internal fun browserParityOf(specId: String): EffectParity? =
     EffectIds.SEPIA,
     EffectIds.INVERT,
     EffectIds.COLOR_MATRIX,
+    EffectIds.IMAGE_OVERLAY,
+    EffectIds.TEXT_OVERLAY,
     -> EffectParity.Exact
     else -> null
   }
@@ -531,8 +554,9 @@ private fun renderCapabilities(
     supportsHdr = encodesHdr,
     colorSpaces = setOf(ColorSpace.Bt709, ColorSpace.Bt601, ColorSpace.Bt2020),
     maxTextureSize = maxOf(outputSize.width, outputSize.height, MAX_TEXTURE_FLOOR),
-    // Decoded VideoFrames are uploaded straight into the texture, which is what this advertises.
-    features = setOf(RenderFeature.ExternalTexture),
+    // Decoded VideoFrames are uploaded straight into the texture, which is what this advertises. Text is laid out and
+    // drawn on a 2D canvas at resolve.
+    features = setOf(RenderFeature.ExternalTexture, RenderFeature.TextRendering),
   )
 
 private val LongRange.size: Long get() = if (isEmpty()) 0 else last - first + 1

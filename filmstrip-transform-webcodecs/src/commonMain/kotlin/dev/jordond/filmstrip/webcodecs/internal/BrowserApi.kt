@@ -282,6 +282,14 @@ internal external interface WebGl2 : JsAny {
     y: Float,
   )
 
+  fun uniform4f(
+    location: JsAny?,
+    x: Float,
+    y: Float,
+    z: Float,
+    w: Float,
+  )
+
   fun drawArrays(
     mode: Int,
     first: Int,

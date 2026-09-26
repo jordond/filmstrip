@@ -1,0 +1,199 @@
+@file:OptIn(ExperimentalWasmJsInterop::class)
+
+package dev.jordond.filmstrip.webcodecs.internal
+
+import dev.jordond.filmstrip.effect.WebGlOverlay
+import kotlin.js.ExperimentalWasmJsInterop
+import kotlin.js.JsAny
+import kotlin.time.Duration.Companion.microseconds
+
+/**
+ * The overlay program a [BrowserCompositor] draws rasters with, and the textures it draws them from.
+ *
+ * Each overlay is a raster the resolver already drew. It is uploaded once, on the first frame that draws it, and
+ * drawn as a premultiplied source over at the rect and the opacity its [WebGlOverlay.drawAt] answers for the frame's
+ * composition time. The opacity multiplies colour and alpha once, on the frame's own codes, and nothing here works
+ * out a placement or an opacity of its own.
+ */
+internal class BrowserOverlayPass private constructor(
+  private val gl: WebGl2,
+  private val program: JsAny,
+  private val frameMatrix: JsAny?,
+  private val quadScale: JsAny?,
+  private val rect: JsAny?,
+  private val opacity: JsAny?,
+  private val colorMatrix: JsAny?,
+) {
+  private val textures = mutableMapOf<WebGlOverlay, JsAny>()
+
+  /**
+   * Draws every one of [overlays] that shows at [compositionUs] into the bound framebuffer and viewport, in order.
+   *
+   * Leaves this pass's program bound, so the caller binds its own again before drawing anything else.
+   *
+   * @param frameMatrix Maps the quad onto the frame the overlays were placed on, as the nine floats of a column-major
+   * `mat3`. A fragment it maps outside an overlay's rect is left alone.
+   * @param halfWidth Half the quad's width in clip space, which is the picture the overlays were placed on.
+   * @param halfHeight The same, for height.
+   * @param colorMatrix The grade the overlays take, as the sixteen floats of a column-major `mat4`.
+   */
+  fun draw(
+    overlays: List<WebGlOverlay>,
+    compositionUs: Double,
+    frameMatrix: FloatArray,
+    halfWidth: Float,
+    halfHeight: Float,
+    colorMatrix: FloatArray,
+  ) {
+    val time = compositionUs.microseconds
+    val drawn = overlays.mapNotNull { overlay -> overlay.drawAt(time)?.let { overlay to it } }
+    if (drawn.isEmpty()) return
+
+    gl.useProgram(program)
+    gl.uniformMatrix3fv(this.frameMatrix, false, frameMatrix.toFloat32Array())
+    gl.uniform2f(quadScale, halfWidth, halfHeight)
+    gl.uniformMatrix4fv(this.colorMatrix, false, colorMatrix.toFloat32Array())
+    gl.blendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
+    gl.activeTexture(GL_TEXTURE0)
+    for ((overlay, draw) in drawn) {
+      gl.bindTexture(GL_TEXTURE_2D, textureOf(overlay))
+      gl.uniform4f(rect, draw.rect.left, draw.rect.top, draw.rect.width, draw.rect.height)
+      gl.uniform1f(opacity, draw.opacity)
+      gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
+    }
+    gl.blendOntoFill()
+  }
+
+  /**
+   * Deletes every uploaded texture, so the overlays of a plan that replaced this one upload afresh.
+   */
+  fun forget() {
+    textures.values.forEach { gl.deleteTexture(it) }
+    textures.clear()
+  }
+
+  /**
+   * Deletes every uploaded texture and the overlay program. The compositor calls it once from its own
+   * release, and the pass draws nothing after it.
+   */
+  fun release() {
+    forget()
+    gl.deleteProgram(program)
+  }
+
+  // Uploaded top row first, which is where the shader reads the top of the rect from, and with no colour conversion,
+  // so an authored colour lands as its own codes.
+  private fun textureOf(overlay: WebGlOverlay): JsAny =
+    textures.getOrPut(overlay) {
+      val texture = gl.createTexture() ?: throw BrowserExportFailure(NO_TEXTURE)
+      gl.bindTexture(GL_TEXTURE_2D, texture)
+      gl.texParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+      gl.texParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+      gl.texParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+      gl.texParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+      gl.pixelStorei(GL_UNPACK_FLIP_Y_WEBGL, 0)
+      gl.pixelStorei(GL_UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
+      gl.pixelStorei(GL_UNPACK_COLORSPACE_CONVERSION_WEBGL, GL_NONE)
+      try {
+        gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, overlay.image)
+      } finally {
+        gl.pixelStorei(GL_UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0)
+        gl.pixelStorei(GL_UNPACK_COLORSPACE_CONVERSION_WEBGL, GL_BROWSER_DEFAULT_WEBGL)
+      }
+      texture
+    }
+
+  companion object {
+    /**
+     * Links the overlay program against the compositor's own quad [buffer].
+     */
+    fun create(
+      gl: WebGl2,
+      buffer: JsAny,
+    ): BrowserOverlayPass {
+      val program = BrowserCompositor.link(gl, OVERLAY_VERTEX_SHADER, OVERLAY_FRAGMENT_SHADER)
+      gl.useProgram(program)
+      gl.bindBuffer(GL_ARRAY_BUFFER, buffer)
+      val position = gl.getAttribLocation(program, "aPosition")
+      gl.enableVertexAttribArray(position)
+      gl.vertexAttribPointer(position, 2, GL_FLOAT, false, 0, 0)
+      gl.uniform1i(gl.getUniformLocation(program, "uOverlay"), 0)
+
+      return BrowserOverlayPass(
+        gl = gl,
+        program = program,
+        frameMatrix = gl.getUniformLocation(program, "uFrameMatrix"),
+        quadScale = gl.getUniformLocation(program, "uQuadScale"),
+        rect = gl.getUniformLocation(program, "uRect"),
+        opacity = gl.getUniformLocation(program, "uOpacity"),
+        colorMatrix = gl.getUniformLocation(program, "uColorMatrix"),
+      )
+    }
+
+    private const val NO_TEXTURE = "WebGL2 refused to create a texture for an overlay."
+  }
+}
+
+// The quad is the picture's, and the frame matrix carries each of its points onto the frame the overlay was placed
+// on, in texture space with +Y up.
+private val OVERLAY_VERTEX_SHADER =
+  """
+  #version 300 es
+  in vec2 aPosition;
+  uniform mat3 uFrameMatrix;
+  uniform vec2 uQuadScale;
+  out vec2 vFrame;
+  void main() {
+    vec2 uv = aPosition * 0.5 + 0.5;
+    vFrame = (uFrameMatrix * vec3(uv, 1.0)).xy;
+    gl_Position = vec4(aPosition * uQuadScale, 0.0, 1.0);
+  }
+  """.trimIndent()
+
+// The rect is measured from the top left with +Y down, the way every placement is, so the frame point is turned over
+// before it is read against it. A fragment outside the rect draws nothing, which is what cuts an overlay at the edge
+// of the picture it was placed on. The texel is premultiplied, so the grade runs on the straight colour and the
+// result is premultiplied again by the texel's alpha and the opacity together.
+private val OVERLAY_FRAGMENT_SHADER =
+  """
+  #version 300 es
+  precision highp float;
+  uniform sampler2D uOverlay;
+  uniform vec4 uRect;
+  uniform float uOpacity;
+  uniform mat4 uColorMatrix;
+  in vec2 vFrame;
+  out vec4 outColor;
+  void main() {
+    vec2 at = (vec2(vFrame.x, 1.0 - vFrame.y) - uRect.xy) / uRect.zw;
+    if (any(lessThan(at, vec2(0.0))) || any(greaterThanEqual(at, vec2(1.0)))) discard;
+    vec4 texel = texture(uOverlay, at);
+    vec3 straight = texel.a > 0.0 ? texel.rgb / texel.a : vec3(0.0);
+    vec3 graded = clamp((uColorMatrix * vec4(straight, 1.0)).rgb, 0.0, 1.0);
+    float alpha = texel.a * uOpacity;
+    outColor = vec4(graded * alpha, alpha);
+  }
+  """.trimIndent()
+
+private const val QUAD_VERTICES = 4
+
+private const val GL_TEXTURE_2D = 0x0DE1
+private const val GL_TEXTURE0 = 0x84C0
+private const val GL_RGBA = 0x1908
+private const val GL_UNSIGNED_BYTE = 0x1401
+private const val GL_FLOAT = 0x1406
+private const val GL_ARRAY_BUFFER = 0x8892
+private const val GL_TRIANGLE_STRIP = 0x0005
+private const val GL_TEXTURE_MAG_FILTER = 0x2800
+private const val GL_TEXTURE_MIN_FILTER = 0x2801
+private const val GL_TEXTURE_WRAP_S = 0x2802
+private const val GL_TEXTURE_WRAP_T = 0x2803
+private const val GL_LINEAR = 0x2601
+private const val GL_CLAMP_TO_EDGE = 0x812F
+private const val GL_ONE = 1
+private const val GL_ONE_MINUS_SRC_ALPHA = 0x0303
+private const val GL_UNPACK_FLIP_Y_WEBGL = 0x9240
+private const val GL_UNPACK_PREMULTIPLY_ALPHA_WEBGL = 0x9241
+private const val GL_UNPACK_COLORSPACE_CONVERSION_WEBGL = 0x9243
+private const val GL_BROWSER_DEFAULT_WEBGL = 0x9244
+private const val GL_NONE = 0

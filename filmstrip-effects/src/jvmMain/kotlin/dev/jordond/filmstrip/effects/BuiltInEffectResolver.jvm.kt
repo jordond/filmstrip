@@ -353,16 +353,18 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
 
   // W and H inside overlay are the main frame, w and h the overlay, so the corner arithmetic is
   // written as an expression rather than resolved here. The margin is not: it is a fraction of the
-  // output frame's shorter side and the planner already knows both numbers.
+  // shorter side of the frame the overlay is drawn on, and the planner already knows both numbers.
+  // That frame is the input, which is the clip's own for a clip overlay and the output for a
+  // composition one.
   private fun imageOverlay(
     spec: ImageOverlay,
     attributes: Attributes,
   ): EffectResolution {
-    val outputSize = attributes.outputSize
+    val drawnOn = attributes.inputSize
     val span = attributes.span
     val run = spec.runWithin(span)
-    val margin = (minOf(outputSize.width, outputSize.height) * spec.margin).roundToInt()
-    val overlayWidth = (outputSize.width * spec.scale).roundToInt().coerceAtLeast(1)
+    val margin = (minOf(drawnOn.width, drawnOn.height) * spec.margin).roundToInt()
+    val overlayWidth = (drawnOn.width * spec.scale).roundToInt().coerceAtLeast(1)
     val driven = spec.commandsFor(attributes, run)
     if (driven is Driven.Refused) return EffectResolution.Unsupported(spec.id, driven.message)
     val animated = driven as? Driven.Commands
@@ -455,8 +457,8 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     val end = run.endExclusive ?: return Driven.Refused(ANIMATION_NO_RUN)
     val imageSize = measureOverlay(image) ?: return Driven.Refused(UNREADABLE_IMAGE)
     val span = attributes.span
-    val outputSize = attributes.outputSize
-    val base = placedOn(outputSize, imageSize)
+    val drawnOn = attributes.inputSize
+    val base = placedOn(drawnOn, imageSize)
 
     val firstSlot = outputSlotOf(span.start, rate)
     val last = frameIndexAt(end, span, rate)
@@ -465,7 +467,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
         // A frame the sampler draws nothing on is left out rather than written as a change, so the
         // interval running across it carries on holding what it held.
         val frame = frameWithin(run, outputSlotTime(firstSlot + index, rate)) ?: return@mapNotNull null
-        index to commandValues(frame, base.animatedBy(frame), outputSize)
+        index to commandValues(frame, base.animatedBy(frame), drawnOn)
       }
     // A run reaching no output frame, which is a window falling outside the span or one shorter
     // than a frame. There is nothing to drive, and the gate on the branch already draws nothing.
@@ -513,12 +515,12 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   private fun commandValues(
     frame: OverlayFrame,
     drawn: OverlayPlacement,
-    outputSize: Size,
+    drawnOn: Size,
   ): Map<String, String> {
     val width = drawn.size.width
     val height = drawn.size.height
-    val anchorX = (drawn.frameAnchor.x * outputSize.width).roundToInt()
-    val anchorY = (drawn.frameAnchor.y * outputSize.height).roundToInt()
+    val anchorX = (drawn.frameAnchor.x * drawnOn.width).roundToInt()
+    val anchorY = (drawn.frameAnchor.y * drawnOn.height).roundToInt()
 
     return mapOf(
       "colorchannelmixer$INSTANCE_SLOT aa" to alphaValue(frame.opacity),

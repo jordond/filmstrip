@@ -155,11 +155,6 @@ class JvmThumbnailContractTest {
     // back the source frame and fail rather than pass.
     const val DIM = 0.4f
 
-    // The thresholds JvmPixelContractTest measured for a rendered frame against a frame that has
-    // been through the encoder.
-    const val ENCODED_MIN_PSNR_DB = 42.0
-    const val ENCODED_MIN_SSIM = 0.985
-
     // A third of the way into a frame period and three quarters of the way into one.
     val LATE_ROUNDS_DOWN = 1_010.milliseconds
     val LATE_ROUNDS_UP = 1_025.milliseconds

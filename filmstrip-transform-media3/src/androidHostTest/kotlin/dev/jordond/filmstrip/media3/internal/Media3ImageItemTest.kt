@@ -175,6 +175,24 @@ class Media3ImageItemTest {
     photo.covers(2.seconds + 500.milliseconds) shouldBe true
   }
 
+  // The gap is laid as a transparent still, and a reader that skipped it fell through to the clip after it.
+  @Test
+  fun `a readback inside a leading gap draws the gap's still rather than the clip after it`() {
+    val composition = composition(videoClip(at = 1.seconds), content = TrackContent.Video, trackStart = 1.seconds)
+    val preview = composition.toMedia3Preview(Media3FrameBounds.None)
+    val clip = preview.spans.single()
+
+    val (inGap, inClip) = assertNotNull(preview.readbacksAt(listOf(IN_GAP, clip.start + IN_GAP), revision = 1))
+
+    inGap.span.still shouldBe true
+    inGap.span.start shouldBe Duration.ZERO
+    inGap.span.end shouldBe clip.start
+    assertNotNull(inGap.span.item.localConfiguration).mimeType shouldBe "image/png"
+    inClip.span.still shouldBe false
+    inClip.span.start shouldBe clip.start
+    preview.spanAt(IN_GAP) shouldBe null
+  }
+
   private fun ResolvedComposition.firstItem(): EditedMediaItem =
     toMedia3(Media3FrameBounds.None)
       .sequences
@@ -186,6 +204,7 @@ class Media3ImageItemTest {
     vararg clips: ResolvedClip,
     frameRate: Int? = 30,
     content: TrackContent = TrackContent.AudioAndVideo,
+    trackStart: Duration = Duration.ZERO,
   ): ResolvedComposition =
     ResolvedComposition(
       tracks =
@@ -193,7 +212,7 @@ class Media3ImageItemTest {
           ResolvedTrack(
             content = content,
             looping = false,
-            start = Duration.ZERO,
+            start = trackStart,
             clips = clips.toList(),
           ),
         ),
@@ -212,7 +231,7 @@ class Media3ImageItemTest {
       layoutSize = Size(320, 180),
       fit = Fit.Contain,
       fill = Fill.Black,
-      duration = clips.fold(Duration.ZERO) { total, clip -> total + clip.duration },
+      duration = clips.fold(trackStart) { total, clip -> total + clip.duration },
       hdr = ResolvedHdr.Keep,
       hdrTransfer = null,
       audio = AudioSpec.Keep,
@@ -277,5 +296,8 @@ class Media3ImageItemTest {
   private companion object {
     // A rate whose one slot is shorter than a millisecond.
     const val SUB_MILLISECOND_RATE = 3_000
+
+    // Halfway through a one second lead, and on the 30 fps grid.
+    val IN_GAP = 500.milliseconds
   }
 }

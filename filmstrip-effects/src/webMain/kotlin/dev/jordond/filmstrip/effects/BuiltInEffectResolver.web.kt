@@ -1,5 +1,7 @@
 package dev.jordond.filmstrip.effects
 
+import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -7,6 +9,9 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
+import dev.jordond.filmstrip.effect.RenderFeature
+import dev.jordond.filmstrip.effect.WebGlOverlay
+import dev.jordond.filmstrip.effect.WebGlOverlayDraw
 import dev.jordond.filmstrip.effect.WebGlPass
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.ColorMatrix
@@ -26,9 +31,24 @@ import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.geometry.retainedRect
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.OverlayEffect
+import dev.jordond.filmstrip.effects.overlay.OverlayImages
+import dev.jordond.filmstrip.effects.overlay.OverlayPlacement
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
+import dev.jordond.filmstrip.effects.overlay.animatedBy
+import dev.jordond.filmstrip.effects.overlay.drawnTextSize
+import dev.jordond.filmstrip.effects.overlay.frameWithin
+import dev.jordond.filmstrip.effects.overlay.named
+import dev.jordond.filmstrip.effects.overlay.placedOn
+import dev.jordond.filmstrip.effects.overlay.preloadOverlays
+import dev.jordond.filmstrip.effects.overlay.rasterizeText
+import dev.jordond.filmstrip.effects.overlay.rectOn
+import dev.jordond.filmstrip.effects.overlay.runWithin
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
+import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.ImageSource
+import kotlin.time.Duration
 
 /**
  * Lowers the built-in catalogue onto WebGL pass declarations.
@@ -37,8 +57,24 @@ import dev.jordond.filmstrip.geometry.NormalizedRect
  * Scale would resize the render target rather than adding a pass, and the browser pipeline sizes
  * its compositor once from the output spec when export starts, with no path for a resolved effect
  * to resize it afterward.
+ *
+ * Overlays are rasterised here, text on the spot and images from the ones [preload] decoded, and
+ * resolve to a raster the compositor draws where the effect says.
  */
 public actual class BuiltInEffectResolver actual constructor() : EffectResolver {
+  private val images = OverlayImages()
+
+  /**
+   * Decodes every overlay image in [composition] and waits for every face its text overlays name.
+   *
+   * A browser decodes images only asynchronously and [resolve] cannot wait, so this runs before a
+   * composition is planned. An image left out of it resolves unsupported.
+   */
+  @InternalFilmstripApi
+  public suspend fun preload(composition: EditComposition) {
+    preloadOverlays(composition, images)
+  }
+
   actual override fun resolve(
     spec: EffectSpec,
     capabilities: RenderCapabilities,
@@ -61,7 +97,8 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       -> spec.toColorPass()
       is KenBurns -> EffectResolution.Unsupported(spec.id, PAN_PENDING)
       is Rotate, is Scale -> EffectResolution.Unsupported(spec.id, RESIZING_PENDING)
-      is ImageOverlay, is TextOverlay -> EffectResolution.Unsupported(spec.id, OVERLAYS_PENDING)
+      is ImageOverlay -> spec.toOverlay(attributes)
+      is TextOverlay -> spec.toOverlay(capabilities, attributes)
       else -> null
     }
   }
@@ -75,6 +112,44 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
 
     return resolved(WebGlPass(COLOR_MATRIX_PROGRAM, mapOf(COLOR_MATRIX to matrix)))
   }
+
+  // An overlay measures against the frame entering it, which is the clip's for a clip overlay and
+  // the output's for a composition one.
+  private fun ImageOverlay.toOverlay(attributes: Attributes): EffectResolution {
+    if (attributes.hdrTransfer != null) return EffectResolution.Unsupported(id, OVERLAYS_ON_HDR)
+    if (image is ImageSource.Path) return EffectResolution.Unsupported(id, "${image.named()} $PATH_UNREADABLE")
+    if (image !in images) return EffectResolution.Unsupported(id, "${image.named()} $NOT_PRELOADED")
+    val bitmap = images[image] ?: return EffectResolution.Unsupported(id, "${image.named()} $UNDECODABLE")
+
+    val size = Size(bitmap.width, bitmap.height)
+    return overlay(WebGlOverlay(bitmap, size, drawnBy(placedOn(attributes.inputSize, size), attributes)))
+  }
+
+  // Laid out against the frame an export writes and only resampled to the frame entering it, so a
+  // preview breaks its lines on the same words.
+  private fun TextOverlay.toOverlay(
+    capabilities: RenderCapabilities,
+    attributes: Attributes,
+  ): EffectResolution {
+    if (!capabilities.has(RenderFeature.TextRendering)) return EffectResolution.Unsupported(id, NO_TEXT_RENDERING)
+    if (attributes.hdrTransfer != null) return EffectResolution.Unsupported(id, OVERLAYS_ON_HDR)
+    val raster =
+      rasterizeText(text, style, attributes.layoutSize) ?: return EffectResolution.Unsupported(id, EMPTY_TEXT)
+
+    val placement = placedOn(attributes.drawnTextSize(raster.size))
+    return overlay(WebGlOverlay(raster.canvas, raster.size, drawnBy(placement, attributes)))
+  }
+
+  private fun OverlayEffect.drawnBy(
+    base: OverlayPlacement,
+    attributes: Attributes,
+  ): (Duration) -> WebGlOverlayDraw? {
+    val run = runWithin(attributes.span)
+    val frame = attributes.inputSize
+    return { time -> frameWithin(run, time)?.let { WebGlOverlayDraw(base.animatedBy(it).rectOn(frame), it.opacity) } }
+  }
+
+  private fun overlay(overlay: WebGlOverlay): EffectResolution = EffectResolution.Resolved(PlatformEffect(overlay))
 
   private fun resolved(pass: WebGlPass): EffectResolution = EffectResolution.Resolved(PlatformEffect(pass))
 
@@ -133,6 +208,18 @@ private const val PAN_PENDING =
   "A pan moves the region it shows on every frame, and a pass here carries one texture matrix " +
     "settled at resolve. A pass that moves it per frame has not landed on this backend yet."
 
-private const val OVERLAYS_PENDING =
-  "Overlay effects rasterise text and images into the frame, which needs a compositing pass this " +
-    "backend does not have yet."
+private const val OVERLAYS_ON_HDR =
+  "Overlays are not drawn on an HDR grade in the browser yet, since the backends do not agree on " +
+    "where overlay white lands in HDR."
+
+private const val PATH_UNREADABLE =
+  "was named by a file path, which a browser cannot read. Pass it as bytes or a URI instead."
+
+private const val NOT_PRELOADED =
+  "was not decoded ahead of planning. Call preload with the composition before planning it."
+
+private const val UNDECODABLE = "could not be decoded as an image."
+
+private const val NO_TEXT_RENDERING = "This device cannot rasterise text into a frame."
+
+private const val EMPTY_TEXT = "The text overlay has nothing to draw."

@@ -204,6 +204,23 @@ internal val FIXTURE_FRAME: Size = Size(640, 360)
 internal val PROBE_POSITIONS: List<Duration> = listOf(300.milliseconds, 900.milliseconds)
 
 /**
+ * The SSIM a frame the player draws of the fixture, a preview readback or a precise thumbnail, holds to against the
+ * same frame read out of an export of it.
+ *
+ * The export has been through the encoder once and the drawn frame has not, so this sits below
+ * [TWO_PREVIEW_MIN_SSIM], what two renderings of one graph score.
+ */
+internal const val ENCODED_MIN_SSIM: Double = 0.985
+
+/**
+ * The SSIM two preview readbacks of the same frame hold to against each other, where neither went through an encoder.
+ *
+ * Only decoder noise separates the two, so this sits above [ENCODED_MIN_SSIM]. A graph that drew the wrong frame
+ * scores far below it.
+ */
+internal const val TWO_PREVIEW_MIN_SSIM: Double = 0.99
+
+/**
  * The frame rate the fixture's `FixtureSpec` pins, which is the output frame rate a composition of it plays at.
  */
 internal const val FIXTURE_FRAME_RATE = 30

@@ -90,7 +90,7 @@ internal class BrowserPipeline(
       currentCoroutineContext().ensureActive()
 
       val outputUs = render.slotUs(slot)
-      compositor.drawFill(outputUs)
+      compositor.drawFill(outputUs, render.compositionOverlays)
       encodeFrame(compositor, encoder, outputUs, render.stepUs)
       onProgress(slot + 1, outputUs)
     }
@@ -120,7 +120,7 @@ internal class BrowserPipeline(
         ?.frames(clip.trimStartUs, clip.trimEndUs, tenBit = render.hdrTransfer != null)
         ?: throw BrowserExportFailure(unreadable(clip.source))
 
-    compositor.clip(clip)
+    compositor.clip(clip, render.compositionGeometryMatrix)
 
     var emitted = encodedSoFar
     var current: VideoSample? = null
@@ -138,7 +138,7 @@ internal class BrowserPipeline(
         }
 
         val chosen = nearest(current, ahead, sourceUs) ?: break
-        compositor.draw(chosen, render.slotUs(clip.firstSlot + drawn))
+        compositor.draw(chosen, render.slotUs(clip.firstSlot + drawn), render.compositionOverlays)
 
         val outputUs = render.slotUs(clip.firstSlot + slot)
         encodeFrame(compositor, encoder, outputUs, render.stepUs)

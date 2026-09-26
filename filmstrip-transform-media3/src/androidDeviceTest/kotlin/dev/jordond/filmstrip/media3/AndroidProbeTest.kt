@@ -1,21 +1,18 @@
 package dev.jordond.filmstrip.media3
 
-import androidx.test.platform.app.InstrumentationRegistry
-import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.media.CodecKind
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.FormatHint
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP
+import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
+import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import kotlinx.coroutines.test.runTest
-import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertIs
 import kotlin.test.assertNotNull
-import kotlin.time.Duration.Companion.minutes
 
 /**
  * What the prober reports about a track, against clips whose every field is known up front.
@@ -27,13 +24,12 @@ import kotlin.time.Duration.Companion.minutes
  * Android does not, so a reading that only works there passes here and fails in the field.
  */
 class AndroidProbeTest {
-  private val context = InstrumentationRegistry.getInstrumentation().targetContext
-  private val filmstrip = Filmstrip(context) { media3Backend() }
+  private val probe = Media3ExportProbe()
 
   @Test
   fun readsTheTrackRatherThanTheContainer() =
     runTest(timeout = TIMEOUT) {
-      val info = probe(CLIP_A) ?: return@runTest
+      val info = infoOf(CLIP)
       val video = assertNotNull(info.video, "no video track")
 
       // A file-level read reports the container's video/mp4 for both tracks, so a codec that tells
@@ -45,8 +41,8 @@ class AndroidProbeTest {
   @Test
   fun readsTheFrameRateTheClipWasEncodedAt() =
     runTest(timeout = TIMEOUT) {
-      val thirty = probe(CLIP_A) ?: return@runTest
-      val twentyFour = probe(CLIP_24FPS) ?: return@runTest
+      val thirty = infoOf(CLIP)
+      val twentyFour = infoOf(CLIP_24FPS)
 
       // The planner falls back to thirty when the source rate is absent, so a single thirty-fps
       // fixture cannot tell a real reading from the fallback.
@@ -57,7 +53,7 @@ class AndroidProbeTest {
   @Test
   fun readsTheChannelsAndSampleRateOffTheAudioTrack() =
     runTest(timeout = TIMEOUT) {
-      val audio = assertNotNull((probe(CLIP_A) ?: return@runTest).audio, "no audio track")
+      val audio = assertNotNull(infoOf(CLIP).audio, "no audio track")
 
       assertEquals(2, audio.channelCount, "the fixture is stereo")
       assertEquals(48_000, audio.sampleRate, "the fixture is 48kHz")
@@ -66,7 +62,7 @@ class AndroidProbeTest {
   @Test
   fun readsTenBitBt2020OffAnHdrClip() =
     runTest(timeout = TIMEOUT) {
-      val video = assertNotNull((probe(CLIP_HDR) ?: return@runTest).video, "no video track")
+      val video = assertNotNull(infoOf(HDR_CLIP).video, "no video track")
 
       assertEquals(CodecKind.Hevc, video.codec.kind)
       assertEquals(10, video.bitDepth, "the fixture is ten bit")
@@ -79,7 +75,7 @@ class AndroidProbeTest {
   @Test
   fun readsEightBitOffAnSdrClip() =
     runTest(timeout = TIMEOUT) {
-      val video = assertNotNull((probe(CLIP_A) ?: return@runTest).video, "no video track")
+      val video = assertNotNull(infoOf(CLIP).video, "no video track")
 
       assertEquals(8, video.bitDepth, "H.264 High is eight bit")
     }
@@ -87,13 +83,10 @@ class AndroidProbeTest {
   @Test
   fun readsABufferTheSameWayItReadsTheFileItCameFrom() =
     runTest(timeout = TIMEOUT) {
-      val bytes = bytesOf(CLIP_A) ?: return@runTest
-      val fromFile = probe(CLIP_A) ?: return@runTest
+      val bytes = bytesOf(CLIP)
+      val fromFile = infoOf(CLIP)
 
-      val fromBytes =
-        assertIs<ProbeResult.Success>(
-          filmstrip.probe(MediaSource.ofBytes(bytes, FormatHint.Mp4)),
-        ).info
+      val fromBytes = probe.infoOf(MediaSource.ofBytes(bytes, FormatHint.Mp4))
 
       // The buffer is written to the cache and probed as the file it landed on, so the two readings
       // are of the same container and every field has to agree.
@@ -108,30 +101,20 @@ class AndroidProbeTest {
   @Test
   fun readsAnUnhintedBufferBySniffingIt() =
     runTest(timeout = TIMEOUT) {
-      val bytes = bytesOf(CLIP_A) ?: return@runTest
+      val bytes = bytesOf(CLIP)
 
       // Nothing names the container, so the file is written under a name that claims nothing and
       // the retriever has to work it out from the bytes.
-      val info = assertIs<ProbeResult.Success>(filmstrip.probe(MediaSource.ofBytes(bytes))).info
+      val info = probe.infoOf(MediaSource.ofBytes(bytes))
 
       assertEquals(CodecKind.H264, assertNotNull(info.video, "no video track").codec.kind)
     }
 
-  private fun bytesOf(name: String): ByteArray? =
-    javaClass.classLoader?.getResourceAsStream(name)?.use { it.readBytes() }
+  private fun bytesOf(name: String): ByteArray = probe.fixtureFile(name).readBytes()
 
-  private suspend fun probe(name: String): MediaInfo? {
-    val stream = javaClass.classLoader?.getResourceAsStream(name) ?: return null
-    val file = File(context.cacheDir, name)
-    stream.use { input -> file.outputStream().use(input::copyTo) }
-    return assertIs<ProbeResult.Success>(filmstrip.probe(MediaSource.of(file.path))).info
-  }
+  private suspend fun infoOf(name: String): MediaInfo = probe.infoOf(probe.fixture(name))
 
   private companion object {
-    val TIMEOUT = 5.minutes
-
-    const val CLIP_A = "android_export_a.mp4"
     const val CLIP_24FPS = "android_export_24fps.mp4"
-    const val CLIP_HDR = "android_export_hdr.mp4"
   }
 }

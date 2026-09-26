@@ -284,19 +284,30 @@ internal class Media3StillFrames(
     /**
      * This rendered texture as a bitmap, read on the thread that drew it.
      *
-     * The buffer carries the channels in the order a bitmap expects them, so the pixels are copied
-     * across rather than rearranged.
+     * The buffer carries the channels in the order a bitmap expects them, but GL reads the bottom
+     * row first and a bitmap starts at its top one. The rows are copied across in reverse and each
+     * row's pixels are left as they are.
      */
     fun GlTextureInfo.readPixels(): Bitmap {
-      val pixels = ByteBuffer.allocateDirect(width * height * CHANNELS)
+      val rowBytes = width * CHANNELS
+      val pixels = ByteBuffer.allocateDirect(rowBytes * height)
       GlUtil.focusFramebufferUsingCurrentContext(fboId, width, height)
       GlUtil.checkGlError()
       GLES20.glReadPixels(0, 0, width, height, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixels)
       GlUtil.checkGlError()
 
+      val upright = ByteBuffer.allocateDirect(rowBytes * height)
+      val row = ByteArray(rowBytes)
+      for (y in height - 1 downTo 0) {
+        pixels.position(y * rowBytes)
+        pixels.get(row)
+        upright.put(row)
+      }
+      upright.rewind()
+
       return Bitmap
         .createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        .also { it.copyPixelsFromBuffer(pixels) }
+        .also { it.copyPixelsFromBuffer(upright) }
     }
 
     /**

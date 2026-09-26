@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportSpec
@@ -97,17 +98,18 @@ class HeldTailLoweringTest {
       "trim=end=${secondsOf(negotiated.duration)},setpts=expr=PTS-STARTPTS[vout]"
   }
 
-  // A composition effect holds the fill back to a final overlay that ends with the frames under it. The clones come
-  // after that overlay, so what they hold is the finished frame with every effect frozen on it.
+  // A composition effect under the fill holds it back to a flatten that ends with the frames under it. The clones come
+  // after that flatten and the overlay drawn over it, so what they hold is the finished frame with every effect frozen
+  // on it.
   @Test
   fun `holds the frame after the composition effects and the fill they defer`() {
-    val lowering = lowered(underBed(effects = listOf(logo())))
+    val lowering = lowered(underBed(effects = listOf(Brightness(0.5f), logo())))
     val negotiated = negotiatedOf(lowering)
     val graph = invocationOf(lowering).filterGraph
     val held = graph.indexOf("tpad=stop_mode=clone:stop=${negotiated.heldTail.count()}")
 
     graph shouldContain "overlay=shortest=1"
-    assertTrue(graph.lastIndexOf("[vfx0]") in 0 until held, "the tail is cloned ahead of the composition effect")
+    assertTrue(graph.lastIndexOf("[vfx1]") in 0 until held, "the tail is cloned ahead of the composition overlay")
     assertTrue(graph.indexOf("overlay=shortest=1") in 0 until held, "the tail is cloned ahead of the fill")
     graph shouldContain
       "tpad=stop_mode=clone:stop=${negotiated.heldTail.count()},trim=end_frame=${negotiated.videoSlots}," +

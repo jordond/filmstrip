@@ -229,7 +229,7 @@ internal const val CENTRE_SAMPLES = 80
 // Squared channel reach summed over every cell and channel. Below this the badge and whatever sits
 // under it are too close in colour for the ratio between them to mean anything.
 internal const val BLEND_FLOOR = 50_000.0
-private const val PNG_QUALITY = 100
+internal const val PNG_QUALITY = 100
 
 /**
  * Whether this device has a decoder for the ten-bit HEVC the HDR fixtures are written in.

@@ -8,19 +8,34 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
+import dev.jordond.filmstrip.effects.overlay.OverlayFrame
+import dev.jordond.filmstrip.effects.overlay.OverlayOffset
+import dev.jordond.filmstrip.effects.overlay.animatedBy
 import dev.jordond.filmstrip.effects.overlay.fadeIn
+import dev.jordond.filmstrip.effects.overlay.placedOn
+import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.ffmpeg.OverlayConstants.BAR_FILL
+import dev.jordond.filmstrip.ffmpeg.OverlayConstants.OVERLAY_COLOUR
+import dev.jordond.filmstrip.ffmpeg.OverlayConstants.OVERLAY_SIZE
+import dev.jordond.filmstrip.ffmpeg.OverlayConstants.PROBE_SIDE
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPreviewStream
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
+import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
+import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.outputSlotOf
 import dev.jordond.filmstrip.internal.outputSlotTime
@@ -36,10 +51,7 @@ import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import java.awt.Color
-import java.awt.image.BufferedImage
-import java.io.ByteArrayOutputStream
 import java.io.File
-import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
@@ -369,6 +381,48 @@ class FfmpegPreviewTest {
       }
     }
 
+  // A clip overlay is placed on the clip's own frame, so on a portrait clip contained in a landscape frame the half
+  // pushed off the clip's edge must not land in the bar beside it, and the clip stays where the fit put it. These are
+  // the points the export's own test reads, so the preview and the export are held to the same picture.
+  @Test
+  fun `a clip overlay pushed off a letterboxed clip is cut at the clip's edge`() =
+    runTest(timeout = TIMEOUT) {
+      val tracks = resolved(letterboxed()).tracks
+      val clip = tracks.first().clips.first()
+      val source = assertNotNull(clip.info.video).displaySize
+      val image = ImageSource.ofBytes(OVERLAY_SQUARE)
+      val placed = ImageOverlay(image, Corner.TopStart, scale = CLIP_OVERLAY_SCALE).placedOn(source, OVERLAY_SIZE)
+      val unmoved = placed.rectOn(source)
+      val push = OverlayFrame(offset = OverlayOffset(-(unmoved.left + unmoved.width / 2), 0f))
+      val pushed =
+        ImageOverlay(image, Corner.TopStart, scale = CLIP_OVERLAY_SCALE, animation = OverlayAnimation { push })
+      val rect = placed.animatedBy(push).rectOn(source)
+      assertTrue(rect.left < 0f && rect.right > 0f, "the overlay at $rect does not straddle the clip's edge")
+
+      val (size, bare) = sizedFrame(letterboxed(), PROBE_POSITION)
+      val (markedSize, marked) = sizedFrame(letterboxed(pushed), PROBE_POSITION)
+      markedSize shouldBe size
+      val picture = containedRect(source, size)
+      val middle = rect.top + rect.height / 2
+
+      assertNear(
+        marked.readAt(size, picture, rect.right / 2, middle),
+        channelsOf(OVERLAY_COLOUR),
+        "the overlay's half on the clip",
+      )
+      assertNear(marked.readAt(size, picture, rect.left / 2, middle), channelsOf(BAR_FILL), "the bar beside the clip")
+      listOf(
+        (rect.right + 1f) / 2 to middle,
+        rect.right / 2 to (rect.bottom + 1f) / 2,
+      ).forEach { (x, y) ->
+        assertNear(
+          marked.readAt(size, picture, x, y),
+          bare.readAt(size, picture, x, y),
+          "the clip at $x, $y",
+        )
+      }
+    }
+
   @Test
   fun `a frame is the composition's own frame, tightly packed`() =
     runTest(timeout = TIMEOUT) {
@@ -545,6 +599,51 @@ class FfmpegPreviewTest {
     )
   }
 
+  private suspend fun sizedFrame(
+    composition: EditComposition,
+    at: Duration,
+  ): Pair<Size, ByteArray> {
+    val stream = open(composition, at)
+    return try {
+      stream.size to assertNotNull(stream.next(), "the pump delivered no frame at $at")
+    } finally {
+      stream.close()
+    }
+  }
+
+  // The portrait fixture contained in a landscape frame over a [BAR_FILL] fill, with [clipOverlay] on its only clip.
+  private fun letterboxed(clipOverlay: ImageOverlay? = null): EditComposition {
+    assertTrue(portrait.isFile, "the fixture ${portrait.absolutePath} was not downloaded")
+    return compositionOf {
+      clip(MediaSource.of(portrait.absolutePath)) {
+        clipOverlay?.let { mark -> effects { add(mark) } }
+      }
+      effects { crop(AspectRatio.Landscape, fit = Fit.Contain) }
+      fill(Fill.Solid(BAR_FILL))
+    }
+  }
+
+  // The mean colour of a probe square centred on a point given as a fraction of [picture], which is itself a fraction
+  // of this RGBA frame of [size].
+  private fun ByteArray.readAt(
+    size: Size,
+    picture: NormalizedRect,
+    x: Float,
+    y: Float,
+  ): Triple<Int, Int, Int> {
+    val centreX = ((picture.left + x * picture.width) * size.width).toInt()
+    val centreY = ((picture.top + y * picture.height) * size.height).toInt()
+    val sums = IntArray(RGB)
+    for (row in centreY - PROBE_SIDE / 2 until centreY + PROBE_SIDE / 2) {
+      for (column in centreX - PROBE_SIDE / 2 until centreX + PROBE_SIDE / 2) {
+        val at = (row * size.width + column) * CHANNELS
+        repeat(RGB) { channel -> sums[channel] += this[at + channel].toInt() and 0xFF }
+      }
+    }
+    val count = PROBE_SIDE * PROBE_SIDE
+    return Triple(sums[0] / count, sums[1] / count, sums[2] / count)
+  }
+
   // Read out of the command line each path actually spawned, rather than out of the lowering both
   // share, so a second graph builder written for the preview would fail this.
   private fun graphOf(name: String): String {
@@ -576,7 +675,6 @@ class FfmpegPreviewTest {
     // A quarter of the frame width, so the overlay covers enough of the picture that the opacity it
     // is drawn at cannot round away.
     const val OVERLAY_SCALE = 0.25f
-    const val OVERLAY_PIXELS = 64
 
     // A fade that is over well before the probe, and an authored opacity it settles on that the
     // colorchannelmixer the commands drive does not open at.
@@ -612,16 +710,13 @@ class FfmpegPreviewTest {
     // Past the two frames each clip clones ahead of its cut, so a play from there runs the clip's own frames out first.
     const val PLAY_IN_SLOTS = 3L
 
-    // An animated overlay is sized off the picture's own header through ImageIO, so the bytes have
-    // to be a format this process decodes.
-    val WHITE_SQUARE: ByteArray =
-      BufferedImage(OVERLAY_PIXELS, OVERLAY_PIXELS, BufferedImage.TYPE_INT_ARGB)
-        .also { image ->
-          image.createGraphics().apply {
-            color = Color.WHITE
-            fillRect(0, 0, OVERLAY_PIXELS, OVERLAY_PIXELS)
-            dispose()
-          }
-        }.let { image -> ByteArrayOutputStream().also { ImageIO.write(image, "png", it) }.toByteArray() }
+    // Twice the default, so the half left on the clip and the half pushed into the bar each hold a probe square with
+    // room to spare once the clip is scaled down into the frame.
+    const val CLIP_OVERLAY_SCALE = 0.4f
+
+    const val RGB = 3
+
+    val WHITE_SQUARE: ByteArray = pngOf(Color.WHITE.rgb, OVERLAY_SIZE)
+    val OVERLAY_SQUARE: ByteArray = pngOf(OVERLAY_COLOUR, OVERLAY_SIZE)
   }
 }

@@ -9,6 +9,7 @@ import androidx.media3.effect.RgbMatrix
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportPath
@@ -63,7 +64,7 @@ class Media3CompositionTest {
   }
 
   @Test
-  fun `flattens last, after every composition effect`() {
+  fun `flattens after every effect outside the Composite stage`() {
     val first = AlphaScale(0.5f)
     val second = AlphaScale(0.25f)
     val effects =
@@ -73,6 +74,24 @@ class Media3CompositionTest {
     effects.last().shouldBeInstanceOf<FillFlatten>()
     effects[effects.lastIndex - 1] shouldBe second
     effects[effects.lastIndex - 2] shouldBe first
+  }
+
+  // The fill is painted in before the overlays, so a grade never reaches a bar and an overlay placed
+  // in one draws over the fill rather than under it. A real TextureOverlay reaches android.opengl on
+  // construction, so the overlay here is any effect the planner put in the Composite stage.
+  @Test
+  fun `flattens between a grade and an overlay`() {
+    val grade = matrix()
+    val overlay = AlphaScale(0.5f)
+    val effects =
+      composition(
+        fit = Fit.Contain,
+        compositionEffects = listOf(resolvedEffect(grade), resolvedEffect(overlay, EffectStage.Composite)),
+      ).compositionVideoEffects()
+
+    val flatten = effects.indexOfFirst { it is FillFlatten }
+    effects[flatten - 1] shouldBe grade
+    effects.drop(flatten + 1) shouldBe listOf(overlay)
   }
 
   // media3 merges consecutive matrices into one shader program with nothing clamping between them,
@@ -288,6 +307,7 @@ class Media3CompositionTest {
     // and what is counted here is the items rather than what they carry.
     mockkStatic(Uri::class)
     every { Uri.fromFile(any()) } returns mockk(relaxed = true)
+    every { Uri.parse(any()) } returns mockk(relaxed = true)
     try {
       val laid = List(4) { clip() }
       val sequence =
@@ -307,8 +327,8 @@ class Media3CompositionTest {
       sequence.editedMediaItems.size shouldBe laid.size + 1
       sequence.editedMediaItems
         .first()
-        .mediaItem.localConfiguration shouldBe null
-      sequence.editedMediaItems.drop(1).forEach { it.mediaItem.localConfiguration shouldNotBe null }
+        .isGap shouldBe true
+      sequence.editedMediaItems.drop(1).forEach { it.isGap shouldBe false }
     } finally {
       unmockkAll()
     }
@@ -423,7 +443,10 @@ class Media3CompositionTest {
       sourceIndex = 0,
     )
 
-  private fun resolvedEffect(handle: Any): ResolvedEffect = ResolvedEffect("test", PlatformEffect(handle))
+  private fun resolvedEffect(
+    handle: Any,
+    stage: EffectStage = EffectStage.Color,
+  ): ResolvedEffect = ResolvedEffect("test", PlatformEffect(handle), stage)
 }
 
 // Eight frames a second, so a frame position lands on a round time and a test can name the time it

@@ -2,6 +2,7 @@
 
 package dev.jordond.filmstrip.webcodecs.internal
 
+import dev.jordond.filmstrip.effect.WebGlOverlay
 import dev.jordond.filmstrip.effects.color.HDR_COLOR_MATRIX_GLSL
 import dev.jordond.filmstrip.effects.color.hdrColorMatrixUniforms
 import dev.jordond.filmstrip.geometry.Fill
@@ -73,6 +74,8 @@ internal class BrowserCompositor private constructor(
   private val hdr: HdrPass?,
 ) {
   private var current: RenderedClip? = null
+  private var frameMatrix: FloatArray = IDENTITY_3
+  private var overlayPass: BrowserOverlayPass? = null
 
   /**
    * Where the slot being drawn sits on the output timeline, in microseconds.
@@ -89,9 +92,16 @@ internal class BrowserCompositor private constructor(
    *
    * The clip itself is kept around, not just its uniforms, because [draw] needs its cover geometry
    * and whether it has bars at all once the fill is blurred.
+   *
+   * @param compositionGeometryMatrix The render's [BrowserRender.compositionGeometryMatrix], which the clip's overlays
+   * are drawn through so a composition crop or flip moves them with the picture.
    */
-  fun clip(clip: RenderedClip) {
+  fun clip(
+    clip: RenderedClip,
+    compositionGeometryMatrix: FloatArray,
+  ) {
     current = clip
+    frameMatrix = compositionGeometryMatrix
     gl.useProgram(program)
     gl.uniformMatrix3fv(texMatrix, false, clip.matrix.toFloat32Array())
     gl.uniform2f(quadScale, clip.quadHalfW, clip.quadHalfH)
@@ -113,16 +123,21 @@ internal class BrowserCompositor private constructor(
    * and blurred, straight into the target, before the sharp contained quad goes on top of it. A
    * clip with no bars, or a fill with nothing to blur, skips straight to the clear.
    *
+   * The clip's overlays go on right after it, inside its quad, and the composition's go on last over the whole
+   * frame.
+   *
    * Suspends only on a grade, where the frame's planes are copied out of the decoder before
    * anything can be uploaded.
    *
    * @param compositionUs Where this slot sits on the output timeline. Everything [clip] sets holds
    *   for the length of a clip, so this is where a pass that varies with time uploads its per-frame
    *   uniforms.
+   * @param compositionOverlays The render's [BrowserRender.compositionOverlays].
    */
   suspend fun draw(
     frame: VideoSample,
     compositionUs: Double,
+    compositionOverlays: List<WebGlOverlay>,
   ) {
     this.compositionUs = compositionUs
     val clip = checkNotNull(current) { "clip() must run before draw()" }
@@ -144,6 +159,9 @@ internal class BrowserCompositor private constructor(
     gl.activeTexture(GL_TEXTURE0)
     gl.bindTexture(GL_TEXTURE_2D, source)
     gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
+    drawClipOverlays(clip, clip.quadHalfW, clip.quadHalfH)
+    drawCompositionOverlays(compositionOverlays)
+    gl.useProgram(program)
   }
 
   /**
@@ -154,14 +172,55 @@ internal class BrowserCompositor private constructor(
    * keeps the plain clear colour. [snapshot] and [present] read the result like any drawn frame,
    * so a kept grade still packs the fill into ten-bit codes.
    *
+   * The composition's overlays still draw over it, since they sit over the fill wherever it shows.
+   *
    * @param compositionUs Where this slot sits on the output timeline, the same value [draw] takes,
    *   so a gap slot carries the clock a drawn one does.
+   * @param compositionOverlays The render's [BrowserRender.compositionOverlays].
    */
-  fun drawFill(compositionUs: Double) {
+  fun drawFill(
+    compositionUs: Double,
+    compositionOverlays: List<WebGlOverlay>,
+  ) {
     this.compositionUs = compositionUs
     gl.bindFramebuffer(GL_FRAMEBUFFER, hdr?.outputFbo)
     gl.clear(GL_COLOR_BUFFER_BIT)
+    drawCompositionOverlays(compositionOverlays)
+    gl.useProgram(program)
   }
+
+  /**
+   * Drops every overlay texture uploaded so far, for a preview whose plan was replaced underneath it.
+   */
+  fun forgetOverlays() {
+    overlayPass?.forget()
+  }
+
+  // A clip overlay takes the composition's grade and not the clip's, since it composites after the clip's own colour
+  // and the composition's colour runs after the whole clip.
+  private fun drawClipOverlays(
+    clip: RenderedClip,
+    halfWidth: Float,
+    halfHeight: Float,
+  ) {
+    if (clip.overlays.isEmpty()) return
+    overlays().draw(
+      clip.overlays,
+      compositionUs,
+      frameMatrix,
+      halfWidth,
+      halfHeight,
+      clip.compositionColorMatrix,
+    )
+  }
+
+  private fun drawCompositionOverlays(overlays: List<WebGlOverlay>) {
+    if (overlays.isEmpty()) return
+    overlays().draw(overlays, compositionUs, IDENTITY_3, 1f, 1f, IDENTITY_4)
+  }
+
+  private fun overlays(): BrowserOverlayPass =
+    overlayPass ?: BrowserOverlayPass.create(gl, buffer).also { overlayPass = it }
 
   /**
    * The SDR upload: the decoded frame straight into one RGBA texture.
@@ -247,7 +306,8 @@ internal class BrowserCompositor private constructor(
    *
    * The background is the clip's own pixels, so it is drawn with the clip's colour matrix still set.
    * Every other backend splits the frame for its blur after the effect chain has run, and dimming
-   * only the sharp copy would leave a bright halo around a dimmed frame.
+   * only the sharp copy would leave a bright halo around a dimmed frame. The clip's overlays are part
+   * of that chain, so they go into the cover pass too, at the cover geometry.
    *
    * The cover and horizontal passes render at [BlurPass.smallWidth] by [BlurPass.smallHeight]
    * rather than the output size. See [blurPlan] for why. The vertical pass renders at the output
@@ -268,6 +328,7 @@ internal class BrowserCompositor private constructor(
     gl.bindTexture(GL_TEXTURE_2D, source)
     gl.uniform2f(quadScale, clip.coverHalfW, clip.coverHalfH)
     gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
+    drawClipOverlays(clip, clip.coverHalfW, clip.coverHalfH)
 
     gl.useProgram(blur.program)
 
@@ -372,6 +433,7 @@ internal class BrowserCompositor private constructor(
   }
 
   fun release() {
+    overlayPass?.release()
     hdr?.let { pass ->
       pass.planeTextures.forEach { gl.deleteTexture(it) }
       gl.deleteProgram(pass.unpackProgram)
@@ -441,11 +503,8 @@ internal class BrowserCompositor private constructor(
       gl.viewport(0, 0, width, height)
       val (clearRed, clearGreen, clearBlue) = fill.clearColor(hdrTransfer)
       gl.clearColor(clearRed, clearGreen, clearBlue, 1f)
-      // Source-over onto the fill's opaque clear, which is what puts the fill's colour in a
-      // letterbox bar. The alpha factors keep the result opaque, which the context's premultiplied
-      // alpha needs and which matches an encoder that discards alpha anyway.
       gl.enable(GL_BLEND)
-      gl.blendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
+      gl.blendOntoFill()
 
       val hdr = hdrTransfer?.let { buildHdrPass(gl, width, height, it, buffer) }
       val blur =
@@ -755,6 +814,17 @@ internal class BrowserCompositor private constructor(
       "This context cannot render into a float framebuffer, so an HDR grade has nowhere to " +
         "composite. EXT_color_buffer_float is missing."
   }
+}
+
+/**
+ * Source over onto the fill's opaque clear, which is what puts the fill's colour in a letterbox bar. The alpha factors
+ * keep the result opaque, which the context's premultiplied alpha needs and which matches an encoder that discards
+ * alpha anyway.
+ *
+ * A pass that blends another way sets its own function for its draws and puts this one back after them.
+ */
+internal fun WebGl2.blendOntoFill() {
+  blendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
 }
 
 /**
@@ -1242,6 +1312,8 @@ private fun gaussianWeights(
 }
 
 private val UNIT_QUAD = floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f)
+private val IDENTITY_3 = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f)
+private val IDENTITY_4 = floatArrayOf(1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f)
 
 private const val QUAD_VERTICES = 4
 

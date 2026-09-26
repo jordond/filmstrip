@@ -1,11 +1,31 @@
 package dev.jordond.filmstrip.playback
 
 import dev.jordond.filmstrip.Cancellable
+import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.placedOn
+import dev.jordond.filmstrip.effects.overlay.rectOn
+import dev.jordond.filmstrip.geometry.Corner
+import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.PlatformImage
+import dev.jordond.filmstrip.playback.contract.asTestFrame
+import dev.jordond.filmstrip.playback.contract.awaitComposition
+import dev.jordond.filmstrip.playback.contract.awaitContract
+import dev.jordond.filmstrip.playback.contract.awaitFrame
 import dev.jordond.filmstrip.playback.contract.contractTest
 import dev.jordond.filmstrip.playback.contract.settle
+import dev.jordond.filmstrip.playback.contract.withEngine
+import dev.jordond.filmstrip.playback.internal.BrowserPlayerEngine
+import dev.jordond.filmstrip.playback.internal.BrowserPreviewPlanner
+import dev.jordond.filmstrip.player.PlayerConfig
+import dev.jordond.filmstrip.player.PreviewQualityPolicy
+import dev.jordond.filmstrip.player.ReadbackFrame
+import dev.jordond.filmstrip.player.SetCompositionResult
+import dev.jordond.filmstrip.test.AuthoredColours
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.test.assertFramesSimilar
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
@@ -15,11 +35,15 @@ import dev.jordond.filmstrip.transform.internal.seekTolerance
 import io.kotest.assertions.withClue
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.test.Test
 import kotlin.test.fail
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * What the strip's frames have to agree with, which is the file an export writes.
@@ -50,6 +74,53 @@ class WebThumbnailContractTest {
       } finally {
         thumbnail.image.close()
       }
+    }
+
+  // A thumbnail lowers through the preview's planner, which waits for the badge to decode first, so an
+  // image overlay is drawn rather than refused as one the planner has not seen.
+  @Test
+  fun `a thumbnail under an image overlay draws the badge`() =
+    contractTest {
+      val badge = ImageOverlay(BADGE, Corner.TopEnd)
+      val composition = webFixtureComposition(listOf(badge))
+      val request =
+        ThumbnailRequest(composition, PROBE_POSITIONS.first(), FIXTURE_FRAME.height, REVISION, precise = true)
+
+      val thumbnail = source(request).awaitThumbnail(request)
+      try {
+        val frame = thumbnail.frame()
+        val rect = badge.placedOn(frame.size, BADGE_SIZE).rectOn(frame.size)
+        assertReads(Rgb.of(BADGE_COLOUR), frame.around(rect), "the badge at ${thumbnail.presentationTime}")
+      } finally {
+        thumbnail.image.close()
+      }
+    }
+
+  // The export paints the fill across a gap and draws the composition's overlays over it, so a tile
+  // there reads the fill and the badge rather than whichever clip frame sits nearest.
+  @Test
+  fun `a thumbnail inside a leading gap draws the fill and the composition overlay`() =
+    contractTest {
+      val badge = ImageOverlay(BADGE, Corner.TopEnd)
+      val request = ThumbnailRequest(lateComposition(badge), IN_GAP, FIXTURE_FRAME.height, REVISION, precise = true)
+
+      val thumbnail = source(request).awaitThumbnail(request)
+      try {
+        thumbnail.presentationTime shouldBe IN_GAP
+        assertGapDrawn(thumbnail.frame(), badge, "the thumbnail at $IN_GAP")
+      } finally {
+        thumbnail.image.close()
+      }
+    }
+
+  @Test
+  fun `a frame read inside a leading gap draws the fill and the composition overlay`() =
+    contractTest { scope ->
+      val badge = ImageOverlay(BADGE, Corner.TopEnd)
+      val frame = readback(scope, lateComposition(badge), IN_GAP)
+
+      frame.presentationTime shouldBe IN_GAP
+      assertGapDrawn(frame.asTestFrame(), badge, "the frame read at $IN_GAP")
     }
 
   /**
@@ -95,6 +166,48 @@ class WebThumbnailContractTest {
       source(request).awaitThumbnail(request).image.close()
     }
 
+  private fun assertGapDrawn(
+    frame: TestFrame,
+    badge: ImageOverlay,
+    what: String,
+  ) {
+    frame.size shouldBe FIXTURE_FRAME
+    val rect = badge.placedOn(frame.size, BADGE_SIZE).rectOn(frame.size)
+    val mirrored = NormalizedRect(1f - rect.right, rect.top, 1f - rect.left, rect.bottom)
+    assertReads(Rgb.of(BADGE_COLOUR), frame.around(rect), "$what, the badge")
+    assertReads(Rgb.of(GAP_FILL), frame.around(mirrored), "$what, the fill across from the badge")
+    assertReads(Rgb.of(GAP_FILL), frame.around(CENTRE), "$what, the fill in the middle")
+  }
+
+  private suspend fun readback(
+    scope: CoroutineScope,
+    composition: EditComposition,
+    position: Duration,
+  ): ReadbackFrame {
+    val engine =
+      BrowserPlayerEngine(
+        parent = scope,
+        planner = BrowserPreviewPlanner(CONTRACT_COMPONENTS),
+        config = PlayerConfig(),
+      )
+    var frame: ReadbackFrame? = null
+    withEngine(engine) { recorder ->
+      engine.setQualityPolicy(PreviewQualityPolicy.Full)
+      engine.awaitComposition(composition).shouldBeInstanceOf<SetCompositionResult.Success>()
+      awaitContract("the preview to be presentable") { recorder.lastState.hasComposition }
+      frame = engine.readback.awaitFrame(position)
+    }
+    return frame ?: fail("no frame was read at $position")
+  }
+
+  // The fixture clip waits GAP_LENGTH on its track, so the composition opens on a gap the fill covers.
+  private fun lateComposition(badge: ImageOverlay): EditComposition {
+    val fixture = webFixtureComposition(listOf(badge))
+    return fixture
+      .withTracks(listOf(Track(fixture.clips, start = GAP_LENGTH)))
+      .withFill(Fill.Solid(GAP_FILL))
+  }
+
   private fun source(request: ThumbnailRequest): ThumbnailSource =
     createThumbnailSource(request, CONTRACT_COMPONENTS) ?: fail("no thumbnail source claimed the fixture")
 
@@ -105,6 +218,17 @@ class WebThumbnailContractTest {
     // An effect over the whole composition, so a source that quietly skipped the chain would hand
     // back the source frame and fail rather than pass.
     const val DIM = 0.4f
+
+    val GAP_LENGTH = 1.seconds
+
+    // On the fixture's frame grid, and well clear of where the clip starts.
+    val IN_GAP = 400.milliseconds
+
+    // The badge is the other authored colour, so a reading of one cannot pass as the other.
+    const val GAP_FILL = AuthoredColours.MID_GREY
+
+    // A small block in the middle of the frame, away from the badge's corner.
+    val CENTRE = NormalizedRect(0.45f, 0.45f, 0.55f, 0.55f)
   }
 }
 

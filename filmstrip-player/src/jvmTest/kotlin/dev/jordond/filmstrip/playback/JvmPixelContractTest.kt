@@ -56,10 +56,5 @@ class JvmPixelContractTest : PlayerPixelContractTest() {
   private companion object {
     const val DIM = 0.4f
     const val BRIGHT = 1.4f
-
-    // The pair measures 46.6 dB and 0.992 at 300ms and 45.5 dB and 0.991 at 900ms, so these leave a
-    // few dB of headroom for a slower machine's encoder settling somewhere else.
-    const val ENCODED_MIN_PSNR_DB = 42.0
-    const val ENCODED_MIN_SSIM = 0.985
   }
 }

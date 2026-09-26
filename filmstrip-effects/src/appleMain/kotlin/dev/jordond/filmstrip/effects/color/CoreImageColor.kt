@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects.color
 
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.SDR_DISPLAY_GAMMA
@@ -7,20 +8,35 @@ import dev.jordond.filmstrip.media.brightnessDisplayGain
 import dev.jordond.filmstrip.media.displayLightCeiling
 import dev.jordond.filmstrip.media.sdrSignalCeiling
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.ptr
+import platform.CoreFoundation.CFDictionaryCreateMutable
+import platform.CoreFoundation.CFDictionarySetValue
+import platform.CoreFoundation.CFRelease
+import platform.CoreFoundation.kCFTypeDictionaryKeyCallBacks
+import platform.CoreFoundation.kCFTypeDictionaryValueCallBacks
 import platform.CoreGraphics.CGColorSpaceCreateWithName
+import platform.CoreGraphics.CGColorSpaceRef
 import platform.CoreGraphics.CGColorSpaceRelease
 import platform.CoreGraphics.kCGColorSpaceExtendedLinearITUR_2020
+import platform.CoreGraphics.kCGColorSpaceITUR_2020
 import platform.CoreImage.CIImage
 import platform.CoreImage.CIVector
+import platform.CoreVideo.CVImageBufferCreateColorSpaceFromAttachments
+import platform.CoreVideo.kCVImageBufferColorPrimariesKey
+import platform.CoreVideo.kCVImageBufferColorPrimaries_ITU_R_709_2
+import platform.CoreVideo.kCVImageBufferTransferFunctionKey
+import platform.CoreVideo.kCVImageBufferTransferFunction_ITU_R_709_2
+import platform.CoreVideo.kCVImageBufferYCbCrMatrixKey
+import platform.CoreVideo.kCVImageBufferYCbCrMatrix_ITU_R_709_2
 
 /**
  * Recombines the colour channels through [matrix], in the encoded domain the matrix is written for.
  *
  * A `CIContext` works in linear light, so a bare colour matrix would mix light rather than signal
- * and land somewhere the three backends that mix what the encoder writes never do. The tone curve
- * either side moves the frame into the encoded domain for the matrix and back out again. The clamp
- * runs once here rather than around each effect, since a run of colour effects has already been
- * folded into this one matrix by the time it arrives.
+ * and land somewhere the three backends that mix what the encoder writes never do. An SDR frame is
+ * carried into the codes of its own [colorSpace] for the matrix and back out again, so the matrix
+ * mixes the values the encoder writes. The clamp runs once here rather than around each effect,
+ * since a run of colour effects has already been folded into this one matrix by the time it arrives.
  *
  * On a kept grade the frame is display referred linear light with reference white at one, for PQ
  * and HLG alike, so the encoded domain is a bare power of it and the matrix runs between a gamma
@@ -41,7 +57,7 @@ import platform.CoreImage.CIVector
  * it is multiplied by alpha. Core Image holds a frame premultiplied, and a bias vector would lift a
  * transparent pixel off black into a colour a later blend then reads as real.
  *
- * @param colorSpace The primaries the frame is written in, read only on a grade.
+ * @param colorSpace The colour space the frame is written in.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun CIImage.withColorMatrix(
@@ -68,11 +84,62 @@ internal fun CIImage.withColorMatrix(
     }
   }
 
-  return imageByApplyingFilter("CILinearToSRGBToneCurve")
-    .recombined(matrix)
-    .imageByApplyingFilter("CIColorClamp")
-    .imageByApplyingFilter("CISRGBToneCurveToLinear")
+  return inCodesOf(colorSpace) { toCodes ->
+    toCodes(this).recombined(matrix).imageByApplyingFilter("CIColorClamp")
+  }
 }
+
+/**
+ * Runs [block] on the code values an SDR frame in [colorSpace] is written with, and carries what it
+ * returns back to the working space.
+ *
+ * Core Image decodes a frame into its linear working space through the colour space the frame is
+ * tagged with. [block] is handed the step that inverts that decode, so every image it moves through
+ * that step carries the frame's own codes, the values the other backends read straight off the
+ * buffer.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal inline fun inCodesOf(
+  colorSpace: ColorSpace,
+  block: (toCodes: (CIImage) -> CIImage) -> CIImage,
+): CIImage {
+  val space = colorSpace.createCodeSpace()
+
+  try {
+    val encoded = block { image -> image.imageByColorMatchingWorkingSpaceToColorSpace(space) ?: image }
+    return encoded.imageByColorMatchingColorSpaceToWorkingSpace(space) ?: encoded
+  } finally {
+    CGColorSpaceRelease(space)
+  }
+}
+
+/**
+ * Creates the colour space an SDR frame in this space holds its codes in. The caller releases it.
+ *
+ * BT.2020 gets Core Graphics' named BT.2020 space. Every other space gets the one CoreVideo builds
+ * from a buffer tagged with BT.709 primaries, transfer and matrix, the space AVFoundation decodes an
+ * SDR source frame through and encodes an SDR composition's output through. A colour tagged with it
+ * lands in the buffer as the codes it was given, so an SDR effect, fill or overlay uses it to work on
+ * the frame's own codes.
+ */
+@InternalFilmstripApi
+@OptIn(ExperimentalForeignApi::class)
+public fun ColorSpace.createCodeSpace(): CGColorSpaceRef? {
+  if (this == ColorSpace.Bt2020) return CGColorSpaceCreateWithName(kCGColorSpaceITUR_2020)
+
+  val attachments =
+    CFDictionaryCreateMutable(null, BT709_TAGS, kCFTypeDictionaryKeyCallBacks.ptr, kCFTypeDictionaryValueCallBacks.ptr)
+  CFDictionarySetValue(attachments, kCVImageBufferColorPrimariesKey, kCVImageBufferColorPrimaries_ITU_R_709_2)
+  CFDictionarySetValue(attachments, kCVImageBufferTransferFunctionKey, kCVImageBufferTransferFunction_ITU_R_709_2)
+  CFDictionarySetValue(attachments, kCVImageBufferYCbCrMatrixKey, kCVImageBufferYCbCrMatrix_ITU_R_709_2)
+  try {
+    return CVImageBufferCreateColorSpaceFromAttachments(attachments)
+  } finally {
+    CFRelease(attachments)
+  }
+}
+
+private const val BT709_TAGS = 3L
 
 // Both spaces are linear and extended, so the trip each way is one matrix and a channel outside the
 // sRGB gamut survives it as a negative rather than being cut off. Anything but BT.2020 already

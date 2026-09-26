@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.avfoundation.internal
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.FrameInfo
 import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.OutputFormat
@@ -16,6 +17,8 @@ import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.coverScale
 import dev.jordond.filmstrip.transform.internal.derivesFromFrame
+import dev.jordond.filmstrip.transform.internal.effectsOverFill
+import dev.jordond.filmstrip.transform.internal.effectsUnderFill
 import dev.jordond.filmstrip.transform.internal.sigmaFor
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -50,10 +53,10 @@ import kotlin.time.Duration
  * segment its slot was cut from. The clip's container rotation is baked in next, then its own
  * effects run, then composition-level geometry, then the frame is pinned to [OutputFormat.size].
  * Composition-level effects run next, over the picture that frame produced. A named fill colour is
- * only painted into whatever the picture does not cover once those effects have finished, so a grade
- * never reaches a bar or a gap it was not given a colour for. That is the same order Android's
- * pipeline runs, which is what makes a normalised measurement in a composition-level effect a
- * fraction of the same frame on either platform.
+ * painted into whatever the picture does not cover once every effect but the overlays has run, so a
+ * grade never reaches a bar or a gap it was not given a colour for, and the overlays then draw over
+ * the whole frame, bars and gaps included. That is the same order every backend runs, which is what
+ * makes a normalised measurement in a composition-level effect a fraction of the same frame on each.
  *
  * There is no overlay batching here and no analogue of Android's sampler budget. Core Image fuses a
  * chain of composites into one pass over the frame, whereas media3 spends a whole render pass per
@@ -209,6 +212,10 @@ public class CoreImageChain internal constructor(
       span.still?.let { image = stills.of(it) }
       image = image.rotated(span.rotationDegrees)
       image = image.stepped(span.effects, FrameInfo(span.attributes, drawnAt))
+    } else {
+      // A gap has no picture. The placeholder AVFoundation hands back is opaque black, and laid in as
+      // the picture it would cover the fill across the whole frame, so it goes in as clear instead.
+      image = image.cleared()
     }
 
     image = image.stepped(resolved.compositionGeometry, FrameInfo(state.geometryAttributes, drawnAt))
@@ -219,18 +226,19 @@ public class CoreImageChain internal constructor(
     val frame = FrameInfo(state.compositionAttributes, drawnAt)
 
     if (fill.derivesFromFrame) {
-      // Picture, not furniture: today's order is the contract, so the fill is composited in first
-      // and the composition's own effects grade it along with the rest of the frame.
+      // Picture, not furniture: the fill is composited in first and the composition's own effects
+      // grade it along with the rest of the frame.
       image = image.fittedTo(size, resolved.fit, fill, state.encodedTransfer)
-      return image.stepped(resolved.compositionEffects, frame)
+      return image.stepped(resolved.effectsUnderFill, frame).stepped(resolved.effectsOverFill, frame)
     }
 
-    // A named colour is furniture. It is laid in without the fill composited yet, graded, and only
-    // blended against the fill afterwards, so a composition effect never reaches a colour it was
-    // not given to grade.
+    // A named colour is furniture. The picture is laid in without the fill and graded, then blended
+    // against the fill so no grade reaches it, and only then do the overlays draw, over bars and
+    // gaps as well as the picture.
     val laid = image.laidInto(size, resolved.fit)
-    val graded = laid.stepped(resolved.compositionEffects, frame)
-    return graded.over(image.fillImage(fill, size, state.encodedTransfer), mask = laid, size = size)
+    val graded = laid.stepped(resolved.effectsUnderFill, frame)
+    val flattened = graded.over(image.fillImage(fill, size, state.encodedTransfer), mask = laid, size = size)
+    return flattened.stepped(resolved.effectsOverFill, frame)
   }
 
   /**
@@ -238,6 +246,10 @@ public class CoreImageChain internal constructor(
    *
    * A resolver is third-party code and this is the only place it runs, so which spec it was is
    * knowable here and nowhere later.
+   *
+   * A [EffectStage.Composite] step is cut back to the frame it was handed. An overlay an offset
+   * carries past the edge would otherwise grow the image, and a clip laid into the output by its
+   * extent would move over to make room for it.
    */
   private fun CIImage.stepped(
     effects: List<ResolvedEffect>,
@@ -245,12 +257,14 @@ public class CoreImageChain internal constructor(
   ): CIImage {
     var image = this
     effects.forEach { resolved ->
+      val input = image
       image =
         try {
-          resolved.effect.step.apply(image, frame)
+          resolved.effect.step.apply(input, frame)
         } catch (broken: Exception) {
           throw StepFailure(resolved.specId, broken.message ?: broken.toString())
         }
+      if (resolved.stage == EffectStage.Composite) image = image.imageByCroppingToRect(input.extent)
     }
     return image
   }
@@ -459,6 +473,9 @@ public class CoreImageChain internal constructor(
       ),
     )
   }
+
+  // Clear over this image's own extent, so geometry measuring the frame still sees its size.
+  private fun CIImage.cleared(): CIImage = CIImage(color = CIColor.clearColor).imageByCroppingToRect(extent)
 
   // Core Image transforms about the coordinate origin, so a rotation pushes the extent into
   // negative space and it has to be brought back.

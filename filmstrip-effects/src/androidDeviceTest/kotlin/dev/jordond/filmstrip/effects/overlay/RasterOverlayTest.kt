@@ -6,9 +6,11 @@ import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.style.TextStyle
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Duration
@@ -21,7 +23,8 @@ import kotlin.time.Duration.Companion.seconds
  * On a device because every type in the answer is a framework one: the bitmap, the pairs media3
  * carries its anchors in, and the builder that holds them. `AndroidOverlayTest` measures the pixels
  * these produce, and this is the half that would not show up there, which is whether a still
- * overlay still costs nothing per frame and where the anchor clamp lands.
+ * overlay still costs nothing per frame and where the anchor clamp lands. It also pins the text raster's size
+ * against the shared text metrics.
  */
 class RasterOverlayTest {
   @Test
@@ -127,6 +130,34 @@ class RasterOverlayTest {
     assertTrue(abs(scale.second - drawn.height.toFloat() / RASTER.height) < TOLERANCE, "height: $scale")
   }
 
+  @Test
+  fun aPlateWidensTheRasterByItsPaddingOnEverySide() {
+    val plated = TextStyle(fontSize = FONT_SIZE, backgroundColor = PLATE, maxWidth = MAX_WIDTH)
+    val unplated = TextStyle(fontSize = FONT_SIZE, maxWidth = MAX_WIDTH)
+
+    val withPlate = assertNotNull(rasterizeText(WORD, plated, FRAME))
+    val without = assertNotNull(rasterizeText(WORD, unplated, FRAME))
+
+    val padding = plated.platePaddingOn(FRAME)
+    assertEquals(without.width + 2 * padding, withPlate.width)
+    assertEquals(without.height + 2 * padding, withPlate.height)
+  }
+
+  @Test
+  fun textWiderThanTheWrapWidthBreaksOntoASecondLine() {
+    val once = assertNotNull(rasterizeText(WORD, TextStyle(fontSize = FONT_SIZE, maxWidth = 1f), FRAME))
+
+    // A wrap width half again the word's own width holds the word once but not twice.
+    val style = TextStyle(fontSize = FONT_SIZE, maxWidth = 1.5f * once.width / FRAME.width)
+    val wrap = style.wrapWidthOn(FRAME)
+    assertTrue(once.width <= wrap && wrap < 2 * once.width, "wrap $wrap against a word ${once.width} wide")
+
+    val twice = assertNotNull(rasterizeText("$WORD $WORD", style, FRAME))
+
+    assertEquals(2 * once.height, twice.height)
+    assertTrue(twice.width <= wrap, "a ${twice.width} wide raster outgrew its $wrap wrap")
+  }
+
   private fun overlayFor(
     spec: OverlayEffect,
     frameAnchor: Anchor = Anchor.Center,
@@ -155,5 +186,11 @@ class RasterOverlayTest {
     const val ONE_SECOND_US = 1_000_000L
     const val TWO_SECONDS_US = 2_000_000L
     const val TOLERANCE = 1e-4f
+
+    val FRAME = Size(1920, 1080)
+    const val WORD = "Filmstrip"
+    const val FONT_SIZE = 0.06f
+    const val MAX_WIDTH = 0.55f
+    const val PLATE = 0x80000000.toInt()
   }
 }

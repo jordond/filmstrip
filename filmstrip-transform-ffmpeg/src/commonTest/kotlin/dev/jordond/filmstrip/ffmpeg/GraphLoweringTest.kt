@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.AuxInput
+import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.PlatformEffect
@@ -210,6 +211,42 @@ class GraphLoweringTest {
     graph shouldContain "format=pix_fmts=yuva420p"
     graph shouldContain "color=c=0x000000:s=1920x1080:r=30"
     graph shouldContain "overlay=shortest=1"
+  }
+
+  // The fill goes in after the colour effect and before the overlay, so the overlay draws on an opaque frame with
+  // the bars already painted.
+  @Test
+  fun `flattens the fill between a colour effect and a composition overlay`() {
+    val graph =
+      graphFor(fill = Fill.Solid(0xFFFF0000.toInt()), compositionEffects = listOf(compositionEffect(), logoOverlay()))
+
+    val effectIndex = graph.indexOf("eq=brightness=0.1")
+    val fillIndex = graph.indexOf("color=c=0xff0000:s=1920x1080:r=30")
+    val flattenIndex = graph.indexOf("overlay=shortest=1")
+    val overlayIndex = graph.indexOf("overlay=x=0:y=0")
+    assertTrue(effectIndex in 0 until fillIndex, "the colour effect ran at $effectIndex, the fill at $fillIndex")
+    assertTrue(fillIndex in 0 until flattenIndex, "the fill came at $fillIndex, the flatten at $flattenIndex")
+    assertTrue(flattenIndex in 0 until overlayIndex, "the flatten ran at $flattenIndex, the overlay at $overlayIndex")
+    graph shouldContain "[vflat][vfx1a0]overlay=x=0:y=0[vfx1]"
+  }
+
+  // Nothing ahead of an overlay can reach the fill, so the bars and the gap take its colour straight away and the
+  // overlay draws on an opaque frame.
+  @Test
+  fun `a composition with only overlays paints the fill straight in`() {
+    val graph =
+      graphFor(
+        fill = Fill.Solid(0xFFFF0000.toInt()),
+        trackStart = 500.milliseconds,
+        compositionEffects = listOf(logoOverlay()),
+      )
+
+    graph shouldContain "pad=w=1920:h=1080:x=(ow-iw)/2:y=(oh-ih)/2:color=0xff0000"
+    graph shouldContain "tpad=start=${outputSlotOf(500.milliseconds, 30)}:color=0xff0000"
+    graph shouldContain "overlay=x=0:y=0"
+    graph shouldNotContain "yuva420p"
+    graph shouldNotContain "black@0"
+    graph shouldNotContain "overlay=shortest=1"
   }
 
   // overlay writes 8-bit yuv420 unless it is asked not to, so any overlay left at that default takes
@@ -628,6 +665,7 @@ class GraphLoweringTest {
               merge = FilterNode("overlay", "x" to "0", "y" to "0"),
             ),
           ),
+        stage = EffectStage.Composite,
       )
 
     val graph = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(merging))
@@ -654,6 +692,7 @@ class GraphLoweringTest {
               merge = FilterNode("overlay", "x" to "0", "y" to "0"),
             ),
           ),
+        stage = EffectStage.Composite,
       )
 
     val invocation = invocationFor(fill = Fill.Solid(0), compositionEffects = listOf(overlay))
@@ -677,6 +716,7 @@ class GraphLoweringTest {
               merge = FilterNode("overlay", "x" to "0", "y" to "0"),
             ),
           ),
+        stage = EffectStage.Composite,
       )
 
     val graph = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(overlay))
@@ -689,6 +729,20 @@ class GraphLoweringTest {
     ResolvedEffect(
       specId = "test.brightness",
       effect = PlatformEffect(FilterFragment(chain = listOf(FilterNode("eq", "brightness" to "0.1")))),
+      stage = EffectStage.Color,
+    )
+
+  private fun logoOverlay(): ResolvedEffect =
+    ResolvedEffect(
+      specId = "test.overlay",
+      effect =
+        PlatformEffect(
+          FilterFragment(
+            auxInputs = listOf(AuxInput(ImageSource.of("/logo.png"))),
+            merge = FilterNode("overlay", "x" to "0", "y" to "0"),
+          ),
+        ),
+      stage = EffectStage.Composite,
     )
 
   private fun gradeEffect(sidecar: Sidecar): ResolvedEffect =
@@ -701,6 +755,7 @@ class GraphLoweringTest {
             sidecars = listOf(sidecar),
           ),
         ),
+      stage = EffectStage.Color,
     )
 
   private fun graphFor(

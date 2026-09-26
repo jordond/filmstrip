@@ -60,7 +60,7 @@ class AndroidPixelContractTest : PlayerPixelContractTest() {
     position: Duration,
   ): TestFrame = androidExportFrame(composition, position)
 
-  override val minSsim: Double get() = MIN_SSIM
+  override val minSsim: Double get() = ENCODED_MIN_SSIM
 
   /**
    * The frame a photo draws is the one the file carries, which `FrameExtractor` cannot answer for.
@@ -90,7 +90,7 @@ class AndroidPixelContractTest : PlayerPixelContractTest() {
         assertFramesSimilar(
           expected = androidExportFrame(composition, preview.presentationTime),
           actual = frame,
-          minSsim = MIN_SSIM,
+          minSsim = ENCODED_MIN_SSIM,
           message = "the preview and the export disagree inside the photo at ${preview.presentationTime}",
         )
       }
@@ -127,7 +127,7 @@ class AndroidPixelContractTest : PlayerPixelContractTest() {
               expected = export,
               actual = frame,
               minPsnrDb = PAN_MIN_PSNR_DB,
-              minSsim = MIN_SSIM,
+              minSsim = ENCODED_MIN_SSIM,
               message = "the preview and the export disagree $fraction through the pan",
             )
             frame
@@ -145,7 +145,7 @@ class AndroidPixelContractTest : PlayerPixelContractTest() {
           expected = exported.last(),
           actual = drawn.first(),
           minPsnrDb = PAN_MIN_PSNR_DB,
-          minSsim = MIN_SSIM,
+          minSsim = ENCODED_MIN_SSIM,
           message = "the reading at ${PAN_FRACTIONS.first()} matched the export at ${PAN_FRACTIONS.last()}",
         )
       }
@@ -233,7 +233,7 @@ class AndroidPixelContractTest : PlayerPixelContractTest() {
         assertFramesSimilar(
           expected = opening,
           actual = closing,
-          minSsim = MIN_SSIM,
+          minSsim = TWO_PREVIEW_MIN_SSIM,
           message = "the two video spans of one repeated clip drew different frames",
         )
       }
@@ -261,15 +261,13 @@ class AndroidPixelContractTest : PlayerPixelContractTest() {
         assertFramesSimilar(
           expected = androidExportFrame(composition, preview.presentationTime),
           actual = frame,
-          minSsim = MIN_SSIM,
+          minSsim = ENCODED_MIN_SSIM,
           message = "a photo-only preview and its export disagree at ${preview.presentationTime}",
         )
       }
     }
 
   private companion object {
-    const val MIN_SSIM = 0.985
-
     // The split photo carries a hard colour edge, which is the one thing an encoder rings on and
     // which none of the flat fixtures have. An unbroken pair scores 38.1 dB and 0.997 across it,
     // against 40 dB for a flat one, so the floor comes down for this fixture and no other. A

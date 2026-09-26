@@ -14,8 +14,11 @@ import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.transform.internal.GainSegment
 import dev.jordond.filmstrip.transform.internal.NegotiatedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedHdr
+import dev.jordond.filmstrip.transform.internal.effectsOverFill
+import dev.jordond.filmstrip.transform.internal.effectsUnderFill
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.paintsFillAfterEffects
 import dev.jordond.filmstrip.transform.internal.videoSlots
@@ -80,23 +83,27 @@ internal class GraphLowering(
       ?.first()
       ?.start
 
-  // Held back only when a composition effect could actually see the fill: with none present the
-  // graph this writes is pixel-identical to the undeferred one, so keeping that simpler graph then
-  // is a cost optimisation, not a divergence.
-  private val deferFill: Boolean =
-    negotiated.paintsFillAfterEffects && negotiated.compositionEffects.isNotEmpty()
+  // The composition effects either side of a colour fill. Overlays run over it, so they draw on the
+  // bars and gaps as well as the picture. Everything else runs under it and never reaches it.
+  private val effectsUnderFill = negotiated.effectsUnderFill
+  private val effectsOverFill = negotiated.effectsOverFill
+
+  // Held back only when an effect under the fill could actually see it: with none there the graph
+  // this writes is pixel-identical to the undeferred one, so keeping that simpler graph then is a
+  // cost optimisation, not a divergence. A composition carrying only overlays paints the fill
+  // straight in and never goes through an alpha format.
+  private val deferFill: Boolean = negotiated.paintsFillAfterEffects && effectsUnderFill.isNotEmpty()
 
   // The format a clip's tail actually ends on. Alpha is what marks a pixel the fill has not painted
-  // yet, so every clip carries it through concat and the composition effects while the fill is
+  // yet, so every clip carries it through concat and the effects under the fill while the fill is
   // deferred. A composition filter that cannot carry an alpha channel would flatten that marker to
-  // opaque before the final overlay ever sees it, but every filter this backend's own effect chain
-  // lowers to can.
+  // opaque before the flatten ever sees it, but every filter this backend's own effect chain lowers
+  // to can.
   private val tailPixelFormat: String = if (deferFill) alphaPixelFormat(pixelFormat) else pixelFormat
 
   // The colour a pad or tpad frame renders where there is nothing there yet: transparent while the
-  // fill is deferred, so the flatten at the end of the graph can tell an empty pixel from one it
-  // painted itself. The fill's own colour otherwise, since nothing runs after it to need telling
-  // apart.
+  // fill is deferred, so the flatten can tell an empty pixel from one it painted itself. The fill's
+  // own colour otherwise, since nothing under the fill runs after it to need telling apart.
   private val padColor: String = if (deferFill) transparentColor() else fillColor(negotiated.fill)
 
   fun build(): Invocation {
@@ -249,11 +256,41 @@ internal class GraphLowering(
     }
 
     // Composition Colour, Spatial and Composite effects run once, after the join. Only Geometry has
-    // to be fanned onto each clip, and the negotiator already did that.
-    negotiated.compositionEffects.forEachIndexed { index, resolved ->
+    // to be fanned onto each clip, and the negotiator already did that. The effects under the fill
+    // run first, then a deferred fill is painted in, then the overlays draw on the opaque frame.
+    current = compositionEffects(effectsUnderFill, current, firstIndex = 0)
+    if (deferFill) {
+      current = flattenOntoFill(restateGrade(current, "vgrade"))
+      current = compositionEffects(effectsOverFill, current, firstIndex = effectsUnderFill.size)
+      if (effectsOverFill.isNotEmpty()) current = restateGrade(current, "vgradeover")
+    } else {
+      current = compositionEffects(effectsOverFill, current, firstIndex = effectsUnderFill.size)
+      if (negotiated.compositionEffects.isNotEmpty()) current = restateGrade(current, "vgrade")
+    }
+
+    // A terminal chain, so the mapped pad has a name of its own and the composition's duration is
+    // enforced in the graph rather than trusted from the inputs.
+    val out = "vout"
+    graph.chain(listOf(current), heldTailNodes() + listOf(trimTo(duration), SETPTS), out)
+    return out
+  }
+
+  /**
+   * Runs [effects] over [read] in order and returns the pad the last one wrote.
+   *
+   * Each effect writes a pad numbered from [firstIndex], so the effects either side of the fill
+   * number on from each other and no two share a label.
+   */
+  private fun compositionEffects(
+    effects: List<ResolvedEffect>,
+    read: String,
+    firstIndex: Int,
+  ): String {
+    var current = read
+    effects.forEachIndexed { offset, resolved ->
       val fragment = resolved.effect.fragment
       sidecars += fragment.sidecars
-      val label = "vfx$index"
+      val label = "vfx${firstIndex + offset}"
       val merge = fragment.merge
       if (merge == null) {
         graph.chain(listOf(current), fragment.chain.ifEmpty { listOf(NULL_VIDEO) }, label)
@@ -262,55 +299,66 @@ internal class GraphLowering(
         // ahead of the merge goes onto a pad of its own rather than between the labels and the
         // merge that reads them. An effect contributing nothing reads the pad it was handed, which
         // is every overlay in the catalogue and leaves their graphs as they were.
-        val read =
+        val input =
           if (fragment.chain.isEmpty()) {
             current
           } else {
             "${label}pre".also { graph.chain(listOf(current), fragment.chain, it) }
           }
-        graph.chain(listOf(read) + auxPads(fragment.auxInputs, label), listOf(merge), label)
+        graph.chain(listOf(input) + auxPads(fragment.auxInputs, label), listOf(merge), label)
       }
       current = label
     }
+    return current
+  }
 
-    // The effect chain is where a frame can go through RGB and come back, and what comes back is
-    // untagged. ffmpeg 7 and newer reads the grade off the frames either side of it, but below that
-    // the conversion out of RGB falls back to BT.601 and the picture is written through the wrong
-    // matrix.
-    gradeNodes().takeIf { it.isNotEmpty() && negotiated.compositionEffects.isNotEmpty() }?.let { nodes ->
-      val graded = "vgrade"
-      graph.chain(listOf(current), nodes, graded)
-      current = graded
-    }
+  /**
+   * Restates the grade on [read] onto a pad named [label], or hands [read] back when there is none.
+   *
+   * The effect chain is where a frame can go through RGB and come back, and what comes back is
+   * untagged. ffmpeg 7 and newer reads the grade off the frames either side of it, but below that
+   * the conversion out of RGB falls back to BT.601 and the picture is written through the wrong
+   * matrix.
+   */
+  private fun restateGrade(
+    read: String,
+    label: String,
+  ): String {
+    val nodes = gradeNodes()
+    if (nodes.isEmpty()) return read
 
-    val out = "vout"
-    if (deferFill) {
-      val background = "vbg"
-      graph.chain(
-        emptyList(),
-        listOf(
-          FilterNode(
-            "color",
-            "c" to fillColor(negotiated.fill),
-            "s" to "${output.size.width}x${output.size.height}",
-            "r" to frameRate.toString(),
-          ),
-        ) + gradeNodes(),
-        background,
-      )
-      graph.chain(
-        listOf(background, current),
-        listOf(overlayNode("shortest" to "1"), FilterNode("format", "pix_fmts" to pixelFormat)) +
-          heldTailNodes() +
-          listOf(trimTo(duration), SETPTS),
-        out,
-      )
-    } else {
-      // A terminal chain, so the mapped pad has a name of its own and the composition's duration is
-      // enforced in the graph rather than trusted from the inputs.
-      graph.chain(listOf(current), heldTailNodes() + listOf(trimTo(duration), SETPTS), out)
-    }
-    return out
+    graph.chain(listOf(read), nodes, label)
+    return label
+  }
+
+  /**
+   * Lays [read] over a frame of the fill's colour and returns the opaque pad that leaves.
+   *
+   * Every pixel no clip painted is still transparent here, so the fill shows through exactly there.
+   * The fill source runs forever, so the overlay ends with the frames laid over it.
+   */
+  private fun flattenOntoFill(read: String): String {
+    val background = "vbg"
+    graph.chain(
+      emptyList(),
+      listOf(
+        FilterNode(
+          "color",
+          "c" to fillColor(negotiated.fill),
+          "s" to "${output.size.width}x${output.size.height}",
+          "r" to frameRate.toString(),
+        ),
+      ) + gradeNodes(),
+      background,
+    )
+
+    val flattened = "vflat"
+    graph.chain(
+      listOf(background, read),
+      listOf(overlayNode("shortest" to "1"), FilterNode("format", "pix_fmts" to pixelFormat)),
+      flattened,
+    )
+    return flattened
   }
 
   /**

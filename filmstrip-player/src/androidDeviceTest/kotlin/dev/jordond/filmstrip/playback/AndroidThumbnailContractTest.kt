@@ -412,11 +412,10 @@ class AndroidThumbnailContractTest {
     // Where a run starts. The suite asks twice under the same edit, so the second run moves on.
     const val REVISION = 1L
 
-    // The fixture AndroidPixelContractTest pins the preview against, and its threshold. The effect
-    // is what makes the export re-encode through the same graph rather than pass the source
-    // through, so both sides of the comparison went the same way.
+    // The fixture AndroidPixelContractTest pins the preview against. The effect is what makes the
+    // export re-encode through the same graph rather than pass the source through, so both sides of
+    // the comparison went the same way.
     const val DIM = 0.4f
-    const val ENCODED_MIN_SSIM = 0.985
 
     // A relaxed request lands on a sync sample and nowhere else, and the fixture spends 28,612
     // bytes on the one at 966ms against 9,181 and 6,311 on the frames either side of it. The

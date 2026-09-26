@@ -2,10 +2,6 @@ package dev.jordond.filmstrip.media3
 
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.media.MediaMetadataRetriever
-import androidx.test.platform.app.InstrumentationRegistry
-import dev.jordond.filmstrip.CapabilitiesResult
-import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
@@ -14,24 +10,17 @@ import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.Contrast
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
-import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
-import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.toList
+import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
+import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.test.Test
-import kotlin.test.assertIs
 import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.minutes
 
 /**
  * The letterbox fill, checked against the pixels a real export writes.
@@ -41,14 +30,13 @@ import kotlin.time.Duration.Companion.minutes
  * confirm rather than only the plan.
  */
 class AndroidFillTest {
-  private val context = InstrumentationRegistry.getInstrumentation().targetContext
-  private val filmstrip = Filmstrip(context) { media3Backend() }
+  private val probe = Media3ExportProbe()
 
   @Test
   fun aSolidFillWritesBarsOfItsOwnColour() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
-      val bitmap = frame(export(source, effects = listOf(squareCrop()), fill = Fill.Solid(MAGENTA_ARGB)))
+      val source = probe.fixture()
+      val bitmap = probe.frame(export(source, effects = listOf(squareCrop()), fill = Fill.Solid(MAGENTA_ARGB)))
 
       val bar = bitmap.averageAt(CENTRE_X, BAR_Y)
       assertTrue(colourDistance(bar, MAGENTA) < COLOUR_TOLERANCE, "bar $bar is not magenta")
@@ -59,10 +47,10 @@ class AndroidFillTest {
   @Test
   fun aCompositionBrightnessLeavesASolidFillsBarsUntouched() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
-      val plain = frame(export(source, effects = listOf(squareCrop()), fill = Fill.Solid(MAGENTA_ARGB)))
+      val source = probe.fixture()
+      val plain = probe.frame(export(source, effects = listOf(squareCrop()), fill = Fill.Solid(MAGENTA_ARGB)))
       val dimmed =
-        frame(export(source, effects = listOf(squareCrop(), Brightness(0.5f)), fill = Fill.Solid(MAGENTA_ARGB)))
+        probe.frame(export(source, effects = listOf(squareCrop(), Brightness(0.5f)), fill = Fill.Solid(MAGENTA_ARGB)))
 
       val bar = dimmed.averageAt(CENTRE_X, BAR_Y)
       assertTrue(colourDistance(bar, MAGENTA) < COLOUR_TOLERANCE, "bar $bar is not magenta")
@@ -78,10 +66,10 @@ class AndroidFillTest {
   @Test
   fun aCompositionContrastLeavesASolidFillsBarsUntouched() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
-      val plain = frame(export(source, effects = listOf(squareCrop()), fill = Fill.Solid(MAGENTA_ARGB)))
+      val source = probe.fixture()
+      val plain = probe.frame(export(source, effects = listOf(squareCrop()), fill = Fill.Solid(MAGENTA_ARGB)))
       val graded =
-        frame(export(source, effects = listOf(squareCrop(), Contrast(0.5f)), fill = Fill.Solid(MAGENTA_ARGB)))
+        probe.frame(export(source, effects = listOf(squareCrop(), Contrast(0.5f)), fill = Fill.Solid(MAGENTA_ARGB)))
 
       val bar = graded.averageAt(CENTRE_X, BAR_Y)
       assertTrue(colourDistance(bar, MAGENTA) < COLOUR_TOLERANCE, "bar $bar is not magenta")
@@ -101,11 +89,11 @@ class AndroidFillTest {
   @Test
   fun aBlackFillStaysBlackThroughToneMapping() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(HDR_CLIP) ?: return@runTest
+      val source = probe.fixture(HDR_CLIP)
       // Tone mapping runs on a device with no HDR encoder, but not on one with no HDR decoder.
-      if (!decodesTenBitHevc()) return@runTest
+      probe.assumeDecodesTenBitHevc()
       val bitmap =
-        frame(
+        probe.frame(
           export(source, effects = listOf(squareCrop()), fill = Fill.Black, hdr = HdrMode.ToneMapToSdr),
         )
 
@@ -119,8 +107,8 @@ class AndroidFillTest {
   @Test
   fun aBlurredFillIsNeitherBlackNorFlat() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
-      val bitmap = frame(export(source, effects = listOf(squareCrop()), fill = Fill.Blurred()))
+      val source = probe.fixture()
+      val bitmap = probe.frame(export(source, effects = listOf(squareCrop()), fill = Fill.Blurred()))
 
       val left = bitmap.averageAt(LEFT_X, BAR_Y)
       val right = bitmap.averageAt(RIGHT_X, BAR_Y)
@@ -141,9 +129,9 @@ class AndroidFillTest {
   @Test
   fun aMidRangeDimLandsMidRangeNotAtAnEndpoint() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
-      val undimmed = frame(export(source, effects = listOf(squareCrop()), fill = Fill.Blurred(dim = 0f)))
-      val halfDimmed = frame(export(source, effects = listOf(squareCrop()), fill = Fill.Blurred(dim = 0.5f)))
+      val source = probe.fixture()
+      val undimmed = probe.frame(export(source, effects = listOf(squareCrop()), fill = Fill.Blurred(dim = 0f)))
+      val halfDimmed = probe.frame(export(source, effects = listOf(squareCrop()), fill = Fill.Blurred(dim = 0.5f)))
 
       val bright = undimmed.averageAt(CENTRE_X, BAR_Y).luminance()
       val half = halfDimmed.averageAt(CENTRE_X, BAR_Y).luminance()
@@ -156,9 +144,9 @@ class AndroidFillTest {
   @Test
   fun aBlurredFillsSharpCentreStillMatchesTheSource() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
-      val plain = frame(export(source, effects = emptyList(), fill = Fill.Black))
-      val contained = frame(export(source, effects = listOf(squareCrop()), fill = Fill.Blurred()))
+      val source = probe.fixture()
+      val plain = probe.frame(export(source, effects = emptyList(), fill = Fill.Black))
+      val contained = probe.frame(export(source, effects = listOf(squareCrop()), fill = Fill.Blurred()))
 
       val distance = colourDistance(plain.averageAt(CENTRE_X, CENTRE_Y), contained.averageAt(CENTRE_X, CENTRE_Y))
       assertTrue(distance < COLOUR_TOLERANCE, "the sharp centre drifted from the source by $distance")
@@ -171,11 +159,11 @@ class AndroidFillTest {
   @Test
   fun aSolidFillOnHdrIsWrittenAtGraphicsWhiteNotAtThePanelPeak() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(HDR_CLIP) ?: return@runTest
-      if (!encodesHdr()) return@runTest
+      val source = probe.fixture(HDR_CLIP)
+      probe.assumeEncodesHdr()
 
-      val white = frame(export(source, listOf(squareCrop()), Fill.White, HdrMode.KeepHdr))
-      val grey = frame(export(source, listOf(squareCrop()), Fill.Solid(GREY_ARGB), HdrMode.KeepHdr))
+      val white = probe.frame(export(source, listOf(squareCrop()), Fill.White, HdrMode.KeepHdr))
+      val grey = probe.frame(export(source, listOf(squareCrop()), Fill.Solid(GREY_ARGB), HdrMode.KeepHdr))
 
       val bright = white.averageAt(CENTRE_X, BAR_Y).luminance()
       val mid = grey.averageAt(CENTRE_X, BAR_Y).luminance()
@@ -188,18 +176,16 @@ class AndroidFillTest {
   @Test
   fun aBlackFillStaysBlackWhenHdrIsKept() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(HDR_CLIP) ?: return@runTest
-      if (!encodesHdr()) return@runTest
+      val source = probe.fixture(HDR_CLIP)
+      probe.assumeEncodesHdr()
 
-      val bar = frame(export(source, listOf(squareCrop()), Fill.Black, HdrMode.KeepHdr)).averageAt(CENTRE_X, BAR_Y)
+      val kept = probe.frame(export(source, listOf(squareCrop()), Fill.Black, HdrMode.KeepHdr))
+      val bar = kept.averageAt(CENTRE_X, BAR_Y)
       assertTrue(
         bar.red < BLACK_CEILING && bar.green < BLACK_CEILING && bar.blue < BLACK_CEILING,
         "bar $bar is not black on an export that kept its HDR grade",
       )
     }
-
-  private suspend fun encodesHdr(): Boolean =
-    (filmstrip.capabilities() as? CapabilitiesResult.Success)?.capabilities?.supportsHdrEncoding == true
 
   private fun squareCrop(): EffectSpec = Crop(AspectRatio.Square, fit = Fit.Contain)
 
@@ -210,29 +196,7 @@ class AndroidFillTest {
     hdr: HdrMode = HdrMode.Auto,
   ): File {
     val composition = EditComposition(listOf(Track(listOf(Clip(source)))), effects, fill = fill)
-    val plan =
-      when (val verdict = filmstrip.plan(composition, ExportSpec(hdr = hdr))) {
-        is Verdict.Capable -> verdict.plan
-        is Verdict.Degraded -> verdict.plan
-        is Verdict.Incapable -> throw AssertionError("refused: ${verdict.reasons.map { it.message }}")
-      }
-
-    val statuses = withContext(Dispatchers.Default) { filmstrip.export(plan, MediaSink.temporary()).toList() }
-    val finished = statuses.last()
-    if (finished is ExportStatus.Failure) throw AssertionError("export failed: ${finished.error.message}")
-    return File((assertIs<ExportStatus.Success>(finished).output as MediaSink.Path).path)
-  }
-
-  private fun frame(video: File): Bitmap {
-    val retriever = MediaMetadataRetriever()
-    return try {
-      retriever.setDataSource(video.path)
-      requireNotNull(retriever.getFrameAtTime(MID_CLIP.inWholeMicroseconds, MediaMetadataRetriever.OPTION_CLOSEST)) {
-        "no frame in $video"
-      }
-    } finally {
-      retriever.release()
-    }
+    return probe.export(composition, ExportSpec(hdr = hdr))
   }
 
   /**
@@ -264,13 +228,6 @@ class AndroidFillTest {
     b: Rgb,
   ): Int = kotlin.math.abs(a.red - b.red) + kotlin.math.abs(a.green - b.green) + kotlin.math.abs(a.blue - b.blue)
 
-  private fun fixture(name: String = CLIP): MediaSource? {
-    val stream = javaClass.classLoader?.getResourceAsStream(name) ?: return null
-    val file = File(context.cacheDir, name)
-    stream.use { input -> file.outputStream().use(input::copyTo) }
-    return MediaSource.of(file.path)
-  }
-
   private class Rgb(
     val red: Int,
     val green: Int,
@@ -282,12 +239,6 @@ class AndroidFillTest {
   }
 
   private companion object {
-    val TIMEOUT = 5.minutes
-    val MID_CLIP = 1_000.milliseconds
-
-    const val CLIP = "android_export_a.mp4"
-    const val HDR_CLIP = "android_export_hdr.mp4"
-
     const val PATCH = 8
 
     // Both safely inside the bar a square crop of a 16:9 clip leaves along its top edge.

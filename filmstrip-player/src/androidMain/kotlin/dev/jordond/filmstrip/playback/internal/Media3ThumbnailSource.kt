@@ -50,7 +50,9 @@ import kotlin.time.Duration
  *
  * A photo goes through [Media3StillFrames] instead. The extractor builds its player with a single
  * video renderer, so an image item has nothing to decode it, and the same chain is run over the
- * decoded picture rather than over a seek.
+ * decoded picture rather than over a seek. A gap is laid as a transparent still, so a position
+ * inside one takes that path too and draws the fill with the composition's effects and overlays
+ * over it, the frame the export writes there.
  *
  * A run of requests is served on one extractor per clip it draws from. Frame extraction shares one
  * player across the process and releases it once nothing holds an extractor open, so a handle kept

@@ -981,7 +981,10 @@ private class LoweredEffect(
   val degraded: List<Pair<String, String>> =
     degradedMessage?.let { message -> sources.map { it.id to message } }.orEmpty()
 
-  val resolvedEffect: ResolvedEffect? = effect?.let { ResolvedEffect(sources.authoredIds(), it) }
+  // Sources come from the canonically ordered list, so a fused run never spans stages and every
+  // source names the same one.
+  val resolvedEffect: ResolvedEffect? =
+    effect?.let { ResolvedEffect(sources.authoredIds(), it, sources.first().stage) }
 }
 
 /**

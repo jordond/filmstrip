@@ -1,8 +1,6 @@
 package dev.jordond.filmstrip.media3
 
 import android.graphics.Bitmap
-import androidx.test.platform.app.InstrumentationRegistry
-import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
@@ -16,25 +14,16 @@ import dev.jordond.filmstrip.effects.geometry.CropRect
 import dev.jordond.filmstrip.effects.geometry.Flip
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
-import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.export.ExportStatus
-import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.toList
+import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.test.Test
-import kotlin.test.assertIs
 import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.minutes
 
 /**
  * The built-in effects, checked against the pixels a real export writes.
@@ -49,16 +38,15 @@ import kotlin.time.Duration.Companion.minutes
  * [AndroidGeometryTest]. Skipped when the fixtures are absent, as in [AndroidExportTest].
  */
 class AndroidEffectTest {
-  private val context = InstrumentationRegistry.getInstrumentation().targetContext
-  private val filmstrip = Filmstrip(context) { media3Backend() }
+  private val probe = Media3ExportProbe()
 
   @Test
   fun theMarkerLandsInTheCornerItNames() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = probe.fixture()
 
-      val plain = frame(export(source, marked = false, effects = emptyList()))
-      val marked = frame(export(source, marked = true, effects = emptyList()))
+      val plain = probe.frame(export(source, marked = false, effects = emptyList()))
+      val marked = probe.frame(export(source, marked = true, effects = emptyList()))
 
       assertTrue(marked.gainedOver(plain, TOP_START) > COVERED, "no marker in the corner it was given")
       assertTrue(marked.gainedOver(plain, TOP_END) < UNTOUCHED, "the marker reached the far corner")
@@ -67,11 +55,11 @@ class AndroidEffectTest {
   @Test
   fun aHorizontalFlipMirrorsTheFrameLeftToRight() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = probe.fixture()
       val mirror = listOf(Flip(FlipAxis.Horizontal))
 
-      val plain = frame(export(source, marked = false, effects = mirror))
-      val marked = frame(export(source, marked = true, effects = mirror))
+      val plain = probe.frame(export(source, marked = false, effects = mirror))
+      val marked = probe.frame(export(source, marked = true, effects = mirror))
 
       assertTrue(marked.gainedOver(plain, TOP_END) > COVERED, "the marker did not cross to the other side")
       assertTrue(marked.gainedOver(plain, TOP_START) < UNTOUCHED, "the marker stayed on the side it started")
@@ -80,11 +68,11 @@ class AndroidEffectTest {
   @Test
   fun aVerticalFlipMirrorsTheFrameTopToBottom() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = probe.fixture()
       val mirror = listOf(Flip(FlipAxis.Vertical))
 
-      val plain = frame(export(source, marked = false, effects = mirror))
-      val marked = frame(export(source, marked = true, effects = mirror))
+      val plain = probe.frame(export(source, marked = false, effects = mirror))
+      val marked = probe.frame(export(source, marked = true, effects = mirror))
 
       assertTrue(marked.gainedOver(plain, BOTTOM_START) > COVERED, "the marker did not cross to the bottom")
       assertTrue(marked.gainedOver(plain, TOP_START) < UNTOUCHED, "the marker stayed at the top")
@@ -95,11 +83,11 @@ class AndroidEffectTest {
   @Test
   fun aQuarterTurnCarriesTheFrameRound() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = probe.fixture()
       val turn = listOf(Rotate(QUARTER_TURN))
 
-      val plain = frame(export(source, marked = false, effects = turn))
-      val marked = frame(export(source, marked = true, effects = turn))
+      val plain = probe.frame(export(source, marked = false, effects = turn))
+      val marked = probe.frame(export(source, marked = true, effects = turn))
 
       assertTrue(marked.height > marked.width, "a quarter turn of a landscape clip is portrait")
       assertTrue(marked.gainedOver(plain, BOTTOM_START) > COVERED, "the marker did not turn with the frame")
@@ -109,14 +97,14 @@ class AndroidEffectTest {
   @Test
   fun aCropRectKeepsTheHalfItNamedAndDropsTheOther() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = probe.fixture()
       val keep = listOf(CropRect(LEFT_HALF))
       val drop = listOf(CropRect(RIGHT_HALF))
 
-      val keptPlain = frame(export(source, marked = false, effects = keep))
-      val kept = frame(export(source, marked = true, effects = keep))
-      val droppedPlain = frame(export(source, marked = false, effects = drop))
-      val dropped = frame(export(source, marked = true, effects = drop))
+      val keptPlain = probe.frame(export(source, marked = false, effects = keep))
+      val kept = probe.frame(export(source, marked = true, effects = keep))
+      val droppedPlain = probe.frame(export(source, marked = false, effects = drop))
+      val dropped = probe.frame(export(source, marked = true, effects = drop))
 
       assertTrue(kept.gainedOver(keptPlain, TOP_START) > COVERED, "the half holding the marker lost it")
       assertTrue(dropped.gainedOver(droppedPlain, TOP_START) < UNTOUCHED, "the marker survived a crop past it")
@@ -125,9 +113,9 @@ class AndroidEffectTest {
   @Test
   fun aCropRectTakesTheFrameDownToTheRegionItNamed() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = probe.fixture()
 
-      val cropped = frame(export(source, marked = false, effects = listOf(CropRect(LEFT_HALF))))
+      val cropped = probe.frame(export(source, marked = false, effects = listOf(CropRect(LEFT_HALF))))
 
       // The output frame is the planner's arithmetic rather than the resolver's, so this is the half
       // of the claim the sibling test's pixels cannot make: the frame the encoder was given is the
@@ -144,10 +132,10 @@ class AndroidEffectTest {
   @Test
   fun halvingBrightnessHalvesTheSignal() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = probe.fixture()
 
-      val full = frame(export(source, marked = false, effects = emptyList()))
-      val half = frame(export(source, marked = false, effects = listOf(Brightness(HALF))))
+      val full = probe.frame(export(source, marked = false, effects = emptyList()))
+      val half = probe.frame(export(source, marked = false, effects = listOf(Brightness(HALF))))
 
       val lit = luminance(full.averageAt(CENTRE, CENTRE))
       val dimmed = luminance(half.averageAt(CENTRE, CENTRE))
@@ -165,11 +153,11 @@ class AndroidEffectTest {
   @Test
   fun aContrastPullsEveryChannelTowardsMidGrey() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = probe.fixture()
       val spec = Contrast(HALF)
 
-      val plain = frame(export(source, marked = false, effects = emptyList()))
-      val graded = frame(export(source, marked = false, effects = listOf(spec)))
+      val plain = probe.frame(export(source, marked = false, effects = emptyList()))
+      val graded = probe.frame(export(source, marked = false, effects = listOf(spec)))
 
       assertGraded(plain, graded, spec, BLUE_BAR)
     }
@@ -179,11 +167,11 @@ class AndroidEffectTest {
   @Test
   fun aHalfSaturationMovesEveryChannelHalfwayToItsGrey() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = probe.fixture()
       val spec = Saturation(HALF)
 
-      val plain = frame(export(source, marked = false, effects = emptyList()))
-      val graded = frame(export(source, marked = false, effects = listOf(spec)))
+      val plain = probe.frame(export(source, marked = false, effects = emptyList()))
+      val graded = probe.frame(export(source, marked = false, effects = listOf(spec)))
 
       assertGraded(plain, graded, spec, CYAN_BAR)
     }
@@ -193,11 +181,11 @@ class AndroidEffectTest {
   @Test
   fun aZeroContrastFlattensTheFrameToMidGrey() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = probe.fixture()
       val spec = Contrast(0f)
 
-      val plain = frame(export(source, marked = false, effects = emptyList()))
-      val flat = frame(export(source, marked = false, effects = listOf(spec)))
+      val plain = probe.frame(export(source, marked = false, effects = emptyList()))
+      val flat = probe.frame(export(source, marked = false, effects = listOf(spec)))
 
       assertGraded(plain, flat, spec, CYAN_BAR)
       assertGraded(plain, flat, spec, BLUE_BAR)
@@ -210,23 +198,11 @@ class AndroidEffectTest {
   ): File {
     val marker =
       if (marked) {
-        listOf(ImageOverlay(ImageSource.of(badgeFile(context).path), Corner.TopStart, MARGIN, BADGE_SCALE))
+        listOf(ImageOverlay(ImageSource.of(badgeFile(probe.context).path), Corner.TopStart, MARGIN, BADGE_SCALE))
       } else {
         emptyList()
       }
-    val composition = EditComposition(listOf(Track(listOf(Clip(source, effects = marker)))), effects)
-
-    val plan =
-      when (val verdict = filmstrip.plan(composition, SPEC)) {
-        is Verdict.Capable -> verdict.plan
-        is Verdict.Degraded -> verdict.plan
-        is Verdict.Incapable -> throw AssertionError("refused: ${verdict.reasons.map { it.message }}")
-      }
-
-    val statuses = withContext(Dispatchers.Default) { filmstrip.export(plan, MediaSink.temporary()).toList() }
-    val finished = statuses.last()
-    if (finished is ExportStatus.Failure) throw AssertionError("export failed: ${finished.error.message}")
-    return File((assertIs<ExportStatus.Success>(finished).output as MediaSink.Path).path)
+    return probe.export(EditComposition(listOf(Track(listOf(Clip(source, effects = marker)))), effects))
   }
 
   // What the shared matrix predicts for the pixel the plain export wrote, against what the graded
@@ -253,22 +229,7 @@ class AndroidEffectTest {
 
   private fun code(channel: Float): Int = (channel * FULL).toInt()
 
-  private fun frame(video: File): Bitmap = frameOf(video, MID_CLIP)
-
-  private fun fixture(name: String = CLIP): MediaSource? {
-    val stream = javaClass.classLoader?.getResourceAsStream(name) ?: return null
-    val file = File(context.cacheDir, name)
-    stream.use { input -> file.outputStream().use(input::copyTo) }
-    return MediaSource.of(file.path)
-  }
-
   private companion object {
-    val TIMEOUT = 5.minutes
-    val SPEC = ExportSpec(targetHeight = 240)
-    val MID_CLIP = 1_000.milliseconds
-
-    const val CLIP = "android_export_a.mp4"
-
     const val QUARTER_TURN = 90
     const val HALF = 0.5f
     const val CENTRE = 0.5f
@@ -284,10 +245,6 @@ class AndroidEffectTest {
 
     val LEFT_HALF = NormalizedRect(0f, 0f, 0.5f, 1f)
     val RIGHT_HALF = NormalizedRect(0.5f, 0f, 1f, 1f)
-
-    val TOP_START = Region(0f, 0f, 0.3f, 0.3f)
-    val TOP_END = Region(0.7f, 0f, 1f, 0.3f)
-    val BOTTOM_START = Region(0f, 0.7f, 0.3f, 1f)
 
     // How far off half the encoder and a 4:2:0 round trip are allowed to leave the halved signal.
     // Halving linear light instead would read about 0.73 of the signal, still well outside this,

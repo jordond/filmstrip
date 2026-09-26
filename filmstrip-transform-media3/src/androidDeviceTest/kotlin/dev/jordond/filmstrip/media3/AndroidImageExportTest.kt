@@ -12,8 +12,6 @@ import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
-import androidx.test.platform.app.InstrumentationRegistry
-import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -21,30 +19,26 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.export.ExportStatus
-import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.internal.outputSlotOf
 import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
-import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP
+import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP_B
+import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -58,15 +52,14 @@ import kotlin.time.Duration.Companion.seconds
  * Skipped where a case needs a video fixture and the build had no host ffmpeg to make one.
  */
 class AndroidImageExportTest {
-  private val context = InstrumentationRegistry.getInstrumentation().targetContext
-  private val filmstrip = Filmstrip(context) { media3Backend() }
+  private val probe = Media3ExportProbe()
 
   @Test
   fun anImageOnlyCompositionIsHeldForTheDurationItDeclares() =
     runTest(timeout = TIMEOUT) {
       val still = stillSource(PHOTO)
 
-      val written = exported(capablePlan(composition(Clip(still)), ExportSpec()))
+      val written = exported(probe.plan(composition(Clip(still)), ExportSpec()))
 
       written.info.duration shouldBeCloseTo PHOTO
       assertNotNull(written.info.video, "an image-only export wrote no video track")
@@ -77,7 +70,7 @@ class AndroidImageExportTest {
     runTest(timeout = TIMEOUT) {
       val still = stillSource(PHOTO)
 
-      val written = exported(capablePlan(composition(Clip(still)), ExportSpec()))
+      val written = exported(probe.plan(composition(Clip(still)), ExportSpec()))
 
       frameOf(written.file, PHOTO / 2).photoCoverage() shouldBeAbove COVERED
     }
@@ -91,18 +84,18 @@ class AndroidImageExportTest {
   @Test
   fun aVideoPhotoVideoCompositionPutsThePhotoInTheMiddleOfItsOwnSpan() =
     runTest(timeout = TIMEOUT) {
-      val first = fixture(CLIP_A) ?: return@runTest
-      val last = fixture(CLIP_B) ?: return@runTest
+      val first = probe.fixture(CLIP)
+      val last = probe.fixture(CLIP_B)
       val edit = composition(Clip(first), Clip(stillSource(PHOTO)), Clip(last))
 
-      val written = exported(capablePlan(edit, ExportSpec(targetHeight = 240)))
+      val written = exported(probe.plan(edit, ExportSpec(targetHeight = 240)))
 
-      written.info.duration shouldBeCloseTo CLIP + PHOTO + CLIP
-      val opening = frameOf(written.file, CLIP + EDGE)
-      val middle = frameOf(written.file, CLIP + PHOTO * MIDDLE)
-      val closing = frameOf(written.file, CLIP + PHOTO - EDGE)
-      val before = frameOf(written.file, CLIP / 2)
-      val after = frameOf(written.file, CLIP + PHOTO + CLIP / 2)
+      written.info.duration shouldBeCloseTo CLIP_LENGTH + PHOTO + CLIP_LENGTH
+      val opening = frameOf(written.file, CLIP_LENGTH + EDGE)
+      val middle = frameOf(written.file, CLIP_LENGTH + PHOTO * MIDDLE)
+      val closing = frameOf(written.file, CLIP_LENGTH + PHOTO - EDGE)
+      val before = frameOf(written.file, CLIP_LENGTH / 2)
+      val after = frameOf(written.file, CLIP_LENGTH + PHOTO + CLIP_LENGTH / 2)
 
       middle.gainedOver(before, WHOLE_FRAME) shouldBeAbove COVERED
       middle.gainedOver(after, WHOLE_FRAME) shouldBeAbove COVERED
@@ -117,7 +110,7 @@ class AndroidImageExportTest {
     runTest(timeout = TIMEOUT) {
       val still = MediaSource.Image(ImageSource.ofBytes(photoFile().readBytes()), PHOTO)
 
-      val written = exported(capablePlan(composition(Clip(still)), ExportSpec()))
+      val written = exported(probe.plan(composition(Clip(still)), ExportSpec()))
 
       written.info.duration shouldBeCloseTo PHOTO
       frameOf(written.file, PHOTO / 2).photoCoverage() shouldBeAbove COVERED
@@ -129,7 +122,7 @@ class AndroidImageExportTest {
     runTest(timeout = TIMEOUT) {
       val trimmed = Clip(stillSource(4.seconds), trim = TimeRange.of(1.seconds, 3.seconds))
 
-      val written = exported(capablePlan(composition(trimmed), ExportSpec()))
+      val written = exported(probe.plan(composition(trimmed), ExportSpec()))
 
       written.info.duration shouldBeCloseTo 2.seconds
       frameOf(written.file, 1.seconds).photoCoverage() shouldBeAbove COVERED
@@ -140,11 +133,11 @@ class AndroidImageExportTest {
   @Test
   fun aCompositionCarryingAStillIsNeverTransmuxed() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(CLIP_A) ?: return@runTest
-      val alone = capablePlan(composition(Clip(source)), ExportSpec())
+      val source = probe.fixture(CLIP)
+      val alone = probe.plan(composition(Clip(source)), ExportSpec())
       assertTrue(alone.path == ExportPath.Transmux, "the video clip on its own was expected to copy across")
 
-      val withStill = capablePlan(composition(Clip(source), Clip(stillSource(PHOTO))), ExportSpec())
+      val withStill = probe.plan(composition(Clip(source), Clip(stillSource(PHOTO))), ExportSpec())
 
       withStill.path shouldBe ExportPath.Transcode
     }
@@ -159,11 +152,11 @@ class AndroidImageExportTest {
   @Test
   fun theClipAfterAStillOpensOnItsOwnFirstSlot() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(CLIP_A) ?: return@runTest
+      val source = probe.fixture(CLIP)
       val held = outputSlotTime(STILL_SLOTS, FRAME_RATE)
       val edit = composition(Clip(stillSource(held)), Clip(source, trim = TimeRange.of(Duration.ZERO, 1.seconds)))
 
-      val written = exported(capablePlan(edit, ExportSpec(frameRate = FRAME_RATE)))
+      val written = exported(probe.plan(edit, ExportSpec(frameRate = FRAME_RATE)))
 
       val times = videoSampleTimes(written.file)
       assertEquals(outputSlotOf(held + 1.seconds, FRAME_RATE), times.size.toLong(), "one sample for each slot: $times")
@@ -198,7 +191,7 @@ class AndroidImageExportTest {
 
       val written = transformed(Composition.Builder(sequence).build())
 
-      val probed = assertIs<ProbeResult.Success>(filmstrip.probe(MediaSource.of(written.path))).info
+      val probed = probe.infoOf(MediaSource.of(written.path))
       probed.duration shouldBeCloseTo PHOTO
     }
 
@@ -206,7 +199,7 @@ class AndroidImageExportTest {
    * Runs [composition] straight on media3, without a plan in front of it, and returns what it wrote.
    */
   private suspend fun transformed(composition: Composition): File {
-    val output = File(context.cacheDir, "still-duration-contract.mp4").apply { delete() }
+    val output = File(probe.context.cacheDir, "still-duration-contract.mp4").apply { delete() }
     val thread = HandlerThread("still-duration-contract").apply { start() }
     val finished = CompletableDeferred<Unit>()
 
@@ -214,7 +207,7 @@ class AndroidImageExportTest {
       Handler(thread.looper).post {
         try {
           Transformer
-            .Builder(context)
+            .Builder(probe.context)
             .setLooper(thread.looper)
             .addListener(
               object : Transformer.Listener {
@@ -247,29 +240,13 @@ class AndroidImageExportTest {
     return output
   }
 
-  private suspend fun capablePlan(
-    composition: EditComposition,
-    spec: ExportSpec,
-  ): ExportPlan =
-    when (val verdict = filmstrip.plan(composition, spec)) {
-      is Verdict.Capable -> verdict.plan
-      is Verdict.Degraded -> verdict.plan
-      is Verdict.Incapable -> throw AssertionError("refused: ${verdict.reasons.map { it.message }}")
-    }
-
   /**
    * Runs [plan] and reads the file back the way a caller would.
    */
   private suspend fun exported(plan: ExportPlan): Written {
-    val statuses = withContext(Dispatchers.Default) { filmstrip.export(plan, MediaSink.temporary()).toList() }
-
-    val finished = statuses.last()
-    if (finished is ExportStatus.Failure) throw AssertionError("export failed: ${finished.error.message}")
-    val success = assertIs<ExportStatus.Success>(finished)
-    val path = assertIs<MediaSink.Path>(success.output).path
-
-    val probed = assertIs<ProbeResult.Success>(filmstrip.probe(MediaSource.of(path))).info
-    return Written(File(path), probed)
+    val file = probe.export(plan)
+    val probed = probe.infoOf(MediaSource.of(file.path))
+    return Written(file, probed)
   }
 
   private fun composition(vararg clips: Clip) = EditComposition(listOf(Track(clips.toList())))
@@ -280,23 +257,13 @@ class AndroidImageExportTest {
    * A flat orange sheet the shape of the video fixtures, written into the cache once.
    */
   private fun photoFile(): File {
-    val file = File(context.cacheDir, "image-export-photo.png")
+    val file = File(probe.context.cacheDir, "image-export-photo.png")
     if (file.exists()) return file
 
     val bitmap = Bitmap.createBitmap(PHOTO_WIDTH, PHOTO_HEIGHT, Bitmap.Config.ARGB_8888)
     bitmap.eraseColor(BADGE_COLOR)
     file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it) }
     return file
-  }
-
-  /**
-   * Copies a packaged fixture into the cache, or null when the build had no ffmpeg to make one.
-   */
-  private fun fixture(name: String): MediaSource? {
-    val stream = javaClass.classLoader?.getResourceAsStream(name) ?: return null
-    val file = File(context.cacheDir, name)
-    stream.use { input -> file.outputStream().use(input::copyTo) }
-    return MediaSource.of(file.path)
   }
 
   private fun Bitmap.photoCoverage(): Float = badgeFraction(WHOLE_FRAME)
@@ -316,13 +283,8 @@ class AndroidImageExportTest {
   )
 
   private companion object {
-    val TIMEOUT = 5.minutes
-
-    const val CLIP_A = "android_export_a.mp4"
-    const val CLIP_B = "android_export_b.mp4"
-
     // What the fixture generator was asked for, so a change to it fails here rather than drifting.
-    val CLIP = 2.seconds
+    val CLIP_LENGTH = 2.seconds
     val PHOTO = 2.seconds
 
     // Nowhere near the length the item names, so which of the two media3 read is unmistakable in
@@ -342,7 +304,6 @@ class AndroidImageExportTest {
 
     const val PHOTO_WIDTH = 640
     const val PHOTO_HEIGHT = 360
-    const val PNG_QUALITY = 100
 
     val WHOLE_FRAME = Region(0f, 0f, 1f, 1f)
 

@@ -53,6 +53,7 @@ import platform.CoreGraphics.CGRectMake
 import platform.CoreGraphics.CGSizeMake
 import platform.CoreGraphics.kCGBitmapByteOrder32Big
 import platform.CoreImage.CIImage
+import platform.CoreImage.kCIImageColorSpace
 import platform.CoreText.CTFontCreateCopyWithSymbolicTraits
 import platform.CoreText.CTFontCreateUIFontForLanguage
 import platform.CoreText.CTFontCreateWithName
@@ -78,32 +79,40 @@ import platform.CoreText.kCTTextAlignmentCenter
 import platform.CoreText.kCTTextAlignmentLeft
 import platform.CoreText.kCTTextAlignmentRight
 import platform.Foundation.NSData
+import platform.Foundation.NSNull
 import platform.Foundation.NSURL
 import platform.Foundation.create
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /**
- * Decodes this source into a Core Image image, or null when it cannot be read.
+ * Decodes this source into Core Image, or null when it cannot be read.
  *
  * Nothing is drawn here. A `CIImage` from a URL is a recipe, and the decode happens the first time
- * a context renders it.
+ * a context renders it. The source is read twice over, once through the colour space it names and
+ * once with no colour management at all, and a frame picks which of the two it draws.
  */
+internal fun ImageSource.decode(): OverlayPixels? {
+  val managed = decoded(options = null) ?: return null
+  val codes = decoded(UNMANAGED) ?: return null
+  return OverlayPixels(managed, codes)
+}
+
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-internal fun ImageSource.decode(): CIImage? =
+private fun ImageSource.decoded(options: Map<Any?, *>?): CIImage? =
   when (this) {
     is ImageSource.Path -> {
-      CIImage.imageWithContentsOfURL(NSURL.fileURLWithPath(path))
+      CIImage.imageWithContentsOfURL(NSURL.fileURLWithPath(path), options)
     }
     is ImageSource.Uri -> {
-      NSURL.URLWithString(uri)?.let { CIImage.imageWithContentsOfURL(it) }
+      NSURL.URLWithString(uri)?.let { CIImage.imageWithContentsOfURL(it, options) }
     }
     is ImageSource.Bytes -> {
       if (bytes.isEmpty()) {
         null
       } else {
         bytes.usePinned { pinned ->
-          CIImage.imageWithData(NSData.create(bytes = pinned.addressOf(0), length = bytes.size.toULong()))
+          CIImage.imageWithData(NSData.create(bytes = pinned.addressOf(0), length = bytes.size.toULong()), options)
         }
       }
     }
@@ -134,10 +143,10 @@ internal fun rasterizeText(
   text: String,
   style: TextStyle,
   frame: Size,
-): CIImage? {
+): OverlayPixels? {
   if (text.isEmpty() || frame.width <= 0 || frame.height <= 0) return null
 
-  val font = fontFor(style, style.fontSize * frame.height) ?: return null
+  val font = fontFor(style, style.capHeightOn(frame)) ?: return null
   val string = CFStringCreateWithCString(null, text, kCFStringEncodingUTF8)
   if (string == null) {
     CFRelease(font)
@@ -156,7 +165,7 @@ internal fun rasterizeText(
           location = 0
           length = 0
         }
-      val wrapWidth = (style.maxWidth * frame.width).toDouble().coerceAtLeast(1.0)
+      val wrapWidth = style.wrapWidthOn(frame).toDouble()
       val wrapped =
         CTFramesetterSuggestFrameSizeWithConstraints(
           framesetter = setter,
@@ -178,7 +187,7 @@ internal fun rasterizeText(
       if (block.width <= 0 || block.height <= 0) {
         null
       } else {
-        draw(setter, whole, block, style, CTFontGetCapHeight(font))
+        draw(setter, whole, block, style, style.platePaddingOn(frame))
       }
     }
 
@@ -192,7 +201,8 @@ internal fun rasterizeText(
 }
 
 /**
- * Renders the laid-out text into a bitmap and wraps it as a Core Image image.
+ * Renders the laid-out text into a bitmap and wraps it for Core Image, once as device RGB and once
+ * as bare codes.
  *
  * A bitmap context is already bottom-left with +Y up, which is the space CoreText draws in and the
  * space Core Image measures in, so nothing is flipped on the way through.
@@ -203,11 +213,8 @@ private fun draw(
   range: CValue<CFRange>,
   block: Size,
   style: TextStyle,
-  capHeight: Double,
-): CIImage? {
-  // A plate that stops at the glyphs reads as a mistake, so it carries a margin proportional to the
-  // text, not a fixed number of pixels.
-  val padding = if (style.backgroundColor == null) 0 else (capHeight * PLATE_PADDING).roundToInt()
+  padding: Int,
+): OverlayPixels? {
   val width = block.width + 2 * padding
   val height = block.height + 2 * padding
 
@@ -247,9 +254,9 @@ private fun draw(
   CGContextRelease(context)
   if (bitmap == null) return null
 
-  val image = CIImage.imageWithCGImage(bitmap)
+  val pixels = OverlayPixels(CIImage.imageWithCGImage(bitmap), CIImage.imageWithCGImage(bitmap, UNMANAGED))
   CGImageRelease(bitmap)
-  return image
+  return pixels
 }
 
 /**
@@ -264,7 +271,7 @@ private fun fontFor(
   style: TextStyle,
   target: Float,
 ): CTFontRef? {
-  val probe = named(style.resolvedFontFamily, CAP_PROBE_SIZE) ?: return null
+  val probe = named(style.resolvedFontFamily, CAP_PROBE_SIZE.toDouble()) ?: return null
   val cap = CTFontGetCapHeight(probe)
   val size = if (cap > 0.0) CAP_PROBE_SIZE * target / cap else target.toDouble()
   CFRelease(probe)
@@ -393,8 +400,9 @@ private fun TextAlignment.toCoreText(): CTTextAlignment =
     TextAlignment.End -> kCTTextAlignmentRight
   }
 
-private const val CAP_PROBE_SIZE = 100.0
-private const val PLATE_PADDING = 0.3
+// Tells Core Image to take an image's values as they are rather than colour match them from a space.
+private val UNMANAGED: Map<Any?, *> = mapOf(kCIImageColorSpace to NSNull.`null`())
+
 private const val BITS_PER_COMPONENT = 8uL
 private const val RGBA = 4
 private const val BYTE = 0xFF

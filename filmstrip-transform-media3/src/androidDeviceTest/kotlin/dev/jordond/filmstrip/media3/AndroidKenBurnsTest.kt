@@ -4,35 +4,26 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import androidx.test.platform.app.InstrumentationRegistry
-import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.effects.geometry.regionAt
-import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.export.ExportStatus
-import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.AndroidKenBurnsTest.Companion.BOUNDARY
+import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP
+import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.motion.Easing
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -48,8 +39,7 @@ import kotlin.time.Duration.Companion.seconds
  * curve at the halfway point, where the curve is furthest from the straight line.
  */
 class AndroidKenBurnsTest {
-  private val context = InstrumentationRegistry.getInstrumentation().targetContext
-  private val filmstrip = Filmstrip(context) { media3Backend() }
+  private val probe = Media3ExportProbe()
 
   @Test
   fun aPanOverAPhotoShowsTheRegionTheSharedInterpolationNames() =
@@ -76,14 +66,14 @@ class AndroidKenBurnsTest {
   @Test
   fun aPanIsMeasuredFromWhereTheClipSitsOnTheCompositionTimeline() =
     runTest(timeout = TIMEOUT) {
-      val opening = fixture(CLIP_A) ?: return@runTest
+      val opening = probe.fixture(CLIP)
       val edit = composition(Clip(opening), Clip(stillSource(), effects = listOf(PAN)))
-      val span = TimeRange.of(CLIP, CLIP + PHOTO)
+      val span = TimeRange.of(CLIP_LENGTH, CLIP_LENGTH + PHOTO)
 
       val written = export(edit)
 
       FRACTIONS.forEach { fraction ->
-        val at = CLIP + PHOTO * fraction
+        val at = CLIP_LENGTH + PHOTO * fraction
         assertRedFraction(frameOf(written, at), PAN.regionAt(at, span), "at $fraction through the photo")
       }
     }
@@ -117,20 +107,20 @@ class AndroidKenBurnsTest {
   @Test
   fun aPanOverAVideoClipMovesTheFrameAsItRuns() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(CLIP_A) ?: return@runTest
+      val source = probe.fixture(CLIP)
       val panned = export(composition(Clip(source, effects = listOf(PAN))))
       val plain = export(composition(Clip(source)))
 
-      val early = frameOf(panned, CLIP * FRACTIONS.first())
-      val late = frameOf(panned, CLIP * FRACTIONS.last())
+      val early = frameOf(panned, CLIP_LENGTH * FRACTIONS.first())
+      val late = frameOf(panned, CLIP_LENGTH * FRACTIONS.last())
+      val untouched = frameOf(plain, CLIP_LENGTH * FRACTIONS.first())
 
       assertTrue(
         distance(early.averageAt(CENTRE, CENTRE), late.averageAt(CENTRE, CENTRE)) > MOVED,
         "the panned video showed the same colour at both readings, so nothing travelled",
       )
       assertTrue(
-        distance(early.averageAt(CENTRE, CENTRE), frameOf(plain, CLIP * FRACTIONS.first()).averageAt(CENTRE, CENTRE)) >
-          MOVED,
+        distance(early.averageAt(CENTRE, CENTRE), untouched.averageAt(CENTRE, CENTRE)) > MOVED,
         "the panned video matched the untouched one, so the pan resolved to nothing",
       )
     }
@@ -164,21 +154,7 @@ class AndroidKenBurnsTest {
     return red.toFloat() / SAMPLES
   }
 
-  private suspend fun export(composition: EditComposition): File {
-    val plan = capablePlan(composition)
-    val statuses = withContext(Dispatchers.Default) { filmstrip.export(plan, MediaSink.temporary()).toList() }
-
-    val finished = statuses.last()
-    if (finished is ExportStatus.Failure) throw AssertionError("export failed: ${finished.error.message}")
-    return File(assertIs<MediaSink.Path>(assertIs<ExportStatus.Success>(finished).output).path)
-  }
-
-  private suspend fun capablePlan(composition: EditComposition): ExportPlan =
-    when (val verdict = filmstrip.plan(composition, ExportSpec())) {
-      is Verdict.Capable -> verdict.plan
-      is Verdict.Degraded -> verdict.plan
-      is Verdict.Incapable -> throw AssertionError("refused: ${verdict.reasons.map { it.message }}")
-    }
+  private suspend fun export(composition: EditComposition): File = probe.export(composition, ExportSpec())
 
   private fun composition(vararg clips: Clip) = EditComposition(listOf(Track(clips.toList())))
 
@@ -189,7 +165,7 @@ class AndroidKenBurnsTest {
    * once.
    */
   private fun splitPhotoFile(): File {
-    val file = File(context.cacheDir, "ken-burns-split.png")
+    val file = File(probe.context.cacheDir, "ken-burns-split.png")
     if (file.exists()) return file
 
     val bitmap = Bitmap.createBitmap(PHOTO_WIDTH, PHOTO_HEIGHT, Bitmap.Config.ARGB_8888)
@@ -204,20 +180,9 @@ class AndroidKenBurnsTest {
     return file
   }
 
-  private fun fixture(name: String): MediaSource? {
-    val stream = javaClass.classLoader?.getResourceAsStream(name) ?: return null
-    val file = File(context.cacheDir, name)
-    stream.use { input -> file.outputStream().use(input::copyTo) }
-    return MediaSource.of(file.path)
-  }
-
   private companion object {
-    val TIMEOUT = 5.minutes
-
-    const val CLIP_A = "android_export_a.mp4"
-
     // What the fixture generator was asked for, so a change to it fails here rather than drifting.
-    val CLIP = 2.seconds
+    val CLIP_LENGTH = 2.seconds
 
     // Long enough that the frame a retriever lands on either side of a request moves the reading by
     // well under the slack the boundary itself costs.
@@ -248,7 +213,6 @@ class AndroidKenBurnsTest {
 
     const val PHOTO_WIDTH = 640
     const val PHOTO_HEIGHT = 360
-    const val PNG_QUALITY = 100
 
     const val CENTRE = 0.5f
     const val SAMPLES = 40

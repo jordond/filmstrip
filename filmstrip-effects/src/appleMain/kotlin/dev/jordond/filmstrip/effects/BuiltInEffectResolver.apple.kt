@@ -27,7 +27,6 @@ import dev.jordond.filmstrip.effects.overlay.compositedOnto
 import dev.jordond.filmstrip.effects.overlay.decode
 import dev.jordond.filmstrip.effects.overlay.drawnTextSize
 import dev.jordond.filmstrip.effects.overlay.frameWithin
-import dev.jordond.filmstrip.effects.overlay.pixelSize
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rasterizeText
 import dev.jordond.filmstrip.effects.overlay.runWithin
@@ -95,7 +94,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   // here and every frame samples within it.
   private fun ImageOverlay.toOverlay(attributes: Attributes): EffectResolution {
     val raster = image.decode() ?: return EffectResolution.Unsupported(id, UNREADABLE_IMAGE)
-    val size = raster.pixelSize()
+    val size = raster.size
     val run = runWithin(attributes.span)
 
     return step { image, frame ->
@@ -104,7 +103,15 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
         image
       } else {
         val input = frame.attributes.inputSize
-        raster.compositedOnto(image, placedOn(input, size).animatedBy(sampled), input, sampled.opacity)
+        val placement = placedOn(input, size).animatedBy(sampled)
+        raster.enteringFrame(frame.attributes.hdrTransfer, frame.attributes.colorSpace).compositedOnto(
+          image,
+          placement,
+          input,
+          sampled.opacity,
+          frame.attributes.hdrTransfer,
+          frame.attributes.colorSpace,
+        )
       }
     }
   }
@@ -117,7 +124,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     val raster =
       rasterizeText(text, style, attributes.layoutSize)
         ?: return EffectResolution.Unsupported(id, EMPTY_TEXT)
-    val size = raster.pixelSize()
+    val size = raster.size
     val run = runWithin(attributes.span)
 
     return step { image, frame ->
@@ -129,7 +136,14 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
         // and the export it previews break their lines on the same words. An animated scale
         // resamples that raster too rather than re-laying the glyphs at a new size.
         val drawn = frame.attributes.drawnTextSize(size)
-        raster.compositedOnto(image, placedOn(drawn).animatedBy(sampled), frame.attributes.inputSize, sampled.opacity)
+        raster.enteringFrame(frame.attributes.hdrTransfer, frame.attributes.colorSpace).compositedOnto(
+          image,
+          placedOn(drawn).animatedBy(sampled),
+          frame.attributes.inputSize,
+          sampled.opacity,
+          frame.attributes.hdrTransfer,
+          frame.attributes.colorSpace,
+        )
       }
     }
   }

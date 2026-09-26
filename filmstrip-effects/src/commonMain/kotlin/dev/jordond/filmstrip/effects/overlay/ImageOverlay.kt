@@ -13,14 +13,16 @@ import kotlin.math.roundToInt
 /**
  * Composite an image over the video.
  *
- * Every measurement is a fraction of the output frame rather than a pixel count, so an overlay
- * lands in the same place at any preview or export resolution.
+ * Every measurement is a fraction of the frame the overlay is drawn on rather than a pixel count, so
+ * an overlay lands in the same place at any preview or export resolution. That frame is the clip's
+ * frame for an overlay added to a clip, and the output frame for one added to the composition.
  *
  * @property image The image to composite.
  * @property corner Which corner the overlay sits in.
- * @property margin Inset from the corner, as a fraction of the output frame's shorter side.
- * @property scale Width as a fraction of the output frame's width. The height follows the image's
- * own aspect.
+ * @property margin Inset from the corner, as a fraction of the shorter side of the frame it is drawn
+ * on.
+ * @property scale Width as a fraction of the width of the frame it is drawn on. The height follows the
+ * image's own aspect.
  * @property opacity Alpha applied to the overlay, in `0f..1f`.
  * @property visibleDuring When the overlay is visible, or null for the whole composition.
  * @property animation How the overlay is drawn at each frame of its run, or null to hold it still.
@@ -51,7 +53,10 @@ public class ImageOverlay(
 }
 
 /**
- * Composite [image] into [corner], sized and inset as fractions of the output frame.
+ * Composite [image] into [corner], sized and inset as fractions of the frame it is drawn on.
+ *
+ * That frame is the clip's frame when this is called on a clip, and the output frame when it is called
+ * on the composition.
  */
 public fun EffectsBuilder.imageOverlay(
   image: ImageSource,

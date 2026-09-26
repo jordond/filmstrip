@@ -6,8 +6,12 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effects.color.brightness
+import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
+import dev.jordond.filmstrip.effects.overlay.OverlayFrame
+import dev.jordond.filmstrip.effects.overlay.OverlayOffset
+import dev.jordond.filmstrip.effects.overlay.animatedBy
 import dev.jordond.filmstrip.effects.overlay.fadeIn
 import dev.jordond.filmstrip.effects.overlay.frameAt
 import dev.jordond.filmstrip.effects.overlay.imageOverlay
@@ -18,7 +22,10 @@ import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
+import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
@@ -35,12 +42,13 @@ import platform.Foundation.NSFileManager
 import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.math.abs
-import kotlin.math.pow
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import kotlin.test.fail
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -52,14 +60,18 @@ import kotlin.time.Duration.Companion.seconds
  * is that a composited chain survives a whole export. The frames render, the file is written, and
  * the plan does not quietly refuse the effect on the way.
  *
- * The fade is the one case that reads the written file back, since a property that changes per frame
- * is one nothing upstream of the encoder can prove arrived.
+ * The fade reads the written file back, since a property that changes per frame is one nothing
+ * upstream of the encoder can prove arrived. So do the letterbox cases, which check an overlay draws
+ * over a solid fill's bars and gaps and that a clip overlay stays on its clip.
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleOverlayExportTest {
   private val fixtures = NSProcessInfo.processInfo.environment[FIXTURES] as? String
 
   private val filmstrip = Filmstrip { avFoundationBackend() }
+
+  // The fill lands in the buffer as its own codes, so this is how the probe reads it back.
+  private val tealDrawn = TEAL.asBufferCodes().inProbeCodes()
 
   @Test
   fun `burns a watermark into every corner`() =
@@ -183,6 +195,196 @@ class AppleOverlayExportTest {
       assertIs<ExportError.UnsupportedEffect>(incapable.reasons.single()).specId shouldBe EffectIds.IMAGE_OVERLAY
     }
 
+  // A composition overlay is placed on the output frame, so one authored into a bar draws there and
+  // the fill keeps its own colour everywhere else.
+  @Test
+  fun `draws a composition overlay over a solid bar`() =
+    runTest(timeout = TIMEOUT) {
+      val portrait = fixture(PORTRAIT) ?: return@runTest
+      val badge = ImageOverlay(ImageSource.ofBytes(RED_PNG), Corner.TopStart)
+
+      val box = letterboxed(portrait, "bar-overlay", overlay = badge)
+      val rect = badge.placedOn(box.size, RASTER).rectOn(box.size)
+      assertTrue(rect.right < box.bar, "the badge reaches ${rect.right}, past the bar at ${box.bar}")
+
+      val drawn = frameOf(box.path, MIDDLE)
+      assertClose(drawn.average(rect.middleX, rect.middleY), RED, "the badge in the bar")
+      assertClose(drawn.average(rect.middleX, (rect.bottom + 1f) / 2f), tealDrawn, "the bar under the badge")
+      assertClose(drawn.average(1f - box.bar / 2f, 0.5f), tealDrawn, "the far bar")
+      remove(box.path)
+    }
+
+  // An SDR overlay blends on the buffer's own codes on every backend, and both colours land there as
+  // authored, so where a partial opacity lands is predicted from the two colours' own codes. Red's
+  // green and blue sit at zero, where sRGB's curve and BT.709's part company, so the case also says
+  // which of the two the blend ran on.
+  @Test
+  fun `blends a half opaque composition overlay with the bar under it`() =
+    runTest(timeout = TIMEOUT) {
+      val portrait = fixture(PORTRAIT) ?: return@runTest
+      assertBlendsWithTheBar(portrait, HALF, "bar-overlay-half")
+    }
+
+  @Test
+  fun `blends a quarter opaque composition overlay with the bar under it`() =
+    runTest(timeout = TIMEOUT) {
+      val portrait = fixture(PORTRAIT) ?: return@runTest
+      assertBlendsWithTheBar(portrait, QUARTER, "bar-overlay-quarter")
+    }
+
+  @Test
+  fun `draws a composition overlay over the gap before a late primary`() =
+    runTest(timeout = TIMEOUT) {
+      assertDrawsOverTheGap(cropped = true, "gap-overlay")
+    }
+
+  // No geometry effect runs here, so nothing but the fill stands in for the picture the gap lacks.
+  @Test
+  fun `draws a composition overlay over the gap before a late primary with no geometry effect`() =
+    runTest(timeout = TIMEOUT) {
+      assertDrawsOverTheGap(cropped = false, "gap-overlay-uncropped")
+    }
+
+  // The gap cases need the portrait fixture, so a missing one fails them rather than passing them.
+  private suspend fun assertDrawsOverTheGap(
+    cropped: Boolean,
+    name: String,
+  ) {
+    val portrait = requiredFixture(PORTRAIT)
+    val badge = ImageOverlay(ImageSource.ofBytes(RED_PNG), Corner.TopStart)
+
+    val box = letterboxed(portrait, name, overlay = badge, start = GAP, cropped = cropped)
+    val rect = badge.placedOn(box.size, RASTER).rectOn(box.size)
+
+    val drawn = frameOf(box.path, GAP / 2)
+    assertClose(drawn.average(rect.middleX, rect.middleY), RED, "the badge over the gap")
+    assertClose(drawn.average(0.5f, 0.5f), tealDrawn, "the gap where the picture will be")
+    remove(box.path)
+  }
+
+  // Half the badge is pushed off the clip's own frame, so that half must not land in the bar beside
+  // it. The half still on the clip is read too, or a badge that never drew would pass.
+  @Test
+  fun `cuts a clip overlay pushed off its clip at the clip's edge`() =
+    runTest(timeout = TIMEOUT) {
+      val portrait = fixture(PORTRAIT) ?: return@runTest
+      val source = frameOf(portrait)
+      val clipFrame = Size(source.width, source.height)
+      val authored = ImageOverlay(ImageSource.ofBytes(RED_PNG), Corner.TopStart, scale = CLIP_BADGE_SCALE)
+      val placed = authored.placedOn(clipFrame, RASTER)
+      val unmoved = placed.rectOn(clipFrame)
+      val push = OverlayFrame(offset = OverlayOffset(-(unmoved.left + unmoved.width / 2f), 0f))
+      val badge =
+        ImageOverlay(authored.image, authored.corner, scale = authored.scale, animation = OverlayAnimation { push })
+      val rect = placed.animatedBy(push).rectOn(clipFrame)
+      assertTrue(rect.left < 0f && rect.right > 0f, "the badge at $rect does not straddle the clip's edge")
+
+      val box = letterboxed(portrait, "clip-overlay-off", clipOverlay = badge)
+
+      // The picture spans the output's full height, so a clip's y is the output's y and only x moves.
+      val drawn = frameOf(box.path, MIDDLE)
+      // Read halfway between the clip's left edge and the badge's right edge.
+      assertClose(drawn.average(box.bar + rect.right * box.picture / 2f, rect.middleY), RED, "the badge on the clip")
+      assertClose(drawn.average(box.bar + rect.left * box.picture / 2f, rect.middleY), tealDrawn, "the bar beside it")
+      remove(box.path)
+    }
+
+  /**
+   * Exports [portrait] letterboxed into a landscape frame over a solid fill, with the overlays given.
+   *
+   * [overlay] goes on the composition and [clipOverlay] on the clip. The clip opens at [start], which
+   * leaves a gap before it when that is past zero. With [cropped] false no crop runs, so the output
+   * keeps the clip's own shape and has no bars.
+   */
+  private suspend fun letterboxed(
+    portrait: String,
+    name: String,
+    overlay: ImageOverlay? = null,
+    clipOverlay: ImageOverlay? = null,
+    start: Duration = Duration.ZERO,
+    cropped: Boolean = true,
+  ): Letterbox {
+    val composition =
+      compositionOf {
+        track {
+          clip(MediaSource.of(portrait)) {
+            trim(Duration.ZERO, LETTERBOX_CLIP)
+            if (clipOverlay != null) effects { add(clipOverlay) }
+          }
+          startAt(start)
+        }
+        fill(Fill.Solid(TEAL.toArgb()))
+        effects {
+          if (cropped) crop(AspectRatio.Landscape, Fit.Contain)
+          if (overlay != null) add(overlay)
+        }
+      }
+    val output = temporaryPath(name)
+    val size = assertNotNull(exported(composition, SPEC, output).info.video).displaySize
+    val source = frameOf(portrait)
+    return Letterbox(output, size, source.width.toFloat() / source.height * size.height / size.width)
+  }
+
+  /**
+   * A letterboxed export, where [picture] is the share of the output's width the clip covers.
+   */
+  private class Letterbox(
+    val path: String,
+    val size: Size,
+    val picture: Float,
+  ) {
+    val bar: Float get() = (1f - picture) / 2f
+  }
+
+  private suspend fun assertBlendsWithTheBar(
+    portrait: String,
+    opacity: Float,
+    name: String,
+  ) {
+    val badge = ImageOverlay(ImageSource.ofBytes(RED_PNG), Corner.TopStart, opacity = opacity)
+    val box = letterboxed(portrait, name, overlay = badge)
+    val rect = badge.placedOn(box.size, RASTER).rectOn(box.size)
+
+    val inCodes = TEAL.asBufferCodes().towards(RED.asBufferCodes(), badge.opacity).inProbeCodes()
+    val inSrgb = TEAL.towards(RED, badge.opacity)
+    val gap = distance(inCodes, inSrgb)
+    val drawn = frameOf(box.path, MIDDLE).average(rect.middleX, rect.middleY)
+    remove(box.path)
+
+    assertTrue(gap > 0, "at $opacity the buffer's codes and sRGB's both ask for $inCodes, so nothing tells them apart")
+    assertTrue(
+      distance(drawn, inCodes) * 2 < gap,
+      "the badge at $opacity drew $drawn, where the buffer's codes ask for $inCodes and sRGB's for $inSrgb",
+    )
+  }
+
+  private val NormalizedRect.middleX: Float get() = (left + right) / 2f
+
+  private val NormalizedRect.middleY: Float get() = (top + bottom) / 2f
+
+  /**
+   * The colour a source over draw of [overlay] at [opacity] leaves on this one, worked on sRGB's code
+   * values in `0..255` rather than on the buffer's own.
+   */
+  private fun Triple<Int, Int, Int>.towards(
+    overlay: Triple<Int, Int, Int>,
+    opacity: Float,
+  ): Triple<Int, Int, Int> {
+    fun channel(
+      under: Int,
+      over: Int,
+    ): Int = (under + (over - under) * opacity).roundToInt()
+    return Triple(channel(first, overlay.first), channel(second, overlay.second), channel(third, overlay.third))
+  }
+
+  /**
+   * The buffer codes a source over draw of [overlay] at [opacity] leaves on these, channel by channel.
+   */
+  private fun FloatArray.towards(
+    overlay: FloatArray,
+    opacity: Float,
+  ): FloatArray = FloatArray(size) { this[it] + (overlay[it] - this[it]) * opacity }
+
   private fun watermark(animation: OverlayAnimation?) =
     ImageOverlay(ImageSource.ofBytes(RED_PNG), Corner.TopStart, animation = animation)
 
@@ -207,10 +409,10 @@ class AppleOverlayExportTest {
    *
    * Compositing over a fixed background moves each channel by the overlay's opacity times something
    * the opacity does not appear in, so the total is that opacity times what a fully opaque draw
-   * moved. That only holds in light, so every reading is taken back through the transfer the file
-   * was written with. A patch the opaque draw leaves alone is dropped rather than counted as encoder
-   * noise, and the patches it keeps are the ones both sums run over, so a patch cannot land in one
-   * and not the other.
+   * moved. That holds in the buffer's own codes an SDR overlay blends on, so every reading is carried
+   * back into the codes the file was written with. A patch the opaque draw leaves alone is dropped rather than
+   * counted as encoder noise, and the patches it keeps are the ones both sums run over, so a patch
+   * cannot land in one and not the other.
    *
    * @return What the opaque draw moved, and what the ramped one moved.
    */
@@ -239,18 +441,10 @@ class AppleOverlayExportTest {
   private fun gapBetween(
     drawn: Triple<Int, Int, Int>,
     plain: Triple<Int, Int, Int>,
-  ): Float =
-    abs(light(drawn.first) - light(plain.first)) +
-      abs(light(drawn.second) - light(plain.second)) +
-      abs(light(drawn.third) - light(plain.third))
-
-  /**
-   * The light a code value in `0..255` stands for, through the sRGB transfer the decoded frame
-   * carries.
-   */
-  private fun light(channel: Int): Float {
-    val signal = channel / FULL
-    return if (signal <= KNEE) signal / SLOPE else ((signal + OFFSET) / (1f + OFFSET)).pow(GAMMA)
+  ): Float {
+    val over = drawn.inBufferCodes()
+    val under = plain.inBufferCodes()
+    return over.indices.sumOf { abs(over[it] - under[it]).toDouble() }.toFloat()
   }
 
   private suspend fun exported(
@@ -266,11 +460,14 @@ class AppleOverlayExportTest {
       }
     }
 
-  private fun fixture(): String? {
+  private fun fixture(name: String = LANDSCAPE): String? {
     val directory = fixtures ?: return null
-    val path = "$directory/apple_export_a.mp4"
+    val path = "$directory/$name"
     return path.takeIf { NSFileManager.defaultManager.fileExistsAtPath(it) }
   }
+
+  private fun requiredFixture(name: String): String =
+    fixture(name) ?: fail("$name is not in $FIXTURES, which the Gradle test task builds and points at")
 
   private fun temporaryPath(name: String): String = NSTemporaryDirectory() + "filmstrip-apple-$name.mp4"
 
@@ -280,6 +477,8 @@ class AppleOverlayExportTest {
 
   private companion object {
     const val FIXTURES = "FILMSTRIP_FIXTURES"
+    const val LANDSCAPE = "apple_export_a.mp4"
+    const val PORTRAIT = "apple_export_portrait.mp4"
     const val BLACK = 0xFF000000.toInt()
     val TIMEOUT = 2.seconds * 60
 
@@ -290,17 +489,20 @@ class AppleOverlayExportTest {
     val SPAN = TimeRange.of(Duration.ZERO, CLIP)
     val RAMP = 2.seconds
     val RAMP_POINTS = listOf(500.milliseconds, 1_500.milliseconds)
+    val LETTERBOX_CLIP = 1.seconds
+    val MIDDLE = LETTERBOX_CLIP / 2
+    val GAP = 1.seconds
+    const val HALF = 0.5f
+    const val QUARTER = 0.25f
+    const val CLIP_BADGE_SCALE = 0.5f
+
+    // The fill the letterbox cases paint.
+    val TEAL = Triple(0x11, 0xC2, 0xAA)
 
     const val CELLS = 8
     const val DRIFT = 0.08f
     const val CELL_FLOOR = 0.02f
     const val FLOOR = 10f
-
-    const val FULL = 255f
-    const val KNEE = 0.04045f
-    const val SLOPE = 12.92f
-    const val OFFSET = 0.055f
-    const val GAMMA = 2.4f
 
     // A four by two opaque red PNG. Not square, so a watermark's height following the image's own
     // aspect is exercised.
@@ -319,3 +521,6 @@ class AppleOverlayExportTest {
     const val HEX = 16
   }
 }
+
+// The colour the overlay export tests draw their badges in.
+internal val RED = Triple(0xFF, 0x00, 0x00)

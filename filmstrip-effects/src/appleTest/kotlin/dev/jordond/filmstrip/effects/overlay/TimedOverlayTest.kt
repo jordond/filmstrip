@@ -1,33 +1,29 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.edit.TimeRange
-import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.CoreImageEffect
-import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.FrameInfo
-import dev.jordond.filmstrip.effect.RenderApi
-import dev.jordond.filmstrip.effect.RenderCapabilities
-import dev.jordond.filmstrip.effect.RenderFeature
-import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.BASELINE
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.CHANNELS
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.FRAME
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.FRAME_RECT
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.RASTER
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.SPAN
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.at
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.decodeHex
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.pixels
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.renderingContext
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.stepFor
 import dev.jordond.filmstrip.geometry.Corner
-import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.style.TextStyle
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.FloatVar
-import kotlinx.cinterop.allocArray
-import kotlinx.cinterop.get
-import kotlinx.cinterop.memScoped
-import platform.CoreGraphics.CGRectMake
 import platform.CoreImage.CIColor
 import platform.CoreImage.CIContext
 import platform.CoreImage.CIImage
-import platform.CoreImage.kCIFormatRGBAf
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNotSame
 import kotlin.test.assertSame
@@ -47,11 +43,12 @@ import kotlin.time.Duration.Companion.seconds
  * The animated cases read the middle of a ramp rather than its ends, since both ends agree under an
  * additive and a multiplicative reading, and every expectation comes from [frameAt] and [animatedBy]
  * rather than from a number copied out of them.
+ *
+ * Pixels are read in the codes of the frame's own BT.709 colour space, the values an encoder writes
+ * and the ones an SDR overlay blends on.
  */
 @OptIn(ExperimentalForeignApi::class)
 class TimedOverlayTest {
-  private val resolver = BuiltInEffectResolver()
-
   @Test
   fun `draws a watermark inside its window and not outside`() {
     val step = stepFor(ImageOverlay(RED, Corner.BottomEnd, visibleDuring = WINDOW))
@@ -208,51 +205,7 @@ class TimedOverlayTest {
     assertEquals(opacity * whole, moved, whole * DRIFT, "a fade at $time moved $moved of a full $whole")
   }
 
-  private fun stepFor(spec: dev.jordond.filmstrip.effect.EffectSpec) =
-    assertIs<EffectResolution.Resolved>(
-      resolver.resolve(spec, CAPABILITIES, ATTRIBUTES),
-    ).effect.step
-
-  private fun at(time: kotlin.time.Duration) = FrameInfo(ATTRIBUTES, time)
-
-  private fun background(): CIImage =
-    CIImage(color = CIColor.blackColor)
-      .imageByCroppingToRect(CGRectMake(0.0, 0.0, FRAME.width.toDouble(), FRAME.height.toDouble()))
-
-  /**
-   * A context to read pixels through, or null when this process cannot build one.
-   */
-  private fun renderingContext(): CIContext? =
-    try {
-      CIContext()
-    } catch (absent: NullPointerException) {
-      null
-    }
-
-  /**
-   * The whole frame as linear light, four floats per pixel.
-   *
-   * Read in the context's own working space rather than an encoded one, because everything measured
-   * here is a sum over the frame and a sum is only proportional to the opacity where the pixels are
-   * linear in it.
-   */
-  private fun pixels(
-    image: CIImage,
-    context: CIContext,
-  ): FloatArray =
-    memScoped {
-      val count = FRAME.width * FRAME.height * CHANNELS
-      val buffer = allocArray<FloatVar>(count)
-      context.render(
-        image = image,
-        toBitmap = buffer,
-        rowBytes = (FRAME.width * CHANNELS * Float.SIZE_BYTES).toLong(),
-        bounds = CGRectMake(0.0, 0.0, FRAME.width.toDouble(), FRAME.height.toDouble()),
-        format = kCIFormatRGBAf,
-        colorSpace = null,
-      )
-      FloatArray(count) { buffer[it] }
-    }
+  private fun background(): CIImage = CIImage(color = CIColor.blackColor).imageByCroppingToRect(FRAME_RECT)
 
   /**
    * How far [step] moved the frame away from [plain] at [time], summed over every channel of every
@@ -288,19 +241,12 @@ class TimedOverlayTest {
   }
 
   private companion object {
-    val FRAME = Size(640, 360)
-    val RASTER = Size(4, 2)
     val WINDOW = TimeRange(1.seconds, 2.seconds)
-    val SPAN = TimeRange.of(Duration.ZERO, 10.seconds)
 
     val RAMP = 2.seconds
     val QUARTER = 500.milliseconds
     val THREE_QUARTERS = 1_500.milliseconds
     val RAMP_POINTS = listOf(QUARTER, THREE_QUARTERS)
-
-    // Where a draw carrying no animation is sampled. Any frame of the run does, since nothing about
-    // such a draw varies with time.
-    val BASELINE = 1.seconds
 
     val WINDOW_RAMP = 1.seconds
     val INTO_WINDOW = 250.milliseconds
@@ -313,7 +259,6 @@ class TimedOverlayTest {
     // A flat mid blue, far enough off black that a quarter of it is still well clear of the floor.
     val PLATED = TextStyle(backgroundColor = 0xFF6699CC.toInt())
 
-    const val CHANNELS = 4
     const val HALF = 0.5f
     const val DRIFT = 0.02f
     const val EDGE_DRIFT = 2f
@@ -330,34 +275,5 @@ class TimedOverlayTest {
             "0437c69f0000000049454e44ae426082"
         ).decodeHex(),
       )
-
-    val ATTRIBUTES =
-      Attributes(
-        inputSize = FRAME,
-        outputSize = FRAME,
-        layoutSize = FRAME,
-        colorSpace = ColorSpace.Bt709,
-        hdrTransfer = null,
-        frameRate = 30f,
-        span = SPAN,
-      )
-
-    val CAPABILITIES =
-      RenderCapabilities(
-        api = RenderApi.Metal,
-        supportsFragmentShader = true,
-        supportsComputeShader = true,
-        supportsHdr = false,
-        colorSpaces = setOf(ColorSpace.Bt709),
-        maxTextureSize = 8_192,
-        features = setOf(RenderFeature.TextRendering),
-      )
-
-    const val HEX = 16
-
-    fun String.decodeHex(): ByteArray =
-      ByteArray(length / 2) { index ->
-        ((this[index * 2].digitToInt(HEX) shl 4) or this[index * 2 + 1].digitToInt(HEX)).toByte()
-      }
   }
 }

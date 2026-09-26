@@ -6,6 +6,7 @@ import androidx.media3.effect.RgbMatrix
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportPath
@@ -193,9 +194,10 @@ class Media3PreviewTest {
           .setBlueScale(scale)
           .build(),
       ),
+      EffectStage.Color,
     )
 
-  private fun opaque(): ResolvedEffect = ResolvedEffect("opaque", PlatformEffect(OpaqueEffect()))
+  private fun opaque(): ResolvedEffect = ResolvedEffect("opaque", PlatformEffect(OpaqueEffect()), EffectStage.Color)
 
   private fun composition(
     output: Size = FRAME,

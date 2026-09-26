@@ -14,10 +14,14 @@ import dev.jordond.filmstrip.media.HdrTransfer
 /**
  * Paints an opaque fill colour wherever a frame carries no pixels of its own.
  *
- * media3 clears a letterbox bar or a timeline gap to black with zero alpha, and a colour effect
- * changes a pixel's colour without ever touching its alpha. Run last in the composition's effect
- * chain, this reads that leftover alpha to tell an empty pixel from a real one and writes [color]
+ * media3 clears a letterbox bar to black with zero alpha, and a colour effect changes a pixel's
+ * colour without ever touching its alpha. Run after the composition's effects and before its
+ * overlays, this reads that leftover alpha to tell an empty pixel from a real one and writes [color]
  * over it, whatever colour an earlier effect left behind.
+ *
+ * A timeline gap in the video is laid as a still with every pixel at zero alpha. The composition's
+ * presentation fits it into the output frame like any other picture, so the still and the bars
+ * beside it all read as empty and this pass covers the gap with [color] edge to edge.
  *
  * @property color Packed ARGB the empty region is painted with. Alpha is ignored, the pass always
  *   writes full opacity.

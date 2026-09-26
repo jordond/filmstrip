@@ -79,7 +79,7 @@ internal class FrameProbe(
    * The average colour of a [PATCH] square centred on ([xFraction], [yFraction]).
    *
    * A single pixel lands wherever chroma subsampling left it, so anything measuring a region reads
-   * an average rather than a sample.
+   * an average rather than a sample. Each channel rounds to the nearest code.
    */
   fun average(
     xFraction: Float,
@@ -99,7 +99,9 @@ internal class FrameProbe(
       }
     }
     val sampled = PATCH * PATCH
-    return Triple(red / sampled, green / sampled, blue / sampled)
+
+    fun rounded(sum: Int): Int = (sum + sampled / 2) / sampled
+    return Triple(rounded(red), rounded(green), rounded(blue))
   }
 
   companion object {

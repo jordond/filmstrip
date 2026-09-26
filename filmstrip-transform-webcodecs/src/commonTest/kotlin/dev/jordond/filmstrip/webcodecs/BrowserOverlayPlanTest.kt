@@ -1,0 +1,227 @@
+package dev.jordond.filmstrip.webcodecs
+
+import dev.jordond.filmstrip.capability.DeviceCapabilities
+import dev.jordond.filmstrip.capability.EffectParity
+import dev.jordond.filmstrip.capability.VideoEncoderCapability
+import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.Clip
+import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.EffectIds
+import dev.jordond.filmstrip.effect.EffectResolution
+import dev.jordond.filmstrip.effect.EffectResolver
+import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effect.RenderCapabilities
+import dev.jordond.filmstrip.effect.RenderFeature
+import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.effects.color.Sepia
+import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.TextOverlay
+import dev.jordond.filmstrip.effects.overlay.fadeIn
+import dev.jordond.filmstrip.effects.overlay.frameAt
+import dev.jordond.filmstrip.effects.overlay.placedOn
+import dev.jordond.filmstrip.effects.overlay.rectOn
+import dev.jordond.filmstrip.export.AudioCodec
+import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.export.VideoCodec
+import dev.jordond.filmstrip.geometry.Corner
+import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.media.MediaInfo
+import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.VideoTrackInfo
+import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.test.AuthoredColours
+import dev.jordond.filmstrip.test.OverlayPixels
+import dev.jordond.filmstrip.webcodecs.internal.BrowserLowering
+import dev.jordond.filmstrip.webcodecs.internal.BrowserPlanner
+import dev.jordond.filmstrip.webcodecs.internal.browserParityOf
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * How the browser planner lowers overlays: which scope each one lands on, what the colour folds read
+ * from them, and what the planner says it can draw.
+ */
+class BrowserOverlayPlanTest {
+  // A clip overlay measures against the clip's frame and a composition one against the output's. The
+  // second clip is narrower than the output the first one sets, so each rect says which frame it was
+  // placed on.
+  @Test
+  fun overlaysLandOnTheClipOrTheRenderByScope() =
+    runTest {
+      val onClip = ImageOverlay(IMAGE, Corner.TopStart)
+      val onComposition = ImageOverlay(IMAGE, Corner.BottomEnd)
+      val composition =
+        EditComposition(
+          tracks = listOf(Track(listOf(Clip(FILLER), Clip(SOURCE, effects = listOf(onClip))))),
+          effects = listOf(onComposition),
+          audio = AudioSpec.Remove,
+        )
+
+      val render =
+        assertNotNull(lower(composition, mapOf(FILLER to infoOf(OUTPUT_FRAME), SOURCE to infoOf(CLIP_FRAME))).render)
+      val output = Size(render.width, render.height)
+      assertEquals(OUTPUT_FRAME, output)
+
+      assertTrue(
+        render.clips
+          .first()
+          .overlays
+          .isEmpty(),
+        "the filler drew ${render.clips.first().overlays}",
+      )
+      val clipDraw =
+        assertNotNull(
+          render.clips
+            .last()
+            .overlays
+            .single()
+            .drawAt(CLIP_LENGTH),
+        )
+      assertEquals(onClip.placedOn(CLIP_FRAME, PNG).rectOn(CLIP_FRAME), clipDraw.rect)
+      val compositionDraw = assertNotNull(render.compositionOverlays.single().drawAt(Duration.ZERO))
+      assertEquals(onComposition.placedOn(output, PNG).rectOn(output), compositionDraw.rect)
+    }
+
+  @Test
+  fun anOverlayDrawsAtTheOpacityTheSharedSamplerAnswersMidRamp() =
+    runTest {
+      val fading = ImageOverlay(IMAGE, Corner.TopEnd, animation = fadeIn(RAMP))
+      val composition = compositionOf(effects = listOf(fading))
+
+      val overlay = assertNotNull(lower(composition).render).compositionOverlays.single()
+
+      for (time in listOf(RAMP / 4, RAMP * 3 / 4)) {
+        val expected = assertNotNull(fading.frameAt(time, TimeRange(Duration.ZERO, CLIP_LENGTH))).opacity
+        assertEquals(expected, assertNotNull(overlay.drawAt(time)).opacity, "opacity at $time")
+      }
+    }
+
+  @Test
+  fun theColourMatricesReadNothingFromAnOverlay() =
+    runTest {
+      val plain = compositionOf(clipEffects = listOf(Sepia(HALF)), effects = listOf(Sepia(HALF)))
+      val overlaid =
+        compositionOf(
+          clipEffects = listOf(Sepia(HALF), ImageOverlay(IMAGE, Corner.TopStart)),
+          effects = listOf(Sepia(HALF), ImageOverlay(IMAGE, Corner.BottomEnd)),
+        )
+
+      val without = assertNotNull(lower(plain).render).clips.single()
+      val with = assertNotNull(lower(overlaid).render).clips.single()
+
+      assertContentEquals(without.colorMatrix, with.colorMatrix)
+      assertContentEquals(without.compositionColorMatrix, with.compositionColorMatrix)
+      assertContentEquals(without.matrix, with.matrix)
+    }
+
+  @Test
+  fun overlaysAreExactOnTheBrowser() =
+    runTest {
+      assertEquals(EffectParity.Exact, browserParityOf(EffectIds.IMAGE_OVERLAY))
+      assertEquals(EffectParity.Exact, browserParityOf(EffectIds.TEXT_OVERLAY))
+
+      val composition =
+        compositionOf(clipEffects = listOf(TextOverlay("clip")), effects = listOf(ImageOverlay(IMAGE, Corner.TopEnd)))
+      val verdict = assertIs<Verdict.Capable>(lower(composition).verdict)
+      assertEquals(EffectParity.Exact, verdict.plan.parity)
+    }
+
+  @Test
+  fun theBrowserAdvertisesTextRendering() =
+    runTest {
+      val seen = mutableListOf<RenderCapabilities>()
+      val recording =
+        object : EffectResolver {
+          override fun resolve(
+            spec: EffectSpec,
+            capabilities: RenderCapabilities,
+            attributes: Attributes,
+          ): EffectResolution? {
+            seen += capabilities
+            return null
+          }
+        }
+      val composition = compositionOf(effects = listOf(TextOverlay("caption")))
+
+      BrowserPlanner(listOf(recording, BuiltInEffectResolver())).lower(composition, SPEC, DEVICE, infosOf(composition))
+
+      assertTrue(seen.isNotEmpty(), "no resolver was asked")
+      assertTrue(seen.all { RenderFeature.TextRendering in it.features }, "advertised ${seen.map { it.features }}")
+    }
+
+  private suspend fun lower(
+    composition: EditComposition,
+    infos: Map<MediaSource, MediaInfo> = infosOf(composition),
+  ): BrowserLowering {
+    val resolver = BuiltInEffectResolver()
+    resolver.preload(composition)
+    return BrowserPlanner(listOf(resolver)).lower(composition, SPEC, DEVICE, infos)
+  }
+
+  private fun compositionOf(
+    clipEffects: List<EffectSpec> = emptyList(),
+    effects: List<EffectSpec> = emptyList(),
+  ): EditComposition =
+    EditComposition(
+      tracks = listOf(Track(listOf(Clip(SOURCE, effects = clipEffects)))),
+      effects = effects,
+      audio = AudioSpec.Remove,
+    )
+
+  private fun infosOf(composition: EditComposition): Map<MediaSource, MediaInfo> =
+    composition.clips.associate { it.source to infoOf(OUTPUT_FRAME) }
+
+  private fun infoOf(size: Size): MediaInfo =
+    MediaInfo(
+      duration = CLIP_LENGTH,
+      video =
+        VideoTrackInfo(
+          codedSize = size,
+          displaySize = size,
+          rotationDegrees = 0,
+          pixelAspectRatio = 1f,
+          frameRate = 30f,
+          codec = trackCodecOf("avc1"),
+          bitDepth = 8,
+          colorSpace = ColorSpace.Bt709,
+          hdrTransfer = null,
+          bitrate = null,
+        ),
+      audio = null,
+      isExportable = true,
+    )
+
+  private companion object {
+    val SOURCE: MediaSource = MediaSource.Bytes("a".encodeToByteArray())
+    val FILLER: MediaSource = MediaSource.Bytes("filler".encodeToByteArray())
+    val PNG = Size(8, 4)
+    val IMAGE: ImageSource = ImageSource.ofBytes(OverlayPixels.pngOf(PNG, AuthoredColours.MID_GREEN))
+    val OUTPUT_FRAME = Size(1280, 720)
+    val CLIP_FRAME = Size(640, 720)
+    val CLIP_LENGTH = 4.seconds
+    val RAMP = 2.seconds
+    const val HALF = 0.5f
+
+    val SPEC = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None)
+    val DEVICE =
+      DeviceCapabilities(
+        video = listOf(VideoEncoderCapability(VideoCodec.H264, null, Size(3840, 2160), null, null, false, 2)),
+        audio = emptyList(),
+        supportsHdrEncoding = false,
+        concurrentSessionBudget = null,
+      )
+  }
+}

@@ -34,7 +34,6 @@ import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import io.kotest.matchers.longs.shouldBeInRange
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -284,7 +283,7 @@ class Media3FrameGridTest {
 
     sequence.editedMediaItems.size shouldBe 2
     sequence.editedMediaItems[0].presentationDurationUs shouldBe slotLengthUs(video, 25)
-    sequence.editedMediaItems[1].gapUs() shouldBe slotLengthUs(silent, 25)
+    sequence.editedMediaItems[1].stillGapUs() shouldBe slotLengthUs(silent, 25)
   }
 
   // 20ms at 25 fps is half a slot, which rounds up onto slot one. The audio waits exactly as long as
@@ -294,7 +293,7 @@ class Media3FrameGridTest {
     val start = 20.milliseconds
     val (video, audio) = composition(laid(listOf(1.seconds), from = start), frameRate = 25, trackStart = start).lower()
 
-    video.editedMediaItems.first().gapUs() shouldBe outputSlotTime(outputSlotOf(start, 25), 25).inWholeMicroseconds
+    video.editedMediaItems.first().stillGapUs() shouldBe outputSlotTime(outputSlotOf(start, 25), 25).inWholeMicroseconds
     audio.editedMediaItems.first().gapUs() shouldBe start.inWholeMicroseconds
   }
 
@@ -306,7 +305,7 @@ class Media3FrameGridTest {
     check(outputSlotOf(start, 25) == 0L)
     video.editedMediaItems
       .first()
-      .mediaItem.localConfiguration shouldNotBe null
+      .isGap shouldBe false
     audio.editedMediaItems.first().gapUs() shouldBe start.inWholeMicroseconds
   }
 
@@ -317,8 +316,29 @@ class Media3FrameGridTest {
     val start = 530.milliseconds
     val (video, audio) = composition(laid(listOf(1.seconds), from = start), frameRate = 25, trackStart = start).lower()
 
-    video.editedMediaItems.first().gapUs() shouldBe outputSlotTime(outputSlotOf(start, 25), 25).inWholeMicroseconds
+    video.editedMediaItems.first().stillGapUs() shouldBe outputSlotTime(outputSlotOf(start, 25), 25).inWholeMicroseconds
     audio.editedMediaItems.first().gapUs() shouldBe start.inWholeMicroseconds
+  }
+
+  // A still with nothing drawn on it, where media3's own gap is an opaque black picture.
+  @Test
+  fun `a gap in the video grid is a transparent still held at the output rate`() {
+    val start = 530.milliseconds
+    val gap =
+      composition(laid(listOf(1.seconds), from = start), frameRate = 25, trackStart = start)
+        .lower()
+        .first()
+        .editedMediaItems
+        .first()
+    val lead = outputSlotTime(outputSlotOf(start, 25), 25)
+
+    gap.isGap shouldBe true
+    gap.mediaItem.localConfiguration?.mimeType shouldBe "image/png"
+    gap.mediaItem.localConfiguration?.imageDurationMs shouldBe lead.inWholeMilliseconds
+    gap.durationUs shouldBe lead.inWholeMicroseconds
+    gap.frameRate shouldBe 25
+    gap.removeAudio shouldBe true
+    gap.effects.videoEffects shouldBe emptyList()
   }
 
   private fun ResolvedComposition.lower(vararg read: Pair<ResolvedClip, FrameBounds>): List<EditedMediaItemSequence> =
@@ -364,6 +384,11 @@ class Media3FrameGridTest {
 
   private fun EditedMediaItem.gapUs(): Long {
     check(mediaItem.localConfiguration == null) { "expected a gap and found $mediaItem" }
+    return durationUs
+  }
+
+  private fun EditedMediaItem.stillGapUs(): Long {
+    check(isGap && mediaItem.localConfiguration != null) { "expected a transparent gap and found $mediaItem" }
     return durationUs
   }
 

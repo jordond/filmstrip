@@ -24,13 +24,14 @@ import kotlinx.cinterop.allocArray
 import kotlinx.cinterop.get
 import kotlinx.cinterop.memScoped
 import platform.CoreFoundation.CFStringRef
-import platform.CoreGraphics.CGColorSpaceCreateDeviceRGB
 import platform.CoreGraphics.CGColorSpaceCreateWithName
+import platform.CoreGraphics.CGColorSpaceRef
 import platform.CoreGraphics.CGColorSpaceRelease
 import platform.CoreGraphics.CGRectMake
 import platform.CoreGraphics.kCGColorSpaceExtendedLinearITUR_2020
 import platform.CoreGraphics.kCGColorSpaceITUR_2100_HLG
 import platform.CoreGraphics.kCGColorSpaceITUR_2100_PQ
+import platform.CoreGraphics.kCGColorSpaceSRGB
 import platform.CoreImage.CIColor
 import platform.CoreImage.CIContext
 import platform.CoreImage.CIImage
@@ -50,8 +51,9 @@ import kotlin.time.Duration.Companion.seconds
  *
  * A flat frame is rendered twice, once untouched and once through the resolved step, and the second
  * reading is checked against the first pushed through [transform]. Nothing here carries a colour of
- * its own: whatever the untouched render came back with is what the matrix is asked to move, so the
- * two renders share whichever encoding Core Image put them in.
+ * its own: whatever the untouched render came back with is what the matrix is asked to move. Both
+ * renders are read in the codes of the frame's own BT.709 colour space, the values an encoder writes
+ * and the ones the other backends mix.
  *
  * The tolerance is a code value or two rather than an encoder's worth, since no encoder runs. Every
  * case works on the middle of the range, where an offset and a gain disagree.
@@ -86,6 +88,40 @@ class CoreImageColorTest {
     val context = renderingContext() ?: return
 
     assertDraws(MIXED, context)
+  }
+
+  // Halving the codes sRGB encodes and halving the frame's own BT.709 codes land more than the
+  // tolerance apart, so this is the case that says which of the two the matrix ran on.
+  @Test
+  fun `a brightness scales the frame's own codes rather than sRGB's`() {
+    val context = renderingContext() ?: return
+
+    assertMovesOwnCodes(Brightness(HALF), flat(), context)
+  }
+
+  // Away from black sRGB's curve runs one straight line apart from BT.709's, and a contrast is a
+  // straight line too, so the two readings only part where a channel is taken close to black.
+  @Test
+  fun `a contrast moves the frame's own codes rather than sRGB's`() {
+    val context = renderingContext() ?: return
+
+    assertMovesOwnCodes(Contrast(FIRMER), inCodes(CONTRAST_TO_BLACK), context)
+  }
+
+  // A saturation's rows each sum to one, so it only parts from the sRGB reading where it takes a
+  // channel close to black, which takes a factor above one.
+  @Test
+  fun `a saturation moves the frame's own codes rather than sRGB's`() {
+    val context = renderingContext() ?: return
+
+    assertMovesOwnCodes(Saturation(VIVID), inCodes(SATURATION_TO_BLACK), context)
+  }
+
+  @Test
+  fun `a hand-written matrix moves the frame's own codes rather than sRGB's`() {
+    val context = renderingContext() ?: return
+
+    assertMovesOwnCodes(MIXED, inCodes(MIXED_TO_BLACK), context)
   }
 
   // The offset rides in the fourth component of each row vector rather than in the bias vector, so
@@ -179,9 +215,10 @@ class CoreImageColorTest {
   private fun assertDraws(
     spec: EffectSpec,
     context: CIContext,
-  ) {
-    val plain = read(flat(), context)
-    val drawn = read(stepFor(spec).apply(flat(), FRAME), context)
+    frame: CIImage = flat(),
+  ): List<Int> {
+    val plain = read(frame, context)
+    val drawn = read(stepFor(spec).apply(frame, FRAME), context)
 
     val matrix = checkNotNull(colorMatrixOf(spec)) { "${spec.id} is not a colour matrix" }
     val moved = matrix.transform(plain[0] / FULL, plain[1] / FULL, plain[2] / FULL)
@@ -194,6 +231,32 @@ class CoreImageColorTest {
     assertTrue(
       expected.indices.all { abs(drawn[it] - expected[it]) <= DRIFT },
       "${spec.id} drew $drawn and the matrix asks for $expected from a plain $plain",
+    )
+    return expected
+  }
+
+  /**
+   * Runs [spec]'s step over [frame] through [assertDraws], then checks the same matrix run on sRGB's
+   * codes would land more than twice the tolerance away on some channel, so a draw inside the
+   * tolerance of the frame's own codes cannot also be inside it of sRGB's.
+   */
+  private fun assertMovesOwnCodes(
+    spec: EffectSpec,
+    frame: CIImage,
+    context: CIContext,
+  ) {
+    val expected = assertDraws(spec, context, frame)
+
+    val matrix = checkNotNull(colorMatrixOf(spec)) { "${spec.id} is not a colour matrix" }
+    val plain = readLight(frame, context, kCGColorSpaceSRGB)
+    val moved = matrix.transform(plain[0], plain[1], plain[2])
+    val inSrgb =
+      readLight(flatIn(moved[0], moved[1], moved[2], kCGColorSpaceSRGB), context, ColorSpace.Bt709.createCodeSpace())
+    val srgbExpected = List(CHANNELS) { channel -> (inSrgb[channel] * FULL).roundToInt() }
+
+    assertTrue(
+      expected.indices.any { abs(expected[it] - srgbExpected[it]) > 2 * DRIFT },
+      "${spec.id} asks for $expected on the frame's codes and $srgbExpected on sRGB's, too close to tell apart",
     )
   }
 
@@ -242,6 +305,9 @@ class CoreImageColorTest {
 
   private fun flat(): CIImage = CIImage(color = COLOR).imageByCroppingToRect(RECT)
 
+  private fun inCodes(codes: List<Float>): CIImage =
+    flatIn(codes[0], codes[1], codes[2], ColorSpace.Bt709.createCodeSpace())
+
   // Above white on red and green and below it on blue, all inside HLG's ceiling under every case
   // but the one that goes looking for it.
   private fun lit(): CIImage = light(LIT_RED, LIT_GREEN, LIT_BLUE)
@@ -266,12 +332,19 @@ class CoreImageColorTest {
     green: Float,
     blue: Float,
     spaceName: CFStringRef?,
+  ): CIImage = flatIn(red, green, blue, CGColorSpaceCreateWithName(spaceName))
+
+  // Takes [space] over and releases it.
+  private fun flatIn(
+    red: Float,
+    green: Float,
+    blue: Float,
+    space: CGColorSpaceRef?,
   ): CIImage {
-    val space = CGColorSpaceCreateWithName(spaceName)
     val color =
       checkNotNull(
         CIColor.colorWithRed(red.toDouble(), green.toDouble(), blue.toDouble(), alpha = 1.0, colorSpace = space),
-      ) { "no colour in the $spaceName colour space" }
+      ) { "no colour in $space" }
     CGColorSpaceRelease(space)
 
     return CIImage(color = color).imageByCroppingToRect(RECT)
@@ -290,7 +363,8 @@ class CoreImageColorTest {
     }
 
   /**
-   * The first pixel of [image], as red, green, blue and alpha in the range zero to 255.
+   * The first pixel of [image] in the frame's own BT.709 codes, as red, green, blue and alpha in the
+   * range zero to 255.
    */
   private fun read(
     image: CIImage,
@@ -299,7 +373,7 @@ class CoreImageColorTest {
     memScoped {
       val rowBytes = FRAME_SIZE.width * BYTES_PER_PIXEL
       val pixels = allocArray<UByteVar>(rowBytes * FRAME_SIZE.height)
-      val space = CGColorSpaceCreateDeviceRGB()
+      val space = ColorSpace.Bt709.createCodeSpace()
       context.render(
         image = image,
         toBitmap = pixels,
@@ -314,19 +388,24 @@ class CoreImageColorTest {
     }
 
   /**
-   * The first pixel of [image] as float red, green and blue, in the linear space named by
-   * [spaceName] or in the context's working space when that is null. Either way a value of one is
-   * reference white.
+   * The first pixel of [image] as float red, green and blue, in the space named by [spaceName] or in
+   * the context's working space when that is null. Either way a value of one is reference white.
    */
   private fun readLight(
     image: CIImage,
     context: CIContext,
     spaceName: CFStringRef? = null,
+  ): FloatArray = readLight(image, context, spaceName?.let { CGColorSpaceCreateWithName(it) })
+
+  // Takes [space] over and releases it.
+  private fun readLight(
+    image: CIImage,
+    context: CIContext,
+    space: CGColorSpaceRef?,
   ): FloatArray =
     memScoped {
       val rowBytes = FRAME_SIZE.width * BYTES_PER_PIXEL * Float.SIZE_BYTES
       val pixels = allocArray<FloatVar>(FRAME_SIZE.width * FRAME_SIZE.height * BYTES_PER_PIXEL)
-      val space = spaceName?.let { CGColorSpaceCreateWithName(it) }
       context.render(
         image = image,
         toBitmap = pixels,
@@ -389,6 +468,14 @@ class CoreImageColorTest {
     const val FIRMER = 1.5f
     const val HARSH = 4f
     const val MUTED = 0.5f
+    const val VIVID = 1.5f
+    const val HALF = 0.5f
+
+    // Flat frames in BT.709 codes, each with the one channel its case takes to within a few percent
+    // of black. There the same matrix run on sRGB's codes lands at or below zero.
+    val CONTRAST_TO_BLACK = listOf(0.6f, 0.45f, 0.2f)
+    val SATURATION_TO_BLACK = listOf(0.6f, 0.45f, 0.18f)
+    val MIXED_TO_BLACK = listOf(0.6f, 0.1f, 0.1f)
 
     const val LIT_RED = 1.8f
     const val LIT_GREEN = 1.2f

@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.CoreImageEffect
+import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportPath
@@ -309,6 +310,7 @@ class AppleParameterSwapTest {
         PlatformEffect(
           CoreImageEffect { image, _ -> image.scaledBy(scale) },
         ),
+      stage = EffectStage.Color,
     )
 
   private fun CIImage.scaledBy(scale: Double): CIImage =

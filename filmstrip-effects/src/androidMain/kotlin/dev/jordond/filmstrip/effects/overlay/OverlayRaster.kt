@@ -20,7 +20,6 @@ import dev.jordond.filmstrip.style.FontWeight
 import dev.jordond.filmstrip.style.TextAlignment
 import dev.jordond.filmstrip.style.TextStyle
 import kotlin.math.ceil
-import kotlin.math.roundToInt
 
 /**
  * Draws [text] to a bitmap sized to the glyphs it actually covers.
@@ -46,14 +45,13 @@ internal fun rasterizeText(
     TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
       typeface = typefaceFor(style.resolvedFontFamily, style.weight)
       color = style.color
-      textSize = capHeightTextSize(style.fontSize * frame.height)
+      textSize = capHeightTextSize(style.capHeightOn(frame))
     }
 
-  val wrapWidth = (style.maxWidth * frame.width).roundToInt().coerceAtLeast(1)
   val alignment = style.alignment.toLayout()
-  val wrapped = paint.layout(text, wrapWidth, alignment)
+  val wrapped = paint.layout(text, style.wrapWidthOn(frame), alignment)
   val used = (0 until wrapped.lineCount).maxOfOrNull { wrapped.getLineWidth(it) } ?: 0f
-  val padding = if (style.backgroundColor == null) 0 else (paint.textSize * PLATE_PADDING).roundToInt()
+  val padding = style.platePaddingOn(frame)
   val block = paint.layout(text, ceil(used).toInt().coerceAtLeast(1), alignment)
   if (block.width <= 0 || block.height <= 0) return null
 
@@ -154,9 +152,4 @@ private fun TextAlignment.toLayout(): Layout.Alignment =
     TextAlignment.End -> Layout.Alignment.ALIGN_OPPOSITE
   }
 
-private const val CAP_PROBE_SIZE = 100f
 private const val MEDIUM_WEIGHT = 500
-
-// A plate that stops at the glyphs reads as a mistake, so it carries a margin proportional to the
-// text rather than a fixed number of pixels.
-private const val PLATE_PADDING = 0.3f

@@ -31,7 +31,9 @@ import kotlin.time.Duration
  * own output rather than a second rendering of it.
  *
  * A photo goes through [Media3StillFrames] instead, because the extractor builds its player with a
- * single video renderer and an image item has nothing there to decode it.
+ * single video renderer and an image item has nothing there to decode it. A gap is laid as a
+ * transparent still, so a position inside one takes that path too and reads the fill the export
+ * paints there.
  *
  * Because the extractor is a separate player, no seek is observable, the playhead does not move, and
  * playback if running is unaffected, which is what [PreviewFrameReadback] requires.

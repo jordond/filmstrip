@@ -32,7 +32,6 @@ import platform.Foundation.NSFileManager
 import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.math.abs
-import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
@@ -146,9 +145,9 @@ class AppleEffectTest {
       )
     }
 
-  // Core Image works in linear light, so the multiply is wrapped in a tone curve to land on the
-  // encoded signal the other three backends multiply. Against real pixels that is half the signal,
-  // where multiplying the light instead would only take it down to about three quarters.
+  // Core Image works in linear light, so the multiply is carried into the buffer's own codes to land
+  // on the signal the other three backends multiply. Read back in those codes that is half the
+  // signal, where multiplying the light instead would only take it down to about three quarters.
   @Test
   fun `halving brightness halves the signal`() =
     runTest(timeout = TIMEOUT) {
@@ -157,9 +156,9 @@ class AppleEffectTest {
       val full = exported(source, "brightness-full", marked = false) {}
       val half = exported(source, "brightness-half", marked = false) { brightness(HALF) }
 
-      val lit = luminance(full.probe.average(CENTRE, CENTRE))
-      val dimmed = luminance(half.probe.average(CENTRE, CENTRE))
-      val ratio = dimmed.toFloat() / lit.toFloat()
+      val lit = full.codesAtCentre().sum()
+      val dimmed = half.codesAtCentre().sum()
+      val ratio = dimmed / lit
       assertTrue(
         ratio in HALF - SIGNAL_DRIFT..HALF + SIGNAL_DRIFT,
         "half brightness read $dimmed against $lit at full, a ratio of $ratio",
@@ -186,9 +185,9 @@ class AppleEffectTest {
   fun `a contrast of zero paints the frame mid grey`() =
     runTest(timeout = TIMEOUT) {
       val flat = photoCentre("contrast-flat") { add(Contrast(0f)) }
-      val grey = (MID_GREY * FULL).roundToInt()
+      val grey = floatArrayOf(MID_GREY, MID_GREY, MID_GREY).inProbeCodes()
 
-      assertClose(flat, Triple(grey, grey, grey), "a frame at zero contrast")
+      assertClose(flat, grey, "a frame at zero contrast")
     }
 
   /**
@@ -197,7 +196,8 @@ class AppleEffectTest {
    *
    * The expectation is the plain export's own reading pushed through the matrix rather than the
    * colour the photo was authored with, so whatever the encoder did to a flat colour is in both
-   * readings and cancels. What the matrix asks for has to be further from the plain reading than
+   * readings and cancels. The matrix runs on the buffer's own codes, so the reading is carried into
+   * them and the answer back out. What the matrix asks for has to be further from the plain reading than
    * the tolerance reaches, otherwise a lowering that did nothing at all would pass.
    */
   private suspend fun assertLowers(
@@ -208,13 +208,8 @@ class AppleEffectTest {
     val graded = photoCentre(name) { add(spec) }
 
     val matrix = checkNotNull(colorMatrixOf(spec)) { "$name is not a colour matrix" }
-    val moved = matrix.transform(plain.first / FULL, plain.second / FULL, plain.third / FULL)
-    val expected =
-      Triple(
-        (moved[0] * FULL).roundToInt(),
-        (moved[1] * FULL).roundToInt(),
-        (moved[2] * FULL).roundToInt(),
-      )
+    val codes = plain.inBufferCodes()
+    val expected = matrix.transform(codes[0], codes[1], codes[2]).inProbeCodes()
 
     assertTrue(distance(expected, plain) > CHANNELS * CHANNEL_DRIFT, "$name asks for $expected from $plain")
     listOf(
@@ -287,6 +282,8 @@ class AppleEffectTest {
     }
   }
 
+  private fun Frame.codesAtCentre(): FloatArray = probe.average(CENTRE, CENTRE).inBufferCodes()
+
   /**
    * One exported frame, measured for how much of a region reads as the badge.
    */
@@ -356,7 +353,6 @@ class AppleEffectTest {
     const val HALF = 0.5f
     const val CENTRE = 0.5f
     const val MID_GREY = 0.5f
-    const val FULL = 255f
     const val CHANNELS = 3
 
     const val FIRMER = 1.5f
@@ -373,7 +369,7 @@ class AppleEffectTest {
     // clamps, since a clamp answers the same whatever the lowering computed.
     val PHOTO_COLOR = Triple(0x66, 0x99, 0xCC)
 
-    // What a real encode, a 4:2:0 round trip and the tone curve either side of the matrix leave on
+    // What a real encode, a 4:2:0 round trip and the colour match either side of the matrix leave on
     // one channel of a flat colour.
     const val CHANNEL_DRIFT = 6
 

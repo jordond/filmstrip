@@ -1,9 +1,6 @@
 package dev.jordond.filmstrip.media3
 
 import android.graphics.Bitmap
-import androidx.test.platform.app.InstrumentationRegistry
-import dev.jordond.filmstrip.CapabilitiesResult
-import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
@@ -12,25 +9,18 @@ import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.Contrast
 import dev.jordond.filmstrip.effects.color.Saturation
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
-import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.ProbeResult
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.toList
+import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
+import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HLG_CLIP
+import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.test.Test
-import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.minutes
 
 /**
  * A colour matrix on an export that keeps its grade, on real media3.
@@ -44,19 +34,18 @@ import kotlin.time.Duration.Companion.minutes
  * The fixture's corner sits on the pattern's black bar and its centre on a flat orange patch.
  */
 class AndroidColorGradeHdrTest {
-  private val context = InstrumentationRegistry.getInstrumentation().targetContext
-  private val filmstrip = Filmstrip(context) { media3Backend() }
+  private val probe = Media3ExportProbe()
 
   // A matrix multiplied into linear light and floored at zero leaves black where it was, so a
   // black that comes up under a low contrast is the bias landing where the signal puts it.
   @Test
   fun contrastPivotsOnMidGreyOnAKeptGrade() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
-      if (!encodesHdr()) return@runTest
+      val source = probe.fixture(HDR_CLIP)
+      probe.assumeEncodesHdr()
 
-      val flat = frameOf(export(source, listOf(Contrast(LOW))), MID_CLIP)
-      val steep = frameOf(export(source, listOf(Contrast(HIGH))), MID_CLIP)
+      val flat = probe.frame(export(source, listOf(Contrast(LOW))))
+      val steep = probe.frame(export(source, listOf(Contrast(HIGH))))
 
       assertContrastPivots(flat, steep)
     }
@@ -64,14 +53,14 @@ class AndroidColorGradeHdrTest {
   @Test
   fun desaturationEqualisesTheChannelsOnAKeptGrade() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
-      if (!encodesHdr()) return@runTest
+      val source = probe.fixture(HDR_CLIP)
+      probe.assumeEncodesHdr()
 
       // Dimmed on both sides so the orange sits inside the retriever's range rather than on its
       // white. The dim alone lowers to media3's own matrix, and the dim with the desaturation folds
       // to one matrix that has to go through the HDR pass, so the pair also says the two agree.
-      val toned = frameOf(export(source, listOf(Brightness(DIM))), MID_CLIP).averageAt(CENTRE, CENTRE)
-      val grey = frameOf(export(source, listOf(Brightness(DIM), Saturation(0f))), MID_CLIP).averageAt(CENTRE, CENTRE)
+      val toned = probe.frame(export(source, listOf(Brightness(DIM)))).averageAt(CENTRE, CENTRE)
+      val grey = probe.frame(export(source, listOf(Brightness(DIM), Saturation(0f)))).averageAt(CENTRE, CENTRE)
 
       assertTrue(luminance(grey) > BLACK_CEILING, "the desaturated patch reads as black, nothing to compare against")
       assertTrue(spread(grey) < EQUAL_GAP, "a desaturated patch still reads as $grey")
@@ -81,12 +70,12 @@ class AndroidColorGradeHdrTest {
   @Test
   fun aKeptGradeSurvivesAColourMatrix() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
-      if (!encodesHdr()) return@runTest
+      val source = probe.fixture(HDR_CLIP)
+      probe.assumeEncodesHdr()
 
       val written = export(source, listOf(Contrast(HIGH)))
-      val probed = assertIs<ProbeResult.Success>(filmstrip.probe(MediaSource.of(written.path)))
-      val video = assertNotNull(probed.info.video, "the written file has no video track")
+      val probed = probe.infoOf(MediaSource.of(written.path))
+      val video = assertNotNull(probed.video, "the written file has no video track")
 
       assertTrue(video.hdrTransfer != null, "a colour matrix on a kept grade wrote an SDR file")
     }
@@ -96,11 +85,11 @@ class AndroidColorGradeHdrTest {
   @Test
   fun contrastPivotsOnMidGreyOnAKeptHlgGrade() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(HLG_CLIP) ?: return@runTest
-      if (!encodesHdr()) return@runTest
+      val source = probe.fixture(HLG_CLIP)
+      probe.assumeEncodesHdr()
 
-      val flat = frameOf(export(source, listOf(Contrast(LOW))), MID_CLIP)
-      val steep = frameOf(export(source, listOf(Contrast(HIGH))), MID_CLIP)
+      val flat = probe.frame(export(source, listOf(Contrast(LOW))))
+      val steep = probe.frame(export(source, listOf(Contrast(HIGH))))
 
       assertContrastPivots(flat, steep)
     }
@@ -123,38 +112,13 @@ class AndroidColorGradeHdrTest {
     effects: List<EffectSpec>,
   ): File {
     val composition = EditComposition(listOf(Track(listOf(Clip(source)))), effects)
-    val plan =
-      when (val verdict = filmstrip.plan(composition, ExportSpec(hdr = HdrMode.KeepHdr))) {
-        is Verdict.Capable -> verdict.plan
-        is Verdict.Degraded -> verdict.plan
-        is Verdict.Incapable -> throw AssertionError("refused: ${verdict.reasons.map { it.message }}")
-      }
-
-    val statuses = withContext(Dispatchers.Default) { filmstrip.export(plan, MediaSink.temporary()).toList() }
-    val finished = statuses.last()
-    if (finished is ExportStatus.Failure) throw AssertionError("export failed: ${finished.error.message}")
-    return File((assertIs<ExportStatus.Success>(finished).output as MediaSink.Path).path)
+    return probe.export(composition, ExportSpec(hdr = HdrMode.KeepHdr))
   }
 
   private fun spread(color: Triple<Int, Int, Int>): Int =
     max(color.first, max(color.second, color.third)) - min(color.first, min(color.second, color.third))
 
-  private suspend fun encodesHdr(): Boolean =
-    (filmstrip.capabilities() as? CapabilitiesResult.Success)?.capabilities?.supportsHdrEncoding == true
-
-  private fun fixture(clip: String = CLIP): MediaSource? {
-    val stream = javaClass.classLoader?.getResourceAsStream(clip) ?: return null
-    val file = File(context.cacheDir, clip)
-    stream.use { input -> file.outputStream().use(input::copyTo) }
-    return MediaSource.of(file.path)
-  }
-
   private companion object {
-    val TIMEOUT = 5.minutes
-    val MID_CLIP = 1_000.milliseconds
-
-    const val CLIP = "android_export_hdr.mp4"
-    const val HLG_CLIP = "android_export_hdr_hlg.mp4"
     const val LOW = 0.5f
     const val HIGH = 2f
     const val DIM = 0.35f

@@ -22,7 +22,8 @@ import kotlin.time.Duration.Companion.milliseconds
  * @property end The composition time the next one starts at.
  * @property item The media item, carrying its trim.
  * @property effects The clip's own chain, before the composition's runs.
- * @property still Whether the clip is a photo rather than a run of samples.
+ * @property still Whether the clip is a single picture rather than a run of samples, either a photo or the transparent
+ * still a gap is laid as.
  * @property heldFrom How far into the item its last frame sits when that frame is held to fill the clip's slots, or
  * null when the item's own frames run to its end.
  */
@@ -126,6 +127,9 @@ public class Media3Preview internal constructor(
    * Everything [readbackAt] documents about the chain and the stamped media id holds here, since
    * that call is this one over a single position.
    *
+   * A position inside a gap is handed the transparent still the export lays there, under the
+   * composition's chain, so it draws the fill with the composition's effects and overlays over it.
+   *
    * @param positions The composition times to draw.
    * @param revision What this edit's frames are decided by, from `effectsRevision`.
    * @return one request per entry in [positions], or null where the timeline draws nothing at all.
@@ -143,7 +147,7 @@ public class Media3Preview internal constructor(
         return null
       }
 
-    val laid = fresh.videoSpans()
+    val laid = fresh.videoSpans(withGaps = true)
     if (laid.isEmpty()) return null
 
     val compositionEffects = fresh.effects.videoEffects
@@ -259,10 +263,11 @@ public fun ResolvedComposition.toMedia3Preview(bounds: Media3FrameBounds): Media
  * Where each clip of the video-carrying sequence sits on the timeline.
  *
  * The first such sequence is the one a frame reader draws from, the same track the video graph puts
- * on screen. A gap contributes its duration to the offsets and no span of its own, since there is
+ * on screen. A gap always contributes its duration to the offsets. It gets a span of its own only
+ * when [withGaps] asks for one and it is laid as a transparent still, since media3's own gap has
  * nothing behind it to read.
  */
-private fun Composition.videoSpans(): List<Media3Span> {
+private fun Composition.videoSpans(withGaps: Boolean = false): List<Media3Span> {
   val sequence = sequences.firstOrNull { it.carriesVideo } ?: return emptyList()
 
   var at = 0L
@@ -270,7 +275,7 @@ private fun Composition.videoSpans(): List<Media3Span> {
     val start = at
     at += item.presentationDurationUs
     val local = item.mediaItem.localConfiguration
-    if (local == null) {
+    if (local == null || (item.isGap && !withGaps)) {
       null
     } else {
       Media3Span(

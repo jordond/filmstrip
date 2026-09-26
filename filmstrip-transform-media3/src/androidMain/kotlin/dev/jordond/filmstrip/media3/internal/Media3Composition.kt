@@ -37,6 +37,8 @@ import dev.jordond.filmstrip.transform.internal.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import dev.jordond.filmstrip.transform.internal.effectsOverFill
+import dev.jordond.filmstrip.transform.internal.effectsUnderFill
 import dev.jordond.filmstrip.transform.internal.showsFill
 import java.io.File
 import java.io.IOException
@@ -190,24 +192,25 @@ internal fun audioCodecName(mimeType: String): String =
   }
 
 /**
- * The composition-level video effect chain, with a flatten pass appended when a letterbox bar or a
- * timeline gap can reach the output frame.
+ * The composition-level video effect chain, with a flatten pass between the effects under the fill
+ * and the ones over it when a letterbox bar or a timeline gap can reach the output frame.
  *
- * [FillFlatten] runs last, after every composition effect, so a grade never reaches a bar or a gap
- * it was not given a colour for. That ordering is a rule every backend honours, not a media3 detail.
+ * [FillFlatten] runs after [effectsUnderFill] and before [effectsOverFill], so a grade never reaches
+ * a bar or a gap it was not given a colour for, and an overlay draws over the fill wherever it was
+ * placed. That ordering is a rule every backend honours, not a media3 detail.
  *
  * `internal` rather than `private` so a test can inspect the chain without building a full
  * [Composition].
  */
 internal fun ResolvedComposition.compositionVideoEffects(wrapper: EffectWrapper = PassThroughEffects): List<Effect> {
-  val effects =
+  val underFill =
     boundaryBeforeComposition() +
       compositionGeometry.toMedia3Effects() +
       Presentation.createForWidthAndHeight(output.size.width, output.size.height, fit.toLayout()) +
-      compositionEffects.toMedia3Effects()
+      effectsUnderFill.toMedia3Effects()
+  val flatten = if (showsFill) listOf(FillFlatten(fill.flattenColor(), hdrTransfer)) else emptyList()
 
-  val whole = if (showsFill) effects + FillFlatten(fill.flattenColor(), hdrTransfer) else effects
-  return whole.map(wrapper::wrap)
+  return (underFill + flatten + effectsOverFill.toMedia3Effects()).map(wrapper::wrap)
 }
 
 /**

@@ -173,6 +173,23 @@ internal val FIXTURE_FRAME: Size = Size(640, 360)
 internal val PROBE_POSITIONS: List<Duration> = listOf(300.milliseconds, 900.milliseconds)
 
 /**
+ * The PSNR a frame rendered from the fixture holds to against the same frame read out of an export of it.
+ *
+ * The export side has been through libx264 and back and the rendered side has not, so this sits below what two
+ * renderings of one graph score. The pair measures 46.6 dB at 300ms and 45.5 dB at 900ms, and this leaves a few dB
+ * for a slower machine's encoder settling somewhere else.
+ */
+internal const val ENCODED_MIN_PSNR_DB: Double = 42.0
+
+/**
+ * The SSIM a frame rendered from the fixture holds to against the same frame read out of an export of it.
+ *
+ * Loosened for the libx264 encode on the export side and for nothing else. The pair measures 0.992 at 300ms and
+ * 0.991 at 900ms.
+ */
+internal const val ENCODED_MIN_SSIM: Double = 0.985
+
+/**
  * The rate the fixture is encoded at, which its `FixtureSpec` pins and an export of it keeps.
  */
 internal const val FIXTURE_RATE: Int = 30

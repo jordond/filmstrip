@@ -1,33 +1,13 @@
 package dev.jordond.filmstrip.transform.internal
 
-import dev.jordond.filmstrip.capability.AudioEncoderCapability
-import dev.jordond.filmstrip.capability.DeviceCapabilities
-import dev.jordond.filmstrip.capability.EffectParity
-import dev.jordond.filmstrip.capability.VideoEncoderCapability
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
-import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
-import dev.jordond.filmstrip.effect.RenderApi
-import dev.jordond.filmstrip.effect.RenderCapabilities
-import dev.jordond.filmstrip.export.AudioCodec
-import dev.jordond.filmstrip.export.Bitrate
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.export.VideoCodec
-import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.outputSlotOf
 import dev.jordond.filmstrip.internal.outputSlotsOf
-import dev.jordond.filmstrip.media.AudioTrackInfo
-import dev.jordond.filmstrip.media.ColorSpace
-import dev.jordond.filmstrip.media.EXIF_ORIENTATION_NORMAL
-import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.MediaInfo
-import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.VideoTrackInfo
-import dev.jordond.filmstrip.media.imageMediaInfoOf
-import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.test.LoopingCases
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
@@ -43,9 +23,11 @@ import kotlin.time.Duration.Companion.seconds
  * compositions the planner laid itself.
  */
 class HeldTailTest {
+  private val fixture = PlannerFixture()
+
   @Test
   fun `a non-looping audio track that outlasts the primary leaves a held tail`() {
-    val laid = negotiate(underBed(clip(duration = 1.seconds), bed = 5.seconds))
+    val laid = negotiate(underBed(fixture.clip(duration = 1.seconds), bed = 5.seconds))
 
     laid.heldTail shouldBe (outputSlotOf(1.seconds, GRID_RATE) until outputSlotOf(5.seconds, GRID_RATE))
     laid.videoSlots shouldBe outputSlotOf(5.seconds, GRID_RATE)
@@ -57,7 +39,7 @@ class HeldTailTest {
   // measured from the clip's own length rather than the slot its pass ends on would open or close a slot out.
   @Test
   fun `a held tail opens on the slot the primary's last pass ends on`() {
-    val laid = negotiate(underBed(clip(duration = 1_010.milliseconds), bed = 5_006.milliseconds))
+    val laid = negotiate(underBed(fixture.clip(duration = 1_010.milliseconds), bed = 5_006.milliseconds))
     val lastPass = laid.primary.clips.last()
 
     laid.heldTail.first shouldBe outputSlotsOf(lastPass.span, GRID_RATE).last + 1
@@ -69,7 +51,10 @@ class HeldTailTest {
   @Test
   fun `the lead the passes and the held tail fill the video track between them`() {
     val primary =
-      Track(listOf(clip(duration = 1_010.milliseconds), clip(duration = 770.milliseconds)), start = 300.milliseconds)
+      Track(
+        listOf(fixture.clip(duration = 1_010.milliseconds), fixture.clip(duration = 770.milliseconds)),
+        start = 300.milliseconds,
+      )
     val laid = negotiate(EditComposition(listOf(primary, bed(5_006.milliseconds))))
     val laidPrimary = laid.primary
     val lead = 0L until outputSlotOf(laidPrimary.start, GRID_RATE)
@@ -83,8 +68,8 @@ class HeldTailTest {
 
   @Test
   fun `a late audio track's end sets the tail`() {
-    val late = Track(listOf(audioOnlyClip(1.seconds)), content = TrackContent.Audio, start = 4_500.milliseconds)
-    val laid = negotiate(EditComposition(listOf(Track(listOf(clip(duration = 1.seconds))), late)))
+    val late = Track(listOf(fixture.audioOnlyClip(1.seconds)), content = TrackContent.Audio, start = 4_500.milliseconds)
+    val laid = negotiate(EditComposition(listOf(Track(listOf(fixture.clip(duration = 1.seconds))), late)))
 
     laid.heldTail.first shouldBe outputSlotOf(1.seconds, GRID_RATE)
     laid.heldTail.last + 1 shouldBe outputSlotOf(5_500.milliseconds, GRID_RATE)
@@ -93,8 +78,8 @@ class HeldTailTest {
 
   @Test
   fun `a looping audio track leaves no tail`() {
-    val looping = Track(listOf(audioOnlyClip(3.seconds)), content = TrackContent.Audio, looping = true)
-    val laid = negotiate(EditComposition(listOf(Track(listOf(clip(duration = 1.seconds))), looping)))
+    val looping = Track(listOf(fixture.audioOnlyClip(3.seconds)), content = TrackContent.Audio, looping = true)
+    val laid = negotiate(EditComposition(listOf(Track(listOf(fixture.clip(duration = 1.seconds))), looping)))
 
     assertTrue(laid.heldTail.isEmpty(), "a looping bed left ${laid.heldTail}")
     laid.videoSlots shouldBe outputSlotOf(1.seconds, GRID_RATE)
@@ -104,7 +89,7 @@ class HeldTailTest {
   // on the composition's end.
   @Test
   fun `a looping primary leaves no tail`() {
-    val primary = Track(listOf(clip(duration = 3.seconds, trim = LoopingCases.VIDEO_TRIM)), looping = true)
+    val primary = Track(listOf(fixture.clip(duration = 3.seconds, trim = LoopingCases.VIDEO_TRIM)), looping = true)
     val underlay = bed(LoopingCases.UNDERLAY_RUN)
     val laid = negotiate(EditComposition(listOf(primary, underlay)))
 
@@ -115,7 +100,7 @@ class HeldTailTest {
 
   @Test
   fun `a copy plan leaves no tail`() {
-    val laid = negotiate(EditComposition(listOf(Track(listOf(clip())))), ExportSpec())
+    val laid = negotiate(EditComposition(listOf(Track(listOf(fixture.clip())))), ExportSpec())
     val frameRate = assertNotNull(laid.output.frameRate)
 
     laid.path shouldBe ExportPath.Transmux
@@ -125,7 +110,7 @@ class HeldTailTest {
 
   @Test
   fun `a still primary under a bed leaves a tail`() {
-    val laid = negotiate(underBed(imageClip(duration = 1.seconds), bed = 3.seconds))
+    val laid = negotiate(underBed(fixture.imageClip(duration = 1.seconds), bed = 3.seconds))
 
     laid.heldTail shouldBe (outputSlotOf(1.seconds, GRID_RATE) until outputSlotOf(3.seconds, GRID_RATE))
     assertTrue(outputSlotOf(2.seconds, GRID_RATE) in laid.heldTail, "the middle of the bed is not held")
@@ -133,7 +118,7 @@ class HeldTailTest {
 
   @Test
   fun `a late primary keeps its lead apart from its tail`() {
-    val primary = Track(listOf(clip(duration = 1.seconds)), start = 500.milliseconds)
+    val primary = Track(listOf(fixture.clip(duration = 1.seconds)), start = 500.milliseconds)
     val laid = negotiate(EditComposition(listOf(primary, bed(5.seconds))))
     val covered = slotsCoveredBy(laid.primary)
 
@@ -144,7 +129,10 @@ class HeldTailTest {
   @Test
   fun `videoSlots equals the lead plus every pass's slots when nothing outlasts the primary`() {
     val primary =
-      Track(listOf(clip(duration = 1_010.milliseconds), clip(duration = 770.milliseconds)), start = 300.milliseconds)
+      Track(
+        listOf(fixture.clip(duration = 1_010.milliseconds), fixture.clip(duration = 770.milliseconds)),
+        start = 300.milliseconds,
+      )
     val laid = negotiate(EditComposition(listOf(primary, bed(1.seconds))))
 
     assertTrue(laid.heldTail.isEmpty(), "a shorter bed left ${laid.heldTail}")
@@ -153,7 +141,7 @@ class HeldTailTest {
 
   @Test
   fun `a negotiated and a resolved composition read the same tail`() {
-    val negotiated = negotiate(underBed(clip(duration = 1_010.milliseconds), bed = 5_006.milliseconds))
+    val negotiated = negotiate(underBed(fixture.clip(duration = 1_010.milliseconds), bed = 5_006.milliseconds))
     val resolved = negotiated.toResolvedComposition()
 
     resolved.heldTail shouldBe negotiated.heldTail
@@ -165,7 +153,12 @@ class HeldTailTest {
   private fun negotiate(
     composition: EditComposition,
     spec: ExportSpec = ExportSpec(frameRate = GRID_RATE),
-  ) = assertNotNull(planner().negotiate(composition, spec, device(), infos(composition)).composition)
+  ) = assertNotNull(
+    fixture
+      .planner(resolvers = emptyList())
+      .negotiate(composition, spec, fixture.device(), fixture.infos(composition))
+      .composition,
+  )
 
   private val NegotiatedComposition.primary: ResolvedTrack
     get() = tracks.first()
@@ -178,103 +171,9 @@ class HeldTailTest {
     bed: Duration,
   ) = EditComposition(listOf(Track(listOf(primary)), bed(bed)))
 
-  private fun bed(duration: Duration) = Track(listOf(audioOnlyClip(duration)), content = TrackContent.Audio)
-
-  private fun planner() =
-    ExportPlanner(
-      resolvers = emptyList(),
-      renderCapabilities = { size, hdr ->
-        RenderCapabilities(
-          api = RenderApi.OpenGlEs,
-          supportsFragmentShader = true,
-          supportsComputeShader = false,
-          supportsHdr = hdr,
-          colorSpaces = setOf(ColorSpace.Bt709),
-          maxTextureSize = maxOf(size.width, size.height),
-          features = emptySet(),
-        )
-      },
-      parityOf = { EffectParity.Exact },
-      unclaimedMessage = { "nothing claimed $it" },
-      ladder = listOf(VideoCodec.H264, VideoCodec.Hevc),
-      supportsPassthrough = true,
-      canCopy = { true },
-    )
-
-  private fun device() =
-    DeviceCapabilities(
-      video = listOf(encoder(VideoCodec.H264), encoder(VideoCodec.Hevc)),
-      audio = listOf(AudioEncoderCapability(AudioCodec.Aac, listOf(48_000), 2)),
-      supportsHdrEncoding = false,
-      concurrentSessionBudget = null,
-    )
-
-  private fun encoder(codec: VideoCodec) =
-    VideoEncoderCapability(
-      codec = codec,
-      encoderName = null,
-      maxSize = Size(3840, 2160),
-      maxFrameRate = null,
-      maxBitrate = null,
-      isHardwareAccelerated = true,
-      sizeAlignment = 2,
-    )
-
-  private fun infos(composition: EditComposition): Map<MediaSource, MediaInfo> =
-    composition.tracks
-      .flatMap { it.clips }
-      .associate { it.source to INFOS.getValue(it.source) }
-
-  private fun clip(
-    duration: Duration = 6_000.milliseconds,
-    trim: TimeRange? = null,
-  ): Clip {
-    val size = Size(1920, 1080)
-    val source = MediaSource.of("/fixtures/clip-${INFOS.size}.mp4")
-    INFOS[source] =
-      MediaInfo(
-        duration = duration,
-        video =
-          VideoTrackInfo(
-            codedSize = size,
-            displaySize = size,
-            rotationDegrees = 0,
-            pixelAspectRatio = 1f,
-            frameRate = SOURCE_RATE,
-            codec = trackCodecOf("avc1"),
-            bitDepth = 8,
-            colorSpace = ColorSpace.Bt709,
-            hdrTransfer = null,
-            bitrate = Bitrate.mbps(12),
-          ),
-        audio = null,
-        isExportable = true,
-      )
-    return Clip(source, trim)
-  }
-
-  private fun imageClip(duration: Duration): Clip {
-    val source = MediaSource.Image(ImageSource.of("/fixtures/still-${INFOS.size}.jpg"), duration)
-    INFOS[source] = imageMediaInfoOf(Size(1920, 1080), EXIF_ORIENTATION_NORMAL, "jpeg", duration)
-    return Clip(source)
-  }
-
-  private fun audioOnlyClip(duration: Duration): Clip {
-    val source = MediaSource.of("/fixtures/audio-${INFOS.size}.m4a")
-    INFOS[source] =
-      MediaInfo(
-        duration = duration,
-        video = null,
-        audio = AudioTrackInfo(trackCodecOf("mp4a"), 44_100, 2, null),
-        isExportable = true,
-      )
-    return Clip(source)
-  }
-
-  private val INFOS = mutableMapOf<MediaSource, MediaInfo>()
+  private fun bed(duration: Duration) = Track(listOf(fixture.audioOnlyClip(duration)), content = TrackContent.Audio)
 
   private companion object {
     const val GRID_RATE = 25
-    const val SOURCE_RATE = 30f
   }
 }

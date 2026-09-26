@@ -202,7 +202,7 @@ private const val READ_ONLY = 1uL
 // The documented value of kCVPixelBufferPixelFormatTypeKey. The CoreVideo constants are CFStringRef
 // and do not bridge into a Kotlin map as NSString keys, so AVFoundation reads the whole dictionary
 // as carrying nothing it recognises.
-private const val PIXEL_FORMAT_KEY = "PixelFormatType"
+internal const val PIXEL_FORMAT_KEY = "PixelFormatType"
 
 /**
  * Long enough to play through and seek inside, and a whole number of frames at the fixture's rate.

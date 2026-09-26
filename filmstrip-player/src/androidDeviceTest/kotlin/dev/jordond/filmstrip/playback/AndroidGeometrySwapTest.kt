@@ -147,7 +147,7 @@ class AndroidGeometrySwapTest {
         expected = exported,
         actual = preview.asTestFrame(),
         minPsnrDb = EXPORT_MIN_PSNR_DB,
-        minSsim = EXPORT_MIN_SSIM,
+        minSsim = ENCODED_MIN_SSIM,
         message = "the rotated preview and the rotated export disagree",
       )
     }
@@ -206,7 +206,7 @@ class AndroidGeometrySwapTest {
       expected = fresh.asTestFrame(),
       actual = changed.asTestFrame(),
       minPsnrDb = MIN_PSNR_DB,
-      minSsim = MIN_SSIM,
+      minSsim = TWO_PREVIEW_MIN_SSIM,
       // Whether the frame is still the one the first edit drew separates a change that never
       // reached the graph from a change that reached it and came out wrong.
       message =
@@ -304,12 +304,10 @@ class AndroidGeometrySwapTest {
     // Two previews of the same graph, so anything but decoder noise is a real difference. An edit
     // the standing graph mishandled scores far below this, not just under it.
     const val MIN_PSNR_DB = 45.0
-    const val MIN_SSIM = 0.99
 
-    // The numbers AndroidPixelContractTest measured, for the one case that compares against an
-    // export the preview never encoded.
+    // The PSNR AndroidPixelContractTest measured, for the one case that compares against an export
+    // the preview never encoded. Its SSIM floor is ENCODED_MIN_SSIM.
     const val EXPORT_MIN_PSNR_DB = 40.0
-    const val EXPORT_MIN_SSIM = 0.985
 
     // Six cases, each with an export in it.
     val BUDGET = 5.minutes

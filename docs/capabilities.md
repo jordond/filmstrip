@@ -71,19 +71,19 @@ listed in the Effects table below.
 Which built-in effects each render backend can lower. A backend only sees effects whose `RenderApi`
 it recognises, and declines the rest so the next resolver gets a look.
 
-| Effect                                  | Android               | Apple             | Browser            | ffmpeg                 |
-| --------------------------------------- | --------------------- | ----------------- | ------------------ | ---------------------- |
-| `Rotate`                                | ✅                    | ✅                | ❌ [^web-resize]   | ✅                     |
-| `Flip`                                  | ✅                    | ✅                | ✅                 | ✅                     |
-| `Crop` (aspect)                         | ✅                    | ✅                | ✅                 | ✅                     |
-| `CropRect`                              | ✅                    | ✅                | ✅                 | ✅                     |
-| `Scale`                                 | ✅ [^android-fit]     | ✅                | ❌ [^web-resize]   | ✅ [^ffmpeg-scale]     |
-| `KenBurns`                              | ✅ [^clip-only]       | ✅ [^clip-only]   | ❌ [^pan-pending]  | ❌ [^pan-pending]      |
-| `Brightness` [^hdr-brightness]          | ✅                    | ✅                | ✅                 | ✅                     |
-| Colour matrices [^matrix] [^sdr-matrix] | ✅                    | ✅                | ✅                 | ✅                     |
-| `ImageOverlay`                          | ✅ [^android-overlay] | ✅                | ❌ [^web-overlays] | ✅                     |
-| `TextOverlay`                           | ✅ [^text-raster]     | ✅ [^text-raster] | ❌ [^web-overlays] | ❌ [^ffmpeg-text]      |
-| Overlay animation                       | ✅ [^media3-anchor]   | ✅                | ❌ [^web-overlays] | ✅ [^ffmpeg-animation] |
+| Effect                                  | Android               | Apple             | Browser           | ffmpeg                 |
+| --------------------------------------- | --------------------- | ----------------- | ----------------- | ---------------------- |
+| `Rotate`                                | ✅                    | ✅                | ❌ [^web-resize]  | ✅                     |
+| `Flip`                                  | ✅                    | ✅                | ✅                | ✅                     |
+| `Crop` (aspect)                         | ✅                    | ✅                | ✅                | ✅                     |
+| `CropRect`                              | ✅                    | ✅                | ✅                | ✅                     |
+| `Scale`                                 | ✅ [^android-fit]     | ✅                | ❌ [^web-resize]  | ✅ [^ffmpeg-scale]     |
+| `KenBurns`                              | ✅ [^clip-only]       | ✅ [^clip-only]   | ❌ [^pan-pending] | ❌ [^pan-pending]      |
+| `Brightness` [^hdr-brightness]          | ✅                    | ✅                | ✅                | ✅                     |
+| Colour matrices [^matrix] [^sdr-matrix] | ✅                    | ✅                | ✅                | ✅                     |
+| `ImageOverlay`                          | ✅ [^android-overlay] | ✅                | ✅ [^web-image]   | ✅                     |
+| `TextOverlay`                           | ✅ [^text-raster]     | ✅ [^text-raster] | ✅ [^web-text]    | ❌ [^ffmpeg-text]      |
+| Overlay animation                       | ✅ [^media3-anchor]   | ✅                | ✅                | ✅ [^ffmpeg-animation] |
 
 [^matrix]:
     `RgbAdjustment`, `Contrast`, `Saturation`, `HueRotate`, `Sepia`, `Invert` and
@@ -124,12 +124,22 @@ it recognises, and declines the rest so the next resolver gets a look.
     Text is rasterised at resolve against the frame an export writes and only resampled
     after that, so a preview and its export break lines on the same words. A device that reports no
     `RenderFeature.TextRendering` refuses by name, and so does text and a style that leave nothing to
-    draw.
+    draw. A plate's margin is a share of the cap height on every backend, so a plate on Android comes
+    out smaller than it did when its margin was a share of the font size.
 
-[^web-overlays]:
-    Overlay effects rasterise text and images into the frame, which needs a compositing
-    pass this backend does not have yet. The composition time of the frame being drawn reaches the
-    draw call already, so an animation would have a clock to read once the pass lands.
+[^web-image]:
+    The image is decoded before planning, so one the browser cannot decode is refused by
+    name at plan time. An `ImageSource.Path` is refused by name as well, since a page cannot read a file
+    path, so pass the image as bytes or a URI. Both overlays are refused by name on an HDR grade, since
+    the backends do not yet agree on where overlay white lands in HDR.
+
+[^web-text]:
+    Text is rasterised at resolve against the frame an export writes, as on Android and
+    Apple. Lines break at spaces and at every `\n`, and a word wider than a whole line is split
+    between graphemes. Core Text and `StaticLayout` follow the Unicode line breaking rules, which also
+    break after a hyphen and between CJK characters, so such a caption can wrap on different words here
+    than on Android or Apple. A preview still breaks exactly where its own export does. On an HDR grade
+    it is refused by name, as `ImageOverlay` is.
 
 [^hdr-brightness]:
     The factor is a multiply on an encoded SDR signal. On an export that keeps an HDR
@@ -233,8 +243,9 @@ its first frame alone. The window is gated on that same branch, by zeroing the a
 run, so it is read against the clock the sidecar's commands are written against rather than against
 the clip's. An overlay added to a clip merges onto that clip's own branch, ahead of the tail that
 resamples it, so on a clip whose own rate differs from the output's the window's edges land within
-one output frame of where the shared sampler puts them. The browser draws no overlay, so it draws no
-animation either.
+one output frame of where the shared sampler puts them. The browser samples the overlay on every
+frame it draws, at the composition time its draw call already carries, and draws it as one textured
+quad at the rect and opacity that sample answers.
 
 ### Parity
 
@@ -246,10 +257,11 @@ table.
 | Android | everything it lowers except `TextOverlay`         | `TextOverlay` |
 | Apple   | everything it lowers except `TextOverlay`         | `TextOverlay` |
 | ffmpeg  | everything it lowers except `Scale`               | `Scale`       |
-| Browser | `Crop`, `CropRect`, `Flip` and the colour effects | none          |
+| Browser | everything it lowers                              | none          |
 
 `TextOverlay`'s approximation is glyph antialiasing only: line breaks, metrics and measured extent
-are exact on both platforms. `Scale` on ffmpeg goes through swscale's bicubic kernel, which is not
+are exact on both platforms. The browser's preview draws the same raster its export draws, so its
+text is exact. `Scale` on ffmpeg goes through swscale's bicubic kernel, which is not
 the one a preview resamples with. Anything with no entry answers null from `parityOf`, and the plan
 reads a null as `Exact`.
 
@@ -340,6 +352,10 @@ What each export backend accepts. Extra tracks, looping and gain are covered und
 | `AudioSpec.Keep`, `Mute`, `Volume`    | ✅               | ✅               | ✅               | ✅                |
 | `AudioSpec.Remove`, `AudioCodec.None` | ✅               | ✅               | ✅               | ✅                |
 | `AudioSpec.AudioOnly`                 | ✅ [^audio-only] | ✅ [^audio-only] | ✅ [^audio-only] | ✅ [^audio-only]  |
+
+On every backend, thumbnails and frames read back inside a gap included, a `Fill.Solid` is painted
+after every composition effect and before every composition overlay, so it keeps its own colour
+wherever no overlay covers it and an overlay placed in a bar or a gap draws there.
 
 `ExportPath` declares `TrimOptimized`, but no backend resolves to it today: a plan is `Transmux`
 when the whole thing can be stream-copied and `Transcode` otherwise, and a snapped trim is a

@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.media.HLG_SYSTEM_GAMMA
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.hlgSignalFromScene
 import dev.jordond.filmstrip.media.pqSignalFromNits
+import dev.jordond.filmstrip.media.srgbToLinear
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
@@ -186,19 +187,6 @@ public fun signalFromTenBitCodes(
 
 private fun tenBitCode(value: Float): Int = value.roundToInt().coerceIn(0, TEN_BIT_MAX_CODE)
 
-/**
- * The sRGB transfer function, turning an encoded channel into linear light.
- */
-private fun srgbToLinear(encoded: Float): Float {
-  val value = encoded.coerceIn(0f, 1f).toDouble()
-
-  return if (value <= SRGB_KNEE) {
-    value / SRGB_SLOPE
-  } else {
-    ((value + SRGB_OFFSET) / (1.0 + SRGB_OFFSET)).pow(SRGB_GAMMA)
-  }.toFloat()
-}
-
 // BT.709 and BT.2020 share a white point, so this is a change of primaries with no adaptation and
 // every row sums to one.
 private val BT709_TO_BT2020 =
@@ -213,8 +201,3 @@ private val BT709_TO_BT2020 =
     0.0880133,
     0.8955953,
   )
-
-private const val SRGB_KNEE = 0.04045
-private const val SRGB_SLOPE = 12.92
-private const val SRGB_OFFSET = 0.055
-private const val SRGB_GAMMA = 2.4
