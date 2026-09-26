@@ -68,18 +68,15 @@ internal class BrowserPlayerEngine(
   private var loopRange: TimeRange? = null
   private var playbackRange: TimeRange? = null
 
-  private var pending: PendingLoad? = null
+  private val pending = PendingLoad()
+  private val guard = WrapGuard()
+  private var seekSerial = 0
   private var transport: Job? = null
   private var pump: Job? = null
   private var pumpHandle: Int? = null
   private var wantsPlayback = false
   private var reachedEnd = false
   private var startedAt: Duration? = null
-
-  // Set by the tick that wraps a loop until a seek lands, so a tick in between cannot wrap it again.
-  // Cleared by performSeek on any landing, including a later seek that supersedes the wrap's own in
-  // the chase, and also by rebuild, fail and onRelease.
-  private var wrapping = false
 
   private val onVisibilityChanged: () -> Unit = { if (document.hidden) onPageHidden() }
 
@@ -141,7 +138,7 @@ internal class BrowserPlayerEngine(
     request: SetCompositionRequest,
     callback: SetCompositionCallback,
   ): Cancellable {
-    supersedePending()
+    pending.supersede()
 
     val change = diff(loaded, request.composition)
     if (change == CompositionDiff.Equal && preview != null) {
@@ -163,11 +160,7 @@ internal class BrowserPlayerEngine(
         }
       }
 
-    pending = PendingLoad(job, callback)
-    return Cancellable {
-      pending?.takeIf { it.job === job }?.let { it.settled = true }
-      job.cancel()
-    }
+    return pending.track(job, callback)
   }
 
   override fun readPosition(): Duration {
@@ -185,6 +178,10 @@ internal class BrowserPlayerEngine(
    * target rounds to for [SeekAccuracy.Exact]. [SeekAccuracy.Nearest] lands on the slot of the sync
    * sample at or before the target, which is the same sample a decoder would have had to start from
    * anyway.
+   *
+   * Every seek is put to the guard. A wrap that lands after the loop range changed moves on to the first slot of the
+   * range standing then, and reports that as its landing. A landing that waited through a rebuild, a failure or a
+   * release writes nothing, since the chase has already answered for it.
    */
   override fun performSeek(
     position: Duration,
@@ -194,18 +191,24 @@ internal class BrowserPlayerEngine(
     val target = preview
     val resolved = plan?.resolved
     if (target == null || resolved == null) {
-      wrapping = false
       onComplete(position)
       return
     }
 
+    guard.seekIssued(wrap = isWrapSeek)
+    val seek = ++seekSerial
     scope.launch {
       val requested = position.coerceAtLeast(Duration.ZERO).coerceAtMost(resolved.duration)
-      val landing =
+      val sent =
         when (accuracy) {
           SeekAccuracy.Exact -> resolved.seekLandingOf(requested)
           SeekAccuracy.Nearest -> resolved.seekLandingOf(target.syncSampleAt(requested))
         }
+      if (seek != seekSerial) return@launch
+      val redirect = guard.seekLanded(loopRange?.let { loopWrapOf(it, resolved.duration, resolved.frameRate) })
+      // A redirect is one more exact seek, which on this backend lands as soon as the clock moves.
+      if (redirect != null) guard.seekLanded(null)
+      val landing = redirect?.let { outputSlotTime(it, resolved.frameRate) } ?: sent
 
       reachedEnd = false
       // Everything decoded ahead of the old playhead is decoded for a position nobody is going to
@@ -214,7 +217,6 @@ internal class BrowserPlayerEngine(
       target.flush()
       clock.moveTo(landing)
       if (wantsPlayback) startTransport(landing)
-      wrapping = false
       onComplete(landing)
     }
   }
@@ -233,9 +235,10 @@ internal class BrowserPlayerEngine(
 
   override fun onRelease() {
     document.removeEventListener(VISIBILITY_CHANGE, onVisibilityChanged)
-    supersedePending()
+    pending.supersede()
     wantsPlayback = false
-    wrapping = false
+    seekSerial++
+    guard.reset()
     stopTransport()
     audio = null
     preview?.release()
@@ -254,7 +257,9 @@ internal class BrowserPlayerEngine(
   }
 
   override fun setLoopRange(range: TimeRange?) {
+    if (range == loopRange) return
     loopRange = range
+    guard.rangeChanged()
   }
 
   override fun setPlaybackRange(range: TimeRange?) {
@@ -308,6 +313,7 @@ internal class BrowserPlayerEngine(
     next: BrowserPreviewPlan,
     request: SetCompositionRequest,
   ) {
+    guard.reset()
     val standing = preview
     val swapped =
       change == CompositionDiff.ParametersOnly &&
@@ -325,7 +331,7 @@ internal class BrowserPlayerEngine(
 
     if (!swapped && !confirmFirstFrame()) return
     setStatus(PlaybackStatus.Ready)
-    settle(SetCompositionResult.Success(next.resolved.duration))
+    pending.settle(SetCompositionResult.Success(next.resolved.duration))
     if (request.playWhenReady) play()
   }
 
@@ -346,7 +352,9 @@ internal class BrowserPlayerEngine(
       }
     clock = audio?.let { AudioClock(it) } ?: MonotonicClock()
     reachedEnd = false
-    wrapping = false
+    // Leaving Ready drops the seek in flight from the chase, so its landing is stale. A parameters-only swap stays
+    // Ready and the chase still waits on that landing.
+    seekSerial++
   }
 
   /**
@@ -440,16 +448,15 @@ internal class BrowserPlayerEngine(
 
     audio?.pump(at)
 
-    // A reading taken before the wrap's seek has landed is one that wrap already answered.
-    if (wrapping) return
-
+    // A reading past the wrap point is never an ending, even while a seek in flight holds the wrap back.
     val range = loopRange
     val rate = resolved.frameRate
     val wrap = range?.let { loopWrapOf(it, duration, rate) }
     if (range != null && wrap != null && at >= wrap.at) {
-      wrapping = true
-      seekTo(outputSlotTime(wrap.firstSlot, rate), SeekAccuracy.Exact)
-      emitEvent(PlaybackEvent.RangeLooped(range))
+      if (guard.wrapDue(at, running = wantsPlayback, wrap = wrap)) {
+        seekToWrap(outputSlotTime(wrap.firstSlot, rate))
+        emitEvent(PlaybackEvent.RangeLooped(range))
+      }
       return
     }
 
@@ -501,40 +508,14 @@ internal class BrowserPlayerEngine(
   }
 
   private fun fail(error: PlaybackError) {
-    wrapping = false
+    seekSerial++
+    guard.reset()
     setStatus(PlaybackStatus.Error(error))
     emitEvent(PlaybackEvent.Failed(error))
-    settle(SetCompositionResult.Failure(error))
-  }
-
-  private fun settle(result: SetCompositionResult) {
-    val load = pending ?: return
-    if (load.settled) return
-    load.settled = true
-    pending = null
-    load.callback.onResult(result)
-  }
-
-  private fun supersedePending() {
-    val load = pending ?: return
-    pending = null
-    if (load.settled) return
-    load.settled = true
-    load.job.cancel()
-    load.callback.onResult(SetCompositionResult.Superseded)
+    pending.settle(SetCompositionResult.Failure(error))
   }
 
   private fun wallClock(): Duration = performance.now().milliseconds
-
-  /**
-   * One outstanding [setComposition], so a later request can supersede it exactly once.
-   */
-  private class PendingLoad(
-    val job: Job,
-    val callback: SetCompositionCallback,
-  ) {
-    var settled: Boolean = false
-  }
 
   private companion object {
     const val VISIBILITY_CHANGE = "visibilitychange"
