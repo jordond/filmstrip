@@ -15,11 +15,13 @@ internal fun interface PlatformSeek {
    * Seeks to [position] and calls [onComplete] when the landing frame is presented.
    *
    * [onComplete] carries the slot time the frame on screen sits on. For an exact seek that is [seekLandingOf] of
-   * [position], and for a relaxed one it is the slot of the sync sample the platform settled on.
+   * [position], and for a relaxed one it is the slot of the sync sample the platform settled on. [wrap] is true when
+   * the request was a loop wrap, however long it waited to go out.
    */
   fun seek(
     position: Duration,
     accuracy: SeekAccuracy,
+    wrap: Boolean,
     onComplete: (landed: Duration) -> Unit,
   )
 }
@@ -82,16 +84,20 @@ internal class SeekChase(
 
   /**
    * Takes a seek request, superseding whichever request was still waiting to be dispatched.
+   *
+   * @param wrap Whether the request is a loop wrap. It travels with the request and reaches [PlatformSeek.seek] when
+   * the request is dispatched, including one that waited on [isReady] or on a seek in flight.
    */
   fun request(
     position: Duration,
     accuracy: SeekAccuracy,
+    wrap: Boolean = false,
   ) {
     // Install before resolving, the way release() and the completion callback do. Resolving first
     // would let a listener that seeks from inside the callback see the superseded request still
     // sitting in chaseTime, resolve it twice, and have its own request overwritten unresolved.
     val superseded = chaseTime
-    chaseTime = SeekRequest(position, accuracy)
+    chaseTime = SeekRequest(position, accuracy, wrap)
     superseded?.let { onResolved(it.position, SeekResolution.Superseded) }
     trySeekToChaseTime()
   }
@@ -123,7 +129,7 @@ internal class SeekChase(
 
     chaseTime = null
     inFlight = request
-    platformSeek.seek(request.position, request.accuracy) { landed ->
+    platformSeek.seek(request.position, request.accuracy, request.wrap) { landed ->
       // Identity, not a boolean: it rejects a second callback for the same seek and a callback
       // that arrives after release() already synthesised this request's resolution.
       if (inFlight === request) {
@@ -138,4 +144,5 @@ internal class SeekChase(
 private class SeekRequest(
   val position: Duration,
   val accuracy: SeekAccuracy,
+  val wrap: Boolean,
 )

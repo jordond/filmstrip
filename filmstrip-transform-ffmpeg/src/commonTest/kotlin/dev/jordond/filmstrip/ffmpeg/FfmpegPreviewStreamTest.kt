@@ -86,6 +86,8 @@ class FfmpegPreviewStreamTest {
       return true
     }
 
+    override suspend fun exitStatus(): Int? = 0
+
     override fun errors(): String = ""
 
     override fun close() = Unit

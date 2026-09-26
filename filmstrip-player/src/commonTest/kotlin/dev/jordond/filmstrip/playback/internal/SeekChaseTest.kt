@@ -184,6 +184,47 @@ class SeekChaseTest {
   }
 
   @Test
+  fun `a wrap held back until the platform can seek still goes out as a wrap`() {
+    platform.isReady = false
+
+    chase.request(10.milliseconds, SeekAccuracy.Exact, wrap = true)
+    platform.issued shouldBe emptyList()
+
+    platform.isReady = true
+    chase.onReady()
+
+    platform.issued.map { it.position to it.wrap } shouldBe listOf(10.milliseconds to true)
+  }
+
+  @Test
+  fun `a wrap waiting behind a seek in flight goes out as a wrap and the seek after it does not`() {
+    chase.request(10.milliseconds, SeekAccuracy.Exact)
+    chase.request(20.milliseconds, SeekAccuracy.Exact, wrap = true)
+    platform.issued[0].complete()
+    chase.request(30.milliseconds, SeekAccuracy.Exact)
+    platform.drain()
+
+    platform.issued.map { it.position to it.wrap } shouldBe
+      listOf(
+        10.milliseconds to false,
+        20.milliseconds to true,
+        30.milliseconds to false,
+      )
+  }
+
+  @Test
+  fun `a wrap superseded before it goes out takes its flag with it`() {
+    platform.isReady = false
+
+    chase.request(10.milliseconds, SeekAccuracy.Exact, wrap = true)
+    chase.request(20.milliseconds, SeekAccuracy.Exact)
+    platform.isReady = true
+    chase.onReady()
+
+    platform.issued.map { it.position to it.wrap } shouldBe listOf(20.milliseconds to false)
+  }
+
+  @Test
   fun `release resolves what is outstanding and ignores the callback that arrives afterwards`() {
     chase.request(10.milliseconds, SeekAccuracy.Exact)
     chase.request(20.milliseconds, SeekAccuracy.Exact)

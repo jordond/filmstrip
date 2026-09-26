@@ -190,6 +190,20 @@ private class JvmFrameStream(
       }
     }
 
+  override suspend fun exitStatus(): Int? {
+    if (closed.get()) return null
+    // A clean exit already reaped is read straight off the process, since only a failure needs the stderr tail.
+    if (!process.isAlive && process.exitValue() == 0) return 0
+    return withContext(Dispatchers.IO) {
+      runInterruptible {
+        val exited = !closed.get() && awaitExit(process, FRAME_EXIT_GRACE_MILLIS)
+        // The drain can still be holding the last lines when the child is reaped, and those are the ones that say why.
+        if (exited) drain.join(FRAME_EXIT_GRACE_MILLIS)
+        if (exited && !closed.get()) process.exitValue() else null
+      }
+    }
+  }
+
   override fun errors(): String = synchronized(stderr) { stderr.text() }
 
   override fun close() {
@@ -206,5 +220,9 @@ private class JvmFrameStream(
   }
 }
 
-private fun awaitFrameExit(process: Process): Boolean =
-  runCatching { process.waitFor(FRAME_STOP_GRACE_MILLIS, TimeUnit.MILLISECONDS) }.getOrDefault(false)
+private fun awaitFrameExit(process: Process): Boolean = awaitExit(process, FRAME_STOP_GRACE_MILLIS)
+
+private fun awaitExit(
+  process: Process,
+  millis: Long,
+): Boolean = runCatching { process.waitFor(millis, TimeUnit.MILLISECONDS) }.getOrDefault(false)

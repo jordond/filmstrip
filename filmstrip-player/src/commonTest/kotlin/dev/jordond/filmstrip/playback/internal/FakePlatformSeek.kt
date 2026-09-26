@@ -13,9 +13,10 @@ internal class FakePlatformSeek : PlatformSeek {
   override fun seek(
     position: Duration,
     accuracy: SeekAccuracy,
+    wrap: Boolean,
     onComplete: (landed: Duration) -> Unit,
   ) {
-    issued += IssuedSeek(position, accuracy, onComplete)
+    issued += IssuedSeek(position, accuracy, wrap, onComplete)
   }
 
   // Completes the seek still waiting, and repeats until the chase stops dispatching new ones. Each one lands
@@ -32,6 +33,7 @@ internal class FakePlatformSeek : PlatformSeek {
 internal class IssuedSeek(
   val position: Duration,
   val accuracy: SeekAccuracy,
+  val wrap: Boolean,
   private val onComplete: (landed: Duration) -> Unit,
 ) {
   var isComplete: Boolean = false

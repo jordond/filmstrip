@@ -15,11 +15,14 @@ import dev.jordond.filmstrip.playback.contract.withEngine
 import dev.jordond.filmstrip.playback.internal.FfmpegPlanResult
 import dev.jordond.filmstrip.playback.internal.FfmpegPreviewPlanner
 import dev.jordond.filmstrip.player.PlaybackEvent
+import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.PlayerConfig
 import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.SetCompositionResult
 import dev.jordond.filmstrip.transform.internal.heldTail
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import java.io.File
 import kotlin.test.Test
@@ -33,7 +36,7 @@ import kotlin.time.Duration.Companion.seconds
  * Seeks the desktop engine takes while it plays, each landing on a slot and then playing on to the end.
  *
  * The pump a seek opens can run out soon after, near the end of a composition or when its process fails, and the
- * seek still completes on its own slot before the end is reported.
+ * seek still completes on its own slot before the end or the failure is reported.
  */
 class JvmSeekWhilePlayingTest {
   // Under an audio track that outlasts the video, the last slot holds the video's last frame like every other slot of
@@ -109,11 +112,10 @@ class JvmSeekWhilePlayingTest {
       }
     }
 
-  // Every slot a seek lands on carries a frame, so a pump that ends before it shows one is a process that failed, here
-  // because the source has gone from disk since the composition loaded. The seek still completes, on the slot it asked
-  // for since nothing moved the playhead off it, and only then does playback end at the end.
+  // The seek's process fails because the source has gone from disk since the composition loaded. The seek still
+  // completes, on the slot it asked for since nothing moved the playhead off it, and only then is the failure reported.
   @Test
-  fun `a seek whose pump shows no frame while playing lands on its own slot`() =
+  fun `a seek whose process fails while playing lands on its own slot and fails`() =
     contractTest { scope ->
       val subject = JvmEngineUnderTest(scope)
       val source = File.createTempFile("filmstrip-vanishing", ".mp4").also { it.deleteOnExit() }
@@ -124,24 +126,23 @@ class JvmSeekWhilePlayingTest {
         val loaded = subject.engine.awaitComposition(jvmVideoCompositionOf(source))
         loaded.shouldBeInstanceOf<SetCompositionResult.Success>()
         awaitContract("the first frame to land") { recorder.playhead != null }
-        val duration = recorder.lastState.duration ?: fail("the engine reported no duration")
-
         subject.engine.play()
         // The pump already running holds the file open, so only the one the seek spawns finds it gone.
         source.delete() shouldBe true
         val before = recorder.seekCompletions.size
         subject.engine.seekTo(VANISHED_SEEK, SeekAccuracy.Exact)
-        awaitContract("playback to reach the end", timeout = END_BUDGET) {
-          recorder.events.filterIsInstance<PlaybackEvent.Ended>().isNotEmpty()
+        awaitContract("playback to fail", timeout = END_BUDGET) {
+          recorder.events.filterIsInstance<PlaybackEvent.Failed>().isNotEmpty()
         }
         awaitContract("the seek to complete") { recorder.seekCompletions.size > before }
 
         recorder.seekCompletions.last().position shouldBe landing
-        recorder.events
-          .filterIsInstance<PlaybackEvent.Ended>()
-          .single()
-          .finalPosition shouldBe duration
-        recorder.playhead shouldBe duration
+        recorder.events.filterIsInstance<PlaybackEvent.Ended>().shouldBeEmpty()
+        val failed = recorder.events.filterIsInstance<PlaybackEvent.Failed>().single()
+        failed.error.message shouldContain source.name
+        recorder.lastState.status shouldBe PlaybackStatus.Error(failed.error)
+        recorder.lastState.playWhenReady shouldBe false
+        recorder.playhead shouldBe landing
       }
     }
 

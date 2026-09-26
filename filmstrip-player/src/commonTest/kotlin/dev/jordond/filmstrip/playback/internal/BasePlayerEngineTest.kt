@@ -18,6 +18,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.test.assertFailsWith
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -135,6 +136,39 @@ class BasePlayerEngineTest {
 
     listener.seekCompletions.size shouldBe 2
     listener.states.last().isSeeking shouldBe false
+  }
+
+  @Test
+  fun `a wrap issued before the engine is ready reaches performSeek as a wrap`() {
+    engine.becomeReady(10.seconds)
+    engine.platform.isReady = false
+
+    engine.wrapTo(200.milliseconds)
+    engine.platform.issued.shouldBeEmpty()
+
+    engine.platform.isReady = true
+    engine.becomeReady(10.seconds)
+    engine.seekTo(300.milliseconds, SeekAccuracy.Exact)
+    engine.platform.drain()
+
+    engine.platform.issued.map { it.position to it.wrap } shouldBe
+      listOf(200.milliseconds to true, 300.milliseconds to false)
+    listener.seekCompletions.map { it.position } shouldBe listOf(200.milliseconds, 300.milliseconds)
+  }
+
+  @Test
+  fun `a wrap seek that throws does not leave the wrap flag set`() {
+    engine.becomeReady(10.seconds)
+    engine.throwOnWrapSeek = true
+
+    assertFailsWith<IllegalStateException> { engine.wrapTo(200.milliseconds) }
+    engine.wrapFlag shouldBe false
+
+    engine.seekTo(300.milliseconds, SeekAccuracy.Exact)
+    engine.platform.drain()
+
+    engine.platform.issued.map { it.position to it.wrap } shouldBe
+      listOf(200.milliseconds to true, 300.milliseconds to false)
   }
 
   @Test

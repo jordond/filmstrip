@@ -74,10 +74,27 @@ internal abstract class BasePlayerEngine(
 
   private val chase =
     SeekChase(
-      platformSeek = { position, accuracy, onComplete -> performSeek(position, accuracy, onComplete) },
+      platformSeek = { position, accuracy, wrap, onComplete ->
+        val outer = isWrapSeek
+        isWrapSeek = wrap
+        try {
+          performSeek(position, accuracy, onComplete)
+        } finally {
+          isWrapSeek = outer
+        }
+      },
       isReady = { isSeekReady() },
       onResolved = ::onSeekResolved,
     )
+
+  /**
+   * Whether the seek [performSeek] is issuing right now was asked for through [seekToWrap].
+   *
+   * Only meaningful inside [performSeek]. A wrap the chase held back until the platform could seek still reads true
+   * when it finally goes out.
+   */
+  protected var isWrapSeek: Boolean = false
+    private set
 
   /**
    * The playhead, read straight from the platform.
@@ -150,6 +167,18 @@ internal abstract class BasePlayerEngine(
   ) {
     if (isScrubbing) scrubTarget = position
     chase.request(position, if (isScrubbing) SeekAccuracy.Nearest else accuracy)
+    setSeeking(chase.isSeeking)
+  }
+
+  /**
+   * Seeks exactly to [position] as a loop wrap, through the same chase as [seekTo].
+   *
+   * The request is marked as a wrap for as long as the chase holds it, so [isWrapSeek] reads true in the [performSeek]
+   * that finally issues it.
+   */
+  protected fun seekToWrap(position: Duration) {
+    if (isScrubbing) scrubTarget = position
+    chase.request(position, if (isScrubbing) SeekAccuracy.Nearest else SeekAccuracy.Exact, wrap = true)
     setSeeking(chase.isSeeking)
   }
 

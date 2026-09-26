@@ -31,6 +31,12 @@ internal class FakePlayerEngine(
   val scrubbing: MutableList<Boolean> = mutableListOf()
 
   var position: Duration = Duration.ZERO
+
+  // Makes performSeek throw on a wrap seek, after the platform has recorded it.
+  var throwOnWrapSeek: Boolean = false
+
+  // The wrap flag as seen from outside performSeek, where it should always read false.
+  val wrapFlag: Boolean get() = isWrapSeek
   var plays: Int = 0
     private set
   var pauses: Int = 0
@@ -57,7 +63,10 @@ internal class FakePlayerEngine(
     position: Duration,
     accuracy: SeekAccuracy,
     onComplete: (landed: Duration) -> Unit,
-  ): Unit = platform.seek(position, accuracy, onComplete)
+  ) {
+    platform.seek(position, accuracy, isWrapSeek, onComplete)
+    if (isWrapSeek && throwOnWrapSeek) throw IllegalStateException("wrap seek failed")
+  }
 
   override fun onPlay() {
     plays++
@@ -107,6 +116,8 @@ internal class FakePlayerEngine(
   fun reportExternal(playWhenReady: Boolean): Unit = reportExternalPlayWhenReady(playWhenReady)
 
   fun publishPreviewInfo(info: PreviewInfo): Unit = emitPreviewInfo(info)
+
+  fun wrapTo(position: Duration): Unit = seekToWrap(position)
 }
 
 // Records everything an engine pushes, in order.

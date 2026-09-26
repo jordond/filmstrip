@@ -5,11 +5,7 @@ import dev.jordond.filmstrip.edit.CompositionDiff
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.diff
-import dev.jordond.filmstrip.ffmpeg.PreviewStream
-import dev.jordond.filmstrip.ffmpeg.PreviewStreamResult
-import dev.jordond.filmstrip.internal.outputSlotOf
 import dev.jordond.filmstrip.internal.outputSlotTime
-import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
@@ -23,19 +19,11 @@ import dev.jordond.filmstrip.player.SetCompositionCallback
 import dev.jordond.filmstrip.player.SetCompositionRequest
 import dev.jordond.filmstrip.player.SetCompositionResult
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.ReceiveChannel
-import kotlinx.coroutines.channels.SendChannel
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.TimeMark
-import kotlin.time.TimeSource
 
 /**
  * The desktop preview engine, driving ffmpeg as a frame pump.
@@ -71,18 +59,37 @@ internal class FfmpegPlayerEngine(
   private var position: Duration = Duration.ZERO
   private var presented: PreviewFrame? = null
   private var firstFrameEmitted = false
-  private var loopRange: TimeRange? = null
-  private var playbackRange: TimeRange? = null
 
-  private var pump: Job? = null
-  private var stream: PreviewStream? = null
-  private var generation = 0
-  private var landing: ((Duration) -> Unit)? = null
-  private var pending: PendingLoad? = null
+  private val pending = PendingLoad()
 
   // Read by the presenter rather than by the transport, because a paused presenter is parked inside
   // a suspend and a snapshot flag would leave it parked.
   private val wanted = MutableStateFlow(false)
+
+  private val ends =
+    FfmpegRangeEnd(
+      presented = { presented },
+      position = { position },
+      moveTo = { position = it },
+      wanted = wanted,
+      startPump = ::startPump,
+      seekToWrap = ::seekToWrap,
+      looped = { emitEvent(PlaybackEvent.RangeLooped(it)) },
+      finish = ::finish,
+    )
+
+  private val pump =
+    FfmpegPump(
+      scope = scope,
+      planner = planner,
+      plan = { plan },
+      composition = { loaded },
+      wanted = wanted,
+      ends = ends,
+      show = ::show,
+      fail = ::fail,
+      failProcess = ::failProcess,
+    )
 
   /**
    * How many times a pump has been lowered and spawned for a newly set composition.
@@ -121,7 +128,7 @@ internal class FfmpegPlayerEngine(
     request: SetCompositionRequest,
     callback: SetCompositionCallback,
   ): Cancellable {
-    supersedePending()
+    pending.supersede()
 
     val change = diff(loaded, request.composition)
     if (change == CompositionDiff.Equal && plan != null) {
@@ -136,20 +143,16 @@ internal class FfmpegPlayerEngine(
         when (val result = planner.plan(request.composition, policy)) {
           is FfmpegPlanResult.Refused -> {
             fail(result.error)
-            settle(SetCompositionResult.Failure(result.error))
+            pending.settle(SetCompositionResult.Failure(result.error))
           }
           is FfmpegPlanResult.Ready -> {
             apply(change, result.plan, request)
-            settle(SetCompositionResult.Success(result.plan.resolved.duration))
+            pending.settle(SetCompositionResult.Success(result.plan.resolved.duration))
           }
         }
       }
 
-    pending = PendingLoad(job, callback)
-    return Cancellable {
-      pending?.takeIf { it.job === job }?.let { it.settled = true }
-      job.cancel()
-    }
+    return pending.track(job, callback)
   }
 
   override fun readPosition(): Duration = position
@@ -162,6 +165,7 @@ internal class FfmpegPlayerEngine(
     onComplete: (landed: Duration) -> Unit,
   ) {
     val target = snap(position)
+    ends.seekIssued(wrap = isWrapSeek, onComplete = onComplete)
     scope.launch {
       // A relaxed seek is a finger moving, and every one of them costs a process. Waiting the
       // debounce out first is what bounds the respawns: the chase coalesces whatever arrives while
@@ -177,7 +181,7 @@ internal class FfmpegPlayerEngine(
     // A pump that ran to the end left its process closed behind it, so playing again is a spawn
     // rather than a resume. It also left the playhead on the end, past the last slot, so the spawn
     // opens on that slot rather than on the end.
-    if (pump?.isActive != true && plan != null) startPump(replayFrom(), null)
+    if (!pump.isRunning && plan != null) startPump(replayFrom(), null)
   }
 
   override fun onPause() {
@@ -185,10 +189,10 @@ internal class FfmpegPlayerEngine(
   }
 
   override fun onRelease() {
-    supersedePending()
-    landing = null
+    pending.supersede()
+    ends.dropLanding()
     wanted.value = false
-    stopPump()
+    pump.stop()
     presented = null
   }
 
@@ -209,11 +213,11 @@ internal class FfmpegPlayerEngine(
   override fun setVolume(volume: Float): Unit = Unit
 
   override fun setLoopRange(range: TimeRange?) {
-    loopRange = range
+    ends.setLoopRange(range)
   }
 
   override fun setPlaybackRange(range: TimeRange?) {
-    playbackRange = range
+    ends.playbackRange = range
     range?.start?.takeIf { position < it }?.let { seekTo(it, SeekAccuracy.Exact) }
   }
 
@@ -253,6 +257,7 @@ internal class FfmpegPlayerEngine(
     }
 
     position = snap(request.startAt ?: if (parametersOnly) position else Duration.ZERO)
+    ends.reset()
     startPump(position, null)
     if (request.playWhenReady) play()
   }
@@ -267,191 +272,9 @@ internal class FfmpegPlayerEngine(
     from: Duration,
     onLanded: ((Duration) -> Unit)?,
   ) {
-    settleLanding()
-    landing = onLanded
-    stopPump()
-
-    val token = ++generation
-    pump = scope.launch { runPump(token, from) }
+    ends.hold(onLanded)
+    pump.start(from)
   }
-
-  private fun stopPump() {
-    generation++
-    pump?.cancel()
-    pump = null
-    stream?.close()
-    stream = null
-  }
-
-  private suspend fun runPump(
-    token: Int,
-    from: Duration,
-  ) {
-    val current = plan ?: return
-    val composition = loaded ?: return
-
-    val opened = planner.open(current, composition, from)
-    if (token != generation) {
-      (opened as? PreviewStreamResult.Opened)?.stream?.close()
-      return
-    }
-
-    val open =
-      when (opened) {
-        is PreviewStreamResult.Refused -> {
-          fail(opened.error.toPlaybackError())
-          settleLanding()
-          return
-        }
-        is PreviewStreamResult.Opened -> {
-          opened.stream
-        }
-      }
-
-    stream = open
-    val frames = Channel<PreviewFrame>(LOOK_AHEAD)
-
-    try {
-      coroutineScope {
-        // The reader runs ahead of the presenter by the look-ahead and then blocks on a full
-        // channel, which fills the pipe, which stalls ffmpeg. Coarse flow control, and free.
-        val reader = launch { read(open, current.frameRate, frames) }
-        present(token, from, current, frames)
-        reader.cancel()
-      }
-    } finally {
-      // Closing here as well as in stopPump is what covers a scope cancelled out from under the
-      // engine, where nothing calls back in to release the process.
-      if (stream === open) stream = null
-      open.close()
-    }
-  }
-
-  private suspend fun read(
-    stream: PreviewStream,
-    frameRate: Int,
-    frames: SendChannel<PreviewFrame>,
-  ) {
-    var slot = outputSlotOf(stream.startPosition, frameRate)
-    try {
-      while (true) {
-        val pixels = stream.next() ?: break
-        frames.send(PreviewFrame(outputSlotTime(slot, frameRate), pixels))
-        slot++
-      }
-    } finally {
-      frames.close()
-    }
-  }
-
-  /**
-   * Paces the frames against the clock and shows them.
-   *
-   * The anchor is taken on the frame that lands rather than when the process started, so the wait
-   * before each frame is measured from a frame that was actually on screen. It is dropped whenever
-   * playback parks, since the time spent paused is not time the composition advanced through.
-   *
-   * @param current The plan the pump was opened on, whose grid the frames and the range ends are counted on.
-   */
-  private suspend fun present(
-    token: Int,
-    from: Duration,
-    current: FfmpegPreviewPlan,
-    frames: ReceiveChannel<PreviewFrame>,
-  ) {
-    var anchor: TimeMark? = null
-    var anchorAt = Duration.ZERO
-    var landed = false
-    val half = current.frameStep / 2
-
-    for (frame in frames) {
-      if (token != generation) return
-      // Frames before the target only arrive on a composition the graph could not window with an
-      // input seek, which opens at its head and is read forward instead.
-      if (frame.position < from - half) continue
-
-      if (!landed) {
-        landed = true
-        anchor = TimeSource.Monotonic.markNow()
-        anchorAt = frame.position
-        show(frame)
-        // The frame the seek asked for is on screen, so the request that asked for it is answered
-        // whether or not playback goes on from here.
-        settleLanding()
-        continue
-      }
-
-      if (!wanted.value) {
-        anchor = null
-        wanted.first { it }
-        if (token != generation) return
-      }
-      if (reachedEnd(frame.position, current)) return
-
-      val mark =
-        anchor ?: TimeSource.Monotonic.markNow().also {
-          anchor = it
-          anchorAt = frame.position
-        }
-      val due = frame.position - anchorAt
-      val elapsed = mark.elapsedNow()
-      if (due > elapsed) delay(due - elapsed)
-      if (token != generation) return
-
-      show(frame)
-    }
-
-    if (token != generation) return
-    // No frame comes past the last slot of a loop range the composition ends inside, so it wraps where the pump runs
-    // out, once that slot is on screen. A pump that ran out anywhere short of it failed, and ends rather than
-    // respawning onto the same failure.
-    val shown = presented?.takeIf { landed }?.let { outputSlotOf(it.position, current.frameRate) }
-    if (wanted.value && wrapLoop(current) { it.reachesEnd && it.lastSlot == shown }) return
-    finish(landed)
-  }
-
-  /**
-   * Wraps a loop range, or stops a playback range, once [at] lands past the last slot the range carries on the grid of
-   * [current].
-   *
-   * @return true when [at] is outside what may play, so the caller stops presenting.
-   */
-  private fun reachedEnd(
-    at: Duration,
-    current: FfmpegPreviewPlan,
-  ): Boolean {
-    val rate = current.frameRate
-    val slot = outputSlotOf(at, rate)
-    if (wrapLoop(current) { slot > it.lastSlot }) return true
-    playbackRange?.takeIf { it.endsBefore(slot, rate) }?.let {
-      finish(landed = true)
-      return true
-    }
-    return false
-  }
-
-  /**
-   * Seeks to the first slot of the loop range and reports the wrap, when the range has something to loop in [current]
-   * and [due] holds for it.
-   *
-   * @return true when playback wrapped.
-   */
-  private fun wrapLoop(
-    current: FfmpegPreviewPlan,
-    due: (LoopWrap) -> Boolean,
-  ): Boolean {
-    val range = loopRange ?: return false
-    val wrap = loopWrapOf(range, current.resolved.duration, current.frameRate)?.takeIf(due) ?: return false
-    seekTo(outputSlotTime(wrap.firstSlot, current.frameRate), SeekAccuracy.Exact)
-    emitEvent(PlaybackEvent.RangeLooped(range))
-    return true
-  }
-
-  // A range with no end has no last slot, so no slot is past it.
-  private fun TimeRange.endsBefore(
-    slot: Long,
-    rate: Int,
-  ): Boolean = lastSlotOf(this, rate)?.let { slot > it } ?: false
 
   private fun show(frame: PreviewFrame) {
     presented = frame
@@ -467,10 +290,9 @@ internal class FfmpegPlayerEngine(
    * Reports the end of the stream.
    *
    * A pump that ran out with playback unwanted is not a play-through finishing, so no end is reported. When it also
-   * showed no frame, the paused seek that opened it is still waiting. Either the seek landed near the end and the
-   * stream ran out first, or its process failed outright, such as one whose source went missing. That seek lands where
-   * the playhead holds, no later than the end, and the status moves only as far as it needs to leave the preview
-   * presentable.
+   * showed no frame, the paused seek that opened it is still waiting, since the seek landed near the end and the stream
+   * ran out first. That seek lands where the playhead holds, no later than the end, and the status moves only as far as
+   * it needs to leave the preview presentable. A process that failed never gets here, [failProcess] reports it.
    */
   private fun finish(landed: Boolean) {
     val current = plan ?: return
@@ -478,17 +300,16 @@ internal class FfmpegPlayerEngine(
       if (!landed) {
         position = position.coerceAtMost(current.resolved.duration)
         setStatus(PlaybackStatus.Ready)
-        settleLanding()
+        ends.settleLanding()
       }
       return
     }
 
-    // A seek still waiting here opened a pump that ended before it showed a frame. Every slot a seek
-    // lands on carries one, so that is a process that failed, such as one whose source went missing.
-    // The playhead still holds the slot the seek asked for and it lands there. Settling before the end
-    // is reported leaves the end as the last playhead a listener sees.
-    settleLanding()
-    position = playbackRange?.endExclusive ?: current.resolved.duration
+    // A seek still waiting here opened a pump that ended before it showed a frame without its process failing. The
+    // playhead still holds the slot the seek asked for and it lands there. Settling before the end is reported leaves
+    // the end as the last playhead a listener sees.
+    ends.settleLanding()
+    position = ends.playbackRange?.endExclusive ?: current.resolved.duration
     wanted.value = false
     setStatus(PlaybackStatus.Ended)
     setPlayWhenReady(false)
@@ -496,31 +317,31 @@ internal class FfmpegPlayerEngine(
     emitEvent(PlaybackEvent.Ended(position, current.resolved.duration))
   }
 
+  /**
+   * Reports a pump whose process exited with [status] instead of rendering to its end.
+   *
+   * A seek still waiting on the pump lands where the playhead holds, the way [finish] lands it, and playback stops before
+   * the failure is reported. The error carries [status] as its platform code and the tail of [errors] as its message.
+   */
+  private fun failProcess(
+    status: Int,
+    errors: String,
+  ) {
+    ends.settleLanding()
+    wanted.value = false
+    setPlayWhenReady(false)
+    val exited = "ffmpeg exited with status $status."
+    val tail = errors.trim()
+    fail(PlaybackError.Underlying(status, if (tail.isEmpty()) exited else "$exited\n$tail"))
+  }
+
   private fun snap(at: Duration): Duration = plan?.resolved?.seekLandingOf(at) ?: Duration.ZERO
 
   // The slot the playhead lands on, held to the last one a playback range carries.
   private fun replayFrom(): Duration {
     val rate = plan?.frameRate ?: return Duration.ZERO
-    val slot = playbackRange?.let { lastSlotOf(it, rate) } ?: return snap(position)
+    val slot = ends.playbackRange?.let { lastSlotOf(it, rate) } ?: return snap(position)
     return snap(position.coerceAtMost(outputSlotTime(slot, rate)))
-  }
-
-  // The last of the slots a playback range carries at rate, or null for a range with no end. A range that covers no
-  // slot of its own has no last one, so this is the range's own first slot instead, the only slot the pump ever
-  // presents for a range that narrow.
-  private fun lastSlotOf(
-    range: TimeRange,
-    rate: Int,
-  ): Long? {
-    if (range.endExclusive == null) return null
-    val slots = outputSlotsOf(range, rate)
-    return if (slots.isEmpty()) outputSlotOf(range.start, rate) else slots.last
-  }
-
-  private fun settleLanding() {
-    val callback = landing ?: return
-    landing = null
-    callback(position)
   }
 
   private fun fail(error: PlaybackError) {
@@ -528,40 +349,9 @@ internal class FfmpegPlayerEngine(
     emitEvent(PlaybackEvent.Failed(error))
   }
 
-  private fun settle(result: SetCompositionResult) {
-    val load = pending ?: return
-    if (load.settled) return
-    load.settled = true
-    pending = null
-    load.callback.onResult(result)
-  }
-
-  private fun supersedePending() {
-    val load = pending ?: return
-    pending = null
-    if (load.settled) return
-    load.settled = true
-    load.job.cancel()
-    load.callback.onResult(SetCompositionResult.Superseded)
-  }
-
-  /**
-   * One outstanding [setComposition], so a later request can supersede it exactly once.
-   */
-  private class PendingLoad(
-    val job: Job,
-    val callback: SetCompositionCallback,
-  ) {
-    var settled: Boolean = false
-  }
-
   private companion object {
     // Measured: it clears the cold spawn cost on most content before it fires, and stays under the
     // threshold where a settle starts reading as lag.
     val SCRUB_DEBOUNCE = 120.milliseconds
-
-    // Measured: eight frames covers the worst cold spawn seen with a filter graph attached, and
-    // costs about a millisecond a frame to fill once the process is warm.
-    const val LOOK_AHEAD = 8
   }
 }

@@ -41,6 +41,8 @@ internal class FfmpegPreviewStream(
     return frame
   }
 
+  override suspend fun exitStatus(): Int? = frames.exitStatus()
+
   override fun errors(): String = frames.errors()
 
   override fun close() {

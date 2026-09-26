@@ -540,7 +540,9 @@ browser has.
 `filmstrip-player` carries a real engine on all four platforms, and each one lowers the composition
 through the same engine its exports go through, so the compositing is the same graph rather than a
 second implementation. Without the artifact, `preview()` returns a player that reports
-`PlaybackError.BackendMissing` instead of throwing.
+`PlaybackError.BackendMissing` instead of throwing. An ffmpeg preview process that exits with a
+failure reports `PlaybackError.Underlying` and `PlaybackEvent.Failed`, carrying its exit status and
+stderr, rather than `Ended`.
 
 | Feature                  | Android           | Apple | Browser         | ffmpeg             |
 | ------------------------ | ----------------- | ----- | --------------- | ------------------ |
@@ -558,6 +560,10 @@ second implementation. Without the artifact, `preview()` returns a player that r
 `Approximate` everywhere, because a late frame is dropped. `HdrAppearance` is `NotPreviewable`
 everywhere: on Android and Apple the display decides it, the browser composites in standard range,
 and the ffmpeg pump converts a grade straight to RGB.
+
+A loop range wraps only while playback runs, on Android and Apple alike. A seek or a frame step
+past the range's end while paused stays where it lands. On Android the playhead reports where a
+seek is going for as long as it is in flight, rather than the frame media3 last read.
 
 Thumbnails go through `FrameRenderer.frame` and `frames`, or `ThumbnailRequest` directly.
 `ThumbnailRequest.precise` chooses an exact seek over the nearest sync sample. Android honours it

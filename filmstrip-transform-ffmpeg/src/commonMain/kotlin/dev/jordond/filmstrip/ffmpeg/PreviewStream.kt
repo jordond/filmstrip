@@ -2,8 +2,10 @@ package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.export.ExportError
+import dev.jordond.filmstrip.ffmpeg.internal.FRAME_EXIT_GRACE_MILLIS
 import dev.jordond.filmstrip.geometry.Size
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Rendered preview frames, arriving in composition order off a running ffmpeg process.
@@ -39,6 +41,15 @@ public interface PreviewStream {
   public suspend fun next(): ByteArray?
 
   /**
+   * How the process exited, read once [next] has returned null.
+   *
+   * Zero for a render that ran to its end. Anything else is a process that failed or was killed by something other
+   * than [close], and [errors] says why. Null when [close] stopped it, or when it is still running [EXIT_GRACE] after
+   * its frames ran out. A process that has already exited is read at once, with no wait.
+   */
+  public suspend fun exitStatus(): Int?
+
+  /**
    * What the process wrote to stderr, for a stream that ended sooner than expected.
    */
   public fun errors(): String
@@ -47,6 +58,14 @@ public interface PreviewStream {
    * Kills the process and releases what it was reading. Idempotent.
    */
   public fun close()
+
+  @InternalFilmstripApi
+  public companion object {
+    /**
+     * The longest [exitStatus] waits on a process whose frames ran out but which has not exited yet.
+     */
+    public val EXIT_GRACE: Duration = FRAME_EXIT_GRACE_MILLIS.milliseconds
+  }
 }
 
 /**

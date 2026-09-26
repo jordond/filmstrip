@@ -62,6 +62,15 @@ internal interface FrameStream {
   suspend fun read(frame: ByteArray): Boolean
 
   /**
+   * The child's exit status once it has exited on its own.
+   *
+   * A child already reaped with a clean exit reads back at once. Otherwise the pipe may have closed a moment before the
+   * child is reaped, so this waits up to [FRAME_EXIT_GRACE_MILLIS] for it off the caller's thread. Null when [close]
+   * stopped the child, or when it is still running once that wait is up.
+   */
+  suspend fun exitStatus(): Int?
+
+  /**
    * The tail of what the child wrote to stderr.
    */
   fun errors(): String
@@ -93,6 +102,9 @@ internal const val STOP_GRACE_MILLIS: Long = 5_000
 // A preview writes no container, so there is no moov atom to wait for and nothing to lose by
 // killing the child outright. Short enough that a seek respawn does not stall on it.
 internal const val FRAME_STOP_GRACE_MILLIS: Long = 250
+
+// How long a child whose frames ran out gets to exit, and its stderr to drain, before its status is read as unknown.
+internal const val FRAME_EXIT_GRACE_MILLIS: Long = 1_000
 
 /**
  * Runs [block] with every other caller of it held out.
