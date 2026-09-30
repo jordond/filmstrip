@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.media.brightnessSceneGain
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HLG_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
+import dev.jordond.filmstrip.test.assumeEncodesHdr
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.math.abs
@@ -90,7 +91,7 @@ class AndroidBrightnessHdrTest {
   fun dimmingFurtherDarkensAKeptGrade() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture(HDR_CLIP)
-      probe.assumeEncodesHdr()
+      probe.filmstrip.assumeEncodesHdr()
 
       val half = luminanceOf(export(source, HALF))
       val quarter = luminanceOf(export(source, QUARTER))
@@ -103,7 +104,7 @@ class AndroidBrightnessHdrTest {
   fun aKeptGradeSurvivesABrightnessEffect() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture(HDR_CLIP)
-      probe.assumeEncodesHdr()
+      probe.filmstrip.assumeEncodesHdr()
 
       val written = probe.infoOf(MediaSource.of(export(source, HALF).path))
       val video = assertNotNull(written.video, "the written file has no video track")
@@ -117,7 +118,7 @@ class AndroidBrightnessHdrTest {
   fun dimmingFurtherDarkensAKeptHlgGrade() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture(HLG_CLIP)
-      probe.assumeEncodesHdr()
+      probe.filmstrip.assumeEncodesHdr()
 
       val half = luminanceOf(export(source, HALF))
       val quarter = luminanceOf(export(source, QUARTER))

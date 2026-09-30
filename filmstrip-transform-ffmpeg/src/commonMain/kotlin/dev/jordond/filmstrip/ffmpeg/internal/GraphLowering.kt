@@ -1,9 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg.internal
 
 import dev.jordond.filmstrip.edit.AudioSpec
-import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.AuxInput
-import dev.jordond.filmstrip.effect.FilterArgument
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.ExportPath
@@ -11,11 +9,9 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.internal.outputSlotOf
 import dev.jordond.filmstrip.internal.outputSlotsOf
-import dev.jordond.filmstrip.transform.internal.GainSegment
 import dev.jordond.filmstrip.transform.internal.NegotiatedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedEffect
-import dev.jordond.filmstrip.transform.internal.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.effectsOverFill
 import dev.jordond.filmstrip.transform.internal.effectsUnderFill
@@ -88,11 +84,13 @@ internal class GraphLowering(
   private val effectsUnderFill = negotiated.effectsUnderFill
   private val effectsOverFill = negotiated.effectsOverFill
 
-  // Held back only when an effect under the fill could actually see it: with none there the graph
-  // this writes is pixel-identical to the undeferred one, so keeping that simpler graph then is a
-  // cost optimisation, not a divergence. A composition carrying only overlays paints the fill
-  // straight in and never goes through an alpha format.
-  private val deferFill: Boolean = negotiated.paintsFillAfterEffects && effectsUnderFill.isNotEmpty()
+  // Held back when an effect under the fill could actually see it, or on a kept grade, where the
+  // fill has to land on codes a pad colour cannot name and only the flatten writes them. Otherwise
+  // the graph this writes is pixel-identical to the undeferred one, so keeping that simpler graph
+  // then is a cost optimisation, not a divergence. An SDR composition carrying only overlays paints
+  // the fill straight in and never goes through an alpha format.
+  private val deferFill: Boolean =
+    negotiated.paintsFillAfterEffects && (effectsUnderFill.isNotEmpty() || negotiated.hdrTransfer != null)
 
   // The format a clip's tail actually ends on. Alpha is what marks a pixel the fill has not painted
   // yet, so every clip carries it through concat and the effects under the fill while the fill is
@@ -161,7 +159,12 @@ internal class GraphLowering(
     }
 
     val videoLabel = if (negotiated.audio == AudioSpec.AudioOnly) null else buildVideo()
-    val audioLabel = if (output.audioFormat == null) null else buildAudio()
+    val audioLabel =
+      if (output.audioFormat == null) {
+        null
+      } else {
+        AudioLowering(negotiated, graph, inputs) { track, clip -> branchPad(track, clip, audio = true) }.build()
+      }
 
     return Invocation(
       inputs = inputs,
@@ -220,16 +223,17 @@ internal class GraphLowering(
       }
     check(segments.isNotEmpty()) { "The primary covers no output slot, which the planner refuses before it lowers." }
 
+    // concat stamps its frames in microseconds, where a slot is rarely a whole number of them, so every frame after
+    // the join, and every slot a lead's tpad steps from there, lands a little early. A flatten onto a fill on the
+    // exact grid would then drop the last slot. Every join is restamped onto the output frame's own time base so each
+    // frame sits on its slot whatever runs after it.
     var current =
       if (segments.size == 1) {
         segments.single()
       } else {
         "vcat".also { label ->
-          graph.chain(
-            segments,
-            listOf(FilterNode("concat", "n" to segments.size.toString(), "v" to "1", "a" to "0")),
-            label,
-          )
+          val concat = FilterNode("concat", "n" to segments.size.toString(), "v" to "1", "a" to "0")
+          graph.chain(segments, listOf(concat, frameGridBase()), label)
         }
       }
 
@@ -258,14 +262,16 @@ internal class GraphLowering(
     // Composition Colour, Spatial and Composite effects run once, after the join. Only Geometry has
     // to be fanned onto each clip, and the negotiator already did that. The effects under the fill
     // run first, then a deferred fill is painted in, then the overlays draw on the opaque frame.
+    val transfer = negotiated.hdrTransfer
     current = compositionEffects(effectsUnderFill, current, firstIndex = 0)
     if (deferFill) {
-      current = flattenOntoFill(restateGrade(current, "vgrade"))
+      val graded = graph.restateGrade(current, "vgrade", transfer)
+      current = graph.flattenOntoFill(graded, negotiated, frameRate, pixelFormat)
       current = compositionEffects(effectsOverFill, current, firstIndex = effectsUnderFill.size)
-      if (effectsOverFill.isNotEmpty()) current = restateGrade(current, "vgradeover")
+      if (effectsOverFill.isNotEmpty()) current = graph.restateGrade(current, "vgradeover", transfer)
     } else {
       current = compositionEffects(effectsOverFill, current, firstIndex = effectsUnderFill.size)
-      if (negotiated.compositionEffects.isNotEmpty()) current = restateGrade(current, "vgrade")
+      if (negotiated.compositionEffects.isNotEmpty()) current = graph.restateGrade(current, "vgrade", transfer)
     }
 
     // A terminal chain, so the mapped pad has a name of its own and the composition's duration is
@@ -292,8 +298,11 @@ internal class GraphLowering(
       sidecars += fragment.sidecars
       val label = "vfx${firstIndex + offset}"
       val merge = fragment.merge
-      if (merge == null) {
-        graph.chain(listOf(current), fragment.chain.ifEmpty { listOf(NULL_VIDEO) }, label)
+      val crop = fragment.crop
+      if (crop != null) {
+        graph.cropped(current, fragment, crop, label, ::auxPads)
+      } else if (merge == null) {
+        graph.chain(listOf(current), (fragment.chain + fragment.post).ifEmpty { listOf(NULL_VIDEO) }, label)
       } else {
         // A chain's input labels link to its first filter, so anything this effect contributes
         // ahead of the merge goes onto a pad of its own rather than between the labels and the
@@ -305,60 +314,11 @@ internal class GraphLowering(
           } else {
             "${label}pre".also { graph.chain(listOf(current), fragment.chain, it) }
           }
-        graph.chain(listOf(input) + auxPads(fragment.auxInputs, label), listOf(merge), label)
+        graph.chain(listOf(input) + auxPads(fragment.auxInputs, label), listOf(merge) + fragment.post, label)
       }
       current = label
     }
     return current
-  }
-
-  /**
-   * Restates the grade on [read] onto a pad named [label], or hands [read] back when there is none.
-   *
-   * The effect chain is where a frame can go through RGB and come back, and what comes back is
-   * untagged. ffmpeg 7 and newer reads the grade off the frames either side of it, but below that
-   * the conversion out of RGB falls back to BT.601 and the picture is written through the wrong
-   * matrix.
-   */
-  private fun restateGrade(
-    read: String,
-    label: String,
-  ): String {
-    val nodes = gradeNodes()
-    if (nodes.isEmpty()) return read
-
-    graph.chain(listOf(read), nodes, label)
-    return label
-  }
-
-  /**
-   * Lays [read] over a frame of the fill's colour and returns the opaque pad that leaves.
-   *
-   * Every pixel no clip painted is still transparent here, so the fill shows through exactly there.
-   * The fill source runs forever, so the overlay ends with the frames laid over it.
-   */
-  private fun flattenOntoFill(read: String): String {
-    val background = "vbg"
-    graph.chain(
-      emptyList(),
-      listOf(
-        FilterNode(
-          "color",
-          "c" to fillColor(negotiated.fill),
-          "s" to "${output.size.width}x${output.size.height}",
-          "r" to frameRate.toString(),
-        ),
-      ) + gradeNodes(),
-      background,
-    )
-
-    val flattened = "vflat"
-    graph.chain(
-      listOf(background, read),
-      listOf(overlayNode("shortest" to "1"), FilterNode("format", "pix_fmts" to pixelFormat)),
-      flattened,
-    )
-    return flattened
   }
 
   /**
@@ -375,27 +335,6 @@ internal class GraphLowering(
     return listOf(
       FilterNode("tpad", "stop_mode" to "clone", "stop" to (tail.last - tail.first + 1).toString()),
       FilterNode("trim", "end_frame" to negotiated.videoSlots.toString()),
-    )
-  }
-
-  /**
-   * Restates the grade the frames carry, for a stage that drops it.
-   *
-   * `color` names no colour attributes of its own, and a frame that has been through RGB carries
-   * none either. ffmpeg 7 and newer take them from the neighbouring input, so restating costs
-   * nothing there, but below that the frame comes out untagged and every conversion after it reads
-   * a BT.2020 picture through the wrong matrix.
-   */
-  private fun gradeNodes(): List<FilterNode> {
-    val transfer = negotiated.hdrTransfer ?: return emptyList()
-
-    return listOf(
-      FilterNode(
-        "setparams",
-        "color_primaries" to HDR_PRIMARIES,
-        "color_trc" to transfer.ffmpegTag,
-        "colorspace" to HDR_MATRIX,
-      ),
     )
   }
 
@@ -434,8 +373,22 @@ internal class GraphLowering(
     clip.effects.forEach { resolved ->
       val fragment = resolved.effect.fragment
       sidecars += fragment.sidecars
+      val crop = fragment.crop
+      if (crop != null) {
+        // The split reads one pad, so the nodes waiting here are flushed onto it first.
+        val label = "v${index}m$merged"
+        val read = if (pending.isEmpty()) pad else "${label}in".also { graph.chain(listOf(pad), pending, it) }
+        pending.clear()
+        pad = graph.cropped(read, fragment, crop, label, ::auxPads)
+        merged++
+        return@forEach
+      }
       pending += fragment.chain
-      val merge = fragment.merge ?: return@forEach
+      val merge = fragment.merge
+      if (merge == null) {
+        pending += fragment.post
+        return@forEach
+      }
       // A chain's input labels are linked to its first filter, so the nodes waiting here cannot sit
       // between the labels and the merge that reads them: ffmpeg refuses the graph with "More input
       // link labels specified for filter 'trim' than it has inputs". They go onto a pad of their
@@ -445,7 +398,7 @@ internal class GraphLowering(
       pending.clear()
 
       val label = "v${index}m$merged"
-      graph.chain(listOf(prepared) + auxPads(fragment.auxInputs, label), listOf(merge), label)
+      graph.chain(listOf(prepared) + auxPads(fragment.auxInputs, label), listOf(merge) + fragment.post, label)
       pad = label
       merged++
     }
@@ -520,264 +473,21 @@ internal class GraphLowering(
       "${label}a$index".also { graph.chain(listOf("$input:v"), aux.chain + SETPTS, it) }
     }
 
-  private fun buildAudio(): String {
-    val format = output.audioFormat ?: error("buildAudio needs an audio format")
-    val contributing =
-      tracks.withIndex().filter { (_, track) ->
-        track.content != TrackContent.Video && track.clips.isNotEmpty()
-      }
-    if (contributing.isEmpty()) return silence(format.sampleRate, format.channelCount)
-
-    val trackLabels =
-      contributing.map { (trackIndex, track) ->
-        val segments =
-          track.clips.mapIndexed { clipIndex, clip ->
-            val label = "a${trackIndex}c$clipIndex"
-            graph.chain(
-              listOf(audioPad(clip, trackIndex, clipIndex, format.sampleRate)),
-              audioNodes(clip),
-              label,
-            )
-            label
-          }
-
-        var label =
-          if (segments.size == 1) {
-            segments.single()
-          } else {
-            "at$trackIndex".also {
-              graph.chain(
-                segments,
-                listOf(FilterNode("concat", "n" to segments.size.toString(), "v" to "0", "a" to "1")),
-                it,
-              )
-            }
-          }
-
-        if (track.start > Duration.ZERO) {
-          val delayed = "ad$trackIndex"
-          graph.chain(
-            listOf(label),
-            listOf(FilterNode("adelay", "delays" to track.start.inWholeMilliseconds.toString(), "all" to "1")),
-            delayed,
-          )
-          label = delayed
-        }
-        label
-      }
-
-    val mixed =
-      if (trackLabels.size == 1) {
-        trackLabels.single()
-      } else {
-        // amix's limit, not the mix's: below ffmpeg 7 it stops reading its first input the moment
-        // that input ends and throws away whatever of it has not been mixed yet. On ffmpeg 6 a
-        // looping track hands its later passes over in one burst just before it ends, so as the
-        // first input it lost every pass after the first. Silence as long as the longest track takes
-        // that place instead, and it only ends once amix asks for more of it, when none is waiting.
-        val lead = "alead"
-        graph.chain(
-          emptyList(),
-          listOf(
-            FilterNode("anullsrc", "r" to format.sampleRate.toString(), "cl" to "stereo"),
-            atrimTo(contributing.maxOf { (_, track) -> track.duration }),
-            aformat(format.sampleRate, format.channelCount),
-          ),
-          lead,
-        )
-        "amixed".also { label ->
-          graph.chain(
-            listOf(lead) + trackLabels,
-            // normalize defaults to true and divides the output by the input count, which would
-            // silently halve the dialogue the moment a music bed is added. dropout_transition
-            // defaults to a two-second ramp when an input ends, which would fade the primary track
-            // up when the bed runs out.
-            listOf(
-              FilterNode(
-                "amix",
-                "inputs" to (trackLabels.size + 1).toString(),
-                "duration" to "longest",
-                "dropout_transition" to "0",
-                "normalize" to "0",
-              ),
-            ),
-            label,
-          )
-        }
-      }
-
-    val out = "aout"
-    graph.chain(
-      listOf(mixed),
-      listOf(
-        atrimTo(duration),
-        ASETPTS,
-        FilterNode("aresample", "async" to "1", "first_pts" to "0"),
-        aformat(format.sampleRate, format.channelCount),
-      ),
-      out,
-    )
-    return out
-  }
-
-  // A clip whose source carries no audio still occupies time on the track, so it contributes
-  // silence for exactly its own length. Without that a concat drifts by the silent clip. The filler
-  // is per pass rather than split off one input, since a pass the run cut short holds less time
-  // than the ones before it.
-  private fun audioPad(
-    clip: ResolvedClip,
-    trackIndex: Int,
-    clipIndex: Int,
-    sampleRate: Int,
-  ): String {
-    if (clip.hasAudio) return branchPad(trackIndex, clipIndex, audio = true)
-    val generated = inputs.size
-    inputs +=
-      InputSpec(
-        source = InputSource.Generated("anullsrc=r=$sampleRate:cl=stereo"),
-        durationSeconds = clip.duration.seconds(),
-      )
-    return "$generated:a"
-  }
-
-  private fun audioNodes(clip: ResolvedClip): List<FilterNode> =
-    buildList {
-      val format = output.audioFormat ?: error("audioNodes needs an audio format")
-      if (clip.hasAudio) {
-        add(
-          FilterNode(
-            "atrim",
-            "start" to formatSeconds(clip.start.seconds()),
-            "end" to formatSeconds(clip.end.seconds()),
-          ),
-        )
-      }
-      add(ASETPTS)
-      add(aformat(format.sampleRate, format.channelCount))
-      // Every scope's level is already multiplied into this, the composition's included, so the mix
-      // carries no gain node of its own.
-      val constant = clip.gain.constant
-      if (constant != null) {
-        if (constant != 1f) add(FilterNode("volume", "volume" to constant.toString()))
-      } else {
-        // volume's limit, not the curve's: it reads its expression once per frame, so the frame
-        // size is what the ramp steps at. A default 1024-sample frame steps a fade every 21 ms,
-        // which zippers on a tone, so the frames are cut to RAMP_FRAME_SAMPLES ahead of it. Padding
-        // is off because asetnsamples otherwise rounds the last frame up with silence, and the
-        // concat below would lay that between this clip and the next.
-        add(FilterNode("asetnsamples", "n" to RAMP_FRAME_SAMPLES.toString(), "p" to "0"))
-        volumeExpressions(clip.gain).forEach { add(FilterNode("volume", "volume" to it, "eval" to "frame")) }
-      }
-    }
-
-  private fun silence(
-    sampleRate: Int,
-    channels: Int,
-  ): String {
-    val index = inputs.size
-    inputs +=
-      InputSpec(
-        source = InputSource.Generated("anullsrc=r=$sampleRate:cl=stereo"),
-        durationSeconds = duration.seconds(),
-      )
-    return "aout".also { graph.chain(listOf("$index:a"), listOf(ASETPTS, aformat(sampleRate, channels)), it) }
-  }
-
   // How many output slots a clip's span covers, which is how many frames its picture is cut to.
   private fun slotsOf(clip: ResolvedClip): Long =
     outputSlotsOf(clip.span, frameRate).let { if (it.isEmpty()) 0 else it.last - it.first + 1 }
 
   private fun trimTo(end: Duration): FilterNode = FilterNode("trim", "end" to formatSeconds(end.seconds()))
 
-  private fun atrimTo(end: Duration): FilterNode = FilterNode("atrim", "end" to formatSeconds(end.seconds()))
-
-  private fun aformat(
-    sampleRate: Int,
-    channels: Int,
-  ): FilterNode =
-    FilterNode(
-      "aformat",
-      listOf(
-        FilterArgument("sample_fmts", "fltp"),
-        FilterArgument("sample_rates", sampleRate.toString()),
-        FilterArgument("channel_layouts", if (channels == 1) "mono" else "stereo"),
-      ),
-    )
+  private fun frameGridBase(): FilterNode = FilterNode("settb", "expr" to "1/$frameRate")
 
   private companion object {
     const val UNREADABLE_SOURCE =
       "A source with no file reached the graph. FfmpegPlanner refuses those before it lowers."
 
     val SETPTS = FilterNode("setpts", "expr" to "PTS-STARTPTS")
-    val ASETPTS = FilterNode("asetpts", "expr" to "PTS-STARTPTS")
     val NULL_VIDEO = FilterNode("null")
   }
 }
 
-private val ResolvedClip.hasAudio: Boolean get() = info.audio != null
-
-private fun Duration.seconds(): Double = toDouble(DurationUnit.SECONDS)
-
-/**
- * One clip's gain curve as the `volume` expressions a chain of nodes reads, in the clip's own time.
- *
- * ffmpeg's own limit, not the curve's: its expression parser refuses a nest much deeper than a
- * hundred `if`s, and a curve folded from an envelope and a fade runs to hundreds of segments. So a
- * long curve is handed to several nodes, each holding one run of it and reading one everywhere
- * else. `volume` nodes multiply, so the chain lands on the same gain a single node would have
- * rather than on an approximation of it.
- */
-private fun volumeExpressions(gain: ResolvedGain): List<String> {
-  val segments = gain.segments
-  if (segments.size <= EXPRESSION_SEGMENTS) return listOf(gainExpression(segments))
-
-  return segments.chunked(EXPRESSION_SEGMENTS).map { run ->
-    gainExpression(
-      buildList {
-        if (run.first().start > gain.start) add(GainSegment(gain.start, run.first().start, 1f, 1f))
-        addAll(run)
-        if (run.last().end < gain.end) add(GainSegment(run.last().end, gain.end, 1f, 1f))
-      },
-    )
-  }
-}
-
-/**
- * One run of segments as an expression read against the frame time.
- *
- * The segments are selected the way [ResolvedGain.gainAt] selects them, the last one whose start
- * the frame has reached, which an `if` chain walked from the end spells directly.
- */
-private fun gainExpression(segments: List<GainSegment>): String {
-  var expression = segmentExpression(segments.last())
-  for (index in segments.lastIndex - 1 downTo 0) {
-    val next = formatSeconds(segments[index + 1].start.seconds())
-    expression = "if(lt(t,$next),${segmentExpression(segments[index])},$expression)"
-  }
-  return expression
-}
-
-/**
- * One segment as the clamped ramp [GainSegment.gainAt] describes.
- *
- * The clamp is what holds the curve flat either side of the whole run, since the first and last
- * segments are the ones a frame outside the clip's own range lands in.
- */
-private fun segmentExpression(segment: GainSegment): String {
-  val span = segment.end - segment.start
-  // A flat run and a zero length step both hold the one number their end carries.
-  if (segment.isFlat || span <= Duration.ZERO) return segment.endGain.toString()
-  val start = formatSeconds(segment.start.seconds())
-  val length = formatSeconds(span.seconds())
-  return "${segment.startGain}+(${segment.endGain}-${segment.startGain})*clip((t-$start)/$length,0,1)"
-}
-
-// The frame size a ramping branch is cut to, a literal because it pins ffmpeg's own granularity
-// rather than anything the shared curve says. 64 samples is 1.3 ms at 48 kHz, against the 21 ms a
-// default 1024-sample frame would step a fade at.
-private const val RAMP_FRAME_SAMPLES = 64
-
-// How many segments one volume node's expression carries. ffmpeg 9.0.1 refuses a nest of about a
-// hundred ifs, so this leaves the parser twice the room it needs even once a run has been padded
-// flat at both ends.
-internal const val EXPRESSION_SEGMENTS = 48
+internal fun Duration.seconds(): Double = toDouble(DurationUnit.SECONDS)

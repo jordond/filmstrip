@@ -24,6 +24,7 @@ import dev.jordond.filmstrip.media.chainedProber
 import dev.jordond.filmstrip.media3.media3ExportEngine
 import dev.jordond.filmstrip.motion.Easing
 import dev.jordond.filmstrip.test.TestFrame
+import dev.jordond.filmstrip.test.writeAtomically
 import kotlinx.coroutines.flow.toList
 import java.io.File
 import kotlin.test.fail
@@ -48,7 +49,7 @@ internal fun androidFixtureClip(): MediaSource {
   if (!file.exists()) {
     val loader = AndroidContractFixtures::class.java.classLoader ?: fail("the test APK has no class loader")
     val stream = loader.getResourceAsStream(CLIP_NAME) ?: fail("$CLIP_NAME was not packaged into the test APK")
-    stream.use { input -> file.outputStream().use(input::copyTo) }
+    stream.use { input -> file.writeAtomically { input.copyTo(it) } }
   }
   return MediaSource.of(file.path)
 }

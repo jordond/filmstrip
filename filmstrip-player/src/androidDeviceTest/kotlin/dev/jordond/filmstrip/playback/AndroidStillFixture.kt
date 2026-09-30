@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.test.TestFrame
+import dev.jordond.filmstrip.test.writeAtomically
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.assertTrue
@@ -93,7 +94,7 @@ internal fun androidSplitPhotoFile(): File {
   canvas.drawRect(0f, 0f, edge, FIXTURE_FRAME.height.toFloat(), paint)
   paint.color = Color.BLUE
   canvas.drawRect(edge, 0f, FIXTURE_FRAME.width.toFloat(), FIXTURE_FRAME.height.toFloat(), paint)
-  file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it) }
+  file.writeAtomically { bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it) }
   bitmap.recycle()
   return file
 }
@@ -121,7 +122,7 @@ internal fun androidPhotoFile(): File {
 
   val bitmap = Bitmap.createBitmap(FIXTURE_FRAME.width, FIXTURE_FRAME.height, Bitmap.Config.ARGB_8888)
   bitmap.eraseColor(Color.rgb(PHOTO_COLOR.first, PHOTO_COLOR.second, PHOTO_COLOR.third))
-  file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it) }
+  file.writeAtomically { bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it) }
   bitmap.recycle()
   return file
 }

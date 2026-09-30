@@ -1,18 +1,26 @@
 package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.ffmpeg.OverlayConstants.CHANNEL_DRIFT
+import dev.jordond.filmstrip.ffmpeg.OverlayConstants.PROBE_SIDE
+import dev.jordond.filmstrip.ffmpeg.internal.formatSeconds
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.test.encodesHdr
 import dev.jordond.filmstrip.transform.internal.containScale
 import java.awt.Color
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
+import java.io.File
 import javax.imageio.ImageIO
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.test.assertTrue
+import kotlin.time.Duration
+import kotlin.time.DurationUnit
 
 // The colours, tolerances and geometry the export and preview tests both read overlays against. Each suite keeps its
-// own pixel reader, since one reads a written file and the other reads raw preview frames.
+// own eight-bit pixel reader, since one reads a written file and the other reads raw preview frames. The ten-bit read
+// an HDR export is checked with lives here.
 internal object OverlayConstants {
   // A flat overlay and a fill in colours no bar of the testsrc fixture carries, far from each other on every channel
   // and clear of both ends of the range, so a blend of the two is well conditioned, nothing clips, and a probe that
@@ -39,6 +47,17 @@ internal object OverlayConstants {
   // given the same band the halved signal gets. Every pixel read back has also been through a YUV round trip, which
   // moves a flat colour by a few code values.
   const val CHANNEL_DRIFT = (SIGNAL_DRIFT * FULL_SCALE).toInt()
+
+  // How far a ten-bit read of an overlay blended on an HDR grade may sit from the rule, per channel. The encoder moves a
+  // flat block by a code or two, and the YUV to float RGB conversion ahead of the blend by one more.
+  const val BLEND_DRIFT = 4
+}
+
+// Whether this fixture's backend writes HDR here. Missing fixtures read as false, and a failed capabilities query fails
+// the test rather than skipping it.
+internal suspend fun FfmpegExportFixture.encodesHdr(): Boolean {
+  if (!available()) return false
+  return filmstrip.encodesHdr()
 }
 
 // Where the shared contain scale puts a source of [source]'s size, centred on [frame], as a fraction of it.
@@ -83,4 +102,57 @@ internal fun pngOf(
   graphics.fillRect(0, 0, size.width, size.height)
   graphics.dispose()
   return ByteArrayOutputStream().also { ImageIO.write(image, "png", it) }.toByteArray()
+}
+
+/**
+ * The mean ten-bit luma, Cb and Cr of a [PROBE_SIDE] block centred on [probe] in the frame of [file] at [at].
+ *
+ * The planes are read as the file stores them, with nothing converting the frame on the way out, so the codes are the
+ * ones the encoder was handed less its own noise.
+ */
+internal fun tenBitCodesAt(
+  file: File,
+  probe: Pair<Int, Int>,
+  at: Duration = Duration.ZERO,
+): IntArray {
+  val seek = if (at > Duration.ZERO) listOf("-ss", formatSeconds(at.toDouble(DurationUnit.SECONDS))) else emptyList()
+  val x = probe.first - PROBE_SIDE / 2
+  val y = probe.second - PROBE_SIDE / 2
+  val process =
+    ProcessBuilder(
+      listOf("ffmpeg", "-y", "-hide_banner", "-loglevel", "error") + seek +
+        listOf(
+          "-i",
+          file.absolutePath,
+          "-vf",
+          "crop=$PROBE_SIDE:$PROBE_SIDE:$x:$y",
+          "-vframes",
+          "1",
+          "-f",
+          "rawvideo",
+          "-pix_fmt",
+          "yuv420p10le",
+          "-",
+        ),
+    ).start()
+  val bytes = process.inputStream.readAllBytes()
+  process.waitFor()
+  val lumaSamples = PROBE_SIDE * PROBE_SIDE
+  val chromaSamples = lumaSamples / 4
+  assertTrue(bytes.size >= (lumaSamples + chromaSamples * 2) * 2, "ffmpeg read ${bytes.size} bytes of $file")
+
+  fun mean(
+    from: Int,
+    count: Int,
+  ): Int =
+    (from until from + count)
+      .sumOf { sample -> (bytes[sample * 2].toInt() and 0xFF) or ((bytes[sample * 2 + 1].toInt() and 0xFF) shl 8) }
+      .div(count.toFloat())
+      .roundToInt()
+
+  return intArrayOf(
+    mean(0, lumaSamples),
+    mean(lumaSamples, chromaSamples),
+    mean(lumaSamples + chromaSamples, chromaSamples),
+  )
 }

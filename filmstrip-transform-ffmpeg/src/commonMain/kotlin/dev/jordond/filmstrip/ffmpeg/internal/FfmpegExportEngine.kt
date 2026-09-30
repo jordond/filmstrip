@@ -359,9 +359,12 @@ public class FfmpegExportEngine internal constructor(
         readablePath(source)?.let { runtime.syncSampleAtOrBefore(toolchain, it, cut) }
       }
 
+    val device = device(toolchain)
     return LoweringResult.Done(
-      FfmpegPlanner(toolchain, components.effectResolvers)
-        .lower(composition, spec, device(toolchain), infos, openings, layoutSize = layoutSize),
+      interruptibly {
+        FfmpegPlanner(toolchain, components.effectResolvers)
+          .lower(composition, spec, device, infos, openings, layoutSize = layoutSize)
+      },
     )
   }
 

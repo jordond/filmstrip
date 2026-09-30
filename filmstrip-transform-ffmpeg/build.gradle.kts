@@ -1,6 +1,8 @@
 import dev.jordond.filmstrip.convention.testmedia.FixturePatch
 import dev.jordond.filmstrip.convention.testmedia.FixtureSpec
+import dev.jordond.filmstrip.convention.testmedia.FixtureStill
 import dev.jordond.filmstrip.convention.testmedia.FixtureTransfer
+import dev.jordond.filmstrip.convention.testmedia.StillContainer
 import dev.jordond.filmstrip.convention.testmedia.testMedia
 
 plugins {
@@ -57,6 +59,9 @@ val exportFixtures =
           transfer = FixtureTransfer.Hlg,
           patch = FixturePatch.Graded,
         ),
+        // AuthoredColours.MID_GREEN as a HEIC, a picture the JDK cannot read, so only ffmpeg's decode can
+        // put it on a grade.
+        FixtureStill("overlay_mid_green", 64, 64, colour = 0x308020, container = StillContainer.Heic),
       ),
   )
 

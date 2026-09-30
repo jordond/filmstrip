@@ -25,6 +25,7 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.test.AuthoredColours
 import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import java.io.File
@@ -110,6 +111,78 @@ class FfmpegFillTest {
         ratio in HALF - SIGNAL_DRIFT..HALF + SIGNAL_DRIFT,
         "the centre read ${dimmed.centre} against ${plain.centre} undimmed, a ratio of $ratio",
       )
+    }
+
+  // A brightness under the fill holds the fill back until after the join, so the lead and the concat both run ahead
+  // of the flatten that paints it.
+  @Test
+  fun `a fill held back for a brightness writes every slot of joined clips after a gap`() =
+    runTest(timeout = TIMEOUT) {
+      if (!fixture.available()) return@runTest
+
+      val output = File.createTempFile("filmstrip-fill-joined", ".mp4").also { it.delete() }
+      val composition =
+        compositionOf {
+          track {
+            repeat(2) { clip(MediaSource.of(fixture.landscape.absolutePath)) }
+            startAt(GAP_LEAD)
+          }
+          effects {
+            crop(AspectRatio.Portrait, fit = Fit.Contain)
+            brightness(HALF)
+          }
+          fill(Fill.Solid(RED))
+        }
+      val plan =
+        when (val verdict = fixture.filmstrip.plan(composition, ExportSpec())) {
+          is Verdict.Capable -> verdict.plan
+          is Verdict.Degraded -> verdict.plan
+          is Verdict.Incapable -> error(verdict.reasons.joinToString { it.message })
+        }
+      val finished =
+        fixture.filmstrip
+          .export(plan, MediaSink.of(output.absolutePath))
+          .toList()
+          .last()
+      if (finished is ExportStatus.Failure) error(finished.error.message)
+      assertIs<ExportStatus.Success>(finished)
+
+      val rate = assertNotNull(plan.output.frameRate, "the plan resolved no frame rate")
+      val frames = writtenFrames(output.absolutePath)
+      output.delete()
+      assertOnTheGrid(frames, outputSlotOf(plan.duration, rate), rate, "two joined clips after a gap")
+    }
+
+  // Read as whole ticks of the stream's own time base rather than as ffprobe's rounded seconds, so a frame stamped a
+  // tick off its slot fails.
+  @Test
+  fun `a fill painted straight in writes every pts of joined clips after a gap exactly on the grid`() =
+    runTest(timeout = TIMEOUT) {
+      if (!fixture.available()) return@runTest
+
+      val output = File.createTempFile("filmstrip-fill-painted-joined", ".mp4").also { it.delete() }
+      val composition =
+        compositionOf {
+          track {
+            repeat(2) { clip(MediaSource.of(fixture.landscape.absolutePath)) }
+            startAt(GAP_LEAD)
+          }
+          effects { crop(AspectRatio.Portrait, fit = Fit.Contain) }
+          fill(Fill.Solid(RED))
+        }
+      val plan = fixture.plannedRun(composition, ExportSpec())
+      fixture.exported(plan, output)
+
+      val rate = assertNotNull(plan.output.frameRate, "the plan resolved no frame rate")
+      val (ticks, timeBase) = presentationTicks(output.absolutePath)
+      output.delete()
+      val (numerator, denominator) = timeBase
+      withClue("two joined clips after a gap on a time base of $numerator/$denominator") {
+        ticks.size shouldBe outputSlotOf(plan.duration, rate).toInt()
+        ticks.forEachIndexed { slot, tick ->
+          assertTrue(tick * numerator * rate == slot * denominator, "frame $slot is stamped at tick $tick")
+        }
+      }
     }
 
   // The three points this test reads back: two bars far enough from the clip's own pixels to read
@@ -296,6 +369,24 @@ class FfmpegFillTest {
   // an overlay in any top corner.
   private fun lowerBarOf(frame: Size): Pair<Int, Int> =
     pointIn(HALF, 1f, frame).let { (x, y) -> x to y - 2 * PROBE_SIDE }
+
+  // Every video frame's pts in presentation order, with the stream time base it counts in, both read by ffprobe.
+  private fun presentationTicks(path: String): Pair<List<Long>, Pair<Long, Long>> {
+    fun probe(vararg entries: String): List<String> {
+      val process =
+        ProcessBuilder("ffprobe", "-v", "error", "-select_streams", "v:0", *entries, "-of", "csv=p=0", path).start()
+      return process
+        .inputReader()
+        .readText()
+        .lines()
+        .map { it.trim().trimEnd(',') }
+        .filter { it.isNotEmpty() }
+        .also { process.waitFor() }
+    }
+    val ticks = probe("-show_entries", "frame=pts").map { it.toLong() }
+    val (numerator, denominator) = probe("-show_entries", "stream=time_base").single().split('/').map { it.toLong() }
+    return ticks to (numerator to denominator)
+  }
 
   // A flat red region survives H264 losslessly enough that only rounding at the YUV boundary is
   // expected, never a shift toward another colour.

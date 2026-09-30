@@ -1,12 +1,12 @@
 package dev.jordond.filmstrip.effects
 
+import android.graphics.Bitmap
 import androidx.media3.common.Effect
 import androidx.media3.effect.Presentation
 import androidx.media3.effect.RgbAdjustment
 import androidx.media3.effect.ScaleAndRotateTransformation
 import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.effect.Attributes
-import dev.jordond.filmstrip.effect.DegradationReason
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -27,11 +27,15 @@ import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.geometry.retainedRect
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.OverlayEffect
+import dev.jordond.filmstrip.effects.overlay.OverlayPlacement
 import dev.jordond.filmstrip.effects.overlay.RasterOverlay
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.effects.overlay.decode
 import dev.jordond.filmstrip.effects.overlay.drawnTextSize
+import dev.jordond.filmstrip.effects.overlay.media3OverlayResolution
 import dev.jordond.filmstrip.effects.overlay.placedOn
+import dev.jordond.filmstrip.effects.overlay.rasterFor
 import dev.jordond.filmstrip.effects.overlay.rasterizeText
 import dev.jordond.filmstrip.effects.overlay.runWithin
 import dev.jordond.filmstrip.effects.overlay.size
@@ -62,7 +66,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       is CropRect -> resolved(spec.rect.toMedia3())
       is KenBurns -> spec.toTransformation(attributes)
       is Scale -> resolved(spec.toMedia3())
-      is ImageOverlay -> spec.toOverlay(capabilities, attributes)
+      is ImageOverlay -> spec.toOverlay(attributes)
       is TextOverlay -> spec.toOverlay(capabilities, attributes)
       else -> null
     }
@@ -104,16 +108,10 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   // They are the same for a composition-scoped overlay. A clip-scoped one runs in that item's own
   // chain, before the size stage pins every clip to the output frame, so measuring it against the
   // output would size it against a frame it never sees.
-  private fun ImageOverlay.toOverlay(
-    capabilities: RenderCapabilities,
-    attributes: Attributes,
-  ): EffectResolution {
+  private fun ImageOverlay.toOverlay(attributes: Attributes): EffectResolution {
     val bitmap = image.decode(FilmstripContext.get()) ?: return unsupported(id, UNREADABLE_IMAGE)
     val size = bitmap.size()
-    val placement = placedOn(attributes.inputSize, size)
-    // Derived here so the per-frame sampling reads a range rather than rebuilding one on the GL
-    // thread for every frame of the export.
-    return resolved(RasterOverlay(bitmap, this, placement, size, runWithin(attributes.span)), capabilities)
+    return resolved(bitmap, this, placedOn(attributes.inputSize, size), attributes)
   }
 
   private fun TextOverlay.toOverlay(
@@ -127,20 +125,28 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     // smaller than that breaks its lines on the same words. The two frames agree for an export,
     // which composites one to one.
     val drawn = attributes.drawnTextSize(size)
-    return resolved(RasterOverlay(bitmap, this, placedOn(drawn), size, runWithin(attributes.span)), capabilities)
+    return resolved(bitmap, this, placedOn(drawn), attributes)
   }
 
   private fun resolved(effect: Effect): EffectResolution = EffectResolution.Resolved(PlatformEffect(effect))
 
   // An overlay resolves to a TextureOverlay rather than an Effect: the backend collects a run of
-  // them into one OverlayEffect, so N overlays cost one GL pass instead of N.
+  // them into one OverlayEffect, so N overlays cost one GL pass instead of N. What it reports keys on
+  // the grade being written, not on what the device could write, so an SDR export on an HDR capable
+  // device resolves cleanly.
   private fun resolved(
-    overlay: RasterOverlay,
-    capabilities: RenderCapabilities,
+    bitmap: Bitmap,
+    spec: OverlayEffect,
+    placement: OverlayPlacement,
+    attributes: Attributes,
   ): EffectResolution {
-    val effect = PlatformEffect(overlay)
-    if (!capabilities.supportsHdr) return EffectResolution.Resolved(effect)
-    return EffectResolution.Degraded(effect, DegradationReason.ColorSpaceConverted, WIDE_GAMUT_OVERLAY)
+    val transfer = attributes.hdrTransfer
+    val raster = bitmap.rasterFor(transfer)
+    // Derived here so the per-frame sampling reads a range rather than rebuilding one on the GL
+    // thread for every frame of the export.
+    val run = spec.runWithin(attributes.span)
+    val overlay = RasterOverlay(raster.bitmap, spec, placement, bitmap.size(), run, raster.hdrLuminance)
+    return media3OverlayResolution(PlatformEffect(overlay), transfer)
   }
 
   private fun unsupported(
@@ -213,8 +219,3 @@ private const val REGION_OUTSIDE_FRAME =
   "A pan travels between two regions of the frame, so both have to have area and lie inside it."
 
 private const val NO_TEXT_RENDERING = "This device cannot rasterise text into a frame."
-
-private const val WIDE_GAMUT_OVERLAY =
-  "An overlay on an HDR grade keeps its sRGB values, which media3 reads as BT.2020 without " +
-    "converting the primaries. Neutral tones are unaffected and saturated ones lose some " +
-    "saturation."

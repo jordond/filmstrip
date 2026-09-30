@@ -3,8 +3,12 @@ package dev.jordond.filmstrip.effects.overlay
 import androidx.media3.common.OverlaySettings
 import androidx.media3.effect.StaticOverlaySettings
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.effect.DegradationReason
+import dev.jordond.filmstrip.effect.EffectResolution
+import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.HdrTransfer
 import android.util.Pair as AndroidPair
 import androidx.media3.effect.OverlayEffect as Media3OverlayEffect
 
@@ -34,11 +38,13 @@ public const val MAX_OVERLAYS_PER_EFFECT: Int = 15
  *
  * @param bitmap The rasterized overlay's pixel size.
  * @param opacity Alpha applied to the whole overlay.
+ * @param hdrLuminance The multiplier media3 scales the overlay's light by on an HDR frame.
  */
 internal fun OverlayPlacement.toOverlaySettings(
   bitmap: Size,
   opacity: Float,
-): StaticOverlaySettings = AnimatedOverlaySettings().update(this, bitmap, opacity).fixed()
+  hdrLuminance: Float = OverlaySettings.DEFAULT_HDR_LUMINANCE_MULTIPLIER,
+): StaticOverlaySettings = AnimatedOverlaySettings(hdrLuminance).update(this, bitmap, opacity).fixed()
 
 /**
  * The same settings with the overlay's alpha taken to zero, for the frames a timed overlay sits
@@ -62,11 +68,15 @@ internal fun StaticOverlaySettings.hidden(): StaticOverlaySettings = fixed(alpha
  * both of `drawFrame`'s reads of a frame happen inside that one call, so nothing holds the values
  * across the next frame's rewrite.
  *
- * Its HDR luminance multiplier is the one [toOverlaySettings] writes, since that lowering runs
- * through [update] too, and the HDR branch reading the multiplier sees no difference between an
- * animated overlay and a still one.
+ * Its HDR luminance multiplier is fixed for the overlay's life, since it belongs to the texels rather
+ * than to the frame, and the HDR branch reading it sees no difference between an animated overlay
+ * and a still one.
+ *
+ * @property hdrLuminance The multiplier media3 scales the overlay's light by on an HDR frame.
  */
-internal class AnimatedOverlaySettings : OverlaySettings {
+internal class AnimatedOverlaySettings(
+  private val hdrLuminance: Float = OverlaySettings.DEFAULT_HDR_LUMINANCE_MULTIPLIER,
+) : OverlaySettings {
   private var alpha: Float = OverlaySettings.DEFAULT_ALPHA_SCALE
   private var overlay: AndroidPair<Float, Float> = OverlaySettings.DEFAULT_OVERLAY_FRAME_ANCHOR
   private var background: AndroidPair<Float, Float> = OverlaySettings.DEFAULT_BACKGROUND_FRAME_ANCHOR
@@ -80,7 +90,7 @@ internal class AnimatedOverlaySettings : OverlaySettings {
 
   override fun getScale(): AndroidPair<Float, Float> = scale
 
-  override fun getHdrLuminanceMultiplier(): Float = SDR_LUMINANCE
+  override fun getHdrLuminanceMultiplier(): Float = hdrLuminance
 
   /**
    * Rewrites these settings to draw [placement] at [opacity], and answers them.
@@ -144,11 +154,28 @@ private fun Anchor.ndcY(): Float = (1f - 2f * y).coerceIn(-1f, 1f)
 private fun Int.ratioTo(native: Int): Float = if (native <= 0) 1f else toFloat() / native
 
 /**
- * Where SDR white sits in the pipeline's HDR working space.
+ * Decides how an overlay resolves onto a frame of [transfer], or an SDR one when it is null.
  *
- * The working space normalises `1.0` to the HDR peak, which it takes as twice the SDR white point,
- * so an overlay left at media3's default of `1f` is drawn at peak brightness and glows against the
- * frame. Everything filmstrip composites is authored in SDR, so it is scaled to the SDR range and
- * adds no luminance of its own. Ignored on an SDR pipeline, which never reads the uniform.
+ * The texels are mapped for the transfer before this is asked, so an opaque texel lands where a fill
+ * of its colour does on every grade. Every overlay on an HLG grade reports as degraded, opaque or not,
+ * since media3 blends it in scene light and nothing here knows whether its texels are partly covered.
+ *
+ * @param effect The overlay, already carrying texels mapped for [transfer].
  */
-private const val SDR_LUMINANCE = 0.5f
+@InternalFilmstripApi
+public fun media3OverlayResolution(
+  effect: PlatformEffect,
+  transfer: HdrTransfer?,
+): EffectResolution =
+  when (transfer) {
+    null, HdrTransfer.Pq -> EffectResolution.Resolved(effect)
+    HdrTransfer.Hlg -> EffectResolution.Degraded(effect, DegradationReason.ApproximateAlgorithm, HLG_SCENE_LIGHT_BLEND)
+  }
+
+// media3 1.11.1 holds an HLG frame as scene light and its overlay shader blends in whatever light the
+// frame is held in, with no hook to move the blend elsewhere. That is media3's limit rather than
+// filmstrip's: the same overlay blends in display light on every other backend.
+private const val HLG_SCENE_LIGHT_BLEND =
+  "On an HLG grade media3 blends an overlay into the frame in scene light rather than display light. " +
+    "Opaque texels land where a fill of their colour does, and soft edges and partial opacity land a " +
+    "little darker than the same blend on the other backends."

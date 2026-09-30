@@ -81,8 +81,8 @@ it recognises, and declines the rest so the next resolver gets a look.
 | `KenBurns`                              | ✅ [^clip-only]       | ✅ [^clip-only]   | ❌ [^pan-pending] | ❌ [^pan-pending]      |
 | `Brightness` [^hdr-brightness]          | ✅                    | ✅                | ✅                | ✅                     |
 | Colour matrices [^matrix] [^sdr-matrix] | ✅                    | ✅                | ✅                | ✅                     |
-| `ImageOverlay`                          | ✅ [^android-overlay] | ✅                | ✅ [^web-image]   | ✅                     |
-| `TextOverlay`                           | ✅ [^text-raster]     | ✅ [^text-raster] | ✅ [^web-text]    | ❌ [^ffmpeg-text]      |
+| `ImageOverlay` [^hdr-overlay]           | ✅ [^android-overlay] | ✅                | ✅ [^web-image]   | ✅                     |
+| `TextOverlay` [^hdr-overlay]            | ✅ [^text-raster]     | ✅ [^text-raster] | ✅ [^web-text]    | ❌ [^ffmpeg-text]      |
 | Overlay animation                       | ✅ [^media3-anchor]   | ✅                | ✅                | ✅ [^ffmpeg-animation] |
 
 [^matrix]:
@@ -114,11 +114,27 @@ it recognises, and declines the rest so the next resolver gets a look.
     matrix settled at resolve, and ffmpeg resolves a crop to whole pixels once at plan time so that the
     plan and the export cannot disagree about the frame. Neither has a per-frame form yet.
 
+[^hdr-overlay]:
+    On an export that keeps an HDR grade, an opaque overlay texel lands at the light a solid
+    fill of its colour lands at, so overlay white is fill white on PQ and HLG alike. Soft edges,
+    partial opacity and fades blend with the frame in linear display light. Apple draws both overlays
+    that way in Core Image. The browser maps the raster to linear light before uploading it and blends
+    it in the compositor. ffmpeg draws the image that way and no text at all. It decodes the picture
+    through the JDK's `ImageIO`, or through its own ffmpeg when the JDK has no reader for it, carries
+    it onto the grade's signal and blends it on the part of the frame the overlay covers. media3 meets
+    this on PQ and falls short on HLG.
+
 [^android-overlay]:
-    On an HDR grade the overlay keeps its sRGB values, which media3 reads as BT.2020
-    without converting the primaries, so the resolution comes back `Degraded` with
-    `DegradationReason.ColorSpaceConverted`. Neutral tones are unaffected and saturated ones lose some
-    saturation. A run of overlays shares one `OverlayEffect` here, so N overlays cost one GL pass.
+    On an HDR grade the overlay's texels are rewritten so that media3's own read of them
+    lands where the other backends put them, and a PQ grade resolves as SDR does. media3 1.11.1 holds
+    an HLG frame as scene light and blends the overlay there, so every overlay on an HLG grade comes
+    back `Degraded` with `DegradationReason.ApproximateAlgorithm` and this message: "On an HLG grade
+    media3 blends an overlay into the frame in scene light rather than display light. Opaque texels
+    land where a fill of their colour does, and soft edges and partial opacity land a little darker
+    than the same blend on the other backends." A run of overlays shares one `OverlayEffect` here, so
+    N overlays cost one GL pass. A preview lowers overlays the way its export does. An overlay rules
+    out a copy, so on a device with no HDR encoder an HDR composition carrying one tone maps to SDR on
+    export, and its preview tone maps the same way, even on an HDR panel.
 
 [^text-raster]:
     Text is rasterised at resolve against the frame an export writes and only resampled
@@ -130,16 +146,14 @@ it recognises, and declines the rest so the next resolver gets a look.
 [^web-image]:
     The image is decoded before planning, so one the browser cannot decode is refused by
     name at plan time. An `ImageSource.Path` is refused by name as well, since a page cannot read a file
-    path, so pass the image as bytes or a URI. Both overlays are refused by name on an HDR grade, since
-    the backends do not yet agree on where overlay white lands in HDR.
+    path, so pass the image as bytes or a URI.
 
 [^web-text]:
     Text is rasterised at resolve against the frame an export writes, as on Android and
     Apple. Lines break at spaces and at every `\n`, and a word wider than a whole line is split
     between graphemes. Core Text and `StaticLayout` follow the Unicode line breaking rules, which also
     break after a hyphen and between CJK characters, so such a caption can wrap on different words here
-    than on Android or Apple. A preview still breaks exactly where its own export does. On an HDR grade
-    it is refused by name, as `ImageOverlay` is.
+    than on Android or Apple. A preview still breaks exactly where its own export does.
 
 [^hdr-brightness]:
     The factor is a multiply on an encoded SDR signal. On an export that keeps an HDR
@@ -194,11 +208,11 @@ it recognises, and declines the rest so the next resolver gets a look.
     settled once. Each of them is written as the intervals it holds one value over, which sends a
     command only where that value moves and still covers every frame of the run, so a branch opened
     part way through reads what it is holding there. It needs a frame rate to sample onto and a
-    closed run to sample across, and refuses by name without either. It also reads the image's header
-    through the JDK's `ImageIO`, to size the drawn picture off the picture's own pixels, so an animated
-    overlay needs a format the JDK decodes: a WebP or HEIC still draws here unanimated, since ffmpeg
-    opens it itself, and refuses by name once an animation is attached. ffmpeg draws no `TextOverlay`
-    at all, so this is `ImageOverlay` alone.
+    closed run to sample across, and refuses by name without either. It also reads the picture's size,
+    to size the drawn picture off its own pixels. The JDK's `ImageIO` reads it off the header when it
+    has a reader for the format, and the backend's own ffprobe reads it otherwise, so a picture animates
+    wherever the ffmpeg build decodes it, WebP and HEIC included. ffmpeg draws no `TextOverlay` at all,
+    so this is `ImageOverlay` alone.
 
 ### Overlay animation
 

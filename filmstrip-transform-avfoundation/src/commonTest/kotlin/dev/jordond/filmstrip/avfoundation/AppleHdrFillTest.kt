@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.geometry.crop
@@ -15,8 +14,9 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
-import dev.jordond.filmstrip.transform.internal.hdrFillNits
-import dev.jordond.filmstrip.transform.internal.signalFromNits
+import dev.jordond.filmstrip.media.authoredHdrNits
+import dev.jordond.filmstrip.media.signalFromNits
+import dev.jordond.filmstrip.test.encodesHdr
 import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
@@ -36,8 +36,8 @@ import kotlin.time.Duration.Companion.minutes
  * The letterbox fill on an export that keeps its grade, read back out of the written file.
  *
  * A square crop of the 16:9 HDR fixtures leaves a bar above and below the picture that only the fill paints. The bar is
- * held to [signalFromNits] of [hdrFillNits], the signal every backend writes there, so a white fill lands at reference
- * white rather than at the format's peak.
+ * held to [signalFromNits] of [authoredHdrNits], the signal every backend writes there, so a white fill lands at
+ * reference white rather than at the format's peak.
  *
  * Skipped when the fixtures are absent, as in [AppleHdrTest].
  */
@@ -50,7 +50,7 @@ class AppleHdrFillTest {
   @Test
   fun `a white fill on a kept grade is written at graphics white not at the panel peak`() =
     runTest(timeout = TIMEOUT) {
-      if (!encodesHdr()) return@runTest
+      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
 
       HdrTransfer.entries.forEach { transfer ->
         val frame = exportedFrame(transfer, WHITE) ?: return@forEach
@@ -64,7 +64,7 @@ class AppleHdrFillTest {
   @Test
   fun `a mid-range fill on a kept grade carries its own signal on both transfers`() =
     runTest(timeout = TIMEOUT) {
-      if (!encodesHdr()) return@runTest
+      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
 
       HdrTransfer.entries.forEach { transfer ->
         val frame = exportedFrame(transfer, MID_BLUE) ?: return@forEach
@@ -80,7 +80,7 @@ class AppleHdrFillTest {
     transfer: HdrTransfer,
     color: Int,
   ) {
-    val expected = tenBitCodesFromSignal(transfer.signalFromNits(hdrFillNits(color))).toList()
+    val expected = tenBitCodesFromSignal(transfer.signalFromNits(authoredHdrNits(color))).toList()
     val read = frame.codesAt(CENTRE, BAR)
 
     assertTrue(
@@ -94,7 +94,7 @@ class AppleHdrFillTest {
     transfer: HdrTransfer,
     color: Int,
   ) {
-    val expected = hdrFillNits(color)
+    val expected = authoredHdrNits(color)
     val read = frame.nitsAt(CENTRE, BAR)
 
     repeat(3) { channel ->
@@ -138,11 +138,6 @@ class AppleHdrFillTest {
     }
   }
 
-  private suspend fun encodesHdr(): Boolean =
-    withContext(Dispatchers.Default) {
-      (filmstrip.capabilities() as? CapabilitiesResult.Success)?.capabilities?.supportsHdrEncoding == true
-    }
-
   private fun fixture(transfer: HdrTransfer): String? {
     val directory = fixtures ?: return null
     val clip =
@@ -154,7 +149,7 @@ class AppleHdrFillTest {
     return path.takeIf { NSFileManager.defaultManager.fileExistsAtPath(it) }
   }
 
-  private companion object {
+  internal companion object {
     val TIMEOUT = 5.minutes
 
     const val FIXTURES = "FILMSTRIP_FIXTURES"

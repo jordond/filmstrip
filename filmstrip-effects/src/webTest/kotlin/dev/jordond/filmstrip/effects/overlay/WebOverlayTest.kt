@@ -173,18 +173,21 @@ class WebOverlayTest {
     assertUnsupportedNaming(uri, BuiltInEffectResolver().resolve(image, CAPABILITIES, ATTRIBUTES))
   }
 
+  // The compositor maps the raster onto the grade's light itself, so the resolver hands back the same
+  // raster whatever the transfer.
   @Test
-  fun overlaysOnAnHdrGradeResolveUnsupported() =
+  fun overlaysOnAnHdrGradeResolveOnBothTransfers() =
     runTest {
       val image = ImageOverlay(ImageSource.ofBytes(pngOf(PNG)), Corner.TopEnd)
       val text = TextOverlay(HELLO_WORLD)
       val resolver = BuiltInEffectResolver()
       resolver.preload(compositionOf(image))
 
-      for (spec in listOf<EffectSpec>(image, text)) {
-        val resolved = resolver.resolve(spec, CAPABILITIES, HDR_ATTRIBUTES)
-        assertIs<EffectResolution.Unsupported>(resolved, "$spec on an HDR grade")
-        assertTrue(resolved.message.contains("HDR"), resolved.message)
+      for (transfer in HdrTransfer.entries) {
+        for (spec in listOf<EffectSpec>(image, text)) {
+          val overlay = overlayOf(resolver.resolve(spec, CAPABILITIES, attributes(hdrTransfer = transfer)))
+          assertNotNull(overlay.drawAt(Duration.ZERO), "$spec on $transfer is not drawn")
+        }
       }
     }
 
@@ -246,7 +249,6 @@ class WebOverlayTest {
     const val CORRUPT_LENGTH = 40
 
     val ATTRIBUTES = attributes(hdrTransfer = null)
-    val HDR_ATTRIBUTES = attributes(hdrTransfer = HdrTransfer.Pq)
 
     val CAPABILITIES = capabilities(setOf(RenderFeature.TextRendering))
     val NO_TEXT_CAPABILITIES = capabilities(emptySet())

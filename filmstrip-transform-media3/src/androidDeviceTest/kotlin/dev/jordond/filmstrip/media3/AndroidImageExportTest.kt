@@ -27,6 +27,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP_B
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
+import dev.jordond.filmstrip.test.writeAtomically
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -262,7 +263,7 @@ class AndroidImageExportTest {
 
     val bitmap = Bitmap.createBitmap(PHOTO_WIDTH, PHOTO_HEIGHT, Bitmap.Config.ARGB_8888)
     bitmap.eraseColor(BADGE_COLOR)
-    file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it) }
+    file.writeAtomically { bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it) }
     return file
   }
 

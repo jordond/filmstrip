@@ -3,7 +3,19 @@ package dev.jordond.filmstrip.convention.testmedia
 import java.io.Serializable
 
 /**
- * One generated test fixture.
+ * One generated test fixture, either a clip or a still picture.
+ *
+ * The generate task encodes and verifies each one by its kind, and the manifest pins them all the same way, by the
+ * digest of the file named by [fileName].
+ */
+sealed interface Fixture : Serializable {
+  val name: String
+
+  val fileName: String
+}
+
+/**
+ * One generated test clip.
  *
  * Everything a clip needs lives on this record, never in an ffmpeg command line, so the same one
  * drives generation, the ffprobe verification pass and the manifest.
@@ -27,7 +39,7 @@ import java.io.Serializable
  * one sum by their relative phase and the level that reaches the file stops being predictable.
  */
 data class FixtureSpec(
-  val name: String,
+  override val name: String,
   val width: Int,
   val height: Int,
   val frameRate: Int,
@@ -40,8 +52,8 @@ data class FixtureSpec(
   val transfer: FixtureTransfer? = null,
   val rotationDegrees: Int = 0,
   val patch: FixturePatch? = null,
-) : Serializable {
-  val fileName: String get() = "$name.mp4"
+) : Fixture {
+  override val fileName: String get() = "$name.mp4"
 
   companion object {
     private const val serialVersionUID: Long = 1L

@@ -578,12 +578,14 @@ public final class dev/jordond/filmstrip/effect/FilterArgument {
 
 public final class dev/jordond/filmstrip/effect/FilterFragment {
 	public fun <init> ()V
-	public fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterNode;Ljava/util/List;)V
-	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterNode;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterNode;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterNode;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterNode;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterNode;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAuxInputs ()Ljava/util/List;
 	public final fun getChain ()Ljava/util/List;
+	public final fun getCrop ()Ldev/jordond/filmstrip/effect/FilterNode;
 	public final fun getMerge ()Ldev/jordond/filmstrip/effect/FilterNode;
+	public final fun getPost ()Ljava/util/List;
 	public final fun getSidecars ()Ljava/util/List;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;

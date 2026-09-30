@@ -3,8 +3,12 @@
 package dev.jordond.filmstrip.webcodecs.internal
 
 import dev.jordond.filmstrip.effect.WebGlOverlay
+import dev.jordond.filmstrip.effects.color.HDR_COLOR_MATRIX_GLSL
+import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.authoredHdrTexels
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
+import kotlin.js.JsName
 import kotlin.time.Duration.Companion.microseconds
 
 /**
@@ -14,9 +18,14 @@ import kotlin.time.Duration.Companion.microseconds
  * drawn as a premultiplied source over at the rect and the opacity its [WebGlOverlay.drawAt] answers for the frame's
  * composition time. The opacity multiplies colour and alpha once, on the frame's own codes, and nothing here works
  * out a placement or an opacity of its own.
+ *
+ * On a kept grade the raster is mapped to linear display light before it is uploaded, so each texel lands where a
+ * fill of its colour does, and it blends with the frame in the linear display light the compositor holds on either
+ * transfer.
  */
 internal class BrowserOverlayPass private constructor(
   private val gl: WebGl2,
+  private val hdrTransfer: HdrTransfer?,
   private val program: JsAny,
   private val frameMatrix: JsAny?,
   private val quadScale: JsAny?,
@@ -81,8 +90,7 @@ internal class BrowserOverlayPass private constructor(
     gl.deleteProgram(program)
   }
 
-  // Uploaded top row first, which is where the shader reads the top of the rect from, and with no colour conversion,
-  // so an authored colour lands as its own codes.
+  // Uploaded top row first, which is where the shader reads the top of the rect from.
   private fun textureOf(overlay: WebGlOverlay): JsAny =
     textures.getOrPut(overlay) {
       val texture = gl.createTexture() ?: throw BrowserExportFailure(NO_TEXTURE)
@@ -92,35 +100,58 @@ internal class BrowserOverlayPass private constructor(
       gl.texParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
       gl.texParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
       gl.pixelStorei(GL_UNPACK_FLIP_Y_WEBGL, 0)
-      gl.pixelStorei(GL_UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
-      gl.pixelStorei(GL_UNPACK_COLORSPACE_CONVERSION_WEBGL, GL_NONE)
-      try {
-        gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, overlay.image)
-      } finally {
-        gl.pixelStorei(GL_UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0)
-        gl.pixelStorei(GL_UNPACK_COLORSPACE_CONVERSION_WEBGL, GL_BROWSER_DEFAULT_WEBGL)
-      }
+      if (hdrTransfer == null) uploadCodes(overlay) else uploadLight(overlay)
       texture
     }
+
+  // With no colour conversion, so an authored colour lands as its own codes.
+  private fun uploadCodes(overlay: WebGlOverlay) {
+    gl.pixelStorei(GL_UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
+    gl.pixelStorei(GL_UNPACK_COLORSPACE_CONVERSION_WEBGL, GL_NONE)
+    try {
+      gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, overlay.image)
+    } finally {
+      gl.pixelStorei(GL_UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0)
+      gl.pixelStorei(GL_UNPACK_COLORSPACE_CONVERSION_WEBGL, GL_BROWSER_DEFAULT_WEBGL)
+    }
+  }
+
+  // The raster's straight codes are read back through a 2D canvas, mapped here and uploaded as half floats, so the
+  // texels arrive premultiplied in the light the frame holds.
+  private fun uploadLight(overlay: WebGlOverlay) {
+    val width = overlay.size.width
+    val height = overlay.size.height
+    val context = ReadbackCanvas(width, height).getContext(CONTEXT_2D) ?: throw BrowserExportFailure(NO_READBACK)
+    context.drawImage(overlay.image, 0.0, 0.0)
+    val codes = Uint8Array(context.getImageData(0, 0, width, height).data.buffer).toByteArray()
+    val texels = hdrOverlayTexels(codes).toFloat32Array()
+    gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, texels)
+  }
 
   companion object {
     /**
      * Links the overlay program against the compositor's own quad [buffer].
+     *
+     * @param hdrTransfer The transfer the compositor keeps a grade with, or null for SDR. It settles how every raster
+     * is uploaded and graded for the life of the pass.
      */
     fun create(
       gl: WebGl2,
       buffer: JsAny,
+      hdrTransfer: HdrTransfer?,
     ): BrowserOverlayPass {
-      val program = BrowserCompositor.link(gl, OVERLAY_VERTEX_SHADER, OVERLAY_FRAGMENT_SHADER)
+      val program = BrowserCompositor.link(gl, OVERLAY_VERTEX_SHADER, overlayFragmentShader(hdrTransfer))
       gl.useProgram(program)
       gl.bindBuffer(GL_ARRAY_BUFFER, buffer)
       val position = gl.getAttribLocation(program, "aPosition")
       gl.enableVertexAttribArray(position)
       gl.vertexAttribPointer(position, 2, GL_FLOAT, false, 0, 0)
       gl.uniform1i(gl.getUniformLocation(program, "uOverlay"), 0)
+      hdrTransfer?.let { uploadGradeUniforms(gl, program, it) }
 
       return BrowserOverlayPass(
         gl = gl,
+        hdrTransfer = hdrTransfer,
         program = program,
         frameMatrix = gl.getUniformLocation(program, "uFrameMatrix"),
         quadScale = gl.getUniformLocation(program, "uQuadScale"),
@@ -130,8 +161,88 @@ internal class BrowserOverlayPass private constructor(
       )
     }
 
+    // The same figures the compositor grades a clip through, since the texture holds display light with reference
+    // white at one just as the frame does.
+    private fun uploadGradeUniforms(
+      gl: WebGl2,
+      program: JsAny,
+      transfer: HdrTransfer,
+    ) {
+      val uniforms = transfer.compositorGradeUniforms()
+      gl.uniform1f(gl.getUniformLocation(program, "uWhite"), uniforms.white)
+      gl.uniform1f(gl.getUniformLocation(program, "uDisplayGamma"), uniforms.displayGamma)
+      gl.uniform1f(gl.getUniformLocation(program, "uOotfGamma"), uniforms.ootfGamma)
+      gl.uniform1f(gl.getUniformLocation(program, "uCeiling"), uniforms.ceiling)
+    }
+
     private const val NO_TEXTURE = "WebGL2 refused to create a texture for an overlay."
+    private const val NO_READBACK = "The browser refused a 2D canvas to read an overlay's pixels back through."
   }
+}
+
+/**
+ * Maps straight RGBA [codes], four bytes a texel, to the premultiplied texels an overlay uploads on a kept grade.
+ *
+ * Each colour lands where [authoredHdrTexels] puts it and then where [compositorLightOf] holds that light, and only
+ * then is it multiplied by its alpha.
+ *
+ * @return Four floats a texel, red, green, blue and alpha, in the order the codes came in.
+ */
+internal fun hdrOverlayTexels(codes: ByteArray): FloatArray {
+  val argb =
+    IntArray(codes.size / TEXEL_BYTES) { index ->
+      val offset = index * TEXEL_BYTES
+      (code(codes, offset + 3) shl ALPHA_SHIFT) or
+        (code(codes, offset) shl RED_SHIFT) or
+        (code(codes, offset + 1) shl GREEN_SHIFT) or
+        code(codes, offset + 2)
+    }
+  val texels = authoredHdrTexels(argb)
+  for (offset in texels.indices step TEXEL_BYTES) {
+    val alpha = texels[offset + 3]
+    val light = compositorLightOf(texels.copyOfRange(offset, offset + 3))
+    for (channel in 0 until 3) {
+      texels[offset + channel] = light[channel] * alpha
+    }
+  }
+  return texels
+}
+
+private fun code(
+  codes: ByteArray,
+  index: Int,
+): Int = codes[index].toInt() and BYTE_MASK
+
+// An OffscreenCanvas asked for a 2D context, which the compositor's own binding types as WebGL only.
+@JsName("OffscreenCanvas")
+private external class ReadbackCanvas(
+  width: Int,
+  height: Int,
+) : JsAny {
+  fun getContext(contextId: String): ReadbackContext?
+}
+
+private external interface ReadbackContext : JsAny {
+  fun drawImage(
+    image: JsAny,
+    dx: Double,
+    dy: Double,
+  )
+
+  fun getImageData(
+    sx: Int,
+    sy: Int,
+    sw: Int,
+    sh: Int,
+  ): ReadbackImage
+}
+
+private external interface ReadbackImage : JsAny {
+  val data: ReadbackBytes
+}
+
+private external interface ReadbackBytes : JsAny {
+  val buffer: ArrayBuffer
 }
 
 // The quad is the picture's, and the frame matrix carries each of its points onto the frame the overlay was placed
@@ -153,33 +264,59 @@ private val OVERLAY_VERTEX_SHADER =
 // The rect is measured from the top left with +Y down, the way every placement is, so the frame point is turned over
 // before it is read against it. A fragment outside the rect draws nothing, which is what cuts an overlay at the edge
 // of the picture it was placed on. The texel is premultiplied, so the grade runs on the straight colour and the
-// result is premultiplied again by the texel's alpha and the opacity together.
-private val OVERLAY_FRAGMENT_SHADER =
-  """
-  #version 300 es
-  precision highp float;
-  uniform sampler2D uOverlay;
-  uniform vec4 uRect;
-  uniform float uOpacity;
-  uniform mat4 uColorMatrix;
-  in vec2 vFrame;
-  out vec4 outColor;
-  void main() {
-    vec2 at = (vec2(vFrame.x, 1.0 - vFrame.y) - uRect.xy) / uRect.zw;
-    if (any(lessThan(at, vec2(0.0))) || any(greaterThanEqual(at, vec2(1.0)))) discard;
-    vec4 texel = texture(uOverlay, at);
-    vec3 straight = texel.a > 0.0 ? texel.rgb / texel.a : vec3(0.0);
-    vec3 graded = clamp((uColorMatrix * vec4(straight, 1.0)).rgb, 0.0, 1.0);
-    float alpha = texel.a * uOpacity;
-    outColor = vec4(graded * alpha, alpha);
-  }
-  """.trimIndent()
+// result is premultiplied again by the texel's alpha and the opacity together. On a kept grade the straight colour is
+// light, and it goes through the arm a clip is graded with, in the light that arm grades in, which clamps it where the
+// format runs out rather than at reference white.
+private fun overlayFragmentShader(transfer: HdrTransfer?): String {
+  val declarations =
+    if (transfer == null) {
+      ""
+    } else {
+      """
+      uniform float uWhite;
+      uniform float uDisplayGamma;
+      uniform float uOotfGamma;
+      uniform float uCeiling;
+      $HDR_COLOR_MATRIX_GLSL
+      ${gradeLightGlsl(transfer)}
+      """
+    }
+  val grade =
+    if (transfer == null) {
+      "clamp((uColorMatrix * vec4(straight, 1.0)).rgb, 0.0, 1.0)"
+    } else {
+      "fromGradeLight(filmstripGradeHdr(" +
+        "toGradeLight(straight), uColorMatrix, uWhite, uDisplayGamma, uOotfGamma, uCeiling))"
+    }
+
+  return """
+    #version 300 es
+    precision highp float;
+    uniform sampler2D uOverlay;
+    uniform vec4 uRect;
+    uniform float uOpacity;
+    uniform mat4 uColorMatrix;
+    in vec2 vFrame;
+    out vec4 outColor;
+    $declarations
+    void main() {
+      vec2 at = (vec2(vFrame.x, 1.0 - vFrame.y) - uRect.xy) / uRect.zw;
+      if (any(lessThan(at, vec2(0.0))) || any(greaterThanEqual(at, vec2(1.0)))) discard;
+      vec4 texel = texture(uOverlay, at);
+      vec3 straight = texel.a > 0.0 ? texel.rgb / texel.a : vec3(0.0);
+      vec3 graded = $grade;
+      float alpha = texel.a * uOpacity;
+      outColor = vec4(graded * alpha, alpha);
+    }
+    """.trimIndent()
+}
 
 private const val QUAD_VERTICES = 4
 
 private const val GL_TEXTURE_2D = 0x0DE1
 private const val GL_TEXTURE0 = 0x84C0
 private const val GL_RGBA = 0x1908
+private const val GL_RGBA16F = 0x881A
 private const val GL_UNSIGNED_BYTE = 0x1401
 private const val GL_FLOAT = 0x1406
 private const val GL_ARRAY_BUFFER = 0x8892
@@ -197,3 +334,10 @@ private const val GL_UNPACK_PREMULTIPLY_ALPHA_WEBGL = 0x9241
 private const val GL_UNPACK_COLORSPACE_CONVERSION_WEBGL = 0x9243
 private const val GL_BROWSER_DEFAULT_WEBGL = 0x9244
 private const val GL_NONE = 0
+
+private const val CONTEXT_2D = "2d"
+private const val TEXEL_BYTES = 4
+private const val ALPHA_SHIFT = 24
+private const val RED_SHIFT = 16
+private const val GREEN_SHIFT = 8
+private const val BYTE_MASK = 0xFF

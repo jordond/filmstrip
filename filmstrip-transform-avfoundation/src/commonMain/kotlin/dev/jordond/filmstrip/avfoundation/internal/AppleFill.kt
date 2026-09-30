@@ -3,8 +3,8 @@ package dev.jordond.filmstrip.avfoundation.internal
 import dev.jordond.filmstrip.effects.color.createCodeSpace
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.transform.internal.hdrFillNits
-import dev.jordond.filmstrip.transform.internal.signalFromNits
+import dev.jordond.filmstrip.media.authoredHdrNits
+import dev.jordond.filmstrip.media.signalFromNits
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.CoreFoundation.CFStringRef
 import platform.CoreGraphics.CGColorSpaceCreateWithName
@@ -36,7 +36,7 @@ internal fun fillCIColor(
   if (transfer == null) return inCodes(red, green, blue) ?: sdr
 
   val space = CGColorSpaceCreateWithName(transfer.colorSpaceName()) ?: return sdr
-  val signal = transfer.signalFromNits(hdrFillNits(color))
+  val signal = transfer.signalFromNits(authoredHdrNits(color))
 
   return CIColor.colorWithRed(
     signal[0].toDouble(),

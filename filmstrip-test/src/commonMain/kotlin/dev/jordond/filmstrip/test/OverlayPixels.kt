@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.test
 
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.authoredHdrNits
 import kotlin.math.roundToInt
 
 /**
@@ -9,8 +10,9 @@ import kotlin.math.roundToInt
  * encoded reading of one may sit from it.
  *
  * An overlay test paints its image from [pngOf] so it knows the colour it authored, predicts a partly
- * opaque draw with [sourceOver], and compares an exported reading with [ENCODED_TOLERANCE]. The
- * authored colours themselves and the colour-handling tolerance live in [AuthoredColours].
+ * opaque draw with [sourceOver], or with [hdrSourceOver] on an HDR grade, and compares an exported reading
+ * with [ENCODED_TOLERANCE]. The authored colours themselves and the colour-handling tolerance live in
+ * [AuthoredColours].
  */
 @InternalFilmstripApi
 public object OverlayPixels {
@@ -36,7 +38,27 @@ public object OverlayPixels {
   ): Int = (under + opacity * (over - under)).roundToInt()
 
   /**
-   * An opaque PNG of [size] painted [argb] all over, as the bytes of the file.
+   * Where an [overlay] colour drawn at [alpha] over [background] display light lands on an HDR grade, in
+   * cd/m2.
+   *
+   * The overlay is mapped through [authoredHdrNits] and blended with the background in linear light, so
+   * an opaque overlay lands where a fill of the same colour does. [alpha] is the texel's alpha times the
+   * overlay's opacity, and the alpha packed in [overlay] is ignored.
+   *
+   * @param background Linear BT.2020 red, green and blue in cd/m2, as [authoredHdrNits] returns them.
+   * @return Red, green and blue in that order.
+   */
+  public fun hdrSourceOver(
+    background: FloatArray,
+    overlay: Int,
+    alpha: Float,
+  ): FloatArray {
+    val over = authoredHdrNits(overlay)
+    return FloatArray(3) { alpha * over[it] + (1f - alpha) * background[it] }
+  }
+
+  /**
+   * A PNG of [size] painted [argb] all over, alpha included, as the bytes of the file.
    *
    * The image is eight-bit RGBA with no filtering, and its deflate stream holds the rows stored rather
    * than compressed, so a test builds its overlay image with no binary in the tree. The one stored

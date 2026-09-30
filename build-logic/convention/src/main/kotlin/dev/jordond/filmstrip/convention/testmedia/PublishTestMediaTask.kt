@@ -4,9 +4,13 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.Internal
+import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
@@ -24,18 +28,37 @@ import javax.inject.Inject
  * Objects are keyed by digest, so a clip whose bytes did not change republishes over the key it
  * already occupies and one that did change lands beside its predecessor. Nothing is deleted: an
  * older commit's manifest still names the object it was written against.
+ *
+ * Every fixture in [specs] has to be in [fixtures] before anything happens. A still the generate task skipped for a
+ * missing tool, with no downloaded copy in its place, fails the task instead of losing its pinned manifest row.
+ *
+ * Each of those files also has to be bytes that were verified. Its SHA-256 must match its row in [manifest], or the
+ * row the generate task wrote for it in [generated], so a truncated or hand edited file fails the task before the
+ * manifest is rewritten or anything is uploaded.
+ *
+ * Only the fixtures in [specs] are uploaded and pinned. Any other file in [fixtures], such as a clip left behind by a
+ * spec that was since removed, is skipped and named in the log. The generate task's own list, [generated], is not
+ * named.
  */
 abstract class PublishTestMediaTask
   @Inject
   constructor(
     private val exec: ExecOperations,
   ) : DefaultTask() {
+    @get:Input
+    abstract val specs: ListProperty<Fixture>
+
     @get:InputDirectory
     @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val fixtures: DirectoryProperty
 
     @get:OutputFile
     abstract val manifest: RegularFileProperty
+
+    @get:InputFile
+    @get:Optional
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val generated: RegularFileProperty
 
     @get:Internal
     @get:Option(option = "no-upload", description = "Write the manifest and print the keys without uploading.")
@@ -48,13 +71,18 @@ abstract class PublishTestMediaTask
     @TaskAction
     fun publish() {
       val directory = fixtures.get().asFile
-      val clips =
-        directory
-          .listFiles { file -> file.isFile && file.extension == "mp4" }
-          ?.sortedBy { it.name }
-          .orEmpty()
+      requireEveryFixture(specs.get(), directory, StillWriter(exec)::missingTool)
+      requireVerifiedFixtures(specs.get(), directory, manifest.get().asFile, generated.orNull?.asFile)
 
-      if (clips.isEmpty()) throw GradleException("no clips in $directory, run the generate task first")
+      val declared = specs.get().map { it.fileName }.toSet()
+      val generatedName = generated.orNull?.asFile?.name
+      directory
+        .listFiles { file -> file.isFile && file.name !in declared && file.name != generatedName }
+        ?.sortedBy { it.name }
+        ?.forEach { logger.lifecycle("ignoring ${it.name}, no declared fixture has that name") }
+
+      val clips = declared.sorted().map(directory::resolve)
+      if (clips.isEmpty()) throw GradleException("no fixtures declared for $directory, nothing to publish")
 
       val entries =
         clips.map {
@@ -65,7 +93,7 @@ abstract class PublishTestMediaTask
 
       if (noUpload.getOrElse(false)) {
         entries.forEach {
-          logger.lifecycle("${it.fileName}  ${it.bytes} bytes  ${TestMediaManifest.urlFor(it.sha256)}")
+          logger.lifecycle("${it.fileName}  ${it.bytes} bytes  ${TestMediaManifest.urlFor(it)}")
         }
         return
       }
@@ -78,17 +106,20 @@ abstract class PublishTestMediaTask
             "r2",
             "object",
             "put",
-            "${TestMediaManifest.BUCKET}/${TestMediaManifest.keyFor(entry.sha256)}",
+            "${TestMediaManifest.BUCKET}/${TestMediaManifest.keyFor(entry)}",
             "--file",
             directory.resolve(entry.fileName).absolutePath,
             "--content-type",
-            "video/mp4",
+            MEDIA_TYPES.getValue(entry.extension),
             "--remote",
           )
           account.orNull?.let { environment("CLOUDFLARE_ACCOUNT_ID", it) }
         }
       }
 
-      logger.lifecycle("published ${entries.size} clips, ${manifest.get().asFile.name} written")
+      logger.lifecycle("published ${entries.size} fixtures, ${manifest.get().asFile.name} written")
     }
   }
+
+private val MEDIA_TYPES: Map<String, String> =
+  mapOf("mp4" to "video/mp4") + StillContainer.entries.associate { it.extension to it.mediaType }

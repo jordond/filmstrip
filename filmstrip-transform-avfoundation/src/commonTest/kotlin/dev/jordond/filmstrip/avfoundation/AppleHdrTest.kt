@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.test.encodesHdr
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
@@ -49,7 +50,7 @@ class AppleHdrTest {
       val source = fixture() ?: return@runTest
       // KeepHdr is documented to refuse rather than quietly tone-map, so a device with no HDR
       // encoder refusing is the contract holding. There is nothing left to measure after that.
-      if (!encodesHdr()) {
+      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) {
         assertIs<Verdict.Incapable>(filmstrip.plan(composition(source), spec(HdrMode.KeepHdr)))
         return@runTest
       }
@@ -94,7 +95,7 @@ class AppleHdrTest {
 
       // Auto is the mode that lands somewhere the caller did not name, so it is the one that has to
       // report. Either it kept the grade silently or it dropped it and said so.
-      if (encodesHdr()) {
+      if (withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) {
         assertEquals(HdrTransfer.Pq, written.hdrTransfer, "the device encodes HDR but Auto did not keep it")
         assertTrue(!run.toneMapped, "HDR survived but an adjustment said it was tone mapped")
       } else {
@@ -107,7 +108,7 @@ class AppleHdrTest {
   fun `the capability probe never claims less than the encoder wrote`() =
     runTest(timeout = TIMEOUT) {
       val source = fixture() ?: return@runTest
-      if (!encodesHdr()) return@runTest
+      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
       val kept = export(source, HdrMode.KeepHdr).info.video?.hdrTransfer != null
 
       // The plan's capability answer and what the encoder actually did, which are allowed to differ
@@ -125,11 +126,6 @@ class AppleHdrTest {
     val info: MediaInfo,
     val toneMapped: Boolean,
   )
-
-  private suspend fun encodesHdr(): Boolean =
-    withContext(Dispatchers.Default) {
-      (filmstrip.capabilities() as? CapabilitiesResult.Success)?.capabilities?.supportsHdrEncoding == true
-    }
 
   private fun composition(source: String) = compositionOf { clip(MediaSource.of(source)) }
 

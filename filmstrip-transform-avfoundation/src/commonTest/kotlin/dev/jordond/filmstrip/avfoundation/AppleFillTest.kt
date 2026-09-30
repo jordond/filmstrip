@@ -3,10 +3,10 @@ package dev.jordond.filmstrip.avfoundation
 import dev.jordond.filmstrip.avfoundation.internal.fillCIColor
 import dev.jordond.filmstrip.avfoundation.internal.hasColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.authoredHdrNits
+import dev.jordond.filmstrip.media.signalFromNits
 import dev.jordond.filmstrip.test.AppleBufferCodes
 import dev.jordond.filmstrip.test.AuthoredColours
-import dev.jordond.filmstrip.transform.internal.hdrFillNits
-import dev.jordond.filmstrip.transform.internal.signalFromNits
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
@@ -116,7 +116,7 @@ class AppleFillTest {
 
   @Test
   fun `an hdr fill carries the signal the shared conversion gives rather than the authored fraction`() {
-    val expected = HdrTransfer.Pq.signalFromNits(hdrFillNits(WHITE))
+    val expected = HdrTransfer.Pq.signalFromNits(authoredHdrNits(WHITE))
     val color = fillCIColor(WHITE, HdrTransfer.Pq)
 
     color.red() shouldBeNear expected[0].toDouble()

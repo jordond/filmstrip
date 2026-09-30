@@ -26,6 +26,7 @@ import dev.jordond.filmstrip.test.AuthoredColours.TOLERANCE
 import dev.jordond.filmstrip.test.AuthoredColours.channelsOf
 import dev.jordond.filmstrip.test.AuthoredColours.colourManaged
 import dev.jordond.filmstrip.test.AuthoredColours.colourManagedFromFrame
+import dev.jordond.filmstrip.test.writeAtomically
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.math.abs
@@ -134,7 +135,7 @@ class AndroidAuthoredColourTest {
     if (file.exists()) return file
     val bitmap = Bitmap.createBitmap(SWATCH_PX, SWATCH_PX, Bitmap.Config.ARGB_8888)
     bitmap.eraseColor(argb)
-    file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it) }
+    file.writeAtomically { bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it) }
     return file
   }
 

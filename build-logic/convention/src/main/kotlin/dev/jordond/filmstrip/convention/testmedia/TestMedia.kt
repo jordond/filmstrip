@@ -28,11 +28,11 @@ class TestMedia(
  * one, and committing the manifest it writes.
  *
  * @param name What the tasks are named after, so a build spanning several modules reads clearly.
- * @param specs The clips, which [GenerateTestMediaTask] both encodes and verifies.
+ * @param specs The clips and stills, which [GenerateTestMediaTask] both encodes and verifies.
  */
 fun Project.testMedia(
   name: String,
-  specs: List<FixtureSpec>,
+  specs: List<Fixture>,
 ): TestMedia {
   val directory =
     layout.buildDirectory
@@ -63,13 +63,24 @@ fun Project.testMedia(
       baseUrl.set(TestMediaManifest.HOST)
     }
 
+  val check =
+    tasks.register("check${capitalised}TestMedia", CheckTestMediaTask::class.java) {
+      group = TASK_GROUP
+      description = "Fails when any declared $name fixture is missing from the fixture directory."
+      mustRunAfter(generate, download)
+      this.specs.set(specs)
+      fixtures.set(directory)
+    }
+
   val publish =
     tasks.register("publish${capitalised}TestMedia", PublishTestMediaTask::class.java) {
       group = TASK_GROUP
       description = "Publishes the $name fixtures and writes the manifest that pins them."
-      dependsOn(generate)
+      dependsOn(generate, check)
+      this.specs.set(specs)
       fixtures.set(directory)
       manifest.set(manifestFile)
+      generated.set(generate.flatMap { it.manifest })
     }
 
   return TestMedia(download, generate, publish, directory)

@@ -3,7 +3,6 @@ package dev.jordond.filmstrip.media3
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.test.platform.app.InstrumentationRegistry
-import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
@@ -22,10 +21,10 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.test.writeAtomically
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
-import org.junit.Assume.assumeTrue
 import org.junit.AssumptionViolatedException
 import java.io.File
 import kotlin.test.assertIs
@@ -102,28 +101,6 @@ internal class Media3ExportProbe {
     }
 
   /**
-   * True when the device advertises an HDR encoder, which every test that keeps an HDR grade needs.
-   */
-  suspend fun encodesHdr(): Boolean =
-    (filmstrip.capabilities() as? CapabilitiesResult.Success)?.capabilities?.supportsHdrEncoding == true
-
-  /**
-   * Skips the calling test on a device that advertises no HDR encoder, since keeping an HDR grade
-   * has nothing to write with there.
-   */
-  suspend fun assumeEncodesHdr() {
-    assumeTrue("this device advertises no HDR encoder", encodesHdr())
-  }
-
-  /**
-   * Skips the calling test on a device with no ten-bit HEVC decoder, which cannot read the HDR
-   * fixtures at all. Every emulator image is one of these.
-   */
-  fun assumeDecodesTenBitHevc() {
-    assumeTrue("this device has no ten-bit HEVC decoder", decodesTenBitHevc())
-  }
-
-  /**
    * Probes [source] with [filmstrip], failing the test when the probe does not succeed.
    */
   suspend fun infoOf(source: MediaSource): MediaInfo = assertIs<ProbeResult.Success>(filmstrip.probe(source)).info
@@ -151,7 +128,7 @@ internal class Media3ExportProbe {
       javaClass.classLoader?.getResourceAsStream(name)
         ?: throw AssumptionViolatedException("the fixture $name was not bundled, since the build host had no ffmpeg")
     val file = File(context.cacheDir, name)
-    stream.use { input -> file.outputStream().use(input::copyTo) }
+    stream.use { input -> file.writeAtomically { input.copyTo(it) } }
     return file
   }
 

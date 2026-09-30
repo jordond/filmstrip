@@ -1,10 +1,12 @@
 package dev.jordond.filmstrip.avfoundation
 
+import dev.jordond.filmstrip.avfoundation.internal.toCMTime
 import dev.jordond.filmstrip.avfoundation.internal.videoReaderSettings
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.UShortVar
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.get
+import kotlinx.cinterop.readValue
 import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.useContents
 import kotlinx.cinterop.usePinned
@@ -22,12 +24,15 @@ import platform.CoreImage.CIContext
 import platform.CoreImage.CIImage
 import platform.CoreImage.kCIFormatRGBAf
 import platform.CoreMedia.CMSampleBufferGetImageBuffer
+import platform.CoreMedia.CMTimeRangeMake
+import platform.CoreMedia.kCMTimePositiveInfinity
 import platform.CoreVideo.CVPixelBufferGetBaseAddressOfPlane
 import platform.CoreVideo.CVPixelBufferGetBytesPerRowOfPlane
 import platform.CoreVideo.CVPixelBufferLockBaseAddress
 import platform.CoreVideo.CVPixelBufferUnlockBaseAddress
 import platform.CoreVideo.kCVPixelBufferLock_ReadOnly
 import platform.Foundation.NSURL
+import kotlin.time.Duration
 
 /**
  * One decoded frame of an HDR file, held both as linear BT.2020 light and as the ten-bit codes the file stores.
@@ -80,13 +85,17 @@ internal class HdrFrameProbe(
 }
 
 /**
- * Decodes the first video frame of [path] as linear light and copies its ten-bit planes, or null without a video track.
+ * Decodes the video frame of [path] at [at] as linear light and copies its ten-bit planes, or null without a video
+ * track.
  *
  * The reader is asked for a ten-bit buffer rather than whatever the file happens to carry, so a frame that arrives
  * eight-bit is the decode being wrong rather than the measurement.
  */
 @OptIn(ExperimentalForeignApi::class)
-internal fun hdrFrameOf(path: String): HdrFrameProbe? {
+internal fun hdrFrameOf(
+  path: String,
+  at: Duration = Duration.ZERO,
+): HdrFrameProbe? {
   val asset = AVURLAsset(uRL = NSURL.fileURLWithPath(path), options = null)
   val track = asset.tracksWithMediaType(AVMediaTypeVideo).firstOrNull() as? AVAssetTrack ?: return null
   val reader = AVAssetReader.assetReaderWithAsset(asset, error = null) ?: return null
@@ -98,6 +107,9 @@ internal fun hdrFrameOf(path: String): HdrFrameProbe? {
       outputSettings = videoReaderSettings(encodesHdr = true),
     )
   reader.addOutput(output)
+  if (at > Duration.ZERO) {
+    reader.timeRange = CMTimeRangeMake(start = at.toCMTime(), duration = kCMTimePositiveInfinity.readValue())
+  }
   if (!reader.startReading()) return null
 
   val sample = output.copyNextSampleBuffer() ?: return null

@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.media3.AndroidKenBurnsTest.Companion.BOUNDARY
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.motion.Easing
+import dev.jordond.filmstrip.test.writeAtomically
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.math.abs
@@ -176,7 +177,7 @@ class AndroidKenBurnsTest {
     canvas.drawRect(0f, 0f, edge, PHOTO_HEIGHT.toFloat(), paint)
     paint.color = Color.BLUE
     canvas.drawRect(edge, 0f, PHOTO_WIDTH.toFloat(), PHOTO_HEIGHT.toFloat(), paint)
-    file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it) }
+    file.writeAtomically { bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it) }
     return file
   }
 

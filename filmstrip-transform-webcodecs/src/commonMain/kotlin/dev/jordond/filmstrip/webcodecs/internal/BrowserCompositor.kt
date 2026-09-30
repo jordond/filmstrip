@@ -4,7 +4,6 @@ package dev.jordond.filmstrip.webcodecs.internal
 
 import dev.jordond.filmstrip.effect.WebGlOverlay
 import dev.jordond.filmstrip.effects.color.HDR_COLOR_MATRIX_GLSL
-import dev.jordond.filmstrip.effects.color.hdrColorMatrixUniforms
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.BT2020_CB_SCALE
@@ -13,20 +12,9 @@ import dev.jordond.filmstrip.media.BT2020_LUMA_B
 import dev.jordond.filmstrip.media.BT2020_LUMA_G
 import dev.jordond.filmstrip.media.BT2020_LUMA_R
 import dev.jordond.filmstrip.media.HDR_REFERENCE_WHITE_NITS
-import dev.jordond.filmstrip.media.HLG_A
-import dev.jordond.filmstrip.media.HLG_B
-import dev.jordond.filmstrip.media.HLG_C
-import dev.jordond.filmstrip.media.HLG_NOMINAL_PEAK_NITS
-import dev.jordond.filmstrip.media.HLG_SYSTEM_GAMMA
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.PQ_C1
-import dev.jordond.filmstrip.media.PQ_C2
-import dev.jordond.filmstrip.media.PQ_C3
-import dev.jordond.filmstrip.media.PQ_M1
-import dev.jordond.filmstrip.media.PQ_M2
-import dev.jordond.filmstrip.media.PQ_PEAK_NITS
 import dev.jordond.filmstrip.media.SDR_DISPLAY_GAMMA
-import dev.jordond.filmstrip.media.hlgDisplayNitsFromScene
+import dev.jordond.filmstrip.media.authoredHdrNits
 import dev.jordond.filmstrip.media.linearDimGain
 import dev.jordond.filmstrip.transform.internal.TEN_BIT_CHROMA_MID
 import dev.jordond.filmstrip.transform.internal.TEN_BIT_CHROMA_RANGE
@@ -34,8 +22,6 @@ import dev.jordond.filmstrip.transform.internal.TEN_BIT_LUMA_FLOOR
 import dev.jordond.filmstrip.transform.internal.TEN_BIT_LUMA_RANGE
 import dev.jordond.filmstrip.transform.internal.TEN_BIT_MAX_CODE
 import dev.jordond.filmstrip.transform.internal.backgroundGain
-import dev.jordond.filmstrip.transform.internal.hdrFillNits
-import dev.jordond.filmstrip.transform.internal.hlgSceneFromNits
 import dev.jordond.filmstrip.transform.internal.sigmaFor
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
@@ -72,6 +58,7 @@ internal class BrowserCompositor private constructor(
   private val compositionColorMatrix: JsAny?,
   private val blur: BlurPass?,
   private val hdr: HdrPass?,
+  private val hdrTransfer: HdrTransfer?,
 ) {
   private var current: RenderedClip? = null
   private var frameMatrix: FloatArray = IDENTITY_3
@@ -220,7 +207,7 @@ internal class BrowserCompositor private constructor(
   }
 
   private fun overlays(): BrowserOverlayPass =
-    overlayPass ?: BrowserOverlayPass.create(gl, buffer).also { overlayPass = it }
+    overlayPass ?: BrowserOverlayPass.create(gl, buffer, hdrTransfer).also { overlayPass = it }
 
   /**
    * The SDR upload: the decoded frame straight into one RGBA texture.
@@ -528,23 +515,22 @@ internal class BrowserCompositor private constructor(
           compositionColorMatrix = gl.getUniformLocation(program, "uCompositionColorMatrix"),
           blur = blur,
           hdr = hdr,
+          hdrTransfer = hdrTransfer,
         )
       if (hdrTransfer != null) uploadGradeUniforms(gl, program, hdrTransfer)
       return compositor
     }
 
     /**
-     * The figures the colour matrix arm reads the frame through.
-     *
-     * The linear texture holds display light with reference white at one, for both transfer
-     * functions alike, so both read the frame the same way and only the ceiling parts them.
+     * The figures the colour matrix arm reads the frame through, which [compositorGradeUniforms]
+     * settles for the transfer.
      */
     private fun uploadGradeUniforms(
       gl: WebGl2,
       program: JsAny,
       transfer: HdrTransfer,
     ) {
-      val uniforms = transfer.hdrColorMatrixUniforms(white = 1f, holdsSceneLight = false)
+      val uniforms = transfer.compositorGradeUniforms()
       gl.useProgram(program)
       gl.uniform1f(gl.getUniformLocation(program, "uWhite"), uniforms.white)
       gl.uniform1f(gl.getUniformLocation(program, "uDisplayGamma"), uniforms.displayGamma)
@@ -1001,13 +987,14 @@ private fun fragmentShader(transfer: HdrTransfer?): String =
     in vec2 vTexCoord;
     out vec4 outColor;
     $HDR_COLOR_MATRIX_GLSL
+    ${gradeLightGlsl(transfer)}
     void main() {
       vec4 c = texture(uTexSampler, vTexCoord);
       vec3 graded =
-        filmstripGradeHdr(c.rgb, uColorMatrix, uWhite, uDisplayGamma, uOotfGamma, uCeiling);
+        filmstripGradeHdr(toGradeLight(c.rgb), uColorMatrix, uWhite, uDisplayGamma, uOotfGamma, uCeiling);
       graded =
         filmstripGradeHdr(graded, uCompositionColorMatrix, uWhite, uDisplayGamma, uOotfGamma, uCeiling);
-      outColor = vec4(graded, c.a);
+      outColor = vec4(fromGradeLight(graded), c.a);
     }
     """.trimIndent()
   }
@@ -1043,8 +1030,8 @@ private fun blurFragmentShader(transfer: HdrTransfer?): String =
  * [HDR_REFERENCE_WHITE_NITS].
  *
  * The planes arrive top-down where every texture here is +Y-up, so the sample is flipped on the way
- * in. HLG's opto-optical transfer runs per channel, which is the reading media3 and ffmpeg apply
- * and the one `sdrSignalFromHlgScene` already spells.
+ * in. HLG's opto-optical transfer is driven by the colour's luminance, the one `hlgSceneFromNits`
+ * inverts, so a blend in the buffer is a blend in display light for any colour.
  */
 internal fun unpackShader(transfer: HdrTransfer): String =
   """
@@ -1059,7 +1046,7 @@ internal fun unpackShader(transfer: HdrTransfer): String =
   float code(usampler2D plane) {
     return float(texture(plane, vec2(vTexCoord.x, 1.0 - vTexCoord.y)).r);
   }
-  ${if (transfer == HdrTransfer.Pq) PQ_EOTF_GLSL else HLG_EOTF_GLSL}
+  ${eotfGlsl(transfer)}
   void main() {
     float y = (code(uY) - ${TEN_BIT_LUMA_FLOOR.glsl()}) / ${TEN_BIT_LUMA_RANGE.glsl()};
     float cb = (code(uU) - ${TEN_BIT_CHROMA_MID.glsl()}) / ${TEN_BIT_CHROMA_RANGE.glsl()};
@@ -1091,7 +1078,7 @@ internal fun packShader(transfer: HdrTransfer): String =
   uniform sampler2D uTexSampler;
   uniform vec2 uSize;
   out vec4 outColor;
-  ${if (transfer == HdrTransfer.Pq) PQ_OETF_GLSL else HLG_OETF_GLSL}
+  ${oetfGlsl(transfer)}
   vec3 signalAt(vec2 pixel) {
     vec3 light = texture(uTexSampler, (pixel + 0.5) / uSize).rgb;
     return oetf(max(light, 0.0) * ${HDR_REFERENCE_WHITE_NITS.glsl()});
@@ -1162,66 +1149,12 @@ private val PRESENT_FRAGMENT_SHADER =
   """.trimIndent()
 
 /**
- * This figure as a GLSL float literal.
- *
- * A whole number renders without a decimal point on the js target, where a Kotlin Float is a
- * JavaScript number, and GLSL will not multiply a vector by an integer literal. Spelling the point
- * back on keeps one shader source across both targets.
- */
-private fun Number.glsl(): String {
-  val text = toString()
-
-  return if (text.any { it == '.' || it == 'e' || it == 'E' }) text else "$text.0"
-}
-
-private val PQ_EOTF_GLSL =
-  """
-  vec3 eotf(vec3 signal) {
-    vec3 encoded = pow(max(signal, 0.0), vec3(1.0 / ${PQ_M2.glsl()}));
-    vec3 numerator = max(encoded - ${PQ_C1.glsl()}, 0.0);
-    vec3 denominator = ${PQ_C2.glsl()} - ${PQ_C3.glsl()} * encoded;
-    return pow(numerator / denominator, vec3(1.0 / ${PQ_M1.glsl()})) * ${PQ_PEAK_NITS.glsl()};
-  }
-  """.trimIndent()
-
-private val PQ_OETF_GLSL =
-  """
-  vec3 oetf(vec3 nits) {
-    vec3 y = pow(clamp(nits / ${PQ_PEAK_NITS.glsl()}, 0.0, 1.0), vec3(${PQ_M1.glsl()}));
-    return pow((${PQ_C1.glsl()} + ${PQ_C2.glsl()} * y) / (1.0 + ${PQ_C3.glsl()} * y), vec3(${PQ_M2.glsl()}));
-  }
-  """.trimIndent()
-
-private val HLG_EOTF_GLSL =
-  """
-  vec3 eotf(vec3 signal) {
-    vec3 low = signal * signal / 3.0;
-    vec3 high = (exp((signal - ${HLG_C.glsl()}) / ${HLG_A.glsl()}) + ${HLG_B.glsl()}) / 12.0;
-    vec3 scene = mix(low, high, step(0.5, signal));
-    return pow(scene, vec3(${HLG_SYSTEM_GAMMA.glsl()})) * ${HLG_NOMINAL_PEAK_NITS.glsl()};
-  }
-  """.trimIndent()
-
-// The log arm has to be guarded rather than left to the clamp: mix evaluates both arms, and the
-// dark one would take the log of a negative and carry a NaN across the blend.
-private val HLG_OETF_GLSL =
-  """
-  vec3 oetf(vec3 nits) {
-    vec3 scene = pow(max(nits, 0.0) / ${HLG_NOMINAL_PEAK_NITS.glsl()}, vec3(1.0 / ${HLG_SYSTEM_GAMMA.glsl()}));
-    vec3 low = sqrt(3.0 * scene);
-    vec3 high = ${HLG_A.glsl()} * log(max(12.0 * scene - ${HLG_B.glsl()}, 1e-6)) + ${HLG_C.glsl()};
-    return clamp(mix(low, high, step(1.0 / 12.0, scene)), 0.0, 1.0);
-  }
-  """.trimIndent()
-
-/**
  * The clear colour [Fill.Solid] paints outright. A blurred fill has no single colour of its own, so
  * every pixel it reaches is drawn over before the frame is handed back, and this is only what a
  * stray uncovered one or a slot with no clip at all falls back to.
  *
- * On a kept grade the colour is linear light rather than an encoded value. HLG is pre-distorted
- * through the inverse of the per-channel transfer the pack pass runs, so what ends up in the file
- * is the luminance-driven `hlgSignalFromNits` every other backend writes for the same fill.
+ * On a kept grade the colour is linear light rather than an encoded value, held where
+ * [compositorLightOf] puts it, which is the same place an overlay texel of that colour lands.
  */
 private fun Fill.clearColor(transfer: HdrTransfer?): FloatArray =
   when (this) {
@@ -1233,18 +1166,7 @@ private fun Fill.clearColor(transfer: HdrTransfer?): FloatArray =
           (color and BYTE_MASK) / MAX_CHANNEL,
         )
       } else {
-        val nits = hdrFillNits(color)
-        val light =
-          when (transfer) {
-            HdrTransfer.Pq -> {
-              nits
-            }
-            HdrTransfer.Hlg -> {
-              val scene = hlgSceneFromNits(nits)
-              FloatArray(3) { hlgDisplayNitsFromScene(scene[it]) }
-            }
-          }
-        FloatArray(3) { light[it] / HDR_REFERENCE_WHITE_NITS }
+        compositorLightOf(authoredHdrNits(color))
       }
     }
     is Fill.Blurred -> {

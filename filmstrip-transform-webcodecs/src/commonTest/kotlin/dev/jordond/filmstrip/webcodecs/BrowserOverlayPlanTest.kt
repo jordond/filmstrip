@@ -25,11 +25,13 @@ import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
@@ -139,6 +141,28 @@ class BrowserOverlayPlanTest {
       assertEquals(EffectParity.Exact, verdict.plan.parity)
     }
 
+  // A kept grade draws both kinds of overlay rather than refusing them, on either transfer, and the render hands the
+  // compositor the transfer that maps them.
+  @Test
+  fun overlaysOnAKeptGradeResolveOnBothTransfers() =
+    runTest {
+      val composition =
+        compositionOf(clipEffects = listOf(TextOverlay("clip")), effects = listOf(ImageOverlay(IMAGE, Corner.TopEnd)))
+
+      for (transfer in HdrTransfer.entries) {
+        val infos = composition.clips.associate { it.source to infoOf(OUTPUT_FRAME, transfer) }
+        val lowering = lower(composition, infos, HDR_SPEC, HDR_DEVICE)
+
+        val verdict = assertIs<Verdict.Capable>(lowering.verdict, "the $transfer plan")
+        assertEquals(EffectParity.Exact, verdict.plan.parity)
+        val render = assertNotNull(lowering.render)
+        assertEquals(transfer, render.hdrTransfer)
+        val clip = render.clips.single()
+        assertEquals(1, clip.overlays.size, "the $transfer clip's overlays")
+        assertEquals(1, render.compositionOverlays.size, "the $transfer composition's overlays")
+      }
+    }
+
   @Test
   fun theBrowserAdvertisesTextRendering() =
     runTest {
@@ -165,10 +189,12 @@ class BrowserOverlayPlanTest {
   private suspend fun lower(
     composition: EditComposition,
     infos: Map<MediaSource, MediaInfo> = infosOf(composition),
+    spec: ExportSpec = SPEC,
+    device: DeviceCapabilities = DEVICE,
   ): BrowserLowering {
     val resolver = BuiltInEffectResolver()
     resolver.preload(composition)
-    return BrowserPlanner(listOf(resolver)).lower(composition, SPEC, DEVICE, infos)
+    return BrowserPlanner(listOf(resolver)).lower(composition, spec, device, infos)
   }
 
   private fun compositionOf(
@@ -184,7 +210,10 @@ class BrowserOverlayPlanTest {
   private fun infosOf(composition: EditComposition): Map<MediaSource, MediaInfo> =
     composition.clips.associate { it.source to infoOf(OUTPUT_FRAME) }
 
-  private fun infoOf(size: Size): MediaInfo =
+  private fun infoOf(
+    size: Size,
+    transfer: HdrTransfer? = null,
+  ): MediaInfo =
     MediaInfo(
       duration = CLIP_LENGTH,
       video =
@@ -194,10 +223,10 @@ class BrowserOverlayPlanTest {
           rotationDegrees = 0,
           pixelAspectRatio = 1f,
           frameRate = 30f,
-          codec = trackCodecOf("avc1"),
-          bitDepth = 8,
-          colorSpace = ColorSpace.Bt709,
-          hdrTransfer = null,
+          codec = trackCodecOf(if (transfer == null) "avc1" else "vp09"),
+          bitDepth = if (transfer == null) 8 else 10,
+          colorSpace = if (transfer == null) ColorSpace.Bt709 else ColorSpace.Bt2020,
+          hdrTransfer = transfer,
           bitrate = null,
         ),
       audio = null,
@@ -221,6 +250,18 @@ class BrowserOverlayPlanTest {
         video = listOf(VideoEncoderCapability(VideoCodec.H264, null, Size(3840, 2160), null, null, false, 2)),
         audio = emptyList(),
         supportsHdrEncoding = false,
+        concurrentSessionBudget = null,
+      )
+
+    val HDR_SPEC = ExportSpec(audioCodec = AudioCodec.None, hdr = HdrMode.KeepHdr)
+    val HDR_DEVICE =
+      DeviceCapabilities(
+        video =
+          listOf(VideoCodec.H264, VideoCodec.Vp9).map {
+            VideoEncoderCapability(it, null, Size(3840, 2160), null, null, false, 2)
+          },
+        audio = emptyList(),
+        supportsHdrEncoding = true,
         concurrentSessionBudget = null,
       )
   }

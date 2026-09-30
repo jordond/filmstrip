@@ -61,7 +61,7 @@ internal class FfmpegPlanner(
 
   private val planner =
     ExportPlanner(
-      resolvers = resolvers,
+      resolvers = decodingOverlayPictures(resolvers, toolchain),
       renderCapabilities = { outputSize, encodesHdr ->
         renderCapabilities(toolchain, toneMapRoute, outputSize, encodesHdr)
       },

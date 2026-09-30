@@ -14,6 +14,9 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
+import dev.jordond.filmstrip.test.assumeDecodesTenBitHevc
+import dev.jordond.filmstrip.test.assumeEncodesHdr
+import dev.jordond.filmstrip.test.encodesHdr
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -53,7 +56,7 @@ class AndroidHdrTest {
       val source = probe.fixture(HDR_CLIP)
       // KeepHdr is documented to refuse instead of quietly tone-mapping, so a device with no HDR
       // encoder refusing is the contract holding. There is nothing left to measure after that.
-      if (!probe.encodesHdr()) {
+      if (!probe.filmstrip.encodesHdr()) {
         assertIs<Verdict.Incapable>(probe.filmstrip.plan(composition(source), spec(HdrMode.KeepHdr)))
         return@runTest
       }
@@ -82,7 +85,7 @@ class AndroidHdrTest {
       // Tone mapping still has to decode the HDR clip, which a device without a ten-bit decoder
       // cannot do at all. Every emulator image is one of those, so this reports skipped rather than
       // passing quietly and reading as covered.
-      probe.assumeDecodesTenBitHevc()
+      assumeDecodesTenBitHevc()
 
       val run = export(source, HdrMode.ToneMapToSdr)
       val written = assertNotNull(run.info.video, "the written file has no video track")
@@ -96,7 +99,7 @@ class AndroidHdrTest {
   fun reportsWhetherTheDeviceEncodesHdr() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture(HDR_CLIP)
-      probe.assumeEncodesHdr()
+      probe.filmstrip.assumeEncodesHdr()
       val kept = export(source, HdrMode.KeepHdr).info.video?.hdrTransfer != null
 
       // The plan's capability answer and what the encoder actually did, which are allowed to differ

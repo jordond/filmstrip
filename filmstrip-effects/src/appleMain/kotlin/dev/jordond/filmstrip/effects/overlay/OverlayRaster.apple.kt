@@ -89,17 +89,12 @@ import kotlin.math.roundToInt
  * Decodes this source into Core Image, or null when it cannot be read.
  *
  * Nothing is drawn here. A `CIImage` from a URL is a recipe, and the decode happens the first time
- * a context renders it. The source is read twice over, once through the colour space it names and
- * once with no colour management at all, and a frame picks which of the two it draws.
+ * a context renders it. The source is read with no colour management at all, as the codes it holds.
  */
-internal fun ImageSource.decode(): OverlayPixels? {
-  val managed = decoded(options = null) ?: return null
-  val codes = decoded(UNMANAGED) ?: return null
-  return OverlayPixels(managed, codes)
-}
+internal fun ImageSource.decode(): OverlayPixels? = decoded(UNMANAGED)?.let(::OverlayPixels)
 
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-private fun ImageSource.decoded(options: Map<Any?, *>?): CIImage? =
+private fun ImageSource.decoded(options: Map<Any?, *>): CIImage? =
   when (this) {
     is ImageSource.Path -> {
       CIImage.imageWithContentsOfURL(NSURL.fileURLWithPath(path), options)
@@ -201,8 +196,7 @@ internal fun rasterizeText(
 }
 
 /**
- * Renders the laid-out text into a bitmap and wraps it for Core Image, once as device RGB and once
- * as bare codes.
+ * Renders the laid-out text into a bitmap and wraps it for Core Image as bare codes.
  *
  * A bitmap context is already bottom-left with +Y up, which is the space CoreText draws in and the
  * space Core Image measures in, so nothing is flipped on the way through.
@@ -254,7 +248,7 @@ private fun draw(
   CGContextRelease(context)
   if (bitmap == null) return null
 
-  val pixels = OverlayPixels(CIImage.imageWithCGImage(bitmap), CIImage.imageWithCGImage(bitmap, UNMANAGED))
+  val pixels = OverlayPixels(CIImage.imageWithCGImage(bitmap, UNMANAGED))
   CGImageRelease(bitmap)
   return pixels
 }

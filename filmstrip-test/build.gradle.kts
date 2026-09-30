@@ -8,5 +8,9 @@ kotlin {
       api(projects.filmstripCore)
       implementation(kotlin("test"))
     }
+
+    androidMain.dependencies {
+      compileOnly(libs.junit)
+    }
   }
 }

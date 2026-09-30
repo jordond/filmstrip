@@ -2,7 +2,6 @@
 
 package dev.jordond.filmstrip.webcodecs
 
-import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
@@ -27,9 +26,12 @@ import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.authoredHdrNits
+import dev.jordond.filmstrip.media.hlgNitsFromScene
 import dev.jordond.filmstrip.media.linearDimGain
-import dev.jordond.filmstrip.transform.internal.hdrFillNits
-import dev.jordond.filmstrip.transform.internal.signalFromNits
+import dev.jordond.filmstrip.media.sceneFromHlgSignal
+import dev.jordond.filmstrip.media.signalFromNits
+import dev.jordond.filmstrip.test.encodesHdr
 import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
 import dev.jordond.filmstrip.webcodecs.internal.SourceReader
 import kotlinx.coroutines.await
@@ -59,7 +61,7 @@ class BrowserHdrTest {
   @Test
   fun aCroppedGradeKeepsItsCodesAndItsTag() =
     runTest {
-      if (!claimsHdr()) return@runTest
+      if (!filmstrip().encodesHdr()) return@runTest
 
       val bytes = makeHdrClip(HdrTransfer.Pq) { y -> if (y < HALF) DIM else BRIGHT }
       val success = exportOf(cropped(bytes), HdrTransfer.Pq)
@@ -89,9 +91,10 @@ class BrowserHdrTest {
   @Test
   fun saturationOnAPqGradeMixesTheChannelsTheSharedWay() = runTest { assertGraded(HdrTransfer.Pq, Saturation(MUTED)) }
 
-  // HLG reaches display light through the per channel opto-optical transfer here, the way media3
-  // and ffmpeg read it, so the same reference holds. The tolerance is wider because the transfer
-  // runs twice more on the way in and out than PQ's does.
+  // On HLG unpack runs the luminance driven opto-optical transfer to reach display light, and the
+  // grade reads the scene light back out of it, which is the light media3 and ffmpeg grade HLG on,
+  // so the same reference holds. The tolerance is wider because the transfer runs twice more on the
+  // way in and out than PQ's does.
   @Test
   fun contrastOnAnHlgGradeLandsWhereTheSharedReferenceSaysItShould() =
     runTest { assertGraded(HdrTransfer.Hlg, Contrast(STRETCHED), tolerance = HLG_NITS_TOLERANCE) }
@@ -101,12 +104,12 @@ class BrowserHdrTest {
     runTest { assertGraded(HdrTransfer.Hlg, Saturation(MUTED), tolerance = HLG_NITS_TOLERANCE) }
 
   // The fill is authored as sRGB and the bar has to carry the same light every other backend puts
-  // there. On HLG the pack pass runs the per channel inverse transfer while the shared answer runs
-  // the luminance one, so the clear colour is pre-distorted and this is what proves it.
+  // there. On HLG the pack pass runs the luminance driven inverse transfer the shared answer runs,
+  // and a purple fill is coloured enough to tell it from a per channel one.
   @Test
   fun aLetterboxBarCarriesTheFillsOwnSignalOnBothTransfers() =
     runTest {
-      if (!claimsHdr()) return@runTest
+      if (!filmstrip().encodesHdr()) return@runTest
 
       HdrTransfer.entries.forEach { transfer ->
         val success = exportOf(letterboxed(transfer, Fill.Solid(PURPLE_ARGB)), transfer)
@@ -116,7 +119,7 @@ class BrowserHdrTest {
             "the letterboxed export decoded no frames on $transfer",
           )
 
-        val expected = transfer.signalFromNits(hdrFillNits(PURPLE_ARGB))
+        val expected = transfer.signalFromNits(authoredHdrNits(PURPLE_ARGB))
         val (expectedLuma, expectedCb, expectedCr) = tenBitCodesFromSignal(expected)
         val (cb, cr) = frame.chromaAt(x = 0.5, y = BAR)
         assertNear(expectedLuma, frame.lumaAt(x = 0.5, y = BAR), LUMA_TOLERANCE, "$transfer bar luma")
@@ -131,7 +134,7 @@ class BrowserHdrTest {
   @Test
   fun aLateStartCarriesTheFillsOwnSignalThroughItsGapOnBothTransfers() =
     runTest {
-      if (!claimsHdr()) return@runTest
+      if (!filmstrip().encodesHdr()) return@runTest
 
       HdrTransfer.entries.forEach { transfer ->
         val bytes = makeHdrClip(transfer) { BRIGHT }
@@ -146,7 +149,7 @@ class BrowserHdrTest {
 
         val gap = frames.minBy { abs(it.timestampUs - startUs / 2) }
         assertTrue(gap.timestampUs < startUs, "the $transfer file has no frame in front of ${startUs}us")
-        val (fillLuma, fillCb, fillCr) = tenBitCodesFromSignal(transfer.signalFromNits(hdrFillNits(PURPLE_ARGB)))
+        val (fillLuma, fillCb, fillCr) = tenBitCodesFromSignal(transfer.signalFromNits(authoredHdrNits(PURPLE_ARGB)))
         val (gapCb, gapCr) = gap.chromaAt(x = 0.5, y = 0.5)
         assertNear(fillLuma, gap.lumaAt(x = 0.5, y = 0.5), LUMA_TOLERANCE, "$transfer gap luma")
         assertNear(fillCb, gapCb, CHROMA_TOLERANCE, "$transfer gap Cb")
@@ -165,7 +168,7 @@ class BrowserHdrTest {
   @Test
   fun aBlurredFillDimsTheBackgroundOfAGrade() =
     runTest {
-      if (!claimsHdr()) return@runTest
+      if (!filmstrip().encodesHdr()) return@runTest
 
       val bright = barLightOf(Fill.Blurred(dim = 0f))
       val dimmed = barLightOf(Fill.Blurred(dim = HALF_DIM))
@@ -177,6 +180,29 @@ class BrowserHdrTest {
         dimmed < bright * linearDimGain(HALF_DIM) * DIM_HEADROOM,
         "the bar dimmed to $dimmed nits from $bright, which is short of the ${linearDimGain(HALF_DIM)} gain",
       )
+    }
+
+  // A blur averages the buffer's light, which on HLG is the luminance driven display light unpack
+  // decodes to. A flat colour blurs to itself, and two row stripes of magenta and green blurred far
+  // past their period land on the mean of their two lights. The per channel transfer puts that mean
+  // somewhere else, which is checked to sit outside the tolerance before the read is held to it.
+  @Test
+  fun aBlurredFillOnHlgMixesItsColoursInDisplayLight() =
+    runTest {
+      if (!filmstrip().encodesHdr()) return@runTest
+
+      val flat = pillarBarCodesOf { MAGENTA }
+      assertCodes(hlgBlurCodesOf(MAGENTA, MAGENTA), flat, "the flat magenta bar")
+
+      val striped = pillarBarCodesOf { y -> if ((y / 2) % 2 == 0) MAGENTA else GREEN }
+      val mixed = hlgBlurCodesOf(MAGENTA, GREEN)
+      val perChannel = perChannelBlurCodesOf(MAGENTA, GREEN)
+      assertTrue(
+        abs(mixed[0] - perChannel[0]) > LUMA_TOLERANCE ||
+          (1..2).any { abs(mixed[it] - perChannel[it]) > CHROMA_TOLERANCE },
+        "the stripes mix to ${mixed.toList()} either way, so they pin nothing",
+      )
+      assertCodes(mixed, striped, "the striped bar, which a per channel mix puts at ${perChannel.toList()},")
     }
 
   // A source whose grade this backend cannot read is a different thing from a device with no HDR
@@ -200,7 +226,7 @@ class BrowserHdrTest {
     spec: EffectSpec,
     tolerance: Float = NITS_TOLERANCE,
   ) {
-    if (!claimsHdr()) return
+    if (!filmstrip().encodesHdr()) return
 
     val bytes = makeHdrClip(transfer) { COLOURED }
     val composition =
@@ -236,6 +262,73 @@ class BrowserHdrTest {
         "the blurred export decoded no frames",
       )
     return frame.nitsAt(x = 0.5, y = BAR)[1]
+  }
+
+  /**
+   * The ten-bit codes in the middle of the left bar of an HLG export whose blurred fill is a tall
+   * clip of [row], blurred wide enough that stripes a few rows apart spread into their mean.
+   */
+  private suspend fun pillarBarCodesOf(row: (y: Int) -> FloatArray): IntArray {
+    val filler = makeHdrClip(HdrTransfer.Hlg) { BRIGHT }
+    val tall = makeHdrClip(HdrTransfer.Hlg, width = HALF, frames = SHORT, row = row)
+    val composition =
+      EditComposition(
+        tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(filler)), Clip(MediaSource.Bytes(tall))))),
+        audio = AudioSpec.Remove,
+        fill = Fill.Blurred(radius = WIDE_BLUR),
+      )
+    val frame =
+      assertNotNull(
+        decodeTenBitFrames(outputOf(exportOf(composition, HdrTransfer.Hlg)), HdrTransfer.Hlg).lastOrNull(),
+        "the pillarboxed export decoded no frames",
+      )
+    val (cb, cr) = frame.chromaAt(x = PILLAR, y = 0.5)
+    return intArrayOf(frame.lumaAt(x = PILLAR, y = 0.5), cb, cr)
+  }
+
+  /**
+   * The codes an even blur of picture pixels [first] and [second] lands on when it averages the
+   * luminance driven display light unpack decodes them to.
+   */
+  private fun hlgBlurCodesOf(
+    first: FloatArray,
+    second: FloatArray,
+  ): IntArray {
+    val a = hlgBufferNitsOf(first)
+    val b = hlgBufferNitsOf(second)
+    return tenBitCodesFromSignal(HdrTransfer.Hlg.signalFromNits(FloatArray(3) { (a[it] + b[it]) / 2f }))
+  }
+
+  /**
+   * The same blur averaged in the light a per channel opto-optical transfer decodes to, which is
+   * where the buffer's light sat before unpack ran the luminance driven one.
+   */
+  private fun perChannelBlurCodesOf(
+    first: FloatArray,
+    second: FloatArray,
+  ): IntArray {
+    val a = HdrTransfer.Hlg.pictureSignalOf(first)
+    val b = HdrTransfer.Hlg.pictureSignalOf(second)
+    val mean =
+      FloatArray(3) {
+        (HdrTransfer.Hlg.displayNitsFromSignal(a[it]) + HdrTransfer.Hlg.displayNitsFromSignal(b[it])) / 2f
+      }
+    return tenBitCodesFromSignal(HdrTransfer.Hlg.pictureSignalOf(mean))
+  }
+
+  private fun hlgBufferNitsOf(nits: FloatArray): FloatArray {
+    val signal = HdrTransfer.Hlg.pictureSignalOf(nits)
+    return hlgNitsFromScene(FloatArray(3) { sceneFromHlgSignal(signal[it]) })
+  }
+
+  private fun assertCodes(
+    expected: IntArray,
+    read: IntArray,
+    what: String,
+  ) {
+    assertNear(expected[0], read[0], LUMA_TOLERANCE, "$what luma")
+    assertNear(expected[1], read[1], CHROMA_TOLERANCE, "$what Cb")
+    assertNear(expected[2], read[2], CHROMA_TOLERANCE, "$what Cr")
   }
 
   private fun cropped(bytes: ByteArray): EditComposition =
@@ -295,15 +388,6 @@ class BrowserHdrTest {
     }
   }
 
-  /**
-   * Whether this browser claims the HDR encode at all. Firefox and Safari answer differently, and a
-   * browser that cannot encode VP9 Profile 2 has nothing here to check.
-   */
-  private suspend fun claimsHdr(): Boolean {
-    val result = filmstrip().capabilities()
-    return assertIs<CapabilitiesResult.Success>(result).capabilities.supportsHdrEncoding
-  }
-
   private fun filmstrip(): Filmstrip = Filmstrip { webCodecsBackend() }
 
   private suspend fun exportOf(
@@ -357,7 +441,7 @@ class BrowserHdrTest {
     assertTrue(abs(expected - actual) <= allowed, "$what: expected $expected but was $actual")
   }
 
-  private companion object {
+  internal companion object {
     const val HALF = 32
     const val SHORT = 6
     const val BAR = 0.05
@@ -374,6 +458,16 @@ class BrowserHdrTest {
     val DIM = floatArrayOf(28f, 34f, 22f)
     val BRIGHT = floatArrayOf(240f, 205f, 275f)
     val COLOURED = floatArrayOf(120f, 180f, 75f)
+
+    // Saturated and far apart in hue, so a mix of the two in display light and one per channel
+    // land several codes apart.
+    val MAGENTA = floatArrayOf(250f, 20f, 250f)
+    val GREEN = floatArrayOf(20f, 250f, 20f)
+
+    // A sigma of six and a half pixels on the square output, which spreads four row stripes into
+    // their mean while the middle of the frame stays five sigma clear of its top and bottom.
+    const val WIDE_BLUR = 0.1f
+    const val PILLAR = 0.1
 
     // A 4:2:0 chroma plane is one sample per two by two block, so a code there carries four
     // pixels' worth of rounding on top of the encoder's own.

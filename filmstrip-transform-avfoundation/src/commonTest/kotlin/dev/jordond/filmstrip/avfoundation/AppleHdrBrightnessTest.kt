@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.color.brightness
@@ -12,6 +11,7 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.PQ_PEAK_NITS
 import dev.jordond.filmstrip.media.brightnessDisplayGain
+import dev.jordond.filmstrip.test.encodesHdr
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
@@ -47,7 +47,7 @@ class AppleHdrBrightnessTest {
   fun `a factor moves light by the display gamma rather than linearly`() =
     runTest(timeout = TIMEOUT) {
       val source = fixture() ?: return@runTest
-      if (!encodesHdr()) return@runTest
+      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
 
       val half = exportedLight(source, HALF)
       val quarter = exportedLight(source, QUARTER)
@@ -72,7 +72,7 @@ class AppleHdrBrightnessTest {
   fun `an HLG grade moves by the same gain a PQ one does`() =
     runTest(timeout = TIMEOUT) {
       val source = fixture(HLG_CLIP) ?: return@runTest
-      if (!encodesHdr()) return@runTest
+      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
 
       val half = exportedLight(source, HALF)
       val quarter = exportedLight(source, QUARTER)
@@ -94,7 +94,7 @@ class AppleHdrBrightnessTest {
   fun `brightening a kept grade adds light until the format runs out`() =
     runTest(timeout = TIMEOUT) {
       val source = fixture() ?: return@runTest
-      if (!encodesHdr()) return@runTest
+      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
 
       val lit = exportedLight(source, 1f)
       val brightened = exportedLight(source, BRIGHTER)
@@ -166,11 +166,6 @@ class AppleHdrBrightnessTest {
       assertTrue(it.isNotEmpty(), "every channel of the reference frame read as black, so nothing was measured")
     }
   }
-
-  private suspend fun encodesHdr(): Boolean =
-    withContext(Dispatchers.Default) {
-      (filmstrip.capabilities() as? CapabilitiesResult.Success)?.capabilities?.supportsHdrEncoding == true
-    }
 
   private fun fixture(clip: String = CLIP): String? {
     val directory = fixtures ?: return null

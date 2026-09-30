@@ -36,10 +36,12 @@ internal fun List<FilterNode>.render(): String = joinToString(",") { it.render()
 
 // Only Fill.Solid names a colour of its own. A gap or a plain pad has no frame to blur, so a
 // Fill.Blurred, and anything this backend does not recognise yet, falls back to black.
-internal fun fillColor(fill: Fill): String =
+internal fun fillColor(fill: Fill): String = renderColor(fillArgb(fill))
+
+internal fun fillArgb(fill: Fill): Int =
   when (fill) {
-    is Fill.Solid -> renderColor(fill.color)
-    else -> renderColor(BLACK)
+    is Fill.Solid -> fill.color
+    else -> BLACK
   }
 
 private fun renderColor(argb: Int): String = "0x" + (argb and 0xFFFFFF).toString(16).padStart(HEX_DIGITS, '0')

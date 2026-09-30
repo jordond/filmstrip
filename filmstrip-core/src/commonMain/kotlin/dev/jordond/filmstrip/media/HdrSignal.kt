@@ -253,6 +253,81 @@ public fun sceneFromHlgSignal(signal: Float): Float {
 private fun sqrt3(value: Double): Double = exp(ln(3.0 * value) / 2.0)
 
 /**
+ * Converts display light in cd/m2 to the scene light an HLG signal carries.
+ *
+ * HLG stores what the camera saw, not what the display emits, and an opto-optical transfer sits
+ * between the two. That transfer is driven by the colour's luminance rather than by each channel on
+ * its own, so a saturated colour does not come back from a per-channel power.
+ *
+ * Normalised against [HLG_NOMINAL_PEAK_NITS], so one is that peak.
+ *
+ * @param rgbNits Linear BT.2020 red, green and blue, as [authoredHdrNits] returns them.
+ */
+@InternalFilmstripApi
+public fun hlgSceneFromNits(rgbNits: FloatArray): FloatArray {
+  val display = FloatArray(3) { (rgbNits[it] / HLG_NOMINAL_PEAK_NITS).coerceAtLeast(0f) }
+  val luminance = BT2020_LUMA_R * display[0] + BT2020_LUMA_G * display[1] + BT2020_LUMA_B * display[2]
+  if (luminance <= 0f) return FloatArray(3)
+
+  // The system gamma raised the scene's luminance to reach the display's, so undoing it divides
+  // every channel by the same figure rather than reshaping the colour.
+  val divisor = luminance.toDouble().pow((HLG_SYSTEM_GAMMA - 1.0) / HLG_SYSTEM_GAMMA)
+
+  return FloatArray(3) { (display[it] / divisor).toFloat() }
+}
+
+/**
+ * Converts the scene light an HLG signal carries to display light in cd/m2, the inverse of
+ * [hlgSceneFromNits].
+ *
+ * The opto-optical transfer raises the scene's luminance by [HLG_SYSTEM_GAMMA] and scales every
+ * channel by the same figure to get there, so a saturated colour keeps its hue. A grey lands where
+ * [hlgDisplayNitsFromScene] puts each of its channels.
+ *
+ * @param rgbScene Linear BT.2020 red, green and blue scene light, normalised so one is
+ * [HLG_NOMINAL_PEAK_NITS].
+ */
+@InternalFilmstripApi
+public fun hlgNitsFromScene(rgbScene: FloatArray): FloatArray {
+  val scene = FloatArray(3) { rgbScene[it].coerceAtLeast(0f) }
+  val luminance = BT2020_LUMA_R * scene[0] + BT2020_LUMA_G * scene[1] + BT2020_LUMA_B * scene[2]
+  if (luminance <= 0f) return FloatArray(3)
+
+  val multiplier = luminance.toDouble().pow(HLG_SYSTEM_GAMMA - 1.0) * HLG_NOMINAL_PEAK_NITS
+
+  return FloatArray(3) { (scene[it] * multiplier).toFloat() }
+}
+
+/**
+ * Encodes display light in cd/m2 as an HLG signal, in the range zero to one.
+ *
+ * Runs the inverse opto-optical transfer and then the transfer function from ITU-R BT.2100.
+ *
+ * @param rgbNits Linear BT.2020 red, green and blue, as [authoredHdrNits] returns them.
+ */
+@InternalFilmstripApi
+public fun hlgSignalFromNits(rgbNits: FloatArray): FloatArray {
+  val scene = hlgSceneFromNits(rgbNits)
+
+  return FloatArray(3) { hlgSignalFromScene(scene[it]) }
+}
+
+/**
+ * Encodes linear light in cd/m2 for this transfer function, in the range zero to one.
+ *
+ * What a backend writing an encoded frame directly, rather than handing linear light to a pipeline
+ * of its own, puts in the pixel.
+ *
+ * @param rgbNits Linear BT.2020 red, green and blue, as [authoredHdrNits] returns them.
+ */
+@InternalFilmstripApi
+public fun HdrTransfer.signalFromNits(rgbNits: FloatArray): FloatArray =
+  when (this) {
+    HdrTransfer.Pq -> FloatArray(3) { pqSignalFromNits(rgbNits[it]) }
+    HdrTransfer.Hlg -> hlgSignalFromNits(rgbNits)
+  }
+
+/**
  * BT.2020's red luminance weight.
  *
  * The three weights sum to one and are what turn linear BT.2020 light into luminance, which is both

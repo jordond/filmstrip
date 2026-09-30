@@ -1,5 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg.internal
 
+import dev.jordond.filmstrip.effect.EffectResolver
+
 // Everything in this module that is not a pure function of its inputs lives behind this file.
 // Adding linuxX64 or mingwX64 means writing one more actual of it, not a second backend: the
 // version gate, the graph builder, the progress parser and the exit-code mapping are all common.
@@ -126,3 +128,16 @@ internal expect fun executableSuffixes(): List<String>
 // Resolves to an absolute path. Spawning a relative name searches the current directory first on
 // Windows, which is a way to run the wrong binary.
 internal expect fun absolutePathOf(path: String): String
+
+// The resolvers the planner lowers with, with the built-in catalogue handed a way to read an overlay
+// picture through [toolchain]'s ffmpeg, the binary that opens the same picture on an SDR grade. Only a
+// resolver that is exactly the built-in catalogue is swapped, since one wrapping it has no seam to reach.
+internal expect fun decodingOverlayPictures(
+  resolvers: List<EffectResolver>,
+  toolchain: Toolchain,
+): List<EffectResolver>
+
+// Runs [block] off the caller's thread and interrupts it when the caller is cancelled. The planner reads
+// overlay pictures through child processes from inside a blocking resolve, and the interrupt is what
+// stops them.
+internal expect suspend fun <T> interruptibly(block: () -> T): T

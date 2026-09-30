@@ -116,7 +116,6 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   // An overlay measures against the frame entering it, which is the clip's for a clip overlay and
   // the output's for a composition one.
   private fun ImageOverlay.toOverlay(attributes: Attributes): EffectResolution {
-    if (attributes.hdrTransfer != null) return EffectResolution.Unsupported(id, OVERLAYS_ON_HDR)
     if (image is ImageSource.Path) return EffectResolution.Unsupported(id, "${image.named()} $PATH_UNREADABLE")
     if (image !in images) return EffectResolution.Unsupported(id, "${image.named()} $NOT_PRELOADED")
     val bitmap = images[image] ?: return EffectResolution.Unsupported(id, "${image.named()} $UNDECODABLE")
@@ -132,7 +131,6 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     attributes: Attributes,
   ): EffectResolution {
     if (!capabilities.has(RenderFeature.TextRendering)) return EffectResolution.Unsupported(id, NO_TEXT_RENDERING)
-    if (attributes.hdrTransfer != null) return EffectResolution.Unsupported(id, OVERLAYS_ON_HDR)
     val raster =
       rasterizeText(text, style, attributes.layoutSize) ?: return EffectResolution.Unsupported(id, EMPTY_TEXT)
 
@@ -207,10 +205,6 @@ private const val RESIZING_PENDING =
 private const val PAN_PENDING =
   "A pan moves the region it shows on every frame, and a pass here carries one texture matrix " +
     "settled at resolve. A pass that moves it per frame has not landed on this backend yet."
-
-private const val OVERLAYS_ON_HDR =
-  "Overlays are not drawn on an HDR grade in the browser yet, since the backends do not agree on " +
-    "where overlay white lands in HDR."
 
 private const val PATH_UNREADABLE =
   "was named by a file path, which a browser cannot read. Pass it as bytes or a URI instead."

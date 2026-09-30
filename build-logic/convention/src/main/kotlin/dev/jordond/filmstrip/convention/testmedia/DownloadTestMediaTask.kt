@@ -58,7 +58,7 @@ abstract class DownloadTestMediaTask : DefaultTask() {
     Files.createDirectories(cacheDir.toPath())
 
     entries.forEach { entry ->
-      val cached = cacheDir.resolve("${entry.sha256}.mp4")
+      val cached = cacheDir.resolve("${entry.sha256}.${entry.extension}")
       if (!cached.holds(entry)) {
         runCatching { fetch(entry, cached) }.onFailure { error ->
           if (!cached.holds(entry)) throw error
@@ -76,7 +76,7 @@ abstract class DownloadTestMediaTask : DefaultTask() {
     entry: TestMediaEntry,
     target: File,
   ) {
-    val url = "${baseUrl.get()}/${TestMediaManifest.keyFor(entry.sha256)}"
+    val url = "${baseUrl.get()}/${TestMediaManifest.keyFor(entry)}"
 
     logger.lifecycle("fetching ${entry.fileName}")
     target.replaceWith { partial ->

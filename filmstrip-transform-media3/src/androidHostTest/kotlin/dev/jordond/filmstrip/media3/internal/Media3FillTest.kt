@@ -3,8 +3,8 @@ package dev.jordond.filmstrip.media3.internal
 import dev.jordond.filmstrip.effects.MEDIA3_HDR_PEAK_NITS
 import dev.jordond.filmstrip.media.HDR_REFERENCE_WHITE_NITS
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.transform.internal.hdrFillNits
-import dev.jordond.filmstrip.transform.internal.hlgSceneFromNits
+import dev.jordond.filmstrip.media.authoredHdrNits
+import dev.jordond.filmstrip.media.hlgSceneFromNits
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -34,7 +34,7 @@ class Media3FillTest {
 
   @Test
   fun `an hlg fill is the scene light the shared conversion gives for it`() {
-    val expected = hlgSceneFromNits(hdrFillNits(WHITE))
+    val expected = hlgSceneFromNits(authoredHdrNits(WHITE))
     val components = fillComponents(WHITE, HdrTransfer.Hlg)
 
     components.forEachIndexed { index, channel -> channel shouldBeNear expected[index] }

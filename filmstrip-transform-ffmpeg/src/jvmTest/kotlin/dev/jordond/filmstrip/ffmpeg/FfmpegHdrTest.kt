@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.ffmpeg
 
-import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.geometry.rotate
 import dev.jordond.filmstrip.export.ExportPath
@@ -44,9 +43,7 @@ class FfmpegHdrTest {
   @Test
   fun `keeps an hdr grade through a re-encode`() =
     runTest(timeout = TIMEOUT) {
-      if (!fixture.available()) return@runTest
-      val capabilities = assertIs<CapabilitiesResult.Success>(fixture.filmstrip.capabilities()).capabilities
-      if (!capabilities.supportsHdrEncoding) return@runTest
+      if (!fixture.encodesHdr()) return@runTest
 
       val output = File.createTempFile("filmstrip-hdr", ".mp4").also { it.delete() }
       // A rotate takes the clip off the copy path, so this is the encoder writing the grade rather

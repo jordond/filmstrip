@@ -20,6 +20,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.InputSource
 import dev.jordond.filmstrip.ffmpeg.internal.Invocation
 import dev.jordond.filmstrip.ffmpeg.internal.Toolchain
 import dev.jordond.filmstrip.ffmpeg.internal.arguments
+import dev.jordond.filmstrip.ffmpeg.internal.ffmpegTag
 import dev.jordond.filmstrip.ffmpeg.internal.formatSeconds
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
@@ -28,10 +29,13 @@ import dev.jordond.filmstrip.internal.outputSlotOf
 import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
+import dev.jordond.filmstrip.media.authoredHdrNits
+import dev.jordond.filmstrip.media.signalFromNits
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.transform.internal.NegotiatedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
@@ -42,6 +46,7 @@ import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.backgroundGain
 import dev.jordond.filmstrip.transform.internal.passesCovering
 import dev.jordond.filmstrip.transform.internal.sigmaFor
+import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -198,6 +203,60 @@ class GraphLoweringTest {
       effectIndex in 0 until overlayIndex,
       "the composition effect ran at $effectIndex, the overlay at $overlayIndex",
     )
+  }
+
+  // A pad colour is eight-bit sRGB drawn through the filter's own matrix, so on a kept grade the bars and the gap stay
+  // empty and the flatten writes the codes the shared HDR light puts the colour at, with no effect asking for it.
+  @Test
+  fun `a kept grade defers a solid fill onto the codes the shared HDR light puts it at`() {
+    val colour = 0xFF308020.toInt()
+    for (transfer in HdrTransfer.entries) {
+      val graph = graphFor(fill = Fill.Solid(colour), trackStart = 500.milliseconds, hdrTransfer = transfer)
+      val (luma, cb, cr) = tenBitCodesFromSignal(transfer.signalFromNits(authoredHdrNits(colour)))
+
+      graph shouldContain "pad=w=1920:h=1080:x=(ow-iw)/2:y=(oh-ih)/2:color=black@0"
+      graph shouldContain "tpad=start=${outputSlotOf(500.milliseconds, 30)}:color=black@0"
+      graph shouldContain "format=pix_fmts=yuv420p10le,lutyuv=y=$luma:u=$cb:v=$cr"
+      graph shouldContain "overlay=shortest=1"
+      graph shouldNotContain "0x308020"
+    }
+  }
+
+  // The fill is flat, so its codes are written into one frame and that frame is looped, rather than converting and
+  // re-reading a table on every frame the flatten pulls.
+  @Test
+  fun `a kept grade writes the fill's codes once and loops that frame`() {
+    val colour = 0xFF308020.toInt()
+    for (transfer in HdrTransfer.entries) {
+      val graph = graphFor(fill = Fill.Solid(colour), trackStart = 500.milliseconds, hdrTransfer = transfer)
+      val (luma, cb, cr) = tenBitCodesFromSignal(transfer.signalFromNits(authoredHdrNits(colour)))
+      val grade = "setparams=color_primaries=bt2020:color_trc=${transfer.ffmpegTag}:colorspace=bt2020nc"
+
+      graph shouldContain
+        "color=s=1920x1080:r=30,trim=end_frame=1,format=pix_fmts=yuv420p10le,lutyuv=y=$luma:u=$cb:v=$cr," +
+        "$grade,loop=loop=-1:size=1[vbg]"
+      graph.split("lutyuv").size shouldBe 2
+    }
+  }
+
+  // concat writes microseconds, so a lead padded after it steps a rounded slot per frame. The deferred fill's flatten
+  // stops on the picture's last frame, and one stamped early there loses the final slot.
+  @Test
+  fun `a deferred fill restamps joined clips onto the output frame grid ahead of the lead`() {
+    for (transfer in HdrTransfer.entries) {
+      val graph = graphFor(fill = Fill.Solid(0), trackStart = 500.milliseconds, hdrTransfer = transfer, passes = 2)
+
+      graph shouldContain "[v0][v1]concat=n=2:v=1:a=0,settb=expr=1/30[vcat];[vcat]tpad=start="
+    }
+  }
+
+  // Nothing drops a slot when the fill is painted straight in, but the drift would still reach the written timestamps.
+  @Test
+  fun `a fill painted straight in restamps joined clips onto the output frame grid ahead of the lead`() {
+    val graph = graphFor(fill = Fill.Solid(0), trackStart = 500.milliseconds, passes = 2)
+
+    graph shouldContain "[v0][v1]concat=n=2:v=1:a=0,settb=expr=1/30[vcat];[vcat]tpad=start="
+    graph shouldNotContain "shortest=1"
   }
 
   // A gap has no frame to blur either way, so it defers the same colour a solid fill would, even
@@ -725,6 +784,177 @@ class GraphLoweringTest {
     graph shouldContain "[vfx0a0]overlay=x=0:y=0[vfx0]"
   }
 
+  // Pinned against the graph the lowering wrote before fragments could crop or run nodes after their
+  // merge, at both places a fragment is lowered, with and without a merge.
+  @Test
+  fun `a fragment with no crop and nothing after its merge lowers as it always has`() {
+    val effects = listOf(compositionEffect(), chainedOverlay())
+
+    val graph = invocationFor(fill = Fill.Solid(0), compositionEffects = effects, clipEffects = effects).filterGraph
+
+    graph shouldBe
+      listOf(
+        "[0:v]trim=start=0.000000:end=2.000000,setpts=expr=PTS-STARTPTS,eq=brightness=0.1,eq=contrast=1.2[v0m0pre]",
+        "[1:v]setpts=expr=PTS-STARTPTS[v0m0a0]",
+        "[v0m0pre][v0m0a0]overlay=x=0:y=0[v0m0]",
+        "[v0m0]scale=w=1920:h=1080:force_original_aspect_ratio=decrease," +
+          "pad=w=1920:h=1080:x=(ow-iw)/2:y=(oh-ih)/2:color=black@0,setsar=r=1," +
+          "setpts=expr=PTS+eq(PTS\\,PREV_INPTS)/(30*TB),fps=fps=30,tpad=stop_mode=clone:stop=2," +
+          "trim=end_frame=60,setpts=expr=PTS-STARTPTS,format=pix_fmts=yuva420p[v0]",
+        "[v0]eq=brightness=0.1[vfx0]",
+        "color=c=0x000000:s=1920x1080:r=30[vbg]",
+        "[vbg][vfx0]overlay=shortest=1:format=auto,format=pix_fmts=yuv420p[vflat]",
+        "[vflat]eq=contrast=1.2[vfx1pre]",
+        "[2:v]setpts=expr=PTS-STARTPTS[vfx1a0]",
+        "[vfx1pre][vfx1a0]overlay=x=0:y=0[vfx1]",
+        "[vfx1]trim=end=2.000000,setpts=expr=PTS-STARTPTS[vout]",
+      ).joinToString(";")
+  }
+
+  @Test
+  fun `a composition fragment with a crop works on the region and lays it back where it was cut`() {
+    val graph = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(croppedOverlay()))
+
+    graph.shouldContainInOrder(
+      "split=2[vfx0base][vfx0crop]",
+      "[vfx0crop]crop=w=400:h=200:x=100:y=50:exact=1,format=pix_fmts=gbrpf32le[vfx0pre]",
+      "[1:v]setpts=expr=PTS-STARTPTS[vfx0a0]",
+      "[vfx0pre][vfx0a0]overlay=x=0:y=0,format=pix_fmts=yuv420p[vfx0fx]",
+      "[vfx0base][vfx0fx]overlay=x=100:y=50:format=auto[vfx0]",
+    )
+  }
+
+  @Test
+  fun `a clip fragment with a crop flushes what is waiting onto the pad it splits`() {
+    val graph = invocationFor(fill = Fill.Solid(0), clipEffects = listOf(croppedOverlay())).filterGraph
+
+    graph.shouldContainInOrder(
+      "[0:v]trim=start=0.000000:end=2.000000,setpts=expr=PTS-STARTPTS[v0m0in]",
+      "[v0m0in]split=2[v0m0base][v0m0crop]",
+      "[v0m0crop]crop=w=400:h=200:x=100:y=50:exact=1,format=pix_fmts=gbrpf32le[v0m0pre]",
+      "[1:v]setpts=expr=PTS-STARTPTS[v0m0a0]",
+      "[v0m0pre][v0m0a0]overlay=x=0:y=0,format=pix_fmts=yuv420p[v0m0fx]",
+      "[v0m0base][v0m0fx]overlay=x=100:y=50:format=auto[v0m0]",
+      "[v0m0]scale=",
+    )
+  }
+
+  @Test
+  fun `the region a fragment crops is smaller than the frame`() {
+    val output = Size(1920, 1080)
+
+    val graph = graphFor(fill = Fill.Solid(0), output = output, compositionEffects = listOf(croppedOverlay()))
+
+    val (width, height) = checkNotNull(Regex("crop=w=(\\d+):h=(\\d+)").find(graph)).destructured
+    assertTrue(width.toInt() < output.width && height.toInt() < output.height, "crop ${width}x$height")
+  }
+
+  @Test
+  fun `a crop naming no position is laid back centred`() {
+    val crop = FilterNode("crop", "w" to "64", "h" to "64")
+    val centred = fragmentEffect(FilterFragment(chain = listOf(FilterNode("negate")), crop = crop))
+
+    val graph = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(centred))
+
+    graph shouldContain
+      "[vfx0crop]crop=w=64:h=64:x=2*floor(((in_w-out_w)/2)/2):y=2*floor(((in_h-out_h)/2)/2):exact=1,negate[vfx0fx]"
+    graph shouldContain
+      "[vfx0base][vfx0fx]overlay=x=2*floor(((W-w)/2)/2):y=2*floor(((H-h)/2)/2):format=auto[vfx0]"
+  }
+
+  @Test
+  fun `a crop is made exact so it cuts where the recombine lays the region back`() {
+    val graph = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(croppedOverlay()))
+
+    graph shouldContain "[vfx0crop]crop=w=400:h=200:x=100:y=50:exact=1,"
+    graph shouldContain "[vfx0base][vfx0fx]overlay=x=100:y=50:format=auto[vfx0]"
+  }
+
+  @Test
+  fun `a crop that already says whether it is exact is left as given`() {
+    val crop = FilterNode("crop", "w" to "64", "h" to "64", "x" to "8", "y" to "4", "exact" to "0")
+    val given = fragmentEffect(FilterFragment(chain = listOf(FilterNode("negate")), crop = crop))
+
+    val graph = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(given))
+
+    graph shouldContain "[vfx0crop]crop=w=64:h=64:x=8:y=4:exact=0,negate[vfx0fx]"
+    graph shouldNotContain "exact=1"
+  }
+
+  @Test
+  fun `an odd crop position is moved onto the even pixel both filters agree on`() {
+    val crop = FilterNode("crop", "w" to "20", "h" to "20", "x" to "11", "y" to "13")
+    val odd = fragmentEffect(FilterFragment(chain = listOf(FilterNode("negate")), crop = crop))
+    val expression = FilterNode("crop", "w" to "20", "h" to "20", "x" to "7+t", "y" to "5")
+    val computed = fragmentEffect(FilterFragment(chain = listOf(FilterNode("negate")), crop = expression))
+
+    val graph = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(odd, computed))
+
+    graph shouldContain "[vfx0crop]crop=w=20:h=20:x=10:y=12:exact=1,negate[vfx0fx]"
+    graph shouldContain "[vfx0base][vfx0fx]overlay=x=10:y=12:format=auto[vfx0]"
+    graph shouldContain "[vfx1crop]crop=w=20:h=20:x=2*floor((7+t)/2):y=4:exact=1,negate[vfx1fx]"
+    graph shouldContain "[vfx1base][vfx1fx]overlay=x=2*floor((7+t)/2):y=4:format=auto[vfx1]"
+  }
+
+  @Test
+  fun `post runs after the merge, or after the chain when there is none`() {
+    val merging =
+      fragmentEffect(
+        FilterFragment(
+          auxInputs = listOf(AuxInput(ImageSource.of("/logo.png"))),
+          merge = FilterNode("overlay", "x" to "0", "y" to "0"),
+          post = listOf(FilterNode("format", "pix_fmts" to "yuv420p")),
+        ),
+      )
+    val chained =
+      fragmentEffect(FilterFragment(chain = listOf(FilterNode("negate")), post = listOf(FilterNode("hflip"))))
+
+    val composition = graphFor(fill = Fill.Solid(0), compositionEffects = listOf(merging, chained))
+    val clip = invocationFor(fill = Fill.Solid(0), clipEffects = listOf(chained, merging)).filterGraph
+
+    composition shouldContain "[vfx0a0]overlay=x=0:y=0,format=pix_fmts=yuv420p[vfx0]"
+    composition shouldContain "[vfx0]negate,hflip[vfx1]"
+    clip shouldContain "setpts=expr=PTS-STARTPTS,negate,hflip[v0m0pre]"
+    clip shouldContain "[v0m0pre][v0m0a0]overlay=x=0:y=0,format=pix_fmts=yuv420p[v0m0]"
+  }
+
+  private fun String.shouldContainInOrder(vararg parts: String) {
+    var from = 0
+    parts.forEach { part ->
+      val at = indexOf(part, from)
+      assertTrue(at >= 0, "expected \"$part\" after index $from in $this")
+      from = at + part.length
+    }
+  }
+
+  private fun croppedOverlay(): ResolvedEffect =
+    fragmentEffect(
+      FilterFragment(
+        chain = listOf(FilterNode("format", "pix_fmts" to "gbrpf32le")),
+        auxInputs = listOf(AuxInput(ImageSource.of("/logo.png"))),
+        merge = FilterNode("overlay", "x" to "0", "y" to "0"),
+        crop = FilterNode("crop", "w" to "400", "h" to "200", "x" to "100", "y" to "50"),
+        post = listOf(FilterNode("format", "pix_fmts" to "yuv420p")),
+      ),
+    )
+
+  private fun fragmentEffect(fragment: FilterFragment): ResolvedEffect =
+    ResolvedEffect(specId = "test.fragment", effect = PlatformEffect(fragment), stage = EffectStage.Composite)
+
+  private fun chainedOverlay(): ResolvedEffect =
+    ResolvedEffect(
+      specId = "test.chained",
+      effect =
+        PlatformEffect(
+          FilterFragment(
+            chain = listOf(FilterNode("eq", "contrast" to "1.2")),
+            auxInputs = listOf(AuxInput(ImageSource.of("/logo.png"))),
+            merge = FilterNode("overlay", "x" to "0", "y" to "0"),
+          ),
+        ),
+      stage = EffectStage.Composite,
+    )
+
   private fun compositionEffect(): ResolvedEffect =
     ResolvedEffect(
       specId = "test.brightness",
@@ -764,7 +994,11 @@ class GraphLoweringTest {
     output: Size = Size(1920, 1080),
     trackStart: Duration = Duration.ZERO,
     compositionEffects: List<ResolvedEffect> = emptyList(),
-  ): String = invocationFor(fill, fit, output, trackStart, compositionEffects).filterGraph
+    hdrTransfer: HdrTransfer? = null,
+    passes: Int = 1,
+  ): String =
+    invocationFor(fill, fit, output, trackStart, compositionEffects, hdrTransfer = hdrTransfer, passes = passes)
+      .filterGraph
 
   private fun invocationFor(
     fill: Fill,
@@ -773,6 +1007,8 @@ class GraphLoweringTest {
     trackStart: Duration = Duration.ZERO,
     compositionEffects: List<ResolvedEffect> = emptyList(),
     clipEffects: List<ResolvedEffect> = emptyList(),
+    hdrTransfer: HdrTransfer? = null,
+    passes: Int = 1,
   ): Invocation {
     val duration = 2.seconds
     val info =
@@ -794,20 +1030,22 @@ class GraphLoweringTest {
         audio = null,
         isExportable = true,
       )
-    val clip =
-      ResolvedClip(
-        source = source,
-        info = info,
-        start = Duration.ZERO,
-        end = duration,
-        effects = clipEffects,
-        gain = ResolvedGain.constant(1f, Duration.ZERO, duration),
-        startsAtKeyFrame = false,
-        span = TimeRange.of(trackStart, trackStart + duration),
-        sourceIndex = 0,
-      )
-    val track =
-      ResolvedTrack(content = TrackContent.Video, looping = false, start = trackStart, clips = listOf(clip))
+    val clips =
+      List(passes) { pass ->
+        val opens = trackStart + duration * pass
+        ResolvedClip(
+          source = source,
+          info = info,
+          start = Duration.ZERO,
+          end = duration,
+          effects = clipEffects,
+          gain = ResolvedGain.constant(1f, Duration.ZERO, duration),
+          startsAtKeyFrame = false,
+          span = TimeRange.of(opens, opens + duration),
+          sourceIndex = pass,
+        )
+      }
+    val track = ResolvedTrack(content = TrackContent.Video, looping = false, start = trackStart, clips = clips)
     val negotiated =
       NegotiatedComposition(
         tracks = listOf(track),
@@ -828,14 +1066,14 @@ class GraphLoweringTest {
         fill = fill,
         duration = track.duration,
         hdr = ResolvedHdr.Keep,
-        hdrTransfer = null,
+        hdrTransfer = hdrTransfer,
         path = ExportPath.Transcode,
         audio = AudioSpec.Keep,
         adjustments = emptyList(),
         encoderName = "libx264",
       )
 
-    return GraphLowering(negotiated, toneMapRoute = null, hdrPixelFormat = null).build()
+    return GraphLowering(negotiated, toneMapRoute = null, hdrPixelFormat = hdrTransfer?.let { "yuv420p10le" }).build()
   }
 
   /**

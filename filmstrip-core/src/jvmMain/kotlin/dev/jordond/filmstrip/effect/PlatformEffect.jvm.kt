@@ -26,13 +26,26 @@ public actual class PlatformEffect(
  * [auxInputs] are prepared by their own chains and then consumed by a single [merge] node that
  * takes the main pad plus each of them.
  *
+ * A fragment that only touches part of the frame names a [crop]. Everything else then runs on the
+ * cropped region, and the result is laid back over the full frame where the crop took it from.
+ * Nodes that must run after the merge go in [post].
+ *
  * @property chain Nodes applied in order to the pad this effect receives.
  * @property auxInputs Extra inputs this effect needs, each with its own preparation chain.
  * @property merge The node that consumes the main pad and every [auxInputs] entry, producing one
- *   pad. Null when there is nothing to merge.
+ * pad. Null when there is nothing to merge.
  * @property sidecars Files this effect needs on disk before the graph runs. A node references one
  * by writing its [Sidecar.placeholder] where the path belongs, and the backend swaps in the path it
  * wrote the bytes to.
+ * @property crop The node that cuts the region this effect works on out of a copy of the pad it
+ * receives. [chain], [merge] and [post] run on that region, which is then overlaid back onto the
+ * uncropped pad at the position it was cut from. Null to work on the whole pad.
+ * The region is laid back with an `overlay`, so a worked region that carries alpha is blended over
+ * the original by it rather than replacing it. A region meant to replace the pixels it was cut from
+ * has to come out opaque.
+ * @property post Nodes applied in order to the pad [merge] produces, or to the [chain]'s output
+ * when there is no [merge]. With a [crop], the last of them writes the region the `overlay` lays
+ * back, so the alpha it leaves on that region is what the blend reads.
  */
 @Poko
 public class FilterFragment(
@@ -40,6 +53,8 @@ public class FilterFragment(
   public val auxInputs: List<AuxInput> = emptyList(),
   public val merge: FilterNode? = null,
   public val sidecars: List<Sidecar> = emptyList(),
+  public val crop: FilterNode? = null,
+  public val post: List<FilterNode> = emptyList(),
 )
 
 /**

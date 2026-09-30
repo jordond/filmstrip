@@ -1,10 +1,9 @@
 package dev.jordond.filmstrip.playback
 
-import android.media.MediaCodecInfo
-import android.media.MediaCodecList
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.view.Display
+import androidx.media3.effect.TextureOverlay
 import androidx.media3.transformer.Composition
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
@@ -12,9 +11,16 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.effects.media3WorkingLight
+import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.export.AdjustmentKind
+import dev.jordond.filmstrip.geometry.Corner
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.media.authoredHdrNits
 import dev.jordond.filmstrip.media3.internal.toMedia3Preview
 import dev.jordond.filmstrip.media3.media3Backend
 import dev.jordond.filmstrip.playback.internal.Media3PlanResult
@@ -23,6 +29,10 @@ import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.PlayerFeature
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
+import dev.jordond.filmstrip.test.OverlayPixels.pngOf
+import dev.jordond.filmstrip.test.assumeDecodesTenBitHevc
+import dev.jordond.filmstrip.test.assumeEncodesHdr
+import dev.jordond.filmstrip.test.writeAtomically
 import dev.jordond.filmstrip.transform.internal.ResolvedHdr
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -76,6 +86,43 @@ class AndroidHdrPreviewTest {
       }
     }
 
+  // The preview lowers through the resolver an export does, so an overlay on the kept grade carries
+  // the same mapped texels at the same luminance multiplier and reports the same way. A preview
+  // readback of HDR levels does not exist, so the export suite reads the levels and this reads the
+  // lowering they come from.
+  @Test
+  fun anOverlayOnTheKeptGradeIsMappedTheWayAnExportMapsIt() =
+    runTest(timeout = TIMEOUT) {
+      realTime {
+        // An overlay rules out a copy, so the grade is only kept where it can be encoded. Without an
+        // HDR encoder an export of this composition tone maps and the preview lowers the same way,
+        // which leaves no kept grade to test.
+        Filmstrip(context) { media3Backend() }.assumeEncodesHdr()
+
+        val mark = ImageOverlay(ImageSource.Bytes(pngOf(Size(MARK_PX, MARK_PX), WHITE)), Corner.BottomEnd)
+        val composition = EditComposition(listOf(Track(listOf(Clip(hdrClip())))), listOf(mark))
+
+        val planned = Media3PreviewPlanner(CONTRACT_COMPONENTS).plan(composition, PreviewQualityPolicy.Full)
+        val resolved = assertIs<Media3PlanResult.Ready>(planned).plan.resolved
+
+        assertEquals(ResolvedHdr.Keep, resolved.hdr, "the preview lowering tone mapped an HDR source")
+        assertTrue(
+          resolved.adjustments.none { it.kind == AdjustmentKind.EffectApproximated },
+          "an overlay on the PQ preview was reported as approximated: ${resolved.adjustments}",
+        )
+        val overlay =
+          resolved.compositionEffects
+            .map { it.effect.handle }
+            .filterIsInstance<TextureOverlay>()
+            .single()
+        assertEquals(
+          media3WorkingLight(authoredHdrNits(WHITE), HdrTransfer.Pq).max(),
+          overlay.getOverlaySettings(0L).hdrLuminanceMultiplier,
+          "the preview's overlay is not drawn at the multiplier its texels were mapped against",
+        )
+      }
+    }
+
   @Test
   fun anHdrCompositionReachesARealSurfaceAndTheSystemSaysWhatItDidWithIt() =
     runTest(timeout = TIMEOUT) {
@@ -89,7 +136,7 @@ class AndroidHdrPreviewTest {
         // A device that cannot decode the fixture has nothing here to measure, so the run is
         // recorded as skipped rather than passed, which would read as covered. Every emulator image
         // is one of these.
-        assumeTrue("this device has no ten-bit HEVC decoder", decodesTenBitHevc())
+        assumeDecodesTenBitHevc()
 
         var panelShowsHdr = false
         val readings =
@@ -216,22 +263,12 @@ class AndroidHdrPreviewTest {
     if (!file.exists()) {
       val loader = javaClass.classLoader ?: fail("the test APK has no class loader")
       val stream = loader.getResourceAsStream(HDR_CLIP) ?: fail("$HDR_CLIP was not packaged into the test APK")
-      stream.use { input -> file.outputStream().use(input::copyTo) }
+      stream.use { input -> file.writeAtomically { input.copyTo(it) } }
     }
     return MediaSource.of(file.path)
   }
 
   private fun hdrComposition(): EditComposition = EditComposition(listOf(Track(listOf(Clip(hdrClip())))))
-
-  /**
-   * Whether this device has a decoder for the ten-bit HEVC the fixture is written in.
-   */
-  private fun decodesTenBitHevc(): Boolean =
-    MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.any { codec ->
-      !codec.isEncoder &&
-        codec.supportedTypes.any { it.equals(HEVC_MIME, ignoreCase = true) } &&
-        codec.getCapabilitiesForType(HEVC_MIME).profileLevels.any { it.profile in TEN_BIT_HEVC_PROFILES }
-    }
 
   private companion object {
     val TIMEOUT: Duration = 5.minutes
@@ -242,20 +279,13 @@ class AndroidHdrPreviewTest {
     const val SDR_HEADROOM = 1f
 
     const val HDR_CLIP = "android_export_hdr.mp4"
+    const val WHITE = 0xFFFFFFFF.toInt()
+    const val MARK_PX = 16
     const val PACKAGE = "dev.jordond.filmstrip.playback"
     const val LAYER_CONTEXT = 12
     const val LOG_TAIL = 4000
     const val LOG_LINES = 60
     const val READING_MARKER = "===== filmstrip hdr preview readings ====="
-
-    const val HEVC_MIME = "video/hevc"
-
-    val TEN_BIT_HEVC_PROFILES =
-      setOf(
-        MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10,
-        MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10,
-        MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10Plus,
-      )
 
     val DISPLAY_KEYS = listOf("mHdr", "hdrSdrRatio", "isForceSdr", "mSupportedHdrTypes")
     val LOG_KEYS = listOf("CCodec", "MediaCodecInfo", "VideoFrameProcessor", "ColorInfo", "ataspace")

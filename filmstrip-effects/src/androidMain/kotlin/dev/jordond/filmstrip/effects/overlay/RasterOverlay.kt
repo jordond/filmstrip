@@ -47,6 +47,8 @@ import androidx.media3.effect.TextOverlay as Media3TextOverlay
  *   resizes from.
  * @property raster [bitmap]'s own pixel size, which media3's scale is a multiplier on.
  * @property run The composition time range the overlay is drawn over, from `runWithin`.
+ * @property hdrLuminance The multiplier media3 reads [bitmap] through on an HDR frame, the one
+ *   [rasterFor] mapped its texels against.
  */
 internal class RasterOverlay(
   private val bitmap: Bitmap,
@@ -54,10 +56,11 @@ internal class RasterOverlay(
   private val placement: OverlayPlacement,
   private val raster: Size,
   private val run: TimeRange,
+  private val hdrLuminance: Float = OverlaySettings.DEFAULT_HDR_LUMINANCE_MULTIPLIER,
 ) : Media3TextOverlay() {
-  private val visible: StaticOverlaySettings = placement.toOverlaySettings(raster, 1f)
+  private val visible: StaticOverlaySettings = placement.toOverlaySettings(raster, 1f, hdrLuminance)
   private val hidden: StaticOverlaySettings = visible.hidden()
-  private val animated = AnimatedOverlaySettings()
+  private val animated = AnimatedOverlaySettings(hdrLuminance)
 
   private var sampledAt: Long = UNSAMPLED
   private var sampled: OverlaySettings = visible

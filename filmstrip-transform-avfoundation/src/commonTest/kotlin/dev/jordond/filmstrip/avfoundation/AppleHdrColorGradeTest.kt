@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.compositionOf
@@ -22,6 +21,7 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.PQ_PEAK_NITS
+import dev.jordond.filmstrip.test.encodesHdr
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
@@ -58,7 +58,7 @@ class AppleHdrColorGradeTest {
   fun `a contrast on a PQ grade pivots where the shared reading says`() =
     runTest(timeout = TIMEOUT) {
       val source = fixture() ?: return@runTest
-      if (!encodesHdr()) return@runTest
+      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
 
       val lit = exportedLight(source) { contrast(1f) }
       val graded = exportedLight(source) { contrast(SOFTER) }
@@ -82,7 +82,7 @@ class AppleHdrColorGradeTest {
   fun `a saturation on a PQ grade mixes what the shared reading says`() =
     runTest(timeout = TIMEOUT) {
       val source = fixture() ?: return@runTest
-      if (!encodesHdr()) return@runTest
+      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
 
       val lit = exportedLight(source) { saturation(1f) }
       val graded = exportedLight(source) { saturation(MUTED) }
@@ -100,7 +100,7 @@ class AppleHdrColorGradeTest {
   fun `an HLG grade lands where the shared reading says`() =
     runTest(timeout = TIMEOUT) {
       val source = fixture(HLG_CLIP) ?: return@runTest
-      if (!encodesHdr()) return@runTest
+      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
 
       val lit = exportedLight(source) { contrast(1f) }
       val graded = exportedLight(source) { contrast(SOFTER).saturation(MUTED) }
@@ -119,7 +119,7 @@ class AppleHdrColorGradeTest {
   fun `a channel pushed past the peak lands on the format's ceiling`() =
     runTest(timeout = TIMEOUT) {
       val source = fixture() ?: return@runTest
-      if (!encodesHdr()) return@runTest
+      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
 
       val lit = exportedLight(source) { contrast(1f) }
       val graded = exportedLight(source) { contrast(HARSH) }
@@ -199,11 +199,6 @@ class AppleHdrColorGradeTest {
   private fun matrixOf(vararg specs: EffectSpec): ColorMatrix =
     specs.fold(ColorMatrix.Identity) { folded, spec ->
       folded.then(checkNotNull(colorMatrixOf(spec)) { "${spec.id} is not a colour matrix" })
-    }
-
-  private suspend fun encodesHdr(): Boolean =
-    withContext(Dispatchers.Default) {
-      (filmstrip.capabilities() as? CapabilitiesResult.Success)?.capabilities?.supportsHdrEncoding == true
     }
 
   private fun fixture(clip: String = CLIP): String? {

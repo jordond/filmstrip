@@ -17,6 +17,8 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
+import dev.jordond.filmstrip.test.assumeDecodesTenBitHevc
+import dev.jordond.filmstrip.test.assumeEncodesHdr
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.test.Test
@@ -91,7 +93,7 @@ class AndroidFillTest {
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture(HDR_CLIP)
       // Tone mapping runs on a device with no HDR encoder, but not on one with no HDR decoder.
-      probe.assumeDecodesTenBitHevc()
+      assumeDecodesTenBitHevc()
       val bitmap =
         probe.frame(
           export(source, effects = listOf(squareCrop()), fill = Fill.Black, hdr = HdrMode.ToneMapToSdr),
@@ -160,7 +162,7 @@ class AndroidFillTest {
   fun aSolidFillOnHdrIsWrittenAtGraphicsWhiteNotAtThePanelPeak() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture(HDR_CLIP)
-      probe.assumeEncodesHdr()
+      probe.filmstrip.assumeEncodesHdr()
 
       val white = probe.frame(export(source, listOf(squareCrop()), Fill.White, HdrMode.KeepHdr))
       val grey = probe.frame(export(source, listOf(squareCrop()), Fill.Solid(GREY_ARGB), HdrMode.KeepHdr))
@@ -177,7 +179,7 @@ class AndroidFillTest {
   fun aBlackFillStaysBlackWhenHdrIsKept() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture(HDR_CLIP)
-      probe.assumeEncodesHdr()
+      probe.filmstrip.assumeEncodesHdr()
 
       val kept = probe.frame(export(source, listOf(squareCrop()), Fill.Black, HdrMode.KeepHdr))
       val bar = kept.averageAt(CENTRE_X, BAR_Y)

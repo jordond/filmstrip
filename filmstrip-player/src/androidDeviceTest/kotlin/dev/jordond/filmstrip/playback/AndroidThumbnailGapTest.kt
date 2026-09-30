@@ -20,6 +20,7 @@ import dev.jordond.filmstrip.playback.internal.Media3ThumbnailSource
 import dev.jordond.filmstrip.test.AuthoredColours
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.test.assertFramesSimilar
+import dev.jordond.filmstrip.test.writeAtomically
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
 import dev.jordond.filmstrip.thumbnail.ThumbnailResult
 import dev.jordond.filmstrip.thumbnail.ThumbnailSource
@@ -128,7 +129,7 @@ class AndroidThumbnailGapTest {
     if (file.exists()) return file
     val bitmap = Bitmap.createBitmap(BADGE.width, BADGE.height, Bitmap.Config.ARGB_8888)
     bitmap.eraseColor(BADGE_ARGB)
-    file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it) }
+    file.writeAtomically { bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it) }
     bitmap.recycle()
     return file
   }

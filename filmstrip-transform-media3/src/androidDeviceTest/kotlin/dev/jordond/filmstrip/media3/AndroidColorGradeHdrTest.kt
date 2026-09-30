@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HLG_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
+import dev.jordond.filmstrip.test.assumeEncodesHdr
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.math.max
@@ -42,7 +43,7 @@ class AndroidColorGradeHdrTest {
   fun contrastPivotsOnMidGreyOnAKeptGrade() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture(HDR_CLIP)
-      probe.assumeEncodesHdr()
+      probe.filmstrip.assumeEncodesHdr()
 
       val flat = probe.frame(export(source, listOf(Contrast(LOW))))
       val steep = probe.frame(export(source, listOf(Contrast(HIGH))))
@@ -54,7 +55,7 @@ class AndroidColorGradeHdrTest {
   fun desaturationEqualisesTheChannelsOnAKeptGrade() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture(HDR_CLIP)
-      probe.assumeEncodesHdr()
+      probe.filmstrip.assumeEncodesHdr()
 
       // Dimmed on both sides so the orange sits inside the retriever's range rather than on its
       // white. The dim alone lowers to media3's own matrix, and the dim with the desaturation folds
@@ -71,7 +72,7 @@ class AndroidColorGradeHdrTest {
   fun aKeptGradeSurvivesAColourMatrix() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture(HDR_CLIP)
-      probe.assumeEncodesHdr()
+      probe.filmstrip.assumeEncodesHdr()
 
       val written = export(source, listOf(Contrast(HIGH)))
       val probed = probe.infoOf(MediaSource.of(written.path))
@@ -86,7 +87,7 @@ class AndroidColorGradeHdrTest {
   fun contrastPivotsOnMidGreyOnAKeptHlgGrade() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture(HLG_CLIP)
-      probe.assumeEncodesHdr()
+      probe.filmstrip.assumeEncodesHdr()
 
       val flat = probe.frame(export(source, listOf(Contrast(LOW))))
       val steep = probe.frame(export(source, listOf(Contrast(HIGH))))

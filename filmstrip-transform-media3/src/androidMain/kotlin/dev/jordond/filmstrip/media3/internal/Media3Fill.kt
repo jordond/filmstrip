@@ -1,9 +1,8 @@
 package dev.jordond.filmstrip.media3.internal
 
-import dev.jordond.filmstrip.effects.MEDIA3_HDR_PEAK_NITS
+import dev.jordond.filmstrip.effects.media3WorkingLight
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.transform.internal.hdrFillNits
-import dev.jordond.filmstrip.transform.internal.hlgSceneFromNits
+import dev.jordond.filmstrip.media.authoredHdrNits
 
 /**
  * The red, green and blue an effect writes to paint [color] over a frame.
@@ -26,12 +25,5 @@ internal fun fillComponents(
     )
   }
 
-  val nits = hdrFillNits(color)
-
-  return when (transfer) {
-    // Display light, which is what media3 leaves in the texture once it has scaled PQ down.
-    HdrTransfer.Pq -> FloatArray(3) { nits[it] / MEDIA3_HDR_PEAK_NITS }
-    // Scene light, since media3 runs HLG's transfer function and stops before its display curve.
-    HdrTransfer.Hlg -> hlgSceneFromNits(nits)
-  }
+  return media3WorkingLight(authoredHdrNits(color), transfer)
 }

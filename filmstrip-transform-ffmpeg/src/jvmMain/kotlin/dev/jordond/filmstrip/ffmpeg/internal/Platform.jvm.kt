@@ -151,6 +151,8 @@ internal actual fun executableSuffixes(): List<String> {
 
 internal actual fun absolutePathOf(path: String): String = File(path).absolutePath
 
+internal actual suspend fun <T> interruptibly(block: () -> T): T = runInterruptible(Dispatchers.IO, block)
+
 /**
  * One ffmpeg child, read a frame at a time.
  *

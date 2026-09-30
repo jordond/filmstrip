@@ -24,6 +24,7 @@ import dev.jordond.filmstrip.playback.internal.Media3ThumbnailSource
 import dev.jordond.filmstrip.player.PlayerConfig
 import dev.jordond.filmstrip.player.SetCompositionResult
 import dev.jordond.filmstrip.test.TestFrame
+import dev.jordond.filmstrip.test.writeAtomically
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
 import dev.jordond.filmstrip.thumbnail.ThumbnailResult
 import dev.jordond.filmstrip.thumbnail.ThumbnailSource
@@ -116,7 +117,7 @@ class AndroidStillOrientationTest {
       paint.color = Color.rgb(colour.first, colour.second, colour.third)
       canvas.drawRect(left, top, left + width / 2, top + height / 2, paint)
     }
-    file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it) }
+    file.writeAtomically { bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, it) }
     bitmap.recycle()
     return file
   }

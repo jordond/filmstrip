@@ -11,7 +11,9 @@ data class TestMediaEntry(
   val fileName: String,
   val sha256: String,
   val bytes: Long,
-)
+) {
+  val extension: String get() = fileName.substringAfterLast('.')
+}
 
 /**
  * The checked-in list of fixtures a module reads, and the contract for what they contain.
@@ -44,9 +46,13 @@ object TestMediaManifest {
 
   private const val PAD = 2
 
-  fun keyFor(sha256: String): String = "$PREFIX/$sha256.mp4"
+  /**
+   * The object [entry] is published under, its digest with the extension its file name carries. A clip lands at
+   * `test-fixtures/<sha256>.mp4` and a HEIC still at `test-fixtures/<sha256>.heic`.
+   */
+  fun keyFor(entry: TestMediaEntry): String = "$PREFIX/${entry.sha256}.${entry.extension}"
 
-  fun urlFor(sha256: String): String = "$HOST/${keyFor(sha256)}"
+  fun urlFor(entry: TestMediaEntry): String = "$HOST/${keyFor(entry)}"
 
   fun read(file: File): List<TestMediaEntry> {
     if (!file.isFile) {
