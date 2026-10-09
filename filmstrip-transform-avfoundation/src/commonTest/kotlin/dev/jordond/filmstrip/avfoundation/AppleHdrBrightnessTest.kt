@@ -7,10 +7,12 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.media.HLG_NOMINAL_PEAK_NITS
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.PQ_PEAK_NITS
 import dev.jordond.filmstrip.media.brightnessDisplayGain
+import dev.jordond.filmstrip.media.hlgDisplayNitsFromScene
 import dev.jordond.filmstrip.test.encodesHdr
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +42,19 @@ class AppleHdrBrightnessTest {
 
   private val filmstrip = Filmstrip { avFoundationBackend() }
 
+  // The wrong readings each bound below has to catch, from the shared gains alone, so this runs without a fixture or
+  // an HDR encoder.
+  @Test
+  fun `each brightness bound is under half the miss of its nearest wrong reading`() {
+    val dimmed = brightnessDisplayGain(QUARTER) / brightnessDisplayGain(HALF)
+    assertCatches(QUARTER / HALF, dimmed, PQ_DIMMING_DRIFT, "a linear reading of the factor on PQ")
+    assertCatches(QUARTER / HALF, dimmed, HLG_DIMMING_DRIFT, "a linear reading of the factor on HLG")
+    assertCatches(onHlgScene(dimmed), dimmed, HLG_DIMMING_DRIFT, "the gain applied to HLG scene light")
+
+    val brightened = brightnessDisplayGain(BRIGHTER)
+    assertCatches(BRIGHTER, brightened, BRIGHTENING_DRIFT, "a linear reading of the factor above one")
+  }
+
   // Two dimmed exports rather than one against an untouched reference, so both frames paid the
   // same encode and the ratio between them is the effect alone. Halving twice over is where a
   // display-gamma reading and a linear one are furthest apart.
@@ -49,21 +64,7 @@ class AppleHdrBrightnessTest {
       val source = fixture() ?: return@runTest
       if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
 
-      val half = exportedLight(source, HALF)
-      val quarter = exportedLight(source, QUARTER)
-      val expected = brightnessDisplayGain(QUARTER) / brightnessDisplayGain(HALF)
-
-      half.litChannels().forEach { channel ->
-        val ratio = quarter[channel] / half[channel]
-        assertTrue(
-          abs(ratio - expected) <= expected * LIGHT_DRIFT,
-          "channel $channel moved by $ratio, expected $expected between ${half[channel]} and ${quarter[channel]}",
-        )
-        // Reading the factor as a bare multiply on light is the mistake this rules out. It would
-        // have halved the light rather than quartered it.
-        val linear = QUARTER / HALF
-        assertTrue(abs(ratio - linear) > abs(ratio - expected), "a linear reading of the factor was as close")
-      }
+      assertDimmed(source, PQ_DIMMING_DRIFT)
     }
 
   // The HLG arm. Core Image is display referred whatever the transfer function, so the same gain
@@ -74,22 +75,12 @@ class AppleHdrBrightnessTest {
       val source = fixture(HLG_CLIP) ?: return@runTest
       if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
 
-      val half = exportedLight(source, HALF)
-      val quarter = exportedLight(source, QUARTER)
-      val expected = brightnessDisplayGain(QUARTER) / brightnessDisplayGain(HALF)
-
-      half.litChannels().forEach { channel ->
-        val ratio = quarter[channel] / half[channel]
-        assertTrue(
-          abs(ratio - expected) <= expected * LIGHT_DRIFT,
-          "channel $channel moved by $ratio, expected $expected between ${half[channel]} and ${quarter[channel]}",
-        )
-      }
+      assertDimmed(source, HLG_DIMMING_DRIFT)
     }
 
-  // Above 1f there is headroom rather than a ceiling. Where the light asked for is past what PQ can
-  // carry it clips, and that is the format's limit rather than the effect's, so it is asserted as
-  // one instead of pretending the two exports match there.
+  // Above 1f there is headroom rather than a ceiling. The patch's red asks for more light than PQ
+  // can carry and clips, which is the format's limit rather than the effect's, so it is asserted as
+  // one. The channels that stay under the ceiling are held to the gain.
   @Test
   fun `brightening a kept grade adds light until the format runs out`() =
     runTest(timeout = TIMEOUT) {
@@ -99,22 +90,47 @@ class AppleHdrBrightnessTest {
       val lit = exportedLight(source, 1f)
       val brightened = exportedLight(source, BRIGHTER)
       val gain = brightnessDisplayGain(BRIGHTER)
+      val ceiling = PQ_PEAK_NITS * HEADROOM
+      val (clipped, carried) = lit.indices.filter { lit[it] >= FLOOR_NITS }.partition { lit[it] * gain > ceiling }
+      assertTrue(carried.isNotEmpty(), "every channel of $lit runs past the ceiling at $BRIGHTER, so no gain was read")
+      assertTrue(clipped.isNotEmpty(), "no channel of $lit reaches the ceiling at $BRIGHTER, so no clip was read")
 
-      lit.litChannels().forEach { channel ->
+      carried.forEach { channel ->
         val expected = lit[channel] * gain
-        if (expected <= PQ_PEAK_NITS * HEADROOM) {
-          assertTrue(
-            abs(brightened[channel] - expected) <= expected * LIGHT_DRIFT,
-            "channel $channel read ${brightened[channel]} nits, expected $expected from ${lit[channel]} at full",
-          )
-        } else {
-          assertTrue(
-            brightened[channel] > lit[channel] && brightened[channel] >= PQ_PEAK_NITS * HEADROOM,
-            "channel $channel asked for $expected nits and read ${brightened[channel]}, short of the format's own ceiling",
-          )
-        }
+        assertTrue(
+          abs(brightened[channel] - expected) <= expected * BRIGHTENING_DRIFT,
+          "channel $channel read ${brightened[channel]} nits, expected $expected from ${lit[channel]} at full",
+        )
+      }
+      clipped.forEach { channel ->
+        assertTrue(
+          brightened[channel] > lit[channel] && brightened[channel] >= ceiling,
+          "channel $channel asked for ${lit[channel] * gain} nits and read ${brightened[channel]}, short of the " +
+            "format's own ceiling",
+        )
       }
     }
+
+  /**
+   * Holds the ratio between a quarter's and a half's export of [source] to [brightnessDisplayGain] on every lit
+   * channel, within [drift] as a fraction of it.
+   */
+  private suspend fun assertDimmed(
+    source: String,
+    drift: Float,
+  ) {
+    val half = exportedLight(source, HALF)
+    val quarter = exportedLight(source, QUARTER)
+    val expected = brightnessDisplayGain(QUARTER) / brightnessDisplayGain(HALF)
+
+    half.litChannels().forEach { channel ->
+      val ratio = quarter[channel] / half[channel]
+      assertTrue(
+        abs(ratio - expected) <= expected * drift,
+        "channel $channel moved by $ratio, expected $expected between ${half[channel]} and ${quarter[channel]}",
+      )
+    }
+  }
 
   /**
    * The centre pixel of a graded export, in cd/m2.
@@ -152,6 +168,24 @@ class AppleHdrBrightnessTest {
   }
 
   /**
+   * Checks the [wrong] reading of a grade lands more than twice [drift] off [expected], so a read held to [drift] fails
+   * on it.
+   */
+  private fun assertCatches(
+    wrong: Float,
+    expected: Float,
+    drift: Float,
+    what: String,
+  ) {
+    val miss = abs(wrong - expected) / expected
+    assertTrue(miss > 2 * drift, "$what lands $miss off $expected, inside twice the $drift bound that should catch it")
+  }
+
+  // A display light gain applied to HLG scene light instead, which the system gamma raises once more on the way to the
+  // display.
+  private fun onHlgScene(gain: Float): Float = hlgDisplayNitsFromScene(gain) / HLG_NOMINAL_PEAK_NITS
+
+  /**
    * The channels of a read that carry enough light to say anything.
    *
    * Measured against the brightest channel as well as against an absolute floor. A saturated colour
@@ -184,8 +218,19 @@ class AppleHdrBrightnessTest {
     const val QUARTER = 0.25f
     const val BRIGHTER = 1.5f
 
-    // What a real HEVC encode and a 4:2:0 chroma round trip leave on a reading, as a fraction of it.
-    const val LIGHT_DRIFT = 0.12f
+    // How far the ratio between two dimmed PQ exports strays, as a fraction of it. Measured 0.20% on macOS and 0.91%
+    // on the iOS simulator. A linear reading of the factor misses by 130%.
+    const val PQ_DIMMING_DRIFT = 0.02f
+
+    // The same ratio on HLG. Measured 0.77% on macOS and 0.16% on the iOS simulator. The gain applied to scene light
+    // misses by 26% and a linear reading of the factor by 130%.
+    const val HLG_DIMMING_DRIFT = 0.02f
+
+    // How far a brightened export strays from the one at full on a channel under the ceiling, as a fraction of it.
+    // Green is the only channel the patch carries, since red clips and blue sits under the floor. Around 530 nits
+    // brightened it measured 0.06% on macOS and 0.04% on the iOS simulator, with a code of PQ there worth about a
+    // percent. A linear reading of the factor misses by 38%.
+    const val BRIGHTENING_DRIFT = 0.02f
 
     // How close to PQ's peak a reading has to get to count as having hit the format's ceiling
     // rather than the effect's answer.

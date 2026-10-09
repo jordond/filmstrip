@@ -37,11 +37,7 @@ import dev.jordond.filmstrip.effects.overlay.filterGraphOverlay
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.media.HLG_SCENE_TO_SDR_SIGNAL_GAMMA
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.SDR_DISPLAY_GAMMA
-import dev.jordond.filmstrip.media.SDR_SIGNAL_TO_HLG_SCENE_GAMMA
-import dev.jordond.filmstrip.media.sdrSignalCeiling
 import java.util.Locale
 
 /**
@@ -121,81 +117,14 @@ public actual class BuiltInEffectResolver : EffectResolver {
       else -> emptyList()
     }
 
-  // A graded table runs the transfer function either side of the matrix: decode the code value
-  // to the SDR signal its light would have been on a display at reference white, apply the
-  // channel's line there, encode it again. A gbrp10le conversion is forced ahead of it because a
-  // per-channel nonlinear function has no YUV form, and ten bits is the only depth this backend
-  // writes HDR at. Neither zscale nor libplacebo is involved, so it runs on a stock build.
-  private fun gradedDiagonalLut(
-    matrix: ColorMatrix,
-    transfer: HdrTransfer,
-  ): List<FilterNode> =
-    listOf(
-      FilterNode("format", "pix_fmts" to HDR_PLANAR_RGB),
-      FilterNode(
-        "lutrgb",
-        "r" to gradedChannel(matrix.rr, matrix.rBias, transfer, HDR_PLANAR_PEAK),
-        "g" to gradedChannel(matrix.gg, matrix.gBias, transfer, HDR_PLANAR_PEAK),
-        "b" to gradedChannel(matrix.bb, matrix.bBias, transfer, HDR_PLANAR_PEAK),
-      ),
-    )
-
-  // The signal the line runs on is scaled so the format's peak reads as one, so the bias is scaled
-  // the same way. The floor is the matrix's own, and the ceiling is the format's, in the clip on
-  // the way back rather than in the line.
-  private fun gradedChannel(
-    scale: Float,
-    bias: Float,
-    transfer: HdrTransfer,
-    peak: Int,
-  ): String {
-    val graded = "max($scale*${scaledSdrSignal(transfer, peak)}+${bias / transfer.sdrSignalCeiling},0)"
-
-    return codeValue(signalFromScaledSdr(graded, transfer), peak)
-  }
-
-  // The SDR signal the code value's light decodes to, divided by the transfer's ceiling. PQ's light
-  // is a fraction of its peak already. HLG's is scene light, which reaches display light through
-  // the per-channel opto-optical transfer first.
-  private fun scaledSdrSignal(
-    transfer: HdrTransfer,
-    peak: Int,
-  ): String =
-    when (transfer) {
-      HdrTransfer.Pq -> "pow(${pqLight(normalized(peak))},${1.0 / SDR_DISPLAY_GAMMA})"
-      HdrTransfer.Hlg -> "pow(${hlgScene(normalized(peak))},$HLG_SCENE_TO_SDR_SIGNAL_GAMMA)"
-    }
-
-  // The way back from a scaled SDR signal to the transfer's own, in the range zero to one. The clip
-  // is where the format runs out.
-  private fun signalFromScaledSdr(
-    scaled: String,
-    transfer: HdrTransfer,
-  ): String =
-    when (transfer) {
-      HdrTransfer.Pq -> pqSignal("clip(pow($scaled,$SDR_DISPLAY_GAMMA),0,1)")
-      HdrTransfer.Hlg -> hlgSignal("clip(pow($scaled,$SDR_SIGNAL_TO_HLG_SCENE_GAMMA),0,1)")
-    }
-
-  // The graded path forces the pixel format, so the table is scaled by the depth's own top code
-  // rather than by lutrgb's maxval. maxval is 255 shifted up to the depth, which reads 1020 on
-  // gbrp10le, and scaling by that puts every graded code value about a code low.
-  private fun normalized(peak: Int): String = "clip(val/$peak,0,1)"
-
-  // Rounded for the same reason channelExpression rounds: lutrgb keeps the whole part. The clip is
-  // lutrgb's own ceiling rather than the format's: the filter refuses to emit above maxval, so on
-  // gbrp10le the three codes above 1020 come out as 1020 whatever the table asks for.
-  private fun codeValue(
-    signal: String,
-    peak: Int,
-  ): String = "clip(round($peak*($signal)),minval,maxval)"
-
   // Every colour effect in the catalogue is one affine map of the encoded signal, and it reaches
   // the graph through whichever of two filters spells that map exactly. colorchannelmixer is
   // neither: it fails the graph above a gain of 2 rather than clamping, and it carries no bias.
   //
   // On a kept grade the same map runs on the SDR signal the code value's light decodes to, with
-  // the transfer function either side of it, so each of the two filters has a graded form.
+  // the transfer function either side of it, on the grade's own Y'CbCr. The frame's codes are
+  // read off float planes and every step between them and the codes written back runs on float
+  // tables and mixer rows, so no code is rounded in between.
   private fun colorMatrix(
     spec: EffectSpec,
     transfer: HdrTransfer?,
@@ -205,9 +134,9 @@ public actual class BuiltInEffectResolver : EffectResolver {
       // Claimed rather than declined, the way Scale is, because an unclaimed spec is refused by
       // name at plan time.
       matrix.isIdentity -> fragment(emptyList())
-      !matrix.isDiagonal -> cubeLut(matrix, transfer)
-      transfer == null -> fragment(listOf(diagonalLut(matrix)))
-      else -> fragment(gradedDiagonalLut(matrix, transfer))
+      transfer != null -> EffectResolution.Resolved(PlatformEffect(gradedOnTables(matrix, transfer)))
+      !matrix.isDiagonal -> cubeLut(matrix)
+      else -> fragment(listOf(diagonalLut(matrix)))
     }
   }
 
@@ -234,65 +163,31 @@ public actual class BuiltInEffectResolver : EffectResolver {
   // the matrix rather than sampling it, and it clamps once on the way out, which is where the
   // matrix puts the clamp too. It keeps the code value below the interpolated one rather than the
   // nearest, its own limit, so a mixed matrix here can land one code value under the other backends.
-  //
-  // On a kept grade the table reads the SDR signal scaled so the format's peak is one, which is
-  // the range lut3d interpolates over, so the bias is written against that ceiling too.
-  private fun cubeLut(
-    matrix: ColorMatrix,
-    transfer: HdrTransfer?,
-  ): EffectResolution {
-    val ceiling = transfer?.sdrSignalCeiling ?: SDR_CEILING
-    val sidecar = Sidecar(cube(matrix, ceiling).encodeToByteArray(), "cube")
-    val lut = FilterNode("lut3d", "file" to sidecar.placeholder)
+  private fun cubeLut(matrix: ColorMatrix): EffectResolution {
+    val sidecar = Sidecar(cube(matrix).encodeToByteArray(), "cube")
 
     return EffectResolution.Resolved(
       PlatformEffect(
         FilterFragment(
-          chain = if (transfer == null) listOf(lut) else betweenTransfers(lut, transfer),
+          chain = listOf(FilterNode("lut3d", "file" to sidecar.placeholder)),
           sidecars = listOf(sidecar),
         ),
       ),
     )
   }
 
-  // lut3d reads a signal in the range zero to one, so on a grade it runs between a table that
-  // decodes the code value to the scaled SDR signal and one that encodes it again. Sixteen bits
-  // between the two keeps a ten-bit output exact. The two extra format conversions are a cost per
-  // frame on a graded export with a mixing matrix, not a change to what it writes: swscale carries
-  // rgb48le to gbrp10le and back with no drift, which the planar sixteen-bit format it replaced did
-  // not.
-  private fun betweenTransfers(
-    lut: FilterNode,
-    transfer: HdrTransfer,
-  ): List<FilterNode> {
-    val decode = codeValue(scaledSdrSignal(transfer, WIDE_RGB_PEAK), WIDE_RGB_PEAK)
-    val encode = codeValue(signalFromScaledSdr(normalized(WIDE_RGB_PEAK), transfer), WIDE_RGB_PEAK)
-
-    return listOf(
-      FilterNode("format", "pix_fmts" to WIDE_RGB),
-      FilterNode("lutrgb", "r" to decode, "g" to decode, "b" to decode),
-      lut,
-      FilterNode("lutrgb", "r" to encode, "g" to encode, "b" to encode),
-      FilterNode("format", "pix_fmts" to HDR_PLANAR_RGB),
-    )
-  }
-
   // The eight corners of the unit cube, red varying fastest and blue slowest, which is the order a
   // .cube file is read in. Entries are left unclamped so that a corner the matrix pushes past white
-  // still lands on the line the interpolation between it and its neighbour needs. The bias is
-  // divided by the ceiling of the signal the table reads, which is one for an SDR signal.
-  private fun cube(
-    matrix: ColorMatrix,
-    ceiling: Float,
-  ): String =
+  // still lands on the line the interpolation between it and its neighbour needs.
+  private fun cube(matrix: ColorMatrix): String =
     buildString {
       appendLine("LUT_3D_SIZE $CUBE_SIZE")
       for (blue in 0..1) {
         for (green in 0..1) {
           for (red in 0..1) {
-            val r = matrix.rr * red + matrix.rg * green + matrix.rb * blue + matrix.rBias / ceiling
-            val g = matrix.gr * red + matrix.gg * green + matrix.gb * blue + matrix.gBias / ceiling
-            val b = matrix.br * red + matrix.bg * green + matrix.bb * blue + matrix.bBias / ceiling
+            val r = matrix.rr * red + matrix.rg * green + matrix.rb * blue + matrix.rBias
+            val g = matrix.gr * red + matrix.gg * green + matrix.gb * blue + matrix.gBias
+            val b = matrix.br * red + matrix.bg * green + matrix.bb * blue + matrix.bBias
             appendLine("${entry(r)} ${entry(g)} ${entry(b)}")
           }
         }
@@ -328,25 +223,6 @@ public actual class BuiltInEffectResolver : EffectResolver {
   private fun textMessage(capabilities: RenderCapabilities): String =
     if (capabilities.has(RenderFeature.TextRendering)) TEXT_CANNOT_WRAP else TEXT_NO_FILTER
 }
-
-// The only depth this backend writes HDR at, so the lut runs on planar RGB of the same depth
-// rather than on whatever the auto-negotiated conversion would have picked.
-private const val HDR_PLANAR_RGB = "gbrp10le"
-
-// The format a graded signal is held in between the two halves of a transfer function, so that a
-// table read at ten bits still lands on the code value. Packed rather than planar because swscale
-// converts gbrp16le to gbrp10le a code out on a third of all colours, while rgb48le round trips
-// exactly, and because lutrgb's maxval on this one is the format's own peak.
-private const val WIDE_RGB = "rgb48le"
-
-// The top code each of the two formats holds, which is what a graded table is scaled by. lutrgb's
-// own maxval is 255 shifted up to the depth, so it agrees on rgb48le and reads three low on
-// gbrp10le.
-private const val HDR_PLANAR_PEAK = 1023
-private const val WIDE_RGB_PEAK = 65535
-
-// White is the top of an SDR signal, so a table written for one scales its bias by nothing.
-private const val SDR_CEILING = 1f
 
 // Two points a side is the whole of an affine map, and every entry between them is interpolated
 // rather than stored.

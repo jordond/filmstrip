@@ -14,10 +14,7 @@ import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.ColorMatrix
 import dev.jordond.filmstrip.effects.color.Contrast
 import dev.jordond.filmstrip.effects.color.HueRotate
-import dev.jordond.filmstrip.effects.color.Invert
-import dev.jordond.filmstrip.effects.color.RgbAdjustment
 import dev.jordond.filmstrip.effects.color.Saturation
-import dev.jordond.filmstrip.effects.color.Sepia
 import dev.jordond.filmstrip.effects.color.colorMatrixOf
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.CropRect
@@ -43,14 +40,8 @@ import dev.jordond.filmstrip.internal.outputSlotOf
 import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.ColorSpace
-import dev.jordond.filmstrip.media.HLG_A
-import dev.jordond.filmstrip.media.HLG_SCENE_TO_SDR_SIGNAL_GAMMA
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.PQ_M2
-import dev.jordond.filmstrip.media.SDR_DISPLAY_GAMMA
-import dev.jordond.filmstrip.media.SDR_SIGNAL_TO_HLG_SCENE_GAMMA
-import dev.jordond.filmstrip.media.sdrSignalCeiling
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldStartWith
 import java.awt.Color
@@ -534,46 +525,6 @@ class EffectLoweringTest {
     chainOf(Brightness(Float.NaN)) shouldBe ""
   }
 
-  // The lut is the same shape on a graded export, but the table now runs the transfer function
-  // either side of the multiply, so the factor lands on the SDR signal the light decodes to rather
-  // than on a PQ code value, with the display gamma on both sides of it.
-  @Test
-  fun `takes a kept PQ grade through the transfer function`() {
-    val chain = chainOf(Brightness(0.5f), attributes(hdrTransfer = HdrTransfer.Pq))
-
-    chain.startsWith("format=pix_fmts=gbrp10le,lutrgb=") shouldBe true
-    chain.contains("max(0.5*") shouldBe true
-    chain.runsThroughSdrSignal(HdrTransfer.Pq) shouldBe true
-    chain.channelsAgree() shouldBe true
-  }
-
-  // Only the inverse OETF runs here, so what is decoded is scene light, and the per-channel
-  // opto-optical transfer sits between it and the SDR signal.
-  @Test
-  fun `takes a kept HLG grade through the scene light`() {
-    val chain = chainOf(Brightness(0.5f), attributes(hdrTransfer = HdrTransfer.Hlg))
-
-    chain.startsWith("format=pix_fmts=gbrp10le,lutrgb=") shouldBe true
-    chain.contains("max(0.5*") shouldBe true
-    chain.runsThroughSdrSignal(HdrTransfer.Hlg) shouldBe true
-    chain.channelsAgree() shouldBe true
-  }
-
-  @Test
-  fun `the two grades do not share a table`() {
-    listOf(Brightness(0.5f), Contrast(1.5f)).forEach { spec ->
-      val pq = chainOf(spec, attributes(hdrTransfer = HdrTransfer.Pq))
-      val hlg = chainOf(spec, attributes(hdrTransfer = HdrTransfer.Hlg))
-
-      assertTrue(pq != hlg, "one expression served both transfer functions, so one of them is wrong")
-    }
-  }
-
-  @Test
-  fun `leaves an unchanged brightness out of a graded graph too`() {
-    chainOf(Brightness(1f), attributes(hdrTransfer = HdrTransfer.Pq)) shouldBe ""
-  }
-
   // A contrast leaves each channel reading only itself, so it lowers to the same table a brightness
   // does. The bias is what pivots it on the middle of the range instead of on black, and it comes
   // off the shared matrix rather than a copy of it.
@@ -607,115 +558,12 @@ class EffectLoweringTest {
     chainOf(Saturation(1f)) shouldBe ""
   }
 
-  // Every matrix lowers on a grade, through the graded form of whichever filter its shape takes.
-  // A diagonal one is the per-channel table a brightness takes. A mix is the file, run between a
-  // decode and an encode of the transfer function at sixteen bits.
-  @Test
-  fun `lowers every colour matrix on a kept grade`() {
-    val diagonal = listOf(RgbAdjustment(red = 1.2f), Contrast(1.5f), Invert())
-    val mixing = listOf(Saturation(0.5f), HueRotate(90f), Sepia(), ColorMatrix(rg = 0.5f))
-
-    listOf(HdrTransfer.Pq, HdrTransfer.Hlg).forEach { transfer ->
-      diagonal.forEach { spec ->
-        val fragment = fragmentOf(spec, attributes(hdrTransfer = transfer))
-
-        fragment.chain.map { it.name } shouldBe listOf("format", "lutrgb")
-        fragment.chain.first().render() shouldBe "format=pix_fmts=gbrp10le"
-        fragment.sidecars shouldBe emptyList()
-      }
-      mixing.forEach { spec ->
-        val fragment = fragmentOf(spec, attributes(hdrTransfer = transfer))
-
-        fragment.chain.map { it.name } shouldBe listOf("format", "lutrgb", "lut3d", "lutrgb", "format")
-        fragment.chain.first().render() shouldBe "format=pix_fmts=rgb48le"
-        fragment.chain.last().render() shouldBe "format=pix_fmts=gbrp10le"
-        fragment.chain[2].render() shouldBe "lut3d=file=${fragment.sidecars.single().placeholder}"
-      }
-    }
-  }
-
-  // The line runs on the SDR signal scaled so the format's peak is one, so the bias that pivots a
-  // contrast on mid grey is scaled by the same ceiling while the factor itself is untouched.
-  @Test
-  fun `a graded contrast pivots on mid grey scaled to the format's ceiling`() {
-    val spec = Contrast(1.5f)
-    val bias = checkNotNull(colorMatrixOf(spec)).rBias
-
-    listOf(HdrTransfer.Pq, HdrTransfer.Hlg).forEach { transfer ->
-      val chain = chainOf(spec, attributes(hdrTransfer = transfer))
-
-      chain.contains("max(1.5*") shouldBe true
-      chain.contains("+${bias / transfer.sdrSignalCeiling}\\,0)") shouldBe true
-      chain.runsThroughSdrSignal(transfer) shouldBe true
-      chain.channelsAgree() shouldBe true
-    }
-  }
-
-  // The file a graded mix travels as is written against the same scaled signal, so a bias in it is
-  // divided by the format's ceiling and the two formats do not share a file. A mix with no bias
-  // reads the same whatever white is, so its file is the SDR one.
-  @Test
-  fun `a graded mix is written against the format's ceiling`() {
-    val biased = ColorMatrix(rr = 0.8f, rg = 0.2f, rBias = 0.1f, gg = 0.9f, bb = 1.1f, bBias = -0.05f)
-
-    val pq = cubeOf(biased, HdrTransfer.Pq)
-    val hlg = cubeOf(biased, HdrTransfer.Hlg)
-
-    pq shouldBe cube(biased, HdrTransfer.Pq.sdrSignalCeiling)
-    hlg shouldBe cube(biased, HdrTransfer.Hlg.sdrSignalCeiling)
-    assertTrue(pq != cube(biased), "the graded file carried the SDR bias")
-    assertTrue(pq != hlg, "one file served both transfer functions, so one of them is wrong")
-    cubeOf(Saturation(0.5f), HdrTransfer.Pq) shouldBe cube(Saturation(0.5f))
-  }
-
-  // lutrgb's maxval is 255 shifted up to the format's depth, so on gbrp10le it reads 1020 and on
-  // rgb48le it is the format's own peak. The table is scaled by the peak either way, or a graded
-  // code value lands about a code low across the whole range, and the clip stays at the filter's
-  // ceiling, which is the one thing it cannot write past.
-  @Test
-  fun `a graded table is scaled by the format's own peak`() {
-    val diagonal = chainOf(Contrast(1.5f), attributes(hdrTransfer = HdrTransfer.Pq))
-    val mixing = fragmentOf(Sepia(), attributes(hdrTransfer = HdrTransfer.Pq)).chain
-
-    diagonal.contains("val/1023") shouldBe true
-    diagonal.contains("round(1023*") shouldBe true
-    diagonal.contains("\\,minval\\,maxval)") shouldBe true
-    mixing[1].render().contains("round(65535*") shouldBe true
-    mixing[3].render().contains("val/65535") shouldBe true
-  }
-
   // A whole turn is the identity, and the trig it comes out of leaves cross terms around 1e-16. Read
   // as a mix it lowers to a cube, whose interpolation moves code values a no-op must not touch.
   @Test
   fun `a whole turn of hue lowers to nothing`() {
     chainOf(HueRotate(360f)) shouldBe ""
     fragmentOf(HueRotate(360f)).sidecars shouldBe emptyList()
-  }
-
-  // The tables either side of the file are the decode and the encode on their own, the same on
-  // every channel, each carrying the transfer's own constants and the display gamma.
-  @Test
-  fun `a graded mix runs between a decode and an encode of the transfer`() {
-    listOf(HdrTransfer.Pq, HdrTransfer.Hlg).forEach { transfer ->
-      val chain = fragmentOf(Sepia(), attributes(hdrTransfer = transfer)).chain
-      val decode = chain[1].render()
-      val encode = chain[3].render()
-
-      decode.channelsAgree() shouldBe true
-      encode.channelsAgree() shouldBe true
-      decode.decodesToSdrSignal(transfer) shouldBe true
-      encode.encodesFromSdrSignal(transfer) shouldBe true
-    }
-  }
-
-  @Test
-  fun `an identity matrix claims the spec and emits nothing on a grade too`() {
-    val graded = attributes(hdrTransfer = HdrTransfer.Pq)
-    val resolution = resolver.resolve(ColorMatrix.Identity, capabilities(), graded)
-
-    assertIs<EffectResolution.Resolved>(resolution)
-    chainOf(ColorMatrix.Identity, graded) shouldBe ""
-    chainOf(Saturation(1f), attributes(hdrTransfer = HdrTransfer.Hlg)) shouldBe ""
   }
 
   @Test
@@ -740,43 +588,6 @@ class EffectLoweringTest {
     fragmentOf(spec).sidecars shouldBe emptyList()
   }
 
-  // The three channels are one table, and a lut whose planes disagree tints the frame rather than
-  // brightening it.
-  private fun String.channelsAgree(): Boolean {
-    val arguments = substringAfter("lutrgb=").split(":")
-    val expressions = arguments.map { it.substringAfter("=") }
-
-    return arguments.map { it.substringBefore("=") } == listOf("r", "g", "b") &&
-      expressions.distinct().size == 1
-  }
-
-  // The pieces a graded table is built from, off the shared constants: the transfer's own decode
-  // and encode, and the display gamma between each of them and the SDR signal.
-  private fun String.decodesToSdrSignal(transfer: HdrTransfer): Boolean =
-    when (transfer) {
-      HdrTransfer.Pq -> contains("\\,${1.0 / PQ_M2})") && contains("\\,${1.0 / SDR_DISPLAY_GAMMA})")
-      HdrTransfer.Hlg -> contains("/$HLG_A)") && contains("\\,$HLG_SCENE_TO_SDR_SIGNAL_GAMMA)")
-    }
-
-  private fun String.encodesFromSdrSignal(transfer: HdrTransfer): Boolean =
-    when (transfer) {
-      HdrTransfer.Pq -> contains("\\,$PQ_M2)") && contains("\\,$SDR_DISPLAY_GAMMA)")
-      HdrTransfer.Hlg -> contains("$HLG_A*log(") && contains("\\,$SDR_SIGNAL_TO_HLG_SCENE_GAMMA)")
-    }
-
-  private fun String.runsThroughSdrSignal(transfer: HdrTransfer): Boolean =
-    decodesToSdrSignal(transfer) && encodesFromSdrSignal(transfer)
-
-  private fun cubeOf(
-    spec: EffectSpec,
-    transfer: HdrTransfer,
-  ): String =
-    fragmentOf(spec, attributes(hdrTransfer = transfer))
-      .sidecars
-      .single()
-      .bytes
-      .decodeToString()
-
   // The table this spec's own matrix spells, so a lowering that reached for a different matrix
   // fails here rather than agreeing with a number copied out of the shared layer.
   private fun lutrgb(spec: EffectSpec): String {
@@ -794,12 +605,8 @@ class EffectLoweringTest {
 
   // The eight corners of the unit cube, red varying fastest and blue slowest, each one the matrix
   // applied with nothing clamped so that a corner past white still lands on the line lut3d
-  // interpolates along. On a grade the table reads a signal scaled to the format's ceiling, so the
-  // bias is divided by it.
-  private fun cube(
-    spec: EffectSpec,
-    ceiling: Float = 1f,
-  ): String {
+  // interpolates along.
+  private fun cube(spec: EffectSpec): String {
     val matrix = checkNotNull(colorMatrixOf(spec))
 
     return buildString {
@@ -807,9 +614,9 @@ class EffectLoweringTest {
       for (blue in 0..1) {
         for (green in 0..1) {
           for (red in 0..1) {
-            val r = matrix.rr * red + matrix.rg * green + matrix.rb * blue + matrix.rBias / ceiling
-            val g = matrix.gr * red + matrix.gg * green + matrix.gb * blue + matrix.gBias / ceiling
-            val b = matrix.br * red + matrix.bg * green + matrix.bb * blue + matrix.bBias / ceiling
+            val r = matrix.rr * red + matrix.rg * green + matrix.rb * blue + matrix.rBias
+            val g = matrix.gr * red + matrix.gg * green + matrix.gb * blue + matrix.gBias
+            val b = matrix.br * red + matrix.bg * green + matrix.bb * blue + matrix.bBias
             appendLine("${entry(r)} ${entry(g)} ${entry(b)}")
           }
         }

@@ -305,10 +305,11 @@ internal object ExportConstants {
   const val HALF = 0.5f
   const val BRIGHTER = 1.5f
 
-  // What a real HEVC encode and a 4:2:0 chroma round trip leave on a ten-bit code value. The two
-  // readings this separates are hundreds of code values apart, so the band is generous without
-  // being blind.
-  const val CODE_DRIFT = 40
+  // ffmpeg's own measured noise on a ten-bit read of an HDR export, per channel. The graph lands every
+  // fill, kept grade, opaque overlay and blended overlay on its exact code, and libx265 and
+  // hevc_videotoolbox then move a flat block by up to this much. A kept grade is read plane by plane
+  // in Y'CbCr codes and drifts by at most 1. Apple and media3 hold their HDR fills to the same 2.
+  const val CODE_TOLERANCE = 2
 
   // The rate the readback decodes to, which is also the rate every fixture carries.
   const val AUDIO_SAMPLE_RATE = 48_000

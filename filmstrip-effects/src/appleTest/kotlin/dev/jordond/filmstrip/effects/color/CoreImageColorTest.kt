@@ -14,8 +14,7 @@ import dev.jordond.filmstrip.media.HDR_REFERENCE_WHITE_NITS
 import dev.jordond.filmstrip.media.HLG_NOMINAL_PEAK_NITS
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.PQ_PEAK_NITS
-import dev.jordond.filmstrip.media.hlgSceneFromDisplayNits
-import dev.jordond.filmstrip.media.hlgSignalFromScene
+import dev.jordond.filmstrip.media.hlgSignalFromDisplayNits
 import dev.jordond.filmstrip.media.pqSignalFromNits
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.FloatVar
@@ -197,7 +196,7 @@ class CoreImageColorTest {
     val context = renderingContext() ?: return
 
     val pq = readLight(grey(pqSignalFromNits(HDR_REFERENCE_WHITE_NITS), kCGColorSpaceITUR_2100_PQ), context)
-    val hlgWhite = hlgSignalFromScene(hlgSceneFromDisplayNits(HDR_REFERENCE_WHITE_NITS))
+    val hlgWhite = hlgSignalFromDisplayNits(HDR_REFERENCE_WHITE_NITS)
     val hlg = readLight(grey(hlgWhite, kCGColorSpaceITUR_2100_HLG), context)
     val peak = readLight(grey(pqSignalFromNits(PQ_PEAK_NITS), kCGColorSpaceITUR_2100_PQ), context)
 

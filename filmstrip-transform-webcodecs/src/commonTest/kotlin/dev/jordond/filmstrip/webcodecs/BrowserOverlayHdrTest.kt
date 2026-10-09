@@ -30,15 +30,12 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.authoredHdrNits
 import dev.jordond.filmstrip.media.sdrSignalFromNits
-import dev.jordond.filmstrip.media.signalFromNits
 import dev.jordond.filmstrip.style.TextStyle
-import dev.jordond.filmstrip.test.AuthoredColours
+import dev.jordond.filmstrip.test.HdrOverlayCells
 import dev.jordond.filmstrip.test.OverlayPixels
 import dev.jordond.filmstrip.test.encodesHdr
 import dev.jordond.filmstrip.transform.internal.ResolveResult
-import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
 import dev.jordond.filmstrip.webcodecs.BrowserHdrTest.Companion.LUMA_TOLERANCE
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
 import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
@@ -59,13 +56,18 @@ import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
- * Overlays drawn on a kept grade, exported, and read back as ten-bit codes.
+ * Overlays drawn on a kept grade, exported or previewed, and read back.
  *
  * Every overlay sits over the gap in front of a late primary, so what is under it is the fill's own light and never a
- * picture. Each case draws white, [AuthoredColours.MID_GREY] and [AuthoredColours.MID_GREEN] at full, half and quarter
- * opacity in one frame, and each one has to land where [OverlayPixels.hdrSourceOver] puts it, through the shared
- * transfer and the shared code conversion. Every channel, chroma included, is held to the luma tolerance
- * [BrowserHdrTest] holds a fill to, so a coloured texel that blends anywhere but linear display light misses.
+ * picture. Each case draws every cell of [HdrOverlayCells.CELLS], one frame per fill colour. An export is read as
+ * ten-bit codes and each cell has to land on [HdrOverlayCells.Cell.codes]. Every channel, chroma included, is held to
+ * the luma tolerance [BrowserHdrTest] holds a fill to, so a coloured texel that blends anywhere but linear display
+ * light misses.
+ *
+ * A preview is read as eight-bit codes, and each cell has to land on [HdrOverlayCells.Cell.nits] shown through the SDR
+ * display curve, clamped at reference white. A guard shows the signal blend and the sRGB blend of every
+ * [HdrOverlayCells.BLENDS] cell the same way and checks twice the preview bound sits below the nearest of them, so a
+ * preview that blends the wrong way cannot pass.
  */
 class BrowserOverlayHdrTest {
   @Test
@@ -73,7 +75,7 @@ class BrowserOverlayHdrTest {
     runTest {
       if (!Filmstrip { webCodecsBackend() }.encodesHdr()) return@runTest
 
-      assertLandsOnTheRule(grid(::imageAt))
+      assertLandsOnTheRule(grids(::imageAt))
     }
 
   @Test
@@ -81,79 +83,129 @@ class BrowserOverlayHdrTest {
     runTest {
       if (!Filmstrip { webCodecsBackend() }.encodesHdr()) return@runTest
 
-      assertLandsOnTheRule(grid(::textAt))
+      assertLandsOnTheRule(grids(::textAt))
     }
+
+  @Test
+  fun theOverlayBoundIsAtMostTheWidestBlendBound() {
+    assertTrue(
+      LUMA_TOLERANCE <= HdrOverlayCells.MAX_BLEND_TOLERANCE,
+      "overlays are held to $LUMA_TOLERANCE codes, past ${HdrOverlayCells.MAX_BLEND_TOLERANCE}",
+    )
+  }
 
   // The preview composites through the export's own compositor and shows its float buffer through the SDR display
   // curve, clamped at reference white. So the light the rule puts under each overlay, which the export lands on, is
   // what the preview draws once it is shown the same way.
   @Test
-  fun aPreviewFrameShowsTheExportsOverlaysOnBothTransfers() =
+  fun aPreviewFrameShowsTheExportsImageOverlaysOnBothTransfers() =
     runTest {
       if (!Filmstrip { webCodecsBackend() }.encodesHdr()) return@runTest
 
-      HdrTransfer.entries.forEach { transfer ->
-        val overlays = grid(::imageAt)
-        val composition = compositionOf(transfer, overlays.map { it.spec })
-        val background = authoredHdrNits(AuthoredColours.MID_GREY)
-        val resolved = assertIs<ResolveResult.Resolved>(engine().resolve(composition, SPEC)).composition
-        val preview = resolved.toBrowserPreview(composition)
-
-        try {
-          val drawn = assertNotNull(preview.frameAt(GAP_TIME), "$transfer drew no preview frame in the gap")
-          for ((placed, rect) in overlays.zip(rectsOf(transfer, composition))) {
-            val column = (rect.middleX * drawn.size.width).toInt()
-            val row = (rect.middleY * drawn.size.height).toInt()
-            val offset = (row * drawn.size.width + column) * RGBA_CHANNELS
-            val shown = presented(OverlayPixels.hdrSourceOver(background, placed.colour, placed.opacity))
-            repeat(3) { channel ->
-              val previewed = drawn.pixels[offset + channel].toInt() and BYTE_MASK
-              assertTrue(
-                abs(previewed - shown[channel]) <= OverlayPixels.ENCODED_TOLERANCE,
-                "$transfer channel $channel at $rect previewed $previewed, and the rule shows ${shown[channel]}",
-              )
-            }
-          }
-        } finally {
-          preview.release()
-        }
-      }
+      assertPreviewsTheRule(grids(::imageAt))
     }
 
+  @Test
+  fun aPreviewFrameShowsTheExportsTextOverlaysOnBothTransfers() =
+    runTest {
+      if (!Filmstrip { webCodecsBackend() }.encodesHdr()) return@runTest
+
+      assertPreviewsTheRule(grids(::textAt))
+    }
+
+  // A preview that blends the encoded signals, or the eight-bit sRGB codes before mapping them, shows each blend cell
+  // off what the rule shows. Twice the preview bound has to sit below the smallest of those misses, or one reading
+  // could land within the bound of both the rule and a wrong blend.
+  @Test
+  fun thePreviewBoundIsBelowTheSmallestMissOfAWrongBlend() {
+    val misses =
+      HdrTransfer.entries.flatMap { transfer ->
+        HdrOverlayCells.BLENDS.flatMap { cell ->
+          val shown = presented(cell.nits())
+          listOf(
+            "$transfer signal blend of ${nameOf(cell)}" to presented(cell.signalBlendNits(transfer)),
+            "sRGB blend of ${nameOf(cell)}" to presented(cell.srgbBlendNits()),
+          ).map { (name, wrong) -> name to shown.missFrom(wrong) }
+        }
+      }
+    val (name, smallest) = misses.minBy { it.second }
+
+    assertTrue(
+      2 * PREVIEW_TOLERANCE < smallest,
+      "a $name misses by only $smallest, too close for a bound of $PREVIEW_TOLERANCE to tell apart",
+    )
+  }
+
+  private suspend fun assertPreviewsTheRule(grids: Map<Int, List<Placed>>) {
+    HdrTransfer.entries.forEach { transfer ->
+      grids.forEach { (background, overlays) -> assertPreviewed(transfer, background, overlays) }
+    }
+  }
+
   /**
-   * Exports [overlays] over the gap on each transfer's grade and reads every one's centre against the rule, so a
-   * failure names every overlay that missed on either transfer.
+   * Exports each fill's overlays over the gap on each transfer's grade and reads every one's centre against the rule,
+   * so a failure names every overlay that missed on either transfer.
    */
-  private suspend fun assertLandsOnTheRule(overlays: List<Placed>) {
-    val misses = HdrTransfer.entries.flatMap { transfer -> missesOf(transfer, overlays).map { "$transfer $it" } }
+  private suspend fun assertLandsOnTheRule(grids: Map<Int, List<Placed>>) {
+    val misses =
+      HdrTransfer.entries.flatMap { transfer ->
+        grids.flatMap { (background, overlays) -> missesOf(transfer, background, overlays).map { "$transfer $it" } }
+      }
 
     assertTrue(misses.isEmpty(), misses.joinToString("; "))
   }
 
   private suspend fun missesOf(
     transfer: HdrTransfer,
+    background: Int,
     overlays: List<Placed>,
   ): List<String> {
-    val composition = compositionOf(transfer, overlays.map { it.spec })
+    val composition = compositionOf(transfer, background, overlays.map { it.spec })
     val gap = gapFrameOf(transfer, composition)
-    val background = authoredHdrNits(AuthoredColours.MID_GREY)
 
     val rects = rectsOf(transfer, composition)
     return overlays.zip(rects).mapNotNull { (placed, rect) ->
-      val light = OverlayPixels.hdrSourceOver(background, placed.colour, placed.opacity)
-      val (luma, cb, cr) = tenBitCodesFromSignal(transfer.signalFromNits(light))
+      val (luma, cb, cr) = placed.cell.codes(transfer)
       val (readCb, readCr) = gap.chromaAt(rect.middleX, rect.middleY)
       val readLuma = gap.lumaAt(rect.middleX, rect.middleY)
       val landed =
         abs(readLuma - luma) <= LUMA_TOLERANCE &&
           abs(readCb - cb) <= LUMA_TOLERANCE &&
           abs(readCr - cr) <= LUMA_TOLERANCE
-      if (landed) {
-        null
-      } else {
-        "${placed.colour.toUInt().toString(HEX)} at ${placed.opacity} read ($readLuma, $readCb, $readCr) for " +
-          "($luma, $cb, $cr)"
+      if (landed) null else "${nameOf(placed.cell)} read ($readLuma, $readCb, $readCr) for ($luma, $cb, $cr)"
+    }
+  }
+
+  /**
+   * Previews [overlays] over a [background] fill on a [transfer] grade and reads every one's centre against what the
+   * rule shows.
+   */
+  private suspend fun assertPreviewed(
+    transfer: HdrTransfer,
+    background: Int,
+    overlays: List<Placed>,
+  ) {
+    val composition = compositionOf(transfer, background, overlays.map { it.spec })
+    val resolved = assertIs<ResolveResult.Resolved>(engine().resolve(composition, SPEC)).composition
+    val preview = resolved.toBrowserPreview(composition)
+
+    try {
+      val drawn = assertNotNull(preview.frameAt(GAP_TIME), "$transfer drew no preview frame in the gap")
+      for ((placed, rect) in overlays.zip(rectsOf(transfer, composition))) {
+        val column = (rect.middleX * drawn.size.width).toInt()
+        val row = (rect.middleY * drawn.size.height).toInt()
+        val offset = (row * drawn.size.width + column) * RGBA_CHANNELS
+        val shown = presented(placed.cell.nits())
+        repeat(3) { channel ->
+          val previewed = drawn.pixels[offset + channel].toInt() and BYTE_MASK
+          assertTrue(
+            abs(previewed - shown[channel]) <= PREVIEW_TOLERANCE,
+            "$transfer ${nameOf(placed.cell)} channel $channel previewed $previewed, the rule shows ${shown[channel]}",
+          )
+        }
       }
+    } finally {
+      preview.release()
     }
   }
 
@@ -187,6 +239,7 @@ class BrowserOverlayHdrTest {
 
   private suspend fun compositionOf(
     transfer: HdrTransfer,
+    background: Int,
     overlays: List<EffectSpec>,
   ): EditComposition {
     val clip =
@@ -195,7 +248,7 @@ class BrowserOverlayHdrTest {
       tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(clip))), start = LATE_START)),
       effects = overlays,
       audio = AudioSpec.Remove,
-      fill = Fill.Solid(AuthoredColours.MID_GREY),
+      fill = Fill.Solid(background),
     )
   }
 
@@ -241,21 +294,32 @@ class BrowserOverlayHdrTest {
     }
   }
 
+  private fun IntArray.missFrom(other: IntArray): Int = indices.maxOf { abs(this[it] - other[it]) }
+
+  private fun nameOf(cell: HdrOverlayCells.Cell): String =
+    "${cell.overlay.toUInt().toString(HEX)} at ${cell.opacity} over ${cell.background.toUInt().toString(HEX)}"
+
   /**
-   * One overlay of the grid and what it was authored with.
+   * One overlay of a grid and the cell it draws.
    */
   private class Placed(
     val spec: EffectSpec,
-    val colour: Int,
-    val opacity: Float,
+    val cell: HdrOverlayCells.Cell,
   )
 
   /**
-   * Every colour at every opacity, a column a colour and a row an opacity, built by [at].
+   * One grid per fill colour of [HdrOverlayCells.CELLS], keyed by that colour, with a column per overlay colour and a
+   * row per opacity, built by [at].
    */
-  private fun grid(at: (colour: Int, opacity: Float, column: Int, row: Int) -> EffectSpec): List<Placed> =
-    COLOURS.flatMapIndexed { column, colour ->
-      OPACITIES.mapIndexed { row, opacity -> Placed(at(colour, opacity, column, row), colour, opacity) }
+  private fun grids(at: (colour: Int, opacity: Float, column: Int, row: Int) -> EffectSpec): Map<Int, List<Placed>> =
+    HdrOverlayCells.CELLS.groupBy { it.background }.mapValues { (_, cells) ->
+      val colours = cells.map { it.overlay }.distinct()
+      val opacities = cells.map { it.opacity }.distinct()
+      assertTrue(colours.size <= SLOTS && opacities.size <= SLOTS, "a fill has more cells than a frame has room for")
+      cells.map { cell ->
+        val spec = at(cell.overlay, cell.opacity, colours.indexOf(cell.overlay), opacities.indexOf(cell.opacity))
+        Placed(spec, cell)
+      }
     }
 
   private fun imageAt(
@@ -287,16 +351,14 @@ class BrowserOverlayHdrTest {
     return TextOverlay(
       TEXT,
       TextStyle(fontSize = FONT_SIZE, color = colour, backgroundColor = colour),
-      Anchor((column + HALF) / COLOURS.size, (row + HALF) / OPACITIES.size),
+      Anchor((column + HALF) / SLOTS, (row + HALF) / SLOTS),
       animation = OverlayAnimation { frame },
     )
   }
 
   private companion object {
-    // Paper white, which an opaque overlay has to land on at reference white and not at the format's peak.
-    const val WHITE = 0xFFFFFFFF.toInt()
-    val COLOURS = listOf(WHITE, AuthoredColours.MID_GREY, AuthoredColours.MID_GREEN)
-    val OPACITIES = listOf(1f, 0.5f, 0.25f)
+    // The columns and the rows a frame lays its cells out on.
+    const val SLOTS = 3
 
     const val WIDTH = 256
     const val HEIGHT = 192
@@ -322,6 +384,11 @@ class BrowserOverlayHdrTest {
     const val HALF = 0.5f
 
     val SPEC = ExportSpec(audioCodec = AudioCodec.None, frameRate = FRAME_RATE, hdr = HdrMode.KeepHdr)
+
+    // How far a preview reading may sit from what the rule shows, in eight-bit codes per channel. The preview runs no
+    // codec and composites in RGBA16F buffers, so its reading is the rule's own. Measured at 0 on SwiftShader, the
+    // renderer CI runs, and on Metal, checked by hand on a Mac.
+    const val PREVIEW_TOLERANCE = 0
 
     const val HEX = 16
     const val MAX_CODE = 255f

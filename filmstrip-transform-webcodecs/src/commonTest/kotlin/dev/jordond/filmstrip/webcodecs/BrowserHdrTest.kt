@@ -27,12 +27,11 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.authoredHdrNits
-import dev.jordond.filmstrip.media.hlgNitsFromScene
+import dev.jordond.filmstrip.media.hlgNitsFromSignal
 import dev.jordond.filmstrip.media.linearDimGain
-import dev.jordond.filmstrip.media.sceneFromHlgSignal
 import dev.jordond.filmstrip.media.signalFromNits
+import dev.jordond.filmstrip.media.tenBitCodesFromSignal
 import dev.jordond.filmstrip.test.encodesHdr
-import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
 import dev.jordond.filmstrip.webcodecs.internal.SourceReader
 import kotlinx.coroutines.await
 import kotlinx.coroutines.flow.toList
@@ -185,7 +184,7 @@ class BrowserHdrTest {
   // A blur averages the buffer's light, which on HLG is the luminance driven display light unpack
   // decodes to. A flat colour blurs to itself, and two row stripes of magenta and green blurred far
   // past their period land on the mean of their two lights. The per channel transfer puts that mean
-  // somewhere else, which is checked to sit outside the tolerance before the read is held to it.
+  // somewhere else, which is checked to sit more than twice the tolerance away before the read is held to it.
   @Test
   fun aBlurredFillOnHlgMixesItsColoursInDisplayLight() =
     runTest {
@@ -198,8 +197,8 @@ class BrowserHdrTest {
       val mixed = hlgBlurCodesOf(MAGENTA, GREEN)
       val perChannel = perChannelBlurCodesOf(MAGENTA, GREEN)
       assertTrue(
-        abs(mixed[0] - perChannel[0]) > LUMA_TOLERANCE ||
-          (1..2).any { abs(mixed[it] - perChannel[it]) > CHROMA_TOLERANCE },
+        abs(mixed[0] - perChannel[0]) > 2 * LUMA_TOLERANCE ||
+          (1..2).any { abs(mixed[it] - perChannel[it]) > 2 * CHROMA_TOLERANCE },
         "the stripes mix to ${mixed.toList()} either way, so they pin nothing",
       )
       assertCodes(mixed, striped, "the striped bar, which a per channel mix puts at ${perChannel.toList()},")
@@ -316,10 +315,7 @@ class BrowserHdrTest {
     return tenBitCodesFromSignal(HdrTransfer.Hlg.pictureSignalOf(mean))
   }
 
-  private fun hlgBufferNitsOf(nits: FloatArray): FloatArray {
-    val signal = HdrTransfer.Hlg.pictureSignalOf(nits)
-    return hlgNitsFromScene(FloatArray(3) { sceneFromHlgSignal(signal[it]) })
-  }
+  private fun hlgBufferNitsOf(nits: FloatArray): FloatArray = hlgNitsFromSignal(HdrTransfer.Hlg.pictureSignalOf(nits))
 
   private fun assertCodes(
     expected: IntArray,

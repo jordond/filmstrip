@@ -47,10 +47,6 @@ internal object OverlayConstants {
   // given the same band the halved signal gets. Every pixel read back has also been through a YUV round trip, which
   // moves a flat colour by a few code values.
   const val CHANNEL_DRIFT = (SIGNAL_DRIFT * FULL_SCALE).toInt()
-
-  // How far a ten-bit read of an overlay blended on an HDR grade may sit from the rule, per channel. The encoder moves a
-  // flat block by a code or two, and the YUV to float RGB conversion ahead of the blend by one more.
-  const val BLEND_DRIFT = 4
 }
 
 // Whether this fixture's backend writes HDR here. Missing fixtures read as false, and a failed capabilities query fails

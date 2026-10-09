@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.ffmpeg.ExportConstants.CODE_TOLERANCE
 import dev.jordond.filmstrip.ffmpeg.ExportConstants.HALF
 import dev.jordond.filmstrip.ffmpeg.ExportConstants.MICROS_PER_SECOND
 import dev.jordond.filmstrip.ffmpeg.ExportConstants.TIMEOUT
@@ -20,9 +21,9 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.authoredHdrNits
 import dev.jordond.filmstrip.media.signalFromNits
+import dev.jordond.filmstrip.media.tenBitCodesFromSignal
 import dev.jordond.filmstrip.test.AuthoredColours.MID_GREEN
 import dev.jordond.filmstrip.test.AuthoredColours.MID_GREY
-import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import java.io.File
@@ -184,10 +185,6 @@ class FfmpegHdrFillTest {
   }
 
   private companion object {
-    // The ten-bit tolerance the Apple and media3 HDR fill suites hold a flat colour to, which leaves room for the
-    // encoder's rounding on a flat block and nothing more.
-    const val CODE_TOLERANCE = 2
-
     // The fixture runs two seconds, so the gap and the picture after it both hold a run of frames.
     val GAP_LEAD = 500.milliseconds
     val BAR_AT = 1500.milliseconds

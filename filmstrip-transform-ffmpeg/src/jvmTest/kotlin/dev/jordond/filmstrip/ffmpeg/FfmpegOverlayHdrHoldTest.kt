@@ -10,10 +10,9 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.CODE_DRIFT
+import dev.jordond.filmstrip.ffmpeg.ExportConstants.CODE_TOLERANCE
 import dev.jordond.filmstrip.ffmpeg.ExportConstants.HALF
 import dev.jordond.filmstrip.ffmpeg.ExportConstants.TIMEOUT
-import dev.jordond.filmstrip.ffmpeg.OverlayConstants.BLEND_DRIFT
 import dev.jordond.filmstrip.ffmpeg.OverlayConstants.OVERLAY_SIZE
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
@@ -26,10 +25,12 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.authoredHdrNits
 import dev.jordond.filmstrip.media.signalFromNits
+import dev.jordond.filmstrip.media.tenBitCodesFromSignal
 import dev.jordond.filmstrip.test.AuthoredColours.MID_GREEN
 import dev.jordond.filmstrip.test.AuthoredColours.MID_GREY
+import dev.jordond.filmstrip.test.HdrOverlayCells.BLACK
+import dev.jordond.filmstrip.test.HdrOverlayCells.WHITE
 import dev.jordond.filmstrip.test.OverlayPixels.hdrSourceOver
-import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import java.io.File
@@ -75,11 +76,13 @@ class FfmpegOverlayHdrHoldTest {
   // Two clips, a translucent composition overlay over an opaque one on the bar, and an opaque overlay on the second
   // clip alone. The clip's overlay is drawn on the clip's own frame, which the portrait crop then contains, so its
   // probe is carried through the same contain. What sits under it is the fixture's picture, which an opaque texel
-  // replaces outright.
+  // replaces outright. The first clip is read against the same export without the clip's overlay, which is what the
+  // picture there lands on, once that picture is shown to sit far enough from the overlay to tell the two apart.
   private suspend fun assertHeld(transfer: HdrTransfer) {
     if (!fixture.encodesHdr()) return
     val onClip = overlay(MID_GREEN)
-    val exported = exported(transfer, listOf(overlay(MID_GREY), overlay(WHITE, HALF)), clips = 2, onLastClip = onClip)
+    val onBar = listOf(overlay(MID_GREY), overlay(WHITE, HALF))
+    val exported = exported(transfer, onBar, clips = 2, onLastClip = onClip)
     val plan = exported.plan
     val rate = assertNotNull(plan.output.frameRate)
     val frames = framesIn(plan.duration, rate)
@@ -99,13 +102,17 @@ class FfmpegOverlayHdrHoldTest {
       val read = tenBitCodesAt(exported.file, clip, opensOn(index, plan))
       assertCodes(read, opaque, "$transfer clip overlay on frame $index of $frames")
     }
-    val first = tenBitCodesAt(exported.file, clip, opensOn(clipFrames / 2, plan))
+    val bare = exported(transfer, onBar, clips = 2)
+    val firstClip = opensOn(clipFrames / 2, plan)
+    val picture = tenBitCodesAt(bare.file, clip, firstClip)
     assertTrue(
-      first.indices.any { abs(first[it] - opaque[it]) > CODE_DRIFT },
-      "$transfer: the second clip's overlay is drawn on the first clip, read ${first.toList()}",
+      picture.indices.any { abs(picture[it] - opaque[it]) > 2 * CODE_TOLERANCE },
+      "$transfer first clip's picture read ${picture.toList()}, too close to the overlay's ${opaque.toList()} to " +
+        "tell it from one drawn there",
     )
+    assertCodes(tenBitCodesAt(exported.file, clip, firstClip), picture, "$transfer first clip under the clip's overlay")
 
-    exported.file.delete()
+    listOf(exported, bare).forEach { it.file.delete() }
   }
 
   // A translucent overlay shown for a window, over an opaque one that is always drawn, so both sides of each edge land
@@ -131,7 +138,8 @@ class FfmpegOverlayHdrHoldTest {
     val drawn = expectedCodes(transfer, MID_GREY, WHITE, HALF)
     val bare = expectedCodes(transfer, MID_GREY, MID_GREY, 1f)
     for (index in listOf(inside.first(), inside[inside.size / 2], inside.last())) {
-      assertCodes(tenBitCodesAt(exported.file, probe, opensOn(index, plan)), drawn, "$transfer inside, frame $index")
+      val read = tenBitCodesAt(exported.file, probe, opensOn(index, plan))
+      assertCodes(read, drawn, "$transfer inside, frame $index")
     }
     for (index in listOf(0, inside.first() - 1, inside.last() + 1, frames - 1)) {
       assertCodes(tenBitCodesAt(exported.file, probe, opensOn(index, plan)), bare, "$transfer outside, frame $index")
@@ -154,7 +162,7 @@ class FfmpegOverlayHdrHoldTest {
     what: String,
   ) {
     assertTrue(
-      read.indices.all { abs(read[it] - expected[it]) <= BLEND_DRIFT },
+      read.indices.all { abs(read[it] - expected[it]) <= CODE_TOLERANCE },
       "$what read ${read.toList()}, expected ${expected.toList()}",
     )
   }
@@ -232,9 +240,6 @@ class FfmpegOverlayHdrHoldTest {
   }
 
   private companion object {
-    const val WHITE = 0xFFFFFFFF.toInt()
-    const val BLACK = 0xFF000000.toInt()
-
     // The HDR fixtures' frame and length.
     val FIXTURE_SIZE = Size(1280, 720)
     val CLIP_LENGTH = 2.seconds

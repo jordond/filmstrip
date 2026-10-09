@@ -4,14 +4,12 @@ package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.hlgDisplayNitsFromScene
-import dev.jordond.filmstrip.media.hlgSceneFromDisplayNits
-import dev.jordond.filmstrip.media.hlgSignalFromScene
+import dev.jordond.filmstrip.media.hlgDisplayNitsFromSignal
+import dev.jordond.filmstrip.media.hlgSignalFromDisplayNits
 import dev.jordond.filmstrip.media.nitsFromPqSignal
 import dev.jordond.filmstrip.media.pqSignalFromNits
-import dev.jordond.filmstrip.media.sceneFromHlgSignal
-import dev.jordond.filmstrip.transform.internal.signalFromTenBitCodes
-import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
+import dev.jordond.filmstrip.media.signalFromTenBitCodes
+import dev.jordond.filmstrip.media.tenBitCodesFromSignal
 import dev.jordond.filmstrip.webcodecs.internal.ArrayBuffer
 import dev.jordond.filmstrip.webcodecs.internal.BufferTarget
 import dev.jordond.filmstrip.webcodecs.internal.HDR_VP9_CODEC
@@ -248,20 +246,20 @@ internal fun HdrTransfer.pictureSignalOf(nits: FloatArray): FloatArray =
   FloatArray(3) {
     when (this) {
       HdrTransfer.Pq -> pqSignalFromNits(nits[it])
-      HdrTransfer.Hlg -> hlgSignalFromScene(hlgSceneFromDisplayNits(nits[it]))
+      HdrTransfer.Hlg -> hlgSignalFromDisplayNits(nits[it])
     }
   }
 
 /**
  * The display light one channel of [signal] carries, in cd/m2, per channel.
  *
- * The inverse of what the pack pass writes for a picture pixel: PQ's own transfer, and for HLG the
- * per-channel opto-optical transfer media3 and ffmpeg apply.
+ * The inverse of what the pack pass writes for a picture pixel: PQ's own transfer, and for HLG core's
+ * per-channel display decode, the reading media3 and ffmpeg apply.
  */
 internal fun HdrTransfer.displayNitsFromSignal(signal: Float): Float =
   when (this) {
     HdrTransfer.Pq -> nitsFromPqSignal(signal)
-    HdrTransfer.Hlg -> hlgDisplayNitsFromScene(sceneFromHlgSignal(signal))
+    HdrTransfer.Hlg -> hlgDisplayNitsFromSignal(signal)
   }
 
 internal fun colorSpaceOf(transfer: HdrTransfer) =

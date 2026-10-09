@@ -172,6 +172,59 @@ class HdrSignalTest {
     BT2020_CR_SCALE shouldBeNear 1.4746f
   }
 
+  // A grey carries no chroma, so each chroma row's weights cancel and luma's sum to one. The two sets of rows undo each
+  // other, which a typo in either one breaks on the off-diagonal entries.
+  @Test
+  fun `the BT2020 rows encode and decode as one matrix`() {
+    BT2020_ENCODE_ROWS[0].sum() shouldBeNear 1.0
+    BT2020_ENCODE_ROWS[1].sum() shouldBeNear 0.0
+    BT2020_ENCODE_ROWS[2].sum() shouldBeNear 0.0
+    repeat(3) { row ->
+      repeat(3) { column ->
+        val product = (0 until 3).sumOf { BT2020_DECODE_ROWS[row][it] * BT2020_ENCODE_ROWS[it][column] }
+        product shouldBeNear if (row == column) 1.0 else 0.0
+      }
+    }
+  }
+
+  @Test
+  fun `pure red and blue land on the chroma extremes`() {
+    BT2020_ENCODE_ROWS[2][0] shouldBeNear 0.5
+    BT2020_ENCODE_ROWS[1][2] shouldBeNear 0.5
+  }
+
+  @Test
+  fun `the chroma shift moves Cb and Cr from the chroma middle to black and leaves luma`() {
+    val fromBlack = (TEN_BIT_CHROMA_MID - TEN_BIT_LUMA_FLOOR).toDouble() / TEN_BIT_CHROMA_RANGE
+    val shifted = BT2020_ENCODE_ROWS.map { row -> (0 until 3).sumOf { row[it] * BT2020_CHROMA_SHIFT[it] } }
+
+    shifted[0] shouldBeNear 0.0
+    shifted[1] shouldBeNear fromBlack
+    shifted[2] shouldBeNear fromBlack
+  }
+
+  // A saturated mid-range colour, where HLG's luminance-driven transfer and a per channel reading of it part company.
+  @Test
+  fun `a signal decodes back to the light it was encoded from on either transfer`() {
+    val colour = floatArrayOf(180f, 420f, 35f)
+
+    HdrTransfer.entries.forEach { transfer ->
+      val back = transfer.nitsFromSignal(transfer.signalFromNits(colour))
+
+      repeat(3) { back[it] shouldBeNear colour[it] }
+    }
+    val signal = HdrTransfer.Hlg.signalFromNits(colour)
+    val perChannel = FloatArray(3) { hlgDisplayNitsFromSignal(signal[it]) }
+    assertTrue(abs(perChannel[2] - colour[2]) > colour[2] * 0.1f, "a per channel reading lands on ${perChannel[2]}")
+  }
+
+  // The rows are built on Float weights and scales, which agree with each other to a Float's precision.
+  private fun ChannelTriple.sum(): Double = (0 until 3).sumOf { this[it] }
+
+  private infix fun Double.shouldBeNear(expected: Double) {
+    assertTrue(abs(this - expected) <= 1e-7, "expected $expected but was $this")
+  }
+
   private infix fun Float.shouldBeNear(expected: Float) {
     val tolerance = if (abs(expected) > 1f) abs(expected) * 1e-3f else 1e-3f
     assertTrue(abs(this - expected) <= tolerance, "expected $expected but was $this")

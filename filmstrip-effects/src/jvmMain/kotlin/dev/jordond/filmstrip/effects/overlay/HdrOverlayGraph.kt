@@ -6,10 +6,21 @@ import dev.jordond.filmstrip.effect.AuxInput
 import dev.jordond.filmstrip.effect.FilterArgument
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.PlaneLanes
 import dev.jordond.filmstrip.effect.Sidecar
-import dev.jordond.filmstrip.effects.displayLightFromSignal
+import dev.jordond.filmstrip.effects.FLOAT_RGB
+import dev.jordond.filmstrip.effects.GRADE_TO_FLOAT
+import dev.jordond.filmstrip.effects.HdrGradeTables
+import dev.jordond.filmstrip.effects.LINEAR
+import dev.jordond.filmstrip.effects.PIXEL
+import dev.jordond.filmstrip.effects.displayLightFromHlgScene
+import dev.jordond.filmstrip.effects.geq
+import dev.jordond.filmstrip.effects.lut1d
+import dev.jordond.filmstrip.effects.shiftedSignalToGrade
 import dev.jordond.filmstrip.effects.signalFromDisplayLight
+import dev.jordond.filmstrip.effects.signalFromGrade
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.BT2020_CHROMA_SHIFT
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 
@@ -220,8 +231,14 @@ internal fun HdrOverlayLayout.windowNodes(
  * channel, the rule every backend lands an overlay texel on. The result is encoded back onto the signal and into the
  * grade's own YUV, which carries no alpha, so the region goes back onto the frame opaque and replaces what it cut.
  *
+ * The grade's Y'CbCr goes to R'G'B' on the way in through [GRADE_TO_FLOAT] and [signalFromGrade], and back on the way
+ * out through [shiftedSignalToGrade], so the matrix runs on the tables and mixer rows of [HdrGradeTables] and no
+ * `format` step applies one. Each signal is decoded to light on [HdrGradeTables.lightCurve], with HLG's luminance gain
+ * after it in geq, and the blend's light is encoded back in geq.
+ *
  * [picture] and [mask] arrive as the same picture on the grade's signal, cut to the region's size. The colour is read
- * from the first and the alpha, with any opacity already folded in, from the second.
+ * from the first and the alpha, with any opacity already folded in, from the second. Both go to float one plane at a
+ * time too, so every sixteen-bit sample is read as it is, and the picture is decoded to light the way the region is.
  */
 internal fun hdrOverlayFragment(
   transfer: HdrTransfer,
@@ -231,7 +248,9 @@ internal fun hdrOverlayFragment(
   sidecars: List<Sidecar>,
 ): FilterFragment {
   val region = layout.region
-  val light = geq(displayLightFromSignal(transfer, PIXEL))
+  val tables = mutableListOf<Sidecar>()
+  val light = tables.displayLightFromSignal(transfer)
+  val encode = geq(signalFromDisplayLight(transfer, PIXEL).mapIndexed { channel, signal -> shifted(signal, channel) })
 
   return FilterFragment(
     crop =
@@ -243,48 +262,44 @@ internal fun hdrOverlayFragment(
         "y" to region.y.toString(),
         "exact" to "1",
       ),
-    chain =
-      listOf(
-        FilterNode("scale", "in_color_matrix" to GRADE_MATRIX, "in_range" to GRADE_RANGE),
-        FilterNode("format", "pix_fmts" to FLOAT_RGB),
-        light,
-      ),
+    chain = GRADE_TO_FLOAT + tables.signalFromGrade() + light,
+    // The lanes pin their own input to planar RGB, which carries no alpha, and colorchannelmixer takes whatever format
+    // the filter after it asks for. So each branch is pinned to its sixteen-bit RGBA right before its lanes, and the
+    // mask's colorchannelmixer runs where the alpha it reads still is.
     auxInputs =
       listOf(
-        AuxInput(
-          picture.image,
-          picture.chain + FilterNode("format", "pix_fmts" to FLOAT_RGB) + light,
-          picture.timeline,
-        ),
-        AuxInput(mask.image, mask.chain + ALPHA_TO_RGB + FilterNode("format", "pix_fmts" to FLOAT_RGB), mask.timeline),
+        AuxInput(picture.image, picture.chain + RGB_TO_FLOAT + light, picture.timeline),
+        AuxInput(mask.image, mask.chain + ALPHA_TO_RGB + RGB_TO_FLOAT, mask.timeline),
       ),
     merge = FilterNode("maskedmerge"),
-    post =
-      listOf(
-        geq(signalFromDisplayLight(transfer, PIXEL)),
-        FilterNode("scale", "out_color_matrix" to GRADE_MATRIX, "out_range" to GRADE_RANGE),
-        FilterNode("format", "pix_fmts" to GRADE_YUV),
-      ),
-    sidecars = sidecars,
+    post = listOf(encode) + tables.shiftedSignalToGrade(),
+    sidecars = sidecars + tables.distinct(),
   )
 }
 
-private fun geq(rgb: List<String>): FilterNode = FilterNode("geq", "r" to rgb[0], "g" to rgb[1], "b" to rgb[2])
+// The nodes that decode each channel of a signal on planar float to linear display light, as a fraction of the
+// transfer's peak, adding the tables they read to this list. HLG's scene light reaches display light through a gain
+// read off all three channels, which lut1d's per-channel tables cannot apply, so geq applies it.
+private fun MutableList<Sidecar>.displayLightFromSignal(transfer: HdrTransfer): List<FilterNode> =
+  buildList {
+    add(lut1d(HdrGradeTables.LIGHT_WARP, LINEAR))
+    add(lut1d(HdrGradeTables.lightCurve(transfer), LINEAR))
+    if (transfer == HdrTransfer.Hlg) add(geq(displayLightFromHlgScene(PIXEL)))
+  }
 
-// The three planes of the pixel geq is writing, as it reads them.
-private val PIXEL = listOf("r(X,Y)", "g(X,Y)", "b(X,Y)")
+// A signal expression moved by its channel's share of the chroma offset, which the encode rows read it at.
+private fun shifted(
+  signal: String,
+  channel: Int,
+): String = "($signal)+(${BT2020_CHROMA_SHIFT[channel]})"
+
+// An overlay branch's sixteen-bit RGBA carried onto planar float RGB one plane at a time, alpha left behind.
+private val RGB_TO_FLOAT =
+  listOf(FilterNode("format", "pix_fmts" to HDR_OVERLAY_RGBA), PlaneLanes.node(listOf("r", "g", "b"), FLOAT_RGB))
 
 // Every colour channel of the mask branch replaced by its alpha, which is what maskedmerge reads plane by plane.
 private val ALPHA_TO_RGB =
   FilterNode("colorchannelmixer", "rr" to "0", "ra" to "1", "gg" to "0", "ga" to "1", "bb" to "0", "ba" to "1")
-
-// Planar float RGB, which both geq and maskedmerge run on, so linear light is held without banding.
-private const val FLOAT_RGB = "gbrpf32le"
-
-// The grade's own YUV: BT.2020 non-constant luminance, limited range, ten-bit 4:2:0.
-private const val GRADE_YUV = "yuv420p10le"
-private const val GRADE_MATRIX = "bt2020"
-private const val GRADE_RANGE = "tv"
 
 private const val TRANSPARENT = "black@0"
 

@@ -72,7 +72,13 @@ public object AuthoredColours {
    */
   public fun channelsOf(argb: Int): List<Int> = listOf(argb shr 16 and 0xFF, argb shr 8 and 0xFF, argb and 0xFF)
 
-  private const val FULL_SCALE = 255f
+  /**
+   * The largest eight-bit code, as a float.
+   *
+   * Dividing a code by it gives that channel's sRGB signal from zero to one.
+   */
+  internal const val FULL_SCALE = 255f
+
   private const val TOLERANCE_SHARE = 0.45f
   private const val MANAGED_GAMMA = 2.4f
 }

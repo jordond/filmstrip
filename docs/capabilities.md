@@ -121,7 +121,9 @@ it recognises, and declines the rest so the next resolver gets a look.
     that way in Core Image. The browser maps the raster to linear light before uploading it and blends
     it in the compositor. ffmpeg draws the image that way and no text at all. It decodes the picture
     through the JDK's `ImageIO`, or through its own ffmpeg when the JDK has no reader for it, carries
-    it onto the grade's signal and blends it on the part of the frame the overlay covers. media3 meets
+    it onto the grade's signal and blends it on the part of the frame the overlay covers, on the same
+    float planes and tables a colour matrix on a grade runs on, so it writes the exact code values the
+    blend works out. media3 meets
     this on PQ and falls short on HLG.
 
 [^android-overlay]:
@@ -180,11 +182,19 @@ it recognises, and declines the rest so the next resolver gets a look.
     since Core Image's working space carries sRGB primaries and would floor a saturated BT.2020 channel,
     the browser onto one `mat4` uniform, wrapped on a grade in the same GLSL body media3's pass runs,
     and ffmpeg onto `lutrgb` when the matrix is per-channel and onto a two-point `lut3d` cube otherwise,
-    which reproduces an affine map exactly and clamps once at the end. On a grade the cube runs at
-    sixteen bits between two `lutrgb` tables that carry the transfer function, which costs two format
-    conversions per frame. The per-channel table rounds to the nearest code value in its own expression.
-    The cube cannot, and `lut3d` keeps the code value below the one it interpolates, so a matrix that
-    mixes channels can land one code value under the other three backends on ffmpeg. PQ agrees across
+    which reproduces an affine map exactly and clamps once at the end. The per-channel table rounds to
+    the nearest code value in its own expression. The cube cannot, and `lut3d` keeps the code value
+    below the one it interpolates, so on SDR a matrix that mixes channels can land one code value under
+    the other three backends on ffmpeg. On a grade ffmpeg works on the grade's own ten-bit Y'CbCr. It
+    carries luma, Cb and Cr onto float planes one plane at a time, turns them into the signal with a
+    `lut1d` table and a `colorchannelmixer`, takes the signal to the SDR signal and back through
+    `lut1d` tables that hold the transfer function, and writes the codes with a second mixer and a
+    table that rounds each one to the nearest whole code. A per-channel matrix is folded into the
+    transfer table, a mix runs on `colorchannelmixer`, and only a mix with an offset runs as a
+    two-point `lut3d`, since the mixer has no offset of its own. Every step in between runs in float,
+    so a grade lands on the exact code values the matrix and transfer work out. That costs a float copy
+    of the frame and seven to nine table and mixer passes over it, and each table travels as a sidecar
+    file of up to 65,536 entries per channel. PQ agrees across
     backends to the code value. HLG does not quite: Core Image's opto-optical transfer keeps chroma but
     is not the per-channel one media3 and ffmpeg apply, so an offset or a mix on a saturated HLG colour
     lands a few percent apart between Apple and the other two, and grey agrees everywhere.

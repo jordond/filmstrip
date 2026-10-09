@@ -29,12 +29,11 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.authoredHdrNits
-import dev.jordond.filmstrip.media.signalFromNits
 import dev.jordond.filmstrip.style.TextStyle
 import dev.jordond.filmstrip.test.AuthoredColours
+import dev.jordond.filmstrip.test.HdrOverlayCells
 import dev.jordond.filmstrip.test.OverlayPixels
 import dev.jordond.filmstrip.test.encodesHdr
-import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
@@ -57,10 +56,11 @@ import kotlin.time.Duration.Companion.seconds
  * Composition overlays drawn over the letterbox fill of an export that keeps its grade, read back out of the written
  * file.
  *
- * A square crop of the 16:9 HDR fixtures leaves a bar above and below the picture that only a mid grey fill paints, so
- * the light under every overlay is [authoredHdrNits] of that grey. Each overlay is held to
- * [OverlayPixels.hdrSourceOver] of its colour over the bar, encoded through [signalFromNits]. An opaque overlay lands
- * where a fill of its colour does and a partly opaque one blends with the bar in linear light.
+ * A square crop of the 16:9 HDR fixtures leaves a bar above and below the picture that only the fill paints, so the
+ * light under every overlay is [authoredHdrNits] of the fill. The grid is [HdrOverlayCells.CELLS], one export per fill
+ * and opacity, and each cell is held to [HdrOverlayCells.Cell.codes]. An opaque overlay lands where a fill of its
+ * colour does and a partly opaque one blends with the bar in linear light. A blend that misses is reported next to
+ * where the cell's signal blend and sRGB blend land, so the failure says which wrong blend ran.
  *
  * Skipped when the fixtures are absent, as in [AppleHdrFillTest].
  */
@@ -77,18 +77,19 @@ class AppleOverlayHdrTest {
       val misses = mutableListOf<String>()
 
       HdrTransfer.entries.forEach { transfer ->
-        OPACITIES.forEach { opacity ->
+        GRIDS.forEach { cells ->
           val badges =
-            COLOURS.mapIndexed { index, colour ->
-              ImageOverlay(ImageSource.ofBytes(OverlayPixels.pngOf(RASTER, colour)), CORNERS[index], opacity = opacity)
+            cells.mapIndexed { index, cell ->
+              val png = OverlayPixels.pngOf(RASTER, cell.overlay)
+              ImageOverlay(ImageSource.ofBytes(png), CORNERS[index], opacity = cell.opacity)
             }
-          exported(transfer, "image", badges) { path, size ->
+          exported(transfer, "image", cells.first().background, badges) { path, size ->
             val frame = assertNotNull(hdrFrameOf(path), "could not decode a frame of the $transfer export")
-            badges.zip(COLOURS).forEach { (badge, colour) ->
+            badges.zip(cells).forEach { (badge, cell) ->
               val rect = badge.placedOn(size, RASTER).rectOn(size)
               val x = (rect.left + rect.right) / 2f
               val y = (rect.top + rect.bottom) / 2f
-              misses += missed(frame, transfer, colour, opacity, x, y, "image")
+              misses += missed(frame, transfer, cell, x, y, "image")
             }
           }
         }
@@ -106,20 +107,21 @@ class AppleOverlayHdrTest {
       val misses = mutableListOf<String>()
 
       HdrTransfer.entries.forEach { transfer ->
-        OPACITIES.forEach { opacity ->
+        GRIDS.forEach { cells ->
+          val opacity = cells.first().opacity
           val held = if (opacity < 1f) OverlayAnimation { OverlayFrame(opacity = opacity) } else null
           val captions =
-            COLOURS.mapIndexed { index, colour ->
-              val style = TextStyle(fontSize = FONT_SIZE, color = colour, backgroundColor = colour)
+            cells.mapIndexed { index, cell ->
+              val style = TextStyle(fontSize = FONT_SIZE, color = cell.overlay, backgroundColor = cell.overlay)
               TextOverlay(CAPTION, style, ANCHORS[index], animation = held)
             }
-          exported(transfer, "text", captions) { path, size ->
+          exported(transfer, "text", cells.first().background, captions) { path, size ->
             val frame = assertNotNull(hdrFrameOf(path), "could not decode a frame of the $transfer export")
-            captions.zip(COLOURS).forEach { (caption, colour) ->
+            captions.zip(cells).forEach { (caption, cell) ->
               val anchor = caption.anchor
               val x = anchor.x + (1f - 2f * anchor.x) * FONT_SIZE * size.height / size.width
               val y = anchor.y + (1f - 2f * anchor.y) * FONT_SIZE
-              misses += missed(frame, transfer, colour, opacity, x, y, "text")
+              misses += missed(frame, transfer, cell, x, y, "text")
             }
           }
         }
@@ -137,54 +139,74 @@ class AppleOverlayHdrTest {
       if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
       val misses = mutableListOf<String>()
       val transfer = HdrTransfer.Pq
-      val badge = ImageOverlay(ImageSource.ofBytes(OverlayPixels.pngOf(RASTER, WHITE)), Corner.TopStart)
+      val white = HdrOverlayCells.WHITE
+      val badge = ImageOverlay(ImageSource.ofBytes(OverlayPixels.pngOf(RASTER, white)), Corner.TopStart)
       val faded = ImageOverlay(badge.image, badge.corner, animation = fadeIn(RAMP))
 
-      exported(transfer, "fade", listOf(faded)) { path, size ->
+      exported(transfer, "fade", BAR, listOf(faded)) { path, size ->
         val rect = faded.placedOn(size, RASTER).rectOn(size)
         RAMP_POINTS.forEach { time ->
           val opacity = assertNotNull(faded.frameAt(time, SPAN), "the badge was not drawn at $time").opacity
           val frame = assertNotNull(hdrFrameOf(path, time), "could not decode the frame at $time")
           val x = (rect.left + rect.right) / 2f
           val y = (rect.top + rect.bottom) / 2f
-          misses += missed(frame, transfer, WHITE, opacity, x, y, "fade at $time")
+          misses += missed(frame, transfer, HdrOverlayCells.Cell(white, BAR, opacity), x, y, "fade at $time")
         }
       }
 
       assertTrue(misses.isEmpty(), misses.joinToString("\n"))
     }
 
-  /**
-   * Where [colour] drawn at [opacity] over the bar was read at ([x], [y]), when it is off the shared blend by more than
-   * the fill's own code tolerance.
-   */
-  private fun missed(
-    frame: HdrFrameProbe,
-    transfer: HdrTransfer,
-    colour: Int,
-    opacity: Float,
-    x: Float,
-    y: Float,
-    what: String,
-  ): List<String> {
-    val light = OverlayPixels.hdrSourceOver(authoredHdrNits(BAR), colour, opacity)
-    val expected = tenBitCodesFromSignal(transfer.signalFromNits(light)).toList()
-    val read = frame.codesAt(x, y)
-    if (expected.indices.all { abs(read[it] - expected[it]) <= AppleHdrFillTest.CODE_TOLERANCE }) return emptyList()
-
-    return listOf(
-      "$transfer $what ${colour.toUInt().toString(HEX)} at $opacity carried codes $read and " +
-        "${frame.nitsAt(x, y)} nits, where the shared blend asks for $expected and ${light.toList()} nits",
+  @Test
+  fun `a blend is held to a bound a wrong blend falls outside`() {
+    assertTrue(
+      BLEND_TOLERANCE <= HdrOverlayCells.MAX_BLEND_TOLERANCE,
+      "a blend held to $BLEND_TOLERANCE codes would pass a wrong blend, which the cells only promise to miss by " +
+        "more than ${HdrOverlayCells.MAX_BLEND_TOLERANCE}",
     )
   }
 
   /**
-   * Exports a clip of the [transfer] fixture cropped square over a mid grey fill with [overlays] on the composition,
-   * and hands [read] the written file and its size.
+   * Where [cell] was read at ([x], [y]), when it is off the shared blend by more than its bound.
+   *
+   * Every cell is held to [BLEND_TOLERANCE], the fill's own code tolerance, whether it is a blend or not. A blend cell
+   * that misses also names the codes of its two wrong blends.
+   */
+  private fun missed(
+    frame: HdrFrameProbe,
+    transfer: HdrTransfer,
+    cell: HdrOverlayCells.Cell,
+    x: Float,
+    y: Float,
+    what: String,
+  ): List<String> {
+    val light = cell.nits()
+    val expected = cell.codes(transfer).toList()
+    val read = frame.codesAt(x, y)
+    if (expected.indices.all { abs(read[it] - expected[it]) <= BLEND_TOLERANCE }) return emptyList()
+
+    val wrong =
+      if (cell.isBlend) {
+        ", a signal blend lands at ${cell.signalBlendCodes(transfer).toList()} and an sRGB blend at " +
+          "${cell.srgbBlendCodes(transfer).toList()}"
+      } else {
+        ""
+      }
+    return listOf(
+      "$transfer $what ${cell.overlay.toUInt().toString(HEX)} at ${cell.opacity} over " +
+        "${cell.background.toUInt().toString(HEX)} carried codes $read and ${frame.nitsAt(x, y)} nits, where the " +
+        "shared blend asks for $expected and ${light.toList()} nits$wrong",
+    )
+  }
+
+  /**
+   * Exports a clip of the [transfer] fixture cropped square over a fill of [background] with [overlays] on the
+   * composition, and hands [read] the written file and its size.
    */
   private suspend fun exported(
     transfer: HdrTransfer,
     name: String,
+    background: Int,
     overlays: List<OverlayEffect>,
     read: (String, Size) -> Unit,
   ) {
@@ -192,7 +214,7 @@ class AppleOverlayHdrTest {
     val composition =
       compositionOf {
         clip(MediaSource.of(source)) { trim(Duration.ZERO, CLIP) }
-        fill(Fill.Solid(BAR))
+        fill(Fill.Solid(background))
         effects {
           crop(AspectRatio.Square, Fit.Contain)
           overlays.forEach { add(it) }
@@ -245,11 +267,14 @@ class AppleOverlayHdrTest {
     val RAMP_POINTS = listOf(RAMP / 4, RAMP * 3 / 4)
 
     const val BAR = AuthoredColours.MID_GREY
-    const val WHITE = 0xFFFFFFFF.toInt()
-    val COLOURS = listOf(WHITE, AuthoredColours.MID_GREY, AuthoredColours.MID_GREEN)
-    val OPACITIES = listOf(1f, 0.5f, 0.25f)
 
-    // A badge at the default scale and margin sits inside the bar at each of these corners, one colour to each.
+    // A blend is read off the same encode as the fill, so it holds to the fill's own bound.
+    const val BLEND_TOLERANCE = AppleHdrFillTest.CODE_TOLERANCE
+
+    // One export per fill and opacity, at most three cells, one to each corner and anchor.
+    val GRIDS = HdrOverlayCells.CELLS.groupBy { it.background to it.opacity }.values
+
+    // A badge at the default scale and margin sits inside the bar at each of these corners, one cell to each.
     val CORNERS = listOf(Corner.TopStart, Corner.TopEnd, Corner.BottomStart)
     val RASTER = Size(4, 2)
 

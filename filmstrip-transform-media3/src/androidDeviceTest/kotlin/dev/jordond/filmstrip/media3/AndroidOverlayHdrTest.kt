@@ -23,20 +23,21 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.authoredHdrNits
-import dev.jordond.filmstrip.media.hlgSceneFromNits
-import dev.jordond.filmstrip.media.hlgSignalFromScene
 import dev.jordond.filmstrip.media.signalFromNits
+import dev.jordond.filmstrip.media.tenBitCodesFromSignal
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HLG_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.style.TextStyle
-import dev.jordond.filmstrip.test.AuthoredColours
-import dev.jordond.filmstrip.test.OverlayPixels.hdrSourceOver
+import dev.jordond.filmstrip.test.HdrOverlayCells
 import dev.jordond.filmstrip.test.OverlayPixels.pngOf
 import dev.jordond.filmstrip.test.assumeEncodesHdr
-import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
 import kotlinx.coroutines.test.runTest
+import org.junit.AssumptionViolatedException
+import org.junit.runner.RunWith
+import org.junit.runners.Parameterized
 import java.io.File
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertIs
@@ -57,9 +58,7 @@ import kotlin.test.assertTrue
  * `MediaMetadataRetriever` tone-maps an HDR frame on the way out without saying how, and only a
  * region compared against the same region of the same frame of a plain export survives that.
  *
- * The level arm reads the ten-bit codes the encoder wrote and holds them to the shared rule: an
- * overlay texel lands on [authoredHdrNits] of its colour and blends in display light, so an opaque
- * one lands where a fill of that colour does.
+ * The levels each overlay cell lands on are read by [AndroidOverlayHdrLevelTest].
  *
  * Skipped when the fixtures are absent, or on a device that writes no HDR, as in [AndroidHdrTest].
  */
@@ -186,102 +185,11 @@ class AndroidOverlayHdrTest {
     }
 
   @Test
-  fun anOpaqueOverlayOnAKeptPqGradeLandsWhereAFillOfItsColourDoes() =
-    runTest(timeout = TIMEOUT) { assertLevels(HDR_CLIP, HdrTransfer.Pq, 1f, ::displayLightBlend) }
-
-  @Test
-  fun aHalfOpaqueOverlayOnAKeptPqGradeBlendsInDisplayLight() =
-    runTest(timeout = TIMEOUT) { assertLevels(HDR_CLIP, HdrTransfer.Pq, HALF, ::displayLightBlend) }
-
-  @Test
-  fun aQuarterOpaqueOverlayOnAKeptPqGradeBlendsInDisplayLight() =
-    runTest(timeout = TIMEOUT) { assertLevels(HDR_CLIP, HdrTransfer.Pq, QUARTER, ::displayLightBlend) }
-
-  @Test
-  fun anOpaqueOverlayOnAKeptHlgGradeLandsWhereAFillOfItsColourDoes() =
-    runTest(timeout = TIMEOUT) { assertLevels(HLG_CLIP, HdrTransfer.Hlg, 1f, ::displayLightBlend) }
-
-  // media3 1.11.1's limit, pinned: a partly covered texel on HLG blends in the scene light media3
-  // holds the frame in, not in display light.
-  @Test
-  fun aHalfOpaqueOverlayOnAKeptHlgGradeBlendsInSceneLight() =
-    runTest(timeout = TIMEOUT) { assertLevels(HLG_CLIP, HdrTransfer.Hlg, HALF, ::hlgSceneLightBlend) }
-
-  @Test
-  fun aQuarterOpaqueOverlayOnAKeptHlgGradeBlendsInSceneLight() =
-    runTest(timeout = TIMEOUT) { assertLevels(HLG_CLIP, HdrTransfer.Hlg, QUARTER, ::hlgSceneLightBlend) }
-
-  // Each overlay sits in the bar a square crop leaves, over a mid grey fill, so the background is a
-  // known light rather than a picture. The plain export says the overlay's patch is in the bar at all.
-  private suspend fun assertLevels(
-    clip: String,
-    transfer: HdrTransfer,
-    opacity: Float,
-    expected: (HdrTransfer, Int, Float) -> IntArray,
-  ) {
-    val source = probe.fixture(clip)
-    probe.filmstrip.assumeEncodesHdr()
-
-    val plain = firstTenBitFrame(probe.export(letterboxed(source, emptyList()), SPEC))
-    val (fx, fy) = barMark(WHITE, opacity).centreOn(plain.size)
-    assertNear(expected(transfer, FILL_ARGB, 1f), plain.codesAt(fx, fy), "the overlay's patch is not in the bar")
-
-    OVERLAY_COLOURS.forEach { colour ->
-      val marked = firstTenBitFrame(probe.export(letterboxed(source, listOf(barMark(colour, opacity))), SPEC))
-      assertNear(
-        expected(transfer, colour, opacity),
-        marked.codesAt(fx, fy),
-        "${colour.toUInt().toString(16)} at $opacity on $transfer",
-      )
-    }
-  }
-
-  private fun displayLightBlend(
-    transfer: HdrTransfer,
-    colour: Int,
-    opacity: Float,
-  ): IntArray =
-    tenBitCodesFromSignal(transfer.signalFromNits(hdrSourceOver(authoredHdrNits(FILL_ARGB), colour, opacity)))
-
-  // Only HLG holds scene light, so the transfer is the one the caller passes for the shape and no other.
-  private fun hlgSceneLightBlend(
-    transfer: HdrTransfer,
-    colour: Int,
-    opacity: Float,
-  ): IntArray {
-    check(transfer == HdrTransfer.Hlg) { "scene light is an HLG figure, not a $transfer one" }
-    val over = hlgSceneFromNits(authoredHdrNits(colour))
-    val under = hlgSceneFromNits(authoredHdrNits(FILL_ARGB))
-    return tenBitCodesFromSignal(FloatArray(3) { hlgSignalFromScene(opacity * over[it] + (1f - opacity) * under[it]) })
-  }
-
-  private fun assertNear(
-    expected: IntArray,
-    actual: IntArray,
-    what: String,
-  ) {
-    val off = expected.indices.maxOf { abs(expected[it] - actual[it]) }
-    assertTrue(off <= CODE_TOLERANCE, "$what: wrote ${actual.toList()}, expected ${expected.toList()}, $off codes off")
-  }
-
-  private fun barMark(
-    colour: Int,
-    opacity: Float,
-  ) = ImageOverlay(ImageSource.Bytes(pngOf(BADGE, colour)), Corner.TopStart, BAR_MARGIN, BAR_SCALE, opacity)
-
-  private fun ImageOverlay.centreOn(frame: Size): Pair<Float, Float> {
-    val core = placedOn(frame, BADGE).core(frame)
-    return (core.left + core.right) / 2f to (core.top + core.bottom) / 2f
-  }
-
-  private fun letterboxed(
-    source: MediaSource,
-    effects: List<EffectSpec>,
-  ) = EditComposition(
-    listOf(Track(listOf(Clip(source)))),
-    listOf(Crop(AspectRatio.Square, fit = Fit.Contain)) + effects,
-    fill = Fill.Solid(FILL_ARGB),
-  )
+  fun theBlendBoundCanTellAWrongBlend() =
+    assertTrue(
+      PATCH_NOISE <= HdrOverlayCells.MAX_BLEND_TOLERANCE,
+      "a bound of $PATCH_NOISE codes passes a wrong blend, ${HdrOverlayCells.MAX_BLEND_TOLERANCE} is the most",
+    )
 
   private fun marked(source: MediaSource) =
     EditComposition(listOf(Track(listOf(Clip(source)))), listOf(probe.watermark(Corner.BottomEnd)))
@@ -297,22 +205,167 @@ class AndroidOverlayHdrTest {
     source: MediaSource,
     effects: List<EffectSpec>,
   ): File = probe.export(EditComposition(listOf(Track(listOf(Clip(source)))), effects), SPEC)
+}
 
-  private companion object {
-    val SPEC = ExportSpec(targetHeight = 360, hdr = HdrMode.KeepHdr)
+/**
+ * The ten-bit codes media3 writes for every cell of [HdrOverlayCells] over one fill on one kept grade.
+ *
+ * A run covers one fill of [HdrOverlayCells.CELLS] on one transfer, PQ or HLG, and exports every cell over that fill.
+ * Each reading is held to [HdrOverlayCells.Cell.codes], where an overlay texel lands on [authoredHdrNits] of its colour
+ * and blends in display light, so an opaque one lands where a fill of that colour does. On HLG the blend cells read
+ * media3's scene light blend instead. A blend that misses is reported next to where the cell's signal blend and sRGB
+ * blend land, so the failure says which wrong blend ran.
+ *
+ * Skipped when the fixtures are absent, or on a device that writes no HDR, as in [AndroidHdrTest].
+ */
+@RunWith(Parameterized::class)
+class AndroidOverlayHdrLevelTest(
+  private val grade: Grade,
+) {
+  private val probe = Media3ExportProbe()
 
-    const val FILL_ARGB = AuthoredColours.MID_GREY
-    const val WHITE = 0xFFFFFFFF.toInt()
-    val OVERLAY_COLOURS = listOf(WHITE, AuthoredColours.MID_GREY, AuthoredColours.MID_GREEN)
+  /**
+   * One kept grade the level test exports, cut from [clip] with [transfer] and letterboxed over [fill].
+   *
+   * Its string form names the run, as the transfer and the fill's packed sRGB in hex.
+   */
+  data class Grade(
+    val clip: String,
+    val transfer: HdrTransfer,
+    val fill: Int,
+  ) {
+    override fun toString(): String = "$transfer over ${fill.hex()}"
+  }
 
-    const val HALF = 0.5f
-    const val QUARTER = 0.25f
+  // Each overlay sits in the bar a square crop leaves, over the fill, so the background is a known
+  // light rather than a picture. The plain export says the overlay's patch is in the bar at all.
+  @Test
+  fun everyOverlayCellLandsOnItsPqOrHlgLevel() =
+    runTest(timeout = TIMEOUT) {
+      val source = probe.fixture(grade.clip)
+      probe.filmstrip.assumeEncodesHdr()
+
+      val cells = HdrOverlayCells.CELLS.filter { it.background == grade.fill }
+      val plain = firstTenBitFrame(probe.export(letterboxed(source, emptyList()), SPEC))
+      val (fx, fy) = barMark(cells.first()).centreOn(plain.size)
+      val inBar =
+        miss(
+          tenBitCodesFromSignal(grade.transfer.signalFromNits(authoredHdrNits(grade.fill))),
+          plain.codesAt(fx, fy),
+          "the overlay's patch is not in the bar over ${grade.fill.hex()}",
+        )
+      val misses = if (inBar != null) listOf(inBar) else cells.mapNotNull { missOf(source, it, fx, fy) }
+
+      assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    }
+
+  // A throw on one cell's export or frame read is that cell's miss, so the cells already read still report. That
+  // includes the AssertionError Media3ExportProbe throws for a failed export, status or plan.
+  private suspend fun missOf(
+    source: MediaSource,
+    cell: HdrOverlayCells.Cell,
+    fx: Float,
+    fy: Float,
+  ): String? {
+    val what = "${cell.overlay.hex()} at ${cell.opacity} over ${cell.background.hex()} on ${grade.transfer}"
+    val reading =
+      try {
+        firstTenBitFrame(probe.export(letterboxed(source, listOf(barMark(cell))), SPEC)).codesAt(fx, fy)
+      } catch (e: AssumptionViolatedException) {
+        throw e
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        return threw(what, e)
+      } catch (e: AssertionError) {
+        return threw(what, e)
+      }
+    val (expected, label) = expectedOf(cell, what)
+    return miss(expected, reading, label)?.plus(wrongBlendsOf(cell))
+  }
+
+  private fun wrongBlendsOf(cell: HdrOverlayCells.Cell): String =
+    if (cell.isBlend) {
+      ", a signal blend lands at ${cell.signalBlendCodes(grade.transfer).toList()} and an sRGB blend at " +
+        "${cell.srgbBlendCodes(grade.transfer).toList()}"
+    } else {
+      ""
+    }
+
+  private fun threw(
+    what: String,
+    e: Throwable,
+  ): String = "$what: threw $e at ${e.stackTrace.firstOrNull()}"
+
+  // media3 1.11.1's limit, pinned: a partly covered texel on HLG blends in the scene light media3 holds
+  // the frame in, not in display light, and the plan reports it as Degraded. Green over grey sits 1 to 2
+  // codes from display light, so it cannot tell the limit from a fix, white over grey 6 to 7 and the
+  // black cells 18 to 48. HdrOverlayCellsTest pins that the black cells read clear of display light.
+  private fun expectedOf(
+    cell: HdrOverlayCells.Cell,
+    what: String,
+  ): Pair<IntArray, String> =
+    if (grade.transfer == HdrTransfer.Hlg && cell.isBlend) {
+      tenBitCodesFromSignal(cell.hlgSceneLightSignal()) to "$what in scene light"
+    } else {
+      cell.codes(grade.transfer) to what
+    }
+
+  private fun miss(
+    expected: IntArray,
+    actual: IntArray,
+    what: String,
+  ): String? {
+    val off = expected.indices.maxOf { abs(expected[it] - actual[it]) }
+    return "$what: wrote ${actual.toList()}, expected ${expected.toList()}, $off codes off".takeIf { off > PATCH_NOISE }
+  }
+
+  private fun barMark(cell: HdrOverlayCells.Cell) =
+    ImageOverlay(ImageSource.Bytes(pngOf(BADGE, cell.overlay)), Corner.TopStart, BAR_MARGIN, BAR_SCALE, cell.opacity)
+
+  private fun ImageOverlay.centreOn(frame: Size): Pair<Float, Float> {
+    val core = placedOn(frame, BADGE).core(frame)
+    return (core.left + core.right) / 2f to (core.top + core.bottom) / 2f
+  }
+
+  private fun letterboxed(
+    source: MediaSource,
+    effects: List<EffectSpec>,
+  ) = EditComposition(
+    listOf(Track(listOf(Clip(source)))),
+    listOf(Crop(AspectRatio.Square, fit = Fit.Contain)) + effects,
+    fill = Fill.Solid(grade.fill),
+  )
+
+  /**
+   * Holds [grades], which yields one [Grade] for each fill of [HdrOverlayCells.CELLS] on a kept PQ grade and one on a
+   * kept HLG grade.
+   */
+  companion object {
+    /**
+     * Every fill of [HdrOverlayCells.CELLS] on a kept PQ grade and on a kept HLG grade.
+     *
+     * @return One [Grade] per fill and transfer.
+     */
+    @JvmStatic
+    @Parameterized.Parameters(name = "{0}")
+    fun grades(): List<Grade> {
+      val fills = HdrOverlayCells.CELLS.map { it.background }.distinct()
+      return listOf(HDR_CLIP to HdrTransfer.Pq, HLG_CLIP to HdrTransfer.Hlg).flatMap { (clip, transfer) ->
+        fills.map { fill -> Grade(clip, transfer, fill) }
+      }
+    }
 
     // Small enough that, inset from the top corner, it fits inside the bar a square crop leaves.
-    const val BAR_MARGIN = 0.02f
-    const val BAR_SCALE = 0.12f
-
-    // The same allowance AppleHdrFillTest gives a ten-bit code, which this suite had no figure for.
-    const val CODE_TOLERANCE = 2
+    private const val BAR_MARGIN = 0.02f
+    private const val BAR_SCALE = 0.12f
   }
 }
+
+private val SPEC = ExportSpec(targetHeight = 360, hdr = HdrMode.KeepHdr)
+
+// The encoder's noise on a flat patch, in ten-bit codes, unmeasured on a hardware HEVC encoder. At most
+// HdrOverlayCells.MAX_BLEND_TOLERANCE, so a wrong blend reads outside it on every blend cell.
+private const val PATCH_NOISE = 2
+
+private fun Int.hex(): String = toUInt().toString(16)

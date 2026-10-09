@@ -36,6 +36,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.authoredHdrNits
 import dev.jordond.filmstrip.media.signalFromNits
+import dev.jordond.filmstrip.media.tenBitCodesFromSignal
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.transform.internal.NegotiatedComposition
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
@@ -46,7 +47,6 @@ import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.backgroundGain
 import dev.jordond.filmstrip.transform.internal.passesCovering
 import dev.jordond.filmstrip.transform.internal.sigmaFor
-import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain

@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.media.authoredHdrNits
 import dev.jordond.filmstrip.media.signalFromNits
 import dev.jordond.filmstrip.test.AppleBufferCodes
 import dev.jordond.filmstrip.test.AuthoredColours
+import dev.jordond.filmstrip.test.HdrOverlayCells
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
@@ -116,8 +117,8 @@ class AppleFillTest {
 
   @Test
   fun `an hdr fill carries the signal the shared conversion gives rather than the authored fraction`() {
-    val expected = HdrTransfer.Pq.signalFromNits(authoredHdrNits(WHITE))
-    val color = fillCIColor(WHITE, HdrTransfer.Pq)
+    val expected = HdrTransfer.Pq.signalFromNits(authoredHdrNits(HdrOverlayCells.WHITE))
+    val color = fillCIColor(HdrOverlayCells.WHITE, HdrTransfer.Pq)
 
     color.red() shouldBeNear expected[0].toDouble()
 
@@ -128,8 +129,8 @@ class AppleFillTest {
 
   @Test
   fun `the two transfer functions hand Core Image different components`() {
-    val pq = fillCIColor(WHITE, HdrTransfer.Pq).red()
-    val hlg = fillCIColor(WHITE, HdrTransfer.Hlg).red()
+    val pq = fillCIColor(HdrOverlayCells.WHITE, HdrTransfer.Pq).red()
+    val hlg = fillCIColor(HdrOverlayCells.WHITE, HdrTransfer.Hlg).red()
 
     assertTrue(abs(pq - hlg) > 0.05, "both transfer functions produced $pq, so one of them is not running")
   }
@@ -150,7 +151,6 @@ class AppleFillTest {
   }
 
   private companion object {
-    const val WHITE = 0xFFFFFFFF.toInt()
     const val BLACK = 0xFF000000.toInt()
     const val MAGENTA = 0xFFFF00FF.toInt()
     const val SIDE = 16

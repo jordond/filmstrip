@@ -2,11 +2,8 @@ package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
-import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectSpec
-import dev.jordond.filmstrip.effect.RenderApi
-import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
@@ -21,26 +18,32 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.CODE_DRIFT
+import dev.jordond.filmstrip.ffmpeg.ExportConstants.CODE_TOLERANCE
 import dev.jordond.filmstrip.ffmpeg.ExportConstants.TIMEOUT
-import dev.jordond.filmstrip.ffmpeg.OverlayConstants.BLEND_DRIFT
+import dev.jordond.filmstrip.ffmpeg.HdrRender.CAPABILITIES
+import dev.jordond.filmstrip.ffmpeg.HdrRender.FIXTURE_SIZE
+import dev.jordond.filmstrip.ffmpeg.HdrRender.attributes
+import dev.jordond.filmstrip.ffmpeg.OverlayConstants.FULL_SCALE
 import dev.jordond.filmstrip.ffmpeg.OverlayConstants.OVERLAY_SIZE
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
-import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.HDR_REFERENCE_WHITE_NITS
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.SIXTEEN_BIT_MAX
 import dev.jordond.filmstrip.media.authoredHdrNits
 import dev.jordond.filmstrip.media.signalFromNits
+import dev.jordond.filmstrip.media.srgbToLinear
+import dev.jordond.filmstrip.media.tenBitCodesFromSignal
 import dev.jordond.filmstrip.test.AuthoredColours.MID_GREEN
 import dev.jordond.filmstrip.test.AuthoredColours.MID_GREY
-import dev.jordond.filmstrip.test.OverlayPixels.hdrSourceOver
-import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
+import dev.jordond.filmstrip.test.HdrOverlayCells
+import dev.jordond.filmstrip.test.HdrOverlayCells.BLACK
+import dev.jordond.filmstrip.test.HdrOverlayCells.WHITE
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import java.awt.image.BufferedImage
@@ -63,8 +66,9 @@ import kotlin.time.Duration.Companion.seconds
  * Image overlays on a kept HDR grade, read back as ten-bit codes against where the shared HDR light puts each colour.
  *
  * A composition overlay is drawn over the top letterbox bar of the HDR fixture contained in a portrait frame, so the
- * background is a flat fill, or an opaque overlay drawn first, rather than a picture. Every expected code comes from
- * [authoredHdrNits], [hdrSourceOver], [signalFromNits] and [tenBitCodesFromSignal].
+ * background is a flat fill, or an opaque overlay drawn first, rather than a picture. Every expected code is
+ * [HdrOverlayCells.Cell.codes] of the cell drawn. A blend that misses is reported next to where the cell's signal blend
+ * and sRGB blend land, so the failure says which wrong blend ran.
  */
 class FfmpegOverlayHdrTest {
   private val fixture = FfmpegExportFixture()
@@ -84,6 +88,41 @@ class FfmpegOverlayHdrTest {
   @Test
   fun `partial alpha on a kept HLG grade blends in linear light`() =
     runTest(timeout = TIMEOUT) { assertLinearBlends(HdrTransfer.Hlg) }
+
+  @Test
+  fun `the blend bound is inside the widest one a blend cell still catches a wrong blend at`() {
+    assertTrue(CODE_TOLERANCE <= HdrOverlayCells.MAX_BLEND_TOLERANCE, "a blend bound of $CODE_TOLERANCE passes one")
+  }
+
+  // An overlay drawn from its raw sRGB codes, or without the turn from BT.709 to BT.2020 primaries, is the nearest
+  // wrong answer for an opaque cell. On a coloured cell both land far enough off that the fill's bound tells them
+  // apart.
+  @Test
+  fun `a wrong opaque overlay lands outside twice the fill's bound on a coloured cell`() {
+    val coloured = HdrOverlayCells.CELLS.filter { it.opacity == 1f && it.isColoured() }
+    assertTrue(coloured.isNotEmpty(), "the grid has no coloured opaque cell")
+    for (transfer in HdrTransfer.entries) {
+      for (cell in coloured) {
+        val rule = cell.codes(transfer)
+        val (red, green, blue) = channelsOf(cell.overlay).toList().map { it / FULL_SCALE }
+        val raw = tenBitCodesFromSignal(floatArrayOf(red, green, blue))
+        val unrotated = floatArrayOf(red, green, blue).map { srgbToLinear(it) * HDR_REFERENCE_WHITE_NITS }
+        val wrongs =
+          mapOf(
+            "its raw sRGB codes" to raw,
+            "BT.709 primaries" to tenBitCodesFromSignal(transfer.signalFromNits(unrotated.toFloatArray())),
+          )
+        wrongs.forEach { (name, wrong) ->
+          val miss = rule.indices.maxOf { abs(wrong[it] - rule[it]) }
+          assertTrue(
+            2 * CODE_TOLERANCE < miss,
+            "$transfer ${hex(cell.overlay)} drawn from $name lands $miss codes from ${rule.toList()}, " +
+              "too close for a bound of $CODE_TOLERANCE to tell apart",
+          )
+        }
+      }
+    }
+  }
 
   @Test
   fun `a fading overlay on a kept PQ grade lands where the rule puts each frame's opacity`() =
@@ -109,7 +148,12 @@ class FfmpegOverlayHdrTest {
       val threeQuarters = RAMP * 3 / 4
       val early = drawnProbe(sliding, size, span, quarter)
       val late = drawnProbe(sliding, size, span, threeQuarters)
-      val drawn = expectedCodes(transfer, MID_GREY, MID_GREEN, 1f)
+      val drawn = HdrOverlayCells.Cell(MID_GREEN, MID_GREY, 1f).codes(transfer)
+      val fill = HdrOverlayCells.Cell(MID_GREY, MID_GREY, 1f).codes(transfer)
+      assertTrue(
+        drawn.indices.any { abs(drawn[it] - fill[it]) > 2 * CODE_TOLERANCE },
+        "the slide's ${drawn.toList()} sits too close to the bar's ${fill.toList()} to tell one from the other",
+      )
 
       assertCodes(tenBitCodesAt(exported.file, early, quarter), drawn, "the slide at $quarter")
       assertCodes(
@@ -117,11 +161,7 @@ class FfmpegOverlayHdrTest {
         drawn,
         "the slide at $threeQuarters",
       )
-      val bare = tenBitCodesAt(exported.file, late, quarter)
-      assertTrue(
-        bare.indices.any { abs(bare[it] - drawn[it]) > CODE_DRIFT },
-        "the overlay has already reached $late at $quarter: $bare",
-      )
+      assertCodes(tenBitCodesAt(exported.file, late, quarter), fill, "the bar at $late before the slide reaches it")
 
       exported.file.delete()
     }
@@ -144,7 +184,8 @@ class FfmpegOverlayHdrTest {
 
       texels.forEachIndexed { index, texel ->
         val signal = transfer.signalFromNits(authoredHdrNits(texel))
-        val expected = IntArray(3) { (signal[it] * WIDE_CODE_MAX).roundToInt() } + alphaOf(texel) * WIDE_CODE_MAX / 255
+        val alpha = alphaOf(texel) * SIXTEEN_BIT_MAX / 255
+        val expected = IntArray(3) { (signal[it] * SIXTEEN_BIT_MAX).roundToInt() } + alpha
         assertContentEquals(expected, raster.getPixel(index % 2, index / 2, IntArray(4)), "$transfer texel $index")
       }
     }
@@ -199,14 +240,15 @@ class FfmpegOverlayHdrTest {
     assertTrue(width * height * 4 < FIXTURE_SIZE.width * FIXTURE_SIZE.height, "$what is not smaller than the frame")
   }
 
-  // A branch read with no timeline is one frame, so the geq on it runs once rather than on every frame of the region.
+  // A branch read with no timeline is one frame, so its decode runs once rather than on every frame of the region.
   @Test
   fun `a still overlay on a kept grade decodes its picture to light once`() {
     for (transfer in HdrTransfer.entries) {
       val still = assertIs<EffectResolution.Resolved>(resolve(overlay(WHITE, HALF), transfer))
-      val (picture, mask) = still.effect.fragment.auxInputs
-      assertTrue(picture.chain.any { it.name == "geq" }, "$transfer: the picture is decoded to light on its branch")
-      assertEquals(null, picture.timeline, "$transfer: a still picture is looped, so its geq runs per frame")
+      val fragment = still.effect.fragment
+      val (picture, mask) = fragment.auxInputs
+      assertEquals(fragment.chain.last(), picture.chain.last(), "$transfer: the picture is decoded on its branch")
+      assertEquals(null, picture.timeline, "$transfer: a still picture is looped, so its decode runs per frame")
       assertEquals(null, mask.timeline, "$transfer: an ungated still alpha is looped")
 
       val windowed =
@@ -225,11 +267,13 @@ class FfmpegOverlayHdrTest {
       assertTrue(driven.all { it.timeline != null }, "$transfer: commands move both branches, so both run every frame")
 
       val fading = assertIs<EffectResolution.Resolved>(resolve(overlay(WHITE, animation = fadeIn(RAMP)), transfer))
-      val (held, faded) = fading.effect.fragment.auxInputs
+      val branches = fading.effect.fragment.auxInputs
+      val (held, faded) = branches
       assertEquals(null, held.timeline, "$transfer: a fade leaves the picture where it is, so it holds one frame")
       assertTrue(held.chain.none { it.name == "sendcmd" }, "$transfer: nothing drives a faded picture")
       assertNotNull(faded.timeline, "$transfer: the fade drives the alpha on every frame")
-      assertEquals(1, fading.effect.fragment.sidecars.size, "$transfer: only the alpha's commands are written")
+      val commands = branches.flatMap { it.chain }.filter { it.name == "sendcmd" }
+      assertEquals(1, commands.size, "$transfer: only the alpha's commands are written")
     }
   }
 
@@ -238,40 +282,36 @@ class FfmpegOverlayHdrTest {
     assertIs<EffectResolution.Unsupported>(resolve(TextOverlay("caption"), HdrTransfer.Pq))
   }
 
+  // The opaque cells of the shared grid, each drawn straight over its fill and held to the fill's bound.
   private suspend fun assertOpaqueLandings(transfer: HdrTransfer) {
     if (!fixture.encodesHdr()) return
-    for (colour in listOf(WHITE, MID_GREY, MID_GREEN)) {
-      val exported = exportedOverFill(transfer, MID_GREY, overlay(colour))
+    for (cell in HdrOverlayCells.CELLS.filter { it.opacity == 1f }) {
+      val exported = exportedOverFill(transfer, cell.background, overlay(cell.overlay))
       val read = tenBitCodesAt(exported.file, probeOf(exported.plan))
-      assertCodes(read, expectedCodes(transfer, MID_GREY, colour, 1f), "$transfer ${hex(colour)} opaque")
+      assertCodes(read, cell.codes(transfer), "$transfer ${hex(cell.overlay)} opaque")
       exported.file.delete()
     }
   }
 
-  // Each colour over a background it differs from, so the blend has two lights to mix. The fill is black and a
-  // background other than black is an opaque overlay of its own, which lands on the shared light. A blend of the signal
-  // lands between about 10 and 270 codes from the rule on these, summed over the three channels, so the reads are held
-  // to BLEND_DRIFT rather than the looser CODE_DRIFT.
+  // The translucent cells of the shared grid. The fill is black and each cell's background is an opaque overlay of
+  // its own, which lands on the shared light. Every cell is held to the fill's bound, which the guard above keeps
+  // inside the widest one a blend cell still tells a wrong blend apart at.
   private suspend fun assertLinearBlends(transfer: HdrTransfer) {
     if (!fixture.encodesHdr()) return
-    for ((colour, background) in listOf(WHITE to MID_GREY, MID_GREY to BLACK, MID_GREEN to MID_GREY)) {
-      for (opacity in listOf(HALF, QUARTER)) {
-        val exported = exportedOverFill(transfer, BLACK, overlay(colour, opacity), under = overlay(background))
-        val read = tenBitCodesAt(exported.file, probeOf(exported.plan))
-        val overlaySignal = transfer.signalFromNits(authoredHdrNits(colour))
-        val underSignal = transfer.signalFromNits(authoredHdrNits(background))
-        val signalBlend =
-          tenBitCodesFromSignal(FloatArray(3) { opacity * overlaySignal[it] + (1f - opacity) * underSignal[it] })
-        val rule = expectedCodes(transfer, background, colour, opacity)
-        val what = "$transfer ${hex(colour)} over ${hex(background)} at $opacity"
+    for (cell in HdrOverlayCells.CELLS.filter { it.opacity < 1f }) {
+      val (colour, background, opacity) = cell
+      val exported = exportedOverFill(transfer, BLACK, overlay(colour, opacity), under = overlay(background))
+      val read = tenBitCodesAt(exported.file, probeOf(exported.plan))
+      val wrong =
+        if (cell.isBlend) {
+          ", a signal blend lands at ${cell.signalBlendCodes(transfer).toList()} and an sRGB blend at " +
+            "${cell.srgbBlendCodes(transfer).toList()}"
+        } else {
+          ""
+        }
 
-        assertCodes(read, rule, what, BLEND_DRIFT)
-        assertTrue(
-          distance(read, rule) < distance(read, signalBlend),
-          "$what read ${read.toList()}, ${rule.toList()} from linear light and ${signalBlend.toList()} from the signal",
-        )
-        exported.file.delete()
-      }
+      assertCodes(read, cell.codes(transfer), "$transfer ${hex(colour)} over ${hex(background)} at $opacity", wrong)
+      exported.file.delete()
     }
   }
 
@@ -289,32 +329,22 @@ class FfmpegOverlayHdrTest {
     for (index in listOf(frames / 4, frames * 3 / 4)) {
       val opacity = assertNotNull(fading.frameAt(frameTime(index, rate), span)).opacity
       val read = tenBitCodesAt(exported.file, probeOf(exported.plan), opensOn(index, exported.plan))
-      val expected = expectedCodes(transfer, MID_GREY, WHITE, opacity)
-      assertCodes(read, expected, "$transfer fade on frame $index, opacity $opacity", BLEND_DRIFT)
+      val expected = HdrOverlayCells.Cell(WHITE, MID_GREY, opacity).codes(transfer)
+      assertCodes(read, expected, "$transfer fade on frame $index, opacity $opacity")
     }
 
     exported.file.delete()
-  }
-
-  private fun expectedCodes(
-    transfer: HdrTransfer,
-    background: Int,
-    colour: Int,
-    alpha: Float,
-  ): IntArray {
-    val landed = hdrSourceOver(authoredHdrNits(background), colour, alpha)
-    return tenBitCodesFromSignal(transfer.signalFromNits(landed))
   }
 
   private fun assertCodes(
     read: IntArray,
     expected: IntArray,
     what: String,
-    drift: Int = CODE_DRIFT,
+    wrong: String = "",
   ) {
     assertTrue(
-      read.indices.all { abs(read[it] - expected[it]) <= drift },
-      "$what read ${read.toList()}, expected ${expected.toList()}",
+      read.indices.all { abs(read[it] - expected[it]) <= CODE_TOLERANCE },
+      "$what read ${read.toList()}, expected ${expected.toList()}$wrong",
     )
   }
 
@@ -374,55 +404,21 @@ class FfmpegOverlayHdrTest {
   private fun resolve(
     spec: EffectSpec,
     transfer: HdrTransfer,
-  ): EffectResolution? =
-    BuiltInEffectResolver().resolve(
-      spec,
-      RenderCapabilities(
-        api = RenderApi.FilterGraph,
-        supportsFragmentShader = false,
-        supportsComputeShader = false,
-        supportsHdr = true,
-        colorSpaces = setOf(ColorSpace.Bt2020),
-        maxTextureSize = MAX_TEXTURE,
-        features = emptySet(),
-      ),
-      Attributes(
-        inputSize = FIXTURE_SIZE,
-        outputSize = FIXTURE_SIZE,
-        layoutSize = FIXTURE_SIZE,
-        colorSpace = ColorSpace.Bt2020,
-        hdrTransfer = transfer,
-        frameRate = RATE,
-        span = TimeRange.of(Duration.ZERO, 2.seconds),
-      ),
-    )
-
-  private fun distance(
-    read: IntArray,
-    expected: IntArray,
-  ): Int = read.indices.sumOf { abs(read[it] - expected[it]) }
+  ): EffectResolution? = BuiltInEffectResolver().resolve(spec, CAPABILITIES, attributes(transfer, 2.seconds))
 
   private fun alphaOf(argb: Int): Int = argb ushr 24
+
+  private fun HdrOverlayCells.Cell.isColoured(): Boolean =
+    channelsOf(overlay).let { (red, green, blue) -> red != green || green != blue }
 
   private fun hex(colour: Int): String = colour.toUInt().toString(16)
 
   private companion object {
-    const val WHITE = 0xFFFFFFFF.toInt()
-    const val BLACK = 0xFF000000.toInt()
     const val HALF = 0.5f
-    const val QUARTER = 0.25f
 
     // A texel at half alpha, built from an opaque colour by swapping its alpha byte.
     const val TRANSLUCENT_MASK = 0x00FFFFFF
     const val HALF_ALPHA = 0x80 shl 24
-
-    // What the pre-mapped PNG stores a signal of one as.
-    const val WIDE_CODE_MAX = 0xFFFF
-
-    // The HDR fixtures' frame, which the portrait crop contains.
-    val FIXTURE_SIZE = Size(1280, 720)
-    const val RATE = 30f
-    const val MAX_TEXTURE = 16_384
 
     // Far enough along the bar that the rectangle at a quarter of the slide and the one at three quarters do not
     // overlap, and short of the bar's far end.

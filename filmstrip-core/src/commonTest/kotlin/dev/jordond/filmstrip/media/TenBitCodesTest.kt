@@ -1,11 +1,12 @@
-package dev.jordond.filmstrip.transform.internal
+package dev.jordond.filmstrip.media
 
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-class HdrFillTest {
+class TenBitCodesTest {
   // Black and white pin the luma range, pure red pins how far chroma travels, and a signal past either
   // end pins that end's clamp. The mid colour is where a matrix reading the wrong channel would part
   // from the right one.
@@ -49,6 +50,14 @@ class HdrFillTest {
   fun `a code outside video range decodes onto the end it ran past`() {
     assertContentEquals(floatArrayOf(1f, 1f, 1f), signalFromTenBitCodes(TEN_BIT_MAX_CODE, 512, 512))
     assertContentEquals(floatArrayOf(0f, 0f, 0f), signalFromTenBitCodes(0, 512, 512))
+  }
+
+  // Every ten-bit code widens onto its own sixteen-bit step and the top one stays inside sixteen bits.
+  @Test
+  fun `a ten-bit code widens onto sixteen bits without running past them`() {
+    assertEquals(65_535, SIXTEEN_BIT_MAX)
+    assertEquals(SIXTEEN_BIT_MAX + 1, (TEN_BIT_MAX_CODE + 1) * TEN_TO_SIXTEEN_BITS)
+    assertTrue(TEN_BIT_MAX_CODE * TEN_TO_SIXTEEN_BITS <= SIXTEEN_BIT_MAX)
   }
 
   private companion object {

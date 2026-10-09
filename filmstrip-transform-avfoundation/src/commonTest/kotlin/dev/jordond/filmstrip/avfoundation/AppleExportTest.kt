@@ -1668,11 +1668,8 @@ class AppleExportTest {
     NSFileManager.defaultManager.removeItemAtPath(path, error = null)
   }
 
-  private fun isSimulator(): Boolean = NSProcessInfo.processInfo.environment[SIMULATOR_DEVICE_NAME] != null
-
   private companion object {
     const val FIXTURES = "FILMSTRIP_FIXTURES"
-    const val SIMULATOR_DEVICE_NAME = "SIMULATOR_DEVICE_NAME"
     val TIMEOUT = 2.seconds * 60
     val BLACK = Triple(0, 0, 0)
 

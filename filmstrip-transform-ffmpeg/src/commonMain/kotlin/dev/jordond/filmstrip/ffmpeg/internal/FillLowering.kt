@@ -5,8 +5,8 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.authoredHdrNits
 import dev.jordond.filmstrip.media.signalFromNits
+import dev.jordond.filmstrip.media.tenBitCodesFromSignal
 import dev.jordond.filmstrip.transform.internal.NegotiatedComposition
-import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
 
 /**
  * Lays [read] over a frame of the fill's colour and returns the opaque pad that leaves, in [pixelFormat].

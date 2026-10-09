@@ -1,19 +1,16 @@
 package dev.jordond.filmstrip.ffmpeg
 
-import dev.jordond.filmstrip.edit.TimeRange
-import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
-import dev.jordond.filmstrip.effect.RenderApi
-import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayPictureRead
+import dev.jordond.filmstrip.ffmpeg.HdrRender.CAPABILITIES
+import dev.jordond.filmstrip.ffmpeg.HdrRender.attributes
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPictureDecoder
 import dev.jordond.filmstrip.geometry.Corner
-import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.media.SIXTEEN_BIT_MAX
 import java.awt.Transparency
 import java.awt.color.ICC_Profile
 import java.awt.image.BufferedImage
@@ -38,7 +35,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import java.awt.color.ColorSpace as AwtColorSpace
 
@@ -116,9 +112,9 @@ class FfmpegOverlayPictureParityTest {
       texels.indices.forEach { x ->
         val read = graded.getPixel(x, 0, IntArray(CHANNELS))
         val near = (0 until NEIGHBOURS).map { landings.getPixel(x, it, IntArray(CHANNELS)).copyOf(3).toList() }
-        val alpha = (texels[x] ushr ALPHA_SHIFT) * WIDE_MAX / BYTE_MAX
+        val alpha = (texels[x] ushr ALPHA_SHIFT) * SIXTEEN_BIT_MAX / BYTE_MAX
         assertTrue(
-          read.copyOf(3).toList() in near && abs(read[3] - alpha) <= WIDE_MAX / BYTE_MAX,
+          read.copyOf(3).toList() in near && abs(read[3] - alpha) <= SIXTEEN_BIT_MAX / BYTE_MAX,
           "$transfer $what texel $x read ${read.toList()}, which no colour within a code of " +
             "${texels[x].toUInt().toString(16)} lands at",
         )
@@ -153,7 +149,7 @@ class FfmpegOverlayPictureParityTest {
     transfer: HdrTransfer,
   ): Raster {
     val spec = ImageOverlay(ImageSource.ofBytes(png), Corner.TopStart)
-    val resolved = BuiltInEffectResolver(decoder).resolve(spec, capabilities, attributes(transfer))
+    val resolved = BuiltInEffectResolver(decoder).resolve(spec, CAPABILITIES, attributes(transfer, 2.seconds))
     val mapped =
       (
         (resolved as EffectResolution.Resolved)
@@ -169,40 +165,15 @@ class FfmpegOverlayPictureParityTest {
     shift: Int,
   ): Float = (texel shr shift and BYTE_MAX) / BYTE_MAX.toFloat()
 
-  private fun attributes(transfer: HdrTransfer): Attributes =
-    Attributes(
-      inputSize = FRAME,
-      outputSize = FRAME,
-      layoutSize = FRAME,
-      colorSpace = ColorSpace.Bt2020,
-      hdrTransfer = transfer,
-      frameRate = RATE,
-      span = TimeRange.of(Duration.ZERO, 2.seconds),
-    )
-
   private companion object {
     val decoder = FfmpegPictureDecoder("ffmpeg", "ffprobe")
 
-    val capabilities =
-      RenderCapabilities(
-        api = RenderApi.FilterGraph,
-        supportsFragmentShader = false,
-        supportsComputeShader = false,
-        supportsHdr = true,
-        colorSpaces = setOf(ColorSpace.Bt2020),
-        maxTextureSize = 16_384,
-        features = emptySet(),
-      )
-
-    val FRAME = Size(1280, 720)
-    const val RATE = 30f
     const val NEIGHBOURS = 27
     const val CHANNELS = 4
     const val ALPHA_SHIFT = 24
     const val RED_SHIFT = 16
     const val GREEN_SHIFT = 8
     const val BYTE_MAX = 0xFF
-    const val WIDE_MAX = 0xFFFF
     const val OPAQUE = 0xFF shl 24
   }
 }

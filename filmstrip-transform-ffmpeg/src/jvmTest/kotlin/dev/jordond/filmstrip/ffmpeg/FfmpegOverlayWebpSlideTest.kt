@@ -10,7 +10,7 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.CODE_DRIFT
+import dev.jordond.filmstrip.ffmpeg.ExportConstants.CODE_TOLERANCE
 import dev.jordond.filmstrip.ffmpeg.ExportConstants.FRAME
 import dev.jordond.filmstrip.ffmpeg.ExportConstants.RAMP
 import dev.jordond.filmstrip.ffmpeg.ExportConstants.TIMEOUT
@@ -26,10 +26,10 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.authoredHdrNits
 import dev.jordond.filmstrip.media.signalFromNits
+import dev.jordond.filmstrip.media.tenBitCodesFromSignal
 import dev.jordond.filmstrip.test.AuthoredColours.MID_GREEN
 import dev.jordond.filmstrip.test.AuthoredColours.MID_GREY
 import dev.jordond.filmstrip.test.OverlayPixels.hdrSourceOver
-import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import java.io.File
@@ -86,14 +86,15 @@ class FfmpegOverlayWebpSlideTest {
       val transfer = HdrTransfer.Pq
       val drawn =
         tenBitCodesFromSignal(transfer.signalFromNits(hdrSourceOver(authoredHdrNits(MID_GREY), MID_GREEN, 1f)))
+      val fill = tenBitCodesFromSignal(transfer.signalFromNits(authoredHdrNits(MID_GREY)))
+      assertTrue(
+        drawn.indices.any { abs(drawn[it] - fill[it]) > 2 * CODE_TOLERANCE },
+        "the WebP's ${drawn.toList()} sits too close to the bar's ${fill.toList()} to tell one from the other",
+      )
 
       assertCodes(tenBitCodesAt(exported.file, early, QUARTER), drawn, "the slide at $QUARTER")
       assertCodes(tenBitCodesAt(exported.file, late, THREE_QUARTERS), drawn, "the slide at $THREE_QUARTERS")
-      val bare = tenBitCodesAt(exported.file, late, QUARTER)
-      assertTrue(
-        bare.indices.any { abs(bare[it] - drawn[it]) > CODE_DRIFT },
-        "the WebP has already reached $late at $QUARTER: ${bare.toList()}",
-      )
+      assertCodes(tenBitCodesAt(exported.file, late, QUARTER), fill, "the bar at $late before the WebP reaches it")
 
       exported.file.delete()
     }
@@ -117,7 +118,7 @@ class FfmpegOverlayWebpSlideTest {
     what: String,
   ) {
     assertTrue(
-      read.indices.all { abs(read[it] - expected[it]) <= CODE_DRIFT },
+      read.indices.all { abs(read[it] - expected[it]) <= CODE_TOLERANCE },
       "$what read ${read.toList()}, expected ${expected.toList()}",
     )
   }

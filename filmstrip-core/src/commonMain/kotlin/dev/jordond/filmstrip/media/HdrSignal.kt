@@ -1,8 +1,6 @@
 package dev.jordond.filmstrip.media
 
 import dev.jordond.filmstrip.InternalFilmstripApi
-import kotlin.math.exp
-import kotlin.math.ln
 import kotlin.math.pow
 
 // The transfer functions an HDR grade is written in, and the gains an effect authored against an
@@ -48,22 +46,6 @@ public const val SDR_DISPLAY_GAMMA: Double = 2.2
  */
 @InternalFilmstripApi
 public const val HLG_SYSTEM_GAMMA: Double = 1.2
-
-/**
- * The power that takes HLG scene light to the SDR signal of [sdrSignalFromNits], per channel.
- *
- * Scene light reaches display light through [HLG_SYSTEM_GAMMA] and display light reaches the signal
- * through the inverse of [SDR_DISPLAY_GAMMA]. A backend that spells the pair as one exponent reads
- * it here rather than dividing the two again.
- */
-@InternalFilmstripApi
-public const val HLG_SCENE_TO_SDR_SIGNAL_GAMMA: Double = HLG_SYSTEM_GAMMA / SDR_DISPLAY_GAMMA
-
-/**
- * The power back from that signal to HLG scene light, the inverse of [HLG_SCENE_TO_SDR_SIGNAL_GAMMA].
- */
-@InternalFilmstripApi
-public const val SDR_SIGNAL_TO_HLG_SCENE_GAMMA: Double = SDR_DISPLAY_GAMMA / HLG_SYSTEM_GAMMA
 
 /**
  * What display light is multiplied by when an SDR brightness of [factor] is applied to an HDR
@@ -113,11 +95,7 @@ public fun linearDimGain(dim: Float): Float = brightnessDisplayGain(1f - dim.coe
  * this domain on a kept grade, and [nitsFromSdrSignal] takes the result back to light.
  */
 @InternalFilmstripApi
-public fun sdrSignalFromNits(nits: Float): Float =
-  (nits.coerceAtLeast(0f) / HDR_REFERENCE_WHITE_NITS)
-    .toDouble()
-    .pow(1.0 / SDR_DISPLAY_GAMMA)
-    .toFloat()
+public fun sdrSignalFromNits(nits: Float): Float = sdrSignalFromNits(nits.toDouble()).roundedToFloat()
 
 /**
  * Decodes an SDR [signal], as [sdrSignalFromNits] produces it, back to display light in cd/m2.
@@ -125,8 +103,7 @@ public fun sdrSignalFromNits(nits: Float): Float =
  * A negative signal is read as black, which is the floor a colour matrix's output gets.
  */
 @InternalFilmstripApi
-public fun nitsFromSdrSignal(signal: Float): Float =
-  (signal.coerceAtLeast(0f).toDouble().pow(SDR_DISPLAY_GAMMA) * HDR_REFERENCE_WHITE_NITS).toFloat()
+public fun nitsFromSdrSignal(signal: Float): Float = nitsFromSdrSignal(signal.toDouble()).roundedToFloat()
 
 /**
  * The brightest display light this transfer carries, in cd/m2.
@@ -146,7 +123,7 @@ public val HdrTransfer.peakNits: Float
  * the format runs out.
  */
 @InternalFilmstripApi
-public val HdrTransfer.sdrSignalCeiling: Float get() = sdrSignalFromNits(peakNits)
+public val HdrTransfer.sdrSignalCeiling: Float get() = sdrSignalCeilingDouble.roundedToFloat()
 
 /**
  * Where [sdrSignalCeiling] sits for a backend holding display light with reference white at one.
@@ -164,19 +141,14 @@ public val HdrTransfer.displayLightCeiling: Float get() = peakNits / HDR_REFEREN
  * reading [brightnessSceneGain] is built on.
  */
 @InternalFilmstripApi
-public fun hlgDisplayNitsFromScene(scene: Float): Float =
-  (scene.coerceAtLeast(0f).toDouble().pow(HLG_SYSTEM_GAMMA) * HLG_NOMINAL_PEAK_NITS).toFloat()
+public fun hlgDisplayNitsFromScene(scene: Float): Float = hlgDisplayNitsFromScene(scene.toDouble()).roundedToFloat()
 
 /**
  * The HLG scene light one channel of display light in [nits] came from, the inverse of
  * [hlgDisplayNitsFromScene].
  */
 @InternalFilmstripApi
-public fun hlgSceneFromDisplayNits(nits: Float): Float =
-  (nits.coerceAtLeast(0f) / HLG_NOMINAL_PEAK_NITS)
-    .toDouble()
-    .pow(1.0 / HLG_SYSTEM_GAMMA)
-    .toFloat()
+public fun hlgSceneFromDisplayNits(nits: Float): Float = hlgSceneFromDisplayNits(nits.toDouble()).roundedToFloat()
 
 /**
  * Encodes one channel of HLG [scene] light as the SDR signal of [sdrSignalFromNits], through the
@@ -185,13 +157,13 @@ public fun hlgSceneFromDisplayNits(nits: Float): Float =
  * What a backend holding scene light computes before it applies a colour matrix.
  */
 @InternalFilmstripApi
-public fun sdrSignalFromHlgScene(scene: Float): Float = sdrSignalFromNits(hlgDisplayNitsFromScene(scene))
+public fun sdrSignalFromHlgScene(scene: Float): Float = sdrSignalFromHlgScene(scene.toDouble()).roundedToFloat()
 
 /**
  * Decodes an SDR [signal] back to one channel of HLG scene light, the inverse of
  * [sdrSignalFromHlgScene].
  */
-internal fun hlgSceneFromSdrSignal(signal: Float): Float = hlgSceneFromDisplayNits(nitsFromSdrSignal(signal))
+internal fun hlgSceneFromSdrSignal(signal: Float): Float = hlgSceneFromSdrSignal(signal.toDouble()).roundedToFloat()
 
 /**
  * Encodes [nits] of linear light as a PQ signal, in the range zero to one.
@@ -200,23 +172,13 @@ internal fun hlgSceneFromSdrSignal(signal: Float): Float = hlgSceneFromDisplayNi
  * value means the same brightness whatever it is shown on.
  */
 @InternalFilmstripApi
-public fun pqSignalFromNits(nits: Float): Float {
-  val normalized = (nits / PQ_PEAK_NITS).coerceIn(0f, 1f).toDouble().pow(PQ_M1)
-
-  return ((PQ_C1 + PQ_C2 * normalized) / (1.0 + PQ_C3 * normalized)).pow(PQ_M2).toFloat()
-}
+public fun pqSignalFromNits(nits: Float): Float = pqSignalFromNits(nits.toDouble()).roundedToFloat()
 
 /**
  * Decodes a PQ [signal] in the range zero to one back to linear light, in cd/m2.
  */
 @InternalFilmstripApi
-public fun nitsFromPqSignal(signal: Float): Float {
-  val encoded = signal.coerceIn(0f, 1f).toDouble().pow(1.0 / PQ_M2)
-  val numerator = (encoded - PQ_C1).coerceAtLeast(0.0)
-  val denominator = PQ_C2 - PQ_C3 * encoded
-
-  return ((numerator / denominator).pow(1.0 / PQ_M1) * PQ_PEAK_NITS).toFloat()
-}
+public fun nitsFromPqSignal(signal: Float): Float = nitsFromPqSignal(signal.toDouble()).roundedToFloat()
 
 /**
  * Encodes HLG [scene] light, normalised against [HLG_NOMINAL_PEAK_NITS], as a signal in the range
@@ -226,31 +188,31 @@ public fun nitsFromPqSignal(signal: Float): Float {
  * light needed has already run by the time a value reaches here.
  */
 @InternalFilmstripApi
-public fun hlgSignalFromScene(scene: Float): Float {
-  val value = scene.coerceAtLeast(0f).toDouble()
-
-  return if (value <= 1.0 / 12.0) {
-    sqrt3(value)
-  } else {
-    HLG_A * ln(12.0 * value - HLG_B) + HLG_C
-  }.toFloat().coerceIn(0f, 1f)
-}
+public fun hlgSignalFromScene(scene: Float): Float = hlgSignalFromScene(scene.toDouble()).roundedToFloat()
 
 /**
  * Decodes an HLG [signal] in the range zero to one back to scene light.
  */
 @InternalFilmstripApi
-public fun sceneFromHlgSignal(signal: Float): Float {
-  val value = signal.coerceIn(0f, 1f).toDouble()
+public fun sceneFromHlgSignal(signal: Float): Float = sceneFromHlgSignal(signal.toDouble()).roundedToFloat()
 
-  return if (value <= 0.5) {
-    value * value / 3.0
-  } else {
-    (exp((value - HLG_C) / HLG_A) + HLG_B) / 12.0
-  }.toFloat()
-}
+/**
+ * Decodes one channel of an HLG [signal] to display light in cd/m2, reading the channel on its own.
+ *
+ * The inverse transfer function and then [hlgDisplayNitsFromScene], rounded once at the end. A picture on a kept grade
+ * is decoded this way, where [hlgNitsFromSignal] reads all three channels at once.
+ */
+@InternalFilmstripApi
+public fun hlgDisplayNitsFromSignal(signal: Float): Float = hlgDisplayNitsFromSignal(signal.toDouble()).roundedToFloat()
 
-private fun sqrt3(value: Double): Double = exp(ln(3.0 * value) / 2.0)
+/**
+ * Encodes one channel of display light in [nits] as an HLG signal in the range zero to one, the inverse of
+ * [hlgDisplayNitsFromSignal].
+ *
+ * [hlgSceneFromDisplayNits] and then the transfer function, rounded once at the end.
+ */
+@InternalFilmstripApi
+public fun hlgSignalFromDisplayNits(nits: Float): Float = hlgSignalFromDisplayNits(nits.toDouble()).roundedToFloat()
 
 /**
  * Converts display light in cd/m2 to the scene light an HLG signal carries.
@@ -264,17 +226,7 @@ private fun sqrt3(value: Double): Double = exp(ln(3.0 * value) / 2.0)
  * @param rgbNits Linear BT.2020 red, green and blue, as [authoredHdrNits] returns them.
  */
 @InternalFilmstripApi
-public fun hlgSceneFromNits(rgbNits: FloatArray): FloatArray {
-  val display = FloatArray(3) { (rgbNits[it] / HLG_NOMINAL_PEAK_NITS).coerceAtLeast(0f) }
-  val luminance = BT2020_LUMA_R * display[0] + BT2020_LUMA_G * display[1] + BT2020_LUMA_B * display[2]
-  if (luminance <= 0f) return FloatArray(3)
-
-  // The system gamma raised the scene's luminance to reach the display's, so undoing it divides
-  // every channel by the same figure rather than reshaping the colour.
-  val divisor = luminance.toDouble().pow((HLG_SYSTEM_GAMMA - 1.0) / HLG_SYSTEM_GAMMA)
-
-  return FloatArray(3) { (display[it] / divisor).toFloat() }
-}
+public fun hlgSceneFromNits(rgbNits: FloatArray): FloatArray = hlgSceneFromNits(rgbNits.widened()).rounded()
 
 /**
  * Converts the scene light an HLG signal carries to display light in cd/m2, the inverse of
@@ -288,15 +240,7 @@ public fun hlgSceneFromNits(rgbNits: FloatArray): FloatArray {
  * [HLG_NOMINAL_PEAK_NITS].
  */
 @InternalFilmstripApi
-public fun hlgNitsFromScene(rgbScene: FloatArray): FloatArray {
-  val scene = FloatArray(3) { rgbScene[it].coerceAtLeast(0f) }
-  val luminance = BT2020_LUMA_R * scene[0] + BT2020_LUMA_G * scene[1] + BT2020_LUMA_B * scene[2]
-  if (luminance <= 0f) return FloatArray(3)
-
-  val multiplier = luminance.toDouble().pow(HLG_SYSTEM_GAMMA - 1.0) * HLG_NOMINAL_PEAK_NITS
-
-  return FloatArray(3) { (scene[it] * multiplier).toFloat() }
-}
+public fun hlgNitsFromScene(rgbScene: FloatArray): FloatArray = hlgNitsFromScene(rgbScene.widened()).rounded()
 
 /**
  * Encodes display light in cd/m2 as an HLG signal, in the range zero to one.
@@ -306,11 +250,7 @@ public fun hlgNitsFromScene(rgbScene: FloatArray): FloatArray {
  * @param rgbNits Linear BT.2020 red, green and blue, as [authoredHdrNits] returns them.
  */
 @InternalFilmstripApi
-public fun hlgSignalFromNits(rgbNits: FloatArray): FloatArray {
-  val scene = hlgSceneFromNits(rgbNits)
-
-  return FloatArray(3) { hlgSignalFromScene(scene[it]) }
-}
+public fun hlgSignalFromNits(rgbNits: FloatArray): FloatArray = hlgSignalFromNits(rgbNits.widened()).rounded()
 
 /**
  * Encodes linear light in cd/m2 for this transfer function, in the range zero to one.
@@ -326,6 +266,42 @@ public fun HdrTransfer.signalFromNits(rgbNits: FloatArray): FloatArray =
     HdrTransfer.Pq -> FloatArray(3) { pqSignalFromNits(rgbNits[it]) }
     HdrTransfer.Hlg -> hlgSignalFromNits(rgbNits)
   }
+
+/**
+ * Decodes an HLG signal back to display light in cd/m2, the inverse of [hlgSignalFromNits].
+ *
+ * Runs the inverse transfer function on each channel and then the opto-optical transfer, which is driven by the
+ * colour's luminance, so a saturated colour comes back where [hlgSignalFromNits] took it from.
+ *
+ * @param rgbSignal Red, green and blue HLG signal in the range zero to one.
+ * @return Linear BT.2020 red, green and blue in cd/m2.
+ */
+@InternalFilmstripApi
+public fun hlgNitsFromSignal(rgbSignal: FloatArray): FloatArray = hlgNitsFromSignal(rgbSignal.widened()).rounded()
+
+/**
+ * Decodes a signal of this transfer function back to linear light in cd/m2, the inverse of [signalFromNits].
+ *
+ * PQ decodes each channel on its own. HLG goes through [hlgNitsFromSignal], whose opto-optical transfer reads all three
+ * channels at once.
+ *
+ * @param rgbSignal Red, green and blue signal in the range zero to one, as [signalFromNits] returns them.
+ * @return Linear BT.2020 red, green and blue in cd/m2.
+ */
+@InternalFilmstripApi
+public fun HdrTransfer.nitsFromSignal(rgbSignal: FloatArray): FloatArray =
+  when (this) {
+    HdrTransfer.Pq -> FloatArray(3) { nitsFromPqSignal(rgbSignal[it]) }
+    HdrTransfer.Hlg -> hlgNitsFromSignal(rgbSignal)
+  }
+
+// Kotlin/JS keeps a Float at double precision until it is stored in a FloatArray, so a figure goes through one to
+// come out as the same 32 bits on every platform.
+private fun Double.roundedToFloat(): Float = floatArrayOf(toFloat())[0]
+
+private fun FloatArray.widened(): DoubleArray = DoubleArray(3) { this[it].toDouble() }
+
+private fun DoubleArray.rounded(): FloatArray = FloatArray(3) { this[it].toFloat() }
 
 /**
  * BT.2020's red luminance weight.
@@ -362,6 +338,84 @@ public const val BT2020_CB_SCALE: Float = 2f * (1f - BT2020_LUMA_B)
  */
 @InternalFilmstripApi
 public const val BT2020_CR_SCALE: Float = 2f * (1f - BT2020_LUMA_R)
+
+/**
+ * The BT.2020 non-constant luminance matrix from an R'G'B' signal to Y', Cb and Cr, one row per output.
+ *
+ * Each row holds the weights of red, green and blue in that order, and the rows come out as luma, Cb and Cr. Luma runs
+ * from zero to one and each chroma channel spans plus or minus a half, before any scaling into codes. Built on
+ * [BT2020_LUMA_R], its siblings and the chroma scales, so this and [BT2020_DECODE_ROWS] are the one place the matrix is
+ * written.
+ */
+@InternalFilmstripApi
+public val BT2020_ENCODE_ROWS: List<ChannelTriple> =
+  run {
+    val luma = doubleArrayOf(BT2020_LUMA_R.toDouble(), BT2020_LUMA_G.toDouble(), BT2020_LUMA_B.toDouble())
+    listOf(
+      ChannelTriple(luma),
+      ChannelTriple(DoubleArray(3) { (primary(it, BLUE) - luma[it]) / BT2020_CB_SCALE }),
+      ChannelTriple(DoubleArray(3) { (primary(it, RED) - luma[it]) / BT2020_CR_SCALE }),
+    )
+  }
+
+/**
+ * The inverse of [BT2020_ENCODE_ROWS], from Y', Cb and Cr back to an R'G'B' signal, one row per output.
+ *
+ * Each row holds the weights of luma, Cb and Cr in that order, and the rows come out as red, green and blue. Red and
+ * blue are luma plus their chroma channel scaled back up, and green is what luma leaves once their shares of it are
+ * taken out.
+ */
+@InternalFilmstripApi
+public val BT2020_DECODE_ROWS: List<ChannelTriple> =
+  run {
+    val red = doubleArrayOf(1.0, 0.0, BT2020_CR_SCALE.toDouble())
+    val blue = doubleArrayOf(1.0, BT2020_CB_SCALE.toDouble(), 0.0)
+    val green =
+      DoubleArray(3) { (primary(it, LUMA) - BT2020_LUMA_R * red[it] - BT2020_LUMA_B * blue[it]) / BT2020_LUMA_G }
+    listOf(ChannelTriple(red), ChannelTriple(green), ChannelTriple(blue))
+  }
+
+/**
+ * The R'G'B' signal that moves Cb and Cr by the gap between [TEN_BIT_CHROMA_MID] and [TEN_BIT_LUMA_FLOOR], with luma
+ * left where it was.
+ *
+ * Holds red, green and blue in that order, each the [BT2020_DECODE_ROWS] weight of Cb and Cr times that gap over
+ * [TEN_BIT_CHROMA_RANGE]. Adding it to a signal ahead of [BT2020_ENCODE_ROWS] writes Cb and Cr as their distance from
+ * black's code rather than from the chroma middle, so all three channels share one offset.
+ */
+@InternalFilmstripApi
+public val BT2020_CHROMA_SHIFT: ChannelTriple =
+  run {
+    val fromBlack = (TEN_BIT_CHROMA_MID - TEN_BIT_LUMA_FLOOR).toDouble() / TEN_BIT_CHROMA_RANGE
+    ChannelTriple(DoubleArray(3) { (BT2020_DECODE_ROWS[it][1] + BT2020_DECODE_ROWS[it][2]) * fromBlack })
+  }
+
+/**
+ * Three doubles, one per channel, which a caller reads by index but cannot change.
+ *
+ * Carries each row of [BT2020_ENCODE_ROWS] and [BT2020_DECODE_ROWS], and [BT2020_CHROMA_SHIFT], so the shared matrix
+ * stays as core wrote it. The channel order is the one the holding declaration names.
+ */
+@InternalFilmstripApi
+public class ChannelTriple internal constructor(
+  private val values: DoubleArray,
+) {
+  /**
+   * Reads the value for one channel.
+   *
+   * @param index The channel, from zero to two.
+   */
+  public operator fun get(index: Int): Double = values[index]
+}
+
+private const val RED = 0
+private const val BLUE = 2
+private const val LUMA = 0
+
+private fun primary(
+  channel: Int,
+  of: Int,
+): Double = if (channel == of) 1.0 else 0.0
 
 /**
  * The `m1` exponent of the ST 2084 transfer function.

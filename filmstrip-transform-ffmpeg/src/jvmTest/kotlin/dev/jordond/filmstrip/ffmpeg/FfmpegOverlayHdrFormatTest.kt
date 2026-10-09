@@ -2,11 +2,8 @@ package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
-import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectSpec
-import dev.jordond.filmstrip.effect.RenderApi
-import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
@@ -14,8 +11,10 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.CODE_DRIFT
+import dev.jordond.filmstrip.ffmpeg.ExportConstants.CODE_TOLERANCE
 import dev.jordond.filmstrip.ffmpeg.ExportConstants.TIMEOUT
+import dev.jordond.filmstrip.ffmpeg.HdrRender.CAPABILITIES
+import dev.jordond.filmstrip.ffmpeg.HdrRender.attributes
 import dev.jordond.filmstrip.ffmpeg.OverlayConstants.OVERLAY_SIZE
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPictureDecoder
 import dev.jordond.filmstrip.geometry.AspectRatio
@@ -23,17 +22,17 @@ import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.authoredHdrNits
 import dev.jordond.filmstrip.media.signalFromNits
+import dev.jordond.filmstrip.media.tenBitCodesFromSignal
 import dev.jordond.filmstrip.test.AuthoredColours.MID_GREEN
 import dev.jordond.filmstrip.test.AuthoredColours.MID_GREY
+import dev.jordond.filmstrip.test.HdrOverlayCells.WHITE
 import dev.jordond.filmstrip.test.OverlayPixels.hdrSourceOver
-import dev.jordond.filmstrip.transform.internal.tenBitCodesFromSignal
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import java.awt.image.BufferedImage
@@ -155,7 +154,7 @@ class FfmpegOverlayHdrFormatTest {
     val read = tenBitCodesAt(exported.file, probeOf(exported.plan.output.size, exported.plan.duration))
     val expected = expectedCodes(HdrTransfer.Pq, MID_GREY, drawn)
     assertTrue(
-      read.indices.all { abs(read[it] - expected[it]) <= CODE_DRIFT },
+      read.indices.all { abs(read[it] - expected[it]) <= CODE_TOLERANCE },
       "$what read ${read.toList()}, expected ${expected.toList()} for ${drawn.toUInt().toString(16)}",
     )
     exported.file.delete()
@@ -187,27 +186,8 @@ class FfmpegOverlayHdrFormatTest {
     spec: EffectSpec,
     transfer: HdrTransfer,
   ): EffectResolution? =
-    BuiltInEffectResolver(FfmpegPictureDecoder("ffmpeg", "ffprobe")).resolve(
-      spec,
-      RenderCapabilities(
-        api = RenderApi.FilterGraph,
-        supportsFragmentShader = false,
-        supportsComputeShader = false,
-        supportsHdr = true,
-        colorSpaces = setOf(ColorSpace.Bt2020),
-        maxTextureSize = MAX_TEXTURE,
-        features = emptySet(),
-      ),
-      Attributes(
-        inputSize = FIXTURE_SIZE,
-        outputSize = FIXTURE_SIZE,
-        layoutSize = FIXTURE_SIZE,
-        colorSpace = ColorSpace.Bt2020,
-        hdrTransfer = transfer,
-        frameRate = RATE,
-        span = TimeRange.of(Duration.ZERO, 2.seconds),
-      ),
-    )
+    BuiltInEffectResolver(FfmpegPictureDecoder("ffmpeg", "ffprobe"))
+      .resolve(spec, CAPABILITIES, attributes(transfer, 2.seconds))
 
   private fun expectedCodes(
     transfer: HdrTransfer,
@@ -258,16 +238,10 @@ class FfmpegOverlayHdrFormatTest {
   }
 
   private companion object {
-    const val WHITE = 0xFFFFFFFF.toInt()
     const val DODGER_BLUE = 0xFF1E90FF.toInt()
     const val HALF_ORANGE = 0x80FF8020.toInt()
     const val QUARTER_WHITE = 0x40FFFFFF
     const val HEIC_FIXTURE = "overlay_mid_green.heic"
-
-    // The HDR fixtures' frame, which the portrait crop contains.
-    val FIXTURE_SIZE = Size(1280, 720)
-    const val RATE = 30f
-    const val MAX_TEXTURE = 16_384
   }
 }
 
