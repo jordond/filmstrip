@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.media3.AndroidKenBurnsTest.Companion.BOUNDARY
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.motion.Easing
+import dev.jordond.filmstrip.test.eightBitFrameAt
 import dev.jordond.filmstrip.test.writeAtomically
 import kotlinx.coroutines.test.runTest
 import java.io.File
@@ -52,7 +53,7 @@ class AndroidKenBurnsTest {
 
       FRACTIONS.forEach { fraction ->
         val at = PHOTO * fraction
-        assertRedFraction(frameOf(written, at), PAN.regionAt(at, span), "at $fraction through the photo")
+        assertRedFraction(eightBitFrameAt(written, at), PAN.regionAt(at, span), "at $fraction through the photo")
       }
     }
 
@@ -75,7 +76,7 @@ class AndroidKenBurnsTest {
 
       FRACTIONS.forEach { fraction ->
         val at = CLIP_LENGTH + PHOTO * fraction
-        assertRedFraction(frameOf(written, at), PAN.regionAt(at, span), "at $fraction through the photo")
+        assertRedFraction(eightBitFrameAt(written, at), PAN.regionAt(at, span), "at $fraction through the photo")
       }
     }
 
@@ -97,7 +98,7 @@ class AndroidKenBurnsTest {
         val pan = KenBurns(PAN.from, PAN.to, easing)
         val written = export(composition(Clip(stillSource(), effects = listOf(pan))))
 
-        assertRedFraction(frameOf(written, at), pan.regionAt(at, span), "halfway through a $easing pan")
+        assertRedFraction(eightBitFrameAt(written, at), pan.regionAt(at, span), "halfway through a $easing pan")
       }
     }
 
@@ -112,9 +113,9 @@ class AndroidKenBurnsTest {
       val panned = export(composition(Clip(source, effects = listOf(PAN))))
       val plain = export(composition(Clip(source)))
 
-      val early = frameOf(panned, CLIP_LENGTH * FRACTIONS.first())
-      val late = frameOf(panned, CLIP_LENGTH * FRACTIONS.last())
-      val untouched = frameOf(plain, CLIP_LENGTH * FRACTIONS.first())
+      val early = eightBitFrameAt(panned, CLIP_LENGTH * FRACTIONS.first())
+      val late = eightBitFrameAt(panned, CLIP_LENGTH * FRACTIONS.last())
+      val untouched = eightBitFrameAt(plain, CLIP_LENGTH * FRACTIONS.first())
 
       assertTrue(
         distance(early.averageAt(CENTRE, CENTRE), late.averageAt(CENTRE, CENTRE)) > MOVED,

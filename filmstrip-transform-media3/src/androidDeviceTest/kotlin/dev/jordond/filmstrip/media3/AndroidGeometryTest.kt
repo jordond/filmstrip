@@ -12,7 +12,6 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import kotlinx.coroutines.test.runTest
-import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -36,13 +35,13 @@ class AndroidGeometryTest {
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture()
 
-      val contained = probe.frame(export(source, Fit.Contain))
-      val cropped = probe.frame(export(source, Fit.Crop))
+      val contained = probe.written(composition(source, Fit.Contain), ExportSpec())
+      val cropped = probe.written(composition(source, Fit.Crop), ExportSpec())
 
-      val bar = contained.averageAt(CENTRE_X, EDGE_Y)
+      val bar = contained.rgbAt(CENTRE_X, EDGE_Y)
       assertTrue(distance(bar, MAGENTA) < COLOUR_TOLERANCE, "the contained export left no bar to compare against")
 
-      val edge = cropped.averageAt(CENTRE_X, EDGE_Y)
+      val edge = cropped.rgbAt(CENTRE_X, EDGE_Y)
       assertTrue(distance(edge, MAGENTA) > COLOUR_TOLERANCE, "the cropped export still has a fill bar at $edge")
     }
 
@@ -51,24 +50,19 @@ class AndroidGeometryTest {
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture()
 
-      val file = export(source, Fit.Crop)
-      val frame = probe.frame(file)
+      val frame = probe.frame(probe.export(composition(source, Fit.Crop), ExportSpec()))
 
       assertEquals(Size(frame.width, frame.height), SQUARE, "the export did not write the frame the plan named")
     }
 
-  private suspend fun export(
+  private fun composition(
     source: MediaSource,
     fit: Fit,
-  ): File {
-    val composition =
-      EditComposition(
-        tracks = listOf(Track(listOf(Clip(source)))),
-        effects = listOf(Crop(AspectRatio.Square, fit = fit)),
-        fill = Fill.Solid(MAGENTA_ARGB),
-      )
-    return probe.export(composition, ExportSpec())
-  }
+  ) = EditComposition(
+    tracks = listOf(Track(listOf(Clip(source)))),
+    effects = listOf(Crop(AspectRatio.Square, fit = fit)),
+    fill = Fill.Solid(MAGENTA_ARGB),
+  )
 
   private companion object {
     // The fixture is 640x360, so a square crop of it keeps its full height.

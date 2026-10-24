@@ -57,6 +57,13 @@ internal class TransformerRun(
   @Volatile
   private var negotiated: TransformationRequest? = null
 
+  private val encoders =
+    EncoderColour(
+      encoderFactory(context),
+      { encoder -> pinnedEncoderFactory(context, encoder) },
+      MeasuredEncoderColour.Device,
+    )
+
   fun run(): Flow<ExportStatus> =
     flow {
       val outcome = CompletableDeferred<Outcome>()
@@ -106,7 +113,8 @@ internal class TransformerRun(
               .toMimeType()
               ?.let(::setAudioMimeType)
           }
-        }.setLooper(looper)
+        }.setEncoderFactory(encoders)
+        .setLooper(looper)
         .addListener(
           object : Transformer.Listener {
             override fun onCompleted(
@@ -201,8 +209,14 @@ internal class TransformerRun(
   // MediaInfo. Reading the written file back is the only answer that is about the real file.
   private suspend fun probed(sink: MediaSink): ExportStatus =
     when (val probe = prober.probe(sink.asSource())) {
-      is ProbeResult.Failure -> ExportStatus.Failure(ExportError.SinkUnwritable(sink.describe(), NOT_READABLE))
-      is ProbeResult.Success -> ExportStatus.Success(sink, probe.info, resolved.adjustments + negotiatedAway())
+      is ProbeResult.Failure -> {
+        ExportStatus.Failure(ExportError.SinkUnwritable(sink.describe(), NOT_READABLE))
+      }
+      is ProbeResult.Success -> {
+        val retagged = retagReport(resolved.path, encoders.retag)
+        val adjustments = resolved.adjustments + negotiatedAway() + listOfNotNull(retagged)
+        ExportStatus.Success(sink, probe.info, adjustments)
+      }
     }
 
   /**

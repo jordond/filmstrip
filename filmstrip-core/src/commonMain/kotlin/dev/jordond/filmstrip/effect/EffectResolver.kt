@@ -56,16 +56,29 @@ public sealed interface EffectResolution {
    * The caller decides whether that is acceptable, and `plan()` surfaces it before any long-running
    * work starts.
    *
+   * The resolution keeps its own copy of the causes, so changing the list passed in afterwards does not reach it.
+   *
    * @property effect The platform object to render with.
-   * @property reason What was given up.
-   * @property message A human-readable description, safe to show and unsuitable for parsing.
+   * @property causes Everything that was given up, in the order the causes apply. Never empty.
+   * @throws IllegalArgumentException when [causes] is empty.
    */
-  @Poko
   public class Degraded(
     public val effect: PlatformEffect,
-    public val reason: DegradationReason,
-    public val message: String,
-  ) : EffectResolution
+    causes: List<Degradation>,
+  ) : EffectResolution {
+    public val causes: List<Degradation> = causes.toList()
+
+    init {
+      require(this.causes.isNotEmpty()) { "A degraded resolution needs at least one cause" }
+    }
+
+    override fun equals(other: Any?): Boolean =
+      this === other || (other is Degraded && effect == other.effect && causes == other.causes)
+
+    override fun hashCode(): Int = 31 * effect.hashCode() + causes.hashCode()
+
+    override fun toString(): String = "Degraded(effect=$effect, causes=$causes)"
+  }
 
   /**
    * This resolver owns the spec but cannot realize it here. Ends the chain for this spec.
@@ -79,6 +92,18 @@ public sealed interface EffectResolution {
     public val message: String,
   ) : EffectResolution
 }
+
+/**
+ * One way an [EffectResolution.Degraded] differs from what was declared.
+ *
+ * @property reason What was given up.
+ * @property message A human-readable description, safe to show and unsuitable for parsing.
+ */
+@Poko
+public class Degradation(
+  public val reason: DegradationReason,
+  public val message: String,
+)
 
 /**
  * Why a resolution is [EffectResolution.Degraded] rather than exact.
@@ -113,4 +138,10 @@ public enum class DegradationReason {
    * A cheaper kernel was chosen to hold the preview's frame budget. Preview only.
    */
   RealtimeApproximation,
+
+  /**
+   * The alpha a picture's file carries was not read, so the picture draws opaque. The colour still lands as the file
+   * stores it.
+   */
+  AlphaDiscarded,
 }

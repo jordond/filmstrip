@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.test.eightBitFrameAt
 import dev.jordond.filmstrip.test.writeAtomically
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
@@ -75,6 +76,27 @@ internal class Media3ExportProbe {
     }
 
   /**
+   * Exports [composition] at [spec] and reads its first frame back as the codes the encoder wrote, with the matrix
+   * and range the file records.
+   *
+   * A test that reads an exact colour reads it here, through the file's own tag, rather than through
+   * `MediaMetadataRetriever`'s conversion.
+   */
+  suspend fun written(
+    composition: EditComposition,
+    spec: ExportSpec = SPEC,
+  ): Written = writtenBy(finish(plan(composition, spec)))
+
+  /**
+   * The first frame of the file [finished] wrote, as [written] reads it.
+   */
+  fun writtenBy(finished: ExportStatus.Success): Written {
+    val file = File(assertIs<MediaSink.Path>(finished.output).path)
+    val (matrix, fullRange) = colourTagOf(file)
+    return Written(firstEightBitFrame(file), matrix, fullRange)
+  }
+
+  /**
    * Runs [plan] to a temporary file and returns the [ExportStatus.Success] it finished on, for a
    * test that reads the adjustments as well as the file. A failed export throws.
    *
@@ -111,7 +133,7 @@ internal class Media3ExportProbe {
   fun frame(
     video: File,
     at: Duration = MID_CLIP,
-  ): Bitmap = frameOf(video, at)
+  ): Bitmap = eightBitFrameAt(video, at)
 
   /**
    * The test resource [name] copied into the cache. Skips the calling test when the fixtures were

@@ -25,6 +25,7 @@ import platform.CoreImage.CIContext
 import platform.CoreImage.CIImage
 import platform.CoreImage.kCIFormatRGBAf
 import kotlin.test.assertIs
+import kotlin.test.fail
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -126,3 +127,15 @@ internal object OverlayFixtures {
       ((this[index * 2].digitToInt(HEX) shl 4) or this[index * 2 + 1].digitToInt(HEX)).toByte()
     }
 }
+
+/**
+ * The value read, failing the test when the picture is unreadable or refused. A refusal fails with the reason the
+ * raster gave, and [what] names the picture in either failure.
+ */
+internal fun <T> PictureRead<T>.orFail(what: String = "the picture"): T =
+  when (this) {
+    is PictureRead.Read -> value
+    is PictureRead.Refused -> fail("$what was refused: $reason")
+    is PictureRead.Unsupported -> fail("$what is unsupported: $message")
+    PictureRead.Unreadable -> fail("$what did not decode")
+  }

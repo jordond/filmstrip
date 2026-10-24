@@ -15,6 +15,9 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.pictureColour
+import dev.jordond.filmstrip.internal.pngExtent
+import dev.jordond.filmstrip.internal.pngSamples
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
@@ -23,9 +26,11 @@ import dev.jordond.filmstrip.style.TextStyle
 import kotlinx.coroutines.test.runTest
 import kotlin.io.encoding.Base64
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -141,6 +146,112 @@ class WebOverlayTest {
       assertEquals(PNG, overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES)).size)
     }
 
+  // The bitmap keeps the stored codes, so the compositor needs the colour the picture's own bytes describe.
+  @Test
+  fun aTaggedImageCarriesTheColourItsBytesDescribe() =
+    runTest {
+      val bytes = pngOf(PNG, chunk(CICP, CICP_DISPLAY_P3))
+      val uri = "data:image/png;base64," + Base64.encode(bytes)
+      val expected = assertNotNull(pictureColour(bytes))
+
+      for (source in listOf(ImageSource.ofBytes(bytes), ImageSource.ofUri(uri))) {
+        val image = ImageOverlay(source, Corner.TopEnd)
+        val resolver = BuiltInEffectResolver()
+        resolver.preload(compositionOf(image))
+
+        assertEquals(expected, overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES)).colour, "$source")
+      }
+    }
+
+  @Test
+  fun anUntaggedImageCarriesNoColour() =
+    runTest {
+      val bytes = pngOf(PNG)
+      val uri = "data:image/png;base64," + Base64.encode(bytes)
+
+      for (source in listOf(ImageSource.ofBytes(bytes), ImageSource.ofUri(uri))) {
+        val image = ImageOverlay(source, Corner.TopEnd)
+        val resolver = BuiltInEffectResolver()
+        resolver.preload(compositionOf(image))
+
+        assertNull(overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES)).colour, "$source")
+      }
+    }
+
+  // The compositor converts a PNG from the samples it stores, so a sixteen-bit one keeps the low byte of each sample
+  // that a bitmap drops.
+  @Test
+  fun aPngCarriesTheSamplesItStores() =
+    runTest {
+      for (bytes in listOf(pngOf(PNG), pngOf(PNG, sixteenBitSample = SIXTEEN_BIT_SAMPLE))) {
+        val image = ImageOverlay(ImageSource.ofBytes(bytes), Corner.TopEnd)
+        val resolver = BuiltInEffectResolver()
+        resolver.preload(compositionOf(image))
+
+        val samples = assertNotNull(overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES)).samples)
+        assertContentEquals(assertNotNull(pngSamples(bytes)).rgba, samples)
+      }
+      val sixteenBit = assertNotNull(pngSamples(pngOf(PNG, sixteenBitSample = SIXTEEN_BIT_SAMPLE)))
+      assertEquals(SIXTEEN_BIT_SAMPLE, sixteenBit.rgba.first().toInt() and 0xFFFF)
+    }
+
+  // Chrome turns a PNG's bitmap by the orientation its eXIf chunk names, a quarter turn standing this one on its end.
+  // Core Image, Android's BitmapFactory and the JDK draw a PNG's pixels in the order they are stored, and so does this
+  // backend.
+  @Test
+  fun aPngWithAnExifOrientationDrawsItsSamplesInTheOrderTheyAreStored() =
+    runTest {
+      for (orientation in listOf(EXIF_QUARTER_TURN, EXIF_MIRRORED)) {
+        val bytes = pngOf(TWO_TEXELS, chunk(EXIF, exifOrientation(orientation)), texels = listOf(RED, GREEN))
+        val image = ImageOverlay(ImageSource.ofBytes(bytes), Corner.TopEnd)
+        val resolver = BuiltInEffectResolver()
+        resolver.preload(compositionOf(image))
+
+        val overlay = overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES))
+        val samples = assertNotNull(overlay.samples, "orientation $orientation")
+        assertEquals(TWO_TEXELS, overlay.size, "orientation $orientation")
+        assertContentEquals(assertNotNull(pngSamples(bytes)).rgba, samples, "orientation $orientation")
+        val first = (0 until 3).map { samples[it].toInt() and 0xFFFF }
+        assertEquals(listOf(0xFFFF, 0, 0), first, "orientation $orientation")
+      }
+    }
+
+  // The rows, samples and bitmap a PNG holds are counted before anything is decoded, so one just past the ceiling is
+  // refused by its size and one at it is drawn.
+  @Test
+  fun aPngWhosePeakPassesTheCeilingIsRefusedNamingItsSize() =
+    runTest {
+      val bytes = pngOf(PNG)
+      val extent = assertNotNull(pngExtent(bytes))
+      val peak = assertNotNull(pngPeakBytes(extent))
+      val source = ImageSource.ofBytes(bytes)
+      val past = OverlayImages(ceiling = peak - 1).apply { preload(source) }[source]
+      val at = OverlayImages(ceiling = peak).apply { preload(source) }[source]
+
+      assertEquals(tooLargeToDecode(extent, peak, peak - 1), assertIs<OverlayDecode.Refused>(past).message)
+      assertIs<OverlayDecode.Decoded>(at)
+    }
+
+  // Only the header is written, which is all the count reads, so a picture this large costs nothing to refuse.
+  @Test
+  fun theCeilingHoldsA48MpPngAtEitherDepthAndRefusesA64MpSixteenBitOne() =
+    runTest {
+      for (depth in listOf(8, 16)) {
+        val peak = assertNotNull(pngPeakBytes(assertNotNull(pngExtent(pngHeaderOnly(8_000, 6_000, depth)))))
+        assertTrue(peak <= PICTURE_PEAK_CEILING, "a 48 MP $depth-bit PNG peaks at $peak")
+      }
+      val large = pngHeaderOnly(8_000, 8_000, 16)
+      val extent = assertNotNull(pngExtent(large))
+      val source = ImageSource.ofBytes(large)
+      val refused = OverlayImages().apply { preload(source) }[source]
+
+      assertEquals(
+        tooLargeToDecode(extent, pngPeakBytes(extent), PICTURE_PEAK_CEILING),
+        assertIs<OverlayDecode.Refused>(refused).message,
+      )
+      assertEquals(1_280_008_000L, pngPeakBytes(extent))
+    }
+
   @Test
   fun aCorruptImageResolvesUnsupportedNamingIt() =
     runTest {
@@ -248,6 +359,23 @@ class WebOverlayTest {
     const val BLACK = 0xFF000000.toInt()
     const val CORRUPT_LENGTH = 40
 
+    // A sample whose low byte is not its high byte, so it is not an eight-bit code times 257.
+    const val SIXTEEN_BIT_SAMPLE = 0xA012
+
+    // A picture two texels wide and one tall, red then green.
+    val TWO_TEXELS = Size(2, 1)
+    val RED = byteArrayOf(0xFF.toByte(), 0, 0, 0xFF.toByte())
+    val GREEN = byteArrayOf(0, 0xFF.toByte(), 0, 0xFF.toByte())
+
+    // The EXIF orientations for a quarter turn clockwise and for a mirror image.
+    const val EXIF = "eXIf"
+    const val EXIF_QUARTER_TURN = 6
+    const val EXIF_MIRRORED = 2
+
+    // Display P3 primaries, the sRGB transfer, the identity matrix and full range.
+    const val CICP = "cICP"
+    val CICP_DISPLAY_P3 = byteArrayOf(12, 13, 0, 1)
+
     val ATTRIBUTES = attributes(hdrTransfer = null)
 
     val CAPABILITIES = capabilities(setOf(RenderFeature.TextRendering))
@@ -278,16 +406,34 @@ class WebOverlayTest {
 }
 
 /**
- * An opaque RGBA PNG of [size], its deflate stream left stored rather than compressed.
+ * An opaque RGBA PNG of [size], its deflate stream left stored rather than compressed, with [colour] written between
+ * its header and its image data.
+ *
+ * Every channel is white at eight bits, or [sixteenBitSample] at sixteen bits with alpha opaque when one is given.
+ * [texels] paints each pixel instead, eight-bit RGBA row by row from the top left.
  */
-private fun pngOf(size: Size): ByteArray {
-  val rows = ByteArray((size.width * 4 + 1) * size.height)
-  for (index in rows.indices) {
-    if (index % (size.width * 4 + 1) != 0) rows[index] = 0xFF.toByte()
-  }
+private fun pngOf(
+  size: Size,
+  colour: ByteArray = ByteArray(0),
+  sixteenBitSample: Int? = null,
+  texels: List<ByteArray>? = null,
+): ByteArray {
+  val texel =
+    if (sixteenBitSample == null) {
+      ByteArray(4) { 0xFF.toByte() }
+    } else {
+      val sample = byteArrayOf((sixteenBitSample ushr 8).toByte(), sixteenBitSample.toByte())
+      sample + sample + sample + byteArrayOf(0xFF.toByte(), 0xFF.toByte())
+    }
+  val rows =
+    (0 until size.height).fold(ByteArray(0)) { image, y ->
+      image + byteArrayOf(0) +
+        (0 until size.width).fold(ByteArray(0)) { line, x -> line + (texels?.get(y * size.width + x) ?: texel) }
+    }
 
+  val depth: Byte = if (sixteenBitSample == null) 8 else 16
   val header =
-    int32(size.width) + int32(size.height) + byteArrayOf(8, 6, 0, 0, 0)
+    int32(size.width) + int32(size.height) + byteArrayOf(depth, 6, 0, 0, 0)
   val zlib =
     byteArrayOf(0x78, 0x01, 0x01) +
       int16LittleEndian(rows.size) +
@@ -297,9 +443,36 @@ private fun pngOf(size: Size): ByteArray {
 
   return byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A) +
     chunk("IHDR", header) +
+    colour +
     chunk("IDAT", zlib) +
     chunk("IEND", ByteArray(0))
 }
+
+/**
+ * The signature and `IHDR` of a [width] by [height] RGBA PNG at [depth] bits, with no image data after them.
+ */
+private fun pngHeaderOnly(
+  width: Int,
+  height: Int,
+  depth: Int,
+): ByteArray =
+  byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A) +
+    chunk("IHDR", int32(width) + int32(height) + byteArrayOf(depth.toByte(), 6, 0, 0, 0))
+
+/**
+ * A big-endian EXIF block holding one tag, the orientation [value].
+ *
+ * It is laid out the way an `eXIf` chunk carries it, a TIFF header and one directory with no next one.
+ */
+private fun exifOrientation(value: Int): ByteArray =
+  "MM".encodeToByteArray() +
+    byteArrayOf(0, 42) +
+    int32(8) +
+    byteArrayOf(0, 1) +
+    byteArrayOf(0x01, 0x12, 0, 3) +
+    int32(1) +
+    byteArrayOf((value ushr 8).toByte(), value.toByte(), 0, 0) +
+    int32(0)
 
 private fun chunk(
   type: String,

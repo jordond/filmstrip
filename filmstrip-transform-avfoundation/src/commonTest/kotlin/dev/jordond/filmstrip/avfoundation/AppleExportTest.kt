@@ -42,6 +42,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.chainedProber
 import dev.jordond.filmstrip.test.LoopingCases
 import dev.jordond.filmstrip.test.ToneAnalysis
+import dev.jordond.filmstrip.test.isSimulator
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition

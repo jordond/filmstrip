@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.media.signalFromNits
 import dev.jordond.filmstrip.media.tenBitCodesFromSignal
 import dev.jordond.filmstrip.test.HdrOverlayCells
 import dev.jordond.filmstrip.test.encodesHdr
+import dev.jordond.filmstrip.test.isSimulator
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList

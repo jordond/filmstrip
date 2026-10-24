@@ -38,9 +38,9 @@ class AndroidFillTest {
   fun aSolidFillWritesBarsOfItsOwnColour() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture()
-      val bitmap = probe.frame(export(source, effects = listOf(squareCrop()), fill = Fill.Solid(MAGENTA_ARGB)))
+      val written = magentaExport(source, listOf(squareCrop()))
 
-      val bar = bitmap.averageAt(CENTRE_X, BAR_Y)
+      val bar = written.averageAt(CENTRE_X, BAR_Y)
       assertTrue(colourDistance(bar, MAGENTA) < COLOUR_TOLERANCE, "bar $bar is not magenta")
     }
 
@@ -50,9 +50,8 @@ class AndroidFillTest {
   fun aCompositionBrightnessLeavesASolidFillsBarsUntouched() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture()
-      val plain = probe.frame(export(source, effects = listOf(squareCrop()), fill = Fill.Solid(MAGENTA_ARGB)))
-      val dimmed =
-        probe.frame(export(source, effects = listOf(squareCrop(), Brightness(0.5f)), fill = Fill.Solid(MAGENTA_ARGB)))
+      val plain = magentaExport(source, listOf(squareCrop()))
+      val dimmed = magentaExport(source, listOf(squareCrop(), Brightness(0.5f)))
 
       val bar = dimmed.averageAt(CENTRE_X, BAR_Y)
       assertTrue(colourDistance(bar, MAGENTA) < COLOUR_TOLERANCE, "bar $bar is not magenta")
@@ -69,9 +68,8 @@ class AndroidFillTest {
   fun aCompositionContrastLeavesASolidFillsBarsUntouched() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture()
-      val plain = probe.frame(export(source, effects = listOf(squareCrop()), fill = Fill.Solid(MAGENTA_ARGB)))
-      val graded =
-        probe.frame(export(source, effects = listOf(squareCrop(), Contrast(0.5f)), fill = Fill.Solid(MAGENTA_ARGB)))
+      val plain = magentaExport(source, listOf(squareCrop()))
+      val graded = magentaExport(source, listOf(squareCrop(), Contrast(0.5f)))
 
       val bar = graded.averageAt(CENTRE_X, BAR_Y)
       assertTrue(colourDistance(bar, MAGENTA) < COLOUR_TOLERANCE, "bar $bar is not magenta")
@@ -199,6 +197,23 @@ class AndroidFillTest {
   ): File {
     val composition = EditComposition(listOf(Track(listOf(Clip(source)))), effects, fill = fill)
     return probe.export(composition, ExportSpec(hdr = hdr))
+  }
+
+  // A magenta fill export, read back as the codes its encoder wrote so the bar's colour is exact.
+  private suspend fun magentaExport(
+    source: MediaSource,
+    effects: List<EffectSpec>,
+  ): Written {
+    val composition = EditComposition(listOf(Track(listOf(Clip(source)))), effects, fill = Fill.Solid(MAGENTA_ARGB))
+    return probe.written(composition, ExportSpec())
+  }
+
+  private fun Written.averageAt(
+    fx: Float,
+    fy: Float,
+  ): Rgb {
+    val (red, green, blue) = rgbAt(fx, fy)
+    return Rgb(red, green, blue)
   }
 
   /**

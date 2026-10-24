@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.color.Contrast
 import dev.jordond.filmstrip.effects.color.Sepia
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.CropRect
@@ -66,6 +67,53 @@ class EffectPlanTest {
 
     val incapable = assertIs<Verdict.Incapable>(verdict)
     incapable.reasons.single().message shouldBe "this resolver owns it and cannot render it"
+  }
+
+  @Test
+  fun `an effect degraded for three causes reports each as its own approximation in order`() {
+    val verdict =
+      fixture.plan(
+        composition(fixture.clip(effects = listOf(Rotate(90)))),
+        resolvers = listOf(FakeResolver(degrade = setOf(Rotate(90).id), causes = THREE_CAUSES)),
+      )
+
+    val adjustments = assertIs<Verdict.Degraded>(verdict).adjustments
+    val approximated = adjustments.filter { it.kind == AdjustmentKind.EffectApproximated }
+    approximated.map { it.requested to it.message } shouldBe THREE_CAUSES.map { Rotate(90).id to it.message }
+  }
+
+  // Every effect the caller wrote in the run is told about every cause, each source in turn.
+  @Test
+  fun `a folded run degraded for three causes reports each cause against every effect the caller wrote`() {
+    val composition = composition(fixture.clip(effects = listOf(Brightness(4f), Contrast(2f), Sepia(1f))))
+    val resolver = FakeResolver(degrade = setOf(EffectIds.COLOR_MATRIX), causes = THREE_CAUSES)
+    val verdict =
+      fixture
+        .planner(resolvers = listOf(resolver))
+        .negotiate(composition, ExportSpec(), fixture.device(), fixture.infos(composition))
+        .verdict
+
+    val adjustments = assertIs<Verdict.Degraded>(verdict).adjustments
+    val approximated = adjustments.filter { it.kind == AdjustmentKind.EffectApproximated }
+    approximated.map { it.requested to it.message } shouldBe
+      listOf(EffectIds.BRIGHTNESS, EffectIds.CONTRAST, EffectIds.SEPIA).flatMap { id ->
+        THREE_CAUSES.map { id to it.message }
+      }
+  }
+
+  // A track effect lowers once per clip, so each cause is reached on both clips and reported once.
+  @Test
+  fun `three causes reached on every clip are each reported once`() {
+    val track = Track(listOf(fixture.clip(), fixture.clip()), effects = listOf(Rotate(90)))
+    val verdict =
+      fixture.plan(
+        EditComposition(listOf(track)),
+        resolvers = listOf(FakeResolver(degrade = setOf(Rotate(90).id), causes = THREE_CAUSES)),
+      )
+
+    val adjustments = assertIs<Verdict.Degraded>(verdict).adjustments
+    val approximated = adjustments.filter { it.kind == AdjustmentKind.EffectApproximated }
+    approximated.map { it.message } shouldBe THREE_CAUSES.map { it.message }
   }
 
   @Test
@@ -372,3 +420,6 @@ private class RecordingResolver : EffectResolver {
     return EffectResolution.Resolved(fakePlatformEffect())
   }
 }
+
+// Sorted by neither reason nor message, so a planner that reorders the causes fails.
+private val THREE_CAUSES = listOf(CONVERTS_IT, ROUNDS_IT, CLAMPS_IT)

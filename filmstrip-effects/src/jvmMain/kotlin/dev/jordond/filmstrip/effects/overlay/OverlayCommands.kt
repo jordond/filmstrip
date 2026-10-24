@@ -18,6 +18,19 @@ import kotlin.math.roundToInt
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 
+// Why this overlay's animation cannot be driven over [run] whatever its picture holds, or null when it can or has
+// none. It needs no read of the picture, so it runs ahead of one.
+internal fun ImageOverlay.animationRefusal(
+  attributes: Attributes,
+  run: TimeRange,
+): String? =
+  when {
+    animation == null -> null
+    attributes.gridRate == null -> ANIMATION_NO_GRID
+    run.endExclusive == null -> ANIMATION_NO_RUN
+    else -> null
+  }
+
 // What an animated overlay's branch has to be driven by. The animation is sampled once per output
 // frame of the run, and each option is written as the intervals it holds one value over. A
 // command written at exactly a frame's own time lands on that frame, so an interval opens on the
@@ -29,22 +42,25 @@ import kotlin.time.Duration.Companion.microseconds
 // On an HDR grade the region the blend runs on has to hold every position the overlay reaches, so
 // it is laid out from all of them before a command is written. Each of the two branches gets its
 // own file, since sendcmd hands a command to the first filter of that name and no further.
+//
+// [decoded] is the picture's size when it was already decoded for this resolve. Otherwise the decoder sizes it
+// whenever there is one, turned the way it decodes it.
 internal fun ImageOverlay.commandsFor(
   attributes: Attributes,
   run: TimeRange,
   graded: Boolean,
   decoder: OverlayPictureDecoder?,
+  decoded: Size?,
 ): Driven {
   if (animation == null) return Driven.Still
   val rate = attributes.gridRate ?: return Driven.Refused(ANIMATION_NO_GRID)
   val end = run.endExclusive ?: return Driven.Refused(ANIMATION_NO_RUN)
   val imageSize =
-    measureOverlay(image)
-      ?: when (val read = decoder?.measure(image)) {
-        is OverlayPictureRead.Read -> read.value
-        is OverlayPictureRead.Refused -> return Driven.Refused(UNREADABLE_IMAGE.saying(read.reason))
-        null -> return Driven.Refused(UNREADABLE_IMAGE)
-      }
+    decoded ?: when (val read = decoder?.measure(image)) {
+      is OverlayPictureRead.Read -> read.value
+      is OverlayPictureRead.Refused -> return Driven.Refused(UNREADABLE_IMAGE.saying(read.reason))
+      null -> measureOverlay(image) ?: return Driven.Refused(UNREADABLE_IMAGE)
+    }
   val span = attributes.span
   val drawnOn = attributes.inputSize
   val base = placedOn(drawnOn, imageSize)
@@ -167,8 +183,8 @@ private fun commandValues(
  *
  * ImageIO picks a reader off the stream's own magic bytes and answers the bounds out of the
  * header, so nothing here pulls the picture into memory. A URI is read as the file path the
- * backend materialises it to, which is the file ffmpeg itself opens. A picture the JDK has no
- * reader for is measured by the backend's [OverlayPictureDecoder] instead.
+ * backend materialises it to, which is the file ffmpeg itself opens. Only read for a catalogue
+ * built without an [OverlayPictureDecoder].
  */
 private fun measureOverlay(image: ImageSource): Size? {
   val stream = image.openHeader() ?: return null

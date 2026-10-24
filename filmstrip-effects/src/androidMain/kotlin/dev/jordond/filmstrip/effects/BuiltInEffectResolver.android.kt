@@ -26,22 +26,30 @@ import dev.jordond.filmstrip.effects.geometry.KenBurnsTransformation
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.geometry.retainedRect
+import dev.jordond.filmstrip.effects.overlay.DecodedPicture
+import dev.jordond.filmstrip.effects.overlay.DecoderLimit
+import dev.jordond.filmstrip.effects.overlay.HalfFloatCurve
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayEffect
 import dev.jordond.filmstrip.effects.overlay.OverlayPlacement
+import dev.jordond.filmstrip.effects.overlay.PictureRead
 import dev.jordond.filmstrip.effects.overlay.RasterOverlay
+import dev.jordond.filmstrip.effects.overlay.RefusedPicture
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
-import dev.jordond.filmstrip.effects.overlay.decode
+import dev.jordond.filmstrip.effects.overlay.UnreadablePicture
 import dev.jordond.filmstrip.effects.overlay.drawnTextSize
+import dev.jordond.filmstrip.effects.overlay.halfFloatCurve
 import dev.jordond.filmstrip.effects.overlay.media3OverlayResolution
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rasterFor
 import dev.jordond.filmstrip.effects.overlay.rasterizeText
+import dev.jordond.filmstrip.effects.overlay.read
 import dev.jordond.filmstrip.effects.overlay.runWithin
 import dev.jordond.filmstrip.effects.overlay.size
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.PictureColour
 import dev.jordond.filmstrip.media.brightnessDisplayGain
 import dev.jordond.filmstrip.media.brightnessSceneGain
 import androidx.media3.effect.Crop as Media3Crop
@@ -108,10 +116,28 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   // They are the same for a composition-scoped overlay. A clip-scoped one runs in that item's own
   // chain, before the size stage pins every clip to the output frame, so measuring it against the
   // output would size it against a frame it never sees.
-  private fun ImageOverlay.toOverlay(attributes: Attributes): EffectResolution {
-    val bitmap = image.decode(FilmstripContext.get()) ?: return unsupported(id, UNREADABLE_IMAGE)
-    val size = bitmap.size()
-    return resolved(bitmap, this, placedOn(attributes.inputSize, size), attributes)
+  private fun ImageOverlay.toOverlay(attributes: Attributes): EffectResolution =
+    toOverlay(image.read(FilmstripContext.get()), attributes)
+
+  /**
+   * Resolves this overlay onto a frame of [attributes] from its already [read] [picture], or refuses it when the
+   * picture could not be read, was refused before or by Android's decoder, or was decoded into a space its samples
+   * cannot be read back from.
+   */
+  internal fun ImageOverlay.toOverlay(
+    picture: PictureRead,
+    attributes: Attributes,
+  ): EffectResolution {
+    val decoded =
+      when (picture) {
+        UnreadablePicture -> return unsupported(id, UNREADABLE_IMAGE)
+        is RefusedPicture -> return unsupported(id, picture.reason)
+        is DecodedPicture -> picture
+      }
+    if (decoded.bitmap.halfFloatCurve() == HalfFloatCurve.Unknown) return unsupported(id, UNKNOWN_HALF_FLOAT_SPACE)
+    val size = decoded.bitmap.size()
+    val placement = placedOn(attributes.inputSize, size)
+    return resolved(decoded.bitmap, this, placement, attributes, decoded.colour, decoded.limits)
   }
 
   private fun TextOverlay.toOverlay(
@@ -139,14 +165,16 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     spec: OverlayEffect,
     placement: OverlayPlacement,
     attributes: Attributes,
+    colour: PictureColour? = null,
+    limits: List<DecoderLimit> = emptyList(),
   ): EffectResolution {
     val transfer = attributes.hdrTransfer
-    val raster = bitmap.rasterFor(transfer)
+    val raster = bitmap.rasterFor(transfer, colour)
     // Derived here so the per-frame sampling reads a range rather than rebuilding one on the GL
     // thread for every frame of the export.
     val run = spec.runWithin(attributes.span)
     val overlay = RasterOverlay(raster.bitmap, spec, placement, bitmap.size(), run, raster.hdrLuminance)
-    return media3OverlayResolution(PlatformEffect(overlay), transfer)
+    return media3OverlayResolution(PlatformEffect(overlay), transfer, limits)
   }
 
   private fun unsupported(
@@ -210,8 +238,14 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
 }
 
 private const val UNREADABLE_IMAGE =
-  "The overlay image could not be decoded. Check that the path or Uri is readable by this " +
-    "process, and that the bytes are PNG, JPEG or WebP."
+  "The overlay image could not be read. Check that the path or Uri is readable by this process."
+
+// Android decodes a sixteen-bit picture to half floats in extended sRGB or its linear form, and an overlay reads
+// either back to the samples the file stores. A decoder that picks any other space is Android's to answer for, so the
+// overlay is refused by name rather than drawn through a curve it does not have.
+internal const val UNKNOWN_HALF_FLOAT_SPACE =
+  "Android decoded the overlay image into a colour space other than extended sRGB, so its samples cannot be read " +
+    "back as the file stores them."
 
 private const val EMPTY_TEXT = "The text and its style leave nothing to draw."
 

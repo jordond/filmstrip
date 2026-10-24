@@ -24,7 +24,9 @@ public fun authoredHdrNits(
 ): FloatArray {
   // Kotlin/JS keeps Float arithmetic at double precision until it is stored in a FloatArray. Storing the
   // linear channels first rounds them the way the texel table does, so both paths start from one figure.
-  val nits = floatArrayOf(srgbToLinear(red), srgbToLinear(green), srgbToLinear(blue))
+  // Storing the encoded channels too rounds a level a caller divided out on JS the way the JVM does.
+  val nits = floatArrayOf(red, green, blue)
+  for (channel in 0 until 3) nits[channel] = srgbToLinear(nits[channel])
   writeHdrNits(nits[0], nits[1], nits[2], nits, 0)
   return nits
 }
@@ -99,7 +101,11 @@ private const val ALPHA_SHIFT = 24
 private const val MAX_CODE = 255f
 private const val TEXEL_FLOATS = 4
 
-private val SRGB_CODE_TO_LINEAR = FloatArray(256) { code -> srgbToLinear(code / MAX_CODE) }
+private val SRGB_CODE_TO_LINEAR = FloatArray(256) { code -> srgbToLinear(codeLevel(code)) }
+
+// A code's level stored in a FloatArray first, so the table on Kotlin/JS reads the same rounded figure
+// authoredHdrNits does.
+private fun codeLevel(code: Int): Float = floatArrayOf(code / MAX_CODE)[0]
 
 // BT.709 and BT.2020 share a white point, so this is a change of primaries with no adaptation and
 // every row sums to one.

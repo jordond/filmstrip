@@ -44,9 +44,9 @@ import kotlin.time.Duration
 /**
  * A sliding overlay whose picture is a WebP, which the JDK has no reader for.
  *
- * An animation is sized against the picture's own pixels, so the picture is measured through this ffmpeg's ffprobe
- * when the JDK cannot read it. Where it lands is taken from the shared sampler and placement, read at a quarter and at
- * three quarters of the slide.
+ * An animation is sized against the picture's own pixels, so the picture is measured through this ffmpeg's decode,
+ * the one every overlay picture is read through. Where it lands is taken from the shared sampler and placement, read
+ * at a quarter and at three quarters of the slide.
  */
 class FfmpegOverlayWebpSlideTest {
   private val fixture = FfmpegExportFixture()

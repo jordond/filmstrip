@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.playback
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.media.MediaMetadataRetriever
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.edit.Clip
@@ -24,6 +23,7 @@ import dev.jordond.filmstrip.media.chainedProber
 import dev.jordond.filmstrip.media3.media3ExportEngine
 import dev.jordond.filmstrip.motion.Easing
 import dev.jordond.filmstrip.test.TestFrame
+import dev.jordond.filmstrip.test.eightBitFrameAt
 import dev.jordond.filmstrip.test.writeAtomically
 import kotlinx.coroutines.flow.toList
 import java.io.File
@@ -84,16 +84,7 @@ internal suspend fun androidExportFrame(
   position: Duration,
 ): TestFrame {
   val file = exports.getOrPut(composition) { export(composition) }
-  val retriever = MediaMetadataRetriever()
-  return try {
-    retriever.setDataSource(file.path)
-    val frame =
-      retriever.getFrameAtTime(position.inWholeMicroseconds, MediaMetadataRetriever.OPTION_CLOSEST)
-        ?: fail("the export wrote no frame at $position")
-    frame.toTestFrame()
-  } finally {
-    retriever.release()
-  }
+  return eightBitFrameAt(file, position).toTestFrame()
 }
 
 private suspend fun export(composition: EditComposition): File {

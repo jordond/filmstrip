@@ -10,12 +10,16 @@ import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
+import dev.jordond.filmstrip.export.AdjustmentKind
+import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP
@@ -28,9 +32,11 @@ import dev.jordond.filmstrip.test.AuthoredColours.colourManaged
 import dev.jordond.filmstrip.test.AuthoredColours.colourManagedFromFrame
 import dev.jordond.filmstrip.test.writeAtomically
 import kotlinx.coroutines.test.runTest
+import org.junit.Assume.assumeTrue
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
@@ -42,6 +48,10 @@ import kotlin.test.assertTrue
  * authored code and where colour matching it in either direction would write it, so a backend doing
  * that match fails here.
  *
+ * Each reading is the YCbCr the encoder wrote, turned into RGB through the matrix and range the file records, so an
+ * encoder that converts through another matrix than the file records fails here. An export that reports the file was
+ * tagged BT.601 for its encoder is checked against the tag the file carries, and an HEVC export is read the same way.
+ *
  * Skipped when the fixtures are absent, as in [AndroidExportTest].
  */
 class AndroidAuthoredColourTest {
@@ -51,14 +61,28 @@ class AndroidAuthoredColourTest {
   fun aSolidFillLandsInABarAsItsOwnCodes() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture()
-      val clip = probe.frame(File(probe.context.cacheDir, CLIP))
-      // A square crop of a landscape clip leaves this much of the output above the picture.
-      val bar = (1f - clip.height.toFloat() / clip.width) / 2f
 
       COLOURS.forEach { argb ->
-        val written = probe.frame(probe.export(letterboxed(source, Fill.Solid(argb))))
+        val written = written(letterboxed(source, Fill.Solid(argb)))
 
-        BAR_COLUMNS.forEach { x -> written.assertReads(argb, x, bar / 2f, "the fill in the bar at $x") }
+        BAR_COLUMNS.forEach { x -> written.assertReads(argb, x, barMiddle, "the fill in the bar at $x") }
+      }
+    }
+
+  @Test
+  fun aSolidFillLandsInAnHevcBarAsItsOwnCodes() =
+    runTest(timeout = TIMEOUT) {
+      val source = probe.fixture()
+      val hevc = ExportSpec(targetHeight = Media3ExportProbe.SPEC.targetHeight, videoCodec = VideoCodec.Hevc)
+      assumeTrue(
+        "this device writes no HEVC",
+        probe.plan(letterboxed(source, Fill.Solid(COLOURS.first())), hevc).output.videoCodec == VideoCodec.Hevc,
+      )
+
+      COLOURS.forEach { argb ->
+        val written = written(letterboxed(source, Fill.Solid(argb)), hevc)
+
+        written.assertReads(argb, BAR_COLUMNS[1], barMiddle, "the HEVC fill in the bar")
       }
     }
 
@@ -69,8 +93,8 @@ class AndroidAuthoredColourTest {
 
       COLOURS.forEach { argb ->
         val swatch = ImageOverlay(ImageSource.of(swatchFile(argb).path), Corner.BottomEnd, scale = SWATCH_SCALE)
-        val written = probe.frame(probe.export(plain(source, swatch)))
-        val frameSize = Size(written.width, written.height)
+        val written = written(plain(source, swatch))
+        val frameSize = written.codes.size
         val rect = swatch.placedOn(frameSize, SWATCH).rectOn(frameSize)
 
         written.assertReads(argb, (rect.left + rect.right) / 2f, (rect.top + rect.bottom) / 2f, "the overlay image")
@@ -90,7 +114,7 @@ class AndroidAuthoredColourTest {
             style = TextStyle(fontSize = FONT_SIZE, color = argb, backgroundColor = argb),
             anchor = Anchor.Center,
           )
-        val written = probe.frame(probe.export(plain(source, caption)))
+        val written = written(plain(source, caption))
 
         // Text is placed by the same point in the block and the frame, so a centred block's middle
         // sits on the anchor whatever size the platform rasterised it at.
@@ -98,22 +122,50 @@ class AndroidAuthoredColourTest {
       }
     }
 
-  private fun Bitmap.assertReads(
+  // The codes the export of [composition] at [spec] wrote. The matrix and range a retag reports have to be the ones the
+  // file records, so a BT.601 retag records matrix 5, and an export reporting none has to record BT.709 at limited
+  // range.
+  private suspend fun written(
+    composition: EditComposition,
+    spec: ExportSpec = Media3ExportProbe.SPEC,
+  ): Written {
+    val finished = probe.finish(probe.plan(composition, spec))
+    val written = probe.writtenBy(finished)
+    val reported = finished.adjustments.firstOrNull { it.kind == AdjustmentKind.ColorSpaceChanged }
+    val space = if (written.matrix == BT601_PAL_MATRIX) ColorSpace.Bt601 else ColorSpace.Bt709
+    val range = if (written.fullRange) "full" else "limited"
+    assertEquals(
+      reported?.resolved ?: UNTAGGED,
+      "${space.name} at $range range",
+      "the export's retag against matrix ${written.matrix} and full range ${written.fullRange} its file records",
+    )
+    return written
+  }
+
+  private fun Written.assertReads(
     argb: Int,
     fx: Float,
     fy: Float,
     what: String,
   ) {
     val authored = channelsOf(argb)
-    val read = averageAt(fx, fy).toList()
+    val stored = codes.codesAt(fx, fy).toList()
+    val read = rgbAt(fx, fy).toList()
 
     authored.zip(read).forEach { (expected, actual) ->
       assertTrue(
         abs(actual - expected) < TOLERANCE,
-        "$what read $read where $authored was authored, tolerance $TOLERANCE. Colour managed it would read " +
-          "${authored.map { colourManaged(it) }} or ${authored.map { colourManagedFromFrame(it) }}",
+        "$what read $read from $stored through matrix $matrix where $authored was authored, tolerance " +
+          "$TOLERANCE. Colour managed it would read ${authored.map { colourManaged(it) }} or " +
+          "${authored.map { colourManagedFromFrame(it) }}",
       )
     }
+  }
+
+  // Halfway down the bar a square crop of the landscape clip leaves above the picture. Read once the fixture is copied.
+  private val barMiddle by lazy {
+    val clip = probe.frame(File(probe.context.cacheDir, CLIP))
+    (1f - clip.height.toFloat() / clip.width) / 4f
   }
 
   private fun letterboxed(
@@ -146,5 +198,9 @@ class AndroidAuthoredColourTest {
     val SWATCH = Size(SWATCH_PX, SWATCH_PX)
     const val SWATCH_SCALE = 0.3f
     const val FONT_SIZE = 0.18f
+
+    // The H.273 matrix COLOR_STANDARD_BT601_PAL reads through, the standard a BT.601 retag writes.
+    const val BT601_PAL_MATRIX = 5
+    val UNTAGGED = "${ColorSpace.Bt709.name} at limited range"
   }
 }

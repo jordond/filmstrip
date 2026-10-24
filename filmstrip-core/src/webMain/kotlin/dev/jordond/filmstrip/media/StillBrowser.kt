@@ -2,6 +2,7 @@
 
 package dev.jordond.filmstrip.media
 
+import dev.jordond.filmstrip.InternalFilmstripApi
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.js.Promise
@@ -60,21 +61,27 @@ internal external interface CanvasContext2D : JsAny {
 internal external interface ImageData : JsAny
 
 /**
- * Raw bytes owned by JavaScript.
+ * Raw bytes owned by JavaScript, as a blob or a fetch hands them back.
+ *
+ * Read them into Kotlin with [toByteArray]. The WebCodecs backend declares the same global again as a
+ * class it can construct, since it allocates buffers for `VideoFrame.copyTo` and this only reads them.
  */
-internal external interface ArrayBuffer : JsAny {
-  val byteLength: Int
+@InternalFilmstripApi
+public external interface ArrayBuffer : JsAny {
+  public val byteLength: Int
 }
 
 /**
- * The encoded still, either handed over as an object URL or downloaded.
+ * Bytes held by the browser under a media type, which an encoded still is handed over or downloaded
+ * as and a picture is decoded from.
  */
-internal external interface Blob : JsAny {
-  val type: String
+@InternalFilmstripApi
+public external interface Blob : JsAny {
+  public val type: String
 
-  fun arrayBuffer(): Promise<ArrayBuffer>
+  public fun arrayBuffer(): Promise<ArrayBuffer>
 
-  fun slice(
+  public fun slice(
     start: Int,
     end: Int,
   ): Blob
@@ -148,14 +155,21 @@ internal expect fun blobOptions(
 ): JsAny
 
 /**
- * Wraps encoded bytes in a blob of [type], for an object URL or a download.
+ * Wraps encoded bytes in a blob of [type], for an object URL, a download or a decode.
+ *
+ * On js the blob is built over the array's own buffer, and on wasm the bytes are copied across.
  */
-internal expect fun blobOf(
+@InternalFilmstripApi
+public expect fun blobOf(
   bytes: ByteArray,
   type: String,
 ): Blob
 
 /**
- * Copies encoded bytes back out of the JavaScript heap.
+ * Copies the bytes of this buffer out of the JavaScript heap into a new array.
+ *
+ * On wasm the bytes cross the heap boundary in chunks rather than one call per byte, so a picture of
+ * a few megabytes copies in a few hundred calls.
  */
-internal expect fun ArrayBuffer.toByteArray(): ByteArray
+@InternalFilmstripApi
+public expect fun ArrayBuffer.toByteArray(): ByteArray

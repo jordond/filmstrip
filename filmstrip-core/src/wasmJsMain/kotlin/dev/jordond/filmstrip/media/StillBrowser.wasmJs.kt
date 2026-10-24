@@ -2,6 +2,8 @@
 
 package dev.jordond.filmstrip.media
 
+import dev.jordond.filmstrip.InternalFilmstripApi
+
 // The wasm half. Bytes have to be copied rather than viewed, because wasm linear memory is not the
 // JavaScript heap. They go over in latin-1 chunks, which costs one pass and no base64 inflation.
 
@@ -20,7 +22,8 @@ internal actual fun blobOptions(
   quality: Double,
 ): JsAny = newBlobOptions(type, quality)
 
-internal actual fun blobOf(
+@InternalFilmstripApi
+public actual fun blobOf(
   bytes: ByteArray,
   type: String,
 ): Blob {
@@ -29,7 +32,8 @@ internal actual fun blobOf(
   return newBlob(array, type)
 }
 
-internal actual fun ArrayBuffer.toByteArray(): ByteArray {
+@InternalFilmstripApi
+public actual fun ArrayBuffer.toByteArray(): ByteArray {
   val view = viewOf(this)
   val out = ByteArray(byteLength)
   var offset = 0

@@ -34,6 +34,7 @@ import platform.CoreImage.kCIFormatRGBAf
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -222,7 +223,7 @@ class OverlayRasterTest {
 
   @Test
   fun `reads no image from empty bytes`() {
-    assertNull(ImageSource.ofBytes(ByteArray(0)).decode())
+    assertIs<PictureRead.Unreadable>(ImageSource.ofBytes(ByteArray(0)).read())
   }
 
   // Matched from the sRGB space the PNG names, a mid grey lands off its own codes in a BT.709
@@ -230,7 +231,7 @@ class OverlayRasterTest {
   @Test
   fun `decodes an image as its own codes`() {
     val context = renderingContext() ?: return
-    val pixels = assertNotNull(GREY_PNG.decode(), "the PNG did not decode")
+    val pixels = GREY_PNG.read().orFail("the PNG")
 
     assertEquals(PNG_SIZE, pixels.codes.pixelSize(), "the codes image is not the PNG's size")
 

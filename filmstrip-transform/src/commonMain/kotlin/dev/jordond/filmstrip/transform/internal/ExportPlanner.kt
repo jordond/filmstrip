@@ -555,10 +555,18 @@ public class ExportPlanner(
       layout = frameAfter(spec, layout)
 
       when (resolution) {
-        is EffectResolution.Resolved -> LoweredEffect(spec, entry.sources, resolution.effect, null, null)
-        is EffectResolution.Degraded -> LoweredEffect(spec, entry.sources, resolution.effect, null, resolution.message)
-        is EffectResolution.Unsupported -> LoweredEffect(spec, entry.sources, null, resolution.message, null)
-        null -> LoweredEffect(spec, entry.sources, null, unclaimedMessage(entry.sources.authoredIds()), null)
+        is EffectResolution.Resolved -> {
+          LoweredEffect(spec, entry.sources, resolution.effect, null)
+        }
+        is EffectResolution.Degraded -> {
+          LoweredEffect(spec, entry.sources, resolution.effect, null, resolution.causes.map { it.message })
+        }
+        is EffectResolution.Unsupported -> {
+          LoweredEffect(spec, entry.sources, null, resolution.message)
+        }
+        null -> {
+          LoweredEffect(spec, entry.sources, null, unclaimedMessage(entry.sources.authoredIds()))
+        }
       }
     }
   }
@@ -968,18 +976,18 @@ private fun List<EffectSpec>.authoredIds(): String = joinToString(", ") { it.id 
  *
  * @property sources The effects the caller wrote that [spec] stands for, which is [spec] alone
  *   unless a run of colour effects folded into it.
- * @property degraded Each authored id and what was given up, when a resolver realised the effect
- *   but not exactly as declared.
+ * @property degraded Each authored id paired with each thing given up, in the order the resolver gave the causes,
+ * when a resolver realised the effect but not exactly as declared.
  */
 private class LoweredEffect(
   val spec: EffectSpec,
   val sources: List<EffectSpec>,
   effect: PlatformEffect?,
   val unsupported: String?,
-  degradedMessage: String?,
+  degradedMessages: List<String> = emptyList(),
 ) {
   val degraded: List<Pair<String, String>> =
-    degradedMessage?.let { message -> sources.map { it.id to message } }.orEmpty()
+    sources.flatMap { source -> degradedMessages.map { source.id to it } }
 
   // Sources come from the canonically ordered list, so a fused run never spans stages and every
   // source names the same one.

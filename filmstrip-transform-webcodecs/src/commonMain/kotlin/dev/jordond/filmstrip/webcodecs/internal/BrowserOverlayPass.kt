@@ -5,7 +5,10 @@ package dev.jordond.filmstrip.webcodecs.internal
 import dev.jordond.filmstrip.effect.WebGlOverlay
 import dev.jordond.filmstrip.effects.color.HDR_COLOR_MATRIX_GLSL
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.PictureColour
 import dev.jordond.filmstrip.media.authoredHdrTexels
+import dev.jordond.filmstrip.media.pictureLight
+import dev.jordond.filmstrip.media.pictureSrgbCodes
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.js.JsName
@@ -22,6 +25,11 @@ import kotlin.time.Duration.Companion.microseconds
  * On a kept grade the raster is mapped to linear display light before it is uploaded, so each texel lands where a
  * fill of its colour does, and it blends with the frame in the linear display light the compositor holds on either
  * transfer.
+ *
+ * A raster carrying a [WebGlOverlay.colour] is converted from its stored codes before it is uploaded, to the sRGB codes
+ * [pictureSrgbCodes] gives it on SDR and to the light [pictureLight] gives it on a kept grade. A PNG is converted from
+ * the full-depth [WebGlOverlay.samples] it carries, tagged or not, and any other raster from its codes read back
+ * through a 2D canvas.
  */
 internal class BrowserOverlayPass private constructor(
   private val gl: WebGl2,
@@ -104,28 +112,55 @@ internal class BrowserOverlayPass private constructor(
       texture
     }
 
-  // With no colour conversion, so an authored colour lands as its own codes.
+  // With no colour conversion, so an authored colour lands as its own codes. A PNG's samples and a tagged picture's
+  // codes are converted first, and premultiplied by the same unpack flag on the way up.
   private fun uploadCodes(overlay: WebGlOverlay) {
     gl.pixelStorei(GL_UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
     gl.pixelStorei(GL_UNPACK_COLORSPACE_CONVERSION_WEBGL, GL_NONE)
     try {
-      gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, overlay.image)
+      val samples = overlay.samples
+      val colour = overlay.colour
+      val codes =
+        when {
+          samples != null -> sdrOverlayCodes(samples, colour)
+          colour != null -> sdrOverlayCodes(readBack(overlay), colour)
+          else -> null
+        }
+      if (codes == null) {
+        gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, overlay.image)
+      } else {
+        val size = overlay.size
+        val upload = codes.toUint8Array()
+        gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA, size.width, size.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, upload)
+      }
     } finally {
       gl.pixelStorei(GL_UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0)
       gl.pixelStorei(GL_UNPACK_COLORSPACE_CONVERSION_WEBGL, GL_BROWSER_DEFAULT_WEBGL)
     }
   }
 
-  // The raster's straight codes are read back through a 2D canvas, mapped here and uploaded as half floats, so the
-  // texels arrive premultiplied in the light the frame holds.
+  // The raster's straight codes are mapped here and uploaded as half floats, so the texels arrive premultiplied in the
+  // light the frame holds.
   private fun uploadLight(overlay: WebGlOverlay) {
+    val samples = overlay.samples
+    val light =
+      if (samples == null) {
+        hdrOverlayTexels(readBack(overlay), overlay.colour)
+      } else {
+        hdrOverlayTexels(samples, overlay.colour)
+      }
+    val texels = light.toFloat32Array()
+    gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, overlay.size.width, overlay.size.height, 0, GL_RGBA, GL_FLOAT, texels)
+  }
+
+  // The raster's straight codes, read back through a 2D canvas. A browser bitmap holds eight bits a channel, so a
+  // picture stored deeper in any format but PNG reaches here at eight bits. That is the browser's limit.
+  private fun readBack(overlay: WebGlOverlay): ByteArray {
     val width = overlay.size.width
     val height = overlay.size.height
     val context = ReadbackCanvas(width, height).getContext(CONTEXT_2D) ?: throw BrowserExportFailure(NO_READBACK)
     context.drawImage(overlay.image, 0.0, 0.0)
-    val codes = Uint8Array(context.getImageData(0, 0, width, height).data.buffer).toByteArray()
-    val texels = hdrOverlayTexels(codes).toFloat32Array()
-    gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, width, height, 0, GL_RGBA, GL_FLOAT, texels)
+    return Uint8Array(context.getImageData(0, 0, width, height).data.buffer).toByteArray()
   }
 
   companion object {
@@ -183,21 +218,33 @@ internal class BrowserOverlayPass private constructor(
 /**
  * Maps straight RGBA [codes], four bytes a texel, to the premultiplied texels an overlay uploads on a kept grade.
  *
- * Each colour lands where [authoredHdrTexels] puts it and then where [compositorLightOf] holds that light, and only
- * then is it multiplied by its alpha.
+ * Each colour lands where [pictureLight] puts it for [colour], which is where [authoredHdrTexels] puts an untagged
+ * one, then where [compositorLightOf] holds that light, and only then is it multiplied by its alpha.
  *
+ * @param colour How the picture describes its codes, or null when they are untagged sRGB.
  * @return Four floats a texel, red, green, blue and alpha, in the order the codes came in.
  */
-internal fun hdrOverlayTexels(codes: ByteArray): FloatArray {
-  val argb =
-    IntArray(codes.size / TEXEL_BYTES) { index ->
-      val offset = index * TEXEL_BYTES
-      (code(codes, offset + 3) shl ALPHA_SHIFT) or
-        (code(codes, offset) shl RED_SHIFT) or
-        (code(codes, offset + 1) shl GREEN_SHIFT) or
-        code(codes, offset + 2)
-    }
-  val texels = authoredHdrTexels(argb)
+internal fun hdrOverlayTexels(
+  codes: ByteArray,
+  colour: PictureColour? = null,
+): FloatArray = premultipliedLight(pictureLight(colour, argbOf(codes)))
+
+/**
+ * Maps straight sixteen-bit RGBA [samples], four a texel, to the premultiplied texels an overlay uploads on a kept
+ * grade.
+ *
+ * The same mapping the eight-bit [hdrOverlayTexels] runs, with each colour landing where the sixteen-bit [pictureLight]
+ * puts it, so no sample is cut to eight bits first.
+ *
+ * @param colour How the picture describes its samples, or null when they are untagged sRGB.
+ * @return Four floats a texel, red, green, blue and alpha, in the order the samples came in.
+ */
+internal fun hdrOverlayTexels(
+  samples: ShortArray,
+  colour: PictureColour?,
+): FloatArray = premultipliedLight(pictureLight(colour, samples))
+
+private fun premultipliedLight(texels: FloatArray): FloatArray {
   for (offset in texels.indices step TEXEL_BYTES) {
     val alpha = texels[offset + 3]
     val light = compositorLightOf(texels.copyOfRange(offset, offset + 3))
@@ -208,21 +255,72 @@ internal fun hdrOverlayTexels(codes: ByteArray): FloatArray {
   return texels
 }
 
+/**
+ * Maps a tagged picture's straight RGBA [codes], four bytes a texel, to the straight sRGB codes an SDR overlay uploads.
+ *
+ * Each colour lands where [pictureSrgbCodes] puts it for [colour] and alpha is carried over unchanged.
+ *
+ * @return Four bytes a texel, red, green, blue and alpha, in the order the codes came in.
+ */
+internal fun sdrOverlayCodes(
+  codes: ByteArray,
+  colour: PictureColour,
+): ByteArray = rgbaOf(pictureSrgbCodes(colour, argbOf(codes)))
+
+/**
+ * Maps straight sixteen-bit RGBA [samples], four a texel, to the straight sRGB codes an SDR overlay uploads.
+ *
+ * Each colour lands where the sixteen-bit [pictureSrgbCodes] puts it for [colour], which rounds an untagged sample to
+ * its nearest code, and alpha is rounded the same way.
+ *
+ * @param colour How the picture describes its samples, or null when they are untagged sRGB.
+ * @return Four bytes a texel, red, green, blue and alpha, in the order the samples came in.
+ */
+internal fun sdrOverlayCodes(
+  samples: ShortArray,
+  colour: PictureColour?,
+): ByteArray = rgbaOf(pictureSrgbCodes(colour, samples))
+
+private fun rgbaOf(converted: IntArray): ByteArray {
+  val out = ByteArray(converted.size * TEXEL_BYTES)
+  converted.forEachIndexed { index, argb ->
+    val offset = index * TEXEL_BYTES
+    out[offset] = (argb ushr RED_SHIFT).toByte()
+    out[offset + 1] = (argb ushr GREEN_SHIFT).toByte()
+    out[offset + 2] = argb.toByte()
+    out[offset + 3] = (argb ushr ALPHA_SHIFT).toByte()
+  }
+  return out
+}
+
+private fun argbOf(codes: ByteArray): IntArray =
+  IntArray(codes.size / TEXEL_BYTES) { index ->
+    val offset = index * TEXEL_BYTES
+    (code(codes, offset + 3) shl ALPHA_SHIFT) or
+      (code(codes, offset) shl RED_SHIFT) or
+      (code(codes, offset + 1) shl GREEN_SHIFT) or
+      code(codes, offset + 2)
+  }
+
 private fun code(
   codes: ByteArray,
   index: Int,
 ): Int = codes[index].toInt() and BYTE_MASK
 
-// An OffscreenCanvas asked for a 2D context, which the compositor's own binding types as WebGL only.
+/**
+ * An OffscreenCanvas asked for a 2D context, which the compositor's own binding types as WebGL only.
+ *
+ * A raster that carries no samples is drawn into one to read its codes back.
+ */
 @JsName("OffscreenCanvas")
-private external class ReadbackCanvas(
+internal external class ReadbackCanvas(
   width: Int,
   height: Int,
 ) : JsAny {
   fun getContext(contextId: String): ReadbackContext?
 }
 
-private external interface ReadbackContext : JsAny {
+internal external interface ReadbackContext : JsAny {
   fun drawImage(
     image: JsAny,
     dx: Double,
@@ -237,11 +335,11 @@ private external interface ReadbackContext : JsAny {
   ): ReadbackImage
 }
 
-private external interface ReadbackImage : JsAny {
+internal external interface ReadbackImage : JsAny {
   val data: ReadbackBytes
 }
 
-private external interface ReadbackBytes : JsAny {
+internal external interface ReadbackBytes : JsAny {
   val buffer: ArrayBuffer
 }
 

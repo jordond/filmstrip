@@ -4,12 +4,14 @@ import dev.jordond.filmstrip.geometry.Size
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 /**
  * The blend prediction and the PNG the overlay pins draw from.
  *
  * The blend is read inside the ramp, where adding and multiplying the opacity in give different codes,
- * and the PNG is read byte by byte at the header, the first pixel and the closing chunk.
+ * and the PNG is read byte by byte at the header, the first pixel, the stored deflate blocks and the closing chunk.
  */
 class OverlayPixelsTest {
   @Test
@@ -48,6 +50,39 @@ class OverlayPixelsTest {
     assertContentEquals(IEND, png.copyOfRange(png.size - IEND.size, png.size))
   }
 
+  @Test
+  fun splitsRowsOverOneStoredBlockAcrossSeveral() {
+    val png = OverlayPixels.pngOf(LARGE, AuthoredColours.MID_GREEN)
+    val rowBytes = (LARGE.width * 4 + 1) * LARGE.height
+    val idatEnd = IDAT_DATA_OFFSET + png.int32At(IDAT_LENGTH_OFFSET)
+    assertContentEquals("IDAT".encodeToByteArray(), png.copyOfRange(IDAT_LENGTH_OFFSET + 4, IDAT_DATA_OFFSET))
+
+    val lengths = mutableListOf<Int>()
+    val lasts = mutableListOf<Boolean>()
+    var at = IDAT_DATA_OFFSET + ZLIB_HEADER_BYTES
+    do {
+      val length = png.int16LittleEndianAt(at + 1)
+      assertEquals(length.inv() and 0xFFFF, png.int16LittleEndianAt(at + 3), "NLEN of block ${lengths.size}")
+      lasts += png[at].toInt() == 1
+      lengths += length
+      at += STORED_BLOCK_HEADER_BYTES + length
+    } while (!lasts.last() && at < idatEnd)
+
+    assertTrue(rowBytes > MAX_STORED_BLOCK, "$rowBytes bytes of rows fit one block")
+    val full = lengths.size - 1
+    assertEquals(List(full) { MAX_STORED_BLOCK } + (rowBytes - MAX_STORED_BLOCK * full), lengths)
+    assertEquals(List(full) { false } + true, lasts)
+    assertEquals(idatEnd, at + ADLER_BYTES, "The adler32 closes the stream")
+  }
+
+  @Test
+  fun refusesAProfileShorterThanAnIccHeader() {
+    assertFailsWith<IllegalArgumentException> { OverlayPixels.pngOf(SIZE, AuthoredColours.MID_GREY, ByteArray(20)) }
+  }
+
+  private fun ByteArray.int16LittleEndianAt(offset: Int): Int =
+    (this[offset].toInt() and 0xFF) or (this[offset + 1].toInt() and 0xFF shl 8)
+
   private fun ByteArray.int32At(offset: Int): Int =
     (this[offset].toInt() and 0xFF shl 24) or
       (this[offset + 1].toInt() and 0xFF shl 16) or
@@ -62,6 +97,9 @@ class OverlayPixelsTest {
 
     val SIZE = Size(6, 2)
 
+    // Wider than one stored deflate block holds, so the rows take two blocks.
+    val LARGE = Size(200, 100)
+
     val SIGNATURE = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
 
     // The signature, then the IHDR length and type.
@@ -71,6 +109,13 @@ class OverlayPixelsTest {
     // The IHDR chunk ends at 33, the IDAT length and type take 8, the zlib header and stored block
     // header take 7, and the first row opens on its filter byte.
     const val FIRST_PIXEL_OFFSET = 49
+
+    const val IDAT_LENGTH_OFFSET = 33
+    const val IDAT_DATA_OFFSET = 41
+    const val ZLIB_HEADER_BYTES = 2
+    const val STORED_BLOCK_HEADER_BYTES = 5
+    const val ADLER_BYTES = 4
+    const val MAX_STORED_BLOCK = 0xFFFF
 
     // An empty IEND chunk, whose checksum every PNG shares.
     val IEND = byteArrayOf(0, 0, 0, 0, 0x49, 0x45, 0x4E, 0x44, 0xAE.toByte(), 0x42, 0x60, 0x82.toByte())

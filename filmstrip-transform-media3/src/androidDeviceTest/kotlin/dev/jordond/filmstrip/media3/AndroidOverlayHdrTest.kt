@@ -366,6 +366,6 @@ private val SPEC = ExportSpec(targetHeight = 360, hdr = HdrMode.KeepHdr)
 
 // The encoder's noise on a flat patch, in ten-bit codes, unmeasured on a hardware HEVC encoder. At most
 // HdrOverlayCells.MAX_BLEND_TOLERANCE, so a wrong blend reads outside it on every blend cell.
-private const val PATCH_NOISE = 2
+internal const val PATCH_NOISE = 2
 
 private fun Int.hex(): String = toUInt().toString(16)

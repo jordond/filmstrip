@@ -17,6 +17,11 @@ import kotlin.math.roundToInt
  * an overlay lands in the same place at any preview or export resolution. That frame is the clip's
  * frame for an overlay added to a clip, and the output frame for one added to the composition.
  *
+ * The picture is drawn in the colour its file describes, through an embedded ICC profile, CICP or
+ * PNG's own colour chunks, and an untagged picture is read as sRGB. SDR output clips a tagged
+ * picture's colours to BT.709, and an HDR grade keeps them inside BT.2020. A platform decoder that
+ * cannot land the picture that way resolves the overlay as degraded or unsupported, naming why.
+ *
  * @property image The image to composite.
  * @property corner Which corner the overlay sits in.
  * @property margin Inset from the corner, as a fraction of the shorter side of the frame it is drawn

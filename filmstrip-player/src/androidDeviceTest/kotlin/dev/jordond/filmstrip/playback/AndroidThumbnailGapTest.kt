@@ -13,11 +13,15 @@ import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.pictureColour
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.media.pictureSrgbCodes
 import dev.jordond.filmstrip.playback.contract.contractTest
 import dev.jordond.filmstrip.playback.internal.Media3ThumbnailPlanner
 import dev.jordond.filmstrip.playback.internal.Media3ThumbnailSource
 import dev.jordond.filmstrip.test.AuthoredColours
+import dev.jordond.filmstrip.test.ColourPictures
+import dev.jordond.filmstrip.test.IccPictures
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.test.assertFramesSimilar
 import dev.jordond.filmstrip.test.writeAtomically
@@ -81,6 +85,43 @@ class AndroidThumbnailGapTest {
         thumbnail.image.close()
       }
     }
+
+  // A lookup table profile is one Android's decoder converts when it is left in, so the tile has to read the colour
+  // the profile gives the picture rather than the platform's own conversion of it.
+  @Test
+  fun aThumbnailInsideALeadingGapDrawsATaggedOverlayInItsProfileColour() =
+    contractTest { scope ->
+      val picture = IccPictures.LUT_SRGB
+      assertTaggedOverlayColour(scope, picture.pngOf(BADGE), picture.texel, REVISION + 3)
+    }
+
+  @Test
+  fun aThumbnailInsideALeadingGapDrawsACicpOverlayInItsColour() =
+    contractTest { scope ->
+      val picture = ColourPictures.CICP_DISPLAY_P3
+      assertTaggedOverlayColour(scope, picture.pngOf(BADGE), picture.texel, REVISION + 4)
+    }
+
+  private suspend fun assertTaggedOverlayColour(
+    scope: CoroutineScope,
+    png: ByteArray,
+    texel: Int,
+    revision: Long,
+  ) {
+    val mark = ImageOverlay(ImageSource.Bytes(png), Corner.BottomEnd, BADGE_MARGIN, BADGE_SCALE)
+    val thumbnail = source(scope).awaitThumbnail(request(lateComposition(listOf(mark)), IN_GAP, revision))
+
+    try {
+      val frame = thumbnail.frame()
+      val rect = mark.placedOn(frame.size, BADGE).rectOn(frame.size)
+      val expected = pictureSrgbCodes(pictureColour(png), intArrayOf(texel)).single()
+
+      frame.colourAt((rect.left + rect.right) / 2f, (rect.top + rect.bottom) / 2f) shouldBeCloseTo
+        AuthoredColours.channelsOf(expected)
+    } finally {
+      thumbnail.image.close()
+    }
+  }
 
   @Test
   fun aThumbnailInsideTheClipAfterALeadingGapReadsTheClip() =

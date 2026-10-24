@@ -40,8 +40,8 @@ public fun linearToSrgb(light: Float): Float {
   }.toFloat()
 }
 
-private const val SRGB_ENCODED_KNEE = 0.04045
-private const val SRGB_LINEAR_KNEE = 0.0031308
-private const val SRGB_SLOPE = 12.92
-private const val SRGB_OFFSET = 0.055
-private const val SRGB_GAMMA = 2.4
+internal const val SRGB_ENCODED_KNEE = 0.04045
+internal const val SRGB_LINEAR_KNEE = 0.0031308
+internal const val SRGB_SLOPE = 12.92
+internal const val SRGB_OFFSET = 0.055
+internal const val SRGB_GAMMA = 2.4

@@ -15,6 +15,9 @@ import kotlin.js.definedExternally
 
 /**
  * Raw bytes owned by JavaScript. Allocated here for the plane bytes `VideoFrame.copyTo` fills.
+ *
+ * Core declares the same global as `dev.jordond.filmstrip.media.ArrayBuffer`, an interface it reads
+ * into Kotlin and never constructs, so a buffer from one cannot be passed where the other is asked for.
  */
 internal external class ArrayBuffer(
   length: Int,

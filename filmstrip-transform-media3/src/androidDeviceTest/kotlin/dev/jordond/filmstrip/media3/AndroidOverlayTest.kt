@@ -162,7 +162,12 @@ class AndroidOverlayTest {
 
       // Refused before an encoder starts, with no throw on the GL thread mid-export.
       val incapable = assertIs<Verdict.Incapable>(verdict)
-      assertTrue(incapable.reasons.any { it.message.contains("decoded") }, "unhelpful refusal: ${incapable.reasons}")
+      assertTrue(
+        incapable.reasons.any {
+          it.message.contains("could not be read")
+        },
+        "unhelpful refusal: ${incapable.reasons}",
+      )
     }
 
   // Plated in the badge colour instead of the usual dark one, so text is measured the same way a

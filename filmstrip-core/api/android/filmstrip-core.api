@@ -461,7 +461,17 @@ public final class dev/jordond/filmstrip/effect/Attributes {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class dev/jordond/filmstrip/effect/Degradation {
+	public fun <init> (Ldev/jordond/filmstrip/effect/DegradationReason;Ljava/lang/String;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMessage ()Ljava/lang/String;
+	public final fun getReason ()Ldev/jordond/filmstrip/effect/DegradationReason;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class dev/jordond/filmstrip/effect/DegradationReason : java/lang/Enum {
+	public static final field AlphaDiscarded Ldev/jordond/filmstrip/effect/DegradationReason;
 	public static final field ApproximateAlgorithm Ldev/jordond/filmstrip/effect/DegradationReason;
 	public static final field ColorSpaceConverted Ldev/jordond/filmstrip/effect/DegradationReason;
 	public static final field PrecisionReduced Ldev/jordond/filmstrip/effect/DegradationReason;
@@ -497,11 +507,10 @@ public abstract interface class dev/jordond/filmstrip/effect/EffectResolution {
 }
 
 public final class dev/jordond/filmstrip/effect/EffectResolution$Degraded : dev/jordond/filmstrip/effect/EffectResolution {
-	public fun <init> (Ldev/jordond/filmstrip/effect/PlatformEffect;Ldev/jordond/filmstrip/effect/DegradationReason;Ljava/lang/String;)V
+	public fun <init> (Ldev/jordond/filmstrip/effect/PlatformEffect;Ljava/util/List;)V
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCauses ()Ljava/util/List;
 	public final fun getEffect ()Ldev/jordond/filmstrip/effect/PlatformEffect;
-	public final fun getMessage ()Ljava/lang/String;
-	public final fun getReason ()Ldev/jordond/filmstrip/effect/DegradationReason;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
@@ -614,6 +623,7 @@ public final class dev/jordond/filmstrip/export/Adjustment {
 public final class dev/jordond/filmstrip/export/AdjustmentKind : java/lang/Enum {
 	public static final field BitrateClamped Ldev/jordond/filmstrip/export/AdjustmentKind;
 	public static final field CodecFallback Ldev/jordond/filmstrip/export/AdjustmentKind;
+	public static final field ColorSpaceChanged Ldev/jordond/filmstrip/export/AdjustmentKind;
 	public static final field EffectApproximated Ldev/jordond/filmstrip/export/AdjustmentKind;
 	public static final field EffectDropped Ldev/jordond/filmstrip/export/AdjustmentKind;
 	public static final field FrameRateClamped Ldev/jordond/filmstrip/export/AdjustmentKind;

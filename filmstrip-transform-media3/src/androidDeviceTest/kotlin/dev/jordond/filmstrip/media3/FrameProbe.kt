@@ -3,11 +3,9 @@ package dev.jordond.filmstrip.media3
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.media.MediaMetadataRetriever
 import dev.jordond.filmstrip.test.writeAtomically
 import java.io.File
 import kotlin.math.abs
-import kotlin.time.Duration
 
 /**
  * A rectangle of the frame to measure, as fractions.
@@ -18,24 +16,6 @@ internal class Region(
   val right: Float,
   val bottom: Float,
 )
-
-/**
- * Decodes the frame of [video] nearest [at].
- */
-internal fun frameOf(
-  video: File,
-  at: Duration,
-): Bitmap {
-  val retriever = MediaMetadataRetriever()
-  return try {
-    retriever.setDataSource(video.path)
-    requireNotNull(retriever.getFrameAtTime(at.inWholeMicroseconds, MediaMetadataRetriever.OPTION_CLOSEST)) {
-      "no frame at $at in $video"
-    }
-  } finally {
-    retriever.release()
-  }
-}
 
 /**
  * An opaque orange square, written into [context]'s cache the first time it is asked for.

@@ -2,6 +2,8 @@
 
 package dev.jordond.filmstrip.media
 
+import dev.jordond.filmstrip.InternalFilmstripApi
+
 // The js half. A Kotlin ByteArray already is an Int8Array here, so every conversion is a view over
 // the same buffer rather than a copy.
 //
@@ -23,7 +25,8 @@ internal actual fun blobOptions(
   quality: Double,
 ): JsAny = js("({ type: type, quality: quality })").unsafeCast<JsAny>()
 
-internal actual fun blobOf(
+@InternalFilmstripApi
+public actual fun blobOf(
   bytes: ByteArray,
   type: String,
 ): Blob {
@@ -32,7 +35,8 @@ internal actual fun blobOf(
     .unsafeCast<Blob>()
 }
 
-internal actual fun ArrayBuffer.toByteArray(): ByteArray {
+@InternalFilmstripApi
+public actual fun ArrayBuffer.toByteArray(): ByteArray {
   val buffer = this
   return js("new Int8Array(buffer.slice(0))").unsafeCast<ByteArray>()
 }

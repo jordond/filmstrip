@@ -1,21 +1,17 @@
 package dev.jordond.filmstrip.media3
 
-import dev.jordond.filmstrip.effect.EffectResolution
-import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effects.media3WorkingLight
 import dev.jordond.filmstrip.effects.overlay.media3HdrTexels
-import dev.jordond.filmstrip.effects.overlay.media3OverlayResolution
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.authoredHdrNits
 import dev.jordond.filmstrip.media.srgbToLinear
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 /**
- * What media3 is handed for an overlay on a kept grade, and what the plan says about it.
+ * What media3 is handed for an overlay on a kept grade.
  *
  * media3 reads an HDR overlay texel as its luminance multiplier times the sRGB decode of the code, so
  * every check here decodes the mapped codes that way and compares against [media3WorkingLight] of the
@@ -79,25 +75,6 @@ class Media3OverlayHdrTest {
       val mapped = media3HdrTexels(texels, transfer).argb
       assertEquals(alphas, mapped.map { it ushr 24 }, "$transfer changed an alpha")
     }
-  }
-
-  // The resolution keys on the grade being written and on nothing about the device, so an SDR export
-  // on a device that could have written HDR resolves the same as one on a device that could not.
-  @Test
-  fun `an overlay on an sdr grade resolves`() {
-    assertIs<EffectResolution.Resolved>(media3OverlayResolution(PlatformEffect(Any()), transfer = null))
-  }
-
-  @Test
-  fun `an overlay on a pq grade resolves`() {
-    assertIs<EffectResolution.Resolved>(media3OverlayResolution(PlatformEffect(Any()), HdrTransfer.Pq))
-  }
-
-  @Test
-  fun `an overlay on an hlg grade says it blends in scene light`() {
-    val degraded = assertIs<EffectResolution.Degraded>(media3OverlayResolution(PlatformEffect(Any()), HdrTransfer.Hlg))
-
-    assertTrue("scene light" in degraded.message, "the message does not name the blend: ${degraded.message}")
   }
 
   // Half the distance to the neighbouring code on either side, in the linear light the code decodes

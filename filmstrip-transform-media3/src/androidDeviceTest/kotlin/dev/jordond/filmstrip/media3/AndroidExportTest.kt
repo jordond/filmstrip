@@ -34,6 +34,7 @@ import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP_B
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.test.LoopingCases
 import dev.jordond.filmstrip.test.ToneAnalysis.MEASURED_GAIN_TOLERANCE
+import dev.jordond.filmstrip.test.eightBitFrameAt
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
@@ -444,9 +445,9 @@ class AndroidExportTest {
       // the same picture unless the primary stopped repeating. A third frame at a different instant
       // of the source is what says the band being compared moves at all, since a run that froze on
       // one frame would match itself everywhere.
-      val repeated = frameOf(file, laid[LoopingCases.VIDEO_READINGS.first().pass].span.start + FRAME_INTO)
-      val first = frameOf(file, laid.first().span.start + FRAME_INTO)
-      val elsewhere = frameOf(file, laid.first().span.start + FRAME_ELSEWHERE)
+      val repeated = eightBitFrameAt(file, laid[LoopingCases.VIDEO_READINGS.first().pass].span.start + FRAME_INTO)
+      val first = eightBitFrameAt(file, laid.first().span.start + FRAME_INTO)
+      val elsewhere = eightBitFrameAt(file, laid.first().span.start + FRAME_ELSEWHERE)
       assertTrue(
         repeated.grid().maxOf(::luminance) > LIT,
         "the frame a pass past the first reads ${repeated.grid()}, which is the fill and not the clip",
@@ -569,14 +570,15 @@ class AndroidExportTest {
         GRID_RATE,
       )
       val opens = outputSlotsOf(laid[1].span, GRID_RATE).first
-      val held = frameOf(file, outputSlotTime(opens - 1, GRID_RATE)).band()
+      val held = eightBitFrameAt(file, outputSlotTime(opens - 1, GRID_RATE)).band()
       assertTrue(
-        spread(held, frameOf(short, lastFrame).band()) < spread(held, frameOf(short, lastFrame - FIXTURE_FRAME).band()),
+        spread(held, eightBitFrameAt(short, lastFrame).band()) <
+          spread(held, eightBitFrameAt(short, lastFrame - FIXTURE_FRAME).band()),
         "the slot before the second pass does not hold the source's last frame",
       )
-      val secondOpening = frameOf(file, outputSlotTime(opens, GRID_RATE)).band()
+      val secondOpening = eightBitFrameAt(file, outputSlotTime(opens, GRID_RATE)).band()
       assertTrue(
-        spread(secondOpening, frameOf(file, Duration.ZERO).band()) < spread(secondOpening, held),
+        spread(secondOpening, eightBitFrameAt(file, Duration.ZERO).band()) < spread(secondOpening, held),
         "the second pass does not open with the source's first frame on its own slot",
       )
     }
@@ -661,10 +663,10 @@ class AndroidExportTest {
 
     laid.zipWithNext().forEach { (before, after) ->
       val opens = outputSlotsOf(after.span, rate).first
-      val middleBefore = frameOf(file, before.span.start + before.duration / 2).grid()
-      val middleAfter = frameOf(file, after.span.start + after.duration / 2).grid()
-      val last = frameOf(file, outputSlotTime(opens - 1, rate)).grid()
-      val first = frameOf(file, outputSlotTime(opens, rate)).grid()
+      val middleBefore = eightBitFrameAt(file, before.span.start + before.duration / 2).grid()
+      val middleAfter = eightBitFrameAt(file, after.span.start + after.duration / 2).grid()
+      val last = eightBitFrameAt(file, outputSlotTime(opens - 1, rate)).grid()
+      val first = eightBitFrameAt(file, outputSlotTime(opens, rate)).grid()
       assertTrue(
         spread(last, middleBefore) < spread(last, middleAfter),
         "slot ${opens - 1} does not show the clip before the seam",

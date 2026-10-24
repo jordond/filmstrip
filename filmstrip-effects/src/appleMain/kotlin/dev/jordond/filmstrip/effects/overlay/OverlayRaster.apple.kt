@@ -1,16 +1,13 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.style.FontWeight
 import dev.jordond.filmstrip.style.TextAlignment
 import dev.jordond.filmstrip.style.TextStyle
-import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.COpaquePointerVar
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.allocArray
 import kotlinx.cinterop.cValue
@@ -21,7 +18,6 @@ import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.set
 import kotlinx.cinterop.sizeOf
 import kotlinx.cinterop.useContents
-import kotlinx.cinterop.usePinned
 import kotlinx.cinterop.value
 import platform.CoreFoundation.CFAttributedStringCreate
 import platform.CoreFoundation.CFDictionaryCreate
@@ -53,7 +49,6 @@ import platform.CoreGraphics.CGRectMake
 import platform.CoreGraphics.CGSizeMake
 import platform.CoreGraphics.kCGBitmapByteOrder32Big
 import platform.CoreImage.CIImage
-import platform.CoreImage.kCIImageColorSpace
 import platform.CoreText.CTFontCreateCopyWithSymbolicTraits
 import platform.CoreText.CTFontCreateUIFontForLanguage
 import platform.CoreText.CTFontCreateWithName
@@ -78,40 +73,8 @@ import platform.CoreText.kCTParagraphStyleSpecifierAlignment
 import platform.CoreText.kCTTextAlignmentCenter
 import platform.CoreText.kCTTextAlignmentLeft
 import platform.CoreText.kCTTextAlignmentRight
-import platform.Foundation.NSData
-import platform.Foundation.NSNull
-import platform.Foundation.NSURL
-import platform.Foundation.create
 import kotlin.math.ceil
 import kotlin.math.roundToInt
-
-/**
- * Decodes this source into Core Image, or null when it cannot be read.
- *
- * Nothing is drawn here. A `CIImage` from a URL is a recipe, and the decode happens the first time
- * a context renders it. The source is read with no colour management at all, as the codes it holds.
- */
-internal fun ImageSource.decode(): OverlayPixels? = decoded(UNMANAGED)?.let(::OverlayPixels)
-
-@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-private fun ImageSource.decoded(options: Map<Any?, *>): CIImage? =
-  when (this) {
-    is ImageSource.Path -> {
-      CIImage.imageWithContentsOfURL(NSURL.fileURLWithPath(path), options)
-    }
-    is ImageSource.Uri -> {
-      NSURL.URLWithString(uri)?.let { CIImage.imageWithContentsOfURL(it, options) }
-    }
-    is ImageSource.Bytes -> {
-      if (bytes.isEmpty()) {
-        null
-      } else {
-        bytes.usePinned { pinned ->
-          CIImage.imageWithData(NSData.create(bytes = pinned.addressOf(0), length = bytes.size.toULong()), options)
-        }
-      }
-    }
-  }
 
 /**
  * The image's own pixel size.
@@ -248,7 +211,7 @@ private fun draw(
   CGContextRelease(context)
   if (bitmap == null) return null
 
-  val pixels = OverlayPixels(CIImage.imageWithCGImage(bitmap, UNMANAGED))
+  val pixels = OverlayPixels(bitmap.heldCodes())
   CGImageRelease(bitmap)
   return pixels
 }
@@ -393,9 +356,6 @@ private fun TextAlignment.toCoreText(): CTTextAlignment =
     TextAlignment.Center -> kCTTextAlignmentCenter
     TextAlignment.End -> kCTTextAlignmentRight
   }
-
-// Tells Core Image to take an image's values as they are rather than colour match them from a space.
-private val UNMANAGED: Map<Any?, *> = mapOf(kCIImageColorSpace to NSNull.`null`())
 
 private const val BITS_PER_COMPONENT = 8uL
 private const val RGBA = 4

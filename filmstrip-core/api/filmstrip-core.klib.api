@@ -86,6 +86,7 @@ final enum class dev.jordond.filmstrip.edit/TrackContent : kotlin/Enum<dev.jordo
 }
 
 final enum class dev.jordond.filmstrip.effect/DegradationReason : kotlin/Enum<dev.jordond.filmstrip.effect/DegradationReason> { // dev.jordond.filmstrip.effect/DegradationReason|null[0]
+    enum entry AlphaDiscarded // dev.jordond.filmstrip.effect/DegradationReason.AlphaDiscarded|null[0]
     enum entry ApproximateAlgorithm // dev.jordond.filmstrip.effect/DegradationReason.ApproximateAlgorithm|null[0]
     enum entry ColorSpaceConverted // dev.jordond.filmstrip.effect/DegradationReason.ColorSpaceConverted|null[0]
     enum entry PrecisionReduced // dev.jordond.filmstrip.effect/DegradationReason.PrecisionReduced|null[0]
@@ -156,6 +157,7 @@ final enum class dev.jordond.filmstrip.effect/RenderFeature : kotlin/Enum<dev.jo
 final enum class dev.jordond.filmstrip.export/AdjustmentKind : kotlin/Enum<dev.jordond.filmstrip.export/AdjustmentKind> { // dev.jordond.filmstrip.export/AdjustmentKind|null[0]
     enum entry BitrateClamped // dev.jordond.filmstrip.export/AdjustmentKind.BitrateClamped|null[0]
     enum entry CodecFallback // dev.jordond.filmstrip.export/AdjustmentKind.CodecFallback|null[0]
+    enum entry ColorSpaceChanged // dev.jordond.filmstrip.export/AdjustmentKind.ColorSpaceChanged|null[0]
     enum entry EffectApproximated // dev.jordond.filmstrip.export/AdjustmentKind.EffectApproximated|null[0]
     enum entry EffectDropped // dev.jordond.filmstrip.export/AdjustmentKind.EffectDropped|null[0]
     enum entry FrameRateClamped // dev.jordond.filmstrip.export/AdjustmentKind.FrameRateClamped|null[0]
@@ -656,14 +658,12 @@ sealed interface dev.jordond.filmstrip.edit/AudioSpec { // dev.jordond.filmstrip
 
 sealed interface dev.jordond.filmstrip.effect/EffectResolution { // dev.jordond.filmstrip.effect/EffectResolution|null[0]
     final class Degraded : dev.jordond.filmstrip.effect/EffectResolution { // dev.jordond.filmstrip.effect/EffectResolution.Degraded|null[0]
-        constructor <init>(dev.jordond.filmstrip.effect/PlatformEffect, dev.jordond.filmstrip.effect/DegradationReason, kotlin/String) // dev.jordond.filmstrip.effect/EffectResolution.Degraded.<init>|<init>(dev.jordond.filmstrip.effect.PlatformEffect;dev.jordond.filmstrip.effect.DegradationReason;kotlin.String){}[0]
+        constructor <init>(dev.jordond.filmstrip.effect/PlatformEffect, kotlin.collections/List<dev.jordond.filmstrip.effect/Degradation>) // dev.jordond.filmstrip.effect/EffectResolution.Degraded.<init>|<init>(dev.jordond.filmstrip.effect.PlatformEffect;kotlin.collections.List<dev.jordond.filmstrip.effect.Degradation>){}[0]
 
+        final val causes // dev.jordond.filmstrip.effect/EffectResolution.Degraded.causes|{}causes[0]
+            final fun <get-causes>(): kotlin.collections/List<dev.jordond.filmstrip.effect/Degradation> // dev.jordond.filmstrip.effect/EffectResolution.Degraded.causes.<get-causes>|<get-causes>(){}[0]
         final val effect // dev.jordond.filmstrip.effect/EffectResolution.Degraded.effect|{}effect[0]
             final fun <get-effect>(): dev.jordond.filmstrip.effect/PlatformEffect // dev.jordond.filmstrip.effect/EffectResolution.Degraded.effect.<get-effect>|<get-effect>(){}[0]
-        final val message // dev.jordond.filmstrip.effect/EffectResolution.Degraded.message|{}message[0]
-            final fun <get-message>(): kotlin/String // dev.jordond.filmstrip.effect/EffectResolution.Degraded.message.<get-message>|<get-message>(){}[0]
-        final val reason // dev.jordond.filmstrip.effect/EffectResolution.Degraded.reason|{}reason[0]
-            final fun <get-reason>(): dev.jordond.filmstrip.effect/DegradationReason // dev.jordond.filmstrip.effect/EffectResolution.Degraded.reason.<get-reason>|<get-reason>(){}[0]
 
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effect/EffectResolution.Degraded.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effect/EffectResolution.Degraded.hashCode|hashCode(){}[0]
@@ -1938,6 +1938,19 @@ final class dev.jordond.filmstrip.effect/Attributes { // dev.jordond.filmstrip.e
         final fun <get-span>(): dev.jordond.filmstrip.edit/TimeRange // dev.jordond.filmstrip.effect/Attributes.span.<get-span>|<get-span>(){}[0]
 
     final fun toString(): kotlin/String // dev.jordond.filmstrip.effect/Attributes.toString|toString(){}[0]
+}
+
+final class dev.jordond.filmstrip.effect/Degradation { // dev.jordond.filmstrip.effect/Degradation|null[0]
+    constructor <init>(dev.jordond.filmstrip.effect/DegradationReason, kotlin/String) // dev.jordond.filmstrip.effect/Degradation.<init>|<init>(dev.jordond.filmstrip.effect.DegradationReason;kotlin.String){}[0]
+
+    final val message // dev.jordond.filmstrip.effect/Degradation.message|{}message[0]
+        final fun <get-message>(): kotlin/String // dev.jordond.filmstrip.effect/Degradation.message.<get-message>|<get-message>(){}[0]
+    final val reason // dev.jordond.filmstrip.effect/Degradation.reason|{}reason[0]
+        final fun <get-reason>(): dev.jordond.filmstrip.effect/DegradationReason // dev.jordond.filmstrip.effect/Degradation.reason.<get-reason>|<get-reason>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.effect/Degradation.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.effect/Degradation.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.effect/Degradation.toString|toString(){}[0]
 }
 
 final class dev.jordond.filmstrip.effect/PlatformEffect { // dev.jordond.filmstrip.effect/PlatformEffect|null[0]

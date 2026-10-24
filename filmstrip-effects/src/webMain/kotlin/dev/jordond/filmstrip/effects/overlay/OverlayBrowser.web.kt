@@ -2,6 +2,7 @@
 
 package dev.jordond.filmstrip.effects.overlay
 
+import dev.jordond.filmstrip.media.ArrayBuffer
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.js.Promise
@@ -10,7 +11,7 @@ import kotlin.js.Promise
 // the same shapes on js and wasmJs, so every one is declared once here.
 
 /**
- * A canvas no document ever sees, which text is drawn into.
+ * A canvas no document ever sees, which text is drawn into and a decoded picture is read back through.
  */
 internal external class OffscreenCanvas(
   width: Int,
@@ -24,7 +25,7 @@ internal external class OffscreenCanvas(
 }
 
 /**
- * The part of a two-dimensional context that measures and draws text and fills a plate.
+ * The part of a two-dimensional context that measures and draws text, fills a plate and reads a picture's codes back.
  */
 internal external interface OverlayContext2D : JsAny {
   var font: String
@@ -47,6 +48,33 @@ internal external interface OverlayContext2D : JsAny {
     width: Double,
     height: Double,
   )
+
+  fun drawImage(
+    image: JsAny,
+    x: Double,
+    y: Double,
+  )
+
+  fun getImageData(
+    x: Int,
+    y: Int,
+    width: Int,
+    height: Int,
+  ): OverlayImageData
+}
+
+/**
+ * The codes a canvas reads back, four bytes a texel, red, green, blue then alpha, row by row from the top left.
+ */
+internal external interface OverlayImageData : JsAny {
+  val data: OverlayImageBytes
+}
+
+/**
+ * The typed array behind [OverlayImageData], read whole through its buffer.
+ */
+internal external interface OverlayImageBytes : JsAny {
+  val buffer: ArrayBuffer
 }
 
 /**
@@ -82,7 +110,14 @@ internal external fun createImageBitmap(
 internal external interface OverlayResponse : JsAny {
   val ok: Boolean
 
-  fun blob(): Promise<JsAny>
+  fun blob(): Promise<OverlayBlob>
+}
+
+/**
+ * A fetched picture's bytes, which decode to a bitmap and read back whole.
+ */
+internal external interface OverlayBlob : JsAny {
+  fun arrayBuffer(): Promise<ArrayBuffer>
 }
 
 internal external fun fetch(input: String): Promise<OverlayResponse>

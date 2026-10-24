@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.Degradation
 import dev.jordond.filmstrip.effect.DegradationReason
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -212,11 +213,14 @@ internal fun firstClipOf(resolved: NegotiatedComposition) =
 
 /**
  * Hands back opaque handles, so the lowering can be asserted on without media3.
+ *
+ * An id in [degrade] resolves degraded for every cause in [causes], in order.
  */
 internal class FakeResolver(
   private val refuse: Set<String> = emptySet(),
   private val degrade: Set<String> = emptySet(),
   private val declines: Set<String> = emptySet(),
+  private val causes: List<Degradation> = listOf(ROUNDS_IT),
 ) : EffectResolver {
   override fun resolve(
     spec: EffectSpec,
@@ -231,14 +235,25 @@ internal class FakeResolver(
         EffectResolution.Unsupported(spec.id, "this resolver owns it and cannot render it")
       }
       in degrade -> {
-        EffectResolution.Degraded(
-          fakePlatformEffect(),
-          DegradationReason.ApproximateAlgorithm,
-          "this resolver rounds it",
-        )
+        EffectResolution.Degraded(fakePlatformEffect(), causes)
       }
       else -> {
         EffectResolution.Resolved(fakePlatformEffect())
       }
     }
 }
+
+/**
+ * The cause [FakeResolver] gives for an effect it degrades, unless a test hands it others.
+ */
+internal val ROUNDS_IT = Degradation(DegradationReason.ApproximateAlgorithm, "this resolver rounds it")
+
+/**
+ * A second cause a test can hand [FakeResolver], so the order of several causes can be checked.
+ */
+internal val CONVERTS_IT = Degradation(DegradationReason.ColorSpaceConverted, "this resolver converts its colour")
+
+/**
+ * A third cause a test can hand [FakeResolver], so a cause between the first and last can be checked.
+ */
+internal val CLAMPS_IT = Degradation(DegradationReason.ResolutionClamped, "this resolver clamps its size")

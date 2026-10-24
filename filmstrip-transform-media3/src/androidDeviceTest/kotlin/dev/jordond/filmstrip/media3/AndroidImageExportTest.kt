@@ -27,6 +27,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP_B
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
+import dev.jordond.filmstrip.test.eightBitFrameAt
 import dev.jordond.filmstrip.test.writeAtomically
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
@@ -73,7 +74,7 @@ class AndroidImageExportTest {
 
       val written = exported(probe.plan(composition(Clip(still)), ExportSpec()))
 
-      frameOf(written.file, PHOTO / 2).photoCoverage() shouldBeAbove COVERED
+      eightBitFrameAt(written.file, PHOTO / 2).photoCoverage() shouldBeAbove COVERED
     }
 
   /**
@@ -92,11 +93,11 @@ class AndroidImageExportTest {
       val written = exported(probe.plan(edit, ExportSpec(targetHeight = 240)))
 
       written.info.duration shouldBeCloseTo CLIP_LENGTH + PHOTO + CLIP_LENGTH
-      val opening = frameOf(written.file, CLIP_LENGTH + EDGE)
-      val middle = frameOf(written.file, CLIP_LENGTH + PHOTO * MIDDLE)
-      val closing = frameOf(written.file, CLIP_LENGTH + PHOTO - EDGE)
-      val before = frameOf(written.file, CLIP_LENGTH / 2)
-      val after = frameOf(written.file, CLIP_LENGTH + PHOTO + CLIP_LENGTH / 2)
+      val opening = eightBitFrameAt(written.file, CLIP_LENGTH + EDGE)
+      val middle = eightBitFrameAt(written.file, CLIP_LENGTH + PHOTO * MIDDLE)
+      val closing = eightBitFrameAt(written.file, CLIP_LENGTH + PHOTO - EDGE)
+      val before = eightBitFrameAt(written.file, CLIP_LENGTH / 2)
+      val after = eightBitFrameAt(written.file, CLIP_LENGTH + PHOTO + CLIP_LENGTH / 2)
 
       middle.gainedOver(before, WHOLE_FRAME) shouldBeAbove COVERED
       middle.gainedOver(after, WHOLE_FRAME) shouldBeAbove COVERED
@@ -114,7 +115,7 @@ class AndroidImageExportTest {
       val written = exported(probe.plan(composition(Clip(still)), ExportSpec()))
 
       written.info.duration shouldBeCloseTo PHOTO
-      frameOf(written.file, PHOTO / 2).photoCoverage() shouldBeAbove COVERED
+      eightBitFrameAt(written.file, PHOTO / 2).photoCoverage() shouldBeAbove COVERED
     }
 
   // A still has no samples to clip, so a trim over one is a shorter hold and nothing else.
@@ -126,7 +127,7 @@ class AndroidImageExportTest {
       val written = exported(probe.plan(composition(trimmed), ExportSpec()))
 
       written.info.duration shouldBeCloseTo 2.seconds
-      frameOf(written.file, 1.seconds).photoCoverage() shouldBeAbove COVERED
+      eightBitFrameAt(written.file, 1.seconds).photoCoverage() shouldBeAbove COVERED
     }
 
   // A still reports a codec no muxer can name, so the copy path is off the table before anything

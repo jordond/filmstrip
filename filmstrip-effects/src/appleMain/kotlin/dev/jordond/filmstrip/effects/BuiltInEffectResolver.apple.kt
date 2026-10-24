@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.effects
 
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.CoreImageEffect
+import dev.jordond.filmstrip.effect.Degradation
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -21,14 +22,15 @@ import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.geometry.regionAt
 import dev.jordond.filmstrip.effects.geometry.retainedRect
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.PictureRead
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.effects.overlay.animatedBy
 import dev.jordond.filmstrip.effects.overlay.compositedOnto
-import dev.jordond.filmstrip.effects.overlay.decode
 import dev.jordond.filmstrip.effects.overlay.drawnTextSize
 import dev.jordond.filmstrip.effects.overlay.frameWithin
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rasterizeText
+import dev.jordond.filmstrip.effects.overlay.read
 import dev.jordond.filmstrip.effects.overlay.runWithin
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
@@ -93,11 +95,17 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   // those: the slot an effect is handed is settled before any frame is drawn, so it is derived once
   // here and every frame samples within it.
   private fun ImageOverlay.toOverlay(attributes: Attributes): EffectResolution {
-    val raster = image.decode() ?: return EffectResolution.Unsupported(id, UNREADABLE_IMAGE)
+    val raster =
+      when (val read = image.read()) {
+        is PictureRead.Read -> read.value
+        is PictureRead.Unreadable -> return EffectResolution.Unsupported(id, UNREADABLE_IMAGE)
+        is PictureRead.Refused -> return EffectResolution.Unsupported(id, unreadSamples(read.reason))
+        is PictureRead.Unsupported -> return EffectResolution.Unsupported(id, read.message)
+      }
     val size = raster.size
     val run = runWithin(attributes.span)
 
-    return step { image, frame ->
+    return resolution(raster.limits) { image, frame ->
       val sampled = frameWithin(run, frame.compositionTime)
       if (sampled == null) {
         image
@@ -148,8 +156,16 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     }
   }
 
-  private fun step(block: (CIImage, FrameInfo) -> CIImage): EffectResolution =
-    EffectResolution.Resolved(PlatformEffect(CoreImageEffect(block)))
+  private fun step(block: (CIImage, FrameInfo) -> CIImage): EffectResolution = resolution(emptyList(), block)
+
+  // Degraded by every cause in limits, and resolved exactly when there are none.
+  private fun resolution(
+    limits: List<Degradation>,
+    block: (CIImage, FrameInfo) -> CIImage,
+  ): EffectResolution {
+    val effect = PlatformEffect(CoreImageEffect(block))
+    return if (limits.isEmpty()) EffectResolution.Resolved(effect) else EffectResolution.Degraded(effect, limits)
+  }
 
   private fun CIImage.rotated(degrees: Double): CIImage =
     imageByApplyingTransform(CGAffineTransformMakeRotation(degrees * PI / STRAIGHT_ANGLE)).atOrigin()
@@ -198,9 +214,21 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
 
 private const val STRAIGHT_ANGLE = 180.0
 
-private const val UNREADABLE_IMAGE =
-  "The overlay image could not be decoded. Check that the path or URL is readable by this " +
-    "process, and that the bytes are PNG, JPEG or HEIC."
+/**
+ * The message an image overlay is refused with when its picture cannot be read or holds nothing ImageIO or Core Image
+ * decodes.
+ */
+internal const val UNREADABLE_IMAGE =
+  "The overlay image could not be decoded. Check that the path or URL is readable by this process, and that the " +
+    "bytes hold a picture ImageIO or Core Image decodes on this OS, like PNG, JPEG, HEIC, AVIF, WebP or JPEG XL."
+
+/**
+ * The message an image overlay is refused with when ImageIO decodes its picture and its samples cannot be read, with
+ * [reason] saying what ImageIO handed back.
+ */
+internal fun unreadSamples(reason: String): String =
+  "The overlay image could not be read. ImageIO decoded the picture, and this backend draws the samples it decodes " +
+    "to, which it could not read. $reason"
 
 private const val EMPTY_TEXT = "The text and its style leave nothing to draw."
 

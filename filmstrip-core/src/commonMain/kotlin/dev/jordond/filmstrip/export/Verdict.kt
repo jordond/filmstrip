@@ -72,8 +72,8 @@ public class Adjustment(
 /**
  * What kind of change an [Adjustment] describes.
  *
- * Not every kind needs to reach the user. [HdrToneMapped] and [EffectDropped] change how the output
- * looks next to the preview the user just watched, so surface those.
+ * Not every kind needs to reach the user. [HdrToneMapped] and [EffectDropped] change how the output looks next to the
+ * preview the user just watched, and [ColorSpaceChanged] can on a colour-managed player, so surface those.
  */
 public enum class AdjustmentKind {
   /**
@@ -119,6 +119,15 @@ public enum class AdjustmentKind {
    * A hardware path was unavailable and a slower one was substituted.
    */
   SoftwareFallback,
+
+  /**
+   * The file records a different colour space than was asked for, because the encoder was measured converting into
+   * that one when asked for the requested one.
+   *
+   * The colours decode as authored through the recorded matrix. A colour-managed player can still show them a shade
+   * apart where the recorded primaries differ from the requested ones.
+   */
+  ColorSpaceChanged,
 }
 
 /**

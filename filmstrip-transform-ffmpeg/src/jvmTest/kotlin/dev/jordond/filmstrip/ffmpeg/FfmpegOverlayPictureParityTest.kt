@@ -3,14 +3,18 @@ package dev.jordond.filmstrip.ffmpeg
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.OverlayPictureDecoder
 import dev.jordond.filmstrip.effects.overlay.OverlayPictureRead
 import dev.jordond.filmstrip.ffmpeg.HdrRender.CAPABILITIES
 import dev.jordond.filmstrip.ffmpeg.HdrRender.attributes
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPictureDecoder
 import dev.jordond.filmstrip.geometry.Corner
+import dev.jordond.filmstrip.internal.pictureColour
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.SIXTEEN_BIT_MAX
+import dev.jordond.filmstrip.media.pictureLight
+import dev.jordond.filmstrip.media.signalFromNits
 import java.awt.Transparency
 import java.awt.color.ICC_Profile
 import java.awt.image.BufferedImage
@@ -29,127 +33,100 @@ import javax.imageio.plugins.tiff.BaselineTIFFTagSet
 import javax.imageio.plugins.tiff.TIFFDirectory
 import javax.imageio.plugins.tiff.TIFFField
 import javax.imageio.plugins.tiff.TIFFTag
-import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 import java.awt.color.ColorSpace as AwtColorSpace
 
 /**
- * Pictures the JDK reads, carried onto an HDR grade where their colour lands.
+ * Pictures the JDK reads, carried onto an HDR grade where their colour lands, whichever reader decodes them.
  *
- * The JDK decodes a picture before ffmpeg is asked, so a PNG the two read differently would land on a grade somewhere
- * the SDR export never draws it. Each PNG here is built on the JVM, run through the grade, and held against the texels
- * this ffmpeg decodes out of the same bytes, carried onto the grade by the same mapping. A picture whose colour profile
- * the JDK honours is held against its colour managed sRGB value instead. A texel may sit one code either side of the
- * expected one, which is the rounding a sixteen-bit sample or a profile conversion takes on its way to eight bits.
+ * With a decoder every picture on a grade is decoded by this ffmpeg, and without one by the JDK, so both reads are held
+ * against the same answer. Each picture is built on the JVM, run through the grade, and held against where
+ * [pictureLight] puts its stored samples, at the depth the picture stores them. A grey picture lands where the same
+ * grey stored as RGB does. A picture tagged with an ICC profile is held against where its profile's light puts it.
  */
 class FfmpegOverlayPictureParityTest {
   private val fixture = FfmpegExportFixture()
 
-  // The JDK's PNG reader does not read an iCCP chunk, so a tagged PNG reaches the grade as its stored samples, the ones
-  // ffmpeg draws on an SDR grade.
+  // The JDK's PNG reader does not read an iCCP chunk, so the profile is read out of the bytes and the samples off the
+  // raster. ffmpeg's own decode carries the same profile, which is what a picture only ffmpeg reads relies on.
   @Test
-  fun `a PNG tagged with a linear ICC profile carries the samples ffmpeg draws`() =
-    assertParity(taggedLinear(eightBitPng()), "linear ICC")
+  fun `a PNG tagged with a linear ICC profile lands where its profile's light puts it`() {
+    val png = taggedLinear(eightBitPng())
+    val light = pictureLight(pictureColour(png), opaque(TEXELS))
+    assertLight(png, light, "linear ICC PNG")
 
-  /**
-   * A TIFF tagged with the JDK's linear RGB profile lands where its colour managed sRGB colour does.
-   *
-   * The JDK's TIFF reader honours the profile, and every other backend draws a tagged picture colour managed, so the
-   * expected colours come from the profile's own conversion of the stored samples. The ffmpeg decode route hands back
-   * PAM samples with no colour management, so a tagged WebP or AVIF, which only ffmpeg reads, lands on its stored
-   * samples instead. That is a named limit of that route.
-   */
-  @Test
-  fun `a TIFF tagged with a linear ICC profile lands on its colour managed colour`() {
-    val linear = AwtColorSpace.getInstance(AwtColorSpace.CS_LINEAR_RGB)
-    val managed =
-      IntArray(TEXELS.size) { x ->
-        val texel = TEXELS[x]
-        val stored = floatArrayOf(channel(texel, RED_SHIFT), channel(texel, GREEN_SHIFT), channel(texel, 0))
-        linear.toRGB(stored).fold(texel ushr ALPHA_SHIFT) { argb, value ->
-          (argb shl 8) or (value * BYTE_MAX).roundToInt()
-        }
-      }
-    val tiff = taggedLinearTiff()
-
-    assertLandsOn(tiff, managed, "linear ICC TIFF")
-  }
-
-  @Test
-  fun `a sixteen bit PNG carries the samples ffmpeg draws`() = assertParity(sixteenBitPng(), "sixteen bit")
-
-  @Test
-  fun `a grey PNG carries the samples ffmpeg draws`() = assertParity(greyPng(), "grey")
-
-  private fun assertParity(
-    png: ByteArray,
-    what: String,
-  ) {
     if (!fixture.available()) return
     val read = decoder.decode(ImageSource.ofBytes(png))
-    val drawn =
-      assertNotNull((read as? OverlayPictureRead.Read)?.value, "this ffmpeg decoded nothing from the $what PNG")
-    assertLandsOn(png, drawn.getRGB(0, 0, drawn.width, 1, null, 0, drawn.width), what)
+    val decoded = assertNotNull((read as? OverlayPictureRead.Read)?.value, "this ffmpeg decoded nothing from the PNG")
+    assertContentEquals(light, pictureLight(decoded.colour, opaque(TEXELS)), "this ffmpeg's decode lost the profile")
   }
 
-  // Each texel of [picture]'s first row, carried onto every grade, lands where one of the colours within a code of the
-  // matching [texels] entry does, with its alpha.
-  private fun assertLandsOn(
+  /**
+   * A TIFF tagged with the JDK's linear RGB profile lands where [pictureLight] puts its stored samples.
+   *
+   * The JDK's TIFF reader honours the profile, so a read through its colour model would land the picture on the JDK's
+   * own conversion. The samples are read off the raster instead, so the TIFF lands where every other backend puts the
+   * same tagged texels.
+   */
+  @Test
+  fun `a TIFF tagged with a linear ICC profile lands where its profile's light puts it`() {
+    val tiff = taggedLinearTiff()
+    assertLight(tiff, pictureLight(pictureColour(tiff), opaque(TEXELS)), "linear ICC TIFF")
+  }
+
+  // The samples sit between eight-bit codes, so a read cut to eight bits on the way lands somewhere else.
+  @Test
+  fun `a sixteen bit PNG lands at the depth it stores`() {
+    val samples = SIXTEEN_BIT_SAMPLES
+    val light = pictureLight(null, ShortArray(samples.size) { samples[it].toShort() })
+    assertLight(sixteenBitPng(), light, "sixteen bit PNG", samples.filterIndexed { at, _ -> at % CHANNELS == 3 })
+  }
+
+  @Test
+  fun `a grey PNG lands where the same grey stored as RGB does`() {
+    val texels = GREY_LEVELS.map { OPAQUE or (it shl RED_SHIFT) or (it shl GREEN_SHIFT) or it }.toIntArray()
+    assertLight(greyPng(), pictureLight(null, texels), "grey PNG", texels.map { SIXTEEN_BIT_MAX })
+  }
+
+  // Each texel of [picture]'s first row, carried onto every grade, lands on the signal of [light], with [alphas]. The
+  // picture is decoded by this ffmpeg when the catalogue has it, and by the JDK when it does not, so both are held.
+  private fun assertLight(
     picture: ByteArray,
-    texels: IntArray,
+    light: FloatArray,
     what: String,
+    alphas: List<Int> = TEXELS.map { (it ushr ALPHA_SHIFT) * SIXTEEN_BIT_MAX / BYTE_MAX },
   ) {
-    val width = texels.size
-    for (transfer in HdrTransfer.entries) {
-      val graded = mappedRaster(picture, transfer)
-      val landings = mappedRaster(neighboursPng(texels), transfer)
-      assertEquals(width, graded.width, "$what is ${graded.width} wide on the grade and $width expected")
-      texels.indices.forEach { x ->
-        val read = graded.getPixel(x, 0, IntArray(CHANNELS))
-        val near = (0 until NEIGHBOURS).map { landings.getPixel(x, it, IntArray(CHANNELS)).copyOf(3).toList() }
-        val alpha = (texels[x] ushr ALPHA_SHIFT) * SIXTEEN_BIT_MAX / BYTE_MAX
-        assertTrue(
-          read.copyOf(3).toList() in near && abs(read[3] - alpha) <= SIXTEEN_BIT_MAX / BYTE_MAX,
-          "$transfer $what texel $x read ${read.toList()}, which no colour within a code of " +
-            "${texels[x].toUInt().toString(16)} lands at",
-        )
+    val readers = if (fixture.available()) listOf(null, decoder) else listOf(null)
+    for (reader in readers) {
+      val by = if (reader == null) "the JDK" else "this ffmpeg"
+      for (transfer in HdrTransfer.entries) {
+        val graded = mappedRaster(picture, transfer, reader)
+        assertEquals(alphas.size, graded.width, "$what read by $by is ${graded.width} wide on the grade")
+        alphas.indices.forEach { x ->
+          val signal = transfer.signalFromNits(light.copyOfRange(x * CHANNELS, x * CHANNELS + 3))
+          val expected = signal.map { (it.coerceIn(0f, 1f) * SIXTEEN_BIT_MAX).roundToInt() } + alphas[x]
+          val read = graded.getPixel(x, 0, IntArray(CHANNELS)).toList()
+          assertEquals(expected, read, "$transfer $what read by $by texel $x")
+        }
       }
     }
   }
 
-  // Every colour within one code of each texel, a column per texel and a row per step, opaque, since the
-  // mapping reads the colour apart from the alpha. An HLG signal hangs on the colour's luminance, so a step in one
-  // channel moves the others and only the landings themselves say where a neighbour goes.
-  private fun neighboursPng(texels: IntArray): ByteArray {
-    val image = BufferedImage(texels.size, NEIGHBOURS, BufferedImage.TYPE_INT_ARGB)
-    texels.forEachIndexed { x, texel ->
-      (0 until NEIGHBOURS).forEach { row ->
-        val steps = intArrayOf(row / 9 - 1, row / 3 % 3 - 1, row % 3 - 1)
-        image.setRGB(x, row, stepped(texel, steps))
-      }
-    }
-    return pngOf(image)
-  }
-
-  private fun stepped(
-    texel: Int,
-    steps: IntArray,
-  ): Int =
-    listOf(RED_SHIFT, GREEN_SHIFT, 0).foldIndexed(OPAQUE) { channel, argb, shift ->
-      argb or (((texel shr shift and BYTE_MAX) + steps[channel]).coerceIn(0, BYTE_MAX) shl shift)
-    }
+  private fun opaque(texels: IntArray): IntArray = texels.map { it or OPAQUE }.toIntArray()
 
   private fun mappedRaster(
     png: ByteArray,
     transfer: HdrTransfer,
+    reader: OverlayPictureDecoder? = decoder,
   ): Raster {
     val spec = ImageOverlay(ImageSource.ofBytes(png), Corner.TopStart)
-    val resolved = BuiltInEffectResolver(decoder).resolve(spec, CAPABILITIES, attributes(transfer, 2.seconds))
+    val resolver = reader?.let(::BuiltInEffectResolver) ?: BuiltInEffectResolver()
+    val resolved = resolver.resolve(spec, CAPABILITIES, attributes(transfer, 2.seconds))
     val mapped =
       (
         (resolved as EffectResolution.Resolved)
@@ -160,15 +137,9 @@ class FfmpegOverlayPictureParityTest {
     return ImageIO.read(ByteArrayInputStream(mapped)).raster
   }
 
-  private fun channel(
-    texel: Int,
-    shift: Int,
-  ): Float = (texel shr shift and BYTE_MAX) / BYTE_MAX.toFloat()
-
   private companion object {
-    val decoder = FfmpegPictureDecoder("ffmpeg", "ffprobe")
+    val decoder = FfmpegPictureDecoder("ffmpeg")
 
-    const val NEIGHBOURS = 27
     const val CHANNELS = 4
     const val ALPHA_SHIFT = 24
     const val RED_SHIFT = 16
@@ -188,31 +159,33 @@ private fun eightBitPng(): ByteArray {
   return pngOf(image)
 }
 
-// Samples that land between two eight-bit codes, so each decoder's rounding is what is read.
+// Samples that land between two eight-bit codes, so a read cut to eight bits lands elsewhere.
+private val SIXTEEN_BIT_SAMPLES =
+  intArrayOf(
+    65_535,
+    65_535,
+    65_535,
+    65_535,
+    32_896,
+    32_896,
+    32_896,
+    65_535,
+    12_345,
+    40_000,
+    23_456,
+    65_535,
+    7_777,
+    37_000,
+    65_535,
+    65_535,
+    65_535,
+    33_000,
+    8_000,
+    32_896,
+  )
+
 private fun sixteenBitPng(): ByteArray {
-  val samples =
-    intArrayOf(
-      65_535,
-      65_535,
-      65_535,
-      65_535,
-      32_896,
-      32_896,
-      32_896,
-      65_535,
-      12_345,
-      40_000,
-      23_456,
-      65_535,
-      7_777,
-      37_000,
-      65_535,
-      65_535,
-      65_535,
-      33_000,
-      8_000,
-      32_896,
-    )
+  val samples = SIXTEEN_BIT_SAMPLES
   val raster = Raster.createInterleavedRaster(DataBuffer.TYPE_USHORT, samples.size / 4, 1, 4, null)
   raster.setPixels(0, 0, samples.size / 4, 1, samples)
   val model =
@@ -226,18 +199,22 @@ private fun sixteenBitPng(): ByteArray {
   return pngOf(BufferedImage(model, raster, false, null))
 }
 
+private val GREY_LEVELS = intArrayOf(0, 64, 128, 192, 230, 255)
+
 private fun greyPng(): ByteArray {
-  val levels = intArrayOf(0, 64, 128, 192, 230, 255)
+  val levels = GREY_LEVELS
   val image = BufferedImage(levels.size, 1, BufferedImage.TYPE_BYTE_GRAY)
   image.raster.setPixels(0, 0, levels.size, 1, levels)
   return pngOf(image)
 }
 
-// [png] with an iCCP chunk after its header carrying the JDK's linear RGB profile, which shares sRGB's primaries and
-// drops its curve, so a decoder that honoured it would move every mid tone.
+// The JDK's linear RGB profile, which shares sRGB's primaries and drops its curve, so honouring it moves every mid
+// tone.
+private val LINEAR_PROFILE: ByteArray = ICC_Profile.getInstance(AwtColorSpace.CS_LINEAR_RGB).data
+
+// [png] with an iCCP chunk after its header carrying [LINEAR_PROFILE].
 private fun taggedLinear(png: ByteArray): ByteArray {
-  val profile = ICC_Profile.getInstance(AwtColorSpace.CS_LINEAR_RGB).data
-  val compressed = ByteArrayOutputStream().also { out -> DeflaterOutputStream(out).use { it.write(profile) } }
+  val compressed = ByteArrayOutputStream().also { out -> DeflaterOutputStream(out).use { it.write(LINEAR_PROFILE) } }
   val body = "linear".encodeToByteArray() + byteArrayOf(0, 0) + compressed.toByteArray()
   val headerEnd = PNG_SIGNATURE + CHUNK_FRAME + IHDR_LENGTH
   return png.copyOfRange(0, headerEnd) + chunk("iCCP", body) + png.copyOfRange(headerEnd, png.size)
@@ -253,9 +230,8 @@ private fun taggedLinearTiff(): ByteArray {
     TIFFDirectory.createFromMetadata(
       writer.getDefaultImageMetadata(ImageTypeSpecifier.createFromRenderedImage(image), param),
     )
-  val profile = ICC_Profile.getInstance(AwtColorSpace.CS_LINEAR_RGB).data
   val tag = BaselineTIFFTagSet.getInstance().getTag(BaselineTIFFTagSet.TAG_ICC_PROFILE)
-  directory.addTIFFField(TIFFField(tag, TIFFTag.TIFF_UNDEFINED, profile.size, profile))
+  directory.addTIFFField(TIFFField(tag, TIFFTag.TIFF_UNDEFINED, LINEAR_PROFILE.size, LINEAR_PROFILE))
   val out = ByteArrayOutputStream()
   ImageIO.createImageOutputStream(out).use { stream ->
     writer.output = stream

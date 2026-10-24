@@ -5,6 +5,7 @@ package dev.jordond.filmstrip.effect
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.PictureColour
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.time.Duration
@@ -63,15 +64,22 @@ public class WebGlPass(
  * opacity and computes neither.
  *
  * @property image An `ImageBitmap` or an `OffscreenCanvas`, premultiplied on upload.
- * @property size The raster's own pixel size.
- * @property drawAt Where to draw the raster at a composition time, or null when it is not drawn on
- *   that frame.
+ * @property size The pixel size the raster is uploaded at. A raster carrying [samples] takes their size, in the order
+ * they are stored, and any other raster its own.
+ * @property drawAt Where to draw the raster at a composition time, or null when it is not drawn on that frame.
+ * @property colour How a picture describes the colour of its stored codes, which [image] holds unconverted, or null
+ * when the raster is untagged and its codes are sRGB.
+ * @property samples Sixteen-bit RGBA samples, four a texel as [dev.jordond.filmstrip.internal.pngSamples] reads a
+ * PNG's, or null for any other raster. A PNG carries its stored samples at their full depth, and an AVIF the colour
+ * core's YCbCr evaluator turns its samples into. The compositor converts these in place of [image]'s eight-bit codes.
  */
 @InternalFilmstripApi
 public class WebGlOverlay(
   public val image: JsAny,
   public val size: Size,
   public val drawAt: (compositionTime: Duration) -> WebGlOverlayDraw?,
+  public val colour: PictureColour? = null,
+  public val samples: ShortArray? = null,
 ) {
   override fun toString(): String = "WebGlOverlay($size)"
 }

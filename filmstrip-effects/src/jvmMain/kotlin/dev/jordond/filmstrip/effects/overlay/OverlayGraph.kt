@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.AuxInput
 import dev.jordond.filmstrip.effect.AuxTimeline
+import dev.jordond.filmstrip.effect.Degradation
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.FilterArgument
 import dev.jordond.filmstrip.effect.FilterFragment
@@ -20,10 +21,15 @@ import kotlin.time.DurationUnit
  * On an SDR frame the picture is scaled and merged with `overlay`, whose corner arithmetic is written as an expression
  * of the main frame's W and H and the overlay's w and h. The margin is not. It is a fraction of the shorter side of
  * the frame the overlay is drawn on, which is the input, the clip's own for a clip overlay and the output for a
- * composition one. On an HDR grade the picture is decoded and blended in linear display light instead. [decoder] reads
- * a picture the JDK has no reader for, both to decode it on a grade and to size it for an animation.
+ * composition one. A picture that describes its colour is drawn from the sRGB codes its description gives it,
+ * through [sdrOverlayImage], an AVIF or HEIC from its decode, and any other untagged one from its own bytes. On an HDR
+ * grade the picture is decoded and blended in linear display light instead. [decoder] decodes every picture this needs
+ * decoded and sizes one for an animation, so the texels and the size are the ones the toolchain draws, and a picture
+ * decoded anyway is sized from that decode. Without one the JDK reads them. An animation that cannot be driven at all
+ * is refused before the picture is read.
  *
- * @return The fragment, or [EffectResolution.Unsupported] when the picture or its animation cannot be lowered here.
+ * @return The fragment, [EffectResolution.Degraded] by each limit the decode of its picture reports, or
+ * [EffectResolution.Unsupported] when the picture or its animation cannot be lowered here.
  */
 internal fun filterGraphOverlay(
   spec: ImageOverlay,
@@ -33,29 +39,35 @@ internal fun filterGraphOverlay(
   val drawnOn = attributes.inputSize
   val span = attributes.span
   val run = spec.runWithin(span)
+  spec.animationRefusal(attributes, run)?.let { return EffectResolution.Unsupported(spec.id, it) }
   val margin = (minOf(drawnOn.width, drawnOn.height) * spec.margin).roundToInt()
   val overlayWidth = (drawnOn.width * spec.scale).roundToInt().coerceAtLeast(1)
   val transfer = attributes.hdrTransfer
-  val driven = spec.commandsFor(attributes, run, graded = transfer != null, decoder)
-  if (driven is Driven.Refused) return EffectResolution.Unsupported(spec.id, driven.message)
-  val animated = driven as? Driven.Commands
   if (transfer != null) {
-    val graded =
-      when (val read = hdrOverlayRaster(spec.image, transfer, decoder)) {
-        is OverlayPictureRead.Read -> {
-          read.value
-        }
-        is OverlayPictureRead.Refused -> {
-          return EffectResolution.Unsupported(spec.id, UNREADABLE_HDR_IMAGE.saying(read.reason))
-        }
-        null -> {
-          return EffectResolution.Unsupported(spec.id, UNREADABLE_HDR_IMAGE)
-        }
+    val picture =
+      when (val read = storedPicture(spec.image, decoder)) {
+        is StoredRead.Read -> read.picture
+        is StoredRead.Undecoded -> return spec.refused(UNREADABLE_HDR_IMAGE.saying(read.reason))
+        is StoredRead.Undrawn -> return spec.refused(read.reason)
+        StoredRead.Unread -> return spec.refused(UNREADABLE_HDR_IMAGE)
+        StoredRead.Unseen -> return spec.refused(UNSEEN_COLOUR)
       }
+    val graded = hdrOverlayRaster(picture, transfer)
+    val driven = spec.commandsFor(attributes, run, graded = true, decoder, graded.size)
+    if (driven is Driven.Refused) return EffectResolution.Unsupported(spec.id, driven.message)
+    val animated = driven as? Driven.Commands
     val still = spec.stillRect(drawnOn, graded.size, overlayWidth, margin)
     val fragment = spec.gradedOverlay(attributes, run, transfer, graded, animated, still, overlayWidth)
-    return EffectResolution.Resolved(PlatformEffect(fragment))
+    return resolution(PlatformEffect(fragment), picture.limits)
   }
+  val drawn =
+    when (val read = sdrOverlayImage(spec.image, decoder)) {
+      is SdrOverlayImage.Drawn -> read
+      is SdrOverlayImage.Refused -> return EffectResolution.Unsupported(spec.id, read.message)
+    }
+  val driven = spec.commandsFor(attributes, run, graded = false, decoder, drawn.size)
+  if (driven is Driven.Refused) return EffectResolution.Unsupported(spec.id, driven.message)
+  val animated = driven as? Driven.Commands
   val instance = animated?.instance.orEmpty()
 
   val prepare =
@@ -82,16 +94,21 @@ internal fun filterGraphOverlay(
       add(FilterArgument("eof_action", "pass"))
     }
 
-  return EffectResolution.Resolved(
-    PlatformEffect(
-      FilterFragment(
-        auxInputs = listOf(AuxInput(spec.image, prepare, attributes.auxTimeline())),
-        merge = FilterNode("overlay$instance", placement),
-        sidecars = listOfNotNull(animated?.sidecar),
-      ),
-    ),
-  )
+  val fragment =
+    FilterFragment(
+      auxInputs = listOf(AuxInput(drawn.image, prepare, attributes.auxTimeline())),
+      merge = FilterNode("overlay$instance", placement),
+      sidecars = listOfNotNull(animated?.sidecar),
+    )
+  return resolution(PlatformEffect(fragment), drawn.limits)
 }
+
+// Degraded by each of the decoder's [limits], and resolved exactly when there are none.
+private fun resolution(
+  effect: PlatformEffect,
+  limits: List<Degradation>,
+): EffectResolution =
+  if (limits.isEmpty()) EffectResolution.Resolved(effect) else EffectResolution.Degraded(effect, limits)
 
 // The gate and the opacity, which is everything a branch does to its picture's alpha.
 internal fun ImageOverlay.alphaNodes(
@@ -172,6 +189,8 @@ private fun branchSeconds(
     ((frameIndexAt(time, span, rate) - HALF_FRAME) / rate).toString()
   }
 
+private fun ImageOverlay.refused(message: String): EffectResolution = EffectResolution.Unsupported(id, message)
+
 // A refusal with the toolchain's own account of the failure after it, when it gave one.
 internal fun String.saying(reason: String?): String =
   if (reason.isNullOrBlank()) this else "$this The toolchain said: ${reason.trim()}"
@@ -189,6 +208,6 @@ private val PER_FRAME_SIZE =
 
 private const val UNREADABLE_HDR_IMAGE =
   "The overlay image could not be read. On an HDR grade this backend decodes the picture to carry " +
-    "its colours onto the grade's signal, and neither the JDK nor this ffmpeg could decode it, so the " +
-    "same picture fails on an SDR grade too. Check that the path or URL is readable by this process, " +
-    "and that the bytes are a picture this ffmpeg build decodes."
+    "its colours onto the grade's signal, and it could not decode it, so the same picture fails on an " +
+    "SDR grade too. Check that the path or URL is readable by this process, and that the bytes are a " +
+    "picture this ffmpeg build decodes."

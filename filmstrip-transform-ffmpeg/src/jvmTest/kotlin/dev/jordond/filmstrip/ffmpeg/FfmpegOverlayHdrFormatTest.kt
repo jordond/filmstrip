@@ -83,7 +83,7 @@ class FfmpegOverlayHdrFormatTest {
   fun `a HEIC still on a kept PQ grade is drawn exactly when this ffmpeg decodes it`() =
     runTest(timeout = TIMEOUT) {
       if (!fixture.available()) return@runTest
-      val heic = File(fixture.fixtures, HEIC_FIXTURE)
+      val heic = fixture.heicFixture()
       assertTrue(heic.isFile, "no $HEIC_FIXTURE among the downloaded fixtures")
       assertNull(ImageIO.read(heic), "the JDK decodes HEIC here, so this does not reach ffmpeg's decode")
       val overlay = ImageOverlay(ImageSource.of(heic.absolutePath), Corner.TopStart)
@@ -186,7 +186,7 @@ class FfmpegOverlayHdrFormatTest {
     spec: EffectSpec,
     transfer: HdrTransfer,
   ): EffectResolution? =
-    BuiltInEffectResolver(FfmpegPictureDecoder("ffmpeg", "ffprobe"))
+    BuiltInEffectResolver(FfmpegPictureDecoder("ffmpeg"))
       .resolve(spec, CAPABILITIES, attributes(transfer, 2.seconds))
 
   private fun expectedCodes(
@@ -241,7 +241,6 @@ class FfmpegOverlayHdrFormatTest {
     const val DODGER_BLUE = 0xFF1E90FF.toInt()
     const val HALF_ORANGE = 0x80FF8020.toInt()
     const val QUARTER_WHITE = 0x40FFFFFF
-    const val HEIC_FIXTURE = "overlay_mid_green.heic"
   }
 }
 

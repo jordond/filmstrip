@@ -106,7 +106,7 @@ internal class AvThumbnailSource(
       // AVFoundation's own queue. Nothing past this point may throw back into it.
       val outcome =
         try {
-          toResult(image, actualTime, result, error)
+          toResult(av, image, actualTime, result, error)
         } catch (
           @Suppress("TooGenericExceptionCaught") broken: Exception,
         ) {
@@ -124,10 +124,12 @@ internal class AvThumbnailSource(
   /**
    * The generator's answer as a result the caller owns.
    *
-   * The `CGImage` the handler is given lives only for the length of the callback, so it is retained
-   * on its way into the [PlatformImage] the caller closes.
+   * A step [av]'s chain could not run while drawing the frame refuses the tile with the step's reason, since the frame
+   * the generator hands back is drawn without that step's effects. The `CGImage` the handler is given lives only for
+   * the length of the callback, so it is retained on its way into the [PlatformImage] the caller closes.
    */
   private fun toResult(
+    av: AvComposition,
     image: CGImageRef?,
     actualTime: CValue<CMTime>,
     result: AVAssetImageGeneratorResult,
@@ -141,6 +143,7 @@ internal class AvThumbnailSource(
         ),
       )
     }
+    av.chainFailure()?.let { return ThumbnailResult.Failure(it) }
 
     return ThumbnailResult.Success(
       image = PlatformImage(CGImageRetain(image)),

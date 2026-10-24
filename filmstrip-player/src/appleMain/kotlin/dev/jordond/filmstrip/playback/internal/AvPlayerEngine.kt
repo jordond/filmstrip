@@ -101,6 +101,8 @@ internal class AvPlayerEngine(
   private val pending = PendingLoad()
   private var policy: PreviewQualityPolicy = config.qualityPolicy
   private var reachedEnd = false
+
+  private val drawFailure = AvDrawFailure(scope, current = { lowered?.chain }) { fail(it) }
   private val wrapGuard = WrapGuard()
 
   private val seeks: AvSeekCoordinator =
@@ -338,6 +340,7 @@ internal class AvPlayerEngine(
     request: SetCompositionRequest,
   ) {
     wrapGuard.reset()
+    drawFailure.clear()
     val swappable = change == CompositionDiff.ParametersOnly && lowered?.chain != null
     if (swappable) {
       // Reassigning videoComposition on a playing item stalls the render, so the parameters reach
@@ -384,6 +387,7 @@ internal class AvPlayerEngine(
       }
 
     lowered = av
+    av.chain?.let(drawFailure::watch)
     item = fresh
     reachedEnd = false
     observers.observeItem(fresh)
@@ -404,11 +408,15 @@ internal class AvPlayerEngine(
     }
 
     setStalled(target.isStalled() || player.isWaitingOnData())
-    when (target.status) {
-      AVPlayerItemStatusFailed -> {
+    val broken = drawFailure.error
+    when {
+      broken != null -> {
+        setStatus(PlaybackStatus.Error(broken))
+      }
+      target.status == AVPlayerItemStatusFailed -> {
         fail(target.playbackError())
       }
-      AVPlayerItemStatusReadyToPlay -> {
+      target.status == AVPlayerItemStatusReadyToPlay -> {
         setStatus(if (reachedEnd) PlaybackStatus.Ended else PlaybackStatus.Ready)
       }
       else -> {

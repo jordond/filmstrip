@@ -145,12 +145,12 @@ private fun Verdict.plan(): ExportPlan? =
   }
 
 /**
- * What a failed lowering means to a player.
+ * What a failed lowering, or a step that throws while the preview draws, means to a player.
  *
  * The two arms a preview can actually reach are named. Everything else is a composition the planner
- * refused, which reads the same to a caller whichever refusal it was.
+ * refused or an effect that could not draw, which reads the same to a caller whichever it was.
  */
-private fun ExportError.toPlaybackError(): PlaybackError =
+internal fun ExportError.toPlaybackError(): PlaybackError =
   when (this) {
     is ExportError.SourceUnreadable -> PlaybackError.SourceUnreadable(message)
     is ExportError.SourceNotExportable -> PlaybackError.SourceNotExportable(message)

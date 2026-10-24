@@ -1,6 +1,8 @@
 package dev.jordond.filmstrip.test
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.media.rgbMatrix
+import dev.jordond.filmstrip.media.ycbcrReading
 import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.DoubleVar
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -93,15 +95,9 @@ public object AppleBufferCodes {
         }
       }
 
-      val area = (width * height).toFloat()
-      val lumaLevel = (y / area - LUMA_FOOT) / LUMA_SPAN
-      val blueDiff = (cb / area - CHROMA_MID) / CHROMA_SPAN
-      val redDiff = (cr / area - CHROMA_MID) / CHROMA_SPAN
-      return floatArrayOf(
-        (lumaLevel + KR_CR * redDiff) * FULL,
-        (lumaLevel - KG_CB * blueDiff - KG_CR * redDiff) * FULL,
-        (lumaLevel + KB_CB * blueDiff) * FULL,
-      )
+      val area = (width * height).toDouble()
+      val rgb = bt709VideoRange.rgb(y / area, cb / area, cr / area)
+      return FloatArray(CHANNELS) { (rgb[it] * FULL).toFloat() }
     } finally {
       CVPixelBufferUnlockBaseAddress(buffer, READ_ONLY)
     }
@@ -157,14 +153,8 @@ public object AppleBufferCodes {
   private const val BYTE_MASK = 0xFF
   private const val FULL = 255f
   private const val READ_ONLY = 1uL
+  private const val BT709 = 1
+  private const val EIGHT_BITS = 8
 
-  // BT.709 video range: luma 16 to 235, chroma centred on 128 over 224 codes.
-  private const val LUMA_FOOT = 16f
-  private const val LUMA_SPAN = 219f
-  private const val CHROMA_MID = 128f
-  private const val CHROMA_SPAN = 224f
-  private const val KR_CR = 1.5748f
-  private const val KG_CB = 0.1873f
-  private const val KG_CR = 0.4681f
-  private const val KB_CB = 1.8556f
+  private val bt709VideoRange = checkNotNull(ycbcrReading(BT709, BT709, BT709).rgbMatrix(EIGHT_BITS, fullRange = false))
 }

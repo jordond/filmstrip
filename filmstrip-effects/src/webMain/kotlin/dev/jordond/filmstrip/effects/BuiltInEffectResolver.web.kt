@@ -31,6 +31,7 @@ import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.geometry.retainedRect
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.OverlayDecode
 import dev.jordond.filmstrip.effects.overlay.OverlayEffect
 import dev.jordond.filmstrip.effects.overlay.OverlayImages
 import dev.jordond.filmstrip.effects.overlay.OverlayPlacement
@@ -46,7 +47,6 @@ import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.effects.overlay.runWithin
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
-import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import kotlin.time.Duration
 
@@ -117,11 +117,21 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   // the output's for a composition one.
   private fun ImageOverlay.toOverlay(attributes: Attributes): EffectResolution {
     if (image is ImageSource.Path) return EffectResolution.Unsupported(id, "${image.named()} $PATH_UNREADABLE")
-    if (image !in images) return EffectResolution.Unsupported(id, "${image.named()} $NOT_PRELOADED")
-    val bitmap = images[image] ?: return EffectResolution.Unsupported(id, "${image.named()} $UNDECODABLE")
+    val picture =
+      when (val decoded = images[image]) {
+        null -> return EffectResolution.Unsupported(id, "${image.named()} $NOT_PRELOADED")
+        OverlayDecode.Undecodable -> return EffectResolution.Unsupported(id, "${image.named()} $UNDECODABLE")
+        is OverlayDecode.Refused -> return EffectResolution.Unsupported(id, decoded.message)
+        is OverlayDecode.Decoded -> decoded.picture
+      }
 
-    val size = Size(bitmap.width, bitmap.height)
-    return overlay(WebGlOverlay(bitmap, size, drawnBy(placedOn(attributes.inputSize, size), attributes)))
+    val drawAt = drawnBy(placedOn(attributes.inputSize, picture.size), attributes)
+    val effect = PlatformEffect(WebGlOverlay(picture.bitmap, picture.size, drawAt, picture.colour, picture.samples))
+    return if (picture.limits.isEmpty()) {
+      EffectResolution.Resolved(effect)
+    } else {
+      EffectResolution.Degraded(effect, picture.limits)
+    }
   }
 
   // Laid out against the frame an export writes and only resampled to the frame entering it, so a

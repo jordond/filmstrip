@@ -392,6 +392,9 @@ internal class WriterRun(
    *
    * Both pumps run on one serial queue, so everything mutable in here is confined to it and needs
    * no atomics. The completion handler is the only thing that crosses back to the coroutine.
+   *
+   * A step the chain could not run fails the run at the next sample either pump moves, rather than once both have
+   * drained. The writer and the reader are cancelled there and the step's reason is the outcome.
    */
   private inner class Session(
     val reader: AVAssetReader,
@@ -409,12 +412,28 @@ internal class WriterRun(
     fun drive(pump: Pump) {
       pump.input.requestMediaDataWhenReadyOnQueue(queue) {
         while (pump.input.isReadyForMoreMediaData()) {
+          if (brokeEarly()) return@requestMediaDataWhenReadyOnQueue
           if (autoreleasepool { !step(pump) }) {
             finish(pump)
             return@requestMediaDataWhenReadyOnQueue
           }
         }
       }
+    }
+
+    /**
+     * Whether the run has failed on a step the chain could not run, failing it the first time one is seen.
+     *
+     * The chain sets its failure on the render queue before it hands the frame over, so the sample after the broken
+     * frame is the latest this sees it. A writer that is no longer writing was stopped from outside, and is left alone.
+     */
+    private fun brokeEarly(): Boolean {
+      if (outcome.isCompleted) return true
+      val broken = composition.chainFailure() ?: return false
+      if (writer.status == AVAssetWriterStatusWriting) writer.cancelWriting()
+      reader.cancelReading()
+      outcome.complete(Outcome.Failed(broken))
+      return true
     }
 
     /**
@@ -477,14 +496,10 @@ internal class WriterRun(
         reader.cancelReading()
       }
 
-      // A step that threw is reported over whatever the writer says, because the writer's own
-      // complaint is a consequence of the frame the chain could not build.
-      val broken = composition.chainFailure()
-      if (broken != null) {
-        writer.cancelWriting()
-        outcome.complete(Outcome.Failed(broken))
-        return
-      }
+      // A step that threw on the last frame is seen only here, after its sample was the last one moved. It is
+      // reported over whatever the writer says, since the writer's complaint follows from the frame the chain could
+      // not build.
+      if (brokeEarly()) return
 
       writer.finishWritingWithCompletionHandler {
         outcome.complete(

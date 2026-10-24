@@ -61,10 +61,10 @@ public sealed interface ExportStatus {
   /**
    * The export finished and wrote [output].
    *
-   * @property output Where the file is. A [MediaSink.Temporary] request is resolved to a real path
-   *   here.
+   * @property output Where the file is. A [MediaSink.Temporary] request is resolved to a real path here.
    * @property info What the written file turned out to be.
-   * @property adjustments What filmstrip changed, non-empty when the plan was degraded.
+   * @property adjustments What filmstrip changed, non-empty when the plan was degraded or the run changed something the
+   * plan could not see, as [ExportSpec.strict] describes.
    */
   @Poko
   public class Success(

@@ -716,6 +716,10 @@ private fun PlaybackEvent.detail(): Map<String, String> =
     is PlaybackEvent.RangeLooped -> mapOf("range" to range.toString())
     is PlaybackEvent.Failed -> mapOf("error" to (error::class.simpleName ?: "unknown"), "message" to error.message)
     is PlaybackEvent.ExternalPlayWhenReadyChanged -> mapOf("wanted" to playWhenReady.toString())
-    is PlaybackEvent.EffectsDegraded -> adjustments.associate { it.kind.name to it.message }
+    is PlaybackEvent.EffectsDegraded -> {
+      adjustments
+        .groupBy({ it.kind.name }, { it.message })
+        .mapValues { (_, messages) -> messages.joinToString(" | ") }
+    }
     is PlaybackEvent.QualityDegraded -> mapOf("message" to message)
   }

@@ -1,0 +1,430 @@
+package dev.jordond.filmstrip.internal
+
+import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.media.Cicp
+import dev.jordond.filmstrip.media.Icc
+import dev.jordond.filmstrip.media.PictureColour
+import dev.jordond.filmstrip.media.PngChromaticities
+import dev.jordond.filmstrip.media.PngGamma
+import dev.jordond.filmstrip.media.YcbcrCoding
+import dev.jordond.filmstrip.media.describes
+import dev.jordond.filmstrip.media.isSrgb
+import dev.jordond.filmstrip.media.isSupported
+import dev.jordond.filmstrip.media.isUnspecified
+import dev.jordond.filmstrip.media.rgbToXyz
+
+/**
+ * How an encoded picture describes its colour, or null when it lands exactly as an untagged picture does.
+ *
+ * Reads the description straight out of the container without decoding the picture, taking the first one in the
+ * container's order of precedence that is understood and fits the picture's stored channels. A description that is
+ * not understood, or that is for a different number of channels, defers to the next. Not understood covers a chunk
+ * or box that is short, fails its CRC or breaks its format's rules, and an ICC profile that does not parse as an RGB
+ * or grey profile. CICP code points whose primaries or transfer is 2, unspecified, describe nothing and defer too.
+ * CICP code points that are understood but not supported do not defer. They end the search and the picture lands as
+ * untagged, since the picture said what it is and a later description is only a fallback.
+ *
+ * - PNG: a `cICP` chunk, then an `iCCP` profile, then an `sRGB` chunk, then `gAMA` and `cHRM`. Only chunks before the
+ * first `IDAT` whose CRC holds are read, and a profile inflates to exactly the size its header declares.
+ * - AVIF and HEIC: the primary item's `colr` of type `prof` or `rICC`, then its `nclx`, then the same from the first
+ * tile the primary item is derived from that has one. Every `ipma` box is read in order and an item's first
+ * association of each kind wins. A file without a primary item has no description.
+ * - JPEG: the `ICC_PROFILE` `APP2` segments before the first scan, joined in sequence order.
+ * - WebP: the `ICCP` chunk of an extended file whose `VP8X` header flags a profile.
+ * - TIFF and BigTIFF: tag 34675 of the first image directory.
+ *
+ * The stored channels come from PNG's colour type, the JPEG frame's component count, TIFF's samples per pixel less its
+ * extra samples, and the AVIF or HEIC primary item's `pixi`, `av1C` or `hvcC`. A WebP is always colour.
+ *
+ * Null covers no description, an `sRGB` chunk, CICP code points or PNG gamma that are sRGB itself, CICP code points
+ * that are not supported, one for a different number of channels, any other format, a truncated or malformed
+ * container, and a profile that is empty or over 16 MiB. An ICC profile that is sRGB comes back as itself, and
+ * [dev.jordond.filmstrip.media.pictureLight] lands it as untagged. A malformed container returns null rather than
+ * throwing.
+ */
+@InternalFilmstripApi
+public fun pictureColour(bytes: ByteArray): PictureColour? {
+  val embedded = embeddedColour(bytes) ?: return null
+  return chooseColour(embedded.descriptions, embedded.channels)
+}
+
+/**
+ * The YCbCr matrix and range an AVIF or HEIC lands with, the codec of its primary item, the video signal its
+ * codestream states and the depth and layout of its samples, or null for any other picture.
+ *
+ * The matrix and range are the ones the primary item's `nclx` records, then the first tile's that has one, the same
+ * boxes [pictureColour] reads. Whether the box's primaries and transfer are supported, and whether a `prof` wins over
+ * it as the picture's colour, makes no difference, since the decoder needs the matrix and range either way. Without
+ * an `nclx` they are the codestream's own, as [YcbcrCoding] describes. A file without one whose primary item is
+ * neither HEVC nor AV1 gives null, and one whose codestream signal does not read still gives its codec.
+ *
+ * The codec comes from the item type the primary item's `infe` entry names, or its first tile's when the item is
+ * derived from tiles such as a `grid`. The `ftyp` brands play no part.
+ *
+ * The video signal is the item's codestream's, or its first tile's, read without changing which description wins. For
+ * HEVC it is the first sequence parameter set in the `hvcC`, or the first at the start of the item's data when the
+ * `hvcC` holds none. For AV1 it is the first sequence header at the start of the item's data, or in its `av1C` when
+ * the data holds none.
+ *
+ * The depth and layout are the ones every sequence parameter set or sequence header of the item and its tiles states,
+ * in their `hvcC` or `av1C` and at the start of their data, and that those boxes state too. Both are null when any of
+ * them does not read or states another depth or layout than the rest.
+ */
+@InternalFilmstripApi
+public fun pictureYcbcrCoding(bytes: ByteArray): YcbcrCoding? {
+  val picture = ByteView(bytes, bytes.size)
+  if (!picture.matches(4, FTYP)) return null
+  return deferring { heifYcbcrCoding(picture) }
+}
+
+/**
+ * Whether [bytes] are an AVIF or HEIC whose primary item is derived from tiles, such as a `grid`, rather than coded
+ * as one image.
+ *
+ * False for any other picture and for a file that is truncated, malformed or has no primary item.
+ */
+@InternalFilmstripApi
+public fun heifPrimaryIsTiled(bytes: ByteArray): Boolean {
+  val picture = ByteView(bytes, bytes.size)
+  return picture.matches(4, FTYP) && deferring { heifTiled(picture) } == true
+}
+
+/**
+ * The first of [descriptions] that fits [channels] and is not unspecified CICP code points, or null when none does or
+ * the one that fits is sRGB itself or CICP code points that are not supported.
+ */
+internal fun chooseColour(
+  descriptions: List<PictureColour>,
+  channels: Int?,
+): PictureColour? =
+  descriptions
+    .firstOrNull { it.describes(channels) && !(it is Cicp && it.isUnspecified) }
+    ?.takeUnless { it.isSrgb || (it is Cicp && !it.isSupported) }
+
+/**
+ * The `cICP` and `iCCP` descriptions of a PNG a decoder wrote, leaving out the chunks it guesses, or null for any
+ * other format and a malformed PNG.
+ */
+internal fun decodedPngColour(bytes: ByteArray): EmbeddedColour? {
+  val png = ByteView(bytes, bytes.size)
+  if (!png.matches(0, PNG_SIGNATURE)) return null
+  return deferring { pngColour(png, decoded = true) }
+}
+
+/**
+ * Every colour description a container carries, in its order of precedence, and how many colour channels it stores,
+ * or null when that count is unknown.
+ */
+internal class EmbeddedColour(
+  val descriptions: List<PictureColour>,
+  val channels: Int?,
+)
+
+/**
+ * Reads the colour descriptions out of [bytes], or returns null for any other format and a malformed container.
+ */
+internal fun embeddedColour(bytes: ByteArray): EmbeddedColour? {
+  val picture = ByteView(bytes, bytes.size)
+  return try {
+    when {
+      picture.matches(0, PNG_SIGNATURE) -> pngColour(picture, decoded = false)
+      picture.matches(0, JPEG_SIGNATURE) -> jpegColour(picture)
+      picture.matches(0, RIFF) && picture.matches(8, WEBP) -> webpColour(picture)
+      picture.matches(4, FTYP) -> heifColour(picture)
+      TIFF_SIGNATURES.any { picture.matches(0, it) } -> tiffColour(picture)
+      else -> null
+    }
+  } catch (_: MalformedPicture) {
+    null
+  }
+}
+
+internal fun isJpeg(bytes: ByteArray): Boolean = ByteView(bytes, bytes.size).matches(0, JPEG_SIGNATURE)
+
+internal fun iccDescription(profile: ByteArray?): Icc? = profile?.takeIf { it.isNotEmpty() }?.let { Icc(it) }
+
+/**
+ * Runs [read] over a piece of a container that is not understood when malformed, so a bad piece gives null and
+ * defers to the next description instead of failing the whole container.
+ */
+internal inline fun <T : Any> deferring(read: () -> T?): T? =
+  try {
+    read()
+  } catch (_: MalformedPicture) {
+    null
+  }
+
+// A decoded PNG keeps only cICP and iCCP, since its decoder writes the other chunks from what it guessed.
+private fun pngColour(
+  png: ByteView,
+  decoded: Boolean,
+): EmbeddedColour {
+  var chunk = png.pngChunk(PNG_SIGNATURE.size)
+  if (chunk.type != PNG_IHDR) malformed()
+  val chunks = HashMap<Int, PngChunk>()
+  while (chunk.type != PNG_IDAT && chunk.type != PNG_IEND) {
+    if (chunk.type in PNG_COLOUR_CHUNKS && chunk.type !in chunks && png.crcHolds(chunk)) chunks[chunk.type] = chunk
+    chunk = png.pngChunk(chunk.next)
+  }
+  val header = chunks[PNG_IHDR]?.takeIf { it.size == PNG_IHDR_SIZE } ?: malformed()
+  val channels = PNG_CHANNELS[png.u8(header.start + 9)] ?: malformed()
+  val gamma = chunks[GAMA]?.takeIf { it.size == 4 }?.let { png.u32(it.start) }?.takeIf { it in 1..MAX_GAMMA }
+  val chromaticities = chunks[CHRM]?.let { png.chromaticities(it) }
+  val cicp = chunks[CICP]?.let { png.cicp(it) }
+  val iccp = chunks[ICCP_PNG]?.let { deferring { png.iccp(it) } }
+  if (decoded) return EmbeddedColour(listOfNotNull(cicp, iccp), channels)
+  val descriptions =
+    listOfNotNull(
+      cicp,
+      iccp,
+      chunks[SRGB]?.takeIf { it.size == 1 && png.u8(it.start) in 0..3 }?.let { SRGB_DESCRIPTION },
+      if (gamma != null || chromaticities != null) PngGamma(gamma?.toInt(), chromaticities) else null,
+    )
+  return EmbeddedColour(descriptions, channels)
+}
+
+// PNG carries RGB samples only, so a cICP whose matrix is not the identity is not understood. A range flag other than
+// 1 is not understood either, so a narrow-range PNG defers to its next description. Reading one would mean expanding
+// its samples to full range and running its curve over the negative values that gives, which core does not do.
+private fun ByteView.cicp(chunk: PngChunk): Cicp? {
+  if (chunk.size != 4 || u8(chunk.start + 2) != 0 || u8(chunk.start + 3) != 1) return null
+  return Cicp(u8(chunk.start), u8(chunk.start + 1), 0, fullRange = true)
+}
+
+private fun ByteView.iccp(chunk: PngChunk): Icc? {
+  val data = within(chunk.end)
+  val nameEnd = (chunk.start until minOf(chunk.end, chunk.start + 80)).firstOrNull { data.u8(it) == 0 } ?: return null
+  if (nameEnd == chunk.start || data.u8(nameEnd + 1) != 0) return null
+  val profile = inflateZlib(bytes, nameEnd + 2, chunk.end, MAX_PROFILE_SIZE, sizePrefixed = true)
+  return iccDescription(profile?.takeIf { it.size >= ICC_HEADER_SIZE })
+}
+
+private fun ByteView.chromaticities(chunk: PngChunk): PngChromaticities? {
+  if (chunk.size != 32) return null
+  val values = IntArray(8) { u32(chunk.start + it * 4).takeIf { value -> value <= Int.MAX_VALUE }?.toInt() ?: -1 }
+  if (values.any { it < 0 }) return null
+  return PngChromaticities(values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7])
+    .takeIf { rgbToXyz(it.values) != null }
+}
+
+private fun jpegColour(jpeg: ByteView): EmbeddedColour {
+  val starts = IntArray(MAX_JPEG_SEGMENTS + 1)
+  val ends = IntArray(MAX_JPEG_SEGMENTS + 1)
+  var count = 0
+  var found = 0
+  var whole = true
+  var channels: Int? = null
+  walkJpeg(jpeg) { marker, _, dataStart, end ->
+    if (marker in SOF0..SOF15 && marker !in NOT_FRAMES && channels == null) {
+      channels = jpeg.within(end).u8(dataStart + 5)
+    }
+    if (whole && jpeg.isProfileSegment(marker, dataStart, end)) {
+      val sequence = jpeg.u8(dataStart + ICC_PROFILE.size)
+      val total = jpeg.u8(dataStart + ICC_PROFILE.size + 1)
+      if (sequence !in 1..total || (count != 0 && total != count) || ends[sequence] != 0) {
+        whole = false
+      } else {
+        count = total
+        starts[sequence] = dataStart + ICC_PROFILE.size + 2
+        ends[sequence] = end
+        found++
+      }
+    }
+  }
+  if (!whole || found == 0 || found != count) return EmbeddedColour(emptyList(), channels)
+  val profile = ByteArray(profileSize((1..count).sumOf { (ends[it] - starts[it]).toLong() }))
+  var at = 0
+  for (sequence in 1..count) {
+    at = jpeg.copyInto(profile, at, starts[sequence], ends[sequence])
+  }
+  return EmbeddedColour(listOfNotNull(iccDescription(profile)), channels)
+}
+
+/**
+ * [bytes] with every `APP2` segment that carries part of an ICC profile left out, or [bytes] itself when it is not a
+ * JPEG.
+ *
+ * The segments are walked up to the first scan the way [pictureColour] walks them. Everything else is kept byte for
+ * byte, fill bytes and other `APP2` segments such as MPF among it. A segment whose length runs past the end of the
+ * picture or cannot hold itself ends the walk there, and the rest is kept as it stands.
+ */
+@InternalFilmstripApi
+public fun jpegWithoutProfile(bytes: ByteArray): ByteArray {
+  val jpeg = ByteView(bytes, bytes.size)
+  if (!jpeg.matches(0, JPEG_SIGNATURE)) return bytes
+  val cuts = mutableListOf<IntRange>()
+  try {
+    walkJpeg(jpeg) { marker, start, dataStart, end ->
+      if (jpeg.isProfileSegment(marker, dataStart, end)) cuts += start until end
+    }
+  } catch (_: MalformedPicture) {
+    // The segments walked so far are cut and the rest is kept.
+  }
+  if (cuts.isEmpty()) return bytes
+  val kept = ByteArray(bytes.size - cuts.sumOf { it.last - it.first + 1 })
+  var from = 0
+  var at = 0
+  for (cut in cuts) {
+    bytes.copyInto(kept, at, from, cut.first)
+    at += cut.first - from
+    from = cut.last + 1
+  }
+  bytes.copyInto(kept, at, from, bytes.size)
+  return kept
+}
+
+// Hands [visit] each marker segment ahead of the first scan, with its marker, where its marker's 0xFF sits, where its
+// data starts and where it ends. Fill bytes ahead of a marker are skipped, and a segment that runs past the end or
+// cannot hold its own length throws MalformedPicture.
+private inline fun walkJpeg(
+  jpeg: ByteView,
+  visit: (marker: Int, start: Int, dataStart: Int, end: Int) -> Unit,
+) {
+  var pos = 2
+  while (true) {
+    if (jpeg.u8(pos) != 0xFF) malformed()
+    while (jpeg.u8(pos) == 0xFF) pos++
+    val start = pos - 1
+    val marker = jpeg.u8(pos++)
+    if (marker == SOS || marker == EOI) return
+    if (marker in RST0..RST7 || marker == TEM) continue
+    val length = jpeg.u16(pos)
+    if (length < 2) malformed()
+    val end = jpeg.span(pos, length.toLong())
+    visit(marker, start, pos + 2, end)
+    pos = end
+  }
+}
+
+private fun ByteView.isProfileSegment(
+  marker: Int,
+  dataStart: Int,
+  end: Int,
+): Boolean = marker == APP2 && end - dataStart >= ICC_PROFILE.size + 2 && matches(dataStart, ICC_PROFILE)
+
+private fun webpColour(file: ByteView): EmbeddedColour {
+  val webp = file.within(minOf(8 + file.u32(4, little = true), file.end.toLong()).toInt())
+  var pos = 12
+  if (webp.u32(pos).toInt() != VP8X || webp.u8(pos + 8) and VP8X_ICC_FLAG == 0) {
+    return EmbeddedColour(emptyList(), WEBP_CHANNELS)
+  }
+  while (true) {
+    val size = webp.u32(pos + 4, little = true)
+    val end = webp.span(pos + 8, size)
+    if (webp.u32(pos).toInt() == ICCP_WEBP) {
+      return EmbeddedColour(listOfNotNull(iccDescription(webp.profile(pos + 8, end))), WEBP_CHANNELS)
+    }
+    pos = end + (size and 1L).toInt()
+  }
+}
+
+private fun tiffColour(tiff: ByteView): EmbeddedColour {
+  val little = tiff.u8(0) == 'I'.code
+  val big = tiff.u16(2, little) == BIG_TIFF
+  val entrySize = if (big) 20 else 12
+  val inlineSize = if (big) 8 else 4
+  val directory =
+    if (big) {
+      if (tiff.u16(4, little) != 8) malformed()
+      tiff.offset(tiff.u64(8, little))
+    } else {
+      tiff.offset(tiff.u32(4, little))
+    }
+  val entries = if (big) tiff.u64(directory, little) else tiff.u16(directory, little).toLong()
+  var profile: ByteArray? = null
+  var samples = 1L
+  var extraSamples = 0L
+  var palette = false
+  var entry = directory + if (big) 8 else 2
+  var remaining = entries
+  while (remaining-- > 0) {
+    tiff.span(entry, entrySize.toLong())
+    val type = tiff.u16(entry + 2, little)
+    val length = if (big) tiff.u64(entry + 4, little) else tiff.u32(entry + 4, little)
+    val value = entry + if (big) 12 else 8
+    when (tiff.u16(entry, little)) {
+      ICC_TAG -> {
+        if (profile == null && type in ICC_TAG_TYPES) {
+          val start =
+            when {
+              length <= inlineSize -> value
+              big -> tiff.offset(tiff.u64(value, little))
+              else -> tiff.offset(tiff.u32(value, little))
+            }
+          profile = tiff.profile(start, tiff.span(start, length))
+        }
+      }
+      SAMPLES_PER_PIXEL -> {
+        samples = tiff.shortOrLong(value, type, little) ?: samples
+      }
+      EXTRA_SAMPLES -> {
+        extraSamples = length
+      }
+      PHOTOMETRIC -> {
+        palette = tiff.shortOrLong(value, type, little) == PHOTOMETRIC_PALETTE
+      }
+    }
+    entry += entrySize
+  }
+  val channels = if (palette) 3L else samples - extraSamples
+  return EmbeddedColour(listOfNotNull(iccDescription(profile)), channels.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt())
+}
+
+private fun ByteView.shortOrLong(
+  at: Int,
+  type: Int,
+  little: Boolean,
+): Long? =
+  when (type) {
+    TIFF_SHORT -> u16(at, little).toLong()
+    TIFF_LONG -> u32(at, little)
+    else -> null
+  }
+
+private val JPEG_SIGNATURE = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte())
+private val RIFF = ascii("RIFF")
+private val WEBP = ascii("WEBP")
+private val FTYP = ascii("ftyp")
+private val TIFF_SIGNATURES = listOf("II*\u0000", "MM\u0000*", "II+\u0000", "MM\u0000+").map(::ascii)
+private val ICC_PROFILE = ascii("ICC_PROFILE\u0000")
+
+private val CICP = fourcc("cICP")
+private val ICCP_PNG = fourcc("iCCP")
+private val SRGB = fourcc("sRGB")
+private val GAMA = fourcc("gAMA")
+private val CHRM = fourcc("cHRM")
+private val PNG_COLOUR_CHUNKS = setOf(PNG_IHDR, CICP, ICCP_PNG, SRGB, GAMA, CHRM)
+private val VP8X = fourcc("VP8X")
+private val ICCP_WEBP = fourcc("ICCP")
+
+// The colour channels each PNG colour type stores. A palette's entries are colour.
+private val PNG_CHANNELS = mapOf(0 to 1, 2 to 3, 3 to 3, 4 to 1, 6 to 3)
+
+// An sRGB chunk stands for exactly what sRGB's own code points do.
+private val SRGB_DESCRIPTION = Cicp(primaries = 1, transfer = 13, matrix = 0, fullRange = true)
+
+private const val MAX_GAMMA = Int.MAX_VALUE.toLong()
+private const val SOS = 0xDA
+private const val EOI = 0xD9
+private const val APP2 = 0xE2
+private const val SOF0 = 0xC0
+private const val SOF15 = 0xCF
+
+// Markers in the frame range that start no frame: DHT, JPG and DAC.
+private val NOT_FRAMES = setOf(0xC4, 0xC8, 0xCC)
+private const val MAX_JPEG_SEGMENTS = 255
+private const val RST0 = 0xD0
+private const val RST7 = 0xD7
+private const val TEM = 0x01
+private const val VP8X_ICC_FLAG = 0x20
+private const val WEBP_CHANNELS = 3
+private const val BIG_TIFF = 43
+private const val ICC_TAG = 34675
+private const val SAMPLES_PER_PIXEL = 277
+private const val EXTRA_SAMPLES = 338
+private const val PHOTOMETRIC = 262
+private const val PHOTOMETRIC_PALETTE = 3L
+private const val TIFF_SHORT = 3
+private const val TIFF_LONG = 4
+private const val ICC_HEADER_SIZE = 128
+private val ICC_TAG_TYPES = setOf(1, 7)

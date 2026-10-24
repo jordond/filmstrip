@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.media.HDR_REFERENCE_WHITE_NITS
 import dev.jordond.filmstrip.media.authoredHdrNits
 import kotlin.math.abs
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -105,6 +106,28 @@ class HdrSourceOverTest {
 
     assertFalse(HdrOverlayCells.Cell(translucentGrey, AuthoredColours.MID_GREY, 0.5f).isBlend)
     assertTrue(HdrOverlayCells.Cell(translucentGrey, AuthoredColours.MID_GREEN, 0.5f).isBlend)
+  }
+
+  @Test
+  fun lightLandsInTheMiddleOfTheRampAtHalfAndAQuarter() {
+    val under = floatArrayOf(100f, 50f, 0f)
+    val over = floatArrayOf(300f, 50f, 1000f)
+
+    assertContentEquals(floatArrayOf(200f, 50f, 500f), OverlayPixels.hdrSourceOver(under, over, 0.5f))
+    assertContentEquals(floatArrayOf(150f, 50f, 250f), OverlayPixels.hdrSourceOver(under, over, 0.25f))
+  }
+
+  @Test
+  fun theIntOverloadBlendsTheNitsOfItsColour() {
+    HdrOverlayCells.CELLS.forEach { cell ->
+      val over = authoredHdrNits(cell.overlay)
+      val under = authoredHdrNits(cell.background)
+      val blended = FloatArray(3) { cell.opacity * over[it] + (1f - cell.opacity) * under[it] }
+
+      assertContentEquals(blended, OverlayPixels.hdrSourceOver(under, cell.overlay, cell.opacity), "$cell")
+      assertContentEquals(blended, OverlayPixels.hdrSourceOver(under, over, cell.opacity), "$cell")
+      assertContentEquals(blended, cell.nits(), "$cell")
+    }
   }
 
   private fun cellsAt(opacity: Float): List<HdrOverlayCells.Cell> =

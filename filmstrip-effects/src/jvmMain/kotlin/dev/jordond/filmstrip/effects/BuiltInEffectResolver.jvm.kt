@@ -46,9 +46,10 @@ import java.util.Locale
  * Every lowering is a pure function of the spec and the resolved [Attributes], so it is assertable
  * in a unit test with no toolchain installed, which neither of the other two resolvers can manage.
  * An overlay is the one lowering that reads anything. An animated one needs the picture's own pixel
- * size, which it takes from the image's header rather than by decoding it, and one on an HDR grade
- * decodes the picture to carry it onto the grade's signal. The JDK reads that picture when it can,
- * and the backend's [OverlayPictureDecoder] reads it otherwise.
+ * size. One on an HDR grade decodes the picture to carry it onto the grade's signal, and one on an
+ * SDR grade decodes a picture that describes its colour, or a JPEG XL, to draw it in that colour.
+ * The backend's [OverlayPictureDecoder] decodes and sizes every picture when there is one, and the
+ * JDK reads them when there is none.
  */
 public actual class BuiltInEffectResolver : EffectResolver {
   private val pictureDecoder: OverlayPictureDecoder?
@@ -62,10 +63,15 @@ public actual class BuiltInEffectResolver : EffectResolver {
    *
    * The ffmpeg backend builds its catalogue this way when it finds a [BuiltInEffectResolver] in the resolver list it
    * was given. It matches that type exactly, so a resolver of your own that wraps a [BuiltInEffectResolver] keeps the
-   * JDK-only reads unless it builds the one it wraps with this constructor. Without a decoder, an animated overlay or
-   * one on an HDR grade is refused when its picture is in a format the JDK has no reader for, such as WebP.
+   * JDK-only reads unless it builds the one it wraps with this constructor. Without a decoder, an animated overlay, one
+   * on an HDR grade and one that describes its colour are refused when the picture is in a format the JDK has no
+   * reader for, such as WebP, an AVIF or HEIC is refused on every grade, since the graph cannot repeat one as it is,
+   * and a JPEG XL on an SDR grade is drawn without looking for a colour description in it.
    *
-   * @param pictureDecoder Reads an overlay picture that the JDK has no reader for.
+   * With a decoder, a URL only ffmpeg opens, such as an `https` one, is drawn from its decode, and refused when that
+   * decode describes its colour, since this process cannot read the description its container carries.
+   *
+   * @param pictureDecoder Decodes and sizes every overlay picture the catalogue reads.
    */
   @InternalFilmstripApi
   public constructor(pictureDecoder: OverlayPictureDecoder) {

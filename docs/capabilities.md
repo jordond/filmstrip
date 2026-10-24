@@ -81,7 +81,7 @@ it recognises, and declines the rest so the next resolver gets a look.
 | `KenBurns`                              | ✅ [^clip-only]       | ✅ [^clip-only]   | ❌ [^pan-pending] | ❌ [^pan-pending]      |
 | `Brightness` [^hdr-brightness]          | ✅                    | ✅                | ✅                | ✅                     |
 | Colour matrices [^matrix] [^sdr-matrix] | ✅                    | ✅                | ✅                | ✅                     |
-| `ImageOverlay` [^hdr-overlay]           | ✅ [^android-overlay] | ✅                | ✅ [^web-image]   | ✅                     |
+| `ImageOverlay` [^hdr-overlay]           | ✅ [^android-overlay] | ✅                | ✅ [^web-image]   | ✅ [^ffmpeg-image]     |
 | `TextOverlay` [^hdr-overlay]            | ✅ [^text-raster]     | ✅ [^text-raster] | ✅ [^web-text]    | ❌ [^ffmpeg-text]      |
 | Overlay animation                       | ✅ [^media3-anchor]   | ✅                | ✅                | ✅ [^ffmpeg-animation] |
 
@@ -120,20 +120,23 @@ it recognises, and declines the rest so the next resolver gets a look.
     partial opacity and fades blend with the frame in linear display light. Apple draws both overlays
     that way in Core Image. The browser maps the raster to linear light before uploading it and blends
     it in the compositor. ffmpeg draws the image that way and no text at all. It decodes the picture
-    through the JDK's `ImageIO`, or through its own ffmpeg when the JDK has no reader for it, carries
-    it onto the grade's signal and blends it on the part of the frame the overlay covers, on the same
-    float planes and tables a colour matrix on a grade runs on, so it writes the exact code values the
-    blend works out. media3 meets
-    this on PQ and falls short on HLG.
+    through its own ffmpeg, carries it onto the grade's signal and blends it on the part of the frame
+    the overlay covers, on the same float planes and tables a colour matrix on a grade runs on, so it
+    writes the exact code values the blend works out. media3 meets this on PQ and falls short on HLG. Every backend draws a picture in the colour its file
+    describes, as [Overlay picture colour](#overlay-picture-colour) sets out, so on SDR a tagged
+    picture clips at BT.709 and on an HDR grade it keeps its gamut inside BT.2020.
 
 [^android-overlay]:
     On an HDR grade the overlay's texels are rewritten so that media3's own read of them
     lands where the other backends put them, and a PQ grade resolves as SDR does. media3 1.11.1 holds
     an HLG frame as scene light and blends the overlay there, so every overlay on an HLG grade comes
-    back `Degraded` with `DegradationReason.ApproximateAlgorithm` and this message: "On an HLG grade
-    media3 blends an overlay into the frame in scene light rather than display light. Opaque texels
-    land where a fill of their colour does, and soft edges and partial opacity land a little darker
-    than the same blend on the other backends." A run of overlays shares one `OverlayEffect` here, so
+    back `Degraded` with a cause of `DegradationReason.ApproximateAlgorithm` and this message: "On an
+    HLG grade media3 blends an overlay into the frame in scene light rather than display light. Opaque
+    texels land where a fill of their colour does, and soft edges and partial opacity land a little
+    darker than the same blend on the other backends." A picture Android's decoder lands short of its
+    file carries a cause for each limit ahead of that one, and the
+    [overlay picture limits](#how-a-limit-shows) list each one. Each cause is reported as its own
+    `EffectApproximated` adjustment. A run of overlays shares one `OverlayEffect` here, so
     N overlays cost one GL pass. A preview lowers overlays the way its export does. An overlay rules
     out a copy, so on a device with no HDR encoder an HDR composition carrying one tone maps to SDR on
     export, and its preview tone maps the same way, even on an HDR panel.
@@ -148,7 +151,15 @@ it recognises, and declines the rest so the next resolver gets a look.
 [^web-image]:
     The image is decoded before planning, so one the browser cannot decode is refused by
     name at plan time. An `ImageSource.Path` is refused by name as well, since a page cannot read a file
-    path, so pass the image as bytes or a URI.
+    path, so pass the image as bytes or a URI. Chrome decodes no HEIC, so a HEIC overlay is refused
+    there.
+
+[^ffmpeg-image]:
+    An AVIF or HEIC keeps the alpha its file carries, a grid one included, and a limited range
+    alpha is expanded to full range. Only ffmpeg straightens a picture whose file records its colour
+    as premultiplied with an `iref prem`. Apple and Android take the alpha their platform decoders give.
+    ffmpeg 6.1 lists no stream for an AVIF's alpha item, so there the overlay draws opaque and comes
+    back `Degraded` with a cause of `DegradationReason.AlphaDiscarded`. ffmpeg 6.1 opens no HEIC at all.
 
 [^web-text]:
     Text is rasterised at resolve against the frame an export writes, as on Android and
@@ -219,10 +230,179 @@ it recognises, and declines the rest so the next resolver gets a look.
     command only where that value moves and still covers every frame of the run, so a branch opened
     part way through reads what it is holding there. It needs a frame rate to sample onto and a
     closed run to sample across, and refuses by name without either. It also reads the picture's size,
-    to size the drawn picture off its own pixels. The JDK's `ImageIO` reads it off the header when it
-    has a reader for the format, and the backend's own ffprobe reads it otherwise, so a picture animates
-    wherever the ffmpeg build decodes it, WebP and HEIC included. ffmpeg draws no `TextOverlay` at all,
+    to size the drawn picture off its own pixels. The size comes from the picture's decode when the
+    resolve already decoded it, and otherwise from the backend's own ffmpeg, which decodes one frame of
+    it and reads the size that frame comes out at, so a picture animates wherever the ffmpeg build
+    decodes it, WebP and HEIC included. ffmpeg draws no `TextOverlay` at all,
     so this is `ImageOverlay` alone.
+
+### Overlay picture colour
+
+An `ImageOverlay` picture is drawn in the colour its file describes. Every backend reads the
+picture's stored samples with no colour conversion of its own, and filmstrip turns them into colour
+from the description it reads out of the file, so one file lands on one colour on every backend, in
+a preview as in its export.
+
+| Format              | Descriptions read, the first one understood wins                |
+| ------------------- | --------------------------------------------------------------- |
+| PNG                 | `cICP`, then `iCCP`, then `sRGB`, then `cHRM` and `gAMA`        |
+| HEIF, HEIC and AVIF | an ICC profile in `colr`, then `colr nclx`                      |
+| JPEG, WebP and TIFF | an embedded ICC profile                                         |
+| JPEG XL             | the description the backend's decoder reads from the codestream |
+
+A description filmstrip does not understand, or one for another number of channels than the picture
+stores, gives way to the next one in the list. So does CICP whose primaries or transfer is 2, for
+unspecified, and a PNG `cICP` at narrow range, since filmstrip does not expand its samples. A PNG
+`gAMA` of 45455 with BT.709 chromaticities or no `cHRM` at all is sRGB, a `gAMA` alone takes sRGB's
+primaries, and a `cHRM` alone takes sRGB's curve. A HEIF file reads its primary item's own `colr`
+before a tile's. An ICC profile is read when it is a matrix and curve RGB profile, a LUT profile or
+a grey one. CICP is read for primaries 1, 4 to 12 and 22, and for transfers 1, 4 to 8, 11 and 13 to
+18, at full or limited range in HEIF, HEIC and AVIF. Any other CICP code point ends the search and
+the picture draws untagged. A JPEG XL draws only where there is a decoder for it, Apple's ImageIO and
+an ffmpeg built with libjxl. Android and Chrome decode none, so it is refused there.
+
+An untagged picture, or one tagged sRGB, draws its stored codes on SDR, and on an HDR grade lands at
+the light a fill of the same colour lands at. A tagged picture lands where its description puts
+it:
+
+- **SDR** converts it to BT.709 and clips each channel to the edge of BT.709, as a colour management
+  module does for a colour SDR video has no code for. A Display P3 red comes out as BT.709's own red.
+- **An HDR grade** puts the picture's white at reference white (203 nits) and keeps its gamut inside
+  BT.2020, so a Display P3 or Adobe RGB picture keeps the colours SDR clips. Only a colour outside
+  BT.2020 itself clips.
+- **A PQ or HLG picture** keeps its light on an HDR grade, a PQ one at the nits it stores and an HLG
+  one at the light its curve gives each texel. On SDR that light is read against reference white
+  and clipped.
+- **A sixteen-bit picture** keeps all sixteen bits through the conversion, on every backend that
+  decodes it at that depth.
+
+#### AVIF and HEIC
+
+An AVIF or HEIC stores YCbCr. Its `nclx` box records the matrix and range the samples are coded
+with, and its codestream can record them again. Several platform decoders read the codestream rather
+than the box, or pick a default of their own when the codestream says nothing. So before any decoder
+sees the picture, filmstrip rewrites the codestream of the primary item and the tiles it is built
+from to state what `nclx` records, and the picture decodes the way the box says everywhere. A
+thumbnail or an alpha item keeps its own, and a HEIF image sequence, which carries a `moov` box, is
+left as it is.
+
+An AVIF or HEIC with no `nclx` lands by its codestream's own signal, AV1's colour config or HEVC's
+VUI. A codestream that leaves its matrix out or names 2 for unspecified reads as BT.601, and a range
+it leaves out reads as limited. The rewrite states that, so no decoder picks its own. A picture with
+no `nclx` whose codestream filmstrip cannot read is left to the platform decoder's own reading.
+
+AV1 and HEVC allow the identity matrix only on 4:4:4 samples, so a picture naming it on samples not
+known to be 4:4:4 is refused on every backend with the same reason: "The picture names the identity
+matrix on samples not known to be 4:4:4, the only ones AV1 and HEVC allow it on."
+
+#### The YCbCr matrix
+
+Each ITU-T H.273 matrix coefficients code point has one reading in filmstrip, and every backend
+lands a picture by it. A backend lands a code point one of three ways. Its decoder reads a matrix
+with the same weights, and the picture is restated to it. Its decoder hands back the stored samples
+untouched, and filmstrip turns them into colour itself. Or neither works, and the picture lands
+through the nearest matrix the decoder does read.
+
+| Matrix                         | Read as                                                        | ffmpeg      | Apple                                                  | Android                                                                                        | Browser                                                                 |
+| ------------------------------ | -------------------------------------------------------------- | ----------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| 0, identity                    | green, blue and red as stored, on 4:4:4 samples only           | exact       | exact at 8 and 10 bits, nearest at 12                  | unsupported, no API level reads it                                                             | exact                                                                   |
+| 1, BT.709                      | Kr 0.2126, Kb 0.0722                                           | exact       | exact                                                  | exact from API 33 at full range and from API 34 at limited, 35 for a ten-bit AVIF, else nearest | exact at full range, Chrome's drift at limited                          |
+| 2, unspecified                 | as 6                                                           | exact       | exact                                                  | exact                                                                                          | exact                                                                   |
+| 4, FCC                         | Kr 0.30, Kb 0.11                                               | exact       | exact on 4:4:4 at 8 and 10 bits, else nearest          | exact in an AVIF from API 36, else nearest                                                     | exact                                                                   |
+| 5 and 6, BT.601                | Kr 0.299, Kb 0.114                                             | exact       | exact                                                  | exact                                                                                          | exact                                                                   |
+| 7, SMPTE 240M                  | Kr 0.212, Kb 0.087                                             | exact       | as 4                                                   | as 4                                                                                           | exact                                                                   |
+| 8, YCgCo                       | YCgCo                                                          | exact       | as 4                                                   | exact in an eight-bit full range AVIF from API 36, else unsupported                           | exact at full range, at limited exact on eight-bit 4:4:4, else unsupported |
+| 9, BT.2020                     | Kr 0.2627, Kb 0.0593                                           | exact       | exact                                                  | exact from API 33, else nearest                                                                | exact at full range, Chrome's drift at limited                          |
+| 10, BT.2020 constant luminance | H.273's constant luminance inverse, through the transfer's OETF | exact       | as 4                                                   | nearest                                                                                        | exact on eight-bit 4:4:4, else through 9                                |
+| 12, derived from primaries     | Kr and Kb from the primaries, as a named matrix when one matches | exact       | as the named matrix, else as 4                         | as the named matrix, else nearest                                                              | as the named matrix, else exact                                         |
+| 13, derived constant luminance | as 10, with Kr and Kb from the primaries                       | exact       | as 4                                                   | nearest                                                                                        | exact on eight-bit 4:4:4, else through 1 or 9                           |
+| 3, 11, 14, and 15 and up       | refused                                                        | unsupported | unsupported                                            | unsupported                                                                                    | unsupported                                                             |
+
+11 is YDzDx and 14 is ICtCp, which filmstrip does not read, and 3 and every code point past 14 are
+reserved. 12 and 13 are refused on primaries filmstrip has no chromaticities for, and 10 and 13 are
+refused beside the PQ or HLG transfer. ffmpeg needs the sample depth to turn stored samples into
+colour, so a picture whose matrix swscale has no name for, in a file that does not state its depth,
+is unsupported there. A constant luminance picture taking the nearest matrix lands through the
+non-constant one with the same weights, and on the logarithmic transfers 9 and 10 that lands past
+the bound. On the browser 13 lands through 1 or 9 instead, through 1 on Display P3 primaries.
+
+A nearest landing is measured by encoding every red, green and blue at 17 evenly spaced levels with
+the picture's own matrix and decoding them through the other one, at the picture's range or at the
+range the decoder moves it to. Both are read as sRGB. When the mean CIE 1976 colour difference is 12
+or less the overlay is drawn and comes back `Degraded` with `DegradationReason.ColorSpaceConverted`.
+Past 12 it is unsupported. Either message names the decoder and the matrix it lands through, and ends
+the same way on every backend, like "a mean colour difference of 6.8 dE76, with one channel up to
+41.2 8-bit codes out", the worst channel measured over 33 levels.
+
+#### How a limit shows
+
+A limit of a platform's decoder or encoder that still lets the overlay draw comes back as
+`EffectResolution.Degraded`. Its `causes` list every way the picture falls short, each a
+`Degradation` with a `DegradationReason` and a message naming the platform, and the plan reports
+each cause as its own `EffectApproximated` adjustment. On Android the decoder's limits come first and
+the HLG blend last. On the browser the matrix comes before the eight-bit decode. A limit that keeps the picture from landing as its file records, past the bound
+or at all, comes back as `EffectResolution.Unsupported` with the reason. A limit that moves a colour
+by a few codes is listed here with its size and is not reported.
+
+| Backend | Limit                                                                                                                                                                    | How it shows                                                                                                         |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| Android | No HEIC decoder before API 28 and no AVIF decoder before API 31                                                                                                          | Unsupported, naming the formats each API level decodes                                                               |
+| Android | The matrices each API level reads, in the table above. HEIC was measured on API 30, 31, 33, 34, 35 and 36 and AVIF on 31, 33, 34, 35 and 36. API 28 and 29 are taken to read as 30 does and 32 as 31 does | `Degraded`, `ColorSpaceConverted`, through the nearest matrix, or unsupported past the bound                        |
+| Android | Before API 33 the AVIF decoder reads every AVIF at limited range                                                                                                         | A full range AVIF is `Degraded`, `ColorSpaceConverted`, and its landing is measured with the range moved as well     |
+| Android | On API 33 the AVIF decoder hands back no frame for a ten-bit AVIF                                                                                                        | Unsupported                                                                                                          |
+| Android | The AVIF decoder draws a twelve-bit AVIF only from API 36, and then at eight bits a sample. API 31, 33 and 34 hand back no frame and API 35 the wrong colours              | Unsupported on API 31 to 35, `Degraded` with `PrecisionReduced` from API 36. No AVIF decodes below API 31          |
+| Android | The HEIC decoder hands back no frame for a twelve-bit HEIC, measured on API 30, 31 and 33 to 36                                                                          | Unsupported                                                                                                          |
+| Android | API 24 and 25 have no half float bitmap, so a sixteen-bit PNG is cut to eight bits                                                                                        | `Degraded`, `PrecisionReduced`                                                                                       |
+| Android | A sixteen-bit picture decoded into a colour space other than extended sRGB or its linear form                                                                            | Unsupported                                                                                                          |
+| Apple   | ImageIO turns a HEIF's YCbCr into whole codes at the depth it decodes to, eight bits for an eight-bit picture, ten for ten-bit and sixteen for twelve-bit, with full range chroma read over 254 codes rather than 255 | On macOS an eight-bit sample sits up to 1.38 codes from its H.273 reading on the HEIC fixtures                      |
+| Apple   | The matrices ImageIO reads, in the table above                                                                                                                           | `Degraded`, `ColorSpaceConverted`, through the nearest matrix, or unsupported past the bound                        |
+| Apple   | ImageIO hands out no samples for a twelve-bit HEIC at limited range or a grey HEIC with alpha                                                                            | Unsupported                                                                                                          |
+| Apple   | The iOS simulator decodes a limited range AVIF or HEIC by moving each code to full range, rounded down                                                                   | On the simulator only                                                                                                |
+| Apple   | An iPhone's HEIF decode                                                                                                                                                  | Unmeasured                                                                                                           |
+| Apple   | A HEIF coded with H.264 goes through Core Image's own decode                                                                                                             | Unmeasured                                                                                                           |
+| Apple   | VideoToolbox's lossy encode rings into the middle of a small overlay                                                                                                     | Measured up to 4.8% of the chroma step between the overlay and the frame behind it                                   |
+| ffmpeg  | swscale converts YCbCr deeper than eight bits to sixteen-bit RGB at 255/256 of full scale at limited range and 1023/1024 at full                                          | Up to four ten-bit codes low. A picture filmstrip turns into colour from its stored samples has no shortfall         |
+| ffmpeg  | ffmpeg 6.1 has no HEIF demuxer                                                                                                                                           | A HEIC is unsupported                                                                                                |
+| ffmpeg  | ffmpeg 6.1 lists no stream for an AVIF's alpha item                                                                                                                      | `Degraded`, `AlphaDiscarded`, drawn opaque                                                                           |
+| ffmpeg  | An AVIF or HEIC the build has no decoder for                                                                                                                             | Unsupported                                                                                                          |
+| Browser | Chrome decodes no HEIC                                                                                                                                                   | Unsupported at plan time                                                                                             |
+| Browser | The matrices Chrome reads, in the table above                                                                                                                            | `Degraded`, `ColorSpaceConverted`, through the nearest matrix, or unsupported past the bound                        |
+| Browser | Chrome turns a limited range BT.709 or BT.2020 AVIF into RGB up to six eight-bit codes from its H.273 reading, on colours inside the gamut. That holds for 12 on those primaries too | Drawn as Chrome decodes it                                                                                           |
+| Browser | `createImageBitmap` decodes to eight bits a channel. Only a PNG is read at its full depth, through filmstrip's own PNG reader                                              | A ten or twelve-bit AVIF is `Degraded`, `PrecisionReduced`, drawn from its eight-bit decode                          |
+| Browser | Safari                                                                                                                                                                   | Unmeasured                                                                                                           |
+| Browser | A PNG's inflated rows, its sixteen-bit samples and the eight-bit bitmap drawn from it must fit in 1 GiB. A 48 megapixel PNG fits at eight or sixteen bits | Unsupported past it, the reason naming the picture's size and the 1 GiB |
+
+ffmpeg was measured on 6.1.1 and 9.0.2, and keeps a twelve-bit AVIF, and a twelve-bit HEIC where its
+build opens HEIF, deeper than eight bits. Chrome was measured headless.
+
+Apple decodes a HEIC, HEIF, HEIF sequence or AVIF once, through ImageIO, when the overlay is read,
+and draws those samples on every frame, so it reads the same codes every time. The decode is held
+for as long as the overlay is, four bytes a texel for an eight-bit picture, so a 48 megapixel still
+holds 192 MB. Every read and draw counts what it holds at once against one 1 GiB ceiling, the decode
+it works from, what it holds on the way and what it makes. Copying the samples out of ImageIO counts
+the decode beside the copy, and for a grey picture the RGBA written from it too, and a picture past
+the ceiling is unsupported. Drawing a tagged picture at its colour also makes premultiplied floats,
+sixteen bytes a texel, a band of rows at a time. A picture whose codes, floats and band would count
+past 1 GiB, or whose floats cannot be allocated, is refused only when a draw has to convert it. The
+export then fails with `ExportError.UnsupportedEffect` carrying the reason, stopping at the next
+sample the writer moves after the frame that drew it. A preview stops there instead, with
+`PlaybackStatus.Error` and `PlaybackEvent.Failed` carrying `PlaybackError.UnsupportedFormat` with
+the same reason, and draws that frame and each one after it without its effects. An untagged picture on an SDR frame, or one
+whose colour comes out at its own eight-bit codes, holds no floats and draws at any size. A picture
+filmstrip turns into colour from its stored samples is held to the same 1 GiB when it is read, and
+is unsupported past it. A 48 megapixel picture counts 768 MB read that way. Drawn at its colour an
+eight-bit one counts 1,010 MB and draws, and a sixteen-bit or evaluated one, eight bytes a texel of
+codes, counts 1,202 MB and is refused. On an Apple M4 Max under macOS 26.6.2, in a debug build, drawing an eight-bit one tagged
+Display P3 peaked at 1,252 MB on an SDR frame, its decode included, and each image took 31 to 35 s
+to make.
+
+Some descriptions are not read at all, and a picture carrying only one of them draws untagged: TIFF's
+WhitePoint, PrimaryChromaticities and TransferFunction tags, a JPEG's Exif ColorSpace, a BMP V4 or V5
+colour space, and gain maps. A CMYK or Lab picture draws untagged as well.
+
+A picture's orientation is not read the same way everywhere yet. ffmpeg turns a picture by its EXIF
+orientation. The browser turns a JPEG by it and draws a PNG's `eXIf` as stored. Apple and Android
+draw every picture as stored, whatever its orientation says.
 
 ### Overlay animation
 
@@ -315,6 +495,31 @@ What each backend encodes.
 encoder for falls back to the next rung and reports a `CodecFallback`, or refuses under
 `ExportSpec.strict`. `VideoCodec.Auto` walks H.264 then HEVC on Android, Apple and ffmpeg, and
 H.264, VP9 then HEVC in the browser.
+
+An Android encoder can write another matrix than it is asked for. Android's own software H.264 and
+HEVC encoders were measured writing BT.601 at limited range when asked for SDR BT.709 at limited
+range: `OMX.google.h264.encoder` on API 30 to 32, and `c2.android.avc.encoder` and
+`c2.android.hevc.encoder` on API 31 and 32. The c2 encoders write BT.709 on API 33 and 36. Those
+encoders ship in an updatable Mainline module, so the export does not go by name or API level.
+The first SDR export through an encoder in a process encodes one green frame through it and reads
+the codes back. Frame sizes are measured in three tiers, up to 720x576, up to 1920x1080 and above,
+each at the largest size in the tier the encoder takes, and the answer is kept per tier for that
+process. A portrait frame is measured in the tier of the landscape frame it turns into. media3
+picks the encoder while the export runs, so the plan cannot see it. An encoder measured writing
+another matrix or range is made again by name with that one, so its colours decode as authored,
+and the export reports a `ColorSpaceChanged` on `ExportStatus.Success`.
+Android's `MediaFormat` names the primaries and the matrix together, so a file tagged BT.601
+records BT.470 BG primaries as well, and a colour-managed player can show greens a shade apart. A
+`colr` box stating BT.709 primaries beside a BT.601 matrix reads back through Android's own
+`MediaExtractor` as colour standard 86, outside `MediaFormat`'s constants, and filmstrip's `probe`
+reads that as `ColorSpace.Unknown`, so the file keeps BT.470 BG. `ExportSpec.strict` cannot refuse
+it, since the plan said `Capable`. An encoder whose codes the probe cannot read, or that encodes no
+size in the tier, keeps what media3 asked for, and that answer is kept too. A measurement that runs
+past five seconds keeps the request until the next export measures again, and so does a probe that
+throws, as it does when a hardware encoder has no instance free beside the one media3 already holds.
+The reason is logged under the `filmstrip-media3` tag. An encoder made again by name that fails,
+or comes back as another encoder, fails the export rather than writing a tag its codes do not
+match.
 
 [^ffmpeg-vp9]:
     Reported when the build carries libvpx, and reachable only by naming
