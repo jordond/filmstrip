@@ -39,17 +39,8 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Formatting
-        run: ./gradlew spotlessCheck --scan
-
-      - name: Binary Compatibility Validation
-        run: ./gradlew checkKotlinAbi --scan
-
-      - name: Architecture guards
-        run: ./gradlew --scan checkForbiddenImports checkLayering
-
-      - name: Lint
-        run: ./gradlew lint --scan
+      - name: Formatting, ABI, architecture guards and lint
+        run: ./gradlew --continue spotlessCheck checkKotlinAbi checkForbiddenImports checkLayering lint --scan
 
   test:
     strategy:
@@ -62,7 +53,7 @@ jobs:
           { target: "macos-arm", os: "macos-latest", tasks: "macosArm64Test", ffmpeg: true },
           { target: "wasm-browser", os: "ubuntu-latest", tasks: "wasmJsBrowserTest" },
           { target: "js-browser", os: "ubuntu-latest", tasks: "jsBrowserTest" },
-          { target: "sample", os: "macos-latest", tasks: ":sample:androidApp:assembleDebug" }
+          { target: "sample", os: "ubuntu-latest", tasks: ":sample:androidApp:assembleDebug" }
         ]
     runs-on: ${{ matrix.config.os }}
     name: Test ${{ matrix.config.target }}
@@ -111,6 +102,30 @@ jobs:
 
       - name: Run ${{ matrix.config.target }} tests
         run: ./gradlew ${{ matrix.config.tasks }} --scan
+
+      # The ffmpeg backend on current ffmpeg. The jvm cell runs it on apt's 6.1, the oldest release filmstrip
+      # supports, which has no HEIF demuxer and so skips every HEIF, tile grid and alpha stream test. From
+      # major 9 on those tests fail rather than skip, so brew must install 9 or later. These run whatever
+      # the Apple tests did, each in its own Gradle call so ffmpeg and Apple never share VideoToolbox.
+      - name: Check ffmpeg major
+        id: ffmpeg-major
+        if: matrix.config.target == 'macos-arm' && !cancelled()
+        run: |
+          banner=$(ffmpeg -version | head -1)
+          echo "$banner"
+          major=$(echo "$banner" | sed -nE 's/^ffmpeg version n?([0-9]+)\..*/\1/p')
+          if [ "${major:-0}" -lt 9 ]; then
+            echo "::error::expected ffmpeg 9 or later from brew, got '$banner'"
+            exit 1
+          fi
+
+      - name: Run ffmpeg backend tests on current ffmpeg
+        if: matrix.config.target == 'macos-arm' && !cancelled() && steps.ffmpeg-major.outcome == 'success'
+        run: ./gradlew :filmstrip-transform-ffmpeg:jvmTest --scan
+
+      - name: Run effects tests on current ffmpeg
+        if: matrix.config.target == 'macos-arm' && !cancelled() && steps.ffmpeg-major.outcome == 'success'
+        run: ./gradlew :filmstrip-effects:jvmTest --scan
 
       - name: Upload test reports
         if: failure()
