@@ -94,8 +94,8 @@ class AppleOverlayIccSdrTest : AppleOverlayIccCase() {
   @Test
   fun `the badges are held to a bound a wrong colour falls outside`() {
     assertTrue(
-      AppleHdrFillTest.CODE_TOLERANCE <= HdrOverlayCells.MAX_BLEND_TOLERANCE,
-      "badges held to ${AppleHdrFillTest.CODE_TOLERANCE} codes are looser than ${HdrOverlayCells.MAX_BLEND_TOLERANCE}",
+      FILL_CODE_TOLERANCE <= HdrOverlayCells.MAX_BLEND_TOLERANCE,
+      "badges held to ${FILL_CODE_TOLERANCE} codes are looser than ${HdrOverlayCells.MAX_BLEND_TOLERANCE}",
     )
 
     // An ICC tagged picture has to move its colour past the drift, or the sdr case cannot tell its profile was read.
@@ -122,7 +122,7 @@ class AppleOverlayIccSdrTest : AppleOverlayIccCase() {
     val p3Red = PICTURES.single { it.name == P3_RED_NAME }.hdrCodes(HdrTransfer.Pq).single()
     val srgbRed = HdrOverlayCells.Cell(RED, BAR, 1f).codes(HdrTransfer.Pq)
     assertTrue(
-      p3Red.indices.any { abs(p3Red[it] - srgbRed[it]) > 2 * AppleHdrFillTest.CODE_TOLERANCE },
+      p3Red.indices.any { abs(p3Red[it] - srgbRed[it]) > 2 * FILL_CODE_TOLERANCE },
       "Display P3 red asks for $p3Red on PQ, too close to sRGB red's ${srgbRed.toList()}",
     )
   }

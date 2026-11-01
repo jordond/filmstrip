@@ -7,7 +7,6 @@ import dev.jordond.filmstrip.playback.contract.ContractRecorder
 import dev.jordond.filmstrip.playback.contract.awaitComposition
 import dev.jordond.filmstrip.playback.contract.awaitContract
 import dev.jordond.filmstrip.playback.contract.contractTest
-import dev.jordond.filmstrip.playback.contract.settleForAbsence
 import dev.jordond.filmstrip.playback.contract.withEngine
 import dev.jordond.filmstrip.playback.internal.AvPlayerEngine
 import dev.jordond.filmstrip.playback.internal.frameStepLanding
@@ -16,10 +15,12 @@ import dev.jordond.filmstrip.player.SetCompositionResult
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
+import platform.AVFoundation.AVPlayerTimeControlStatusPaused
 import platform.AVFoundation.currentItem
 import platform.AVFoundation.currentTime
 import platform.AVFoundation.pause
 import platform.AVFoundation.play
+import platform.AVFoundation.timeControlStatus
 import kotlin.test.Test
 import kotlin.test.fail
 import kotlin.time.Duration
@@ -48,7 +49,7 @@ class AppleSeekLandingTest {
       reported shouldBe slotTime(outputSlotOf(engine.itemTime(), FIXTURE_FRAME_RATE))
       slotTime(outputSlotOf(reported, FIXTURE_FRAME_RATE)) shouldBe reported
 
-      settleForAbsence()
+      engine.drainCallbacks()
       recorder.playhead shouldBe reported
     }
 
@@ -63,7 +64,7 @@ class AppleSeekLandingTest {
       awaitContract("the step from $from to move the playhead") { recorder.playhead != from }
 
       recorder.playhead shouldBe landing
-      settleForAbsence()
+      engine.drainCallbacks()
       recorder.playhead shouldBe landing
     }
 
@@ -75,28 +76,38 @@ class AppleSeekLandingTest {
 
       recorder.seekCompletions.last().position shouldBe last
       recorder.playhead shouldBe last
-      settleForAbsence()
+      engine.drainCallbacks()
       recorder.playhead shouldBe last
     }
 
+  /**
+   * AVFoundation stops the item's clock inside `pause()`, so the reading the engine takes as it stops is already where
+   * the item came to rest, and the periodic observer's reading of the stop matches it. Measured three times each on the
+   * macOS host and the iOS simulator, the item's time read straight after `pause()` returned never moved again. This
+   * holds the reported playhead to the item, and cannot tell which of the two readings put it there.
+   */
   @Test
   fun `a pause reports where the item stopped`() =
     withLoadedEngine { engine, recorder ->
       engine.play()
       awaitContract("the playhead to advance") { (recorder.playhead ?: Duration.ZERO) > Duration.ZERO }
       engine.pause()
-      settleForAbsence()
+      engine.awaitStopped()
 
       recorder.playhead shouldBe engine.itemTime()
     }
 
+  /**
+   * The engine hears this pause as the key-value change AVFoundation posts on the pausing thread, and reads the item's
+   * clock once that change reaches it, after the clock has stopped. The same measurement as the pause above holds.
+   */
   @Test
   fun `playback started on the native player moves the playhead and reports where it stopped`() =
     withLoadedEngine { engine, recorder ->
       engine.platformPlayer.play()
       awaitContract("the playhead to advance") { (recorder.playhead ?: Duration.ZERO) > Duration.ZERO }
       engine.platformPlayer.pause()
-      settleForAbsence()
+      engine.awaitStopped()
 
       recorder.playhead shouldBe engine.itemTime()
     }
@@ -108,7 +119,7 @@ class AppleSeekLandingTest {
       val landing = recorder.seekCompletions.last().position
 
       engine.pause()
-      settleForAbsence()
+      engine.drainCallbacks()
       recorder.playhead shouldBe landing
     }
 
@@ -130,6 +141,14 @@ class AppleSeekLandingTest {
     val before = recorder.seekCompletions.size
     seekTo(at, accuracy)
     awaitContract("the seek to $at to complete") { recorder.seekCompletions.size > before }
+  }
+
+  /**
+   * Waits for the player to report itself paused, then for every callback that stop posted to reach the engine.
+   */
+  private suspend fun AvPlayerEngine.awaitStopped() {
+    awaitContract("the player to stop") { platformPlayer.timeControlStatus == AVPlayerTimeControlStatusPaused }
+    drainCallbacks()
   }
 
   private fun AvPlayerEngine.itemTime(): Duration =

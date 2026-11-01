@@ -8,7 +8,6 @@ import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media.PlatformImage
 import dev.jordond.filmstrip.playback.contract.awaitContract
 import dev.jordond.filmstrip.playback.contract.contractTest
-import dev.jordond.filmstrip.playback.contract.settle
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.test.assertFramesSimilar
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
@@ -16,7 +15,6 @@ import dev.jordond.filmstrip.thumbnail.ThumbnailResult
 import dev.jordond.filmstrip.thumbnail.ThumbnailSource
 import dev.jordond.filmstrip.transform.internal.seekTolerance
 import io.kotest.assertions.withClue
-import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -115,8 +113,10 @@ class JvmThumbnailContractTest {
 
       source(request).awaitThumbnail(request).image.close()
 
-      settle()
-      (runningPumps() - baseline).shouldBeEmpty()
+      // A process exit is the OS's, so nothing on the source drains it. The stream is closed before the thumbnail is
+      // handed over and closing waits the process out for a grace period, so the table is waited on rather than read
+      // once.
+      awaitContract("the served pump to exit") { (runningPumps() - baseline).isEmpty() }
     }
 
   // The wait is on the processes reading the fixture, not on whatever ffmpeg is alive. Lowering the
@@ -140,7 +140,7 @@ class JvmThumbnailContractTest {
       // is waited for rather than read at one instant after the cancel.
       awaitContract("the cancelled pump to go") { (runningFramePumps() - baseline).none { it.isAlive } }
 
-      settle()
+      // The cancel takes the delivery before it returns, so a render that finishes after it reaches nobody.
       delivered.get() shouldBe null
     }
 

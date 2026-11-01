@@ -6,7 +6,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.PlatformImage
 import dev.jordond.filmstrip.playback.contract.awaitStep
 import dev.jordond.filmstrip.playback.contract.contractTest
-import dev.jordond.filmstrip.playback.contract.settleForAbsence
+import dev.jordond.filmstrip.playback.internal.AvThumbnailSource
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.test.assertFramesSimilar
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
@@ -158,11 +158,10 @@ class AppleThumbnailContractTest {
       val request = ThumbnailRequest(composition, PROBE_POSITIONS.first(), CAP_HEIGHT, REVISION, precise = true)
       val delivered = AtomicReference<ThumbnailResult?>(null)
 
-      source(request).requestThumbnail(request) { delivered.value = it }.cancel()
+      val cancelled = source(request) as AvThumbnailSource
+      cancelled.requestThumbnail(request) { delivered.value = it }.cancel()
+      awaitStep("the cancelled request's work to settle") { cancelled.awaitRequestsSettled() }
 
-      // Long enough that the frame would have arrived several times over had cancelling not stopped
-      // it, rather than long enough to have been missed once.
-      settleForAbsence()
       delivered.value shouldBe null
 
       // The same source and the same request, uncancelled, so the silence above is cancellation

@@ -6,61 +6,18 @@ import platform.AVFoundation.AVPlayerItem
 import platform.Foundation.NSURL
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 /**
- * Can Kotlin/Native express the KVO glue at all, and does it survive the lifetime hazard?
+ * Drives [PlayerObserver] through many item replacements in a row and checks what reaches its callback.
  *
- * The first question is not rhetorical. `observeValueForKeyPath:ofObject:change:context:` is exposed
- * by cinterop as a final extension function on `NSObject`, so a hand-written `NSObject` subclass
- * overriding it does not compile. What does work is declaring a member
- * with the same name and parameter names and no `override`: Kotlin/Native emits it into the
- * generated Objective-C class under the matching selector, and the runtime dispatches to it. This
- * test is what makes that a fact rather than a hope. If the selector were wrong, no notification
- * would ever arrive and [observed] would stay empty.
+ * [PlayerObserver] registers with the New and Initial options and dispatches through its own registry and selector IMP.
+ * The engine's `AvKeyValueObserver` registers with New only, so the Initial deliveries and the snapshot asserted here
+ * belong to this observer alone.
  */
 @OptIn(ExperimentalForeignApi::class)
 class PlayerObserverTest {
-  @Test
-  fun kvoNotificationsReachKotlin() {
-    val states = mutableListOf<PlayerState>()
-    val player = AVPlayer()
-    val observer = PlayerObserver(player) { states += it }
-
-    try {
-      // NSKeyValueObservingOptionInitial fires synchronously from addObserver, so a delivered
-      // notification here proves the installed selector matched, with no run loop needed.
-      assertTrue(states.size >= 2, "no KVO notification reached Kotlin; got ${states.size}")
-      assertEquals(2, observer.notifications, "expected one notification per observed player key")
-    } finally {
-      observer.dispose()
-    }
-  }
-
-  @Test
-  fun observedItemChangesAreDelivered() {
-    val states = mutableListOf<PlayerState>()
-    val player = AVPlayer()
-    val observer = PlayerObserver(player) { states += it }
-
-    try {
-      val before = observer.notifications
-      observer.replaceItem(AVPlayerItem(uRL = NSURL(string = "file:///dev/null")))
-      // Three, not two: both item keys deliver their Initial notification, and replacing the item
-      // also moves the player's own timeControlStatus. Measured rather than assumed. The state
-      // model has to be idempotent under exactly this kind of extra notification, which is why the
-      // observer re-reads a snapshot instead of applying deltas.
-      assertEquals(
-        3,
-        observer.notifications - before,
-        "unexpected notification count for an item replacement",
-      )
-      assertTrue(states.last().itemStatus != null, "item state was not visible in the snapshot")
-    } finally {
-      observer.dispose()
-    }
-  }
-
   /**
    * The observer survives 100 rapid item replacements.
    *
@@ -79,26 +36,33 @@ class PlayerObserverTest {
    */
   @Test
   fun survivesRapidItemReplacement() {
+    val states = mutableListOf<PlayerState>()
     val player = AVPlayer()
-    val observer = PlayerObserver(player) { }
+    val observer = PlayerObserver(player) { states += it }
     // Two keys at construction, then three per replacement (both item keys plus the player's
     // timeControlStatus), and one more for the final replaceItem(null).
     val baseline = 2
 
     try {
+      // Initial fires synchronously from addObserver, so these arrive with no run loop.
+      assertEquals(baseline, observer.notifications, "expected one Initial notification per player key")
+
       repeat(REPLACEMENTS) { index ->
         observer.replaceItem(AVPlayerItem(uRL = NSURL(string = "file:///tmp/item-$index.mp4")))
+        assertNotNull(states.last().itemStatus, "item status was not visible in the snapshot")
       }
       observer.replaceItem(null)
 
-      // Two observed properties per replacement, each delivering its Initial notification. A
-      // shortfall would mean an item was released without its observers, which is the crash this
-      // test exists to rule out.
+      // Three notifications per replacement, two Initial ones from the item keys and one from the
+      // player's timeControlStatus. A shortfall would mean an item was released without its
+      // observers, which is the crash this test exists to rule out.
       assertEquals(
         baseline + REPLACEMENTS * 3 + 1,
         observer.notifications,
         "expected three notifications per replacement plus one for the final clear",
       )
+      assertEquals(observer.notifications, states.size, "every notification should reach onState")
+      assertNull(states.last().itemStatus, "the cleared item is still in the snapshot")
     } finally {
       observer.dispose()
     }

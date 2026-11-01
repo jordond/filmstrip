@@ -64,7 +64,7 @@ class AppleOverlayIccHdrTest : AppleOverlayIccCase() {
             AppleStillSamples
               .missOrUnmeasured {
                 val codes = picture.hdrCodes(transfer)
-                if (codes.none { it.within(read, AppleHdrFillTest.CODE_TOLERANCE) }) {
+                if (codes.none { it.within(read, FILL_CODE_TOLERANCE) }) {
                   "the $transfer ${picture.name} badge carried codes $read, where its light asks for one of $codes"
                 } else {
                   null

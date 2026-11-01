@@ -12,13 +12,13 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.playback.contract.ContractRecorder
 import dev.jordond.filmstrip.playback.contract.awaitComposition
 import dev.jordond.filmstrip.playback.contract.awaitContract
+import dev.jordond.filmstrip.playback.contract.awaitStep
 import dev.jordond.filmstrip.playback.contract.contractTest
-import dev.jordond.filmstrip.playback.contract.settle
 import dev.jordond.filmstrip.playback.contract.withEngine
+import dev.jordond.filmstrip.playback.internal.FfmpegPlayerEngine
 import dev.jordond.filmstrip.player.EngineListener
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
-import dev.jordond.filmstrip.player.PlayerEngine
 import dev.jordond.filmstrip.player.PlayerFeature
 import dev.jordond.filmstrip.player.PlayerState
 import dev.jordond.filmstrip.player.PreviewFrameReadback
@@ -60,7 +60,7 @@ class JvmTransportTest {
         awaitContract("playback to reach the end", timeout = END_BUDGET) {
           recorder.events.filterIsInstance<PlaybackEvent.Ended>().isNotEmpty()
         }
-        settle()
+        awaitStep("every pump to finish") { subject.engine.awaitIdle() }
 
         recorder.events.filterIsInstance<PlaybackEvent.Ended>().size shouldBe 1
         recorder.lastState.playWhenReady shouldBe false
@@ -90,7 +90,7 @@ class JvmTransportTest {
 
         // Stepping off the front is refused rather than clamped, so the playhead does not move.
         subject.engine.stepFrames(-1)
-        settle()
+        awaitStep("the engine to go quiet") { subject.engine.awaitQuiet() }
         recorder.playhead shouldBe Duration.ZERO
       }
     }
@@ -334,7 +334,7 @@ class JvmTransportTest {
    * Plays [engine] to the end, then plays it again to the end, and returns the positions each play reported.
    */
   private suspend fun playTwiceToTheEnd(
-    engine: PlayerEngine,
+    engine: FfmpegPlayerEngine,
     recorder: ContractRecorder,
   ): Pair<List<Duration>, List<Duration>> {
     val positions = mutableListOf<Duration>()
@@ -344,7 +344,7 @@ class JvmTransportTest {
     awaitContract("playback to reach the end", timeout = END_BUDGET) {
       recorder.events.filterIsInstance<PlaybackEvent.Ended>().isNotEmpty()
     }
-    settle()
+    awaitStep("every pump to finish") { engine.awaitIdle() }
     val played = positions.toList()
 
     engine.play()

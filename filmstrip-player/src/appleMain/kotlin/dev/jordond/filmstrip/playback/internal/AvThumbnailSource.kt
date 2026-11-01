@@ -19,6 +19,10 @@ import dev.jordond.filmstrip.transform.internal.ResolveResult
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import platform.AVFoundation.AVAssetImageGenerator
 import platform.AVFoundation.AVAssetImageGeneratorResult
@@ -54,6 +58,8 @@ internal class AvThumbnailSource(
   private val scope: CoroutineScope,
   private val planner: AvThumbnailPlanner,
 ) : ThumbnailSource {
+  private val generating = MutableStateFlow(0)
+
   override fun requestThumbnail(
     request: ThumbnailRequest,
     callback: ThumbnailCallback,
@@ -72,6 +78,20 @@ internal class AvThumbnailSource(
       delivery.cancel()
       job.cancel()
     }
+  }
+
+  /**
+   * Suspends until every request already made has finished lowering and every frame a generator was asked for has
+   * been answered.
+   *
+   * A request cancelled before its generator was asked never asks, and a generator cancelled after it was asked still
+   * answers, with a cancellation. Never returns while a generator holds a frame it does not answer, so a caller bounds
+   * the wait.
+   */
+  suspend fun awaitRequestsSettled() {
+    scope.coroutineContext.job.children
+      .forEach { it.join() }
+    generating.first { it == 0 }
   }
 
   /**
@@ -100,6 +120,7 @@ internal class AvThumbnailSource(
       }
     if (!delivery.attach(generator)) return
 
+    generating.update { it + 1 }
     generator.generateCGImagesAsynchronouslyForTimes(
       listOf(NSValue.valueWithCMTime(position.toCMTime())),
     ) { _, image, actualTime, result, error ->
@@ -117,7 +138,11 @@ internal class AvThumbnailSource(
             ),
           )
         }
-      delivery.deliver(outcome)
+      try {
+        delivery.deliver(outcome)
+      } finally {
+        generating.update { it - 1 }
+      }
     }
   }
 

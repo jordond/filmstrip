@@ -7,10 +7,9 @@ import dev.jordond.filmstrip.playback.contract.PlayerEngineContractTest
 import dev.jordond.filmstrip.playback.contract.awaitComposition
 import dev.jordond.filmstrip.playback.contract.awaitContract
 import dev.jordond.filmstrip.playback.contract.contractTest
-import dev.jordond.filmstrip.playback.contract.settle
-import dev.jordond.filmstrip.playback.contract.settleForAbsence
 import dev.jordond.filmstrip.playback.contract.withEngine
 import dev.jordond.filmstrip.playback.internal.AvPlayerEngine
+import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.SetCompositionResult
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -64,7 +63,8 @@ class IosEngineContractTest : PlayerEngineContractTest() {
     pumpMainRunLoopDuringContracts()
   }
 
-  override fun createEngine(scope: CoroutineScope): EngineUnderTest = appleSubject(scope)
+  override fun createEngine(scope: CoroutineScope): EngineUnderTest =
+    AppleEngineUnderTest(scope) { engine, occasion -> postInterruption(engine, occasion) }
 
   override val fixture: EditComposition = appleFixtureComposition()
 
@@ -103,7 +103,7 @@ class IosEngineContractTest : PlayerEngineContractTest() {
   fun `a repeated occasion reports one external change`(): TestResult =
     contractTest { scope ->
       for (occasion in stageableInterruptions) {
-        val subject = createEngine(scope)
+        val subject = createEngine(scope) as AppleEngineUnderTest
         withEngine(subject.engine) { recorder ->
           subject.engine.awaitComposition(fixture).shouldBeInstanceOf<SetCompositionResult.Success>()
           awaitContract("$occasion's engine to be ready") { recorder.lastState.hasComposition }
@@ -116,7 +116,7 @@ class IosEngineContractTest : PlayerEngineContractTest() {
 
           // Playback is already unwanted, so the second posting has no edge to report.
           subject.stage(occasion)
-          settleForAbsence()
+          subject.engine.drainCallbacks()
 
           recorder.externalChanges.map { it.playWhenReady } shouldBe listOf(false)
           recorder.lastState.playWhenReady shouldBe false
@@ -130,7 +130,7 @@ class IosEngineContractTest : PlayerEngineContractTest() {
    */
   private fun playingThrough(post: (AvPlayerEngine) -> Unit): TestResult =
     contractTest { scope ->
-      val subject = appleSubject(scope)
+      val subject = createEngine(scope) as AppleEngineUnderTest
       withEngine(subject.engine) { recorder ->
         subject.engine.awaitComposition(fixture).shouldBeInstanceOf<SetCompositionResult.Success>()
         awaitContract("the engine to be ready") { recorder.lastState.hasComposition }
@@ -139,25 +139,18 @@ class IosEngineContractTest : PlayerEngineContractTest() {
         awaitContract("playback to be wanted") { recorder.lastState.playWhenReady }
 
         post(subject.engine)
-        settle()
+        subject.engine.drainCallbacks()
 
-        // Read while the clip is still running, since a posting that took playback away would have
-        // shown by now and the fixture is shorter than the wait below.
+        // Read while the clip is still running, once the posting has reached the engine.
         recorder.lastState.playWhenReady shouldBe true
 
-        // Nothing arrives late either. The clip runs out during this wait, and reaching the end
-        // stops playback without reporting an external change.
-        settleForAbsence()
+        // Nothing arrives late either. Reaching the end stops playback without reporting an external change.
+        awaitContract("the clip to end") { recorder.events.any { it is PlaybackEvent.Ended } }
+        subject.engine.drainCallbacks()
         recorder.externalChanges.shouldBeEmpty()
       }
     }
 }
-
-/**
- * The harness, typed to the Apple engine so a test can reach the player a rate change is scoped to.
- */
-private fun appleSubject(scope: CoroutineScope): AppleEngineUnderTest =
-  AppleEngineUnderTest(scope) { engine, occasion -> postInterruption(engine, occasion) }
 
 private fun postInterruption(
   engine: AvPlayerEngine,

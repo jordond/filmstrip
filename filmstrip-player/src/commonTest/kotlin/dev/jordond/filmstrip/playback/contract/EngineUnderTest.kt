@@ -44,6 +44,15 @@ interface EngineUnderTest {
   val platformDuration: Duration? get() = null
 
   /**
+   * Suspends until the work that could still report to a listener has reported, so an absence checked afterwards is a
+   * finding rather than a race the check won.
+   *
+   * Each backend waits on its engine's own fence, which drains what its platform has already handed over. Called only
+   * while playback is stopped, since a running transport keeps producing work. The suite bounds the wait.
+   */
+  suspend fun awaitQuiet()
+
+  /**
    * Raises one interruption the way the system would.
    *
    * Called only for an occasion named in [PlayerEngineContractTest.stageableInterruptions].

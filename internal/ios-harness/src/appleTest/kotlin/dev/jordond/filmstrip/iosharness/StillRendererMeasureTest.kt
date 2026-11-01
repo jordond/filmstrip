@@ -30,11 +30,10 @@ import kotlin.test.assertTrue
  * Acquires a paused frame on iOS, pushes it through crop -> rotate -> overlay, and re-renders on a
  * parameter change.
  *
- * This runs on the simulator, so its timings are not the reference numbers. The criterion is at
- * least 55 fps of visible updates and a p95 under 32 ms on an iPhone 12. A simulator has no display
- * pipeline and renders Core Image on the host GPU, so what is measured here is that the mechanism
- * works and roughly what it costs, not whether the criterion is met. The device figures are still
- * to be recorded.
+ * The figures are timings on the machine it runs on, so it runs only when Gradle is given `-Pmeasure`. The criterion is
+ * at least 55 fps of visible updates and a p95 under 32 ms on an iPhone 12. A simulator has no display pipeline and
+ * renders Core Image on the host GPU, so a simulator or macOS run shows that the mechanism works and roughly what it
+ * costs, not whether the criterion is met. The device figures are still to be recorded.
  *
  * What this does establish, and what the criterion depends on:
  *
@@ -44,7 +43,7 @@ import kotlin.test.assertTrue
  *   particular no `videoComposition` reassignment, which is the path still mode rules out.
  */
 @OptIn(ExperimentalForeignApi::class)
-class StillRendererTest {
+class StillRendererMeasureTest {
   @Test
   fun stillModeRendersFromAPausedFrame() {
     val fixtures = environment("FILMSTRIP_FIXTURES")

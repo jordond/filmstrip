@@ -8,9 +8,8 @@ import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.FrameResult
 import dev.jordond.filmstrip.media.PlatformImage
+import dev.jordond.filmstrip.playback.contract.awaitStep
 import dev.jordond.filmstrip.playback.contract.contractTest
-import dev.jordond.filmstrip.playback.contract.settle
-import dev.jordond.filmstrip.playback.contract.settleForAbsence
 import dev.jordond.filmstrip.playback.internal.Media3ThumbnailPlanner
 import dev.jordond.filmstrip.playback.internal.Media3ThumbnailSource
 import dev.jordond.filmstrip.test.TestFrame
@@ -26,10 +25,12 @@ import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
@@ -139,8 +140,10 @@ class AndroidThumbnailContractTest {
         },
       )
 
-      // Long enough that the rest of the run would have arrived had cancelling not stopped it.
-      settleForAbsence()
+      // Every delivery comes from the run's job, a child of this scope, so nothing more can arrive once it has unwound.
+      // The extraction media3 was already decoding is not cancelled with it and finishes on the shared player. Its
+      // frame resumes nothing and is never delivered, and the run below is what shows the player was handed back.
+      awaitStep("the cancelled run to unwind") { checkNotNull(scope.coroutineContext[Job]).children.toList().joinAll() }
       delivered shouldBe listOf(0)
 
       // A stopped run still has to hand its extractor back, on the thread it read on. One that
@@ -190,7 +193,10 @@ class AndroidThumbnailContractTest {
       val delivered = AtomicReference<ThumbnailResult?>(null)
 
       source(scope).requestThumbnail(request) { delivered.set(it) }.cancel()
-      settle()
+      // Every delivery comes from the request's job, a child of this scope, so nothing can arrive once it has unwound.
+      awaitStep("the cancelled request to unwind") {
+        checkNotNull(scope.coroutineContext[Job]).children.toList().joinAll()
+      }
       delivered.get() shouldBe null
 
       // The same request, uncancelled, so the silence above is cancellation rather than a source

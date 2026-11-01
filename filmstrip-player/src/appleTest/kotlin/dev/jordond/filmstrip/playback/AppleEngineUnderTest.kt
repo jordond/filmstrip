@@ -36,6 +36,10 @@ internal class AppleEngineUnderTest(
 
   override val platformDuration: Duration? get() = engine.platformDuration
 
+  override suspend fun awaitQuiet() {
+    engine.fence.awaitDrained()
+  }
+
   override fun stage(interruption: Interruption) {
     raise(engine, interruption)
   }

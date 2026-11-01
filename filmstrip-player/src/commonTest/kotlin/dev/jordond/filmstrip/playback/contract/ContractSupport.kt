@@ -347,17 +347,6 @@ internal suspend fun settle() {
 }
 
 /**
- * Waits out many [settle] intervals, before an assertion that something never arrived.
- *
- * One settle only says the thing was not there yet, so a suite using it to claim absence is
- * asserting that it won a race. This waits long enough that a delivery which was going to happen
- * has had several chances, which is what makes the absence a finding rather than a timing win.
- */
-internal suspend fun settleForAbsence() {
-  repeat(ABSENCE_SETTLES) { settle() }
-}
-
-/**
  * Loads [composition] and suspends until the engine reports the outcome, failing the test when none
  * arrives within [CONTRACT_TIMEOUT].
  */
@@ -414,14 +403,6 @@ internal val CONTRACT_TIMEOUT: Duration = 20.seconds
 private val POLL_INTERVAL: Duration = 5.milliseconds
 
 private val SETTLE_INTERVAL: Duration = 250.milliseconds
-
-/**
- * How many settles an absence is claimed against.
- *
- * Twenty of them is five seconds, which covers a cold decoder answering late on a device and still
- * leaves room inside the per-test budget for the loads either side of the wait.
- */
-private const val ABSENCE_SETTLES = 20
 
 /**
  * How long a pumped test body may run before the suite calls it a hang.

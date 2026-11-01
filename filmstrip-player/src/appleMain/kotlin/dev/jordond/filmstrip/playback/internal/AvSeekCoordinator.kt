@@ -7,8 +7,11 @@ import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import platform.AVFoundation.AVPlayerItem
+import platform.AVFoundation.AVPlayerItemStatusFailed
 import platform.AVFoundation.currentTime
 import platform.AVFoundation.seekToTime
 import kotlin.time.Duration
@@ -19,6 +22,10 @@ import kotlin.time.Duration.Companion.milliseconds
  *
  * Every seek issued here becomes the latest one, so a completion that arrives after a newer seek went out is known to
  * be superseded. Only the latest seek reaches [guard], and a landing it redirects is sent on from here.
+ *
+ * Every seek handed to the item is counted until its caller hears where it landed, so [awaitAnswered] can wait out the
+ * seeks still on their way. A redirect counts as the seek it carries on, and a seek a newer one replaced counts until
+ * AVFoundation answers it.
  *
  * Everything here runs on the engine's dispatcher, apart from the completion AVFoundation calls, which hops back onto
  * [scope] before it touches anything.
@@ -44,11 +51,24 @@ internal class AvSeekCoordinator(
   private val onLanded: (Duration) -> Unit,
 ) {
   private var latestSeek = 0
+  private var ledger = 0
+  private val unanswered = MutableStateFlow(0)
 
   /**
    * Whether a seek is on its way and has not landed yet.
    */
   var inFlight: Boolean = false
+    private set
+
+  /**
+   * How many seeks handed to the item have not been answered yet.
+   */
+  val unansweredSeeks: Int get() = unanswered.value
+
+  /**
+   * How many seeks have been handed to the item since this was built, each counted once however often it is redirected.
+   */
+  var countedSeeks: Int = 0
     private set
 
   /**
@@ -87,14 +107,44 @@ internal class AvSeekCoordinator(
     onIssued()
     inFlight = true
     guard.seekIssued(wrap)
-    issue(target, resolved, position, accuracy, onComplete)
+    issue(target, resolved, position, accuracy, counted(onComplete))
   }
 
   /**
-   * Forgets the seek in flight, for an item the platform will answer no seek on again.
+   * Forgets the seeks in flight once no item is loaded or the one loaded has failed.
+   *
+   * An item still loaded is left to answer its seeks, which stay in flight and counted until it does. A forgotten seek
+   * answered later is treated as superseded, so it moves nothing and no longer counts.
    */
   fun abandon() {
+    val target = item()
+    if (target != null && target.status != AVPlayerItemStatusFailed) return
     inFlight = false
+    latestSeek++
+    ledger++
+    unanswered.value = 0
+  }
+
+  /**
+   * Suspends until every seek counted has been answered, or forgotten by [abandon].
+   *
+   * Never returns while AVFoundation holds a seek it does not answer, so a caller bounds the wait.
+   */
+  suspend fun awaitAnswered() {
+    unanswered.first { it == 0 }
+  }
+
+  /**
+   * Counts one seek until [onComplete] is called for it, unless [abandon] forgot it first.
+   */
+  private fun counted(onComplete: (landed: Duration) -> Unit): (landed: Duration) -> Unit {
+    val entry = ledger
+    countedSeeks++
+    unanswered.value += 1
+    return { landed ->
+      if (entry == ledger) unanswered.value -= 1
+      onComplete(landed)
+    }
   }
 
   /**

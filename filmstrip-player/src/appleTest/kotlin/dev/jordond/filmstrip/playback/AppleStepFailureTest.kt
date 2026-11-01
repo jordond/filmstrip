@@ -11,7 +11,6 @@ import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.playback.contract.awaitComposition
 import dev.jordond.filmstrip.playback.contract.awaitContract
 import dev.jordond.filmstrip.playback.contract.contractTest
-import dev.jordond.filmstrip.playback.contract.settleForAbsence
 import dev.jordond.filmstrip.playback.contract.withEngine
 import dev.jordond.filmstrip.playback.internal.AvPlayerEngine
 import dev.jordond.filmstrip.playback.internal.AvPreviewPlanner
@@ -48,7 +47,7 @@ class AppleStepFailureTest {
           .shouldBeInstanceOf<SetCompositionResult.Success>()
         engine.readback.requestFrame(Duration.ZERO) { }
         awaitContract("playback to fail") { recorder.events.any { it is PlaybackEvent.Failed } }
-        settleForAbsence()
+        engine.drainCallbacks()
 
         val error =
           recorder.events

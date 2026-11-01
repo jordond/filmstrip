@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.player.SetCompositionCallback
 import dev.jordond.filmstrip.player.SetCompositionRequest
 import dev.jordond.filmstrip.player.SetCompositionResult
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -61,6 +62,9 @@ internal class FfmpegPlayerEngine(
   private var firstFrameEmitted = false
 
   private val pending = PendingLoad()
+
+  // Seeks handed over that have not opened their pump yet.
+  private val seekStarts = mutableListOf<Job>()
 
   // Read by the presenter rather than by the transport, because a paused presenter is parked inside
   // a suspend and a snapshot flag would leave it parked.
@@ -166,14 +170,16 @@ internal class FfmpegPlayerEngine(
   ) {
     val target = snap(position)
     ends.seekIssued(wrap = isWrapSeek, onComplete = onComplete)
-    scope.launch {
-      // A relaxed seek is a finger moving, and every one of them costs a process. Waiting the
-      // debounce out first is what bounds the respawns: the chase coalesces whatever arrives while
-      // this waits and dispatches only the newest of them next.
-      if (accuracy == SeekAccuracy.Nearest) delay(SCRUB_DEBOUNCE)
-      this@FfmpegPlayerEngine.position = target
-      startPump(target, onComplete)
-    }
+    seekStarts.removeAll { it.isCompleted }
+    seekStarts +=
+      scope.launch {
+        // A relaxed seek is a finger moving, and every one of them costs a process. Waiting the
+        // debounce out first is what bounds the respawns: the chase coalesces whatever arrives while
+        // this waits and dispatches only the newest of them next.
+        if (accuracy == SeekAccuracy.Nearest) delay(SCRUB_DEBOUNCE)
+        this@FfmpegPlayerEngine.position = target
+        startPump(target, onComplete)
+      }
   }
 
   override fun onPlay() {
@@ -194,6 +200,55 @@ internal class FfmpegPlayerEngine(
     wanted.value = false
     pump.stop()
     presented = null
+  }
+
+  /**
+   * Suspends until every seek handed over has opened its pump, no pump is running and every replaced pump has finished.
+   *
+   * Everything a seek or a pump was going to report has been reported once this returns. A seek a pump hands over while
+   * this waits, the way a loop wrap or a landing that releases the next seek does, is waited for too. A pump parked on
+   * a pause never finishes, so this only returns once playback has ended, failed or been stopped. See
+   * [FfmpegPump.awaitIdle].
+   */
+  suspend fun awaitIdle() {
+    while (true) {
+      awaitSeekStarts()
+      pump.awaitIdle()
+      if (seekStarts.none { !it.isCompleted }) return
+    }
+  }
+
+  /**
+   * Suspends until every seek handed over has opened its pump, every replaced pump has finished and the current one
+   * has finished or parked on a pause.
+   *
+   * Nothing a seek or a pump was going to report while playback is paused is still on its way once this returns. A
+   * seek a pump hands over while this waits is waited for too. See [FfmpegPump.awaitQuiet].
+   */
+  suspend fun awaitQuiet() {
+    while (true) {
+      awaitSeekStarts()
+      pump.awaitQuiet()
+      if (seekStarts.none { !it.isCompleted }) return
+    }
+  }
+
+  // Joins every seek handed over until none is left waiting to open its pump.
+  private suspend fun awaitSeekStarts() {
+    while (true) {
+      seekStarts.removeAll { it.isCompleted }
+      val start = seekStarts.firstOrNull() ?: return
+      start.join()
+    }
+  }
+
+  /**
+   * Suspends until every pump a seek, stop or load replaced has finished, leaving the current one running.
+   *
+   * See [FfmpegPump.awaitRetired].
+   */
+  suspend fun awaitRetired() {
+    pump.awaitRetired()
   }
 
   override fun stepFrames(frames: Int) {

@@ -2,12 +2,11 @@ package dev.jordond.filmstrip.playback
 
 import dev.jordond.filmstrip.playback.contract.awaitComposition
 import dev.jordond.filmstrip.playback.contract.awaitContract
+import dev.jordond.filmstrip.playback.contract.awaitStep
 import dev.jordond.filmstrip.playback.contract.contractTest
-import dev.jordond.filmstrip.playback.contract.settle
 import dev.jordond.filmstrip.playback.contract.withEngine
 import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.SetCompositionResult
-import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -61,13 +60,15 @@ class JvmProcessHygieneTest {
         val before = recorder.seekCompletions.size
         PROBE_POSITIONS.forEach { subject.engine.seekTo(it, SeekAccuracy.Exact) }
         awaitContract("every seek to complete") { recorder.seekCompletions.size - before >= PROBE_POSITIONS.size }
-        settle()
+        awaitStep("the engine to go quiet") { subject.engine.awaitQuiet() }
 
-        (pumps() - baseline).map { it.pid() }.size shouldBe 1
+        // A process exit is the OS's, so no fence on the engine drains it. Closing a stream waits its process out for a
+        // grace period, and the table is waited on rather than read once.
+        awaitContract("the replaced pumps to exit") { (pumps() - baseline).size == 1 }
       }
 
-      settle()
-      (pumps() - baseline).shouldBeEmpty()
+      awaitStep("the released pump to finish") { subject.engine.awaitIdle() }
+      awaitContract("the released pump to exit") { (pumps() - baseline).isEmpty() }
     }
 
   private fun pumps(): List<ProcessHandle> = runningPumps()

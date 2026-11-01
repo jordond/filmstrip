@@ -42,6 +42,7 @@ import platform.AVFoundation.setVolume
 import platform.AVFoundation.videoComposition
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.darwin.dispatch_queue_create
+import platform.darwin.dispatch_queue_t
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -75,7 +76,11 @@ internal class AvPlayerEngine(
   config: PlayerConfig,
 ) : BasePlayerEngine(parent) {
   private val player = AVPlayer()
-  private val callbackQueue = dispatch_queue_create("dev.jordond.filmstrip.player", null)
+
+  /**
+   * The queue AVFoundation calls the engine's time observers on, and the one a test posts to when staging a late one.
+   */
+  val callbackQueue: dispatch_queue_t = dispatch_queue_create("dev.jordond.filmstrip.player", null)
   private val observers: AvItemObservers =
     AvItemObservers(
       scope = scope,
@@ -119,6 +124,11 @@ internal class AvPlayerEngine(
       },
       onLanded = { transport.onSeekLanded(it) },
     )
+
+  /**
+   * Waits out the seeks handed to the item and the callbacks AVFoundation has posted to the engine.
+   */
+  val fence: AvCallbackFence = AvCallbackFence(scope, callbackQueue, seeks)
 
   private val loop: AvLoopRangeController =
     AvLoopRangeController(
@@ -463,7 +473,8 @@ internal class AvPlayerEngine(
   /**
    * Reports [error] as the reason playback stopped.
    *
-   * The platform answers no seek it was holding after this, so none is left in flight.
+   * A failed item answers no seek it was holding after this, so its seeks are abandoned. An item still attached after a
+   * draw failure or a refused load is left to answer them.
    */
   private fun fail(error: PlaybackError) {
     seeks.abandon()

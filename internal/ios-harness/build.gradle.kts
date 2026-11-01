@@ -59,11 +59,12 @@ val harnessMedia =
 val testMediaDirectory = harnessMedia.directory
 val resultsDirectory = layout.projectDirectory.dir("results").asFile
 
-// Writing results is opt-in. Without the flag the harness still measures and prints, and does not
-// touch the checked-in numbers. Those were taken on an idle machine, and a run inside a
-// parallel build reports p95 figures several times higher because the rest of the build is
-// competing for the same GPU. Letting `./gradlew build` overwrite them replaces a measurement with
-// an artefact of whatever else was compiling at the time.
+// The `*MeasureTest` classes only run when Gradle is given `-Pmeasure`. Writing their results is a
+// second opt-in, `-Pfilmstrip.recordResults`. Without it a measure run still measures and prints,
+// and does not touch the checked-in numbers. Those were taken on an idle machine, and a run inside
+// a parallel build reports p95 figures several times higher because the rest of the build is
+// competing for the same GPU. Letting any build overwrite them replaces a measurement with an
+// artefact of whatever else was compiling at the time.
 val recordResults = providers.gradleProperty("filmstrip.recordResults").isPresent
 
 tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest>().configureEach {

@@ -1,8 +1,6 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.avfoundation.AppleHdrFillTest.Companion.BAR
-import dev.jordond.filmstrip.avfoundation.AppleHdrFillTest.Companion.CENTRE
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.export.ExportSpec
@@ -68,6 +66,15 @@ internal suspend fun Filmstrip.exportedFrame(
 // How far each channel of the fill bar's light reads from the shared color fill, as a fraction of it.
 internal fun HdrFrameProbe.lightOff(color: Int): List<Float> {
   val expected = authoredHdrNits(color)
-  val read = nitsAt(CENTRE, BAR)
+  val read = nitsAt(FILL_CENTRE, FILL_BAR)
   return List(3) { (read[it] - expected[it]) / expected[it] }
 }
+
+// Inside the bar a square crop of a 16:9 frame leaves along one edge, well clear of the picture.
+internal const val FILL_BAR = 0.05f
+internal const val FILL_CENTRE = 0.5f
+
+internal const val MID_BLUE = 0xFF6699CC.toInt()
+
+// What a hardware encode leaves on a flat colour, a code or two either way.
+internal const val FILL_CODE_TOLERANCE = 2

@@ -162,9 +162,12 @@ internal class Media3LoopRangeController(
     onLooped(range, landing)
   }
 
-  private companion object {
-    // Roughly display rate, which is the ceiling. positionFlow(tick) snaps it down to whatever a
-    // collector asked for.
+  companion object {
+    /**
+     * How long after one playhead reading the next is posted, roughly display rate, which is the ceiling.
+     *
+     * `positionFlow(tick)` snaps it down to whatever a collector asked for.
+     */
     const val MIRROR_INTERVAL_MS = 16L
   }
 }

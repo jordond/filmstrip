@@ -16,11 +16,12 @@ import dev.jordond.filmstrip.playback.contract.asTestFrame
 import dev.jordond.filmstrip.playback.contract.awaitComposition
 import dev.jordond.filmstrip.playback.contract.awaitContract
 import dev.jordond.filmstrip.playback.contract.awaitFrame
+import dev.jordond.filmstrip.playback.contract.awaitStep
 import dev.jordond.filmstrip.playback.contract.contractTest
-import dev.jordond.filmstrip.playback.contract.settle
 import dev.jordond.filmstrip.playback.contract.withEngine
 import dev.jordond.filmstrip.playback.internal.BrowserPlayerEngine
 import dev.jordond.filmstrip.playback.internal.BrowserPreviewPlanner
+import dev.jordond.filmstrip.playback.internal.browserThumbnailSource
 import dev.jordond.filmstrip.player.PlayerConfig
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
 import dev.jordond.filmstrip.player.ReadbackFrame
@@ -37,7 +38,10 @@ import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.plus
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.yield
 import kotlin.coroutines.resume
 import kotlin.test.Test
 import kotlin.test.fail
@@ -149,21 +153,34 @@ class WebThumbnailContractTest {
       }
     }
 
+  // The request is cancelled once its render is inside the compositor, so the cancel has to unwind it there. The source
+  // runs on a scope this test owns, so once its children have finished, the cancelled request has nothing left that
+  // could still deliver.
   @Test
   fun `a cancelled request never delivers`() =
-    contractTest {
+    contractTest { scope ->
       val composition = webFixtureComposition(listOf(Brightness(DIM)))
       val request =
         ThumbnailRequest(composition, PROBE_POSITIONS.last(), FIXTURE_FRAME.height, REVISION, precise = true)
+      val work = Job(scope.coroutineContext[Job])
+      val source = browserThumbnailSource(scope + work, CONTRACT_COMPONENTS)
       var delivered: ThumbnailResult? = null
 
-      source(request).requestThumbnail(request) { delivered = it }.cancel()
-      settle()
+      val handle = source.requestThumbnail(request) { delivered = it }
+      val render = work.children.single()
+      // The render is never on the dispatcher while this reads, so seeing a preview open means it is suspended inside
+      // the compositor's decode.
+      awaitStep("the render to open its preview") { while (source.openPreviews == 0) yield() }
+      handle.cancel()
+      awaitStep("the cancelled request to unwind") { work.children.forEach { it.join() } }
+
+      render.isCancelled shouldBe true
+      source.openPreviews shouldBe 0
       delivered shouldBe null
 
       // The same source and the same request, uncancelled, so the silence above is cancellation
       // rather than a source that cannot serve this edit at all.
-      source(request).awaitThumbnail(request).image.close()
+      source.awaitThumbnail(request).image.close()
     }
 
   private fun assertGapDrawn(

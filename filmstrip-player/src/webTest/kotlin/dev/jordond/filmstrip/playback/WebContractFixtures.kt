@@ -60,6 +60,14 @@ internal fun webFixtureComposition(
   )
 
 /**
+ * The fixture composition with its clip trimmed to [length], which is a structural change from the untrimmed one.
+ */
+internal fun webFixtureTrimmed(length: Duration): EditComposition {
+  val base = webFixtureComposition()
+  return base.withClips(base.clips.map { it.withTrim(TimeRange.of(Duration.ZERO, length)) })
+}
+
+/**
  * The frame the export writes at [position], read back out of the file the encoder wrote.
  *
  * This is the export path and not a second preview: the edit is planned and exported through the

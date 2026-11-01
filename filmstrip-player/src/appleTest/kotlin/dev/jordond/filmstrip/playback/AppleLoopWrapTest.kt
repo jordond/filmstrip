@@ -8,7 +8,6 @@ import dev.jordond.filmstrip.playback.contract.ContractRecorder
 import dev.jordond.filmstrip.playback.contract.awaitComposition
 import dev.jordond.filmstrip.playback.contract.awaitContract
 import dev.jordond.filmstrip.playback.contract.contractTest
-import dev.jordond.filmstrip.playback.contract.settle
 import dev.jordond.filmstrip.playback.contract.withEngine
 import dev.jordond.filmstrip.playback.internal.AvPlayerEngine
 import dev.jordond.filmstrip.playback.internal.LoopWrap
@@ -116,7 +115,7 @@ class AppleLoopWrapTest {
           .awaitComposition(appleFixtureComposition(listOf(Brightness(BRIGHT))), startAt = start)
           .shouldBeInstanceOf<SetCompositionResult.Success>()
         awaitContract("the superseded seek to complete") { recorder.seekCompletions.size > seeks }
-        settle()
+        engine.drainCallbacks()
         registration.cancel()
 
         engine.platformLoads shouldBe loads
@@ -167,7 +166,7 @@ class AppleLoopWrapTest {
         try {
           player.play()
           awaitContract("the native player to be paused before the item end") { paused }
-          settle()
+          engine.drainCallbacks()
         } finally {
           player.removeTimeObserver(token)
         }
@@ -223,7 +222,7 @@ class AppleLoopWrapTest {
           engine.pause()
           awaitContract("the play axis to settle after pausing") { !recorder.lastState.playWhenReady }
         }
-        settle()
+        engine.drainCallbacks()
 
         val since = recorder.events.drop(eventsMark)
         since.filterIsInstance<PlaybackEvent.Ended>().shouldBeEmpty()

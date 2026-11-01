@@ -57,4 +57,8 @@ internal class JvmEngineUnderTest(
   override val reportsPlatformDuration: Boolean = false
 
   override val platformDuration: Duration? = null
+
+  override suspend fun awaitQuiet() {
+    engine.awaitQuiet()
+  }
 }

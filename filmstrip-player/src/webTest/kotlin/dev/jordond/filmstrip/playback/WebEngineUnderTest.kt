@@ -41,6 +41,10 @@ internal class WebEngineUnderTest(
    */
   override val platformDuration: Duration? get() = null
 
+  override suspend fun awaitQuiet() {
+    engine.awaitQuiet()
+  }
+
   override fun stage(interruption: Interruption) {
     when (interruption) {
       Interruption.AutoplayBlocked -> engine.onAutoplayRefused()

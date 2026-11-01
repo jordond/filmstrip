@@ -134,7 +134,7 @@ abstract class PlayerEngineContractTest {
 
           awaitContract("$burst seeks to complete") { recorder.seekCompletions.size - before >= burst }
           awaitContract("the seeking axis to settle after $burst seeks") { !recorder.lastState.isSeeking }
-          settle()
+          subject.quiet()
 
           recorder.seekCompletions.size - before shouldBe burst
         }
@@ -167,7 +167,7 @@ abstract class PlayerEngineContractTest {
           recorder.seekCompletions.last().position shouldBe landing
           recorder.playhead shouldBe landing
 
-          settle()
+          subject.quiet()
           recorder.playhead shouldBe landing
         }
       }
@@ -193,7 +193,7 @@ abstract class PlayerEngineContractTest {
         outputSlotTime(outputSlotOf(reported, rate), rate) shouldBe reported
         reported shouldBeLessThanOrEqualTo exact
 
-        settle()
+        subject.quiet()
         recorder.playhead shouldBe reported
       }
     }
@@ -215,7 +215,7 @@ abstract class PlayerEngineContractTest {
 
         val mark = recorder.mark()
         subject.engine.awaitComposition(equal).shouldBeInstanceOf<SetCompositionResult.Success>()
-        settle()
+        subject.quiet()
 
         subject.platformLoads shouldBe 1
         recorder.statesSince(mark).forEach { it.status shouldBe PlaybackStatus.Ready }
@@ -236,7 +236,7 @@ abstract class PlayerEngineContractTest {
 
           subject.stage(occasion)
           awaitContract("$occasion to reach the listener") { recorder.externalChanges.isNotEmpty() }
-          settle()
+          subject.quiet()
 
           recorder.externalChanges.map { it.playWhenReady } shouldBe listOf(false)
           recorder.lastState.playWhenReady shouldBe false
@@ -306,7 +306,7 @@ abstract class PlayerEngineContractTest {
         recorder.lastState.status shouldNotBe PlaybackStatus.Ended
         subject.engine.pause()
         awaitContract("the play axis to settle after pausing") { !recorder.lastState.playWhenReady }
-        settle()
+        subject.quiet()
 
         val since = recorder.events.drop(eventsMark)
         since.filterIsInstance<PlaybackEvent.Ended>() shouldBe emptyList()
@@ -339,6 +339,10 @@ abstract class PlayerEngineContractTest {
       val looped = since.count { it is PlaybackEvent.RangeLooped }
       looped >= count && dropIndices(recorder.playheads.drop(positionsMark)).size >= count
     }
+  }
+
+  private suspend fun EngineUnderTest.quiet() {
+    awaitStep("the engine to go quiet") { awaitQuiet() }
   }
 
   private companion object {

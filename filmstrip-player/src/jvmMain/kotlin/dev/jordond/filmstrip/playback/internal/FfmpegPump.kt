@@ -15,9 +15,11 @@ import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 import kotlin.time.Duration
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
@@ -51,8 +53,12 @@ internal class FfmpegPump(
   private val failProcess: (status: Int, errors: String) -> Unit,
 ) {
   private var job: Job? = null
+  private val retired = mutableListOf<Job>()
   private var stream: PreviewStream? = null
   private var generation = 0
+
+  // The generation of the pump parked on a pause, or none.
+  private val parked = MutableStateFlow(NONE_PARKED)
 
   /**
    * Whether a pump is still running.
@@ -80,10 +86,69 @@ internal class FfmpegPump(
    */
   fun stop() {
     generation++
-    job?.cancel()
+    retired.removeAll { it.isCompleted }
+    job?.let {
+      it.cancel()
+      retired += it
+    }
     job = null
     stream?.close()
     stream = null
+  }
+
+  /**
+   * Suspends until every pump [stop] replaced has finished, and forgets them.
+   *
+   * A replaced pump is cancelled but can still be running its cleanup, so anything it was going to report has been
+   * reported once this returns. A pump is only forgotten once it has been joined, so a second caller waiting at the
+   * same time waits it out too. The pump running now is left alone.
+   */
+  suspend fun awaitRetired() {
+    while (retired.isNotEmpty()) {
+      val replaced = retired.toList()
+      replaced.forEach { it.join() }
+      retired.removeAll(replaced)
+    }
+  }
+
+  /**
+   * Suspends until no pump is running and every pump [stop] replaced has finished.
+   *
+   * A pump that ends by calling [start] itself, the way a redirected wrap does, leaves that one current, so this waits
+   * on whichever pump is current until one finishes without a successor. Only a pump [start] has already made current
+   * is followed. A seek the engine has handed over that has not called [start] yet is the engine's to wait on. A pump
+   * parked on a pause never finishes, so this only returns once playback has ended, failed or been stopped.
+   */
+  suspend fun awaitIdle() {
+    while (true) {
+      awaitRetired()
+      val current = job?.takeUnless { it.isCompleted } ?: break
+      current.join()
+    }
+  }
+
+  /**
+   * Suspends until every pump [stop] replaced has finished and the current one has finished or parked on a pause.
+   *
+   * A parked pump has shown the frame it landed on and reads nothing more until playback is wanted, so nothing it
+   * would report is still on its way. A pump that finishes by opening another is followed onto that one, the way
+   * [awaitIdle] follows it. Never returns while playback runs, so a caller bounds the wait.
+   */
+  suspend fun awaitQuiet() {
+    while (true) {
+      awaitRetired()
+      val current = job?.takeUnless { it.isCompleted } ?: return
+      val token = generation
+      if (parked.value == token) return
+      coroutineScope {
+        val parks = launch { parked.first { it == token } }
+        select {
+          current.onJoin { }
+          parks.onJoin { }
+        }
+        parks.cancel()
+      }
+    }
   }
 
   private suspend fun run(
@@ -202,7 +267,12 @@ internal class FfmpegPump(
 
       if (!wanted.value) {
         anchor = null
-        wanted.first { it }
+        parked.value = token
+        try {
+          wanted.first { it }
+        } finally {
+          if (parked.value == token) parked.value = NONE_PARKED
+        }
         if (token != generation) return
       }
       if (ends.reachedEnd(frame.position, current)) return
@@ -236,5 +306,8 @@ internal class FfmpegPump(
     // Measured: eight frames covers the worst cold spawn seen with a filter graph attached, and
     // costs about a millisecond a frame to fill once the process is warm.
     const val LOOK_AHEAD = 8
+
+    // No pump's generation, since every start moves it past zero.
+    const val NONE_PARKED = 0
   }
 }

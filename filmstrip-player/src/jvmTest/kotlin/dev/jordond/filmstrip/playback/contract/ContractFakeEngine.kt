@@ -25,6 +25,7 @@ import dev.jordond.filmstrip.player.SetCompositionResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -189,6 +190,20 @@ internal class ContractFakeEngine(
   }
 
   /**
+   * Suspends until every seek and transport the fake launched has finished, going round again for one launched while
+   * it waits.
+   *
+   * Never returns while the transport runs.
+   */
+  suspend fun awaitQuiet() {
+    val launched = checkNotNull(scope.coroutineContext[Job])
+    do {
+      val running = launched.children.toList()
+      running.joinAll()
+    } while (running.isNotEmpty())
+  }
+
+  /**
    * Takes playback away the way a system callback would.
    *
    * Every occasion looks the same to a backend with no platform under it, so which one was staged
@@ -256,6 +271,10 @@ internal class FakeEngineUnderTest(
   override val platformLoads: Int get() = engine.platformLoads
 
   override val platformDuration: Duration? get() = engine.platformDuration
+
+  override suspend fun awaitQuiet() {
+    engine.awaitQuiet()
+  }
 
   override fun stage(interruption: Interruption): Unit = engine.raise()
 }

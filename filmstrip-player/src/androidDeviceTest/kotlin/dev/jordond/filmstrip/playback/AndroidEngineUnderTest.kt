@@ -34,6 +34,10 @@ internal class AndroidEngineUnderTest(
 
   override val reportsPlatformDuration: Boolean = true
 
+  override suspend fun awaitQuiet() {
+    engine.fence.awaitDrained()
+  }
+
   /**
    * Hands the engine's receiver the intent the system sends as an output route goes away.
    *

@@ -56,10 +56,10 @@ class AppleHdrFillTest {
     color: Int,
   ) {
     val expected = tenBitCodesFromSignal(transfer.signalFromNits(authoredHdrNits(color))).toList()
-    val read = frame.codesAt(CENTRE, BAR)
+    val read = frame.codesAt(FILL_CENTRE, FILL_BAR)
 
     assertTrue(
-      expected.indices.all { abs(read[it] - expected[it]) <= CODE_TOLERANCE },
+      expected.indices.all { abs(read[it] - expected[it]) <= FILL_CODE_TOLERANCE },
       "the $transfer bar carried codes $read and the shared signal asks for $expected",
     )
   }
@@ -79,22 +79,13 @@ class AppleHdrFillTest {
 
     assertTrue(
       off.all { it in drift },
-      "the $transfer bar read ${frame.nitsAt(CENTRE, BAR)} nits and the shared fill asks for " +
+      "the $transfer bar read ${frame.nitsAt(FILL_CENTRE, FILL_BAR)} nits and the shared fill asks for " +
         "${authoredHdrNits(color).toList()}, off by $off where $drift is allowed",
     )
   }
 
-  internal companion object {
+  private companion object {
     val TIMEOUT = 5.minutes
-
-    // Inside the bar a square crop of a 16:9 frame leaves along one edge, well clear of the picture.
-    const val BAR = 0.05f
-    const val CENTRE = 0.5f
-
-    const val MID_BLUE = 0xFF6699CC.toInt()
-
-    // What a hardware encode leaves on a flat colour, a code or two either way.
-    const val CODE_TOLERANCE = 2
 
     // A code of rounding near reference white moves light by about a percent, with room for the
     // encoder on top of that.

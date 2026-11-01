@@ -13,8 +13,8 @@ import dev.jordond.filmstrip.playback.contract.Interruption
 import dev.jordond.filmstrip.playback.contract.PlayerEngineContractTest
 import dev.jordond.filmstrip.playback.contract.awaitComposition
 import dev.jordond.filmstrip.playback.contract.awaitContract
+import dev.jordond.filmstrip.playback.contract.awaitStep
 import dev.jordond.filmstrip.playback.contract.contractTest
-import dev.jordond.filmstrip.playback.contract.settle
 import dev.jordond.filmstrip.playback.contract.withEngine
 import dev.jordond.filmstrip.playback.internal.loopWrapOf
 import dev.jordond.filmstrip.playback.internal.toMediaMs
@@ -219,7 +219,7 @@ class AndroidEngineContractTest : PlayerEngineContractTest() {
         }
         subject.engine.pause()
         awaitContract("the play axis to settle after pausing") { !recorder.lastState.playWhenReady }
-        settle()
+        awaitStep("the engine to go quiet after pausing") { subject.awaitQuiet() }
 
         val since = recorder.events.drop(eventsMark)
         since.filterIsInstance<PlaybackEvent.Ended>().shouldBeEmpty()
@@ -258,7 +258,7 @@ class AndroidEngineContractTest : PlayerEngineContractTest() {
         awaitContract("the composition to reach its end") {
           recorder.events.any { it is PlaybackEvent.Ended }
         }
-        settle()
+        awaitStep("the engine to go quiet after the end") { subject.awaitQuiet() }
 
         recorder.externalChanges.shouldBeEmpty()
         recorder.lastState.playWhenReady shouldBe false

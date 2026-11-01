@@ -11,8 +11,8 @@ import dev.jordond.filmstrip.playback.contract.PlayerEngineContractTest
 import dev.jordond.filmstrip.playback.contract.awaitComposition
 import dev.jordond.filmstrip.playback.contract.awaitContract
 import dev.jordond.filmstrip.playback.contract.awaitFrame
+import dev.jordond.filmstrip.playback.contract.awaitStep
 import dev.jordond.filmstrip.playback.contract.contractTest
-import dev.jordond.filmstrip.playback.contract.settle
 import dev.jordond.filmstrip.playback.contract.withEngine
 import dev.jordond.filmstrip.playback.internal.loopWrapOf
 import dev.jordond.filmstrip.player.PlaybackEvent
@@ -195,7 +195,7 @@ class WebEngineContractTest : PlayerEngineContractTest() {
         }
         // Paused before reading anything back, so a wrap whose seek is still landing cannot split the two counts.
         subject.engine.pause()
-        settle()
+        awaitStep("the engine to go quiet") { subject.engine.awaitQuiet() }
 
         val since = recorder.events.drop(eventsMark)
         since.filterIsInstance<PlaybackEvent.Ended>() shouldBe emptyList()

@@ -51,11 +51,16 @@ import kotlin.time.Duration.Companion.milliseconds
  *   confined to.
  * @param planner Lowers an edit the way an export of it would be lowered.
  * @param config How the player was built.
+ * @param startAudio Starts the audio graph, when there is one, from a position. Every transport start runs it before
+ *   the clock starts, and a test swaps in one it can hold open.
  */
 internal class BrowserPlayerEngine(
   parent: CoroutineScope,
   private val planner: BrowserPreviewPlanner,
   config: PlayerConfig,
+  private val startAudio: suspend (graph: BrowserAudioPreview?, from: Duration) -> Unit = { graph, from ->
+    graph?.start(from)
+  },
 ) : BasePlayerEngine(parent) {
   private var loaded: EditComposition? = null
   private var plan: BrowserPreviewPlan? = null
@@ -71,6 +76,8 @@ internal class BrowserPlayerEngine(
   private val pending = PendingLoad()
   private val guard = WrapGuard()
   private var seekSerial = 0
+  private val fenced = mutableListOf<Job>()
+  private var starting: Job? = null
   private var transport: Job? = null
   private var pump: Job? = null
   private var pumpHandle: Int? = null
@@ -95,6 +102,13 @@ internal class BrowserPlayerEngine(
    * The same reading the position ticker takes while playback runs.
    */
   val clockPosition: Duration get() = readPosition()
+
+  /**
+   * Whether the preview clock is advancing the playhead.
+   *
+   * The audio branch reads false while the browser holds the graph suspended, even after the transport started it.
+   */
+  val clockRunning: Boolean get() = clock.isRunning
 
   override val id: String = "filmstrip.webcodecs"
 
@@ -197,27 +211,49 @@ internal class BrowserPlayerEngine(
 
     guard.seekIssued(wrap = isWrapSeek)
     val seek = ++seekSerial
-    scope.launch {
-      val requested = position.coerceAtLeast(Duration.ZERO).coerceAtMost(resolved.duration)
-      val sent =
-        when (accuracy) {
-          SeekAccuracy.Exact -> resolved.seekLandingOf(requested)
-          SeekAccuracy.Nearest -> resolved.seekLandingOf(target.syncSampleAt(requested))
-        }
-      if (seek != seekSerial) return@launch
-      val redirect = guard.seekLanded(loopRange?.let { loopWrapOf(it, resolved.duration, resolved.frameRate) })
-      // A redirect is one more exact seek, which on this backend lands as soon as the clock moves.
-      if (redirect != null) guard.seekLanded(null)
-      val landing = redirect?.let { outputSlotTime(it, resolved.frameRate) } ?: sent
+    fence(
+      scope.launch {
+        val requested = position.coerceAtLeast(Duration.ZERO).coerceAtMost(resolved.duration)
+        val sent =
+          when (accuracy) {
+            SeekAccuracy.Exact -> resolved.seekLandingOf(requested)
+            SeekAccuracy.Nearest -> resolved.seekLandingOf(target.syncSampleAt(requested))
+          }
+        if (seek != seekSerial) return@launch
+        val redirect = guard.seekLanded(loopRange?.let { loopWrapOf(it, resolved.duration, resolved.frameRate) })
+        // A redirect is one more exact seek, which on this backend lands as soon as the clock moves.
+        if (redirect != null) guard.seekLanded(null)
+        val landing = redirect?.let { outputSlotTime(it, resolved.frameRate) } ?: sent
 
-      reachedEnd = false
-      // Everything decoded ahead of the old playhead is decoded for a position nobody is going to
-      // ask for now, so it is closed here rather than left to fall out of the window one frame at a
-      // time.
-      target.flush()
-      clock.moveTo(landing)
-      if (wantsPlayback) startTransport(landing)
-      onComplete(landing)
+        reachedEnd = false
+        // Everything decoded ahead of the old playhead is decoded for a position nobody is going to
+        // ask for now, so it is closed here rather than left to fall out of the window one frame at a
+        // time.
+        target.flush()
+        clock.moveTo(landing)
+        if (wantsPlayback) launchStart { landing }
+        onComplete(landing)
+      },
+    )
+  }
+
+  /**
+   * Suspends until every seek landing and transport start this engine launched has finished.
+   *
+   * A relaxed landing waits on the preview's lock behind any readbacks queued first, then writes the playhead and
+   * reports its completion, or finds itself stale and writes nothing. A transport start either starts the clock and
+   * both loops, or is cancelled by whatever superseded it and does nothing more. Once this returns, all of them have
+   * done one or the other. Work launched while this waits, the way a landing chains the seek queued behind it, is
+   * waited on too.
+   *
+   * The transport and pump loops a start leaves running are not waited on, since they run for as long as playback
+   * does. The engine is only quiet once this returns after a pause.
+   */
+  internal suspend fun awaitQuiet() {
+    while (true) {
+      fenced.removeAll { it.isCompleted }
+      val next = fenced.firstOrNull() ?: return
+      next.join()
     }
   }
 
@@ -225,7 +261,7 @@ internal class BrowserPlayerEngine(
     if (preview == null) return
     reachedEnd = false
     wantsPlayback = true
-    scope.launch { startTransport(readPosition()) }
+    launchStart { readPosition() }
   }
 
   override fun onPause() {
@@ -340,6 +376,8 @@ internal class BrowserPlayerEngine(
    */
   private fun rebuild(next: BrowserPreviewPlan) {
     platformLoads++
+    // A start in flight would otherwise go on to start the clock built below.
+    cancelStart()
     setStatus(PlaybackStatus.Preparing)
     preview?.release()
 
@@ -391,15 +429,42 @@ internal class BrowserPlayerEngine(
     return true
   }
 
+  private fun fence(job: Job) {
+    fenced.removeAll { it.isCompleted }
+    fenced += job
+  }
+
+  /**
+   * Launches a transport start from wherever [from] reads when it runs, cancelling the start still in flight.
+   *
+   * Only the newest start is ever live. A pause, a stop, a seek landing or a rebuild cancels it too, so a superseded
+   * start never schedules audio, moves the graph's anchor or starts a clock once something has replaced it.
+   */
+  private fun launchStart(from: () -> Duration) {
+    starting?.cancel()
+    val job = scope.launch { startTransport(from()) }
+    starting = job
+    fence(job)
+  }
+
+  private fun cancelStart() {
+    starting?.cancel()
+    starting = null
+  }
+
+  /**
+   * Starts the audio graph, the clock and both loops from [from].
+   */
   private suspend fun startTransport(from: Duration) {
     stopLoops()
-    audio?.start(from)
+    startAudio(audio, from)
     clock.start(from)
     startedAt = wallClock()
     startLoops()
   }
 
   private fun stopTransport() {
+    cancelStart()
     clock.stop()
     audio?.stop()
     startedAt = null

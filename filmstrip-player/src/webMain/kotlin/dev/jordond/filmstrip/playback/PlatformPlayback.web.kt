@@ -3,8 +3,7 @@ package dev.jordond.filmstrip.playback
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.playback.internal.BrowserPlayerEngine
 import dev.jordond.filmstrip.playback.internal.BrowserPreviewPlanner
-import dev.jordond.filmstrip.playback.internal.BrowserThumbnailPlanner
-import dev.jordond.filmstrip.playback.internal.BrowserThumbnailSource
+import dev.jordond.filmstrip.playback.internal.browserThumbnailSource
 import dev.jordond.filmstrip.player.PlayerConfig
 import dev.jordond.filmstrip.player.PlayerEngine
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
@@ -31,7 +30,7 @@ internal actual fun createThumbnailSource(
   request: ThumbnailRequest,
   components: ComponentRegistry,
 ): ThumbnailSource? =
-  BrowserThumbnailSource(
+  browserThumbnailSource(
     scope = CoroutineScope(Dispatchers.Main + SupervisorJob()),
-    planner = BrowserThumbnailPlanner(components),
+    components = components,
   )

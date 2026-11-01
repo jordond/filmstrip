@@ -189,6 +189,20 @@ internal class Media3PlayerEngine(
    */
   val platformPosition: Duration get() = status.platformPositionMs.milliseconds
 
+  /**
+   * What waits out the work queued on the player's and media3's playback threads and the callbacks it hopped onto
+   * [scope].
+   *
+   * See [Media3CallbackFence] for what it covers and what it cannot.
+   */
+  val fence: Media3CallbackFence =
+    Media3CallbackFence(
+      scope = scope,
+      handler = handler,
+      playbackLooper = { player?.playbackLooper },
+      seekInFlight = { seeks.target != null },
+    )
+
   override val id: String = "filmstrip.media3"
 
   /**

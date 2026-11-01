@@ -41,6 +41,15 @@ internal class BrowserThumbnailSource(
   private val scope: CoroutineScope,
   private val planner: BrowserThumbnailPlanner,
 ) : ThumbnailSource {
+  /**
+   * How many previews a render has open right now.
+   *
+   * A request opens one once its edit is lowered and releases it before its callback runs, whether it finished or was
+   * cancelled.
+   */
+  var openPreviews: Int = 0
+    private set
+
   override fun requestThumbnail(
     request: ThumbnailRequest,
     callback: ThumbnailCallback,
@@ -72,6 +81,7 @@ internal class BrowserThumbnailSource(
       }
 
     val preview = resolved.toBrowserPreview(request.composition)
+    openPreviews++
     try {
       val frame =
         preview.frameAt(request.position)
@@ -93,6 +103,7 @@ internal class BrowserThumbnailSource(
       )
     } finally {
       preview.release()
+      openPreviews--
     }
   }
 
@@ -100,6 +111,15 @@ internal class BrowserThumbnailSource(
     fun noFrame(request: ThumbnailRequest): String = "The composition has no frame at ${request.position}."
   }
 }
+
+/**
+ * Builds the thumbnail source a page's player hands out, rendering on [scope] through the components a `Filmstrip` was
+ * built with.
+ */
+internal fun browserThumbnailSource(
+  scope: CoroutineScope,
+  components: ComponentRegistry,
+): BrowserThumbnailSource = BrowserThumbnailSource(scope, BrowserThumbnailPlanner(components))
 
 /**
  * What lowering one thumbnail request settled on.

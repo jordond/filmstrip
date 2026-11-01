@@ -4,8 +4,8 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.playback.contract.awaitComposition
 import dev.jordond.filmstrip.playback.contract.awaitContract
+import dev.jordond.filmstrip.playback.contract.awaitStep
 import dev.jordond.filmstrip.playback.contract.contractTest
-import dev.jordond.filmstrip.playback.contract.settle
 import dev.jordond.filmstrip.playback.contract.withEngine
 import dev.jordond.filmstrip.playback.internal.loopWrapOf
 import dev.jordond.filmstrip.player.EngineListener
@@ -65,7 +65,7 @@ class WebLoopWrapTest {
         }
         engine.pause()
         registration.cancel()
-        settle()
+        awaitStep("the engine to go quiet") { engine.awaitQuiet() }
 
         val since = recorder.events.drop(events)
         val laps = since.filterIsInstance<PlaybackEvent.RangeLooped>()

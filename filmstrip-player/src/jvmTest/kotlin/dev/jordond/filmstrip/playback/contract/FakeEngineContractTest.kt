@@ -12,8 +12,10 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * Runs the engine contracts against a backend with no platform under it.
  *
- * The suite's own inheritor, so the shape is executed on every target before a real backend adopts
- * it. A failure here is the harness, not a platform.
+ * The suite's own inheritor, so the shape runs before a real backend adopts it. A failure here is the
+ * harness, not a platform. It runs on the JVM only, since the fake is plain coroutines and one target
+ * proves the harness. The real engines run the same suite on the JVM, macOS, iOS, the browser and
+ * an Android device. The Android host tests run no engine contract at all.
  */
 class FakeEngineContractTest : PlayerEngineContractTest() {
   override fun createEngine(scope: CoroutineScope): EngineUnderTest = FakeEngineUnderTest(scope)

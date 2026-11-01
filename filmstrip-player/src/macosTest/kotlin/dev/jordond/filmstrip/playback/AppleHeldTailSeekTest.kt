@@ -12,7 +12,6 @@ import dev.jordond.filmstrip.playback.contract.ContractRecorder
 import dev.jordond.filmstrip.playback.contract.awaitComposition
 import dev.jordond.filmstrip.playback.contract.awaitContract
 import dev.jordond.filmstrip.playback.contract.contractTest
-import dev.jordond.filmstrip.playback.contract.settleForAbsence
 import dev.jordond.filmstrip.playback.contract.withEngine
 import dev.jordond.filmstrip.playback.internal.AvPlayerEngine
 import dev.jordond.filmstrip.playback.internal.seekLandingOf
@@ -55,7 +54,7 @@ class AppleHeldTailSeekTest {
       reported shouldBe slotTime(outputSlotOf(at, FIXTURE_FRAME_RATE))
       resolved.heldTail shouldContain outputSlotOf(reported, FIXTURE_FRAME_RATE)
 
-      settleForAbsence()
+      engine.drainCallbacks()
       recorder.playhead shouldBe reported
     }
 
@@ -69,7 +68,7 @@ class AppleHeldTailSeekTest {
       reported shouldBe resolved.seekLandingOf(at)
       reported shouldBe slotTime(outputSlotOf(at, FIXTURE_FRAME_RATE))
 
-      settleForAbsence()
+      engine.drainCallbacks()
       recorder.playhead shouldBe reported
     }
 
@@ -86,7 +85,7 @@ class AppleHeldTailSeekTest {
             val reported = recorder.seekCompletions.last().position
             reported shouldBe resolved.seekLandingOf(at)
             reported shouldBe slot
-            settleForAbsence()
+            engine.drainCallbacks()
             recorder.playhead shouldBe slot
           }
         }

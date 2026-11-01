@@ -247,7 +247,7 @@ class AppleOverlayHdrTest {
     const val BAR = AuthoredColours.MID_GREY
 
     // A blend is read off the same encode as the fill, so it holds to the fill's own bound.
-    const val BLEND_TOLERANCE = AppleHdrFillTest.CODE_TOLERANCE
+    const val BLEND_TOLERANCE = FILL_CODE_TOLERANCE
 
     // One export per fill and opacity, at most three cells, one to each corner and anchor.
     val GRIDS = HdrOverlayCells.CELLS.groupBy { it.background to it.opacity }.values

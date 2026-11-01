@@ -1,13 +1,12 @@
 package dev.jordond.filmstrip.playback
 
-import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.internal.outputSlotOf
 import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.playback.contract.awaitComposition
 import dev.jordond.filmstrip.playback.contract.awaitContract
+import dev.jordond.filmstrip.playback.contract.awaitStep
 import dev.jordond.filmstrip.playback.contract.contractTest
-import dev.jordond.filmstrip.playback.contract.settleForAbsence
 import dev.jordond.filmstrip.playback.contract.withEngine
 import dev.jordond.filmstrip.playback.internal.BrowserPlayerEngine
 import dev.jordond.filmstrip.playback.internal.loopWrapOf
@@ -47,14 +46,14 @@ class WebSeekLandingTest {
         awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
         val start = outputSlotTime(outputSlotOf(REBUILD_START, FIXTURE_FRAME_RATE), FIXTURE_FRAME_RATE)
 
-        val hold = PreviewHold(engine)
+        val hold = PreviewHold(engine, LONG_HOLD)
         val seeks = recorder.seekCompletions.size
         engine.seekTo(HELD_TARGET, SeekAccuracy.Nearest)
         engine
-          .awaitComposition(shortened(), startAt = REBUILD_START)
+          .awaitComposition(webFixtureTrimmed(SHORTENED_LENGTH), startAt = REBUILD_START)
           .shouldBeInstanceOf<SetCompositionResult.Success>()
         awaitContract("the held readbacks to drain") { hold.drained }
-        settleForAbsence()
+        engine.awaitQuietDone()
 
         // Only a readback that took the lock after the release comes back without a frame, and the landing queued
         // behind it.
@@ -87,17 +86,19 @@ class WebSeekLandingTest {
 
         val log = EventLog()
         val registration = engine.addListener(log)
-        val hold = PreviewHold(engine)
+        val hold = PreviewHold(engine, LONG_HOLD)
         engine.seekTo(HELD_TARGET, SeekAccuracy.Nearest)
         engine.play()
-        awaitContract("a lap after the held seek lands") {
+        awaitContract("the wrap after the held seek to land") {
           log.entries
             .dropWhile { it !is PlaybackEvent.SeekCompleted }
-            .any { it is PlaybackEvent.RangeLooped }
+            .drop(1)
+            .dropWhile { it !is PlaybackEvent.RangeLooped }
+            .any { it is PlaybackEvent.SeekCompleted }
         }
         engine.pause()
+        engine.awaitQuietDone()
         registration.cancel()
-        settleForAbsence()
 
         val entries = log.entries
         val landed = entries.indexOfFirst { it is PlaybackEvent.SeekCompleted }
@@ -124,19 +125,101 @@ class WebSeekLandingTest {
       }
     }
 
+  // The readbacks are still queued when the fence starts, and the landing has to wait out every one of them. Once the
+  // fence returns, the hold has drained and the landing has written the playhead and reported once.
+  @Test
+  fun `the fence waits out a landing held behind readbacks`() =
+    contractTest { scope ->
+      val engine = WebEngineUnderTest(scope).engine
+      withEngine(engine) { recorder ->
+        engine.awaitComposition(webFixtureComposition()).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
+        val landing = outputSlotTime(outputSlotOf(HELD_SYNC_SAMPLE, FIXTURE_FRAME_RATE), FIXTURE_FRAME_RATE)
+
+        val hold = PreviewHold(engine, FENCE_HOLD)
+        val seeks = recorder.seekCompletions.size
+        engine.seekTo(HELD_TARGET, SeekAccuracy.Nearest)
+        hold.drained shouldBe false
+        engine.awaitQuietDone()
+
+        hold.drained shouldBe true
+        recorder.seekCompletions.drop(seeks).map { it.position } shouldBe listOf(landing)
+        engine.clockPosition shouldBe landing
+      }
+    }
+
+  // The second seek waits in the chase behind the held one and goes out only once that lands, which is after the fence
+  // has started. The second hold is taken before anything lands, so its readbacks queue for the preview's lock behind
+  // the first landing and ahead of the second. The fence still waits for the second landing.
+  @Test
+  fun `the fence waits out a landing chained while it waits`() =
+    contractTest { scope ->
+      val engine = WebEngineUnderTest(scope).engine
+      withEngine(engine) { recorder ->
+        engine.awaitComposition(webFixtureComposition()).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
+        val held = outputSlotTime(outputSlotOf(HELD_SYNC_SAMPLE, FIXTURE_FRAME_RATE), FIXTURE_FRAME_RATE)
+        val chained = outputSlotTime(outputSlotOf(FIXTURE_SYNC_INTERVAL, FIXTURE_FRAME_RATE), FIXTURE_FRAME_RATE)
+
+        val ahead = PreviewHold(engine, FENCE_HOLD)
+        val seeks = recorder.seekCompletions.size
+        engine.seekTo(HELD_TARGET, SeekAccuracy.Nearest)
+        engine.seekTo(CHAINED_TARGET, SeekAccuracy.Nearest)
+        val behind = PreviewHold(engine, FENCE_HOLD)
+        behind.drained shouldBe false
+        engine.awaitQuietDone()
+
+        ahead.drained shouldBe true
+        behind.drained shouldBe true
+        recorder.seekCompletions.drop(seeks).map { it.position } shouldBe listOf(held, chained)
+        engine.clockPosition shouldBe chained
+      }
+    }
+
+  // Play and pause back to back leave the transport start queued behind the pause. Once the fence has waited it out,
+  // the clock is still where it was before play, and stays there.
+  @Test
+  fun `a pause straight after play leaves the clock stopped`() =
+    contractTest { scope ->
+      val engine = WebEngineUnderTest(scope).engine
+      withEngine(engine) { recorder ->
+        engine.awaitComposition(webFixtureComposition()).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
+        val before = engine.clockPosition
+        val playheads = recorder.playheads.size
+
+        engine.play()
+        engine.pause()
+        engine.awaitQuietDone()
+
+        engine.clockRunning shouldBe false
+        engine.clockPosition shouldBe before
+        recorder.playheads.drop(playheads).forEach { it shouldBe before }
+        recorder.lastState.playWhenReady shouldBe false
+      }
+    }
+
+  private suspend fun BrowserPlayerEngine.awaitQuietDone() {
+    awaitStep("the engine to go quiet") { awaitQuiet() }
+  }
+
   /**
-   * A queue of readbacks that keeps the preview's lock busy, taken out before the seek it holds.
+   * A queue of readbacks that keeps the preview's lock busy, holding back every landing that queues for the lock after
+   * it.
    *
    * The positions alternate between the last frames of two groups of pictures, so every readback decodes a whole group
    * from its sync sample rather than reading a frame the one before it left behind.
+   *
+   * @param readbacks How many readbacks to queue.
    */
   private class PreviewHold(
     engine: BrowserPlayerEngine,
+    readbacks: Int,
   ) {
-    private val results = arrayOfNulls<ReadbackResult>(HOLD_READBACKS)
+    private val results = arrayOfNulls<ReadbackResult>(readbacks)
 
     init {
-      repeat(HOLD_READBACKS) { index ->
+      repeat(readbacks) { index ->
         engine.readback.requestFrame(HOLD_POSITIONS[index % HOLD_POSITIONS.size]) { results[index] = it }
       }
     }
@@ -167,10 +250,17 @@ class WebSeekLandingTest {
   }
 
   private companion object {
-    const val HOLD_READBACKS = 256
+    // Long enough to outlast a rebuild or several playhead readings on the wall clock, even on a fast machine.
+    const val LONG_HOLD = 256
+
+    // Only has to be queued ahead of the landing when the fence starts.
+    const val FENCE_HOLD = 16
     const val HELD_READINGS = 3
 
     val HELD_TARGET: Duration = 1050.milliseconds
+
+    // Inside the second group of pictures, so it lands on that group's sync sample rather than the held one's.
+    val CHAINED_TARGET: Duration = 700.milliseconds
     val HELD_SYNC_SAMPLE: Duration = FIXTURE_SYNC_INTERVAL * 2
     val REBUILD_START: Duration = 300.milliseconds
     val SHORTENED_LENGTH: Duration = 1400.milliseconds
@@ -180,16 +270,5 @@ class WebSeekLandingTest {
     // Ends a third of a slot past a slot, well clear of the fixture's last one.
     val RANGE: TimeRange =
       TimeRange.of(600.milliseconds + FIXTURE_FRAME_STEP / 3, 1100.milliseconds + FIXTURE_FRAME_STEP / 3)
-
-    fun shortened(): EditComposition {
-      val base = webFixtureComposition()
-      val trim = TimeRange.of(Duration.ZERO, SHORTENED_LENGTH)
-      return base.withClips(
-        base.tracks
-          .single()
-          .clips
-          .map { it.withTrim(trim) },
-      )
-    }
   }
 }

@@ -8,9 +8,8 @@ import dev.jordond.filmstrip.internal.outputSlotOf
 import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.playback.contract.awaitComposition
 import dev.jordond.filmstrip.playback.contract.awaitContract
+import dev.jordond.filmstrip.playback.contract.awaitStep
 import dev.jordond.filmstrip.playback.contract.contractTest
-import dev.jordond.filmstrip.playback.contract.settle
-import dev.jordond.filmstrip.playback.contract.settleForAbsence
 import dev.jordond.filmstrip.playback.contract.withEngine
 import dev.jordond.filmstrip.playback.internal.FfmpegPlayerEngine
 import dev.jordond.filmstrip.playback.internal.FfmpegPreviewPlan
@@ -102,7 +101,7 @@ class JvmRangeEndTest {
           awaitContract("playback to reach the end of a $length composition", timeout = PLAY_BUDGET) {
             recorder.events.filterIsInstance<PlaybackEvent.Ended>().isNotEmpty()
           }
-          settle()
+          awaitStep("every pump to finish") { subject.engine.awaitIdle() }
           registration.cancel()
 
           slotsPresented(positions, duration).distinct() shouldBe expected
@@ -169,7 +168,7 @@ class JvmRangeEndTest {
           recorder.events.firstOrNull { it is PlaybackEvent.RangeLooped }?.let { fail("playback reported $it") }
           recorder.events.filterIsInstance<PlaybackEvent.Ended>().isNotEmpty()
         }
-        settleForAbsence()
+        awaitStep("every pump to finish") { engine.awaitIdle() }
         registration.cancel()
 
         recorder.events.filterIsInstance<PlaybackEvent.RangeLooped>().shouldBeEmpty()
