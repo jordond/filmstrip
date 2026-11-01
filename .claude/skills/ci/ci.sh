@@ -52,7 +52,7 @@ steps=(
 
 summarise() {
   find "$checkout" -path '*/build/*' -name '*.xml' -newer "$1" \( -path '*test-results*' -o -path '*androidTest-results*' \) \
-    -exec grep -lZ '<testsuite' {} + 2>/dev/null | python3 -c '
+    -exec grep -l --null '<testsuite' {} + 2>/dev/null | python3 -c '
 import sys, re, os, collections
 root = sys.argv[1]
 agg = collections.defaultdict(lambda: [0, 0, 0])
