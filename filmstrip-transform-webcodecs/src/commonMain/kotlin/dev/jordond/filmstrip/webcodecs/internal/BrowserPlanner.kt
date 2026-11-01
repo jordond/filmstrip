@@ -186,7 +186,7 @@ internal class BrowserPlanner(
   private val planner =
     ExportPlanner(
       resolvers = resolvers,
-      renderCapabilities = ::renderCapabilities,
+      renderCapabilities = { _, encodesHdr -> renderCapabilities(encodesHdr) },
       parityOf = ::browserParityOf,
       unclaimedMessage = { specId ->
         "No resolver claimed $specId on the browser backend. Register the built-in catalogue with " +
@@ -543,17 +543,20 @@ private fun matchesOutputAspect(
   outputSize: Size,
 ): Boolean = drawnSize.width.toLong() * outputSize.height == drawnSize.height.toLong() * outputSize.width
 
-private fun renderCapabilities(
-  outputSize: Size,
-  encodesHdr: Boolean,
-): RenderCapabilities =
+/**
+ * What the browser pipeline renders on this page, whatever size the composition is written at.
+ *
+ * The longest texture side is the page's own `MAX_TEXTURE_SIZE` from [browserMaxTextureSide], which every overlay
+ * raster uploads under. HDR is advertised when [encodesHdr] says the export keeps it.
+ */
+internal fun renderCapabilities(encodesHdr: Boolean): RenderCapabilities =
   RenderCapabilities(
     api = RenderApi.WebGl,
     supportsFragmentShader = true,
     supportsComputeShader = false,
     supportsHdr = encodesHdr,
     colorSpaces = setOf(ColorSpace.Bt709, ColorSpace.Bt601, ColorSpace.Bt2020),
-    maxTextureSize = maxOf(outputSize.width, outputSize.height, MAX_TEXTURE_FLOOR),
+    maxTextureSize = browserMaxTextureSide(),
     // Decoded VideoFrames are uploaded straight into the texture, which is what this advertises. Text is laid out and
     // drawn on a 2D canvas at resolve.
     features = setOf(RenderFeature.ExternalTexture, RenderFeature.TextRendering),
@@ -566,7 +569,6 @@ private val LongRange.size: Long get() = if (isEmpty()) 0 else last - first + 1
  */
 private fun Duration.microseconds(): Double = toDouble(DurationUnit.MICROSECONDS)
 
-private const val MAX_TEXTURE_FLOOR = 16_384
 private val IDENTITY = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f)
 
 // What mediabunny's mp4 muxer, which every copy is pinned to, will take as-is, without an encoder.

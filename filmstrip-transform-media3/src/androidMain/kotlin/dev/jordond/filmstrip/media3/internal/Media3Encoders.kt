@@ -33,10 +33,12 @@ internal fun encoderCapabilities(): DeviceCapabilities {
 
 /**
  * What media3's effect pipeline can draw for an offline export.
+ *
+ * @param maxTextureSide The most pixels a texture holds on a side, [media3MaxTextureSide] unless a test sets it.
  */
 internal fun media3RenderCapabilities(
-  outputSize: Size,
   hdr: Boolean,
+  maxTextureSide: Int = media3MaxTextureSide(),
 ): RenderCapabilities =
   RenderCapabilities(
     api = RenderApi.OpenGlEs,
@@ -45,7 +47,7 @@ internal fun media3RenderCapabilities(
     // True only once the grade reaches the encoder, which is what [hdr] answers.
     supportsHdr = hdr,
     colorSpaces = setOf(ColorSpace.Bt709, ColorSpace.Bt601, ColorSpace.Bt2020),
-    maxTextureSize = maxOf(outputSize.width, outputSize.height, MAX_TEXTURE_FLOOR),
+    maxTextureSize = maxTextureSide,
     features =
       buildSet {
         add(RenderFeature.MultipassRender)
@@ -115,8 +117,6 @@ private fun Array<MediaCodecInfo>.anyHdrEncoder(): Boolean =
         .profileLevels
         .any { it.profile == MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10 }
   }
-
-private const val MAX_TEXTURE_FLOOR = 4_096
 
 private val VIDEO_MIME_TYPES =
   listOf(

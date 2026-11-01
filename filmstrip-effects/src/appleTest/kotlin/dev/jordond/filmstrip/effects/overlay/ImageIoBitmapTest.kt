@@ -200,8 +200,10 @@ class ImageIoBitmapTest {
   fun `a translucent text plate reads back at its straight colour`() {
     assertRasterReads()
     val style = TextStyle(color = OPAQUE_BLACK, backgroundColor = HALF_WHITE)
-    val raster = assertNotNull(rasterizeText("H", style, FRAME), "the text drew nothing")
-    val corner = assertNotNull(raster.stored, "the plate read nothing").take(CHANNELS).map { it.toInt() and MASK }
+    val drawn = rasterizeText("H", style, FRAME)
+    val raster = assertIs<TextRaster.Drawn<OverlayPixels>>(drawn, "the text drew nothing").pixels
+    val stored = assertNotNull(raster.stored, "the plate read nothing")
+    val corner = stored.take(CHANNELS).map { it.toInt() and SAMPLE_MASK }
 
     assertContentEquals(listOf(MAX, MAX, MAX, HALF * EIGHT_BIT_STEP), corner, "the plate's corner lost its colour")
   }
@@ -235,7 +237,7 @@ class ImageIoBitmapTest {
   private fun OverlayPixels.centre(): List<Int>? {
     val samples = stored ?: return null
     val offset = (size.height / 2 * size.width + size.width / 2) * CHANNELS
-    return List(CHANNELS) { samples[offset + it].toInt() and MASK }
+    return List(CHANNELS) { samples[offset + it].toInt() and SAMPLE_MASK }
   }
 
   private inline fun <T> CGImageRef.useImage(read: (CGImageRef) -> T): T =
@@ -343,11 +345,9 @@ class ImageIoBitmapTest {
     const val BITS = 8
     const val CHANNELS = 4
     const val ALPHA = 3
-    const val MASK = 0xFFFF
     const val MAX = 65535
     const val MAX_SAMPLE = 65535.0
     const val HALF = 128
-    const val EIGHT_BIT_STEP = 257
     const val OPAQUE_BLACK = 0xFF000000.toInt()
     const val HALF_WHITE = 0x80FFFFFF.toInt()
     val FRAME = Size(64, 32)

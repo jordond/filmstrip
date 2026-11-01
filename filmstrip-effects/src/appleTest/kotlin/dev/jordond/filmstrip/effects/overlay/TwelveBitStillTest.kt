@@ -140,8 +140,6 @@ class TwelveBitStillTest {
 
   private companion object {
     const val RGB = 3
-    const val SAMPLE_MASK = 0xFFFF
-    const val EIGHT_BIT_STEP = 257
     const val SMPTE_240M = 7
     const val TWELVE_BITS = 12
     const val TOL = AppleStillSamples.TOLERANCE

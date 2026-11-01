@@ -139,16 +139,33 @@ it recognises, and declines the rest so the next resolver gets a look.
     `EffectApproximated` adjustment. A run of overlays shares one `OverlayEffect` here, so
     N overlays cost one GL pass. A preview lowers overlays the way its export does. An overlay rules
     out a copy, so on a device with no HDR encoder an HDR composition carrying one tone maps to SDR on
-    export, and its preview tone maps the same way, even on an HDR panel.
+    export, and its preview tone maps the same way, even on an HDR panel. media3 uploads each overlay
+    as one texture, so a picture or text longer on a side than the device's OpenGL ES
+    `GL_MAX_TEXTURE_SIZE` is refused by name. `RenderCapabilities.maxTextureSize` is that side, probed
+    from the device and never below OpenGL ES 3.0's 2048.
 
 [^text-raster]:
     Text is rasterised at resolve against the frame an export writes and only resampled
     after that, so a preview and its export break lines on the same words. A device that reports no
     `RenderFeature.TextRendering` refuses by name, and so does text and a style that leave nothing to
     draw. A plate's margin is a share of the cap height on every backend, so a plate on Android comes
-    out smaller than it did when its margin was a share of the font size. Apple stores the text
-    raster at sixteen bits a component, so a translucent plate and the soft edges of its glyphs keep
-    their straight colour on an HDR frame.
+    out smaller than it did when its margin was a share of the font size. Every backend stores the
+    plate's straight colour at sixteen bits a component, so a translucent plate and the soft edges of
+    its glyphs keep their colour on an HDR frame. Apple draws the whole raster at sixteen bits. Android
+    and the browser draw how much of each texel the glyphs cover and lay the plate and text colours
+    from their straight values, so there a colour font's glyphs, such as an emoji, keep their own colour
+    at the eight bits the platform draws them in, and a glyph texel within three premultiplied
+    eight-bit steps of the text colour takes the text colour exactly. Text is refused by name before
+    its raster is made when the raster, the floats an HDR frame draws it from and what is held on the
+    way would pass 1 GiB. Android and the browser count that at 40 bytes a texel, and Apple counts its
+    raster, its floats and the band of rows it draws through. Apple also refuses text in a face whose
+    line stands taller than 10,000,000 pixels, the tallest line Core Text lays out. Android also refuses
+    a raster past half of the app's Java heap, so how much text fits there depends on the device.
+    Android and the browser refuse a raster longer on a side than the texture it uploads to holds,
+    OpenGL ES's `GL_MAX_TEXTURE_SIZE` on Android and WebGL's `MAX_TEXTURE_SIZE` in the browser. Text
+    that fits all of those but that the platform cannot allocate is refused saying so on Android, Apple
+    and js. On wasmJs only the canvas read is refused that way, since wasm traps on an array it cannot
+    allocate and a trap cannot be caught.
 
 [^web-image]:
     The image is decoded before planning, so one the browser cannot decode is refused by
@@ -168,7 +185,10 @@ it recognises, and declines the rest so the next resolver gets a look.
     Apple. Lines break at spaces and at every `\n`, and a word wider than a whole line is split
     between graphemes. Core Text and `StaticLayout` follow the Unicode line breaking rules, which also
     break after a hyphen and between CJK characters, so such a caption can wrap on different words here
-    than on Android or Apple. A preview still breaks exactly where its own export does.
+    than on Android or Apple. A preview still breaks exactly where its own export does. Text longer
+    on a side than the page's WebGL `MAX_TEXTURE_SIZE` is refused by name, and
+    `RenderCapabilities.maxTextureSize` is that side, read from the page and never below WebGL2's
+    2048.
 
 [^hdr-brightness]:
     The factor is a multiply on an encoded SDR signal. On an export that keeps an HDR
@@ -373,7 +393,7 @@ by a few codes is listed here with its size and is not reported.
 | Browser | Chrome turns a limited range BT.709 or BT.2020 AVIF into RGB up to six eight-bit codes from its H.273 reading, on colours inside the gamut. That holds for 12 on those primaries too | Drawn as Chrome decodes it                                                                                           |
 | Browser | `createImageBitmap` decodes to eight bits a channel. Only a PNG is read at its full depth, through filmstrip's own PNG reader                                              | A ten or twelve-bit AVIF is `Degraded`, `PrecisionReduced`, drawn from its eight-bit decode                          |
 | Browser | Safari                                                                                                                                                                   | Unmeasured                                                                                                           |
-| Browser | A PNG's inflated rows, its sixteen-bit samples and the eight-bit bitmap drawn from it must fit in 1 GiB. A 48 megapixel PNG fits at eight or sixteen bits | Unsupported past it, the reason naming the picture's size and the 1 GiB |
+| Browser | A PNG's inflated rows, its sixteen-bit samples and the eight-bit bitmap drawn from it must fit in 1 GiB, and its longest side in the page's WebGL `MAX_TEXTURE_SIZE`. A 48 megapixel PNG fits the 1 GiB at eight or sixteen bits, and draws only on a page whose texture holds its longest side | Unsupported past either, the reason naming the picture's size and the 1 GiB or the texture side |
 
 ffmpeg was measured on 6.1.1 and 9.0.2, and keeps a twelve-bit AVIF, and a twelve-bit HEIC where its
 build opens HEIF, deeper than eight bits. Chrome was measured headless.

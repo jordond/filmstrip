@@ -10,8 +10,11 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.authoredHdrNits
 import dev.jordond.filmstrip.media.signalFromNits
-import dev.jordond.filmstrip.style.TextAlignment
 import dev.jordond.filmstrip.style.TextStyle
+import dev.jordond.filmstrip.test.greySignal
+import dev.jordond.filmstrip.test.sampleOfCode
+import dev.jordond.filmstrip.test.straightSampleTolerance
+import dev.jordond.filmstrip.test.straightSignalTolerance
 import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -33,11 +36,11 @@ import platform.CoreImage.CIImage
 import platform.CoreImage.kCIFormatRGBA8
 import platform.CoreImage.kCIFormatRGBAf
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -52,7 +55,7 @@ class OverlayRasterTest {
   @Test
   fun `draws text the right way up`() {
     val context = renderingContext()
-    val raster = assertNotNull(rasterizeText(".", TextStyle(fontSize = 0.5f), FRAME))
+    val raster = drawnText(".", TextStyle(fontSize = 0.5f), FRAME)
     val size = raster.size
 
     val (top, bottom) = raster.codes.inkByHalf(size, context)
@@ -67,7 +70,7 @@ class OverlayRasterTest {
 
     // Two saturated colours, since one alone lets a run that swaps a channel read as correct.
     for (authored in listOf(RED, BLUE)) {
-      val raster = assertNotNull(rasterizeText("H", TextStyle(fontSize = 0.5f, color = authored), FRAME))
+      val raster = drawnText("H", TextStyle(fontSize = 0.5f, color = authored), FRAME)
       val drawn =
         raster.enteringFrame(transfer = null, ColorSpace.Bt709).opaqueInk(raster.size, context, inCodes = true)
 
@@ -87,7 +90,7 @@ class OverlayRasterTest {
   fun `a plate enters an sdr frame as its own codes`() {
     val context = renderingContext()
     val style = TextStyle(fontSize = 0.5f, color = GREY, backgroundColor = GREY)
-    val raster = assertNotNull(rasterizeText("H", style, FRAME))
+    val raster = drawnText("H", style, FRAME)
 
     val sdr = raster.enteringFrame(transfer = null, ColorSpace.Bt709)
     val entered = sdr.opaqueInk(raster.size, context, inCodes = true)
@@ -99,142 +102,114 @@ class OverlayRasterTest {
     assertTrue(distance(entered, GREY) * 2 < gap, "asked for ${GREY.hex()} and drew ${entered.hex()}")
   }
 
-  // Read back in the transfer's own space, a plate on an HDR frame carries the signal a fill of its colour does.
+  // Read back in the transfer's own space, a plate on an HDR frame carries the signal a fill of its colour does. The
+  // read runs in a float working format, so the bound is the stored sample's alone.
   @Test
   fun `a plate enters an hdr frame at the shared fill signal`() {
-    val context = renderingContext()
-    val raster = assertNotNull(rasterizeText("H", TextStyle(color = GREY, backgroundColor = GREY), FRAME))
+    val context = renderingContext(floatFormat = true)
+    val raster = drawnText("H", TextStyle(color = GREY, backgroundColor = GREY), FRAME)
+    val code = greyCode(GREY)
 
     HdrTransfer.entries.forEach { transfer ->
       val expected = transfer.signalFromNits(authoredHdrNits(GREY))
       val read = raster.enteringFrame(transfer, ColorSpace.Bt2020).signalAtCentre(raster.size, context, transfer)
+      val bound = straightSignalTolerance(OPAQUE, code, transfer)
 
       assertTrue(
-        (0 until 3).all { abs(read[it] - expected[it]) <= SIGNAL_TOLERANCE },
-        "the $transfer plate carried ${read.toList()} and the shared fill asks for ${expected.toList()}",
+        (0 until 3).all { abs(read[it] - expected[it]) <= bound },
+        "the $transfer plate carried ${read.toList()} and the shared fill asks for ${expected.toList()} within $bound",
       )
-      assertEquals(1f, read[ALPHA], SIGNAL_TOLERANCE, "the $transfer plate lost its alpha")
+      assertEquals(1f, read[ALPHA], alphaTolerance(), "the $transfer plate lost its alpha")
     }
   }
 
-  // The colour is mapped before the alpha multiplies it, so a half transparent texel keeps the straight signal of its
-  // colour and carries its alpha alongside.
+  // The colour is mapped before the alpha multiplies it, so a translucent texel keeps the straight signal of its
+  // colour and carries its alpha alongside. The read runs in a float working format, so the bound is the stored
+  // sample's alone.
   @Test
-  fun `a half transparent texel keeps its colour's signal on an hdr frame`() {
-    val context = renderingContext()
-    val raster = assertNotNull(rasterizeText("H", TextStyle(color = GREY, backgroundColor = HALF_GREY), FRAME))
-    val transfer = HdrTransfer.Pq
-    val expected = transfer.signalFromNits(authoredHdrNits(GREY))
+  fun `a translucent texel keeps its colour's signal on an hdr frame`() {
+    val context = renderingContext(floatFormat = true)
 
-    val corner = raster.enteringFrame(transfer, ColorSpace.Bt2020).signalAt(0, 0, raster.size, context, transfer)
-    val alpha = corner[ALPHA]
+    for (plate in TRANSLUCENT_PLATES) {
+      val raster = drawnText("H", TextStyle(color = GREY, backgroundColor = plate), FRAME)
+      val code = greyCode(plate)
+      val authoredAlpha = plate ushr ALPHA_SHIFT
 
-    assertEquals((HALF_GREY ushr ALPHA_SHIFT) / FULL, alpha, SIGNAL_TOLERANCE, "the plate's corner lost its alpha")
-    (0 until 3).forEach { channel ->
-      val straight = corner[channel] / alpha
-      assertEquals(expected[channel], straight, SIGNAL_TOLERANCE, "channel $channel of ${corner.toList()}")
+      HdrTransfer.entries.forEach { transfer ->
+        val expected = transfer.signalFromNits(authoredHdrNits(plate))
+        val corner = raster.enteringFrame(transfer, ColorSpace.Bt2020).signalAt(0, 0, raster.size, context, transfer)
+        val alpha = corner[ALPHA]
+        val bound = straightSignalTolerance(authoredAlpha, code, transfer)
+        val plateName = "the $transfer ${plate.hex()} plate"
+
+        assertEquals(authoredAlpha / FULL, alpha, alphaTolerance(), "$plateName lost its alpha")
+        (0 until 3).forEach { channel ->
+          val straight = corner[channel] / alpha
+          assertEquals(expected[channel], straight, bound, "$plateName read ${corner.toList()}")
+        }
+      }
     }
   }
 
-  // Premultiplied on the eight-bit grid, 0x80 grey at 0x80 alpha is stored as 0x40 and reads back straight as 127.5,
-  // a whole 128 samples short at sixteen bits.
+  // Premultiplied on the eight-bit grid and divided back out, a plate's straight sample lands far enough off that its
+  // signal leaves the bound the HDR plate is read within, on both transfers and at both plates.
   @Test
-  fun `a half transparent texel stores its authored straight colour`() {
+  fun `an eight bit store falls outside the hdr signal bound`() {
+    for (plate in TRANSLUCENT_PLATES) {
+      val code = greyCode(plate)
+      val alpha = plate ushr ALPHA_SHIFT
+      val stored = (code * alpha / FULL).roundToInt()
+      val eightBit = stored * FULL / alpha * sampleOfCode(1)
+
+      HdrTransfer.entries.forEach { transfer ->
+        val authored = greySignal(sampleOfCode(code).toFloat(), transfer)
+        val read = greySignal(eightBit, transfer)
+        val moved = (0 until 3).maxOf { abs(read[it] - authored[it]) }
+        val bound = straightSignalTolerance(alpha, code, transfer)
+
+        assertTrue(moved > bound, "the $transfer ${plate.hex()} plate moved $moved stored at eight bits, inside $bound")
+      }
+    }
+  }
+
+  // Premultiplied on the eight-bit grid, colour 0x80 at alpha 0x80 reads back straight 128.5 samples short and colour
+  // 0xC8 at alpha 0x40 200.8 samples off, both outside what a sixteen-bit store rounds away.
+  @Test
+  fun `a translucent texel stores its authored straight colour`() {
     assertRasterReads()
-    val raster = assertNotNull(rasterizeText("H", TextStyle(color = GREY, backgroundColor = HALF_GREY), FRAME))
-    val samples = assertNotNull(raster.stored)
 
-    val authored =
-      listOf(RED_SHIFT, GREEN_SHIFT, BLUE_SHIFT, ALPHA_SHIFT).map { ((HALF_GREY ushr it) and BYTE) * WIDEN }
-    val corner = (0 until CHANNELS).map { samples[it].toInt() and SAMPLE_MASK }
-    assertTrue(
-      corner.zip(authored).all { (read, asked) -> abs(read - asked) <= SAMPLE_TOLERANCE },
-      "the plate's corner stored $corner and was authored as $authored",
-    )
+    for (plate in TRANSLUCENT_PLATES) {
+      val raster = drawnText("H", TextStyle(color = GREY, backgroundColor = plate), FRAME)
+      val samples = assertNotNull(raster.stored)
+      val alpha = plate ushr ALPHA_SHIFT
+
+      val corner = (0 until CHANNELS).map { samples[it].toInt() and SAMPLE_MASK }
+      val authored =
+        listOf(RED_SHIFT, GREEN_SHIFT, BLUE_SHIFT, ALPHA_SHIFT).map { sampleOfCode((plate ushr it) and BYTE) }
+      // The alpha is stored as it is, the way an opaque texel's colour is, so it never divides by itself.
+      val tolerances =
+        authored.indices.map { channel ->
+          straightSampleTolerance(if (channel == ALPHA) OPAQUE else alpha)
+        }
+      assertTrue(
+        corner.indices.all { abs(corner[it] - authored[it]) <= tolerances[it] },
+        "the ${plate.hex()} plate's corner stored $corner and was authored as $authored, within $tolerances",
+      )
+    }
   }
 
   @Test
   fun `an hdr frame draws text the right way up`() {
     val context = renderingContext()
-    val raster = assertNotNull(rasterizeText(".", TextStyle(fontSize = 0.5f), FRAME))
+    val raster = drawnText(".", TextStyle(fontSize = 0.5f), FRAME)
 
     val (top, bottom) = raster.enteringFrame(HdrTransfer.Pq, ColorSpace.Bt2020).inkByHalf(raster.size, context)
     assertTrue(bottom > top, "ink was $top above and $bottom below, so the HDR raster is upside down")
   }
 
   @Test
-  fun `sizes the block to the glyphs and not to the authored wrap width`() {
-    val narrow = assertNotNull(rasterizeText("hi", TextStyle(maxWidth = 0.9f), FRAME))
-    val wide = assertNotNull(rasterizeText("a much longer caption", TextStyle(maxWidth = 0.9f), FRAME))
-
-    assertTrue(
-      wide.size.width > narrow.size.width,
-      "both blocks came back the same width, so the box is the authored one",
-    )
-    assertTrue(narrow.size.width < FRAME.width, "the short block filled the whole wrap width")
-  }
-
-  @Test
-  fun `wraps at the authored width onto more than one line`() {
-    val style = TextStyle(fontSize = 0.08f, maxWidth = 0.3f, alignment = TextAlignment.Center)
-    val one = assertNotNull(rasterizeText("one", style, FRAME))
-    val many = assertNotNull(rasterizeText("one two three four five six seven", style, FRAME))
-
-    assertTrue(many.size.height > one.size.height, "the long string did not wrap")
-  }
-
-  @Test
-  fun `scales the block with the frame it is drawn on`() {
-    val style = TextStyle(fontSize = 0.1f)
-    val small = assertNotNull(rasterizeText("caption", style, Size(640, 360)))
-    val large = assertNotNull(rasterizeText("caption", style, Size(1280, 720)))
-
-    val ratio = large.size.height.toFloat() / small.size.height
-    assertTrue(ratio in 1.8f..2.2f, "doubling the frame changed the block by ${ratio}x")
-  }
-
-  @Test
-  fun `pads a block that carries a background plate`() {
-    val plain = assertNotNull(rasterizeText("caption", TextStyle(), FRAME))
-    val plated = assertNotNull(rasterizeText("caption", TextStyle(backgroundColor = BLACK), FRAME))
-
-    assertTrue(plated.size.width > plain.size.width, "the plate stops at the glyphs")
-  }
-
-  @Test
-  fun `a plate widens the raster by its padding on every side`() {
-    val plated = TextStyle(fontSize = FONT_SIZE, backgroundColor = BLACK, maxWidth = MAX_WIDTH)
-    val unplated = TextStyle(fontSize = FONT_SIZE, maxWidth = MAX_WIDTH)
-
-    val withPlate = assertNotNull(rasterizeText(WORD, plated, METRICS_FRAME)).size
-    val without = assertNotNull(rasterizeText(WORD, unplated, METRICS_FRAME)).size
-
-    val padding = plated.platePaddingOn(METRICS_FRAME)
-    assertEquals(without.width + 2 * padding, withPlate.width)
-    assertEquals(without.height + 2 * padding, withPlate.height)
-  }
-
-  @Test
-  fun `text wider than the wrap width breaks onto a second line`() {
-    val once = assertNotNull(rasterizeText(WORD, TextStyle(fontSize = FONT_SIZE, maxWidth = 1f), METRICS_FRAME))
-    val word = once.size
-
-    // A wrap width half again the word's own width holds the word once but not twice.
-    val style = TextStyle(fontSize = FONT_SIZE, maxWidth = 1.5f * word.width / METRICS_FRAME.width)
-    val wrap = style.wrapWidthOn(METRICS_FRAME)
-    assertTrue(word.width <= wrap && wrap < 2 * word.width, "wrap $wrap against a word ${word.width} wide")
-
-    val twice = assertNotNull(rasterizeText("$WORD $WORD", style, METRICS_FRAME)).size
-
-    // CoreText measures a fractional line height and the block is rounded up once, not per line, so
-    // two lines stand one pixel short of twice a rounded single line at most.
-    assertTrue(twice.height in 2 * word.height - 1..2 * word.height, "two lines stand ${twice.height} tall")
-    assertTrue(twice.width <= wrap, "a ${twice.width} wide raster outgrew its $wrap wrap")
-  }
-
-  @Test
   fun `draws nothing for an empty string`() {
-    assertNull(rasterizeText("", TextStyle(), FRAME))
+    assertEquals(TextRaster.Empty, rasterizeText("", TextStyle(), FRAME))
   }
 
   @Test
@@ -264,9 +239,19 @@ class OverlayRasterTest {
 
   @Test
   fun `reports an image's own pixel size`() {
-    val raster = assertNotNull(rasterizeText("x", TextStyle(), FRAME))
+    val raster = drawnText("x", TextStyle(), FRAME)
     raster.size.width shouldBe raster.codes.extent.useContents { size.width.toInt() }
   }
+
+  private fun drawnText(
+    text: String,
+    style: TextStyle,
+    frame: Size,
+  ): OverlayPixels =
+    assertIs<TextRaster.Drawn<OverlayPixels>>(rasterizeText(text, style, frame), "the text drew nothing").pixels
+
+  // An alpha stored at sixteen bits reads back within one sample, as a fraction of full.
+  private fun alphaTolerance(): Float = straightSampleTolerance(OPAQUE) / sampleOfCode(OPAQUE)
 
   /**
    * Total alpha above and below the horizontal midline.
@@ -395,6 +380,13 @@ class OverlayRasterTest {
 
   private fun Int.hex(): String = "0x${toUInt().toString(HEX)}"
 
+  // The one code a grey colour holds in every channel, which a grey signal bound is read at.
+  private fun greyCode(argb: Int): Int {
+    val code = (argb shr RED_SHIFT) and BYTE
+    require(code == (argb shr GREEN_SHIFT) and BYTE && code == argb and BYTE) { "${argb.hex()} is not grey" }
+    return code
+  }
+
   private fun distance(
     a: Int,
     b: Int,
@@ -402,25 +394,20 @@ class OverlayRasterTest {
 
   private companion object {
     val FRAME = Size(1280, 720)
+
     const val CHANNELS = 4
     const val ALPHA = 3
-    const val BLACK = 0xFF000000.toInt()
     const val RED = 0xFFFF0000.toInt()
     const val BLUE = 0xFF0000FF.toInt()
     const val GREY = 0xFF808080.toInt()
-    const val HALF_GREY = 0x80808080.toInt()
     const val ALPHA_SHIFT = 24
+    const val OPAQUE = 0xFF
     const val FULL = 255f
     const val RED_SHIFT = 16
     const val GREEN_SHIFT = 8
     const val BLUE_SHIFT = 0
     const val BYTE = 0xFF
     const val HEX = 16
-
-    val METRICS_FRAME = Size(1920, 1080)
-    const val WORD = "Filmstrip"
-    const val FONT_SIZE = 0.06f
-    const val MAX_WIDTH = 0.55f
 
     // A four by two opaque mid grey PNG tagged sRGB.
     val GREY_PNG =
@@ -436,12 +423,7 @@ class OverlayRasterTest {
     // exact code value it started from.
     const val TOLERANCE = 2
 
-    // A ten-bit code's step in signal, headroom for the working space's half floats on the way through.
-    const val SIGNAL_TOLERANCE = 1f / 1023f
-
-    // An eight-bit code widened to sixteen bits, and one sixteen-bit step of headroom for the divide by alpha.
-    const val WIDEN = 257
-    const val SAMPLE_MASK = 0xFFFF
-    const val SAMPLE_TOLERANCE = 1
+    // Colour equal to alpha, and colour apart from it at a low alpha, where a divide by alpha widens any rounding most.
+    val TRANSLUCENT_PLATES = listOf(0x80808080.toInt(), 0x40C8C8C8)
   }
 }

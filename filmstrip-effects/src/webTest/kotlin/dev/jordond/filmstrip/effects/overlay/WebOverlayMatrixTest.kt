@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.Degradation
 import dev.jordond.filmstrip.effect.DegradationReason
 import dev.jordond.filmstrip.effect.EffectResolution
+import dev.jordond.filmstrip.effect.OverlaySource
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.WebGlOverlay
@@ -101,7 +102,7 @@ class WebOverlayMatrixTest {
       val bytes = MatrixAvif.EIGHT_BIT_420.bytes(CicpTag(BT709, SRGB_TRANSFER, BT709, fullRange = false))
       val resolved = assertIs<EffectResolution.Resolved>(resolve(bytes))
 
-      assertNull(overlayOf(resolved.effect.overlay).samples)
+      assertNull(imageOf(overlayOf(resolved.effect.overlay)).samples)
     }
 
   @Test
@@ -135,7 +136,7 @@ class WebOverlayMatrixTest {
       val degraded = assertIs<EffectResolution.Degraded>(resolve(bytes))
 
       assertEquals(BT2020, nearest.matrix)
-      assertNull(overlayOf(degraded.effect.overlay).samples)
+      assertNull(imageOf(overlayOf(degraded.effect.overlay)).samples)
       assertEquals(listOf(unreadMatrix(nearest), eightBitDecode(10)), degraded.causes)
     }
 
@@ -242,7 +243,7 @@ class WebOverlayMatrixTest {
     case: Case,
     overlay: WebGlOverlay,
   ): Pair<String, String?> {
-    val route = if (overlay.samples != null) EVALUATED else RESOLVED
+    val route = if (imageOf(overlay).samples != null) EVALUATED else RESOLVED
     return route to landingMiss(case, overlay, case.nclx.matrix)
   }
 
@@ -271,7 +272,7 @@ class WebOverlayMatrixTest {
   ): String? {
     val picture = case.picture
     val nclx = case.nclx
-    val samples = overlay.samples
+    val samples = imageOf(overlay).samples
     if (samples == null) {
       val miss = chromeMiss(case, overlay, matrix)
       val drifts = !nclx.fullRange && ycbcrReading(matrix, nclx.primaries, nclx.transfer).equivalentCode() in DRIFTING
@@ -299,7 +300,7 @@ class WebOverlayMatrixTest {
   ): Int {
     val picture = case.picture
     val nclx = case.nclx
-    val codes = assertNotNull(codesOf(overlay.image.unsafeCast<ImageBitmap>()))
+    val codes = assertNotNull(codesOf(imageOf(overlay).image.unsafeCast<ImageBitmap>()))
     val unclamped = ycbcrReading(matrix, nclx.primaries, nclx.transfer).rgbMatrix(picture.bitDepth, nclx.fullRange)
     var worst = 0
     for (block in 0 until MatrixAvif.BLOCKS) {
@@ -328,6 +329,8 @@ class WebOverlayMatrixTest {
   }
 
   private fun overlayOf(overlay: WebGlOverlay?): WebGlOverlay = assertNotNull(overlay)
+
+  private fun imageOf(overlay: WebGlOverlay): OverlaySource.Image = assertIs<OverlaySource.Image>(overlay.source)
 
   private class Case(
     val picture: MatrixAvif,

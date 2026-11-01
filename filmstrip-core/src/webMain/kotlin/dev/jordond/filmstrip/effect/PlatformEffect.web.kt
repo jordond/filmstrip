@@ -63,25 +63,53 @@ public class WebGlPass(
  * The resolver works out where and how strongly it lands, so a compositor reads a rectangle and an
  * opacity and computes neither.
  *
- * @property image An `ImageBitmap` or an `OffscreenCanvas`, premultiplied on upload.
- * @property size The pixel size the raster is uploaded at. A raster carrying [samples] takes their size, in the order
+ * @property source What the raster is uploaded from, a decoded image or samples alone.
+ * @property size The pixel size the raster is uploaded at. A raster carrying samples takes their size, in the order
  * they are stored, and any other raster its own.
  * @property drawAt Where to draw the raster at a composition time, or null when it is not drawn on that frame.
- * @property colour How a picture describes the colour of its stored codes, which [image] holds unconverted, or null
- * when the raster is untagged and its codes are sRGB.
- * @property samples Sixteen-bit RGBA samples, four a texel as [dev.jordond.filmstrip.internal.pngSamples] reads a
- * PNG's, or null for any other raster. A PNG carries its stored samples at their full depth, and an AVIF the colour
- * core's YCbCr evaluator turns its samples into. The compositor converts these in place of [image]'s eight-bit codes.
+ * @property colour How a picture describes the colour of its stored codes or samples, or null when the raster is
+ * untagged and they are sRGB.
  */
 @InternalFilmstripApi
 public class WebGlOverlay(
-  public val image: JsAny,
+  public val source: OverlaySource,
   public val size: Size,
   public val drawAt: (compositionTime: Duration) -> WebGlOverlayDraw?,
   public val colour: PictureColour? = null,
-  public val samples: ShortArray? = null,
 ) {
   override fun toString(): String = "WebGlOverlay($size)"
+}
+
+/**
+ * What a [WebGlOverlay] is uploaded from.
+ *
+ * Samples are sixteen-bit RGBA, four a texel as [dev.jordond.filmstrip.internal.pngSamples] reads a PNG's. A PNG
+ * carries its stored samples at their full depth, an AVIF the colour core's YCbCr evaluator turns its samples into,
+ * and text the straight colour laid over its plate. The compositor converts samples wherever a raster carries them, in
+ * place of an image's eight-bit codes.
+ */
+@InternalFilmstripApi
+public sealed interface OverlaySource {
+  /**
+   * A decoded picture, uploaded from [samples] when it carries them and from [image] otherwise.
+   *
+   * @property image An `ImageBitmap` or an `OffscreenCanvas`, premultiplied on upload, which holds the picture's
+   * stored codes unconverted.
+   * @property samples The picture's samples, or null when it has none deeper than [image]'s codes.
+   */
+  public class Image(
+    public val image: JsAny,
+    public val samples: ShortArray? = null,
+  ) : OverlaySource
+
+  /**
+   * A raster drawn straight into [samples], with no image behind it.
+   *
+   * @property samples The raster's samples, which it is uploaded from whole.
+   */
+  public class Samples(
+    public val samples: ShortArray,
+  ) : OverlaySource
 }
 
 /**

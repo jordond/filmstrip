@@ -51,7 +51,7 @@ internal class Media3Driver(
   override fun renderCapabilities(
     outputSize: Size,
     hdr: Boolean,
-  ): RenderCapabilities = media3RenderCapabilities(outputSize, hdr)
+  ): RenderCapabilities = media3RenderCapabilities(hdr)
 
   override fun unclaimed(specId: String): String =
     "No resolver claimed $specId on the Android backend. Register the built-in catalogue with " +

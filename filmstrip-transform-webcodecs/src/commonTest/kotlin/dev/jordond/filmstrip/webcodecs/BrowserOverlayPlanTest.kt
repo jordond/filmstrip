@@ -24,6 +24,7 @@ import dev.jordond.filmstrip.effects.overlay.frameAt
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.export.AudioCodec
+import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
@@ -41,6 +42,7 @@ import dev.jordond.filmstrip.test.AuthoredColours
 import dev.jordond.filmstrip.test.OverlayPixels
 import dev.jordond.filmstrip.webcodecs.internal.BrowserLowering
 import dev.jordond.filmstrip.webcodecs.internal.BrowserPlanner
+import dev.jordond.filmstrip.webcodecs.internal.browserMaxTextureSide
 import dev.jordond.filmstrip.webcodecs.internal.browserParityOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -163,6 +165,27 @@ class BrowserOverlayPlanTest {
       }
     }
 
+  // WebGL's texture side is this backend's own limit, read off the page by the probe the planner hands its resolvers.
+  @Test
+  fun aPngAsLongAsThePagesTextureSidePlansAndOnePastIsRefused() =
+    runTest {
+      val side = browserMaxTextureSide()
+
+      val fits = compositionOf(effects = listOf(ImageOverlay(stripOf(Size(side, 1)), Corner.TopStart)))
+      val planned = lower(fits)
+      assertIs<Verdict.Capable>(planned.verdict, "a $side by 1 PNG planned as ${planned.verdict}")
+      assertEquals(1, assertNotNull(planned.render).compositionOverlays.size)
+
+      val past = compositionOf(effects = listOf(ImageOverlay(stripOf(Size(side + 1, 1)), Corner.TopStart)))
+      val refused = assertIs<Verdict.Incapable>(lower(past).verdict, "a ${side + 1} by 1 PNG planned")
+      val reason = refused.reasons.filterIsInstance<ExportError.UnsupportedEffect>().single()
+      assertEquals(EffectIds.IMAGE_OVERLAY, reason.specId)
+      assertTrue(
+        "${side + 1} by 1 picture" in reason.message && "at most $side pixels on a side" in reason.message,
+        reason.message,
+      )
+    }
+
   @Test
   fun theBrowserAdvertisesTextRendering() =
     runTest {
@@ -196,6 +219,9 @@ class BrowserOverlayPlanTest {
     resolver.preload(composition)
     return BrowserPlanner(listOf(resolver)).lower(composition, spec, device, infos)
   }
+
+  private fun stripOf(size: Size): ImageSource =
+    ImageSource.ofBytes(OverlayPixels.pngOf(size, AuthoredColours.MID_GREEN))
 
   private fun compositionOf(
     clipEffects: List<EffectSpec> = emptyList(),

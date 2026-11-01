@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effects.assertRasterReads
-import dev.jordond.filmstrip.effects.overlay.EncodedPictures.SAMPLE_MASK
 import dev.jordond.filmstrip.effects.overlay.EncodedPictures.SIZE
 import dev.jordond.filmstrip.effects.overlay.EncodedPictures.STILLS
 import dev.jordond.filmstrip.effects.overlay.EncodedPictures.TEXEL

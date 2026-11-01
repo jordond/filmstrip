@@ -11,25 +11,6 @@ import platform.ImageIO.CGImageSourceGetPrimaryImageIndex
 import platform.ImageIO.CGImageSourceRef
 
 /**
- * The bytes a read or a draw of an overlay picture holds at its peak, or null when that count does not fit in a [Long]
- * or any part of it is null or negative.
- *
- * Every read and draw on Apple is counted this way against [PICTURE_PEAK_CEILING]. [held] is the decode the step
- * works from, which stays held the whole time. [band] is what the step holds on the way, a copy of the samples or one
- * band of rows. [made] is what the step writes. The three are held together at the peak, so the count is their sum.
- */
-internal fun picturePeakBytes(
-  held: Long?,
-  band: Long?,
-  made: Long?,
-): Long? {
-  if (held == null || band == null || made == null) return null
-  if (held < 0 || band < 0 || made < 0) return null
-  if (held > Long.MAX_VALUE - band || held + band > Long.MAX_VALUE - made) return null
-  return held + band + made
-}
-
-/**
  * The bytes [rows] rows of [rowBytes] bytes each take, or null when either is negative or the count does not fit in a
  * [Long].
  */

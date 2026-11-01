@@ -2,8 +2,10 @@
 
 package dev.jordond.filmstrip.webcodecs.internal
 
+import dev.jordond.filmstrip.effect.OverlaySource
 import dev.jordond.filmstrip.effect.WebGlOverlay
 import dev.jordond.filmstrip.effects.color.HDR_COLOR_MATRIX_GLSL
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.PictureColour
 import dev.jordond.filmstrip.media.authoredHdrTexels
@@ -27,9 +29,9 @@ import kotlin.time.Duration.Companion.microseconds
  * transfer.
  *
  * A raster carrying a [WebGlOverlay.colour] is converted from its stored codes before it is uploaded, to the sRGB codes
- * [pictureSrgbCodes] gives it on SDR and to the light [pictureLight] gives it on a kept grade. A PNG is converted from
- * the full-depth [WebGlOverlay.samples] it carries, tagged or not, and any other raster from its codes read back
- * through a 2D canvas.
+ * [pictureSrgbCodes] gives it on SDR and to the light [pictureLight] gives it on a kept grade. A raster whose
+ * [WebGlOverlay.source] carries samples, a PNG tagged or not, an evaluated AVIF or text, is converted from them at
+ * their full depth, and any other raster from its image's codes read back through a 2D canvas.
  */
 internal class BrowserOverlayPass private constructor(
   private val gl: WebGl2,
@@ -118,20 +120,20 @@ internal class BrowserOverlayPass private constructor(
     gl.pixelStorei(GL_UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1)
     gl.pixelStorei(GL_UNPACK_COLORSPACE_CONVERSION_WEBGL, GL_NONE)
     try {
-      val samples = overlay.samples
+      val size = overlay.size
       val colour = overlay.colour
-      val codes =
-        when {
-          samples != null -> sdrOverlayCodes(samples, colour)
-          colour != null -> sdrOverlayCodes(readBack(overlay), colour)
-          else -> null
+      when (val source = overlay.source) {
+        is OverlaySource.Samples -> {
+          uploadBytes(size, sdrOverlayCodes(source.samples, colour))
         }
-      if (codes == null) {
-        gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, overlay.image)
-      } else {
-        val size = overlay.size
-        val upload = codes.toUint8Array()
-        gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA, size.width, size.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, upload)
+        is OverlaySource.Image -> {
+          val samples = source.samples
+          when {
+            samples != null -> uploadBytes(size, sdrOverlayCodes(samples, colour))
+            colour != null -> uploadBytes(size, sdrOverlayCodes(readBack(source.image, size), colour))
+            else -> gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, source.image)
+          }
+        }
       }
     } finally {
       gl.pixelStorei(GL_UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0)
@@ -139,28 +141,42 @@ internal class BrowserOverlayPass private constructor(
     }
   }
 
+  private fun uploadBytes(
+    size: Size,
+    codes: ByteArray,
+  ) {
+    val upload = codes.toUint8Array()
+    gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA, size.width, size.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, upload)
+  }
+
   // The raster's straight codes are mapped here and uploaded as half floats, so the texels arrive premultiplied in the
   // light the frame holds.
   private fun uploadLight(overlay: WebGlOverlay) {
-    val samples = overlay.samples
+    val size = overlay.size
     val light =
-      if (samples == null) {
-        hdrOverlayTexels(readBack(overlay), overlay.colour)
-      } else {
-        hdrOverlayTexels(samples, overlay.colour)
+      when (val source = overlay.source) {
+        is OverlaySource.Samples -> {
+          hdrOverlayTexels(source.samples, overlay.colour)
+        }
+        is OverlaySource.Image -> {
+          source.samples?.let { hdrOverlayTexels(it, overlay.colour) }
+            ?: hdrOverlayTexels(readBack(source.image, size), overlay.colour)
+        }
       }
     val texels = light.toFloat32Array()
-    gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, overlay.size.width, overlay.size.height, 0, GL_RGBA, GL_FLOAT, texels)
+    gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, size.width, size.height, 0, GL_RGBA, GL_FLOAT, texels)
   }
 
-  // The raster's straight codes, read back through a 2D canvas. A browser bitmap holds eight bits a channel, so a
+  // The image's straight codes, read back through a 2D canvas. A browser bitmap holds eight bits a channel, so a
   // picture stored deeper in any format but PNG reaches here at eight bits. That is the browser's limit.
-  private fun readBack(overlay: WebGlOverlay): ByteArray {
-    val width = overlay.size.width
-    val height = overlay.size.height
-    val context = ReadbackCanvas(width, height).getContext(CONTEXT_2D) ?: throw BrowserExportFailure(NO_READBACK)
-    context.drawImage(overlay.image, 0.0, 0.0)
-    return Uint8Array(context.getImageData(0, 0, width, height).data.buffer).toByteArray()
+  private fun readBack(
+    image: JsAny,
+    size: Size,
+  ): ByteArray {
+    val canvas = ReadbackCanvas(size.width, size.height)
+    val context = canvas.getContext(CONTEXT_2D) ?: throw BrowserExportFailure(NO_READBACK)
+    context.drawImage(image, 0.0, 0.0)
+    return Uint8Array(context.getImageData(0, 0, size.width, size.height).data.buffer).toByteArray()
   }
 
   companion object {

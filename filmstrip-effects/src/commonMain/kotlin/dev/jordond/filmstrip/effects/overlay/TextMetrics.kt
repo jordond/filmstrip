@@ -35,4 +35,17 @@ internal fun TextStyle.wrapWidthOn(frame: Size): Int = (maxWidth * frame.width).
 internal fun TextStyle.platePaddingOn(frame: Size): Int =
   if (backgroundColor == null) 0 else (capHeightOn(frame) * PLATE_PADDING).roundToInt()
 
+/**
+ * The side, in pixels, of a raster that lays [padding] on both ends of a [block] of text.
+ *
+ * Counted in a [Long], since [platePaddingOn] saturates at [Int.MAX_VALUE] for a huge font size and two of those do not
+ * fit in an [Int]. A [block] a backend measured in a [Long] may be past an [Int] already, and a side past the largest
+ * [Long] is held there rather than wrapping negative. A backend checks this side with [textRasterFits] before it
+ * narrows it to make a raster.
+ */
+internal fun plateSide(
+  block: Long,
+  padding: Int,
+): Long = if (block > Long.MAX_VALUE - 2L * padding) Long.MAX_VALUE else block + 2L * padding
+
 private const val PLATE_PADDING = 0.3f

@@ -5,12 +5,16 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.webcodecs.internal.JsOptions
+import dev.jordond.filmstrip.webcodecs.internal.OffscreenCanvas
 import dev.jordond.filmstrip.webcodecs.internal.browserCanRenderFloat
 import dev.jordond.filmstrip.webcodecs.internal.browserEncodesHdrVp9
+import dev.jordond.filmstrip.webcodecs.internal.renderCapabilities
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -49,6 +53,21 @@ class BrowserCapabilitiesTest {
       )
     }
 
+  // Read from a context of the test's own, so the planner's figure is checked against the page rather than itself.
+  @Test
+  fun theLongestTextureSideIsTheOneThisPageReports() {
+    val gl = assertNotNull(OffscreenCanvas(1, 1).getContext("webgl2", JsOptions().build()), "no WebGL2 context")
+    val reported =
+      try {
+        gl.getParameter(MAX_TEXTURE_SIZE)
+      } finally {
+        gl.getExtension("WEBGL_lose_context")?.loseContext()
+      }
+
+    assertEquals(reported, renderCapabilities(encodesHdr = false).maxTextureSize)
+    assertEquals(reported, renderCapabilities(encodesHdr = true).maxTextureSize)
+  }
+
   @Test
   fun anUnreadableUriIsRefusedRatherThanThrown() =
     runTest {
@@ -57,4 +76,8 @@ class BrowserCapabilitiesTest {
     }
 
   private fun filmstrip(): Filmstrip = Filmstrip { webCodecsBackend() }
+
+  private companion object {
+    const val MAX_TEXTURE_SIZE = 0x0D33
+  }
 }

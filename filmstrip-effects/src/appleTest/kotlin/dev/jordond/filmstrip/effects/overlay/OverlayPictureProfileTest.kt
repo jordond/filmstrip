@@ -267,8 +267,6 @@ class OverlayPictureProfileTest {
     const val CHANNEL_COUNT = 4
     const val ALPHA = 3
     const val MAX_CODE = 255f
-    const val SAMPLE_MASK = 0xFFFF
-    const val EIGHT_BIT_STEP = 257
     val DISPLAY_P3_SAMPLES =
       AuthoredColours.channelsOf(IccPictures.DISPLAY_P3.texel).map { it * EIGHT_BIT_STEP } + SAMPLE_MASK
     const val HALF_ALPHA = 0x80000000.toInt()

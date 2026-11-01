@@ -814,31 +814,6 @@ internal fun WebGl2.blendOntoFill() {
 }
 
 /**
- * Whether this page can render into the float framebuffer a kept grade composites in.
- *
- * Asked by building the smallest one there is and handing the context straight back, because a
- * browser can carry the extension and still refuse the attachment on a driver it has blocklisted.
- * The companion to [browserCanComposite], and the other half of what makes an HDR encode claimable.
- */
-internal fun browserCanRenderFloat(): Boolean =
-  runCatching {
-    val gl =
-      OffscreenCanvas(1, 1).getContext("webgl2", JsOptions().build()) ?: return false
-    try {
-      if (gl.getExtension(COLOR_BUFFER_FLOAT) == null) return false
-      val texture = gl.createTexture() ?: return false
-      gl.bindTexture(GL_TEXTURE_2D, texture)
-      gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, 1, 1, 0, GL_RGBA, GL_HALF_FLOAT, null)
-      val framebuffer = gl.createFramebuffer() ?: return false
-      gl.bindFramebuffer(GL_FRAMEBUFFER, framebuffer)
-      gl.framebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0)
-      gl.checkFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE
-    } finally {
-      gl.getExtension(LOSE_CONTEXT)?.loseContext()
-    }
-  }.getOrDefault(false)
-
-/**
  * The extra GL objects a blurred fill needs: one program shared by the cover, horizontal blur and
  * vertical blur passes, the two framebuffers those passes render into, and the textures backing
  * them.

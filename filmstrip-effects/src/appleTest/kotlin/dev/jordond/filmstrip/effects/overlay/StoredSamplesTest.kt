@@ -43,7 +43,7 @@ class StoredSamplesTest {
       List(HEIGHT * WIDTH) { index -> texel(index % WIDTH, index / WIDTH) }.flatMap { (red, green, blue, alpha) ->
         if (alpha == 0) List(CHANNELS) { 0 } else listOf(red, green, blue, alpha).map { it * EIGHT_BIT_STEP }
       }
-    assertContentEquals(expected, read.map { it.toInt() and MASK }, "the banded read moved or changed a texel")
+    assertContentEquals(expected, read.map { it.toInt() and SAMPLE_MASK }, "the banded read moved or changed a texel")
   }
 
   @Test
@@ -68,7 +68,7 @@ class StoredSamplesTest {
 
     val expected =
       listOf(0.0, 0.5, 0.25, 0.5, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.5, 0.5).map { (it * MAX_SAMPLE).roundToInt() }
-    assertContentEquals(expected, samples.map { it.toInt() and MASK })
+    assertContentEquals(expected, samples.map { it.toInt() and SAMPLE_MASK })
   }
 
   /**
@@ -108,8 +108,6 @@ class StoredSamplesTest {
     const val HEIGHT = 7
     const val BITS = 8
     const val CHANNELS = 4
-    const val MASK = 0xFFFF
-    const val EIGHT_BIT_STEP = 257
     const val MAX_SAMPLE = 65535.0
     val SIZE = Size(WIDTH, HEIGHT)
 

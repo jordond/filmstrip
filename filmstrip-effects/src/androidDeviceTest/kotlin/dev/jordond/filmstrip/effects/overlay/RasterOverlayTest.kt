@@ -10,7 +10,7 @@ import dev.jordond.filmstrip.style.TextStyle
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
+import kotlin.test.assertIs
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Duration
@@ -135,8 +135,8 @@ class RasterOverlayTest {
     val plated = TextStyle(fontSize = FONT_SIZE, backgroundColor = PLATE, maxWidth = MAX_WIDTH)
     val unplated = TextStyle(fontSize = FONT_SIZE, maxWidth = MAX_WIDTH)
 
-    val withPlate = assertNotNull(rasterizeText(WORD, plated, FRAME))
-    val without = assertNotNull(rasterizeText(WORD, unplated, FRAME))
+    val withPlate = drawnText(WORD, plated, FRAME)
+    val without = drawnText(WORD, unplated, FRAME)
 
     val padding = plated.platePaddingOn(FRAME)
     assertEquals(without.width + 2 * padding, withPlate.width)
@@ -145,18 +145,24 @@ class RasterOverlayTest {
 
   @Test
   fun textWiderThanTheWrapWidthBreaksOntoASecondLine() {
-    val once = assertNotNull(rasterizeText(WORD, TextStyle(fontSize = FONT_SIZE, maxWidth = 1f), FRAME))
+    val once = drawnText(WORD, TextStyle(fontSize = FONT_SIZE, maxWidth = 1f), FRAME)
 
     // A wrap width half again the word's own width holds the word once but not twice.
     val style = TextStyle(fontSize = FONT_SIZE, maxWidth = 1.5f * once.width / FRAME.width)
     val wrap = style.wrapWidthOn(FRAME)
     assertTrue(once.width <= wrap && wrap < 2 * once.width, "wrap $wrap against a word ${once.width} wide")
 
-    val twice = assertNotNull(rasterizeText("$WORD $WORD", style, FRAME))
+    val twice = drawnText("$WORD $WORD", style, FRAME)
 
     assertEquals(2 * once.height, twice.height)
     assertTrue(twice.width <= wrap, "a ${twice.width} wide raster outgrew its $wrap wrap")
   }
+
+  private fun drawnText(
+    text: String,
+    style: TextStyle,
+    frame: Size,
+  ): Size = assertIs<TextRaster.Drawn<TextSamples>>(rasterizeText(text, style, frame, ANY_SIDE)).pixels.size
 
   private fun overlayFor(
     spec: OverlayEffect,
@@ -192,5 +198,8 @@ class RasterOverlayTest {
     const val FONT_SIZE = 0.06f
     const val MAX_WIDTH = 0.55f
     const val PLATE = 0x80000000.toInt()
+
+    // A texture side no raster here reaches, so only the layout sizes the raster.
+    const val ANY_SIDE = Int.MAX_VALUE
   }
 }

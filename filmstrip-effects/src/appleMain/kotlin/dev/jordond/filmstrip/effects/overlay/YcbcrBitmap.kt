@@ -211,7 +211,7 @@ private fun evaluate(
           evaluator.rgb(texel[1], texel[2], texel[0], rgb)
           val at = x * RGBA * 2
           for (channel in 0 until RGBA) {
-            val value = if (channel < 3) (rgb[channel] * MAX_SAMPLE).roundToInt() else texel[3]
+            val value = if (channel < 3) (rgb[channel] * TOP_SAMPLE).roundToInt() else texel[3]
             written[at + 2 * channel] = value.toByte()
             written[at + 2 * channel + 1] = (value shr BYTE_BITS).toByte()
           }
@@ -248,7 +248,7 @@ private sealed class StoredLayout(
       into: IntArray,
     ) {
       for (channel in 0 until 3) into[channel] = bytes[at + offsets[channel]].toInt() and BYTE_MASK
-      into[3] = if (alpha) (bytes[at + offsets[3]].toInt() and BYTE_MASK) * EIGHT_BIT_STEP else MAX_SAMPLE.toInt()
+      into[3] = if (alpha) (bytes[at + offsets[3]].toInt() and BYTE_MASK) * EIGHT_BIT_STEP else TOP_SAMPLE
     }
   }
 
@@ -264,7 +264,7 @@ private sealed class StoredLayout(
       into[0] = (word shr (2 * TEN)) and TEN_BIT_MASK
       into[1] = (word shr TEN) and TEN_BIT_MASK
       into[2] = word and TEN_BIT_MASK
-      into[3] = MAX_SAMPLE.toInt()
+      into[3] = TOP_SAMPLE
     }
   }
 }
@@ -324,5 +324,3 @@ private const val SIXTEEN = 16
 private const val BYTE_BITS = 8
 private const val BYTE_MASK = 0xFF
 private const val TEN_BIT_MASK = 0x3FF
-private const val EIGHT_BIT_STEP = 257
-private const val MAX_SAMPLE = 65535.0

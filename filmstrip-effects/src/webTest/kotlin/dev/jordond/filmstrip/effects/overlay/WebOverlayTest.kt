@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effect.OverlaySource
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
@@ -38,14 +39,14 @@ import kotlin.time.Duration.Companion.seconds
 class WebOverlayTest {
   @Test
   fun textWiderThanTheWrapWidthBreaksAtTheSpace() {
-    val hello = assertNotNull(rasterizeText("Hello", WIDE, FRAME)).size
-    val whole = assertNotNull(rasterizeText(HELLO_WORLD, WIDE, FRAME)).size
+    val hello = drawnText("Hello", WIDE, FRAME).size
+    val whole = drawnText(HELLO_WORLD, WIDE, FRAME).size
 
     val style = TextStyle(maxWidth = (hello.width + whole.width) / 2f / FRAME.width)
     val wrap = style.wrapWidthOn(FRAME)
     assertTrue(wrap in hello.width until whole.width, "wrap $wrap between ${hello.width} and ${whole.width}")
 
-    val raster = assertNotNull(rasterizeText(HELLO_WORLD, style, FRAME))
+    val raster = drawnText(HELLO_WORLD, style, FRAME)
 
     assertEquals(listOf("Hello", "world"), raster.lines)
     assertTrue(raster.size.width <= wrap, "a ${raster.size.width} wide raster outgrew its $wrap wrap")
@@ -68,8 +69,8 @@ class WebOverlayTest {
   fun aPlateWidensTheRasterByItsPaddingOnEverySide() {
     val plated = TextStyle(backgroundColor = BLACK)
 
-    val without = assertNotNull(rasterizeText(HELLO_WORLD, TextStyle(), FRAME)).size
-    val with = assertNotNull(rasterizeText(HELLO_WORLD, plated, FRAME)).size
+    val without = drawnText(HELLO_WORLD, TextStyle(), FRAME).size
+    val with = drawnText(HELLO_WORLD, plated, FRAME).size
 
     val padding = plated.platePaddingOn(FRAME)
     assertTrue(padding > 0)
@@ -80,25 +81,25 @@ class WebOverlayTest {
   fun capitalsStandAtTheStylesCapHeight() {
     val style = TextStyle()
 
-    val raster = assertNotNull(rasterizeText("H", style, FRAME))
+    val raster = drawnText("H", style, FRAME)
 
     val cap = style.capHeightOn(FRAME)
     assertTrue(raster.capHeight in cap - 1f..cap + 1f, "capitals stand ${raster.capHeight} for $cap")
   }
 
   @Test
-  fun aFamilyThatIsNoCssIdentifierIsStillTheOneDrawn() {
+  fun aFamilyThatIsNoCssIdentifierStillParses() {
     val style = TextStyle(resolvedFontFamily = ODD_FAMILY)
 
     assertIs<EffectResolution.Resolved>(
       BuiltInEffectResolver().resolve(TextOverlay(HELLO_WORLD, style), CAPABILITIES, ATTRIBUTES),
     )
-    assertTheFamilyIsDrawn(style, "1 Weird, ", "Font")
+    assertTheFontParses(style, "1 Weird, ", "Font")
   }
 
   @Test
-  fun aFamilyHoldingANewlineIsStillTheOneDrawn() {
-    assertTheFamilyIsDrawn(TextStyle(resolvedFontFamily = "Line\nBreak"), "Line", "Break")
+  fun aFamilyHoldingANewlineStillParses() {
+    assertTheFontParses(TextStyle(resolvedFontFamily = "Line\nBreak"), "Line", "Break")
   }
 
   @Test
@@ -146,6 +147,22 @@ class WebOverlayTest {
       assertEquals(PNG, overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES)).size)
     }
 
+  @Test
+  fun aPictureAsLongAsATextureSideResolvesAndOnePastIsRefused() =
+    runTest {
+      for (size in listOf(PNG, Size(PNG.height, PNG.width))) {
+        val image = ImageOverlay(ImageSource.ofBytes(pngOf(size)), Corner.TopEnd)
+        val resolver = BuiltInEffectResolver()
+        val longest = maxOf(size.width, size.height)
+        resolver.preload(compositionOf(image))
+
+        assertEquals(size, overlayOf(resolver.resolve(image, textCapabilities(longest), ATTRIBUTES)).size)
+        val past = resolver.resolve(image, textCapabilities(longest - 1), ATTRIBUTES)
+        val refused = assertIs<EffectResolution.Unsupported>(past, "the $size picture resolved as $past")
+        assertEquals(picturePastTextureSide(size.width, size.height, longest - 1, WEBGL), refused.message)
+      }
+    }
+
   // The bitmap keeps the stored codes, so the compositor needs the colour the picture's own bytes describe.
   @Test
   fun aTaggedImageCarriesTheColourItsBytesDescribe() =
@@ -188,7 +205,7 @@ class WebOverlayTest {
         val resolver = BuiltInEffectResolver()
         resolver.preload(compositionOf(image))
 
-        val samples = assertNotNull(overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES)).samples)
+        val samples = assertNotNull(samplesOf(overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES))))
         assertContentEquals(assertNotNull(pngSamples(bytes)).rgba, samples)
       }
       val sixteenBit = assertNotNull(pngSamples(pngOf(PNG, sixteenBitSample = SIXTEEN_BIT_SAMPLE)))
@@ -208,7 +225,7 @@ class WebOverlayTest {
         resolver.preload(compositionOf(image))
 
         val overlay = overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES))
-        val samples = assertNotNull(overlay.samples, "orientation $orientation")
+        val samples = assertNotNull(samplesOf(overlay), "orientation $orientation")
         assertEquals(TWO_TEXELS, overlay.size, "orientation $orientation")
         assertContentEquals(assertNotNull(pngSamples(bytes)).rgba, samples, "orientation $orientation")
         val first = (0 until 3).map { samples[it].toInt() and 0xFFFF }
@@ -307,6 +324,8 @@ class WebOverlayTest {
     return assertNotNull(resolved.effect.overlay)
   }
 
+  private fun samplesOf(overlay: WebGlOverlay): ShortArray? = assertIs<OverlaySource.Image>(overlay.source).samples
+
   private fun assertDrawsAcrossTheFade(
     spec: OverlayEffect,
     overlay: WebGlOverlay,
@@ -329,18 +348,21 @@ class WebOverlayTest {
     assertTrue(unsupported.message.contains(name), unsupported.message)
   }
 
-  // A shorthand the canvas cannot parse leaves the context on its 10px default, which names no such
-  // family and stands a capital far below the style's cap height.
-  private fun assertTheFamilyIsDrawn(
+  // A shorthand the canvas cannot parse leaves the context on its 10px default, which stands a capital far below the
+  // style's cap height, so capitals at that height mean the shorthand naming the family was the one drawn in. The
+  // shorthand read back off a fresh canvas still holds every part of the family's name.
+  private fun assertTheFontParses(
     style: TextStyle,
-    vararg parts: String,
+    vararg familyParts: String,
   ) {
-    val raster = assertNotNull(rasterizeText(HELLO_WORLD, style, FRAME))
-    val font = assertNotNull(raster.canvas.getContext("2d")).font
+    val raster = drawnText(HELLO_WORLD, style, FRAME)
 
-    assertTrue(parts.all { it in font }, font)
     val cap = style.capHeightOn(FRAME)
-    assertTrue(raster.capHeight in cap - 1f..cap + 1f, "capitals stand ${raster.capHeight} for $cap in $font")
+    assertTrue(raster.capHeight in cap - 1f..cap + 1f, "capitals stand ${raster.capHeight} for $cap")
+    val context = assertNotNull(OffscreenCanvas(1, 1).getContext(CONTEXT_2D))
+    context.font = raster.font
+    val parsed = context.font
+    familyParts.forEach { assertTrue(it in parsed, "the font ${raster.font} parsed as $parsed, without $it") }
   }
 
   private fun compositionOf(effect: EffectSpec): EditComposition =
@@ -403,105 +425,4 @@ class WebOverlayTest {
         span = SPAN,
       )
   }
-}
-
-/**
- * An opaque RGBA PNG of [size], its deflate stream left stored rather than compressed, with [colour] written between
- * its header and its image data.
- *
- * Every channel is white at eight bits, or [sixteenBitSample] at sixteen bits with alpha opaque when one is given.
- * [texels] paints each pixel instead, eight-bit RGBA row by row from the top left.
- */
-private fun pngOf(
-  size: Size,
-  colour: ByteArray = ByteArray(0),
-  sixteenBitSample: Int? = null,
-  texels: List<ByteArray>? = null,
-): ByteArray {
-  val texel =
-    if (sixteenBitSample == null) {
-      ByteArray(4) { 0xFF.toByte() }
-    } else {
-      val sample = byteArrayOf((sixteenBitSample ushr 8).toByte(), sixteenBitSample.toByte())
-      sample + sample + sample + byteArrayOf(0xFF.toByte(), 0xFF.toByte())
-    }
-  val rows =
-    (0 until size.height).fold(ByteArray(0)) { image, y ->
-      image + byteArrayOf(0) +
-        (0 until size.width).fold(ByteArray(0)) { line, x -> line + (texels?.get(y * size.width + x) ?: texel) }
-    }
-
-  val depth: Byte = if (sixteenBitSample == null) 8 else 16
-  val header =
-    int32(size.width) + int32(size.height) + byteArrayOf(depth, 6, 0, 0, 0)
-  val zlib =
-    byteArrayOf(0x78, 0x01, 0x01) +
-      int16LittleEndian(rows.size) +
-      int16LittleEndian(rows.size.inv() and 0xFFFF) +
-      rows +
-      int32(adler32(rows))
-
-  return byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A) +
-    chunk("IHDR", header) +
-    colour +
-    chunk("IDAT", zlib) +
-    chunk("IEND", ByteArray(0))
-}
-
-/**
- * The signature and `IHDR` of a [width] by [height] RGBA PNG at [depth] bits, with no image data after them.
- */
-private fun pngHeaderOnly(
-  width: Int,
-  height: Int,
-  depth: Int,
-): ByteArray =
-  byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A) +
-    chunk("IHDR", int32(width) + int32(height) + byteArrayOf(depth.toByte(), 6, 0, 0, 0))
-
-/**
- * A big-endian EXIF block holding one tag, the orientation [value].
- *
- * It is laid out the way an `eXIf` chunk carries it, a TIFF header and one directory with no next one.
- */
-private fun exifOrientation(value: Int): ByteArray =
-  "MM".encodeToByteArray() +
-    byteArrayOf(0, 42) +
-    int32(8) +
-    byteArrayOf(0, 1) +
-    byteArrayOf(0x01, 0x12, 0, 3) +
-    int32(1) +
-    byteArrayOf((value ushr 8).toByte(), value.toByte(), 0, 0) +
-    int32(0)
-
-private fun chunk(
-  type: String,
-  data: ByteArray,
-): ByteArray {
-  val typed = type.encodeToByteArray() + data
-  return int32(data.size) + typed + int32(crc32(typed))
-}
-
-private fun int32(value: Int): ByteArray =
-  byteArrayOf((value ushr 24).toByte(), (value ushr 16).toByte(), (value ushr 8).toByte(), value.toByte())
-
-private fun int16LittleEndian(value: Int): ByteArray = byteArrayOf(value.toByte(), (value ushr 8).toByte())
-
-private fun crc32(bytes: ByteArray): Int {
-  var crc = -1
-  for (byte in bytes) {
-    crc = crc xor (byte.toInt() and 0xFF)
-    repeat(8) { crc = if (crc and 1 != 0) (crc ushr 1) xor 0xEDB88320.toInt() else crc ushr 1 }
-  }
-  return crc.inv()
-}
-
-private fun adler32(bytes: ByteArray): Int {
-  var a = 1
-  var b = 0
-  for (byte in bytes) {
-    a = (a + (byte.toInt() and 0xFF)) % 65521
-    b = (b + a) % 65521
-  }
-  return (b shl 16) or a
 }

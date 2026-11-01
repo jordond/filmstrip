@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
+import dev.jordond.filmstrip.effect.OverlaySource
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
@@ -36,6 +37,7 @@ import kotlin.math.floor
 import kotlin.math.pow
 import kotlin.math.round
 import kotlin.math.roundToInt
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.fail
 import kotlin.time.Duration
@@ -252,7 +254,7 @@ internal suspend fun decodedCodeOf(bytes: ByteArray): Int {
   val overlay = assertNotNull(effect.overlay)
   val (width, height) = overlay.size.width to overlay.size.height
   val context = assertNotNull(ReadbackCanvas(width, height).getContext("2d"))
-  context.drawImage(overlay.image, 0.0, 0.0)
+  context.drawImage(assertIs<OverlaySource.Image>(overlay.source).image, 0.0, 0.0)
   val data = Uint8Array(context.getImageData(0, 0, width, height).data.buffer)
   val offset = ((height / 2) * width + width / 2) * 4
   return (data.at(offset + 3) shl 24) or (data.at(offset) shl 16) or (data.at(offset + 1) shl 8) or data.at(offset + 2)

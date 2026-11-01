@@ -11,23 +11,34 @@ import kotlin.js.Promise
 // the same shapes on js and wasmJs, so every one is declared once here.
 
 /**
+ * The id a canvas hands out its two-dimensional context under.
+ */
+internal const val CONTEXT_2D: String = "2d"
+
+/**
  * A canvas no document ever sees, which text is drawn into and a decoded picture is read back through.
+ *
+ * Setting [width] or [height] clears the canvas and resizes its backing store, so a canvas set to nothing holds no
+ * pixels.
  */
 internal external class OffscreenCanvas(
   width: Int,
   height: Int,
 ) : JsAny {
-  val width: Int
+  var width: Int
 
-  val height: Int
+  var height: Int
 
   fun getContext(contextId: String): OverlayContext2D?
 }
 
 /**
- * The part of a two-dimensional context that measures and draws text, fills a plate and reads a picture's codes back.
+ * The part of a two-dimensional context that measures and draws text, fills a rectangle, moves its origin and reads a
+ * picture's codes back, along with the canvas it draws on.
  */
 internal external interface OverlayContext2D : JsAny {
+  val canvas: OffscreenCanvas
+
   var font: String
 
   var fillStyle: String
@@ -47,6 +58,11 @@ internal external interface OverlayContext2D : JsAny {
     y: Double,
     width: Double,
     height: Double,
+  )
+
+  fun translate(
+    x: Double,
+    y: Double,
   )
 
   fun drawImage(
@@ -83,7 +99,13 @@ internal external interface OverlayImageBytes : JsAny {
 internal external interface TextMetrics : JsAny {
   val width: Double
 
+  val actualBoundingBoxLeft: Double
+
+  val actualBoundingBoxRight: Double
+
   val actualBoundingBoxAscent: Double
+
+  val actualBoundingBoxDescent: Double
 
   val fontBoundingBoxAscent: Double
 

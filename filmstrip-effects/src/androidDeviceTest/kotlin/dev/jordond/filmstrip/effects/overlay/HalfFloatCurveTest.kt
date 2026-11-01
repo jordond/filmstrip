@@ -121,7 +121,7 @@ class HalfFloatCurveTest {
     val picture = assertIs<RefusedPicture>(ImageSource.Bytes(TEN_BIT_AVIF).read(context = null))
     assertEquals(DecoderRefusal.AvifTenBitNoFrame.message, picture.reason)
     val overlay = ImageOverlay(ImageSource.Bytes(TEN_BIT_AVIF), Corner.TopStart, 0f, OVERLAY_SCALE)
-    val resolution = with(BuiltInEffectResolver()) { overlay.toOverlay(picture, ATTRIBUTES) }
+    val resolution = with(BuiltInEffectResolver()) { overlay.toOverlay(picture, ATTRIBUTES, ANY_SIDE) }
     assertEquals(DecoderRefusal.AvifTenBitNoFrame.message, assertIs<EffectResolution.Unsupported>(resolution).message)
   }
 
@@ -131,8 +131,9 @@ class HalfFloatCurveTest {
     val p3 = Bitmap.createBitmap(SIDE.width, SIDE.height, Bitmap.Config.RGBA_F16, true, displayP3)
     assumeTrue("This Android makes a half float bitmap in ${p3.colorSpace}", p3.colorSpace == displayP3)
     val overlay = ImageOverlay(ImageSource.Bytes(PICTURE), Corner.TopStart, 0f, OVERLAY_SCALE)
+    val picture = DecodedPicture(p3, colour = null)
 
-    val resolution = with(BuiltInEffectResolver()) { overlay.toOverlay(DecodedPicture(p3, colour = null), ATTRIBUTES) }
+    val resolution = with(BuiltInEffectResolver()) { overlay.toOverlay(picture, ATTRIBUTES, ANY_SIDE) }
 
     assertEquals(UNKNOWN_HALF_FLOAT_SPACE, assertIs<EffectResolution.Unsupported>(resolution).message)
   }
@@ -243,6 +244,9 @@ class HalfFloatCurveTest {
     const val TEN_BIT_API = Build.VERSION_CODES.TIRAMISU
     const val TEN_BIT_AVIF_UNDECODED = "Android's AVIF decoder on API 33 hands back no frame for a ten-bit AVIF"
     const val OVERLAY_SCALE = 0.2f
+
+    // A texture side no picture here reaches, so only how it was decoded refuses it.
+    const val ANY_SIDE = Int.MAX_VALUE
     val FRAME = Size(64, 64)
     val ATTRIBUTES =
       Attributes(

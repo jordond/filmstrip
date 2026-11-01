@@ -1,16 +1,8 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.ColorSpace
-import android.graphics.Paint
-import android.graphics.Rect
-import android.graphics.Typeface
 import android.os.Build
-import android.text.Layout
-import android.text.SpannableString
-import android.text.StaticLayout
-import android.text.TextPaint
 import android.util.Half
 import androidx.core.graphics.createBitmap
 import androidx.media3.common.OverlaySettings
@@ -23,55 +15,46 @@ import dev.jordond.filmstrip.media.authoredHdrNits
 import dev.jordond.filmstrip.media.linearToSrgb
 import dev.jordond.filmstrip.media.pictureLight
 import dev.jordond.filmstrip.media.pictureSrgbCodes
-import dev.jordond.filmstrip.style.FontWeight
-import dev.jordond.filmstrip.style.TextAlignment
-import dev.jordond.filmstrip.style.TextStyle
 import java.nio.ShortBuffer
-import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * Draws [text] to a bitmap sized to the glyphs it actually covers.
+ * The band [rasterFor] holds beside the held samples and the floats it makes for a [width] by [height] text raster, or
+ * null when the count does not fit in a [Long].
  *
- * Laid out at the real pixel size it will occupy on [frame], so the overlay is composited at one to
- * one and never resampled. Media3's own `TextOverlay` lays out at a fixed hundred-pixel paint and
- * offers no wrap width, which is why filmstrip rasterizes instead.
- *
- * Two passes: the first wraps at the authored maximum width, the second re-lays the wrapped text in
- * a box tight to its longest line, so an alignment is measured against the text rather than against
- * an authored width the text never reached.
- *
- * @return The drawn text, or null when the style leaves nothing to draw.
+ * [media3HdrTexels] holds the light media3 works in at three floats a texel and the codes it writes at four bytes a
+ * texel, both at once with the floats. An SDR frame holds less but is counted the same, so the same text fits or is
+ * refused whichever frame it lands on. Drawing holds 12 bytes a texel at its peak, the glyph bytes and the samples
+ * made from them once the coverage bitmap is recycled, against the 40 counted with this band, the samples and the
+ * floats.
  */
-internal fun rasterizeText(
-  text: String,
-  style: TextStyle,
-  frame: Size,
-): Bitmap? {
-  if (text.isEmpty() || frame.width <= 0 || frame.height <= 0) return null
-
-  val paint =
-    TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-      typeface = typefaceFor(style.resolvedFontFamily, style.weight)
-      color = style.color
-      textSize = capHeightTextSize(style.capHeightOn(frame))
-    }
-
-  val alignment = style.alignment.toLayout()
-  val wrapped = paint.layout(text, style.wrapWidthOn(frame), alignment)
-  val used = (0 until wrapped.lineCount).maxOfOrNull { wrapped.getLineWidth(it) } ?: 0f
-  val padding = style.platePaddingOn(frame)
-  val block = paint.layout(text, ceil(used).toInt().coerceAtLeast(1), alignment)
-  if (block.width <= 0 || block.height <= 0) return null
-
-  val bitmap = createBitmap(block.width + 2 * padding, block.height + 2 * padding)
-  val canvas = Canvas(bitmap)
-  style.backgroundColor?.let { canvas.drawColor(it) }
-  canvas.translate(padding.toFloat(), padding.toFloat())
-  block.draw(canvas)
-  return bitmap
+internal fun textBandBytes(
+  width: Long,
+  height: Long,
+): Long? {
+  if (width <= 0 || height <= 0) return 0L
+  val perTexel = (WORKING_TEXEL_BYTES + CODE_TEXEL_BYTES).toLong()
+  return if (width > Long.MAX_VALUE / perTexel / height) null else width * height * perTexel
 }
+
+/**
+ * Prepares this text for a frame of [transfer], or for an SDR frame when it is null, the way [Bitmap.rasterFor]
+ * prepares a sixteen-bit picture, or refuses it with the reason [textAllocationFailed] gives when Android cannot
+ * allocate what that holds.
+ *
+ * @param rasterOf Makes the raster from the samples, the step every sixteen-bit read shares unless a test sets it.
+ * @return The raster media3 draws, or why there is none.
+ */
+internal fun TextSamples.rasterFor(
+  transfer: HdrTransfer?,
+  rasterOf: (samples: ShortArray, size: Size, transfer: HdrTransfer?, colour: PictureColour?) -> Raster = ::rasterOf,
+): TextRaster.Made<Raster> =
+  try {
+    TextRaster.Drawn(rasterOf(samples, size, transfer, null))
+  } catch (_: OutOfMemoryError) {
+    TextRaster.Refused(textAllocationFailed(size.width, size.height))
+  }
 
 /**
  * An overlay's pixels ready for media3, and the HDR luminance multiplier to draw them with.
@@ -93,37 +76,56 @@ internal class Raster(
  * way Android decodes a sixteen-bit picture, is read at its own depth rather than cut to eight bits, through the curve
  * [halfFloatCurve] reads off it.
  *
- * @param colour How the stored samples describe their colour, or null for colours that are already sRGB, such as
- * drawn text or an untagged picture.
+ * @param colour How the stored samples describe their colour, or null for colours that are already sRGB, such as an
+ * untagged picture.
  */
 internal fun Bitmap.rasterFor(
   transfer: HdrTransfer?,
   colour: PictureColour? = null,
 ): Raster {
   val wide = wideSamples()
-  if (wide == null) {
-    val pixels = IntArray(width * height)
-    getPixels(pixels, 0, width, 0, 0, width, height)
-    if (transfer == null) {
-      return Raster(straightCopy(pictureSrgbCodes(colour, pixels)), OverlaySettings.DEFAULT_HDR_LUMINANCE_MULTIPLIER)
-    }
-    val texels = media3HdrTexels(pixels, transfer, colour)
-    return Raster(straightCopy(texels.argb), texels.hdrLuminance)
-  }
-  if (transfer == null) {
-    return Raster(straightCopy(pictureSrgbCodes(colour, wide)), OverlaySettings.DEFAULT_HDR_LUMINANCE_MULTIPLIER)
-  }
-  val texels = media3HdrTexels(pictureLight(colour, wide), transfer)
-  return Raster(straightCopy(texels.argb), texels.hdrLuminance)
+  if (wide != null) return rasterOf(wide, size(), transfer, colour)
+  val pixels = IntArray(width * height)
+  getPixels(pixels, 0, width, 0, 0, width, height)
+  if (transfer == null) return sdrRaster(size(), pictureSrgbCodes(colour, pixels))
+  val texels = media3HdrTexels(pixels, transfer, colour)
+  return Raster(straightBitmap(size(), texels.argb), texels.hdrLuminance)
 }
 
+// Straight sixteen-bit RGBA samples of a raster of size, read at their full depth.
+private fun rasterOf(
+  samples: ShortArray,
+  size: Size,
+  transfer: HdrTransfer?,
+  colour: PictureColour?,
+): Raster {
+  if (transfer == null) return sdrRaster(size, pictureSrgbCodes(colour, samples))
+  val texels = media3HdrTexels(pictureLight(colour, samples), transfer)
+  return Raster(straightBitmap(size, texels.argb), texels.hdrLuminance)
+}
+
+private fun sdrRaster(
+  size: Size,
+  argb: IntArray,
+): Raster = Raster(straightBitmap(size, argb), OverlaySettings.DEFAULT_HDR_LUMINANCE_MULTIPLIER)
+
 // getPixels answers unpremultiplied colours whatever the bitmap stores, and setPixels on a bitmap that is not
-// premultiplied keeps them that way.
-private fun Bitmap.straightCopy(argb: IntArray): Bitmap =
-  createBitmap(width, height).apply {
-    isPremultiplied = false
-    setPixels(argb, 0, width, 0, 0, width, height)
+// premultiplied keeps the colours it is handed that way.
+private fun straightBitmap(
+  size: Size,
+  argb: IntArray,
+): Bitmap {
+  val copy = createBitmap(size.width, size.height)
+  var filled = false
+  try {
+    copy.isPremultiplied = false
+    copy.setPixels(argb, 0, size.width, 0, 0, size.width, size.height)
+    filled = true
+  } finally {
+    if (!filled) copy.recycle()
   }
+  return copy
+}
 
 // A half float bitmap's samples as sixteen-bit sRGB values, red, green, blue and alpha per texel, or null for any
 // other config. A half float carries eleven significant bits, so a sample comes back within 16 of what the file
@@ -136,7 +138,7 @@ private fun Bitmap.wideSamples(): ShortArray? {
   return ShortArray(halves.size) {
     val sample = Half.toFloat(halves[it]).coerceIn(0f, 1f)
     val encoded = if (curve == HalfFloatCurve.Linear && it % RGBA != ALPHA) linearToSrgb(sample) else sample
-    (encoded * MAX_SAMPLE).roundToInt().toShort()
+    (encoded * TOP_SAMPLE).roundToInt().toShort()
   }
 }
 
@@ -232,9 +234,9 @@ private fun media3HdrTexels(
 
   val codes =
     IntArray(count) { index ->
-      var color = (light[index * RGBA + RGB] * MAX_CODE).roundToInt() shl ALPHA_SHIFT
+      var color = (light[index * RGBA + RGB] * TOP_CODE).roundToInt() shl ALPHA_SHIFT
       for (channel in 0 until RGB) {
-        val code = (linearToSrgb(working[index * RGB + channel] / hdrLuminance) * MAX_CODE).roundToInt()
+        val code = (linearToSrgb(working[index * RGB + channel] / hdrLuminance) * TOP_CODE).roundToInt()
         color = color or (code shl CHANNEL_SHIFTS[channel])
       }
       color
@@ -247,69 +249,13 @@ private fun media3HdrTexels(
  */
 internal fun Bitmap.size(): Size = Size(width, height)
 
-/**
- * The paint size at which this typeface's capitals stand [target] pixels tall.
- *
- * A style names a cap height rather than an em size, so the same number reads as the same visual
- * weight whatever typeface it lands on. Android only reports ascent and descent, so the cap is
- * measured off a capital drawn at a probe size and scaled from there.
- */
-private fun TextPaint.capHeightTextSize(target: Float): Float {
-  textSize = CAP_PROBE_SIZE
-  val bounds = Rect()
-  getTextBounds("H", 0, 1, bounds)
-  val probed = bounds.height().toFloat()
-  return if (probed > 0f) CAP_PROBE_SIZE * target / probed else target
-}
-
-private fun TextPaint.layout(
-  text: String,
-  width: Int,
-  alignment: Layout.Alignment,
-): StaticLayout =
-  StaticLayout.Builder
-    .obtain(SpannableString(text), 0, text.length, this, width)
-    .setAlignment(alignment)
-    .setIncludePad(false)
-    .build()
-
-private fun typefaceFor(
-  family: String?,
-  weight: FontWeight,
-): Typeface {
-  val base = family?.let { Typeface.create(it, Typeface.NORMAL) } ?: Typeface.DEFAULT
-  return when (weight) {
-    FontWeight.Regular -> {
-      base
-    }
-    FontWeight.Bold -> {
-      Typeface.create(base, Typeface.BOLD)
-    }
-    // Named weights only arrive in P. Below it the family's regular face is closer than its bold.
-    FontWeight.Medium -> {
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-        Typeface.create(base, MEDIUM_WEIGHT, false)
-      } else {
-        base
-      }
-    }
-  }
-}
-
-private fun TextAlignment.toLayout(): Layout.Alignment =
-  when (this) {
-    TextAlignment.Start -> Layout.Alignment.ALIGN_NORMAL
-    TextAlignment.Center -> Layout.Alignment.ALIGN_CENTER
-    TextAlignment.End -> Layout.Alignment.ALIGN_OPPOSITE
-  }
-
-private const val MEDIUM_WEIGHT = 500
-
 private const val WHITE = 0xFFFFFFFF.toInt()
 private const val ALPHA_SHIFT = 24
-private const val MAX_CODE = 255f
-private const val MAX_SAMPLE = 65535f
 private const val RGB = 3
 private const val RGBA = 4
 private const val ALPHA = 3
 private val CHANNEL_SHIFTS = intArrayOf(16, 8, 0)
+
+// What media3HdrTexels holds beside the floats it reads, the light it works in and the codes it writes.
+private const val WORKING_TEXEL_BYTES = RGB * Float.SIZE_BYTES
+private const val CODE_TEXEL_BYTES = Int.SIZE_BYTES

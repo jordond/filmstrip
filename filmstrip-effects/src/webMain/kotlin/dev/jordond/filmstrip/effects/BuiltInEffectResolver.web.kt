@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalWasmJsInterop::class)
+
 package dev.jordond.filmstrip.effects
 
 import dev.jordond.filmstrip.InternalFilmstripApi
@@ -6,6 +8,7 @@ import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effect.OverlaySource
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
@@ -36,10 +39,14 @@ import dev.jordond.filmstrip.effects.overlay.OverlayEffect
 import dev.jordond.filmstrip.effects.overlay.OverlayImages
 import dev.jordond.filmstrip.effects.overlay.OverlayPlacement
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
+import dev.jordond.filmstrip.effects.overlay.TextRaster
+import dev.jordond.filmstrip.effects.overlay.WEBGL
 import dev.jordond.filmstrip.effects.overlay.animatedBy
 import dev.jordond.filmstrip.effects.overlay.drawnTextSize
+import dev.jordond.filmstrip.effects.overlay.fitsTextureSide
 import dev.jordond.filmstrip.effects.overlay.frameWithin
 import dev.jordond.filmstrip.effects.overlay.named
+import dev.jordond.filmstrip.effects.overlay.picturePastTextureSide
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.preloadOverlays
 import dev.jordond.filmstrip.effects.overlay.rasterizeText
@@ -48,6 +55,7 @@ import dev.jordond.filmstrip.effects.overlay.runWithin
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.ImageSource
+import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.time.Duration
 
 /**
@@ -59,7 +67,9 @@ import kotlin.time.Duration
  * to resize it afterward.
  *
  * Overlays are rasterised here, text on the spot and images from the ones [preload] decoded, and
- * resolve to a raster the compositor draws where the effect says.
+ * resolve to a raster the compositor draws where the effect says. Text carries its straight sixteen-bit samples, and
+ * text too large to draw is refused with the reason its raster gives. Text or a picture longer on a side than the
+ * capabilities' `maxTextureSize` is refused, since WebGL uploads nothing past it.
  */
 public actual class BuiltInEffectResolver actual constructor() : EffectResolver {
   private val images = OverlayImages()
@@ -97,7 +107,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       -> spec.toColorPass()
       is KenBurns -> EffectResolution.Unsupported(spec.id, PAN_PENDING)
       is Rotate, is Scale -> EffectResolution.Unsupported(spec.id, RESIZING_PENDING)
-      is ImageOverlay -> spec.toOverlay(attributes)
+      is ImageOverlay -> spec.toOverlay(capabilities, attributes)
       is TextOverlay -> spec.toOverlay(capabilities, attributes)
       else -> null
     }
@@ -115,7 +125,10 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
 
   // An overlay measures against the frame entering it, which is the clip's for a clip overlay and
   // the output's for a composition one.
-  private fun ImageOverlay.toOverlay(attributes: Attributes): EffectResolution {
+  private fun ImageOverlay.toOverlay(
+    capabilities: RenderCapabilities,
+    attributes: Attributes,
+  ): EffectResolution {
     if (image is ImageSource.Path) return EffectResolution.Unsupported(id, "${image.named()} $PATH_UNREADABLE")
     val picture =
       when (val decoded = images[image]) {
@@ -124,9 +137,14 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
         is OverlayDecode.Refused -> return EffectResolution.Unsupported(id, decoded.message)
         is OverlayDecode.Decoded -> decoded.picture
       }
+    val (width, height) = picture.size.width to picture.size.height
+    if (!fitsTextureSide(width, height, capabilities.maxTextureSize)) {
+      return EffectResolution.Unsupported(id, picturePastTextureSide(width, height, capabilities.maxTextureSize, WEBGL))
+    }
 
     val drawAt = drawnBy(placedOn(attributes.inputSize, picture.size), attributes)
-    val effect = PlatformEffect(WebGlOverlay(picture.bitmap, picture.size, drawAt, picture.colour, picture.samples))
+    val source = OverlaySource.Image(picture.bitmap, picture.samples)
+    val effect = PlatformEffect(WebGlOverlay(source, picture.size, drawAt, picture.colour))
     return if (picture.limits.isEmpty()) {
       EffectResolution.Resolved(effect)
     } else {
@@ -142,10 +160,15 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   ): EffectResolution {
     if (!capabilities.has(RenderFeature.TextRendering)) return EffectResolution.Unsupported(id, NO_TEXT_RENDERING)
     val raster =
-      rasterizeText(text, style, attributes.layoutSize) ?: return EffectResolution.Unsupported(id, EMPTY_TEXT)
+      when (val drawn = rasterizeText(text, style, attributes.layoutSize, capabilities.maxTextureSize)) {
+        is TextRaster.Drawn -> drawn.pixels
+        is TextRaster.Empty -> return EffectResolution.Unsupported(id, EMPTY_TEXT)
+        is TextRaster.Refused -> return EffectResolution.Unsupported(id, drawn.reason)
+      }
 
     val placement = placedOn(attributes.drawnTextSize(raster.size))
-    return overlay(WebGlOverlay(raster.canvas, raster.size, drawnBy(placement, attributes)))
+    val drawAt = drawnBy(placement, attributes)
+    return overlay(WebGlOverlay(OverlaySource.Samples(raster.samples), raster.size, drawAt))
   }
 
   private fun OverlayEffect.drawnBy(

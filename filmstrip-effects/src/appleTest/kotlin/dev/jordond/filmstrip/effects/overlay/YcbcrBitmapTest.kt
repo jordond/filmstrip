@@ -320,7 +320,6 @@ class YcbcrBitmapTest {
     const val PADDED_ROW = WIDTH * TEXEL + 12
     const val TEN = 10
     const val MAX = 65535
-    const val EIGHT_BIT_STEP = 257
     const val SMPTE_240M = 7
     const val BT2020_CONSTANT_LUMINANCE = 10
     const val BT2020 = 9

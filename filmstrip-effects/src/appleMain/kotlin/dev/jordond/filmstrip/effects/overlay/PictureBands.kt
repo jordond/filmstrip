@@ -151,10 +151,26 @@ internal fun drawnPeakBytes(
   bandTexels: Int = BAND_TEXELS,
 ): Long? {
   if (width <= 0 || height <= 0) return picturePeakBytes(held, 0L, 0L)
-  if (width > Int.MAX_VALUE / RGBA || height > Int.MAX_VALUE) return null
+  val band = drawnBandBytes(width, height, bandTexels) ?: return null
   if (width > Long.MAX_VALUE / FLOAT_TEXEL_BYTES / height) return null
-  val band = bandRows(Size(width.toInt(), height.toInt()), bandTexels) * width * BAND_TEXEL_BYTES
   return picturePeakBytes(held = held, band = band, made = width * height * FLOAT_TEXEL_BYTES)
+}
+
+/**
+ * The bytes one band of [StoredBands] holds while a picture of [width] by [height] texels is drawn at its colour, at
+ * most [BAND_TEXEL_BYTES] a texel, or null when the picture is too wide or too tall to read in bands.
+ *
+ * [drawnPeakBytes] counts this band, and a text raster passes it to [textRasterFits] so both count the same peak. A
+ * picture with no texels holds no band.
+ */
+internal fun drawnBandBytes(
+  width: Long,
+  height: Long,
+  bandTexels: Int = BAND_TEXELS,
+): Long? {
+  if (width <= 0 || height <= 0) return 0L
+  if (width > Int.MAX_VALUE / RGBA || height > Int.MAX_VALUE) return null
+  return bandRows(Size(width.toInt(), height.toInt()), bandTexels) * width * BAND_TEXEL_BYTES
 }
 
 /**
@@ -201,7 +217,7 @@ internal fun FloatArray.straightInto(
           else -> 0f
         }
       val held = if (value > 0f) minOf(value, 1f) else 0f
-      samples[offset + texel + channel] = (held * MAX_SAMPLE).roundToInt().toShort()
+      samples[offset + texel + channel] = (held * TOP_SAMPLE).roundToInt().toShort()
     }
   }
 }
@@ -213,8 +229,6 @@ private fun bandRows(
 
 private const val RGBA = 4
 private const val ALPHA = 3
-private const val MAX_SAMPLE = 65535f
-private const val FLOAT_TEXEL_BYTES = 16L
 
 // A band's floats read back and samples, 24 bytes a texel, then two sRGB codes and their floats, another 24.
 private const val BAND_TEXEL_BYTES = 48L

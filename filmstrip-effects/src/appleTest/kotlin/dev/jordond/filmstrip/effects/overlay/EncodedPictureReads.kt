@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.effects.overlay.EncodedPictures.SAMPLE_MASK
 import dev.jordond.filmstrip.effects.overlay.EncodedPictures.SIZE
 import dev.jordond.filmstrip.effects.overlay.EncodedPictures.TEXEL
 import dev.jordond.filmstrip.geometry.Size
@@ -139,8 +138,6 @@ internal object EncodedPictures {
 
   // A decode lands off its model, or a JPEG XL off its stored codes, by rounding alone.
   const val TOLERANCE = AppleStillSamples.TOLERANCE
-  const val SAMPLE_MASK = 0xFFFF
-  const val EIGHT_BIT_STEP = 257f
 
-  fun Short.toCode(): Float = (toInt() and SAMPLE_MASK) / EIGHT_BIT_STEP
+  fun Short.toCode(): Float = (toInt() and SAMPLE_MASK) / EIGHT_BIT_STEP.toFloat()
 }

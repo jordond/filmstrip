@@ -24,6 +24,7 @@ import dev.jordond.filmstrip.effects.geometry.retainedRect
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.PictureRead
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
+import dev.jordond.filmstrip.effects.overlay.TextRaster
 import dev.jordond.filmstrip.effects.overlay.animatedBy
 import dev.jordond.filmstrip.effects.overlay.compositedOnto
 import dev.jordond.filmstrip.effects.overlay.drawnTextSize
@@ -130,8 +131,11 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   ): EffectResolution {
     if (!capabilities.has(RenderFeature.TextRendering)) return EffectResolution.Unsupported(id, NO_TEXT_RENDERING)
     val raster =
-      rasterizeText(text, style, attributes.layoutSize)
-        ?: return EffectResolution.Unsupported(id, EMPTY_TEXT)
+      when (val drawn = rasterizeText(text, style, attributes.layoutSize)) {
+        is TextRaster.Drawn -> drawn.pixels
+        is TextRaster.Empty -> return EffectResolution.Unsupported(id, EMPTY_TEXT)
+        is TextRaster.Refused -> return EffectResolution.Unsupported(id, drawn.reason)
+      }
     val size = raster.size
     val run = runWithin(attributes.span)
 

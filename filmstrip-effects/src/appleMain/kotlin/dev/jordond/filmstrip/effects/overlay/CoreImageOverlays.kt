@@ -250,10 +250,10 @@ private fun ShortArray.isEightBit(): Boolean = all { (it.toInt() and SAMPLE_MASK
 private fun IntArray.premultipliedInto(floats: FloatArray) {
   forEachIndexed { index, color ->
     val offset = index * TEXEL_FLOATS
-    val alpha = (color ushr ALPHA_SHIFT) / MAX_CODE
-    floats[offset] = ((color shr RED_SHIFT) and CODE_MASK) / MAX_CODE * alpha
-    floats[offset + 1] = ((color shr GREEN_SHIFT) and CODE_MASK) / MAX_CODE * alpha
-    floats[offset + 2] = (color and CODE_MASK) / MAX_CODE * alpha
+    val alpha = (color ushr ALPHA_SHIFT).toFloat() / TOP_CODE
+    floats[offset] = ((color shr RED_SHIFT) and CODE_MASK).toFloat() / TOP_CODE * alpha
+    floats[offset + 1] = ((color shr GREEN_SHIFT) and CODE_MASK).toFloat() / TOP_CODE * alpha
+    floats[offset + 2] = (color and CODE_MASK).toFloat() / TOP_CODE * alpha
     floats[offset + ALPHA] = alpha
   }
 }
@@ -330,9 +330,6 @@ private fun HdrTransfer.createSignalSpace(): CGColorSpaceRef? =
 private const val TEXEL_FLOATS = 4
 private const val ALPHA = 3
 private const val CODE_MASK = 0xFF
-private const val MAX_CODE = 255f
-private const val SAMPLE_MASK = 0xFFFF
-private const val EIGHT_BIT_STEP = 257
 private const val ALPHA_SHIFT = 24
 private const val RED_SHIFT = 16
 private const val GREEN_SHIFT = 8

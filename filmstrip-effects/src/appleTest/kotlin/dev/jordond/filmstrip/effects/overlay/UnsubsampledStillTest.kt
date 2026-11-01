@@ -110,8 +110,6 @@ class UnsubsampledStillTest {
 
   private companion object {
     const val RGB = 3
-    const val SAMPLE_MASK = 0xFFFF
-    const val EIGHT_BIT_STEP = 257
     const val SIXTEEN_BIT_ROUNDING = 1
 
     // ImageIO's limit, not filmstrip's. It turns YCbCr into whole codes at the picture's depth.

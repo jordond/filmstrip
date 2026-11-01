@@ -316,6 +316,13 @@ internal external interface WebGl2 : JsAny {
   )
 
   fun getExtension(name: String): GlExtension?
+
+  /**
+   * Reads one of the context's numeric limits, such as `MAX_TEXTURE_SIZE`.
+   *
+   * Only the limits that come back as a single number are asked for through this binding.
+   */
+  fun getParameter(pname: Int): Int
 }
 
 /**

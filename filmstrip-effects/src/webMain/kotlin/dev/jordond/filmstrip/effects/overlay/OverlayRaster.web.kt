@@ -14,125 +14,10 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.PictureColour
 import dev.jordond.filmstrip.media.blobOf
 import dev.jordond.filmstrip.media.toByteArray
-import dev.jordond.filmstrip.style.FontWeight
-import dev.jordond.filmstrip.style.TextAlignment
-import dev.jordond.filmstrip.style.TextStyle
 import kotlinx.coroutines.await
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.js.ExperimentalWasmJsInterop
-import kotlin.math.ceil
 import kotlin.math.roundToInt
-
-/**
- * A run of text drawn to a canvas sized to the glyphs it covers, plus the plate around them.
- *
- * @property canvas The drawn text.
- * @property lines The lines the text was broken into, top to bottom.
- * @property capHeight How tall a capital stands in the face the text was drawn in, in pixels.
- */
-internal class TextRaster(
-  val canvas: OffscreenCanvas,
-  val lines: List<String>,
-  val capHeight: Float,
-) {
-  val size: Size get() = Size(canvas.width, canvas.height)
-}
-
-/**
- * Draws [text] to a canvas at the pixel size it occupies on [frame].
- *
- * The face is sized so a capital stands [capHeightOn] tall, measured off a capital drawn at
- * [CAP_PROBE_SIZE]. Lines wrap greedily at [wrapWidthOn], breaking at spaces and at every `\n`, and
- * a word wider than a whole line is split between graphemes. The block is as wide as its longest
- * line, each line is aligned inside it, and a plate adds [platePaddingOn] on every side.
- *
- * Colours are written as the codes the style names, with no colour management.
- *
- * @return The drawn text, or null when the style leaves nothing to draw.
- */
-internal fun rasterizeText(
-  text: String,
-  style: TextStyle,
-  frame: Size,
-): TextRaster? {
-  if (text.isEmpty() || frame.width <= 0 || frame.height <= 0) return null
-  val measure = OffscreenCanvas(1, 1).getContext(CONTEXT_2D) ?: return null
-
-  val family = familyOf(style)
-  measure.font = fontOf(style.weight, CAP_PROBE_SIZE, family)
-  val probed = measure.measureText(CAP_PROBE).actualBoundingBoxAscent.toFloat()
-  val cap = style.capHeightOn(frame)
-  val font = fontOf(style.weight, if (probed > 0f) CAP_PROBE_SIZE * cap / probed else cap, family)
-  measure.font = font
-
-  val lines = wrapLines(text, style.wrapWidthOn(frame)) { measure.measureText(it).width }
-  val widths = lines.map { measure.measureText(it).width }
-  val metrics = measure.measureText(CAP_PROBE)
-  val advance = metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent
-  val block = ceil(widths.max()).toInt().coerceAtLeast(1)
-  val height = ceil(advance * lines.size).toInt()
-  if (height <= 0) return null
-
-  val padding = style.platePaddingOn(frame)
-  val canvas = OffscreenCanvas(block + 2 * padding, height + 2 * padding)
-  val context = canvas.getContext(CONTEXT_2D) ?: return null
-  style.backgroundColor?.let {
-    context.fillStyle = cssColorOf(it)
-    context.fillRect(0.0, 0.0, canvas.width.toDouble(), canvas.height.toDouble())
-  }
-  context.font = font
-  context.fillStyle = cssColorOf(style.color)
-  context.textBaseline = ALPHABETIC
-  lines.forEachIndexed { index, line ->
-    val x = padding + style.alignment.offset(block - widths[index])
-    val y = padding + index * advance + metrics.fontBoundingBoxAscent
-    context.fillText(line, x, y)
-  }
-
-  return TextRaster(canvas, lines, context.measureText(CAP_PROBE).actualBoundingBoxAscent.toFloat())
-}
-
-/**
- * Breaks [text] into lines no wider than [width] where it can.
- *
- * Greedy: each line takes as many space-separated words as fit, and every `\n` starts a new line. A
- * word wider than [width] on its own is split between graphemes, so it fills lines rather than
- * running off the edge of one.
- *
- * @param measure The width of a run of text, in the same pixels as [width].
- */
-internal fun wrapLines(
-  text: String,
-  width: Int,
-  measure: (String) -> Double,
-): List<String> {
-  val lines = mutableListOf<String>()
-  for (paragraph in text.split('\n')) {
-    var line = ""
-    for (word in paragraph.split(' ')) {
-      val joined = if (line.isEmpty()) word else "$line $word"
-      if (measure(joined) <= width) {
-        line = joined
-        continue
-      }
-      if (line.isNotEmpty()) lines += line
-      line = word
-      if (measure(word) <= width) continue
-
-      line = ""
-      for (grapheme in graphemesOf(word)) {
-        if (line.isNotEmpty() && measure(line + grapheme) > width) {
-          lines += line
-          line = grapheme
-        } else {
-          line += grapheme
-        }
-      }
-    }
-    lines += line
-  }
-  return lines
-}
 
 /**
  * A decoded overlay picture and how it describes the colour of its codes.
@@ -353,8 +238,8 @@ private suspend fun evaluatedPicture(
     val green = codes[texel + 1].toInt() and BYTE_MASK
     val blue = codes[texel + 2].toInt() and BYTE_MASK
     landing.evaluator.rgb(green, blue, red, rgb)
-    for (channel in 0 until RGB_CHANNELS) samples[texel + channel] = (rgb[channel] * MAX_SAMPLE).roundToInt().toShort()
-    samples[texel + ALPHA] = ((codes[texel + ALPHA].toInt() and BYTE_MASK) * SAMPLE_PER_CODE).toShort()
+    for (channel in 0 until RGB_CHANNELS) samples[texel + channel] = (rgb[channel] * TOP_SAMPLE).roundToInt().toShort()
+    samples[texel + ALPHA] = ((codes[texel + ALPHA].toInt() and BYTE_MASK) * EIGHT_BIT_STEP).toShort()
   }
   val picture = OverlayPicture(bitmap, Size(bitmap.width, bitmap.height), pictureColour(bytes), samples)
   return OverlayDecode.Decoded(picture)
@@ -401,79 +286,11 @@ internal fun codesOf(bitmap: ImageBitmap): ByteArray? {
 private fun isPng(bytes: ByteArray): Boolean =
   bytes.size >= PNG_SIGNATURE.size && PNG_SIGNATURE.indices.all { bytes[it] == PNG_SIGNATURE[it] }
 
-private fun graphemesOf(word: String): List<String> {
-  val segments = Segmenter().segment(word)
-  val graphemes = mutableListOf<String>()
-  var index = 0
-  while (index < word.length) {
-    val grapheme = segments.containing(index)?.segment?.takeIf { it.isNotEmpty() } ?: word.substring(index, index + 1)
-    graphemes += grapheme
-    index += grapheme.length
-  }
-  return graphemes
-}
-
-private fun fontOf(
-  weight: FontWeight,
-  size: Float,
-  family: String,
-): String = "${weight.cssWeight()} ${size}px $family"
-
-// A named family goes in as a CSS string, so a comma, a quote, a leading digit or a control character
-// stays part of the name. The generic families behind it are keywords and stay bare, so a face that
-// never loaded falls back the way the default does.
-private fun familyOf(style: TextStyle): String {
-  val family = style.resolvedFontFamily ?: return DEFAULT_FAMILY
-  return "${cssStringOf(family)}, $DEFAULT_FAMILY"
-}
-
-// A control character is written as a hex escape ended by a space, since a raw newline ends the
-// string and leaves the whole shorthand unparsed.
-private fun cssStringOf(value: String): String =
-  buildString {
-    append('"')
-    value.forEach { char ->
-      when {
-        char == '\\' || char == '"' -> append('\\').append(char)
-        char < ' ' || char == DELETE -> append('\\').append(char.code.toString(HEX)).append(' ')
-        else -> append(char)
-      }
-    }
-    append('"')
-  }
-
-private fun FontWeight.cssWeight(): Int =
-  when (this) {
-    FontWeight.Regular -> 400
-    FontWeight.Medium -> 500
-    FontWeight.Bold -> 700
-  }
-
-private fun TextAlignment.offset(slack: Double): Double =
-  when (this) {
-    TextAlignment.Start -> 0.0
-    TextAlignment.Center -> slack / 2
-    TextAlignment.End -> slack
-  }
-
-private fun cssColorOf(argb: Int): String {
-  val alpha = (argb ushr 24 and 0xFF) / 255.0
-  return "rgba(${argb ushr 16 and 0xFF}, ${argb ushr 8 and 0xFF}, ${argb and 0xFF}, $alpha)"
-}
-
-private const val CONTEXT_2D = "2d"
-private const val CAP_PROBE = "H"
-private const val ALPHABETIC = "alphabetic"
-private const val DEFAULT_FAMILY = "system-ui, sans-serif"
-private const val DELETE = '\u007F'
-private const val HEX = 16
 private const val OCTET_STREAM = "application/octet-stream"
 private const val RGB_CHANNELS = 3
 private const val RGBA_CHANNELS = 4
 private const val ALPHA = 3
 private const val BYTE_MASK = 0xFF
-private const val MAX_SAMPLE = 65535.0
-private const val SAMPLE_PER_CODE = 257
 
 private val PNG_SIGNATURE = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
 
