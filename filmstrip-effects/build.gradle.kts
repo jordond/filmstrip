@@ -1,4 +1,5 @@
 import dev.jordond.filmstrip.convention.androidDeviceTests
+import dev.jordond.filmstrip.convention.bootIosSimulatorForTests
 
 plugins {
   id("filmstrip.library")
@@ -29,6 +30,12 @@ kotlin {
       implementation(projects.filmstripTest)
     }
 
+    // Tests that need ImageIO to write a HEVC image sequence, which the simulator does not. macOS runs them. An iPhone
+    // run takes them too and fails if its ImageIO writes no sequence.
+    val appleHardwareTest = create("appleHardwareTest") { dependsOn(getByName("appleTest")) }
+    macosArm64Test.get().dependsOn(appleHardwareTest)
+    iosArm64Test.get().dependsOn(appleHardwareTest)
+
     named("androidDeviceTest").dependencies {
       implementation(kotlin("test"))
       implementation(libs.androidx.test.runner)
@@ -36,3 +43,5 @@ kotlin {
     }
   }
 }
+
+bootIosSimulatorForTests()

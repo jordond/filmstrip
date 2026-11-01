@@ -17,7 +17,8 @@ import kotlin.math.roundToInt
  * Apple reads full range chroma over 254 codes rather than 255, the 1 to 255 CoreVideo's full range YCbCr formats
  * span. That is CoreVideo's limit, not the still's, so a full range still lands up to a third of a code off its
  * ITU-T H.273 reading on most of these stills and most of a code on [ColourPictures.NCLX_BT709_FULL_EDGE_CHROMA] and
- * [ColourPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA], and every unrounded sample here carries it.
+ * [ColourPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA]. Every AVIF decode here carries it, and every HEIC decode on the
+ * iOS simulator.
  *
  * A still decodes with the matrix and range its `colr nclx` names. A HEIC only does once its codestream states them
  * too, the way the overlay raster hands it over, since Apple's HEIC decoder takes the range from the HEVC codestream.
@@ -27,14 +28,12 @@ import kotlin.math.roundToInt
  * 10, 12 or 13, or that core reads any other way, such as the identity matrix 0 or YCgCo 8, has no measured decode, and
  * asking for one fails with an [IllegalArgumentException].
  *
- * The overlay raster reads a HEIC or an AVIF from the bitmap ImageIO decodes it to, so each has one decode, in whole
- * codes. On macOS a HEIC's are the codes [ycbcrToRgb] gives, except for two stills.
- * [ColourPictures.HEIC_NCLX_BT709_FULL]'s samples under the BT.709 matrix at full range decode to 203, 112 and 69,
- * where [ycbcrToRgb] gives 204, 112 and 69. [ColourPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA]'s samples under the same
- * matrix and range decode to 13, 7 and 251, where it gives 13, 7 and 252. On these stills the whole codes sit up to
- * 1.38 codes from the unrounded ITU-T H.273 reading. An AVIF's, and on the iOS simulator a HEIC's, are the unrounded
- * decode rounded, at either range. A HEIC handed over as written decodes on both with its `nclx` matrix at the range
- * its codestream signals.
+ * The overlay raster reads a HEIC or an AVIF from the bitmap ImageIO decodes it to, so each decode is in whole codes.
+ * On macOS a HEIC's may be any whole codes within ImageIO's own drift of the unrounded ITU-T H.273 reading on each
+ * channel, the most it was measured decoding one off that reading, and the unrounded reading rounded comes first, the
+ * one [ycbcrToRgb] gives. Given the texel this process read, from [imageIoRead], those decodes narrow to the one it
+ * lands on. An AVIF's, and on the iOS simulator a HEIC's, is the unrounded decode rounded, at either range. A HEIC
+ * handed over as written decodes on both with its `nclx` matrix at the range its codestream signals.
  *
  * The macOS decodes were measured on macOS 26.6.2 (25G83) and the simulator's on the iOS 27.0 (24A434) and iOS 26.5
  * (23F77) simulators, each against the bitmap ImageIO hands back for every [ColourPictures] AVIF and HEIC alone and as
@@ -82,12 +81,7 @@ public object AppleStillSamples {
    */
   public val BT709_MATRIX_OTHER_PRIMARIES: List<HeicPicture> =
     listOf(
-      HeicPicture(
-        "HEIC nclx Display P3 primaries, BT.709 matrix",
-        CicpTag(DISPLAY_P3_PRIMARIES, SRGB_TRANSFER, BT709, true),
-        profile = null,
-        ColourPictures.HEIC_NCLX_BT709_FULL.ycbcr,
-      ),
+      ColourPictures.HEIC_NCLX_DISPLAY_P3_PRIMARIES_BT709_MATRIX,
       HeicPicture(
         "HEIC nclx unspecified primaries, BT.709 matrix",
         CicpTag(UNSPECIFIED, UNSPECIFIED, BT709, true),
@@ -188,7 +182,7 @@ public object AppleStillSamples {
     if (heic && !nclx.fullRange) return emptyList()
     val (y, cb, cr) = AvifColourPictures.TWELVE_BIT_YCBCR
     val codes = ycbcrToRgb(y, cb, cr, landed.matrix, nclx.primaries, nclx.transfer, nclx.fullRange, TWELVE_BITS)
-    return listOf(ShortArray(CHANNELS) { if (it < codes.size) (codes[it] * EIGHT_BIT_STEP).toShort() else OPAQUE })
+    return listOf(wholeCodeTexel(codes))
   }
 
   /**
@@ -254,7 +248,8 @@ public object AppleStillSamples {
    * Every texel Apple's decoder may hand back for [still] once its codestream states what its `colr nclx` names, as
    * sixteen-bit red, green, blue and alpha.
    *
-   * @param read The texel this process's decoder handed back for [still], named in the failure where its decode is
+   * @param read The texel this process's decoder handed back for [still]. On macOS the decodes narrow to the one it
+   * lands on within [TOLERANCE], or stay whole when it lands on none. It is named in the failure where its decode is
    * unmeasured.
    */
   public fun of(
@@ -266,7 +261,23 @@ public object AppleStillSamples {
     still: HeicPicture,
     read: ShortArray?,
     platform: ApplePlatform,
-  ): List<ShortArray> = heicDecodes(still, still.nclx?.fullRange ?: still.vui.fullRange, read, platform)
+  ): List<ShortArray> = heicDecodes(still, heicDecode(still, asWritten = false), read, platform)
+
+  /**
+   * Every texel Apple's decoder may hand back for [still], an AVIF or a HEIC, as sixteen-bit red, green, blue and
+   * alpha. These are the decodes the [AvifPicture] or [HeicPicture] overload gives for it.
+   *
+   * @param read The texel this process's decoder handed back for [still], named in the failure where its decode is
+   * unmeasured.
+   */
+  public fun of(
+    still: HeifPicture,
+    read: ShortArray? = null,
+  ): List<ShortArray> =
+    when (still) {
+      is AvifPicture -> of(still, read)
+      is HeicPicture -> of(still, read)
+    }
 
   /**
    * Every texel Apple's decoder may hand back for [still] handed over as written, with the matrix its `colr nclx`
@@ -277,8 +288,8 @@ public object AppleStillSamples {
    * Where the `nclx` names full range and the codestream signals limited range, the decode is unmeasured on every
    * platform whatever matrix either names. Asking for an unmeasured decode fails.
    *
-   * @param read The texel this process's decoder handed back for [still], named in the failure where its decode is
-   * unmeasured.
+   * @param read The texel this process's decoder handed back for [still], narrowing the decodes as [of] does. It is
+   * named in the failure where its decode is unmeasured.
    */
   public fun asWritten(
     still: HeicPicture,
@@ -290,38 +301,63 @@ public object AppleStillSamples {
     read: ShortArray?,
     platform: ApplePlatform,
   ): List<ShortArray> {
-    val nclx = still.nclx ?: return of(still, read, platform)
-    val limitedUnderFullNclx = nclx.fullRange && still.vui.videoSignalType && !still.vui.fullRange
+    val nclx = still.nclx
+    val limitedUnderFullNclx = nclx != null && nclx.fullRange && still.vui.videoSignalType && !still.vui.fullRange
     if (limitedUnderFullNclx) unmeasured("$still handed over as written", read, platform)
-    return heicDecodes(still, still.vui.fullRange, read, platform)
+    return heicDecodes(still, heicDecode(still, asWritten = true), read, platform)
+  }
+
+  /**
+   * The sixteen-bit red, green and blue ImageIO decodes [bytes] to at their centre on this platform, the texel [of]
+   * and [asWritten] narrow their decodes to.
+   *
+   * [bytes] are decoded as given, so a still is passed the way the overlay raster hands it to ImageIO.
+   */
+  public fun imageIoRead(bytes: ByteArray): ShortArray =
+    imageIoCentre(bytes).map { (it * EIGHT_BIT_STEP).toShort() }.toShortArray()
+
+  // The texel withinDrift starts from, the unrounded reading of still rounded on each channel.
+  internal fun rounded(
+    still: HeicPicture,
+    asWritten: Boolean,
+  ): ShortArray = roundedReading(heicDecode(still, asWritten))
+
+  // The samples, colour and range Apple's decoder decodes still with, handed over as written or with its codestream
+  // stating what its nclx names. Without an nclx both take the codestream's range.
+  internal fun heicDecode(
+    still: HeicPicture,
+    asWritten: Boolean,
+  ): HeicDecode {
+    val nclx = still.nclx
+    val full = if (nclx == null || asWritten) still.vui.fullRange else nclx.fullRange
+    return HeicDecode(still.ycbcr, colourOf(nclx), full)
   }
 
   private fun heicDecodes(
     still: HeicPicture,
-    full: Boolean,
+    decode: HeicDecode,
     read: ShortArray?,
     platform: ApplePlatform,
-  ): List<ShortArray> {
-    val colour = colourOf(still.nclx)
-    return when (platform) {
-      ApplePlatform.MacOs -> listOf(wholeCodes(still.ycbcr, colour, full))
-      ApplePlatform.Simulator -> listOf(roundedDecode(still.ycbcr, colour, full))
+  ): List<ShortArray> =
+    when (platform) {
+      ApplePlatform.MacOs -> withinDrift(decode).narrowedTo(read)
+      ApplePlatform.Simulator -> listOf(roundedDecode(decode.ycbcr, decode.colour, decode.full))
       ApplePlatform.Iphone -> unmeasured(still.name, read, platform)
     }
+
+  // The red, green and blue codes from 0 to 255 core's evaluator reads decode's samples at, before ycbcrToRgb rounds
+  // them.
+  internal fun unroundedReading(decode: HeicDecode): List<Double> {
+    val (y, cb, cr) = decode.ycbcr
+    return decode.colour.weights
+      .evaluator(EIGHT_BITS, decode.full)
+      .rgb(y, cb, cr)
+      .map { it * MAX_CODE }
   }
 
-  // The whole codes macOS's ImageIO decodes these samples to under colour's matrix and range.
-  private fun wholeCodes(
-    ycbcr: List<Int>,
-    colour: StillColour,
-    full: Boolean,
-  ): ShortArray {
-    val (y, cb, cr) = ycbcr
-    val codes =
-      WHOLE_CODES_OFF_ROUNDED[WholeCodeDecode(ycbcr, colour.matrix, full)]
-        ?: ycbcrToRgb(y, cb, cr, colour.matrix, colour.primaries, colour.transfer, full)
-    return ShortArray(CHANNELS) { if (it < codes.size) (codes[it] * EIGHT_BIT_STEP).toShort() else OPAQUE }
-  }
+  // Whole eight-bit red, green and blue codes as an opaque sixteen-bit texel.
+  internal fun wholeCodeTexel(codes: IntArray): ShortArray =
+    ShortArray(CHANNELS) { if (it < codes.size) (codes[it] * EIGHT_BIT_STEP).toShort() else OPAQUE }
 
   private fun unmeasured(
     still: String,
@@ -339,7 +375,7 @@ public object AppleStillSamples {
     colour: StillColour,
     full: Boolean,
   ): ShortArray =
-    (reading(ycbcr, colour, full).map { (it * MAX_CODE).roundToInt() / MAX_CODE } + 1.0)
+    (reading(ycbcr, colour, full).map { (it * MAX_CODE).roundToInt() / MAX_CODE.toDouble() } + 1.0)
       .map { (it * MAX_SAMPLE).roundToInt().toShort() }
       .toShortArray()
 
@@ -373,25 +409,18 @@ public object AppleStillSamples {
     return StillColour(matrix, primaries, transfer, reading)
   }
 
-  private class StillColour(
+  internal class HeicDecode(
+    val ycbcr: List<Int>,
+    val colour: StillColour,
+    val full: Boolean,
+  )
+
+  internal class StillColour(
     val matrix: Int,
     val primaries: Int,
     val transfer: Int,
     val weights: YcbcrReading.KrKb,
   )
-
-  private data class WholeCodeDecode(
-    val ycbcr: List<Int>,
-    val matrix: Int,
-    val full: Boolean,
-  )
-
-  // The whole codes ImageIO decodes to on macOS 26.6.2 where they are not the ones ycbcrToRgb gives.
-  private val WHOLE_CODES_OFF_ROUNDED =
-    mapOf(
-      WholeCodeDecode(ColourPictures.FLAT_YCBCR, BT709, true) to intArrayOf(203, 112, 69),
-      WholeCodeDecode(ColourPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA.ycbcr, BT709, true) to intArrayOf(13, 7, 251),
-    )
 
   private const val BT601 = 6
   private const val EIGHT_BITS = 8
@@ -400,13 +429,13 @@ public object AppleStillSamples {
   private const val IDENTITY = 0
   private const val BT709 = 1
   private const val UNSPECIFIED = 2
-  private const val DISPLAY_P3_PRIMARIES = 12
   private const val SRGB_TRANSFER = 13
   private const val SMPTE_240M = 7
   private const val CHANNELS = 4
-  private const val MAX_CODE = 255.0
+  internal const val MAX_CODE = 255
   private const val MAX_SAMPLE = 65535.0
-  private const val EIGHT_BIT_STEP = 257
+  internal const val EIGHT_BIT_STEP = 257
+  internal const val SAMPLE_MASK = 0xFFFF
   private const val OPAQUE: Short = -1
 
   // The matrices whose reading takes the primaries or the transfer, BT.2020 constant luminance and the two derived
@@ -415,6 +444,15 @@ public object AppleStillSamples {
 
   // CoreVideo's full range chroma runs 1 to 255.
   private const val COREVIDEO_FULL_CHROMA = 254.0
+
+  /**
+   * ImageIO's own limit on macOS, the most in eight-bit codes a whole code it decodes a HEIC to was measured off the
+   * unrounded ITU-T H.273 reading on any channel, 1.39 codes.
+   *
+   * That was on macOS 26.6.2 (25G83), where the blue of [ColourPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA] decoded to
+   * 251 for a reading of 252.3832, 1.3832 codes off.
+   */
+  internal const val WHOLE_CODE_DRIFT: Double = 1.39
 }
 
 /**

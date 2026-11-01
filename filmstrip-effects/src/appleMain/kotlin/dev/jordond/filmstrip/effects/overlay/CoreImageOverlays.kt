@@ -259,15 +259,16 @@ private fun IntArray.premultipliedInto(floats: FloatArray) {
 }
 
 /**
- * The context the overlay raster reads stored samples back through, built once with [codeReaderOptions], or null when
- * none can be built.
+ * The context the overlay raster reads stored samples back through, built once with [contextOptions] for no working
+ * space and a float working format, or null when none can be built.
  *
  * Kotlin/Native raises at the constructor when Core Image answers nil, which a headless process can. The software
  * renderer is tried next, and when neither builds the samples are not read back at all.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal val codeReader: CIContext? by lazy {
-  contextOrNull(codeReaderOptions()) ?: contextOrNull(codeReaderOptions(softwareRenderer = true))
+  contextOrNull(contextOptions(unmanaged = true, floatFormat = true))
+    ?: contextOrNull(contextOptions(unmanaged = true, floatFormat = true, softwareRenderer = true))
 }
 
 @OptIn(ExperimentalForeignApi::class)
@@ -279,18 +280,24 @@ private fun contextOrNull(options: Map<Any?, *>): CIContext? =
   }
 
 /**
- * The options the code reader's context is made with, no working space and a float working format, and the software
- * renderer when [softwareRenderer] is set.
+ * The options a Core Image context is made with. [unmanaged] sets no working space, [floatFormat] a float working
+ * format and [softwareRenderer] the software renderer, and each one left unset leaves Core Image's default.
  *
  * Built as an `NSMutableDictionary` and handed over as the dictionary itself, so Core Image reads the keys it was
  * given rather than whatever a bridged Kotlin map turns into on the way.
  */
 @Suppress("CAST_NEVER_SUCCEEDS", "UNCHECKED_CAST")
 @OptIn(ExperimentalForeignApi::class)
-internal fun codeReaderOptions(softwareRenderer: Boolean = false): Map<Any?, *> {
+internal fun contextOptions(
+  unmanaged: Boolean = false,
+  floatFormat: Boolean = false,
+  softwareRenderer: Boolean = false,
+): Map<Any?, *> {
   val options = NSMutableDictionary()
-  kCIContextWorkingColorSpace?.let { options.setValue(NSNull.`null`(), forKey = it) }
-  kCIContextWorkingFormat?.let { options.setValue(NSNumber.numberWithInt(kCIFormatRGBAf), forKey = it) }
+  if (unmanaged) kCIContextWorkingColorSpace?.let { options.setValue(NSNull.`null`(), forKey = it) }
+  if (floatFormat) {
+    kCIContextWorkingFormat?.let { options.setValue(NSNumber.numberWithInt(kCIFormatRGBAf), forKey = it) }
+  }
   if (softwareRenderer) {
     kCIContextUseSoftwareRenderer?.let { options.setValue(NSNumber.numberWithBool(true), forKey = it) }
   }

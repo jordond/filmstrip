@@ -18,9 +18,9 @@ import kotlin.test.assertTrue
 
 // What this ffmpeg can open, for the picture tests that skip as an assumption on a build without it. ffmpeg 6.1 has no
 // HEIF demuxer, reads a grid item's data as a coded picture and fails on it, and lists no stream for an AVIF's alpha
-// item. Those are the build's own limits. ffmpeg 9 does all three, so on 9 and later a HEIC that does not decode or an
-// alpha item with no stream fails the test rather than skipping it. A build in between, or one whose banner gives no
-// release number, such as an N- snapshot or a dated git build, skips.
+// item. Those are the build's own limits. ffmpeg 9 does all three, so on 9 and later a HEIC or a tile grid that does
+// not decode, or an alpha item with no stream, fails the test rather than skipping it. A build in between, or one whose
+// banner gives no release number, such as an N- snapshot or a dated git build, skips.
 
 private val probe = FfmpegPictureDecoder(FFMPEG)
 
@@ -63,7 +63,11 @@ internal fun assumeAlphaStreams() {
   assumeTrue("this ffmpeg lists no stream for an alpha item, as 6.1 does not", alphaStreams)
 }
 
-internal fun assumeTiles(grid: ByteArray) = assumeTrue("this ffmpeg has no tile grids, as 6.1 does not", decodes(grid))
+internal fun assumeTiles(grid: ByteArray) {
+  val tiles = decodes(grid)
+  assertTrue(tiles || !verified, "ffmpeg $major reads tile grids and did not decode one")
+  assumeTrue("this ffmpeg has no tile grids, as 6.1 does not", tiles)
+}
 
 // The still of [item] with [alpha] as its alpha item, branded for the item's codec.
 internal fun alphaStill(

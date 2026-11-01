@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.UNREADABLE_IMAGE
+import dev.jordond.filmstrip.effects.assertRasterReads
 import dev.jordond.filmstrip.effects.overlay.BitmapLayouts.Layout
 import dev.jordond.filmstrip.effects.overlay.BitmapLayouts.bytes
 import dev.jordond.filmstrip.effects.overlay.BitmapLayouts.premultiplied
@@ -85,15 +86,12 @@ import kotlin.time.Duration.Companion.seconds
  * alpha, whose samples ImageIO does not hand out, is refused saying so, and a CMYK image is refused too. A grey layout
  * the read does not take is refused naming its alpha and byte order, and bytes holding no picture are refused naming
  * the formats ImageIO and Core Image decode.
- *
- * Every case that reads samples back skips where the overlay raster reads none, which it does on the iOS simulator. The
- * layouts, the divide by alpha and the grey expansion are then checked on macOS only.
  */
 @OptIn(ExperimentalForeignApi::class)
 class ImageIoBitmapTest {
   @Test
   fun `every layout reads back at the straight colour it stores`() {
-    if (!readable()) return
+    assertRasterReads()
     val misses =
       BitmapLayouts.ALL.mapNotNull { layout ->
         val codes = layout.image().useImage { it.bitmapCodes() }.orFail(layout.name)
@@ -163,10 +161,10 @@ class ImageIoBitmapTest {
   // eight-bit source decodes to straight ones.
   @Test
   fun `a translucent heic reads back at the colour imageio decodes it to`() {
-    if (!readable()) return
+    assertRasterReads()
     val misses =
       listOf(Painted.Float, Painted.EightBit).mapNotNull { painted ->
-        val heic = heicOf(painted) ?: return@mapNotNull null
+        val heic = heicOf(painted)
         val expected = imageIoStraight(heic)
         val read =
           OverlayPixels(
@@ -192,7 +190,7 @@ class ImageIoBitmapTest {
 
   @Test
   fun `the float heic holds red above its alpha`() {
-    val heic = heicOf(Painted.Float) ?: return
+    val heic = heicOf(Painted.Float)
     val expected = imageIoStraight(heic)
 
     assertTrue(expected[0] > expected[ALPHA], "ImageIO decoded the HEIC to $expected, so no colour sits above alpha")
@@ -200,7 +198,7 @@ class ImageIoBitmapTest {
 
   @Test
   fun `a translucent text plate reads back at its straight colour`() {
-    if (!readable()) return
+    assertRasterReads()
     val style = TextStyle(color = OPAQUE_BLACK, backgroundColor = HALF_WHITE)
     val raster = assertNotNull(rasterizeText("H", style, FRAME), "the text drew nothing")
     val corner = assertNotNull(raster.stored, "the plate read nothing").take(CHANNELS).map { it.toInt() and MASK }
@@ -210,7 +208,7 @@ class ImageIoBitmapTest {
 
   @Test
   fun `a grey heic with alpha is refused saying imageio handed out no samples`() {
-    val heic = heicOf(Painted.Grey) ?: return
+    val heic = heicOf(Painted.Grey)
     val read =
       assertIs<PictureRead.Refused>(ImageSource.ofBytes(heic).read(), "ImageIO hands out a grey HEIC's samples")
     assertEquals(SAMPLES_WITHHELD, read.reason)
@@ -232,14 +230,6 @@ class ImageIoBitmapTest {
     listOf("ImageIO or Core Image", "PNG", "JPEG", "HEIC", "AVIF", "WebP", "JPEG XL").forEach { named ->
       assertContains(refused.message, named)
     }
-  }
-
-  private fun readable(): Boolean {
-    val probe = Layout("probe", grey = true, BITS, CGImageAlphaInfo.kCGImageAlphaNone.value, bytes(1))
-    val codes = probe.image().useImage { it.bitmapCodes() }.orFail("the probe layout")
-    val read = OverlayPixels(codes).stored != null
-    if (!read) println("SKIPPED: the overlay raster reads no samples back here, nothing asserted")
-    return read
   }
 
   private fun OverlayPixels.centre(): List<Int>? {
@@ -308,10 +298,10 @@ class ImageIoBitmapTest {
   private enum class Painted { Float, EightBit, Grey }
 
   /**
-   * A HEIC ImageIO writes from a context painted at half alpha the way [painted] says, or null after saying so when
-   * ImageIO cannot write HEIC here.
+   * A HEIC ImageIO writes from a context painted at half alpha the way [painted] says, failing the calling test when
+   * ImageIO writes none.
    */
-  private fun heicOf(painted: Painted): ByteArray? {
+  private fun heicOf(painted: Painted): ByteArray {
     val space: CGColorSpaceRef? =
       when (painted) {
         Painted.Float -> CGColorSpaceCreateWithName(kCGColorSpaceExtendedLinearDisplayP3)
@@ -346,8 +336,7 @@ class ImageIoBitmapTest {
     CGImageRelease(image)
     val bytes = if (written) CFDataGetBytePtr(data)?.readBytes(CFDataGetLength(data).toInt()) else null
     CFRelease(data)
-    if (bytes == null) println("SKIPPED the $painted HEIC: ImageIO cannot write $HEIC here")
-    return bytes
+    return assertNotNull(bytes, "ImageIO wrote no $HEIC for the $painted picture")
   }
 
   private companion object {

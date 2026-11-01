@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.effects.renderingContext
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.pictureColour
 import dev.jordond.filmstrip.media.ColorSpace
@@ -46,8 +47,7 @@ import kotlin.test.assertTrue
  * ICC tagged pictures, opaque and at half alpha, and every [ColourPictures] PNG enter an SDR frame at the codes
  * [pictureSrgbCodes] gives their texel and an HDR frame at the signal [pictureLight] puts it at, each read through the
  * description core reads out of the same bytes. Nothing here needs an encoder, so the HDR answer is asserted on every
- * machine that can build a Core Image context. The iOS simulator builds none, so there every case that reads pixels
- * prints that it skipped and asserts nothing.
+ * Apple target.
  */
 @OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
 class OverlayPictureProfileTest {
@@ -71,7 +71,7 @@ class OverlayPictureProfileTest {
 
   @Test
   fun `a tagged picture enters an sdr frame at the shared srgb codes`() {
-    val context = contextOrSkip("the sdr picture case") ?: return
+    val context = renderingContext(floatFormat = true)
     val misses = mutableListOf<String>()
 
     ICC_CASES.forEach { (name, png, texel) ->
@@ -90,7 +90,7 @@ class OverlayPictureProfileTest {
 
   @Test
   fun `a tagged picture enters an hdr frame at the shared light`() {
-    val context = contextOrSkip("the hdr picture case") ?: return
+    val context = renderingContext(floatFormat = true)
     val misses = mutableListOf<String>()
 
     HdrTransfer.entries.forEach { transfer ->
@@ -106,7 +106,7 @@ class OverlayPictureProfileTest {
   // Every PNG reads its description out of chunks other than an ICC profile, or an iCCP that wins over them.
   @Test
   fun `a png described by its chunks enters an sdr frame at the shared srgb codes`() {
-    val context = contextOrSkip("the colour chunk sdr case") ?: return
+    val context = renderingContext(floatFormat = true)
     val misses = mutableListOf<String>()
 
     PNG_CASES.forEach { (name, png, texel) ->
@@ -124,7 +124,7 @@ class OverlayPictureProfileTest {
 
   @Test
   fun `a png described by its chunks enters an hdr frame at the shared light`() {
-    val context = contextOrSkip("the colour chunk hdr case") ?: return
+    val context = renderingContext(floatFormat = true)
     val misses = mutableListOf<String>()
 
     HdrTransfer.entries.forEach { transfer ->
@@ -164,7 +164,7 @@ class OverlayPictureProfileTest {
 
   @Test
   fun `a picture whose samples cannot be read back draws its stored codes on either frame`() {
-    val context = contextOrSkip("the unreadable samples case") ?: return
+    val context = renderingContext(floatFormat = true)
     val png = IccPictures.DISPLAY_P3.pngOf(RASTER)
     val decoded = ImageSource.ofBytes(png).read().orFail()
     val pixels = OverlayPixels(decoded.held, readColour = { pictureColour(png) }, reader = { null })
@@ -225,7 +225,7 @@ class OverlayPictureProfileTest {
       other.usePinned { NSData.create(bytes = it.addressOf(0), length = other.size.toULong()) }.writeToFile(path, false)
 
       assertDescribedAs(pictureColour(png), pixels.colour, "the rewritten path")
-      val context = contextOrSkip("the rewritten path samples") ?: return
+      val context = renderingContext(floatFormat = true)
       val drawn = pixels.enteringFrame(transfer = null, ColorSpace.Bt709).centreIn(context, ColorSpace.Bt709)
       val stored = assertNotNull(pixels.stored, "the rewritten path read no samples").copyOf(CHANNEL_COUNT)
       assertEquals(

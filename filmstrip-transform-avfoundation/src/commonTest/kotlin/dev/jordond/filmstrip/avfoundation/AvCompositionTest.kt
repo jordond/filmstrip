@@ -58,8 +58,6 @@ import platform.AVFoundation.timeRange
 import platform.AVFoundation.tracksWithMediaType
 import platform.CoreMedia.CMTimeRange
 import platform.CoreMedia.CMTimeRangeGetEnd
-import platform.Foundation.NSFileManager
-import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSURL
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
@@ -78,11 +76,9 @@ import kotlin.time.Duration.Companion.seconds
  */
 @OptIn(ExperimentalForeignApi::class)
 class AvCompositionTest {
-  private val fixtures = NSProcessInfo.processInfo.environment[FIXTURES] as? String
-
   @Test
   fun `tiles the timeline with no gap and no overlap`() {
-    val composition = threeClips() ?: return
+    val composition = threeClips()
 
     val spans = composition.spans
     spans.size shouldBe 3
@@ -98,7 +94,7 @@ class AvCompositionTest {
   // time past the run is held on the last pass's last frame rather than laid as another pass.
   @Test
   fun `lays one span per pass of a looping track and stops where the laid list ends`() {
-    val first = fixture("apple_export_a.mp4") ?: return
+    val first = fixture("apple_export_a.mp4")
     val laid =
       laidFrom(
         BED_START,
@@ -119,7 +115,7 @@ class AvCompositionTest {
 
   @Test
   fun `runs the last span to the composition's own duration`() {
-    val composition = threeClips() ?: return
+    val composition = threeClips()
 
     val whole = composition.composition.duration.toDuration()
     assertTrue(
@@ -132,7 +128,7 @@ class AvCompositionTest {
   // carries have to be that frame, never the output's.
   @Test
   fun `measures each span against its own clip's frame`() {
-    val composition = threeClips() ?: return
+    val composition = threeClips()
 
     composition.spans[0].attributes.inputSize shouldBe Size(640, 360)
     composition.spans[1].attributes.inputSize shouldBe Size(480, 270)
@@ -141,7 +137,7 @@ class AvCompositionTest {
 
   @Test
   fun `covers every instant of the timeline with exactly one span`() {
-    val composition = threeClips() ?: return
+    val composition = threeClips()
 
     val whole = composition.composition.duration.toDuration()
     var probe = Duration.ZERO
@@ -153,7 +149,7 @@ class AvCompositionTest {
 
   @Test
   fun `builds no audio mix when every clip's curve is unity`() {
-    val composition = threeClips() ?: return
+    val composition = threeClips()
 
     composition.audioMix shouldBe null
   }
@@ -162,7 +158,7 @@ class AvCompositionTest {
   // its exact time would open between two frames.
   @Test
   fun `opens each clip's video on the slot the frame grid names`() {
-    val resolved = threeClipsResolved() ?: return
+    val resolved = threeClipsResolved()
     val laid = resolved.tracks.single().clips
     val composition = resolved.toAvComposition()
 
@@ -178,7 +174,7 @@ class AvCompositionTest {
   // grid, so the ramp still covers the span the plan gave the clip rather than the slots its video landed on.
   @Test
   fun `leaves each audio placement where the plan laid it`() {
-    val resolved = threeClipsResolved(trailingGain = 0.5f) ?: return
+    val resolved = threeClipsResolved(trailingGain = 0.5f)
     val trailing =
       resolved.tracks
         .single()
@@ -196,7 +192,7 @@ class AvCompositionTest {
   // stops half way through one too.
   @Test
   fun `lays every pass of a looping track onto the frame grid end to end`() {
-    val long = fixture("apple_export_long.mp4") ?: return
+    val long = fixture("apple_export_long.mp4")
     val trim = LoopingCases.BED_TRIM
     val laid =
       laidFrom(
@@ -223,7 +219,7 @@ class AvCompositionTest {
   // and has no frame of its own to show. Its sound still plays.
   @Test
   fun `lays no video for a clip whose ends land on the same slot`() {
-    val resolved = sliverBetweenTwoClips() ?: return
+    val resolved = sliverBetweenTwoClips()
     val laid = resolved.tracks.single().clips
     outputSlotsOf(laid[1].span, GRID_RATE).isEmpty() shouldBe true
 
@@ -241,7 +237,7 @@ class AvCompositionTest {
   // last span the middle clip's frame, or refuse the swap for holding one span fewer than there are clips.
   @Test
   fun `keeps each span on its own clip across a swap when a clip lays no video`() {
-    val resolved = sliverBetweenTwoClips() ?: return
+    val resolved = sliverBetweenTwoClips()
     val laid = resolved.tracks.single().clips
     val composition = resolved.toAvComposition()
 
@@ -255,7 +251,7 @@ class AvCompositionTest {
   // the way laying that plan down fails rather than dropping every span.
   @Test
   fun `refuses a swap onto a plan with no frame rate the way laying it refuses`() {
-    val first = fixture("apple_export_a.mp4") ?: return
+    val first = fixture("apple_export_a.mp4")
     val clips = listOf(clip(first, Size(640, 360), Duration.ZERO, 1.seconds))
     val spans = resolvedComposition(clips, 1.seconds).toAvComposition().spans
 
@@ -271,7 +267,7 @@ class AvCompositionTest {
   // 25 fps, so the first pass rounds up past the source's last frame and the second still opens on its own slot.
   @Test
   fun `keeps each pass on its slot when the pass runs past its source's picture`() {
-    val first = fixture("apple_export_a.mp4") ?: return
+    val first = fixture("apple_export_a.mp4")
     val run = OUTLASTING * 2
     val laid =
       laidFrom(
@@ -293,7 +289,7 @@ class AvCompositionTest {
   // segment playing as long as it fills.
   @Test
   fun `stretches the last frame only for a clip that runs past its source's picture`() {
-    val first = fixture("apple_export_a.mp4") ?: return
+    val first = fixture("apple_export_a.mp4")
     val picture = videoEndOf(first)
     val lastTick = picture - MEDIA_TICK
     val resolved =
@@ -334,8 +330,8 @@ class AvCompositionTest {
   // the cut, so holding the cut's frame would not be holding what that slot wrote.
   @Test
   fun `runs the primary's last clip to the end of the held tail on its last slot's frame`() {
-    val first = fixture("apple_export_a.mp4") ?: return
-    val bed = fixture("apple_export_long.mp4") ?: return
+    val first = fixture("apple_export_a.mp4")
+    val bed = fixture("apple_export_long.mp4")
     val resolved = underBed(clip(first, Size(640, 360), TRIM_FROM, TRIM_FROM + 1.seconds), bed, BED_RUN)
     val primary =
       resolved.tracks
@@ -374,8 +370,8 @@ class AvCompositionTest {
   // the last frame, and the held tail is what keeps that frame on screen out to the bed's own end.
   @Test
   fun `combines the in-clip hold with the held tail when the primary's last clip outruns its own picture`() {
-    val first = fixture("apple_export_a.mp4") ?: return
-    val bed = fixture("apple_export_long.mp4") ?: return
+    val first = fixture("apple_export_a.mp4")
+    val bed = fixture("apple_export_long.mp4")
     val picture = videoEndOf(first)
     val resolved =
       underBed(clip(first, Size(640, 360), Duration.ZERO, OUTLASTING, mediaDuration = OUTLASTING), bed, BED_RUN)
@@ -393,7 +389,7 @@ class AvCompositionTest {
   // A still is drawn from its image on every slot, so its tail only needs the segments to reach the end.
   @Test
   fun `runs a still primary to the end of the held tail`() {
-    val bed = fixture("apple_export_long.mp4") ?: return
+    val bed = fixture("apple_export_long.mp4")
     val resolved = underBed(imageClip(1.seconds), bed, BED_RUN)
     val tail = resolved.heldTail
 
@@ -407,7 +403,7 @@ class AvCompositionTest {
 
   @Test
   fun `holds no frame when nothing outlasts the primary`() {
-    val resolved = threeClipsResolved() ?: return
+    val resolved = threeClipsResolved()
     resolved.heldTail.isEmpty() shouldBe true
 
     resolved.toAvComposition().spans.forEach { it.heldFrom shouldBe null }
@@ -418,7 +414,7 @@ class AvCompositionTest {
   // sound opens on the start itself.
   @Test
   fun `opens a track's video on the slot its start lands on`() {
-    val first = fixture("apple_export_a.mp4") ?: return
+    val first = fixture("apple_export_a.mp4")
 
     listOf(16.milliseconds, 17.milliseconds).forEach { start ->
       val laid = laidFrom(start, listOf(clip(first, Size(640, 360), Duration.ZERO, 1.seconds)))
@@ -442,7 +438,7 @@ class AvCompositionTest {
   // matched to its clip by the span it falls in.
   @Test
   fun `meets every clip on one tick at a rate the timescale does not divide`() {
-    val first = fixture("apple_export_a.mp4") ?: return
+    val first = fixture("apple_export_a.mp4")
     val resolved =
       resolvedComposition(
         clips =
@@ -470,7 +466,7 @@ class AvCompositionTest {
   // can name exactly. Every span and every segment opens on its frame's own time rather than on a tick beside it.
   @Test
   fun `opens every clip on its frame's own time at 48 fps`() {
-    val first = fixture("apple_export_a.mp4") ?: return
+    val first = fixture("apple_export_a.mp4")
     val resolved =
       resolvedComposition(
         clips =
@@ -499,7 +495,7 @@ class AvCompositionTest {
 
   @Test
   fun `writes a flat gain below unity as a ramp across the placement`() {
-    val first = fixture("apple_export_a.mp4") ?: return
+    val first = fixture("apple_export_a.mp4")
     val gain = ResolvedGain.constant(0.5f, Duration.ZERO, 500.milliseconds)
 
     val composition =
@@ -518,8 +514,8 @@ class AvCompositionTest {
   // either span.
   @Test
   fun `holds each constant clip's own level across its own span`() {
-    val first = fixture("apple_export_a.mp4") ?: return
-    val second = fixture("apple_export_b.mp4") ?: return
+    val first = fixture("apple_export_a.mp4")
+    val second = fixture("apple_export_b.mp4")
     val clips =
       listOf(
         clip(first, Size(640, 360), Duration.ZERO, LEADING),
@@ -560,8 +556,8 @@ class AvCompositionTest {
   // time, lands on the wrong instant here even though both agree at a clip's own start.
   @Test
   fun `ramps a clip's gain across the audio mix at the breakpoints its own curve holds`() {
-    val first = fixture("apple_export_a.mp4") ?: return
-    val second = fixture("apple_export_b.mp4") ?: return
+    val first = fixture("apple_export_a.mp4")
+    val second = fixture("apple_export_b.mp4")
     val ramp =
       ResolvedGain(
         listOf(
@@ -597,7 +593,7 @@ class AvCompositionTest {
   // step rather than a ramp, since AVFoundation has no ramp to hold across no time.
   @Test
   fun `writes a zero-length segment as a step rather than a ramp`() {
-    val first = fixture("apple_export_a.mp4") ?: return
+    val first = fixture("apple_export_a.mp4")
     val step =
       ResolvedGain(
         listOf(
@@ -622,7 +618,7 @@ class AvCompositionTest {
   // not OUTPUT, so swapping one for the other still fails this.
   @Test
   fun `composition geometry is measured against the frame clip effects left behind rather than the output`() {
-    val first = fixture("apple_export_a.mp4") ?: return
+    val first = fixture("apple_export_a.mp4")
 
     val composition =
       ResolvedComposition(
@@ -678,7 +674,7 @@ class AvCompositionTest {
   // the end of the timeline.
   @Test
   fun `keeps an image clip's slot when it is last`() {
-    val first = fixture("apple_export_a.mp4") ?: return
+    val first = fixture("apple_export_a.mp4")
 
     val composition =
       resolved(
@@ -762,10 +758,10 @@ class AvCompositionTest {
    * Two one second clips with a 10 ms one between them, at [GRID_RATE], so the middle one covers no slot. It reads its
    * own size, so a span built from it is told apart from one built from either neighbour.
    */
-  private fun sliverBetweenTwoClips(): ResolvedComposition? {
-    val first = fixture("apple_export_a.mp4") ?: return null
-    val second = fixture("apple_export_b.mp4") ?: return null
-    val third = fixture("apple_export_portrait.mp4") ?: return null
+  private fun sliverBetweenTwoClips(): ResolvedComposition {
+    val first = fixture("apple_export_a.mp4")
+    val second = fixture("apple_export_b.mp4")
+    val third = fixture("apple_export_portrait.mp4")
 
     return resolvedComposition(
       clips =
@@ -892,14 +888,14 @@ class AvCompositionTest {
       path = ExportPath.Transcode,
     )
 
-  private fun threeClips(): AvComposition? = threeClipsResolved()?.toAvComposition()
+  private fun threeClips(): AvComposition = threeClipsResolved().toAvComposition()
 
   /**
    * Three clips laid end to end at [FRAME_RATE], the last one held at [trailingGain].
    */
-  private fun threeClipsResolved(trailingGain: Float = 1f): ResolvedComposition? {
-    val first = fixture("apple_export_a.mp4") ?: return null
-    val second = fixture("apple_export_b.mp4") ?: return null
+  private fun threeClipsResolved(trailingGain: Float = 1f): ResolvedComposition {
+    val first = fixture("apple_export_a.mp4")
+    val second = fixture("apple_export_b.mp4")
     val trailing = 1_033.milliseconds
 
     return ResolvedComposition(
@@ -1000,14 +996,7 @@ class AvCompositionTest {
     return CMTimeRangeGetEnd(track.timeRange).toDuration()
   }
 
-  private fun fixture(name: String): String? {
-    val directory = fixtures ?: return null
-    val path = "$directory/$name"
-    return path.takeIf { NSFileManager.defaultManager.fileExistsAtPath(it) }
-  }
-
   private companion object {
-    const val FIXTURES = "FILMSTRIP_FIXTURES"
     val OUTPUT = Size(320, 180)
     val PHOTO = 2.seconds
 

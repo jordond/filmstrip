@@ -26,11 +26,11 @@ import kotlin.test.assertTrue
  * refused instead, such as YCgCo and the identity matrix. A HEIC without an `nclx` lands as [landingHere] gives. Each
  * band of API levels has a test of its own pinning which of BT.709 and BT.2020 it reads. Handed over with only its
  * colour descriptions hidden, each still lands as its codestream signals, BT.601 at limited range when it is silent,
- * and a codestream stating each pairing of matrix and primaries lands as this API level reads it. Those halves are
- * Android's own decoder, pinned so a platform that starts reading `nclx` or another matrix, or changes its default,
- * shows here. The codestream [forAndroidDecoder] hands the decoder lands on that same reading, so both halves agree on
- * one decode per codestream. Each failure lists every matrix and range reading, so the one the decoder took can be
- * read off.
+ * and a codestream stating a matrix and primaries inside, or on either side of, each pairing the decoder reads lands
+ * as this API level reads it. Those halves are Android's own decoder, pinned so a platform that starts reading `nclx`
+ * or another matrix, or changes its default, shows here. The codestream [forAndroidDecoder] hands the decoder lands on
+ * that same reading, so both halves agree on one decode per codestream. Each failure lists every matrix and range
+ * reading, so the one the decoder took can be read off.
  *
  * Skipped by name on an Android whose HEIC decoder hands back no frame for the test stills.
  */
@@ -152,15 +152,41 @@ class HeicDecoderMatrixTest {
   fun everyCodestreamPairingLandsAsThisApiLevelReadsIt() {
     assumeHeicDecodes()
     val misses =
-      listOf(BT709, UNSPECIFIED, BT601, SMPTE_240, BT2020).flatMap { matrix ->
-        listOf(BT709, UNSPECIFIED, BT601, BT2020).flatMap { primaries ->
-          listOf(true, false).mapNotNull { full ->
-            val file = heifWithExplicitCodestreamColour(recording(Coding(matrix, full), primaries, UNSPECIFIED))
-            val bitmap = checkNotNull(BitmapFactory.decodeByteArray(file, 0, file.size, straight()))
-            val what = "codestream primaries $primaries, ${Coding(matrix, full)}"
-            codestreamMiss(what, bitmap, YCBCR, primaries, matrix, full)
-          }
+      CODESTREAM_PAIRS.flatMap { (matrix, primaries) ->
+        listOf(true, false).mapNotNull { full ->
+          val file = heifWithExplicitCodestreamColour(recording(Coding(matrix, full), primaries, UNSPECIFIED))
+          val bitmap = checkNotNull(BitmapFactory.decodeByteArray(file, 0, file.size, straight()))
+          val what = "codestream primaries $primaries, ${Coding(matrix, full)}"
+          codestreamMiss(what, bitmap, YCBCR, primaries, matrix, full)
         }
+      }
+
+    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+  }
+
+  @Test
+  fun theCodestreamPairsHoldEveryPairingInsideAndOnEachSide() {
+    val misses =
+      PAIRINGS.flatMap { pairing ->
+        listOfNotNull(
+          "no pair inside $pairing".takeIf { CODESTREAM_PAIRS.none { pairing.holds(it.matrix, it.primaries) } },
+          "no pair with only the matrix of $pairing".takeIf {
+            CODESTREAM_PAIRS.none { it.matrix in pairing.matrices && it.primaries !in pairing.primaries }
+          },
+          "no pair with only the primaries of $pairing".takeIf {
+            CODESTREAM_PAIRS.none { it.matrix !in pairing.matrices && it.primaries in pairing.primaries }
+          },
+        ) +
+          pairing.matrices.mapNotNull { matrix ->
+            "no pair inside $pairing states matrix $matrix".takeIf {
+              CODESTREAM_PAIRS.none { it.matrix == matrix && pairing.holds(it.matrix, it.primaries) }
+            }
+          } +
+          pairing.primaries.mapNotNull { primaries ->
+            "no pair inside $pairing states primaries $primaries".takeIf {
+              CODESTREAM_PAIRS.none { it.primaries == primaries && pairing.holds(it.matrix, it.primaries) }
+            }
+          }
       }
 
     assertTrue(misses.isEmpty(), misses.joinToString("\n"))
@@ -170,7 +196,7 @@ class HeicDecoderMatrixTest {
     ColourPictures.HEICS_WITH_SIGNAL_VARIANTS + ColourPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA
 
   private fun assumeHeicDecodes() {
-    assumeTrue("Android decodes HEIC from API 28", Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
+    assumeTrue("Android decodes HEIC from API 28", Build.VERSION.SDK_INT >= HEIC_API)
     val first = ColourPictures.HEICS.first().bytes()
     assumeTrue(HEIC_FIXTURE_UNDECODED, BitmapFactory.decodeByteArray(first, 0, first.size) != null)
   }
@@ -315,25 +341,20 @@ class HeicDecoderMatrixTest {
   }
 
   // Where Android's HEIC decoder on this API level lands a codestream stating [primaries], [matrix] and [fullRange],
-  // or null where it lands on no matrix at all. It reads BT.709 only beside BT.709 primaries, from API 33 at full range
-  // and from API 34 at limited range, and below API 33 at neither, landing a few codes off every matrix. It reads
-  // BT.2020 only beside BT.2020 primaries and from API 33, and BT.601 for anything else. Below API 34 it reads full
-  // range only beside a pair it reads or a BT.601 matrix beside BT.601 primaries, and limited range otherwise.
+  // or null where it lands on no matrix at all. It reads the matrix of the one pairing in PAIRINGS that holds the
+  // codestream from that pairing's API level, and BT.601 for anything else. Below API 34 it reads full range only
+  // inside a pairing it reads, and limited range otherwise. BT.709 it reads from API 33 at full range and from API 34
+  // at limited range, and below API 33 at neither, landing a few codes off every matrix.
   private fun codestreamLanding(
     primaries: Int?,
     matrix: Int?,
     fullRange: Boolean,
   ): Coding? {
     val sdk = Build.VERSION.SDK_INT
-    val paired =
-      when {
-        matrix == BT709 && primaries == BT709 -> BT709
-        matrix == BT2020 && primaries == BT2020 && sdk >= WIDE_MATRIX_API -> BT2020
-        else -> BT601
-      }
+    val pairing = PAIRINGS.firstOrNull { sdk >= it.fromApi && it.holds(matrix, primaries) }
+    val paired = pairing?.reads ?: BT601
     if (paired == BT709 && (sdk < WIDE_MATRIX_API || (sdk == WIDE_MATRIX_API && !fullRange))) return null
-    val bt601Pair = matrix in BT601_MATRICES && primaries in BT601_PRIMARIES
-    val readsFullRange = sdk > WIDE_MATRIX_API || paired != BT601 || bt601Pair
+    val readsFullRange = sdk > WIDE_MATRIX_API || pairing != null
     return Coding(paired, fullRange && readsFullRange)
   }
 
@@ -359,18 +380,71 @@ class HeicDecoderMatrixTest {
     override fun toString(): String = "matrix $matrix ${if (fullRange) "full" else "limited"}"
   }
 
+  private data class CodestreamPair(
+    val matrix: Int,
+    val primaries: Int,
+  )
+
+  // A pairing codestreamLanding reads, any of [matrices] beside any of [primaries], which the decoder reads through
+  // [reads] from API [fromApi].
+  private data class Pairing(
+    val matrices: List<Int>,
+    val primaries: List<Int>,
+    val reads: Int,
+    val fromApi: Int,
+  ) {
+    fun holds(
+      statedMatrix: Int?,
+      statedPrimaries: Int?,
+    ): Boolean = statedMatrix in matrices && statedPrimaries in primaries
+
+    override fun toString(): String = "matrices $matrices beside primaries $primaries"
+  }
+
   private companion object {
     const val BT709 = 1
     const val UNSPECIFIED = 2
+    const val BT470BG = 5
     const val BT601 = 6
     const val SMPTE_240 = 7
     const val BT2020 = 9
+    const val HEIC_API = Build.VERSION_CODES.P
 
     // Every matrix a still records here. 4, FCC, reads exactly as 6 does beside any primaries, and 10, BT.2020 constant
     // luminance, reads as BT.601 even beside BT.2020 primaries.
-    val MATRICES = listOf(0, BT709, UNSPECIFIED, 4, 5, BT601, SMPTE_240, 8, BT2020, 10, 12, 14)
-    val BT601_MATRICES = listOf(UNSPECIFIED, 5, BT601)
-    val BT601_PRIMARIES = listOf(5, BT601)
+    val MATRICES = listOf(0, BT709, UNSPECIFIED, 4, BT470BG, BT601, SMPTE_240, 8, BT2020, 10, 12, 14)
+    val BT601_MATRICES = listOf(UNSPECIFIED, BT470BG, BT601)
+    val BT601_PRIMARIES = listOf(BT470BG, BT601)
+
+    // Every pairing codestreamLanding reads, and so every one the codestream pairs are held against.
+    val PAIRINGS =
+      listOf(
+        Pairing(listOf(BT709), listOf(BT709), reads = BT709, fromApi = HEIC_API),
+        Pairing(listOf(BT2020), listOf(BT2020), reads = BT2020, fromApi = WIDE_MATRIX_API),
+        Pairing(BT601_MATRICES, BT601_PRIMARIES, reads = BT601, fromApi = HEIC_API),
+      )
+
+    // The matrix and primaries each codestream states. The guard needs a pair inside and on each side of every pairing,
+    // and every value of a pairing stated inside it. Three kinds of pair sit beyond that. A BT.709 matrix beside
+    // unspecified primaries and beside BT.601 primaries are deliberate twins, since a decoder could fill unspecified
+    // primaries in from the matrix and read BT.709. Unspecified for both is what an encoder writes for a colour
+    // description that states nothing, the case a decoder is likeliest to default. The SMPTE 240 matrix beside BT.601
+    // primaries is the one matrix outside every pairing, so a decoder that starts reading SMPTE 240 shows.
+    val CODESTREAM_PAIRS =
+      listOf(
+        CodestreamPair(BT709, BT709),
+        CodestreamPair(BT709, UNSPECIFIED),
+        CodestreamPair(BT709, BT601),
+        CodestreamPair(BT601, BT709),
+        CodestreamPair(BT2020, BT2020),
+        CodestreamPair(BT2020, BT601),
+        CodestreamPair(BT601, BT2020),
+        CodestreamPair(BT601, BT601),
+        CodestreamPair(BT470BG, BT470BG),
+        CodestreamPair(UNSPECIFIED, BT601),
+        CodestreamPair(UNSPECIFIED, UNSPECIFIED),
+        CodestreamPair(SMPTE_240, BT601),
+      )
     val READINGS = listOf(BT601, BT709, BT2020).flatMap { matrix -> listOf(matrix to true, matrix to false) }
     const val WIDE_MATRIX_API = 33
 

@@ -81,19 +81,6 @@ internal object OverlayFixtures {
   fun at(time: Duration) = FrameInfo(ATTRIBUTES, time)
 
   /**
-   * A context to read pixels through, or null when this process cannot build one.
-   *
-   * An Objective-C `init` that answers nil reaches Kotlin as a non-null reference that is not
-   * there, and Kotlin/Native raises at the constructor, not at the first use.
-   */
-  fun renderingContext(): CIContext? =
-    try {
-      CIContext()
-    } catch (absent: NullPointerException) {
-      null
-    }
-
-  /**
    * The whole of [FRAME] in the codes of the colour space [spaceName] names, four floats per pixel
    * from the top row down.
    *

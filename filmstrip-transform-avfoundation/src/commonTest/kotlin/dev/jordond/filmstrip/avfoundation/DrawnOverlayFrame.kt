@@ -91,18 +91,19 @@ internal fun drawnSdrFrame(
 }
 
 /**
- * A context with a float working format to read pixels through, or null when this process cannot build one, as on
- * the iOS simulator.
+ * A context with a float working format to read pixels through.
+ *
+ * Fails the calling test when this process cannot build one.
  */
 @Suppress("CAST_NEVER_SUCCEEDS", "UNCHECKED_CAST")
 @OptIn(ExperimentalForeignApi::class)
-internal fun floatContextOrNull(): CIContext? {
+internal fun floatContext(): CIContext {
   val options = NSMutableDictionary()
   kCIContextWorkingFormat?.let { options.setValue(NSNumber.numberWithInt(kCIFormatRGBAf), forKey = it) }
   return try {
     CIContext.contextWithOptions(options as Map<Any?, *>)
   } catch (absent: NullPointerException) {
-    null
+    fail("this process built no Core Image context with a float working format: ${absent.message}")
   }
 }
 

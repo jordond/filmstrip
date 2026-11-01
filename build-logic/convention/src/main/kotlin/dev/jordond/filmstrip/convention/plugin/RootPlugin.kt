@@ -3,6 +3,8 @@ package dev.jordond.filmstrip.convention.plugin
 import dev.jordond.filmstrip.convention.configureArchitectureGuards
 import dev.jordond.filmstrip.convention.configureBuildLogicSpotless
 import dev.jordond.filmstrip.convention.configureComposeUiTestCheck
+import dev.jordond.filmstrip.convention.configureMeasureLane
+import dev.jordond.filmstrip.convention.configureNoMatchingTestsCheck
 import dev.jordond.filmstrip.convention.configureSpotless
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -15,6 +17,10 @@ class RootPlugin : Plugin<Project> {
 
     // Registered by the Compose plugin, which the sample modules apply directly rather than
     // through a convention of their own.
-    target.allprojects { configureComposeUiTestCheck() }
+    target.allprojects {
+      configureComposeUiTestCheck()
+      configureMeasureLane()
+      configureNoMatchingTestsCheck()
+    }
   }
 }

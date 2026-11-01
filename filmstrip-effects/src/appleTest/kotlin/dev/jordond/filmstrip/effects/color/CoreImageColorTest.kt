@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.effect.FrameInfo
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.effects.renderingContext
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HDR_REFERENCE_WHITE_NITS
@@ -68,14 +69,14 @@ class CoreImageColorTest {
 
   @Test
   fun `a contrast draws what the shared matrix says`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     assertDraws(Contrast(FIRMER), context)
   }
 
   @Test
   fun `a saturation draws what the shared matrix says`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     assertDraws(Saturation(MUTED), context)
   }
@@ -84,7 +85,7 @@ class CoreImageColorTest {
   // effects only ever reach one half of at a time.
   @Test
   fun `a hand-written matrix draws what the shared matrix says`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     assertDraws(MIXED, context)
   }
@@ -93,7 +94,7 @@ class CoreImageColorTest {
   // tolerance apart, so this is the case that says which of the two the matrix ran on.
   @Test
   fun `a brightness scales the frame's own codes rather than sRGB's`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     assertMovesOwnCodes(Brightness(HALF), flat(), context)
   }
@@ -102,7 +103,7 @@ class CoreImageColorTest {
   // straight line too, so the two readings only part where a channel is taken close to black.
   @Test
   fun `a contrast moves the frame's own codes rather than sRGB's`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     assertMovesOwnCodes(Contrast(FIRMER), inCodes(CONTRAST_TO_BLACK), context)
   }
@@ -111,14 +112,14 @@ class CoreImageColorTest {
   // channel close to black, which takes a factor above one.
   @Test
   fun `a saturation moves the frame's own codes rather than sRGB's`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     assertMovesOwnCodes(Saturation(VIVID), inCodes(SATURATION_TO_BLACK), context)
   }
 
   @Test
   fun `a hand-written matrix moves the frame's own codes rather than sRGB's`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     assertMovesOwnCodes(MIXED, inCodes(MIXED_TO_BLACK), context)
   }
@@ -128,7 +129,7 @@ class CoreImageColorTest {
   // gained a colour here would reach the fill blend as a real one.
   @Test
   fun `a bias leaves a transparent pixel black`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     val drawn = stepFor(Contrast(0f)).apply(CIImage.emptyImage().imageByCroppingToRect(RECT), FRAME)
 
@@ -137,7 +138,7 @@ class CoreImageColorTest {
 
   @Test
   fun `a contrast on a grade draws what the shared reading says in light`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     assertDrawsOnGrade(Contrast(FIRMER), HdrTransfer.Pq, context)
     assertDrawsOnGrade(Contrast(FIRMER), HdrTransfer.Hlg, context)
@@ -145,7 +146,7 @@ class CoreImageColorTest {
 
   @Test
   fun `a saturation on a grade draws what the shared reading says in light`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     assertDrawsOnGrade(Saturation(MUTED), HdrTransfer.Pq, context)
     assertDrawsOnGrade(Saturation(MUTED), HdrTransfer.Hlg, context)
@@ -156,7 +157,7 @@ class CoreImageColorTest {
   // shared reading says all the same, whichever type wrote it.
   @Test
   fun `a plain scale on a grade draws what the shared reading says in light`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     assertDrawsOnGrade(Brightness(FIRMER), HdrTransfer.Pq, context)
     assertDrawsOnGrade(Brightness(FIRMER), HdrTransfer.Hlg, context)
@@ -165,7 +166,7 @@ class CoreImageColorTest {
 
   @Test
   fun `a hand-written matrix on a grade draws what the shared reading says in light`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     assertDrawsOnGrade(MIXED, HdrTransfer.Pq, context)
     assertDrawsOnGrade(MIXED, HdrTransfer.Hlg, context)
@@ -176,7 +177,7 @@ class CoreImageColorTest {
   // so it is the arm that shows the ceiling is the transfer's and not white.
   @Test
   fun `a grade clamps at the format's peak and at black`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     val step = stepFor(Contrast(HARSH), HdrTransfer.Hlg)
     val drawn =
@@ -193,7 +194,7 @@ class CoreImageColorTest {
   // holds with no scale in front of it.
   @Test
   fun `reference white in either transfer reads as one`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     val pq = readLight(grey(pqSignalFromNits(HDR_REFERENCE_WHITE_NITS), kCGColorSpaceITUR_2100_PQ), context)
     val hlgWhite = hlgSignalFromDisplayNits(HDR_REFERENCE_WHITE_NITS)
@@ -350,16 +351,6 @@ class CoreImageColorTest {
   }
 
   private fun frameOn(transfer: HdrTransfer): FrameInfo = FrameInfo(attributes(transfer), Duration.ZERO)
-
-  /**
-   * A context to read pixels through, or null when this process cannot build one.
-   */
-  private fun renderingContext(): CIContext? =
-    try {
-      CIContext()
-    } catch (absent: NullPointerException) {
-      null
-    }
 
   /**
    * The first pixel of [image] in the frame's own BT.709 codes, as red, green, blue and alpha in the

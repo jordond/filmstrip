@@ -6,7 +6,6 @@ import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.Contrast
 import dev.jordond.filmstrip.effects.color.Saturation
 import dev.jordond.filmstrip.effects.color.colorMatrixOf
-import dev.jordond.filmstrip.effects.color.transform
 import dev.jordond.filmstrip.effects.color.transformNits
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
@@ -17,12 +16,9 @@ import dev.jordond.filmstrip.ffmpeg.ExportConstants.BRIGHTER
 import dev.jordond.filmstrip.ffmpeg.ExportConstants.CODE_TOLERANCE
 import dev.jordond.filmstrip.ffmpeg.ExportConstants.HALF
 import dev.jordond.filmstrip.ffmpeg.ExportConstants.TIMEOUT
-import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.PQ_PEAK_NITS
-import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.brightnessDisplayGain
 import dev.jordond.filmstrip.media.brightnessSceneGain
 import dev.jordond.filmstrip.media.hlgDisplayNitsFromSignal
@@ -31,7 +27,6 @@ import dev.jordond.filmstrip.media.hlgSignalFromScene
 import dev.jordond.filmstrip.media.nitsFromPqSignal
 import dev.jordond.filmstrip.media.pqSignalFromNits
 import dev.jordond.filmstrip.media.sceneFromHlgSignal
-import dev.jordond.filmstrip.media.signalFromTenBitCodes
 import dev.jordond.filmstrip.media.tenBitCodesFromSignal
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.toList
@@ -40,9 +35,7 @@ import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertIs
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -67,7 +60,7 @@ class FfmpegHdrEffectTest {
     runTest(timeout = TIMEOUT) {
       if (!fixture.encodesHdr()) return@runTest
 
-      val lit = authoredSignal()
+      val lit = fixture.authoredSignal()
       val dimmed = exportedHdrGrade(Brightness(HALF))
 
       val expected = lit.pqScaledBy(brightnessDisplayGain(HALF))
@@ -85,7 +78,7 @@ class FfmpegHdrEffectTest {
     runTest(timeout = TIMEOUT) {
       if (!fixture.encodesHdr()) return@runTest
 
-      val lit = authoredSignal()
+      val lit = fixture.authoredSignal()
       val brightened = exportedHdrGrade(Brightness(BRIGHTER))
 
       val expected = lit.pqScaledBy(brightnessDisplayGain(BRIGHTER))
@@ -101,7 +94,7 @@ class FfmpegHdrEffectTest {
     runTest(timeout = TIMEOUT) {
       if (!fixture.encodesHdr()) return@runTest
 
-      val lit = authoredSignal(fixture.hdrHlg)
+      val lit = fixture.authoredSignal(fixture.hdrHlg)
       val dimmed = exportedHdrGrade(Brightness(HALF), fixture.hdrHlg)
 
       val expected = lit.hlgScaledBy(brightnessSceneGain(HALF))
@@ -124,20 +117,12 @@ class FfmpegHdrEffectTest {
     runTest(timeout = TIMEOUT) {
       if (!fixture.encodesHdr()) return@runTest
 
-      val lit = authoredSignal()
-      val flattened = exportedHdrGrade(Contrast(HALF))
+      val lit = fixture.authoredSignal()
+      val flattened = exportedHdrGrade(FLATTENING)
 
-      val expected = pqGraded(lit, Contrast(HALF))
-      // Pivoting on the middle of the format's own range is the mistake this rules out. It lifts
-      // every channel towards five thousand nits.
-      val onTheFormat =
-        lit.mapChannels { pqSignalFromNits(HALF * nitsFromPqSignal(it) + (1f - HALF) * PQ_PEAK_NITS / 2f) }
-      val wrongs =
-        mapOf("a pivot on the format's range" to onTheFormat, "the signal" to signalGraded(lit, Contrast(HALF)))
+      val expected = pqGraded(lit, FLATTENING)
 
-      // Flattening the patch's signal lands its luma a few codes from flattening its light, so luma cannot tell the
-      // two apart and the chroma planes do.
-      assertGraded(flattened, expected, lit, wrongs, alike = mapOf("the signal" to setOf(Plane.Luma)))
+      assertGraded(flattened, expected, lit, flatteningWrongs(lit), alike = FLATTENING_ALIKE)
     }
 
   // A contrast above one stretches until the format runs out. The red of the fixture's centre
@@ -148,7 +133,7 @@ class FfmpegHdrEffectTest {
     runTest(timeout = TIMEOUT) {
       if (!fixture.encodesHdr()) return@runTest
 
-      val lit = authoredSignal()
+      val lit = fixture.authoredSignal()
       val stretched = exportedHdrGrade(Contrast(BRIGHTER))
 
       val expected = pqGraded(lit, Contrast(BRIGHTER))
@@ -166,7 +151,7 @@ class FfmpegHdrEffectTest {
     runTest(timeout = TIMEOUT) {
       if (!fixture.encodesHdr()) return@runTest
 
-      val lit = authoredSignal()
+      val lit = fixture.authoredSignal()
       val desaturated = exportedHdrGrade(Saturation(HALF))
 
       val expected = pqGraded(lit, Saturation(HALF))
@@ -182,7 +167,7 @@ class FfmpegHdrEffectTest {
     runTest(timeout = TIMEOUT) {
       if (!fixture.encodesHdr()) return@runTest
 
-      val lit = authoredSignal(fixture.hdrHlg)
+      val lit = fixture.authoredSignal(fixture.hdrHlg)
       val flattened = exportedHdrGrade(Contrast(HALF), fixture.hdrHlg)
 
       val expected = hlgGraded(lit, Contrast(HALF))
@@ -214,28 +199,13 @@ class FfmpegHdrEffectTest {
     assertIs<ExportStatus.Success>(finished)
 
     val size = plan.output.size
-    assertEquals(sourceSize(source), size, "the grade moved the frame, so its centre is not the patch's")
+    assertEquals(fixture.sourceSize(source), size, "the grade moved the frame, so its centre is not the patch's")
     return tenBitCodesAt(output, size.width / 2 to size.height / 2).also { output.delete() }
-  }
-
-  // The fixture's patch as the R'G'B' signal the export decodes it to, read off the centre of the source file itself
-  // through the shared matrix and left unrounded.
-  private suspend fun authoredSignal(source: File = fixture.hdr): FloatArray {
-    val size = sourceSize(source)
-    val codes = tenBitCodesAt(source, size.width / 2 to size.height / 2)
-
-    return signalFromTenBitCodes(codes[0], codes[1], codes[2])
-  }
-
-  private suspend fun sourceSize(source: File): Size {
-    val info = assertIs<ProbeResult.Success>(fixture.filmstrip.probe(MediaSource.of(source.absolutePath))).info
-    return assertNotNull(info.video, "$source carries no video").displaySize
   }
 
   // Each plane of the read sits within CODE_TOLERANCE of the codes [expected] stores as, and each wrong answer's codes
   // land more than twice that from them on every plane but the ones [alike] names for it, so a grade that took a wrong
-  // answer reads outside the bound. A named plane has to really sit that close, and one plane has to be left to tell
-  // the wrong answer apart.
+  // answer reads outside the bound. One plane has to be left to tell the wrong answer apart.
   private fun assertGraded(
     read: IntArray,
     expected: FloatArray,
@@ -255,38 +225,15 @@ class FfmpegHdrEffectTest {
       val wrongCodes = tenBitCodesFromSignal(wrong)
       val named = alike[name].orEmpty()
       assertTrue(named.size < Plane.entries.size, "every plane is named alike for $name, so nothing tells it apart")
-      Plane.entries.forEach { plane ->
+      Plane.entries.filterNot { it in named }.forEach { plane ->
         val miss = abs(wrongCodes[plane.ordinal] - codes[plane.ordinal])
-        val apart = 2 * CODE_TOLERANCE < miss
-        if (plane in named) {
-          assertFalse(apart, "$plane: grading from $name lands $miss codes away, so it no longer needs naming alike")
-        } else {
-          assertTrue(
-            apart,
-            "$plane: grading from $name lands $miss codes from ${codes[plane.ordinal]}, " +
-              "too close for a bound of $CODE_TOLERANCE to tell apart",
-          )
-        }
+        assertTrue(
+          2 * CODE_TOLERANCE < miss,
+          "$plane: grading from $name lands $miss codes from ${codes[plane.ordinal]}, " +
+            "too close for a bound of $CODE_TOLERANCE to tell apart",
+        )
       }
     }
-  }
-
-  // The same grade run straight on the HDR signal rather than on the light it decodes to.
-  private fun signalGraded(
-    lit: FloatArray,
-    spec: EffectSpec,
-  ): FloatArray = checkNotNull(colorMatrixOf(spec)).transform(lit[0], lit[1], lit[2])
-
-  // What the shared reading says the same pixel comes out as on a PQ grade, so a lowering that applied the matrix
-  // somewhere else fails here rather than drifting.
-  private fun pqGraded(
-    lit: FloatArray,
-    spec: EffectSpec,
-  ): FloatArray {
-    val nits = lit.mapChannels { nitsFromPqSignal(it) }
-    val graded = checkNotNull(colorMatrixOf(spec)).transformNits(nits[0], nits[1], nits[2], HdrTransfer.Pq)
-
-    return graded.mapChannels { pqSignalFromNits(it) }
   }
 
   private fun hlgGraded(
@@ -304,9 +251,4 @@ class FfmpegHdrEffectTest {
 
   private fun FloatArray.hlgScaledBy(gain: Float): FloatArray =
     mapChannels { hlgSignalFromScene(sceneFromHlgSignal(it) * gain) }
-
-  private fun FloatArray.mapChannels(transform: (Float) -> Float): FloatArray = FloatArray(size) { transform(this[it]) }
-
-  // The planes tenBitCodesFromSignal and tenBitCodesAt hand back, in their order.
-  private enum class Plane { Luma, Cb, Cr }
 }

@@ -1,7 +1,9 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.effects.assertRasterReads
 import dev.jordond.filmstrip.effects.color.createCodeSpace
+import dev.jordond.filmstrip.effects.rasterReader
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -54,13 +56,13 @@ import kotlin.test.assertTrue
  * transfer. It also holds a picture too large to draw at its colour to a refusal on each frame that converts it, and
  * an untagged one to drawing at its codes on an SDR frame, which converts nothing.
  *
- * The draws are read back through the raster's own [codeReader] and skip where that cannot be built.
+ * The draws are read back through the raster's own [codeReader].
  */
 @OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
 class BandedDrawTest {
   @Test
   fun `a picture drawn in bands lands every texel where its whole frame converted at once does`() {
-    val reader = codeReader ?: return println("SKIPPED the banded draw: no code reader can be built here")
+    val reader = rasterReader()
     val colour = displayP3()
 
     val misses =
@@ -106,7 +108,7 @@ class BandedDrawTest {
 
   @Test
   fun `an untagged picture past the ceiling draws on an sdr frame and is refused on every hdr one`() {
-    val reader = codeReader ?: return println("SKIPPED the drawn ceiling: no code reader can be built here")
+    val reader = rasterReader()
     val image = Layout.EIGHT_STRAIGHT.picture()
     val codes = image.bitmapCodes().orFail("the picture")
     CGImageRelease(image)
@@ -129,7 +131,7 @@ class BandedDrawTest {
 
   @Test
   fun `codes whose held bytes cannot be counted are refused as too large to draw instead of counted as none`() {
-    codeReader ?: return println("SKIPPED the uncounted codes: no code reader can be built here")
+    assertRasterReads()
     val image = Layout.EIGHT_STRAIGHT.picture()
     val codes = image.bitmapCodes().orFail("the picture")
     CGImageRelease(image)
@@ -147,7 +149,7 @@ class BandedDrawTest {
 
   @Test
   fun `a described picture past the ceiling is refused on an sdr frame that converts it every time it is drawn`() {
-    if (codeReader == null) return println("SKIPPED the drawn ceiling: no code reader can be built here")
+    assertRasterReads()
     val image = Layout.EIGHT_OPAQUE.picture()
     val codes = image.bitmapCodes().orFail("the picture")
     CGImageRelease(image)

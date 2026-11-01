@@ -28,7 +28,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.math.abs
 import kotlin.test.Test
@@ -51,21 +50,19 @@ import kotlin.time.Duration.Companion.seconds
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleAuthoredColourTest {
-  private val fixtures = NSProcessInfo.processInfo.environment[FIXTURES] as? String
-
   private val filmstrip = Filmstrip { avFoundationBackend() }
 
   @Test
   fun `lands a mid grey fill and mid green overlays as their own codes`() =
     runTest(timeout = TIMEOUT) {
-      val portrait = fixture() ?: return@runTest
+      val portrait = fixture(PORTRAIT)
       assertLandsAsAuthored(portrait, fill = MID_GREY, overlay = MID_GREEN, "grey-fill")
     }
 
   @Test
   fun `lands a mid green fill and mid grey overlays as their own codes`() =
     runTest(timeout = TIMEOUT) {
-      val portrait = fixture() ?: return@runTest
+      val portrait = fixture(PORTRAIT)
       assertLandsAsAuthored(portrait, fill = MID_GREEN, overlay = MID_GREY, "green-fill")
     }
 
@@ -135,14 +132,7 @@ class AppleAuthoredColourTest {
       }
     }
 
-  private fun fixture(): String? {
-    val directory = fixtures ?: return null
-    val path = "$directory/$PORTRAIT"
-    return path.takeIf { NSFileManager.defaultManager.fileExistsAtPath(it) }
-  }
-
   private companion object {
-    const val FIXTURES = "FILMSTRIP_FIXTURES"
     const val PORTRAIT = "apple_export_portrait.mp4"
     val TIMEOUT = 2.seconds * 60
     val SPEC = ExportSpec(targetHeight = 180)

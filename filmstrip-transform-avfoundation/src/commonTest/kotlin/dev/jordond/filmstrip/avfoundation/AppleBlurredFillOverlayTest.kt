@@ -28,7 +28,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.test.Test
 import kotlin.test.assertIs
@@ -48,14 +47,12 @@ import kotlin.time.Duration.Companion.seconds
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleBlurredFillOverlayTest {
-  private val fixtures = NSProcessInfo.processInfo.environment[FIXTURES] as? String
-
   private val filmstrip = Filmstrip { avFoundationBackend() }
 
   @Test
   fun `draws a composition overlay over a blurred bar`() =
     runTest(timeout = TIMEOUT) {
-      val portrait = fixture() ?: return@runTest
+      val portrait = fixture(PORTRAIT)
       val badge = ImageOverlay(ImageSource.ofBytes(RED_PNG), Corner.TopStart)
 
       val plain = letterboxed(portrait, "blur-bar-plain")
@@ -80,7 +77,7 @@ class AppleBlurredFillOverlayTest {
   @Test
   fun `cuts a clip overlay pushed off its clip at the clip's edge over a blurred bar`() =
     runTest(timeout = TIMEOUT) {
-      val portrait = fixture() ?: return@runTest
+      val portrait = fixture(PORTRAIT)
       val source = frameOf(portrait)
       val clipFrame = Size(source.width, source.height)
       val authored = ImageOverlay(ImageSource.ofBytes(RED_PNG), Corner.TopStart, scale = CLIP_BADGE_SCALE)
@@ -171,12 +168,6 @@ class AppleBlurredFillOverlayTest {
       }
     }
 
-  private fun fixture(): String? {
-    val directory = fixtures ?: return null
-    val path = "$directory/$PORTRAIT"
-    return path.takeIf { NSFileManager.defaultManager.fileExistsAtPath(it) }
-  }
-
   private fun temporaryPath(name: String): String = NSTemporaryDirectory() + "filmstrip-apple-$name.mp4"
 
   private fun remove(path: String) {
@@ -184,7 +175,6 @@ class AppleBlurredFillOverlayTest {
   }
 
   private companion object {
-    const val FIXTURES = "FILMSTRIP_FIXTURES"
     const val PORTRAIT = "apple_export_portrait.mp4"
     val TIMEOUT = 2.seconds * 60
 

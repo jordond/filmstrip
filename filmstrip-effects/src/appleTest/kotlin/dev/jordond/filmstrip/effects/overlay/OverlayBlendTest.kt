@@ -9,8 +9,8 @@ import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.SPAN
 import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.at
 import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.decodeHex
 import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.pixels
-import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.renderingContext
 import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.stepFor
+import dev.jordond.filmstrip.effects.renderingContext
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.media.ImageSource
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -41,7 +41,7 @@ class OverlayBlendTest {
   // at every opacity, so a blend that reads a premultiplied edge as a colour fringes here.
   @Test
   fun `blends a soft edge by its own alpha`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     listOf(1f, HALF, QUARTER_OPACITY).forEach { opacity ->
       val band = softBand(opacity, context)
@@ -62,7 +62,7 @@ class OverlayBlendTest {
   // for zero and enough coverage to open the gap.
   @Test
   fun `blends on the frame's own codes rather than sRGB's`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     listOf(1f, HALF).forEach { opacity ->
       val band = softBand(opacity, context)

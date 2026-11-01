@@ -12,8 +12,8 @@ import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.SPAN
 import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.at
 import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.decodeHex
 import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.pixels
-import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.renderingContext
 import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.stepFor
+import dev.jordond.filmstrip.effects.renderingContext
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.style.TextStyle
@@ -94,7 +94,7 @@ class TimedOverlayTest {
   // watermark authored at half covers half of what an opaque one covers.
   @Test
   fun `draws an authored opacity as the coverage it asks for`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
     val overlay = ImageOverlay(RED, Corner.TopStart, opacity = HALF)
     val plain = pixels(background(), context)
     val whole = movedBy(stepFor(ImageOverlay(RED, Corner.TopStart)), BASELINE, context, plain)
@@ -108,7 +108,7 @@ class TimedOverlayTest {
 
   @Test
   fun `fades a watermark in across the middle of its ramp`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
     val overlay = ImageOverlay(RED, Corner.TopStart, animation = fadeIn(RAMP))
     val faded = stepFor(overlay)
     val plain = pixels(background(), context)
@@ -131,7 +131,7 @@ class TimedOverlayTest {
   // style carries a plate because CoreText draws the glyphs themselves black over a black frame.
   @Test
   fun `fades text in across the middle of its ramp`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
     val overlay = TextOverlay(CAPTION, PLATED, animation = fadeIn(RAMP))
     val faded = stepFor(overlay)
     val plain = pixels(background(), context)
@@ -148,7 +148,7 @@ class TimedOverlayTest {
   // The only case that reaches animatedBy, since a fade leaves the geometry where it was authored.
   @Test
   fun `slides a watermark across the middle of its ramp`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
     val overlay = ImageOverlay(RED, Corner.TopStart, animation = slideIn(TRAVEL, RAMP))
     val step = stepFor(overlay)
     val still = ImageOverlay(RED, Corner.TopStart)
@@ -191,7 +191,7 @@ class TimedOverlayTest {
   // second window is a quarter done a quarter of a second in, not a fortieth of the way up the span.
   @Test
   fun `ramps from the window's own start`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
     val overlay = ImageOverlay(RED, Corner.TopStart, visibleDuring = WINDOW, animation = fadeIn(WINDOW_RAMP))
     val step = stepFor(overlay)
     val plain = pixels(background(), context)

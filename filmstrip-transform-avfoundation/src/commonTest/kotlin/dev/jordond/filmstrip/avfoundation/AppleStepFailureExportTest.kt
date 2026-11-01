@@ -19,8 +19,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
-import platform.Foundation.NSFileManager
-import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.concurrent.AtomicInt
 import kotlin.test.Test
@@ -35,12 +33,10 @@ import kotlin.time.Duration.Companion.seconds
  * composition first, so the step runs on far fewer frames than the composition holds.
  */
 class AppleStepFailureExportTest {
-  private val fixtures = NSProcessInfo.processInfo.environment[FIXTURES] as? String
-
   @Test
   fun `a step that throws fails the export early with its reason`() =
     runTest(timeout = TIMEOUT) {
-      val landscape = fixture() ?: return@runTest
+      val landscape = fixture(LANDSCAPE)
       val drawn = AtomicInt(0)
       val filmstrip =
         Filmstrip {
@@ -93,14 +89,7 @@ class AppleStepFailureExportTest {
       }
   }
 
-  private fun fixture(): String? {
-    val directory = fixtures ?: return null
-    val path = "$directory/$LANDSCAPE"
-    return path.takeIf { NSFileManager.defaultManager.fileExistsAtPath(it) }
-  }
-
   private companion object {
-    const val FIXTURES = "FILMSTRIP_FIXTURES"
     const val LANDSCAPE = "apple_export_a.mp4"
     const val REASON = "The picture is too large to draw at its colour."
     const val FRAME_RATE = 30

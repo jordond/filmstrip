@@ -33,14 +33,12 @@ import dev.jordond.filmstrip.style.TextStyle
 import dev.jordond.filmstrip.test.AuthoredColours
 import dev.jordond.filmstrip.test.HdrOverlayCells
 import dev.jordond.filmstrip.test.OverlayPixels
-import dev.jordond.filmstrip.test.encodesHdr
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSProcessInfo
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -62,18 +60,15 @@ import kotlin.time.Duration.Companion.seconds
  * colour does and a partly opaque one blends with the bar in linear light. A blend that misses is reported next to
  * where the cell's signal blend and sRGB blend land, so the failure says which wrong blend ran.
  *
- * Skipped when the fixtures are absent, as in [AppleHdrFillTest].
+ * A case fails when its fixture is missing, as in [AppleExportTest].
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleOverlayHdrTest {
-  private val fixtures = NSProcessInfo.processInfo.environment[FIXTURES] as? String
-
   private val filmstrip = Filmstrip { avFoundationBackend() }
 
   @Test
   fun `an image overlay on a kept grade lands where the shared blend puts it`() =
     runTest(timeout = TIMEOUT) {
-      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
       val misses = mutableListOf<String>()
 
       HdrTransfer.entries.forEach { transfer ->
@@ -103,7 +98,6 @@ class AppleOverlayHdrTest {
   @Test
   fun `text on a kept grade lands where the shared blend puts it`() =
     runTest(timeout = TIMEOUT) {
-      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
       val misses = mutableListOf<String>()
 
       HdrTransfer.entries.forEach { transfer ->
@@ -136,7 +130,6 @@ class AppleOverlayHdrTest {
   @Test
   fun `a fade on a kept grade blends by the shared sampler in the middle of its ramp`() =
     runTest(timeout = TIMEOUT) {
-      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
       val misses = mutableListOf<String>()
       val transfer = HdrTransfer.Pq
       val white = HdrOverlayCells.WHITE
@@ -210,7 +203,7 @@ class AppleOverlayHdrTest {
     overlays: List<OverlayEffect>,
     read: (String, Size) -> Unit,
   ) {
-    val source = fixture(transfer) ?: return
+    val source = hdrFixture(transfer)
     val composition =
       compositionOf {
         clip(MediaSource.of(source)) { trim(Duration.ZERO, CLIP) }
@@ -241,23 +234,8 @@ class AppleOverlayHdrTest {
     }
   }
 
-  private fun fixture(transfer: HdrTransfer): String? {
-    val directory = fixtures ?: return null
-    val clip =
-      when (transfer) {
-        HdrTransfer.Pq -> CLIP_NAME
-        HdrTransfer.Hlg -> HLG_CLIP_NAME
-      }
-    val path = "$directory/$clip"
-    return path.takeIf { NSFileManager.defaultManager.fileExistsAtPath(it) }
-  }
-
   private companion object {
     val TIMEOUT = 5.minutes
-
-    const val FIXTURES = "FILMSTRIP_FIXTURES"
-    const val CLIP_NAME = "apple_export_hdr.mp4"
-    const val HLG_CLIP_NAME = "apple_export_hdr_hlg.mp4"
 
     val CLIP = 1.seconds
     val SPAN = TimeRange.of(Duration.ZERO, CLIP)

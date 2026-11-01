@@ -20,14 +20,7 @@ import platform.CoreGraphics.kCGColorSpaceITUR_2100_HLG
 import platform.CoreGraphics.kCGColorSpaceITUR_2100_PQ
 import platform.CoreImage.CIContext
 import platform.CoreImage.CIImage
-import platform.CoreImage.kCIContextUseSoftwareRenderer
-import platform.CoreImage.kCIContextWorkingFormat
 import platform.CoreImage.kCIFormatRGBAf
-import platform.Foundation.NSMutableDictionary
-import platform.Foundation.NSNumber
-import platform.Foundation.numberWithBool
-import platform.Foundation.numberWithInt
-import platform.Foundation.setValue
 import kotlin.math.abs
 
 /**
@@ -128,33 +121,6 @@ internal fun hdrMiss(
 @OptIn(InternalFilmstripApi::class)
 internal fun dev.jordond.filmstrip.test.HdrPngPicture.samples(): ShortArray =
   ShortArray(CHANNELS) { texel[it].toShort() }
-
-/**
- * A context with a float working format to read pixels through, or null after printing that [case] is skipped when
- * this process cannot build one.
- *
- * The software renderer is tried when a GPU context fails, and why each one failed is printed. The iOS simulator
- * builds neither, so a case that reads pixels through here asserts nothing there.
- */
-@Suppress("CAST_NEVER_SUCCEEDS", "UNCHECKED_CAST")
-@OptIn(ExperimentalForeignApi::class)
-internal fun contextOrSkip(case: String): CIContext? {
-  fun built(software: Boolean): CIContext? {
-    val options = NSMutableDictionary()
-    kCIContextWorkingFormat?.let { options.setValue(NSNumber.numberWithInt(kCIFormatRGBAf), forKey = it) }
-    if (software) kCIContextUseSoftwareRenderer?.let { options.setValue(NSNumber.numberWithBool(true), forKey = it) }
-    return try {
-      CIContext.contextWithOptions(options as Map<Any?, *>)
-    } catch (absent: NullPointerException) {
-      println("${if (software) "the software" else "a"} Core Image context failed for $case: $absent")
-      null
-    }
-  }
-
-  val context = built(software = false) ?: built(software = true)
-  if (context == null) println("SKIPPED $case: this process cannot build a Core Image context, nothing asserted")
-  return context
-}
 
 /**
  * The premultiplied red, green, blue and alpha at the centre of the image, rendered into the codes of

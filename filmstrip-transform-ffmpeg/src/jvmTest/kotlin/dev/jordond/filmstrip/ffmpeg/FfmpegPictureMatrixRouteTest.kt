@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.effects.overlay.StoredSamples
 import dev.jordond.filmstrip.effects.overlay.decodedPng
 import dev.jordond.filmstrip.ffmpeg.HdrRender.CAPABILITIES
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPictureDecoder
+import dev.jordond.filmstrip.ffmpeg.internal.PASS_THROUGH
 import dev.jordond.filmstrip.ffmpeg.internal.PictureRoute
 import dev.jordond.filmstrip.ffmpeg.internal.decodedPlanes
 import dev.jordond.filmstrip.ffmpeg.internal.otherCodecDepthReason
@@ -57,7 +58,11 @@ import kotlin.time.Duration.Companion.seconds
  * A matrix core refuses is not drawn with core's reason before ffmpeg runs, one tag a test, so these need no HEIF
  * demuxer. The overlay that carries one is refused with that reason and none of the advice for a picture ffmpeg could
  * not decode. A matrix swscale cannot convert is not drawn without a depth to read its planes at. Every matrix swscale
- * names is held, texel for texel over a test pattern, against core's evaluator on the same planes.
+ * names is held, texel for texel over a test pattern, against core's evaluator on the same planes. Every case in
+ * [MatrixCases.all], the list [FfmpegPictureMatrixTest] runs, is read by core at its own matrix, range and depth and
+ * takes the route a table names for its tag. The list reads every tag in the table from an AVIF at full range, one tag
+ * for each route from a HEIC at both ranges, and from an AVIF at limited range one tag for each route and every matrix
+ * read from its planes.
  */
 class FfmpegPictureMatrixRouteTest {
   @Test
@@ -146,6 +151,37 @@ class FfmpegPictureMatrixRouteTest {
   }
 
   @Test
+  fun `every case the matrix test runs takes the route its table names and every route is read`() {
+    val cases = MatrixCases.all
+    val routes = MatrixRoute.entries.toSet()
+    assertEquals(routes, ROUTES.values.toSet(), "a route has no tag in the table")
+    assertEquals(cases.size, cases.toSet().size, "the matrix test runs a case twice")
+    for (case in cases) {
+      val route = assertNotNull(ROUTES[case.tag], "$case has no route in the table")
+      for (still in case.stills()) {
+        val coding = assertNotNull(pictureYcbcrCoding(still.bytes), still.name)
+        assertEquals(still.bitDepth, coding.bitDepth, still.name)
+        assertEquals(case.fullRange, coding.fullRange, still.name)
+        assertEquals(case.tag.matrix, coding.matrix, still.name)
+        assertEquals(route, matrixRoute(coding), still.name)
+      }
+    }
+    val read = cases.groupBy({ it.container to it.fullRange }, { it.tag })
+    val avifFull = read[MatrixContainer.Avif to true].orEmpty()
+    assertEquals(ROUTES.keys, avifFull.toSet(), "the table and the AVIFs read at full range name different tags")
+    val heicFull = read[MatrixContainer.Heic to true].orEmpty()
+    val heicLimited = read[MatrixContainer.Heic to false].orEmpty()
+    assertEquals(heicFull.toSet(), heicLimited.toSet(), "a HEIC is read at one range")
+    assertEquals(routes.size, heicFull.size, "the HEICs do not read one tag for each route")
+    assertEquals(routes, heicFull.map(ROUTES::getValue).toSet(), "a route is not read from a HEIC")
+    val avifLimited = read[MatrixContainer.Avif to false].orEmpty()
+    assertEquals(routes, avifLimited.map(ROUTES::getValue).toSet(), "a route is not read from an AVIF at limited range")
+    val planes = ROUTES.filter { it.value != MatrixRoute.Swscale }.map { it.key.matrix }
+    val limited = avifLimited.map { it.matrix }
+    assertTrue(limited.containsAll(planes), "a matrix read from its planes is not read from an AVIF at limited range")
+  }
+
+  @Test
   fun `swscale reads 1 BT709 as core does`() = assertSwscaleAgrees(1)
 
   @Test
@@ -187,6 +223,26 @@ class FfmpegPictureMatrixRouteTest {
     assertTrue(reason in message, "$nclx said $message")
     assertFalse(UNDECODED_ADVICE in message, "$nclx said $message")
   }
+
+  // The route a picture whose coding is [coding] lands through, or null when it is refused, read as identity, or handed
+  // to ffmpeg untouched because its colour is unknown, none of which the matrix test reads.
+  private fun matrixRoute(coding: YcbcrCoding): MatrixRoute? =
+    when (val route = pictureRoute(coding)) {
+      is PictureRoute.Converted -> {
+        MatrixRoute.Swscale.takeIf { route.filter != PASS_THROUGH }
+      }
+      is PictureRoute.Refused -> {
+        null
+      }
+      is PictureRoute.Planes -> {
+        when (coding.reading) {
+          is YcbcrReading.KrKb -> MatrixRoute.DerivedPlanes
+          YcbcrReading.YCgCo -> MatrixRoute.YCgCoPlanes
+          is YcbcrReading.ConstantLuminance -> MatrixRoute.ConstantLuminancePlanes
+          YcbcrReading.Identity, is YcbcrReading.Refused -> null
+        }
+      }
+    }
 
   // A test pattern at eight bits 4:4:4 and twelve bits 4:2:0, at both ranges, converted by swscale through
   // [ycbcrScale] for [matrix] and by core's evaluator from the planes the same hop hands back, every texel within
@@ -251,6 +307,29 @@ class FfmpegPictureMatrixRouteTest {
 
   private companion object {
     val decoder = FfmpegPictureDecoder("ffmpeg")
+
+    // How a picture the matrix test reads lands: through swscale, or from its planes through core's evaluator for a
+    // matrix derived from its primaries, for YCgCo, or for constant luminance.
+    enum class MatrixRoute { Swscale, DerivedPlanes, YCgCoPlanes, ConstantLuminancePlanes }
+
+    // The route each tag the matrix test reads lands through, at either range and either depth.
+    val ROUTES =
+      mapOf(
+        MatrixTags.BT709 to MatrixRoute.Swscale,
+        MatrixTags.UNSPECIFIED to MatrixRoute.Swscale,
+        MatrixTags.FCC to MatrixRoute.Swscale,
+        MatrixTags.BT470BG to MatrixRoute.Swscale,
+        MatrixTags.BT601 to MatrixRoute.Swscale,
+        MatrixTags.SMPTE_240M to MatrixRoute.Swscale,
+        MatrixTags.YCGCO to MatrixRoute.YCgCoPlanes,
+        MatrixTags.BT2020 to MatrixRoute.Swscale,
+        MatrixTags.BT2020_CL to MatrixRoute.ConstantLuminancePlanes,
+        MatrixTags.DERIVED_ON_BT709 to MatrixRoute.Swscale,
+        MatrixTags.DERIVED_ON_BT2020 to MatrixRoute.Swscale,
+        MatrixTags.DERIVED_ON_P3 to MatrixRoute.DerivedPlanes,
+        MatrixTags.DERIVED_CL_ON_BT2020 to MatrixRoute.ConstantLuminancePlanes,
+        MatrixTags.DERIVED_CL_ON_P3 to MatrixRoute.ConstantLuminancePlanes,
+      )
     val FRAME = Size(640, 360)
     val PATTERN = Size(256, 192)
     val SDR =

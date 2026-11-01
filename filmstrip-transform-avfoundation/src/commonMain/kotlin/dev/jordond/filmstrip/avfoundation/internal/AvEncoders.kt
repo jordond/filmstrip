@@ -108,7 +108,7 @@ import platform.darwin.noErr
  * Each codec walks a resolution ladder largest first and stops at the first size that opens. The
  * session is torn down once it has answered, and nothing is encoded through it. Hardware
  * acceleration is read off that same session when it will say, and falls back to
- * [VTCopyVideoEncoderList]'s encoder list when it will not.
+ * [VTCopyVideoEncoderList]'s encoder list when it will not, the way [hardwareFlag] reads them.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun appleEncoderCapabilities(): DeviceCapabilities {
@@ -347,11 +347,22 @@ private fun probeVideo(
     // Apple publishes neither a rate ceiling nor a bitrate ceiling.
     maxFrameRate = null,
     maxBitrate = null,
-    // Falls back to the encoder list flag when the session will not report.
-    isHardwareAccelerated = probe.hardwareAccelerated ?: hardwareFromList,
+    isHardwareAccelerated = hardwareFlag(session = probe.hardwareAccelerated, listed = hardwareFromList),
     sizeAlignment = SIZE_ALIGNMENT,
   )
 }
+
+/**
+ * Whether an encoder is hardware, from what the probe session reported and whether the encoder list tags its codec.
+ *
+ * A [session] answer wins. Without one, a [listed] codec is hardware, and anything else is null, since the list flag is
+ * only ever present when true. VideoToolbox reports neither below iOS 17.4, where the session key is unavailable and
+ * the list flag is absent even for a hardware encoder, nor on the iOS simulator, so null is the answer on both.
+ */
+internal fun hardwareFlag(
+  session: Boolean?,
+  listed: Boolean,
+): Boolean? = session ?: true.takeIf { listed }
 
 /**
  * The codec types VideoToolbox lists at least one hardware-accelerated encoder for.

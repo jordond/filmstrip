@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.export.AdjustmentKind
@@ -13,14 +12,12 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
-import dev.jordond.filmstrip.test.encodesHdr
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSProcessInfo
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -36,31 +33,21 @@ import kotlin.time.Duration.Companion.minutes
  * neither a tone map nor a silent drop to SDR. [AppleProbeTest] asserts the fixture really is PQ,
  * so a failure here is the export rather than the input.
  *
- * Skipped when the fixtures are absent, as in [AppleExportTest].
+ * A case fails when its fixture is missing, as in [AppleExportTest].
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleHdrTest {
-  private val fixtures = NSProcessInfo.processInfo.environment[FIXTURES] as? String
-
   private val filmstrip = Filmstrip { avFoundationBackend() }
 
   @Test
   fun `keeping hdr either keeps it or says it did not`() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
-      // KeepHdr is documented to refuse rather than quietly tone-map, so a device with no HDR
-      // encoder refusing is the contract holding. There is nothing left to measure after that.
-      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) {
-        assertIs<Verdict.Incapable>(filmstrip.plan(composition(source), spec(HdrMode.KeepHdr)))
-        return@runTest
-      }
-
+      val source = hdrFixture(HdrTransfer.Pq)
       val run = export(source, HdrMode.KeepHdr)
       val written = assertNotNull(run.info.video, "the written file has no video track")
 
-      // A disjunction, not a fixed expectation, since whether HDR survives is the device's answer
-      // and never this code's. The third case is the one that is not allowed, SDR out with nothing
-      // said about it.
+      // The encoder tests pin each target's HDR answer, so this only holds the export to its report,
+      // PQ kept or tone mapping reported. SDR out with nothing said about it is the case that fails.
       if (written.hdrTransfer == null) {
         assertTrue(
           run.toneMapped,
@@ -75,7 +62,7 @@ class AppleHdrTest {
   @Test
   fun `tone mapping writes sdr`() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = hdrFixture(HdrTransfer.Pq)
 
       val run = export(source, HdrMode.ToneMapToSdr)
       val written = assertNotNull(run.info.video, "the written file has no video track")
@@ -86,37 +73,16 @@ class AppleHdrTest {
     }
 
   @Test
-  fun `auto keeps the grade when the device encodes it and tone maps when it does not`() =
+  fun `auto keeps the grade the device encodes`() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = hdrFixture(HdrTransfer.Pq)
 
       val run = export(source, HdrMode.Auto)
       val written = assertNotNull(run.info.video, "the written file has no video track")
 
-      // Auto is the mode that lands somewhere the caller did not name, so it is the one that has to
-      // report. Either it kept the grade silently or it dropped it and said so.
-      if (withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) {
-        assertEquals(HdrTransfer.Pq, written.hdrTransfer, "the device encodes HDR but Auto did not keep it")
-        assertTrue(!run.toneMapped, "HDR survived but an adjustment said it was tone mapped")
-      } else {
-        assertNull(written.hdrTransfer, "the device encodes no HDR but Auto wrote a transfer function")
-        assertTrue(run.toneMapped, "Auto tone mapped without reporting it")
-      }
-    }
-
-  @Test
-  fun `the capability probe never claims less than the encoder wrote`() =
-    runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
-      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
-      val kept = export(source, HdrMode.KeepHdr).info.video?.hdrTransfer != null
-
-      // The plan's capability answer and what the encoder actually did, which are allowed to differ
-      // in one direction only. A device may advertise HDR and still fall back, but a device that
-      // wrote HDR while advertising none has a capability probe that is lying.
-      val capabilities = withContext(Dispatchers.Default) { filmstrip.capabilities() }
-      val advertised = assertIs<CapabilitiesResult.Success>(capabilities).capabilities
-      assertTrue(!kept || advertised.supportsHdrEncoding, "the device wrote HDR while advertising none")
+      // Every Apple target advertises an HDR encoder, which the encoder tests pin, so Auto keeps the grade silently.
+      assertEquals(HdrTransfer.Pq, written.hdrTransfer, "the device encodes HDR but Auto did not keep it")
+      assertTrue(!run.toneMapped, "HDR survived but an adjustment said it was tone mapped")
     }
 
   /**
@@ -165,16 +131,7 @@ class AppleHdrTest {
   private suspend fun probe(path: String): MediaInfo =
     assertIs<ProbeResult.Success>(filmstrip.probe(MediaSource.of(path))).info
 
-  private fun fixture(): String? {
-    val directory = fixtures ?: return null
-    val path = "$directory/$CLIP"
-    return path.takeIf { NSFileManager.defaultManager.fileExistsAtPath(it) }
-  }
-
   private companion object {
     val TIMEOUT = 5.minutes
-
-    const val FIXTURES = "FILMSTRIP_FIXTURES"
-    const val CLIP = "apple_export_hdr.mp4"
   }
 }

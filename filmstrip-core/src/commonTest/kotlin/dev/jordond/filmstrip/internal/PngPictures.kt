@@ -1,6 +1,8 @@
 package dev.jordond.filmstrip.internal
 
+import io.kotest.matchers.nulls.shouldNotBeNull
 import kotlin.math.abs
+import kotlin.random.Random
 
 /**
  * The samples a pixel of each PNG colour type stores, keyed by colour type.
@@ -13,6 +15,35 @@ internal val PNG_SAMPLES_PER_PIXEL = mapOf(0 to 1, 2 to 3, 3 to 1, 4 to 2, 6 to 
 internal val PNG_FORMATS =
   listOf(0 to 1, 0 to 2, 0 to 4, 0 to 8, 0 to 16, 2 to 8, 2 to 16, 3 to 1, 3 to 2, 3 to 4, 3 to 8, 4 to 8, 4 to 16) +
     listOf(6 to 8, 6 to 16)
+
+/**
+ * Every filter type on every row, then all five in turn, then one picked at random per row.
+ */
+internal val FILTER_STRATEGIES: List<(Int) -> Int> =
+  List(5) { type -> { _: Int -> type } } + listOf({ row: Int -> row % 5 }, { row: Int -> Random(row).nextInt(5) })
+
+/**
+ * The decoded pixels of [png] as red, green, blue and alpha samples.
+ */
+internal fun pixels(png: ByteArray): List<List<Int>> {
+  val decoded = pngSamples(png).shouldNotBeNull()
+  return decoded.rgba.map { it.toInt() and 0xFFFF }.chunked(4)
+}
+
+/**
+ * Picks [width] by [height] pixels of samples for [colourType] at [depth] from [random], each at most the largest value
+ * the depth stores. A palette index stays below 256, the most entries a palette holds.
+ */
+internal fun randomSamples(
+  random: Random,
+  width: Int,
+  height: Int,
+  colourType: Int,
+  depth: Int,
+): IntArray {
+  val bound = if (colourType == 3) minOf(1 shl depth, 256) else 1 shl depth
+  return IntArray(width * height * PNG_SAMPLES_PER_PIXEL.getValue(colourType)) { random.nextInt(bound) }
+}
 
 /**
  * Writes a PNG of [samples], each pixel's samples at [depth] in the order [colourType] stores them, row by row.

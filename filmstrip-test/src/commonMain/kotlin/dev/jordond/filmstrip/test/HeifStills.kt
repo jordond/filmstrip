@@ -300,23 +300,23 @@ public class HeifThumbnail(
  */
 @InternalFilmstripApi
 public class AvifPicture internal constructor(
-  public val name: String,
-  public val nclx: CicpTag?,
-  public val profile: ByteArray?,
-  public val ycbcr: List<Int>,
+  override val name: String,
+  override val nclx: CicpTag?,
+  override val profile: ByteArray?,
+  override val ycbcr: List<Int>,
   private val fullCodestream: String = FULL_CODESTREAM,
   private val limitedCodestream: String = LIMITED_CODESTREAM,
   private val ownCodestream: String? = null,
   private val configuration: String = AV1_CONFIGURATION,
   internal val bitDepth: Int = 8,
-) {
+) : HeifPicture {
   /**
    * The AV1 codestream the picture's item holds, a sequence header and one frame.
    *
    * Unless the picture holds a codestream of its own, its sequence header carries no colour description and its range
    * bit matches [nclx], full when there is no `nclx` box.
    */
-  public fun codestream(): ByteArray =
+  override fun codestream(): ByteArray =
     (ownCodestream ?: if (nclx?.fullRange == false) limitedCodestream else fullCodestream).hex()
 
   /**
@@ -324,7 +324,7 @@ public class AvifPicture internal constructor(
    *
    * @param thumbnail A thumbnail item the file carries ahead of the picture, or null for none.
    */
-  public fun bytes(thumbnail: HeifThumbnail? = null): ByteArray =
+  override fun bytes(thumbnail: HeifThumbnail?): ByteArray =
     HeifStills.still(
       brand = "avif",
       itemType = "av01",
@@ -344,7 +344,7 @@ public class AvifPicture internal constructor(
    *
    * @param thumbnail A thumbnail item the file carries ahead of the grid, or null for none.
    */
-  public fun gridBytes(thumbnail: HeifThumbnail? = null): ByteArray =
+  override fun gridBytes(thumbnail: HeifThumbnail?): ByteArray =
     HeifStills.grid(
       brand = "avif",
       itemType = "av01",
@@ -359,7 +359,7 @@ public class AvifPicture internal constructor(
   /**
    * The picture's coded item at eight pixels a side, for another HEIF still to carry as its thumbnail.
    */
-  public fun thumbnail(): HeifThumbnail =
+  override fun thumbnail(): HeifThumbnail =
     HeifThumbnail("av01", HeifStills.box("av1C", configuration.hex()), codestream(), AVIF_SIZE)
 
   override fun toString(): String = name
@@ -409,17 +409,17 @@ public class AvifPicture internal constructor(
  */
 @InternalFilmstripApi
 public class HeicPicture internal constructor(
-  public val name: String,
-  public val nclx: CicpTag?,
-  public val profile: ByteArray?,
-  public val ycbcr: List<Int>,
+  override val name: String,
+  override val nclx: CicpTag?,
+  override val profile: ByteArray?,
+  override val ycbcr: List<Int>,
   public val vui: HevcVui = HevcVui.Unsignalled,
   internal val slice: String = CODESTREAM,
-) {
+) : HeifPicture {
   /**
    * The HEVC codestream the picture's item holds, one coded slice behind a four byte length.
    */
-  public fun codestream(): ByteArray = slice.hex()
+  override fun codestream(): ByteArray = slice.hex()
 
   /**
    * The `hvcC` box's payload, carrying the video, sequence and picture parameter sets, its sequence parameter set
@@ -432,7 +432,7 @@ public class HeicPicture internal constructor(
    *
    * @param thumbnail A thumbnail item the file carries ahead of the picture, or null for none.
    */
-  public fun bytes(thumbnail: HeifThumbnail? = null): ByteArray =
+  override fun bytes(thumbnail: HeifThumbnail?): ByteArray =
     HeifStills.still(
       brand = "heic",
       itemType = "hvc1",
@@ -451,7 +451,7 @@ public class HeicPicture internal constructor(
    *
    * @param thumbnail A thumbnail item the file carries ahead of the grid, or null for none.
    */
-  public fun gridBytes(thumbnail: HeifThumbnail? = null): ByteArray =
+  override fun gridBytes(thumbnail: HeifThumbnail?): ByteArray =
     HeifStills.grid(
       brand = "heic",
       itemType = "hvc1",
@@ -466,7 +466,7 @@ public class HeicPicture internal constructor(
    * The picture's coded item at sixty-four pixels a side, with the codestream signal [vui] names, for another HEIF
    * still to carry as its thumbnail.
    */
-  public fun thumbnail(): HeifThumbnail =
+  override fun thumbnail(): HeifThumbnail =
     HeifThumbnail("hvc1", HeifStills.box("hvcC", configuration()), codestream(), HEIC_SIZE)
 
   override fun toString(): String = name

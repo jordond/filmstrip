@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.PictureColour
 import dev.jordond.filmstrip.media.YcbcrReading
 import dev.jordond.filmstrip.media.authoredHdrNits
+import dev.jordond.filmstrip.media.heifWithExplicitCodestreamColour
 import dev.jordond.filmstrip.media.pictureLight
 import dev.jordond.filmstrip.media.pictureSrgbCodes
 import dev.jordond.filmstrip.media.signalFromNits
@@ -22,6 +23,7 @@ import dev.jordond.filmstrip.media.ycbcrReading
 import dev.jordond.filmstrip.test.AppleDisplayP3
 import dev.jordond.filmstrip.test.AppleStillSamples
 import dev.jordond.filmstrip.test.AuthoredColours
+import dev.jordond.filmstrip.test.AvifPicture
 import dev.jordond.filmstrip.test.CicpTag
 import dev.jordond.filmstrip.test.ColourPictures
 import dev.jordond.filmstrip.test.HdrOverlayCells
@@ -35,12 +37,10 @@ import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.flow.toList
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.create
 import platform.Foundation.writeToFile
 import kotlin.math.abs
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -48,34 +48,20 @@ import kotlin.time.Duration.Companion.seconds
  * The pictures and fixtures the colour described overlay export cases share, each case drawing them into an export and
  * reading them back out of the written file.
  *
- * Every picture in [IccPictures.ALL], a Display P3 red, a Display P3 HEIC and JPEG written by ImageIO, every
- * [ColourPictures] PNG, AVIF and HEIC, a HEIC grid and an untagged picture are drawn as badges over the letterbox fill.
+ * Every picture in [IccPictures.ALL], a Display P3 red, a Display P3 HEIC and JPEG where ImageIO writes them, three
+ * [ColourPictures] PNGs, both HDR PNGs, every still in [ColourPictures.EXPORT_REPRESENTATIVES], a HEIC grid and an
+ * untagged picture are drawn as badges over the letterbox fill.
  * So are two HEICs under the SMPTE 240M matrix Apple's decoder does not read, a 4:4:4 one drawn from its stored
  * samples through core's evaluator and a 4:2:0 one restated to the nearest matrix the decoder reads. A described badge
  * is read through the description core reads out of the picture's bytes, and an AVIF or HEIC is held to what the
  * shared functions make of one of the texels Apple's decoder may hand back for it, each its own answer.
  *
- * The export cases print why and return with nothing asserted when `FILMSTRIP_FIXTURES` is unset. A clip missing from a
- * set `FILMSTRIP_FIXTURES` fails.
+ * An export case fails when `FILMSTRIP_FIXTURES` is unset or names a directory missing its clip. Gradle sets it for
+ * both Apple test tasks, and the iPhone runner sets it to the fixtures copied into the app bundle.
  */
 @OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
 abstract class AppleOverlayIccCase {
-  protected val fixtures: String? = NSProcessInfo.processInfo.environment[FIXTURES] as? String
-
   protected val filmstrip: Filmstrip = Filmstrip { avFoundationBackend() }
-
-  protected fun fixture(name: String): String? {
-    val directory = fixtures ?: return null
-    val path = "$directory/$name"
-    assertTrue(NSFileManager.defaultManager.fileExistsAtPath(path), "$FIXTURES is set but $path is missing")
-    return path
-  }
-
-  protected fun clipOf(transfer: HdrTransfer): String =
-    when (transfer) {
-      HdrTransfer.Pq -> HDR_CLIP
-      HdrTransfer.Hlg -> HLG_CLIP
-    }
 
   /**
    * A badge picture, its encoded [bytes] and pixel [size], the [colour] its texels are read through and the
@@ -161,10 +147,7 @@ abstract class AppleOverlayIccCase {
   protected companion object {
     val TIMEOUT = 5.minutes
 
-    const val FIXTURES = "FILMSTRIP_FIXTURES"
     const val PORTRAIT = "apple_export_portrait.mp4"
-    const val HDR_CLIP = "apple_export_hdr.mp4"
-    const val HLG_CLIP = "apple_export_hdr_hlg.mp4"
 
     val CLIP = 1.seconds
     val SDR = ExportSpec(targetHeight = 180)
@@ -181,7 +164,6 @@ abstract class AppleOverlayIccCase {
     const val BAR = AuthoredColours.MID_GREY
     const val RED = 0xFFFF0000.toInt()
     const val P3_RED_NAME = "Display P3 red"
-    const val P3_TEXEL = 0xFFC08040.toInt()
 
     // Dark enough that the grey profile's gamma moves it past the drift, where a mid grey moves under a code.
     const val DARK_GREY = 0xFF101010.toInt()
@@ -208,7 +190,7 @@ abstract class AppleOverlayIccCase {
 
     // A badge at the default scale and margin sits inside the bars at each corner, two to a bar.
     val CORNERS = listOf(Corner.TopStart, Corner.TopEnd, Corner.BottomStart, Corner.BottomEnd)
-    val RASTER = Size(4, 2)
+    val RASTER = ICC_RASTER
 
     // A still is square, and only its aspect sets a badge's height.
     val STILL = Size(1, 1)
@@ -229,15 +211,20 @@ abstract class AppleOverlayIccCase {
       return Picture(name, bytes, RASTER, colour, { listOf(samples) }, texel, fromFile)
     }
 
-    // Display P3 pictures in formats that keep their profile outside a PNG, left out where ImageIO cannot write one.
-    val ENCODED =
-      listOf("public.heic", "public.jpeg").mapNotNull { type ->
-        val bytes = AppleDisplayP3.picture(type, RASTER, P3_TEXEL)
-        if (bytes == null) println("skipping the $type badge, ImageIO cannot write it here")
-        bytes?.let { painted("Display P3 $type", P3_TEXEL, it, colour = AppleDisplayP3.colour()) }
-      }
+    // Formats that keep a Display P3 profile outside a PNG, for ImageIO to write.
+    val ENCODED_TYPES = listOf("public.heic", "public.jpeg")
 
-    val ICC_TAGGED =
+    // The Display P3 pictures ImageIO wrote. A type it cannot write on this platform is left out, which
+    // [imageIoWrites] pins per target as ImageIO's limit.
+    val ENCODED: List<Picture> by lazy {
+      ENCODED_TYPES.mapNotNull { type ->
+        encodedDisplayP3(type)?.let { bytes ->
+          painted("Display P3 $type", P3_TEXEL, bytes, colour = AppleDisplayP3.colour())
+        }
+      }
+    }
+
+    val ICC_TAGGED: List<Picture> by lazy {
       IccPictures.ALL.map { picture ->
         val texel = if (picture == IccPictures.GREY) DARK_GREY else picture.texel
         painted(
@@ -247,38 +234,37 @@ abstract class AppleOverlayIccCase {
           fromFile = picture == IccPictures.DISPLAY_P3,
         )
       } + painted(P3_RED_NAME, RED, OverlayPixels.pngOf(RASTER, RED, IccPictures.DISPLAY_P3.profile)) + ENCODED
+    }
 
-    val HEIC_STILLS =
-      ColourPictures.HEICS_WITH_SIGNAL_VARIANTS + AppleStillSamples.BT709_MATRIX_OTHER_PRIMARIES +
-        ColourPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA
+    // A cICP wide gamut PNG, a cICP linear light one and a wide gamut one described by gAMA and cHRM.
+    val PNGS = listOf(ColourPictures.CICP_DISPLAY_P3, ColourPictures.CICP_LINEAR, ColourPictures.GAMMA_DISPLAY_P3)
 
-    // Every HEIC decodes through the raster's rewrite, and the grid's rewrite reaches the parameter sets its tiles
-    // share.
-    val DESCRIBED =
-      ColourPictures.PNGS.map { painted(it.name, it.texel, it.pngOf(RASTER)) } +
+    // The export representatives and a grid. Their HEICs decode through the raster's rewrite, and the grid's rewrite
+    // reaches the parameter sets its tiles share. Each is held to the decode ImageIO hands back for that rewrite.
+    val DESCRIBED: List<Picture> by lazy {
+      PNGS.map { painted(it.name, it.texel, it.pngOf(RASTER)) } +
         ColourPictures.HDR_PNGS.map { picture ->
           val bytes = picture.pngOf(RASTER)
           val samples = ShortArray(picture.texel.size) { picture.texel[it].toShort() }
           Picture(picture.name, bytes, RASTER, pictureColour(bytes), { listOf(samples) })
         } +
-        (ColourPictures.AVIFS + ColourPictures.NCLX_BT709_FULL_EDGE_CHROMA).map { still ->
+        ColourPictures.EXPORT_REPRESENTATIVES.map { still ->
           val bytes = still.bytes()
-          Picture("AVIF ${still.name}", bytes, STILL, pictureColour(bytes), { AppleStillSamples.of(still) })
-        } +
-        HEIC_STILLS.map { still ->
-          val bytes = still.bytes()
-          Picture(still.name, bytes, STILL, pictureColour(bytes), { AppleStillSamples.of(still) })
+          val name = if (still is AvifPicture) "AVIF ${still.name}" else still.name
+          Picture(name, bytes, STILL, pictureColour(bytes), { AppleStillSamples.of(still, imageIoRead(bytes)) })
         } +
         ColourPictures.HEIC_NCLX_BT709_FULL.let { still ->
           val bytes = still.gridBytes()
-          Picture("${still.name} grid", bytes, STILL, pictureColour(bytes), { AppleStillSamples.of(still) })
+          val samples = { AppleStillSamples.of(still, imageIoRead(bytes)) }
+          Picture("${still.name} grid", bytes, STILL, pictureColour(bytes), samples)
         }
+    }
 
     val SMPTE_240M_NCLX = CicpTag(BT709_PRIMARIES, SRGB_TRANSFER, SMPTE_240M, true)
 
     // A 4:4:4 HEIC whose stored samples ImageIO hands out and core's evaluator draws, and a 4:2:0 one landed through
     // the nearest matrix Apple's decoder reads, which resolves degraded.
-    val LANDED =
+    val LANDED: List<Picture> by lazy {
       listOf(
         HeicIdentityPictures.bytes(SMPTE_240M_NCLX).let { bytes ->
           val samples = AppleStillSamples.evaluated(SMPTE_240M_NCLX, EIGHT_BITS, HeicIdentityPictures.YCBCR)
@@ -292,11 +278,36 @@ abstract class AppleOverlayIccCase {
           Picture(still.name, bytes, STILL, pictureColour(bytes), samples, degradedBy = degradedBy)
         },
       )
+    }
 
-    val PICTURES =
+    val PICTURES: List<Picture> by lazy {
       listOf(
         painted("untagged", AuthoredColours.MID_GREEN, OverlayPixels.pngOf(RASTER, AuthoredColours.MID_GREEN, null)),
       ) +
         ICC_TAGGED + DESCRIBED + LANDED
+    }
   }
 }
+
+/**
+ * The Display P3 picture the ICC overlay cases draw, painted [P3_TEXEL] and written by ImageIO as [type], or null when
+ * ImageIO cannot write that type on this platform.
+ */
+internal fun encodedDisplayP3(type: String): ByteArray? = AppleDisplayP3.picture(type, ICC_RASTER, P3_TEXEL)
+
+/**
+ * Whether ImageIO writes [encodedDisplayP3] as [type] on this platform.
+ *
+ * It opens an ImageIO destination for [type] and reports whether finalizing it succeeds, the same calls the ICC overlay
+ * cases write their encoded pictures with.
+ */
+internal fun imageIoWrites(type: String): Boolean = encodedDisplayP3(type) != null
+
+internal const val P3_TEXEL = 0xFFC08040.toInt()
+
+private val ICC_RASTER = Size(4, 2)
+
+// The texel ImageIO decodes a HEIF's bytes to once the overlay raster's rewrite states its colour in the codestream.
+@OptIn(InternalFilmstripApi::class)
+internal fun imageIoRead(bytes: ByteArray): ShortArray =
+  AppleStillSamples.imageIoRead(heifWithExplicitCodestreamColour(bytes))

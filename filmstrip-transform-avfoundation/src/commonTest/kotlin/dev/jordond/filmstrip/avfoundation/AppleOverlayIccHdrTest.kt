@@ -19,7 +19,6 @@ import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.pictureLight
 import dev.jordond.filmstrip.test.AppleStillSamples
 import dev.jordond.filmstrip.test.HdrOverlayCells
-import dev.jordond.filmstrip.test.encodesHdr
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
@@ -37,54 +36,49 @@ import kotlin.time.Duration
  * Colour described overlay pictures drawn onto a kept HDR grade and read back out of the written file.
  *
  * A described badge is held to the codes [pictureLight] of its texel blends to over the fill, and the untagged badge to
- * [HdrOverlayCells.Cell.codes]. The case prints why and returns with nothing asserted where the platform advertises no
- * HDR encoder. The light a described picture enters an HDR frame at is asserted with no encoder in the effects
- * module's Apple tests.
+ * [HdrOverlayCells.Cell.codes]. The light a described picture enters an HDR frame at is asserted with no encoder in the
+ * effects module's Apple tests.
  */
 @OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
 class AppleOverlayIccHdrTest : AppleOverlayIccCase() {
   @Test
   fun `a described picture on a kept grade lands at its description's light`() =
     runTest(timeout = TIMEOUT) {
-      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) {
-        println("skipping the hdr case, this platform advertises no HDR encoder")
-        return@runTest
-      }
-      val misses = mutableListOf<String>()
+      assertLandsAtLight()
+    }
 
-      HdrTransfer.entries.forEach { transfer ->
-        val source =
-          fixture(clipOf(transfer)) ?: run {
-            println("skipping the $transfer case, $FIXTURES is unset")
-            return@forEach
+  private suspend fun assertLandsAtLight() {
+    val misses = mutableListOf<String>()
+
+    HdrTransfer.entries.forEach { transfer ->
+      val source = hdrFixture(transfer)
+      PICTURES.chunked(CORNERS.size).forEach { pictures ->
+        val badges = pictures.zip(CORNERS) { picture, corner -> picture.badgeAt(corner) }
+        val (path, size) = exportedHdr(source, transfer, badges)
+        pictures.forEach { it.removeFile() }
+        try {
+          val frame = assertNotNull(hdrFrameOf(path), "could not decode a frame of the $transfer export")
+          pictures.zip(badges).forEach { (picture, badge) ->
+            val rect = badge.placedOn(size, picture.size).rectOn(size)
+            val read = frame.codesAt((rect.left + rect.right) / 2f, (rect.top + rect.bottom) / 2f)
+            AppleStillSamples
+              .missOrUnmeasured {
+                val codes = picture.hdrCodes(transfer)
+                if (codes.none { it.within(read, AppleHdrFillTest.CODE_TOLERANCE) }) {
+                  "the $transfer ${picture.name} badge carried codes $read, where its light asks for one of $codes"
+                } else {
+                  null
+                }
+              }?.let(misses::add)
           }
-        PICTURES.chunked(CORNERS.size).forEach { pictures ->
-          val badges = pictures.zip(CORNERS) { picture, corner -> picture.badgeAt(corner) }
-          val (path, size) = exportedHdr(source, transfer, badges)
-          pictures.forEach { it.removeFile() }
-          try {
-            val frame = assertNotNull(hdrFrameOf(path), "could not decode a frame of the $transfer export")
-            pictures.zip(badges).forEach { (picture, badge) ->
-              val rect = badge.placedOn(size, picture.size).rectOn(size)
-              val read = frame.codesAt((rect.left + rect.right) / 2f, (rect.top + rect.bottom) / 2f)
-              AppleStillSamples
-                .missOrUnmeasured {
-                  val codes = picture.hdrCodes(transfer)
-                  if (codes.none { it.within(read, AppleHdrFillTest.CODE_TOLERANCE) }) {
-                    "the $transfer ${picture.name} badge carried codes $read, where its light asks for one of $codes"
-                  } else {
-                    null
-                  }
-                }?.let(misses::add)
-            }
-          } finally {
-            NSFileManager.defaultManager.removeItemAtPath(path, error = null)
-          }
+        } finally {
+          NSFileManager.defaultManager.removeItemAtPath(path, error = null)
         }
       }
-
-      assertTrue(misses.isEmpty(), misses.joinToString("\n"))
     }
+
+    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+  }
 
   /**
    * Exports a clip of [source] cropped square over a fill of [BAR] with [badges] on the composition, keeping its

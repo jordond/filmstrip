@@ -1,5 +1,7 @@
 package dev.jordond.filmstrip.internal
 
+import dev.jordond.filmstrip.media.CodestreamSignal
+
 // Builders for HEVC sequence parameter sets written bit by bit, following ITU-T H.265 section 7.3.2.2.1, and for
 // the hvcC boxes that carry them.
 
@@ -250,3 +252,54 @@ internal fun hvccOf(
 
 internal val VPS_NAL = byteArrayOf(0x40, 0x01, 0x0C, 0x01, 0xFF.toByte(), 0xFF.toByte())
 internal val PPS_NAL = byteArrayOf(0x44, 0x01, 0xC1.toByte(), 0x71, 0x81.toByte(), 0x12)
+
+/**
+ * The video usability information the rewrite writes into a unit that has none, every flag clear but the video signal
+ * type, which states [signal] with video format 5.
+ */
+internal fun minimalVui(signal: CodestreamSignal): Bits.() -> Unit =
+  {
+    flag(false).flag(false)
+    signalType(signal, videoFormat = 5)
+    repeat(7) { flag(false) }
+  }
+
+/**
+ * Video usability information with every optional part present: an explicit sample aspect ratio, overscan, [signal]
+ * when it is set, chroma sample locations, a default display window, timing with a picture order count rate and a
+ * bitstream restriction, followed by the parameter set's extension flag unless [tail] is false.
+ *
+ * With [extension] the flag is set and a range extension follows it, every other extension flag clear.
+ */
+internal fun fullVui(
+  signal: CodestreamSignal?,
+  videoFormat: Int = 2,
+  tail: Boolean = true,
+  extension: Boolean = false,
+): Bits.() -> Unit =
+  {
+    flag(true).u(8, 255).u(16, 4).u(16, 3)
+    flag(true).flag(true)
+    if (signal == null) flag(false) else signalType(signal, videoFormat)
+    if (tail) {
+      flag(true).ue(1).ue(2)
+      flag(false).flag(false).flag(false)
+      flag(true).ue(1).ue(2)
+      ue(3).ue(4)
+      flag(true).u(32, 1001L).u(32, 60000L)
+      flag(true).ue(0).flag(false)
+      flag(true).flag(true).flag(false)
+      flag(true).ue(0).ue(2)
+      ue(1).ue(15).ue(15)
+      flag(extension)
+      if (extension) flag(true).u(3, 0).u(4, 0).u(9, 0b101010101)
+    }
+  }
+
+private fun Bits.signalType(
+  signal: CodestreamSignal,
+  videoFormat: Int,
+) {
+  flag(true).u(3, videoFormat).flag(signal.fullRange == true).flag(signal.matrix != null)
+  if (signal.matrix != null) u(8, signal.primaries ?: 2).u(8, signal.transfer ?: 2).u(8, signal.matrix)
+}

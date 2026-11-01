@@ -210,28 +210,3 @@ class PngSamplesTest {
 
   private fun transparencyChunk(vararg data: Byte): ByteArray = bytes { pngChunk("tRNS", data) }
 }
-
-/**
- * Every filter type on every row, then all five in turn, then one picked at random per row.
- */
-internal val FILTER_STRATEGIES: List<(Int) -> Int> =
-  List(5) { type -> { _: Int -> type } } + listOf({ row: Int -> row % 5 }, { row: Int -> Random(row).nextInt(5) })
-
-/**
- * The decoded pixels of [png] as red, green, blue and alpha samples.
- */
-internal fun pixels(png: ByteArray): List<List<Int>> {
-  val decoded = pngSamples(png).shouldNotBeNull()
-  return decoded.rgba.map { it.toInt() and 0xFFFF }.chunked(4)
-}
-
-internal fun randomSamples(
-  random: Random,
-  width: Int,
-  height: Int,
-  colourType: Int,
-  depth: Int,
-): IntArray {
-  val bound = if (colourType == 3) minOf(1 shl depth, 256) else 1 shl depth
-  return IntArray(width * height * PNG_SAMPLES_PER_PIXEL.getValue(colourType)) { random.nextInt(bound) }
-}

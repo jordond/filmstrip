@@ -47,7 +47,7 @@ import platform.CoreGraphics.CGPathCreateWithRect
 import platform.CoreGraphics.CGPathRelease
 import platform.CoreGraphics.CGRectMake
 import platform.CoreGraphics.CGSizeMake
-import platform.CoreGraphics.kCGBitmapByteOrder32Big
+import platform.CoreGraphics.kCGBitmapByteOrder16Little
 import platform.CoreImage.CIImage
 import platform.CoreText.CTFontCreateCopyWithSymbolicTraits
 import platform.CoreText.CTFontCreateUIFontForLanguage
@@ -161,6 +161,9 @@ internal fun rasterizeText(
 /**
  * Renders the laid-out text into a bitmap and wraps it for Core Image as bare codes.
  *
+ * The bitmap holds sixteen bits a component, premultiplied and little endian, so a half transparent texel keeps its
+ * straight colour to within one sixteen-bit step.
+ *
  * A bitmap context is already bottom-left with +Y up, which is the space CoreText draws in and the
  * space Core Image measures in, so nothing is flipped on the way through.
  */
@@ -184,7 +187,7 @@ private fun draw(
       bitsPerComponent = BITS_PER_COMPONENT,
       bytesPerRow = 0u,
       space = space,
-      bitmapInfo = CGImageAlphaInfo.kCGImageAlphaPremultipliedLast.value or kCGBitmapByteOrder32Big,
+      bitmapInfo = CGImageAlphaInfo.kCGImageAlphaPremultipliedLast.value or kCGBitmapByteOrder16Little,
     )
   CGColorSpaceRelease(space)
   if (context == null) return null
@@ -357,7 +360,7 @@ private fun TextAlignment.toCoreText(): CTTextAlignment =
     TextAlignment.End -> kCTTextAlignmentRight
   }
 
-private const val BITS_PER_COMPONENT = 8uL
+private const val BITS_PER_COMPONENT = 16uL
 private const val RGBA = 4
 private const val BYTE = 0xFF
 private const val FULL = 255.0

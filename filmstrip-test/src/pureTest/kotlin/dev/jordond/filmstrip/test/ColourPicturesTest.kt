@@ -408,7 +408,7 @@ class ColourPicturesTest {
     pictureSrgbCodes(pictureColour(picture.pngOf(SIZE)), intArrayOf(picture.texel)).toList()
 
   private class Still(
-    val picture: Any,
+    val picture: HeifPicture,
     val brand: String,
     val itemType: String,
     val configurationType: String,

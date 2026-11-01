@@ -19,6 +19,16 @@ kotlin {
       implementation(projects.filmstripTest)
       implementation(libs.kotlinx.coroutines.test)
     }
+
+    // Tests that hold on hardware VideoToolbox, macOS and an iPhone, and not on the simulator's software encoders.
+    val appleHardwareTest = create("appleHardwareTest") { dependsOn(commonTest.get()) }
+    macosArm64Test.get().dependsOn(appleHardwareTest)
+    iosArm64Test.get().dependsOn(appleHardwareTest)
+
+    // Tests that read Core Image's own output, which has a measured range on macOS and the simulator.
+    val appleHostTest = create("appleHostTest") { dependsOn(commonTest.get()) }
+    macosArm64Test.get().dependsOn(appleHostTest)
+    iosSimulatorArm64Test.get().dependsOn(appleHostTest)
   }
 }
 

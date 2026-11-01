@@ -105,6 +105,23 @@ fun Project.androidDeviceTests() {
   }
 }
 
+/**
+ * Adds the `pureTest` source set, whose tests run on `jvm`, `js` and `macosArm64` only.
+ *
+ * `pureTest` depends on `commonTest`, so its tests see every shared fixture there, and the `jvmTest`, `jsTest` and
+ * `macosArm64Test` sets depend on it. Configuration fails when the module is missing any of those three sets.
+ */
+fun Project.pureTests() {
+  extensions.configure<KotlinMultiplatformExtension> {
+    val pureTest = sourceSets.create("pureTest") { dependsOn(sourceSets.commonTest.get()) }
+    val missing = PURE_TEST_TARGETS.filter { sourceSets.findByName(it) == null }
+    check(missing.isEmpty()) { "pureTests() in ${this@pureTests.path} is missing ${missing.joinToString()}" }
+    PURE_TEST_TARGETS.forEach { sourceSets.getByName(it).dependsOn(pureTest) }
+  }
+}
+
+private val PURE_TEST_TARGETS = listOf("jvmTest", "jsTest", "macosArm64Test")
+
 private fun KotlinMultiplatformExtension.androidLibraryTarget(): KotlinMultiplatformAndroidLibraryTarget? =
   (this as ExtensionAware).extensions.findByType(KotlinMultiplatformAndroidLibraryTarget::class.java)
 

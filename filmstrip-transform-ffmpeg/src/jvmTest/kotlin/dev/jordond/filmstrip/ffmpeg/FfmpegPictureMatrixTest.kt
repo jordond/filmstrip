@@ -15,6 +15,8 @@ import dev.jordond.filmstrip.test.ColourPictures
 import dev.jordond.filmstrip.test.HeicColourPictures
 import dev.jordond.filmstrip.test.HeifStills
 import dev.jordond.filmstrip.test.ycbcrToRgb
+import org.junit.runner.RunWith
+import org.junit.runners.Parameterized
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
@@ -23,214 +25,35 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * AVIF and HEIC overlays tagged with every matrix coefficients code point core reads but identity, at full and limited
- * range, each decoded at eight and twelve bits and held at its centre texel against [ycbcrToRgb].
+ * AVIF and HEIC overlays tagged with the matrix coefficients code points core reads, each decoded at eight and twelve
+ * bits and held at its centre texel against [ycbcrToRgb].
+ *
+ * Each run reads one [MatrixCase] of [MatrixCases.all], the list [FfmpegPictureMatrixRouteTest] holds to the route its
+ * table names for each tag.
  *
  * A matrix swscale names lands through swscale within [PICTURE_DRIFT]. YCgCo 8, constant luminance 10 and 13, and 12
  * on primaries no named matrix matches land from their planes through core's evaluator, exactly at eight bits and
  * within one code at twelve, where the sixteen-bit samples are rounded once more. Each of those is checked to land
  * elsewhere under BT.601, the matrix swscale falls back to. Identity has its own test, since it needs 4:4:4 samples.
- * ffmpeg 6.1 has no HEIF demuxer, which skips the HEIC tests as an assumption.
+ * ffmpeg 6.1 has no HEIF demuxer, which skips the HEIC cases as an assumption.
  */
-class FfmpegPictureMatrixTest {
+@RunWith(Parameterized::class)
+class FfmpegPictureMatrixTest internal constructor(
+  private val case: MatrixCase,
+) {
   @Test
-  fun `an AVIF tagged 1 BT709 at full range lands where core reads it`() = avif(CicpTag(1, 13, 1, true))
-
-  @Test
-  fun `an AVIF tagged 1 BT709 at limited range lands where core reads it`() = avif(CicpTag(1, 13, 1, false))
-
-  @Test
-  fun `a HEIC tagged 1 BT709 at full range lands where core reads it`() = heic(CicpTag(1, 13, 1, true))
-
-  @Test
-  fun `a HEIC tagged 1 BT709 at limited range lands where core reads it`() = heic(CicpTag(1, 13, 1, false))
-
-  @Test
-  fun `an AVIF tagged 2 unspecified at full range lands where core reads it`() = avif(CicpTag(1, 13, 2, true))
-
-  @Test
-  fun `an AVIF tagged 2 unspecified at limited range lands where core reads it`() = avif(CicpTag(1, 13, 2, false))
-
-  @Test
-  fun `a HEIC tagged 2 unspecified at full range lands where core reads it`() = heic(CicpTag(1, 13, 2, true))
-
-  @Test
-  fun `a HEIC tagged 2 unspecified at limited range lands where core reads it`() = heic(CicpTag(1, 13, 2, false))
-
-  @Test
-  fun `an AVIF tagged 4 FCC at full range lands where core reads it`() = avif(CicpTag(1, 13, 4, true))
-
-  @Test
-  fun `an AVIF tagged 4 FCC at limited range lands where core reads it`() = avif(CicpTag(1, 13, 4, false))
-
-  @Test
-  fun `a HEIC tagged 4 FCC at full range lands where core reads it`() = heic(CicpTag(1, 13, 4, true))
-
-  @Test
-  fun `a HEIC tagged 4 FCC at limited range lands where core reads it`() = heic(CicpTag(1, 13, 4, false))
-
-  @Test
-  fun `an AVIF tagged 5 BT470BG at full range lands where core reads it`() = avif(CicpTag(1, 13, 5, true))
-
-  @Test
-  fun `an AVIF tagged 5 BT470BG at limited range lands where core reads it`() = avif(CicpTag(1, 13, 5, false))
-
-  @Test
-  fun `a HEIC tagged 5 BT470BG at full range lands where core reads it`() = heic(CicpTag(1, 13, 5, true))
-
-  @Test
-  fun `a HEIC tagged 5 BT470BG at limited range lands where core reads it`() = heic(CicpTag(1, 13, 5, false))
-
-  @Test
-  fun `an AVIF tagged 6 BT601 at full range lands where core reads it`() = avif(CicpTag(1, 13, 6, true))
-
-  @Test
-  fun `an AVIF tagged 6 BT601 at limited range lands where core reads it`() = avif(CicpTag(1, 13, 6, false))
-
-  @Test
-  fun `a HEIC tagged 6 BT601 at full range lands where core reads it`() = heic(CicpTag(1, 13, 6, true))
-
-  @Test
-  fun `a HEIC tagged 6 BT601 at limited range lands where core reads it`() = heic(CicpTag(1, 13, 6, false))
-
-  @Test
-  fun `an AVIF tagged 7 SMPTE 240M at full range lands where core reads it`() = avif(CicpTag(1, 13, 7, true))
-
-  @Test
-  fun `an AVIF tagged 7 SMPTE 240M at limited range lands where core reads it`() = avif(CicpTag(1, 13, 7, false))
-
-  @Test
-  fun `a HEIC tagged 7 SMPTE 240M at full range lands where core reads it`() = heic(CicpTag(1, 13, 7, true))
-
-  @Test
-  fun `a HEIC tagged 7 SMPTE 240M at limited range lands where core reads it`() = heic(CicpTag(1, 13, 7, false))
-
-  @Test
-  fun `an AVIF tagged 8 YCgCo at full range lands where core reads it`() = avif(CicpTag(1, 13, 8, true))
-
-  @Test
-  fun `an AVIF tagged 8 YCgCo at limited range lands where core reads it`() = avif(CicpTag(1, 13, 8, false))
-
-  @Test
-  fun `a HEIC tagged 8 YCgCo at full range lands where core reads it`() = heic(CicpTag(1, 13, 8, true))
-
-  @Test
-  fun `a HEIC tagged 8 YCgCo at limited range lands where core reads it`() = heic(CicpTag(1, 13, 8, false))
-
-  @Test
-  fun `an AVIF tagged 9 BT2020 at full range lands where core reads it`() = avif(CicpTag(9, 13, 9, true))
-
-  @Test
-  fun `an AVIF tagged 9 BT2020 at limited range lands where core reads it`() = avif(CicpTag(9, 13, 9, false))
-
-  @Test
-  fun `a HEIC tagged 9 BT2020 at full range lands where core reads it`() = heic(CicpTag(9, 13, 9, true))
-
-  @Test
-  fun `a HEIC tagged 9 BT2020 at limited range lands where core reads it`() = heic(CicpTag(9, 13, 9, false))
-
-  @Test
-  fun `an AVIF tagged 10 BT2020 CL at full range lands where core reads it`() = avif(CicpTag(9, 1, 10, true))
-
-  @Test
-  fun `an AVIF tagged 10 BT2020 CL at limited range lands where core reads it`() = avif(CicpTag(9, 1, 10, false))
-
-  @Test
-  fun `a HEIC tagged 10 BT2020 CL at full range lands where core reads it`() = heic(CicpTag(9, 1, 10, true))
-
-  @Test
-  fun `a HEIC tagged 10 BT2020 CL at limited range lands where core reads it`() = heic(CicpTag(9, 1, 10, false))
-
-  @Test
-  fun `an AVIF tagged 12 on BT709 at full range lands where core reads it`() = avif(CicpTag(1, 13, 12, true))
-
-  @Test
-  fun `an AVIF tagged 12 on BT709 at limited range lands where core reads it`() = avif(CicpTag(1, 13, 12, false))
-
-  @Test
-  fun `a HEIC tagged 12 on BT709 at full range lands where core reads it`() = heic(CicpTag(1, 13, 12, true))
-
-  @Test
-  fun `a HEIC tagged 12 on BT709 at limited range lands where core reads it`() = heic(CicpTag(1, 13, 12, false))
-
-  @Test
-  fun `an AVIF tagged 12 on BT2020 at full range lands where core reads it`() = avif(CicpTag(9, 13, 12, true))
-
-  @Test
-  fun `an AVIF tagged 12 on BT2020 at limited range lands where core reads it`() = avif(CicpTag(9, 13, 12, false))
-
-  @Test
-  fun `a HEIC tagged 12 on BT2020 at full range lands where core reads it`() = heic(CicpTag(9, 13, 12, true))
-
-  @Test
-  fun `a HEIC tagged 12 on BT2020 at limited range lands where core reads it`() = heic(CicpTag(9, 13, 12, false))
-
-  @Test
-  fun `an AVIF tagged 12 on Display P3 at full range lands where core reads it`() = avif(CicpTag(12, 13, 12, true))
-
-  @Test
-  fun `an AVIF tagged 12 on Display P3 at limited range lands where core reads it`() = avif(CicpTag(12, 13, 12, false))
-
-  @Test
-  fun `a HEIC tagged 12 on Display P3 at full range lands where core reads it`() = heic(CicpTag(12, 13, 12, true))
-
-  @Test
-  fun `a HEIC tagged 12 on Display P3 at limited range lands where core reads it`() = heic(CicpTag(12, 13, 12, false))
-
-  @Test
-  fun `an AVIF tagged 13 on BT2020 at full range lands where core reads it`() = avif(CicpTag(9, 1, 13, true))
-
-  @Test
-  fun `an AVIF tagged 13 on BT2020 at limited range lands where core reads it`() = avif(CicpTag(9, 1, 13, false))
-
-  @Test
-  fun `a HEIC tagged 13 on BT2020 at full range lands where core reads it`() = heic(CicpTag(9, 1, 13, true))
-
-  @Test
-  fun `a HEIC tagged 13 on BT2020 at limited range lands where core reads it`() = heic(CicpTag(9, 1, 13, false))
-
-  @Test
-  fun `an AVIF tagged 13 on Display P3 at full range lands where core reads it`() = avif(CicpTag(12, 13, 13, true))
-
-  @Test
-  fun `an AVIF tagged 13 on Display P3 at limited range lands where core reads it`() = avif(CicpTag(12, 13, 13, false))
-
-  @Test
-  fun `a HEIC tagged 13 on Display P3 at full range lands where core reads it`() = heic(CicpTag(12, 13, 13, true))
-
-  @Test
-  fun `a HEIC tagged 13 on Display P3 at limited range lands where core reads it`() = heic(CicpTag(12, 13, 13, false))
-
-  // The eight-bit flat AVIF item, with the codestream whose range bit matches [nclx], and the twelve-bit AVIF.
-  private fun avif(nclx: CicpTag) {
-    val picture = if (nclx.fullRange) ColourPictures.NCLX_UNSPECIFIED else ColourPictures.NCLX_BT709_LIMITED
-    val item = picture.thumbnail()
-    val eightBit = HeifStills.still("avif", item.itemType, item.configuration, item.codestream, item.size, nclx = nclx)
-    assertLanded("AVIF $nclx", eightBit, FLAT_YCBCR, EIGHT_BITS)
-    val twelveBit = AvifColourPictures.twelveBit(nclx).bytes()
-    assertLanded("twelve-bit AVIF $nclx", twelveBit, AvifColourPictures.TWELVE_BIT_YCBCR, TWELVE_BITS)
+  fun `lands where core reads it`() {
+    if (case.container == MatrixContainer.Heic) assumeHeif()
+    case.stills().forEach(::assertLanded)
   }
 
-  // The eight-bit flat HEIC item, whose codestream signals no range or colour, and the twelve-bit HEIC.
-  private fun heic(nclx: CicpTag) {
-    assumeHeif()
-    val item = ColourPictures.HEIC_NCLX_BT709_FULL.thumbnail()
-    val eightBit = HeifStills.still("heic", item.itemType, item.configuration, item.codestream, item.size, nclx = nclx)
-    assertLanded("HEIC $nclx", eightBit, FLAT_YCBCR, EIGHT_BITS)
-    val twelveBit = HeicColourPictures.twelveBit(nclx)
-    assertLanded("twelve-bit HEIC $nclx", twelveBit, HeicColourPictures.TWELVE_BIT_YCBCR, TWELVE_BITS)
-  }
-
-  // [bytes] decoded and held at its centre against [ycbcrToRgb] of [ycbcr] through the coding core reads for it.
-  private fun assertLanded(
-    name: String,
-    bytes: ByteArray,
-    ycbcr: List<Int>,
-    bitDepth: Int,
-  ) {
-    val coding = assertNotNull(pictureYcbcrCoding(bytes), name)
+  // [still] decoded and held at its centre against [ycbcrToRgb] of its codes through the coding core reads for it.
+  private fun assertLanded(still: MatrixStill) {
+    val name = still.name
+    val bitDepth = still.bitDepth
+    val coding = assertNotNull(pictureYcbcrCoding(still.bytes), name)
     assertEquals(bitDepth, coding.bitDepth, name)
-    val (y, cb, cr) = ycbcr
+    val (y, cb, cr) = still.ycbcr
     val expected =
       ycbcrToRgb(y, cb, cr, coding.matrix, coding.primaries, coding.transfer, coding.fullRange, bitDepth).toList()
     val planes = pictureRoute(coding) is PictureRoute.Planes
@@ -243,7 +66,7 @@ class FfmpegPictureMatrixTest {
       } else {
         PICTURE_DRIFT
       }
-    val decoded = decoded(bytes)
+    val decoded = decoded(still.bytes)
     val wide = decoded.samples is StoredSamples.Rgba16
     assertEquals(bitDepth > EIGHT_BITS, wide, "$name decoded at the wrong depth")
     val landed = centreOf(decoded)
@@ -270,18 +93,167 @@ class FfmpegPictureMatrixTest {
     }
   }
 
-  private companion object {
-    val decoder = FfmpegPictureDecoder("ffmpeg")
+  /**
+   * The cases the matrix test runs, each run named for its container, tag and range, and the decoder every run reads
+   * through.
+   */
+  companion object {
+    @JvmStatic
+    @Parameterized.Parameters(name = "{0}")
+    internal fun cases(): List<MatrixCase> = MatrixCases.all
 
-    const val BT601 = 6
-    const val EIGHT_BITS = 8
-    const val TWELVE_BITS = 12
-    const val SIXTEEN_BIT_MAX = 0xFFFF
+    private val decoder = FfmpegPictureDecoder("ffmpeg")
+
+    private const val BT601 = 6
+    private const val SIXTEEN_BIT_MAX = 0xFFFF
 
     // An eight-bit code at sixteen bits.
-    const val WIDE_PER_CODE = 257.0
-
-    // The codes every sample of the eight-bit AVIF and HEIC items decodes to.
-    val FLAT_YCBCR = ColourPictures.NCLX_UNSPECIFIED.ycbcr
+    private const val WIDE_PER_CODE = 257.0
   }
 }
+
+// A tag for every matrix coefficients code point core lands but identity, on the primaries and transfer it is read
+// beside. Each is at full range, and a case that reads one at limited range retags it.
+internal object MatrixTags {
+  val BT709 = CicpTag(1, 13, 1, true)
+  val UNSPECIFIED = CicpTag(1, 13, 2, true)
+  val FCC = CicpTag(1, 13, 4, true)
+  val BT470BG = CicpTag(1, 13, 5, true)
+  val BT601 = CicpTag(1, 13, 6, true)
+  val SMPTE_240M = CicpTag(1, 13, 7, true)
+  val YCGCO = CicpTag(1, 13, 8, true)
+  val BT2020 = CicpTag(9, 13, 9, true)
+  val BT2020_CL = CicpTag(9, 1, 10, true)
+  val DERIVED_ON_BT709 = CicpTag(1, 13, 12, true)
+  val DERIVED_ON_BT2020 = CicpTag(9, 13, 12, true)
+  val DERIVED_ON_P3 = CicpTag(12, 13, 12, true)
+  val DERIVED_CL_ON_BT2020 = CicpTag(9, 1, 13, true)
+  val DERIVED_CL_ON_P3 = CicpTag(12, 13, 13, true)
+}
+
+// The container a matrix case wraps its still in.
+internal enum class MatrixContainer(
+  val label: String,
+) {
+  Avif("AVIF"),
+  Heic("HEIC"),
+}
+
+// The eight- and twelve-bit stills of [tag] in [container] at [fullRange], one run of the matrix test.
+internal data class MatrixCase(
+  val container: MatrixContainer,
+  val tag: CicpTag,
+  val fullRange: Boolean,
+) {
+  fun stills(): List<MatrixStill> =
+    when (container) {
+      MatrixContainer.Avif -> avifStills(tag, fullRange)
+      MatrixContainer.Heic -> heicStills(tag, fullRange)
+    }
+
+  override fun toString(): String {
+    val range = if (fullRange) "full" else "limited"
+    return "${container.label} tagged ${tag.primaries}/${tag.transfer}/${tag.matrix} at $range range"
+  }
+}
+
+// Every case the matrix test runs. Each tag is read from an AVIF at full range. One tag for each route is read from a
+// HEIC at both ranges. One tag for each route, and one for each matrix read from its planes, is read from an AVIF at
+// limited range.
+internal object MatrixCases {
+  val all =
+    listOf(
+      avif(MatrixTags.BT709),
+      avif(MatrixTags.BT709, fullRange = false),
+      heic(MatrixTags.BT709),
+      heic(MatrixTags.BT709, fullRange = false),
+      avif(MatrixTags.UNSPECIFIED),
+      avif(MatrixTags.FCC),
+      avif(MatrixTags.BT470BG),
+      avif(MatrixTags.BT601),
+      avif(MatrixTags.SMPTE_240M),
+      avif(MatrixTags.YCGCO),
+      avif(MatrixTags.YCGCO, fullRange = false),
+      heic(MatrixTags.YCGCO),
+      heic(MatrixTags.YCGCO, fullRange = false),
+      avif(MatrixTags.BT2020),
+      avif(MatrixTags.BT2020_CL),
+      avif(MatrixTags.BT2020_CL, fullRange = false),
+      heic(MatrixTags.BT2020_CL),
+      heic(MatrixTags.BT2020_CL, fullRange = false),
+      avif(MatrixTags.DERIVED_ON_BT709),
+      avif(MatrixTags.DERIVED_ON_BT2020),
+      avif(MatrixTags.DERIVED_ON_P3),
+      avif(MatrixTags.DERIVED_ON_P3, fullRange = false),
+      heic(MatrixTags.DERIVED_ON_P3),
+      heic(MatrixTags.DERIVED_ON_P3, fullRange = false),
+      avif(MatrixTags.DERIVED_CL_ON_BT2020),
+      avif(MatrixTags.DERIVED_CL_ON_P3),
+      avif(MatrixTags.DERIVED_CL_ON_P3, fullRange = false),
+    )
+
+  private fun avif(
+    tag: CicpTag,
+    fullRange: Boolean = true,
+  ) = MatrixCase(MatrixContainer.Avif, tag, fullRange)
+
+  private fun heic(
+    tag: CicpTag,
+    fullRange: Boolean = true,
+  ) = MatrixCase(MatrixContainer.Heic, tag, fullRange)
+}
+
+// A still the matrix tests read, with the codes the sample at its centre holds and the depth they are stored at.
+internal class MatrixStill(
+  val name: String,
+  val bytes: ByteArray,
+  val ycbcr: List<Int>,
+  val bitDepth: Int,
+)
+
+// The eight-bit flat AVIF item tagged [tag] at [fullRange], with the codestream whose range bit matches, and the
+// twelve-bit AVIF.
+internal fun avifStills(
+  tag: CicpTag,
+  fullRange: Boolean,
+): List<MatrixStill> {
+  val nclx = CicpTag(tag.primaries, tag.transfer, tag.matrix, fullRange)
+  val picture = if (nclx.fullRange) ColourPictures.NCLX_UNSPECIFIED else ColourPictures.NCLX_BT709_LIMITED
+  val item = picture.thumbnail()
+  val eightBit = HeifStills.still("avif", item.itemType, item.configuration, item.codestream, item.size, nclx = nclx)
+  return listOf(
+    MatrixStill("AVIF $nclx", eightBit, FLAT_YCBCR, EIGHT_BITS),
+    MatrixStill(
+      "twelve-bit AVIF $nclx",
+      AvifColourPictures.twelveBit(nclx).bytes(),
+      AvifColourPictures.TWELVE_BIT_YCBCR,
+      TWELVE_BITS,
+    ),
+  )
+}
+
+// The eight-bit flat HEIC item tagged [tag] at [fullRange], whose codestream signals no range or colour, and the
+// twelve-bit HEIC.
+internal fun heicStills(
+  tag: CicpTag,
+  fullRange: Boolean,
+): List<MatrixStill> {
+  val nclx = CicpTag(tag.primaries, tag.transfer, tag.matrix, fullRange)
+  val item = ColourPictures.HEIC_NCLX_BT709_FULL.thumbnail()
+  val eightBit = HeifStills.still("heic", item.itemType, item.configuration, item.codestream, item.size, nclx = nclx)
+  return listOf(
+    MatrixStill("HEIC $nclx", eightBit, FLAT_YCBCR, EIGHT_BITS),
+    MatrixStill(
+      "twelve-bit HEIC $nclx",
+      HeicColourPictures.twelveBit(nclx),
+      HeicColourPictures.TWELVE_BIT_YCBCR,
+      TWELVE_BITS,
+    ),
+  )
+}
+
+// The codes every sample of the eight-bit AVIF and HEIC items decodes to.
+private val FLAT_YCBCR = ColourPictures.NCLX_UNSPECIFIED.ycbcr
+
+private const val EIGHT_BITS = 8
+private const val TWELVE_BITS = 12

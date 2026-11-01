@@ -416,6 +416,32 @@ public object ColourPictures {
    */
   public val CODESTREAM_COLOUR_HEICS: List<HeicPicture> = listOf(HEIC_CODESTREAM_BT709_LIMITED)
 
+  /**
+   * A HEIC painted like [HEIC_NCLX_BT709_FULL] whose `colr nclx` names Display P3's primaries 12 beside the BT.709
+   * matrix 1 and the sRGB transfer 13 at full range.
+   */
+  public val HEIC_NCLX_DISPLAY_P3_PRIMARIES_BT709_MATRIX: HeicPicture =
+    heic("HEIC nclx Display P3 primaries, BT.709 matrix", CicpTag(12, 13, 1, true))
+
+  /**
+   * The AVIF and HEIC stills a backend's export tests draw, each taking its own path above the platform decoder.
+   *
+   * [HEIC_NCLX_BT709_FULL] is a plain `nclx` HEIC and also stands for its grid, [NCLX_DISPLAY_P3] a wide-gamut `nclx`
+   * AVIF and [HEIC_PROFILE_DISPLAY_P3] a HEIC described by its ICC profile.
+   */
+  public val EXPORT_REPRESENTATIVES: List<HeifPicture> =
+    listOf(HEIC_NCLX_BT709_FULL, NCLX_DISPLAY_P3, HEIC_PROFILE_DISPLAY_P3)
+
+  /**
+   * The AVIF and HEIC stills a backend's raster tests draw, one for each path a still takes above the platform
+   * decoder.
+   *
+   * It holds every still in [EXPORT_REPRESENTATIVES], then [HEIC_NCLX_LIMITED_VUI_FULL], a HEIC whose `nclx` and
+   * codestream disagree on range, and [HEIC_NCLX_DISPLAY_P3_PRIMARIES_BT709_MATRIX], a wide-gamut `nclx` HEIC.
+   */
+  public val RASTER_REPRESENTATIVES: List<HeifPicture> =
+    EXPORT_REPRESENTATIVES + HEIC_NCLX_LIMITED_VUI_FULL + HEIC_NCLX_DISPLAY_P3_PRIMARIES_BT709_MATRIX
+
   private fun png(
     name: String,
     colour: PngColour,

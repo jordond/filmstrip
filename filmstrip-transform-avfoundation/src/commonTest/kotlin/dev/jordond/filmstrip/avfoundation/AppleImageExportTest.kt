@@ -18,7 +18,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.test.Test
 import kotlin.test.assertIs
@@ -35,12 +34,10 @@ import kotlin.time.Duration.Companion.seconds
  * handler draws the photo over it. The photo is a flat colour, which is what tells a frame drawn
  * from it apart from a frame drawn from a generated video fixture wherever it is sampled.
  *
- * Skipped where a case needs a video fixture and the build had no host ffmpeg to make one.
+ * A case that reads a video fixture fails when it is missing, as in [AppleExportTest].
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleImageExportTest {
-  private val fixtures = NSProcessInfo.processInfo.environment[FIXTURES] as? String
-
   private val filmstrip = Filmstrip { avFoundationBackend() }
 
   // The case that fails outright without a segment of its own: a composition of nothing but empty
@@ -77,7 +74,7 @@ class AppleImageExportTest {
   @Test
   fun `keeps a photo's time when it is last in the sequence`() =
     runTest(timeout = TIMEOUT) {
-      val clip = fixture("apple_export_a.mp4") ?: return@runTest
+      val clip = fixture("apple_export_a.mp4")
       val output = temporaryPath("image-last")
 
       val success = exported(composition(videoClip(clip), photoClip(PHOTO)), ExportSpec(), output)
@@ -102,8 +99,8 @@ class AppleImageExportTest {
   @Test
   fun `puts the photo in the middle of its own span between two clips`() =
     runTest(timeout = TIMEOUT) {
-      val first = fixture("apple_export_a.mp4") ?: return@runTest
-      val second = fixture("apple_export_b.mp4") ?: return@runTest
+      val first = fixture("apple_export_a.mp4")
+      val second = fixture("apple_export_b.mp4")
       val output = temporaryPath("video-photo-video")
 
       val edit = composition(videoClip(first), photoClip(PHOTO), videoClip(second))
@@ -179,7 +176,7 @@ class AppleImageExportTest {
   @Test
   fun `never transmuxes a composition carrying a still`() =
     runTest(timeout = TIMEOUT) {
-      val clip = fixture("apple_export_a.mp4") ?: return@runTest
+      val clip = fixture("apple_export_a.mp4")
 
       val alone = plan(compositionOf { clip(MediaSource.of(clip)) })
       alone.path shouldBe ExportPath.Transmux
@@ -230,12 +227,6 @@ class AppleImageExportTest {
    */
   private fun photoFile(): String = photoFixture("filmstrip-apple-photo", PHOTO_SIZE, PHOTO_COLOR)
 
-  private fun fixture(name: String): String? {
-    val directory = fixtures ?: return null
-    val path = "$directory/$name"
-    return path.takeIf { NSFileManager.defaultManager.fileExistsAtPath(it) }
-  }
-
   private fun temporaryPath(name: String): String = NSTemporaryDirectory() + "filmstrip-apple-$name.mp4"
 
   private fun remove(path: String) {
@@ -256,7 +247,6 @@ class AppleImageExportTest {
     assertTrue((this - expected).absoluteValue <= DURATION_TOLERANCE, "expected about $expected, got $this")
 
   private companion object {
-    const val FIXTURES = "FILMSTRIP_FIXTURES"
     val TIMEOUT = 2.seconds * 60
 
     // What each video fixture is trimmed to, and how long the photo is held.

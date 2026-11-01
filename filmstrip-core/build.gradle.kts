@@ -1,10 +1,12 @@
 import dev.jordond.filmstrip.convention.androidDeviceTests
+import dev.jordond.filmstrip.convention.pureTests
 
 plugins {
   id("filmstrip.library")
 }
 
 androidDeviceTests()
+pureTests()
 
 // The action body is inlined rather than calling a function declared in this script, since a
 // reference to the script object is one of the things the configuration cache cannot serialize.

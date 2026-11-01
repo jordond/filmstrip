@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.internal
 
 import dev.jordond.filmstrip.media.Icc
 import dev.jordond.filmstrip.media.PictureColour
+import dev.jordond.filmstrip.media.TestIccProfiles
 
 // Builders for the colour descriptions besides ICC that PNG and HEIF carry, and for the stored channel counts each
 // container records.
@@ -134,3 +135,24 @@ internal fun photometric(value: Int) = Triple(262, 3, value)
  * A description reduced to something equality reads, a profile's bytes as a list and any other description as it is.
  */
 internal fun PictureColour?.summary(): Any? = if (this is Icc) profile.toList() else this
+
+/**
+ * Containers carrying `cICP`, `sRGB`, `gAMA`, `cHRM`, `nclx`, `pixi`, `av1C`, `hvcC`, frame headers and samples per
+ * pixel, one or more of each, for tests that cut or corrupt them.
+ */
+internal val EMBEDDED_COLOUR_CONTAINERS: List<ByteArray> by lazy {
+  val p3 = TestIccProfiles.displayP3
+  listOf(
+    png(cicpChunk(12, 13), iccpChunk(p3)),
+    png(gamaChunk(50000), chrmChunk(P3_CHRM)),
+    png(badCrc(srgbChunk()), gamaChunk(70000), colourType = 0),
+    png(iccpChunk(TestIccProfiles.grey22), colourType = 4),
+    heifItems(listOf(nclx(12, 13), pixi(3))),
+    heifItems(listOf(colr("prof", p3), av1c(monochrome = false)), tile = listOf(nclx(9, 8))),
+    heifItems(emptyList(), tile = listOf(nclx(9, 1), hvcc(chromaFormat = 1))),
+    jpegSegments(app2(1, 2, p3.copyOfRange(0, 100)), app2(2, 2, p3.copyOfRange(100, p3.size)), components = 3),
+    tiffWith(p3, samplesPerPixel(4), extraSamples()),
+    tiffWith(p3, samplesPerPixel(4), extraSamples(), little = false),
+    tiffWith(p3, samplesPerPixel(3, type = 4), little = false, big = true),
+  )
+}

@@ -24,14 +24,12 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.PQ_PEAK_NITS
 import dev.jordond.filmstrip.media.hlgDisplayNitsFromScene
 import dev.jordond.filmstrip.media.hlgSceneFromDisplayNits
-import dev.jordond.filmstrip.test.encodesHdr
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSProcessInfo
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertIs
@@ -46,12 +44,10 @@ import kotlin.time.Duration.Companion.minutes
  * it back. The figure under test comes from [transformNits], the reading every backend is held to,
  * rather than from a measurement taken once.
  *
- * Skipped when the fixtures are absent, as in [AppleHdrTest].
+ * A case fails when its fixture is missing, as in [AppleExportTest].
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleHdrColorGradeTest {
-  private val fixtures = NSProcessInfo.processInfo.environment[FIXTURES] as? String
-
   private val filmstrip = Filmstrip { avFoundationBackend() }
 
   // The bias arm. A contrast pivots on mid grey, and where mid grey sits in light is the one thing
@@ -60,9 +56,7 @@ class AppleHdrColorGradeTest {
   @Test
   fun `a contrast on a PQ grade pivots where the shared reading says`() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
-      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
-
+      val source = hdrFixture(HdrTransfer.Pq)
       val lit = exportedLight(source) { contrast(1f) }
       val graded = exportedLight(source) { contrast(SOFTER) }
       val matrix = matrixOf(Contrast(SOFTER))
@@ -78,9 +72,7 @@ class AppleHdrColorGradeTest {
   @Test
   fun `a saturation on a PQ grade mixes what the shared reading says`() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
-      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
-
+      val source = hdrFixture(HdrTransfer.Pq)
       val lit = exportedLight(source) { saturation(1f) }
       val graded = exportedLight(source) { saturation(MUTED) }
       val matrix = matrixOf(Saturation(MUTED))
@@ -95,9 +87,7 @@ class AppleHdrColorGradeTest {
   @Test
   fun `an HLG grade lands where the shared reading says`() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(HdrTransfer.Hlg) ?: return@runTest
-      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
-
+      val source = hdrFixture(HdrTransfer.Hlg)
       val lit = exportedLight(source) { contrast(1f) }
       val graded = exportedLight(source) { contrast(SOFTER).saturation(MUTED) }
       val matrix = matrixOf(Contrast(SOFTER), Saturation(MUTED))
@@ -112,9 +102,7 @@ class AppleHdrColorGradeTest {
   @Test
   fun `a channel pushed past the peak lands on the format's ceiling`() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
-      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
-
+      val source = hdrFixture(HdrTransfer.Pq)
       val lit = exportedLight(source) { contrast(1f) }
       val graded = exportedLight(source) { contrast(HARSH) }
       val expected = matrixOf(Contrast(HARSH)).transformNits(lit[0], lit[1], lit[2], HdrTransfer.Pq)
@@ -190,7 +178,7 @@ class AppleHdrColorGradeTest {
       val miss = channels.maxOf { abs(wrong[it] - expected[it]) / expected[it] }
       assertTrue(
         miss > 2 * drift,
-        "the matrix run on $domain lands $miss off on ${clipOf(transfer)}, inside twice the $drift bound",
+        "the matrix run on $domain lands $miss off on ${hdrFixtureName(transfer)}, inside twice the $drift bound",
       )
     }
 
@@ -239,24 +227,9 @@ class AppleHdrColorGradeTest {
       folded.then(checkNotNull(colorMatrixOf(spec)) { "${spec.id} is not a colour matrix" })
     }
 
-  private fun fixture(transfer: HdrTransfer = HdrTransfer.Pq): String? {
-    val directory = fixtures ?: return null
-    val path = "$directory/${clipOf(transfer)}"
-    return path.takeIf { NSFileManager.defaultManager.fileExistsAtPath(it) }
-  }
-
-  private fun clipOf(transfer: HdrTransfer): String =
-    when (transfer) {
-      HdrTransfer.Pq -> CLIP
-      HdrTransfer.Hlg -> HLG_CLIP
-    }
-
   private companion object {
     val TIMEOUT = 5.minutes
 
-    const val FIXTURES = "FILMSTRIP_FIXTURES"
-    const val CLIP = "apple_export_hdr.mp4"
-    const val HLG_CLIP = "apple_export_hdr_hlg.mp4"
     const val CENTRE = 0.5f
     const val SOFTER = 0.7f
     const val HARSH = 2f

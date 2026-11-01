@@ -8,19 +8,18 @@ import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.media.HLG_NOMINAL_PEAK_NITS
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.PQ_PEAK_NITS
 import dev.jordond.filmstrip.media.brightnessDisplayGain
 import dev.jordond.filmstrip.media.hlgDisplayNitsFromScene
-import dev.jordond.filmstrip.test.encodesHdr
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSProcessInfo
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertIs
@@ -34,12 +33,10 @@ import kotlin.time.Duration.Companion.minutes
  * ratio the effect moved that light by. It comes from [brightnessDisplayGain] rather than from a
  * measurement taken once, which is what keeps this backend and the other three on one answer.
  *
- * Skipped when the fixtures are absent, as in [AppleHdrTest].
+ * A case fails when its fixture is missing, as in [AppleExportTest].
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleHdrBrightnessTest {
-  private val fixtures = NSProcessInfo.processInfo.environment[FIXTURES] as? String
-
   private val filmstrip = Filmstrip { avFoundationBackend() }
 
   // The wrong readings each bound below has to catch, from the shared gains alone, so this runs without a fixture or
@@ -61,9 +58,7 @@ class AppleHdrBrightnessTest {
   @Test
   fun `a factor moves light by the display gamma rather than linearly`() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
-      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
-
+      val source = hdrFixture(HdrTransfer.Pq)
       assertDimmed(source, PQ_DIMMING_DRIFT)
     }
 
@@ -72,9 +67,7 @@ class AppleHdrBrightnessTest {
   @Test
   fun `an HLG grade moves by the same gain a PQ one does`() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture(HLG_CLIP) ?: return@runTest
-      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
-
+      val source = hdrFixture(HdrTransfer.Hlg)
       assertDimmed(source, HLG_DIMMING_DRIFT)
     }
 
@@ -84,15 +77,16 @@ class AppleHdrBrightnessTest {
   @Test
   fun `brightening a kept grade adds light until the format runs out`() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
-      if (!withContext(Dispatchers.Default) { filmstrip.encodesHdr() }) return@runTest
-
+      val source = hdrFixture(HdrTransfer.Pq)
       val lit = exportedLight(source, 1f)
       val brightened = exportedLight(source, BRIGHTER)
       val gain = brightnessDisplayGain(BRIGHTER)
       val ceiling = PQ_PEAK_NITS * HEADROOM
       val (clipped, carried) = lit.indices.filter { lit[it] >= FLOOR_NITS }.partition { lit[it] * gain > ceiling }
-      assertTrue(carried.isNotEmpty(), "every channel of $lit runs past the ceiling at $BRIGHTER, so no gain was read")
+      assertTrue(
+        carried.isNotEmpty(),
+        "every channel of $lit runs past the ceiling at $BRIGHTER, so no gain was read",
+      )
       assertTrue(clipped.isNotEmpty(), "no channel of $lit reaches the ceiling at $BRIGHTER, so no clip was read")
 
       carried.forEach { channel ->
@@ -201,18 +195,9 @@ class AppleHdrBrightnessTest {
     }
   }
 
-  private fun fixture(clip: String = CLIP): String? {
-    val directory = fixtures ?: return null
-    val path = "$directory/$clip"
-    return path.takeIf { NSFileManager.defaultManager.fileExistsAtPath(it) }
-  }
-
   private companion object {
     val TIMEOUT = 5.minutes
 
-    const val FIXTURES = "FILMSTRIP_FIXTURES"
-    const val CLIP = "apple_export_hdr.mp4"
-    const val HLG_CLIP = "apple_export_hdr_hlg.mp4"
     const val CENTRE = 0.5f
     const val HALF = 0.5f
     const val QUARTER = 0.25f

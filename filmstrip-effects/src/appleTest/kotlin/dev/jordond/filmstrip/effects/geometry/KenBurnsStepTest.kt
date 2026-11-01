@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.effect.FrameInfo
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.effects.renderingContext
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
@@ -47,7 +48,7 @@ class KenBurnsStepTest {
 
   @Test
   fun `cuts out the region the shared interpolation names`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     listOf(0.0, 0.4, 0.5, 0.6, 1.0).forEach { fraction -> assertRegion(PAN, fraction, context) }
   }
@@ -61,7 +62,7 @@ class KenBurnsStepTest {
    */
   @Test
   fun `paces the region along the curve it was given`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     CURVES.forEach { easing ->
       val pan = KenBurns(CURVED_FROM, CURVED_TO, easing)
@@ -124,16 +125,6 @@ class KenBurnsStepTest {
 
   private fun stepFor(spec: KenBurns) =
     assertIs<EffectResolution.Resolved>(resolver.resolve(spec, CAPABILITIES, ATTRIBUTES)).effect.step
-
-  /**
-   * A context to read pixels through, or null when this process cannot build one.
-   */
-  private fun renderingContext(): CIContext? =
-    try {
-      CIContext()
-    } catch (absent: NullPointerException) {
-      null
-    }
 
   private fun frame(): CIImage {
     val whole = CGRectMake(0.0, 0.0, FRAME.width.toDouble(), FRAME.height.toDouble())

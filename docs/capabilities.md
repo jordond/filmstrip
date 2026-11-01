@@ -146,7 +146,9 @@ it recognises, and declines the rest so the next resolver gets a look.
     after that, so a preview and its export break lines on the same words. A device that reports no
     `RenderFeature.TextRendering` refuses by name, and so does text and a style that leave nothing to
     draw. A plate's margin is a share of the cap height on every backend, so a plate on Android comes
-    out smaller than it did when its margin was a share of the font size.
+    out smaller than it did when its margin was a share of the font size. Apple stores the text
+    raster at sixteen bits a component, so a translucent plate and the soft edges of its glyphs keep
+    their straight colour on an HDR frame.
 
 [^web-image]:
     The image is decoded before planning, so one the browser cannot decode is refused by
@@ -354,7 +356,8 @@ by a few codes is listed here with its size and is not reported.
 | Android | The HEIC decoder hands back no frame for a twelve-bit HEIC, measured on API 30, 31 and 33 to 36                                                                          | Unsupported                                                                                                          |
 | Android | API 24 and 25 have no half float bitmap, so a sixteen-bit PNG is cut to eight bits                                                                                        | `Degraded`, `PrecisionReduced`                                                                                       |
 | Android | A sixteen-bit picture decoded into a colour space other than extended sRGB or its linear form                                                                            | Unsupported                                                                                                          |
-| Apple   | ImageIO turns a HEIF's YCbCr into whole codes at the depth it decodes to, eight bits for an eight-bit picture, ten for ten-bit and sixteen for twelve-bit, with full range chroma read over 254 codes rather than 255 | On macOS an eight-bit sample sits up to 1.38 codes from its H.273 reading on the HEIC fixtures                      |
+| Apple   | ImageIO turns a HEIF's YCbCr into whole codes at the depth it decodes to, eight bits for an eight-bit picture, ten for ten-bit and sixteen for twelve-bit | On macOS an eight-bit sample sits up to 1.39 codes from its H.273 reading on the HEIC fixtures, ImageIO's own drift |
+| Apple   | An AVIF decode, and a HEIC decode on the iOS simulator, reads full range chroma over the 254 codes CoreVideo spans rather than 255 | Up to a third of an eight-bit code from its H.273 reading on the fixtures, and most of a code at the chroma extremes |
 | Apple   | The matrices ImageIO reads, in the table above                                                                                                                           | `Degraded`, `ColorSpaceConverted`, through the nearest matrix, or unsupported past the bound                        |
 | Apple   | ImageIO hands out no samples for a twelve-bit HEIC at limited range or a grey HEIC with alpha                                                                            | Unsupported                                                                                                          |
 | Apple   | The iOS simulator decodes a limited range AVIF or HEIC by moving each code to full range, rounded down                                                                   | On the simulator only                                                                                                |
@@ -495,6 +498,9 @@ What each backend encodes.
 encoder for falls back to the next rung and reports a `CodecFallback`, or refuses under
 `ExportSpec.strict`. `VideoCodec.Auto` walks H.264 then HEVC on Android, Apple and ffmpeg, and
 H.264, VP9 then HEVC in the browser.
+
+Below iOS 17.4 and on the iOS simulator an Apple `VideoEncoderCapability.isHardwareAccelerated` is
+null, since VideoToolbox does not say there whether an encoder is hardware.
 
 An Android encoder can write another matrix than it is asked for. Android's own software H.264 and
 HEVC encoders were measured writing BT.601 at limited range when asked for SDR BT.709 at limited

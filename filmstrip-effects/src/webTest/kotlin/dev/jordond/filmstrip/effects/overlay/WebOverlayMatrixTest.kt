@@ -105,19 +105,27 @@ class WebOverlayMatrixTest {
     }
 
   @Test
-  fun chromeDecodesLimitedRangeBt709AndBt2020OffCoresReadingByItsOwnDrift() =
+  fun chromeDecodesLimitedRangeBt709AndBt2020WithinItsOwnDrift() =
     runTest {
-      var worst = 0
-      for (picture in PICTURES) {
-        for (tag in listOf(BT709 to BT709, BT709 to BT2020, BT709 to DERIVED, BT2020 to DERIVED)) {
-          val case = Case(picture, CicpTag(tag.first, SRGB_TRANSFER, tag.second, fullRange = false))
-          worst = maxOf(worst, chromeMiss(case, drawnOverlay(case, resolve(case.bytes())), tag.second))
-        }
-      }
+      val worst = limitedRangeDrift()
 
-      assertTrue(worst > CHROME_ROUNDING, "Chrome's limited range drift fell to $worst")
       assertTrue(worst <= CHROME_LIMITED_RANGE_DRIFT, "Chrome's limited range drift grew to $worst")
     }
+
+  /**
+   * The furthest Chrome's own decode of a limited range picture under BT.709, BT.2020 or a matrix derived from either
+   * sits from core's reading, in eight-bit codes, over every picture depth and layout.
+   */
+  internal suspend fun limitedRangeDrift(): Int {
+    var worst = 0
+    for (picture in PICTURES) {
+      for (tag in listOf(BT709 to BT709, BT709 to BT2020, BT709 to DERIVED, BT2020 to DERIVED)) {
+        val case = Case(picture, CicpTag(tag.first, SRGB_TRANSFER, tag.second, fullRange = false))
+        worst = maxOf(worst, chromeMiss(case, drawnOverlay(case, resolve(case.bytes())), tag.second))
+      }
+    }
+    return worst
+  }
 
   @Test
   fun aTenBit444ConstantLuminancePictureTakesTheNearestMatrixSinceACanvasReadsEightBits() =
@@ -330,7 +338,7 @@ class WebOverlayMatrixTest {
     override fun toString(): String = "$picture nclx $nclx"
   }
 
-  private companion object {
+  internal companion object {
     const val SRGB_TRANSFER = 13
     const val BT709 = 1
     const val BT601 = 6

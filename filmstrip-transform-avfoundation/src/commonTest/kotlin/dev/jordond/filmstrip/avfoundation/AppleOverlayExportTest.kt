@@ -39,7 +39,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -48,7 +47,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import kotlin.test.fail
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -66,8 +64,6 @@ import kotlin.time.Duration.Companion.seconds
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleOverlayExportTest {
-  private val fixtures = NSProcessInfo.processInfo.environment[FIXTURES] as? String
-
   private val filmstrip = Filmstrip { avFoundationBackend() }
 
   // The fill lands in the buffer as its own codes, so this is how the probe reads it back.
@@ -76,7 +72,7 @@ class AppleOverlayExportTest {
   @Test
   fun `burns a watermark into every corner`() =
     runTest(timeout = TIMEOUT) {
-      val landscape = fixture() ?: return@runTest
+      val landscape = fixture(LANDSCAPE)
 
       Corner.entries.forEach { corner ->
         val composition =
@@ -95,7 +91,7 @@ class AppleOverlayExportTest {
   @Test
   fun `burns text into the frame`() =
     runTest(timeout = TIMEOUT) {
-      val landscape = fixture() ?: return@runTest
+      val landscape = fixture(LANDSCAPE)
 
       val composition =
         compositionOf {
@@ -113,7 +109,7 @@ class AppleOverlayExportTest {
   @Test
   fun `dims the whole frame`() =
     runTest(timeout = TIMEOUT) {
-      val landscape = fixture() ?: return@runTest
+      val landscape = fixture(LANDSCAPE)
 
       val composition =
         compositionOf {
@@ -132,7 +128,7 @@ class AppleOverlayExportTest {
   @Test
   fun `exports a watermark that appears for part of the composition`() =
     runTest(timeout = TIMEOUT) {
-      val landscape = fixture() ?: return@runTest
+      val landscape = fixture(LANDSCAPE)
 
       val composition =
         compositionOf {
@@ -160,7 +156,7 @@ class AppleOverlayExportTest {
   @Test
   fun `burns a fade into the middle of its ramp`() =
     runTest(timeout = TIMEOUT) {
-      val landscape = fixture() ?: return@runTest
+      val landscape = fixture(LANDSCAPE)
 
       val faded = watermark(fadeIn(RAMP))
       val bare = exportOf(landscape, null, "fade-bare")
@@ -182,7 +178,7 @@ class AppleOverlayExportTest {
   @Test
   fun `refuses a watermark whose image cannot be read`() =
     runTest(timeout = TIMEOUT) {
-      val landscape = fixture() ?: return@runTest
+      val landscape = fixture(LANDSCAPE)
 
       val composition =
         compositionOf {
@@ -200,7 +196,7 @@ class AppleOverlayExportTest {
   @Test
   fun `draws a composition overlay over a solid bar`() =
     runTest(timeout = TIMEOUT) {
-      val portrait = fixture(PORTRAIT) ?: return@runTest
+      val portrait = fixture(PORTRAIT)
       val badge = ImageOverlay(ImageSource.ofBytes(RED_PNG), Corner.TopStart)
 
       val box = letterboxed(portrait, "bar-overlay", overlay = badge)
@@ -221,14 +217,14 @@ class AppleOverlayExportTest {
   @Test
   fun `blends a half opaque composition overlay with the bar under it`() =
     runTest(timeout = TIMEOUT) {
-      val portrait = fixture(PORTRAIT) ?: return@runTest
+      val portrait = fixture(PORTRAIT)
       assertBlendsWithTheBar(portrait, HALF, "bar-overlay-half")
     }
 
   @Test
   fun `blends a quarter opaque composition overlay with the bar under it`() =
     runTest(timeout = TIMEOUT) {
-      val portrait = fixture(PORTRAIT) ?: return@runTest
+      val portrait = fixture(PORTRAIT)
       assertBlendsWithTheBar(portrait, QUARTER, "bar-overlay-quarter")
     }
 
@@ -245,12 +241,11 @@ class AppleOverlayExportTest {
       assertDrawsOverTheGap(cropped = false, "gap-overlay-uncropped")
     }
 
-  // The gap cases need the portrait fixture, so a missing one fails them rather than passing them.
   private suspend fun assertDrawsOverTheGap(
     cropped: Boolean,
     name: String,
   ) {
-    val portrait = requiredFixture(PORTRAIT)
+    val portrait = fixture(PORTRAIT)
     val badge = ImageOverlay(ImageSource.ofBytes(RED_PNG), Corner.TopStart)
 
     val box = letterboxed(portrait, name, overlay = badge, start = GAP, cropped = cropped)
@@ -267,7 +262,7 @@ class AppleOverlayExportTest {
   @Test
   fun `cuts a clip overlay pushed off its clip at the clip's edge`() =
     runTest(timeout = TIMEOUT) {
-      val portrait = fixture(PORTRAIT) ?: return@runTest
+      val portrait = fixture(PORTRAIT)
       val source = frameOf(portrait)
       val clipFrame = Size(source.width, source.height)
       val authored = ImageOverlay(ImageSource.ofBytes(RED_PNG), Corner.TopStart, scale = CLIP_BADGE_SCALE)
@@ -460,15 +455,6 @@ class AppleOverlayExportTest {
       }
     }
 
-  private fun fixture(name: String = LANDSCAPE): String? {
-    val directory = fixtures ?: return null
-    val path = "$directory/$name"
-    return path.takeIf { NSFileManager.defaultManager.fileExistsAtPath(it) }
-  }
-
-  private fun requiredFixture(name: String): String =
-    fixture(name) ?: fail("$name is not in $FIXTURES, which the Gradle test task builds and points at")
-
   private fun temporaryPath(name: String): String = NSTemporaryDirectory() + "filmstrip-apple-$name.mp4"
 
   private fun remove(path: String) {
@@ -476,7 +462,6 @@ class AppleOverlayExportTest {
   }
 
   private companion object {
-    const val FIXTURES = "FILMSTRIP_FIXTURES"
     const val LANDSCAPE = "apple_export_a.mp4"
     const val PORTRAIT = "apple_export_portrait.mp4"
     const val BLACK = 0xFF000000.toInt()

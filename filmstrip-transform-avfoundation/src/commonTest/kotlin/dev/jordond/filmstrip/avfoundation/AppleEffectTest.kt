@@ -29,7 +29,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.math.abs
 import kotlin.test.Test
@@ -55,19 +54,16 @@ import kotlin.time.Duration.Companion.seconds
  * predicted. Every colour the generated pattern draws is either a saturated primary or a hard edge
  * between two of them, and the middle of a range is exactly what neither of those reports on.
  *
- * Skipped when the fixtures are absent, as in [AppleExportTest]. The colour cases carry their own
- * clip and always run.
+ * A geometry case fails when its fixture is missing, as in [AppleExportTest]. The colour cases carry their own clip.
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleEffectTest {
-  private val fixtures = NSProcessInfo.processInfo.environment[FIXTURES] as? String
-
   private val filmstrip = Filmstrip { avFoundationBackend() }
 
   @Test
   fun `the marker lands in the corner it names`() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = fixture(SOURCE)
 
       val plain = exported(source, "marker-plain", marked = false) {}
       val marked = exported(source, "marker", marked = true) {}
@@ -79,7 +75,7 @@ class AppleEffectTest {
   @Test
   fun `a horizontal flip mirrors the frame left to right`() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = fixture(SOURCE)
 
       val plain = exported(source, "flip-h-plain", marked = false) { flip(FlipAxis.Horizontal) }
       val marked = exported(source, "flip-h", marked = true) { flip(FlipAxis.Horizontal) }
@@ -91,7 +87,7 @@ class AppleEffectTest {
   @Test
   fun `a vertical flip mirrors the frame top to bottom`() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = fixture(SOURCE)
 
       val plain = exported(source, "flip-v-plain", marked = false) { flip(FlipAxis.Vertical) }
       val marked = exported(source, "flip-v", marked = true) { flip(FlipAxis.Vertical) }
@@ -105,7 +101,7 @@ class AppleEffectTest {
   @Test
   fun `a quarter turn carries the frame round`() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = fixture(SOURCE)
 
       val plain = exported(source, "rotate-plain", marked = false) { rotate(QUARTER_TURN) }
       val marked = exported(source, "rotate", marked = true) { rotate(QUARTER_TURN) }
@@ -118,7 +114,7 @@ class AppleEffectTest {
   @Test
   fun `a crop rect keeps the half it named and drops the other`() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = fixture(SOURCE)
 
       val keptPlain = exported(source, "rect-kept-plain", marked = false) { crop(LEFT_HALF) }
       val kept = exported(source, "rect-kept", marked = true) { crop(LEFT_HALF) }
@@ -132,7 +128,7 @@ class AppleEffectTest {
   @Test
   fun `a crop rect takes the frame down to the region it named`() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = fixture(SOURCE)
 
       val cropped = exported(source, "rect-frame", marked = false) { crop(LEFT_HALF) }
 
@@ -151,7 +147,7 @@ class AppleEffectTest {
   @Test
   fun `halving brightness halves the signal`() =
     runTest(timeout = TIMEOUT) {
-      val source = fixture() ?: return@runTest
+      val source = fixture(SOURCE)
 
       val full = exported(source, "brightness-full", marked = false) {}
       val half = exported(source, "brightness-half", marked = false) { brightness(HALF) }
@@ -332,12 +328,6 @@ class AppleEffectTest {
     val bottom: Float,
   )
 
-  private fun fixture(): String? {
-    val directory = fixtures ?: return null
-    val path = "$directory/apple_export_a.mp4"
-    return path.takeIf { NSFileManager.defaultManager.fileExistsAtPath(it) }
-  }
-
   private fun temporaryPath(name: String): String = NSTemporaryDirectory() + "filmstrip-apple-effect-$name.mp4"
 
   private fun remove(path: String) {
@@ -345,7 +335,7 @@ class AppleEffectTest {
   }
 
   private companion object {
-    const val FIXTURES = "FILMSTRIP_FIXTURES"
+    const val SOURCE = "apple_export_a.mp4"
     val TIMEOUT = 2.seconds * 60
     val SPEC = ExportSpec(targetHeight = 180)
 

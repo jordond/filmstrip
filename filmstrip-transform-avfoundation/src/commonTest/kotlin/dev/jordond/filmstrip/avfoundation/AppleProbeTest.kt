@@ -8,7 +8,6 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import kotlinx.coroutines.test.runTest
-import platform.Foundation.NSProcessInfo
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -22,17 +21,15 @@ import kotlin.time.Duration.Companion.minutes
  * The fixtures are generated to a spec, so the expected values are that spec, never whatever the
  * platform happened to say.
  *
- * Skipped when the fixtures are absent, as in [AppleExportTest].
+ * A case fails when its fixture is missing, as in [AppleExportTest].
  */
 class AppleProbeTest {
-  private val fixtures = NSProcessInfo.processInfo.environment["FILMSTRIP_FIXTURES"] as? String
-
   private val filmstrip = Filmstrip { avFoundationBackend() }
 
   @Test
   fun `reads ten bit BT2020 PQ off an HDR clip`() =
     runTest(timeout = TIMEOUT) {
-      val video = assertNotNull((probe("apple_export_hdr.mp4") ?: return@runTest).video, "no video track")
+      val video = assertNotNull(probe(HDR_FIXTURE).video, "no video track")
 
       assertEquals(CodecKind.Hevc, video.codec.kind, "codec: ${video.codec}")
       assertEquals("hvc1", video.codec.name, "AVFoundation names a codec by its four-character code")
@@ -46,7 +43,7 @@ class AppleProbeTest {
   @Test
   fun `says nothing about the depth of an H264 clip`() =
     runTest(timeout = TIMEOUT) {
-      val video = assertNotNull((probe("apple_export_a.mp4") ?: return@runTest).video, "no video track")
+      val video = assertNotNull(probe(SDR_FIXTURE).video, "no video track")
 
       assertEquals(CodecKind.H264, video.codec.kind)
       assertNull(video.bitDepth, "H.264 carries no depth CoreMedia will report")
@@ -55,19 +52,19 @@ class AppleProbeTest {
   @Test
   fun `reads the channels and sample rate off the audio track`() =
     runTest(timeout = TIMEOUT) {
-      val audio = assertNotNull((probe("apple_export_a.mp4") ?: return@runTest).audio, "no audio track")
+      val audio = assertNotNull(probe(SDR_FIXTURE).audio, "no audio track")
 
       assertEquals(CodecKind.Aac, audio.codec.kind, "codec: ${audio.codec}")
       assertEquals(2, audio.channelCount, "the fixture is stereo")
       assertEquals(48_000, audio.sampleRate, "the fixture is 48kHz")
     }
 
-  private suspend fun probe(name: String): MediaInfo? {
-    val directory = fixtures ?: return null
-    return assertIs<ProbeResult.Success>(filmstrip.probe(MediaSource.of("$directory/$name"))).info
-  }
+  private suspend fun probe(name: String): MediaInfo =
+    assertIs<ProbeResult.Success>(filmstrip.probe(MediaSource.of(fixture(name)))).info
 
   private companion object {
     val TIMEOUT = 5.minutes
+
+    const val SDR_FIXTURE = "apple_export_a.mp4"
   }
 }

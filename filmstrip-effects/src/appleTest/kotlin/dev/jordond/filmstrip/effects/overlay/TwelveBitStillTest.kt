@@ -37,7 +37,7 @@ class TwelveBitStillTest {
             refusal != null -> unsupportedMiss(still.name, read, refusal)
             models.isEmpty() -> withheldMiss(still.name, read)
             read !is PictureRead.Read -> "${still.name} came to $read, where Apple's decoder lands it"
-            samples == null -> null.also { println("SKIPPED ${still.name}'s samples: the raster reads none back here") }
+            samples == null -> "${still.name} read no samples"
             else -> sampleMiss(still.name, samples, models)
           }
         }

@@ -1,8 +1,9 @@
 package dev.jordond.filmstrip.effects.overlay
 
+import dev.jordond.filmstrip.effects.assertRasterReads
 import dev.jordond.filmstrip.effects.color.createCodeSpace
 import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.decodeHex
-import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.renderingContext
+import dev.jordond.filmstrip.effects.renderingContext
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -48,11 +49,9 @@ import kotlin.test.assertTrue
  */
 @OptIn(ExperimentalForeignApi::class)
 class OverlayRasterTest {
-  // Skipped where Core Image cannot build a context, which a headless simulator process is. The
-  // question is about CoreText and CoreGraphics, not the renderer, and the host answers it.
   @Test
   fun `draws text the right way up`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
     val raster = assertNotNull(rasterizeText(".", TextStyle(fontSize = 0.5f), FRAME))
     val size = raster.size
 
@@ -64,7 +63,7 @@ class OverlayRasterTest {
 
   @Test
   fun `draws glyphs in the authored colour`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
 
     // Two saturated colours, since one alone lets a run that swaps a channel read as correct.
     for (authored in listOf(RED, BLUE)) {
@@ -86,7 +85,7 @@ class OverlayRasterTest {
   // lands elsewhere and that gap is what the tolerance is taken from.
   @Test
   fun `a plate enters an sdr frame as its own codes`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
     val style = TextStyle(fontSize = 0.5f, color = GREY, backgroundColor = GREY)
     val raster = assertNotNull(rasterizeText("H", style, FRAME))
 
@@ -103,7 +102,7 @@ class OverlayRasterTest {
   // Read back in the transfer's own space, a plate on an HDR frame carries the signal a fill of its colour does.
   @Test
   fun `a plate enters an hdr frame at the shared fill signal`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
     val raster = assertNotNull(rasterizeText("H", TextStyle(color = GREY, backgroundColor = GREY), FRAME))
 
     HdrTransfer.entries.forEach { transfer ->
@@ -122,7 +121,7 @@ class OverlayRasterTest {
   // colour and carries its alpha alongside.
   @Test
   fun `a half transparent texel keeps its colour's signal on an hdr frame`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
     val raster = assertNotNull(rasterizeText("H", TextStyle(color = GREY, backgroundColor = HALF_GREY), FRAME))
     val transfer = HdrTransfer.Pq
     val expected = transfer.signalFromNits(authoredHdrNits(GREY))
@@ -137,9 +136,26 @@ class OverlayRasterTest {
     }
   }
 
+  // Premultiplied on the eight-bit grid, 0x80 grey at 0x80 alpha is stored as 0x40 and reads back straight as 127.5,
+  // a whole 128 samples short at sixteen bits.
+  @Test
+  fun `a half transparent texel stores its authored straight colour`() {
+    assertRasterReads()
+    val raster = assertNotNull(rasterizeText("H", TextStyle(color = GREY, backgroundColor = HALF_GREY), FRAME))
+    val samples = assertNotNull(raster.stored)
+
+    val authored =
+      listOf(RED_SHIFT, GREEN_SHIFT, BLUE_SHIFT, ALPHA_SHIFT).map { ((HALF_GREY ushr it) and BYTE) * WIDEN }
+    val corner = (0 until CHANNELS).map { samples[it].toInt() and SAMPLE_MASK }
+    assertTrue(
+      corner.zip(authored).all { (read, asked) -> abs(read - asked) <= SAMPLE_TOLERANCE },
+      "the plate's corner stored $corner and was authored as $authored",
+    )
+  }
+
   @Test
   fun `an hdr frame draws text the right way up`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
     val raster = assertNotNull(rasterizeText(".", TextStyle(fontSize = 0.5f), FRAME))
 
     val (top, bottom) = raster.enteringFrame(HdrTransfer.Pq, ColorSpace.Bt2020).inkByHalf(raster.size, context)
@@ -230,7 +246,7 @@ class OverlayRasterTest {
   // frame. Decoded bare and entering an SDR frame, it lands as authored.
   @Test
   fun `decodes an image as its own codes`() {
-    val context = renderingContext() ?: return
+    val context = renderingContext()
     val pixels = GREY_PNG.read().orFail("the PNG")
 
     assertEquals(PNG_SIZE, pixels.codes.pixelSize(), "the codes image is not the PNG's size")
@@ -422,5 +438,10 @@ class OverlayRasterTest {
 
     // A ten-bit code's step in signal, headroom for the working space's half floats on the way through.
     const val SIGNAL_TOLERANCE = 1f / 1023f
+
+    // An eight-bit code widened to sixteen bits, and one sixteen-bit step of headroom for the divide by alpha.
+    const val WIDEN = 257
+    const val SAMPLE_MASK = 0xFFFF
+    const val SAMPLE_TOLERANCE = 1
   }
 }

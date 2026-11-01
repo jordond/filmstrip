@@ -47,8 +47,6 @@ import platform.CoreGraphics.CGImageRelease
 import platform.CoreGraphics.CGRectMake
 import platform.CoreImage.CIImage
 import platform.CoreImage.CIVector
-import platform.Foundation.NSFileManager
-import platform.Foundation.NSProcessInfo
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
@@ -70,15 +68,13 @@ import kotlin.time.Duration.Companion.seconds
  * `AVAssetImageGenerator` is the readback because it applies a video composition the same way a
  * player does, so the frames it returns are the frames a preview would show.
  *
- * Skipped when the fixtures are absent, as in [AppleExportTest].
+ * A case fails when its fixture is missing, as in [AppleExportTest].
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleParameterSwapTest {
-  private val fixtures = NSProcessInfo.processInfo.environment[FIXTURES] as? String
-
   @Test
   fun `a swap reaches the frames the same video composition renders`() {
-    val source = fixture() ?: return
+    val source = fixture(CLIP_NAME)
 
     val av = graded(source, DIM).toAvComposition()
     val chain = assertNotNull(av.chain, "a composition with a video track has a chain")
@@ -97,7 +93,7 @@ class AppleParameterSwapTest {
 
   @Test
   fun `a swap keeps the slots the spans already hold`() {
-    val source = fixture() ?: return
+    val source = fixture(CLIP_NAME)
 
     val av = graded(source, DIM).toAvComposition()
     val chain = assertNotNull(av.chain, "a composition with a video track has a chain")
@@ -123,7 +119,7 @@ class AppleParameterSwapTest {
 
   @Test
   fun `a swap that moves the output frame is refused`() {
-    val source = fixture() ?: return
+    val source = fixture(CLIP_NAME)
     val chain = assertNotNull(graded(source, DIM).toAvComposition().chain)
 
     assertFailsWith<IllegalArgumentException> {
@@ -133,7 +129,7 @@ class AppleParameterSwapTest {
 
   @Test
   fun `a swap that moves the transfer function is refused`() {
-    val source = fixture() ?: return
+    val source = fixture(CLIP_NAME)
     val chain = assertNotNull(graded(source, DIM).toAvComposition().chain)
 
     assertFailsWith<IllegalArgumentException> {
@@ -143,7 +139,7 @@ class AppleParameterSwapTest {
 
   @Test
   fun `a swap that moves the timeline is refused`() {
-    val source = fixture() ?: return
+    val source = fixture(CLIP_NAME)
     val chain = assertNotNull(graded(source, DIM).toAvComposition().chain)
 
     assertFailsWith<IllegalArgumentException> {
@@ -156,7 +152,7 @@ class AppleParameterSwapTest {
   // stay the same length and stay in step.
   @Test
   fun `a swap over a looping track respans every pass with that pass's own clip`() {
-    val source = fixture() ?: return
+    val source = fixture(CLIP_NAME)
 
     val laid = loopedClips(source)
     val chain = assertNotNull(loopingComposition(laid).toAvComposition().chain)
@@ -377,14 +373,7 @@ class AppleParameterSwapTest {
     }
   }
 
-  private fun fixture(): String? {
-    val directory = fixtures ?: return null
-    val path = "$directory/$CLIP_NAME"
-    return path.takeIf { NSFileManager.defaultManager.fileExistsAtPath(it) }
-  }
-
   private companion object {
-    const val FIXTURES = "FILMSTRIP_FIXTURES"
     const val CLIP_NAME = "apple_export_a.mp4"
     const val SPEC_ID = "test.channel-gain"
 

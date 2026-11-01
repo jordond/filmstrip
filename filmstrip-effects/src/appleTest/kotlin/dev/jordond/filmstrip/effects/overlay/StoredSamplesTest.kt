@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects.overlay
 
+import dev.jordond.filmstrip.effects.rasterReader
 import dev.jordond.filmstrip.geometry.Size
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -16,7 +17,6 @@ import platform.CoreGraphics.CGImageAlphaInfo
 import platform.CoreGraphics.CGImageCreate
 import platform.CoreGraphics.CGImageRef
 import platform.CoreGraphics.CGImageRelease
-import platform.CoreImage.CIContext
 import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -26,14 +26,13 @@ import kotlin.test.assertNotNull
  * Holds the stored samples the Apple overlay raster reads back to the ones a picture stores, however many bands the
  * read takes, and holds a value Core Image hands back as not a number to 0.
  *
- * The banded read goes through the raster's own [codeReader] and skips where that cannot be built, hardware or
- * software.
+ * The banded read goes through the raster's own [codeReader].
  */
 @OptIn(ExperimentalForeignApi::class)
 class StoredSamplesTest {
   @Test
   fun `a read in several bands lands every row where it is stored`() {
-    val reader = readerOrSkip() ?: return
+    val reader = rasterReader()
     val image = straightPicture()
     val codes = image.bitmapCodes()
     CGImageRelease(image)
@@ -70,12 +69,6 @@ class StoredSamplesTest {
     val expected =
       listOf(0.0, 0.5, 0.25, 0.5, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.5, 0.5).map { (it * MAX_SAMPLE).roundToInt() }
     assertContentEquals(expected, samples.map { it.toInt() and MASK })
-  }
-
-  private fun readerOrSkip(): CIContext? {
-    val reader = codeReader
-    if (reader == null) println("SKIPPED the banded read: no code reader can be built here, nothing asserted")
-    return reader
   }
 
   /**

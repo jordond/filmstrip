@@ -50,9 +50,11 @@ import kotlin.test.assertTrue
  * The source is a `CVPixelBuffer` rather than a generated `CIImage` on purpose: a solid-colour or
  * generator-backed image lets Core Image defer work into `createCGImage` and inflate arm 1 with
  * pixel production that the real path, a decoded frame already in a buffer, does not do.
+ *
+ * The figures are timings on the machine it runs on, so it runs only when Gradle is given `-Pmeasure`.
  */
 @OptIn(ExperimentalForeignApi::class)
-class FrameHandoffTest {
+class FrameHandoffMeasureTest {
   @Test
   fun handoffCostIsMeasuredAtBothResolutions() {
     val context =

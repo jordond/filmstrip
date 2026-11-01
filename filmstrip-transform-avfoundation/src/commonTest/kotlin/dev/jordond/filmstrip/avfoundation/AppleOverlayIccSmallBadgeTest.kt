@@ -41,13 +41,8 @@ class AppleOverlayIccSmallBadgeTest : AppleOverlayIccCase() {
   @Test
   fun `a small badge is drawn at the shared srgb codes and exported within a share of its step from the fill`() =
     runTest(timeout = TIMEOUT) {
-      val portrait =
-        fixture(PORTRAIT) ?: run {
-          println("skipping the small badge case, $FIXTURES is unset")
-          return@runTest
-        }
-      val context = floatContextOrNull()
-      if (context == null) println("SKIPPED the small badge's drawn frame: no Core Image context here")
+      val portrait = fixture(PORTRAIT)
+      val context = floatContext()
       val fill = AuthoredColours.channelsOf(AuthoredColours.MID_GREY).map { it.toFloat() }
       val misses = mutableListOf<String>()
 
@@ -83,7 +78,7 @@ class AppleOverlayIccSmallBadgeTest : AppleOverlayIccCase() {
             // ImageIO's HEIC and JPEG decode a little off the texel they were written with, so only their export is
             // held.
             val drawnMiss =
-              if (context != null && picture !in ENCODED) {
+              if (picture !in ENCODED) {
                 val read = drawn.sdrCodesAt(context, size, x, y)
                 "the small ${picture.name} badge was drawn at $read, where its colour is one of $colours".takeIf {
                   colours.none { colour -> read.indices.all { abs(read[it] - colour[it]) <= DRAWN_TOLERANCE } }

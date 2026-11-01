@@ -37,7 +37,7 @@ class UnsubsampledStillTest {
           when {
             refusal != null -> if (resolution == "unsupported: $refusal") null else "${still.name} resolved $resolution"
             resolution != "resolved" -> "${still.name} resolved $resolution, where it lands exactly"
-            samples == null -> null.also { println("SKIPPED ${still.name}'s samples: the raster reads none back here") }
+            samples == null -> "${still.name} read no samples"
             landed?.exact == true -> decodeMiss(still, samples)
             else -> evaluatedMiss(still, samples)
           }

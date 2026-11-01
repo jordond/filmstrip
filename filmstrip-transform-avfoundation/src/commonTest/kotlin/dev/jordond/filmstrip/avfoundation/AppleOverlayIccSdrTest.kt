@@ -34,18 +34,15 @@ import kotlin.time.Duration
  * Colour described overlay pictures drawn onto an SDR export and read back out of the written file.
  *
  * A described badge is held to [pictureSrgbCodes] of its texel, and the untagged badge to its stored codes. The bound
- * every badge is held to is checked against the colours a wrong description would draw.
+ * every badge is held to is checked against the colours a wrong description would draw, and ImageIO is held to writing
+ * a Display P3 JPEG.
  */
 @OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
 class AppleOverlayIccSdrTest : AppleOverlayIccCase() {
   @Test
   fun `a described picture on an sdr export lands at the shared srgb codes`() =
     runTest(timeout = TIMEOUT) {
-      val portrait =
-        fixture(PORTRAIT) ?: run {
-          println("skipping the sdr case, $FIXTURES is unset")
-          return@runTest
-        }
+      val portrait = fixture(PORTRAIT)
       val misses = mutableListOf<String>()
 
       PICTURES.chunked(CORNERS.size).forEachIndexed { index, pictures ->
@@ -87,6 +84,11 @@ class AppleOverlayIccSdrTest : AppleOverlayIccCase() {
 
       assertTrue(misses.isEmpty(), misses.joinToString("\n"))
     }
+
+  @Test
+  fun `imageio writes a display p3 jpeg on every target`() {
+    assertTrue(imageIoWrites("public.jpeg"), "ImageIO wrote no Display P3 JPEG")
+  }
 
   // Each badge is held to one exact answer per decode, so the bound around it is the tolerance alone.
   @Test
