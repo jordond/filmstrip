@@ -13,6 +13,7 @@ The board is `scratchpad/upnext.md`, gitignored and local only. Git is reality. 
    ```sh
    git log --oneline <sha>..main; git status --short | head; git worktree list; git branch -vv | grep -v backup/
    ```
+   Then `bash .claude/skills/status/env.sh`. A `BLOCKED` line goes in the reply before any suggestion, with the fix the owner runs.
 3. Reconcile with `Edit`:
    - A commit on `main` since `<sha>` that lands a branch section → retitle that section as merged with its sha and date, the way the frame grid section reads.
    - An integration worktree (a named one under `.claude/worktrees/`, not `agent-*`) whose branch has no section → add a two-line section marked `unregistered`.

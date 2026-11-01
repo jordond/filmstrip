@@ -1,18 +1,21 @@
 ---
 name: merge
-description: "Land a unit branch onto its plan's integration branch by cherry-pick, or squash an integration branch onto main on the owner's go. Hand-resolved conflicts, companion checklist, board update. Use when a builder reports done."
-argument-hint: "<unit branch> | --main <integration branch>"
+description: "Land a fix or second-builder branch onto its plan branch by cherry-pick, or squash a plan branch onto main on the owner's go. Hand-resolved conflicts, companion checklist, board update. Use when a builder reports done."
+argument-hint: "<branch> | --main <plan branch>"
 ---
 
 Merges have lost work before. Keep the order.
 
 ## 1. Identify
-`git worktree list` and `git branch -vv`. A unit branch (`fix/<slug>-u<n>`) lands on its plan's integration branch `fix/<slug>`, checked out in `.claude/worktrees/<slug>`. No integration branch yet → create it from the plan's base sha with `git worktree add .claude/worktrees/<slug> -b fix/<slug> <sha>`. Use the builder's report from the notification, never a re-read transcript.
+`git worktree list` and `git branch -vv`. The plan's builder commits on `fix/<slug>`, which is the plan branch. Only a
+second builder's branch (`fix/<slug>-<machine>`) or a fix builder's branch lands onto it. Check it out in
+`.claude/worktrees/<slug>` (`git worktree add .claude/worktrees/<slug> fix/<slug>`) when it is not already. Use the
+builder's report from the notification, never a re-read transcript.
 
-## 2. Unit → integration branch, by cherry-pick
-Worktree bases here have been stale, so a merge drags in the wrong history. In the integration worktree:
+## 2. Branch → plan branch, by cherry-pick
+Worktree bases here have been stale, so a merge drags in the wrong history. In the plan worktree:
 ```sh
-git log --oneline <base sha>..<unit branch>    # the unit's own commits, nothing older
+git log --oneline <base sha>..<branch>    # its own commits, nothing older
 git cherry-pick <first>^..<last>
 ```
 Conflicts, by hand:
@@ -23,13 +26,13 @@ Conflicts, by hand:
 A conflict you cannot settle from the two sides and the plan → stop, name the file and both sides.
 
 ## 3. Companion checklist
-Read `checklist.md` here and run the rows the diff hits. A fix goes to a fresh `builder` or `scribe` with the lines pasted, landed as its own commit on the integration branch.
+Read `checklist.md` here and run the rows the diff hits. A fix goes to a fresh `builder` or `scribe` with the lines pasted, landed as its own commit on the plan branch.
 
-## 4. Verify once per batch
-Cherry-pick every unit of the wave first, then one `/ci` against the integration worktree. Red → one fresh builder with the failing lines, one re-run. Never a retry loop.
+## 4. Verify once per plan
+`/orchestrate` runs the lane once, after the review, against the plan worktree. Red → one fresh builder with the failing lines, one re-run. Never a retry loop.
 
 ## 5. Integration branch → `main`, only on the owner's go
-The owner decides when an integration branch lands. With the go:
+The owner decides when an plan branch lands. With the go:
 ```sh
 git switch main && git merge --squash fix/<slug> && git commit
 ```

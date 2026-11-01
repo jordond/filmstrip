@@ -14,30 +14,46 @@ The owner may be away. Speak at decision points and outcomes only, no narration 
 - Blank → the board's **Open plans** and unmerged branch sections: a unit dispatched with no report yet waits, a unit reported but not landed resumes at step 2.3, the first undispatched unit whose predecessors landed starts at 2.2. Nothing ready → say so and stop.
 
 ## 1. Preflight
-`/status`. A dirty main checkout → commit nothing, say what is dirty, stop. Count running agents: **three at most, reviewers included**, across every plan this call runs.
+`/status`. A dirty main checkout → commit nothing, say what is dirty, stop. A `BLOCKED` environment line → ask the owner for the fix in the first reply, and plan around it: units that need the blocked machine wait, every other unit goes ahead. Count running agents: **three at most, reviewers included**, across every plan this call runs.
 
 ## 2. Per plan
+
+A plan is built by **one builder**, working its units in order on one branch. A second builder runs beside it only
+when the plan has a unit on another machine (Mac vs cerebro) with no shared files. Never one agent per unit.
+
 1. **Plan.** The plan file exists and its units carry files, tests and verification → go on. Otherwise `/plan <slug>`.
-2. **Dispatch a wave.** U0 alone first. Then every unit whose predecessors landed, up to the agent cap, via `/dispatch`. End the turn, the completion notification wakes you. Never poll, never read a transcript.
-3. **On each report.** Scope checkpoint first (below). Then `/review <branch>`. It decides what loops back to a fresh builder, never a message to the one that finished. Then `/merge <branch>` onto the integration branch. A report or review answer that is a stop-gap (a fallback or workaround a known better fix would later undo) goes back as the proper fix, never landed as is. A third fix-first round on one unit → **stop**, an `analyst` writes the design, then one fresh builder and one review.
-4. **Verify the wave** once every unit of it has landed: `/ci <integration worktree>` in the background, with `--device` when any unit touched a pixel path. Red → one fresh builder with the failing lines. The same unit red again after that → **stop** with the digest.
-5. More units waiting → back to 2.2. Plans with no shared files may run waves side by side inside the agent cap.
-6. **Polish.** Every unit landed → one polish unit per module via `/dispatch`, carrying the 🟡 and leftover 🟠 collected in the plan's `upnext.md` section, a scribe when mechanical. `/review` it once, `/merge` it, then verify as in 2.4. Nothing collected → skip.
-7. Every unit landed, polish included, and the last wave green → write the verified line and counts into the branch's `upnext.md` section and stop for the owner's go. **Never squash onto `main`, push, or open a PR without it.**
+2. **Dispatch.** `/dispatch <slug>` spawns the builder for every unit. End the turn, the completion notification wakes
+   you. Never poll, never read a transcript. A builder that stops at its budget reports what is left. A fresh builder
+   continues from its branch with the plan's unfinished units, never a message to the one that finished.
+3. **On the report.** Scope checkpoint first (below). A report that is a stop-gap goes back as the proper fix.
+4. **Review once, per plan.** `/review` the whole branch. It skips a branch with no production code (tests, CI,
+   docs, build files). Only 🔴, and 🟠 with a failing input, go back: one fresh builder with every such line, no
+   re-review unless a 🔴 was in it. 🟡, 🔵 and anything outside the plan's goal go to the board, never into the chain.
+   A second fix-first verdict → **stop** with the lines.
+5. **Verify once.** `/ci <branch worktree>` in the background, with `--device` when a pixel path changed. Red → one
+   fresh builder with the failing lines, one rerun. Red again → **stop** with the digest.
+6. Green → write the verified line and counts into the plan's `upnext.md` section and stop for the owner's go.
+   **Never squash onto `main`, push, or open a PR without it.**
+
+A plan normally costs one builder and one reviewer, at most one fix builder. Past four agents for one plan → stop and
+say why.
 
 ## Scope checkpoint
-Count the plan's units, dispatched and queued, against the count the plan set out with. Read each report for a new subsystem: a parser, a codec rewriter, a probe, a public ABI change the plan did not name.
-- Units past twice the plan's count → stop.
+Count the agents the plan has used. Read each report and review for a new subsystem: a parser, a codec rewriter, a probe, a public ABI change the plan did not name.
+- Agents past four for one plan → stop.
 - A new subsystem → stop.
 
 Either way, ask the owner for a new plan for the extra work with its own unit estimate. Nothing past the checkpoint is dispatched until the owner answers.
+
+## Waiting on the owner
+A question or chore for the owner parks only the work that needs the answer. Name what is parked, then keep dispatching every unit, review and merge that does not depend on it, across every plan this call runs. Stop only when nothing is left that can move.
 
 ## When to stop and ask
 - The scope checkpoint fires.
 - An owner decision the plan does not already settle: one batched `AskUserQuestion` per plan at most, recommendation first.
 - A question that reopens a settled owner decision: name it, recommend, stop.
 - A unit red twice after fix-ups.
-- A third fix-first round on one unit: an `analyst` writes the design, then one builder and one review.
+- A second fix-first verdict on one plan.
 - A cherry-pick conflict the two sides and the plan cannot settle: name the file and both sides.
 - The integration branch is ready for `main`.
 
@@ -49,4 +65,4 @@ Either way, ask the owner for a new plan for the extra work with its own unit es
 - Two failed attempts at the same step: report and stop. Scaling the work down is the owner's call.
 
 ## Reply
-One progress note of at most 6 lines per wave: plan, units landed, what is next. At the end of a call, at most 10 lines: units landed with shas, deviations, loose ends added to the board, and the next command or the go question.
+One progress note of at most 6 lines per report: plan, units done, what is next. At the end of a call, at most 10 lines: units landed with shas, deviations, loose ends added to the board, and the next command or the go question.

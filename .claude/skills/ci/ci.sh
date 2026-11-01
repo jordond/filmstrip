@@ -50,9 +50,21 @@ steps=(
 )
 [ "$device" = 1 ] && steps+=("device|connectedAndroidDeviceTest|any")
 
+# Gradle only restores or skips a test task that passed, so the XML it left from that run is this step's result.
+# Prints the result dir of every test task the log marks UP-TO-DATE or FROM-CACHE.
+cached_dirs() {
+  sed -nE 's/^> Task (:[^ ]+):([A-Za-z0-9]*Test) (UP-TO-DATE|FROM-CACHE)$/\1 \2/p' "$1" | while read -r project task; do
+    dir="$checkout$(printf '%s' "$project" | tr ':' '/')/build/test-results/$task"
+    [ -d "$dir" ] && printf '%s\n' "$dir"
+  done
+}
+
 summarise() {
-  find "$checkout" -path '*/build/*' -name '*.xml' -newer "$1" \( -path '*test-results*' -o -path '*androidTest-results*' \) \
-    -exec grep -l --null '<testsuite' {} + 2>/dev/null | python3 -c '
+  local marker=$1 log=$2
+  {
+    find "$checkout" -path '*/build/*' -name '*.xml' -newer "$marker" \( -path '*test-results*' -o -path '*androidTest-results*' \)
+    cached_dirs "$log" | while IFS= read -r dir; do find "$dir" -name '*.xml'; done
+  } | sort -u | tr '\n' '\0' | xargs -0 grep -l --null '<testsuite' 2>/dev/null | python3 -c '
 import sys, re, os, collections
 root = sys.argv[1]
 agg = collections.defaultdict(lambda: [0, 0, 0])
@@ -97,15 +109,17 @@ for step in "${steps[@]}"; do
     # shellcheck disable=SC2086
     (cd "$checkout" && ./gradlew --console=plain $tasks </dev/null) >"$log" 2>&1
     status=$?
-    summarise "$marker" >>"$log"
+    summarise "$marker" "$log" >>"$log"
   fi
   secs=$((SECONDS - start))
   counts=$(grep '^RESULT ' "$log" | grep -v 'none written' | sed -E 's/.*tests=([0-9]+) failed=([0-9]+) skipped=([0-9]+)/\1 \2 \3/' \
     | awk '{t+=$1; f+=$2; s+=$3} END {if (NR) printf "tests=%d failed=%d skipped=%d", t, f, s}')
-  # A test step that passes without writing result XML ran no test in this call, so it is not reported green.
+  cached=$(grep -cE '^> Task :[^ ]+:[A-Za-z0-9]*Test (UP-TO-DATE|FROM-CACHE)$' "$log")
+  [ "$cached" -gt 0 ] && counts="$counts cached=$cached"
+  # A test step that passes with no result XML, written or cached, ran no test, so it is not reported green.
   if [ "$status" = 0 ] && [ -z "$counts" ] && [[ $tasks == *Test* ]]; then
     red=$((red + 1))
-    digest+=("unknown $name ${secs}s no result XML written, up to date  log: $log")
+    digest+=("unknown $name ${secs}s no result XML written or cached  log: $log")
   elif [ "$status" = 0 ]; then
     digest+=("ok    $name ${secs}s $counts")
   else
