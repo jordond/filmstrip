@@ -9,6 +9,8 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.PictureColour
+import dev.jordond.filmstrip.media.PictureCrop
+import dev.jordond.filmstrip.media.PictureOrientation
 import dev.jordond.filmstrip.media.pictureLight
 import dev.jordond.filmstrip.media.pictureSrgbCodes
 import dev.jordond.filmstrip.media.signalFromNits
@@ -16,11 +18,13 @@ import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.CoreGraphics.CGAffineTransform
 import platform.CoreGraphics.CGAffineTransformConcat
+import platform.CoreGraphics.CGAffineTransformMake
 import platform.CoreGraphics.CGAffineTransformMakeScale
 import platform.CoreGraphics.CGAffineTransformMakeTranslation
 import platform.CoreGraphics.CGColorSpaceCreateWithName
 import platform.CoreGraphics.CGColorSpaceRef
 import platform.CoreGraphics.CGColorSpaceRelease
+import platform.CoreGraphics.CGRectMake
 import platform.CoreGraphics.kCGColorSpaceITUR_2100_HLG
 import platform.CoreGraphics.kCGColorSpaceITUR_2100_PQ
 import platform.CoreImage.CIContext
@@ -67,6 +71,59 @@ internal fun OverlayPlacement.transformOnto(
 }
 
 /**
+ * This picture, stored as it is, cut to [crop], or kept whole when [crop] is null or keeps all of it.
+ *
+ * [crop] counts rows from the top, and Core Image from the bottom, so its rows are counted up from the bottom edge. Its
+ * edges sit on whole texels, so every sample it keeps is kept as it is, and the result sits at the origin.
+ */
+@OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
+internal fun CIImage.cropped(crop: PictureCrop?): CIImage {
+  val stored = pixelSize()
+  if (crop == null || crop.keepsAll(stored)) return this
+  val bottom = stored.height - crop.top - crop.size.height
+  val (width, height) = crop.size.width.toDouble() to crop.size.height.toDouble()
+  val rect = CGRectMake(crop.left.toDouble(), bottom.toDouble(), width, height)
+  return atOrigin().imageByCroppingToRect(rect).atOrigin()
+}
+
+/**
+ * This picture, stored as it is, laid out the way [orientation] shows it.
+ *
+ * The transform moves every stored texel onto the shown texel whose [PictureOrientation.sourceOf] names it, read off
+ * that function at three texels. Core Image measures from the bottom-left with +Y up, so the stored picture is flipped
+ * into top-left rows first and the shown one flipped back after. Every texel centre lands on a texel centre, so the
+ * picture keeps every sample and the result sits at the origin.
+ */
+@OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
+internal fun CIImage.oriented(orientation: PictureOrientation): CIImage {
+  if (orientation == PictureOrientation.Normal) return this
+  val stored = pixelSize()
+  val shown = orientation.orientedSize(stored)
+  val origin = orientation.sourceOf(0, 0, shown)
+  val across = orientation.sourceOf(1, 0, shown)
+  val down = orientation.sourceOf(0, 1, shown)
+  val acrossX = (across.x - origin.x).toDouble()
+  val acrossY = (across.y - origin.y).toDouble()
+  val downX = (down.x - origin.x).toDouble()
+  val downY = (down.y - origin.y).toDouble()
+  val offsetX = origin.x + HALF_TEXEL - HALF_TEXEL * (acrossX + downX)
+  val offsetY = origin.y + HALF_TEXEL - HALF_TEXEL * (acrossY + downY)
+  val intoRows = CGAffineTransformMake(1.0, 0.0, 0.0, -1.0, 0.0, stored.height.toDouble())
+  val turned =
+    CGAffineTransformMake(
+      acrossX,
+      downX,
+      acrossY,
+      downY,
+      -(acrossX * offsetX + acrossY * offsetY),
+      -(downX * offsetX + downY * offsetY),
+    )
+  val backFromRows = CGAffineTransformMake(1.0, 0.0, 0.0, -1.0, 0.0, shown.height.toDouble())
+  val transform = CGAffineTransformConcat(CGAffineTransformConcat(intoRows, turned), backFromRows)
+  return atOrigin().imageByApplyingTransform(transform)
+}
+
+/**
  * An overlay's pixels, held as bare codes with no colour space attached, and how the picture describes their colour.
  *
  * An SDR frame draws a texel at the sRGB codes [pictureSrgbCodes] gives its colour, tagged with the frame's own code
@@ -91,8 +148,13 @@ internal fun OverlayPlacement.transformOnto(
  * included, and a sixteen-bit one at 1,437 MB and 1,419 MB with its decode of 390 MB. Each image takes 31 s to 35 s
  * to make.
  *
- * @property held The pixels with no colour space attached, and the bytes held behind them.
- * @property codes The pixels with no colour space attached.
+ * The stored codes are cut to [crop] and laid out the way [orientation] shows the picture once, here, so every image
+ * made from them and [size] are of the picture as it is shown.
+ *
+ * @property held The pixels with no colour space attached as they are stored, and the bytes held behind them.
+ * @property codes The pixels with no colour space attached, cut to [crop] and laid out the way [orientation] shows
+ * them.
+ * @property size The size the picture is shown at.
  * @property limits The ways Apple's decoder landed these pixels short of what the picture's file stores, empty when it
  * landed them as stored.
  * @param readColour Reads how the picture describes its colour, or null when it is untagged. It runs the first time
@@ -101,7 +163,11 @@ internal fun OverlayPlacement.transformOnto(
  * @param bandTexels How many texels one band of [StoredBands] holds at most.
  * @param ceiling The most bytes [drawnPeakBytes] may count for a draw that makes floats, [PICTURE_PEAK_CEILING] unless
  * a test sets it.
+ * @param orientation The turn the picture's own tag asks for, which no Apple decoder applies.
+ * @param crop The texels of the stored codes an AVIF or HEIC's `clap` keeps, or null to keep them all. No Apple decoder
+ * is handed a `clap`, so [held] is the whole stored frame. It has to lie within it.
  */
+@OptIn(InternalFilmstripApi::class)
 internal class OverlayPixels(
   val held: HeldCodes,
   readColour: () -> PictureColour? = { null },
@@ -109,10 +175,12 @@ internal class OverlayPixels(
   val limits: List<Degradation> = emptyList(),
   private val bandTexels: Int = BAND_TEXELS,
   private val ceiling: Long = PICTURE_PEAK_CEILING,
+  orientation: PictureOrientation = PictureOrientation.Normal,
+  crop: PictureCrop? = null,
 ) {
-  val codes: CIImage = held.image
+  val codes: CIImage = held.image.cropped(crop).oriented(orientation)
 
-  val size: Size = codes.pixelSize()
+  val size: Size = orientation.orientedSize(crop?.size ?: held.image.pixelSize())
 
   /**
    * How the picture describes the colour of its stored samples, or null when it is untagged.
@@ -328,6 +396,7 @@ private fun HdrTransfer.createSignalSpace(): CGColorSpaceRef? =
   )
 
 private const val TEXEL_FLOATS = 4
+private const val HALF_TEXEL = 0.5
 private const val ALPHA = 3
 private const val CODE_MASK = 0xFF
 private const val ALPHA_SHIFT = 24

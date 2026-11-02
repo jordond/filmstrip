@@ -59,7 +59,7 @@ class AvifRewriteTest {
       byteArrayOf(0x81.toByte(), 0x0D, if (mono) 0x1C else 0x0C, 0)
     }
 
-  private fun rewritten(file: TestHeic): ByteArray = heifWithExplicitCodestreamColour(file.bytes())
+  private fun rewritten(file: TestHeic): ByteArray = heifWithExplicitCodestreamColour(file.bytes()).handed
 
   @Test
   fun `an in band sequence header is rewritten to state the nclx`() {
@@ -73,7 +73,8 @@ class AvifRewriteTest {
   fun `the rewritten file reads back with the nclx as its codestream signal`() {
     val file = avif(nclx = Cicp(12, 13, 6, true)).bytes()
     pictureYcbcrCoding(file)?.codestream shouldBe silent.signal
-    pictureYcbcrCoding(heifWithExplicitCodestreamColour(file))?.codestream shouldBe CodestreamSignal(12, 13, 6, true)
+    val rewritten = heifWithExplicitCodestreamColour(file).handed
+    pictureYcbcrCoding(rewritten)?.codestream shouldBe CodestreamSignal(12, 13, 6, true)
   }
 
   @Test
@@ -120,7 +121,7 @@ class AvifRewriteTest {
     val unsized = silent.obu(sizeBytes = 0)
     val file = avif(ByteArray(0), configObus = unsized).bytes()
     val expected = avif(ByteArray(0), silent.stating(signalOf(bt709Full)).obu(0)).bytes()
-    heifWithExplicitCodestreamColour(file) shouldBe expected
+    heifWithExplicitCodestreamColour(file).handed shouldBe expected
   }
 
   @Test
@@ -148,7 +149,7 @@ class AvifRewriteTest {
       val result = rewritten(avif(own.obu(), configObus = own.obu(), nclx = nclx, unsubsampled = true))
       result shouldBe avif(stated, configObus = stated, nclx = nclx, unsubsampled = true).bytes()
       pictureYcbcrCoding(result)?.codestream shouldBe signalOf(nclx)
-      heifWithExplicitCodestreamColour(result) shouldBeSameInstanceAs result
+      heifWithExplicitCodestreamColour(result).handed shouldBeSameInstanceAs result
       rewritten(avif(own.obu(), nclx = nclx, grid = true, unsubsampled = true)) shouldBe
         avif(stated, nclx = nclx, grid = true, unsubsampled = true).bytes()
     }
@@ -183,7 +184,7 @@ class AvifRewriteTest {
         avif(SequenceShape(profile = 1).obu(), nclx = Cicp(1, 13, 0, false), unsubsampled = true),
         avif(SequenceShape(mono = true).obu(), nclx = Cicp(2, 2, 0, true), mono = true),
       ).map { it.bytes() }
-    for (file in unsignalled) heifWithExplicitCodestreamColour(file) shouldBeSameInstanceAs file
+    for (file in unsignalled) heifWithExplicitCodestreamColour(file).handed shouldBeSameInstanceAs file
   }
 
   @Test
@@ -203,7 +204,7 @@ class AvifRewriteTest {
     val result = rewritten(avif(unspecified.obu(), nclx = null))
     result shouldBe avif(expected, nclx = null).bytes()
     pictureYcbcrCoding(result)?.codestream shouldBe CodestreamSignal(1, 13, 6, false)
-    heifWithExplicitCodestreamColour(result) shouldBeSameInstanceAs result
+    heifWithExplicitCodestreamColour(result).handed shouldBeSameInstanceAs result
   }
 
   @Test
@@ -211,11 +212,11 @@ class AvifRewriteTest {
     val named = listOf(Triple(1, 13, 1), Triple(9, 16, 9), Triple(1, 13, 0), Triple(1, 13, 12))
     for (description in named) {
       val file = avif(SequenceShape(description = description, fullRange = false).obu(), nclx = null).bytes()
-      heifWithExplicitCodestreamColour(file) shouldBeSameInstanceAs file
+      heifWithExplicitCodestreamColour(file).handed shouldBeSameInstanceAs file
     }
     val identity = SequenceShape(profile = 1, description = Triple(9, 16, 0), fullRange = false)
     val file = avif(identity.obu(), nclx = null, unsubsampled = true).bytes()
-    heifWithExplicitCodestreamColour(file) shouldBeSameInstanceAs file
+    heifWithExplicitCodestreamColour(file).handed shouldBeSameInstanceAs file
   }
 
   @Test
@@ -265,24 +266,24 @@ class AvifRewriteTest {
         avif(SequenceShape(profile = 3).obu()),
         avif(ByteArray(0)),
       ).map { it.bytes() }
-    for (file in unchanged) heifWithExplicitCodestreamColour(file) shouldBeSameInstanceAs file
+    for (file in unchanged) heifWithExplicitCodestreamColour(file).handed shouldBeSameInstanceAs file
     val splitUnsized = avif(silent.obu(sizeBytes = 0), splitExtents = true).bytes()
-    heifWithExplicitCodestreamColour(splitUnsized) shouldBeSameInstanceAs splitUnsized
+    heifWithExplicitCodestreamColour(splitUnsized).handed shouldBeSameInstanceAs splitUnsized
   }
 
   @Test
   fun `a second rewrite changes nothing`() {
     val once = rewritten(avif(configObus = silent.obu(), grid = true))
-    heifWithExplicitCodestreamColour(once) shouldBeSameInstanceAs once
+    heifWithExplicitCodestreamColour(once).handed shouldBeSameInstanceAs once
   }
 
   @Test
   fun `every truncation comes back as the input`() {
     val whole = avif(configObus = silent.obu(), grid = true, baseOffset = true).bytes()
-    heifWithExplicitCodestreamColour(whole) shouldNotBe whole
+    heifWithExplicitCodestreamColour(whole).handed shouldNotBe whole
     for (size in 0 until whole.size) {
       val truncated = whole.copyOf(size)
-      heifWithExplicitCodestreamColour(truncated) shouldBeSameInstanceAs truncated
+      heifWithExplicitCodestreamColour(truncated).handed shouldBeSameInstanceAs truncated
     }
   }
 
@@ -297,7 +298,7 @@ class AvifRewriteTest {
     repeat(FUZZ_ROUNDS) { round ->
       val file = files[round % files.size].copyOf()
       repeat(1 + random.nextInt(4)) { file[random.nextInt(file.size)] = random.nextInt(256).toByte() }
-      shouldBeIntact(file, heifWithExplicitCodestreamColour(file))
+      shouldBeIntact(file, heifWithExplicitCodestreamColour(file).handed)
     }
   }
 
@@ -315,7 +316,7 @@ class AvifRewriteTest {
     for (data in listOf(STAND_IN_FRAME, TestHeic.EXIF, TestHeic.MIME)) {
       occurrences(result, data) shouldBe occurrences(file, data)
     }
-    heifWithExplicitCodestreamColour(result) shouldBeSameInstanceAs result
+    heifWithExplicitCodestreamColour(result).handed shouldBeSameInstanceAs result
   }
 
   private fun topLevelTypes(bytes: ByteArray): List<Int> {

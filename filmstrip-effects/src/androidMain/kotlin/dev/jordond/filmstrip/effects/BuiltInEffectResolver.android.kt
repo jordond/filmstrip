@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.effects
 
-import android.graphics.Bitmap
 import androidx.media3.common.Effect
 import androidx.media3.effect.Presentation
 import androidx.media3.effect.RgbAdjustment
@@ -55,7 +54,6 @@ import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.PictureColour
 import dev.jordond.filmstrip.media.brightnessDisplayGain
 import dev.jordond.filmstrip.media.brightnessSceneGain
 import androidx.media3.effect.Crop as Media3Crop
@@ -147,12 +145,11 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
         is DecodedPicture -> picture
       }
     if (decoded.bitmap.halfFloatCurve() == HalfFloatCurve.Unknown) return unsupported(id, UNKNOWN_HALF_FLOAT_SPACE)
-    val size = decoded.bitmap.size()
-    if (!fitsTextureSide(size.width, size.height, maxSide)) {
-      return unsupported(id, picturePastTextureSide(size.width, size.height, maxSide, OPEN_GL_ES))
+    val shown = decoded.shownSize
+    if (!fitsTextureSide(shown.width, shown.height, maxSide)) {
+      return unsupported(id, picturePastTextureSide(shown.width, shown.height, maxSide, OPEN_GL_ES))
     }
-    val placement = placedOn(attributes.inputSize, size)
-    return resolved(decoded.bitmap, this, placement, attributes, decoded.colour, decoded.limits)
+    return resolved(decoded, this, placedOn(attributes.inputSize, shown), attributes)
   }
 
   private fun TextOverlay.toOverlay(
@@ -185,14 +182,14 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   // the grade being written, not on what the device could write, so an SDR export on an HDR capable
   // device resolves cleanly.
   private fun resolved(
-    bitmap: Bitmap,
+    decoded: DecodedPicture,
     spec: OverlayEffect,
     placement: OverlayPlacement,
     attributes: Attributes,
-    colour: PictureColour? = null,
-    limits: List<DecoderLimit> = emptyList(),
-  ): EffectResolution =
-    resolved(bitmap.rasterFor(attributes.hdrTransfer, colour), bitmap.size(), spec, placement, attributes, limits)
+  ): EffectResolution {
+    val raster = decoded.bitmap.rasterFor(attributes.hdrTransfer, decoded.colour, decoded.orientation, decoded.crop)
+    return resolved(raster, raster.bitmap.size(), spec, placement, attributes, decoded.limits)
+  }
 
   @Suppress("LongParameterList")
   private fun resolved(

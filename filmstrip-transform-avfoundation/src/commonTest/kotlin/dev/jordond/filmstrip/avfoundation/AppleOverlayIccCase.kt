@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.internal.pictureColour
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.PictureColour
+import dev.jordond.filmstrip.media.UnturnedHeif
 import dev.jordond.filmstrip.media.YcbcrReading
 import dev.jordond.filmstrip.media.authoredHdrNits
 import dev.jordond.filmstrip.media.heifWithExplicitCodestreamColour
@@ -41,6 +42,7 @@ import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.create
 import platform.Foundation.writeToFile
 import kotlin.math.abs
+import kotlin.test.assertIs
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -310,4 +312,4 @@ private val ICC_RASTER = Size(4, 2)
 // The texel ImageIO decodes a HEIF's bytes to once the overlay raster's rewrite states its colour in the codestream.
 @OptIn(InternalFilmstripApi::class)
 internal fun imageIoRead(bytes: ByteArray): ShortArray =
-  AppleStillSamples.imageIoRead(heifWithExplicitCodestreamColour(bytes))
+  AppleStillSamples.imageIoRead(assertIs<UnturnedHeif.Handed>(heifWithExplicitCodestreamColour(bytes)).bytes)

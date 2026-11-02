@@ -38,7 +38,7 @@ class HeifTilesTest {
   @Test
   fun `a parameter set in band in the third tile alone is rewritten and reads back`() {
     val file = TestHeic(listOf(silent), bt709Full, grid = true, tiles = mapOf(4 to TestTile(inBand = second)))
-    val rewritten = heifWithExplicitCodestreamColour(file.bytes())
+    val rewritten = heifWithExplicitCodestreamColour(file.bytes()).handed
     val stated = mapOf(4 to TestTile(inBand = stating(second)))
     rewritten shouldBe TestHeic(listOf(stating(silent)), grid = true, tiles = stated).bytes()
     signalsIn(rewritten, 4) shouldBe listOf(target)
@@ -49,7 +49,7 @@ class HeifTilesTest {
   fun `the third tile's own hvcC and its parameter set in band are rewritten`() {
     val own = TestTile(hvccOf(VPS_NAL, second, PPS_NAL), inBand = second)
     val file = TestHeic(listOf(silent), grid = true, tiles = mapOf(4 to own))
-    val rewritten = heifWithExplicitCodestreamColour(file.bytes())
+    val rewritten = heifWithExplicitCodestreamColour(file.bytes()).handed
     val stated = TestTile(hvccOf(VPS_NAL, stating(second), PPS_NAL), inBand = stating(second))
     rewritten shouldBe TestHeic(listOf(stating(silent)), grid = true, tiles = mapOf(4 to stated)).bytes()
     signalsIn(rewritten, 4) shouldBe listOf(target)
@@ -70,7 +70,7 @@ class HeifTilesTest {
         tiles = mapOf(4 to TestTile(coded = own.obu() + STAND_IN_FRAME)),
       ).bytes()
     }
-    val rewritten = heifWithExplicitCodestreamColour(avif(silentHeader, third))
+    val rewritten = heifWithExplicitCodestreamColour(avif(silentHeader, third)).handed
     rewritten shouldBe avif(silentHeader.stating(target), third.stating(target))
     signalsIn(rewritten, 4) shouldBe listOf(target)
     signalsIn(rewritten, 2) shouldBe listOf(target)

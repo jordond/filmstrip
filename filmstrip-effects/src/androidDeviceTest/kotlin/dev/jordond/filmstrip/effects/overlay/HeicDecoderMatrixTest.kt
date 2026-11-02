@@ -6,6 +6,7 @@ import android.os.Build
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.pictureYcbcrCoding
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.media.UnturnedHeif
 import dev.jordond.filmstrip.media.heifWithExplicitCodestreamColour
 import dev.jordond.filmstrip.media.nearestReadable
 import dev.jordond.filmstrip.test.CicpTag
@@ -14,6 +15,7 @@ import dev.jordond.filmstrip.test.HeicPicture
 import dev.jordond.filmstrip.test.HeifStills
 import org.junit.Assume.assumeTrue
 import kotlin.test.Test
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -154,7 +156,8 @@ class HeicDecoderMatrixTest {
     val misses =
       CODESTREAM_PAIRS.flatMap { (matrix, primaries) ->
         listOf(true, false).mapNotNull { full ->
-          val file = heifWithExplicitCodestreamColour(recording(Coding(matrix, full), primaries, UNSPECIFIED))
+          val stated = heifWithExplicitCodestreamColour(recording(Coding(matrix, full), primaries, UNSPECIFIED))
+          val file = assertIs<UnturnedHeif.Handed>(stated).bytes
           val bitmap = checkNotNull(BitmapFactory.decodeByteArray(file, 0, file.size, straight()))
           val what = "codestream primaries $primaries, ${Coding(matrix, full)}"
           codestreamMiss(what, bitmap, YCBCR, primaries, matrix, full)

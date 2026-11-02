@@ -21,7 +21,7 @@ class HeicCodestreamRewriteTest {
   fun everyHeicWithAnNclxStatesItInItsCodestream() {
     for (picture in pictures) {
       val original = picture.bytes()
-      val rewritten = heifWithExplicitCodestreamColour(original)
+      val rewritten = heifWithExplicitCodestreamColour(original).handed
       val nclx = picture.nclx
       if (nclx == null) {
         val own = CodestreamSignal(2, 2, UNSPECIFIED_MATRIX_DECODES_AS, picture.vui.fullRange)
@@ -41,7 +41,7 @@ class HeicCodestreamRewriteTest {
     // stating that signal over any of them must give those units back exactly.
     val reference = HevcVui.FullRangeBt709.configuration.hex()
     for (picture in pictures.filter { it.nclx != null }) {
-      val first = heifWithExplicitCodestreamColour(picture.bytes())
+      val first = heifWithExplicitCodestreamColour(picture.bytes()).handed
       val retagged =
         HeifStills.still(
           brand = "heic",
@@ -51,7 +51,7 @@ class HeicCodestreamRewriteTest {
           size = HeicPicture.HEIC_SIZE,
           nclx = CicpTag(1, 13, 1, true),
         )
-      assertContentEquals(reference, hvccPayload(heifWithExplicitCodestreamColour(retagged)), "$picture")
+      assertContentEquals(reference, hvccPayload(heifWithExplicitCodestreamColour(retagged).handed), "$picture")
     }
   }
 
@@ -59,7 +59,7 @@ class HeicCodestreamRewriteTest {
   fun aGridRewritesTheHvcCItsTilesShare() {
     val picture = ColourPictures.HEIC_NCLX_BT709_LIMITED
     val original = grid(picture)
-    val rewritten = heifWithExplicitCodestreamColour(original)
+    val rewritten = heifWithExplicitCodestreamColour(original).handed
     assertNotSame(original, rewritten)
     assertEquals(picture.nclx?.signal(), pictureYcbcrCoding(rewritten)?.codestream)
     val tiles = (2..5).associateWith { picture.codestream().toList() }
@@ -70,8 +70,8 @@ class HeicCodestreamRewriteTest {
   @Test
   fun aSecondRewriteChangesNothing() {
     for (picture in pictures.filter { it.nclx != null }) {
-      val once = heifWithExplicitCodestreamColour(picture.bytes())
-      assertSame(once, heifWithExplicitCodestreamColour(once), "$picture")
+      val once = heifWithExplicitCodestreamColour(picture.bytes()).handed
+      assertSame(once, heifWithExplicitCodestreamColour(once).handed, "$picture")
     }
   }
 

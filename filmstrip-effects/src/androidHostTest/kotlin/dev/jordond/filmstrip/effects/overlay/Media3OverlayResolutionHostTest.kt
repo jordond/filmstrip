@@ -5,7 +5,9 @@ import dev.jordond.filmstrip.internal.pictureColour
 import dev.jordond.filmstrip.internal.pictureYcbcrCoding
 import dev.jordond.filmstrip.media.CodestreamSignal
 import dev.jordond.filmstrip.media.RestatedColour
+import dev.jordond.filmstrip.media.RestatedHeif
 import dev.jordond.filmstrip.media.UNSPECIFIED_MATRIX_DECODES_AS
+import dev.jordond.filmstrip.media.UnturnedHeif
 import dev.jordond.filmstrip.media.heifWithExplicitCodestreamColour
 import dev.jordond.filmstrip.media.heifWithRestatedColour
 import dev.jordond.filmstrip.media.nearestReadable
@@ -13,8 +15,8 @@ import dev.jordond.filmstrip.test.AvifColourPictures
 import dev.jordond.filmstrip.test.ColourPictures
 import dev.jordond.filmstrip.test.OverlayPixels
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
@@ -250,13 +252,15 @@ class Media3OverlayResolutionHostTest {
   @Test
   fun aPictureAlreadyStatingTheRestateLandsAsItStates() {
     val hidden = avifRecording(BT601, true).withColourDescriptionsHidden(keepNclxPrimaries = true)
-    val stated = heifWithRestatedColour(hidden) { _, _, _ -> RestatedColour(BT601, BT601, nclx = true) }
+    val restated = heifWithRestatedColour(hidden) { _, _, _ -> RestatedColour(BT601, BT601, nclx = true) }
+    val stated = assertIs<RestatedHeif.Restated>(restated).bytes
     val coding = assertNotNull(pictureYcbcrCoding(stated))
     assertEquals(CodestreamSignal(BT601, UNSPECIFIED, BT601, true), coding.codestream)
     for (sdk in AVIF_API_LEVELS) {
       val described = stated.withColourDescriptionsHidden(keepNclxPrimaries = true)
       val restate = assertNotNull(restatedForDecoder(coding.reading, true, sdk, avif = true, tenBit = false))
-      assertContentEquals(described, heifWithRestatedColour(described) { _, _, _ -> restate }, "API $sdk")
+      val again = heifWithRestatedColour(described) { _, _, _ -> restate }
+      assertSame(described, assertIs<RestatedHeif.Restated>(again, "API $sdk").bytes, "API $sdk")
 
       val input = stated.forAndroidDecoder(sdk)
 
@@ -270,7 +274,8 @@ class Media3OverlayResolutionHostTest {
 
   @Test
   fun aPictureCoreCannotRewriteWhoseNclxAgreesWithItsCodestreamLandsAsItStates() {
-    val heic = heifWithExplicitCodestreamColour(heicRecording(BT709, false)).withMoov()
+    val stated = heifWithExplicitCodestreamColour(heicRecording(BT709, false))
+    val heic = assertIs<UnturnedHeif.Handed>(stated).bytes.withMoov()
     val coding = assertNotNull(pictureYcbcrCoding(heic))
     assertTrue(coding.fromNclx)
     assertEquals(CodestreamSignal(BT709, SRGB_TRANSFER, BT709, false), coding.codestream)
@@ -316,7 +321,8 @@ class Media3OverlayResolutionHostTest {
     sdk: Int,
   ): CodestreamSignal {
     val coding = assertNotNull(pictureYcbcrCoding(file))
-    val own = assertNotNull(pictureYcbcrCoding(heifWithExplicitCodestreamColour(file))?.codestream)
+    val stated = assertIs<UnturnedHeif.Handed>(heifWithExplicitCodestreamColour(file)).bytes
+    val own = assertNotNull(pictureYcbcrCoding(stated)?.codestream)
     val fullRange = own.fullRange ?: false
     val restated =
       assertNotNull(restatedForDecoder(coding.reading, fullRange, sdk, coding.avif, coding.tenBitSamples))

@@ -305,8 +305,10 @@ with, and its codestream can record them again. Several platform decoders read t
 than the box, or pick a default of their own when the codestream says nothing. So before any decoder
 sees the picture, filmstrip rewrites the codestream of the primary item and the tiles it is built
 from to state what `nclx` records, and the picture decodes the way the box says everywhere. A
-thumbnail or an alpha item keeps its own, and a HEIF image sequence, which carries a `moov` box, is
-left as it is.
+thumbnail or an alpha item keeps its own. The colour is read from the file's first `iprp` only, so
+a file that splits its item properties across several `iprp` boxes has the later ones passed over.
+Its `irot`, `imir` and `clap` are taken off in the same pass, as
+[Overlay picture orientation](#overlay-picture-orientation) says.
 
 An AVIF or HEIC with no `nclx` lands by its codestream's own signal, AV1's colour config or HEVC's
 VUI. A codestream that leaves its matrix out or names 2 for unspecified reads as BT.601, and a range
@@ -423,9 +425,83 @@ Some descriptions are not read at all, and a picture carrying only one of them d
 WhitePoint, PrimaryChromaticities and TransferFunction tags, a JPEG's Exif ColorSpace, a BMP V4 or V5
 colour space, and gain maps. A CMYK or Lab picture draws untagged as well.
 
-A picture's orientation is not read the same way everywhere yet. ffmpeg turns a picture by its EXIF
-orientation. The browser turns a JPEG by it and draws a PNG's `eXIf` as stored. Apple and Android
-draw every picture as stored, whatever its orientation says.
+### Overlay picture orientation
+
+Every backend draws an `ImageOverlay` picture the way up its file says, and an AVIF or HEIC cut to
+its clean aperture, in a preview as in its export. filmstrip reads the orientation and the crop once,
+out of the file's bytes, and no platform decoder sees either. Each backend cuts the decoded picture
+to the crop and then turns it, so the overlay's size is the size of the picture turned.
+
+| Format           | Orientation read                                                              |
+| ---------------- | ----------------------------------------------------------------------------- |
+| JPEG             | tag 274 in the first Exif `APP1` segment ahead of the first scan              |
+| PNG              | tag 274 in an `eXIf` chunk whose CRC holds, after the image data included     |
+| WebP             | tag 274 in the `EXIF` chunk of an extended file whose `VP8X` header flags one |
+| TIFF and BigTIFF | tag 274 in the first image directory                                          |
+| AVIF and HEIC    | every `irot` and `imir` the primary item lists, in the order it lists them    |
+| JPEG XL          | the orientation in the codestream's image metadata, bare or in `jxlc`/`jxlp`  |
+
+A tag that is missing, unreadable, not a SHORT or outside 1 to 8 reads as no turn. The crop is read
+from an AVIF or HEIC's `clap` boxes the way libheif crops by them, each one cutting the frame the
+properties listed ahead of it leave, as [Stills](#stills) sets out for a still's size. A `clap` that
+reaches past the frame it crops is cut where libheif clamps it.
+
+No decoder is left to turn or crop the picture itself:
+
+- A JPEG, PNG, WebP or TIFF reaches Apple's ImageIO, Android's decoder and the browser with its
+  orientation tag written as 1. Only that value changes, and a PNG `eXIf` gets its CRC written
+  again. Chrome turns a JPEG by its tag even with `imageOrientation` set to `none`.
+- An AVIF or HEIC reaches every decoder with the `irot`, `imir` and `clap` associations of its
+  primary item and its alpha items dropped, so each decodes the whole stored picture. Android API 30
+  ignores every `clap`, API 36 applies a centred one and ignores one with an offset, and ImageIO
+  crops an offset `clap` a column off libheif, so no platform's crop is used.
+- ffmpeg opens every overlay picture with `-noautorotate`. Without it ffmpeg 6.1.1 turns a JPEG and
+  a JPEG XL by their orientation, 8.0.1 a JPEG, an AVIF and a JPEG XL, and 9.0.2 a JPEG, a PNG, a
+  WebP and an AVIF. With it only a JPEG XL turns, since libjxl lays it out by its codestream's
+  orientation whatever ffmpeg asks, so filmstrip turns a JPEG XL no further there.
+
+ffmpeg can open a URI no other part of filmstrip can, such as an `https` URL. filmstrip reads none of
+its bytes, so it draws unturned and cropped however that ffmpeg build crops it. ffmpeg 8.0.1 and
+9.0.2 crop an AVIF or HEIC by its `clap` as they decode it, and 6.1.1 opens no HEIF at all. This is
+ffmpeg's limit.
+
+Reading the orientation, size or crop walks only the container's headers and the block holding what
+it reads, never the pixels. One walk reads at most 65,536 ranges and 16 MiB in all, and no more than
+4 MiB at once, which an Exif segment, tag chunk or `meta` box must fit inside. These are filmstrip's
+own limits. A tag past them reads as untagged, on a still and an overlay alike.
+
+An AVIF or HEIC whose `ipco` holds an `irot`, `imir` or `clap` the drop cannot take off is refused on
+every backend with "The picture's HEIF irot, imir or clap could not be dropped before its decoder
+reads it, since …, so the decoder could crop or turn it another way than core.", naming one reason:
+
+| Reason                                                               | When                                                                                    |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| its boxes do not parse                                               | a box the drop reads does not parse                                                     |
+| it names no primary item                                             | no `pitm` names one                                                                     |
+| an ipma box is above version 1                                       | libheif refuses such an `ipma`                                                          |
+| its primary item lists an ispe above version 0                       | libheif refuses such an `ispe`                                                          |
+| its primary item has no ipma entry in the first iprp                 | the first `iprp` lists nothing for the primary item                                     |
+| it has more than 1024 top-level or ipma boxes                        | the file has more `ipma` boxes than that, or a tagged one more top-level boxes          |
+| more than 256 items refer to its primary item through auxl           | the file has more auxiliary items than the drop reads                                   |
+| it is an image sequence with a moov box                              | the file is a HEIF sequence, whose sample tables hold offsets of their own              |
+| it has more than 15 alpha items                                      | the drop takes associations off at most 16 items                                        |
+| its primary item or an alpha item has a second ipma entry            | a later entry lists the item again                                                      |
+| an alpha item is turned another way than its primary item            | an alpha item's `irot` and `imir` fold into another orientation                         |
+| an iscl scales a turned or mirrored picture                          | an `iscl` comes after an `irot` or `imir` that turns or mirrors                         |
+| its primary item's clap reads no crop                                | libheif refuses the primary item's `clap`                                               |
+| an alpha item is cropped another way than its primary item           | an alpha item's `clap` keeps another rectangle, since both are cut by the primary item's |
+| a dropped byte sits inside an item's data                            | an association to drop lies inside an `iloc` extent                                     |
+| the file without them does not read back                             | the rewritten file does not walk to the input's boxes, extents and other associations   |
+
+The tagged checks apply once the primary item or an alpha item lists a `clap`, an `imir` or an
+`irot` of anything but 0, even when they fold back to no turn. An `irot` of 0 on its own turns
+nothing, so a file carrying only that is left as it is, a sequence included. The listing checks,
+from no primary item to the `auxl` count, come first and apply to any file whose `ipco` holds one of
+the three, whether its primary item lists them or not.
+
+A picture whose decode the crop does not lie within is refused on every backend with
+"The decoder handed back this picture at WxH, which holds no wxh crop at left,top for its clean
+aperture, so it cannot be cropped the way libheif crops it.", the sizes and offset filled in.
 
 ### Overlay animation
 
@@ -790,6 +866,30 @@ Decoding a still is the platform's own decoder in every case: `BitmapFactory` on
 Apple, the JDK's `ImageIO` on the JVM, `createImageBitmap` in a browser. Whatever those read,
 filmstrip reads. A browser cannot open an `ImageSource.Path`, because a path names a filesystem no
 browser has.
+
+Measuring a still on the JVM or in a browser reads its orientation from a JPEG's Exif, a PNG's
+`eXIf`, a WebP's `EXIF`, a TIFF's orientation tag, a HEIF's `irot` and `imir` and a JPEG XL's
+codestream header, for whichever of these the platform's decoder opens. On the JVM that is JPEG,
+PNG and TIFF, since the JDK's `ImageIO` reads BMP, GIF, JPEG, PNG, TIFF and WBMP and nothing else. A
+still tagged 5 to 8 reports a quarter turn in `rotationDegrees` and a `displaySize` with its sides
+swapped, and a mirrored orientation reports the turn it shares with its unmirrored twin. The tag is
+found wherever its container keeps it, a PNG `eXIf` after the image data or a WebP `EXIF` after the
+bitstream included, by stepping over the container's own headers. Only those headers and the block
+holding the tag are read, never the pixels.
+
+A still's stored size is read from its container the same way, and a browser falls back to the
+bounds it decodes only where filmstrip reads none. An AVIF or HEIC still measures as libheif sizes
+it, from the properties the first `ipma` entry for its primary item lists in the file's first
+`iprp`, in that order. The size starts as the last `ispe`'s. Each `clap` crops the frame the
+properties ahead of it leave, at its offsets from that frame's centre, a quarter turn swapping that
+frame's sides. Each `clap` fraction is halved into libheif's range, then the left edge is rounded
+towards zero and the other edges to the nearest pixel with a half up. A `clap` that reaches past the
+frame it crops gives no size, since libheif then decodes a smaller picture than the size it reports.
+The frame left at the end is reported turned back to the stored picture. `iscl` is not read. Every
+`irot` and `imir` in that entry counts, in listing order. An `ipma` above version 1 or an `ispe`
+above version 0 gives no size and no turn, as libheif refuses both. An `ipma` that counts more
+entries than it holds, or a `clap` with no `ispe`, gives no size where libheif would give one. The
+walk is held to the limits in [Overlay picture orientation](#overlay-picture-orientation).
 
 [^apple-still]:
     AVFoundation discards a trailing empty range and gives a track holding nothing but

@@ -8,6 +8,8 @@ import dev.jordond.filmstrip.media.CodecKind
 import dev.jordond.filmstrip.media.IDENTITY_MATRIX
 import dev.jordond.filmstrip.media.NearestMatrix
 import dev.jordond.filmstrip.media.RestatedColour
+import dev.jordond.filmstrip.media.RestatedHeif
+import dev.jordond.filmstrip.media.UnturnedHeif
 import dev.jordond.filmstrip.media.YcbcrCoding
 import dev.jordond.filmstrip.media.YcbcrEvaluator
 import dev.jordond.filmstrip.media.YcbcrReading
@@ -81,7 +83,9 @@ internal sealed interface AvifLanding {
  * so the identity matrix hands out ten-bit samples already rounded and a ten-bit 4:4:4 picture takes the nearest
  * matrix instead.
  *
- * A restate that does not apply refuses the picture, since Chrome would decode it through a matrix this cannot name.
+ * A restate that does not apply refuses the picture, since Chrome would decode it through a matrix this cannot name. So
+ * does an `irot`, `imir` and `clap` drop that is refused, with [UnturnedHeif.Refused.message], since Chrome would turn
+ * a picture core turns too.
  */
 @OptIn(InternalFilmstripApi::class)
 internal fun avifLanding(bytes: ByteArray): AvifLanding {
@@ -100,22 +104,23 @@ private fun colourLanding(
 ): AvifLanding {
   val coding =
     parsed?.takeIf { it.colourKnown && it.codec == CodecKind.Av1 }
-      ?: return AvifLanding.Decoded(heifWithExplicitCodestreamColour(bytes))
+      ?: return explicitLanding(bytes)
   coding.refusal?.let { return AvifLanding.Refused(it) }
   val reading = coding.reading
-  if (derivedByChrome(coding)) return AvifLanding.Decoded(heifWithExplicitCodestreamColour(bytes))
+  if (derivedByChrome(coding)) return explicitLanding(bytes)
   val readable = chromeMatrices(coding.fullRange).let { if (coding.unsubsampled) it else it - IDENTITY_MATRIX }
   val exact = reading.equivalentCode()?.takeIf { it in readable }
   return when {
     exact != null && coding.matrix in readable -> {
-      AvifLanding.Decoded(heifWithExplicitCodestreamColour(bytes))
+      explicitLanding(bytes)
     }
     exact != null -> {
-      AvifLanding.Decoded(restated(bytes, coding, exact) ?: return NOT_RESTATED)
+      landing(restated(bytes, coding, exact)) { AvifLanding.Decoded(it) }
     }
     coding.unsubsampled && coding.bitDepth == EVALUATED_DEPTH -> {
-      val identity = restated(bytes, coding, IDENTITY_MATRIX, fullRange = true) ?: return NOT_RESTATED
-      AvifLanding.Evaluated(identity, reading.evaluator(EVALUATED_DEPTH, coding.fullRange))
+      landing(restated(bytes, coding, IDENTITY_MATRIX, fullRange = true)) { identity ->
+        AvifLanding.Evaluated(identity, reading.evaluator(EVALUATED_DEPTH, coding.fullRange))
+      }
     }
     else -> {
       nearestLanding(bytes, coding, checkNotNull(reading.nearestReadable(readable)))
@@ -131,8 +136,7 @@ private fun nearestLanding(
   nearest: NearestMatrix,
 ): AvifLanding {
   if (!nearest.withinBound) return AvifLanding.Refused(pastBound(nearest))
-  val landed = restated(bytes, coding, nearest.matrix) ?: return NOT_RESTATED
-  return AvifLanding.Decoded(landed, listOf(unreadMatrix(nearest)))
+  return landing(restated(bytes, coding, nearest.matrix)) { AvifLanding.Decoded(it, listOf(unreadMatrix(nearest))) }
 }
 
 /**
@@ -205,18 +209,44 @@ private fun derivedByChrome(coding: YcbcrCoding): Boolean =
   coding.matrix == CHROMATICITY_DERIVED && coding.reading is YcbcrReading.KrKb &&
     coding.reading.equivalentCode() == null
 
-// The picture with its codestream and nclx restated to matrix, or null when the restate does not apply.
+// The picture with its codestream and nclx restated to matrix.
 @OptIn(InternalFilmstripApi::class)
 private fun restated(
   bytes: ByteArray,
   coding: YcbcrCoding,
   matrix: Int,
   fullRange: Boolean? = null,
-): ByteArray? {
+): RestatedHeif {
   val primaries = coding.primaries.takeIf { it in 0..MAX_CODE_POINT } ?: UNSPECIFIED
   val restate = RestatedColour(matrix, primaries, fullRange, nclx = true)
-  return heifWithRestatedColour(bytes) { _, _, _ -> restate }.takeIf { it !== bytes }
+  return heifWithRestatedColour(bytes) { _, _, _ -> restate }
 }
+
+// The picture handed to Chrome through heifWithExplicitCodestreamColour, or refused when its irot, imir and clap drop
+// is.
+@OptIn(InternalFilmstripApi::class)
+private fun explicitLanding(bytes: ByteArray): AvifLanding =
+  when (val heif = heifWithExplicitCodestreamColour(bytes)) {
+    is UnturnedHeif.Refused -> refusal(heif)
+    is UnturnedHeif.Handed -> AvifLanding.Decoded(heif.bytes)
+  }
+
+// What landed makes of the bytes a restate hands over, the refusal of a drop that is refused, or UNRESTATED for a
+// restate that does not apply.
+@OptIn(InternalFilmstripApi::class)
+private inline fun landing(
+  rewrite: RestatedHeif,
+  landed: (ByteArray) -> AvifLanding,
+): AvifLanding =
+  when (rewrite) {
+    is UnturnedHeif.Refused -> refusal(rewrite)
+    is RestatedHeif.Unrestated -> NOT_RESTATED
+    is RestatedHeif.Restated -> landed(rewrite.bytes)
+  }
+
+// The picture refused for an irot, imir and clap drop that is refused, with the sentence core gives for it.
+@OptIn(InternalFilmstripApi::class)
+private fun refusal(refused: UnturnedHeif.Refused): AvifLanding = AvifLanding.Refused(refused.message)
 
 private const val CHROMATICITY_DERIVED = 12
 private const val YCGCO = 8

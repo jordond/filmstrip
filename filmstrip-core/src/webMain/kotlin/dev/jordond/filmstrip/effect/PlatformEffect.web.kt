@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.PictureColour
+import dev.jordond.filmstrip.media.PictureOrientation
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.time.Duration
@@ -69,6 +70,9 @@ public class WebGlPass(
  * @property drawAt Where to draw the raster at a composition time, or null when it is not drawn on that frame.
  * @property colour How a picture describes the colour of its stored codes or samples, or null when the raster is
  * untagged and they are sRGB.
+ * @property orientation The turn the compositor lays the uploaded raster out by when it draws it, which [drawAt]'s
+ * rect already holds the shown picture's size in. A raster uploaded from samples is laid out already and takes
+ * [PictureOrientation.Normal].
  */
 @InternalFilmstripApi
 public class WebGlOverlay(
@@ -76,6 +80,7 @@ public class WebGlOverlay(
   public val size: Size,
   public val drawAt: (compositionTime: Duration) -> WebGlOverlayDraw?,
   public val colour: PictureColour? = null,
+  public val orientation: PictureOrientation = PictureOrientation.Normal,
 ) {
   override fun toString(): String = "WebGlOverlay($size)"
 }

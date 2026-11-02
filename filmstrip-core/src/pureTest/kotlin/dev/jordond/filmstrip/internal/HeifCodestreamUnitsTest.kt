@@ -93,7 +93,7 @@ class HeifCodestreamUnitsTest {
     coding?.bitDepth.shouldBeNull()
     coding?.chromaFormat.shouldBeNull()
     coding?.identityNot444 shouldBe true
-    heifWithExplicitCodestreamColour(file) shouldBeSameInstanceAs file
+    heifWithExplicitCodestreamColour(file).handed shouldBeSameInstanceAs file
   }
 
   private fun assertRead(
@@ -109,7 +109,7 @@ class HeifCodestreamUnitsTest {
 
   // Whether every unit the rewrite walks in the rewritten file states the identity nclx.
   private fun assertRewritten(file: ByteArray) {
-    val rewritten = heifWithExplicitCodestreamColour(file)
+    val rewritten = heifWithExplicitCodestreamColour(file).handed
     rewritten shouldNotBeSameInstanceAs file
     val view = ByteView(rewritten, rewritten.size)
     val coded = heifCodedItems(view) ?: error("no coded items")

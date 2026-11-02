@@ -137,14 +137,15 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
         is OverlayDecode.Refused -> return EffectResolution.Unsupported(id, decoded.message)
         is OverlayDecode.Decoded -> decoded.picture
       }
-    val (width, height) = picture.size.width to picture.size.height
-    if (!fitsTextureSide(width, height, capabilities.maxTextureSize)) {
-      return EffectResolution.Unsupported(id, picturePastTextureSide(width, height, capabilities.maxTextureSize, WEBGL))
+    val shown = picture.shownSize
+    if (!fitsTextureSide(shown.width, shown.height, capabilities.maxTextureSize)) {
+      val reason = picturePastTextureSide(shown.width, shown.height, capabilities.maxTextureSize, WEBGL)
+      return EffectResolution.Unsupported(id, reason)
     }
 
-    val drawAt = drawnBy(placedOn(attributes.inputSize, picture.size), attributes)
+    val drawAt = drawnBy(placedOn(attributes.inputSize, shown), attributes)
     val source = OverlaySource.Image(picture.bitmap, picture.samples)
-    val effect = PlatformEffect(WebGlOverlay(source, picture.size, drawAt, picture.colour))
+    val effect = PlatformEffect(WebGlOverlay(source, picture.size, drawAt, picture.colour, picture.orientation))
     return if (picture.limits.isEmpty()) {
       EffectResolution.Resolved(effect)
     } else {

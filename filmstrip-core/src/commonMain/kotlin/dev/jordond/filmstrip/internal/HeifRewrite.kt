@@ -4,7 +4,9 @@ import dev.jordond.filmstrip.media.Cicp
 import dev.jordond.filmstrip.media.CodecKind
 import dev.jordond.filmstrip.media.CodestreamSignal
 import dev.jordond.filmstrip.media.RestatedColour
+import dev.jordond.filmstrip.media.RestatedHeif
 import dev.jordond.filmstrip.media.UNSPECIFIED_MATRIX_DECODES_AS
+import dev.jordond.filmstrip.media.UnturnedHeif
 import dev.jordond.filmstrip.media.YcbcrReading
 import dev.jordond.filmstrip.media.equivalentCode
 import dev.jordond.filmstrip.media.ycbcrReading
@@ -15,8 +17,13 @@ import dev.jordond.filmstrip.media.ycbcrReading
 
 /**
  * [bytes] with the codestream of its primary item and tiles stating the primaries, transfer, matrix and range the item
- * lands with, or [bytes] itself when nothing needs it, the file is not an AVIF or HEIC, or any part of it is not
- * understood.
+ * lands with, and the `irot`, `imir` and `clap` associations of the primary item and its alpha items dropped by
+ * [heifUnturned], so no decoder crops, turns or mirrors the samples.
+ *
+ * A file whose drop is [UnturnedHeif.Refused] is given that refusal. Otherwise the result is [UnturnedHeif.Dropped]
+ * when the drop took something and [UnturnedHeif.Untagged] when there was nothing to drop. It holds the stated bytes,
+ * or the bytes the drop gave when nothing needs stating, the file is not an AVIF or HEIC, or any part of it is not
+ * understood. An untagged file that needs nothing is given back as [bytes] itself.
  *
  * For a HEIC each sequence parameter set in the `hvcC` of the items, and each one at the start of their item data, is
  * rewritten by [spsStating]. For an AVIF each sequence header OBU in the `av1C` of the items, and each one among the
@@ -31,44 +38,70 @@ import dev.jordond.filmstrip.media.ycbcrReading
  * its matrix out or names 2 has every unit state that unit's own primaries, transfer and range with matrix 6, a field
  * it leaves out written as 2, or limited for the range. One that names its matrix is given back as it was.
  *
- * With [restate], every unit states the matrix, primaries and range it gives for the matrix and range being written and
- * the [dev.jordond.filmstrip.media.YcbcrCoding.reading] of [bytes] as given, in place of the `nclx` or codestream ones.
- * The `nclx` is left as it was unless [RestatedColour.nclx] is set, and then every `colr nclx` in
+ * Every box holding a rewritten unit grows or shrinks with it, a 64-bit size included, and every `iloc` base offset,
+ * extent offset and extent length the change moves is fixed, file offsets for construction method 0 and offsets into
+ * `idat` for method 1. The units of a file with a `moov` box are not stated, since its sample tables hold offsets of
+ * their own. Bytes after the last top-level box that do not parse as one are carried over as they were.
+ *
+ * The result is read back before it is given. Its top-level boxes must walk to where the input's end up, every item
+ * extent must hold the input's bytes with only the rewritten units changed, and it must carry at least one unit, each
+ * one [codestreamUnits] walks stating the signal written. Otherwise the units are left as they were.
+ */
+internal fun heifWithExplicitColour(bytes: ByteArray): UnturnedHeif =
+  when (val unturned = heifUnturned(bytes)) {
+    is UnturnedHeif.Refused -> unturned
+    is UnturnedHeif.Dropped -> UnturnedHeif.Dropped(stated(unturned.bytes, restate = null) ?: unturned.bytes)
+    is UnturnedHeif.Untagged -> UnturnedHeif.Untagged(stated(bytes, restate = null) ?: bytes)
+  }
+
+/**
+ * [heifWithExplicitColour] with every unit stating what [restate] gives, or [RestatedHeif.Unrestated] when the restate
+ * does not apply.
+ *
+ * Every unit states the matrix, primaries and range [restate] gives for the matrix and range being written and the
+ * [dev.jordond.filmstrip.media.YcbcrCoding.reading] of the bytes as the drop gave them, in place of the `nclx` or
+ * codestream ones. The `nclx` is left as it was unless [RestatedColour.nclx] is set, and then every `colr nclx` in
  * [CodedItems.nclxBoxes] states the same matrix, primaries and range in place, its transfer and reserved bits kept.
  * Without an `nclx`, a codestream that names its matrix is then stated too, with its own transfer and range and a
  * chromaticity derived matrix as [resolvedMatrix] resolves it for the codestream's own primaries and transfer. A matrix
  * or primaries outside 0 to 255 from [restate] throws [IllegalArgumentException].
  *
- * [restate] is called only once the file is known to be an AVIF or HEIC without a `moov` box, whose colour reads with
- * no `nclx` matrix past 255, whose matrix is not identity on samples other than 4:4:4 and which has at least one unit,
- * each parsing. Past that a refusal can depend on its answer, every unit already stating it, a restated identity matrix
- * on samples other than 4:4:4, a unit that cannot state it, a field that no longer fits or a result that does not read
- * back. Each of those gives [bytes] back too, so a caller treats a restate as applied only when the result is not
- * [bytes] itself.
+ * A file whose drop is [UnturnedHeif.Refused] is given that refusal with [restate] never called. Otherwise [restate] is
+ * called only once the file is known to be an AVIF or HEIC without a `moov` box, whose colour reads with no `nclx`
+ * matrix past 255, whose matrix is not identity on samples other than 4:4:4 and which has at least one unit, each
+ * parsing. Past that a refusal can depend on its answer, a restated identity matrix on samples other than 4:4:4, a
+ * unit that cannot state it, a field that no longer fits or a result that does not read back. Each of those, and
+ * every refusal before it, gives [RestatedHeif.Unrestated] holding the bytes the drop gave. A file whose units and
+ * `nclx` already state the answer is [RestatedHeif.Restated] with only the drop made, tagged or not.
  *
- * Every box holding a rewritten unit grows or shrinks with it, a 64-bit size included, and every `iloc` base offset,
- * extent offset and extent length the change moves is fixed, file offsets for construction method 0 and offsets into
- * `idat` for method 1. A file with a `moov` box is not understood, since its sample tables hold offsets of their own.
- * Bytes after the last top-level box that do not parse as one are carried over as they were.
- *
- * The result is read back before it is given. Its top-level boxes must walk to where the input's end up, every item
- * extent must hold the input's bytes with only the rewritten units changed, and it must carry at least one unit, each
- * one [codestreamUnits] walks stating the signal written. Otherwise [bytes] is given instead.
- *
- * @param restate The matrix and primaries to state in place of a matrix coefficients code point and full range flag,
- * or null to keep the `nclx` or codestream ones.
+ * @param restate The matrix and primaries to state in place of a matrix coefficients code point and full range flag.
  */
 internal fun heifWithExplicitColour(
   bytes: ByteArray,
-  restate: ((matrix: Int, fullRange: Boolean, reading: YcbcrReading) -> RestatedColour)? = null,
-): ByteArray {
+  restate: (matrix: Int, fullRange: Boolean, reading: YcbcrReading) -> RestatedColour,
+): RestatedHeif =
+  when (val unturned = heifUnturned(bytes)) {
+    is UnturnedHeif.Refused -> {
+      unturned
+    }
+    is UnturnedHeif.Handed -> {
+      stated(unturned.bytes, restate)?.let(RestatedHeif::Restated) ?: RestatedHeif.Unrestated(unturned.bytes)
+    }
+  }
+
+// The bytes with their units stating the target, the bytes themselves when they already do, or null when they are no
+// AVIF or HEIC or on any refusal.
+private fun stated(
+  bytes: ByteArray,
+  restate: ((Int, Boolean, YcbcrReading) -> RestatedColour)?,
+): ByteArray? {
   val file = ByteView(bytes, bytes.size)
-  if (!file.matches(4, FTYP)) return bytes
-  return deferring { rewrite(file, restate) } ?: bytes
+  if (!file.matches(4, FTYP)) return null
+  return deferring { rewrite(file, restate) }
 }
 
 // Replaces the bytes from start up to end with replacement.
-private class Splice(
+internal class Splice(
   val start: Int,
   val end: Int,
   val replacement: ByteArray,
@@ -77,12 +110,13 @@ private class Splice(
 }
 
 // A big endian field of width bytes at a position in the original file, given a new value.
-private class Field(
+internal class Field(
   val at: Int,
   val width: Int,
   val value: Long,
 )
 
+// The file with its units stating the target, file's own bytes when they already do, or null on any refusal.
 private fun rewrite(
   file: ByteView,
   restate: ((Int, Boolean, YcbcrReading) -> RestatedColour)?,
@@ -102,7 +136,8 @@ private fun rewrite(
   for (unit in units) found += file.splice(unit, target.signal()) ?: return null
   if (restated?.nclx == true) found += coded.nclxBoxes.mapNotNull { file.nclxSplice(it, target) }
   val splices = found.distinctBy { it.start }.sortedBy { it.start }
-  if (splices.isEmpty() || splices.zipWithNext().any { (first, second) -> second.start < first.end }) return null
+  if (splices.isEmpty()) return file.bytes
+  if (splices.zipWithNext().any { (first, second) -> second.start < first.end }) return null
   if (splices.any { splice -> top.none { splice.start >= it.start && splice.end <= it.end } }) return null
   val fields = mutableListOf<Field>()
   file.sizeFields(top, splices, fields)
@@ -112,16 +147,12 @@ private fun rewrite(
   return rewritten.bytes.takeIf { intact && rewritten.statesTarget(target.signal(), coded.codec) }
 }
 
-// The top-level boxes up to the first one that does not parse, past which a reader ignores the file.
-private fun ByteView.leadingBoxes(): List<Box> {
-  val found = mutableListOf<Box>()
-  val walk = boxes(0, end).iterator()
-  while (true) found += deferring { if (walk.hasNext()) walk.next() else null } ?: break
-  return found
-}
+// The top-level boxes up to the first one that does not parse, past which a reader ignores the file, the first limit of
+// them.
+internal fun ByteView.leadingBoxes(limit: Int = Int.MAX_VALUE): List<Box> = parsing(0, end).take(limit).toList()
 
 // A file with its splices made, checked against the file it came from before it is handed back.
-private class Rewritten(
+internal class Rewritten(
   val bytes: ByteArray,
   val splices: List<Splice>,
 ) {
@@ -129,6 +160,9 @@ private class Rewritten(
 
   // The coded items of the file, with the item locations and idat of its meta box.
   private val coded by lazy { heifCodedItems(file) }
+
+  // The boxes of the file's meta box, the item locations and idat among them.
+  private val parts by lazy { file.metaParts() }
 
   // Where a byte at position in the input sits once the splices before it are made.
   fun moved(position: Int): Int = position + splices.filter { it.end <= position }.sumOf { it.delta }
@@ -147,8 +181,8 @@ private class Rewritten(
     idat: Box?,
   ): Boolean {
     if (locations == null) return true
-    val now = coded?.locations ?: return false
-    val nowIdat = coded?.idat
+    val now = parts?.locations ?: return false
+    val nowIdat = parts?.idat
     if (now.items.size != locations.items.size) return false
     return locations.items.zip(now.items).all { (before, after) ->
       val same =
@@ -313,7 +347,7 @@ private fun ByteView.rewrittenUnit(
 }
 
 // Grows or shrinks each box holding a splice by the splices inside it, descending into meta, iprp and ipco.
-private fun ByteView.sizeFields(
+internal fun ByteView.sizeFields(
   boxes: List<Box>,
   splices: List<Splice>,
   fields: MutableList<Field>,
@@ -338,7 +372,7 @@ private fun ByteView.sizeFields(
 }
 
 // The new base offsets, extent offsets and extent lengths of every item whose data the splices move or resize.
-private fun ItemLocations.fields(
+internal fun ItemLocations.fields(
   splices: List<Splice>,
   idat: Box?,
 ): List<Field>? {
@@ -366,7 +400,7 @@ private fun ItemLocations.fields(
 }
 
 // The file with every field written and every splice made, or null when a field does not fit its width.
-private fun spliced(
+internal fun spliced(
   bytes: ByteArray,
   fields: List<Field>,
   splices: List<Splice>,
@@ -402,7 +436,7 @@ private fun ByteArray.splicing(
 }
 
 private val FTYP = ascii("ftyp")
-private val MOOV = fourcc("moov")
+internal val MOOV = fourcc("moov")
 
 private const val MAX_CODE_POINT = 255
 private const val UNSPECIFIED = 2

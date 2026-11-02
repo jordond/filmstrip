@@ -43,13 +43,20 @@ public fun jpegProfileIsRgbOrGrey(bytes: ByteArray): Boolean =
  * Reading the result back gives a [YcbcrCoding.codestream] that states what was written, while [YcbcrCoding.matrix]
  * stays the `nclx` matrix as the box records it, 2 and 12 included.
  *
- * Returns [bytes] itself when nothing needs rewriting, a file with a `moov` box, and anything not understood, a
- * truncated or malformed file included. So is a picture whose [YcbcrCoding.identityNot444] is true, and an AVIF
- * whose `nclx` names the identity matrix at limited range with BT.709 primaries and the sRGB transfer, which AV1 cannot
- * signal. It never throws.
+ * The `irot`, `imir` and `clap` associations of the primary item and its alpha items are dropped from their `ipma`
+ * entries as well, the way [heifWithoutOrientation] drops them, so no decoder crops, turns or mirrors the samples and
+ * [dev.jordond.filmstrip.internal.pictureOrientationOf] on the result reads [PictureOrientation.Normal]. Read the
+ * orientation from [bytes], not from the result. They are dropped even when the codestream needs nothing.
+ *
+ * Gives [UnturnedHeif.Refused] for a file whose drop is refused, as [heifWithoutOrientation] lists, and the
+ * codestream is then not stated. Otherwise gives [UnturnedHeif.Dropped] or [UnturnedHeif.Untagged] as the drop does,
+ * holding [bytes] itself when the file is untagged and nothing needs rewriting, or anything is not understood, a
+ * truncated or malformed file included. A file with a `moov` box keeps its codestream as it is. So does a picture
+ * whose [YcbcrCoding.identityNot444] is true, or an AVIF whose `nclx` names the identity matrix at limited range with
+ * BT.709 primaries and the sRGB transfer, which AV1 cannot signal. It never throws.
  */
 @InternalFilmstripApi
-public fun heifWithExplicitCodestreamColour(bytes: ByteArray): ByteArray = heifWithExplicitColour(bytes)
+public fun heifWithExplicitCodestreamColour(bytes: ByteArray): UnturnedHeif = heifWithExplicitColour(bytes)
 
 /**
  * The matrix coefficients, colour primaries and range [heifWithRestatedColour] states in place of the ones a picture
@@ -93,14 +100,20 @@ public data class RestatedColour(
  * Read the picture's [YcbcrCoding] from [bytes], not from the result. Reading the result back gives the restated matrix
  * in [YcbcrCoding.codestream], and in [YcbcrCoding.matrix] too for a picture without an `nclx`.
  *
- * Returns [bytes] itself for a file with a `moov` box, anything not understood and a picture whose
- * [YcbcrCoding.identityNot444] is true, as [heifWithExplicitCodestreamColour] does, and for a picture with an `nclx`
- * matrix past 255, with no sequence parameter set or sequence header at all or with one that does not parse. [restate]
- * is not called for any of those. It is called once for every other picture, and the result can still be [bytes]
- * itself after it answers, when every unit already states its answer and so does every `nclx` [RestatedColour.nclx]
- * asks for, it gives the identity matrix on samples not known to be 4:4:4, a unit cannot state its answer or the
- * rewritten file does not read back. A caller treats the restate as applied only when the result is not [bytes]
- * itself. It never throws unless [restate] does or gives a code point outside 0 to 255.
+ * Gives [UnturnedHeif.Refused] for a file whose `irot`, `imir` and `clap` drop is refused, as [heifWithoutOrientation]
+ * lists, without calling [restate]. Otherwise every result has the `irot`, `imir` and `clap` dropped the way
+ * [heifWithoutOrientation] drops them.
+ *
+ * Gives [RestatedHeif.Unrestated] when the restate does not apply: for a file with a `moov` box, anything not
+ * understood and a picture whose [YcbcrCoding.identityNot444] is true, as [heifWithExplicitCodestreamColour] keeps its
+ * codestream, and for a picture with an `nclx` matrix past 255, with no sequence parameter set or sequence header at
+ * all or with one that does not parse. [restate] is not called for any of those. It is called once for every other
+ * picture, and the result can still be [RestatedHeif.Unrestated] after it answers, when it gives the identity matrix
+ * on samples not known to be 4:4:4, a unit cannot state its answer or the rewritten file does not read back. Its
+ * bytes are the file with only the drop made, or [bytes] itself when the drop finds the file untagged, so a caller
+ * hands them over as they are. Every other picture is [RestatedHeif.Restated], one whose units and every `nclx`
+ * [RestatedColour.nclx] asks for already state the answer included. It never throws unless [restate] does or gives a
+ * code point outside 0 to 255.
  *
  * @param restate The matrix and primaries to state in place of an ITU-T H.273 matrix coefficients code point and full
  * range flag, given the reading of [bytes] as well.
@@ -109,4 +122,4 @@ public data class RestatedColour(
 public fun heifWithRestatedColour(
   bytes: ByteArray,
   restate: (matrix: Int, fullRange: Boolean, reading: YcbcrReading) -> RestatedColour,
-): ByteArray = heifWithExplicitColour(bytes, restate)
+): RestatedHeif = heifWithExplicitColour(bytes, restate)

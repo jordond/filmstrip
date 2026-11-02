@@ -21,7 +21,7 @@ class AvifCodestreamRewriteTest {
   fun everyAvifWithAnNclxStatesItInItsSequenceHeader() {
     for (picture in pictures) {
       val original = picture.bytes()
-      val rewritten = heifWithExplicitCodestreamColour(original)
+      val rewritten = heifWithExplicitCodestreamColour(original).handed
       val nclx = picture.nclx
       if (nclx == null) {
         val own = CodestreamSignal(2, 2, UNSPECIFIED_MATRIX_DECODES_AS, true)
@@ -40,7 +40,7 @@ class AvifCodestreamRewriteTest {
   fun aGridRewritesEveryTileAndLeavesItsDescriptor() {
     for (picture in pictures.filter { it.nclx != null }) {
       val original = picture.gridBytes()
-      val rewritten = heifWithExplicitCodestreamColour(original)
+      val rewritten = heifWithExplicitCodestreamColour(original).handed
       assertNotSame(original, rewritten)
       assertEquals(picture.nclx?.signal(), pictureYcbcrCoding(rewritten)?.codestream, "$picture")
       val before = itemData(original)
@@ -56,7 +56,7 @@ class AvifCodestreamRewriteTest {
       val nclx = checkNotNull(picture.nclx)
       val frame = picture.codestream().let { it.copyOfRange(2 + it.uInt8At(1), it.size) }
       for ((original, tiled) in listOf(picture.bytes() to false, picture.gridBytes() to true)) {
-        val rewritten = heifWithExplicitCodestreamColour(original)
+        val rewritten = heifWithExplicitCodestreamColour(original).handed
         val coding = pictureYcbcrCoding(rewritten)
         val stated = CodestreamSignal(nclx.primaries, nclx.transfer, 0, nclx.fullRange)
         assertEquals(stated, coding?.codestream, "$picture codestream signal")
@@ -72,8 +72,8 @@ class AvifCodestreamRewriteTest {
   @Test
   fun aSecondRewriteChangesNothing() {
     for (picture in pictures.filter { it.nclx != null }) {
-      val once = heifWithExplicitCodestreamColour(picture.bytes())
-      assertSame(once, heifWithExplicitCodestreamColour(once), "$picture")
+      val once = heifWithExplicitCodestreamColour(picture.bytes()).handed
+      assertSame(once, heifWithExplicitCodestreamColour(once).handed, "$picture")
     }
   }
 

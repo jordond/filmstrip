@@ -170,7 +170,7 @@ public object OverlayPixels {
     return chunks.fold(ByteArray(0)) { bytes, chunk -> bytes + chunk }
   }
 
-  private fun zlibStored(bytes: ByteArray): ByteArray {
+  internal fun zlibStored(bytes: ByteArray): ByteArray {
     var zlib = byteArrayOf(0x78, 0x01)
     var from = 0
     do {
@@ -184,7 +184,7 @@ public object OverlayPixels {
     return zlib + int32(adler32(bytes))
   }
 
-  private fun chunk(
+  internal fun chunk(
     type: String,
     data: ByteArray,
   ): ByteArray {

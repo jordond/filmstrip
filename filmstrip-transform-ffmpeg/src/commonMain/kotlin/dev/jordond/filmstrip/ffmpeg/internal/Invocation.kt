@@ -148,6 +148,7 @@ internal fun Invocation.arguments(
         add("lavfi")
       }
       addAll(input.loopArguments())
+      addAll(input.orientationArguments())
       // Ahead of -i, which is the seek the demuxer performs. After -i it would decode every frame
       // up to the cut and throw them away, which is the whole cost a snapped trim exists to avoid.
       input.startSeconds?.let {
@@ -211,6 +212,15 @@ internal fun Invocation.arguments(
  */
 internal fun InputSpec.loopArguments(): List<String> =
   loopFrameRate?.let { listOf("-loop", "1", "-framerate", it.toString()) }.orEmpty()
+
+/**
+ * `-noautorotate` for an overlay picture, or nothing for any other input.
+ *
+ * It keeps ffmpeg from turning the picture by an orientation tag it reads, which differs between builds, so the picture
+ * opens as stored and the graph's own nodes lay it out the way core reads its tag.
+ */
+internal fun InputSpec.orientationArguments(): List<String> =
+  if (source is InputSource.OfImage) listOf("-noautorotate") else emptyList()
 
 private fun Invocation.videoArguments(): List<String> =
   buildList {

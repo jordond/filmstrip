@@ -90,6 +90,23 @@ class HeifAlphaTest {
     assertNull(heifAlpha(bytes))
   }
 
+  // The alpha item's entry comes last in the ipma, and claiming one more association than it holds runs it past the
+  // end of the box, so the still has no alpha.
+  @Test
+  fun `an alpha item whose ipma entry runs past the box has none`() {
+    val bytes = still(AVIF, AlphaPlanes.avif())
+    val ipma = bytes.indexOf("ipma".encodeToByteArray())
+    val ipmaEnd = ipma - 4 + (0 until 4).fold(0) { size, at -> (size shl 8) or (bytes[ipma - 4 + at].toInt() and 0xFF) }
+    val primaryCount = ipma + 4 + 4 + 4 + 2
+    val alphaCount = primaryCount + 1 + bytes[primaryCount] + 2
+    assertEquals(4, bytes[alphaCount].toInt())
+    assertEquals(ipmaEnd, alphaCount + 1 + 4)
+    assertNotNull(heifAlpha(bytes))
+
+    bytes[alphaCount] = 5
+    assertNull(heifAlpha(bytes))
+  }
+
   private fun still(
     item: HeifThumbnail,
     alpha: HeifAlphaPlane,

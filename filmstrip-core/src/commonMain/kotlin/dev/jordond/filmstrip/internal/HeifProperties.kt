@@ -84,20 +84,45 @@ internal inline fun ByteView.forEachAssociation(
   ipma: Box,
   each: (item: Long, index: Int) -> Unit,
 ) {
+  forEachEntry(ipma) { item, first, count ->
+    for (at in 0 until count) each(item, associationIndex(ipma, first, at))
+    true
+  }
+}
+
+/**
+ * Walks the entries an ipma box lists, in order, handing [each] the item of an entry, where its first association
+ * starts and how many associations it holds. The walk stops at the first entry [each] returns false for.
+ *
+ * The associations are stepped over unread. An `ipma` above version 1, which libheif refuses, throws
+ * [MalformedPicture], and so does an entry whose associations run past the end of the box, before any of them is
+ * handed to [each].
+ */
+internal inline fun ByteView.forEachEntry(
+  ipma: Box,
+  each: (item: Long, first: Int, count: Int) -> Boolean,
+) {
   val version = u8(ipma.start)
-  val wideIndex = u8(ipma.start + 3) and 1 == 1
+  if (version > 1) malformed()
+  val indexBytes = if (u8(ipma.start + 3) and 1 == 1) 2 else 1
   var remaining = u32(ipma.start + 4)
   var pos = ipma.start + 8
   while (remaining-- > 0) {
     val item = itemId(pos, version)
     pos += if (version == 0) 2 else 4
-    repeat(u8(pos++)) {
-      val index = if (wideIndex) u16(pos) and 0x7FFF else u8(pos) and 0x7F
-      pos += if (wideIndex) 2 else 1
-      each(item, index)
-    }
+    val count = u8(pos++)
+    if (pos + count * indexBytes > end) malformed()
+    if (!each(item, pos, count)) return
+    pos += count * indexBytes
   }
 }
+
+// The one-based ipco index of association [at] of an entry in [ipma] whose first association starts at [first].
+internal fun ByteView.associationIndex(
+  ipma: Box,
+  first: Int,
+  at: Int,
+): Int = if (u8(ipma.start + 3) and 1 == 1) u16(first + at * 2) and 0x7FFF else u8(first + at) and 0x7F
 
 /**
  * The kinds of property [FirstProperties] records, each an index into its arrays, with [COUNT] the number of them.

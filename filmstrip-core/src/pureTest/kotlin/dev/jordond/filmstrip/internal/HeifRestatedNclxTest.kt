@@ -39,10 +39,10 @@ class HeifRestatedNclxTest {
         val restate = { _: Int, _: Boolean, _: YcbcrReading -> RestatedColour(9, 9, fullRange = true, nclx = true) }
         val signal = CodestreamSignal(9, nclx.transfer, 9, true)
         val stated = Cicp(9, nclx.transfer, 9, true)
-        val avif = heifWithRestatedColour(avif(silentHeader, nclx, grid), restate)
+        val avif = heifWithRestatedColour(avif(silentHeader, nclx, grid), restate).restated
         avif shouldBe avif(silentHeader.stating(signal), stated, grid)
         pictureYcbcrCoding(avif)?.matrix shouldBe 9
-        val heic = heifWithRestatedColour(TestHeic(listOf(silent), nclx, grid = grid).bytes(), restate)
+        val heic = heifWithRestatedColour(TestHeic(listOf(silent), nclx, grid = grid).bytes(), restate).restated
         heic shouldBe TestHeic(listOf(spsStating(silent, signal)!!), stated, grid = grid).bytes()
         pictureYcbcrCoding(heic)?.fullRange shouldBe true
       }
@@ -55,9 +55,9 @@ class HeifRestatedNclxTest {
     val restate = { _: Int, _: Boolean, _: YcbcrReading -> RestatedColour(9, 9, fullRange = true, nclx = true) }
     val signal = CodestreamSignal(9, 2, 9, true)
     for (grid in listOf(false, true)) {
-      heifWithRestatedColour(avif(silentHeader, null, grid), restate) shouldBe
+      heifWithRestatedColour(avif(silentHeader, null, grid), restate).restated shouldBe
         avif(silentHeader.stating(signal), null, grid)
-      val heic = heifWithRestatedColour(TestHeic(listOf(silent), nclx = null, grid = grid).bytes(), restate)
+      val heic = heifWithRestatedColour(TestHeic(listOf(silent), nclx = null, grid = grid).bytes(), restate).restated
       heic shouldBe TestHeic(listOf(spsStating(silent, signal)!!), nclx = null, grid = grid).bytes()
       pictureYcbcrCoding(heic)?.codestream shouldBe signal
     }
@@ -72,7 +72,7 @@ class HeifRestatedNclxTest {
       val file = TestHeic(listOf(silent), Cicp(1, 13, 8, true), grid = grid, thumbnailNclx = thumbnail).bytes()
       val signal = CodestreamSignal(9, 13, 9, true)
       val stated = Cicp(9, 13, 9, true)
-      heifWithRestatedColour(file, restate) shouldBe
+      heifWithRestatedColour(file, restate).restated shouldBe
         TestHeic(listOf(spsStating(silent, signal)!!), stated, grid = grid, thumbnailNclx = thumbnail).bytes()
     }
   }
@@ -84,7 +84,7 @@ class HeifRestatedNclxTest {
     for (grid in listOf(false, true)) {
       val file = TestHeic(listOf(silent), Cicp(1, 13, 8, true), grid = grid, secondNclx = Cicp(1, 16, 5, false))
       val signal = CodestreamSignal(9, 13, 9, true)
-      val restated = heifWithRestatedColour(file.bytes(), restate)
+      val restated = heifWithRestatedColour(file.bytes(), restate).restated
       restated shouldBe
         TestHeic(
           listOf(spsStating(silent, signal)!!),
@@ -105,11 +105,11 @@ class HeifRestatedNclxTest {
         val signal = CodestreamSignal(9, transfer, 9, true)
         val stated = Cicp(9, transfer, 9, true)
         val avif = avif(silentHeader.stating(signal), stated, grid)
-        heifWithRestatedColour(avif, restate) shouldBeSameInstanceAs avif
+        heifWithRestatedColour(avif, restate).restated shouldBeSameInstanceAs avif
         val heic = TestHeic(listOf(spsStating(silent, signal)!!), stated, grid = grid).bytes()
-        heifWithRestatedColour(heic, restate) shouldBeSameInstanceAs heic
+        heifWithRestatedColour(heic, restate).restated shouldBeSameInstanceAs heic
         val unitsOnly = TestHeic(listOf(silent), stated, grid = grid).bytes()
-        heifWithRestatedColour(unitsOnly, restate) shouldBe heic
+        heifWithRestatedColour(unitsOnly, restate).restated shouldBe heic
       }
     }
   }

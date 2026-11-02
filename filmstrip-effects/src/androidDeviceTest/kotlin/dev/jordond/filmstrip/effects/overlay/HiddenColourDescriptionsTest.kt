@@ -10,6 +10,8 @@ import dev.jordond.filmstrip.internal.pictureColour
 import dev.jordond.filmstrip.internal.pictureYcbcrCoding
 import dev.jordond.filmstrip.media.CodecKind
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.media.RestatedHeif
+import dev.jordond.filmstrip.media.UnturnedHeif
 import dev.jordond.filmstrip.media.heifWithRestatedColour
 import dev.jordond.filmstrip.media.pictureLight
 import dev.jordond.filmstrip.test.ColourPictures
@@ -24,7 +26,9 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import kotlin.test.fail
 
 /**
  * Overlay pictures that describe their colour, decoded by Android to the samples their files store.
@@ -157,9 +161,16 @@ class HiddenColourDescriptionsTest {
     val avif = coding.codec == CodecKind.Av1
     val tenBit = coding.tenBitSamples
     val sdk = Build.VERSION.SDK_INT
-    val described =
-      heifWithRestatedColour(file.describedAsSrgb()) { _, fullRange, _ ->
+    val srgb = file.describedAsSrgb()
+    val restated =
+      heifWithRestatedColour(srgb) { _, fullRange, _ ->
         checkNotNull(restatedForDecoder(coding.reading, fullRange, sdk, avif, tenBit)).copy(nclx = false)
+      }
+    val described =
+      when (restated) {
+        is RestatedHeif.Restated -> restated.bytes
+        is RestatedHeif.Unrestated -> restated.bytes.also { assertSame(srgb, it, what) }
+        is UnturnedHeif.Refused -> fail("$what was refused, ${restated.message}")
       }
     val stored = decodeCentre(described)
     val picture = assertNotNull(ImageSource.Bytes(file).decode(context = null), "$what did not decode")

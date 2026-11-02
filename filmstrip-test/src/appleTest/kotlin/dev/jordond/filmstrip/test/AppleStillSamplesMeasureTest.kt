@@ -27,10 +27,10 @@ class AppleStillSamplesMeasureTest {
     val misses =
       heics.flatMap { heic ->
         listOfNotNull(
-          imageIoMiss("$heic", heifWithExplicitCodestreamColour(heic.bytes())) {
+          imageIoMiss("$heic", heifWithExplicitCodestreamColour(heic.bytes()).handed) {
             measured(heic, asWritten = false, it)
           },
-          imageIoMiss("$heic grid", heifWithExplicitCodestreamColour(heic.gridBytes())) {
+          imageIoMiss("$heic grid", heifWithExplicitCodestreamColour(heic.gridBytes()).handed) {
             measured(heic, asWritten = false, it)
           },
           imageIoMiss("$heic as written", heic.bytes()) { measured(heic, asWritten = true, it) },

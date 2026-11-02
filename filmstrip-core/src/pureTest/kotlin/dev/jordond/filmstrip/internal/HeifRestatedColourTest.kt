@@ -55,7 +55,7 @@ class HeifRestatedColourTest {
     for (grid in listOf(false, true)) {
       for ((nclx, signal) in stated) {
         val expected = avif(silentHeader.stating(signal), nclx, grid)
-        heifWithRestatedColour(avif(silentHeader, nclx, grid), keepingMatrix(::paired)) shouldBe expected
+        heifWithRestatedColour(avif(silentHeader, nclx, grid), keepingMatrix(::paired)).restated shouldBe expected
         pictureYcbcrCoding(expected)?.codestream shouldBe signal
       }
     }
@@ -72,11 +72,11 @@ class HeifRestatedColourTest {
       )
     for (grid in listOf(false, true)) {
       for ((header, signal) in stated) {
-        heifWithRestatedColour(avif(header, null, grid), keepingMatrix(::paired)) shouldBe
+        heifWithRestatedColour(avif(header, null, grid), keepingMatrix(::paired)).restated shouldBe
           avif(header.stating(signal), null, grid)
       }
       val agreeing = avif(SequenceShape(description = Triple(9, 16, 9)), null, grid)
-      heifWithRestatedColour(agreeing, keepingMatrix(::paired)) shouldBeSameInstanceAs agreeing
+      heifWithRestatedColour(agreeing, keepingMatrix(::paired)).restated shouldBeSameInstanceAs agreeing
     }
   }
 
@@ -93,8 +93,8 @@ class HeifRestatedColourTest {
     for (grid in listOf(false, true)) {
       for ((nclx, signal) in stated) {
         val expected = TestHeic(listOf(spsStating(silent, signal)!!), nclx, grid = grid).bytes()
-        heifWithRestatedColour(TestHeic(listOf(silent), nclx, grid = grid).bytes(), keepingMatrix(::paired)) shouldBe
-          expected
+        val file = TestHeic(listOf(silent), nclx, grid = grid).bytes()
+        heifWithRestatedColour(file, keepingMatrix(::paired)).restated shouldBe expected
         pictureYcbcrCoding(expected)?.codestream shouldBe signal
       }
     }
@@ -114,7 +114,7 @@ class HeifRestatedColourTest {
         val sps = if (own.matrix == null) SpsShape().nal() else SpsShape(vui = minimalVui(own)).nal()
         val expected = TestHeic(listOf(spsStating(sps, signal)!!), nclx = null, grid = grid).bytes()
         val file = TestHeic(listOf(sps), nclx = null, grid = grid).bytes()
-        heifWithRestatedColour(file, keepingMatrix(::paired)) shouldBe expected
+        heifWithRestatedColour(file, keepingMatrix(::paired)).restated shouldBe expected
       }
     }
   }
@@ -132,10 +132,11 @@ class HeifRestatedColourTest {
         val header = SequenceShape(description = own.description(), fullRange = own.fullRange == true)
         val handed = mutableListOf<Int>()
         val pick = { matrix: Int -> paired(matrix).also { handed += matrix } }
-        heifWithRestatedColour(avif(header, null, grid), keepingMatrix(pick)) shouldBe
+        heifWithRestatedColour(avif(header, null, grid), keepingMatrix(pick)).restated shouldBe
           avif(header.stating(signal), null, grid)
         val sps = SpsShape(vui = minimalVui(own)).nal()
-        heifWithRestatedColour(TestHeic(listOf(sps), nclx = null, grid = grid).bytes(), keepingMatrix(pick)) shouldBe
+        val file = TestHeic(listOf(sps), nclx = null, grid = grid).bytes()
+        heifWithRestatedColour(file, keepingMatrix(pick)).restated shouldBe
           TestHeic(listOf(spsStating(sps, signal)!!), nclx = null, grid = grid).bytes()
         handed.toSet() shouldBe setOf(signal.matrix)
       }
@@ -161,10 +162,10 @@ class HeifRestatedColourTest {
         val handed = mutableListOf<Int>()
         val pick = { matrix: Int -> EBU_3213.also { handed += matrix } }
         val signal = CodestreamSignal(EBU_3213, nclx.transfer, nclx.matrix, nclx.fullRange)
-        heifWithRestatedColour(avif(silentHeader, nclx, grid), keepingMatrix(pick)) shouldBe
+        heifWithRestatedColour(avif(silentHeader, nclx, grid), keepingMatrix(pick)).restated shouldBe
           avif(silentHeader.stating(signal), nclx, grid)
         val sps = SpsShape().nal()
-        heifWithRestatedColour(TestHeic(listOf(sps), nclx, grid = grid).bytes(), keepingMatrix(pick)) shouldBe
+        heifWithRestatedColour(TestHeic(listOf(sps), nclx, grid = grid).bytes(), keepingMatrix(pick)).restated shouldBe
           TestHeic(listOf(spsStating(sps, signal)!!), nclx, grid = grid).bytes()
         handed.toSet() shouldBe setOf(nclx.matrix)
       }
@@ -172,7 +173,7 @@ class HeifRestatedColourTest {
       val header = SequenceShape(description = own.description(), fullRange = false)
       val handed = mutableListOf<Int>()
       val pick = keepingMatrix { matrix -> EBU_3213.also { handed += matrix } }
-      heifWithRestatedColour(avif(header, null, grid), pick) shouldBe
+      heifWithRestatedColour(avif(header, null, grid), pick).restated shouldBe
         avif(header.stating(own.copy(primaries = EBU_3213)), null, grid)
       handed.toSet() shouldBe setOf(12)
     }
@@ -182,11 +183,11 @@ class HeifRestatedColourTest {
   fun `a second pass over a stated nclx changes nothing`() {
     for (grid in listOf(false, true)) {
       for (nclx in listOf(Cicp(12, 13, 9, false), Cicp(9, 16, 12, true), Cicp(1, 13, 2, false))) {
-        val avif = heifWithRestatedColour(avif(silentHeader, nclx, grid), keepingMatrix(::paired))
-        heifWithRestatedColour(avif, keepingMatrix(::paired)) shouldBeSameInstanceAs avif
-        val heic =
-          heifWithRestatedColour(TestHeic(listOf(SpsShape().nal()), nclx, grid = grid).bytes(), keepingMatrix(::paired))
-        heifWithRestatedColour(heic, keepingMatrix(::paired)) shouldBeSameInstanceAs heic
+        val avif = heifWithRestatedColour(avif(silentHeader, nclx, grid), keepingMatrix(::paired)).restated
+        heifWithRestatedColour(avif, keepingMatrix(::paired)).restated shouldBeSameInstanceAs avif
+        val file = TestHeic(listOf(SpsShape().nal()), nclx, grid = grid).bytes()
+        val heic = heifWithRestatedColour(file, keepingMatrix(::paired)).restated
+        heifWithRestatedColour(heic, keepingMatrix(::paired)).restated shouldBeSameInstanceAs heic
       }
     }
   }
@@ -204,7 +205,7 @@ class HeifRestatedColourTest {
       )
     for (answer in listOf(-1, 256, 300)) {
       for (file in files) {
-        assertFailsWith<IllegalArgumentException> { heifWithRestatedColour(file, keepingMatrix { answer }) }
+        assertFailsWith<IllegalArgumentException> { heifWithRestatedColour(file, keepingMatrix { answer }).restated }
       }
     }
   }
@@ -212,7 +213,7 @@ class HeifRestatedColourTest {
   @Test
   fun `without primaries the nclx keeps its own`() {
     val nclx = Cicp(12, 13, 9, false)
-    heifWithExplicitCodestreamColour(avif(silentHeader, nclx, grid = false)) shouldBe
+    heifWithExplicitCodestreamColour(avif(silentHeader, nclx, grid = false)).handed shouldBe
       avif(silentHeader.stating(CodestreamSignal(12, 13, 9, false)), nclx, grid = false)
   }
 
@@ -223,16 +224,16 @@ class HeifRestatedColourTest {
       for (nclx in listOf(Cicp(9, 16, 10, false), Cicp(9, 16, 14, true), Cicp(1, 13, 8, true), Cicp(1, 13, 5, false))) {
         val to = RESTATED.getValue(nclx.matrix)
         val signal = CodestreamSignal(to.primaries, nclx.transfer, to.matrix, nclx.fullRange)
-        val avif = heifWithRestatedColour(avif(silentHeader, nclx, grid), restated)
+        val avif = heifWithRestatedColour(avif(silentHeader, nclx, grid), restated).restated
         avif shouldBe avif(silentHeader.stating(signal), nclx, grid)
         pictureYcbcrCoding(avif)?.matrix shouldBe nclx.matrix
         pictureYcbcrCoding(avif)?.codestream shouldBe signal
-        val heic = heifWithRestatedColour(TestHeic(listOf(silent), nclx, grid = grid).bytes(), restated)
+        val heic = heifWithRestatedColour(TestHeic(listOf(silent), nclx, grid = grid).bytes(), restated).restated
         heic shouldBe TestHeic(listOf(spsStating(silent, signal)!!), nclx, grid = grid).bytes()
         pictureYcbcrCoding(heic)?.matrix shouldBe nclx.matrix
         pictureYcbcrCoding(heic)?.codestream shouldBe signal
-        heifWithRestatedColour(avif, restated) shouldBeSameInstanceAs avif
-        heifWithRestatedColour(heic, restated) shouldBeSameInstanceAs heic
+        heifWithRestatedColour(avif, restated).restated shouldBeSameInstanceAs avif
+        heifWithRestatedColour(heic, restated).restated shouldBeSameInstanceAs heic
       }
     }
   }
@@ -244,9 +245,9 @@ class HeifRestatedColourTest {
       for (nclx in listOf(Cicp(1, 13, 8, false), Cicp(9, 16, 9, true))) {
         val restate = { _: Int, full: Boolean, _: YcbcrReading -> RestatedColour(6, 1, fullRange = !full) }
         val signal = CodestreamSignal(1, nclx.transfer, 6, !nclx.fullRange)
-        heifWithRestatedColour(avif(silentHeader, nclx, grid), restate) shouldBe
+        heifWithRestatedColour(avif(silentHeader, nclx, grid), restate).restated shouldBe
           avif(silentHeader.stating(signal), nclx, grid)
-        heifWithRestatedColour(TestHeic(listOf(silent), nclx, grid = grid).bytes(), restate) shouldBe
+        heifWithRestatedColour(TestHeic(listOf(silent), nclx, grid = grid).bytes(), restate).restated shouldBe
           TestHeic(listOf(spsStating(silent, signal)!!), nclx, grid = grid).bytes()
       }
     }
@@ -266,11 +267,11 @@ class HeifRestatedColourTest {
         val to = RESTATED.getValue(own.matrix!!)
         val signal = own.copy(primaries = to.primaries, matrix = to.matrix)
         val header = SequenceShape(description = own.description(), fullRange = own.fullRange == true)
-        val avif = heifWithRestatedColour(avif(header, null, grid), restated)
+        val avif = heifWithRestatedColour(avif(header, null, grid), restated).restated
         avif shouldBe avif(header.stating(signal), null, grid)
         pictureYcbcrCoding(avif)?.codestream shouldBe signal
         val sps = SpsShape(vui = minimalVui(own)).nal()
-        val heic = heifWithRestatedColour(TestHeic(listOf(sps), nclx = null, grid = grid).bytes(), restated)
+        val heic = heifWithRestatedColour(TestHeic(listOf(sps), nclx = null, grid = grid).bytes(), restated).restated
         heic shouldBe TestHeic(listOf(spsStating(sps, signal)!!), nclx = null, grid = grid).bytes()
         pictureYcbcrCoding(heic)?.codestream shouldBe signal
       }
@@ -313,11 +314,11 @@ class HeifRestatedColourTest {
       val restate = { matrix: Int, _: Boolean, given: YcbcrReading ->
         RestatedColour(matrix, 1).also { handed += given }
       }
-      heifWithRestatedColour(avif(silentHeader, nclx, grid = false), restate)
-      heifWithRestatedColour(TestHeic(listOf(SpsShape().nal()), nclx).bytes(), restate)
+      heifWithRestatedColour(avif(silentHeader, nclx, grid = false), restate).restated
+      heifWithRestatedColour(TestHeic(listOf(SpsShape().nal()), nclx).bytes(), restate).restated
       val own = CodestreamSignal(nclx.primaries, nclx.transfer, nclx.matrix, nclx.fullRange)
       val header = SequenceShape(description = own.description(), fullRange = nclx.fullRange)
-      heifWithRestatedColour(avif(header, null, grid = false), restate)
+      heifWithRestatedColour(avif(header, null, grid = false), restate).restated
       handed shouldBe List(3) { reading }
     }
   }
@@ -331,7 +332,7 @@ class HeifRestatedColourTest {
         val files =
           listOf(avif(silentHeader, nclx, grid), TestHeic(listOf(SpsShape().nal()), nclx, grid = grid).bytes())
         for (file in files) {
-          heifWithRestatedColour(file, keep) shouldBe heifWithExplicitCodestreamColour(file)
+          heifWithRestatedColour(file, keep).restated shouldBe heifWithExplicitCodestreamColour(file).handed
         }
       }
     }
@@ -347,7 +348,7 @@ class HeifRestatedColourTest {
     for (answer in listOf(-1, 256)) {
       for (file in files) {
         assertFailsWith<IllegalArgumentException> {
-          heifWithRestatedColour(file) { _, _, _ -> RestatedColour(answer, 9) }
+          heifWithRestatedColour(file) { _, _, _ -> RestatedColour(answer, 9) }.restated
         }
       }
     }
@@ -357,7 +358,8 @@ class HeifRestatedColourTest {
   fun `restate is not called for a picture whose colour does not read`() {
     val unreadable = TestHeic(listOf(byteArrayOf(0x42, 0x01, 0x01)), nclx = null).bytes()
     pictureYcbcrCoding(unreadable)?.colourKnown shouldBe false
-    heifWithRestatedColour(unreadable) { _, _, _ -> error("restate was called") } shouldBeSameInstanceAs unreadable
+    heifWithRestatedColour(unreadable) { _, _, _ -> error("restate was called") }.unrestated shouldBeSameInstanceAs
+      unreadable
   }
 
   @Test
@@ -366,7 +368,7 @@ class HeifRestatedColourTest {
     for (grid in listOf(false, true)) {
       for (nclx in listOf(Cicp(9, 16, 10, false), null)) {
         val file = TestHeic(listOf(sps), nclx, grid = grid, trailing = "moov").bytes()
-        heifWithRestatedColour(file) { _, _, _ -> error("restate was called") } shouldBeSameInstanceAs file
+        heifWithRestatedColour(file) { _, _, _ -> error("restate was called") }.unrestated shouldBeSameInstanceAs file
       }
     }
   }
@@ -376,7 +378,7 @@ class HeifRestatedColourTest {
     for (grid in listOf(false, true)) {
       val file = TestHeic(listOf(byteArrayOf(0x42, 0x01, 0x01)), Cicp(9, 16, 10, false), grid = grid).bytes()
       pictureYcbcrCoding(file)?.matrix shouldBe 10
-      heifWithRestatedColour(file) { _, _, _ -> error("restate was called") } shouldBeSameInstanceAs file
+      heifWithRestatedColour(file) { _, _, _ -> error("restate was called") }.unrestated shouldBeSameInstanceAs file
     }
   }
 
@@ -385,7 +387,7 @@ class HeifRestatedColourTest {
     for (grid in listOf(false, true)) {
       for (nclx in listOf(Cicp(9, 16, 10, false), null)) {
         val file = TestHeic(emptyList(), nclx, grid = grid).bytes()
-        heifWithRestatedColour(file) { _, _, _ -> error("restate was called") } shouldBeSameInstanceAs file
+        heifWithRestatedColour(file) { _, _, _ -> error("restate was called") }.unrestated shouldBeSameInstanceAs file
       }
     }
   }
@@ -399,7 +401,7 @@ class HeifRestatedColourTest {
           listOf(avif(silentHeader, nclx, grid), TestHeic(listOf(SpsShape().nal()), nclx, grid = grid).bytes())
         for (file in files) {
           pictureYcbcrCoding(file)?.colourKnown shouldBe true
-          heifWithRestatedColour(file) { _, _, _ -> error("restate was called") } shouldBeSameInstanceAs file
+          heifWithRestatedColour(file) { _, _, _ -> error("restate was called") }.unrestated shouldBeSameInstanceAs file
         }
       }
     }

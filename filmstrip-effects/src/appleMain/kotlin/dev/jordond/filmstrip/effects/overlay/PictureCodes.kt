@@ -2,6 +2,8 @@ package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.internal.pictureColour
+import dev.jordond.filmstrip.internal.pictureCropOf
+import dev.jordond.filmstrip.internal.pictureOrientationOf
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.PictureColour
 import dev.jordond.filmstrip.media.heifWithExplicitCodestreamColour
@@ -45,7 +47,12 @@ import platform.posix.memcpy
  * other picture goes through [heifWithExplicitCodestreamColour], which leaves all but an AVIF or HEIC as it is. The
  * colour description always comes from the bytes as given.
  *
- * The codes come from [overlayCodes], and neither of its routes turns a picture by its EXIF or `irot` orientation.
+ * The codes come from [overlayCodes], and neither of its routes turns a picture by its orientation tag, a JPEG XL's
+ * codestream orientation included. [OverlayPixels] lays them out by the orientation [pictureOrientationOf] reads out
+ * of the bytes as given instead, so the picture draws the same way up as on every other backend. Neither route sees a
+ * `clap` either, since the drop takes it off, and [OverlayPixels] cuts the codes to the rectangle [pictureCropOf]
+ * reads before it turns them. Codes that rectangle does not lie within are refused with
+ * [dev.jordond.filmstrip.media.PictureCrop.refusalFor].
  */
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 internal fun ImageSource.read(): PictureRead<OverlayPixels> =
@@ -72,7 +79,7 @@ private fun decoded(bytes: ByteArray): PictureRead<OverlayPixels> {
   if (bytes.isEmpty()) return PictureRead.Unreadable
   val original = bytes.nsData()
   val imageIo = original.withImageSource { it.typeIdentifier() } in IMAGE_IO_DECODED
-  val landing = if (imageIo) imageIoLanding(bytes) else ImageIoLanding.Decoded(heifWithExplicitCodestreamColour(bytes))
+  val landing = if (imageIo) imageIoLanding(bytes) else explicitLanding(bytes)
   val (data, limits) =
     when (landing) {
       is ImageIoLanding.Refused -> return PictureRead.Unsupported(landing.message)
@@ -80,11 +87,27 @@ private fun decoded(bytes: ByteArray): PictureRead<OverlayPixels> {
       is ImageIoLanding.Evaluated -> landing.bytes.nsData() to emptyList()
     }
   val codes = if (landing is ImageIoLanding.Evaluated) data.evaluatedCodes(landing) else data.overlayCodes()
-  return codes.map { OverlayPixels(it, readColour = { colourOf(bytes, original) }, limits = limits) }
+  val held =
+    when (codes) {
+      is PictureRead.Read -> codes.value
+      is PictureRead.Unreadable -> return codes
+      is PictureRead.Unsupported -> return codes
+      is PictureRead.Refused -> return codes
+    }
+  val crop = pictureCropOf(bytes)
+  val stored = held.image.pixelSize()
+  if (crop != null && !crop.liesWithin(stored)) return PictureRead.Unsupported(crop.refusalFor(stored))
+  val orientation = pictureOrientationOf(bytes)
+  val pixels =
+    OverlayPixels(held, { colourOf(bytes, original) }, limits = limits, orientation = orientation, crop = crop)
+  return PictureRead.Read(pixels)
 }
 
+/**
+ * These bytes copied into an [NSData], the form ImageIO and Core Image read a picture from.
+ */
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-private fun ByteArray.nsData(): NSData = usePinned { NSData.create(bytes = it.addressOf(0), length = size.toULong()) }
+internal fun ByteArray.nsData(): NSData = usePinned { NSData.create(bytes = it.addressOf(0), length = size.toULong()) }
 
 /**
  * The encoded picture in this data as Core Image codes with no colour space, [PictureRead.Unreadable] when it holds no

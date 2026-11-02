@@ -1,10 +1,15 @@
 package dev.jordond.filmstrip.test
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.media.RestatedColour
+import dev.jordond.filmstrip.media.RestatedHeif
+import dev.jordond.filmstrip.media.heifWithExplicitCodestreamColour
+import dev.jordond.filmstrip.media.heifWithRestatedColour
 import dev.jordond.filmstrip.test.AppleStillSamples.EIGHT_BIT_STEP
 import dev.jordond.filmstrip.test.AppleStillSamples.SAMPLE_MASK
 import platform.Foundation.NSProcessInfo
 import kotlin.math.abs
+import kotlin.test.assertIs
 
 /**
  * Why the eight-bit centre ImageIO decodes [bytes] to sits further than [AppleStillSamples.TOLERANCE] from every one of
@@ -31,5 +36,20 @@ internal fun imageIoMiss(
 
 internal fun osBuild(): String =
   "${NSProcessInfo.processInfo.operatingSystemVersionString}${if (isSimulator()) " simulator" else ""}"
+
+/**
+ * [bytes] with their codestream and `nclx` stating [matrix], the way the overlay raster hands a still under [nclx] to
+ * ImageIO. A still already under [matrix] goes through [heifWithExplicitCodestreamColour] alone.
+ */
+@OptIn(InternalFilmstripApi::class)
+internal fun landedBytes(
+  bytes: ByteArray,
+  nclx: CicpTag,
+  matrix: Int,
+): ByteArray {
+  if (matrix == nclx.matrix) return heifWithExplicitCodestreamColour(bytes).handed
+  val restated = heifWithRestatedColour(bytes) { _, _, _ -> RestatedColour(matrix, nclx.primaries, nclx = true) }
+  return assertIs<RestatedHeif.Restated>(restated, "the still with nclx $nclx was not restated to $matrix").bytes
+}
 
 private const val RGB = 3

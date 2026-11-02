@@ -48,7 +48,7 @@ class AppleIdentityStillsTest {
             Triple("eight-bit $nclx", HeicIdentityPictures.bytes(nclx), HeicIdentityPictures.YCBCR),
             Triple("ten-bit $nclx", HeicIdentityPictures.tenBitBytes(nclx), HeicIdentityPictures.TEN_BIT_YCBCR),
           ).mapNotNull { (name, bytes, ycbcr) ->
-            val identity = heifWithRestatedColour(bytes) { _, _, _ -> RestatedColour(0, 1, true, nclx = true) }
+            val identity = heifWithRestatedColour(bytes) { _, _, _ -> RestatedColour(0, 1, true, nclx = true) }.restated
             val read = storedCentre(identity)
             val expected = listOf(ycbcr[2], ycbcr[0], ycbcr[1])
             if (read == expected) null else "the $name HEIC handed out $read, where it stores $expected"

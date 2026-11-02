@@ -2,12 +2,15 @@ package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.internal.pictureYcbcrCoding
+import dev.jordond.filmstrip.media.UnturnedHeif
+import dev.jordond.filmstrip.media.heifWithoutOrientation
 import dev.jordond.filmstrip.media.nearestReadable
 import dev.jordond.filmstrip.media.ycbcrReading
 import dev.jordond.filmstrip.test.AppleStillSamples
 import dev.jordond.filmstrip.test.CicpTag
 import dev.jordond.filmstrip.test.HeicIdentityPictures
 import dev.jordond.filmstrip.test.HeicSubsampledPictures
+import dev.jordond.filmstrip.test.OrientedPictures
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -23,7 +26,8 @@ import kotlin.test.assertTrue
  * and refused past it or where core refuses its reading. An overlay on a degraded one resolves degraded with that one
  * cause. A twelve-bit 4:4:4 still under the identity matrix lands past the bound, since only eight and ten-bit stills
  * are read through their stored samples, and a still whose codestream cannot be restated is refused with
- * [UNRESTATED] on each route that restates.
+ * [UNRESTATED] on each route that restates. A tagged still whose `irot` and `imir` drop core refuses is refused with
+ * core's own sentence, whether it is handed over as it states its colour or restated.
  */
 @OptIn(InternalFilmstripApi::class)
 class ImageIoLandingTest {
@@ -96,6 +100,22 @@ class ImageIoLandingTest {
     }
   }
 
+  @Test
+  fun `a tagged still whose irot and imir drop is refused is refused with core's sentence on both routes`() {
+    val explicit = tagged(CicpTag(1, 13, BT709, true))
+    val restated = tagged(CicpTag(1, 13, CHROMATICITY_DERIVED, true))
+    val message = assertIs<UnturnedHeif.Refused>(heifWithoutOrientation(explicit)).message
+
+    assertEquals(message, assertIs<ImageIoLanding.Refused>(explicitLanding(explicit)).message)
+    assertEquals(message, assertIs<ImageIoLanding.Refused>(imageIoLanding(explicit)).message)
+    assertEquals(message, assertIs<ImageIoLanding.Refused>(imageIoLanding(restated)).message)
+  }
+
+  // An eight-bit 4:2:0 still with nclx, turned a quarter by an irot, and a moov box core refuses to drop it past.
+  private fun tagged(nclx: CicpTag): ByteArray =
+    OrientedPictures.taggedHeif(HeicSubsampledPictures.EIGHT_BIT_420.bytes(nclx), quarterTurns = 1, mirrorAxis = null) +
+      MOOV
+
   private fun subsampledMiss(
     still: HeicSubsampledPictures.Still,
     nclx: CicpTag,
@@ -133,6 +153,7 @@ class ImageIoLandingTest {
 
   private companion object {
     const val IDENTITY = 0
+    const val BT709 = 1
     const val FCC = 4
     const val SMPTE_240M = 7
     const val CHROMATICITY_DERIVED = 12

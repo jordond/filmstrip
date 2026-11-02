@@ -61,14 +61,14 @@ class CodestreamColourPicturesTest {
   fun aSilentMatrixIsStatedAsBt601AndLandsWhereItDid() {
     val picture = AvifColourPictures.AVIF_CODESTREAM_LIMITED
     for (bytes in listOf(picture.bytes(), picture.gridBytes())) {
-      val rewritten = heifWithExplicitCodestreamColour(bytes)
+      val rewritten = heifWithExplicitCodestreamColour(bytes).handed
       assertFalse(rewritten.contentEquals(bytes), "a silent codestream was not rewritten")
       val coding = pictureYcbcrCoding(rewritten)
       assertEquals(CodestreamSignal(2, 2, UNSPECIFIED_MATRIX_DECODES_AS, false), coding?.codestream)
       assertEquals(UNSPECIFIED_MATRIX_DECODES_AS, coding?.matrix)
       val landed = landedRgb(bytes, picture.ycbcr)
       assertContentEquals(landed, landedRgb(rewritten, picture.ycbcr))
-      assertSame(rewritten, heifWithExplicitCodestreamColour(rewritten))
+      assertSame(rewritten, heifWithExplicitCodestreamColour(rewritten).handed)
     }
   }
 
@@ -77,7 +77,7 @@ class CodestreamColourPicturesTest {
     val avif = AvifColourPictures.AVIF_CODESTREAM_BT709_LIMITED
     val heic = ColourPictures.HEIC_CODESTREAM_BT709_LIMITED
     for (bytes in listOf(avif.bytes(), avif.gridBytes(), heic.bytes(), heic.gridBytes())) {
-      assertSame(bytes, heifWithExplicitCodestreamColour(bytes))
+      assertSame(bytes, heifWithExplicitCodestreamColour(bytes).handed)
     }
   }
 
@@ -115,10 +115,10 @@ class CodestreamColourPicturesTest {
         )
       assertEquals(coding, pictureYcbcrCoding(bytes), "$picture")
       assertFalse(coding.identityNot444, "$picture")
-      val rewritten = heifWithExplicitCodestreamColour(bytes)
+      val rewritten = heifWithExplicitCodestreamColour(bytes).handed
       val stated = CodestreamSignal(nclx.primaries, nclx.transfer, 0, true)
       assertEquals(coding.copy(codestream = stated), pictureYcbcrCoding(rewritten), "$picture")
-      assertSame(rewritten, heifWithExplicitCodestreamColour(rewritten), "$picture")
+      assertSame(rewritten, heifWithExplicitCodestreamColour(rewritten).handed, "$picture")
       val (y, cb, cr) = picture.ycbcr
       assertContentEquals(intArrayOf(cr, y, cb), landedRgb(bytes, picture.ycbcr), "$picture")
       assertContentEquals(intArrayOf(cr, y, cb), landedRgb(rewritten, picture.ycbcr), "$picture")
@@ -148,10 +148,10 @@ class CodestreamColourPicturesTest {
         )
       assertEquals(coding, pictureYcbcrCoding(bytes), "$nclx")
       assertFalse(coding.identityNot444, "$nclx")
-      val rewritten = heifWithExplicitCodestreamColour(bytes)
+      val rewritten = heifWithExplicitCodestreamColour(bytes).handed
       val stated = CodestreamSignal(nclx.primaries, nclx.transfer, 0, nclx.fullRange)
       assertEquals(coding.copy(codestream = stated), pictureYcbcrCoding(rewritten), "$nclx")
-      assertSame(rewritten, heifWithExplicitCodestreamColour(rewritten), "$nclx")
+      assertSame(rewritten, heifWithExplicitCodestreamColour(rewritten).handed, "$nclx")
       val (y, cb, cr) = HeicIdentityPictures.YCBCR
       val expected = ycbcrToRgb(y, cb, cr, 0, nclx.primaries, nclx.transfer, nclx.fullRange)
       assertContentEquals(expected, landedRgb(rewritten, HeicIdentityPictures.YCBCR), "$nclx")
@@ -177,10 +177,10 @@ class CodestreamColourPicturesTest {
           transfer = nclx.transfer,
         )
       assertEquals(coding, pictureYcbcrCoding(bytes), "$nclx")
-      val rewritten = heifWithExplicitCodestreamColour(bytes)
+      val rewritten = heifWithExplicitCodestreamColour(bytes).handed
       val stated = CodestreamSignal(nclx.primaries, nclx.transfer, 0, nclx.fullRange)
       assertEquals(coding.copy(codestream = stated), pictureYcbcrCoding(rewritten), "$nclx")
-      assertSame(rewritten, heifWithExplicitCodestreamColour(rewritten), "$nclx")
+      assertSame(rewritten, heifWithExplicitCodestreamColour(rewritten).handed, "$nclx")
     }
   }
 
@@ -226,7 +226,7 @@ class CodestreamColourPicturesTest {
           transfer = nclx.transfer,
         )
       assertEquals(coding, pictureYcbcrCoding(bytes), "$nclx")
-      val rewritten = heifWithExplicitCodestreamColour(bytes)
+      val rewritten = heifWithExplicitCodestreamColour(bytes).handed
       val stated = CodestreamSignal(nclx.primaries, nclx.transfer, nclx.matrix, nclx.fullRange)
       assertEquals(coding.copy(codestream = stated), pictureYcbcrCoding(rewritten), "$nclx")
     }
@@ -241,7 +241,7 @@ class CodestreamColourPicturesTest {
       assertEquals(3, coding.chromaFormat, "$nclx")
       assertFalse(coding.identityNot444, "$nclx")
       val stated = CodestreamSignal(nclx.primaries, nclx.transfer, 0, nclx.fullRange)
-      val rewritten = heifWithExplicitCodestreamColour(grid)
+      val rewritten = heifWithExplicitCodestreamColour(grid).handed
       assertEquals(coding.copy(codestream = stated), pictureYcbcrCoding(rewritten), "$nclx")
     }
   }

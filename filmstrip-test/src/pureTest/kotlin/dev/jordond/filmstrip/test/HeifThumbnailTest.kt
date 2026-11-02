@@ -47,7 +47,7 @@ class HeifThumbnailTest {
     for (picture in ColourPictures.HEICS.filter { it.nclx != null }) {
       val nclx = checkNotNull(picture.nclx)
       for (bytes in listOf(picture.bytes(avif.thumbnail()), picture.gridBytes(heic.thumbnail()))) {
-        val coding = pictureYcbcrCoding(heifWithExplicitCodestreamColour(bytes))
+        val coding = pictureYcbcrCoding(heifWithExplicitCodestreamColour(bytes).handed)
         assertEquals(nclx.matrix, coding?.codestream?.matrix, "$picture matrix")
         assertEquals(nclx.fullRange, coding?.codestream?.fullRange, "$picture range")
       }

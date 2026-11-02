@@ -57,21 +57,6 @@ internal fun pngHeaderOnly(
     chunk("IHDR", int32(width) + int32(height) + byteArrayOf(depth.toByte(), 6, 0, 0, 0))
 
 /**
- * A big-endian EXIF block holding one tag, the orientation [value].
- *
- * It is laid out the way an `eXIf` chunk carries it, a TIFF header and one directory with no next one.
- */
-internal fun exifOrientation(value: Int): ByteArray =
-  "MM".encodeToByteArray() +
-    byteArrayOf(0, 42) +
-    int32(8) +
-    byteArrayOf(0, 1) +
-    byteArrayOf(0x01, 0x12, 0, 3) +
-    int32(1) +
-    byteArrayOf((value ushr 8).toByte(), value.toByte(), 0, 0) +
-    int32(0)
-
-/**
  * A PNG chunk of [type] holding [data], led by its length and closed by its CRC.
  */
 internal fun chunk(

@@ -44,7 +44,10 @@ public class HeifGrid(
  * The alpha item [bytes] carry for their primary item, or null when they are not an AVIF or HEIC or carry none.
  *
  * An alpha item is one whose `iref auxl` points at the primary item and whose `auxC` names the AVIF or the HEVC alpha
- * auxiliary type. The first one the `iref` lists is taken. A file that is truncated or malformed carries none.
+ * auxiliary type. The first one the `iref` lists is taken. A file that is truncated or malformed carries none. Every
+ * property is read from the first `iprp`, its first `ipco` and its own `ipma` boxes, as [metaParts] finds them. Only
+ * the first 1024 of those `ipma` boxes are read, so an alpha item whose `auxC` or codec configuration is listed only in
+ * a later one carries none, though libheif reads it.
  *
  * The range and depth are the alpha item's own, read from its codestream rather than any `nclx`. For HEVC that is the
  * first sequence parameter set in its `hvcC`, or the first at the start of its data when the `hvcC` holds none, with a
@@ -60,19 +63,15 @@ public fun heifAlpha(bytes: ByteArray): HeifAlpha? {
 }
 
 private fun ByteView.alpha(): HeifAlpha? {
-  val meta = boxes(0, end).firstOrNull { it.type == META } ?: return null
-  val heif = within(meta.end)
-  val children = heif.boxes(meta.start + 4, meta.end).toList()
-  val pitm = children.firstOrNull { it.type == PITM } ?: return null
-  val iref = children.firstOrNull { it.type == IREF } ?: return null
-  val iprp = children.firstOrNull { it.type == IPRP } ?: return null
-  val primary = heif.within(pitm.end).let { it.itemId(pitm.start + 4, it.u8(pitm.start)) }
+  val parts = metaParts() ?: return null
+  val heif = within(parts.meta.end)
+  val primary = parts.primary ?: return null
+  val iref = parts.iref ?: return null
+  if (parts.ipco == null) return null
   val references = heif.within(iref.end).references(iref).toList()
 
-  val properties = heif.within(iprp.end).boxes(iprp.start, iprp.end).toList()
-  val ipco = properties.firstOrNull { it.type == IPCO } ?: return null
-  val listed = heif.boxes(ipco.start, ipco.end).take(MAX_PROPERTY_INDEX).toList()
-  val ipmas = properties.filter { it.type == IPMA }
+  val listed = parts.properties
+  val ipmas = parts.ipmas
   val alphaTyped = mutableSetOf<Long>()
   for (ipma in ipmas) {
     heif.within(ipma.end).forEachAssociation(ipma) { item, index ->
@@ -86,11 +85,11 @@ private fun ByteView.alpha(): HeifAlpha? {
       .firstOrNull { it in alphaTyped } ?: return null
 
   val premultiplied = references.any { it.type == PREM && it.from == primary && alpha in it.to }
-  val types = children.firstOrNull { it.type == IINF }?.let { heif.within(it.end).itemTypes(it) }.orEmpty()
-  val grid = if (types[alpha] == GRID) grid(alpha, iref, children) ?: return null else null
+  val types = parts.iinf?.let { heif.within(it.end).itemTypes(it) }.orEmpty()
+  val grid = if (types[alpha] == GRID) grid(alpha, iref, parts) ?: return null else null
   val coded = grid?.tiles?.first() ?: alpha
   val configuration = heif.configurationOf(coded, codecOf(types[coded]), ipmas, listed) ?: return null
-  val signal = codestream(coded, configuration, children) ?: return null
+  val signal = codestream(coded, configuration, parts) ?: return null
   return HeifAlpha(alpha, grid, premultiplied, signal.fullRange, signal.bitDepth)
 }
 
@@ -121,13 +120,12 @@ private fun ByteView.configurationOf(
 private fun ByteView.codestream(
   item: Long,
   configuration: Box,
-  children: List<Box>,
+  parts: MetaParts,
 ): AlphaSignal? {
   val codec = if (configuration.type == AV1C) CodecKind.Av1 else CodecKind.Hevc
   val coded = listOf(item to configuration)
   val configured = codestreamUnits(codec, coded, null, null)
-  val locations = children.firstOrNull { it.type == ILOC }?.let { itemLocations(it) }
-  val all = codestreamUnits(codec, coded, locations, children.firstOrNull { it.type == IDAT })
+  val all = codestreamUnits(codec, coded, parts.locations, parts.idat)
   val inBand = all.drop(configured.size)
   val unit = (if (codec == CodecKind.Av1) inBand + configured else configured + inBand).firstOrNull() ?: return null
   val depth = samplesOf(unit)?.bitDepth ?: return null
@@ -145,12 +143,10 @@ private class AlphaSignal(
 private fun ByteView.grid(
   item: Long,
   iref: Box,
-  children: List<Box>,
+  parts: MetaParts,
 ): HeifGrid? {
   val tiles = within(iref.end).tilesOf(item, iref) ?: return null
-  val iloc = children.firstOrNull { it.type == ILOC } ?: return null
-  val idat = children.firstOrNull { it.type == IDAT }
-  val (start, stop) = firstExtent(itemLocations(iloc), idat, item) ?: return null
+  val (start, stop) = firstExtent(parts.locations ?: return null, parts.idat, item) ?: return null
   val data = within(stop)
   val wide = data.u8(start + 1) and 1 == 1
   val rows = data.u8(start + 2) + 1
@@ -162,7 +158,7 @@ private fun ByteView.grid(
 }
 
 // Whether [property] is an auxC naming the AVIF or the HEVC alpha auxiliary type.
-private fun ByteView.isAlphaType(property: Box): Boolean {
+internal fun ByteView.isAlphaType(property: Box): Boolean {
   if (property.type != AUXC) return false
   val urn = within(property.end)
   val start = property.start + 4
@@ -171,14 +167,9 @@ private fun ByteView.isAlphaType(property: Box): Boolean {
   }
 }
 
-private val PITM = fourcc("pitm")
-private val IINF = fourcc("iinf")
-private val IREF = fourcc("iref")
-private val IPMA = fourcc("ipma")
 private val AUXL = fourcc("auxl")
-private val AUXC = fourcc("auxC")
+internal val AUXC = fourcc("auxC")
 private val PREM = fourcc("prem")
 private val GRID = fourcc("grid")
 private val ALPHA_TYPES =
   listOf(ascii("urn:mpeg:mpegB:cicp:systems:auxiliary:alpha"), ascii("urn:mpeg:hevc:2015:auxid:1"))
-private const val MAX_PROPERTY_INDEX = 0x7FFF

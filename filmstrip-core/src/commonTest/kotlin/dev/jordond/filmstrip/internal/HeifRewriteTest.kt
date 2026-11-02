@@ -28,7 +28,7 @@ class HeifRewriteTest {
 
   private fun stating(nal: ByteArray): ByteArray = spsStating(nal, CodestreamSignal(1, 13, 1, true))!!
 
-  private fun rewritten(heic: TestHeic): ByteArray = heifWithExplicitCodestreamColour(heic.bytes())
+  private fun rewritten(heic: TestHeic): ByteArray = heifWithExplicitCodestreamColour(heic.bytes()).handed
 
   @Test
   fun `a silent parameter set is rewritten to state the nclx`() {
@@ -49,7 +49,7 @@ class HeifRewriteTest {
     val expected = SpsShape(vui = fullVui(CodestreamSignal(1, 13, 1, true))).nal()
     rewritten(TestHeic(listOf(disagreeing))) shouldBe TestHeic(listOf(expected)).bytes()
     val file = TestHeic(listOf(agreeing)).bytes()
-    heifWithExplicitCodestreamColour(file) shouldBeSameInstanceAs file
+    heifWithExplicitCodestreamColour(file).handed shouldBeSameInstanceAs file
   }
 
   @Test
@@ -71,7 +71,7 @@ class HeifRewriteTest {
   @Test
   fun `a parameter set already stating BT601 under an unspecified nclx matrix is kept`() {
     val file = TestHeic(listOf(stating(Cicp(1, 13, 6, false))), Cicp(1, 13, 2, false)).bytes()
-    heifWithExplicitCodestreamColour(file) shouldBeSameInstanceAs file
+    heifWithExplicitCodestreamColour(file).handed shouldBeSameInstanceAs file
   }
 
   @Test
@@ -150,7 +150,7 @@ class HeifRewriteTest {
   fun `without an nclx a parameter set that names its matrix is left alone`() {
     for (signal in listOf(CodestreamSignal(1, 13, 1, false), CodestreamSignal(9, 16, 9, true))) {
       val file = TestHeic(listOf(SpsShape(vui = fullVui(signal)).nal()), nclx = null).bytes()
-      heifWithExplicitCodestreamColour(file) shouldBeSameInstanceAs file
+      heifWithExplicitCodestreamColour(file).handed shouldBeSameInstanceAs file
     }
   }
 
@@ -172,7 +172,7 @@ class HeifRewriteTest {
         TestHeic(listOf(byteArrayOf(0x42, 0x01, 0x01))),
         TestHeic(listOf(silent), nclx = Cicp(1, 13, 256, true)),
       ).map { it.bytes() } + listOf(avif(PROFILE), ByteArray(0), asciiBytes("not a picture at all"))
-    for (file in unchanged) heifWithExplicitCodestreamColour(file) shouldBeSameInstanceAs file
+    for (file in unchanged) heifWithExplicitCodestreamColour(file).handed shouldBeSameInstanceAs file
   }
 
   @Test
@@ -204,7 +204,7 @@ class HeifRewriteTest {
   @Test
   fun `a three byte length size is not understood`() {
     val file = TestHeic(listOf(silent), inBand = silent, lengthSizeMinusOne = 2).bytes()
-    heifWithExplicitCodestreamColour(file) shouldBeSameInstanceAs file
+    heifWithExplicitCodestreamColour(file).handed shouldBeSameInstanceAs file
   }
 
   @Test
@@ -212,7 +212,7 @@ class HeifRewriteTest {
     val padded = { bytes: Int -> SpsShape(vui = paddedVui(bytes)).nal() }
     val growing = (0..MAX_ONE_BYTE).map(padded).first { it.size <= MAX_ONE_BYTE && stating(it).size > MAX_ONE_BYTE }
     val file = TestHeic(listOf(growing), inBand = growing, lengthSizeMinusOne = 0).bytes()
-    heifWithExplicitCodestreamColour(file) shouldBeSameInstanceAs file
+    heifWithExplicitCodestreamColour(file).handed shouldBeSameInstanceAs file
     val new = stating(growing)
     val fits = TestHeic(listOf(growing), inBand = growing, lengthSizeMinusOne = 1)
     rewritten(fits) shouldBe TestHeic(listOf(new), inBand = new, lengthSizeMinusOne = 1).bytes()
@@ -276,17 +276,17 @@ class HeifRewriteTest {
     val short = fullBox("iloc", 1, 0, oneExtent)
     for (iloc in listOf(empty, short)) {
       val file = TestHeic(listOf(silent), ilocBox = iloc).bytes()
-      heifWithExplicitCodestreamColour(file) shouldBeSameInstanceAs file
+      heifWithExplicitCodestreamColour(file).handed shouldBeSameInstanceAs file
     }
   }
 
   @Test
   fun `every truncation comes back as the input`() {
     val whole = TestHeic(listOf(silent), inBand = silent, grid = true, baseOffset = true).bytes()
-    heifWithExplicitCodestreamColour(whole) shouldNotBe whole
+    heifWithExplicitCodestreamColour(whole).handed shouldNotBe whole
     for (size in 0 until whole.size) {
       val truncated = whole.copyOf(size)
-      heifWithExplicitCodestreamColour(truncated) shouldBeSameInstanceAs truncated
+      heifWithExplicitCodestreamColour(truncated).handed shouldBeSameInstanceAs truncated
     }
   }
 
@@ -301,7 +301,7 @@ class HeifRewriteTest {
     repeat(FUZZ_ROUNDS) { round ->
       val file = files[round % files.size].copyOf()
       repeat(1 + random.nextInt(4)) { file[random.nextInt(file.size)] = random.nextInt(256).toByte() }
-      shouldBeIntact(file, heifWithExplicitCodestreamColour(file))
+      shouldBeIntact(file, heifWithExplicitCodestreamColour(file).handed)
     }
   }
 
@@ -319,7 +319,7 @@ class HeifRewriteTest {
     for (data in listOf(TestHeic.SLICE, TestHeic.EXIF, TestHeic.MIME)) {
       occurrences(result, data) shouldBe occurrences(file, data)
     }
-    heifWithExplicitCodestreamColour(result) shouldBeSameInstanceAs result
+    heifWithExplicitCodestreamColour(result).handed shouldBeSameInstanceAs result
   }
 
   private fun topLevelTypes(bytes: ByteArray): List<Int> {

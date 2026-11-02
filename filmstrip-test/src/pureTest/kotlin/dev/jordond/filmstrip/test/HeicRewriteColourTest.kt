@@ -26,7 +26,7 @@ class HeicRewriteColourTest {
   @Test
   fun rewritingAHeicKeepsTheColourItDescribes() {
     for ((name, original) in files) {
-      val rewritten = heifWithExplicitCodestreamColour(original)
+      val rewritten = heifWithExplicitCodestreamColour(original).handed
 
       assertContentEquals(
         pictureSrgbCodes(pictureColour(original), PROBES).toList(),
@@ -38,7 +38,7 @@ class HeicRewriteColourTest {
 
   @Test
   fun theRewrittenHeicsIncludeDescriptionsThatMoveAColour() {
-    val rewritten = files.filter { (_, bytes) -> !heifWithExplicitCodestreamColour(bytes).contentEquals(bytes) }
+    val rewritten = files.filter { (_, bytes) -> !heifWithExplicitCodestreamColour(bytes).handed.contentEquals(bytes) }
     assertFalse(rewritten.isEmpty(), "no HEIC was rewritten")
 
     val untagged = pictureSrgbCodes(null, PROBES).toList()

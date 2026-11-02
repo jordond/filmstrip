@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.geometry.Corner
+import dev.jordond.filmstrip.media.PictureOrientation
 import kotlin.math.roundToInt
 import kotlin.time.Duration
 import kotlin.time.DurationUnit
@@ -72,6 +73,7 @@ internal fun filterGraphOverlay(
 
   val prepare =
     buildList {
+      addAll(orientationNodes(drawn.orientation))
       animated?.let { add(FilterNode("sendcmd", "f" to it.sidecar.placeholder)) }
       add(FilterNode("scale$instance", "w" to overlayWidth.toString(), "h" to "-1"))
       add(FilterNode("format", "pix_fmts" to "rgba"))
@@ -102,6 +104,26 @@ internal fun filterGraphOverlay(
     )
   return resolution(PlatformEffect(fragment), drawn.limits)
 }
+
+/**
+ * The nodes that lay a picture opened as stored out the way [orientation] shows it, ahead of the scale so the overlay's
+ * width is the shown picture's.
+ *
+ * Each value maps to the permutation [PictureOrientation.sourceOf] reads. `transpose` turns a quarter turn, clockwise
+ * at `clock` and anticlockwise at `cclock`, and its `_flip` forms mirror top to bottom after the turn. `hflip` mirrors
+ * left to right and `vflip` top to bottom. Every node moves whole texels, so the picture keeps every sample.
+ */
+internal fun orientationNodes(orientation: PictureOrientation): List<FilterNode> =
+  when (orientation) {
+    PictureOrientation.Normal -> emptyList()
+    PictureOrientation.FlipHorizontal -> listOf(FilterNode("hflip"))
+    PictureOrientation.Rotate180 -> listOf(FilterNode("hflip"), FilterNode("vflip"))
+    PictureOrientation.FlipVertical -> listOf(FilterNode("vflip"))
+    PictureOrientation.Transpose -> listOf(FilterNode("transpose", "dir" to "cclock_flip"))
+    PictureOrientation.Rotate90 -> listOf(FilterNode("transpose", "dir" to "clock"))
+    PictureOrientation.Transverse -> listOf(FilterNode("transpose", "dir" to "clock_flip"))
+    PictureOrientation.Rotate270 -> listOf(FilterNode("transpose", "dir" to "cclock"))
+  }
 
 // Degraded by each of the decoder's [limits], and resolved exactly when there are none.
 private fun resolution(

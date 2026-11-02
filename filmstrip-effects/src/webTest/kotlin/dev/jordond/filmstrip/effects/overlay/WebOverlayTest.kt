@@ -23,7 +23,10 @@ import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.PictureOrientation
+import dev.jordond.filmstrip.media.orientedSamples
 import dev.jordond.filmstrip.style.TextStyle
+import dev.jordond.filmstrip.test.OrientedPictures
 import kotlinx.coroutines.test.runTest
 import kotlin.io.encoding.Base64
 import kotlin.test.Test
@@ -163,6 +166,23 @@ class WebOverlayTest {
       }
     }
 
+  // A turned picture is refused with the size it is shown at, the size every other part of the resolver places.
+  @Test
+  fun aTurnedPictureIsRefusedAtTheSizeItIsShown() =
+    runTest {
+      val turn = PictureOrientation.Rotate90
+      val image = ImageOverlay(ImageSource.ofBytes(OrientedPictures.taggedJpeg(JPEG, turn.exif)), Corner.TopEnd)
+      val shown = turn.orientedSize(JPEG_SIZE)
+      val longest = maxOf(shown.width, shown.height)
+      val resolver = BuiltInEffectResolver()
+      resolver.preload(compositionOf(image))
+
+      assertEquals(JPEG_SIZE, overlayOf(resolver.resolve(image, textCapabilities(longest), ATTRIBUTES)).size)
+      val past = resolver.resolve(image, textCapabilities(longest - 1), ATTRIBUTES)
+      val refused = assertIs<EffectResolution.Unsupported>(past, "the turned picture resolved as $past")
+      assertEquals(picturePastTextureSide(shown.width, shown.height, longest - 1, WEBGL), refused.message)
+    }
+
   // The bitmap keeps the stored codes, so the compositor needs the colour the picture's own bytes describe.
   @Test
   fun aTaggedImageCarriesTheColourItsBytesDescribe() =
@@ -212,26 +232,67 @@ class WebOverlayTest {
       assertEquals(SIXTEEN_BIT_SAMPLE, sixteenBit.rgba.first().toInt() and 0xFFFF)
     }
 
-  // Chrome turns a PNG's bitmap by the orientation its eXIf chunk names, a quarter turn standing this one on its end.
-  // Core Image, Android's BitmapFactory and the JDK draw a PNG's pixels in the order they are stored, and so does this
-  // backend.
+  // The browser decodes a picture with no orientation applied. A PNG's samples are laid out the way core reads its
+  // eXIf, and the resolver places the picture at the size that shows it.
   @Test
-  fun aPngWithAnExifOrientationDrawsItsSamplesInTheOrderTheyAreStored() =
+  fun aPngWithAnExifOrientationCarriesItsSamplesLaidOutTheWayCoreReadsIt() =
     runTest {
-      for (orientation in listOf(EXIF_QUARTER_TURN, EXIF_MIRRORED)) {
-        val bytes = pngOf(TWO_TEXELS, chunk(EXIF, exifOrientation(orientation)), texels = listOf(RED, GREEN))
-        val image = ImageOverlay(ImageSource.ofBytes(bytes), Corner.TopEnd)
-        val resolver = BuiltInEffectResolver()
-        resolver.preload(compositionOf(image))
+      val stored = assertNotNull(pngSamples(OrientedPictures.png()))
+      val storedSize = Size(stored.width, stored.height)
+      for (orientation in PictureOrientation.entries) {
+        val bytes = OrientedPictures.taggedPng(OrientedPictures.png(), orientation.exif)
+        val overlay = resolvedOverlay(ImageOverlay(ImageSource.ofBytes(bytes), Corner.TopEnd))
 
-        val overlay = overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES))
-        val samples = assertNotNull(samplesOf(overlay), "orientation $orientation")
-        assertEquals(TWO_TEXELS, overlay.size, "orientation $orientation")
-        assertContentEquals(assertNotNull(pngSamples(bytes)).rgba, samples, "orientation $orientation")
-        val first = (0 until 3).map { samples[it].toInt() and 0xFFFF }
-        assertEquals(listOf(0xFFFF, 0, 0), first, "orientation $orientation")
+        assertEquals(orientation.orientedSize(storedSize), overlay.size, "$orientation")
+        assertEquals(PictureOrientation.Normal, overlay.orientation, "$orientation")
+        val samples = assertNotNull(samplesOf(overlay), "$orientation")
+        assertContentEquals(orientedSamples(orientation, stored.rgba, storedSize), samples, "$orientation")
       }
     }
+
+  // A JPEG reaches the compositor as the bitmap the browser decodes it to, as stored, with the turn the compositor
+  // lays it out by and placed at the size that turn shows it at.
+  @Test
+  fun aJpegWithAnExifOrientationIsUploadedAsStoredAndPlacedTurned() =
+    runTest {
+      for (orientation in PictureOrientation.entries) {
+        val tagged = OrientedPictures.taggedJpeg(JPEG, orientation.exif)
+        val image = ImageOverlay(ImageSource.ofBytes(tagged), Corner.TopEnd)
+        val overlay = resolvedOverlay(image)
+
+        assertEquals(JPEG_SIZE, overlay.size, "$orientation")
+        assertEquals(orientation, overlay.orientation, "$orientation")
+        val expected = image.placedOn(FRAME, orientation.orientedSize(JPEG_SIZE)).rectOn(FRAME)
+        assertEquals(expected, assertNotNull(overlay.drawAt(Duration.ZERO)).rect, "$orientation")
+      }
+    }
+
+  // Chrome turns a JPEG by its tag even with imageOrientation none, so a bitmap at the stored size on every
+  // orientation means the browser was handed the tag written as 1.
+  @Test
+  fun theBrowserDecodesEveryTaggedPictureAsStored() =
+    runTest {
+      val png = assertNotNull(pngSamples(OrientedPictures.png()))
+      val pngSize = Size(png.width, png.height)
+      for (orientation in PictureOrientation.entries) {
+        val pictures =
+          listOf(
+            Triple("PNG", OrientedPictures.taggedPng(OrientedPictures.png(), orientation.exif), pngSize),
+            Triple("JPEG", OrientedPictures.taggedJpeg(JPEG, orientation.exif), JPEG_SIZE),
+          )
+        for ((name, tagged, stored) in pictures) {
+          val bitmap = bitmapOf(tagged)
+
+          assertEquals(stored, Size(bitmap.width, bitmap.height), "$name $orientation")
+        }
+      }
+    }
+
+  private suspend fun resolvedOverlay(image: ImageOverlay): WebGlOverlay {
+    val resolver = BuiltInEffectResolver()
+    resolver.preload(compositionOf(image))
+    return overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES))
+  }
 
   // The rows, samples and bitmap a PNG holds are counted before anything is decoded, so one just past the ceiling is
   // refused by its size and one at it is drawn.
@@ -385,14 +446,20 @@ class WebOverlayTest {
     const val SIXTEEN_BIT_SAMPLE = 0xA012
 
     // A picture two texels wide and one tall, red then green.
-    val TWO_TEXELS = Size(2, 1)
-    val RED = byteArrayOf(0xFF.toByte(), 0, 0, 0xFF.toByte())
-    val GREEN = byteArrayOf(0, 0xFF.toByte(), 0, 0xFF.toByte())
-
-    // The EXIF orientations for a quarter turn clockwise and for a mirror image.
-    const val EXIF = "eXIf"
-    const val EXIF_QUARTER_TURN = 6
-    const val EXIF_MIRRORED = 2
+    // The OrientedPictures quadrants 48 by 32, written by ImageMagick 7 as a JPEG at quality 90 with no metadata.
+    val JPEG =
+      (
+        "ffd8ffe000104a46494600010100000100010000ffdb0043000302020302020303030304030304050805050404050a070706" +
+          "080c0a0c0c0b0a0b0b0d0e12100d0e110e0b0b1016101113141515150c0f171816141812141514ffdb004301030404050405" +
+          "09050509140d0b0d141414141414141414141414141414141414141414141414141414141414141414141414141414141414" +
+          "1414141414141414ffc00011080020003003011100021101031101ffc4001800010101010100000000000000000000000008" +
+          "070409ffc4001b10000203010101000000000000000000000001020304051121ffc4001a0101010100030100000000000000" +
+          "0000000009070203080affc4001a110101010101010100000000000000000000010203211104ffda000c0301000211031100" +
+          "3f009f3a1d0d5d5dfa776ed376cdba6c95d7e9d1639d96d926dca7293f5ca4db6db7f5b661dad5ddbad5fb6aa6f1e3cff3f3" +
+          "cf1e3999ce649249f2493c9249e4927924739c5dc018117191d00006fa43958b00018117191d00007a867ce63c340002ca30" +
+          "a55500011a9baa550000b28c295540007fffd9"
+      ).chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+    val JPEG_SIZE = Size(48, 32)
 
     // Display P3 primaries, the sRGB transfer, the identity matrix and full range.
     const val CICP = "cICP"

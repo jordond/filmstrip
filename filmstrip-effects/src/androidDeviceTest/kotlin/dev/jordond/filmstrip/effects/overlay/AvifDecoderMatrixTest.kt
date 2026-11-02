@@ -6,6 +6,7 @@ import android.os.Build
 import dev.jordond.filmstrip.internal.pictureYcbcrCoding
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.RestatedColour
+import dev.jordond.filmstrip.media.RestatedHeif
 import dev.jordond.filmstrip.media.YcbcrCoding
 import dev.jordond.filmstrip.media.YcbcrReading
 import dev.jordond.filmstrip.media.heifWithRestatedColour
@@ -300,7 +301,8 @@ class AvifDecoderMatrixTest {
   // still naming its own matrix.
   private fun restatedAsBt601(file: ByteArray): ByteArray {
     val described = file.withColourDescriptionsHidden(keepNclxPrimaries = true)
-    return heifWithRestatedColour(described) { _, _, _ -> RestatedColour(BT601, BT601) }.withColourDescriptionsHidden()
+    val restated = heifWithRestatedColour(described) { _, _, _ -> RestatedColour(BT601, BT601) }
+    return assertIs<RestatedHeif.Restated>(restated).bytes.withColourDescriptionsHidden()
   }
 
   // How a straight decode of [file] misses landing through the matrix and range [lands] gives, or handing back no

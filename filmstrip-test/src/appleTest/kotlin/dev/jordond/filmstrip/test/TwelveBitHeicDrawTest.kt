@@ -69,7 +69,7 @@ class TwelveBitHeicDrawTest {
   // drawn over it.
   @OptIn(BetaInteropApi::class)
   private fun drawnCentre(nclx: CicpTag): Pair<List<Int>, List<Int>> {
-    val bytes = heifWithExplicitCodestreamColour(HeicColourPictures.twelveBit(nclx))
+    val bytes = heifWithExplicitCodestreamColour(HeicColourPictures.twelveBit(nclx)).handed
     val data = bytes.usePinned { NSData.create(bytes = it.addressOf(0), length = bytes.size.toULong()) }
     val cf: CFDataRef = assertNotNull(CFBridgingRetain(data)).reinterpret()
     val source = assertNotNull(CGImageSourceCreateWithData(cf, null))

@@ -6,12 +6,21 @@ import android.graphics.BitmapFactory
 import android.graphics.ColorSpace
 import android.os.Build
 import androidx.core.net.toUri
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.pictureColour
+import dev.jordond.filmstrip.internal.pictureCropOf
+import dev.jordond.filmstrip.internal.pictureOrientationOf
+import dev.jordond.filmstrip.internal.pictureWithoutOrientationTag
 import dev.jordond.filmstrip.internal.pictureYcbcrCoding
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.PictureColour
+import dev.jordond.filmstrip.media.PictureCrop
+import dev.jordond.filmstrip.media.PictureOrientation
+import dev.jordond.filmstrip.media.RestatedHeif
+import dev.jordond.filmstrip.media.UnturnedHeif
 import dev.jordond.filmstrip.media.YcbcrCoding
 import dev.jordond.filmstrip.media.heifWithRestatedColour
+import dev.jordond.filmstrip.media.heifWithoutOrientation
 import java.io.File
 
 /**
@@ -28,12 +37,24 @@ internal sealed interface PictureRead
  * @property colour How the picture describes its colour, or null when it lands as an untagged one does.
  * @property limits Each way Android's decoder lands the picture short of what its file stores, as [decoderLimits]
  * decides, or empty when it lands as stored.
+ * @property orientation The turn the picture's own tag asks for, as [pictureOrientationOf] reads it out of the file.
+ * Android's decoder applies none, so [bitmap] holds the picture as stored and [rasterFor] lays it out by this.
+ * @property crop The texels of [bitmap] an AVIF or HEIC's `clap` keeps, as [pictureCropOf] reads them out of the file,
+ * or null for any other picture. Android's decoder is handed the file with its `clap` dropped, so [bitmap] holds the
+ * whole stored frame and [rasterFor] cuts it to this before it turns it.
  */
 internal class DecodedPicture(
   val bitmap: Bitmap,
   val colour: PictureColour?,
   val limits: List<DecoderLimit> = emptyList(),
-) : PictureRead
+  val orientation: PictureOrientation = PictureOrientation.Normal,
+  val crop: PictureCrop? = null,
+) : PictureRead {
+  /**
+   * The size the picture is shown at, [bitmap] cut to [crop] and laid out by [orientation].
+   */
+  val shownSize: Size get() = orientation.orientedSize(crop?.size ?: bitmap.size())
+}
 
 /**
  * An overlay picture that is refused before or by Android's decoder, for the reason [reason] gives.
@@ -129,7 +150,9 @@ internal fun ImageSource.read(context: Context?): PictureRead {
     BitmapFactory.decodeByteArray(prepared, 0, prepared.size, options)
       ?: return RefusedPicture(noFrameRefusal(input.coding, sdk).message)
   val limits = decoderLimits(bytes, input, bitmap.halfFloatCurve() != null)
-  return DecodedPicture(bitmap, pictureColour(bytes), limits)
+  val crop = pictureCropOf(bytes)
+  if (crop != null && !crop.liesWithin(bitmap.size())) return RefusedPicture(crop.refusalFor(bitmap.size()))
+  return DecodedPicture(bitmap, pictureColour(bytes), limits, pictureOrientationOf(bytes), crop)
 }
 
 /**
@@ -158,32 +181,47 @@ internal class DecoderInput(
  * codestream, and the `nclx` of the primary item and its tiles, state the range core reads for the picture and the
  * matrix and primaries [restatedForDecoder] gives for the [YcbcrCoding.reading] core reads from this picture as it is.
  * It runs while the `nclx` still holds its primaries and after its transfer is hidden, so the codestream states no
- * transfer the decoder could convert from. The `nclx` primaries are hidden after it.
+ * transfer the decoder could convert from. The `nclx` primaries are hidden after it. A tagged picture whose `irot` or
+ * `imir` the rewrite refuses to drop comes back as it is, refused with [UnturnedHeif.Refused.message].
  *
  * A codestream core cannot rewrite, in a file with a `moov` box or with a unit that does not parse, reaches the decoder
- * as it was. Its landing is then known only as far as [YcbcrCoding.decoderLanding] can tell from what it states, and
- * is null otherwise. A picture whose landing is null that way is refused with [YcbcrCoding.unrestatedRefusal] when
- * even the nearest matrix the decoder reads lands it past the bound.
+ * as [RestatedHeif.Unrestated] gives it, with only its `irot`, `imir` and `clap` dropped. Its landing is then known
+ * only as far as [YcbcrCoding.decoderLanding] can tell from what it states, and is null otherwise. A picture whose
+ * landing is null that way is refused with [YcbcrCoding.unrestatedRefusal] when even the nearest matrix the decoder
+ * reads lands it past the bound. A picture core reads no coding for has only its `irot`, `imir` and `clap` dropped, by
+ * [heifWithoutOrientation].
+ *
+ * A JPEG, PNG, WebP or TIFF is handed over with its orientation tag written as 1 by [pictureWithoutOrientationTag], so
+ * the decoder never sees the turn [rasterFor] already lays the picture out by.
  */
 internal fun ByteArray.forAndroidDecoder(sdk: Int): DecoderInput {
   val coding = pictureYcbcrCoding(this)
   refusalBeforeDecoder(coding, sdk)?.let { return DecoderInput(this, coding, landing = null, refusal = it) }
   val described = withColourDescriptionsHidden(keepNclxPrimaries = true)
   var handedFullRange: Boolean? = null
-  val restated =
+  val rewrite: RestatedHeif =
     if (coding == null) {
-      described
+      when (val unturned = heifWithoutOrientation(described)) {
+        is UnturnedHeif.Refused -> unturned
+        is UnturnedHeif.Handed -> RestatedHeif.Unrestated(unturned.bytes)
+      }
     } else {
       heifWithRestatedColour(described) { _, fullRange, _ ->
         handedFullRange = fullRange
         checkNotNull(restatedForDecoder(coding.reading, fullRange, sdk, coding.avif, coding.tenBitSamples))
       }
     }
-  val unrestated = restated === described
+  val handed =
+    when (rewrite) {
+      is UnturnedHeif.Refused -> return DecoderInput(this, coding, landing = null, refusal = rewrite.message)
+      is RestatedHeif.Restated -> rewrite.bytes
+      is RestatedHeif.Unrestated -> rewrite.bytes
+    }
+  val unrestated = rewrite is RestatedHeif.Unrestated
   val landing = coding?.decoderLanding(sdk, handedFullRange, restated = !unrestated)
   val refusal =
     landing?.refusal ?: coding?.takeIf { unrestated && landing == null }?.unrestatedRefusal(sdk, handedFullRange)
-  return DecoderInput(restated.withColourDescriptionsHidden(), coding, landing, refusal)
+  return DecoderInput(pictureWithoutOrientationTag(handed.withColourDescriptionsHidden()), coding, landing, refusal)
 }
 
 // What a bounds decode reads off a picture: whether the decoder hands it back at ten bits a sample, in RGBA_1010102,

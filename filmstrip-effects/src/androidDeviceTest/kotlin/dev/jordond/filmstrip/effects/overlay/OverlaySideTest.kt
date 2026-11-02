@@ -12,6 +12,8 @@ import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.media.PictureCrop
+import dev.jordond.filmstrip.media.PictureOrientation
 import dev.jordond.filmstrip.style.TextStyle
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -65,6 +67,24 @@ class OverlaySideTest {
     assertIsNot<EffectResolution.Unsupported>(drawn)
     val refused = assertIs<EffectResolution.Unsupported>(past)
     assertEquals(picturePastTextureSide(PICTURE.width, PICTURE.height, PICTURE.width - 1, OPEN_GL_ES), refused.message)
+  }
+
+  // The raster media3 uploads is the picture cut and turned, so the side is read off the shown size. The stored width
+  // is past the side that resolves, which a check on the stored bitmap would refuse.
+  @Test
+  fun aCutAndTurnedPictureIsMeasuredAtTheSizeItIsShown() {
+    val overlay = ImageOverlay(ImageSource.Bytes(ByteArray(0)), Corner.TopStart, 0f, OVERLAY_SCALE)
+    val bitmap = createBitmap(PICTURE.width, PICTURE.height)
+    val picture = DecodedPicture(bitmap, colour = null, orientation = PictureOrientation.Rotate90, crop = CUT)
+    val shown = PictureOrientation.Rotate90.orientedSize(CUT.size)
+    val side = maxOf(shown.width, shown.height)
+
+    val drawn = with(BuiltInEffectResolver()) { overlay.toOverlay(picture, PREVIEW, side) }
+    val past = with(BuiltInEffectResolver()) { overlay.toOverlay(picture, PREVIEW, side - 1) }
+
+    assertIsNot<EffectResolution.Unsupported>(drawn)
+    val refused = assertIs<EffectResolution.Unsupported>(past)
+    assertEquals(picturePastTextureSide(shown.width, shown.height, side - 1, OPEN_GL_ES), refused.message)
   }
 
   // A font size far past the documented range lays out past any side an Int holds, which is refused by its size.
@@ -125,6 +145,9 @@ class OverlaySideTest {
 
     // Wider than it is tall, so the side refused is the width.
     val PICTURE = Size(12, 8)
+
+    // Ten of the picture's twelve columns, which a quarter turn shows eight wide and ten tall.
+    val CUT = PictureCrop(1, 0, Size(10, 8))
     val PREVIEW =
       Attributes(
         inputSize = FRAME,

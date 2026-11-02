@@ -79,11 +79,13 @@ public external interface ArrayBuffer : JsAny {
 public external interface Blob : JsAny {
   public val type: String
 
+  public val size: Double
+
   public fun arrayBuffer(): Promise<ArrayBuffer>
 
   public fun slice(
-    start: Int,
-    end: Int,
+    start: Double,
+    end: Double,
   ): Blob
 }
 

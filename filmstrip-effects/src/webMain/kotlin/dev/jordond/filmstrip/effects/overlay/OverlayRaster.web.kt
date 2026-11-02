@@ -3,44 +3,24 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.edit.EditComposition
-import dev.jordond.filmstrip.effect.Degradation
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.PngExtent
 import dev.jordond.filmstrip.internal.pictureColour
+import dev.jordond.filmstrip.internal.pictureCropOf
+import dev.jordond.filmstrip.internal.pictureOrientationOf
+import dev.jordond.filmstrip.internal.pictureWithoutOrientationTag
 import dev.jordond.filmstrip.internal.pngExtent
 import dev.jordond.filmstrip.internal.pngSamples
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.PictureColour
+import dev.jordond.filmstrip.media.PictureOrientation
 import dev.jordond.filmstrip.media.blobOf
 import dev.jordond.filmstrip.media.toByteArray
 import kotlinx.coroutines.await
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.math.roundToInt
-
-/**
- * A decoded overlay picture and how it describes the colour of its codes.
- *
- * The bitmap holds the picture's stored codes with no colour conversion, eight bits a channel. A PNG also carries its
- * stored samples at their full depth, and an AVIF Chrome cannot decode through its own matrix carries the colour core's
- * evaluator turns its samples into, which the compositor converts from instead.
- *
- * @property bitmap The decoded picture.
- * @property size The size the compositor uploads the picture at. A PNG takes the size of its samples, in the order it
- * stores them, and any other picture the size of [bitmap].
- * @property colour What [pictureColour] reads from the picture's bytes, or null when it is untagged.
- * @property samples What [pngSamples] reads from a PNG's bytes, what [AvifLanding.Evaluated] turns an AVIF's samples
- * into as sixteen-bit RGBA, or null for any other picture.
- * @property limits Why the picture lands short of how its bytes describe it, empty when it lands exactly.
- */
-internal class OverlayPicture(
-  val bitmap: ImageBitmap,
-  val size: Size,
-  val colour: PictureColour?,
-  val samples: ShortArray?,
-  val limits: List<Degradation> = emptyList(),
-)
 
 /**
  * What decoding an overlay image gave, as [OverlayImages] holds it.
@@ -171,8 +151,9 @@ private fun overlayEffectsOf(composition: EditComposition): List<EffectSpec> =
 // A path names a filesystem no browser has, and a URI is fetched for its bytes. The browser decodes the bytes
 // avifLanding hands it, so an AVIF lands through the matrix core reads it with, through its samples and core's
 // evaluator, or through the nearest matrix Chrome reads. A PNG core cannot read is refused, since its samples are what
-// gets drawn, and it is sized from them, since the browser turns the bitmap by any eXIf orientation and no other
-// backend does. A PNG whose peak passes the ceiling is refused by size before anything is decoded.
+// gets drawn, and it is sized from them. An AVIF is cut to the rectangle pictureCropOf reads out of its clap, and then
+// every picture is turned by the orientation pictureOrientationOf reads out of its bytes as given, never by the
+// browser. A PNG whose peak passes the ceiling is refused by size before anything is decoded.
 private suspend fun decode(
   source: ImageSource,
   ceiling: Long,
@@ -202,24 +183,26 @@ private suspend fun pictureOf(
   bytes: ByteArray,
   ceiling: Long,
 ): OverlayDecode {
+  val orientation = pictureOrientationOf(bytes)
   if (isPng(bytes)) {
     val extent = pngExtent(bytes) ?: return OverlayDecode.Undecodable
     val peak = pngPeakBytes(extent)
     if (peak == null || peak > ceiling) return OverlayDecode.Refused(tooLargeToDecode(extent, peak, ceiling))
     val samples = pngSamples(bytes, ceiling) ?: return OverlayDecode.Undecodable
     val bitmap = bitmapOf(bytes)
-    return OverlayDecode.Decoded(
-      OverlayPicture(bitmap, Size(samples.width, samples.height), pictureColour(bytes), samples.rgba),
-    )
+    val (size, rgba) = orientation.laidOut(Size(samples.width, samples.height), samples.rgba)
+    return OverlayDecode.Decoded(OverlayPicture(bitmap, size, pictureColour(bytes), rgba))
   }
   val landing =
     when (val landing = avifLanding(bytes)) {
       is AvifLanding.Refused -> return OverlayDecode.Refused(landing.message)
       is AvifLanding.Decoded -> landing
-      is AvifLanding.Evaluated -> return evaluatedPicture(bytes, landing)
+      is AvifLanding.Evaluated -> return evaluatedPicture(bytes, landing, orientation)
     }
-  val bitmap = bitmapOf(landing.bytes)
-  val picture = OverlayPicture(bitmap, Size(bitmap.width, bitmap.height), pictureColour(bytes), null, landing.limits)
+  val crop = pictureCropOf(bytes)
+  val bitmap = bitmapOf(landing.bytes).let { it.clapCropped(crop) ?: return clapRefused(it, checkNotNull(crop)) }
+  val size = Size(bitmap.width, bitmap.height)
+  val picture = OverlayPicture(bitmap, size, pictureColour(bytes), null, landing.limits, orientation)
   return OverlayDecode.Decoded(picture)
 }
 
@@ -228,8 +211,10 @@ private suspend fun pictureOf(
 private suspend fun evaluatedPicture(
   bytes: ByteArray,
   landing: AvifLanding.Evaluated,
+  orientation: PictureOrientation,
 ): OverlayDecode {
-  val bitmap = bitmapOf(landing.bytes)
+  val crop = pictureCropOf(bytes)
+  val bitmap = bitmapOf(landing.bytes).let { it.clapCropped(crop) ?: return clapRefused(it, checkNotNull(crop)) }
   val codes = codesOf(bitmap) ?: return OverlayDecode.Undecodable
   val samples = ShortArray(codes.size)
   val rgb = DoubleArray(RGB_CHANNELS)
@@ -241,12 +226,17 @@ private suspend fun evaluatedPicture(
     for (channel in 0 until RGB_CHANNELS) samples[texel + channel] = (rgb[channel] * TOP_SAMPLE).roundToInt().toShort()
     samples[texel + ALPHA] = ((codes[texel + ALPHA].toInt() and BYTE_MASK) * EIGHT_BIT_STEP).toShort()
   }
-  val picture = OverlayPicture(bitmap, Size(bitmap.width, bitmap.height), pictureColour(bytes), samples)
-  return OverlayDecode.Decoded(picture)
+  val (size, rgba) = orientation.laidOut(Size(bitmap.width, bitmap.height), samples)
+  return OverlayDecode.Decoded(OverlayPicture(bitmap, size, pictureColour(bytes), rgba))
 }
 
-private suspend fun bitmapOf(bytes: ByteArray): ImageBitmap =
-  createImageBitmap(blobOf(bytes, OCTET_STREAM), JSON.parse(BITMAP_OPTIONS)).await()
+/**
+ * The picture in [bytes] decoded as stored. Chrome turns a JPEG by its orientation tag even with `imageOrientation`
+ * set to `none`, so the browser is handed the bytes with that tag written as 1 by [pictureWithoutOrientationTag], and
+ * no decoder sees a turn the compositor lays the picture out by.
+ */
+internal suspend fun bitmapOf(bytes: ByteArray): ImageBitmap =
+  createImageBitmap(blobOf(pictureWithoutOrientationTag(bytes), OCTET_STREAM), bitmapOptions()).await()
 
 /**
  * The bytes decoding the PNG [extent] describes holds at its peak, its inflated rows and sixteen-bit samples beside the
@@ -295,5 +285,9 @@ private const val BYTE_MASK = 0xFF
 private val PNG_SIGNATURE = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
 
 // The image's own codes go to the texture, with no conversion into the canvas's colour space. A
-// tagged picture is converted from those codes by the compositor, as its colour describes them.
-private const val BITMAP_OPTIONS = """{"colorSpaceConversion":"none"}"""
+// tagged picture is converted from those codes by the compositor, as its colour describes them. The
+// texels stay in the order they are stored, whatever orientation the file names.
+// What every overlay picture is decoded and cut with: no colour conversion and no turn.
+internal fun bitmapOptions(): JsAny = JSON.parse(BITMAP_OPTIONS)
+
+private const val BITMAP_OPTIONS = """{"colorSpaceConversion":"none","imageOrientation":"none"}"""

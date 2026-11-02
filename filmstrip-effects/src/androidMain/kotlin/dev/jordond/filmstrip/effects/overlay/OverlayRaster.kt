@@ -11,8 +11,12 @@ import dev.jordond.filmstrip.effects.media3WorkingLight
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.PictureColour
+import dev.jordond.filmstrip.media.PictureCrop
+import dev.jordond.filmstrip.media.PictureOrientation
 import dev.jordond.filmstrip.media.authoredHdrNits
+import dev.jordond.filmstrip.media.croppedSamples
 import dev.jordond.filmstrip.media.linearToSrgb
+import dev.jordond.filmstrip.media.orientedSamples
 import dev.jordond.filmstrip.media.pictureLight
 import dev.jordond.filmstrip.media.pictureSrgbCodes
 import java.nio.ShortBuffer
@@ -76,20 +80,35 @@ internal class Raster(
  * way Android decodes a sixteen-bit picture, is read at its own depth rather than cut to eight bits, through the curve
  * [halfFloatCurve] reads off it.
  *
+ * The stored samples are first cut to [crop] through [croppedSamples] and then laid out the way [orientation] shows
+ * them through [orientedSamples], so the raster is the picture as shown, its sides swapped for a quarter turn.
+ *
  * @param colour How the stored samples describe their colour, or null for colours that are already sRGB, such as an
  * untagged picture.
+ * @param orientation The turn the picture's own tag asks for, or [PictureOrientation.Normal] to keep the stored layout.
+ * @param crop The texels of the stored samples kept, or null to keep them all. It has to lie within the bitmap.
  */
 internal fun Bitmap.rasterFor(
   transfer: HdrTransfer?,
   colour: PictureColour? = null,
+  orientation: PictureOrientation = PictureOrientation.Normal,
+  crop: PictureCrop? = null,
 ): Raster {
+  val stored = size()
+  val kept = crop?.size ?: stored
+  val shown = orientation.orientedSize(kept)
   val wide = wideSamples()
-  if (wide != null) return rasterOf(wide, size(), transfer, colour)
+  if (wide != null) {
+    val cut = crop?.let { croppedSamples(it, wide, stored) } ?: wide
+    return rasterOf(orientedSamples(orientation, cut, kept), shown, transfer, colour)
+  }
   val pixels = IntArray(width * height)
   getPixels(pixels, 0, width, 0, 0, width, height)
-  if (transfer == null) return sdrRaster(size(), pictureSrgbCodes(colour, pixels))
-  val texels = media3HdrTexels(pixels, transfer, colour)
-  return Raster(straightBitmap(size(), texels.argb), texels.hdrLuminance)
+  val cut = crop?.let { croppedSamples(it, pixels, stored) } ?: pixels
+  val oriented = orientedSamples(orientation, cut, kept)
+  if (transfer == null) return sdrRaster(shown, pictureSrgbCodes(colour, oriented))
+  val texels = media3HdrTexels(oriented, transfer, colour)
+  return Raster(straightBitmap(shown, texels.argb), texels.hdrLuminance)
 }
 
 // Straight sixteen-bit RGBA samples of a raster of size, read at their full depth.

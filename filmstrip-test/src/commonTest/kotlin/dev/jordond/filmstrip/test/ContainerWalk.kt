@@ -60,7 +60,8 @@ internal fun storedInflate(zlib: ByteArray): ByteArray {
 }
 
 /**
- * Walks the boxes of [bytes] from [start] to [end], every box's size taken as a four byte size.
+ * Walks the boxes of [bytes] from [start] to [end]. A four byte size of 1 means the box's size is the eight bytes after
+ * its type, the way ImageIO writes `mdat`.
  */
 internal fun heifBoxes(
   bytes: ByteArray,
@@ -70,8 +71,9 @@ internal fun heifBoxes(
   val boxes = mutableListOf<HeifBox>()
   var offset = start
   while (offset < end) {
-    val size = bytes.int32At(offset)
-    boxes += HeifBox(bytes.textAt(offset + 4), offset + 8, offset + size)
+    val large = bytes.int32At(offset) == 1
+    val size = if (large) bytes.int32At(offset + 12) else bytes.int32At(offset)
+    boxes += HeifBox(bytes.textAt(offset + 4), offset + if (large) 16 else 8, offset + size)
     offset += size
   }
   check(offset == end) { "The boxes run to $offset, past $end" }

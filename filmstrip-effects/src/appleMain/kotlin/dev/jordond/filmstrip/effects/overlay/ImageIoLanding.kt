@@ -3,11 +3,14 @@ package dev.jordond.filmstrip.effects.overlay
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effect.Degradation
 import dev.jordond.filmstrip.effect.DegradationReason
+import dev.jordond.filmstrip.internal.pictureWithoutOrientationTag
 import dev.jordond.filmstrip.internal.pictureYcbcrCoding
 import dev.jordond.filmstrip.media.CodecKind
 import dev.jordond.filmstrip.media.IDENTITY_MATRIX
 import dev.jordond.filmstrip.media.NearestMatrix
 import dev.jordond.filmstrip.media.RestatedColour
+import dev.jordond.filmstrip.media.RestatedHeif
+import dev.jordond.filmstrip.media.UnturnedHeif
 import dev.jordond.filmstrip.media.YcbcrCoding
 import dev.jordond.filmstrip.media.YcbcrEvaluator
 import dev.jordond.filmstrip.media.evaluator
@@ -77,12 +80,14 @@ internal sealed interface ImageIoLanding {
  * it.
  *
  * A restate that does not apply refuses the picture, since ImageIO would decode it through a matrix this cannot name.
+ * So does an `irot`, `imir` and `clap` drop that is refused, with [UnturnedHeif.Refused.message], since ImageIO would
+ * turn a picture core turns too.
  */
 @OptIn(InternalFilmstripApi::class)
 internal fun imageIoLanding(bytes: ByteArray): ImageIoLanding {
   val coding =
     pictureYcbcrCoding(bytes)?.takeIf { it.colourKnown && it.codec != CodecKind.Other }
-      ?: return ImageIoLanding.Decoded(heifWithExplicitCodestreamColour(bytes))
+      ?: return explicitLanding(bytes)
   coding.refusal?.let { return ImageIoLanding.Refused(it) }
   val reading = coding.reading
   val evaluated = coding.bitDepth?.takeIf { coding.unsubsampled && it in EVALUATED_DEPTHS }
@@ -90,24 +95,55 @@ internal fun imageIoLanding(bytes: ByteArray): ImageIoLanding {
   val nearest = checkNotNull(reading.nearestReadable(readable))
   return when {
     nearest.exact && coding.matrix in readable -> {
-      ImageIoLanding.Decoded(heifWithExplicitCodestreamColour(bytes))
+      explicitLanding(bytes)
     }
     nearest.exact -> {
-      ImageIoLanding.Decoded(restated(bytes, coding, nearest.matrix) ?: return NOT_RESTATED)
+      landing(restated(bytes, coding, nearest.matrix)) { ImageIoLanding.Decoded(it) }
     }
     evaluated != null -> {
-      val identity = restated(bytes, coding, IDENTITY_MATRIX, fullRange = true) ?: return NOT_RESTATED
-      ImageIoLanding.Evaluated(identity, reading.evaluator(evaluated, coding.fullRange), evaluated)
+      landing(restated(bytes, coding, IDENTITY_MATRIX, fullRange = true)) { identity ->
+        ImageIoLanding.Evaluated(identity, reading.evaluator(evaluated, coding.fullRange), evaluated)
+      }
     }
     !nearest.withinBound -> {
       ImageIoLanding.Refused(pastBound(nearest))
     }
     else -> {
-      val landed = restated(bytes, coding, nearest.matrix) ?: return NOT_RESTATED
-      ImageIoLanding.Decoded(landed, listOf(unreadMatrix(nearest)))
+      landing(restated(bytes, coding, nearest.matrix)) { ImageIoLanding.Decoded(it, listOf(unreadMatrix(nearest))) }
     }
   }
 }
+
+/**
+ * The picture in [bytes] handed to ImageIO through [heifWithExplicitCodestreamColour], or refused with
+ * [UnturnedHeif.Refused.message] when its `irot`, `imir` and `clap` drop is refused.
+ *
+ * A JPEG, PNG, WebP or TIFF reaches ImageIO with its orientation tag written as 1 by [pictureWithoutOrientationTag],
+ * so no decoder sees the turn [OverlayPixels] already lays the picture out by.
+ */
+@OptIn(InternalFilmstripApi::class)
+internal fun explicitLanding(bytes: ByteArray): ImageIoLanding =
+  when (val heif = heifWithExplicitCodestreamColour(bytes)) {
+    is UnturnedHeif.Refused -> refusal(heif)
+    is UnturnedHeif.Handed -> ImageIoLanding.Decoded(pictureWithoutOrientationTag(heif.bytes))
+  }
+
+// What landed makes of the bytes a restate hands over, the refusal of a drop that is refused, or UNRESTATED for a
+// restate that does not apply.
+@OptIn(InternalFilmstripApi::class)
+private inline fun landing(
+  rewrite: RestatedHeif,
+  landed: (ByteArray) -> ImageIoLanding,
+): ImageIoLanding =
+  when (rewrite) {
+    is UnturnedHeif.Refused -> refusal(rewrite)
+    is RestatedHeif.Unrestated -> NOT_RESTATED
+    is RestatedHeif.Restated -> landed(rewrite.bytes)
+  }
+
+// The picture refused for an irot, imir and clap drop that is refused, with the sentence core gives for it.
+@OptIn(InternalFilmstripApi::class)
+private fun refusal(refused: UnturnedHeif.Refused): ImageIoLanding = ImageIoLanding.Refused(refused.message)
 
 /**
  * The cause an overlay picture reports when Apple's HEIF decoder does not read its matrix and it lands through
@@ -156,17 +192,17 @@ internal const val UNRESTATED =
 
 private val NOT_RESTATED = ImageIoLanding.Refused(UNRESTATED)
 
-// The picture with its codestream and nclx restated to matrix, or null when the restate does not apply.
+// The picture with its codestream and nclx restated to matrix.
 @OptIn(InternalFilmstripApi::class)
 private fun restated(
   bytes: ByteArray,
   coding: YcbcrCoding,
   matrix: Int,
   fullRange: Boolean? = null,
-): ByteArray? {
+): RestatedHeif {
   val primaries = coding.primaries.takeIf { it in 0..MAX_CODE_POINT } ?: UNSPECIFIED
   val restate = RestatedColour(matrix, primaries, fullRange, nclx = true)
-  return heifWithRestatedColour(bytes) { _, _, _ -> restate }.takeIf { it !== bytes }
+  return heifWithRestatedColour(bytes) { _, _, _ -> restate }
 }
 
 private const val MAX_CODE_POINT = 255

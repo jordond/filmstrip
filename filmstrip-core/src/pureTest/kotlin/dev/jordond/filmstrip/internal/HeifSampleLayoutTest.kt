@@ -89,7 +89,7 @@ class HeifSampleLayoutTest {
         coding?.chromaFormat.shouldBeNull()
         coding?.bitDepth.shouldBeNull()
         coding?.identityNot444 shouldBe true
-        heifWithExplicitCodestreamColour(file) shouldBeSameInstanceAs file
+        heifWithExplicitCodestreamColour(file).handed shouldBeSameInstanceAs file
       }
     }
   }
@@ -111,7 +111,7 @@ class HeifSampleLayoutTest {
         coding?.chromaFormat.shouldBeNull()
         coding?.bitDepth.shouldBeNull()
         coding?.identityNot444 shouldBe true
-        heifWithExplicitCodestreamColour(file) shouldBeSameInstanceAs file
+        heifWithExplicitCodestreamColour(file).handed shouldBeSameInstanceAs file
       }
     }
   }

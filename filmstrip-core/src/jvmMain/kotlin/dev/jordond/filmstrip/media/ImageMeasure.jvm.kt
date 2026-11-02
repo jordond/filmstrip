@@ -10,16 +10,20 @@ import javax.imageio.ImageIO
 import javax.imageio.stream.ImageInputStream
 
 /**
- * ImageIO picks a reader off the stream's own magic bytes and answers the bounds from the header, so
- * nothing here pulls the picture into memory. The readers the JDK ships do not surface the EXIF
- * orientation tag, so the head of the same stream is read back through [exifOrientationOf] for it.
+ * ImageIO picks a reader off the stream's own magic bytes and answers the bounds from the header, so nothing here pulls
+ * the picture into memory. The readers the JDK ships do not surface an orientation, so it is read through
+ * [exifOrientationOf] first, straight out of the array for bytes and from the ranges of a file that hold the tag.
  */
 internal actual suspend fun measureImage(image: ImageSource): ImageMeasurement? =
   withContext(Dispatchers.IO) {
     val stream = image.openImageStream() ?: return@withContext null
 
     try {
-      val header = stream.readExifHeader()
+      val orientation =
+        when (image) {
+          is ImageSource.Bytes -> exifOrientationOf(image.bytes)
+          else -> exifOrientationOf(stream.length()) { start, count -> stream.readAt(start, count) }
+        }
       stream.seek(0)
 
       val reader = ImageIO.getImageReaders(stream).asSequence().firstOrNull() ?: return@withContext null
@@ -27,7 +31,7 @@ internal actual suspend fun measureImage(image: ImageSource): ImageMeasurement? 
         reader.input = stream
         ImageMeasurement(
           size = Size(reader.getWidth(FIRST_IMAGE), reader.getHeight(FIRST_IMAGE)),
-          exifOrientation = exifOrientationOf(header),
+          exifOrientation = orientation,
           format = reader.formatName.lowercase(),
         )
       } finally {
@@ -41,25 +45,13 @@ internal actual suspend fun measureImage(image: ImageSource): ImageMeasurement? 
   }
 
 /**
- * The head of the stream, as much of it as an EXIF block could sit in, leaving the position wherever
- * the read stopped.
- *
- * Bounded, because an EXIF block sits ahead of the pixels and a photo is a great deal larger than
- * one. A format that carries no block at all stops at the bytes saying so, which is what keeps a
- * library of PNGs from being read a bound's worth at a time for a tag none of them can hold. A
- * stream shorter than what is asked for answers with what it has.
+ * Up to [count] bytes from [start], or fewer when the stream ends first.
  */
-private fun ImageInputStream.readExifHeader(): ByteArray {
-  val opening = readUpTo(EXIF_MAGIC_BYTES)
-  if (!carriesExif(opening)) return opening
-
-  return opening + readUpTo(IMAGE_HEADER_BYTES - opening.size)
-}
-
-/**
- * Up to [count] bytes from wherever the stream is, or fewer when it ends first.
- */
-private fun ImageInputStream.readUpTo(count: Int): ByteArray {
+private fun ImageInputStream.readAt(
+  start: Long,
+  count: Int,
+): ByteArray {
+  seek(start)
   val buffer = ByteArray(count)
   var filled = 0
   while (filled < buffer.size) {

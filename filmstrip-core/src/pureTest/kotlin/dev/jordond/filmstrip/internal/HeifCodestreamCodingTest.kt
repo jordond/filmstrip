@@ -109,9 +109,9 @@ class HeifCodestreamCodingTest {
     val coding = coding(0, true, CodecKind.Av1, signal, chromaFormat = 3, nclx = Cicp(1, 13, 0, true))
     pictureYcbcrCoding(file) shouldBe coding
     pictureColour(file).shouldBeNull()
-    val stated = heifWithExplicitColour(file)
+    val stated = heifWithExplicitColour(file).handed
     pictureYcbcrCoding(stated) shouldBe coding.copy(codestream = CodestreamSignal(1, 13, 0, true))
-    heifWithExplicitColour(stated) shouldBeSameInstanceAs stated
+    heifWithExplicitColour(stated).handed shouldBeSameInstanceAs stated
   }
 
   @Test

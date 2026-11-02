@@ -1,9 +1,12 @@
 package dev.jordond.filmstrip.internal
 
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.Cicp
 import dev.jordond.filmstrip.media.CodecKind
 import dev.jordond.filmstrip.media.CodestreamSignal
 import dev.jordond.filmstrip.media.Icc
+import dev.jordond.filmstrip.media.PictureCrop
+import dev.jordond.filmstrip.media.PictureOrientation
 import dev.jordond.filmstrip.media.YcbcrCoding
 
 // Reads an AVIF or HEIC primary item's colour descriptions and stored channels out of its ISOBMFF `meta` box.
@@ -124,57 +127,73 @@ internal fun heifCodedItems(file: ByteView): CodedItems? {
   return CodedItems(codec, nclx, signal, configurations, locations, primary.idat, coding, primary::nclxProperties)
 }
 
+/**
+ * The orientation [file]'s primary item is shown in, from each `irot` and `imir` in the listing [heifExtent] reads.
+ *
+ * Normal without a primary item, when the first `iprp` holds no `ipco` or no `ipma`, and for a listing [heifListing]
+ * refuses. Only the first [MAX_LISTED_BOXES] `ipma` boxes are read, so an item listed only in a later one is Normal
+ * too, though libheif turns it. An `ipma` above version 1 gives Normal only among those boxes, and one past them goes
+ * unseen.
+ */
+internal fun heifOrientation(file: ByteView): PictureOrientation =
+  heifPrimary(file)?.orientation() ?: PictureOrientation.Normal
+
+/**
+ * The stored size of [file]'s primary item ahead of any turn or mirror, as libheif sizes the item. Tiles are not read.
+ *
+ * The item's properties are the ones the first `ipma` entry for it lists, in that order. Only the first `iprp` is
+ * read, its first `ipco` and its own `ipma` boxes. The size starts as the last `ispe`'s. Each `clap` then crops the
+ * frame the properties ahead of it leave, a quarter turn swapping that frame's sides, as [clapCrop] reads it with
+ * libheif's rounding of its size and offsets, and the frame left at the end is turned back to the stored picture. Half
+ * turns and mirrors never change a size, and `iscl` is not read.
+ *
+ * Gives null without a primary item, when the first `iprp` holds no `ipco` or no `ipma`, when no entry lists the item,
+ * for an item with no `ispe`, for an `ispe` above version 0 or with a zero side, and for a last `ispe` side that does
+ * not fit an Int. It gives null for a `clap` with a zero denominator, a width or height numerator or denominator or an
+ * offset denominator that does not fit an Int, or one libheif refuses to crop by. It gives null too for a `clap` that
+ * reaches past the frame it crops, which libheif decodes to a smaller picture than the size it reports. An item with a
+ * `clap` and no `ispe` gives null too, though libheif sizes it by the `clap` alone. Only the first [MAX_LISTED_BOXES]
+ * `ipma` boxes are read, so an item listed only in a later one gives null, though libheif sizes it.
+ *
+ * Throws [MalformedPicture] for an `ipma` above version 1 among those first [MAX_LISTED_BOXES], one past them going
+ * unseen, a property index in the item's entry past the end of the
+ * `ipco`, an `ispe` shorter than its fields, a `clap` shorter than its 32 bytes of fields and an `irot` or `imir` with
+ * no byte to read. It throws too for an `ipma` that counts more entries than it holds, which libheif reads up to the
+ * end of the box and sizes.
+ *
+ * Refusals libheif makes for the whole file outside the item's listing are not mirrored, such as another item's index
+ * past the end of the `ipco`, a missing `iinf` or `iloc`, or an essential property of an unknown type on another item.
+ */
+internal fun heifExtent(file: ByteView): Size? = heifPrimary(file)?.extent()
+
+/**
+ * The texels of [file]'s primary item libheif keeps once its `clap` properties crop it, in the stored picture ahead of
+ * any turn or mirror, read from the listing [heifExtent] reads. A `clap` that reaches past the frame it crops is
+ * pulled back onto it, as libheif decodes it, though [heifExtent] gives no size for one.
+ *
+ * Null when the item lists no `clap`, and where [heifExtent] is null for any reason but such a `clap`.
+ */
+internal fun heifCrop(file: ByteView): PictureCrop? = heifPrimary(file)?.crop()
+
 // Whether [file]'s primary item is derived from tiles, false without a primary item.
 internal fun heifTiled(file: ByteView): Boolean = heifPrimary(file)?.tiles?.isNotEmpty() == true
 
-// The primary item of an AVIF or HEIC, or null when its meta box has no primary item or no item properties.
+// The primary item of an AVIF or HEIC, or null when its meta box has no primary item or its first iprp holds no ipco
+// or no ipma. Every property is read from that iprp, as metaParts finds it.
 private fun heifPrimary(file: ByteView): HeifPrimary? {
-  val meta = file.boxes(0, file.end).firstOrNull { it.type == META } ?: return null
-  val heif = file.within(meta.end)
-  var pitm: Box? = null
-  var iinf: Box? = null
-  var iref: Box? = null
-  var ipco: Box? = null
-  var iloc: Box? = null
-  var idat: Box? = null
-  val ipmas = mutableListOf<Box>()
-  for (box in heif.boxes(meta.start + 4, meta.end)) {
-    when (box.type) {
-      PITM -> {
-        pitm = pitm ?: box
-      }
-      ILOC -> {
-        iloc = iloc ?: box
-      }
-      IDAT -> {
-        idat = idat ?: box
-      }
-      IINF -> {
-        iinf = iinf ?: box
-      }
-      IREF -> {
-        iref = iref ?: box
-      }
-      IPRP -> {
-        for (child in heif.within(box.end).boxes(box.start, box.end)) {
-          when (child.type) {
-            IPCO -> ipco = ipco ?: child
-            IPMA -> ipmas += child
-          }
-        }
-      }
-    }
-  }
-  val primaryBox = pitm ?: return null
-  val properties = ipco ?: return null
+  val parts = file.metaParts() ?: return null
+  val heif = file.within(parts.meta.end)
+  val primary = parts.primary ?: return null
+  if (parts.ipco == null) return null
+  val ipmas = parts.ipmas
   if (ipmas.isEmpty()) return null
-  val primary = heif.within(primaryBox.end).let { it.itemId(primaryBox.start + 4, it.u8(primaryBox.start)) }
-  val listed = heif.boxes(properties.start, properties.end).take(MAX_PROPERTY_INDEX).toList()
+  val iref = parts.iref
+  val listed = parts.properties
   val kinds = heif.propertyKinds(listed)
   val tiles = iref?.let { heif.within(it.end).tilesOf(primary, it) } ?: LongArray(0)
   val found = FirstProperties(tiles)
   for (ipma in ipmas) heif.within(ipma.end).recordProperties(ipma, primary, kinds, found)
-  return HeifPrimary(heif, primary, tiles, listed, found, ipmas, iinf, iloc, idat)
+  return HeifPrimary(heif, primary, tiles, listed, found, ipmas, parts.iinf, parts.iloc, parts.idat)
 }
 
 // An AVIF or HEIC primary item, the tiles it is derived from and the first property of each kind on each of them.
@@ -217,6 +236,15 @@ private class HeifPrimary(
   }
 
   fun nclx(): Cicp? = colour().descriptions.firstNotNullOfOrNull { it as? Cicp }
+
+  fun orientation(): PictureOrientation =
+    listing()?.let { heif.heifTransformsOf(it.asSequence()).orientation } ?: PictureOrientation.Normal
+
+  fun extent(): Size? = listing()?.let { heif.heifExtentOf(it) }
+
+  fun crop(): PictureCrop? = listing()?.takeIf { boxes -> boxes.any { it.type == CLAP } }?.let { heif.heifCropOf(it) }
+
+  private fun listing(): List<Box>? = heif.heifListing(ipmas, primary, properties)
 
   // Every colr nclx property the item or one of its tiles is associated with, in ipco order.
   fun nclxProperties(): List<Box> =
@@ -396,12 +424,8 @@ private fun ByteView.propertyKinds(properties: List<Box>): ByteArray {
 }
 
 internal val META = fourcc("meta")
-private val PITM = fourcc("pitm")
-private val IINF = fourcc("iinf")
-private val IREF = fourcc("iref")
 internal val IPRP = fourcc("iprp")
 internal val IPCO = fourcc("ipco")
-private val IPMA = fourcc("ipma")
 private val COLR = fourcc("colr")
 private val PROF = fourcc("prof")
 private val RICC = fourcc("rICC")
@@ -410,7 +434,6 @@ private val PIXI_TYPE = fourcc("pixi")
 internal val AV1C = fourcc("av1C")
 internal val HVCC = fourcc("hvcC")
 
-private const val MAX_PROPERTY_INDEX = 0x7FFF
 private const val UNSPECIFIED = 2
 private const val FULL_RANGE_FLAG = 0x80
 private const val AV1_MONOCHROME = 0x10

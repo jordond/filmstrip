@@ -42,6 +42,7 @@ internal class BrowserOverlayPass private constructor(
   private val rect: JsAny?,
   private val opacity: JsAny?,
   private val colorMatrix: JsAny?,
+  private val textureMatrix: JsAny?,
 ) {
   private val textures = mutableMapOf<WebGlOverlay, JsAny>()
 
@@ -78,6 +79,7 @@ internal class BrowserOverlayPass private constructor(
       gl.bindTexture(GL_TEXTURE_2D, textureOf(overlay))
       gl.uniform4f(rect, draw.rect.left, draw.rect.top, draw.rect.width, draw.rect.height)
       gl.uniform1f(opacity, draw.opacity)
+      gl.uniformMatrix3fv(textureMatrix, false, textureMatrixOf(overlay.orientation, overlay.size).toFloat32Array())
       gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
     }
     gl.blendOntoFill()
@@ -209,6 +211,7 @@ internal class BrowserOverlayPass private constructor(
         rect = gl.getUniformLocation(program, "uRect"),
         opacity = gl.getUniformLocation(program, "uOpacity"),
         colorMatrix = gl.getUniformLocation(program, "uColorMatrix"),
+        textureMatrix = gl.getUniformLocation(program, "uTextureMatrix"),
       )
     }
 
@@ -376,11 +379,12 @@ private val OVERLAY_VERTEX_SHADER =
   """.trimIndent()
 
 // The rect is measured from the top left with +Y down, the way every placement is, so the frame point is turned over
-// before it is read against it. A fragment outside the rect draws nothing, which is what cuts an overlay at the edge
-// of the picture it was placed on. The texel is premultiplied, so the grade runs on the straight colour and the
-// result is premultiplied again by the texel's alpha and the opacity together. On a kept grade the straight colour is
-// light, and it goes through the arm a clip is graded with, in the light that arm grades in, which clamps it where the
-// format runs out rather than at reference white.
+// before it is read against it. The texture matrix carries the point in the shown picture to the one in the uploaded
+// raster, the way textureMatrixOf lays it out. A fragment outside the rect draws nothing, which is what cuts an
+// overlay at the edge of the picture it was placed on. The texel is premultiplied, so the grade runs on the straight
+// colour and the result is premultiplied again by the texel's alpha and the opacity together. On a kept grade the
+// straight colour is light, and it goes through the arm a clip is graded with, in the light that arm grades in, which
+// clamps it where the format runs out rather than at reference white.
 private fun overlayFragmentShader(transfer: HdrTransfer?): String {
   val declarations =
     if (transfer == null) {
@@ -410,13 +414,14 @@ private fun overlayFragmentShader(transfer: HdrTransfer?): String {
     uniform vec4 uRect;
     uniform float uOpacity;
     uniform mat4 uColorMatrix;
+    uniform mat3 uTextureMatrix;
     in vec2 vFrame;
     out vec4 outColor;
     $declarations
     void main() {
       vec2 at = (vec2(vFrame.x, 1.0 - vFrame.y) - uRect.xy) / uRect.zw;
       if (any(lessThan(at, vec2(0.0))) || any(greaterThanEqual(at, vec2(1.0)))) discard;
-      vec4 texel = texture(uOverlay, at);
+      vec4 texel = texture(uOverlay, (uTextureMatrix * vec3(at, 1.0)).xy);
       vec3 straight = texel.a > 0.0 ? texel.rgb / texel.a : vec3(0.0);
       vec3 graded = $grade;
       float alpha = texel.a * uOpacity;

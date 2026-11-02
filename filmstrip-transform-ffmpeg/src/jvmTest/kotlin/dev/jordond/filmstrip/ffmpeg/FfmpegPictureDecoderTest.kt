@@ -209,9 +209,10 @@ class FfmpegPictureDecoderTest {
     assertNull(sizeOfFrameCrc(PICTURE))
   }
 
-  // EXIF orientation 6 turns the picture a quarter clockwise, so a measure that read the stored size would swap them.
+  // EXIF orientation 6 turns the picture a quarter clockwise, which the decoder leaves to its caller, so its decode and
+  // its measure both keep the stored size.
   @Test
-  fun `an orientation 6 JPEG measures at the turned size its decode hands back`() {
+  fun `an orientation 6 JPEG decodes and measures at its stored size`() {
     if (!fixture.available()) return
     val stored = BufferedImage(WIDE.width, WIDE.height, BufferedImage.TYPE_INT_RGB)
     val jpeg = ByteArrayOutputStream().also { check(ImageIO.write(stored, "jpeg", it)) }.toByteArray()
@@ -219,9 +220,8 @@ class FfmpegPictureDecoderTest {
     val decoder = FfmpegPictureDecoder("ffmpeg", scratch = scratch)
 
     val decoded = assertNotNull(decoder.decode(oriented).value(), "this ffmpeg decoded nothing")
-    val turned = Size(WIDE.height, WIDE.width)
-    assertEquals(turned, decoded.size, "this ffmpeg no longer turns an orientation 6 JPEG")
-    assertEquals(turned, decoder.measure(oriented).value())
+    assertEquals(WIDE, decoded.size, "the decode turned an orientation 6 JPEG")
+    assertEquals(WIDE, decoder.measure(oriented).value())
   }
 
   @Test

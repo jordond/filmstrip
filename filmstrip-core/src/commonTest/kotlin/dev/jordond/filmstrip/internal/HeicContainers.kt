@@ -36,6 +36,23 @@ import dev.jordond.filmstrip.media.Cicp
  * @property secondNclx A second `colr nclx` the primary item is associated with after [nclx], or null for none.
  * @property thumbnailNclx The `colr nclx` of a thumbnail, item 7, coded like the primary item and referring to it with
  * a `thmb` reference, or null for no thumbnail.
+ * @property transforms Properties such as `irot` and `imir` added to `ipco` after the rest, before the thumbnail's.
+ * @property transformed The items whose `ipma` entries list [transforms], right after their first association.
+ * @property ipmaVersion The `ipma` version, 1 for 32-bit item ids.
+ * @property wideIndex Whether `ipma` writes each property index in 15 bits rather than 7.
+ * @property alphas How many alpha items, from item 10 on, are coded like the primary item with an `auxC` and an `auxl`
+ * reference to it.
+ * @property alphaTransforms Properties added to `ipco` after [transforms] that an alpha item in [transformed] lists in
+ * their place, or null for it to list [transforms].
+ * @property largeIpma Whether `ipma` uses a 64-bit size.
+ * @property splitIpma Whether every entry after the first goes in a second `ipma` box.
+ * @property nonEssential The property indices `ipma` writes without the essential bit.
+ * @property onlyTransforms Whether the primary item lists [transforms] alone, or nothing when it is not in
+ * [transformed].
+ * @property irefVersion The `iref` version, 1 for 32-bit item ids.
+ * @property auxiliaryType The payload of the `auxC` the [alphas] items share past its version and flags, the alpha URN
+ * and a zero byte unless set. Another URN makes them auxiliary items of another kind.
+ * @property emptyAlphaEntries Whether each of the [alphas] items has an `ipma` entry listing nothing.
  */
 internal class TestHeic(
   val sps: List<ByteArray>,
@@ -60,13 +77,28 @@ internal class TestHeic(
   val tiles: Map<Int, TestTile> = emptyMap(),
   val secondNclx: Cicp? = null,
   val thumbnailNclx: Cicp? = null,
+  val transforms: List<ByteArray> = emptyList(),
+  val transformed: List<Int> = listOf(1),
+  val ipmaVersion: Int = 0,
+  val wideIndex: Boolean = false,
+  val alphas: Int = 0,
+  val alphaTransforms: List<ByteArray>? = null,
+  val largeIpma: Boolean = false,
+  val splitIpma: Boolean = false,
+  val nonEssential: Set<Int> = emptySet(),
+  val onlyTransforms: Boolean = false,
+  val irefVersion: Int = 0,
+  val auxiliaryType: ByteArray = asciiBytes(ALPHA_URN) + ByteArray(1),
+  val emptyAlphaEntries: Boolean = false,
 ) {
   private val codedItems = if (grid) listOf(2, 3, 4, 5) else listOf(1)
   private val size = if (large) BoxSize.Large else BoxSize.Exact
+  private val alphaItems = List(alphas) { FIRST_ALPHA_ITEM + it }
 
   init {
     require(ilocVersion != 0 || !(grid || codedInIdat)) { "iloc version 0 has no construction method" }
     require(tiles.keys.all { it in codedItems && grid }) { "only the tiles of a grid can be set apart" }
+    require(!onlyTransforms || !grid) { "a grid lists its own associations" }
   }
 
   /**
@@ -95,6 +127,7 @@ internal class TestHeic(
       if (ilocVersion != 0) add(Placed(MIME_ITEM, inIdat = true, MIME))
       codedItems.forEach { add(Placed(it, codedInIdat, dataOf(it))) }
       if (thumbnailNclx != null) add(Placed(THUMBNAIL_ITEM, inIdat = false, payload))
+      alphaItems.forEach { add(Placed(it, inIdat = false, payload)) }
       add(Placed(EXIF_ITEM, inIdat = false, EXIF))
       if (ilocVersion == 0) add(Placed(MIME_ITEM, inIdat = false, MIME))
     }
@@ -121,19 +154,21 @@ internal class TestHeic(
 
   private fun meta(mdatPayload: Int): ByteArray {
     val thumbnail = if (thumbnailNclx != null) listOf(THUMBNAIL_ITEM to itemType) else emptyList()
-    val types = codedItems.map { it to itemType } + thumbnail + listOf(EXIF_ITEM to "Exif", MIME_ITEM to "mime")
+    val alpha = alphaItems.map { it to itemType }
+    val types = codedItems.map { it to itemType } + thumbnail + listOf(EXIF_ITEM to "Exif", MIME_ITEM to "mime") + alpha
+    val auxiliary = alphaItems.map { reference("auxl", it, listOf(1)) }
     val references =
       listOfNotNull(
-        if (grid) box("dimg", DIMG) else null,
-        if (thumbnailNclx != null) box("thmb", THMB) else null,
-      )
+        if (grid) reference("dimg", 1, codedItems) else null,
+        if (thumbnailNclx != null) reference("thmb", THUMBNAIL_ITEM, listOf(1)) else null,
+      ) + auxiliary
     val children =
       listOfNotNull(
         fullBox("hdlr", 0, 0, ByteArray(21)),
         fullBox("pitm", 0, 0, bytes { u16(1) }),
         ilocBox ?: iloc(mdatPayload),
         iinf(*((if (grid) listOf(1 to "grid") else emptyList()) + types).toTypedArray()),
-        if (references.isNotEmpty()) fullBox("iref", 0, 0, *references.toTypedArray()) else null,
+        if (references.isNotEmpty()) fullBox("iref", irefVersion, 0, *references.toTypedArray()) else null,
         iprp(),
         box("idat", *placed.filter { it.inIdat }.map { it.data }.toTypedArray()),
       )
@@ -147,19 +182,75 @@ internal class TestHeic(
       configuration ?: hvccOf(VPS_NAL, *sps.toTypedArray(), PPS_NAL, lengthSizeMinusOne = lengthSizeMinusOne)
     val shared = listOf(configuration, ispe(64)) + colours + ispe(128)
     val own = codedItems.mapNotNull { item -> tiles[item]?.configuration?.let { item to it } }
-    val properties = shared + own.map { it.second } + listOfNotNull(thumbnailNclx?.let(::nclxBox))
+    val auxiliary = if (alphas > 0) listOf(fullBox("auxC", 0, 0, auxiliaryType)) else listOf()
+    val ofAlpha = alphaTransforms.orEmpty() + auxiliary
+    val properties =
+      shared + own.map { it.second } + transforms + ofAlpha + listOfNotNull(thumbnailNclx?.let(::nclxBox))
     val ownIndex = own.mapIndexed { at, (item, _) -> item to shared.size + 1 + at }.toMap()
     val colourIndices = colours.indices.map { it + 3 }
-    val primary =
-      if (grid) {
-        listOf(1 to listOf(shared.size) + colourIndices) + codedItems.map { it to listOf(ownIndex[it] ?: 1, 2) }
-      } else {
-        listOf(1 to listOf(1, 2) + colourIndices)
+    val transformIndices = transforms.indices.map { shared.size + own.size + 1 + it }
+    val afterTransforms = shared.size + own.size + transforms.size
+    val alphaIndices = alphaTransforms?.indices?.map { afterTransforms + 1 + it } ?: transformIndices
+    val auxCIndex = afterTransforms + ofAlpha.size
+    val turns = { item: Int ->
+      when {
+        item !in transformed -> emptyList()
+        item in alphaItems -> alphaIndices
+        else -> transformIndices
       }
-    val thumbnail = thumbnailNclx?.let { listOf(THUMBNAIL_ITEM to listOf(1, 2, properties.size)) }.orEmpty()
-    val associations = primary + thumbnail
-    return sizedBox("iprp", size, sizedBox("ipco", size, *properties.toTypedArray()), ipma(associations))
+    }
+    val listed = { item: Int, first: Int, rest: List<Int> -> item to listOf(first) + turns(item) + rest }
+    val primary =
+      when {
+        grid -> {
+          listOf(listed(1, shared.size, colourIndices)) + codedItems.map { listed(it, ownIndex[it] ?: 1, listOf(2)) }
+        }
+        onlyTransforms -> {
+          listOf(1 to turns(1))
+        }
+        else -> {
+          listOf(listed(1, 1, listOf(2) + colourIndices))
+        }
+      }
+    val thumbnail = thumbnailNclx?.let { listOf(listed(THUMBNAIL_ITEM, 1, listOf(2, properties.size))) }.orEmpty()
+    val alpha = alphaItems.map { if (emptyAlphaEntries) it to emptyList() else listed(it, 1, listOf(2, auxCIndex)) }
+    val associations = primary + thumbnail + alpha
+    val boxes = if (splitIpma) listOf(associations.take(1), associations.drop(1)) else listOf(associations)
+    val ipmas = boxes.map(::ipmaOf).toTypedArray()
+    return sizedBox("iprp", size, sizedBox("ipco", size, *properties.toTypedArray()), *ipmas)
   }
+
+  // An ipma box listing each item's property indices, essential unless nonEssential names them.
+  private fun ipmaOf(entries: List<Pair<Int, List<Int>>>): ByteArray {
+    val body =
+      bytes {
+        u8(ipmaVersion).u8(0).u16(if (wideIndex) 1 else 0)
+        u32(entries.size.toLong())
+        for ((item, indices) in entries) {
+          id(item, ipmaVersion)
+          u8(indices.size)
+          for (index in indices) {
+            val essential = if (index in nonEssential) 0 else 1
+            if (wideIndex) u16((essential shl 15) or index) else u8((essential shl 7) or index)
+          }
+        }
+      }
+    return sizedBox("ipma", if (largeIpma) BoxSize.Large else BoxSize.Exact, body)
+  }
+
+  // A single item reference of type from item from to the items to lists, its ids as wide as irefVersion makes them.
+  private fun reference(
+    type: String,
+    from: Int,
+    to: List<Int>,
+  ): ByteArray =
+    box(
+      type,
+      bytes {
+        id(from, irefVersion).u16(to.size)
+        to.forEach { id(it, irefVersion) }
+      },
+    )
 
   private fun iloc(mdatPayload: Int): ByteArray {
     val idVersion = if (ilocVersion == 2) 1 else 0
@@ -211,16 +302,12 @@ internal class TestHeic(
     const val THUMBNAIL_ITEM = 7
     const val EXIF_ITEM = 8
     const val MIME_ITEM = 9
+    const val FIRST_ALPHA_ITEM = 10
+    const val ALPHA_URN = "urn:mpeg:mpegB:cicp:systems:auxiliary:alpha"
     val SLICE = byteArrayOf(0x02, 0x01, 0xD0.toByte(), 0x00, 0x00, 0x03, 0x01, 0x7F)
     val EXIF = asciiBytes("Exif") + byteArrayOf(0, 0, 0x4D, 0x4D, 0, 0x2A)
     val MIME = asciiBytes("<x:xmpmeta/>")
     val GRID = byteArrayOf(0, 0, 1, 1, 0, 0x80.toByte(), 0, 0x80.toByte())
-
-    // Item 1 derived from the four tiles, items 2 to 5.
-    val DIMG = byteArrayOf(0, 1, 0, 4, 0, 2, 0, 3, 0, 4, 0, 5)
-
-    // Item 7 a thumbnail of item 1.
-    val THMB = byteArrayOf(0, THUMBNAIL_ITEM.toByte(), 0, 1, 0, 1)
   }
 }
 

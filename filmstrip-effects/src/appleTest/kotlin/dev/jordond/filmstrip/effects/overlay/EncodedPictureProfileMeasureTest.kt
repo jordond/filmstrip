@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.effects.overlay.EncodedPictures.SIZE
 import dev.jordond.filmstrip.effects.overlay.EncodedPictures.TEXEL
 import dev.jordond.filmstrip.effects.overlay.EncodedPictures.TOLERANCE
 import dev.jordond.filmstrip.effects.overlay.EncodedPictures.toCode
+import dev.jordond.filmstrip.media.UnturnedHeif
 import dev.jordond.filmstrip.media.heifWithExplicitCodestreamColour
 import dev.jordond.filmstrip.test.AppleDisplayP3
 import dev.jordond.filmstrip.test.AppleStillSamples
@@ -13,6 +14,7 @@ import dev.jordond.filmstrip.test.ColourPictures
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -47,7 +49,8 @@ class EncodedPictureProfileMeasureTest {
     val misses =
       pinned.mapNotNull { heic ->
         val bytes = heic.bytes()
-        assertFalse(heifWithExplicitCodestreamColour(bytes).contentEquals(bytes), "$heic was not rewritten")
+        val stated = assertIs<UnturnedHeif.Handed>(heifWithExplicitCodestreamColour(bytes)).bytes
+        assertFalse(stated.contentEquals(bytes), "$heic was not rewritten")
         val read = assertNotNull(writtenSamples(bytes), "$heic read no samples")
         AppleStillSamples.missOrUnmeasured {
           val decoded = read.map { it.toCode() }

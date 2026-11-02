@@ -1,5 +1,10 @@
 package dev.jordond.filmstrip.media
 
+import dev.jordond.filmstrip.internal.exifBlock
+import dev.jordond.filmstrip.internal.heifOriented
+import dev.jordond.filmstrip.internal.jxlCodestream
+import dev.jordond.filmstrip.internal.pngWithExif
+import dev.jordond.filmstrip.internal.webpWithExif
 import dev.jordond.filmstrip.media.probe.ROTATED_IMAGE_PROBE_ORIENTATION
 import dev.jordond.filmstrip.media.probe.imageProbeBytes
 import dev.jordond.filmstrip.media.probe.rotatedImageProbeBytes
@@ -63,8 +68,7 @@ class ImageHeaderTest {
     }
   }
 
-  // The JVM and a browser both hand over the head of a file rather than all of it, so a read that
-  // needed the rest of the segment would answer normal for every photo either of them measured.
+  // A file cut short inside its Exif segment still holds the tag if the cut falls past it.
   @Test
   fun aBlockCutOffJustPastTheTagsValueStillReadsIt() {
     val head = rotatedImageProbeBytes().copyOf(VALUE_END)
@@ -79,6 +83,21 @@ class ImageHeaderTest {
     header[SEGMENT_LENGTH + 1] = 0
 
     assertEquals(EXIF_ORIENTATION_NORMAL, exifOrientationOf(header))
+  }
+
+  // A still that is not a JPEG says which way up it is too, and the JVM and a browser read it the way Apple and
+  // Android's own readers already do.
+  @Test
+  fun aStillInAnyContainerTheOrientationReadKnowsReadsItsTag() {
+    val tagged =
+      listOf(
+        pngWithExif(exifBlock(SIDEWAYS)),
+        webpWithExif(exifBlock(SIDEWAYS)),
+        exifBlock(SIDEWAYS),
+        heifOriented(turns = 3, axis = null),
+        jxlCodestream(SIDEWAYS),
+      )
+    for (bytes in tagged) assertEquals(SIDEWAYS, exifOrientationOf(bytes))
   }
 
   @Test

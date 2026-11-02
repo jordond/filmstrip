@@ -44,7 +44,8 @@ internal fun ImageOverlay.animationRefusal(
 // own file, since sendcmd hands a command to the first filter of that name and no further.
 //
 // [decoded] is the picture's size when it was already decoded for this resolve. Otherwise the decoder sizes it
-// whenever there is one, turned the way it decodes it.
+// whenever there is one, and the JDK when there is not, and the size is cut to the crop cropLeftOf reads and turned by
+// the orientation the graph lays the picture out by.
 internal fun ImageOverlay.commandsFor(
   attributes: Attributes,
   run: TimeRange,
@@ -60,7 +61,7 @@ internal fun ImageOverlay.commandsFor(
       is OverlayPictureRead.Read -> read.value
       is OverlayPictureRead.Refused -> return Driven.Refused(UNREADABLE_IMAGE.saying(read.reason))
       null -> measureOverlay(image) ?: return Driven.Refused(UNREADABLE_IMAGE)
-    }
+    }.let { stored -> image.encodedBytes().let { orientationLeftOf(it).orientedSize(cropLeftOf(it)?.size ?: stored) } }
   val span = attributes.span
   val drawnOn = attributes.inputSize
   val base = placedOn(drawnOn, imageSize)

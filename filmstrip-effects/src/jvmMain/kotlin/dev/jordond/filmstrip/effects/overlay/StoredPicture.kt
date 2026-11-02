@@ -6,8 +6,11 @@ import dev.jordond.filmstrip.internal.jpegWithoutProfile
 import dev.jordond.filmstrip.internal.pictureColour
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.PictureColour
+import dev.jordond.filmstrip.media.PictureOrientation
+import dev.jordond.filmstrip.media.croppedSamples
 import dev.jordond.filmstrip.media.filePathOf
 import dev.jordond.filmstrip.media.jpegProfileIsRgbOrGrey
+import dev.jordond.filmstrip.media.orientedSamples
 import dev.jordond.filmstrip.media.pictureLight
 import dev.jordond.filmstrip.media.pictureSrgbCodes
 import java.awt.color.ColorSpace
@@ -24,8 +27,9 @@ import kotlin.math.roundToInt
 /**
  * An overlay picture as the samples it stores and the colour description that defines them.
  *
- * @property samples The samples before any colour conversion, one texel per pixel in rows.
- * @property size The picture's own size in pixels.
+ * @property samples The samples before any colour conversion, one texel per pixel in rows, laid out as the picture is
+ * shown.
+ * @property size The picture's size in pixels as it is shown.
  * @property colour How the picture describes its colour, or null when it is untagged.
  * @property limits Each way the backend's decoder read the picture short of what its file stores.
  */
@@ -62,9 +66,10 @@ internal sealed interface StoredRead {
 
   /**
    * The backend's decoder did not decode the picture, since its colour is described in a way the backend does not
-   * draw.
+   * draw, or it is an AVIF or HEIC whose `irot`, `imir` and `clap` could not be dropped ahead of the decoder, or whose
+   * decode holds no rectangle its `clap` keeps.
    *
-   * @property reason What the description names and why it is not drawn.
+   * @property reason What the description names and why it is not drawn, or core's sentence for the drop or the crop.
    */
   class Undrawn(
     val reason: String,
@@ -92,13 +97,16 @@ internal sealed interface SdrOverlayImage {
    * The graph opens [image].
    *
    * @property image The overlay's own picture, or an untagged PNG of the codes its colour description gives it.
-   * @property size The picture's size as the decode handed it back, or null when it was not decoded.
+   * @property size The picture's size as it is shown, or null when it was not decoded.
    * @property limits Each way the decode read the picture short of what its file stores.
+   * @property orientation The turn the graph lays [image] out by, the one [orientationLeftOf] gives when [image] is the
+   * overlay's own picture and [PictureOrientation.Normal] for a PNG of its codes, which is laid out already.
    */
   class Drawn(
     val image: ImageSource,
     val size: Size? = null,
     val limits: List<Degradation> = emptyList(),
+    val orientation: PictureOrientation = PictureOrientation.Normal,
   ) : SdrOverlayImage
 
   /**
@@ -114,14 +122,16 @@ internal sealed interface SdrOverlayImage {
 /**
  * Reads the samples [image] stores and the colour description that defines them.
  *
- * With a [decoder] every picture is decoded by it, so its texels are the ones the backend's own toolchain decodes,
- * oriented the way it orients them. Without one the JDK reads it, with an RGB or grey JPEG profile kept out of its way
- * so the samples come back unconverted. The description is read out of the encoded bytes with [pictureColour], so a
- * container's own description is the only one read, including a tiled HEIC whose decode drops it. A JPEG XL, whose
- * colour sits in its codestream, takes the description [decoder]'s decode carried instead. Any other picture whose
- * container yields none is untagged, whatever its decode carries, since a decoder infers a description from chunks
- * core reads as sRGB and from codestream colour core leaves to the container. A picture whose colour model is neither
- * RGB nor grey, such as a CMYK one, is converted to sRGB by the JDK and read as untagged.
+ * With a [decoder] every picture is decoded by it, so its texels are the ones the backend's own toolchain decodes.
+ * Without one the JDK reads it, with an RGB or grey JPEG profile kept out of its way so the samples come back
+ * unconverted. Either way [croppedSamples] then cuts them to the rectangle [cropLeftOf] gives and [orientedSamples]
+ * lays them out by the turn [orientationLeftOf] gives. The description
+ * is read out of the encoded bytes with [pictureColour], so a container's own description is the only one read,
+ * including a tiled HEIC whose decode drops it. A JPEG XL, whose colour sits in its codestream, takes the description
+ * [decoder]'s decode carried instead. Any other picture whose container yields none is untagged, whatever its decode
+ * carries, since a decoder infers a description from chunks core reads as sRGB and from codestream colour core leaves
+ * to the container. A picture whose colour model is neither RGB nor grey, such as a CMYK one, is converted to sRGB by
+ * the JDK and read as untagged.
  *
  * A picture this process cannot read the bytes of, such as a URL ffmpeg opens and the JVM does not, has no container
  * to read a description out of. Its decode is taken as untagged when it carries no description, and is
@@ -138,11 +148,12 @@ internal fun storedPicture(
 /**
  * The picture an SDR grade draws for [image].
  *
- * An untagged picture is [image] itself, so the graph opens the same bytes it always has. A tagged one is read through
- * [storedPicture] and its texels go through [pictureSrgbCodes]. When that lands every texel where an untagged read
- * does, as an sRGB profile or one that does not parse does, the graph opens [image] too. Otherwise it opens an
- * untagged PNG of the codes. A JPEG XL keeps its colour in its codestream, so with a [decoder] it is decoded to find
- * out whether it carries any, and without one it is drawn as it is.
+ * An untagged picture is [image] itself, so the graph opens the same bytes it always has and lays them out by the
+ * turn [orientationLeftOf] gives. A tagged one is read through [storedPicture] and its texels go through
+ * [pictureSrgbCodes]. When that lands every texel where an untagged read does, as an sRGB profile or one that does not
+ * parse does, the graph opens [image] too. Otherwise it opens an untagged PNG of the codes, laid out already. A JPEG
+ * XL keeps its colour in its codestream, so with a [decoder] it is decoded to find out whether it carries any, and
+ * without one it is drawn as it is.
  *
  * An AVIF or HEIC with a [decoder] always reaches the graph as an untagged PNG of its decode, tagged or not. The graph
  * repeats a still with the image demuxer's `-loop`, which ffmpeg refuses for the demuxer that opens an AVIF or HEIC,
@@ -164,7 +175,11 @@ internal fun sdrOverlayImage(
   val described = bytes?.let(::pictureColour)
   val codestream = bytes?.isJpegXl() == true
   val decoded = decoder != null && (codestream || heif || (bytes == null && image.toolchainOnly))
-  if (described == null && !decoded) return SdrOverlayImage.Drawn(image)
+  // ffmpeg's limit: a URI only ffmpeg opens, such as an https URL, has no bytes this process can read, so core reads
+  // no orientation or clap for it. It is drawn unturned and cropped however that ffmpeg build crops it as it decodes
+  // with -noautorotate. 8.0.1 and 9.0.2 crop an AVIF or HEIC by its clap, and 6.1.1 opens no HEIF at all.
+  val orientation = orientationLeftOf(bytes)
+  if (described == null && !decoded) return SdrOverlayImage.Drawn(image, orientation = orientation)
 
   val picture =
     when (val read = storedPicture(image, bytes, described, decoder)) {
@@ -193,7 +208,9 @@ internal fun sdrOverlayImage(
     }
   val codes = picture.samples.srgbCodes(picture.colour)
   val asStored = codes.contentEquals(picture.samples.srgbCodes(null))
-  if (bytes != null && !heif && asStored) return SdrOverlayImage.Drawn(image, picture.size, picture.limits)
+  if (bytes != null && !heif && asStored) {
+    return SdrOverlayImage.Drawn(image, picture.size, picture.limits, orientation)
+  }
   return SdrOverlayImage.Drawn(ImageSource.ofBytes(argbPng(codes, picture.size)), picture.size, picture.limits)
 }
 
@@ -204,7 +221,8 @@ private fun storedPicture(
   decoder: OverlayPictureDecoder?,
 ): StoredRead {
   if (decoder == null) {
-    return bytes?.let(::readWithJdk)?.let { StoredRead.Read(it.stored(described)) } ?: StoredRead.Unread
+    val read = bytes?.let(::readWithJdk)?.stored(described) ?: return StoredRead.Unread
+    return read.laidOut(bytes)
   }
 
   return when (val read = decoder.decode(image)) {
@@ -212,7 +230,8 @@ private fun storedPicture(
       val decoded = read.value
       if (bytes == null && decoded.colour != null) return StoredRead.Unseen
       val codestream = decoded.colour.takeIf { bytes?.isJpegXl() == true }
-      StoredRead.Read(StoredPicture(decoded.samples, decoded.size, described ?: codestream, decoded.limits))
+      val picture = StoredPicture(decoded.samples, decoded.size, described ?: codestream, decoded.limits)
+      picture.laidOut(bytes)
     }
     is OverlayPictureRead.Refused -> {
       StoredRead.Undecoded(read.reason)
@@ -225,7 +244,7 @@ private fun storedPicture(
 
 // The encoded bytes the graph would open, or null when this process cannot read them. A URI is read as the file path
 // the backend materialises it to.
-private fun ImageSource.encodedBytes(): ByteArray? =
+internal fun ImageSource.encodedBytes(): ByteArray? =
   try {
     when (this) {
       is ImageSource.Path -> File(path).takeIf { it.isFile }?.readBytes()
@@ -392,7 +411,7 @@ private fun argbPng(
 }
 
 // A JPEG XL opens on its codestream's FF 0A, or on the twelve byte signature box of its ISOBMFF container.
-private fun ByteArray.isJpegXl(): Boolean = regionMatches(0, JXL_CODESTREAM) || regionMatches(0, JXL_CONTAINER)
+internal fun ByteArray.isJpegXl(): Boolean = regionMatches(0, JXL_CODESTREAM) || regionMatches(0, JXL_CONTAINER)
 
 // An AVIF or HEIC opens on its `ftyp` box.
 private fun ByteArray.isHeif(): Boolean = regionMatches(4, FTYP)

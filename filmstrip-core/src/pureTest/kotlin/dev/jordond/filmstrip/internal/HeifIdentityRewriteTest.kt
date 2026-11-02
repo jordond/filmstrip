@@ -49,11 +49,11 @@ class HeifIdentityRewriteTest {
       for (nclx in IDENTITY_NCLX) {
         val signal = CodestreamSignal(nclx.primaries, nclx.transfer, 0, nclx.fullRange)
         val expected = heic(3, nclx, grid, spsStating(sps, signal)!!)
-        val result = heifWithExplicitCodestreamColour(heic(3, nclx, grid))
+        val result = heifWithExplicitCodestreamColour(heic(3, nclx, grid)).handed
         result shouldBe expected
         pictureYcbcrCoding(result)?.codestream shouldBe signal
-        heifWithExplicitCodestreamColour(result) shouldBeSameInstanceAs result
-        heifWithRestatedColour(heic(3, nclx, grid), keepingMatrix { BT2020 }) shouldBe
+        heifWithExplicitCodestreamColour(result).handed shouldBeSameInstanceAs result
+        heifWithRestatedColour(heic(3, nclx, grid), keepingMatrix { BT2020 }).restated shouldBe
           heic(3, nclx, grid, spsStating(sps, signal.copy(primaries = BT2020))!!)
       }
     }
@@ -65,8 +65,8 @@ class HeifIdentityRewriteTest {
       for (chromaFormat in 0..2) {
         for (nclx in IDENTITY_NCLX) {
           val file = heic(chromaFormat, nclx, grid)
-          heifWithExplicitCodestreamColour(file) shouldBeSameInstanceAs file
-          heifWithRestatedColour(file, keepingMatrix { BT2020 }) shouldBeSameInstanceAs file
+          heifWithExplicitCodestreamColour(file).handed shouldBeSameInstanceAs file
+          heifWithRestatedColour(file, keepingMatrix { BT2020 }).unrestated shouldBeSameInstanceAs file
         }
       }
     }
@@ -79,8 +79,8 @@ class HeifIdentityRewriteTest {
         for (nclx in IDENTITY_NCLX) {
           val file = heic(3, nclx, grid, SpsShape(chromaFormat = chromaFormat).nal())
           pictureYcbcrCoding(file)?.identityNot444 shouldBe true
-          heifWithExplicitCodestreamColour(file) shouldBeSameInstanceAs file
-          heifWithRestatedColour(file, keepingMatrix { BT2020 }) shouldBeSameInstanceAs file
+          heifWithExplicitCodestreamColour(file).handed shouldBeSameInstanceAs file
+          heifWithRestatedColour(file, keepingMatrix { BT2020 }).unrestated shouldBeSameInstanceAs file
         }
       }
     }
@@ -91,15 +91,15 @@ class HeifIdentityRewriteTest {
     val own = CodestreamSignal(9, 16, 0, false)
     for (grid in listOf(false, true)) {
       val stated = SpsShape(chromaFormat = 3, vui = minimalVui(own)).nal()
-      heifWithRestatedColour(heic(3, null, grid, stated), keepingMatrix { BT709 }) shouldBe
+      heifWithRestatedColour(heic(3, null, grid, stated), keepingMatrix { BT709 }).restated shouldBe
         heic(3, null, grid, spsStating(stated, own.copy(primaries = BT709))!!)
       for (chromaFormat in 1..2) {
         val file = heic(chromaFormat, null, grid, SpsShape(chromaFormat = chromaFormat, vui = minimalVui(own)).nal())
-        heifWithRestatedColour(file, keepingMatrix { BT709 }) shouldBeSameInstanceAs file
+        heifWithRestatedColour(file, keepingMatrix { BT709 }).unrestated shouldBeSameInstanceAs file
       }
       val header = SequenceShape(description = Triple(9, 16, 0), fullRange = false)
       val subsampled = avif(header, AV1C_420, null, grid)
-      heifWithRestatedColour(subsampled, keepingMatrix { BT709 }) shouldBeSameInstanceAs subsampled
+      heifWithRestatedColour(subsampled, keepingMatrix { BT709 }).unrestated shouldBeSameInstanceAs subsampled
     }
   }
 
@@ -109,8 +109,8 @@ class HeifIdentityRewriteTest {
       for (av1c in listOf(VERTICAL_AV1C, SHORT_AV1C)) {
         for (nclx in IDENTITY_NCLX) {
           val file = avif(SequenceShape(profile = 1), av1c, nclx, grid)
-          heifWithExplicitCodestreamColour(file) shouldBeSameInstanceAs file
-          heifWithRestatedColour(file, keepingMatrix { BT2020 }) shouldBeSameInstanceAs file
+          heifWithExplicitCodestreamColour(file).handed shouldBeSameInstanceAs file
+          heifWithRestatedColour(file, keepingMatrix { BT2020 }).unrestated shouldBeSameInstanceAs file
         }
       }
     }
@@ -122,14 +122,14 @@ class HeifIdentityRewriteTest {
     val toIdentity = { _: Int, _: Boolean, _: YcbcrReading -> RestatedColour(0, BT2020) }
     val sps = SpsShape(chromaFormat = 3).nal()
     for (grid in listOf(false, true)) {
-      heifWithRestatedColour(heic(3, nclx, grid), toIdentity) shouldBe
+      heifWithRestatedColour(heic(3, nclx, grid), toIdentity).restated shouldBe
         heic(3, nclx, grid, spsStating(sps, CodestreamSignal(9, 16, 0, false))!!)
       for (chromaFormat in 0..2) {
         val file = heic(chromaFormat, nclx, grid)
-        heifWithRestatedColour(file, toIdentity) shouldBeSameInstanceAs file
+        heifWithRestatedColour(file, toIdentity).unrestated shouldBeSameInstanceAs file
       }
       val subsampled = avif(SequenceShape(), AV1C_420, nclx, grid)
-      heifWithRestatedColour(subsampled, toIdentity) shouldBeSameInstanceAs subsampled
+      heifWithRestatedColour(subsampled, toIdentity).unrestated shouldBeSameInstanceAs subsampled
     }
   }
 
@@ -138,7 +138,7 @@ class HeifIdentityRewriteTest {
     for (grid in listOf(false, true)) {
       for (nclx in IDENTITY_NCLX) {
         val file = heic(1, nclx, grid)
-        heifWithRestatedColour(file) { _, _, _ -> error("restate was called") } shouldBeSameInstanceAs file
+        heifWithRestatedColour(file) { _, _, _ -> error("restate was called") }.unrestated shouldBeSameInstanceAs file
       }
     }
   }

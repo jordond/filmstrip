@@ -13,9 +13,11 @@ import dev.jordond.filmstrip.internal.heifAlpha
 import dev.jordond.filmstrip.internal.heifPrimaryIsTiled
 import dev.jordond.filmstrip.internal.pictureYcbcrCoding
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.media.UnturnedHeif
 import dev.jordond.filmstrip.media.YcbcrCoding
 import dev.jordond.filmstrip.media.filePathOf
 import dev.jordond.filmstrip.media.heifWithExplicitCodestreamColour
+import dev.jordond.filmstrip.media.heifWithoutOrientation
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -34,13 +36,15 @@ internal actual fun decodingOverlayPictures(
  * Reads an overlay picture with the backend's own ffmpeg.
  *
  * The picture is opened the way an export opens it, bytes written to a file first and a URI read as the file it names,
- * so this reads exactly the pictures an export draws, turned by any orientation ffmpeg applies. Every read runs the
- * first frame of the picture's primary image through a filter. An AVIF or HEIC whose primary item is derived from
- * tiles, as [heifPrimaryIsTiled] reads it, goes through a complex filter graph whose one input is left unlabelled,
- * which ffmpeg binds to the assembled picture. Every other picture goes through a simple one, whose input is the
- * stream ffmpeg picks for its output, and for a HEIF file that is the primary item rather than a thumbnail written
- * ahead of it. A picture this process cannot read the bytes of takes the simple one too, so a tiled one ffmpeg alone
- * opens is refused rather than read off a thumbnail.
+ * so this reads exactly the pictures an export draws. Every child opens it with `-noautorotate`, so ffmpeg turns it by
+ * no orientation tag, and an AVIF or HEIC is opened with its `irot`, `imir` and `clap` dropped on top. A JPEG XL still
+ * comes back turned, since libjxl lays it out by its codestream's orientation and ffmpeg's decoder has no way to keep
+ * it from doing so. Every read runs the first frame of the picture's primary image through a filter. An AVIF or HEIC
+ * whose primary item is derived from tiles, as [heifPrimaryIsTiled] reads it, goes through a complex filter graph whose
+ * one input is left unlabelled, which ffmpeg binds to the assembled picture. Every other picture goes through a simple
+ * one, whose input is the stream ffmpeg picks for its output, and for a HEIF file that is the primary item rather than
+ * a thumbnail written ahead of it. A picture this process cannot read the bytes of takes the simple one too, so a tiled
+ * one ffmpeg alone opens is refused rather than read off a thumbnail.
  *
  * A decode takes one of the routes [pictureRoute] picks for the picture's YCbCr coding. Most hand back the frame
  * through ffmpeg's own conversion to RGB, and it travels as a PNG of the depth and channels ffmpeg picks for the
@@ -62,7 +66,9 @@ internal actual fun decodingOverlayPictures(
  * range its `nclx` box records. Without an `nclx` it states its own signal, with a matrix it leaves out or leaves
  * unspecified written as BT.601, so the picture lands per its codestream. Its matrix and range are still set on the
  * conversion from what [pictureYcbcrCoding] reads, so the file's own box wins the way libavif and libheif read it. A
- * picture whose [YcbcrCoding.colourKnown] is false is left to the decoder.
+ * picture whose [YcbcrCoding.colourKnown] is false is left to the decoder. One whose `irot`, `imir` and `clap` drop is
+ * refused is [OverlayPictureDecode.Undrawn] with [UnturnedHeif.Refused.message] before anything is written or run. A
+ * measure reads the bytes [heifWithoutOrientation] hands over, and is refused with that message the same way.
  *
  * A picture with a [YcbcrCoding.refusal] is [OverlayPictureDecode.Undrawn] with core's reason before anything is
  * written or run. So is one whose matrix swscale cannot convert when core does not know the depth its samples are
@@ -89,14 +95,13 @@ internal class FfmpegPictureDecoder(
   override fun decode(image: ImageSource): OverlayPictureDecode<DecodedPicture> {
     val deadline = deadlineFromNow()
     val bytes = encodedBytes(image)
-    val opened = ::heifWithExplicitCodestreamColour
     val alpha = bytes?.let(::heifAlpha)
     return when (val route = pictureRoute(bytes?.let(::pictureYcbcrCoding))) {
       is PictureRoute.Refused -> {
         OverlayPictureDecode.Undrawn(route.reason)
       }
       is PictureRoute.Converted -> {
-        readThrough(image, bytes, opened) { input ->
+        drawnThrough(image, bytes) { input ->
           val command = firstFrame(input, bytes, route.filter, PNG_ON_STDOUT)
           when (val colour = ranToEnd(command, deadline, ::wholeStream, ::decodedPng)) {
             is OverlayPictureRead.Refused -> {
@@ -111,7 +116,7 @@ internal class FfmpegPictureDecoder(
         }
       }
       is PictureRoute.Planes -> {
-        readThrough(image, bytes, opened) { input ->
+        drawnThrough(image, bytes) { input ->
           val command = firstFrame(input, bytes, route.filter, PLANES_ON_STDOUT)
           when (val colour = ranToEnd(command, deadline, { yuv4mpegPlanes(it, route.bitDepth) }) { it }) {
             is OverlayPictureRead.Refused -> {
@@ -128,6 +133,24 @@ internal class FfmpegPictureDecoder(
     }
   }
 
+  // Runs [read] on the file ffmpeg opens for [image], its encoded [bytes] handed over as
+  // [heifWithExplicitCodestreamColour] gives them, or Undrawn with core's sentence when their irot, imir and clap drop
+  // is refused.
+  private fun drawnThrough(
+    image: ImageSource,
+    bytes: ByteArray?,
+    read: (String) -> OverlayPictureRead<DecodedPicture>,
+  ): OverlayPictureDecode<DecodedPicture> {
+    val handed =
+      bytes?.let {
+        when (val heif = heifWithExplicitCodestreamColour(it)) {
+          is UnturnedHeif.Refused -> return OverlayPictureDecode.Undrawn(heif.message)
+          is UnturnedHeif.Handed -> heif.bytes
+        }
+      }
+    return readThrough(image, bytes, handed, read)
+  }
+
   // [colour] drawn with the plane of [alpha] read out of [input] by [deadline], or as it is when the file carries no
   // alpha item. A build that lists no stream for the item draws it opaque and names its limit, and a plane of another
   // [size] than the colour's is refused.
@@ -141,7 +164,7 @@ internal class FfmpegPictureDecoder(
     draw: (C, PictureAlpha?) -> DecodedPicture,
   ): OverlayPictureRead<DecodedPicture> {
     if (alpha == null) return OverlayPictureRead.Read(draw(colour, null))
-    val command = listOf(ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-i", input) + alphaFrame(alpha)
+    val command = opening(input) + alphaFrame(alpha)
     return when (val plane = ranToEnd(command, deadline, ::wholeStream, ::decodedPng)) {
       is OverlayPictureRead.Refused -> {
         if (!unlistedAlpha(plane.reason)) return plane
@@ -159,11 +182,23 @@ internal class FfmpegPictureDecoder(
 
   override fun measure(image: ImageSource): OverlayPictureRead<Size> {
     val bytes = encodedBytes(image)
-    return readThrough(image, bytes, { it }) { input ->
+    val handed =
+      bytes?.let {
+        when (val heif = heifWithoutOrientation(it)) {
+          is UnturnedHeif.Refused -> return OverlayPictureRead.Refused(heif.message)
+          is UnturnedHeif.Handed -> heif.bytes
+        }
+      }
+    return readThrough(image, bytes, handed) { input ->
       val command = firstFrame(input, bytes, PASS_THROUGH, SIZE_ON_STDOUT)
       ranToEnd(command, deadlineFromNow(), ::wholeStream, ::sizeOfFrameCrc)
     }
   }
+
+  // ffmpeg opening [input] with its own turning switched off, so a picture comes back as stored whatever the build
+  // reads its orientation tag from.
+  private fun opening(input: String): List<String> =
+    listOf(ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-noautorotate", "-i", input)
 
   // The first frame of [input]'s primary image through [filter], written as [output]. A tiled primary item is only
   // reachable as a complex graph's unlabelled input, and a simple graph is the one that passes over a thumbnail.
@@ -174,21 +209,20 @@ internal class FfmpegPictureDecoder(
     output: List<String>,
   ): List<String> {
     val graph = if (bytes != null && heifPrimaryIsTiled(bytes)) "-filter_complex" else "-vf"
-    return listOf(ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-i", input) +
-      listOf("-frames:v", "1", graph, filter) + output
+    return opening(input) + listOf("-frames:v", "1", graph, filter) + output
   }
 
   // Runs [read] on the file ffmpeg opens for [image], whose encoded [bytes] are null when this process cannot read
-  // them. [opened] gives the bytes ffmpeg reads in their place. Bytes handed over as bytes, and a file whose bytes
-  // [opened] changes, are written to a scratch file that lives for the length of [read].
+  // them. [handed] are the bytes ffmpeg reads in their place, null when [bytes] are. Bytes handed over as bytes, and a
+  // file whose [handed] bytes are not its own, are written to a scratch file that lives for the length of [read].
   private fun <T> readThrough(
     image: ImageSource,
     bytes: ByteArray?,
-    opened: (ByteArray) -> ByteArray,
+    handed: ByteArray?,
     read: (String) -> OverlayPictureRead<T>,
   ): OverlayPictureRead<T> {
     val named = pathOf(image)
-    val scratch = bytes?.let(opened)?.takeIf { named == null || it !== bytes }
+    val scratch = handed?.takeIf { named == null || it !== bytes }
     val written =
       scratch?.let {
         when (val file = writtenToFile(it)) {
