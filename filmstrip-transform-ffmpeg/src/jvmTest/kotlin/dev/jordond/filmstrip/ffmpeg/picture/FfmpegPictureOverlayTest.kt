@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.effects.overlay.StoredSamples
 import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
 import dev.jordond.filmstrip.ffmpeg.internal.picture.PLANES_FILL_REASON
 import dev.jordond.filmstrip.ffmpeg.internal.picture.TRANSLUCENT_FILL_REASON
+import dev.jordond.filmstrip.ffmpeg.internal.picture.UNASSEMBLED_REASON
 import dev.jordond.filmstrip.ffmpeg.internal.picture.assembledOverlay
 import dev.jordond.filmstrip.ffmpeg.internal.picture.canvasColor
 import dev.jordond.filmstrip.ffmpeg.internal.picture.overlayFillReason
@@ -73,6 +74,15 @@ class FfmpegPictureOverlayTest {
     read.shouldBeInstanceOf<OverlayPictureDecode.Undrawn>().reason shouldBe TRANSLUCENT_FILL_REASON
     val covered = overlay("avif", picture, listOf(0 to 0, side to 0), Size(2 * side, side), clear)
     decoded(covered).size shouldBe Size(2 * side, side)
+  }
+
+  @Test
+  fun `an overlay with no inputs is refused rather than assembled`() {
+    val bytes = overlay("avif", ColorPictures.NCLX_BT709_LIMITED, emptyList(), Size(8, 8))
+    val read = decoder.decode(ImageSource.ofBytes(bytes))
+    read.shouldBeInstanceOf<OverlayPictureRead.Refused>().reason shouldBe UNASSEMBLED_REASON
+    val measured = decoder.measure(ImageSource.ofBytes(bytes))
+    measured.shouldBeInstanceOf<OverlayPictureRead.Refused>().reason shouldBe UNASSEMBLED_REASON
   }
 
   @Test

@@ -96,7 +96,8 @@ public class HeifCanvasFill(
  *
  * The inputs come from the primary item's `dimg` reference, each sized by its own properties, and the canvas color,
  * size and offsets from the overlay's own data. A file that is truncated or malformed, whose overlay data is not where
- * `iloc` places it, is not version 0, holds fewer offsets than it has inputs or has an input with no size carries none.
+ * `iloc` places it, is not version 0, holds fewer offsets than it has inputs, has no input or has an input with no size carries
+none.
  */
 @InternalFilmstripApi
 public fun heifPrimaryOverlay(bytes: ByteArray): HeifOverlay? {
@@ -113,6 +114,7 @@ private fun ByteView.primaryOverlay(): HeifOverlay? {
   val types = parts.iinf?.let { heif.within(it.end).itemTypes(it) }.orEmpty()
   if (types[primary] != IOVL) return null
   val items = heif.within(iref.end).tilesOf(primary, iref) ?: return null
+  if (items.isEmpty()) return null
   val (start, stop) = firstExtent(parts.locations ?: return null, parts.idat, primary) ?: return null
   val data = within(stop)
   if (data.u8(start) != 0) return null
@@ -142,7 +144,7 @@ private fun ByteView.signed(
   wide: Boolean,
 ): Int = if (wide) u32(at).toInt() else u16(at).toShort().toInt()
 
-private val IOVL = fourcc("iovl")
+internal val IOVL = fourcc("iovl")
 private const val FILL_END = 10
 private const val NARROW_FIELD = 2
 private const val WIDE_FIELD = 4

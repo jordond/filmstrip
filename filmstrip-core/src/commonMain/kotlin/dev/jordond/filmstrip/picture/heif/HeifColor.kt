@@ -183,8 +183,10 @@ internal fun heifExtent(file: ByteView): Size? = heifPrimary(file)?.extent()
  */
 internal fun heifCrop(file: ByteView): PictureCrop? = heifPrimary(file)?.crop()
 
-// Whether [file]'s primary item is derived from tiles, false without a primary item.
-internal fun heifTiled(file: ByteView): Boolean = heifPrimary(file)?.tiles?.isNotEmpty() == true
+// Whether [file]'s primary item is derived from tiles or is a grid or overlay that lists none, false without a primary
+// item.
+internal fun heifTiled(file: ByteView): Boolean =
+  heifPrimary(file)?.let { it.tiles.isNotEmpty() || it.derived() } == true
 
 // The primary item of an AVIF or HEIC, or null when its meta box has no primary item or its first iprp holds no ipco
 // or no ipma. Every property is read from that iprp, as metaParts finds it.
@@ -253,6 +255,8 @@ private class HeifPrimary(
   fun crop(): PictureCrop? = listing()?.takeIf { boxes -> boxes.any { it.type == CLAP } }?.let { heif.heifCropOf(it) }
 
   private fun listing(): List<Box>? = heif.heifListing(ipmas, primary, properties)
+
+  fun derived(): Boolean = iinf?.let { heif.within(it.end).itemTypes(it)[primary] } in DERIVED_TYPES
 
   // Every colr nclx property the item or one of its tiles is associated with, in ipco order.
   fun nclxProperties(): List<Box> =
@@ -436,6 +440,7 @@ internal val PROF = fourcc("prof")
 internal val RICC = fourcc("rICC")
 internal val NCLX_TYPE = fourcc("nclx")
 private val PIXI_TYPE = fourcc("pixi")
+private val DERIVED_TYPES = setOf(GRID, IOVL)
 internal val AV1C = fourcc("av1C")
 internal val HVCC = fourcc("hvcC")
 

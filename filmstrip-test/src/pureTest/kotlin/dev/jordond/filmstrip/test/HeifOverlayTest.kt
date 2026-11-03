@@ -61,6 +61,9 @@ class HeifOverlayTest {
     heifPrimaryOverlay(avif.gridBytes()).shouldBeNull()
     val truncated = HeifOverlays.overlay("avif", input, listOf(0 to 0), Size(8, 8)).copyOf(TRUNCATED)
     withClue("a truncated overlay") { heifPrimaryOverlay(truncated).shouldBeNull() }
+    val empty = HeifOverlays.overlay("avif", input, emptyList(), Size(8, 8))
+    withClue("an overlay with no inputs") { heifPrimaryOverlay(empty).shouldBeNull() }
+    withClue("an overlay with no inputs is still tiled") { heifPrimaryIsTiled(empty).shouldBeTrue() }
     withClue("a PNG") { heifPrimaryOverlay(PNG_SIGNATURE).shouldBeNull() }
   }
 
