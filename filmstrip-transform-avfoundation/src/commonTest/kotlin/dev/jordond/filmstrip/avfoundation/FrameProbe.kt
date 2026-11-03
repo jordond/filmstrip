@@ -283,6 +283,17 @@ internal fun assertClose(
 
 internal const val COLOR_TOLERANCE = 24
 
+/**
+ * Fractions across a fixture's width that land in the middle of one of its color bars.
+ *
+ * A fixture is eight bars of equal width, so a read at a quarter or a half straddles two bars and comes back as
+ * whatever mix of them a renderer settled on. These read the second, fourth and sixth bars.
+ */
+internal val BAR_CENTRES = listOf(1, 3, 5).map { (it + HALF_BAR) / COLOR_BARS }
+
+private const val COLOR_BARS = 8
+private const val HALF_BAR = 0.5f
+
 private const val BITS_PER_CHANNEL = 8
 private const val BYTES_PER_PIXEL = 4
 private const val ALPHA = 0xFF

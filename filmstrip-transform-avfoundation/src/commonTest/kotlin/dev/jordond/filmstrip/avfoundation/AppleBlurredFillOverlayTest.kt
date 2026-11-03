@@ -196,7 +196,7 @@ class AppleBlurredFillOverlayTest {
 
     // Read well below the badge, across the picture's width, where only the clip's own pixels land.
     const val PICTURE_ROW = 0.75f
-    val PICTURE_POINTS = listOf(0.25f, 0.5f, 0.75f)
+    val PICTURE_POINTS = BAR_CENTRES
 
     val RASTER = Size(4, 2)
     val RED_PNG = solidPng(RASTER.width, RASTER.height, RED)

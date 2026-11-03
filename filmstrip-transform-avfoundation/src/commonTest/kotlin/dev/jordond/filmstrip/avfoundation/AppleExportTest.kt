@@ -382,7 +382,9 @@ class AppleExportTest {
       val blurred = exportedWith(Fill.Blur)
       val reference = exportedWith(Fill.Black)
 
-      assertClose(samplePixel(blurred, 0.5f, 0.5f), samplePixel(reference, 0.5f, 0.5f), "clip centre")
+      BAR_CENTRES.forEach { x ->
+        assertClose(samplePixel(blurred, x, 0.5f), samplePixel(reference, x, 0.5f), "the clip at $x")
+      }
 
       remove(blurred)
       remove(reference)

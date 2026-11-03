@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.avfoundation.internal.chain
 
+import dev.jordond.filmstrip.avfoundation.BAR_CENTRES
 import dev.jordond.filmstrip.avfoundation.assertClose
 import dev.jordond.filmstrip.avfoundation.fixture
 import dev.jordond.filmstrip.avfoundation.frameOf
@@ -45,7 +46,7 @@ class FilteringRequestTest {
     val passed = frameThrough { request -> request.finish(request.sourceFrame(), context = null) }
     val decoded = frameOf(fixture(CLIP), AT)
 
-    listOf(0.25f, 0.5f, 0.75f).forEach { x ->
+    BAR_CENTRES.forEach { x ->
       assertClose(passed.average(x, 0.5f), decoded.average(x, 0.5f), "the passed through frame at $x")
     }
   }
