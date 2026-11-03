@@ -53,7 +53,7 @@ class AppleOverlayIccPreviewTest {
     contractTest { scope ->
       val badges = PICTURES.zip(CORNERS) { picture, corner -> picture to badgeOf(picture, corner) }
       val composition = compositionOf(badges.map { it.second })
-      val engine = AvPlayerEngine(scope, AvPreviewPlanner(CONTRACT_COMPONENTS), PlayerConfig())
+      val engine = AvPlayerEngine(scope, AvPreviewPlanner(CONTRACT_COMPONENTS), PlayerConfig(), muted = true)
       withEngine(engine) { recorder ->
         engine.awaitComposition(composition).shouldBeInstanceOf<SetCompositionResult.Success>()
         awaitContract("the preview to be presentable") { recorder.lastState.hasComposition }

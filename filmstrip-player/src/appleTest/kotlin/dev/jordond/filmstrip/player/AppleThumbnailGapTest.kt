@@ -97,7 +97,7 @@ class AppleThumbnailGapTest {
   fun `a frame read inside a leading gap matches the export`() =
     contractTest { scope ->
       val composition = lateComposition(listOf(badge()))
-      val engine = AvPlayerEngine(scope, AvPreviewPlanner(CONTRACT_COMPONENTS), PlayerConfig())
+      val engine = AvPlayerEngine(scope, AvPreviewPlanner(CONTRACT_COMPONENTS), PlayerConfig(), muted = true)
       withEngine(engine) { recorder ->
         engine.awaitComposition(composition).shouldBeInstanceOf<SetCompositionResult.Success>()
         awaitContract("the preview to be presentable") { recorder.lastState.hasComposition }
@@ -147,7 +147,7 @@ class AppleThumbnailGapTest {
   @Test
   fun `a frame read inside a leading gap reads the fill`() =
     contractTest { scope ->
-      val engine = AvPlayerEngine(scope, AvPreviewPlanner(CONTRACT_COMPONENTS), PlayerConfig())
+      val engine = AvPlayerEngine(scope, AvPreviewPlanner(CONTRACT_COMPONENTS), PlayerConfig(), muted = true)
       withEngine(engine) { recorder ->
         engine.awaitComposition(lateComposition()).shouldBeInstanceOf<SetCompositionResult.Success>()
         awaitContract("the preview to be presentable") { recorder.lastState.hasComposition }
@@ -166,7 +166,7 @@ class AppleThumbnailGapTest {
   fun `a frame read inside a leading gap draws the composition overlay over the fill`() =
     contractTest { scope ->
       val mark = badge()
-      val engine = AvPlayerEngine(scope, AvPreviewPlanner(CONTRACT_COMPONENTS), PlayerConfig())
+      val engine = AvPlayerEngine(scope, AvPreviewPlanner(CONTRACT_COMPONENTS), PlayerConfig(), muted = true)
       withEngine(engine) { recorder ->
         engine.awaitComposition(lateComposition(listOf(mark))).shouldBeInstanceOf<SetCompositionResult.Success>()
         awaitContract("the preview to be presentable") { recorder.lastState.hasComposition }
@@ -287,7 +287,7 @@ class AppleThumbnailGapTest {
     composition: EditComposition,
     positions: List<Duration>,
   ): Map<Duration, TestFrame> {
-    val engine = AvPlayerEngine(scope, AvPreviewPlanner(CONTRACT_COMPONENTS), PlayerConfig())
+    val engine = AvPlayerEngine(scope, AvPreviewPlanner(CONTRACT_COMPONENTS), PlayerConfig(), muted = true)
     val frames = mutableMapOf<Duration, TestFrame>()
     withEngine(engine) { recorder ->
       engine.awaitComposition(composition).shouldBeInstanceOf<SetCompositionResult.Success>()

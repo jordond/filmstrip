@@ -50,7 +50,7 @@ class AppleOverlayOrientationPreviewTest {
   fun `a frame read draws a tagged picture turned`() =
     contractTest { scope ->
       val badge = ImageOverlay(ImageSource.ofBytes(TAGGED), Corner.TopStart, BADGE_MARGIN, BADGE_SCALE)
-      val engine = AvPlayerEngine(scope, AvPreviewPlanner(CONTRACT_COMPONENTS), PlayerConfig())
+      val engine = AvPlayerEngine(scope, AvPreviewPlanner(CONTRACT_COMPONENTS), PlayerConfig(), muted = true)
       withEngine(engine) { recorder ->
         engine.awaitComposition(compositionOf(badge)).shouldBeInstanceOf<SetCompositionResult.Success>()
         awaitContract("the preview to be presentable") { recorder.lastState.hasComposition }

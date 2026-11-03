@@ -27,6 +27,7 @@ internal class AppleEngineUnderTest(
       parent = scope,
       planner = AvPreviewPlanner(CONTRACT_COMPONENTS),
       config = PlayerConfig(),
+      muted = true,
     )
 
   override val platformLoads: Int get() = engine.platformLoads

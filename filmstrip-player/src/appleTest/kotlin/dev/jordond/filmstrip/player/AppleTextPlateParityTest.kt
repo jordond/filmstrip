@@ -45,7 +45,7 @@ class AppleTextPlateParityTest {
   @Test
   fun `a frame read blends a translucent plate over the fill by the shared blend`() =
     contractTest { scope ->
-      val engine = AvPlayerEngine(scope, AvPreviewPlanner(CONTRACT_COMPONENTS), PlayerConfig())
+      val engine = AvPlayerEngine(scope, AvPreviewPlanner(CONTRACT_COMPONENTS), PlayerConfig(), muted = true)
       withEngine(engine) { recorder ->
         engine.awaitComposition(composition()).shouldBeInstanceOf<SetCompositionResult.Success>()
         awaitContract("the preview to be presentable") { recorder.lastState.hasComposition }

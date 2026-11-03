@@ -33,6 +33,7 @@ import platform.AVFoundation.pause
 import platform.AVFoundation.rate
 import platform.AVFoundation.replaceCurrentItemWithPlayerItem
 import platform.AVFoundation.setForwardPlaybackEndTime
+import platform.AVFoundation.setMuted
 import platform.AVFoundation.setVolume
 import platform.AVFoundation.videoComposition
 import platform.CoreMedia.CMTimeGetSeconds
@@ -63,14 +64,17 @@ import kotlin.time.Duration.Companion.seconds
  *   confined to.
  * @param planner Lowers an edit the way an export of it would be lowered.
  * @param config How the player was built.
+ * @param muted Silences the player's output without touching its volume. Audio still decodes and plays, nothing
+ * reaches the speakers.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal class AvPlayerEngine(
   parent: CoroutineScope,
   planner: AvPreviewPlanner,
   config: PlayerConfig,
+  muted: Boolean = false,
 ) : PlannedPlayerEngine<PreviewPlan>(parent, config.qualityPolicy, planner) {
-  private val player = AVPlayer()
+  private val player = AVPlayer().apply { setMuted(muted) }
 
   /**
    * The queue AVFoundation calls the engine's time observers on, and the one a test posts to when staging a late one.

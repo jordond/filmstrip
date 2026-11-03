@@ -35,7 +35,7 @@ class AppleStepFailureTest {
   fun `a step that throws while drawing fails playback with its reason`() =
     contractTest { scope ->
       val components = ComponentRegistry.Builder(CONTRACT_COMPONENTS).addEffectResolver(ThrowingResolver).build()
-      val engine = AvPlayerEngine(scope, AvPreviewPlanner(components), PlayerConfig())
+      val engine = AvPlayerEngine(scope, AvPreviewPlanner(components), PlayerConfig(), muted = true)
       withEngine(engine) { recorder ->
         engine
           .awaitComposition(appleFixtureComposition(listOf(Throwing)))

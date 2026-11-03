@@ -40,6 +40,7 @@ class ApplePixelContractTest : PlayerPixelContractTest() {
       parent = scope,
       planner = AvPreviewPlanner(CONTRACT_COMPONENTS),
       config = PlayerConfig(),
+      muted = true,
     )
 
   override val fixture: PixelFixture =
