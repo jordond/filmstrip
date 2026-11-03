@@ -6,6 +6,9 @@
 // FILMSTRIP_CHROME_BASE=Chrome with FILMSTRIP_CHROME_FLAGS='--headless=new --use-angle=metal'
 // runs the same tests against a real GPU, because karma-chrome-launcher's ChromeHeadless base
 // passes --disable-gpu and nothing later can undo it.
+//
+// --mute-audio is always appended, overrides included, so a run never plays the fixtures' tone
+// through the speakers. Audio still decodes and runs, only the output is silenced.
 config.set({
   customLaunchers: {
     FilmstripChrome: {
@@ -16,7 +19,7 @@ config.set({
         '--enable-unsafe-swiftshader',
         '--ignore-gpu-blocklist',
         '--no-sandbox',
-      ].join(' ')).split(' ').filter(Boolean),
+      ].join(' ')).split(' ').filter(Boolean).concat('--mute-audio'),
     },
   },
   browsers: ['FilmstripChrome'],
