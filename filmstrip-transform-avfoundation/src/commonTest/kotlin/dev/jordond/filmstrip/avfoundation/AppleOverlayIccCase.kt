@@ -2,13 +2,11 @@ package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.color.PictureColor
-import dev.jordond.filmstrip.color.YcbcrReading
 import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.color.pictureLight
 import dev.jordond.filmstrip.color.pictureSrgbCodes
 import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.color.tenBitCodesFromSignal
-import dev.jordond.filmstrip.color.ycbcrReading
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.unreadMatrix
 import dev.jordond.filmstrip.export.ExportSpec
@@ -132,14 +130,6 @@ abstract class AppleOverlayIccCase {
     override fun toString(): String = name
   }
 
-  // The BT.709 blue and red differences of these red, green and blue codes, in the same codes.
-  protected fun chroma(rgb: List<Float>): List<Float> {
-    val red = BT709.kr.toFloat()
-    val blue = BT709.kb.toFloat()
-    val luma = red * rgb[0] + (1 - red - blue) * rgb[1] + blue * rgb[2]
-    return listOf((rgb[2] - luma) / (2 * (1 - blue)), (rgb[0] - luma) / (2 * (1 - red)))
-  }
-
   protected fun List<Int>.within(
     read: List<Int>,
     tolerance: Int,
@@ -170,24 +160,16 @@ abstract class AppleOverlayIccCase {
     const val DARK_GREY = 0xFF101010.toInt()
     val SRGB_BY_DESIGN = setOf(IccPictures.SRGB.name, IccPictures.LUT_SRGB.name)
 
-    // A quarter of the default badge, small enough that the encode's ringing reaches its centre.
+    // A quarter of the default badge.
     const val SMALL_SCALE = 0.05f
 
     // Core Image hands over unrounded codes, and a badge is drawn at whole ones.
     const val DRAWN_TOLERANCE = 0.1f
 
-    // VideoToolbox's limit, not filmstrip's. Its lossy encode rings into a small badge's centre by a share of the
-    // chroma step between the badge and the fill, past a code of rounding, the 4:2:0 round trip and the probe's color
-    // match. That share measured up to 4.8 percent on macOS and on the simulator.
-    const val RINGING_SHARE = 0.055f
-    const val ENCODE_FLOOR = 1f
-    const val BT709_MATRIX = 1
     const val BT709_PRIMARIES = 1
-    const val BT709_TRANSFER = 1
     const val SRGB_TRANSFER = 13
     const val SMPTE_240M = 7
     const val EIGHT_BITS = 8
-    val BT709 = ycbcrReading(BT709_MATRIX, BT709_PRIMARIES, BT709_TRANSFER) as YcbcrReading.KrKb
 
     // A badge at the default scale and margin sits inside the bars at each corner, two to a bar.
     val CORNERS = listOf(Corner.TopStart, Corner.TopEnd, Corner.BottomStart, Corner.BottomEnd)

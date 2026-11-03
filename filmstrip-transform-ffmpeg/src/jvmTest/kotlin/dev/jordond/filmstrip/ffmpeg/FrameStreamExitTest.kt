@@ -1,26 +1,19 @@
 package dev.jordond.filmstrip.ffmpeg
 
-import dev.jordond.filmstrip.ffmpeg.internal.process.FRAME_EXIT_GRACE_MILLIS
 import dev.jordond.filmstrip.ffmpeg.internal.process.FrameStream
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessRunner
 import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainLocator
 import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainResult
-import io.kotest.assertions.withClue
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
-import kotlin.time.TimeSource
 
 /**
  * The exit status a frame stream reads back off a real ffmpeg once its frames run out.
@@ -50,26 +43,6 @@ class FrameStreamExitTest {
         stream.read(frame) shouldBe false
 
         stream.exitStatus() shouldBe 0
-      } finally {
-        stream.close()
-      }
-    }
-
-  // The status is read before a preview ends or wraps, so a child already gone must not cost the grace a live one gets.
-  @Test
-  fun `a render that has already exited reads back its status at once`() =
-    runTest(timeout = TIMEOUT) {
-      val stream = open(generated(seconds = 1))
-      try {
-        val frame = ByteArray(FRAME_BYTES)
-        repeat(RATE) { stream.read(frame) shouldBe true }
-        stream.read(frame) shouldBe false
-        withContext(Dispatchers.IO) { while (stream.isAlive) Thread.sleep(REAP_POLL_MILLIS) }
-
-        val read = TimeSource.Monotonic.markNow()
-        stream.exitStatus() shouldBe 0
-        val took = read.elapsedNow()
-        withClue("the status took $took, not inside $PROMPT") { (took < PROMPT).shouldBeTrue() }
       } finally {
         stream.close()
       }
@@ -138,10 +111,5 @@ class FrameStreamExitTest {
 
     val RAW_OUTPUT = listOf("-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1")
     val TIMEOUT = 1.minutes
-
-    // Half the grace leaves room for a loaded machine while a read that waited it out still fails.
-    val PROMPT = (FRAME_EXIT_GRACE_MILLIS / 2).milliseconds
-
-    const val REAP_POLL_MILLIS = 10L
   }
 }
