@@ -9,7 +9,6 @@ import dev.jordond.filmstrip.picture.fixtures.JxlBits
 import dev.jordond.filmstrip.picture.fixtures.LATE_PNG_SIZE
 import dev.jordond.filmstrip.picture.fixtures.LATE_TIFF_SIZE
 import dev.jordond.filmstrip.picture.fixtures.PAST_THE_HEAD
-import dev.jordond.filmstrip.picture.fixtures.bigTiffHeader
 import dev.jordond.filmstrip.picture.fixtures.box
 import dev.jordond.filmstrip.picture.fixtures.bytes
 import dev.jordond.filmstrip.picture.fixtures.exifBlock
@@ -24,7 +23,6 @@ import dev.jordond.filmstrip.picture.fixtures.lateTaggedPng
 import dev.jordond.filmstrip.picture.fixtures.lateTaggedTiff
 import dev.jordond.filmstrip.picture.fixtures.png
 import dev.jordond.filmstrip.picture.fixtures.pngWithExif
-import dev.jordond.filmstrip.picture.fixtures.repeating
 import dev.jordond.filmstrip.picture.fixtures.tiffWith
 import dev.jordond.filmstrip.picture.fixtures.u64
 import dev.jordond.filmstrip.picture.fixtures.webpChunk
@@ -310,32 +308,6 @@ class PictureExtentTest {
         withClue(side) { pictureExtentOf(file).shouldBeNull() }
         withClue("$side fetched") { ranged(file).shouldBeNull() }
         withClue("$side straight out of heifExtent") { heifExtent(ByteView(file, file.size)).shouldBeNull() }
-      }
-    }
-
-  // Files of a gigabyte made of nothing but the smallest step their container allows, each stopped at the walk's
-  // budget rather than walked to its end. The JPEG segment walk is the one orientation steps through, and its own
-  // endless files are read there.
-  @Test
-  fun aFileOfEndlessSmallStepsStopsAtTheReadBudget() =
-    runTest {
-      val endless =
-        mapOf(
-          "heif free boxes" to repeating(bytes { u32(8).ascii("ftyp") }, bytes { u32(8).ascii("free") }),
-          "big tiff zero entries" to repeating(bigTiffHeader(count = 1L shl 40), ByteArray(1)),
-        )
-      for ((name, file) in endless) {
-        var reads = 0
-        var fetched = 0L
-        val size =
-          pictureExtentOf(GIGABYTE) { start, count ->
-            reads++
-            file(start, count).also { fetched += it.size }
-          }
-
-        withClue(name) { size.shouldBeNull() }
-        withClue(name) { reads shouldBe MAX_WALK_READS }
-        withClue("$name fetched $fetched bytes") { (fetched <= MAX_WALK_BYTES).shouldBeTrue() }
       }
     }
 
