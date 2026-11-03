@@ -18,7 +18,6 @@ import dev.jordond.filmstrip.player.internal.toMediaMs
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.test.assertFramesDiffer
 import dev.jordond.filmstrip.test.assertFramesSimilar
-import dev.jordond.filmstrip.test.compareFrames
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -126,7 +125,7 @@ class AndroidSurfacePixelTest {
         assertFramesDiffer(exported, before, SEEK_MIN_PSNR_DB, SEEK_MIN_SSIM, "slot $slot exports like the one before")
         assertFramesDiffer(exported, after, SEEK_MIN_PSNR_DB, SEEK_MIN_SSIM, "slot $slot exports like the one after")
 
-        val (shown, reported) = surfaceAfterSeek(composition, landing, exported)
+        val (shown, reported) = surfaceAfterSeek(composition, landing)
 
         withClue("the seek reported a landing other than its slot") { reported shouldBe landing }
         assertFramesSimilar(
@@ -141,14 +140,13 @@ class AndroidSurfacePixelTest {
 
   /**
    * Plays [composition] on a real surface, pauses it, seeks to [at], and copies what the surface shows at the size of
-   * the frame the export writes once it shows [expected], or the last copy when it never does.
+   * the frame the export writes.
    *
    * @return the copy, and the position the seek reported it landed on.
    */
   private suspend fun surfaceAfterSeek(
     composition: EditComposition,
     at: Duration,
-    expected: TestFrame,
   ): Pair<TestFrame, Duration> =
     coroutineScope {
       var captured: Pair<TestFrame, Duration>? = null
@@ -172,13 +170,10 @@ class AndroidSurfacePixelTest {
           awaitOrFail("the seek to $at to land") {
             events.filterIsInstance<PlaybackEvent.SeekCompleted>().isNotEmpty()
           }
-          val shown =
-            activity.surfaceView.awaitCopy("the surface to show $at", FIXTURE_FRAME) {
-              it.matches(expected, SEEK_MIN_PSNR_DB, SEEK_MIN_SSIM)
-            }
+          delay(SETTLE)
 
           val landed = events.filterIsInstance<PlaybackEvent.SeekCompleted>().last().position
-          captured = shown to landed
+          captured = activity.surfaceView.copyPixels(FIXTURE_FRAME) to landed
         } finally {
           collector.cancel()
           player.close()
@@ -200,9 +195,8 @@ class AndroidSurfacePixelTest {
       // The changed run starts on the shape the first edit asks for and is resized under the
       // player, the way a preview surface sized to the output frame is. The fresh run only ever
       // had the second edit, so it starts on the shape that edit asks for and never moves.
+      val changed = surfaceOf(first, second, if (resize) LANDSCAPE else null, if (resize) PORTRAIT else null)
       val fresh = surfaceOf(second, null, if (resize) PORTRAIT else null, null)
-      val changed =
-        surfaceOf(first, second, if (resize) LANDSCAPE else null, if (resize) PORTRAIT else null, matching = fresh)
 
       assertFramesSimilar(
         expected = fresh,
@@ -217,16 +211,12 @@ class AndroidSurfacePixelTest {
   /**
    * Plays [first] on a real surface, replaces it with [second] where there is one, and copies what
    * the surface is showing.
-   *
-   * With [matching] the copy is retaken until the surface shows it, and the last copy is returned
-   * when it never does.
    */
   private suspend fun surfaceOf(
     first: EditComposition,
     second: EditComposition?,
     startShape: Size? = null,
     endShape: Size? = null,
-    matching: TestFrame? = null,
   ): TestFrame =
     coroutineScope {
       var captured: TestFrame? = null
@@ -259,10 +249,9 @@ class AndroidSurfacePixelTest {
             events.filterIsInstance<PlaybackEvent.SeekCompleted>().isNotEmpty()
           }
           // The seek resolves when media3 accepts it, and the frame reaches the display after that.
-          captured =
-            activity.surfaceView.awaitCopy("the surface to show the probe") { copy ->
-              matching == null || copy.matches(matching, MIN_PSNR_DB, MIN_SSIM)
-            }
+          delay(SETTLE)
+
+          captured = activity.surfaceView.copyPixels()
         } finally {
           collector.cancel()
           player.close()
@@ -280,29 +269,6 @@ class AndroidSurfacePixelTest {
     if (status != PixelCopy.SUCCESS) fail("PixelCopy off the surface answered $status")
     return bitmap.toTestFrame()
   }
-
-  private suspend fun SurfaceView.awaitCopy(
-    description: String,
-    size: Size = Size(width, height),
-    shows: (TestFrame) -> Boolean,
-  ): TestFrame {
-    var copy: TestFrame? = null
-    withTimeoutOrNull(BUDGET) {
-      while (true) {
-        val next = copyPixels(size)
-        copy = next
-        if (shows(next)) break
-        delay(POLL)
-      }
-    }
-    return copy ?: fail("Timed out after $BUDGET waiting for $description.")
-  }
-
-  private fun TestFrame.matches(
-    expected: TestFrame,
-    minPsnrDb: Double,
-    minSsim: Double,
-  ): Boolean = compareFrames(expected, this).let { it.psnrDb >= minPsnrDb && it.ssim >= minSsim }
 
   private fun Bitmap.toTestFrame(): TestFrame {
     val colors = IntArray(width * height)
@@ -353,6 +319,7 @@ class AndroidSurfacePixelTest {
     val TIMEOUT: Duration = 5.minutes
     val BUDGET: Duration = 30.seconds
     val POLL: Duration = 50.milliseconds
+    val SETTLE: Duration = 700.milliseconds
     val PROBE: Duration = PROBE_POSITIONS.first()
 
     const val QUARTER = 90

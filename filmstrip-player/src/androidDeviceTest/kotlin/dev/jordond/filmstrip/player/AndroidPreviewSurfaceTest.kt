@@ -223,10 +223,75 @@ class AndroidPreviewSurfaceTest {
               events.count { it is PlaybackEvent.FirstFrameRendered } == 1
             }
 
-            // One for the attachment, and one for the buffer the graph was built against.
+            // One for the attachment, and one for the buffer the graph was built against. Pinned
+            // to that exactly, so a surface handed over on every resize rather than only before a
+            // graph is up fails here as well as below.
             awaitOrFail("the fixed buffer to reach the player") {
               engine.surfaceApplications >= APPLIED_BEFORE_A_GRAPH
             }
+            delay(SETTLE)
+            engine.surfaceApplications shouldBe APPLIED_BEFORE_A_GRAPH
+          } finally {
+            collector.cancel()
+            player.close()
+          }
+        }
+      }
+    }
+
+  /**
+   * A view that moves under a graph leaves the buffer, and the player, alone.
+   *
+   * The buffer holds the rendered frame rather than the view, so a fold, a window resize and the
+   * moment a swap is revealed all scale a frame that is already correct instead of reallocating a
+   * buffer that comes up empty.
+   */
+  @Test
+  fun aViewResizedUnderAGraphLeavesTheBufferAlone() =
+    runTest(timeout = TIMEOUT) {
+      realTime {
+        ActivityScenario.launch(SurfaceHostActivity::class.java).use { scenario ->
+          var host: SurfaceHostActivity? = null
+          scenario.onActivity { activity -> host = activity }
+          val activity = withClue("the host activity never started") { host.shouldNotBeNull() }
+          withClue("the host window produced no surface") { activity.awaitSurface().shouldBeTrue() }
+          activity.resizeSurface(WIDE.width, WIDE.height)
+          awaitOrFail("the view to take its first shape") { activity.surfaceView.width == WIDE.width }
+
+          val player = Filmstrip(context) { playerBackend() }.preview(androidFixtureComposition())
+          val events = mutableListOf<PlaybackEvent>()
+          val collector = launch { player.events.collect { events += it } }
+
+          try {
+            val engine = withClue("no engine") { engineFor(player.nativePlayer as CompositionPlayer).shouldNotBeNull() }
+            player.attachPreviewSurface(activity.surfaceView)
+            player.awaitReady()
+            player.play()
+            awaitOrFail("the first frame to reach the surface") {
+              events.count { it is PlaybackEvent.FirstFrameRendered } == 1
+            }
+            player.pause()
+
+            val rendered = player.previewInfo.value.outputSize
+            awaitOrFail("the buffer to take the rendered frame") {
+              activity.surfaceView.holder.surfaceFrame
+                .width() == rendered.width
+            }
+            activity.surfaceView.holder.surfaceFrame
+              .height() shouldBe rendered.height
+            val applied = engine.surfaceApplications
+            val redrawn = engine.surfaceRedraws
+
+            activity.resizeSurface(TALL.width, TALL.height)
+            awaitOrFail("the view to take its second shape") { activity.surfaceView.width == TALL.width }
+            delay(SETTLE)
+
+            activity.surfaceView.holder.surfaceFrame
+              .width() shouldBe rendered.width
+            activity.surfaceView.holder.surfaceFrame
+              .height() shouldBe rendered.height
+            engine.surfaceApplications shouldBe applied
+            engine.surfaceRedraws shouldBe redrawn
           } finally {
             collector.cancel()
             player.close()
@@ -273,9 +338,7 @@ class AndroidPreviewSurfaceTest {
               activity.surfaceView.holder.surfaceFrame
                 .width() == rendered.width
             }
-            awaitOrFail("the fixed buffer to reach the player") {
-              engine.surfaceApplications >= APPLIED_BEFORE_A_GRAPH
-            }
+            delay(SETTLE)
             val applied = engine.surfaceApplications
             val redrawn = engine.surfaceRedraws
 
@@ -321,12 +384,14 @@ class AndroidPreviewSurfaceTest {
     val POLL: Duration = 50.milliseconds
 
     val SHORTER: Duration = 900.milliseconds
+    val SETTLE: Duration = 500.milliseconds
 
     // One for the attachment, one for the buffer fixed under a graph that was not up yet.
     const val APPLIED_BEFORE_A_GRAPH = 2
     const val HALVED = 2
 
-    // A 16:9 view.
+    // A 16:9 view and the 9:16 one a quarter turn of the same edit asks for.
     val WIDE = Size(960, 540)
+    val TALL = Size(540, 960)
   }
 }
