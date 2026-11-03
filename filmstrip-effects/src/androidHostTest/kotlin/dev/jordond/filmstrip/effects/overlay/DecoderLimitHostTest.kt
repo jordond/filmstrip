@@ -1,23 +1,23 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import android.os.Build
+import androidx.media3.common.Effect
+import dev.jordond.filmstrip.color.IDENTITY_NOT_444_REASON
+import dev.jordond.filmstrip.color.nearestReadable
 import dev.jordond.filmstrip.effect.DegradationReason
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.pictureYcbcrCoding
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.IDENTITY_NOT_444_REASON
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.nearestReadable
-import dev.jordond.filmstrip.test.ColourPictures
+import dev.jordond.filmstrip.picture.pictureYcbcrCoding
+import dev.jordond.filmstrip.test.ColorPictures
 import dev.jordond.filmstrip.test.OverlayPixels
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
  * What an overlay picture reports once Android's decoder lands it short of its file, and how it resolves.
@@ -31,20 +31,24 @@ class DecoderLimitHostTest {
   @Test
   fun anIdentityPictureOnSubsampledSamplesIsRefusedBeforeItsDecoderSeesIt() {
     for (picture in listOf(avifRecording(0, true), heicRecording(0, true), avifRecording(0, false))) {
-      assertTrue(assertNotNull(pictureYcbcrCoding(picture)).identityNot444)
+      pictureYcbcrCoding(picture).shouldNotBeNull().identityNot444 shouldBe true
 
       val read = ImageSource.Bytes(picture).read(context = null)
 
-      assertEquals(IDENTITY_NOT_444_REASON, assertIs<RefusedPicture>(read).reason)
+      read.shouldBeInstanceOf<RefusedPicture>().reason shouldBe IDENTITY_NOT_444_REASON
     }
   }
 
   @Test
   fun aPictureCoreRefusesIsRefusedWithCoresReason() {
     for (picture in listOf(avifRecording(ICTCP, true), heicRecording(YDZDX, false))) {
-      val refusal = assertNotNull(pictureYcbcrCoding(picture)?.refusal)
+      val refusal = pictureYcbcrCoding(picture)?.refusal.shouldNotBeNull()
 
-      assertEquals(refusal, assertIs<RefusedPicture>(ImageSource.Bytes(picture).read(context = null)).reason)
+      ImageSource
+        .Bytes(picture)
+        .read(context = null)
+        .shouldBeInstanceOf<RefusedPicture>()
+        .reason shouldBe refusal
     }
   }
 
@@ -54,13 +58,13 @@ class DecoderLimitHostTest {
     for (full in listOf(true, false)) {
       val heic = heicRecording(YCGCO, full)
       val readable = readableMatrices(full, Build.VERSION.SDK_INT, avif = false, tenBit = false)
-      val nearest = assertNotNull(reading(YCGCO).nearestReadable(readable))
-      assertFalse(nearest.withinBound)
+      val nearest = reading(YCGCO).nearestReadable(readable).shouldNotBeNull()
+      nearest.withinBound shouldBe false
 
-      val read = assertIs<RefusedPicture>(ImageSource.Bytes(heic).read(context = null))
+      val read = ImageSource.Bytes(heic).read(context = null).shouldBeInstanceOf<RefusedPicture>()
 
-      assertEquals(pastBound(avif = false, nearest), read.reason)
-      assertTrue(read.reason.endsWith("${nearest.figures}."), read.reason)
+      read.reason shouldBe pastBound(avif = false, nearest)
+      withClue(read.reason) { read.reason.endsWith("${nearest.figures}.") shouldBe true }
     }
   }
 
@@ -68,76 +72,89 @@ class DecoderLimitHostTest {
   fun aSixteenBitPngDecodedIntoEightBitsIsCut() {
     val png = OverlayPixels.sixteenBitPngOf(SIDE, SIXTEEN_BIT_TEXEL)
 
-    assertEquals(listOf(DecoderLimit.EightBitCut), decoderLimits(png, png.forAndroidDecoder(LATEST_API), false))
+    decoderLimits(png, png.forAndroidDecoder(LATEST_API), false) shouldBe listOf(DecoderLimit.EightBitCut)
   }
 
   @Test
   fun aSixteenBitPngDecodedIntoHalfFloatsKeepsItsDepth() {
     val png = OverlayPixels.sixteenBitPngOf(SIDE, SIXTEEN_BIT_TEXEL)
 
-    assertEquals(emptyList(), decoderLimits(png, png.forAndroidDecoder(LATEST_API), halfFloat = true))
+    decoderLimits(png, png.forAndroidDecoder(LATEST_API), halfFloat = true) shouldBe emptyList()
   }
 
   @Test
   fun noEightBitPictureIsCut() {
     val pictures =
-      listOf(OverlayPixels.pngOf(SIDE, ColourPictures.TEXEL), ColourPictures.HEIC_NCLX_BT709_FULL.bytes()) +
-        ColourPictures.AVIFS.map { it.bytes() } + listOf(ByteArray(0), OverlayPixels.pngOf(SIDE, 0).copyOf(PNG_HEADER))
-    for (picture in pictures) assertEquals(emptyList(), limitsOf(picture, LATEST_API))
+      listOf(OverlayPixels.pngOf(SIDE, ColorPictures.TEXEL), ColorPictures.HEIC_NCLX_BT709_FULL.bytes()) +
+        ColorPictures.AVIFS.map { it.bytes() } + listOf(ByteArray(0), OverlayPixels.pngOf(SIDE, 0).copyOf(PNG_HEADER))
+    for (picture in pictures) limitsOf(picture, LATEST_API) shouldBe emptyList()
   }
 
   @Test
   fun aHeicStatingAMatrixItsDecoderCannotReadIsLimited() {
-    assertEquals(listOf(landedThrough(SMPTE_240, true, LATEST_API)), limitsOf(heicRecording(SMPTE_240, true), 36))
-    assertEquals(listOf(landedThrough(BT709, true, 30)), limitsOf(heicRecording(BT709, true), 30))
-    assertEquals(listOf(landedThrough(BT709, false, 33)), limitsOf(heicRecording(BT709, false), 33))
-    assertEquals(listOf(landedThrough(BT2020, true, 30)), limitsOf(heicRecording(BT2020, true), 30))
-    assertEquals(emptyList(), limitsOf(heicRecording(BT709, false), 34))
+    limitsOf(heicRecording(SMPTE_240, true), 36) shouldBe listOf(landedThrough(SMPTE_240, true, LATEST_API))
+    limitsOf(heicRecording(BT709, true), 30) shouldBe listOf(landedThrough(BT709, true, 30))
+    limitsOf(heicRecording(BT709, false), 33) shouldBe listOf(landedThrough(BT709, false, 33))
+    limitsOf(heicRecording(BT2020, true), 30) shouldBe listOf(landedThrough(BT2020, true, 30))
+    limitsOf(heicRecording(BT709, false), 34) shouldBe emptyList()
   }
 
   @Test
   fun anAvifItsDecoderLandsShortOfItsFileIsLimited() {
-    val bt709Limited = ColourPictures.NCLX_BT709_LIMITED.bytes()
-    assertEquals(listOf(landedThrough(BT709, false, 31, avif = true)), limitsOf(bt709Limited, 31))
-    assertEquals(listOf(landedThrough(BT709, false, 33, avif = true)), limitsOf(bt709Limited, 33))
-    assertEquals(emptyList(), limitsOf(bt709Limited, 34))
-    val tenBit34 = assertNotNull(decoderLanding(reading(BT709), false, 34, avif = true, tenBit = true))
-    assertEquals(listOf(landedThrough(BT709, false, 34, avif = true, tenBit = true)), tenBit34.limits)
-    assertEquals(emptyList(), decoderLanding(reading(BT709), false, 35, avif = true, tenBit = true)?.limits)
+    val bt709Limited = ColorPictures.NCLX_BT709_LIMITED.bytes()
+    limitsOf(bt709Limited, 31) shouldBe listOf(landedThrough(BT709, false, 31, avif = true))
+    limitsOf(bt709Limited, 33) shouldBe listOf(landedThrough(BT709, false, 33, avif = true))
+    limitsOf(bt709Limited, 34) shouldBe emptyList()
+    val tenBit34 = decoderConversionOf(reading(BT709), false, 34, avif = true, tenBit = true).shouldNotBeNull()
+    tenBit34.limits shouldBe listOf(landedThrough(BT709, false, 34, avif = true, tenBit = true))
+    decoderConversionOf(reading(BT709), false, 35, avif = true, tenBit = true)?.limits shouldBe emptyList()
     val smpte240 = avifRecording(SMPTE_240, true)
-    assertEquals(listOf(landedThrough(SMPTE_240, true, 35, avif = true)), limitsOf(smpte240, 35))
-    assertEquals(emptyList(), limitsOf(smpte240, LATEST_API))
+    limitsOf(smpte240, 35) shouldBe listOf(landedThrough(SMPTE_240, true, 35, avif = true))
+    limitsOf(smpte240, LATEST_API) shouldBe emptyList()
     val bt709Full = avifRecording(BT709, true)
     val before = listOf(landedThrough(BT709, true, 31, avif = true), DecoderLimit.AvifBeforeApi33)
-    assertEquals(before, limitsOf(bt709Full, 31))
-    val undescribed = ColourPictures.PROFILE_DISPLAY_P3.bytes()
-    val coding = assertNotNull(pictureYcbcrCoding(undescribed))
-    assertEquals(listOf(true, true), listOf(coding.fullRange, coding.reading == reading(BT601)))
+    limitsOf(bt709Full, 31) shouldBe before
+    val undescribed = ColorPictures.PROFILE_DISPLAY_P3.bytes()
+    val coding = pictureYcbcrCoding(undescribed).shouldNotBeNull()
+    listOf(coding.fullRange, coding.reading == reading(BT601)) shouldBe listOf(true, true)
     for (sdk in listOf(31, 32)) {
-      assertEquals(listOf(DecoderLimit.AvifBeforeApi33), limitsOf(undescribed, sdk), "API $sdk")
+      withClue("API $sdk") { limitsOf(undescribed, sdk) shouldBe listOf(DecoderLimit.AvifBeforeApi33) }
     }
-    for (sdk in AVIF_API_LEVELS.filter { it >= 33 }) assertEquals(emptyList(), limitsOf(undescribed, sdk), "API $sdk")
+    for (sdk in AVIF_API_LEVELS.filter { it >= 33 }) {
+      withClue("API $sdk") {
+        limitsOf(undescribed, sdk) shouldBe emptyList()
+      }
+    }
   }
 
   @Test
   fun aLimitedPictureResolvesAsItsLimitOnEveryGrade() {
     for (limit in limits()) {
       for (transfer in listOf(null) + HdrTransfer.entries) {
-        val resolution = assertIs<EffectResolution.Degraded>(media3OverlayResolution(EFFECT, transfer, listOf(limit)))
+        val resolution =
+          media3OverlayResolution(
+            EFFECT,
+            transfer,
+            listOf(limit),
+          ).shouldBeInstanceOf<EffectResolution.Degraded>()
         val expected = if (transfer == HdrTransfer.Hlg) listOf(limit.cause, HLG_SCENE_LIGHT) else listOf(limit.cause)
 
-        assertEquals(expected, resolution.causes, "$limit on $transfer")
+        withClue("$limit on $transfer") { resolution.causes shouldBe expected }
       }
     }
     val cuts = listOf(DecoderLimit.EightBitCut, DecoderLimit.AvifTwelveBitCut)
-    for (limit in cuts) assertEquals(DegradationReason.PrecisionReduced, limit.reason, "$limit")
-    for (limit in limits() - cuts.toSet()) assertEquals(DegradationReason.ColorSpaceConverted, limit.reason, "$limit")
-    assertTrue("Android's AVIF decoder" in DecoderLimit.AvifBeforeApi33.message)
-    assertTrue("API 31" in DecoderLimit.AvifBeforeApi33.message)
+    for (limit in cuts) withClue("$limit") { limit.reason shouldBe DegradationReason.PrecisionReduced }
+    for (limit in limits() - cuts.toSet()) {
+      withClue("$limit") {
+        limit.reason shouldBe DegradationReason.ColorSpaceConverted
+      }
+    }
+    ("Android's AVIF decoder" in DecoderLimit.AvifBeforeApi33.message) shouldBe true
+    ("API 31" in DecoderLimit.AvifBeforeApi33.message) shouldBe true
     for (avif in listOf(true, false)) {
       val limit = landedThrough(BT709, false, 33, avif)
-      assertTrue(limit.message.startsWith(decoderName(avif)), limit.message)
-      assertTrue(limit.message.endsWith("matrix ${limit.nearest.matrix} instead, ${limit.nearest.figures}."))
+      withClue(limit.message) { limit.message.startsWith(decoderName(avif)) shouldBe true }
+      limit.message.endsWith("matrix ${limit.nearest.matrix} instead, ${limit.nearest.figures}.") shouldBe true
     }
   }
 
@@ -148,8 +165,8 @@ class DecoderLimitHostTest {
         for (transfer in listOf(null) + HdrTransfer.entries) {
           val resolution = media3OverlayResolution(EFFECT, transfer, listOf(first, second))
 
-          val causes = assertIs<EffectResolution.Degraded>(resolution).causes.take(2)
-          assertEquals(listOf(first.cause, second.cause), causes, "$first, $second on $transfer")
+          val causes = resolution.shouldBeInstanceOf<EffectResolution.Degraded>().causes.take(2)
+          withClue("$first, $second on $transfer") { causes shouldBe listOf(first.cause, second.cause) }
         }
       }
     }
@@ -159,36 +176,39 @@ class DecoderLimitHostTest {
   fun aLimitedPictureOnAnHlgGradeKeepsTheSceneLightNote() {
     val limits = listOf(landedThrough(BT2020_CONSTANT, false, LATEST_API, avif = true), DecoderLimit.AvifTwelveBitCut)
 
-    val resolution = assertIs<EffectResolution.Degraded>(media3OverlayResolution(EFFECT, HdrTransfer.Hlg, limits))
+    val resolution =
+      media3OverlayResolution(
+        EFFECT,
+        HdrTransfer.Hlg,
+        limits,
+      ).shouldBeInstanceOf<EffectResolution.Degraded>()
 
-    assertEquals(limits.map { it.cause } + HLG_SCENE_LIGHT, resolution.causes)
-    assertEquals(
+    resolution.causes shouldBe limits.map { it.cause } + HLG_SCENE_LIGHT
+    resolution.causes.map { it.reason } shouldBe
       listOf(
         DegradationReason.ColorSpaceConverted,
         DegradationReason.PrecisionReduced,
         DegradationReason.ApproximateAlgorithm,
-      ),
-      resolution.causes.map { it.reason },
-    )
-    assertTrue("scene light" in resolution.causes.last().message, resolution.causes.last().message)
+      )
+    withClue(resolution.causes.last().message) { ("scene light" in resolution.causes.last().message) shouldBe true }
   }
 
   @Test
   fun aRefusedPictureNamesWhatAndroidsDecoderRefuses() {
-    assertTrue("API 33" in DecoderRefusal.AvifTenBitNoFrame.message)
-    assertTrue("API 36" in DecoderRefusal.AvifTwelveBit.message)
-    assertTrue("Android's HEIC decoder" in DecoderRefusal.HeicTwelveBitNoFrame.message)
-    assertTrue("AVIF from API 31" in DecoderRefusal.NoFrame.message)
+    ("API 33" in DecoderRefusal.AvifTenBitNoFrame.message) shouldBe true
+    ("API 36" in DecoderRefusal.AvifTwelveBit.message) shouldBe true
+    ("Android's HEIC decoder" in DecoderRefusal.HeicTwelveBitNoFrame.message) shouldBe true
+    ("AVIF from API 31" in DecoderRefusal.NoFrame.message) shouldBe true
   }
 
   @Test
   fun aPictureThatKeepsItsDepthResolvesAsBefore() {
-    assertIs<EffectResolution.Resolved>(media3OverlayResolution(EFFECT, null))
-    assertIs<EffectResolution.Resolved>(media3OverlayResolution(EFFECT, HdrTransfer.Pq))
-    val hlg = assertIs<EffectResolution.Degraded>(media3OverlayResolution(EFFECT, HdrTransfer.Hlg))
-    assertEquals(listOf(HLG_SCENE_LIGHT), hlg.causes)
-    assertEquals(DegradationReason.ApproximateAlgorithm, HLG_SCENE_LIGHT.reason)
-    assertTrue("scene light" in HLG_SCENE_LIGHT.message, HLG_SCENE_LIGHT.message)
+    media3OverlayResolution(EFFECT, null).shouldBeInstanceOf<EffectResolution.Resolved>()
+    media3OverlayResolution(EFFECT, HdrTransfer.Pq).shouldBeInstanceOf<EffectResolution.Resolved>()
+    val hlg = media3OverlayResolution(EFFECT, HdrTransfer.Hlg).shouldBeInstanceOf<EffectResolution.Degraded>()
+    hlg.causes shouldBe listOf(HLG_SCENE_LIGHT)
+    HLG_SCENE_LIGHT.reason shouldBe DegradationReason.ApproximateAlgorithm
+    withClue(HLG_SCENE_LIGHT.message) { ("scene light" in HLG_SCENE_LIGHT.message) shouldBe true }
   }
 
   // Every kind of limit, a landing on each decoder among them.
@@ -212,8 +232,8 @@ class DecoderLimitHostTest {
   ): DecoderLimit.LandedThrough {
     val readable = readableMatrices(fullRange, sdk, avif, tenBit)
     val landedFullRange = fullRange && !(avif && sdk < 33)
-    val nearest = assertNotNull(reading(matrix).nearestReadable(readable, fullRange, landedFullRange))
-    assertFalse(nearest.exact, "matrix $matrix on API $sdk")
+    val nearest = reading(matrix).nearestReadable(readable, fullRange, landedFullRange).shouldNotBeNull()
+    withClue("matrix $matrix on API $sdk") { nearest.exact shouldBe false }
     return DecoderLimit.LandedThrough(avif, nearest)
   }
 
@@ -223,7 +243,7 @@ class DecoderLimitHostTest {
   ): List<DecoderLimit> = decoderLimits(picture, picture.forAndroidDecoder(sdk), halfFloat = false)
 
   private companion object {
-    val EFFECT = PlatformEffect(Any())
+    val EFFECT = PlatformEffect(object : Effect {})
     val SIDE = Size(4, 4)
     val SIXTEEN_BIT_TEXEL = listOf(0x8000, 0x4000, 0xC000, 0xFFFF)
     const val BT709 = 1

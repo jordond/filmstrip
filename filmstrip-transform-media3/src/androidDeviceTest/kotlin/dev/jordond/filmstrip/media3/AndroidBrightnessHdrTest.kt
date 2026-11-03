@@ -2,12 +2,15 @@ package dev.jordond.filmstrip.media3
 
 import android.graphics.Color
 import androidx.media3.effect.RgbAdjustment
+import dev.jordond.filmstrip.color.brightnessDisplayGain
+import dev.jordond.filmstrip.color.brightnessSceneGain
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
+import dev.jordond.filmstrip.effect.Media3Handle
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
@@ -18,19 +21,18 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.brightnessDisplayGain
-import dev.jordond.filmstrip.media.brightnessSceneGain
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HLG_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.test.assumeEncodesHdr
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -38,7 +40,7 @@ import kotlin.time.Duration.Companion.seconds
  * Brightness on an export that keeps its grade, on real media3.
  *
  * The gain assertions are the contract: media3 holds PQ as display light and HLG as scene light, so
- * the same factor reaches the colour matrix as two different numbers, both taken from the shared
+ * the same factor reaches the color matrix as two different numbers, both taken from the shared
  * functions. They run on a device rather than on the host because building an `RgbAdjustment` calls
  * into `android.opengl.Matrix`.
  *
@@ -70,7 +72,9 @@ class AndroidBrightnessHdrTest {
     val pq = gainFor(HALF, HdrTransfer.Pq)
     val hlg = gainFor(HALF, HdrTransfer.Hlg)
 
-    assertTrue(abs(pq - hlg) > GAIN_GAP, "one gain served both transfer functions, so one of them is wrong")
+    withClue("one gain served both transfer functions, so one of them is wrong") {
+      (abs(pq - hlg) > GAIN_GAP) shouldBe true
+    }
   }
 
   @Test
@@ -96,8 +100,10 @@ class AndroidBrightnessHdrTest {
       val half = luminanceOf(export(source, HALF))
       val quarter = luminanceOf(export(source, QUARTER))
 
-      assertTrue(half > BLACK_CEILING, "the reference frame reads as black, nothing to compare against")
-      assertTrue(quarter < half, "a quarter brightness read $quarter against $half at half")
+      withClue("the reference frame reads as black, nothing to compare against") {
+        (half > BLACK_CEILING) shouldBe true
+      }
+      withClue("a quarter brightness read $quarter against $half at half") { (quarter < half) shouldBe true }
     }
 
   @Test
@@ -107,9 +113,9 @@ class AndroidBrightnessHdrTest {
       probe.filmstrip.assumeEncodesHdr()
 
       val written = probe.infoOf(MediaSource.of(export(source, HALF).path))
-      val video = assertNotNull(written.video, "the written file has no video track")
+      val video = withClue("the written file has no video track") { written.video.shouldNotBeNull() }
 
-      assertTrue(video.hdrTransfer != null, "a brightness on a kept grade wrote an SDR file")
+      withClue("a brightness on a kept grade wrote an SDR file") { (video.hdrTransfer != null) shouldBe true }
     }
 
   // HLG is the arm where the backends disagree about what linear means, so it gets an export of its
@@ -123,8 +129,10 @@ class AndroidBrightnessHdrTest {
       val half = luminanceOf(export(source, HALF))
       val quarter = luminanceOf(export(source, QUARTER))
 
-      assertTrue(half > BLACK_CEILING, "the reference frame reads as black, nothing to compare against")
-      assertTrue(quarter < half, "a quarter brightness read $quarter against $half at half")
+      withClue("the reference frame reads as black, nothing to compare against") {
+        (half > BLACK_CEILING) shouldBe true
+      }
+      withClue("a quarter brightness read $quarter against $half at half") { (quarter < half) shouldBe true }
     }
 
   private fun gainFor(
@@ -157,9 +165,12 @@ class AndroidBrightnessHdrTest {
         features = emptySet(),
       )
     val resolution = resolver.resolve(Brightness(factor), capabilities, attributes)
-    val effect = assertIs<EffectResolution.Resolved>(resolution).effect.handle
+    val handle = resolution.shouldBeInstanceOf<EffectResolution.Resolved>().effect.handle
 
-    return assertIs<RgbAdjustment>(effect).getMatrix(0L, transfer != null)
+    return handle.shouldBeInstanceOf<Media3Handle.Video>().effect.shouldBeInstanceOf<RgbAdjustment>().getMatrix(
+      0L,
+      transfer != null,
+    )
   }
 
   private suspend fun export(
@@ -188,7 +199,7 @@ class AndroidBrightnessHdrTest {
   }
 
   private infix fun Float.shouldBeNear(expected: Float) {
-    assertTrue(abs(this - expected) <= TOLERANCE, "expected $expected but was $this")
+    withClue("expected $expected but was $this") { (abs(this - expected) <= TOLERANCE) shouldBe true }
   }
 
   private companion object {
@@ -201,7 +212,7 @@ class AndroidBrightnessHdrTest {
     const val GAIN_GAP = 0.05f
     const val BLACK_CEILING = 36
 
-    // The diagonal of media3's column-major 4x4 colour matrix.
+    // The diagonal of media3's column-major 4x4 color matrix.
     const val RED = 0
     const val GREEN = 5
     const val BLUE = 10

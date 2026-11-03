@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.edit.EditComposition
-import dev.jordond.filmstrip.edit.TimeRange
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,7 +13,9 @@ import kotlin.time.Duration
  * Implemented by filmstrip, never by a consumer. State, events and the playhead come in a coroutine
  * form and a listener form, so a caller without coroutines loses nothing.
  */
-public interface VideoPlayer : AutoCloseable {
+public interface VideoPlayer :
+  PlayerTransport,
+  AutoCloseable {
   /**
    * Serialised, in-order, internally consistent snapshots. Never torn across axes.
    */
@@ -105,76 +106,6 @@ public interface VideoPlayer : AutoCloseable {
   ): Cancellable
 
   /**
-   * Starts playback, or resumes it.
-   *
-   * Flips [PlayerState.playWhenReady] straight away. Pixels start moving once data is available.
-   */
-  public fun play()
-
-  /**
-   * Pauses playback, holding the current position.
-   */
-  public fun pause()
-
-  /**
-   * Seeks to [position].
-   *
-   * Completes with [PlaybackEvent.SeekCompleted] carrying the frame it landed on, which is the output slot nearest
-   * [position] on an exact seek, or the slot of the sync sample the platform settled on for a relaxed one.
-   *
-   * @param accuracy How exact the landing frame has to be.
-   */
-  public fun seekTo(
-    position: Duration,
-    accuracy: SeekAccuracy = SeekAccuracy.Exact,
-  )
-
-  /**
-   * Steps by whole frames, forwards for a positive count and backwards for a negative one.
-   */
-  public fun stepFrames(frames: Int = 1)
-
-  /**
-   * Enters scrubbing mode, relaxing seek accuracy while a finger is moving.
-   */
-  public fun beginScrub()
-
-  /**
-   * Leaves scrubbing mode and settles on an exact frame.
-   */
-  public fun endScrub()
-
-  /**
-   * Sets monitor volume in `0f..1f`.
-   *
-   * Requires [PlayerFeature.AudioMonitoring]. Monitor volume only, it does not reach the exported
-   * file. Gain that should end up in the file belongs in the composition's audio spec.
-   */
-  public fun setVolume(volume: Float)
-
-  /**
-   * Loops within [range], or plays straight through when null.
-   *
-   * Playback that passes the range's last frame wraps to the output slot its start lands on and reports
-   * [PlaybackEvent.RangeLooped]. When the composition ends inside the range, playback wraps at that end instead of
-   * stopping and reports no [PlaybackEvent.Ended]. That covers a range with no end, one ending exactly on the
-   * composition's duration, and one ending past it, whose end is held to the duration. A range that starts at or past
-   * the composition's end has nothing to loop, so playback runs to the end and reports [PlaybackEvent.Ended] as though
-   * no range were set. The playhead reports the slot a wrap lands on.
-   */
-  public fun setLoopRange(range: TimeRange?)
-
-  /**
-   * Restricts playback to [range], or to the whole composition when null.
-   */
-  public fun setPlaybackRange(range: TimeRange?)
-
-  /**
-   * Sets how hard the preview may work.
-   */
-  public fun setQualityPolicy(policy: PreviewQualityPolicy)
-
-  /**
    * Observes state without coroutines.
    *
    * @return a handle that unregisters the listener when cancelled.
@@ -190,6 +121,9 @@ public interface VideoPlayer : AutoCloseable {
 
   /**
    * Observes the playhead without coroutines, at most once per [tick].
+   *
+   * Reads the same playhead as [positionFlow]. The current position arrives as soon as the listener
+   * is registered, and a seek's target arrives as soon as it is issued.
    *
    * @param tick The grid to snap callbacks to.
    * @param listener Receives each tick.

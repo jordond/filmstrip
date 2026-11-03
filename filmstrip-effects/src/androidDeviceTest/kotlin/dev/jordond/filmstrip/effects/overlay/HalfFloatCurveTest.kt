@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ColorSpace
 import android.os.Build
+import dev.jordond.filmstrip.color.nearestReadable
+import dev.jordond.filmstrip.color.pictureSrgbCodes
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -11,37 +13,35 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.UNKNOWN_HALF_FLOAT_SPACE
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.pictureYcbcrCoding
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.nearestReadable
-import dev.jordond.filmstrip.media.pictureSrgbCodes
+import dev.jordond.filmstrip.picture.pictureYcbcrCoding
 import dev.jordond.filmstrip.test.CicpTag
 import dev.jordond.filmstrip.test.HeifStills
 import dev.jordond.filmstrip.test.OverlayPixels
 import dev.jordond.filmstrip.test.ycbcrToRgb
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Half float bitmaps read back by [rasterFor] through the curve [halfFloatCurve] reads off their colour space.
+ * Half float bitmaps read back by [rasterFor] through the curve [halfFloatCurve] reads off their color space.
  *
  * A sixteen-bit picture decoded into extended sRGB and the same picture decoded into linear extended sRGB raster onto
  * the codes [pictureSrgbCodes] gives the file's samples, on an SDR frame and a PQ one alike, and neither reports a
  * limit. A ten-bit AVIF decodes into half floats that hold the ten bits its YCbCr samples give it, landing where
- * [decoderLanding] says for a ten-bit picture, or refused where core refuses it or it lands past the bound, except on
- * API 33, whose AVIF decoder hands back no frame for it at all, so the overlay is refused naming that limit. A half
+ * [decoderConversionOf] says for a ten-bit picture, or refused where core refuses it or it lands past the bound, except
+ * on API 33, whose AVIF decoder hands back no frame for it at all, so the overlay is refused naming that limit. A half
  * float bitmap in any other space is refused rather than read, by the raster and by the resolver.
  */
 class HalfFloatCurveTest {
@@ -52,33 +52,42 @@ class HalfFloatCurveTest {
 
   @Test
   fun aSixteenBitPictureDecodesIntoExtendedSrgbAndRastersOntoItsSamples() {
-    val bitmap = assertNotNull(ImageSource.Bytes(PICTURE).decode(context = null)).bitmap
+    val bitmap =
+      ImageSource
+        .Bytes(PICTURE)
+        .decode(context = null)
+        .shouldNotBeNull()
+        .bitmap
 
-    assertEquals(HalfFloatCurve.Srgb, bitmap.halfFloatCurve())
+    bitmap.halfFloatCurve() shouldBe HalfFloatCurve.Srgb
     assertSdrCodes(bitmap)
   }
 
   @Test
   fun aSixteenBitPictureDecodedIntoHalfFloatsKeepsItsDepth() {
-    assertEquals(emptyList(), assertNotNull(ImageSource.Bytes(PICTURE).decode(context = null)).limits)
+    ImageSource
+      .Bytes(PICTURE)
+      .decode(context = null)
+      .shouldNotBeNull()
+      .limits shouldBe emptyList()
   }
 
   @Test
   fun aTenBitAvifDecodesIntoHalfFloatsThatHoldItsTenBits() {
     assumeTenBitAvifDecodes()
 
-    val picture = assertNotNull(ImageSource.Bytes(TEN_BIT_AVIF).decode(context = null))
-    assertEquals(HalfFloatCurve.Srgb, picture.bitmap.halfFloatCurve())
-    assertEquals(emptyList(), picture.limits)
+    val picture = ImageSource.Bytes(TEN_BIT_AVIF).decode(context = null).shouldNotBeNull()
+    picture.bitmap.halfFloatCurve() shouldBe HalfFloatCurve.Srgb
+    picture.limits shouldBe emptyList()
     val codes = picture.bitmap.centreCodes()
     val want =
       TEN_BIT_YCBCR.let { (y, cb, cr) ->
         ycbcrToRgb(y, cb, cr, BT709, BT709_PRIMARIES, SRGB_TRANSFER, fullRange = true, bitDepth = 10)
       }
     val off = codes.indices.maxOf { abs(codes[it] - want[it]) }
-    assertTrue(off <= ONE_CODE, "decoded $codes where its YCbCr gives ${want.toList()}")
+    withClue("decoded $codes where its YCbCr gives ${want.toList()}") { (off <= ONE_CODE) shouldBe true }
     val between = codes.maxOf { abs(it - it.roundToInt()) }
-    assertTrue(between >= BETWEEN_CODES, "decoded $codes, every channel on an eight-bit code")
+    withClue("decoded $codes, every channel on an eight-bit code") { (between >= BETWEEN_CODES) shouldBe true }
   }
 
   @Test
@@ -88,11 +97,11 @@ class HalfFloatCurveTest {
       listOf(BT709, FCC, BT601, SMPTE_240, YCGCO, BT2020, BT2020_CONSTANT, ICTCP).flatMap { matrix ->
         listOf(true, false).mapNotNull { full ->
           val file = tenBitAvif(CicpTag(BT709_PRIMARIES, SRGB_TRANSFER, matrix, full))
-          tenBitMiss("matrix $matrix full range $full", file, file.ownLanding())
+          tenBitMiss("matrix $matrix full range $full", file, file.ownConversion())
         }
       }
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   // Android's own AVIF decoder on API 34, pinned so a platform that starts reading the matrix shows here.
@@ -102,11 +111,16 @@ class HalfFloatCurveTest {
     assumeTrue("This test pins API 34's AVIF decoder", Build.VERSION.SDK_INT == Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     val limited = tenBitAvif(CicpTag(BT709_PRIMARIES, SRGB_TRANSFER, BT709, false))
     val readable = readableMatrices(false, Build.VERSION_CODES.UPSIDE_DOWN_CAKE, avif = true, tenBit = true)
-    val nearest = assertNotNull(assertNotNull(pictureYcbcrCoding(limited)).reading.nearestReadable(readable))
-    val landing = DecoderLanding(nearest.matrix, false, listOf(DecoderLimit.LandedThrough(avif = true, nearest)))
+    val nearest =
+      pictureYcbcrCoding(limited)
+        .shouldNotBeNull()
+        .reading
+        .nearestReadable(readable)
+        .shouldNotBeNull()
+    val conversion = DecoderConversion(nearest.matrix, false, listOf(DecoderLimit.LandedThrough(avif = true, nearest)))
 
-    assertTrue(BT709 !in readable && nearest.withinBound)
-    assertNull(tenBitMiss("BT.709 limited", limited, landing))
+    (BT709 !in readable && nearest.withinBound) shouldBe true
+    tenBitMiss("BT.709 limited", limited, conversion).shouldBeNull()
   }
 
   // Android's own AVIF decoder on API 33, pinned so a platform that starts handing back a frame shows here.
@@ -115,14 +129,17 @@ class HalfFloatCurveTest {
     assumeTrue("This test pins API 33's AVIF decoder", Build.VERSION.SDK_INT == TEN_BIT_API)
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(TEN_BIT_AVIF, 0, TEN_BIT_AVIF.size, bounds)
-    assertEquals(RGBA_1010102, bounds.outConfig)
-    assertNull(BitmapFactory.decodeByteArray(TEN_BIT_AVIF, 0, TEN_BIT_AVIF.size), TEN_BIT_AVIF_UNDECODED)
+    bounds.outConfig shouldBe RGBA_1010102
+    withClue(TEN_BIT_AVIF_UNDECODED) {
+      BitmapFactory.decodeByteArray(TEN_BIT_AVIF, 0, TEN_BIT_AVIF.size).shouldBeNull()
+    }
 
-    val picture = assertIs<RefusedPicture>(ImageSource.Bytes(TEN_BIT_AVIF).read(context = null))
-    assertEquals(DecoderRefusal.AvifTenBitNoFrame.message, picture.reason)
+    val picture = ImageSource.Bytes(TEN_BIT_AVIF).read(context = null).shouldBeInstanceOf<RefusedPicture>()
+    picture.reason shouldBe DecoderRefusal.AvifTenBitNoFrame.message
     val overlay = ImageOverlay(ImageSource.Bytes(TEN_BIT_AVIF), Corner.TopStart, 0f, OVERLAY_SCALE)
     val resolution = with(BuiltInEffectResolver()) { overlay.toOverlay(picture, ATTRIBUTES, ANY_SIDE) }
-    assertEquals(DecoderRefusal.AvifTenBitNoFrame.message, assertIs<EffectResolution.Unsupported>(resolution).message)
+    resolution.shouldBeInstanceOf<EffectResolution.Unsupported>().message shouldBe
+      DecoderRefusal.AvifTenBitNoFrame.message
   }
 
   @Test
@@ -131,11 +148,11 @@ class HalfFloatCurveTest {
     val p3 = Bitmap.createBitmap(SIDE.width, SIDE.height, Bitmap.Config.RGBA_F16, true, displayP3)
     assumeTrue("This Android makes a half float bitmap in ${p3.colorSpace}", p3.colorSpace == displayP3)
     val overlay = ImageOverlay(ImageSource.Bytes(PICTURE), Corner.TopStart, 0f, OVERLAY_SCALE)
-    val picture = DecodedPicture(p3, colour = null)
+    val picture = DecodedPicture(p3, color = null)
 
     val resolution = with(BuiltInEffectResolver()) { overlay.toOverlay(picture, ATTRIBUTES, ANY_SIDE) }
 
-    assertEquals(UNKNOWN_HALF_FLOAT_SPACE, assertIs<EffectResolution.Unsupported>(resolution).message)
+    resolution.shouldBeInstanceOf<EffectResolution.Unsupported>().message shouldBe UNKNOWN_HALF_FLOAT_SPACE
   }
 
   @Test
@@ -146,17 +163,24 @@ class HalfFloatCurveTest {
         inPreferredConfig = Bitmap.Config.RGBA_F16
         inPreferredColorSpace = ColorSpace.get(ColorSpace.Named.LINEAR_EXTENDED_SRGB)
       }
-    val linear = assertNotNull(BitmapFactory.decodeByteArray(PICTURE, 0, PICTURE.size, options))
+    val linear = BitmapFactory.decodeByteArray(PICTURE, 0, PICTURE.size, options).shouldNotBeNull()
     assumeTrue("This Android decodes into ${linear.colorSpace} when asked for linear", linear.isLinear())
 
-    assertEquals(HalfFloatCurve.Linear, linear.halfFloatCurve())
+    linear.halfFloatCurve() shouldBe HalfFloatCurve.Linear
     assertSdrCodes(linear)
-    val extended = assertNotNull(ImageSource.Bytes(PICTURE).decode(context = null)).bitmap
+    val extended =
+      ImageSource
+        .Bytes(PICTURE)
+        .decode(context = null)
+        .shouldNotBeNull()
+        .bitmap
     val want = extended.rasterFor(HdrTransfer.Pq)
     val read = linear.rasterFor(HdrTransfer.Pq)
-    assertEquals(want.hdrLuminance, read.hdrLuminance)
+    read.hdrLuminance shouldBe want.hdrLuminance
     val off = channelsOff(read.bitmap.getPixel(1, 1), want.bitmap.getPixel(1, 1))
-    assertTrue(off <= HALF_FLOAT_CODES, "the linear decode lands $off codes off the extended sRGB one on PQ")
+    withClue("the linear decode lands $off codes off the extended sRGB one on PQ") {
+      (off <= HALF_FLOAT_CODES) shouldBe true
+    }
   }
 
   @Test
@@ -165,7 +189,7 @@ class HalfFloatCurveTest {
     val p3 = Bitmap.createBitmap(SIDE.width, SIDE.height, Bitmap.Config.RGBA_F16, true, displayP3)
     assumeTrue("This Android makes a half float bitmap in ${p3.colorSpace}", p3.colorSpace == displayP3)
 
-    assertEquals(HalfFloatCurve.Unknown, p3.halfFloatCurve())
+    p3.halfFloatCurve() shouldBe HalfFloatCurve.Unknown
     assertFailsWith<IllegalStateException> { p3.rasterFor(transfer = null) }
   }
 
@@ -175,7 +199,9 @@ class HalfFloatCurveTest {
     val want = pictureSrgbCodes(null, ShortArray(TEXEL.size) { TEXEL[it].toShort() })[0]
     val read = bitmap.rasterFor(transfer = null).bitmap.getPixel(1, 1)
     val off = channelsOff(read, want)
-    assertTrue(off <= HALF_FLOAT_CODES, "${bitmap.colorSpace} rastered ${read.hex()} where core gives ${want.hex()}")
+    withClue("${bitmap.colorSpace} rastered ${read.hex()} where core gives ${want.hex()}") {
+      (off <= HALF_FLOAT_CODES) shouldBe true
+    }
   }
 
   private fun assumeTenBitAvifDecodes() {
@@ -185,23 +211,23 @@ class HalfFloatCurveTest {
     assumeTrue("This Android decodes a ten-bit AVIF to ${bounds.outConfig}", bounds.outConfig == RGBA_1010102)
   }
 
-  // How [file] read through read misses landing where [landing] says at ten bits, with the limits it names, or null.
-  // One core refuses, which has no landing, or one landing past the bound misses unless it is refused for it.
+  // How [file] read through read misses landing where [conversion] says at ten bits, with the limits it names, or null.
+  // One core refuses, which has no conversion, or one landing past the bound misses unless it is refused for it.
   private fun tenBitMiss(
     what: String,
     file: ByteArray,
-    landing: DecoderLanding?,
+    conversion: DecoderConversion?,
   ): String? {
-    if (landing.refused) return file.refusalMiss(what, landing)
-    checkNotNull(landing)
+    if (conversion.refused) return file.refusalMiss(what, conversion)
+    checkNotNull(conversion)
     val picture = ImageSource.Bytes(file).read(context = null)
     if (picture !is DecodedPicture) return "$what came to $picture"
-    if (picture.limits != landing.limits) return "$what reported ${picture.limits}, not ${landing.limits}"
+    if (picture.limits != conversion.limits) return "$what reported ${picture.limits}, not ${conversion.limits}"
     val codes = picture.bitmap.centreCodes()
     val (y, cb, cr) = TEN_BIT_YCBCR
     val coding = checkNotNull(pictureYcbcrCoding(file)) { "$what has no YCbCr coding" }
     val want =
-      ycbcrToRgb(y, cb, cr, landing.matrix, coding.primaries, coding.transfer, landing.fullRange, bitDepth = 10)
+      ycbcrToRgb(y, cb, cr, conversion.matrix, coding.primaries, coding.transfer, conversion.fullRange, bitDepth = 10)
     val off = codes.indices.maxOf { abs(codes[it] - want[it]) }
     return if (off <= ONE_CODE) null else "$what decoded $codes where its YCbCr gives ${want.toList()}"
   }
@@ -270,7 +296,7 @@ class HalfFloatCurveTest {
     const val TEN_BIT_AV1_CONFIGURATION = "81004c00"
     val TEN_BIT_AVIF = tenBitAvif(CicpTag(BT709_PRIMARIES, SRGB_TRANSFER, BT709, true))
 
-    // The ten-bit still with [nclx] as its colour box. Its codestream states no colour and full range.
+    // The ten-bit still with [nclx] as its color box. Its codestream states no color and full range.
     fun tenBitAvif(nclx: CicpTag): ByteArray =
       HeifStills.still(
         brand = "avif",

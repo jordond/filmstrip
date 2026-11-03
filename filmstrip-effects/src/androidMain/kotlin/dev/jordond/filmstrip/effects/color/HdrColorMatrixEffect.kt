@@ -10,15 +10,15 @@ import androidx.media3.effect.BaseGlShaderProgram
 import androidx.media3.effect.GlEffect
 import androidx.media3.effect.GlShaderProgram
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.HDR_REFERENCE_WHITE_NITS
+import dev.jordond.filmstrip.color.HLG_NOMINAL_PEAK_NITS
 import dev.jordond.filmstrip.effects.MEDIA3_HDR_PEAK_NITS
-import dev.jordond.filmstrip.media.HDR_REFERENCE_WHITE_NITS
-import dev.jordond.filmstrip.media.HLG_NOMINAL_PEAK_NITS
 import dev.jordond.filmstrip.media.HdrTransfer
 
 /**
- * Recombines the colour channels of a frame media3 holds as HDR linear light.
+ * Recombines the color channels of a frame media3 holds as HDR linear light.
  *
- * media3 multiplies its own colour matrices into the light itself, which is not the domain a
+ * media3 multiplies its own color matrices into the light itself, which is not the domain a
  * [ColorMatrix] is written in. This pass moves each channel into the signal an SDR display at
  * reference white would have been fed, applies the matrix there, floors it at black, and moves the
  * result back, clamped where the format runs out. One pass over one 2D sampler, built fresh for

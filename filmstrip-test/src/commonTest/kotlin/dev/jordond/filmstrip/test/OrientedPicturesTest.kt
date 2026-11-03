@@ -1,11 +1,10 @@
 package dev.jordond.filmstrip.test
 
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 /**
  * The orientation picture and the tags [OrientedPictures] writes, read back byte by byte.
@@ -20,10 +19,10 @@ class OrientedPicturesTest {
     val width = OrientedPictures.SIZE.width
     val middles = listOf(1 to 1, 4 to 0, 1 to 3, 4 to 2).map { (x, y) -> samples[y * width + x] }
 
-    assertEquals(OrientedPictures.SIZE.width * OrientedPictures.SIZE.height, samples.size)
-    assertEquals(OrientedPictures.MARKER, samples[0])
-    assertEquals(OrientedPictures.QUADRANTS, middles)
-    assertEquals(5, (OrientedPictures.QUADRANTS + OrientedPictures.MARKER).toSet().size)
+    samples.size shouldBe OrientedPictures.SIZE.width * OrientedPictures.SIZE.height
+    samples[0] shouldBe OrientedPictures.MARKER
+    middles shouldBe OrientedPictures.QUADRANTS
+    (OrientedPictures.QUADRANTS + OrientedPictures.MARKER).toSet().size shouldBe 5
   }
 
   @Test
@@ -32,12 +31,12 @@ class OrientedPicturesTest {
     val header = chunks.first().data
     val rows = storedInflate(chunks.single { it.type == "IDAT" }.data)
 
-    assertEquals(listOf("IHDR", "IDAT", "IEND"), chunks.map { it.type })
-    assertEquals(OrientedPictures.SIZE.width, header.int32At(0))
-    assertEquals(OrientedPictures.SIZE.height, header.int32At(4))
-    assertContentEquals(byteArrayOf(8, 6, 0, 0, 0), header.copyOfRange(8, 13))
-    assertContentEquals(storedRows(), rows)
-    chunks.forEach { assertEquals(tableCrc32(it.type.encodeToByteArray() + it.data), it.crc, "${it.type} crc") }
+    chunks.map { it.type } shouldBe listOf("IHDR", "IDAT", "IEND")
+    header.int32At(0) shouldBe OrientedPictures.SIZE.width
+    header.int32At(4) shouldBe OrientedPictures.SIZE.height
+    header.copyOfRange(8, 13) shouldBe byteArrayOf(8, 6, 0, 0, 0)
+    rows shouldBe storedRows()
+    chunks.forEach { withClue("${it.type} crc") { it.crc shouldBe tableCrc32(it.type.encodeToByteArray() + it.data) } }
   }
 
   @Test
@@ -48,10 +47,10 @@ class OrientedPicturesTest {
       val chunks = pngChunks(tagged)
       val exif = chunks.single { it.type == "eXIf" }
 
-      assertEquals(listOf("IHDR", "eXIf", "IDAT", "IEND"), chunks.map { it.type }, "$orientation chunks")
-      assertEquals(orientation, tiffOrientation(exif.data), "$orientation tag")
-      assertEquals(tableCrc32("eXIf".encodeToByteArray() + exif.data), exif.crc, "$orientation crc")
-      assertContentEquals(png, tagged.withoutPngChunk("eXIf"), "$orientation other chunks")
+      withClue("$orientation chunks") { chunks.map { it.type } shouldBe listOf("IHDR", "eXIf", "IDAT", "IEND") }
+      withClue("$orientation tag") { tiffOrientation(exif.data) shouldBe orientation }
+      withClue("$orientation crc") { exif.crc shouldBe tableCrc32("eXIf".encodeToByteArray() + exif.data) }
+      withClue("$orientation other chunks") { tagged.withoutPngChunk("eXIf") shouldBe png }
     }
   }
 
@@ -60,8 +59,8 @@ class OrientedPicturesTest {
     val retagged = OrientedPictures.taggedPng(OrientedPictures.taggedPng(OrientedPictures.png(), 3), 6)
     val exif = pngChunks(retagged).filter { it.type == "eXIf" }
 
-    assertEquals(1, exif.size)
-    assertEquals(6, tiffOrientation(exif.single().data))
+    exif.size shouldBe 1
+    tiffOrientation(exif.single().data) shouldBe 6
   }
 
   @Test
@@ -72,10 +71,14 @@ class OrientedPicturesTest {
       val segments = jpegSegments(tagged)
       val app1 = segments[1]
 
-      assertEquals(listOf(APP0, APP1, DQT, SOF0), segments.map { tagged.uInt16At(it.first) }, "$orientation order")
-      assertContentEquals(EXIF_HEADER, tagged.copyOfRange(app1.first + 4, app1.first + 10), "$orientation header")
-      assertEquals(orientation, tiffOrientation(tagged.copyOfRange(app1.first + 10, app1.last + 1)), "$orientation tag")
-      assertContentEquals(jpeg, tagged.without(app1), "$orientation other bytes")
+      withClue("$orientation order") {
+        segments.map { tagged.uInt16At(it.first) } shouldBe listOf(APP0, APP1, DQT, SOF0)
+      }
+      withClue("$orientation header") { tagged.copyOfRange(app1.first + 4, app1.first + 10) shouldBe EXIF_HEADER }
+      withClue("$orientation tag") {
+        tiffOrientation(tagged.copyOfRange(app1.first + 10, app1.last + 1)) shouldBe orientation
+      }
+      withClue("$orientation other bytes") { tagged.without(app1) shouldBe jpeg }
     }
   }
 
@@ -85,10 +88,10 @@ class OrientedPicturesTest {
     val tagged = OrientedPictures.taggedJpeg(jpeg, 5)
     val app1 = jpegSegments(tagged).first()
 
-    assertEquals(2, app1.first)
-    assertEquals(APP1, tagged.uInt16At(app1.first))
-    assertEquals(5, tiffOrientation(tagged.copyOfRange(app1.first + 10, app1.last + 1)))
-    assertContentEquals(jpeg, tagged.without(app1))
+    app1.first shouldBe 2
+    tagged.uInt16At(app1.first) shouldBe APP1
+    tiffOrientation(tagged.copyOfRange(app1.first + 10, app1.last + 1)) shouldBe 5
+    tagged.without(app1) shouldBe jpeg
   }
 
   @Test
@@ -96,8 +99,8 @@ class OrientedPicturesTest {
     val retagged = OrientedPictures.taggedJpeg(OrientedPictures.taggedJpeg(jpegOf(app0 = true), 2), 7)
     val exif = jpegSegments(retagged).filter { retagged.uInt16At(it.first) == APP1 }
 
-    assertEquals(1, exif.size)
-    assertEquals(7, tiffOrientation(retagged.copyOfRange(exif.single().first + 10, exif.single().last + 1)))
+    exif.size shouldBe 1
+    tiffOrientation(retagged.copyOfRange(exif.single().first + 10, exif.single().last + 1)) shouldBe 7
   }
 
   @Test
@@ -107,11 +110,11 @@ class OrientedPicturesTest {
       val tagged = OrientedPictures.taggedWebp(webp, orientation)
       val chunks = riffChunks(tagged)
 
-      assertEquals(listOf("VP8X", "VP8L", "EXIF"), chunks.map { it.first }, "$orientation chunks")
-      assertEquals(tagged.size - 8, tagged.int32LittleEndianAt(4), "$orientation RIFF size")
-      assertContentEquals(vp8x(VP8X_ALPHA or VP8X_EXIF), chunks[0].second, "$orientation VP8X")
-      assertContentEquals(vp8lPayload(), chunks[1].second, "$orientation VP8L")
-      assertEquals(orientation, tiffOrientation(chunks[2].second), "$orientation tag")
+      withClue("$orientation chunks") { chunks.map { it.first } shouldBe listOf("VP8X", "VP8L", "EXIF") }
+      withClue("$orientation RIFF size") { tagged.int32LittleEndianAt(4) shouldBe tagged.size - 8 }
+      withClue("$orientation VP8X") { chunks[0].second shouldBe vp8x(VP8X_ALPHA or VP8X_EXIF) }
+      withClue("$orientation VP8L") { chunks[1].second shouldBe vp8lPayload() }
+      withClue("$orientation tag") { tiffOrientation(chunks[2].second) shouldBe orientation }
     }
   }
 
@@ -120,10 +123,10 @@ class OrientedPicturesTest {
     val tagged = OrientedPictures.taggedWebp(webpOf(riffChunk("VP8 ", VP8_PAYLOAD)), 8)
     val chunks = riffChunks(tagged)
 
-    assertEquals(listOf("VP8X", "VP8 ", "EXIF"), chunks.map { it.first })
-    assertContentEquals(vp8x(VP8X_EXIF), chunks[0].second)
-    assertContentEquals(VP8_PAYLOAD, chunks[1].second)
-    assertEquals(8, tiffOrientation(chunks[2].second))
+    chunks.map { it.first } shouldBe listOf("VP8X", "VP8 ", "EXIF")
+    chunks[0].second shouldBe vp8x(VP8X_EXIF)
+    chunks[1].second shouldBe VP8_PAYLOAD
+    tiffOrientation(chunks[2].second) shouldBe 8
   }
 
   @Test
@@ -135,9 +138,9 @@ class OrientedPicturesTest {
       )
     val chunks = riffChunks(OrientedPictures.taggedWebp(webp, 4))
 
-    assertEquals(listOf("VP8X", "VP8L", "EXIF"), chunks.map { it.first })
-    assertContentEquals(vp8x(VP8X_ALPHA or VP8X_EXIF), chunks[0].second)
-    assertEquals(4, tiffOrientation(chunks[2].second))
+    chunks.map { it.first } shouldBe listOf("VP8X", "VP8L", "EXIF")
+    chunks[0].second shouldBe vp8x(VP8X_ALPHA or VP8X_EXIF)
+    tiffOrientation(chunks[2].second) shouldBe 4
   }
 
   @Test
@@ -148,18 +151,18 @@ class OrientedPicturesTest {
       val stripOffset = tiffValue(tiff, STRIP_OFFSETS)
       val stripBytes = tiffValue(tiff, STRIP_BYTE_COUNTS)
 
-      assertEquals(tags.sorted(), tags, "$orientation tag order")
-      assertEquals(orientation, tiffOrientation(tiff), "$orientation tag")
-      assertEquals(OrientedPictures.SIZE.width, tiffValue(tiff, IMAGE_WIDTH), "$orientation width")
-      assertEquals(OrientedPictures.SIZE.height, tiffValue(tiff, IMAGE_LENGTH), "$orientation height")
-      assertEquals(tiff.size, stripOffset + stripBytes, "$orientation strip end")
-      assertContentEquals(storedRgba(), tiff.copyOfRange(stripOffset, stripOffset + stripBytes), "$orientation strip")
+      withClue("$orientation tag order") { tags shouldBe tags.sorted() }
+      withClue("$orientation tag") { tiffOrientation(tiff) shouldBe orientation }
+      withClue("$orientation width") { tiffValue(tiff, IMAGE_WIDTH) shouldBe OrientedPictures.SIZE.width }
+      withClue("$orientation height") { tiffValue(tiff, IMAGE_LENGTH) shouldBe OrientedPictures.SIZE.height }
+      withClue("$orientation strip end") { stripOffset + stripBytes shouldBe tiff.size }
+      withClue("$orientation strip") { tiff.copyOfRange(stripOffset, stripOffset + stripBytes) shouldBe storedRgba() }
     }
   }
 
   @Test
   fun untaggedTiffCarriesNoOrientation() {
-    assertNull(tiffOrientation(OrientedPictures.tiff()))
+    tiffOrientation(OrientedPictures.tiff()).shouldBeNull()
   }
 
   @Test
@@ -171,15 +174,15 @@ class OrientedPicturesTest {
       )
     val chunks = riffChunks(OrientedPictures.taggedWebp(webp, 6))
 
-    assertEquals(listOf("VP8X", "ICCP", "ALPH", "VP8 ", "EXIF", "XMP ", "UNKN"), chunks.map { it.first })
-    assertEquals(6, tiffOrientation(chunks[4].second))
+    chunks.map { it.first } shouldBe listOf("VP8X", "ICCP", "ALPH", "VP8 ", "EXIF", "XMP ", "UNKN")
+    tiffOrientation(chunks[4].second) shouldBe 6
   }
 
   @Test
   fun taggedLosslessWebpWithoutAlphaLeavesTheAlphaFlagClear() {
     val tagged = OrientedPictures.taggedWebp(webpOf(riffChunk("VP8L", vp8lPayload(alpha = false))), 2)
 
-    assertContentEquals(vp8x(VP8X_EXIF), riffChunks(tagged).first().second)
+    riffChunks(tagged).first().second shouldBe vp8x(VP8X_EXIF)
   }
 
   @Test
@@ -187,8 +190,8 @@ class OrientedPicturesTest {
     val webp = webpOf(riffChunk("VP8 ", VP8_PAYLOAD) + riffChunk("ALPH", ByteArray(2)))
     val chunks = riffChunks(OrientedPictures.taggedWebp(webp, 2))
 
-    assertEquals(listOf("VP8X", "VP8 ", "ALPH", "EXIF"), chunks.map { it.first })
-    assertContentEquals(vp8x(VP8X_ALPHA or VP8X_EXIF), chunks.first().second)
+    chunks.map { it.first } shouldBe listOf("VP8X", "VP8 ", "ALPH", "EXIF")
+    chunks.first().second shouldBe vp8x(VP8X_ALPHA or VP8X_EXIF)
   }
 
   @Test
@@ -198,10 +201,10 @@ class OrientedPicturesTest {
     val webp = webpOf(riffChunk("VP8L", vp8lPayload()))
     val exif = pngChunks(OrientedPictures.taggedPng(png, 65535)).single { it.type == "eXIf" }
 
-    assertEquals(65535, tiffOrientation(OrientedPictures.tiff(65535)))
-    assertEquals(65535, tiffOrientation(exif.data))
-    assertTrue(OrientedPictures.taggedJpeg(jpeg, 65535).size > jpeg.size)
-    assertEquals(65535, tiffOrientation(OrientedPictures.taggedWebp(webp, 65535).exifChunk()))
+    tiffOrientation(OrientedPictures.tiff(65535)) shouldBe 65535
+    tiffOrientation(exif.data) shouldBe 65535
+    (OrientedPictures.taggedJpeg(jpeg, 65535).size > jpeg.size) shouldBe true
+    tiffOrientation(OrientedPictures.taggedWebp(webp, 65535).exifChunk()) shouldBe 65535
     for (orientation in listOf(-1, 65536)) {
       assertFailsWith<IllegalArgumentException>("tiff $orientation") { OrientedPictures.tiff(orientation) }
       assertFailsWith<IllegalArgumentException>("png $orientation") { OrientedPictures.taggedPng(png, orientation) }
@@ -320,7 +323,7 @@ class OrientedPicturesTest {
       chunks += webp.textAt(offset) to webp.copyOfRange(offset + 8, offset + 8 + size)
       offset += 8 + size + size % 2
     }
-    assertEquals(webp.size, offset, "RIFF chunks end with the file")
+    withClue("RIFF chunks end with the file") { offset shouldBe webp.size }
     return chunks
   }
 
@@ -328,10 +331,10 @@ class OrientedPicturesTest {
 
   // Where each IFD0 entry of a big-endian TIFF starts.
   private fun tiffEntries(tiff: ByteArray): List<Int> {
-    assertEquals("MM", tiff.decodeToString(0, 2))
-    assertEquals(42, tiff.uInt16At(2))
+    tiff.decodeToString(0, 2) shouldBe "MM"
+    tiff.uInt16At(2) shouldBe 42
     val ifd = tiff.int32At(4)
-    assertEquals(0, tiff.int32At(ifd + 2 + 12 * tiff.uInt16At(ifd)), "IFD0 is the only IFD")
+    withClue("IFD0 is the only IFD") { tiff.int32At(ifd + 2 + 12 * tiff.uInt16At(ifd)) shouldBe 0 }
     return (0 until tiff.uInt16At(ifd)).map { ifd + 2 + 12 * it }
   }
 
@@ -346,8 +349,8 @@ class OrientedPicturesTest {
 
   private fun tiffOrientation(tiff: ByteArray): Int? {
     val entry = tiffEntries(tiff).singleOrNull { tiff.uInt16At(it) == ORIENTATION } ?: return null
-    assertEquals(SHORT, tiff.uInt16At(entry + 2), "orientation type")
-    assertEquals(1, tiff.int32At(entry + 4), "orientation count")
+    withClue("orientation type") { tiff.uInt16At(entry + 2) shouldBe SHORT }
+    withClue("orientation count") { tiff.int32At(entry + 4) shouldBe 1 }
     return tiff.uInt16At(entry + 8)
   }
 

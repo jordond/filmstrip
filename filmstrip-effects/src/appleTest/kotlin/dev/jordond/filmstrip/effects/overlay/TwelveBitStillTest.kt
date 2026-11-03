@@ -1,28 +1,26 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effects.unreadSamples
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.test.AppleStillSamples
-import dev.jordond.filmstrip.test.AvifColourPictures
+import dev.jordond.filmstrip.test.AvifColorPictures
 import dev.jordond.filmstrip.test.CicpTag
-import dev.jordond.filmstrip.test.HeicColourPictures
+import dev.jordond.filmstrip.test.HeicColorPictures
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 /**
  * Twelve-bit 4:2:0 AVIF and HEIC stills read by the Apple overlay raster, under every matrix
  * [AppleStillSamples.twelveBit] covers and at both ranges.
  *
- * A still [AppleStillSamples.landing] lands reads back at sixteen bits, deeper than eight, and within rounding of its
- * model. Its overlay resolves exactly when the landing is exact and degraded by [unreadMatrix] otherwise, the cause
+ * A still [AppleStillSamples.decoderMatrix] lands reads back at sixteen bits, deeper than eight, and within rounding of
+ * its model. Its overlay resolves exactly when the landing is exact and degraded by [unreadMatrix] otherwise, the cause
  * ending on core's figures. A still refused before decoding is unsupported with core's reason or [pastBound], and a
  * HEIC ImageIO hands out no samples for is refused saying so. Every still that misses is one line of the failure, so
  * one run reports all of them.
  */
-@OptIn(InternalFilmstripApi::class)
 class TwelveBitStillTest {
   @Test
   fun `every twelve bit still reads at sixteen bits where apple's decoder lands it or is refused`() {
@@ -43,7 +41,7 @@ class TwelveBitStillTest {
         }
       }
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   @Test
@@ -52,7 +50,7 @@ class TwelveBitStillTest {
       stills().mapNotNull { still ->
         val resolved = overlayResolution(still.bytes)
         AppleStillSamples.missOrUnmeasured {
-          val landed = AppleStillSamples.landing(still.nclx, unsubsampled = false, TWELVE_BITS)
+          val landed = AppleStillSamples.decoderMatrix(still.nclx, unsubsampled = false, TWELVE_BITS)
           val expected =
             when {
               landed == null -> "unsupported: ${refusalOf(still.nclx, unsubsampled = false, TWELVE_BITS)}"
@@ -65,24 +63,24 @@ class TwelveBitStillTest {
         }
       }
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   @Test
   fun `a degraded landing names the matrix and ends on core's figures`() {
     val nclx = CicpTag(1, 13, SMPTE_240M, true)
-    val landed = checkNotNull(AppleStillSamples.landing(nclx, unsubsampled = false, TWELVE_BITS))
+    val landed = checkNotNull(AppleStillSamples.decoderMatrix(nclx, unsubsampled = false, TWELVE_BITS))
     val message = unreadMatrix(landed).message
 
-    assertTrue(!landed.exact && landed.withinBound, "SMPTE 240M lands through $landed")
-    assertTrue(message.contains("matrix ${landed.matrix}"), message)
-    assertTrue(message.endsWith("${landed.figures}."), message)
+    withClue("SMPTE 240M lands through $landed") { (!landed.exact && landed.withinBound) shouldBe true }
+    withClue(message) { message.contains("matrix ${landed.matrix}") shouldBe true }
+    withClue(message) { message.endsWith("${landed.figures}.") shouldBe true }
   }
 
   @Test
   fun `the raster reads the matrices and evaluates the depths the model does`() {
-    assertEquals(AppleStillSamples.READABLE_MATRICES, IMAGE_IO_MATRICES)
-    assertEquals(AppleStillSamples.EVALUATED_DEPTHS, EVALUATED_DEPTHS)
+    IMAGE_IO_MATRICES shouldBe AppleStillSamples.READABLE_MATRICES
+    EVALUATED_DEPTHS shouldBe AppleStillSamples.EVALUATED_DEPTHS
   }
 
   private fun unsupportedMiss(
@@ -132,8 +130,8 @@ class TwelveBitStillTest {
       listOf(true, false).flatMap { full ->
         val nclx = CicpTag(1, 13, matrix, full)
         listOf(
-          Still("the twelve-bit AVIF $nclx", AvifColourPictures.twelveBit(nclx).bytes(), heic = false, nclx),
-          Still("the twelve-bit HEIC $nclx", HeicColourPictures.twelveBit(nclx), heic = true, nclx),
+          Still("the twelve-bit AVIF $nclx", AvifColorPictures.twelveBit(nclx).bytes(), heic = false, nclx),
+          Still("the twelve-bit HEIC $nclx", HeicColorPictures.twelveBit(nclx), heic = true, nclx),
         )
       }
     }

@@ -3,18 +3,18 @@ package dev.jordond.filmstrip.media3.internal
 import android.net.Uri
 import androidx.media3.common.MediaItem
 import androidx.media3.transformer.EditedMediaItem
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
-import dev.jordond.filmstrip.export.AudioCodec
+import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.outputSlotTime
-import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.EXIF_ORIENTATION_NORMAL
 import dev.jordond.filmstrip.media.ImageSource
@@ -23,11 +23,14 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.imageMediaInfoOf
 import dev.jordond.filmstrip.media.trackCodecOf
-import dev.jordond.filmstrip.transform.internal.ResolvedClip
-import dev.jordond.filmstrip.transform.internal.ResolvedComposition
-import dev.jordond.filmstrip.transform.internal.ResolvedGain
-import dev.jordond.filmstrip.transform.internal.ResolvedHdr
-import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import dev.jordond.filmstrip.media3.internal.bounds.Media3FrameBounds
+import dev.jordond.filmstrip.media3.internal.preview.toMedia3Preview
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
@@ -36,8 +39,6 @@ import io.mockk.unmockkAll
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
-import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -70,7 +71,9 @@ class Media3ImageItemTest {
     val item = composition.firstItem()
 
     item.durationUs shouldBe 3.seconds.inWholeMicroseconds
-    assertNotNull(item.mediaItem.localConfiguration).imageDurationMs shouldBe 3.seconds.inWholeMilliseconds
+    item.mediaItem.localConfiguration
+      .shouldNotBeNull()
+      .imageDurationMs shouldBe 3.seconds.inWholeMilliseconds
   }
 
   // The trim is collapsed into the span before the plan is handed over, so a still whose span is
@@ -82,7 +85,9 @@ class Media3ImageItemTest {
     val item = composition.firstItem()
 
     item.durationUs shouldBe 4.seconds.inWholeMicroseconds
-    assertNotNull(item.mediaItem.localConfiguration).imageDurationMs shouldBe 4.seconds.inWholeMilliseconds
+    item.mediaItem.localConfiguration
+      .shouldNotBeNull()
+      .imageDurationMs shouldBe 4.seconds.inWholeMilliseconds
     item.mediaItem.clippingConfiguration shouldBe MediaItem.ClippingConfiguration.UNSET
   }
 
@@ -98,9 +103,13 @@ class Media3ImageItemTest {
     val longer = composition(clip(declared = up)).firstItem()
 
     shorter.durationUs shouldBe down.inWholeMicroseconds
-    assertNotNull(shorter.mediaItem.localConfiguration).imageDurationMs shouldBe 1033
+    shorter.mediaItem.localConfiguration
+      .shouldNotBeNull()
+      .imageDurationMs shouldBe 1033
     longer.durationUs shouldBe up.inWholeMicroseconds
-    assertNotNull(longer.mediaItem.localConfiguration).imageDurationMs shouldBe 1067
+    longer.mediaItem.localConfiguration
+      .shouldNotBeNull()
+      .imageDurationMs shouldBe 1067
   }
 
   // media3 rejects a zero on that field, which is what a slot shorter than a millisecond would round
@@ -112,7 +121,9 @@ class Media3ImageItemTest {
     val item = composition(clip(declared = slot), frameRate = SUB_MILLISECOND_RATE).firstItem()
 
     item.durationUs shouldBe slot.inWholeMicroseconds
-    assertNotNull(item.mediaItem.localConfiguration).imageDurationMs shouldBe 1
+    item.mediaItem.localConfiguration
+      .shouldNotBeNull()
+      .imageDurationMs shouldBe 1
   }
 
   // The rounded field never moves what comes after the still. A clip after one opens on its own
@@ -137,20 +148,17 @@ class Media3ImageItemTest {
     composition.firstItem().frameRate shouldBe composition.output.frameRate
   }
 
-  @Test
-  fun `a still with no output rate is refused rather than lowered without one`() {
-    val composition = composition(clip(), frameRate = null)
-
-    assertFailsWith<Media3LoweringFailure> { composition.toMedia3(Media3FrameBounds.None) }
-  }
-
   // Neither a cached copy of a byte buffer nor a content:// reference is guaranteed to carry a file
   // extension, and media3 falls back to guessing from one when the item names no type.
   @Test
   fun `the item names the format the still was read as`() {
     val composition = composition(clip(format = "png"))
 
-    assertNotNull(composition.firstItem().mediaItem.localConfiguration).mimeType shouldBe "image/png"
+    composition
+      .firstItem()
+      .mediaItem.localConfiguration
+      .shouldNotBeNull()
+      .mimeType shouldBe "image/png"
   }
 
   // A frame reader picks its path off this and nothing else, so a run of clips is laid out and the
@@ -182,12 +190,14 @@ class Media3ImageItemTest {
     val preview = composition.toMedia3Preview(Media3FrameBounds.None)
     val clip = preview.spans.single()
 
-    val (inGap, inClip) = assertNotNull(preview.readbacksAt(listOf(IN_GAP, clip.start + IN_GAP), revision = 1))
+    val (inGap, inClip) = preview.readbacksAt(listOf(IN_GAP, clip.start + IN_GAP), revision = 1).shouldNotBeNull()
 
     inGap.span.still shouldBe true
     inGap.span.start shouldBe Duration.ZERO
     inGap.span.end shouldBe clip.start
-    assertNotNull(inGap.span.item.localConfiguration).mimeType shouldBe "image/png"
+    inGap.span.item.localConfiguration
+      .shouldNotBeNull()
+      .mimeType shouldBe "image/png"
     inClip.span.still shouldBe false
     inClip.span.start shouldBe clip.start
     preview.spanAt(IN_GAP) shouldBe null
@@ -202,7 +212,7 @@ class Media3ImageItemTest {
 
   private fun composition(
     vararg clips: ResolvedClip,
-    frameRate: Int? = 30,
+    frameRate: Int = 30,
     content: TrackContent = TrackContent.AudioAndVideo,
     trackStart: Duration = Duration.ZERO,
   ): ResolvedComposition =

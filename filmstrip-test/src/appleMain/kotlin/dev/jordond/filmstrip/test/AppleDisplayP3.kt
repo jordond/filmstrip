@@ -1,8 +1,9 @@
 package dev.jordond.filmstrip.test
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.PictureColor
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.media.PictureColour
+import dev.jordond.filmstrip.picture.pictureColorFromDecodedProfile
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.allocArray
 import kotlinx.cinterop.memScoped
@@ -46,30 +47,30 @@ import platform.ImageIO.kCGImageDestinationLossyCompressionQuality
 /**
  * Display P3 as Core Graphics describes it, and pictures ImageIO writes in it.
  *
- * [colour] is the description a Display P3 picture lands through, and [picture] paints one flat colour in Display P3
+ * [color] is the description a Display P3 picture lands through, and [picture] paints one flat color in Display P3
  * and has ImageIO encode it, so a test can hold a backend's draw of a real HEIC or JPEG to the shared light.
  */
 @InternalFilmstripApi
 @OptIn(ExperimentalForeignApi::class)
 public object AppleDisplayP3 {
   /**
-   * The colour description of Core Graphics' Display P3 space, read from the ICC profile it gives that space.
+   * The color description of Core Graphics' Display P3 space, read from the ICC profile it gives that space.
    */
-  public fun colour(): PictureColour {
+  public fun color(): PictureColor {
     val space = checkNotNull(CGColorSpaceCreateWithName(kCGColorSpaceDisplayP3))
     val icc = checkNotNull(CGColorSpaceCopyICCData(space)) { "Display P3 has no ICC data" }
     CGColorSpaceRelease(space)
     val profile = checkNotNull(CFDataGetBytePtr(icc)).readBytes(CFDataGetLength(icc).toInt())
     CFRelease(icc)
-    return checkNotNull(PictureColour.fromDecodedProfile(profile, RGB)) { "Display P3's profile is not RGB" }
+    return checkNotNull(pictureColorFromDecodedProfile(profile, RGB)) { "Display P3's profile is not RGB" }
   }
 
   /**
-   * A picture of [size] painted the opaque Display P3 colour [texel] and written by ImageIO as [type] at full
+   * A picture of [size] painted the opaque Display P3 color [texel] and written by ImageIO as [type] at full
    * quality, or null when ImageIO cannot write that type on this platform.
    *
    * @param type The uniform type identifier ImageIO writes, such as `public.heic` or `public.jpeg`.
-   * @param texel A packed RGB colour, its alpha ignored.
+   * @param texel A packed RGB color, its alpha ignored.
    */
   public fun picture(
     type: String,
@@ -83,17 +84,17 @@ public object AppleDisplayP3 {
       checkNotNull(
         CGBitmapContextCreate(null, width, height, 8u, 0u, space, CGImageAlphaInfo.kCGImageAlphaNoneSkipLast.value),
       )
-    val colour =
+    val color =
       memScoped {
         val components = allocArray<CGFloatVar>(RGB + 1)
-        AuthoredColours.channelsOf(texel).forEachIndexed { index, code -> components[index] = code / FULL }
+        AuthoredColors.channelsOf(texel).forEachIndexed { index, code -> components[index] = code / FULL }
         components[RGB] = 1.0
         CGColorCreate(space, components)
       }
-    CGContextSetFillColorWithColor(context, colour)
+    CGContextSetFillColorWithColor(context, color)
     CGContextFillRect(context, CGRectMake(0.0, 0.0, width.toDouble(), height.toDouble()))
     val image = checkNotNull(CGBitmapContextCreateImage(context))
-    CGColorRelease(colour)
+    CGColorRelease(color)
     CGContextRelease(context)
     CGColorSpaceRelease(space)
 

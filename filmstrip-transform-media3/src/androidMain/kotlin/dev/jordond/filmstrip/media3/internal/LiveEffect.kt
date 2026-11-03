@@ -28,18 +28,26 @@ internal sealed interface LiveSlot {
   val effect: Effect
 
   /**
-   * Whether [next] can take this position without the graph being rebuilt.
+   * The swap that puts [next] behind this position, for every frame drawn from here on once it is installed, or null
+   * when [next] cannot take this position without the graph being rebuilt.
+   *
+   * Nothing moves until the swap is installed, so a caller can check every position before swapping any.
    */
-  fun accepts(next: Effect): Boolean
-
-  /**
-   * Puts [next] behind this position, for every frame drawn from here on.
-   */
-  fun install(next: Effect)
+  fun swapTo(next: Effect): SlotSwap?
 }
 
 /**
- * A colour matrix that can be exchanged while the graph runs.
+ * A replacement a [LiveSlot] has taken, waiting to be put behind its position.
+ */
+internal fun interface SlotSwap {
+  /**
+   * Puts the replacement behind the position, for every frame drawn from here on.
+   */
+  fun install()
+}
+
+/**
+ * A color matrix that can be exchanged while the graph runs.
  *
  * `DefaultShaderProgram` asks every [RgbMatrix] in its group for a matrix on each draw and compares
  * the answer against the one it last uploaded, so a swap reaches the next frame, including the one
@@ -66,15 +74,11 @@ internal class LiveRgbMatrix(
     inputHeight: Int,
   ): Boolean = false
 
-  override fun accepts(next: Effect): Boolean = next is RgbMatrix
-
-  override fun install(next: Effect) {
-    delegate = next as RgbMatrix
-  }
+  override fun swapTo(next: Effect): SlotSwap? = (next as? RgbMatrix)?.let { matrix -> SlotSwap { delegate = matrix } }
 }
 
 /**
- * A colour matrix on a kept HDR grade that can be exchanged while the graph runs.
+ * A color matrix on a kept HDR grade that can be exchanged while the graph runs.
  *
  * The pass reads its matrix through this slot on every draw, so a swap reaches the next frame the
  * same way an [RgbMatrix] swap does. The transfer function is settled with the graph, and a
@@ -105,10 +109,9 @@ internal class LiveHdrColorMatrix(
     inputHeight: Int,
   ): Boolean = false
 
-  override fun accepts(next: Effect): Boolean = next is HdrColorMatrixEffect && next.transfer == delegate.transfer
-
-  override fun install(next: Effect) {
-    delegate = next as HdrColorMatrixEffect
+  override fun swapTo(next: Effect): SlotSwap? {
+    if (next !is HdrColorMatrixEffect || next.transfer != delegate.transfer) return null
+    return SlotSwap { delegate = next }
   }
 }
 
@@ -150,15 +153,14 @@ internal class LiveMatrixTransformation(
     inputHeight: Int,
   ): Boolean = false
 
-  override fun accepts(next: Effect): Boolean {
-    if (next !is MatrixTransformation) return false
-    val standing = configured ?: return true
-    val output = next.configure(standing.inputWidth, standing.inputHeight)
-    return output.width == standing.output.width && output.height == standing.output.height
-  }
-
-  override fun install(next: Effect) {
-    delegate = next as MatrixTransformation
+  override fun swapTo(next: Effect): SlotSwap? {
+    if (next !is MatrixTransformation) return null
+    val standing = configured
+    if (standing != null) {
+      val output = next.configure(standing.inputWidth, standing.inputHeight)
+      if (output.width != standing.output.width || output.height != standing.output.height) return null
+    }
+    return SlotSwap { delegate = next }
   }
 
   private class Configured(
@@ -177,9 +179,7 @@ internal class LiveMatrixTransformation(
 internal class FixedSlot(
   override val effect: Effect,
 ) : LiveSlot {
-  override fun accepts(next: Effect): Boolean = next == effect
-
-  override fun install(next: Effect): Unit = Unit
+  override fun swapTo(next: Effect): SlotSwap? = if (next == effect) SlotSwap {} else null
 }
 
 /**

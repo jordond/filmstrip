@@ -6,9 +6,8 @@ import kotlin.time.Duration
 /**
  * The calls one press, drag and release makes, in order.
  *
- * Split from the pointer loop that drives it so the ordering is a plain state machine rather than something only a real
- * gesture can exercise: a press begins exactly one scrub whatever arrives next, a drag outside one is ignored, and a
- * release ends the scrub once.
+ * The ordering is a plain state machine apart from the pointer loop that drives it. A press begins exactly one scrub
+ * whatever arrives next, a drag outside one is ignored, and a release ends the scrub once.
  *
  * @param scale What turns a viewport x into a source time.
  * @param scrollPx How far the timeline has scrolled, in content pixels.

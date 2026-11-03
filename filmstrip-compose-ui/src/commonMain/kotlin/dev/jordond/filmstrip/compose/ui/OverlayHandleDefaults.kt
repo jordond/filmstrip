@@ -5,10 +5,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * The sizes and colours an overlay placement handle falls back to.
+ * The sizes and colors an overlay placement handle falls back to.
  *
- * The palette is neutral and self-contained rather than themed, because this module draws with foundation alone. A
- * themed host passes its own colours to [colors] at the one call site that builds the handle.
+ * The palette is neutral and reads no theme. A themed host passes its own colors to [colors] at the one call site that
+ * builds the handle.
  */
 public object OverlayHandleDefaults {
   /**
@@ -19,8 +19,8 @@ public object OverlayHandleDefaults {
   /**
    * The palette a handle draws with unless a host passes its own.
    *
-   * A single instance rather than a call to [colors], so a component falling back to it allocates nothing on the
-   * recompositions a drag runs through.
+   * Built once from [colors] and shared by every handle that falls back to it, across every recomposition a drag runs
+   * through.
    */
   public val Palette: OverlayHandleColors = colors()
 

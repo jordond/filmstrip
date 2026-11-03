@@ -34,7 +34,7 @@ import kotlin.test.fail
 /**
  * The path of a flat [color] photo of [size], written under [name] the first time it is asked for.
  *
- * The name carries what the photo holds, so a run that changed the size or the colour never reads
+ * The name carries what the photo holds, so a run that changed the size or the color never reads
  * back the file an earlier one wrote. The bytes are written beside the name and moved onto it, so a
  * run that dies part way through leaves nothing a later one would take for a whole PNG.
  */
@@ -61,7 +61,7 @@ internal fun photoFixture(
  * Writes a flat [color] photo of [size] to [path] and answers the path.
  *
  * Flat, so a frame drawn from the photo is told from a frame drawn from a generated video fixture
- * by its colour alone, wherever in the frame it is sampled.
+ * by its color alone, wherever in the frame it is sampled.
  */
 @OptIn(ExperimentalForeignApi::class)
 private fun writePhoto(
@@ -69,7 +69,7 @@ private fun writePhoto(
   size: Size,
   color: Triple<Int, Int, Int>,
 ): String {
-  val space = CGColorSpaceCreateDeviceRGB() ?: fail("Core Graphics refused a device RGB colour space")
+  val space = CGColorSpaceCreateDeviceRGB() ?: fail("Core Graphics refused a device RGB color space")
   val context =
     CGBitmapContextCreate(
       data = null,

@@ -9,7 +9,9 @@ import dev.jordond.filmstrip.FilmstripContext.MISSING_CONTEXT
  * App Startup installs it before `Application.onCreate` through [FilmstripInitializer]. An app that
  * disables App Startup installs it by building with `Filmstrip(context)` instead. Filmstrip's
  * Android backends read it, and each reports [MISSING_CONTEXT] as a typed failure when nothing
- * installed one.
+ * installed one. Previewing, rendering a frame and exporting always need it. Probing and planning
+ * need it only for a uri or an in-memory video, and writing a still only for a `content://` uri.
+ * A still written to a temporary sink lands in the system temporary directory without one.
  */
 @InternalFilmstripApi
 public object FilmstripContext {
@@ -36,4 +38,14 @@ public object FilmstripContext {
    * The installed context, or null when nothing installed one.
    */
   public fun get(): Context? = applicationContext
+
+  /**
+   * Forgets the installed context, as if nothing had installed one.
+   *
+   * Tests call this to cover the paths that run without a context. Nothing else clears it, so a
+   * process that installed one keeps it.
+   */
+  public fun clear() {
+    applicationContext = null
+  }
 }

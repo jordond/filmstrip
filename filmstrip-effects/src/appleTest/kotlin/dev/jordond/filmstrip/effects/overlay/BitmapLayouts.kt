@@ -1,5 +1,7 @@
 package dev.jordond.filmstrip.effects.overlay
 
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.reinterpret
@@ -19,18 +21,17 @@ import platform.CoreGraphics.CGImageRef
 import platform.CoreGraphics.kCGBitmapByteOrder16Little
 import platform.CoreGraphics.kCGBitmapByteOrder32Little
 import platform.CoreGraphics.kCGBitmapFloatComponents
-import kotlin.test.assertNotNull
 
 /**
  * The stored layouts the overlay raster's bitmap route is checked against, each a texel repeated over a small image
- * with the straight colour it holds.
+ * with the straight color it holds.
  *
  * Tests import these by name.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal object BitmapLayouts {
   /**
-   * One stored layout, [texel] repeated over a four by two image, and the straight colour it holds from 0 to 1.
+   * One stored layout, [texel] repeated over a four by two image, and the straight color it holds from 0 to 1.
    */
   class Layout(
     val name: String,
@@ -41,14 +42,14 @@ internal object BitmapLayouts {
     val straight: List<Double> = emptyList(),
   ) {
     /**
-     * The image this layout stores, its samples read in [colours], or in device grey or RGB when that is null.
+     * The image this layout stores, its samples read in [colors], or in device grey or RGB when that is null.
      */
-    fun image(colours: CGColorSpaceRef? = null): CGImageRef {
+    fun image(colors: CGColorSpaceRef? = null): CGImageRef {
       val bytes = ByteArray(texel.size * WIDTH * HEIGHT) { texel[it % texel.size] }
       val data = bytes.usePinned { CFDataCreate(null, it.addressOf(0).reinterpret(), bytes.size.toLong()) }
       val provider = CGDataProviderCreateWithCFData(data)
       CFRelease(data)
-      val space = colours ?: if (grey) CGColorSpaceCreateDeviceGray() else CGColorSpaceCreateDeviceRGB()
+      val space = colors ?: if (grey) CGColorSpaceCreateDeviceGray() else CGColorSpaceCreateDeviceRGB()
       val image =
         CGImageCreate(
           WIDTH.toULong(),
@@ -65,7 +66,7 @@ internal object BitmapLayouts {
         )
       CGColorSpaceRelease(space)
       CGDataProviderRelease(provider)
-      return assertNotNull(image, "Core Graphics made no $name image")
+      return withClue("Core Graphics made no $name image") { image.shouldNotBeNull() }
     }
   }
 
@@ -76,9 +77,9 @@ internal object BitmapLayouts {
   private const val MAX_SAMPLE = 65535.0
 
   fun premultiplied(
-    colour: Int,
+    color: Int,
     alpha: Int,
-  ): Double = colour.toDouble() / alpha
+  ): Double = color.toDouble() / alpha
 
   fun bytes(vararg values: Int): ByteArray = ByteArray(values.size) { values[it].toByte() }
 
@@ -204,7 +205,7 @@ internal object BitmapLayouts {
         little32(0.375f, 0.25f, 0.125f, 0.5f),
         listOf(0.75, 0.5, 0.25, 0.5),
       ),
-      // A colour with no alpha under it, which divides to more than 1 unless the read writes it black.
+      // A color with no alpha under it, which divides to more than 1 unless the read writes it black.
       Layout(
         "RGBA floats premultiplied transparent",
         false,

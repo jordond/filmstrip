@@ -8,9 +8,12 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.transform.internal.geometry.derivesFromFrame
+import dev.jordond.filmstrip.transform.internal.resolve.paintsFillAfterEffects
+import dev.jordond.filmstrip.transform.internal.resolve.showsFill
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.test.assertIs
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -33,7 +36,7 @@ class FillPlanTest {
   @Test
   fun `showsFill is true for a contain fit`() {
     val resolved =
-      fixture.resolve(composition(fixture.clip(effects = listOf(Scale(targetHeight = 480, fit = Fit.Contain)))))
+      fixture.resolve(composition(fixture.clip(effects = listOf(Scale(heightPx = 480, fit = Fit.Contain)))))
 
     resolved.showsFill shouldBe true
   }
@@ -41,7 +44,7 @@ class FillPlanTest {
   @Test
   fun `showsFill is false for a crop fit`() {
     val resolved =
-      fixture.resolve(composition(fixture.clip(effects = listOf(Scale(targetHeight = 480, fit = Fit.Crop)))))
+      fixture.resolve(composition(fixture.clip(effects = listOf(Scale(heightPx = 480, fit = Fit.Crop)))))
 
     resolved.showsFill shouldBe false
   }
@@ -49,7 +52,7 @@ class FillPlanTest {
   @Test
   fun `showsFill is false for a stretch fit`() {
     val resolved =
-      fixture.resolve(composition(fixture.clip(effects = listOf(Scale(targetHeight = 480, fit = Fit.Stretch)))))
+      fixture.resolve(composition(fixture.clip(effects = listOf(Scale(heightPx = 480, fit = Fit.Stretch)))))
 
     resolved.showsFill shouldBe false
   }
@@ -62,7 +65,7 @@ class FillPlanTest {
   }
 
   @Test
-  fun `paintsFillAfterEffects holds back only a colour a bar or a gap would otherwise show`() {
+  fun `paintsFillAfterEffects holds back only a color a bar or a gap would otherwise show`() {
     val red = Fill.Solid(0xFFFF0000.toInt())
 
     fixture.resolve(containComposition(Fit.Contain).withFill(red)).paintsFillAfterEffects shouldBe true
@@ -97,7 +100,7 @@ class FillPlanTest {
         device = fixture.device(hdr = true),
       )
 
-    assertIs<Verdict.Capable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
   }
 
   @Test

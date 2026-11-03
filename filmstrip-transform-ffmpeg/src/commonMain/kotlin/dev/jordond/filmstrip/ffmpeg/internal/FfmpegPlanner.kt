@@ -1,44 +1,35 @@
 package dev.jordond.filmstrip.ffmpeg.internal
 
-import dev.jordond.filmstrip.capability.DeviceCapabilities
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.effect.EffectResolver
-import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
-import dev.jordond.filmstrip.export.ExportError
-import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.CODEC_LADDER
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.GraphLowering
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.ToneMapRoute
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.hdrPixelFormatFor
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.toneMapRoute
+import dev.jordond.filmstrip.ffmpeg.internal.picture.decodingOverlayPictures
+import dev.jordond.filmstrip.ffmpeg.internal.process.READS_FILES
+import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
+import dev.jordond.filmstrip.ffmpeg.internal.process.readablePath
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
-import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
-import dev.jordond.filmstrip.media.filePathOf
 import dev.jordond.filmstrip.transform.internal.ExportPlanner
-import dev.jordond.filmstrip.transform.internal.Mp4Copy
-import dev.jordond.filmstrip.transform.internal.NegotiatedComposition
-import dev.jordond.filmstrip.transform.internal.NegotiatedExport
-import dev.jordond.filmstrip.transform.internal.backgroundGain
-import dev.jordond.filmstrip.transform.internal.showsFill
-import dev.jordond.filmstrip.transform.internal.sigmaFor
-import dev.jordond.filmstrip.transform.internal.stillUnsupportedMessage
-import kotlin.math.roundToInt
-import kotlin.time.Duration
-
-/**
- * What a plan resolved to: what the shared negotiator settled on, and the graph that runs when it is
- * capable.
- */
-internal class Lowering(
-  val export: NegotiatedExport,
-  val invocation: Invocation?,
-) {
-  val verdict: Verdict get() = export.verdict
-}
+import dev.jordond.filmstrip.transform.internal.LoweredExport
+import dev.jordond.filmstrip.transform.internal.copy.Mp4Copy
+import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
+import dev.jordond.filmstrip.transform.internal.negotiation.Ask
+import dev.jordond.filmstrip.transform.internal.refusedLowering
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.showsFill
+import dev.jordond.filmstrip.transform.internal.resolve.stillUnsupportedMessage
 
 /**
  * Turns a composition into a filter graph and a verdict.
@@ -49,7 +40,7 @@ internal class Lowering(
  *
  * What stays here is the refusal the negotiator cannot make, since ffmpeg opens files and a source
  * that names none is unreadable before anything is planned, and the lowering from a
- * [NegotiatedComposition] onto the graph [GraphLowering] writes.
+ * [ResolvedComposition] onto the graph [GraphLowering] writes.
  */
 internal class FfmpegPlanner(
   private val toolchain: Toolchain,
@@ -72,9 +63,9 @@ internal class FfmpegPlanner(
       },
       ladder = CODEC_LADDER,
       noteOf = FfmpegParity::noteFor,
-      supportsPassthrough = true,
+      supportsCopy = true,
       // Every export here writes mp4, so a copy is allowed for exactly what mp4 carries.
-      canCopy = { info -> Mp4Copy.accepts(info) },
+      muxerAccepts = { info -> Mp4Copy.accepts(info) },
       // A build needs zscale (--enable-libzimg) or libplacebo to bring a grade down to SDR.
       // Neither ships in stock Homebrew ffmpeg, so an HDR source is refused there until one of
       // them is installed.
@@ -85,22 +76,16 @@ internal class FfmpegPlanner(
     )
 
   /**
-   * @param openings Where a stream copy of each source could open, which the engine reads with
-   *   [FfmpegRuntime.syncSampleAtOrBefore] the way it reads [infos]. The negotiator decides from
-   *   these whether the copy is reachable and where the window then opens.
-   * @param layoutSize The output frame text is laid out against, for a caller planning a frame
-   *   smaller than the one an export writes. Null lays text out against the frame [spec] settles
-   *   on, which is what an export does.
+   * Negotiates [composition] against [ask] and lowers what it settles on onto a filter graph.
+   *
+   * The engine reads the openings in [ask] with [FfmpegRuntime.syncSampleAtOrBefore], and the negotiator decides from
+   * them whether the copy is reachable and where the window then opens.
    */
   fun lower(
     composition: EditComposition,
-    spec: ExportSpec,
-    device: DeviceCapabilities,
-    infos: Map<MediaSource, MediaInfo>,
-    openings: Map<MediaSource, Duration> = emptyMap(),
+    ask: Ask,
     dropped: Set<String> = emptySet(),
-    layoutSize: Size? = null,
-  ): Lowering {
+  ): LoweredExport<Invocation> {
     composition.tracks.flatMap { it.clips }.forEach { clip ->
       // A still is refused by kind, not by asking readablePath and guessing why it came back
       // null: it names a real file, and the actual reason is that this backend has no stills
@@ -109,8 +94,8 @@ internal class FfmpegPlanner(
       readablePath(clip.source) ?: return unreadable(clip.source)
     }
 
-    val export = planner.negotiate(composition, spec, device, infos, openings, dropped, layoutSize)
-    val negotiated = export.composition ?: return Lowering(export, null)
+    val export = planner.negotiate(composition, ask, dropped)
+    val negotiated = export.composition ?: return LoweredExport(export, null)
     val fill = negotiated.fill
     if (fill is Fill.Blurred && negotiated.showsFill) {
       if (!toolchain.hasFilter("gblur")) return unsupportedBlur("gblur")
@@ -122,7 +107,7 @@ internal class FfmpegPlanner(
         return unsupportedBlur("colorchannelmixer")
       }
     }
-    return Lowering(
+    return LoweredExport(
       export,
       GraphLowering(
         negotiated = negotiated,
@@ -132,264 +117,18 @@ internal class FfmpegPlanner(
     )
   }
 
-  private fun unreadable(source: MediaSource): Lowering =
-    incapable(ExportError.SourceUnreadable(source.describe(), READS_FILES))
+  private fun unreadable(source: MediaSource): LoweredExport<Nothing> =
+    refusedLowering(FilmstripError.SourceUnreadable(source.describe(), READS_FILES))
 
-  private fun stillUnsupported(): Lowering =
-    incapable(ExportError.SourceNotExportable(stillUnsupportedMessage("ffmpeg")))
+  private fun stillUnsupported(): LoweredExport<Nothing> =
+    refusedLowering(FilmstripError.SourceNotExportable(stillUnsupportedMessage("ffmpeg")))
 
-  private fun unsupportedBlur(filter: String): Lowering =
-    incapable(ExportError.InvalidComposition(missingBlurFilter(filter)))
-
-  private fun incapable(error: ExportError): Lowering =
-    Lowering(NegotiatedExport(Verdict.Incapable(listOf(error), null), null), null)
+  private fun unsupportedBlur(filter: String): LoweredExport<Nothing> =
+    refusedLowering(FilmstripError.InvalidComposition(missingBlurFilter(filter)))
 }
-
-/**
- * The file a source names, or null when this backend cannot read it.
- *
- * ffmpeg reads files, so a path is a path and a `file:` URI is the same file spelled with a scheme,
- * percent-decoded back into a path. Nothing else has a desktop meaning, and in-memory bytes have to
- * be written down first.
- */
-internal const val READS_FILES: String =
-  "This backend reads files. Use a path or a file:// URI; in-memory bytes have to be written down " +
-    "before anything here can open them."
 
 internal fun missingBlurFilter(filter: String): String =
   "This ffmpeg build has no $filter filter, so it cannot lower Fill.Blurred. Use Fill.Solid instead."
-
-internal fun readablePath(source: MediaSource): String? =
-  when (source) {
-    is MediaSource.Path -> source.path
-    is MediaSource.Uri -> filePathOf(source.uri) ?: source.uri.takeIf { !it.contains("://") }
-    is MediaSource.Bytes -> null
-    // A still names a file, but not one this backend reads as a clip, and answering with its path
-    // would have ffprobe report the file's own zero duration over the one the source declares.
-    is MediaSource.Image -> null
-  }
-
-/**
- * Which filter chain this build can bring an HDR grade down to SDR with.
- *
- * [Zscale] undoes the transfer into linear light, runs the curve, then writes BT.709 back out. It
- * needs `zscale`, which wants ffmpeg built with `--enable-libzimg`. [Libplacebo] does the same job
- * in one node and needs `libplacebo`, which reads PQ and HLG natively and ships in more static and
- * distro builds than zimg does.
- */
-internal enum class ToneMapRoute {
-  Zscale,
-  Libplacebo,
-}
-
-/**
- * The tone-map route this toolchain can take, or null when it has neither filter.
- *
- * Prefers [ToneMapRoute.Zscale] when a build carries both, since that is the chain this backend has
- * tested and pinned.
- */
-internal fun toneMapRoute(toolchain: Toolchain): ToneMapRoute? =
-  when {
-    toolchain.hasFilter("zscale") -> ToneMapRoute.Zscale
-    toolchain.hasFilter("libplacebo") -> ToneMapRoute.Libplacebo
-    else -> null
-  }
-
-/**
- * The grade stage, run on a clip that carries HDR before anything else touches it.
- *
- * On [ToneMapRoute.Zscale], linear light is where a tone curve belongs, so the transfer is undone,
- * the curve applied and the result written back out as BT.709. On [ToneMapRoute.Libplacebo], one
- * node does the whole job: it reads the source transfer natively and delivers BT.709 output
- * directly. Either way every resolver downstream is handed BT.709 attributes.
- */
-internal fun toneMapNodes(route: ToneMapRoute): List<FilterNode> =
-  when (route) {
-    ToneMapRoute.Zscale -> {
-      listOf(
-        FilterNode("zscale", "transfer" to "linear", "npl" to "100"),
-        FilterNode("tonemap", "tonemap" to "hable", "desat" to "0"),
-        FilterNode("zscale", "primaries" to "bt709", "transfer" to "bt709", "matrix" to "bt709"),
-      )
-    }
-    ToneMapRoute.Libplacebo -> {
-      listOf(
-        FilterNode(
-          "libplacebo",
-          "tonemapping" to "bt.2390",
-          "colorspace" to "bt709",
-          "color_primaries" to "bt709",
-          "color_trc" to "bt709",
-          "range" to "tv",
-        ),
-      )
-    }
-  }
-
-/**
- * The size stage, pinned to the resolved output frame.
- *
- * Not an effect and not in `ExportPlan.effectOrder`: it is what every clip carries so `concat` sees
- * uniform inputs, and it is why the scale effect emits nothing of its own.
- *
- * [padColor] is the fill's own colour, or transparent while that colour is waiting for composition
- * effects to run before it is painted in. The caller decides which. [slots] is how many frames the
- * clip is cut to, as [trailingNodes] takes it.
- */
-internal fun tailNodes(
-  outputSize: Size,
-  fit: Fit,
-  padColor: String,
-  frameRate: Int,
-  pixelFormat: String,
-  slots: Long,
-): List<FilterNode> =
-  buildList {
-    val width = outputSize.width.toString()
-    val height = outputSize.height.toString()
-    when (fit) {
-      Fit.Contain -> {
-        add(FilterNode("scale", "w" to width, "h" to height, "force_original_aspect_ratio" to "decrease"))
-        add(
-          FilterNode(
-            "pad",
-            "w" to width,
-            "h" to height,
-            "x" to "(ow-iw)/2",
-            "y" to "(oh-ih)/2",
-            "color" to padColor,
-          ),
-        )
-      }
-      Fit.Crop -> {
-        add(FilterNode("scale", "w" to width, "h" to height, "force_original_aspect_ratio" to "increase"))
-        add(FilterNode("crop", "w" to width, "h" to height))
-      }
-      Fit.Stretch -> {
-        add(FilterNode("scale", "w" to width, "h" to height))
-      }
-    }
-    addAll(trailingNodes(frameRate, pixelFormat, slots))
-  }
-
-/**
- * The sharp half of a blurred letterbox: the frame scaled down to fit inside the output, with no
- * crop and no pad of its own.
- *
- * Centring it onto the output is left to the overlay that reads this alongside
- * [coverBlurNodes]'s background.
- */
-internal fun containNodes(outputSize: Size): List<FilterNode> =
-  listOf(
-    FilterNode(
-      "scale",
-      "w" to outputSize.width.toString(),
-      "h" to outputSize.height.toString(),
-      "force_original_aspect_ratio" to "decrease",
-    ),
-  )
-
-/**
- * The background half of a blurred letterbox.
- *
- * The frame is scaled up until it covers the output, centre-cropped to that size, then blurred at
- * [fill]'s radius. A non-zero [Fill.Blurred.dim] darkens the result afterward, as a gain on the
- * colour channels rather than an offset, so it never shifts hue.
- */
-internal fun coverBlurNodes(
-  outputSize: Size,
-  fill: Fill.Blurred,
-): List<FilterNode> =
-  buildList {
-    val width = outputSize.width.toString()
-    val height = outputSize.height.toString()
-    add(FilterNode("scale", "w" to width, "h" to height, "force_original_aspect_ratio" to "increase"))
-    add(FilterNode("crop", "w" to width, "h" to height))
-    add(FilterNode("gblur", "sigma" to blurSigma(fill, outputSize).toString()))
-    val gain = fill.backgroundGain
-    if (gain != 1f) {
-      add(FilterNode("colorchannelmixer", "rr" to gain.toString(), "gg" to gain.toString(), "bb" to gain.toString()))
-    }
-  }
-
-// 1024 is gblur's own ceiling on sigma, not a limit filmstrip picked.
-private fun blurSigma(
-  fill: Fill.Blurred,
-  outputSize: Size,
-): Int = fill.sigmaFor(outputSize).roundToInt().coerceIn(1, 1024)
-
-/**
- * Centres the sharp foreground over the blurred background.
- *
- * ffmpeg's `overlay` reads its first input as the base and its second as what is drawn on top, so
- * the blurred pad has to be listed before the sharp one wherever this is chained.
- */
-internal fun overlayNodes(): List<FilterNode> = listOf(overlayNode("x" to "(W-w)/2", "y" to "(H-h)/2"))
-
-/**
- * An `overlay` that keeps whatever bit depth its inputs arrived at.
- *
- * The filter's own `format` defaults to `yuv420`, which is 8-bit, so a 10-bit frame reaching any
- * overlay is taken down and back up again on its way to the encoder, and nothing about the exported
- * file says it happened. Every overlay this backend writes is built here so the option cannot be
- * left at its default in one place and set in another.
- */
-internal fun overlayNode(vararg arguments: Pair<String, String>): FilterNode =
-  FilterNode("overlay", *arguments, "format" to "auto")
-
-/**
- * The stage every tail ends on, blurred letterbox or not.
- *
- * Pins the sample aspect, the frame rate and the pixel format so `concat` sees uniform inputs
- * across every clip, and cuts the clip to exactly [slots] frames, the output slots its span covers.
- * The clip's last frame is cloned ahead of the cut, so a span whose end runs past the source's last
- * frame still has a frame for every slot it covers. A branch that ends on its last frame's own time
- * has that end moved a slot on before `fps` reads it, so the frame is written rather than dropped.
- * [pixelFormat] is the encoder's own 10-bit format for an HDR export, or `yuv420p` for everything
- * else.
- */
-internal fun trailingNodes(
-  frameRate: Int,
-  pixelFormat: String,
-  slots: Long,
-): List<FilterNode> =
-  listOf(
-    // scale does not reset the sample aspect ratio and concat refuses to join clips whose sample
-    // aspects differ, so this is not cosmetic.
-    FilterNode("setsar", "r" to "1"),
-    // ffmpeg 6.1.1 ends an overlay on its last frame's own time rather than after it, and fps drops
-    // the frame its input ends on. setpts evaluates the end too, and only there does PTS equal the
-    // frame before it, so that end moves a slot on and every frame keeps its time. Builds that end
-    // after the frame pass through unchanged.
-    FilterNode("setpts", "expr" to "PTS+eq(PTS,PREV_INPTS)/($frameRate*TB)"),
-    FilterNode("fps", "fps" to frameRate.toString()),
-    FilterNode("tpad", "stop_mode" to "clone", "stop" to HELD_FRAMES.toString()),
-    FilterNode("trim", "end_frame" to slots.toString()),
-    FilterNode("setpts", "expr" to "PTS-STARTPTS"),
-    FilterNode("format", "pix_fmts" to pixelFormat),
-  )
-
-// ffmpeg's limit rather than the grid's: a snapped end runs at most half a slot past the clip's own
-// end, and fps drops the frame it is part way through when its input ends, so two clones cover the
-// furthest a clip's frames can fall short of its slots. The cut after them drops whatever is spare.
-private const val HELD_FRAMES = 2
-
-/**
- * The alpha-carrying format at [pixelFormat]'s own bit depth and chroma layout, for a clip tail
- * that has to pad or composite transparently rather than write an opaque frame outright.
- *
- * `p010le` and `yuv420p10le` are both 10-bit 4:2:0, one packed and one planar, and both convert
- * losslessly to and from the same planar alpha format, `yuva420p10le`. The trailing
- * `format=<pixelFormat>` after the overlay converts back to whichever one the encoder actually
- * wants. Fails loudly on a format this has no equivalent for, so a new HDR format shows up as a
- * build failure instead of a black bar nobody notices.
- */
-internal fun alphaPixelFormat(pixelFormat: String): String =
-  when (pixelFormat) {
-    "yuv420p" -> "yuva420p"
-    "yuv420p10le", "p010le" -> "yuva420p10le"
-    else -> error("No alpha pixel format known for $pixelFormat.")
-  }
 
 private fun renderCapabilities(
   toolchain: Toolchain,

@@ -1,16 +1,17 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.color.authoredHdrNits
+import dev.jordond.filmstrip.color.signalFromNits
+import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.authoredHdrNits
-import dev.jordond.filmstrip.media.signalFromNits
-import dev.jordond.filmstrip.media.tenBitCodesFromSignal
 import dev.jordond.filmstrip.test.HdrOverlayCells
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.test.runTest
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 
 /**
@@ -37,7 +38,7 @@ class AppleHdrFillTest {
     }
 
   // White is the end of the range, where reading the authored fraction as light and reading it
-  // through the sRGB curve agree. A colour in the middle is where the two part. The signal check is
+  // through the sRGB curve agree. A color in the middle is where the two part. The signal check is
   // what tells a right fill from a wrong one on both transfers. Core Image reads an HLG bar bright,
   // which AppleHdrFillCoreImageTest pins where that range is measured.
   @Test
@@ -58,10 +59,9 @@ class AppleHdrFillTest {
     val expected = tenBitCodesFromSignal(transfer.signalFromNits(authoredHdrNits(color))).toList()
     val read = frame.codesAt(FILL_CENTRE, FILL_BAR)
 
-    assertTrue(
-      expected.indices.all { abs(read[it] - expected[it]) <= FILL_CODE_TOLERANCE },
-      "the $transfer bar carried codes $read and the shared signal asks for $expected",
-    )
+    withClue("the $transfer bar carried codes $read and the shared signal asks for $expected") {
+      expected.indices.all { abs(read[it] - expected[it]) <= FILL_CODE_TOLERANCE }.shouldBeTrue()
+    }
   }
 
   /**
@@ -77,11 +77,12 @@ class AppleHdrFillTest {
   ) {
     val off = frame.lightOff(color)
 
-    assertTrue(
-      off.all { it in drift },
+    withClue(
       "the $transfer bar read ${frame.nitsAt(FILL_CENTRE, FILL_BAR)} nits and the shared fill asks for " +
         "${authoredHdrNits(color).toList()}, off by $off where $drift is allowed",
-    )
+    ) {
+      off.all { it in drift }.shouldBeTrue()
+    }
   }
 
   private companion object {

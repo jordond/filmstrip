@@ -22,11 +22,11 @@ import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.transform.internal.ResolveResult
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -50,29 +50,34 @@ class BrowserResolveTest {
       val recorded = RecordingResolver()
       val engine = engineOf(recorded)
 
-      val natural = assertIs<ResolveResult.Resolved>(engine.resolve(composition, ExportSpec()))
+      val natural = engine.resolve(composition, ExportSpec()).shouldBeInstanceOf<ResolveResult.Resolved>()
       val naturalSize = natural.composition.output.size
-      assertEquals(NATURAL, naturalSize)
+      naturalSize shouldBe NATURAL
 
       val cap = (naturalSize.height * CAP_FRACTION).toInt()
       val capped =
-        assertIs<ResolveResult.Resolved>(engine.resolve(composition, ExportSpec(targetHeight = cap), naturalSize))
+        engine
+          .resolve(
+            composition,
+            ExportSpec(heightPx = cap),
+            naturalSize,
+          ).shouldBeInstanceOf<ResolveResult.Resolved>()
       val cappedSize = capped.composition.output.size
 
-      assertEquals(cap, cappedSize.height)
-      assertTrue(cappedSize.width < naturalSize.width, "the capped frame is $cappedSize")
-      assertEquals(naturalSize, capped.composition.layoutSize)
+      cappedSize.height shouldBe cap
+      withClue("the capped frame is $cappedSize") { (cappedSize.width < naturalSize.width) shouldBe true }
+      capped.composition.layoutSize shouldBe naturalSize
 
       // The natural frame is settled before the cap is applied to it, so the cap's own lowering is
       // the second of the two.
-      assertEquals(2, recorded.seen.size)
+      recorded.seen.size shouldBe 2
       val uncapped = recorded.seen.first()
-      assertEquals(naturalSize, uncapped.inputSize)
-      assertEquals(naturalSize, uncapped.layoutSize)
+      uncapped.inputSize shouldBe naturalSize
+      uncapped.layoutSize shouldBe naturalSize
 
       val underCap = recorded.seen.last()
-      assertEquals(cappedSize, underCap.inputSize)
-      assertEquals(naturalSize, underCap.layoutSize)
+      underCap.inputSize shouldBe cappedSize
+      underCap.layoutSize shouldBe naturalSize
     }
 
   @Test
@@ -80,24 +85,24 @@ class BrowserResolveTest {
     runTest {
       val prober = CountingProber(info())
       val engine =
-        browserExportEngine(
-          components = ComponentRegistry.Builder().add(BuiltInEffectResolver()).build(),
+        webCodecsExportEngine(
+          components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(),
           prober = prober,
         )
 
-      assertIs<ResolveResult.Resolved>(engine.resolve(composition, ExportSpec()))
-      assertIs<ResolveResult.Resolved>(engine.resolve(composition, ExportSpec(targetHeight = CAPPED_HEIGHT)))
+      engine.resolve(composition, ExportSpec()).shouldBeInstanceOf<ResolveResult.Resolved>()
+      engine.resolve(composition, ExportSpec(heightPx = CAPPED_HEIGHT)).shouldBeInstanceOf<ResolveResult.Resolved>()
 
-      assertEquals(1, prober.calls)
+      prober.calls shouldBe 1
     }
 
   private fun engineOf(recorded: EffectResolver) =
-    browserExportEngine(
+    webCodecsExportEngine(
       components =
         ComponentRegistry
           .Builder()
-          .add(BuiltInEffectResolver())
-          .add(recorded)
+          .addEffectResolver(BuiltInEffectResolver())
+          .addEffectResolver(recorded)
           .build(),
       prober = CountingProber(info()),
     )

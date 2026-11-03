@@ -4,16 +4,19 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.test.LoopingCases
+import dev.jordond.filmstrip.transform.internal.negotiation.Ask
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -32,7 +35,9 @@ class HeldTailTest {
     laid.heldTail shouldBe (outputSlotOf(1.seconds, GRID_RATE) until outputSlotOf(5.seconds, GRID_RATE))
     laid.videoSlots shouldBe outputSlotOf(5.seconds, GRID_RATE)
     laid.heldTail.last + 1 shouldBe laid.videoSlots
-    assertTrue(outputSlotOf(3.seconds, GRID_RATE) in laid.heldTail, "the middle of the bed is not held")
+    withClue("the middle of the bed is not held") {
+      (outputSlotOf(3.seconds, GRID_RATE) in laid.heldTail).shouldBeTrue()
+    }
   }
 
   // At 25 fps the primary ends a quarter of a slot past slot 25 and the bed a sixth of one past slot 125, so a tail
@@ -61,9 +66,11 @@ class HeldTailTest {
     val owners = listOf(lead) + laidPrimary.clips.map { outputSlotsOf(it.span, GRID_RATE) } + listOf(laid.heldTail)
 
     (0L until laid.videoSlots).forEach { slot ->
-      assertEquals(1, owners.count { slot in it }, "slot $slot is not covered exactly once")
+      withClue("slot $slot is not covered exactly once") { owners.count { slot in it } shouldBe 1 }
     }
-    assertTrue(outputSlotOf(3.seconds, GRID_RATE) in laid.heldTail, "the middle of the bed is not held")
+    withClue("the middle of the bed is not held") {
+      (outputSlotOf(3.seconds, GRID_RATE) in laid.heldTail).shouldBeTrue()
+    }
   }
 
   @Test
@@ -81,7 +88,7 @@ class HeldTailTest {
     val looping = Track(listOf(fixture.audioOnlyClip(3.seconds)), content = TrackContent.Audio, looping = true)
     val laid = negotiate(EditComposition(listOf(Track(listOf(fixture.clip(duration = 1.seconds))), looping)))
 
-    assertTrue(laid.heldTail.isEmpty(), "a looping bed left ${laid.heldTail}")
+    withClue("a looping bed left ${laid.heldTail}") { laid.heldTail.isEmpty().shouldBeTrue() }
     laid.videoSlots shouldBe outputSlotOf(1.seconds, GRID_RATE)
   }
 
@@ -93,7 +100,7 @@ class HeldTailTest {
     val underlay = bed(LoopingCases.UNDERLAY_RUN)
     val laid = negotiate(EditComposition(listOf(primary, underlay)))
 
-    assertTrue(laid.heldTail.isEmpty(), "a looping primary left ${laid.heldTail}")
+    withClue("a looping primary left ${laid.heldTail}") { laid.heldTail.isEmpty().shouldBeTrue() }
     laid.videoSlots shouldBe outputSlotOf(LoopingCases.UNDERLAY_RUN, GRID_RATE)
     laid.videoSlots shouldBe slotsCoveredBy(laid.primary)
   }
@@ -101,10 +108,10 @@ class HeldTailTest {
   @Test
   fun `a copy plan leaves no tail`() {
     val laid = negotiate(EditComposition(listOf(Track(listOf(fixture.clip())))), ExportSpec())
-    val frameRate = assertNotNull(laid.output.frameRate)
+    val frameRate = laid.output.frameRate
 
-    laid.path shouldBe ExportPath.Transmux
-    assertTrue(laid.heldTail.isEmpty(), "a copy left ${laid.heldTail}")
+    laid.path shouldBe ExportPath.Copy
+    withClue("a copy left ${laid.heldTail}") { laid.heldTail.isEmpty().shouldBeTrue() }
     laid.videoSlots shouldBe outputSlotOf(laid.duration, frameRate)
   }
 
@@ -113,7 +120,9 @@ class HeldTailTest {
     val laid = negotiate(underBed(fixture.imageClip(duration = 1.seconds), bed = 3.seconds))
 
     laid.heldTail shouldBe (outputSlotOf(1.seconds, GRID_RATE) until outputSlotOf(3.seconds, GRID_RATE))
-    assertTrue(outputSlotOf(2.seconds, GRID_RATE) in laid.heldTail, "the middle of the bed is not held")
+    withClue("the middle of the bed is not held") {
+      (outputSlotOf(2.seconds, GRID_RATE) in laid.heldTail).shouldBeTrue()
+    }
   }
 
   @Test
@@ -135,17 +144,14 @@ class HeldTailTest {
       )
     val laid = negotiate(EditComposition(listOf(primary, bed(1.seconds))))
 
-    assertTrue(laid.heldTail.isEmpty(), "a shorter bed left ${laid.heldTail}")
+    withClue("a shorter bed left ${laid.heldTail}") { laid.heldTail.isEmpty().shouldBeTrue() }
     laid.videoSlots shouldBe outputSlotOf(laid.primary.start, GRID_RATE) + slotsCoveredBy(laid.primary)
   }
 
   @Test
-  fun `a negotiated and a resolved composition read the same tail`() {
+  fun `a negotiated composition reads its tail off the shared functions`() {
     val negotiated = negotiate(underBed(fixture.clip(duration = 1_010.milliseconds), bed = 5_006.milliseconds))
-    val resolved = negotiated.toResolvedComposition()
 
-    resolved.heldTail shouldBe negotiated.heldTail
-    resolved.videoSlots shouldBe negotiated.videoSlots
     negotiated.heldTail shouldBe heldTailOf(negotiated.primary, negotiated.duration, GRID_RATE)
     negotiated.videoSlots shouldBe videoSlotsOf(negotiated.duration, GRID_RATE)
   }
@@ -153,14 +159,13 @@ class HeldTailTest {
   private fun negotiate(
     composition: EditComposition,
     spec: ExportSpec = ExportSpec(frameRate = GRID_RATE),
-  ) = assertNotNull(
-    fixture
-      .planner(resolvers = emptyList())
-      .negotiate(composition, spec, fixture.device(), fixture.infos(composition))
-      .composition,
-  )
+  ) = fixture
+    .planner(resolvers = emptyList())
+    .negotiate(composition, Ask(spec, fixture.device(), fixture.infos(composition)))
+    .composition
+    .shouldNotBeNull()
 
-  private val NegotiatedComposition.primary: ResolvedTrack
+  private val ResolvedComposition.primary: ResolvedTrack
     get() = tracks.first()
 
   private fun slotsCoveredBy(track: ResolvedTrack): Long =

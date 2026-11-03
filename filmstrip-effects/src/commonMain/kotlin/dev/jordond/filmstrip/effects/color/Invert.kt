@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 
 /**
- * Turn every colour into its negative.
+ * Turn every color into its negative.
  *
  * Each channel is reflected about mid grey, so black and white trade places and every hue becomes
  * the one opposite it. A partial [amount] moves each channel that fraction of the way towards its
@@ -29,7 +29,7 @@ public class Invert(
 }
 
 /**
- * Invert every colour by [amount], where `1f` is the full negative.
+ * Invert every color by [amount], where `1f` is the full negative.
  */
 public fun EffectsBuilder.invert(amount: Float = 1f): EffectsBuilder = add(Invert(amount))
 

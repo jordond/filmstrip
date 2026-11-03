@@ -22,6 +22,10 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
@@ -30,9 +34,6 @@ import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -42,7 +43,7 @@ import kotlin.time.Duration.Companion.seconds
  * A blurred fill is composited in before the composition's own effects run, so every overlay step
  * works on a frame that already covers the output. These check that a composition overlay still
  * draws into a bar, and that a clip overlay pushed past its clip's edge is cut there instead of
- * moving the clip over. The bar has no colour of its own to predict, so what it should read comes
+ * moving the clip over. The bar has no color of its own to predict, so what it should read comes
  * from the same letterbox exported with no overlay at all.
  */
 @OptIn(ExperimentalForeignApi::class)
@@ -58,12 +59,14 @@ class AppleBlurredFillOverlayTest {
       val plain = letterboxed(portrait, "blur-bar-plain")
       val box = letterboxed(portrait, "blur-bar-overlay", overlay = badge)
       val rect = badge.placedOn(box.size, RASTER).rectOn(box.size)
-      assertTrue(rect.right < box.bar, "the badge reaches ${rect.right}, past the bar at ${box.bar}")
+      withClue("the badge reaches ${rect.right}, past the bar at ${box.bar}") { (rect.right < box.bar).shouldBeTrue() }
 
       val bare = frameOf(plain.path, MIDDLE)
       val drawn = frameOf(box.path, MIDDLE)
       val under = bare.average(rect.middleX, rect.middleY)
-      assertTrue(distance(under, RED) > COLOR_TOLERANCE, "the blurred bar is already $under, so no badge shows on it")
+      withClue("the blurred bar is already $under, so no badge shows on it") {
+        (distance(under, RED) > COLOR_TOLERANCE).shouldBeTrue()
+      }
 
       assertClose(drawn.average(rect.middleX, rect.middleY), RED, "the badge in the blurred bar")
       val below = (rect.bottom + 1f) / 2f
@@ -87,7 +90,9 @@ class AppleBlurredFillOverlayTest {
       val badge =
         ImageOverlay(authored.image, authored.corner, scale = authored.scale, animation = OverlayAnimation { push })
       val rect = placed.animatedBy(push).rectOn(clipFrame)
-      assertTrue(rect.left < 0f && rect.right > 0f, "the badge at $rect does not straddle the clip's edge")
+      withClue("the badge at $rect does not straddle the clip's edge") {
+        (rect.left < 0f && rect.right > 0f).shouldBeTrue()
+      }
 
       val plain = letterboxed(portrait, "blur-clip-plain")
       val box = letterboxed(portrait, "blur-clip-overlay", clipOverlay = badge)
@@ -102,10 +107,12 @@ class AppleBlurredFillOverlayTest {
 
       val slide = -rect.left * box.picture / 2f
       val across = PICTURE_POINTS.map { box.bar + it * box.picture }
-      assertTrue(
-        across.any { distance(bare.average(it, PICTURE_ROW), bare.average(it + slide, PICTURE_ROW)) > COLOR_TOLERANCE },
-        "the picture reads the same $slide further over, so a slid clip would pass",
-      )
+      withClue("the picture reads the same $slide further over, so a slid clip would pass") {
+        across
+          .any {
+            distance(bare.average(it, PICTURE_ROW), bare.average(it + slide, PICTURE_ROW)) > COLOR_TOLERANCE
+          }.shouldBeTrue()
+      }
       across.forEach { x ->
         assertClose(drawn.average(x, PICTURE_ROW), bare.average(x, PICTURE_ROW), "the picture at $x")
       }
@@ -136,7 +143,11 @@ class AppleBlurredFillOverlayTest {
         }
       }
     val output = temporaryPath(name)
-    val size = assertNotNull(exported(composition, output).info.video).displaySize
+    val size =
+      exported(composition, output)
+        .info.video
+        .shouldNotBeNull()
+        .displaySize
     val source = frameOf(portrait)
     return Letterbox(output, size, source.width.toFloat() / source.height * size.height / size.width)
   }
@@ -164,7 +175,7 @@ class AppleBlurredFillOverlayTest {
       val statuses = filmstrip.export(composition, SPEC, MediaSink.of(output)).toList()
       when (val finished = statuses.last()) {
         is ExportStatus.Failure -> error(finished.error.message)
-        else -> assertIs<ExportStatus.Success>(finished)
+        else -> finished.shouldBeInstanceOf<ExportStatus.Success>()
       }
     }
 
@@ -178,7 +189,7 @@ class AppleBlurredFillOverlayTest {
     const val PORTRAIT = "apple_export_portrait.mp4"
     val TIMEOUT = 2.seconds * 60
 
-    val SPEC = ExportSpec(targetHeight = 180)
+    val SPEC = ExportSpec(heightPx = 180)
     val CLIP = 1.seconds
     val MIDDLE = CLIP / 2
     const val CLIP_BADGE_SCALE = 0.5f

@@ -1,37 +1,39 @@
 package dev.jordond.filmstrip.test
 
-import dev.jordond.filmstrip.internal.pictureYcbcrCoding
-import dev.jordond.filmstrip.media.CodestreamSignal
-import dev.jordond.filmstrip.media.UNSPECIFIED_MATRIX_DECODES_AS
-import dev.jordond.filmstrip.media.heifWithExplicitCodestreamColour
+import dev.jordond.filmstrip.color.CodestreamSignal
+import dev.jordond.filmstrip.color.UNSPECIFIED_MATRIX_DECODES_AS
+import dev.jordond.filmstrip.picture.heif.heifWithExplicitCodestreamColor
+import dev.jordond.filmstrip.picture.pictureYcbcrCoding
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
+import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertNotSame
-import kotlin.test.assertSame
 
 /**
  * Rewrites the codestream of every test HEIC to state its `nclx`, then reads the result back through core's own
  * reader, walks its boxes and compares its item data with the original's.
  */
 class HeicCodestreamRewriteTest {
-  private val pictures = ColourPictures.HEICS_WITH_SIGNAL_VARIANTS
+  private val pictures = ColorPictures.HEICS_WITH_SIGNAL_VARIANTS
 
   @Test
   fun everyHeicWithAnNclxStatesItInItsCodestream() {
     for (picture in pictures) {
       val original = picture.bytes()
-      val rewritten = heifWithExplicitCodestreamColour(original).handed
+      val rewritten = heifWithExplicitCodestreamColor(original).handed
       val nclx = picture.nclx
       if (nclx == null) {
         val own = CodestreamSignal(2, 2, UNSPECIFIED_MATRIX_DECODES_AS, picture.vui.fullRange)
-        assertEquals(own, pictureYcbcrCoding(rewritten)?.codestream, "$picture states its own signal")
+        withClue("$picture states its own signal") { pictureYcbcrCoding(rewritten)?.codestream shouldBe own }
         continue
       }
       val coding = pictureYcbcrCoding(rewritten)
-      assertEquals(nclx.signal(), coding?.codestream, "$picture codestream signal")
-      assertEquals(listOf(nclx.matrix, nclx.fullRange), listOf(coding?.matrix, coding?.fullRange), "$picture nclx")
-      assertEquals(mapOf(1 to picture.codestream().toList()), itemData(rewritten), "$picture item data")
+      withClue("$picture codestream signal") { coding?.codestream shouldBe nclx.signal() }
+      withClue("$picture nclx") {
+        listOf(coding?.matrix, coding?.fullRange) shouldBe listOf(nclx.matrix, nclx.fullRange)
+      }
+      withClue("$picture item data") { itemData(rewritten) shouldBe mapOf(1 to picture.codestream().toList()) }
     }
   }
 
@@ -41,7 +43,7 @@ class HeicCodestreamRewriteTest {
     // stating that signal over any of them must give those units back exactly.
     val reference = HevcVui.FullRangeBt709.configuration.hex()
     for (picture in pictures.filter { it.nclx != null }) {
-      val first = heifWithExplicitCodestreamColour(picture.bytes()).handed
+      val first = heifWithExplicitCodestreamColor(picture.bytes()).handed
       val retagged =
         HeifStills.still(
           brand = "heic",
@@ -51,27 +53,27 @@ class HeicCodestreamRewriteTest {
           size = HeicPicture.HEIC_SIZE,
           nclx = CicpTag(1, 13, 1, true),
         )
-      assertContentEquals(reference, hvccPayload(heifWithExplicitCodestreamColour(retagged).handed), "$picture")
+      withClue("$picture") { hvccPayload(heifWithExplicitCodestreamColor(retagged).handed) shouldBe reference }
     }
   }
 
   @Test
   fun aGridRewritesTheHvcCItsTilesShare() {
-    val picture = ColourPictures.HEIC_NCLX_BT709_LIMITED
+    val picture = ColorPictures.HEIC_NCLX_BT709_LIMITED
     val original = grid(picture)
-    val rewritten = heifWithExplicitCodestreamColour(original).handed
-    assertNotSame(original, rewritten)
-    assertEquals(picture.nclx?.signal(), pictureYcbcrCoding(rewritten)?.codestream)
+    val rewritten = heifWithExplicitCodestreamColor(original).handed
+    rewritten shouldNotBeSameInstanceAs original
+    pictureYcbcrCoding(rewritten)?.codestream shouldBe picture.nclx?.signal()
     val tiles = (2..5).associateWith { picture.codestream().toList() }
-    assertEquals(mapOf(1 to GRID.toList()) + tiles, itemData(rewritten))
-    assertEquals(itemData(original), itemData(rewritten))
+    itemData(rewritten) shouldBe mapOf(1 to GRID.toList()) + tiles
+    itemData(rewritten) shouldBe itemData(original)
   }
 
   @Test
   fun aSecondRewriteChangesNothing() {
     for (picture in pictures.filter { it.nclx != null }) {
-      val once = heifWithExplicitCodestreamColour(picture.bytes()).handed
-      assertSame(once, heifWithExplicitCodestreamColour(once).handed, "$picture")
+      val once = heifWithExplicitCodestreamColor(picture.bytes()).handed
+      withClue("$picture") { heifWithExplicitCodestreamColor(once).handed shouldBeSameInstanceAs once }
     }
   }
 
@@ -128,13 +130,13 @@ class HeicCodestreamRewriteTest {
     val children = file.childrenOf(meta, fullBox = true)
     val iloc = children.named("iloc")
     val version = file.uInt8At(iloc.start)
-    assertEquals(listOf(0x44, 0), listOf(file.uInt8At(iloc.start + 4), file.uInt8At(iloc.start + 5)))
+    listOf(file.uInt8At(iloc.start + 4), file.uInt8At(iloc.start + 5)) shouldBe listOf(0x44, 0)
     var at = iloc.start + 8
     return List(file.uInt16At(iloc.start + 6)) {
       val item = file.uInt16At(at)
       val method = if (version == 0) 0 else file.uInt16At(at + 2) and 0xF
       at += if (version == 0) 4 else 6
-      assertEquals(1, file.uInt16At(at), "one extent")
+      withClue("one extent") { file.uInt16At(at) shouldBe 1 }
       val origin = if (method == 1) children.named("idat").start else 0
       val offset = origin + file.int32At(at + 2)
       at += 10

@@ -1,8 +1,8 @@
 package dev.jordond.filmstrip.media
 
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.export.AudioCodec
-import dev.jordond.filmstrip.export.VideoCodec
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 
 /**
  * Reads a platform's own codec spelling into a [TrackCodec].
@@ -17,41 +17,39 @@ import dev.jordond.filmstrip.export.VideoCodec
 public fun trackCodecOf(name: String): TrackCodec = TrackCodec(name = name, kind = name.toCodecKind())
 
 /**
- * The [VideoCodec] a copy of [kind] carries into an output.
+ * The [VideoCodec] a copy of [kind] carries into an output, or null when [kind] is not one [VideoCodec] names.
  *
- * Every video kind a copy is ever permitted to touch has one, since nothing that copies a source
- * allows a kind [VideoCodec] cannot name. Reaching the error means a copy ran on a stream nothing
- * checked first.
+ * Every video kind a copy is ever permitted to touch has one. A null is an audio kind, PCM or a codec filmstrip does
+ * not recognise.
  */
 @InternalFilmstripApi
-public fun videoCodecOf(kind: CodecKind): VideoCodec =
+public fun videoCodecOf(kind: CodecKind): VideoCodec? =
   when (kind) {
     CodecKind.H264 -> VideoCodec.H264
     CodecKind.Hevc -> VideoCodec.Hevc
     CodecKind.Vp8 -> VideoCodec.Vp8
     CodecKind.Vp9 -> VideoCodec.Vp9
     CodecKind.Av1 -> VideoCodec.Av1
-    CodecKind.Aac, CodecKind.Opus, CodecKind.Vorbis -> error("$kind names no video codec.")
-    CodecKind.Flac, CodecKind.Mp3, CodecKind.Pcm, CodecKind.Other -> error("$kind names no video codec.")
+    CodecKind.Aac, CodecKind.Opus, CodecKind.Vorbis -> null
+    CodecKind.Flac, CodecKind.Mp3, CodecKind.Pcm, CodecKind.Other -> null
   }
 
 /**
- * The [AudioCodec] a copy of [kind] carries into an output.
+ * The [AudioCodec] a copy of [kind] carries into an output, or null when [kind] is not one [AudioCodec] names.
  *
- * Every audio kind a copy is ever permitted to touch has one, since nothing that copies a source
- * allows a kind [AudioCodec] cannot name. Reaching the error means a copy ran on a stream nothing
- * checked first.
+ * Every audio kind a copy is ever permitted to touch has one. A null is a video kind, PCM or a codec filmstrip does
+ * not recognise.
  */
 @InternalFilmstripApi
-public fun audioCodecOf(kind: CodecKind): AudioCodec =
+public fun audioCodecOf(kind: CodecKind): AudioCodec? =
   when (kind) {
     CodecKind.Aac -> AudioCodec.Aac
     CodecKind.Opus -> AudioCodec.Opus
     CodecKind.Vorbis -> AudioCodec.Vorbis
     CodecKind.Flac -> AudioCodec.Flac
     CodecKind.Mp3 -> AudioCodec.Mp3
-    CodecKind.H264, CodecKind.Hevc, CodecKind.Vp8 -> error("$kind names no audio codec.")
-    CodecKind.Vp9, CodecKind.Av1, CodecKind.Pcm, CodecKind.Other -> error("$kind names no audio codec.")
+    CodecKind.H264, CodecKind.Hevc, CodecKind.Vp8 -> null
+    CodecKind.Vp9, CodecKind.Av1, CodecKind.Pcm, CodecKind.Other -> null
   }
 
 /**

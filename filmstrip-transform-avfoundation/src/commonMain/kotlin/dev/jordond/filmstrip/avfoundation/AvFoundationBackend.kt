@@ -2,17 +2,17 @@ package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.FilmstripBuilder
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.avfoundation.internal.AvFoundationDriver
+import dev.jordond.filmstrip.avfoundation.internal.export.AvDriver
 import dev.jordond.filmstrip.capability.EffectParity
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.effect.EffectIds
-import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effects.builtInEffects
-import dev.jordond.filmstrip.export.VideoCodec
+import dev.jordond.filmstrip.export.EngineComponents
+import dev.jordond.filmstrip.internal.chainedProber
 import dev.jordond.filmstrip.media.MediaProber
-import dev.jordond.filmstrip.media.chainedProber
-import dev.jordond.filmstrip.transform.internal.Mp4Copy
 import dev.jordond.filmstrip.transform.internal.PlannedExportEngine
+import dev.jordond.filmstrip.transform.internal.copy.Mp4Copy
 
 /**
  * Registers the AVFoundation export backend, so `plan`, `export` and `capabilities` work on Apple
@@ -22,9 +22,8 @@ import dev.jordond.filmstrip.transform.internal.PlannedExportEngine
  */
 public fun FilmstripBuilder.avFoundationBackend(): FilmstripBuilder =
   builtInEffects()
-    .addExportEngineFactory { components ->
-      avFoundationExportEngine(chainedProber(components), components.effectResolvers)
-    }.addBackendInfo(
+    .addExportEngineFactory { components -> avFoundationExportEngine(components) }
+    .addBackendInfo(
       BackendInfo(name = "avfoundation", artifact = "dev.jordond.filmstrip:filmstrip-transform-avfoundation"),
     )
 
@@ -32,34 +31,34 @@ public fun FilmstripBuilder.avFoundationBackend(): FilmstripBuilder =
  * Builds the engine every AVFoundation lowering goes through.
  *
  * The preview calls this too, so a previewed edit and an exported one negotiate against the same
- * codec ladder, the same parity table and the same copy rules rather than against two sets that
- * have to be kept in step.
+ * codec ladder, the same parity table and the same copy rules.
  *
- * @param prober Reads what each source is.
- * @param resolvers Lower an effect spec to something Core Image can run.
+ * @param components The components the owning `Filmstrip` was built with, whose resolvers lower each
+ *   effect spec to something Core Image can run.
+ * @param prober Reads what each source is. The probers in [components] by default.
  * @return An engine that plans, resolves and exports on AVFoundation.
  */
 @InternalFilmstripApi
 public fun avFoundationExportEngine(
-  prober: MediaProber,
-  resolvers: List<EffectResolver>,
+  components: EngineComponents,
+  prober: MediaProber = chainedProber(components),
 ): PlannedExportEngine =
   PlannedExportEngine(
-    backend = AvFoundationDriver(prober),
+    backend = AvDriver(prober),
     prober = prober,
-    resolvers = resolvers,
-    parity = AVFOUNDATION_PARITY,
-    ladder = AVFOUNDATION_LADDER,
+    resolvers = components.effectResolvers,
+    parity = AV_PARITY,
+    ladder = AV_LADDER,
     // AVAssetWriter takes a source track by format hint instead of output settings, so a copy
     // needs no encoder at all.
-    supportsPassthrough = true,
+    supportsCopy = true,
     // Every export here writes AVFileTypeMPEG4, so a copy is allowed for exactly what mp4 carries.
-    canCopy = { info -> Mp4Copy.accepts(info) },
+    muxerAccepts = { info -> Mp4Copy.accepts(info) },
   )
 
-internal val AVFOUNDATION_LADDER: List<VideoCodec> = listOf(VideoCodec.H264, VideoCodec.Hevc)
+internal val AV_LADDER: List<VideoCodec> = listOf(VideoCodec.H264, VideoCodec.Hevc)
 
-private val AVFOUNDATION_PARITY: Map<String, EffectParity> =
+private val AV_PARITY: Map<String, EffectParity> =
   mapOf(
     EffectIds.ROTATE to EffectParity.Exact,
     EffectIds.FLIP to EffectParity.Exact,

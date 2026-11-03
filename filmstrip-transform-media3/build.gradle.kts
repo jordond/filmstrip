@@ -17,7 +17,7 @@ kotlin {
 
       dependencies {
         api(projects.filmstripTransform)
-        api(libs.media3.transformer)
+        implementation(libs.media3.transformer)
       }
     }
 

@@ -1,13 +1,13 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.avfoundation.internal.hdrProbeCodecType
+import dev.jordond.filmstrip.avfoundation.internal.writer.hdrProbeCodecType
 import dev.jordond.filmstrip.capability.VideoEncoderCapability
-import dev.jordond.filmstrip.export.VideoCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.geometry.Size
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.shouldBe
 import platform.CoreMedia.kCMVideoCodecType_HEVC
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
 
 /**
  * The codec-membership decision that picks which encoder gets probed for HDR, kept separate from
@@ -16,15 +16,15 @@ import kotlin.test.assertNull
 class HdrProbeTest {
   @Test
   fun `a device that lists no ladder codec is never probed`() {
-    assertNull(hdrProbeCodecType(listOf(encoder(VideoCodec.H264))))
-    assertNull(hdrProbeCodecType(emptyList()))
+    hdrProbeCodecType(listOf(encoder(VideoCodec.H264))).shouldBeNull()
+    hdrProbeCodecType(emptyList()).shouldBeNull()
   }
 
   @Test
   fun `a device that lists Hevc is probed at its codec type`() {
     val codecType = hdrProbeCodecType(listOf(encoder(VideoCodec.H264), encoder(VideoCodec.Hevc)))
 
-    assertEquals(kCMVideoCodecType_HEVC, codecType)
+    codecType shouldBe kCMVideoCodecType_HEVC
   }
 
   private fun encoder(codec: VideoCodec) =

@@ -4,8 +4,8 @@ import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.inCanonicalOrder
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
 
 /**
  * The ordering guarantee, which is what makes normalised coordinates mean one thing.
@@ -24,10 +24,8 @@ class CanonicalOrderTest {
         spec(EffectIds.SCALE, EffectStage.Geometry),
       )
 
-    assertEquals(
-      listOf(EffectIds.ROTATE, EffectIds.CROP, EffectIds.SCALE, EffectIds.IMAGE_OVERLAY, EffectIds.TEXT_OVERLAY),
-      declared.inCanonicalOrder().map { it.id },
-    )
+    declared.inCanonicalOrder().map { it.id } shouldBe
+      listOf(EffectIds.ROTATE, EffectIds.CROP, EffectIds.SCALE, EffectIds.IMAGE_OVERLAY, EffectIds.TEXT_OVERLAY)
   }
 
   @Test
@@ -45,7 +43,7 @@ class CanonicalOrderTest {
         spec(EffectIds.SCALE, EffectStage.Geometry),
       )
 
-    assertEquals(one.inCanonicalOrder().map { it.id }, other.inCanonicalOrder().map { it.id })
+    other.inCanonicalOrder().map { it.id } shouldBe one.inCanonicalOrder().map { it.id }
   }
 
   @Test
@@ -59,7 +57,7 @@ class CanonicalOrderTest {
         spec(EffectIds.ROTATE, EffectStage.Geometry),
       ).inCanonicalOrder()
 
-    assertEquals(EffectIds.SCALE, ordered.last().id)
+    ordered.last().id shouldBe EffectIds.SCALE
   }
 
   @Test
@@ -73,10 +71,8 @@ class CanonicalOrderTest {
         spec(EffectIds.FLIP, EffectStage.Geometry),
       ).inCanonicalOrder()
 
-    assertEquals(
-      listOf(EffectIds.ROTATE, EffectIds.FLIP, EffectIds.CROP, EffectIds.KEN_BURNS, EffectIds.SCALE),
-      ordered.map { it.id },
-    )
+    ordered.map { it.id } shouldBe
+      listOf(EffectIds.ROTATE, EffectIds.FLIP, EffectIds.CROP, EffectIds.KEN_BURNS, EffectIds.SCALE)
   }
 
   @Test
@@ -88,7 +84,7 @@ class CanonicalOrderTest {
         spec(EffectIds.ROTATE, EffectStage.Geometry),
       ).inCanonicalOrder()
 
-    assertEquals(listOf(EffectIds.ROTATE, "acme.grain", "acme.bloom"), ordered.map { it.id })
+    ordered.map { it.id } shouldBe listOf(EffectIds.ROTATE, "acme.grain", "acme.bloom")
   }
 
   private fun spec(

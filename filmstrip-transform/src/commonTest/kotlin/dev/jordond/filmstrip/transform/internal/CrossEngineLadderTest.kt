@@ -1,14 +1,15 @@
 package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.capability.DeviceCapabilities
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.export.VideoCodec
+import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.test.assertIs
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -67,8 +68,10 @@ class CrossEngineLadderTest {
           ladder = ladder,
           // This test is about what the ladder resolves an encode to, not what a copy would carry
           // across untouched, so the composition is forced onto the transcode path.
-          canCopy = { false },
-        ).negotiate(composition, ExportSpec(), device, fixture.infos(composition))
-    return assertIs<Verdict.Capable>(export.verdict).plan.output.videoCodec
+          muxerAccepts = { false },
+        ).negotiate(composition, Ask(ExportSpec(), device, fixture.infos(composition)))
+    return export.verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.output.videoCodec
   }
 }

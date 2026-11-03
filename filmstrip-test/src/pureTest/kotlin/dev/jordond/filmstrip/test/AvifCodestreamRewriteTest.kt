@@ -1,38 +1,40 @@
 package dev.jordond.filmstrip.test
 
-import dev.jordond.filmstrip.internal.pictureYcbcrCoding
-import dev.jordond.filmstrip.media.CodestreamSignal
-import dev.jordond.filmstrip.media.UNSPECIFIED_MATRIX_DECODES_AS
-import dev.jordond.filmstrip.media.heifWithExplicitCodestreamColour
+import dev.jordond.filmstrip.color.CodestreamSignal
+import dev.jordond.filmstrip.color.UNSPECIFIED_MATRIX_DECODES_AS
+import dev.jordond.filmstrip.picture.heif.heifWithExplicitCodestreamColor
+import dev.jordond.filmstrip.picture.pictureYcbcrCoding
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
+import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertNotSame
-import kotlin.test.assertSame
 
 /**
  * Rewrites the sequence header of every test AVIF to state its `nclx`, then reads the result back through core's own
  * reader, walks its boxes and compares its item data with the original's bit for bit.
  */
 class AvifCodestreamRewriteTest {
-  private val pictures = ColourPictures.AVIFS + ColourPictures.NCLX_BT709_FULL_EDGE_CHROMA
+  private val pictures = ColorPictures.AVIFS + ColorPictures.NCLX_BT709_FULL_EDGE_CHROMA
 
   @Test
   fun everyAvifWithAnNclxStatesItInItsSequenceHeader() {
     for (picture in pictures) {
       val original = picture.bytes()
-      val rewritten = heifWithExplicitCodestreamColour(original).handed
+      val rewritten = heifWithExplicitCodestreamColor(original).handed
       val nclx = picture.nclx
       if (nclx == null) {
         val own = CodestreamSignal(2, 2, UNSPECIFIED_MATRIX_DECODES_AS, true)
-        assertEquals(own, pictureYcbcrCoding(rewritten)?.codestream, "$picture states its own signal")
+        withClue("$picture states its own signal") { pictureYcbcrCoding(rewritten)?.codestream shouldBe own }
         continue
       }
       val coding = pictureYcbcrCoding(rewritten)
-      assertEquals(nclx.signal(), coding?.codestream, "$picture codestream signal")
-      assertEquals(listOf(nclx.matrix, nclx.fullRange), listOf(coding?.matrix, coding?.fullRange), "$picture nclx")
-      assertContentEquals(stated(picture.codestream(), nclx), itemData(rewritten).single(), "$picture item data")
-      assertEquals(listOf("ftyp", "meta", "mdat"), heifBoxes(rewritten).map { it.type }, "$picture boxes")
+      withClue("$picture codestream signal") { coding?.codestream shouldBe nclx.signal() }
+      withClue("$picture nclx") {
+        listOf(coding?.matrix, coding?.fullRange) shouldBe listOf(nclx.matrix, nclx.fullRange)
+      }
+      withClue("$picture item data") { itemData(rewritten).single() shouldBe stated(picture.codestream(), nclx) }
+      withClue("$picture boxes") { heifBoxes(rewritten).map { it.type } shouldBe listOf("ftyp", "meta", "mdat") }
     }
   }
 
@@ -40,31 +42,31 @@ class AvifCodestreamRewriteTest {
   fun aGridRewritesEveryTileAndLeavesItsDescriptor() {
     for (picture in pictures.filter { it.nclx != null }) {
       val original = picture.gridBytes()
-      val rewritten = heifWithExplicitCodestreamColour(original).handed
-      assertNotSame(original, rewritten)
-      assertEquals(picture.nclx?.signal(), pictureYcbcrCoding(rewritten)?.codestream, "$picture")
+      val rewritten = heifWithExplicitCodestreamColor(original).handed
+      rewritten shouldNotBeSameInstanceAs original
+      withClue("$picture") { pictureYcbcrCoding(rewritten)?.codestream shouldBe picture.nclx?.signal() }
       val before = itemData(original)
       val after = itemData(rewritten)
-      assertContentEquals(before.first(), after.first(), "$picture grid descriptor")
-      for (tile in after.drop(1)) assertContentEquals(stated(picture.codestream(), picture.nclx!!), tile, "$picture")
+      withClue("$picture grid descriptor") { after.first() shouldBe before.first() }
+      for (tile in after.drop(1)) withClue("$picture") { tile shouldBe stated(picture.codestream(), picture.nclx!!) }
     }
   }
 
   @Test
   fun everyIdentityAvifStatesMatrixZeroAndKeepsItsFrame() {
-    for (picture in AvifColourPictures.NCLX_IDENTITY_AVIFS) {
+    for (picture in AvifColorPictures.NCLX_IDENTITY_AVIFS) {
       val nclx = checkNotNull(picture.nclx)
       val frame = picture.codestream().let { it.copyOfRange(2 + it.uInt8At(1), it.size) }
       for ((original, tiled) in listOf(picture.bytes() to false, picture.gridBytes() to true)) {
-        val rewritten = heifWithExplicitCodestreamColour(original).handed
+        val rewritten = heifWithExplicitCodestreamColor(original).handed
         val coding = pictureYcbcrCoding(rewritten)
         val stated = CodestreamSignal(nclx.primaries, nclx.transfer, 0, nclx.fullRange)
-        assertEquals(stated, coding?.codestream, "$picture codestream signal")
-        assertEquals(listOf(0, true), listOf(coding?.matrix, coding?.fullRange), "$picture nclx")
+        withClue("$picture codestream signal") { coding?.codestream shouldBe stated }
+        withClue("$picture nclx") { listOf(coding?.matrix, coding?.fullRange) shouldBe listOf(0, true) }
         val coded = if (tiled) itemData(rewritten).drop(1) else itemData(rewritten)
-        if (tiled) assertContentEquals(itemData(original).first(), itemData(rewritten).first(), "$picture grid")
-        for (data in coded) assertContentEquals(frame, data.copyOfRange(data.size - frame.size, data.size), "$picture")
-        assertEquals(listOf("ftyp", "meta", "mdat"), heifBoxes(rewritten).map { it.type }, "$picture boxes")
+        if (tiled) withClue("$picture grid") { itemData(rewritten).first() shouldBe itemData(original).first() }
+        for (data in coded) withClue("$picture") { data.copyOfRange(data.size - frame.size, data.size) shouldBe frame }
+        withClue("$picture boxes") { heifBoxes(rewritten).map { it.type } shouldBe listOf("ftyp", "meta", "mdat") }
       }
     }
   }
@@ -72,23 +74,23 @@ class AvifCodestreamRewriteTest {
   @Test
   fun aSecondRewriteChangesNothing() {
     for (picture in pictures.filter { it.nclx != null }) {
-      val once = heifWithExplicitCodestreamColour(picture.bytes()).handed
-      assertSame(once, heifWithExplicitCodestreamColour(once).handed, "$picture")
+      val once = heifWithExplicitCodestreamColor(picture.bytes()).handed
+      withClue("$picture") { heifWithExplicitCodestreamColor(once).handed shouldBeSameInstanceAs once }
     }
   }
 
   // The codestream with its sequence header stating nclx, built bit by bit from the libaom header every test AVIF
-  // shares. It is a reduced still picture header whose colour description flag sits at bit 32, followed by
+  // shares. It is a reduced still picture header whose color description flag sits at bit 32, followed by
   // color_range, the chroma sample position, separate_uv_delta_q and film_grain_params_present up to bit 38. Every bit
   // around the new description and range is the original's, and the frame after the header is copied as it was.
   private fun stated(
     codestream: ByteArray,
     nclx: CicpTag,
   ): ByteArray {
-    assertEquals(listOf(0x0A, 5), listOf(codestream.uInt8At(0), codestream.uInt8At(1)), "one byte size of 5")
+    withClue("one byte size of 5") { listOf(codestream.uInt8At(0), codestream.uInt8At(1)) shouldBe listOf(0x0A, 5) }
     val bits = (0 until TRAILING_BITS).map { codestream.uInt8At(2 + it / 8) shr (7 - it % 8) and 1 }
-    assertEquals(0x02, codestream.uInt8At(6) and 0x03, "trailing bits at bit 38")
-    assertEquals(0, bits[DESCRIPTION_FLAG], "no colour description of its own")
+    withClue("trailing bits at bit 38") { (codestream.uInt8At(6) and 0x03) shouldBe 0x02 }
+    withClue("no color description of its own") { bits[DESCRIPTION_FLAG] shouldBe 0 }
     val matrix = if (nclx.matrix == 2) UNSPECIFIED_MATRIX_DECODES_AS else nclx.matrix
     val codes = listOf(nclx.primaries, nclx.transfer, matrix)
     val description = listOf(1) + codes.flatMap { code -> (7 downTo 0).map { code shr it and 1 } }

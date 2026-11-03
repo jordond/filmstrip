@@ -10,9 +10,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.effectsRevision
-import dev.jordond.filmstrip.media.FrameRenderer
 import dev.jordond.filmstrip.media.FrameResult
 import dev.jordond.filmstrip.media.PlatformImage
+import dev.jordond.filmstrip.still.FrameRenderer
 import kotlin.time.Duration
 
 /**
@@ -31,8 +31,8 @@ import kotlin.time.Duration
  * @param renderer What renders the frame, usually the `Filmstrip` itself.
  * @param composition The edit to render from.
  * @param at Where in the composition to render.
- * @param heightPx The height to render at, in pixels. Zero renders at the composition's own output
- *   height.
+ * @param heightPx The height to render at, in pixels. Null renders at the composition's own output
+ *   height, and a height of zero or less renders nothing.
  * @return The frame, or null while none has arrived.
  */
 @Composable
@@ -40,7 +40,7 @@ public fun rememberFilmstripFrame(
   renderer: FrameRenderer,
   composition: EditComposition,
   at: Duration,
-  heightPx: Int,
+  heightPx: Int?,
 ): ImageBitmap? {
   val holder = remember(renderer) { FrameHolder() }
   val revision = remember(composition) { composition.effectsRevision() }

@@ -15,15 +15,16 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
-import dev.jordond.filmstrip.test.AuthoredColours
+import dev.jordond.filmstrip.test.AuthoredColors
 import dev.jordond.filmstrip.test.OverlayPixels.ENCODED_TOLERANCE
 import dev.jordond.filmstrip.test.OverlayPixels.pngOf
 import dev.jordond.filmstrip.test.OverlayPixels.sourceOver
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.test.assertTrue
 
 /**
  * Partly covered overlay texels on an SDR export, on real media3.
@@ -47,7 +48,7 @@ class AndroidOverlaySdrTest {
   fun aQuarterAlphaTexelBlendsStraightOverTheFill() = runTest(timeout = TIMEOUT) { assertStraight(QUARTER) }
 
   // The badge sits in the bar a square crop leaves, over a mid grey fill, so what is under it is a known
-  // colour rather than a picture.
+  // color rather than a picture.
   private suspend fun assertStraight(alpha: Float) {
     val source = probe.fixture()
     val texelAlpha = (alpha * MAX_CODE).roundToInt()
@@ -63,16 +64,14 @@ class AndroidOverlaySdrTest {
     val over = opaque.averageAt(fx, fy).toList()
     val read = soft.averageAt(fx, fy).toList()
 
-    assertTrue(
-      under.all { abs(it - Color.red(FILL_ARGB)) < AuthoredColours.TOLERANCE },
-      "the overlay's patch is not in the bar, it reads $under",
-    )
+    withClue("the overlay's patch is not in the bar, it reads $under") {
+      under.all { abs(it - Color.red(FILL_ARGB)) < AuthoredColors.TOLERANCE } shouldBe true
+    }
     val expected = under.indices.map { sourceOver(under[it], over[it], texelAlpha / MAX_CODE) }
     val off = expected.indices.maxOf { abs(expected[it] - read[it]) }
-    assertTrue(
-      off <= ENCODED_TOLERANCE,
-      "a texel at alpha $texelAlpha read $read, straight source over puts it at $expected, $off codes off",
-    )
+    withClue("a texel at alpha $texelAlpha read $read, straight source over puts it at $expected, $off codes off") {
+      (off <= ENCODED_TOLERANCE) shouldBe true
+    }
   }
 
   private fun barMark(argb: Int) =
@@ -90,7 +89,7 @@ class AndroidOverlaySdrTest {
   private fun Int.withAlpha(alpha: Int): Int = (this and RGB_MASK) or (alpha shl ALPHA_SHIFT)
 
   private companion object {
-    const val FILL_ARGB = AuthoredColours.MID_GREY
+    const val FILL_ARGB = AuthoredColors.MID_GREY
     const val WHITE = 0xFFFFFFFF.toInt()
 
     const val HALF = 0.5f

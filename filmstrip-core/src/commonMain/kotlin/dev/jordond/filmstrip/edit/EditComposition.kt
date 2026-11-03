@@ -3,7 +3,6 @@ package dev.jordond.filmstrip.edit
 import androidx.compose.runtime.Immutable
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.effect.EffectSpec
-import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.MediaSource
 import kotlin.time.Duration
@@ -11,8 +10,8 @@ import kotlin.time.Duration
 /**
  * A complete, immutable description of an edit: what to read, what to cut, what to apply.
  *
- * Output format lives in [ExportSpec], so one composition can be previewed and then exported at several qualities.
- * Pass the same value to `preview()` and to `export()`.
+ * Output format lives in [dev.jordond.filmstrip.export.ExportSpec], so one composition can be previewed and then
+ * exported at several qualities. Pass the same value to `preview()` and to `export()`.
  *
  * Clips live on [Track]s, which play at the same time as each other rather than one after another.
  * Most edits have a single track and never name one. [clips] reads it and the composition builder fills it.
@@ -101,7 +100,7 @@ public class EditComposition(
  * @property audio What to do with this track's audio before it is mixed.
  * @property start Where in the composition this track begins. The track is silent before it, and the primary track
  * shows the composition's [EditComposition.fill] there. A negative start is refused with
- * [dev.jordond.filmstrip.export.ExportError.InvalidComposition] when the composition is planned.
+ * [dev.jordond.filmstrip.FilmstripError.InvalidComposition] when the composition is planned.
  * @property looping Whether the track repeats until the longest non-looping track ends. The run of
  * clips is laid down again from the top as many times as it takes, and the last pass is cut where
  * it runs past the end. A composition needs at least one non-looping track to have a duration at
@@ -139,6 +138,12 @@ public class Track(
     Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut)
 
   /**
+   * A copy that contributes different streams.
+   */
+  public fun withContent(content: TrackContent): Track =
+    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut)
+
+  /**
    * A copy with different track-level effects.
    */
   public fun withEffects(effects: List<EffectSpec>): Track =
@@ -148,6 +153,29 @@ public class Track(
    * A copy at a different audio level.
    */
   public fun withAudio(audio: AudioLevel): Track =
+    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut)
+
+  /**
+   * A copy that begins at a different point in the composition.
+   */
+  public fun withStart(start: Duration): Track = Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut)
+
+  /**
+   * A copy that loops, or plays its clips once.
+   */
+  public fun withLooping(looping: Boolean): Track =
+    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut)
+
+  /**
+   * A copy whose audio rises from silence over [fadeIn].
+   */
+  public fun withFadeIn(fadeIn: Duration): Track =
+    Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut)
+
+  /**
+   * A copy whose audio falls to silence over [fadeOut].
+   */
+  public fun withFadeOut(fadeOut: Duration): Track =
     Track(clips, content, effects, audio, start, looping, fadeIn, fadeOut)
 }
 
@@ -237,14 +265,26 @@ public class Clip(
    */
   public fun withSnapWithin(snapWithin: Duration): Clip =
     Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut)
+
+  /**
+   * A copy whose audio rises from silence over [fadeIn].
+   */
+  public fun withFadeIn(fadeIn: Duration): Clip = Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut)
+
+  /**
+   * A copy whose audio falls to silence over [fadeOut].
+   */
+  public fun withFadeOut(fadeOut: Duration): Clip = Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut)
 }
 
 /**
  * What to do with one clip's or one track's audio.
  *
- * Narrower than [AudioSpec]: a clip or a track can only be quieter than it was. Dropping the audio
- * track, or keeping audio while dropping video, is set on the composition. Levels multiply down the
- * scopes, and a [Mute] at any of them silences everything below it.
+ * Narrower than [AudioSpec]: a clip or a track can only scale its audio. Dropping the audio track,
+ * or keeping audio while dropping video, is set on the composition. Levels multiply down the scopes
+ * and are not capped, so a gain above `1f` boosts, and a [Mute] at any of them silences everything
+ * below it. A negative or non-finite gain is refused with
+ * [dev.jordond.filmstrip.FilmstripError.InvalidComposition] when the composition is planned.
  */
 public sealed interface AudioLevel {
   /**
@@ -261,7 +301,8 @@ public sealed interface AudioLevel {
   /**
    * Contribute at a scaled gain.
    *
-   * @property gain The scale to apply, where `1f` is unchanged and `0f` matches [Mute].
+   * @property gain The scale to apply, where `1f` is unchanged, `0f` matches [Mute] and anything
+   *   above `1f` boosts. Has to be finite and not negative.
    */
   @Poko
   public class Volume(
@@ -293,7 +334,8 @@ public sealed interface AudioLevel {
  * One pinned gain in an [AudioLevel.Envelope].
  *
  * @property at How far this point sits from the edge named by [from].
- * @property gain The scale here, where `1f` is unchanged and `0f` is silence.
+ * @property gain The scale here, where `1f` is unchanged, `0f` is silence and anything above `1f`
+ *   boosts. Has to be finite and not negative.
  * @property from Which edge of the scope [at] is measured from.
  */
 @Poko
@@ -351,7 +393,8 @@ public sealed interface AudioSpec {
   /**
    * Keep the track at a scaled gain. Unlike a player's volume, this reaches the exported file.
    *
-   * @property gain The scale to apply, where `1f` is unchanged and `0f` matches [Mute].
+   * @property gain The scale to apply, where `1f` is unchanged, `0f` matches [Mute] and anything
+   *   above `1f` boosts. Has to be finite and not negative.
    */
   @Poko
   public class Volume(

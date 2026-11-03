@@ -6,9 +6,9 @@ import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.MediaSource
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -25,9 +25,9 @@ class CompositionModelTest {
         clip(source("b")) { trim(0.milliseconds, 2_000.milliseconds) }
       }
 
-    assertEquals(1, composition.tracks.size)
-    assertEquals(2, composition.clips.size)
-    assertEquals(TrackContent.AudioAndVideo, composition.tracks.first().content)
+    composition.tracks.size shouldBe 1
+    composition.clips.size shouldBe 2
+    composition.tracks.first().content shouldBe TrackContent.AudioAndVideo
   }
 
   @Test
@@ -38,8 +38,8 @@ class CompositionModelTest {
         track(TrackContent.Video) { clip(source("pip")) { trim(0.milliseconds, 1_000.milliseconds) } }
       }
 
-    assertEquals(1, composition.tracks.size)
-    assertEquals(TrackContent.Video, composition.tracks.first().content)
+    composition.tracks.size shouldBe 1
+    composition.tracks.first().content shouldBe TrackContent.Video
   }
 
   @Test
@@ -51,7 +51,7 @@ class CompositionModelTest {
         track(TrackContent.Video) { clip(source("pip")) { trim(0.milliseconds, 9_000.milliseconds) } }
       }
 
-    assertEquals(9_000.milliseconds, composition.duration)
+    composition.duration shouldBe 9_000.milliseconds
   }
 
   @Test
@@ -65,7 +65,7 @@ class CompositionModelTest {
         }
       }
 
-    assertEquals(5_000.milliseconds, composition.duration)
+    composition.duration shouldBe 5_000.milliseconds
   }
 
   @Test
@@ -78,14 +78,14 @@ class CompositionModelTest {
         }
       }
 
-    assertNull(composition.duration)
+    composition.duration.shouldBeNull()
   }
 
   @Test
   fun anOpenEndedTrimLeavesTheDurationUnknown() {
     val composition = compositionOf { clip(source("a")) }
 
-    assertNull(composition.duration)
+    composition.duration.shouldBeNull()
   }
 
   @Test
@@ -99,7 +99,7 @@ class CompositionModelTest {
         }
       }
 
-    assertEquals(6_000.milliseconds, composition.duration)
+    composition.duration shouldBe 6_000.milliseconds
   }
 
   @Test
@@ -116,9 +116,9 @@ class CompositionModelTest {
         }
       }
 
-    assertEquals(AudioLevel.Mute, composition.clips.first().audio)
-    assertEquals(AudioLevel.Volume(0.3f), composition.tracks[1].audio)
-    assertEquals(AudioLevel.Inherit, composition.tracks.first().audio)
+    composition.clips.first().audio shouldBe AudioLevel.Mute
+    composition.tracks[1].audio shouldBe AudioLevel.Volume(0.3f)
+    composition.tracks.first().audio shouldBe AudioLevel.Inherit
   }
 
   @Test
@@ -135,9 +135,9 @@ class CompositionModelTest {
       }
 
     val track = composition.tracks[1]
-    assertEquals(AudioLevel.Volume(0.3f), track.audio)
-    assertEquals(1_000.milliseconds, track.fadeIn)
-    assertEquals(2_000.milliseconds, track.fadeOut)
+    track.audio shouldBe AudioLevel.Volume(0.3f)
+    track.fadeIn shouldBe 1_000.milliseconds
+    track.fadeOut shouldBe 2_000.milliseconds
   }
 
   @Test
@@ -157,7 +157,7 @@ class CompositionModelTest {
         }
       }
 
-    assertEquals(before.clips.first(), after.clips.first())
+    after.clips.first() shouldBe before.clips.first()
   }
 
   @Test
@@ -176,8 +176,8 @@ class CompositionModelTest {
       }
 
     val clip = composition.clips.first()
-    assertEquals(envelope, clip.audio)
-    assertEquals(1_000.milliseconds, clip.fadeIn)
+    clip.audio shouldBe envelope
+    clip.fadeIn shouldBe 1_000.milliseconds
   }
 
   @Test
@@ -195,8 +195,8 @@ class CompositionModelTest {
       }
 
     val track = composition.tracks[1]
-    assertEquals(500.milliseconds, track.fadeIn)
-    assertEquals(500.milliseconds, track.fadeOut)
+    track.fadeIn shouldBe 500.milliseconds
+    track.fadeOut shouldBe 500.milliseconds
   }
 
   @Test
@@ -209,9 +209,12 @@ class CompositionModelTest {
 
     val replaced = composition.withClips(listOf(composition.clips.first().withTrim(null)))
 
-    assertEquals(2, replaced.tracks.size)
-    assertNull(replaced.clips.first().trim)
-    assertEquals(composition.tracks[1], replaced.tracks[1])
+    replaced.tracks.size shouldBe 2
+    replaced.clips
+      .first()
+      .trim
+      .shouldBeNull()
+    replaced.tracks[1] shouldBe composition.tracks[1]
   }
 
   @Test
@@ -223,17 +226,17 @@ class CompositionModelTest {
         fill(fill)
       }
 
-    assertEquals(fill, composition.withClips(composition.clips).fill)
-    assertEquals(fill, composition.withTracks(composition.tracks).fill)
-    assertEquals(fill, composition.withEffects(composition.effects).fill)
-    assertEquals(fill, composition.withAudio(composition.audio).fill)
+    composition.withClips(composition.clips).fill shouldBe fill
+    composition.withTracks(composition.tracks).fill shouldBe fill
+    composition.withEffects(composition.effects).fill shouldBe fill
+    composition.withAudio(composition.audio).fill shouldBe fill
   }
 
   @Test
   fun fillSetOnTheBuilderReachesBuild() {
     val composition = compositionOf { fill(Fill.White) }
 
-    assertEquals(Fill.White, composition.fill)
+    composition.fill shouldBe Fill.White
   }
 
   private fun source(name: String): MediaSource = MediaSource.of("/fixtures/$name.mp4")

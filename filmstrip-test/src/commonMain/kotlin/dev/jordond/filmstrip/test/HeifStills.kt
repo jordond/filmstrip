@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.geometry.Size
 
 /**
- * Writes the HEIF stills [ColourPictures] holds, AVIF and HEIC, around a codestream the caller already has.
+ * Writes the HEIF stills [ColorPictures] holds, AVIF and HEIC, around a codestream the caller already has.
  *
  * The file is `ftyp`, then `meta`, then `mdat` holding every item's data. `meta` names the primary item, which is
  * either one coded item or a `grid` of coded tiles, locates each item in `mdat` through `iloc`, and gives each an
@@ -236,6 +236,32 @@ public object HeifStills {
 
   internal fun uInt16(value: Int): ByteArray = byteArrayOf((value ushr 8).toByte(), value.toByte())
 
+  // One-based ipco indices for the item's properties, the third of them, its configuration, marked essential.
+  private fun HeifAlphaPlane.associations(vararg indices: Int): ByteArray =
+    ByteArray(indices.size) { (if (it == 2) ESSENTIAL or indices[it] else indices[it]).toByte() }
+
+  // The ispe of [size] and the one channel pixi the item carries.
+  private fun HeifAlphaPlane.properties(size: Size): List<ByteArray> =
+    listOf(
+      fullBox("ispe", int32(size.width) + int32(size.height)),
+      fullBox("pixi", byteArrayOf(1, bitDepth.toByte())),
+    )
+
+  private fun HeifAlphaPlane.auxC(): ByteArray {
+    val type = if (itemType == "av01") AVIF_ALPHA else HEVC_ALPHA
+    return fullBox("auxC", type.encodeToByteArray() + byteArrayOf(0))
+  }
+
+  // The auxl from [alpha] to [color], and the prem from [color] to [alpha] when the color is premultiplied.
+  private fun HeifAlphaPlane.references(
+    alpha: Int,
+    color: Int,
+  ): List<ByteArray> =
+    listOfNotNull(
+      box("auxl", uInt16(alpha) + uInt16(1) + uInt16(color)),
+      box("prem", uInt16(color) + uInt16(1) + uInt16(alpha)).takeIf { premultiplied },
+    )
+
   private fun <T> List<T>.joined(bytes: (T) -> ByteArray): ByteArray =
     fold(ByteArray(0)) { joined, element -> joined + bytes(element) }
 
@@ -250,6 +276,8 @@ public object HeifStills {
   )
 
   private const val BOX_HEADER_BYTES = 8
+  private const val AVIF_ALPHA = "urn:mpeg:mpegB:cicp:systems:auxiliary:alpha"
+  private const val HEVC_ALPHA = "urn:mpeg:hevc:2015:auxid:1"
   private const val FIRST_ID = 1
   private const val CHANNELS = 3
   internal const val ESSENTIAL = 0x80
@@ -263,30 +291,11 @@ public object HeifStills {
 }
 
 /**
- * A coded item a HEIF still carries as the thumbnail of its primary item.
- *
- * [HeifStills] writes it as the file's first item with its own `ispe`, an eight-bit three channel `pixi` and its
- * essential [configuration], so a reader that takes the first item it finds reads it in place of the primary item.
- *
- * @property itemType The item's four letter type, `av01` or `hvc1`.
- * @property configuration The whole decoder configuration box, such as an `av1C` or `hvcC`.
- * @property codestream The coded image the item's data holds.
- * @property size The image's width and height.
- */
-@InternalFilmstripApi
-public class HeifThumbnail(
-  public val itemType: String,
-  public val configuration: ByteArray,
-  public val codestream: ByteArray,
-  public val size: Size,
-)
-
-/**
- * An eight-by-eight AVIF still painted one flat colour, as the colour boxes it carries and the samples its codestream
+ * An eight-by-eight AVIF still painted one flat color, as the color boxes it carries and the samples its codestream
  * decodes to.
  *
  * It carries no expected value. The codestream is 4:2:0 unless [configuration] says otherwise and stores the same
- * luma and chroma at every sample, so its colour depends on its matrix and range as well as its primaries and transfer.
+ * luma and chroma at every sample, so its color depends on its matrix and range as well as its primaries and transfer.
  *
  * @property name What the description is, for test messages.
  * @property nclx The code points of a `colr nclx` box, or null for none.
@@ -313,7 +322,7 @@ public class AvifPicture internal constructor(
   /**
    * The AV1 codestream the picture's item holds, a sequence header and one frame.
    *
-   * Unless the picture holds a codestream of its own, its sequence header carries no colour description and its range
+   * Unless the picture holds a codestream of its own, its sequence header carries no color description and its range
    * bit matches [nclx], full when there is no `nclx` box.
    */
   override fun codestream(): ByteArray =
@@ -372,7 +381,7 @@ public class AvifPicture internal constructor(
     //     -color_range pc -c:v libaom-av1 -aom-params lossless=1 -still-picture 1 -f avif flat.avif
     // with -color_range tv for the limited one. Each is the mdat payload of its file, and the configuration is the
     // file's av1C payload, Main profile 4:2:0 with no config OBUs. Decoding either back with ffmpeg gives 128, 96 and
-    // 176 at every sample, and the two differ only in the sequence header's colour range bit.
+    // 176 at every sample, and the two differ only in the sequence header's color range bit.
     const val FULL_CODESTREAM = "0a051808bf6c42320c10000002dd90816283ea9354"
     const val LIMITED_CODESTREAM = "0a051808bf6c02320c10000002dd90816283ea9354"
     const val AV1_CONFIGURATION = "81000c00"
@@ -392,18 +401,18 @@ public class AvifPicture internal constructor(
 }
 
 /**
- * A sixty-four-by-sixty-four HEIC still painted one flat colour, as the colour boxes it carries, the colour its
+ * A sixty-four-by-sixty-four HEIC still painted one flat color, as the color boxes it carries, the color its
  * codestream signals and the samples it decodes to.
  *
  * It carries no expected value. The codestream is HEVC Main Still Picture, 4:2:0 and eight-bit, and stores the same
- * luma and chroma at every sample, so its colour depends on [nclx]'s matrix and range as well as its primaries and
+ * luma and chroma at every sample, so its color depends on [nclx]'s matrix and range as well as its primaries and
  * transfer.
  *
  * @property name What the description is, for test messages.
  * @property nclx The code points of a `colr nclx` box, or null for none.
  * @property profile The ICC profile of a `colr prof` box, or null for none.
  * @property ycbcr The luma, blue difference and red difference codes every sample decodes to.
- * @property vui What the sequence parameter set's video usability information signals about range and colour.
+ * @property vui What the sequence parameter set's video usability information signals about range and color.
  * @property slice The coded slice behind its four byte length, as hex. It decodes to [ycbcr] under the parameter sets
  * of every [HevcVui].
  */

@@ -15,9 +15,8 @@ import kotlin.time.Duration
  *
  * Call [onScrubStart] on touch down, [onScrubTo] on every drag delta and [onScrubEnd] on touch up.
  * Between the first and the last the engine relaxes seek accuracy to keep up with the finger, and
- * the last one settles on the exact frame under it. A gesture that only calls [onScrubTo] issues a
- * fresh exact seek per delta, each one cancelling the last, and the picture stops updating while
- * the finger moves.
+ * the last one settles on the exact frame under it. A gesture that never calls [onScrubStart]
+ * seeks nothing, since [onScrubTo] is ignored outside a gesture.
  *
  * Built by [rememberScrubState], either over a [VideoPlayer] or over a host's own transport.
  */

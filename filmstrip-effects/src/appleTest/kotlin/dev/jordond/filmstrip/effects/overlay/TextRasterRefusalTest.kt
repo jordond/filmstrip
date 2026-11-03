@@ -5,15 +5,14 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.style.TextStyle
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlin.math.ceil
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertFalse
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
  * The text [rasterizeText] refuses on Apple, past the picture ceiling, far too large to size, or when Core Graphics
@@ -28,7 +27,7 @@ class TextRasterRefusalTest {
     val size = drawnText("H", style, FRAME).size
     val texels = size.width.toLong() * size.height
     val band = drawnBandBytes(size.width.toLong(), size.height.toLong())
-    val peak = assertNotNull(picturePeakBytes(texels * TEXT_TEXEL_BYTES, band, texels * FLOAT_TEXEL_BYTES))
+    val peak = picturePeakBytes(texels * TEXT_TEXEL_BYTES, band, texels * FLOAT_TEXEL_BYTES).shouldNotBeNull()
     var made = false
     val counted = { width: Int, height: Int ->
       made = true
@@ -36,14 +35,20 @@ class TextRasterRefusalTest {
     }
 
     val refused =
-      assertIs<TextRaster.Refused>(rasterizeText("H", style, FRAME, ceiling = peak - 1, bitmapOf = counted))
+      rasterizeText("H", style, FRAME, ceiling = peak - 1, bitmapOf = counted).shouldBeInstanceOf<TextRaster.Refused>()
     val reason = textTooLargeToDraw(size.width.toLong(), size.height.toLong(), TEXT_TEXEL_BYTES, peak - 1)
-    assertEquals(reason, refused.reason)
-    assertFalse(made, "the bitmap was made before the raster was refused")
+    refused.reason shouldBe reason
+    withClue("the bitmap was made before the raster was refused") { made shouldBe false }
 
     val drawn =
-      assertIs<TextRaster.Drawn<OverlayPixels>>(rasterizeText("H", style, FRAME, ceiling = peak, bitmapOf = counted))
-    assertEquals(texels * TEXT_TEXEL_BYTES, drawn.pixels.held.bytes, "the bitmap holds more than its texels")
+      rasterizeText(
+        "H",
+        style,
+        FRAME,
+        ceiling = peak,
+        bitmapOf = counted,
+      ).shouldBeInstanceOf<TextRaster.Drawn<OverlayPixels>>()
+    withClue("the bitmap holds more than its texels") { drawn.pixels.held.bytes shouldBe texels * TEXT_TEXEL_BYTES }
     // The HDR draw counts the same peak against the same ceiling, so a raster that fits draws its floats and one a
     // byte under it does not.
     drawn.pixels.enteringFrame(HdrTransfer.Pq, ColorSpace.Bt2020)
@@ -63,9 +68,12 @@ class TextRasterRefusalTest {
 
     val raster = rasterizeText("H", style, FRAME, bitmapOf = counted)
 
-    val refused = assertIs<TextRaster.Refused>(raster, "the text at a font size of $HUGE_FONT was not refused")
-    assertEquals(textTooTallToLayOut(ceil(lineOf("H", style)).toLong()), refused.reason)
-    assertFalse(made, "a bitmap was made for text at a font size of $HUGE_FONT")
+    val refused =
+      withClue("the text at a font size of $HUGE_FONT was not refused") {
+        raster.shouldBeInstanceOf<TextRaster.Refused>()
+      }
+    refused.reason shouldBe textTooTallToLayOut(ceil(lineOf("H", style)).toLong())
+    withClue("a bitmap was made for text at a font size of $HUGE_FONT") { made shouldBe false }
   }
 
   // Core Text measures a face whole up to its tallest line and nothing past it, whatever height it is given.
@@ -82,16 +90,19 @@ class TextRasterRefusalTest {
         textBitmap(width, height)
       }
 
-      val refused = assertIs<TextRaster.Refused>(rasterizeText("H", style, FRAME, bitmapOf = counted), "at $share")
+      val refused =
+        withClue("at $share") {
+          rasterizeText("H", style, FRAME, bitmapOf = counted).shouldBeInstanceOf<TextRaster.Refused>()
+        }
       if (line <= CORE_TEXT_TALLEST_LINE) {
-        assertTrue(block.height >= line, "a $line pixel line measured ${block.height} tall at $share")
+        withClue("a $line pixel line measured ${block.height} tall at $share") { (block.height >= line) shouldBe true }
         val (wide, tall) = block.width.toLong() to block.height.toLong()
-        assertEquals(textTooLargeToDraw(wide, tall, TEXT_TEXEL_BYTES), refused.reason, "at $share")
+        withClue("at $share") { refused.reason shouldBe textTooLargeToDraw(wide, tall, TEXT_TEXEL_BYTES) }
       } else {
-        assertEquals(Size(0, 0), block, "Core Text measured a $line pixel line at $share")
-        assertEquals(textTooTallToLayOut(ceil(line).toLong()), refused.reason, "at $share")
+        withClue("Core Text measured a $line pixel line at $share") { block shouldBe Size(0, 0) }
+        withClue("at $share") { refused.reason shouldBe textTooTallToLayOut(ceil(line).toLong()) }
       }
-      assertFalse(made, "a bitmap was made at $share")
+      withClue("a bitmap was made at $share") { made shouldBe false }
     }
   }
 
@@ -103,7 +114,7 @@ class TextRasterRefusalTest {
     val block = blockOf(text, style)
     // Core Text sets lines apart by its own pitch rather than the face's ascent and descent, read off two lines.
     val pitch = blockOf("H\nH", style).height - blockOf("H", style).height
-    assertTrue(block.height >= NEWLINES * pitch, "$NEWLINES lines $pitch pixels apart measured $block")
+    withClue("$NEWLINES lines $pitch pixels apart measured $block") { (block.height >= NEWLINES * pitch) shouldBe true }
 
     val (wide, tall) = block.width.toLong() to block.height.toLong()
     val expected =
@@ -112,8 +123,14 @@ class TextRasterRefusalTest {
       } else {
         textTooLargeToDraw(wide, tall, TEXT_TEXEL_BYTES)
       }
-    val refused = assertIs<TextRaster.Refused>(rasterizeText(text, style, FRAME, bitmapOf = { _, _ -> null }))
-    assertEquals(expected, refused.reason)
+    val refused =
+      rasterizeText(text, style, FRAME, bitmapOf = {
+        _,
+        _,
+        ->
+        null
+      }).shouldBeInstanceOf<TextRaster.Refused>()
+    refused.reason shouldBe expected
   }
 
   @Test
@@ -121,8 +138,8 @@ class TextRasterRefusalTest {
     val style = TextStyle(color = GREY, backgroundColor = GREY)
     val size = drawnText("H", style, FRAME).size
 
-    val refused = assertIs<TextRaster.Refused>(rasterizeText("H", style, FRAME, bitmapOf = { _, _ -> null }))
-    assertEquals(textAllocationFailed(size.width, size.height), refused.reason)
+    val refused = rasterizeText("H", style, FRAME, bitmapOf = { _, _ -> null }).shouldBeInstanceOf<TextRaster.Refused>()
+    refused.reason shouldBe textAllocationFailed(size.width, size.height)
   }
 
   private fun drawnText(
@@ -130,17 +147,25 @@ class TextRasterRefusalTest {
     style: TextStyle,
     frame: Size,
   ): OverlayPixels =
-    assertIs<TextRaster.Drawn<OverlayPixels>>(rasterizeText(text, style, frame), "the text drew nothing").pixels
+    withClue("the text drew nothing") {
+      rasterizeText(text, style, frame).shouldBeInstanceOf<TextRaster.Drawn<OverlayPixels>>()
+    }.pixels
 
   private fun blockOf(
     text: String,
     style: TextStyle,
-  ): Size = assertNotNull(laidOutText(text, style, FRAME) { _, _, block, _ -> block }, "nothing was laid out")
+  ): Size =
+    withClue("nothing was laid out") {
+      laidOutText(text, style, FRAME) { _, _, block, _ -> block }.shouldNotBeNull()
+    }
 
   private fun lineOf(
     text: String,
     style: TextStyle,
-  ): Double = assertNotNull(laidOutText(text, style, FRAME) { _, _, _, line -> line }, "nothing was laid out")
+  ): Double =
+    withClue("nothing was laid out") {
+      laidOutText(text, style, FRAME) { _, _, _, line -> line }.shouldNotBeNull()
+    }
 
   private companion object {
     val FRAME = Size(1280, 720)

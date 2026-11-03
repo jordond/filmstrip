@@ -1,18 +1,22 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.PictureColor
+import dev.jordond.filmstrip.color.pictureLight
+import dev.jordond.filmstrip.color.pictureSrgbCodes
 import dev.jordond.filmstrip.effects.renderingContext
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.pictureColour
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.PictureColour
-import dev.jordond.filmstrip.media.pictureLight
-import dev.jordond.filmstrip.media.pictureSrgbCodes
-import dev.jordond.filmstrip.test.AuthoredColours
-import dev.jordond.filmstrip.test.ColourPictures
+import dev.jordond.filmstrip.picture.pictureColor
+import dev.jordond.filmstrip.test.AuthoredColors
+import dev.jordond.filmstrip.test.ColorPictures
 import dev.jordond.filmstrip.test.IccPictures
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -34,39 +38,33 @@ import platform.Foundation.truncateFileAtOffset
 import platform.Foundation.writeToFile
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 /**
- * Colour described pictures decoded by the Apple overlay raster and read back as the image each frame kind draws.
+ * Color described pictures decoded by the Apple overlay raster and read back as the image each frame kind draws.
  *
- * ICC tagged pictures, opaque and at half alpha, and every [ColourPictures] PNG enter an SDR frame at the codes
+ * ICC tagged pictures, opaque and at half alpha, and every [ColorPictures] PNG enter an SDR frame at the codes
  * [pictureSrgbCodes] gives their texel and an HDR frame at the signal [pictureLight] puts it at, each read through the
  * description core reads out of the same bytes. Nothing here needs an encoder, so the HDR answer is asserted on every
  * Apple target.
  */
-@OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 class OverlayPictureProfileTest {
   @Test
   fun `the unmanaged options are a Foundation dictionary keyed by strings`() {
-    val options = assertIs<NSDictionary>(unmanagedOptions())
+    val options = unmanagedOptions().shouldBeObjC<NSDictionary>()
 
-    assertEquals(1uL, options.count)
-    assertIs<NSNull>(options.objectForKey(checkNotNull(kCIImageColorSpace)))
+    options.count shouldBe 1uL
+    options.objectForKey(checkNotNull(kCIImageColorSpace)).shouldBeObjC<NSNull>()
     options.allKeys.forEach { key ->
-      assertTrue(key is String, "$key is a ${key?.let { it::class.simpleName }}, not a string")
+      withClue("$key is a ${key?.let { it::class.simpleName }}, not a string") { (key is String) shouldBe true }
     }
   }
 
   @Test
-  fun `a decoded picture carries no colour space`() {
+  fun `a decoded picture carries no color space`() {
     val pixels = ImageSource.ofBytes(IccPictures.DISPLAY_P3.pngOf(RASTER)).read().orFail()
 
-    assertNull(pixels.codes.colorSpace, "the picture was decoded into a colour space, not as its codes")
+    withClue("the picture was decoded into a color space, not as its codes") { pixels.codes.colorSpace.shouldBeNull() }
   }
 
   @Test
@@ -75,17 +73,18 @@ class OverlayPictureProfileTest {
     val misses = mutableListOf<String>()
 
     ICC_CASES.forEach { (name, png, texel) ->
-      val colour = assertNotNull(pictureColour(png), "core reads no description out of $name")
-      val expected = pictureSrgbCodes(colour, intArrayOf(texel)).single()
-      val stored = AuthoredColours.channelsOf(texel)
-      assertTrue(
-        stored.indices.any { abs(stored[it] - AuthoredColours.channelsOf(expected)[it]) > 1 },
+      val color = withClue("core reads no description out of $name") { pictureColor(png).shouldNotBeNull() }
+      val expected = pictureSrgbCodes(color, intArrayOf(texel)).single()
+      val stored = AuthoredColors.channelsOf(texel)
+      withClue(
         "$name draws ${texel.hex()} at ${expected.hex()}, too close to its stored codes to show the profile was read",
-      )
+      ) {
+        stored.indices.any { abs(stored[it] - AuthoredColors.channelsOf(expected)[it]) > 1 } shouldBe true
+      }
       sdrMiss(name, png, expected, context)?.let(misses::add)
     }
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   @Test
@@ -95,12 +94,12 @@ class OverlayPictureProfileTest {
 
     HdrTransfer.entries.forEach { transfer ->
       ICC_CASES.forEach { (name, png, texel) ->
-        val light = pictureLight(pictureColour(png), intArrayOf(texel))
+        val light = pictureLight(pictureColor(png), intArrayOf(texel))
         hdrMiss("$transfer $name", png, transfer, light, context)?.let(misses::add)
       }
     }
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   // Every PNG reads its description out of chunks other than an ICC profile, or an iCCP that wins over them.
@@ -110,16 +109,16 @@ class OverlayPictureProfileTest {
     val misses = mutableListOf<String>()
 
     PNG_CASES.forEach { (name, png, texel) ->
-      val expected = pictureSrgbCodes(pictureColour(png), intArrayOf(texel)).single()
+      val expected = pictureSrgbCodes(pictureColor(png), intArrayOf(texel)).single()
       sdrMiss(name, png, expected, context)?.let(misses::add)
     }
-    ColourPictures.HDR_PNGS.forEach { picture ->
+    ColorPictures.HDR_PNGS.forEach { picture ->
       val png = picture.pngOf(RASTER)
-      val expected = pictureSrgbCodes(pictureColour(png), picture.samples()).single()
+      val expected = pictureSrgbCodes(pictureColor(png), picture.samples()).single()
       sdrMiss("$picture", png, expected, context)?.let(misses::add)
     }
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   @Test
@@ -129,36 +128,40 @@ class OverlayPictureProfileTest {
 
     HdrTransfer.entries.forEach { transfer ->
       PNG_CASES.forEach { (name, png, texel) ->
-        hdrMiss("$transfer $name", png, transfer, pictureLight(pictureColour(png), intArrayOf(texel)), context)
+        hdrMiss("$transfer $name", png, transfer, pictureLight(pictureColor(png), intArrayOf(texel)), context)
           ?.let(misses::add)
       }
-      ColourPictures.HDR_PNGS.forEach { picture ->
+      ColorPictures.HDR_PNGS.forEach { picture ->
         val png = picture.pngOf(RASTER)
-        hdrMiss("$transfer $picture", png, transfer, pictureLight(pictureColour(png), picture.samples()), context)
+        hdrMiss("$transfer $picture", png, transfer, pictureLight(pictureColor(png), picture.samples()), context)
           ?.let(misses::add)
       }
     }
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   // Each description has to move the texel, or a backend ignoring it would pass the cases above.
   @Test
   fun `every png not described as srgb moves its texel`() {
-    ColourPictures.PNGS.filter { it !in SRGB_BY_DESIGN }.forEach { picture ->
+    ColorPictures.PNGS.filter { it !in SRGB_BY_DESIGN }.forEach { picture ->
       val drawn =
-        AuthoredColours.channelsOf(
-          pictureSrgbCodes(pictureColour(picture.pngOf(RASTER)), intArrayOf(picture.texel)).single(),
+        AuthoredColors.channelsOf(
+          pictureSrgbCodes(pictureColor(picture.pngOf(RASTER)), intArrayOf(picture.texel)).single(),
         )
-      val stored = AuthoredColours.channelsOf(picture.texel)
+      val stored = AuthoredColors.channelsOf(picture.texel)
 
-      assertTrue(stored.indices.any { abs(stored[it] - drawn[it]) > 1 }, "$picture draws $drawn from its $stored")
+      withClue("$picture draws $drawn from its $stored") {
+        stored.indices.any { abs(stored[it] - drawn[it]) > 1 } shouldBe true
+      }
     }
-    ColourPictures.HDR_PNGS.forEach { picture ->
-      val light = pictureLight(pictureColour(picture.pngOf(RASTER)), picture.samples())
+    ColorPictures.HDR_PNGS.forEach { picture ->
+      val light = pictureLight(pictureColor(picture.pngOf(RASTER)), picture.samples())
       val untagged = pictureLight(null, picture.samples())
 
-      assertTrue((0 until ALPHA).any { abs(light[it] - untagged[it]) > 1f }, "$picture lands where untagged does")
+      withClue("$picture lands where untagged does") {
+        (0 until ALPHA).any { abs(light[it] - untagged[it]) > 1f } shouldBe true
+      }
     }
   }
 
@@ -167,18 +170,17 @@ class OverlayPictureProfileTest {
     val context = renderingContext(floatFormat = true)
     val png = IccPictures.DISPLAY_P3.pngOf(RASTER)
     val decoded = ImageSource.ofBytes(png).read().orFail()
-    val pixels = OverlayPixels(decoded.held, readColour = { pictureColour(png) }, reader = { null })
-    val stored = AuthoredColours.channelsOf(IccPictures.DISPLAY_P3.texel)
+    val pixels = OverlayPixels(decoded.held, readColor = { pictureColor(png) }, reader = { null })
+    val stored = AuthoredColors.channelsOf(IccPictures.DISPLAY_P3.texel)
 
     val sdr = pixels.enteringFrame(transfer = null, ColorSpace.Bt709).centreIn(context, ColorSpace.Bt709)
     val hdr = pixels.enteringFrame(HdrTransfer.Pq, ColorSpace.Bt2020).centreIn(context, ColorSpace.Bt2020)
 
     listOf("sdr" to sdr, "hdr" to hdr).forEach { (frame, read) ->
       val codes = List(ALPHA) { read[it] / read[ALPHA] * MAX_CODE }
-      assertTrue(
-        codes.indices.all { abs(codes[it] - stored[it]) <= SDR_TOLERANCE },
-        "the $frame frame drew $codes, where the picture's stored codes are $stored",
-      )
+      withClue("the $frame frame drew $codes, where the picture's stored codes are $stored") {
+        codes.indices.all { abs(codes[it] - stored[it]) <= SDR_TOLERANCE } shouldBe true
+      }
     }
   }
 
@@ -187,11 +189,13 @@ class OverlayPictureProfileTest {
     val png = IccPictures.DISPLAY_P3.pngOf(RASTER)
     val path = written(png, "uri")
     try {
-      val uri = assertNotNull(NSURL.fileURLWithPath(path).absoluteString)
+      val uri = NSURL.fileURLWithPath(path).absoluteString.shouldNotBeNull()
       val pixels = ImageSource.ofUri(uri).read().orFail("the file uri")
 
-      assertNull(pixels.codes.colorSpace, "the file uri was decoded into a colour space, not as its codes")
-      assertDescribedAs(pictureColour(png), pixels.colour, "the file uri")
+      withClue("the file uri was decoded into a color space, not as its codes") {
+        pixels.codes.colorSpace.shouldBeNull()
+      }
+      assertDescribedAs(pictureColor(png), pixels.color, "the file uri")
     } finally {
       NSFileManager.defaultManager.removeItemAtPath(path, error = null)
     }
@@ -205,8 +209,8 @@ class OverlayPictureProfileTest {
     val pixels = ImageSource.of(path).read().orFail("the path")
     NSFileManager.defaultManager.removeItemAtPath(path, error = null)
 
-    assertNull(pixels.codes.colorSpace, "the path was decoded into a colour space, not as its codes")
-    assertDescribedAs(pictureColour(png), pixels.colour, "the removed path")
+    withClue("the path was decoded into a color space, not as its codes") { pixels.codes.colorSpace.shouldBeNull() }
+    assertDescribedAs(pictureColor(png), pixels.color, "the removed path")
   }
 
   // Rewritten in place, the same file under the same path, so a decode that mapped it would read the new bytes or fault
@@ -224,32 +228,32 @@ class OverlayPictureProfileTest {
       val other = IccPictures.LINEAR_SRGB.pngOf(RASTER)
       other.usePinned { NSData.create(bytes = it.addressOf(0), length = other.size.toULong()) }.writeToFile(path, false)
 
-      assertDescribedAs(pictureColour(png), pixels.colour, "the rewritten path")
+      assertDescribedAs(pictureColor(png), pixels.color, "the rewritten path")
       val context = renderingContext(floatFormat = true)
       val drawn = pixels.enteringFrame(transfer = null, ColorSpace.Bt709).centreIn(context, ColorSpace.Bt709)
-      val stored = assertNotNull(pixels.stored, "the rewritten path read no samples").copyOf(CHANNEL_COUNT)
-      assertEquals(
-        DISPLAY_P3_SAMPLES,
-        stored.map { it.toInt() and SAMPLE_MASK },
-        "the rewritten path read samples other than its own",
-      )
-      val expected = AuthoredColours.channelsOf(pictureSrgbCodes(pictureColour(png), stored).single())
-      assertTrue(
-        expected.indices.all { abs(drawn[it] / drawn[ALPHA] * MAX_CODE - expected[it]) <= SDR_TOLERANCE },
-        "the rewritten path drew ${drawn.toList()}, where its own picture draws $expected",
-      )
+      val stored =
+        withClue("the rewritten path read no samples") {
+          pixels.stored.shouldNotBeNull()
+        }.copyOf(CHANNEL_COUNT)
+      withClue("the rewritten path read samples other than its own") {
+        stored.map { it.toInt() and SAMPLE_MASK } shouldBe DISPLAY_P3_SAMPLES
+      }
+      val expected = AuthoredColors.channelsOf(pictureSrgbCodes(pictureColor(png), stored).single())
+      withClue("the rewritten path drew ${drawn.toList()}, where its own picture draws $expected") {
+        expected.indices.all { abs(drawn[it] / drawn[ALPHA] * MAX_CODE - expected[it]) <= SDR_TOLERANCE } shouldBe true
+      }
     } finally {
       NSFileManager.defaultManager.removeItemAtPath(path, error = null)
     }
   }
 
   private fun assertDescribedAs(
-    expected: PictureColour?,
-    actual: PictureColour?,
+    expected: PictureColor?,
+    actual: PictureColor?,
     name: String,
   ) {
-    assertNotNull(actual, "$name read as untagged")
-    assertContentEquals(pictureSrgbCodes(expected, PROBES), pictureSrgbCodes(actual, PROBES), "$name drew elsewhere")
+    withClue("$name read as untagged") { actual.shouldNotBeNull() }
+    withClue("$name drew elsewhere") { pictureSrgbCodes(actual, PROBES) shouldBe pictureSrgbCodes(expected, PROBES) }
   }
 
   @OptIn(BetaInteropApi::class)
@@ -268,12 +272,12 @@ class OverlayPictureProfileTest {
     const val ALPHA = 3
     const val MAX_CODE = 255f
     val DISPLAY_P3_SAMPLES =
-      AuthoredColours.channelsOf(IccPictures.DISPLAY_P3.texel).map { it * EIGHT_BIT_STEP } + SAMPLE_MASK
+      AuthoredColors.channelsOf(IccPictures.DISPLAY_P3.texel).map { it * EIGHT_BIT_STEP } + SAMPLE_MASK
     const val HALF_ALPHA = 0x80000000.toInt()
     const val RGB_MASK = 0xFFFFFF
 
-    // Colours a description other than the expected one draws somewhere else.
-    val PROBES = intArrayOf(0xFFC08040.toInt(), 0xFFFF0000.toInt(), 0xFF00FF00.toInt(), AuthoredColours.MID_GREY)
+    // Colors a description other than the expected one draws somewhere else.
+    val PROBES = intArrayOf(0xFFC08040.toInt(), 0xFFFF0000.toInt(), 0xFF00FF00.toInt(), AuthoredColors.MID_GREY)
 
     // ICC tagged pictures, opaque and at half alpha, so the premultiply is read too.
     val ICC_CASES: List<Triple<String, ByteArray, Int>> =
@@ -292,17 +296,17 @@ class OverlayPictureProfileTest {
 
     // Every eight-bit chunk described PNG opaque, and the cICP Display P3 one at half alpha too.
     val PNG_CASES: List<Triple<String, ByteArray, Int>> =
-      ColourPictures.PNGS.map { Triple("$it", it.pngOf(RASTER), it.texel) } +
-        ColourPictures.CICP_DISPLAY_P3.let { picture ->
+      ColorPictures.PNGS.map { Triple("$it", it.pngOf(RASTER), it.texel) } +
+        ColorPictures.CICP_DISPLAY_P3.let { picture ->
           val texel = (picture.texel and RGB_MASK) or HALF_ALPHA
           Triple(
             "$picture at half alpha",
             dev.jordond.filmstrip.test.OverlayPixels
-              .pngOf(RASTER, texel, picture.profile, picture.colour),
+              .pngOf(RASTER, texel, picture.profile, picture.color),
             texel,
           )
         }
 
-    val SRGB_BY_DESIGN = setOf(ColourPictures.GAMMA_SRGB, ColourPictures.SRGB_CHUNK, ColourPictures.SRGB_OVER_GAMMA)
+    val SRGB_BY_DESIGN = setOf(ColorPictures.GAMMA_SRGB, ColorPictures.SRGB_CHUNK, ColorPictures.SRGB_OVER_GAMMA)
   }
 }

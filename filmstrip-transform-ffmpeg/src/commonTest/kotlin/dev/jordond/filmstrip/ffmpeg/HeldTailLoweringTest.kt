@@ -3,31 +3,30 @@ package dev.jordond.filmstrip.ffmpeg
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.VideoEncoderCapability
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
-import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPlanner
-import dev.jordond.filmstrip.ffmpeg.internal.FfmpegVersion
-import dev.jordond.filmstrip.ffmpeg.internal.Invocation
-import dev.jordond.filmstrip.ffmpeg.internal.Lowering
-import dev.jordond.filmstrip.ffmpeg.internal.Toolchain
-import dev.jordond.filmstrip.ffmpeg.internal.formatSeconds
-import dev.jordond.filmstrip.ffmpeg.internal.previewArguments
-import dev.jordond.filmstrip.ffmpeg.internal.previewFrames
-import dev.jordond.filmstrip.ffmpeg.internal.previewLanding
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.formatSeconds
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewArguments
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewFrames
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewLanding
+import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
+import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.ImageSource
@@ -35,16 +34,17 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
-import dev.jordond.filmstrip.transform.internal.NegotiatedComposition
+import dev.jordond.filmstrip.transform.internal.LoweredExport
 import dev.jordond.filmstrip.transform.internal.heldTail
+import dev.jordond.filmstrip.transform.internal.negotiation.Ask
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.videoSlots
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import kotlin.test.Test
-import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -91,7 +91,7 @@ class HeldTailLoweringTest {
     val lowering = lowered(underBed())
     val negotiated = negotiatedOf(lowering)
     val tail = negotiated.heldTail
-    assertFalse(tail.isEmpty(), "the bed does not outlast the picture")
+    withClue("the bed does not outlast the picture") { tail.isEmpty() shouldBe false }
 
     invocationOf(lowering).filterGraph shouldContain
       "tpad=stop_mode=clone:stop=${tail.count()},trim=end_frame=${negotiated.videoSlots}," +
@@ -109,8 +109,12 @@ class HeldTailLoweringTest {
     val held = graph.indexOf("tpad=stop_mode=clone:stop=${negotiated.heldTail.count()}")
 
     graph shouldContain "overlay=shortest=1"
-    assertTrue(graph.lastIndexOf("[vfx1]") in 0 until held, "the tail is cloned ahead of the composition overlay")
-    assertTrue(graph.indexOf("overlay=shortest=1") in 0 until held, "the tail is cloned ahead of the fill")
+    withClue("the tail is cloned ahead of the composition overlay") {
+      (graph.lastIndexOf("[vfx1]") in 0 until held) shouldBe true
+    }
+    withClue("the tail is cloned ahead of the fill") {
+      (graph.indexOf("overlay=shortest=1") in 0 until held) shouldBe true
+    }
     graph shouldContain
       "tpad=stop_mode=clone:stop=${negotiated.heldTail.count()},trim=end_frame=${negotiated.videoSlots}," +
       "trim=end=${secondsOf(negotiated.duration)}"
@@ -228,15 +232,15 @@ class HeldTailLoweringTest {
     previewOf(invocationOf(lowering), insideTail(negotiated)).after("-itsoffset") shouldBe secondsOf(lastCovered)
   }
 
-  private fun lowered(composition: EditComposition): Lowering =
+  private fun lowered(composition: EditComposition): LoweredExport<Invocation> =
     FfmpegPlanner(TOOLCHAIN, listOf(BuiltInEffectResolver()))
-      .lower(composition, ExportSpec(frameRate = GRID_RATE), DEVICE, infos)
+      .lower(composition, Ask(ExportSpec(frameRate = GRID_RATE), DEVICE, infos))
 
-  private fun negotiatedOf(lowering: Lowering): NegotiatedComposition =
-    assertNotNull(lowering.export.composition, "the edit was refused: ${lowering.verdict}")
+  private fun negotiatedOf(lowering: LoweredExport<Invocation>): ResolvedComposition =
+    withClue("the edit was refused: ${lowering.verdict}") { lowering.export.composition.shouldNotBeNull() }
 
-  private fun invocationOf(lowering: Lowering): Invocation =
-    assertNotNull(lowering.invocation, "the edit was refused: ${lowering.verdict}")
+  private fun invocationOf(lowering: LoweredExport<Invocation>): Invocation =
+    withClue("the edit was refused: ${lowering.verdict}") { lowering.graph.shouldNotBeNull() }
 
   private fun previewOf(
     invocation: Invocation,
@@ -251,7 +255,7 @@ class HeldTailLoweringTest {
     )
 
   // The middle of the tail and a quarter of a slot on, so the scrub lands on a slot it is not sitting on.
-  private fun insideTail(negotiated: NegotiatedComposition): Duration {
+  private fun insideTail(negotiated: ResolvedComposition): Duration {
     val tail = negotiated.heldTail
     return outputSlotTime(tail.first + (tail.last - tail.first) / 2, GRID_RATE) + QUARTER_SLOT
   }

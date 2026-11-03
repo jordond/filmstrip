@@ -8,8 +8,8 @@ import dev.jordond.filmstrip.compose.ui.interaction.PlayheadFollow
  * What an overlay drawn over a [FilmstripTimeline]'s strip is given.
  *
  * A [BoxScope], so an overlay places itself with `align` and `matchParentSize` the way it would in any box. [timeline]
- * and [follow] are the same instances the timeline is drawing itself from, so chrome drawn here steps the zoom or
- * recentres the strip rather than keeping a second copy of either.
+ * and [follow] are the same instances the timeline is drawing itself from, so chrome drawn here steps the zoom and
+ * recentres the strip directly.
  *
  * A `Row` or a `Column` opened inside the overlay shadows this scope, so chrome that reads [timeline] or [follow] from
  * inside one takes them as parameters.

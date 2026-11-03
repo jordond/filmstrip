@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.compose.ui.interaction
 
 import androidx.compose.runtime.Immutable
 import dev.drewhamilton.poko.Poko
-import dev.jordond.filmstrip.compose.ui.CropOverlayDefaults
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.NormalizedRect
 
@@ -271,7 +270,8 @@ public sealed interface CropConstraint {
      * the frame's own aspect on the way in. A square crop on a 16:9 frame is a rectangle nine sixteenths as wide as it
      * is tall in frame fractions, and this is the only place that division happens.
      *
-     * A [frameAspect] at or below zero has no shape to divide by and answers [CropOverlayDefaults.Constraint].
+     * A [frameAspect] at or below zero has no shape to divide by and answers
+     * [dev.jordond.filmstrip.compose.ui.CropOverlayDefaults.Constraint].
      *
      * @param aspect The picture ratio the rectangle holds.
      * @param frameAspect Width over height of the frame the rectangle is drawn on, which is the frame the overlay
@@ -282,9 +282,9 @@ public sealed interface CropConstraint {
     public fun lockedTo(
       aspect: AspectRatio,
       frameAspect: Float,
-      minWidth: Float = CropOverlayDefaults.MinWidth,
+      minWidth: Float = DEFAULT_CROP_MIN_WIDTH,
     ): CropConstraint {
-      if (frameAspect <= 0f) return CropOverlayDefaults.Constraint
+      if (frameAspect <= 0f) return DefaultCropConstraint
 
       return FixedAspect(ratio = aspect.value / frameAspect, minWidth = minWidth)
     }
@@ -299,3 +299,9 @@ private fun NormalizedRect.clampedTranslation(): NormalizedRect {
   val newTop = top.coerceIn(0f, (1f - height).coerceAtLeast(0f))
   return NormalizedRect(newLeft, newTop, newLeft + width, newTop + height)
 }
+
+// The defaults CropOverlayDefaults hands out, so lockedTo falls back to the very same ones.
+internal const val DEFAULT_CROP_MIN_WIDTH: Float = 0.1f
+internal const val DEFAULT_CROP_MIN_HEIGHT: Float = 0.1f
+internal val DefaultCropConstraint: CropConstraint =
+  CropConstraint.Free(DEFAULT_CROP_MIN_WIDTH, DEFAULT_CROP_MIN_HEIGHT)

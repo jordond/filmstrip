@@ -1,20 +1,22 @@
 package dev.jordond.filmstrip.media
 
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.LATE_PNG_SIZE
-import dev.jordond.filmstrip.internal.LATE_TIFF_SIZE
-import dev.jordond.filmstrip.internal.PAST_THE_HEAD
 import dev.jordond.filmstrip.internal.PlatformProber
-import dev.jordond.filmstrip.internal.lateTaggedJpeg
-import dev.jordond.filmstrip.internal.lateTaggedPng
-import dev.jordond.filmstrip.internal.lateTaggedTiff
 import dev.jordond.filmstrip.media.probe.IMAGE_PROBE_DURATION
 import dev.jordond.filmstrip.media.probe.IMAGE_PROBE_SIZE
+import dev.jordond.filmstrip.picture.fixtures.LATE_PNG_SIZE
+import dev.jordond.filmstrip.picture.fixtures.LATE_TIFF_SIZE
+import dev.jordond.filmstrip.picture.fixtures.PAST_THE_HEAD
+import dev.jordond.filmstrip.picture.fixtures.lateTaggedJpeg
+import dev.jordond.filmstrip.picture.fixtures.lateTaggedPng
+import dev.jordond.filmstrip.picture.fixtures.lateTaggedTiff
+import dev.jordond.filmstrip.still.still
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
 
 /**
  * A still whose orientation tag sits past the first 64 KiB of the file is measured with that tag, from a file on disk
@@ -31,8 +33,8 @@ class LateTagProbeJvmTest {
 
           val info = probe(ImageSource.of(file.path))
 
-          assertEquals(expected(still, exif), info, "${still.format} $exif")
-          assertEquals(displayed(still.size, exif), info.video?.displaySize, "${still.format} $exif")
+          withClue("${still.format} $exif") { info shouldBe expected(still, exif) }
+          withClue("${still.format} $exif") { info.video?.displaySize shouldBe displayed(still.size, exif) }
         }
       }
     }
@@ -44,7 +46,7 @@ class LateTagProbeJvmTest {
         for (exif in 1..8) {
           val info = probe(ImageSource.ofBytes(still.bytes(exif)))
 
-          assertEquals(expected(still, exif), info, "${still.format} $exif")
+          withClue("${still.format} $exif") { info shouldBe expected(still, exif) }
         }
       }
     }
@@ -57,11 +59,15 @@ class LateTagProbeJvmTest {
       val png = stills.first { it.format == "png" }
       val cut = png.bytes(6).copyOf(PAST_THE_HEAD)
 
-      assertEquals(expected(png, EXIF_ORIENTATION_NORMAL), probe(ImageSource.ofBytes(cut)))
+      probe(ImageSource.ofBytes(cut)) shouldBe expected(png, EXIF_ORIENTATION_NORMAL)
     }
 
   private suspend fun probe(image: ImageSource) =
-    assertIs<ProbeResult.Success>(PlatformProber().probe(MediaSource.Image(image, IMAGE_PROBE_DURATION))).info
+    PlatformProber()
+      .probe(
+        MediaSource.Image(image, IMAGE_PROBE_DURATION),
+      ).shouldBeInstanceOf<ProbeResult.Success>()
+      .info
 
   private fun expected(
     still: Still,

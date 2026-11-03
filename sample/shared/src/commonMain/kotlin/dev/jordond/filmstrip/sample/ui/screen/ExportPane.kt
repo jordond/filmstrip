@@ -25,13 +25,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.export.Adjustment
-import dev.jordond.filmstrip.export.AudioCodec
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.sample.SampleAppState
 import dev.jordond.filmstrip.sample.ui.ChipGroup
 import dev.jordond.filmstrip.sample.ui.ControlGroup
@@ -225,8 +225,9 @@ private fun VerdictBlock(state: SampleAppState) {
         Pill("CANNOT EXPORT", MaterialTheme.colorScheme.error)
         verdict.reasons.forEach { ErrorLine(it) }
         verdict.withoutUnsupported?.let { fallback ->
+          Adjustments(fallback.adjustments)
           Button(
-            onClick = { state.export(fallback) },
+            onClick = { state.export(fallback.plan) },
             enabled = !state.exporting,
             shape = RoundedCornerShape(10.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
@@ -265,7 +266,7 @@ private fun PlanSummary(
         ?: output.audioCodec.name,
     )
     output.bitrate?.let { StatRow("Bitrate", "${it.bitsPerSecond / 1_000_000} Mbps") }
-    output.frameRate?.let { StatRow("Frame rate", "$it fps") }
+    StatRow("Frame rate", "${output.frameRate} fps")
     StatRow("Path", plan.path.name.lowercase())
     if (plan.copyBlockedBy.isNotEmpty()) {
       StatRow("No copy because", plan.copyBlockedBy.joinToString { it.name })
@@ -380,7 +381,7 @@ private fun RunBlock(state: SampleAppState) {
 }
 
 @Composable
-internal fun ErrorLine(error: ExportError) {
+internal fun ErrorLine(error: FilmstripError) {
   Row(
     modifier = Modifier
       .fillMaxWidth()

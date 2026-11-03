@@ -1,17 +1,17 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.effect.Sidecar
-import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.OutputFormat
-import dev.jordond.filmstrip.export.VideoCodec
-import dev.jordond.filmstrip.ffmpeg.internal.FfmpegVersion
-import dev.jordond.filmstrip.ffmpeg.internal.InputSource
-import dev.jordond.filmstrip.ffmpeg.internal.InputSpec
-import dev.jordond.filmstrip.ffmpeg.internal.Invocation
-import dev.jordond.filmstrip.ffmpeg.internal.Toolchain
-import dev.jordond.filmstrip.ffmpeg.internal.arguments
-import dev.jordond.filmstrip.ffmpeg.internal.ffmpegEncoderNamed
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSpec
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.arguments
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegEncoderNamed
+import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
+import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import io.kotest.matchers.collections.shouldContain
@@ -103,7 +103,7 @@ class InvocationTest {
     arguments.shouldNotContain("smpte2084")
   }
 
-  // x265 does not read the container-level colour tags back out of its own bitstream, so HDR10 has
+  // x265 does not read the container-level color tags back out of its own bitstream, so HDR10 has
   // to be spelled again in its own params. hevc_videotoolbox has no such gap, so it stays untouched.
   @Test
   fun `repeats HDR10 signalling in x265-params only for libx265`() {
@@ -129,7 +129,7 @@ class InvocationTest {
   // A grade that is kept writes BT.2020, so the tone-map tags must not reach it, and an ordinary
   // SDR export carries the source's own attributes rather than being relabelled BT.709.
   @Test
-  fun `leaves colour tags alone when nothing was tone-mapped`() {
+  fun `leaves color tags alone when nothing was tone-mapped`() {
     argumentsFor(VideoCodec.H264, "libx264").shouldNotContain("-color_primaries")
     argumentsFor(VideoCodec.Hevc, "libx265", HdrTransfer.Pq, toneMapped = true)
       .after("-color_primaries") shouldBe "bt2020"

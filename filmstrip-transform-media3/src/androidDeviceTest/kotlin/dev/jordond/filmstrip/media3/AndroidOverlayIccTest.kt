@@ -3,6 +3,12 @@ package dev.jordond.filmstrip.media3
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
+import dev.jordond.filmstrip.color.authoredHdrNits
+import dev.jordond.filmstrip.color.pictureLight
+import dev.jordond.filmstrip.color.pictureSrgbCodes
+import dev.jordond.filmstrip.color.signalFromNits
+import dev.jordond.filmstrip.color.srgbToLinear
+import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
@@ -20,43 +26,38 @@ import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.pictureColour
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.authoredHdrNits
-import dev.jordond.filmstrip.media.pictureLight
-import dev.jordond.filmstrip.media.pictureSrgbCodes
-import dev.jordond.filmstrip.media.signalFromNits
-import dev.jordond.filmstrip.media.srgbToLinear
-import dev.jordond.filmstrip.media.tenBitCodesFromSignal
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
-import dev.jordond.filmstrip.test.AuthoredColours
-import dev.jordond.filmstrip.test.ColourPictures
+import dev.jordond.filmstrip.picture.pictureColor
+import dev.jordond.filmstrip.test.AuthoredColors
+import dev.jordond.filmstrip.test.ColorPictures
 import dev.jordond.filmstrip.test.IccPictures
 import dev.jordond.filmstrip.test.OverlayPixels.ENCODED_TOLERANCE
 import dev.jordond.filmstrip.test.OverlayPixels.hdrSourceOver
 import dev.jordond.filmstrip.test.OverlayPixels.pngOf
 import dev.jordond.filmstrip.test.assumeEncodesHdr
 import dev.jordond.filmstrip.test.ycbcrToRgb
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import org.junit.Assume.assumeTrue
 import java.io.ByteArrayOutputStream
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertTrue
 
 /**
- * Colour described overlay pictures on real media3, each landing in the colour its description gives it.
+ * Color described overlay pictures on real media3, each landing in the color its description gives it.
  *
- * Every [IccPictures] and [ColourPictures] PNG is read, the sixteen-bit PQ and HLG ones included. Every expected colour
+ * Every [IccPictures] and [ColorPictures] PNG is read, the sixteen-bit PQ and HLG ones included. Every expected color
  * comes from [pictureSrgbCodes] on SDR and [pictureLight] on HDR, given core's read of the file, never from what
  * Android's own decoder makes of it. Every ICC picture is also carried in a JPEG and a WebP, the other containers an
- * overlay picture arrives in, and every [ColourPictures] HEIC with an `nclx` lands on the colour the box gives it.
+ * overlay picture arrives in, and every [ColorPictures] HEIC with an `nclx` lands on the color the box gives it.
  *
  * An SDR reading is held against a reference overlay in the opposite bar, untagged and painted the codes
- * [pictureSrgbCodes] gives, so the encoder's handling of the colour cancels out. The PQ readings are held to the
+ * [pictureSrgbCodes] gives, so the encoder's handling of the color cancels out. The PQ readings are held to the
  * ten-bit codes of the light itself, and are skipped on a device that writes no HDR, as in [AndroidOverlayHdrTest].
  */
 class AndroidOverlayIccTest {
@@ -66,10 +67,10 @@ class AndroidOverlayIccTest {
   fun everyTaggedTexelReadTheWayMedia3ReadsItLandsOnItsPictureLight() {
     val misses =
       IccPictures.ALL.flatMap { picture ->
-        val colour = pictureColour(picture.pngOf(BADGE))
+        val color = pictureColor(picture.pngOf(BADGE))
         HdrTransfer.entries.mapNotNull { transfer ->
-          val texels = media3HdrTexels(intArrayOf(picture.texel), transfer, colour)
-          val light = pictureLight(colour, intArrayOf(picture.texel))
+          val texels = media3HdrTexels(intArrayOf(picture.texel), transfer, color)
+          val light = pictureLight(color, intArrayOf(picture.texel))
           val expected = media3WorkingLight(light.copyOf(RGB), transfer)
           val off =
             CHANNEL_SHIFTS.indices.maxOf { channel ->
@@ -81,7 +82,7 @@ class AndroidOverlayIccTest {
         }
       }
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   @Test
@@ -89,7 +90,7 @@ class AndroidOverlayIccTest {
     runTest(timeout = TIMEOUT) {
       val misses = taggedPngs().mapNotNull { sdrMiss(it.name, it.png, it.srgb) }
 
-      assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+      withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
     }
 
   @Test
@@ -99,11 +100,11 @@ class AndroidOverlayIccTest {
         IccPictures.ALL.mapNotNull { picture ->
           val untagged = compressed(picture.texel, Bitmap.CompressFormat.JPEG)
           val tagged = untagged.withJpegProfile(picture.profile)
-          val expected = pictureSrgbCodes(pictureColour(tagged), intArrayOf(storedTexel(untagged)))[0]
+          val expected = pictureSrgbCodes(pictureColor(tagged), intArrayOf(storedTexel(untagged)))[0]
           sdrMiss("$picture JPEG", tagged, expected)
         }
 
-      assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+      withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
     }
 
   @Test
@@ -112,26 +113,26 @@ class AndroidOverlayIccTest {
       val misses =
         IccPictures.ALL.mapNotNull { picture ->
           val tagged = compressed(picture.texel, losslessWebp()).withWebpProfile(picture.profile, BADGE)
-          val expected = pictureSrgbCodes(pictureColour(tagged), intArrayOf(picture.texel))[0]
+          val expected = pictureSrgbCodes(pictureColor(tagged), intArrayOf(picture.texel))[0]
           sdrMiss("$picture WebP", tagged, expected)
         }
 
-      assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+      withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
     }
 
   // Android's HEIC decoder reads the matrix and range from the codestream rather than the nclx, so each lands on the
-  // colour its nclx gives only through the codestream the overlay decode rewrites before handing it over. A matrix the
+  // color its nclx gives only through the codestream the overlay decode rewrites before handing it over. A matrix the
   // decoder on this API level cannot read is reported by the plan, naming the matrix it lands the picture through at
   // its own range.
   @Test
-  fun everyNclxHeicLandsOnTheColourItsNclxGivesOrItsReportedLimitOnAnSdrExport() {
+  fun everyNclxHeicLandsOnTheColorItsNclxGivesOrItsReportedLimitOnAnSdrExport() {
     assumeTrue("Android decodes HEIC from API 28", Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
-    val first = ColourPictures.HEICS.first().bytes()
+    val first = ColorPictures.HEICS.first().bytes()
     assumeTrue(HEIC_UNDECODED, BitmapFactory.decodeByteArray(first, 0, first.size) != null)
 
     runTest(timeout = TIMEOUT) {
       val misses =
-        ColourPictures.HEICS_WITH_SIGNAL_VARIANTS.mapNotNull { picture ->
+        ColorPictures.HEICS_WITH_SIGNAL_VARIANTS.mapNotNull { picture ->
           val nclx = picture.nclx ?: return@mapNotNull null
           val heic = picture.bytes()
           val verdict = probe.filmstrip.plan(letterboxed(probe.fixture(), listOf(barMark(heic, Corner.TopStart))), SDR)
@@ -141,10 +142,10 @@ class AndroidOverlayIccTest {
           val matrix = landed?.toInt() ?: nclx.matrix
           val rgb = ycbcrToRgb(y, cb, cr, matrix, nclx.primaries, nclx.transfer, nclx.fullRange)
           val stored = rgb.fold(OPAQUE_ALPHA) { argb, code -> (argb shl 8) or code }
-          sdrMiss("$picture", heic, pictureSrgbCodes(pictureColour(heic), intArrayOf(stored))[0])
+          sdrMiss("$picture", heic, pictureSrgbCodes(pictureColor(heic), intArrayOf(stored))[0])
         }
 
-      assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+      withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
     }
   }
 
@@ -174,18 +175,18 @@ class AndroidOverlayIccTest {
           }
         }
 
-      assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+      withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
     }
 
   // Every expected value comes from core's read of the PNG itself, a sixteen-bit one at its own depth.
   private fun taggedPngs(): List<TaggedPng> =
     IccPictures.ALL.map { eightBit(it.name, it.texel, it.pngOf(BADGE)) } +
-      ColourPictures.PNGS.map { eightBit(it.name, it.texel, it.pngOf(BADGE)) } +
-      ColourPictures.HDR_PNGS.map { tagged ->
+      ColorPictures.PNGS.map { eightBit(it.name, it.texel, it.pngOf(BADGE)) } +
+      ColorPictures.HDR_PNGS.map { tagged ->
         val png = tagged.pngOf(BADGE)
-        val colour = pictureColour(png)
+        val color = pictureColor(png)
         val samples = ShortArray(RGBA) { tagged.texel[it].toShort() }
-        TaggedPng(tagged.name, png, pictureLight(colour, samples), pictureSrgbCodes(colour, samples)[0])
+        TaggedPng(tagged.name, png, pictureLight(color, samples), pictureSrgbCodes(color, samples)[0])
       }
 
   private fun eightBit(
@@ -193,9 +194,9 @@ class AndroidOverlayIccTest {
     texel: Int,
     png: ByteArray,
   ): TaggedPng {
-    val colour = pictureColour(png)
+    val color = pictureColor(png)
     val texels = intArrayOf(texel)
-    return TaggedPng(name, png, pictureLight(colour, texels), pictureSrgbCodes(colour, texels)[0])
+    return TaggedPng(name, png, pictureLight(color, texels), pictureSrgbCodes(color, texels)[0])
   }
 
   private class TaggedPng(
@@ -281,11 +282,11 @@ class AndroidOverlayIccTest {
   }
 
   private companion object {
-    const val FILL_ARGB = AuthoredColours.MID_GREY
-    val HDR_SPEC = ExportSpec(targetHeight = 360, hdr = HdrMode.KeepHdr)
+    const val FILL_ARGB = AuthoredColors.MID_GREY
+    val HDR_SPEC = ExportSpec(heightPx = 360, hdr = HdrMode.KeepHdr)
 
     const val HALF = 0.5f
-    const val HEIC_UNDECODED = "Android's HEIC decoder hands back no frame for the ColourPictures HEIC stills"
+    const val HEIC_UNDECODED = "Android's HEIC decoder hands back no frame for the ColorPictures HEIC stills"
     val LANDED_THROUGH = Regex("Android's HEIC decoder .* through matrix (\\d+) instead")
     val SDR = ExportSpec()
     const val FULL_QUALITY = 100

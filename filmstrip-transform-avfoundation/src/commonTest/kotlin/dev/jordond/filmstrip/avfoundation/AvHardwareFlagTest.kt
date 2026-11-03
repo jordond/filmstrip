@@ -1,8 +1,9 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.avfoundation.internal.hardwareFlag
+import dev.jordond.filmstrip.avfoundation.internal.writer.hardwareFlag
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
 
 /**
  * The hardware flag an encoder reports for every pairing of the session answer and the encoder list tag.
@@ -22,7 +23,7 @@ class AvHardwareFlagTest {
       )
 
     for ((session, listed, expected) in rows) {
-      assertEquals(expected, hardwareFlag(session, listed), "session $session, listed $listed")
+      withClue("session $session, listed $listed") { hardwareFlag(session, listed) shouldBe expected }
     }
   }
 }

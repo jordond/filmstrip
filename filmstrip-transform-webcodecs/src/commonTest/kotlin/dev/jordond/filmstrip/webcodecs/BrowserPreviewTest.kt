@@ -1,40 +1,39 @@
 package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.ComponentRegistry
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.videoSlots
-import dev.jordond.filmstrip.webcodecs.internal.BrowserPreview
 import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
-import dev.jordond.filmstrip.webcodecs.internal.PREVIEW_LOOK_AHEAD
-import dev.jordond.filmstrip.webcodecs.internal.PreviewFrame
-import dev.jordond.filmstrip.webcodecs.internal.toBrowserPreview
+import dev.jordond.filmstrip.webcodecs.internal.preview.BrowserPreview
+import dev.jordond.filmstrip.webcodecs.internal.preview.PREVIEW_LOOK_AHEAD
+import dev.jordond.filmstrip.webcodecs.internal.preview.PreviewFrame
+import dev.jordond.filmstrip.webcodecs.internal.preview.toBrowserPreview
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
@@ -57,13 +56,18 @@ class BrowserPreviewTest {
 
       try {
         for (index in PROBE_FRAMES) {
-          val frame = assertNotNull(preview.frameAt(frameTime(index)), "no preview frame at frame $index")
-          assertEquals(Size(WIDTH, HEIGHT), frame.size)
-          assertEquals(frameTime(index), frame.presentationTime)
+          val frame =
+            withClue("no preview frame at frame $index") {
+              preview.frameAt(frameTime(index)).shouldNotBeNull()
+            }
+          frame.size shouldBe Size(WIDTH, HEIGHT)
+          frame.presentationTime shouldBe frameTime(index)
 
           val drawn = frame.at(x = 0.5, y = 0.5)
           val expected = ramp(index).graded(Brightness(BRIGHT))
-          assertTrue(drawn.isNear(expected), "frame $index drew $drawn where the export writes $expected")
+          withClue("frame $index drew $drawn where the export writes $expected") {
+            drawn.isNear(expected) shouldBe true
+          }
         }
       } finally {
         preview.release()
@@ -79,11 +83,14 @@ class BrowserPreviewTest {
       val preview = previewOf(lateComposition(Fill.Black))
 
       try {
-        val filled = assertNotNull(preview.frameAt(frameTime(GAP_PROBE)), "no preview frame in the gap")
-        assertEquals(filled.presentationTime, preview.drawnAtUs?.microseconds)
+        val filled = withClue("no preview frame in the gap") { preview.frameAt(frameTime(GAP_PROBE)).shouldNotBeNull() }
+        preview.drawnAtUs?.microseconds shouldBe filled.presentationTime
 
-        val drawn = assertNotNull(preview.frameAt(frameTime(LATE_SLOTS + CLIP_PROBE)), "no preview frame in the clip")
-        assertEquals(drawn.presentationTime, preview.drawnAtUs?.microseconds)
+        val drawn =
+          withClue("no preview frame in the clip") {
+            preview.frameAt(frameTime(LATE_SLOTS + CLIP_PROBE)).shouldNotBeNull()
+          }
+        preview.drawnAtUs?.microseconds shouldBe drawn.presentationTime
       } finally {
         preview.release()
       }
@@ -97,13 +104,13 @@ class BrowserPreviewTest {
       try {
         preview.fillAhead(Duration.ZERO)
         val held = preview.buffered
-        assertTrue(held > 0, "the look-ahead decoded nothing")
+        withClue("the look-ahead decoded nothing") { (held > 0) shouldBe true }
 
         // Far enough from the playhead that the window cannot answer, which is the case that has to
         // reach a decoder of its own rather than throw away what playback is holding.
-        assertNotNull(preview.frameAt(frameTime(FRAMES - 1)))
+        preview.frameAt(frameTime(FRAMES - 1)).shouldNotBeNull()
 
-        assertEquals(held, preview.buffered)
+        preview.buffered shouldBe held
       } finally {
         preview.release()
       }
@@ -117,8 +124,8 @@ class BrowserPreviewTest {
       try {
         preview.fillAhead(Duration.ZERO)
 
-        assertTrue(FRAMES > PREVIEW_LOOK_AHEAD, "the fixture is too short to reach the bound")
-        assertEquals(PREVIEW_LOOK_AHEAD, preview.buffered)
+        withClue("the fixture is too short to reach the bound") { (FRAMES > PREVIEW_LOOK_AHEAD) shouldBe true }
+        preview.buffered shouldBe PREVIEW_LOOK_AHEAD
       } finally {
         preview.release()
       }
@@ -131,12 +138,12 @@ class BrowserPreviewTest {
 
       try {
         preview.fillAhead(Duration.ZERO)
-        assertTrue(preview.openedFrames > 0, "the look-ahead decoded nothing")
+        withClue("the look-ahead decoded nothing") { (preview.openedFrames > 0) shouldBe true }
 
         preview.flush()
 
-        assertEquals(0, preview.buffered)
-        assertEquals(preview.openedFrames, preview.closedFrames)
+        preview.buffered shouldBe 0
+        preview.closedFrames shouldBe preview.openedFrames
       } finally {
         preview.release()
       }
@@ -149,13 +156,13 @@ class BrowserPreviewTest {
 
       preview.fillAhead(Duration.ZERO)
       preview.fillAhead(frameTime(PROBE_FRAMES.last()))
-      assertTrue(preview.openedFrames > 0, "the look-ahead decoded nothing")
+      withClue("the look-ahead decoded nothing") { (preview.openedFrames > 0) shouldBe true }
 
       preview.release()
 
-      assertEquals(0, preview.buffered)
-      assertEquals(preview.openedFrames, preview.closedFrames)
-      assertNull(preview.frameAt(Duration.ZERO), "a released preview still drew a frame")
+      preview.buffered shouldBe 0
+      preview.closedFrames shouldBe preview.openedFrames
+      withClue("a released preview still drew a frame") { preview.frameAt(Duration.ZERO).shouldBeNull() }
     }
 
   // The pump decodes ahead while a release can land at any moment, so a release arriving mid-decode
@@ -170,10 +177,10 @@ class BrowserPreviewTest {
       preview.release()
       filling.join()
 
-      assertTrue(preview.openedFrames > 0, "the look-ahead decoded nothing")
-      assertEquals(0, preview.buffered)
-      assertEquals(preview.openedFrames, preview.closedFrames)
-      assertNull(preview.frameAt(Duration.ZERO), "a released preview still drew a frame")
+      withClue("the look-ahead decoded nothing") { (preview.openedFrames > 0) shouldBe true }
+      preview.buffered shouldBe 0
+      preview.closedFrames shouldBe preview.openedFrames
+      withClue("a released preview still drew a frame") { preview.frameAt(Duration.ZERO).shouldBeNull() }
     }
 
   // A seek flushes on the same footing, and lands on a window the in-flight decode is still filling.
@@ -188,9 +195,9 @@ class BrowserPreviewTest {
         preview.flush()
         filling.join()
 
-        assertTrue(preview.openedFrames > 0, "the look-ahead decoded nothing")
-        assertEquals(0, preview.buffered)
-        assertEquals(preview.openedFrames, preview.closedFrames)
+        withClue("the look-ahead decoded nothing") { (preview.openedFrames > 0) shouldBe true }
+        preview.buffered shouldBe 0
+        preview.closedFrames shouldBe preview.openedFrames
       } finally {
         preview.release()
       }
@@ -206,17 +213,16 @@ class BrowserPreviewTest {
 
       try {
         preview.fillAhead(Duration.ZERO)
-        val before = assertNotNull(preview.frameAt(frameTime(PROBE_FRAMES.first())))
+        val before = preview.frameAt(frameTime(PROBE_FRAMES.first())).shouldNotBeNull()
         val held = preview.buffered
 
-        assertTrue(preview.updateParameters(resolve(bright), bright), "the swap was refused")
+        withClue("the swap was refused") { preview.updateParameters(resolve(bright), bright) shouldBe true }
 
-        val after = assertNotNull(preview.frameAt(frameTime(PROBE_FRAMES.first())))
-        assertEquals(held, preview.buffered)
-        assertTrue(
-          after.at(x = 0.5, y = 0.5).red > before.at(x = 0.5, y = 0.5).red,
-          "the grade change reached no pixel",
-        )
+        val after = preview.frameAt(frameTime(PROBE_FRAMES.first())).shouldNotBeNull()
+        preview.buffered shouldBe held
+        withClue("the grade change reached no pixel") {
+          (after.at(x = 0.5, y = 0.5).red > before.at(x = 0.5, y = 0.5).red) shouldBe true
+        }
       } finally {
         preview.release()
       }
@@ -232,23 +238,22 @@ class BrowserPreviewTest {
 
       try {
         val gap = frameTime(GAP_PROBE)
-        val filled = assertNotNull(preview.frameAt(gap), "no preview frame in the gap")
-        assertEquals(gap, filled.presentationTime)
-        assertTrue(filled.at(x = 0.5, y = 0.5).isNear(PURPLE_RGB), "the gap drew ${filled.at(0.5, 0.5)}")
+        val filled = withClue("no preview frame in the gap") { preview.frameAt(gap).shouldNotBeNull() }
+        filled.presentationTime shouldBe gap
+        withClue("the gap drew ${filled.at(0.5, 0.5)}") { filled.at(x = 0.5, y = 0.5).isNear(PURPLE_RGB) shouldBe true }
 
         // Nothing is decoded in the gap, so a relaxed seek stays put and the look-ahead reads the
         // clip that comes next.
-        assertEquals(gap, preview.syncSampleAt(gap))
+        preview.syncSampleAt(gap) shouldBe gap
         preview.fillAhead(gap)
-        assertTrue(preview.buffered > 0, "the look-ahead decoded nothing ahead of the clip")
+        withClue("the look-ahead decoded nothing ahead of the clip") { (preview.buffered > 0) shouldBe true }
 
         val into = frameTime(LATE_SLOTS + CLIP_PROBE)
-        val drawn = assertNotNull(preview.frameAt(into), "no preview frame after the start")
-        assertEquals(into, drawn.presentationTime)
-        assertTrue(
-          drawn.at(x = 0.5, y = 0.5).isNear(ramp(CLIP_PROBE)),
-          "the clip drew ${drawn.at(0.5, 0.5)} where its frame $CLIP_PROBE is ${ramp(CLIP_PROBE)}",
-        )
+        val drawn = withClue("no preview frame after the start") { preview.frameAt(into).shouldNotBeNull() }
+        drawn.presentationTime shouldBe into
+        withClue("the clip drew ${drawn.at(0.5, 0.5)} where its frame $CLIP_PROBE is ${ramp(CLIP_PROBE)}") {
+          drawn.at(x = 0.5, y = 0.5).isNear(ramp(CLIP_PROBE)) shouldBe true
+        }
       } finally {
         preview.release()
       }
@@ -265,40 +270,43 @@ class BrowserPreviewTest {
       val lead = outputSlotOf(OFF_GRID_START, FRAME_RATE)
 
       try {
-        val filled = assertNotNull(preview.frameAt(frameTime(GAP_PROBE)), "no preview frame in the gap")
-        assertTrue(filled.at(x = 0.5, y = 0.5).isNear(PURPLE_RGB), "the gap drew ${filled.at(0.5, 0.5)}")
+        val filled = withClue("no preview frame in the gap") { preview.frameAt(frameTime(GAP_PROBE)).shouldNotBeNull() }
+        withClue("the gap drew ${filled.at(0.5, 0.5)}") { filled.at(x = 0.5, y = 0.5).isNear(PURPLE_RGB) shouldBe true }
 
         // Ten milliseconds short of the start and a whole slot past the last gap frame.
         val shortOfStart = outputSlotTime(lead, FRAME_RATE)
-        assertTrue(shortOfStart < OFF_GRID_START, "the probe at $shortOfStart is not short of $OFF_GRID_START")
-        val opening = assertNotNull(preview.frameAt(shortOfStart), "no preview frame at $shortOfStart")
-        assertEquals(shortOfStart, opening.presentationTime)
-        assertTrue(
-          opening.at(x = 0.5, y = 0.5).isNear(ramp(0)),
-          "$shortOfStart drew ${opening.at(0.5, 0.5)} where the clip opens on ${ramp(0)}",
-        )
+        withClue("the probe at $shortOfStart is not short of $OFF_GRID_START") {
+          (shortOfStart < OFF_GRID_START) shouldBe true
+        }
+        val opening = withClue("no preview frame at $shortOfStart") { preview.frameAt(shortOfStart).shouldNotBeNull() }
+        opening.presentationTime shouldBe shortOfStart
+        withClue("$shortOfStart drew ${opening.at(0.5, 0.5)} where the clip opens on ${ramp(0)}") {
+          opening.at(x = 0.5, y = 0.5).isNear(ramp(0)) shouldBe true
+        }
         // The clip's own sync sample sits after this position, so a relaxed seek has nowhere earlier
         // to go and stays put.
         val shortSeek = preview.syncSampleAt(shortOfStart)
-        assertTrue(shortSeek <= shortOfStart, "a relaxed seek to $shortOfStart moved forward to $shortSeek")
+        withClue("a relaxed seek to $shortOfStart moved forward to $shortSeek") {
+          (shortSeek <= shortOfStart) shouldBe true
+        }
 
         val inClip = OFF_GRID_START + frameTime(CLIP_PROBE)
         val onGrid = outputSlotOf(inClip, FRAME_RATE)
-        val drawn = assertNotNull(preview.frameAt(inClip), "no preview frame at $inClip")
-        assertEquals(outputSlotTime(onGrid, FRAME_RATE), drawn.presentationTime)
+        val drawn = withClue("no preview frame at $inClip") { preview.frameAt(inClip).shouldNotBeNull() }
+        drawn.presentationTime shouldBe outputSlotTime(onGrid, FRAME_RATE)
         val into = (onGrid - lead).toInt()
-        assertTrue(
-          drawn.at(x = 0.5, y = 0.5).isNear(ramp(into)),
-          "$inClip drew ${drawn.at(0.5, 0.5)} where the clip's frame $into is ${ramp(into)}",
-        )
+        withClue("$inClip drew ${drawn.at(0.5, 0.5)} where the clip's frame $into is ${ramp(into)}") {
+          drawn.at(x = 0.5, y = 0.5).isNear(ramp(into)) shouldBe true
+        }
 
         val seek = preview.syncSampleAt(inClip)
-        assertEquals(opening.presentationTime, seek, "a relaxed seek to $inClip missed the slot the clip opens on")
-        val landed = assertNotNull(preview.frameAt(seek), "no preview frame at $seek")
-        assertTrue(
-          landed.at(x = 0.5, y = 0.5).isNear(ramp(0)),
-          "a relaxed seek landed on $seek and drew ${landed.at(0.5, 0.5)} where the clip opens on ${ramp(0)}",
-        )
+        withClue("a relaxed seek to $inClip missed the slot the clip opens on") {
+          seek shouldBe opening.presentationTime
+        }
+        val landed = withClue("no preview frame at $seek") { preview.frameAt(seek).shouldNotBeNull() }
+        withClue("a relaxed seek landed on $seek and drew ${landed.at(0.5, 0.5)} where the clip opens on ${ramp(0)}") {
+          landed.at(x = 0.5, y = 0.5).isNear(ramp(0)) shouldBe true
+        }
       } finally {
         preview.release()
       }
@@ -316,7 +324,7 @@ class BrowserPreviewTest {
           height = HEIGHT,
           frames = SEAM_SOURCE_FRAMES,
           frameRate = FRAME_RATE,
-          colour = Rgb.Green,
+          color = Rgb.Green,
         )
       val composition =
         EditComposition(
@@ -335,20 +343,21 @@ class BrowserPreviewTest {
       val seam = outputSlotOf(OFF_GRID_SEAM, FRAME_RATE)
 
       try {
-        val opening = assertNotNull(preview.frameAt(OFF_GRID_SEAM), "no preview frame at $OFF_GRID_SEAM")
-        assertEquals(outputSlotTime(seam, FRAME_RATE), opening.presentationTime)
-        assertTrue(
-          opening.at(x = 0.5, y = 0.5).isNear(ramp(0)),
-          "$OFF_GRID_SEAM drew ${opening.at(0.5, 0.5)} where the second clip opens on ${ramp(0)}",
-        )
+        val opening =
+          withClue("no preview frame at $OFF_GRID_SEAM") {
+            preview.frameAt(OFF_GRID_SEAM).shouldNotBeNull()
+          }
+        opening.presentationTime shouldBe outputSlotTime(seam, FRAME_RATE)
+        withClue("$OFF_GRID_SEAM drew ${opening.at(0.5, 0.5)} where the second clip opens on ${ramp(0)}") {
+          opening.at(x = 0.5, y = 0.5).isNear(ramp(0)) shouldBe true
+        }
 
         val lastOfFirst = outputSlotTime(seam - 1, FRAME_RATE)
-        val closing = assertNotNull(preview.frameAt(lastOfFirst), "no preview frame at $lastOfFirst")
-        assertEquals(lastOfFirst, closing.presentationTime)
-        assertTrue(
-          closing.at(x = 0.5, y = 0.5).isNear(Rgb.Green),
-          "$lastOfFirst drew ${closing.at(0.5, 0.5)} where the first clip is ${Rgb.Green}",
-        )
+        val closing = withClue("no preview frame at $lastOfFirst") { preview.frameAt(lastOfFirst).shouldNotBeNull() }
+        closing.presentationTime shouldBe lastOfFirst
+        withClue("$lastOfFirst drew ${closing.at(0.5, 0.5)} where the first clip is ${Rgb.Green}") {
+          closing.at(x = 0.5, y = 0.5).isNear(Rgb.Green) shouldBe true
+        }
       } finally {
         preview.release()
       }
@@ -366,7 +375,7 @@ class BrowserPreviewTest {
         val opening = frameTime(FRAME_RATE)
         val seek = preview.syncSampleAt(opening + frameTime(CLIP_PROBE))
 
-        assertEquals(opening, seek)
+        seek shouldBe opening
       } finally {
         preview.release()
       }
@@ -392,7 +401,7 @@ class BrowserPreviewTest {
 
         val seek = preview.syncSampleAt(position)
 
-        assertEquals(outputSlotTime(outputSlotOf(keyAt, FRAME_RATE), FRAME_RATE), seek)
+        seek shouldBe outputSlotTime(outputSlotOf(keyAt, FRAME_RATE), FRAME_RATE)
       } finally {
         preview.release()
       }
@@ -423,13 +432,14 @@ class BrowserPreviewTest {
 
         val seek = preview.syncSampleAt(inClip)
 
-        assertEquals(opens, seek, "a relaxed seek to $inClip left the clip that opens at $opens")
-        val landed = assertNotNull(preview.frameAt(seek), "no preview frame at $seek")
-        assertTrue(
-          landed.at(x = 0.5, y = 0.5).isNear(keyed(MID_GOP_FRAME)),
+        withClue("a relaxed seek to $inClip left the clip that opens at $opens") { seek shouldBe opens }
+        val landed = withClue("no preview frame at $seek") { preview.frameAt(seek).shouldNotBeNull() }
+        withClue(
           "a relaxed seek landed on $seek and drew ${landed.at(0.5, 0.5)} where the clip opens on " +
             "${keyed(MID_GOP_FRAME)}",
-        )
+        ) {
+          landed.at(x = 0.5, y = 0.5).isNear(keyed(MID_GOP_FRAME)) shouldBe true
+        }
       } finally {
         preview.release()
       }
@@ -442,16 +452,16 @@ class BrowserPreviewTest {
     runTest {
       val filler = makeClip(width = WIDTH, height = HEIGHT, frames = SHORT_FRAMES, frameRate = FRAME_RATE)
       val wide =
-        makeClip(width = WIDTH, height = HEIGHT / 2, frames = SHORT_FRAMES, frameRate = FRAME_RATE, colour = Rgb.Red)
+        makeClip(width = WIDTH, height = HEIGHT / 2, frames = SHORT_FRAMES, frameRate = FRAME_RATE, color = Rgb.Red)
       val preview = previewOf(lateComposition(Fill.Blur, clips = listOf(filler, wide)))
 
       try {
-        val letterboxed = assertNotNull(preview.frameAt(frameTime(LATE_SLOTS + SHORT_FRAMES + WIDE_PROBE)))
+        val letterboxed = preview.frameAt(frameTime(LATE_SLOTS + SHORT_FRAMES + WIDE_PROBE)).shouldNotBeNull()
         val bar = letterboxed.at(x = 0.5, y = BAR)
-        assertTrue(!bar.isNear(Rgb.Black), "the bar read $bar, so the background passes never ran")
+        withClue("the bar read $bar, so the background passes never ran") { !bar.isNear(Rgb.Black) shouldBe true }
 
-        val filled = assertNotNull(preview.frameAt(frameTime(GAP_PROBE)))
-        assertTrue(filled.at(x = 0.5, y = 0.5).isNear(Rgb.Black), "the gap drew ${filled.at(0.5, 0.5)}")
+        val filled = preview.frameAt(frameTime(GAP_PROBE)).shouldNotBeNull()
+        withClue("the gap drew ${filled.at(0.5, 0.5)}") { filled.at(x = 0.5, y = 0.5).isNear(Rgb.Black) shouldBe true }
       } finally {
         preview.release()
       }
@@ -467,20 +477,22 @@ class BrowserPreviewTest {
 
       try {
         val tail = preview.resolved.heldTail
-        assertFalse(tail.isEmpty(), "a bed of $BED_FRAMES frames under a shorter primary left no tail")
+        withClue("a bed of $BED_FRAMES frames under a shorter primary left no tail") { tail.isEmpty() shouldBe false }
         val lastCovered = outputSlotTime(tail.first - 1, FRAME_RATE)
         val middle = outputSlotTime((tail.first + tail.last) / 2, FRAME_RATE)
 
-        val held = assertNotNull(preview.frameAt(middle), "no preview frame at $middle")
-        assertEquals(middle, held.presentationTime)
-        assertEquals(lastCovered, preview.drawnAtUs?.microseconds)
-        assertTrue(
-          held.at(x = 0.5, y = 0.5).isNear(ramp(FRAMES - 1)),
-          "$middle drew ${held.at(0.5, 0.5)} where the primary closes on ${ramp(FRAMES - 1)}",
-        )
+        val held = withClue("no preview frame at $middle") { preview.frameAt(middle).shouldNotBeNull() }
+        held.presentationTime shouldBe middle
+        preview.drawnAtUs?.microseconds shouldBe lastCovered
+        withClue("$middle drew ${held.at(0.5, 0.5)} where the primary closes on ${ramp(FRAMES - 1)}") {
+          held.at(x = 0.5, y = 0.5).isNear(ramp(FRAMES - 1)) shouldBe true
+        }
 
-        val end = assertNotNull(preview.frameAt(preview.resolved.duration), "no preview frame at the duration")
-        assertEquals(outputSlotTime(preview.resolved.videoSlots - 1, FRAME_RATE), end.presentationTime)
+        val end =
+          withClue("no preview frame at the duration") {
+            preview.frameAt(preview.resolved.duration).shouldNotBeNull()
+          }
+        end.presentationTime shouldBe outputSlotTime(preview.resolved.videoSlots - 1, FRAME_RATE)
       } finally {
         preview.release()
       }
@@ -495,27 +507,27 @@ class BrowserPreviewTest {
 
       try {
         val tail = preview.resolved.heldTail
-        assertFalse(tail.isEmpty(), "a bed of $BED_FRAMES frames under a shorter primary left no tail")
+        withClue("a bed of $BED_FRAMES frames under a shorter primary left no tail") { tail.isEmpty() shouldBe false }
         val middle = (tail.first + tail.last) / 2
         val third = frameTime(1) / 3
 
         val roundsDown = outputSlotTime(middle, FRAME_RATE) + third
         val down = preview.syncSampleAt(roundsDown)
-        assertEquals(outputSlotTime(middle, FRAME_RATE), down, "a relaxed seek to $roundsDown left slot $middle")
-        val landed = assertNotNull(preview.frameAt(down), "no preview frame at $down")
-        assertEquals(outputSlotTime(middle, FRAME_RATE), landed.presentationTime)
+        withClue("a relaxed seek to $roundsDown left slot $middle") { down shouldBe outputSlotTime(middle, FRAME_RATE) }
+        val landed = withClue("no preview frame at $down") { preview.frameAt(down).shouldNotBeNull() }
+        landed.presentationTime shouldBe outputSlotTime(middle, FRAME_RATE)
 
         val roundsUp = outputSlotTime(middle, FRAME_RATE) - third
-        assertEquals(middle, outputSlotOf(roundsUp, FRAME_RATE), "the probe at $roundsUp is not on slot $middle")
+        withClue("the probe at $roundsUp is not on slot $middle") { outputSlotOf(roundsUp, FRAME_RATE) shouldBe middle }
         val up = preview.syncSampleAt(roundsUp)
-        assertTrue(up <= roundsUp, "a relaxed seek to $roundsUp moved forward to $up")
-        assertEquals(middle, outputSlotOf(up, FRAME_RATE), "a relaxed seek to $roundsUp left slot $middle")
+        withClue("a relaxed seek to $roundsUp moved forward to $up") { (up <= roundsUp) shouldBe true }
+        withClue("a relaxed seek to $roundsUp left slot $middle") { outputSlotOf(up, FRAME_RATE) shouldBe middle }
 
         val opening = outputSlotTime(tail.first, FRAME_RATE)
-        assertEquals(opening, preview.syncSampleAt(opening), "a relaxed seek to the tail's first slot moved")
+        withClue("a relaxed seek to the tail's first slot moved") { preview.syncSampleAt(opening) shouldBe opening }
 
         val end = preview.syncSampleAt(preview.resolved.duration)
-        assertEquals(outputSlotTime(tail.last, FRAME_RATE), end, "a relaxed seek to the duration left the tail")
+        withClue("a relaxed seek to the duration left the tail") { end shouldBe outputSlotTime(tail.last, FRAME_RATE) }
       } finally {
         preview.release()
       }
@@ -530,7 +542,7 @@ class BrowserPreviewTest {
 
       try {
         val tail = preview.resolved.heldTail
-        assertFalse(tail.isEmpty(), "a bed of $BED_FRAMES frames under a shorter primary left no tail")
+        withClue("a bed of $BED_FRAMES frames under a shorter primary left no tail") { tail.isEmpty() shouldBe false }
         val laid =
           preview.resolved.tracks
             .first()
@@ -539,7 +551,9 @@ class BrowserPreviewTest {
         val opens = outputSlotTime(outputSlotOf(laid.span.start, FRAME_RATE), FRAME_RATE)
         val lastCovered = outputSlotTime(tail.first - 1, FRAME_RATE)
 
-        assertEquals(opens, preview.syncSampleAt(lastCovered), "a relaxed seek to $lastCovered missed the sync sample")
+        withClue("a relaxed seek to $lastCovered missed the sync sample") {
+          preview.syncSampleAt(lastCovered) shouldBe opens
+        }
       } finally {
         preview.release()
       }
@@ -572,12 +586,14 @@ class BrowserPreviewTest {
     resolve(composition).toBrowserPreview(composition)
 
   private suspend fun resolve(composition: EditComposition) =
-    assertIs<ResolveResult.Resolved>(
-      browserExportEngine(
-        components = ComponentRegistry.Builder().add(BuiltInEffectResolver()).build(),
-        prober = BrowserProber(),
-      ).resolve(composition, ExportSpec(videoCodec = VideoCodec.H264)),
-    ).composition
+    webCodecsExportEngine(
+      components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(),
+      prober = BrowserProber(),
+    ).resolve(
+      composition,
+      ExportSpec(videoCodec = VideoCodec.H264),
+    ).shouldBeInstanceOf<ResolveResult.Resolved>()
+      .composition
 
   private fun compositionOf(
     source: MediaSource,
@@ -590,15 +606,15 @@ class BrowserPreviewTest {
     )
 
   /**
-   * A clip whose every frame is a different flat colour, so a frame drawn for the wrong time is a
-   * different colour rather than an indistinguishable one.
+   * A clip whose every frame is a different flat color, so a frame drawn for the wrong time is a
+   * different color rather than an indistinguishable one.
    */
   private suspend fun rampClip(): ByteArray =
     makeClip(width = WIDTH, height = HEIGHT, frames = FRAMES, frameRate = FRAME_RATE) { index, _ -> ramp(index) }
 
   /**
    * A clip long enough to carry the sync sample the fixtures write every second, painted in a step
-   * of its own so a frame past that second is still a colour a channel can hold.
+   * of its own so a frame past that second is still a color a channel can hold.
    */
   private suspend fun secondKeyFrameClip(): ByteArray =
     makeClip(width = WIDTH, height = HEIGHT, frames = KEY_FRAME_FRAMES, frameRate = FRAME_RATE) { index, _ ->
@@ -667,7 +683,7 @@ class BrowserPreviewTest {
 }
 
 /**
- * The colour at a point given as fractions of the frame, measured from the top left.
+ * The color at a point given as fractions of the frame, measured from the top left.
  */
 private fun PreviewFrame.at(
   x: Double,

@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.avfoundation.internal.fillCIColor
+import dev.jordond.filmstrip.avfoundation.internal.chain.fillCIColor
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -12,6 +12,10 @@ import dev.jordond.filmstrip.effects.color.createCodeSpace
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.FloatVar
 import kotlinx.cinterop.allocArray
@@ -27,9 +31,6 @@ import platform.Foundation.NSMutableDictionary
 import platform.Foundation.NSNumber
 import platform.Foundation.numberWithInt
 import platform.Foundation.setValue
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlin.test.fail
 import kotlin.time.Duration
 
@@ -73,13 +74,15 @@ internal fun drawnSdrFrame(
   val frame = CIImage(color = fillCIColor(fill, transfer = null)).imageByCroppingToRect(bounds)
   return overlays.fold(frame) { image, (overlay, degradedBy) ->
     val effect =
-      when (val resolved = assertNotNull(resolver.resolve(overlay, capabilities, attributes))) {
+      when (val resolved = resolver.resolve(overlay, capabilities, attributes).shouldNotBeNull()) {
         is EffectResolution.Resolved -> {
-          assertNull(degradedBy, "$overlay resolved exact, where it degrades with: $degradedBy")
+          withClue("$overlay resolved exact, where it degrades with: $degradedBy") { degradedBy.shouldBeNull() }
           resolved.effect
         }
         is EffectResolution.Degraded -> {
-          assertEquals(listOf(degradedBy), resolved.causes.map { it.message }, "$overlay degraded with other causes")
+          withClue("$overlay degraded with other causes") {
+            resolved.causes.map { it.message } shouldBe listOf(degradedBy)
+          }
           resolved.effect
         }
         is EffectResolution.Unsupported -> {

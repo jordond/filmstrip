@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.sample
 
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.create
+import dev.jordond.filmstrip.allBackends
 
 /**
  * Builds the sample's [Filmstrip] through the bundle artifact, which registers every backend.
@@ -10,7 +10,8 @@ import dev.jordond.filmstrip.create
  *   the command line it was spawned with.
  */
 fun createSampleFilmstrip(recorder: DiagnosticsRecorder): Filmstrip =
-  Filmstrip.create {
+  Filmstrip {
+    allBackends()
     addDiagnosticListener(recorder.asListener())
   }
 

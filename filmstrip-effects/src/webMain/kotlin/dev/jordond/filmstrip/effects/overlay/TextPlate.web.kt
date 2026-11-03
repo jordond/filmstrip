@@ -36,9 +36,9 @@ internal class TextTile(
  * The raster is drawn in tiles at most [tileSide] on a side. Each tile is its own canvas, translated so [draw] places
  * the text in raster coordinates, and is set to nothing once its texels are read or drawing it throws. [draw] is handed
  * the [TextTile] it draws into, so it can leave out what lands wholly outside it. Each canvas starts transparent and
- * [draw] fills in [ink]'s colour at full alpha, the fill it is handed. A browser shapes a glyph's coverage by the
- * colour it is drawn in, so each texel's alpha is how much of it the glyphs cover in the text's own colour, whatever
- * alpha the text is laid at. A canvas reads its texels back straight, so a colour font's glyph keeps its own colour in
+ * [draw] fills in [ink]'s color at full alpha, the fill it is handed. A browser shapes a glyph's coverage by the
+ * color it is drawn in, so each texel's alpha is how much of it the glyphs cover in the text's own color, whatever
+ * alpha the text is laid at. A canvas reads its texels back straight, so a color font's glyph keeps its own color in
  * them.
  *
  * The raster is counted by [textRasterFits] at [TEXT_TEXEL_BYTES] a texel. The band is the copy wasm makes of the
@@ -49,13 +49,13 @@ internal class TextTile(
  * A tile canvas with no 2D context, or a tile read the browser cannot allocate, is refused with the reason
  * [textAllocationFailed] gives for the whole raster, and so is coverage js cannot allocate, as [allocatedOrNull] says.
  *
- * @param ink The text colour, straight ARGB. Its alpha is not drawn.
+ * @param ink The text color, straight ARGB. Its alpha is not drawn.
  * @param maxSide The most pixels a texture holds on a side, WebGL's `MAX_TEXTURE_SIZE`, the limit of `texImage2D` on
  * this backend.
- * @param ceiling The most bytes the raster may hold at its peak, [PICTURE_PEAK_CEILING] unless a test sets it.
- * @param tileSide The most pixels a tile holds on a side, [TEXT_TILE_SIDE] unless a test sets it.
- * @param tileCanvas Makes the canvas a tile of the given width and height is drawn on, a new [OffscreenCanvas] unless a
- * test sets it.
+ * @param ceiling The most bytes the raster may hold at its peak, [PICTURE_PEAK_CEILING] by default.
+ * @param tileSide The most pixels a tile holds on a side, [TEXT_TILE_SIDE] by default.
+ * @param tileCanvas Makes the canvas a tile of the given width and height is drawn on, a new [OffscreenCanvas]
+ * by default.
  * @return The coverage read back, or why there is none.
  */
 internal fun textCoverage(

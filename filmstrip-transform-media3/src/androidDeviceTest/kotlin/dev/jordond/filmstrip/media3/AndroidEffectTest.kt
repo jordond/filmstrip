@@ -20,15 +20,16 @@ import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.test.Test
-import kotlin.test.assertTrue
 
 /**
  * The built-in effects, checked against the pixels a real export writes.
  *
- * A generated clip carries no colour anyone can name, so each test paints one on: an opaque orange
+ * A generated clip carries no color anyone can name, so each test paints one on: an opaque orange
  * badge is composited into a named corner of the clip's own frame, which is finished before any
  * composition geometry runs. The effect under test then moves, drops or dims that badge, and what is
  * asserted is where it ended up. [theMarkerLandsInTheCornerItNames] is the control for the technique
@@ -48,8 +49,8 @@ class AndroidEffectTest {
       val plain = probe.frame(export(source, marked = false, effects = emptyList()))
       val marked = probe.frame(export(source, marked = true, effects = emptyList()))
 
-      assertTrue(marked.gainedOver(plain, TOP_START) > COVERED, "no marker in the corner it was given")
-      assertTrue(marked.gainedOver(plain, TOP_END) < UNTOUCHED, "the marker reached the far corner")
+      withClue("no marker in the corner it was given") { (marked.gainedOver(plain, TOP_START) > COVERED) shouldBe true }
+      withClue("the marker reached the far corner") { (marked.gainedOver(plain, TOP_END) < UNTOUCHED) shouldBe true }
     }
 
   @Test
@@ -61,8 +62,12 @@ class AndroidEffectTest {
       val plain = probe.frame(export(source, marked = false, effects = mirror))
       val marked = probe.frame(export(source, marked = true, effects = mirror))
 
-      assertTrue(marked.gainedOver(plain, TOP_END) > COVERED, "the marker did not cross to the other side")
-      assertTrue(marked.gainedOver(plain, TOP_START) < UNTOUCHED, "the marker stayed on the side it started")
+      withClue("the marker did not cross to the other side") {
+        (marked.gainedOver(plain, TOP_END) > COVERED) shouldBe true
+      }
+      withClue("the marker stayed on the side it started") {
+        (marked.gainedOver(plain, TOP_START) < UNTOUCHED) shouldBe true
+      }
     }
 
   @Test
@@ -74,8 +79,10 @@ class AndroidEffectTest {
       val plain = probe.frame(export(source, marked = false, effects = mirror))
       val marked = probe.frame(export(source, marked = true, effects = mirror))
 
-      assertTrue(marked.gainedOver(plain, BOTTOM_START) > COVERED, "the marker did not cross to the bottom")
-      assertTrue(marked.gainedOver(plain, TOP_START) < UNTOUCHED, "the marker stayed at the top")
+      withClue("the marker did not cross to the bottom") {
+        (marked.gainedOver(plain, BOTTOM_START) > COVERED) shouldBe true
+      }
+      withClue("the marker stayed at the top") { (marked.gainedOver(plain, TOP_START) < UNTOUCHED) shouldBe true }
     }
 
   // A quarter turn counter-clockwise carries the top edge round to the left one, so a badge in the
@@ -89,9 +96,11 @@ class AndroidEffectTest {
       val plain = probe.frame(export(source, marked = false, effects = turn))
       val marked = probe.frame(export(source, marked = true, effects = turn))
 
-      assertTrue(marked.height > marked.width, "a quarter turn of a landscape clip is portrait")
-      assertTrue(marked.gainedOver(plain, BOTTOM_START) > COVERED, "the marker did not turn with the frame")
-      assertTrue(marked.gainedOver(plain, TOP_START) < UNTOUCHED, "the marker stayed where it was")
+      withClue("a quarter turn of a landscape clip is portrait") { (marked.height > marked.width) shouldBe true }
+      withClue("the marker did not turn with the frame") {
+        (marked.gainedOver(plain, BOTTOM_START) > COVERED) shouldBe true
+      }
+      withClue("the marker stayed where it was") { (marked.gainedOver(plain, TOP_START) < UNTOUCHED) shouldBe true }
     }
 
   @Test
@@ -106,8 +115,12 @@ class AndroidEffectTest {
       val droppedPlain = probe.frame(export(source, marked = false, effects = drop))
       val dropped = probe.frame(export(source, marked = true, effects = drop))
 
-      assertTrue(kept.gainedOver(keptPlain, TOP_START) > COVERED, "the half holding the marker lost it")
-      assertTrue(dropped.gainedOver(droppedPlain, TOP_START) < UNTOUCHED, "the marker survived a crop past it")
+      withClue("the half holding the marker lost it") {
+        (kept.gainedOver(keptPlain, TOP_START) > COVERED) shouldBe true
+      }
+      withClue("the marker survived a crop past it") {
+        (dropped.gainedOver(droppedPlain, TOP_START) < UNTOUCHED) shouldBe true
+      }
     }
 
   @Test
@@ -120,13 +133,12 @@ class AndroidEffectTest {
       // The output frame is the planner's arithmetic rather than the resolver's, so this is the half
       // of the claim the sibling test's pixels cannot make: the frame the encoder was given is the
       // one the rect asks for. Half the width of a 16:9 clip is taller than it is wide.
-      assertTrue(
-        cropped.height > cropped.width,
-        "half of a landscape frame came out ${cropped.width}x${cropped.height}",
-      )
+      withClue("half of a landscape frame came out ${cropped.width}x${cropped.height}") {
+        (cropped.height > cropped.width) shouldBe true
+      }
     }
 
-  // media3 keeps the input's own transfer function as its SDR working colour space, so the colour
+  // media3 keeps the input's own transfer function as its SDR working color space, so the color
   // matrix multiplies the encoded signal. Against real pixels that is half the signal, where
   // multiplying the light instead would only take it down to about three quarters.
   @Test
@@ -140,10 +152,9 @@ class AndroidEffectTest {
       val lit = luminance(full.averageAt(CENTRE, CENTRE))
       val dimmed = luminance(half.averageAt(CENTRE, CENTRE))
       val ratio = dimmed.toFloat() / lit.toFloat()
-      assertTrue(
-        ratio in HALF - SIGNAL_DRIFT..HALF + SIGNAL_DRIFT,
-        "half brightness read $dimmed against $lit at full, a ratio of $ratio",
-      )
+      withClue("half brightness read $dimmed against $lit at full, a ratio of $ratio") {
+        (ratio in HALF - SIGNAL_DRIFT..HALF + SIGNAL_DRIFT) shouldBe true
+      }
     }
 
   // A contrast pivots on mid grey, so its matrix carries a bias as well as a gain, and the expected
@@ -216,15 +227,16 @@ class AndroidEffectTest {
   ) {
     val before = plain.averageAt(fx, CENTRE)
     val after = graded.averageAt(fx, CENTRE)
-    val matrix = checkNotNull(colorMatrixOf(spec)) { "$spec is not a colour matrix" }
+    val matrix = checkNotNull(colorMatrixOf(spec)) { "$spec is not a color matrix" }
     val expected = matrix.transform(before.first / FULL, before.second / FULL, before.third / FULL)
     val predicted = Triple(code(expected[0]), code(expected[1]), code(expected[2]))
 
-    assertTrue(distance(after, before) > MOVED, "$spec left the pixel at $fx on $before, so nothing was graded")
-    assertTrue(
-      distance(after, predicted) < GRADE_DRIFT,
-      "$spec read $after at $fx, where the shared matrix says $predicted from $before",
-    )
+    withClue("$spec left the pixel at $fx on $before, so nothing was graded") {
+      (distance(after, before) > MOVED) shouldBe true
+    }
+    withClue("$spec read $after at $fx, where the shared matrix says $predicted from $before") {
+      (distance(after, predicted) < GRADE_DRIFT) shouldBe true
+    }
   }
 
   private fun code(channel: Float): Int = (channel * FULL).toInt()
@@ -236,9 +248,9 @@ class AndroidEffectTest {
     const val MARGIN = 0.02f
     const val FULL = 255f
 
-    // The pattern's own centre sits on the seam between two colour bars, where the patch averages
+    // The pattern's own centre sits on the seam between two color bars, where the patch averages
     // both sides and reads as a grey no pixel in the frame actually holds. A matrix that mixes
-    // channels needs a colour, so these name the middle of a bar instead. Both lie in the band of
+    // channels needs a color, so these name the middle of a bar instead. Both lie in the band of
     // bars that crosses the frame at [CENTRE].
     const val CYAN_BAR = 0.19f
     const val BLUE_BAR = 0.44f

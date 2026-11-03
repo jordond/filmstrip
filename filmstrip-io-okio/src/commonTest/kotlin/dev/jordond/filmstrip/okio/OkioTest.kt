@@ -5,11 +5,11 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import okio.Buffer
 import okio.ByteString.Companion.toByteString
 import okio.Path.Companion.toPath
 import kotlin.test.Test
-import kotlin.test.assertIs
 
 /**
  * A path keeps the string okio renders it as, and a source or a byte string is turned into bytes.
@@ -20,16 +20,16 @@ class OkioTest {
 
   @Test
   fun aPathReadsAsItsOwnString() {
-    assertIs<MediaSource.Path>(path.toMediaSource()).path shouldBe path.toString()
-    assertIs<ImageSource.Path>(path.toImageSource()).path shouldBe path.toString()
-    assertIs<MediaSink.Path>(path.toMediaSink()).path shouldBe path.toString()
+    path.toMediaSource().shouldBeInstanceOf<MediaSource.Path>().path shouldBe path.toString()
+    path.toImageSource().shouldBeInstanceOf<ImageSource.Path>().path shouldBe path.toString()
+    path.toMediaSink().shouldBeInstanceOf<MediaSink.Path>().path shouldBe path.toString()
   }
 
   @Test
   fun aSourceIsDrainedWithTheHintItWasGiven() {
     val buffer = Buffer().apply { write(BYTES) }
 
-    val source = assertIs<MediaSource.Bytes>(buffer.readMediaSource(FormatHint.Mp4))
+    val source = buffer.readMediaSource(FormatHint.Mp4).shouldBeInstanceOf<MediaSource.Bytes>()
 
     source.bytes shouldBe BYTES
     source.hint shouldBe FormatHint.Mp4
@@ -38,14 +38,18 @@ class OkioTest {
 
   @Test
   fun aSourceWithNoHintLeavesTheBackendToSniff() {
-    assertIs<MediaSource.Bytes>(Buffer().apply { write(BYTES) }.readMediaSource()).hint shouldBe null
+    Buffer()
+      .apply { write(BYTES) }
+      .readMediaSource()
+      .shouldBeInstanceOf<MediaSource.Bytes>()
+      .hint shouldBe null
   }
 
   @Test
   fun aSourceIsDrainedAsAnImage() {
     val buffer = Buffer().apply { write(BYTES) }
 
-    assertIs<ImageSource.Bytes>(buffer.readImageSource()).bytes shouldBe BYTES
+    buffer.readImageSource().shouldBeInstanceOf<ImageSource.Bytes>().bytes shouldBe BYTES
     buffer.exhausted() shouldBe true
   }
 
@@ -53,11 +57,11 @@ class OkioTest {
   fun aByteStringReadsAsItsOwnBytes() {
     val bytes = BYTES.toByteString()
 
-    val source = assertIs<MediaSource.Bytes>(bytes.toMediaSource(FormatHint.Mov))
+    val source = bytes.toMediaSource(FormatHint.Mov).shouldBeInstanceOf<MediaSource.Bytes>()
 
     source.bytes shouldBe BYTES
     source.hint shouldBe FormatHint.Mov
-    assertIs<ImageSource.Bytes>(bytes.toImageSource()).bytes shouldBe BYTES
+    bytes.toImageSource().shouldBeInstanceOf<ImageSource.Bytes>().bytes shouldBe BYTES
   }
 
   private companion object {

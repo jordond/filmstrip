@@ -12,9 +12,9 @@ import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.TransformationRequest
 import androidx.media3.transformer.Transformer
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AdjustmentKind
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
@@ -22,8 +22,15 @@ import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
-import dev.jordond.filmstrip.transform.internal.ResolvedComposition
-import dev.jordond.filmstrip.transform.internal.ResolvedHdr
+import dev.jordond.filmstrip.media3.internal.encoder.EncoderColor
+import dev.jordond.filmstrip.media3.internal.encoder.MeasuredEncoderColor
+import dev.jordond.filmstrip.media3.internal.encoder.encoderFactory
+import dev.jordond.filmstrip.media3.internal.encoder.pinnedEncoderFactory
+import dev.jordond.filmstrip.media3.internal.encoder.retagReport
+import dev.jordond.filmstrip.transform.internal.probe.readSources
+import dev.jordond.filmstrip.transform.internal.remainingAt
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
@@ -58,10 +65,10 @@ internal class TransformerRun(
   private var negotiated: TransformationRequest? = null
 
   private val encoders =
-    EncoderColour(
+    EncoderColor(
       encoderFactory(context),
       { encoder -> pinnedEncoderFactory(context, encoder) },
-      MeasuredEncoderColour.Device,
+      MeasuredEncoderColor.Device,
     )
 
   fun run(): Flow<ExportStatus> =
@@ -73,7 +80,7 @@ internal class TransformerRun(
       try {
         when (val started = looper.run { start(outcome, looper.looper) }) {
           is Startup.Rejected -> {
-            emit(ExportStatus.Failure(ExportError.InvalidComposition(started.reason)))
+            emit(ExportStatus.Failure(FilmstripError.InvalidComposition(started.reason)))
           }
           is Startup.Running -> {
             transformer = started.transformer
@@ -106,8 +113,8 @@ internal class TransformerRun(
         .Builder(context)
         .apply {
           // A copy names no MIME type at all, so media3 decides for itself whether it can
-          // transmux rather than being asked to encode a codec it may have no encoder for.
-          if (resolved.path != ExportPath.Transmux) {
+          // copy rather than being asked to encode a codec it may have no encoder for.
+          if (resolved.path != ExportPath.Copy) {
             setVideoMimeType(resolved.output.videoCodec.toMimeType())
             resolved.output.audioCodec
               .toMimeType()
@@ -185,14 +192,16 @@ internal class TransformerRun(
     ExportStatus.Progress(
       fraction = fraction,
       position = resolved.duration * fraction.toDouble(),
-      estimatedRemaining = ((elapsed / fraction.toDouble()) - elapsed).takeIf { it > Duration.ZERO },
+      estimatedRemaining = remainingAt(fraction, elapsed),
     )
 
   private suspend fun report(outcome: Outcome): ExportStatus =
     when (outcome) {
       is Outcome.Failed -> {
         destination.discard()
-        ExportStatus.Failure(outcome.exception.toExportError(resolved.output.videoCodec))
+        ExportStatus.Failure(
+          outcome.exception.toFilmstripError(resolved.output.videoCodec, resolved.readSources, destination.path),
+        )
       }
       is Outcome.Completed -> {
         published()
@@ -210,7 +219,7 @@ internal class TransformerRun(
   private suspend fun probed(sink: MediaSink): ExportStatus =
     when (val probe = prober.probe(sink.asSource())) {
       is ProbeResult.Failure -> {
-        ExportStatus.Failure(ExportError.SinkUnwritable(sink.describe(), NOT_READABLE))
+        ExportStatus.Failure(FilmstripError.SinkUnwritable(sink.describe(), NOT_READABLE))
       }
       is ProbeResult.Success -> {
         val retagged = retagReport(resolved.path, encoders.retag)
@@ -229,7 +238,7 @@ internal class TransformerRun(
   private fun negotiatedAway(): List<Adjustment> {
     // Nothing was requested to fall back from on a copy, and the codecs below are the source's
     // own rather than anything media3 was asked to encode, so there is nothing to compare.
-    if (resolved.path == ExportPath.Transmux) return emptyList()
+    if (resolved.path == ExportPath.Copy) return emptyList()
     val applied = negotiated ?: return emptyList()
 
     return buildList {

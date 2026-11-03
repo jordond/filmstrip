@@ -28,9 +28,6 @@ public actual fun PlatformFile.toMediaSink(): MediaSink =
     is AndroidFile.UriWrapper -> MediaSink.ofUri(file.uri.toString())
   }
 
-public actual fun MediaSink.toPlatformFile(): PlatformFile =
-  when (this) {
-    is MediaSink.Path -> PlatformFile(File(path))
-    is MediaSink.Uri -> PlatformFile(Uri.parse(uri))
-    is MediaSink.Temporary -> error("A temporary sink has no location until the export resolves it.")
-  }
+internal actual fun platformFileAt(path: String): PlatformFile = PlatformFile(File(path))
+
+internal actual fun platformFileOf(uri: String): PlatformFile = PlatformFile(Uri.parse(uri))

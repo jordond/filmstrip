@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.internal
 
-import dev.jordond.filmstrip.export.Bitrate
-import dev.jordond.filmstrip.export.ExportError
+import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
@@ -13,10 +13,7 @@ import dev.jordond.filmstrip.media.TrackCodec
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.displaySizeOf
-import dev.jordond.filmstrip.media.intValue
-import dev.jordond.filmstrip.media.probeImage
 import dev.jordond.filmstrip.media.trackCodecOf
-import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.IntVar
@@ -35,7 +32,6 @@ import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.AVURLAsset
 import platform.AVFoundation.estimatedDataRate
 import platform.AVFoundation.exportable
-import platform.AVFoundation.formatDescriptions
 import platform.AVFoundation.minFrameDuration
 import platform.AVFoundation.naturalSize
 import platform.AVFoundation.nominalFrameRate
@@ -56,7 +52,6 @@ import platform.CoreFoundation.kCFNumberIntType
 import platform.CoreMedia.CMAudioFormatDescriptionGetStreamBasicDescription
 import platform.CoreMedia.CMFormatDescriptionGetExtension
 import platform.CoreMedia.CMFormatDescriptionGetMediaSubType
-import platform.CoreMedia.CMFormatDescriptionGetTypeID
 import platform.CoreMedia.CMFormatDescriptionRef
 import platform.CoreMedia.CMTimeGetSeconds
 import platform.CoreMedia.kCMFormatDescriptionExtension_BitsPerComponent
@@ -74,9 +69,7 @@ import platform.CoreVideo.kCVImageBufferYCbCrMatrixKey
 import platform.CoreVideo.kCVImageBufferYCbCrMatrix_ITU_R_2020
 import platform.CoreVideo.kCVImageBufferYCbCrMatrix_ITU_R_601_4
 import platform.CoreVideo.kCVImageBufferYCbCrMatrix_ITU_R_709_2
-import platform.Foundation.CFBridgingRetain
 import platform.Foundation.NSURL
-import platform.darwin.NSObject
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.roundToInt
@@ -103,7 +96,7 @@ internal actual class PlatformProber actual constructor() {
           }
           is MediaSource.Bytes -> {
             return@withContext ProbeResult.Failure(
-              ExportError.SourceUnreadable(
+              FilmstripError.SourceUnreadable(
                 source = "bytes",
                 message =
                   "In-memory sources are written to a temporary file before probing, " +
@@ -112,7 +105,7 @@ internal actual class PlatformProber actual constructor() {
             )
           }
         } ?: return@withContext ProbeResult.Failure(
-          ExportError.SourceUnreadable(source.describe(), "The source is not a valid URL."),
+          FilmstripError.SourceUnreadable(source.describe(), "The source is not a valid URL."),
         )
 
       val asset = AVURLAsset(uRL = url, options = null)
@@ -121,7 +114,7 @@ internal actual class PlatformProber actual constructor() {
 
       if (videoTrack == null && audioTrack == null) {
         return@withContext ProbeResult.Failure(
-          ExportError.SourceUnreadable(
+          FilmstripError.SourceUnreadable(
             source.describe(),
             "The asset has no readable video or audio track.",
           ),
@@ -192,11 +185,11 @@ internal actual class PlatformProber actual constructor() {
     }
 
   /**
-   * What a track's format description says about its codec and its colour.
+   * What a track's format description says about its codec and its color.
    *
    * @property codec What the track is encoded with.
-   * @property bitDepth Bits per colour component, or null when the description does not say.
-   * @property colorSpace The colour space the track is tagged with.
+   * @property bitDepth Bits per color component, or null when the description does not say.
+   * @property colorSpace The color space the track is tagged with.
    * @property hdrTransfer The HDR transfer function, or null for SDR and for untagged media.
    */
   private class TrackFormat(
@@ -208,7 +201,7 @@ internal actual class PlatformProber actual constructor() {
   )
 
   /**
-   * Reads the codec and colour of this track.
+   * Reads the codec and color of this track.
    *
    * One format description answers all four, so it is fetched once and released once, not per
    * field. A track without one reads as entirely unknown, which is not a failure. There is just
@@ -231,25 +224,6 @@ internal actual class PlatformProber actual constructor() {
   }
 
   /**
-   * This track's format description, retained, or null when it carries none.
-   *
-   * `formatDescriptions` hands back its elements as Objective-C objects, so casting one straight to
-   * [CMFormatDescriptionRef] yields null however it looks. Going back across the toll-free bridge
-   * is the only way to recover the pointer, and it hands over a reference the caller has to
-   * release.
-   */
-  @OptIn(BetaInteropApi::class)
-  private fun AVAssetTrack.copyFormatDescription(): CMFormatDescriptionRef? {
-    val bridged = CFBridgingRetain(formatDescriptions.firstOrNull() as? NSObject) ?: return null
-    if (CFGetTypeID(bridged) != CMFormatDescriptionGetTypeID()) {
-      CFRelease(bridged)
-      return null
-    }
-
-    return bridged.reinterpret()
-  }
-
-  /**
    * The codec's four-character code, which is its four bytes packed big-endian into a word.
    */
   private fun CMFormatDescriptionRef.codec(): TrackCodec {
@@ -266,7 +240,7 @@ internal actual class PlatformProber actual constructor() {
   }
 
   /**
-   * Bits per colour component, or null when the description does not carry it.
+   * Bits per color component, or null when the description does not carry it.
    *
    * CoreMedia fills this in from the HEVC configuration record and has no equivalent for H.264, so
    * an HEVC track answers and an H.264 one never does.
@@ -282,7 +256,7 @@ internal actual class PlatformProber actual constructor() {
   }
 
   /**
-   * The colour space the track is tagged with, or [ColorSpace.Unknown] when it carries no tag.
+   * The color space the track is tagged with, or [ColorSpace.Unknown] when it carries no tag.
    */
   private fun CMFormatDescriptionRef.colorSpace(): ColorSpace {
     val matrix = CMFormatDescriptionGetExtension(this, kCVImageBufferYCbCrMatrixKey)

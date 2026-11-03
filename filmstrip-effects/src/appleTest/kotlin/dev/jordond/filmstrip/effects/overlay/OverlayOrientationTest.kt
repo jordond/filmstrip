@@ -1,24 +1,27 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effects.assertRasterReads
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.pictureColour
-import dev.jordond.filmstrip.internal.pictureCropOf
-import dev.jordond.filmstrip.internal.pictureOrientationOf
-import dev.jordond.filmstrip.internal.pictureWithoutOrientationTag
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.PictureOrientation
-import dev.jordond.filmstrip.media.UnturnedHeif
-import dev.jordond.filmstrip.media.croppedSamples
-import dev.jordond.filmstrip.media.heifWithoutOrientation
-import dev.jordond.filmstrip.media.orientedSamples
+import dev.jordond.filmstrip.picture.PictureOrientation
+import dev.jordond.filmstrip.picture.croppedSamples
+import dev.jordond.filmstrip.picture.heif.UnturnedHeif
+import dev.jordond.filmstrip.picture.heif.heifWithoutOrientation
+import dev.jordond.filmstrip.picture.orientedSamples
+import dev.jordond.filmstrip.picture.pictureColor
+import dev.jordond.filmstrip.picture.pictureCropOf
+import dev.jordond.filmstrip.picture.pictureOrientationOf
+import dev.jordond.filmstrip.picture.pictureWithoutOrientationTag
 import dev.jordond.filmstrip.test.CicpTag
 import dev.jordond.filmstrip.test.HeicSubsampledPictures
 import dev.jordond.filmstrip.test.IccPictures
 import dev.jordond.filmstrip.test.OrientedPictures
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.readBytes
 import platform.CoreFoundation.CFDataCreateMutable
@@ -41,10 +44,6 @@ import platform.ImageIO.CGImageDestinationAddImage
 import platform.ImageIO.CGImageDestinationCreateWithData
 import platform.ImageIO.CGImageDestinationFinalize
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
 
 /**
  * Overlay pictures tagged with an orientation, drawn on Apple the way core reads the tag.
@@ -53,7 +52,6 @@ import kotlin.test.assertNotNull
  * the orientation core reads. Every expected texel comes from [orientedSamples] over the same picture read untagged,
  * compared whole, so the middle of every quadrant is read and all eight orientations read differently.
  */
-@OptIn(InternalFilmstripApi::class)
 class OverlayOrientationTest {
   @Test
   fun `apple decodes a picture tagged 6 as stored on both routes`() {
@@ -68,14 +66,28 @@ class OverlayOrientationTest {
       )
     for ((name, pair) in cases) {
       val (untagged, tagged) = pair
-      assertEquals(turn, pictureOrientationOf(tagged), "core reads $name's tag")
+      withClue("core reads $name's tag") { pictureOrientationOf(tagged) shouldBe turn }
       // The HEIC lists a clap, which the drop takes off the untagged one too, so both decode the whole frame.
-      val handed = if (name == "HEIC") assertIs<UnturnedHeif.Handed>(heifWithoutOrientation(tagged)).bytes else tagged
-      val bare = if (name == "HEIC") assertIs<UnturnedHeif.Handed>(heifWithoutOrientation(untagged)).bytes else untagged
+      val handed =
+        if (name ==
+          "HEIC"
+        ) {
+          heifWithoutOrientation(tagged).shouldBeInstanceOf<UnturnedHeif.Handed>().bytes
+        } else {
+          tagged
+        }
+      val bare =
+        if (name ==
+          "HEIC"
+        ) {
+          heifWithoutOrientation(untagged).shouldBeInstanceOf<UnturnedHeif.Handed>().bytes
+        } else {
+          untagged
+        }
       val asStored = writtenPixels(bare).orFail(name)
       val decoded = writtenPixels(handed).orFail("$name tagged 6")
-      assertEquals(asStored.size, decoded.size, "$name tagged 6 decoded turned")
-      assertContentEquals(asStored.stored, decoded.stored, "$name tagged 6 decoded turned")
+      withClue("$name tagged 6 decoded turned") { decoded.size shouldBe asStored.size }
+      withClue("$name tagged 6 decoded turned") { decoded.stored shouldBe asStored.stored }
     }
   }
 
@@ -84,13 +96,13 @@ class OverlayOrientationTest {
     assertRasterReads()
     for ((name, untagged, tagging) in formats()) {
       val stored = ImageSource.ofBytes(untagged).read().orFail(name)
-      val samples = assertNotNull(stored.stored, "$name read no samples")
+      val samples = withClue("$name read no samples") { stored.stored.shouldNotBeNull() }
       for (orientation in PictureOrientation.entries) {
         val tagged = tagging(orientation)
-        assertEquals(orientation, pictureOrientationOf(tagged), "core reads $name $orientation")
+        withClue("core reads $name $orientation") { pictureOrientationOf(tagged) shouldBe orientation }
         val shown = ImageSource.ofBytes(tagged).read().orFail("$name $orientation")
-        assertEquals(orientation.orientedSize(stored.size), shown.size, "$name $orientation")
-        assertContentEquals(orientedSamples(orientation, samples, stored.size), shown.stored, "$name $orientation")
+        withClue("$name $orientation") { shown.size shouldBe orientation.orientedSize(stored.size) }
+        withClue("$name $orientation") { shown.stored shouldBe orientedSamples(orientation, samples, stored.size) }
       }
     }
   }
@@ -101,10 +113,10 @@ class OverlayOrientationTest {
       for (orientation in PictureOrientation.entries) {
         val tagged = tagging(orientation)
 
-        val handed = assertIs<ImageIoLanding.Decoded>(explicitLanding(tagged)).bytes
+        val handed = explicitRoute(tagged).shouldBeInstanceOf<PictureRoute.Decoded>().bytes
 
-        assertContentEquals(pictureWithoutOrientationTag(tagged), handed, "$name $orientation")
-        assertEquals(PictureOrientation.Normal, pictureOrientationOf(handed), "$name $orientation")
+        withClue("$name $orientation") { handed shouldBe pictureWithoutOrientationTag(tagged) }
+        withClue("$name $orientation") { pictureOrientationOf(handed) shouldBe PictureOrientation.Normal }
       }
     }
   }
@@ -117,17 +129,17 @@ class OverlayOrientationTest {
     assertRasterReads()
     val still = HeicSubsampledPictures.EIGHT_BIT_420.bytes(CicpTag(1, 13, 1, true))
     val frame = ImageSource.ofBytes(still).read().orFail("the whole frame")
-    val samples = assertNotNull(frame.stored)
+    val samples = frame.stored.shouldNotBeNull()
     for ((name, properties) in CLAPPED) {
       val clapped = OrientedPictures.heifWithProperties(still, properties)
-      val crop = assertNotNull(pictureCropOf(clapped), name)
+      val crop = withClue(name) { pictureCropOf(clapped).shouldNotBeNull() }
       val orientation = pictureOrientationOf(clapped)
       val expected = orientedSamples(orientation, croppedSamples(crop, samples, frame.size), crop.size)
 
       val drawn = ImageSource.ofBytes(clapped).read().orFail(name)
 
-      assertEquals(orientation.orientedSize(crop.size), drawn.size, "$name size")
-      assertContentEquals(expected, drawn.stored, "$name texels")
+      withClue("$name size") { drawn.size shouldBe orientation.orientedSize(crop.size) }
+      withClue("$name texels") { drawn.stored shouldBe expected }
     }
   }
 
@@ -139,12 +151,12 @@ class OverlayOrientationTest {
     val frame = ImageSource.ofBytes(still).read().orFail("the whole frame")
     for ((name, properties) in CLAPPED) {
       val clapped = OrientedPictures.heifWithProperties(still, properties)
-      val handed = assertIs<UnturnedHeif.Dropped>(heifWithoutOrientation(clapped), name).bytes
+      val handed = withClue(name) { heifWithoutOrientation(clapped).shouldBeInstanceOf<UnturnedHeif.Dropped>() }.bytes
 
       val codes = handed.nsData().overlayCodes()
 
-      val held = assertIs<PictureRead.Read<HeldCodes>>(codes, name).value
-      assertEquals(frame.size, held.image.pixelSize(), name)
+      val held = withClue(name) { codes.shouldBeInstanceOf<PictureRead.Read<HeldCodes>>() }.value
+      withClue(name) { held.image.pixelSize() shouldBe frame.size }
     }
   }
 
@@ -153,32 +165,32 @@ class OverlayOrientationTest {
     assertRasterReads()
     val stored = ImageSource.ofBytes(JXL_UNTAGGED).read().orFail("the JPEG XL")
     val shown = ImageSource.ofBytes(JXL_TAGGED_6).read().orFail("the tagged JPEG XL")
-    val expected = orientedSamples(PictureOrientation.Rotate90, assertNotNull(stored.stored), stored.size)
-    assertEquals(PictureOrientation.Rotate90.orientedSize(stored.size), shown.size)
-    assertContentEquals(expected, shown.stored)
+    val expected = orientedSamples(PictureOrientation.Rotate90, stored.stored.shouldNotBeNull(), stored.size)
+    shown.size shouldBe PictureOrientation.Rotate90.orientedSize(stored.size)
+    shown.stored shouldBe expected
   }
 
   // A picture described as Display P3 draws its SDR codes and its HDR light from bands of the turned codes.
   @Test
   fun `SDR and HDR frames draw a described picture turned`() {
     assertRasterReads()
-    val reader = assertNotNull(codeReader, "no context reads codes back")
+    val reader = withClue("no context reads codes back") { codeReader.shouldNotBeNull() }
     val held =
       ImageSource
         .ofBytes(jpeg)
         .read()
         .orFail("the JPEG")
         .held
-    val colour = pictureColour(IccPictures.DISPLAY_P3.pngOf(Size(1, 1)))
-    val asStored = OverlayPixels(held, readColour = { colour })
+    val color = pictureColor(IccPictures.DISPLAY_P3.pngOf(Size(1, 1)))
+    val asStored = OverlayPixels(held, readColor = { color })
     for (orientation in PictureOrientation.entries) {
-      val turned = OverlayPixels(held, readColour = { colour }, orientation = orientation)
+      val turned = OverlayPixels(held, readColor = { color }, orientation = orientation)
       for (transfer in listOf(null, HdrTransfer.Pq)) {
         val space = if (transfer == null) ColorSpace.Bt709 else ColorSpace.Bt2020
         val drawn = asStored.enteringFrame(transfer, space).storedSamples(asStored.size, reader)
         val expected = orientedSamples(orientation, drawn, asStored.size)
         val read = turned.enteringFrame(transfer, space).storedSamples(turned.size, reader)
-        assertContentEquals(expected, read, "$orientation on ${transfer ?: "SDR"}")
+        withClue("$orientation on ${transfer ?: "SDR"}") { read shouldBe expected }
       }
     }
   }
@@ -273,7 +285,7 @@ class OverlayOrientationTest {
       val space = CGColorSpaceCreateDeviceRGB()
       val info = CGImageAlphaInfo.kCGImageAlphaNoneSkipLast.value
       val context =
-        assertNotNull(CGBitmapContextCreate(null, BIG.width.toULong(), BIG.height.toULong(), 8u, 0u, space, info))
+        CGBitmapContextCreate(null, BIG.width.toULong(), BIG.height.toULong(), 8u, 0u, space, info).shouldNotBeNull()
       CGColorSpaceRelease(space)
       val texels = OrientedPictures.samples()
       for (row in 0 until OrientedPictures.SIZE.height) {
@@ -286,9 +298,9 @@ class OverlayOrientationTest {
           CGContextFillRect(context, CGRectMake((column * BLOCK).toDouble(), bottom.toDouble(), 8.0, 8.0))
         }
       }
-      val image = assertNotNull(CGBitmapContextCreateImage(context))
+      val image = CGBitmapContextCreateImage(context).shouldNotBeNull()
       CGContextRelease(context)
-      val data = assertNotNull(CFDataCreateMutable(null, 0))
+      val data = CFDataCreateMutable(null, 0).shouldNotBeNull()
       val name = CFStringCreateWithCString(null, type, kCFStringEncodingUTF8)
       val destination = CGImageDestinationCreateWithData(data, name, 1u, null)
       name?.let(::CFRelease)
@@ -300,7 +312,7 @@ class OverlayOrientationTest {
       CGImageRelease(image)
       val bytes = if (finished) CFDataGetBytePtr(data)?.readBytes(CFDataGetLength(data).toInt()) else null
       CFRelease(data)
-      return assertNotNull(bytes, "ImageIO wrote no $type")
+      return withClue("ImageIO wrote no $type") { bytes.shouldNotBeNull() }
     }
   }
 }

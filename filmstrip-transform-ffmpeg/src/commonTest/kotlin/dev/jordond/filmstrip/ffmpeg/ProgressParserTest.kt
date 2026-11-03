@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg
 
-import dev.jordond.filmstrip.ffmpeg.internal.ProgressParser
+import dev.jordond.filmstrip.ffmpeg.internal.process.ProgressParser
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import kotlin.test.Test

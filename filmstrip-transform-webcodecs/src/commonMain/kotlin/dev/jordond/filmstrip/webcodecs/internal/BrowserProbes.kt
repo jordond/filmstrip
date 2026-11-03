@@ -2,7 +2,17 @@
 
 package dev.jordond.filmstrip.webcodecs.internal
 
-import dev.jordond.filmstrip.transform.internal.TextureSideProbe
+import dev.jordond.filmstrip.transform.internal.probe.TextureSideProbe
+import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
+import dev.jordond.filmstrip.webcodecs.internal.interop.OffscreenCanvas
+import dev.jordond.filmstrip.webcodecs.internal.render.GL_COLOR_ATTACHMENT0
+import dev.jordond.filmstrip.webcodecs.internal.render.GL_FRAMEBUFFER
+import dev.jordond.filmstrip.webcodecs.internal.render.GL_FRAMEBUFFER_COMPLETE
+import dev.jordond.filmstrip.webcodecs.internal.render.GL_HALF_FLOAT
+import dev.jordond.filmstrip.webcodecs.internal.render.GL_MAX_TEXTURE_SIZE
+import dev.jordond.filmstrip.webcodecs.internal.render.GL_RGBA
+import dev.jordond.filmstrip.webcodecs.internal.render.GL_RGBA16F
+import dev.jordond.filmstrip.webcodecs.internal.render.GL_TEXTURE_2D
 import kotlin.js.ExperimentalWasmJsInterop
 
 /**
@@ -17,7 +27,7 @@ internal const val WEBGL2_MIN_TEXTURE_SIDE: Int = 2048
  *
  * Asked by building the smallest one there is and handing the context straight back, because a
  * browser can carry the extension and still refuse the attachment on a driver it has blocklisted.
- * The companion to [browserCanComposite], and the other half of what makes an HDR encode claimable.
+ * Together with [browserEncodesHdrVp9] it decides whether an HDR encode is claimable.
  */
 internal fun browserCanRenderFloat(): Boolean =
   runCatching {
@@ -46,7 +56,7 @@ internal fun browserCanRenderFloat(): Boolean =
 internal fun browserMaxTextureSide(): Int = pageTextureSide.side()
 
 /**
- * A [TextureSideProbe] floored at [WEBGL2_MIN_TEXTURE_SIDE], reading the page's own side unless a test sets [read].
+ * A [TextureSideProbe] floored at [WEBGL2_MIN_TEXTURE_SIDE], reading the page's own side by default.
  *
  * @param read The page's `MAX_TEXTURE_SIZE`, or null when it could not be read.
  */
@@ -67,12 +77,3 @@ private fun readPageTextureSide(): Int? =
 
 private const val COLOR_BUFFER_FLOAT = "EXT_color_buffer_float"
 private const val LOSE_CONTEXT = "WEBGL_lose_context"
-
-private const val GL_TEXTURE_2D = 0x0DE1
-private const val GL_MAX_TEXTURE_SIZE = 0x0D33
-private const val GL_RGBA = 0x1908
-private const val GL_RGBA16F = 0x881A
-private const val GL_HALF_FLOAT = 0x140B
-private const val GL_FRAMEBUFFER = 0x8D40
-private const val GL_COLOR_ATTACHMENT0 = 0x8CE0
-private const val GL_FRAMEBUFFER_COMPLETE = 0x8CD5

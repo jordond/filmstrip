@@ -4,37 +4,41 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ColorSpace
+import android.net.Uri
 import android.os.Build
 import androidx.core.net.toUri
+import dev.jordond.filmstrip.color.PictureColor
+import dev.jordond.filmstrip.color.YcbcrCoding
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.pictureColour
-import dev.jordond.filmstrip.internal.pictureCropOf
-import dev.jordond.filmstrip.internal.pictureOrientationOf
-import dev.jordond.filmstrip.internal.pictureWithoutOrientationTag
-import dev.jordond.filmstrip.internal.pictureYcbcrCoding
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.PictureColour
-import dev.jordond.filmstrip.media.PictureCrop
-import dev.jordond.filmstrip.media.PictureOrientation
-import dev.jordond.filmstrip.media.RestatedHeif
-import dev.jordond.filmstrip.media.UnturnedHeif
-import dev.jordond.filmstrip.media.YcbcrCoding
-import dev.jordond.filmstrip.media.heifWithRestatedColour
-import dev.jordond.filmstrip.media.heifWithoutOrientation
+import dev.jordond.filmstrip.picture.PictureContainer
+import dev.jordond.filmstrip.picture.PictureCrop
+import dev.jordond.filmstrip.picture.PictureOrientation
+import dev.jordond.filmstrip.picture.heif.RestatedHeif
+import dev.jordond.filmstrip.picture.heif.UnturnedHeif
+import dev.jordond.filmstrip.picture.heif.heifWithRestatedColor
+import dev.jordond.filmstrip.picture.heif.heifWithoutOrientation
+import dev.jordond.filmstrip.picture.pictureColor
+import dev.jordond.filmstrip.picture.pictureContainerOf
+import dev.jordond.filmstrip.picture.pictureCropOf
+import dev.jordond.filmstrip.picture.pictureOrientationOf
+import dev.jordond.filmstrip.picture.pictureWithoutOrientationTag
+import dev.jordond.filmstrip.picture.pictureYcbcrCoding
+import dev.jordond.filmstrip.picture.withColorDescriptionsHidden
 import java.io.File
 
 /**
- * What reading an overlay picture for Android's decoder comes to: a [DecodedPicture], a [RefusedPicture] or
- * [UnreadablePicture].
+ * What reading an overlay picture for Android's decoder comes to: a [DecodedPicture], a [RefusedPicture], an
+ * [UnreadablePicture] or a [ContextlessPicture].
  */
 internal sealed interface PictureRead
 
 /**
- * A decoded overlay picture, as the samples its file stores and how they describe their colour.
+ * A decoded overlay picture, as the samples its file stores and how they describe their color.
  *
- * @property bitmap The stored samples, straight rather than premultiplied, untouched by any colour conversion. A
+ * @property bitmap The stored samples, straight rather than premultiplied, untouched by any color conversion. A
  * sixteen-bit PNG decodes to half floats on API 26 and up, and a ten-bit AVIF on API 34 and up.
- * @property colour How the picture describes its colour, or null when it lands as an untagged one does.
+ * @property color How the picture describes its color, or null when it lands as an untagged one does.
  * @property limits Each way Android's decoder lands the picture short of what its file stores, as [decoderLimits]
  * decides, or empty when it lands as stored.
  * @property orientation The turn the picture's own tag asks for, as [pictureOrientationOf] reads it out of the file.
@@ -45,7 +49,7 @@ internal sealed interface PictureRead
  */
 internal class DecodedPicture(
   val bitmap: Bitmap,
-  val colour: PictureColour?,
+  val color: PictureColor?,
   val limits: List<DecoderLimit> = emptyList(),
   val orientation: PictureOrientation = PictureOrientation.Normal,
   val crop: PictureCrop? = null,
@@ -72,53 +76,14 @@ internal class RefusedPicture(
 internal data object UnreadablePicture : PictureRead
 
 /**
- * Why Android's decoder hands back no frame for an overlay picture, each Android's limit rather than filmstrip's.
- *
- * @property message What the refused overlay reports, naming Android's decoder.
+ * A `content://` overlay picture read with no [Context] to open its provider through.
  */
-internal enum class DecoderRefusal(
-  val message: String,
-) {
-  /**
-   * A picture in a format this API level does not decode, or one too damaged for its decoder to read.
-   */
-  NoFrame(
-    "Android's decoder on this API level hands back no picture for the overlay image. It decodes PNG, JPEG, WebP, " +
-      "GIF and BMP, HEIC from API 28 and AVIF from API 31, and nothing it cannot parse.",
-  ),
-
-  /**
-   * A ten-bit AVIF decoded on API 33, where Android's AVIF decoder hands back no frame for it.
-   */
-  AvifTenBitNoFrame(
-    "Android's AVIF decoder on API 33 hands back no frame for a ten-bit AVIF, so this overlay picture cannot be " +
-      "drawn on this API level.",
-  ),
-
-  /**
-   * A twelve-bit HEIC, which Android's HEIC decoder on API 30, 31 and 33 to 36 hands back no frame for. API 28 and 29
-   * are given API 30's answer and API 32 is given API 31's.
-   */
-  HeicTwelveBitNoFrame(
-    "Android's HEIC decoder hands back no frame for a twelve-bit HEIC on API 30, 31 and 33 to 36, and API 28, 29 and " +
-      "32 are taken to do as those do, so this overlay picture cannot be drawn on this API level.",
-  ),
-
-  /**
-   * A twelve-bit AVIF below API 36. Android's AVIF decoder on API 31, 33 and 34 hands back no frame for it and on API
-   * 35 hands back the wrong colours, so it is refused before the decoder sees it. API 32 is given API 31's answer.
-   */
-  AvifTwelveBit(
-    "Android's AVIF decoder draws a twelve-bit AVIF only from API 36. On API 31, 33 and 34 it hands back no frame " +
-      "for one and on API 35 the wrong colours, and API 32 is taken to do as API 31 does, so this overlay picture " +
-      "cannot be drawn on this API level.",
-  ),
-}
+internal data object ContextlessPicture : PictureRead
 
 /**
- * Reads [this] and decodes it to its stored samples and its colour.
+ * Reads [this] and decodes it to its stored samples and its color.
  *
- * The decoder is handed the picture as [forAndroidDecoder] prepares it, so Android converts nothing, the colour is
+ * The decoder is handed the picture as [forAndroidDecoder] prepares it, so Android converts nothing, the color is
  * applied once, by [rasterFor], and an AVIF or HEIC lands with the matrix and range core reads for it when Android's
  * decoder can read them, or the nearest matrix it reads. One whose [DecoderInput.refusal] is set never reaches the
  * decoder.
@@ -130,14 +95,27 @@ internal enum class DecoderRefusal(
  * A twelve-bit AVIF decodes to eight bits a sample on every API level that draws it. [DecodedPicture.limits] reports
  * that and every other shortfall, and a picture the decoder hands back no frame for is a [RefusedPicture] naming why.
  *
- * @param context Needed only to open a `content://` [ImageSource.Uri]. Every other form reads without one.
+ * @param context Needed only to open a `content://` [ImageSource.Uri], which reads as a [ContextlessPicture] without
+ * one. Every other form reads without it.
  */
 internal fun ImageSource.read(context: Context?): PictureRead {
   val bytes =
     when (this) {
-      is ImageSource.Path -> readFile(path)
-      is ImageSource.Bytes -> bytes
-      is ImageSource.Uri -> readUri(uri, context)
+      is ImageSource.Path -> {
+        readFile(path)
+      }
+      is ImageSource.Bytes -> {
+        bytes
+      }
+      is ImageSource.Uri -> {
+        val parsed = runCatching { uri.toUri() }.getOrNull()
+        when {
+          parsed == null -> null
+          parsed.scheme == null || parsed.scheme == "file" -> parsed.path?.let(::readFile)
+          context == null -> return ContextlessPicture
+          else -> readContent(parsed, context)
+        }
+      }
     } ?: return UnreadablePicture
   val sdk = Build.VERSION.SDK_INT
   val input = bytes.forAndroidDecoder(sdk)
@@ -152,7 +130,7 @@ internal fun ImageSource.read(context: Context?): PictureRead {
   val limits = decoderLimits(bytes, input, bitmap.halfFloatCurve() != null)
   val crop = pictureCropOf(bytes)
   if (crop != null && !crop.liesWithin(bitmap.size())) return RefusedPicture(crop.refusalFor(bitmap.size()))
-  return DecodedPicture(bitmap, pictureColour(bytes), limits, pictureOrientationOf(bytes), crop)
+  return DecodedPicture(bitmap, pictureColor(bytes), limits, pictureOrientationOf(bytes), crop)
 }
 
 /**
@@ -160,22 +138,22 @@ internal fun ImageSource.read(context: Context?): PictureRead {
  *
  * @property bytes The picture the decoder is handed.
  * @property coding The coding core reads from the picture before it was rewritten, or null when it is not YCbCr coded.
- * @property landing How the decoder lands the picture, as [YcbcrCoding.decoderLanding] gives it, or null when that is
- * left to the decoder or the picture is refused before it.
+ * @property conversion How the decoder lands the picture, as [YcbcrCoding.decoderConversionOf] gives it, or null when
+ * that is left to the decoder or the picture is refused before it.
  * @property refusal What the overlay reports when the picture is refused before the decoder sees it, as
- * [refusalBeforeDecoder] gives it or as [DecoderLanding.refusal] gives it past the bound, or null when it is handed
+ * [refusalBeforeDecoder] gives it or as [DecoderConversion.refusal] gives it past the bound, or null when it is handed
  * over.
  */
 internal class DecoderInput(
   val bytes: ByteArray,
   val coding: YcbcrCoding?,
-  val landing: DecoderLanding?,
-  val refusal: String? = landing?.refusal,
+  val conversion: DecoderConversion?,
+  val refusal: String? = conversion?.refusal,
 )
 
 /**
- * This picture as Android's decoder on API level [sdk] is handed it, with every colour description hidden by
- * [withColourDescriptionsHidden] and an AVIF or HEIC's codestream rewritten by [heifWithRestatedColour].
+ * This picture as Android's decoder on API level [sdk] is handed it, with every color description hidden by
+ * [withColorDescriptionsHidden] and an AVIF or HEIC's codestream rewritten by [heifWithRestatedColor].
  *
  * A picture [refusalBeforeDecoder] refuses comes back as it is, with that refusal. Otherwise the rewrite makes the
  * codestream, and the `nclx` of the primary item and its tiles, state the range core reads for the picture and the
@@ -186,7 +164,7 @@ internal class DecoderInput(
  *
  * A codestream core cannot rewrite, in a file with a `moov` box or with a unit that does not parse, reaches the decoder
  * as [RestatedHeif.Unrestated] gives it, with only its `irot`, `imir` and `clap` dropped. Its landing is then known
- * only as far as [YcbcrCoding.decoderLanding] can tell from what it states, and is null otherwise. A picture whose
+ * only as far as [YcbcrCoding.decoderConversionOf] can tell from what it states, and is null otherwise. A picture whose
  * landing is null that way is refused with [YcbcrCoding.unrestatedRefusal] when even the nearest matrix the decoder
  * reads lands it past the bound. A picture core reads no coding for has only its `irot`, `imir` and `clap` dropped, by
  * [heifWithoutOrientation].
@@ -196,8 +174,8 @@ internal class DecoderInput(
  */
 internal fun ByteArray.forAndroidDecoder(sdk: Int): DecoderInput {
   val coding = pictureYcbcrCoding(this)
-  refusalBeforeDecoder(coding, sdk)?.let { return DecoderInput(this, coding, landing = null, refusal = it) }
-  val described = withColourDescriptionsHidden(keepNclxPrimaries = true)
+  refusalBeforeDecoder(coding, sdk)?.let { return DecoderInput(this, coding, conversion = null, refusal = it) }
+  val described = withColorDescriptionsHidden(keepNclxPrimaries = true)
   var handedFullRange: Boolean? = null
   val rewrite: RestatedHeif =
     if (coding == null) {
@@ -206,22 +184,22 @@ internal fun ByteArray.forAndroidDecoder(sdk: Int): DecoderInput {
         is UnturnedHeif.Handed -> RestatedHeif.Unrestated(unturned.bytes)
       }
     } else {
-      heifWithRestatedColour(described) { _, fullRange, _ ->
+      heifWithRestatedColor(described) { _, fullRange, _ ->
         handedFullRange = fullRange
         checkNotNull(restatedForDecoder(coding.reading, fullRange, sdk, coding.avif, coding.tenBitSamples))
       }
     }
   val handed =
     when (rewrite) {
-      is UnturnedHeif.Refused -> return DecoderInput(this, coding, landing = null, refusal = rewrite.message)
+      is UnturnedHeif.Refused -> return DecoderInput(this, coding, conversion = null, refusal = rewrite.message)
       is RestatedHeif.Restated -> rewrite.bytes
       is RestatedHeif.Unrestated -> rewrite.bytes
     }
   val unrestated = rewrite is RestatedHeif.Unrestated
-  val landing = coding?.decoderLanding(sdk, handedFullRange, restated = !unrestated)
+  val conversion = coding?.decoderConversionOf(sdk, handedFullRange, restated = !unrestated)
   val refusal =
-    landing?.refusal ?: coding?.takeIf { unrestated && landing == null }?.unrestatedRefusal(sdk, handedFullRange)
-  return DecoderInput(pictureWithoutOrientationTag(handed.withColourDescriptionsHidden()), coding, landing, refusal)
+    conversion?.refusal ?: coding?.takeIf { unrestated && conversion == null }?.unrestatedRefusal(sdk, handedFullRange)
+  return DecoderInput(pictureWithoutOrientationTag(handed.withColorDescriptionsHidden()), coding, conversion, refusal)
 }
 
 // What a bounds decode reads off a picture: whether the decoder hands it back at ten bits a sample, in RGBA_1010102,
@@ -272,34 +250,29 @@ internal fun decoderLimits(
 ): List<DecoderLimit> =
   listOfNotNull(
     DecoderLimit.EightBitCut.takeIf { !halfFloat && picture.isSixteenBitPng() },
-  ) + input.landing?.limits.orEmpty() +
+  ) + input.conversion?.limits.orEmpty() +
     listOfNotNull(DecoderLimit.AvifTwelveBitCut.takeIf { !halfFloat && input.coding?.twelveBitAvif == true })
 
 // The bit depth sits in IHDR, the first chunk, right after the signature, the chunk's length and type, and the width
 // and height.
 private fun ByteArray.isSixteenBitPng(): Boolean =
   size > PNG_BIT_DEPTH &&
-    PNG_SIGNATURE.indices.all { this[it] == PNG_SIGNATURE[it] } &&
+    pictureContainerOf(this) == PictureContainer.Png &&
     String(this, PNG_IHDR_TYPE, 4, Charsets.ISO_8859_1) == "IHDR" &&
     this[PNG_BIT_DEPTH].toInt() == SIXTEEN_BITS
 
 private fun readFile(path: String): ByteArray? = runCatching { File(path).readBytes() }.getOrNull()
 
-private fun readUri(
-  uri: String,
-  context: Context?,
-): ByteArray? {
-  val parsed = runCatching { uri.toUri() }.getOrNull() ?: return null
-  if (parsed.scheme == null || parsed.scheme == "file") {
-    return parsed.path?.let(::readFile)
-  }
-  val resolver = context?.contentResolver ?: return null
-  return runCatching {
-    resolver.openInputStream(parsed)?.use { stream -> stream.readBytes() }
+private fun readContent(
+  uri: Uri,
+  context: Context,
+): ByteArray? =
+  runCatching {
+    context.contentResolver.openInputStream(uri)?.use { stream ->
+      stream.readBytes()
+    }
   }.getOrNull()
-}
 
-private val PNG_SIGNATURE = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
 private const val PNG_IHDR_TYPE = 12
 private const val PNG_BIT_DEPTH = 24
 private const val SIXTEEN_BITS = 16

@@ -2,20 +2,25 @@ package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.export.VideoCodec
+import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
-import dev.jordond.filmstrip.webcodecs.internal.JsOptions
-import dev.jordond.filmstrip.webcodecs.internal.OffscreenCanvas
 import dev.jordond.filmstrip.webcodecs.internal.browserCanRenderFloat
 import dev.jordond.filmstrip.webcodecs.internal.browserEncodesHdrVp9
+import dev.jordond.filmstrip.webcodecs.internal.encoderSupports
+import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
+import dev.jordond.filmstrip.webcodecs.internal.interop.OffscreenCanvas
 import dev.jordond.filmstrip.webcodecs.internal.renderCapabilities
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
  * The two facade entry points the export tests never reach, driven in a real browser.
@@ -27,13 +32,17 @@ class BrowserCapabilitiesTest {
   fun capabilitiesComeFromTheBrowser() =
     runTest {
       val result = filmstrip().capabilities()
-      val capabilities = assertIs<CapabilitiesResult.Success>(result, "capabilities failed: $result").capabilities
+      val capabilities =
+        withClue("capabilities failed: $result") {
+          result.shouldBeInstanceOf<CapabilitiesResult.Success>()
+        }.capabilities
 
-      assertTrue(capabilities.video.isNotEmpty(), "a browser with WebCodecs reported no video encoder")
-      assertTrue(
-        capabilities.video.any { it.codec == VideoCodec.Vp9 },
+      withClue("a browser with WebCodecs reported no video encoder") { capabilities.video.isNotEmpty() shouldBe true }
+      withClue(
         "VP9 is the codec every browser encoder reports, and this one reported ${capabilities.video.map { it.codec }}",
-      )
+      ) {
+        capabilities.video.any { it.codec == VideoCodec.Vp9 } shouldBe true
+      }
     }
 
   // VP9 Profile 2, vp09.02.10.10, is the only HDR profile any browser encoder here reports. HEVC
@@ -44,19 +53,38 @@ class BrowserCapabilitiesTest {
   fun hdrEncodingIsClaimedWhenTheEncoderAndTheFloatFramebufferAreBothThere() =
     runTest {
       val result = filmstrip().capabilities()
-      val capabilities = assertIs<CapabilitiesResult.Success>(result, "capabilities failed: $result").capabilities
+      val capabilities =
+        withClue("capabilities failed: $result") {
+          result.shouldBeInstanceOf<CapabilitiesResult.Success>()
+        }.capabilities
 
-      assertEquals(
-        browserCanRenderFloat() && browserEncodesHdrVp9(),
-        capabilities.supportsHdrEncoding,
-        "the HDR claim and what this browser can actually do parted ways",
-      )
+      withClue("the HDR claim and what this browser can actually do parted ways") {
+        capabilities.supportsHdrEncoding shouldBe (browserCanRenderFloat() && browserEncodesHdrVp9())
+      }
+    }
+
+  // The job is cancelled before the encoder is asked, so the probe's await is the first thing to see it.
+  @Test
+  fun aCancelledEncoderProbeCancelsRatherThanAnsweringNo() =
+    runTest {
+      var answered: Boolean? = null
+      val job =
+        launch {
+          cancel()
+          answered = encoderSupports(VP9_PROBE, Size(PROBE_SIDE, PROBE_SIDE))
+        }
+      job.join()
+
+      withClue("a cancelled probe answered instead of cancelling") { answered.shouldBeNull() }
     }
 
   // Read from a context of the test's own, so the planner's figure is checked against the page rather than itself.
   @Test
   fun theLongestTextureSideIsTheOneThisPageReports() {
-    val gl = assertNotNull(OffscreenCanvas(1, 1).getContext("webgl2", JsOptions().build()), "no WebGL2 context")
+    val gl =
+      withClue("no WebGL2 context") {
+        OffscreenCanvas(1, 1).getContext("webgl2", JsOptions().build()).shouldNotBeNull()
+      }
     val reported =
       try {
         gl.getParameter(MAX_TEXTURE_SIZE)
@@ -64,20 +92,24 @@ class BrowserCapabilitiesTest {
         gl.getExtension("WEBGL_lose_context")?.loseContext()
       }
 
-    assertEquals(reported, renderCapabilities(encodesHdr = false).maxTextureSize)
-    assertEquals(reported, renderCapabilities(encodesHdr = true).maxTextureSize)
+    renderCapabilities(encodesHdr = false).maxTextureSize shouldBe reported
+    renderCapabilities(encodesHdr = true).maxTextureSize shouldBe reported
   }
 
   @Test
   fun anUnreadableUriIsRefusedRatherThanThrown() =
     runTest {
       val result = filmstrip().probe(MediaSource.Uri("blob:nothing"))
-      assertIs<ProbeResult.Failure>(result, "the browser prober claimed to have read a blob that does not exist")
+      withClue("the browser prober claimed to have read a blob that does not exist") {
+        result.shouldBeInstanceOf<ProbeResult.Failure>()
+      }
     }
 
   private fun filmstrip(): Filmstrip = Filmstrip { webCodecsBackend() }
 
   private companion object {
     const val MAX_TEXTURE_SIZE = 0x0D33
+    const val VP9_PROBE = "vp09.00.10.08"
+    const val PROBE_SIDE = 640
   }
 }

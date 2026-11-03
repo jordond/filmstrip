@@ -40,7 +40,10 @@ import platform.CoreGraphics.kCGBitmapByteOrder32Little
 import platform.CoreGraphics.kCGBitmapByteOrderDefault
 import platform.CoreGraphics.kCGBitmapByteOrderMask
 import platform.CoreGraphics.kCGBitmapFloatComponents
+import platform.Foundation.CFBridgingRetain
+import platform.Foundation.NSData
 import platform.ImageIO.CGImageSourceCreateImageAtIndex
+import platform.ImageIO.CGImageSourceCreateWithData
 import platform.ImageIO.CGImageSourceGetPrimaryImageIndex
 import platform.ImageIO.CGImageSourceRef
 import platform.posix.free
@@ -84,7 +87,7 @@ internal sealed interface PictureRead<out T> {
 }
 
 /**
- * The primary image ImageIO decodes from this source, its samples copied out and handed to Core Image with no colour
+ * The primary image ImageIO decodes from this source, its samples copied out and handed to Core Image with no color
  * space. It is [PictureRead.Unreadable] when ImageIO decodes no image, and refused when [bitmapCodes] cannot copy its
  * samples out.
  *
@@ -103,7 +106,7 @@ internal fun CGImageSourceRef.bitmapCodes(): PictureRead<HeldCodes> {
 }
 
 /**
- * This image's samples copied into an image of their own and handed to Core Image with no colour space, or refused
+ * This image's samples copied into an image of their own and handed to Core Image with no color space, or refused
  * saying why when they cannot be copied out or the image is neither RGB nor eight or sixteen-bit grey.
  *
  * An RGB image is copied in the layout it is stored in, whatever its depth, packing, byte order and alpha. A grey one
@@ -114,10 +117,10 @@ internal fun CGImageSourceRef.bitmapCodes(): PictureRead<HeldCodes> {
  * as it lives, four bytes a texel for an eight-bit RGB picture. A 48 megapixel eight-bit still holds 192 MB here.
  * Before anything is copied, ImageIO's decode, the copy and for grey the RGBA written from it are counted by
  * [picturePeakBytes], and a picture whose count passes [ceiling] is refused with the reason [tooLargeToCopy] gives.
- * Drawing it at its colour holds the copy beside another 768 MB of premultiplied floats, made a band of rows at a time
+ * Drawing it at its color holds the copy beside another 768 MB of premultiplied floats, made a band of rows at a time
  * by [StoredBands], and on macOS the footprint peaks at 1,252 MB with what Core Image holds while it renders.
  *
- * @param ceiling The most bytes the copy may hold at its peak, [PICTURE_PEAK_CEILING] unless a test sets it.
+ * @param ceiling The most bytes the copy may hold at its peak, [PICTURE_PEAK_CEILING] by default.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun CGImageRef.bitmapCodes(ceiling: Long = PICTURE_PEAK_CEILING): PictureRead<HeldCodes> {
@@ -126,7 +129,7 @@ internal fun CGImageRef.bitmapCodes(ceiling: Long = PICTURE_PEAK_CEILING): Pictu
     when (components) {
       RGB -> copied(ceiling)
       GREY -> greyAsRgba(ceiling)
-      else -> return PictureRead.Refused("ImageIO decoded it to $components colour components. $GREY_OR_RGB")
+      else -> return PictureRead.Refused("ImageIO decoded it to $components color components. $GREY_OR_RGB")
     }
   return copy.map { image -> image.heldCodes().also { CGImageRelease(image) } }
 }
@@ -315,3 +318,19 @@ private const val EIGHT = 8
 private const val SIXTEEN = 16
 private const val BYTE_BITS = 8
 private const val OPAQUE_BYTE: Byte = -1
+
+/**
+ * What [read] makes of an ImageIO image source over this data, or null when ImageIO opens no source for it.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal inline fun <T> NSData.withImageSource(read: (CGImageSourceRef) -> T?): T? {
+  val data: CFDataRef = CFBridgingRetain(this)?.reinterpret() ?: return null
+  val source = CGImageSourceCreateWithData(data, null)
+  CFRelease(data)
+  if (source == null) return null
+  try {
+    return read(source)
+  } finally {
+    CFRelease(source)
+  }
+}

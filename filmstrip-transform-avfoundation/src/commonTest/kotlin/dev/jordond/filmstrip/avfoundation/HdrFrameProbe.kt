@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.avfoundation.internal.toCMTime
-import dev.jordond.filmstrip.avfoundation.internal.videoReaderSettings
+import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
+import dev.jordond.filmstrip.avfoundation.internal.writer.videoReaderSettings
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.UShortVar
 import kotlinx.cinterop.addressOf
@@ -66,7 +66,7 @@ internal class HdrFrameProbe(
   /**
    * The luma, Cb and Cr codes at ([xFraction], [yFraction]).
    *
-   * These are VideoToolbox's decode of the file in the reader's ten-bit video range format, with no colour conversion.
+   * These are VideoToolbox's decode of the file in the reader's ten-bit video range format, with no color conversion.
    */
   fun codesAt(
     xFraction: Float,

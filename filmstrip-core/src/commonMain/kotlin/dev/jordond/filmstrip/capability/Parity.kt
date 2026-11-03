@@ -1,13 +1,13 @@
 package dev.jordond.filmstrip.capability
 
 import dev.drewhamilton.poko.Poko
-import dev.jordond.filmstrip.export.ExportError
+import dev.jordond.filmstrip.FilmstripError
 
 /**
  * How faithfully the preview reproduces the export, for one effect.
  *
  * Every effect filmstrip applies is one of these two. An effect that renders on only one of the two
- * paths is refused at plan time with [ExportError.UnpreviewableEffect] rather than classified here.
+ * paths is refused at plan time with [FilmstripError.UnpreviewableEffect] rather than classified here.
  */
 public enum class EffectParity {
   /**
@@ -19,14 +19,14 @@ public enum class EffectParity {
    * breaks, metrics, measured extent). If any of those differ, that is a bug in filmstrip.
    *
    * This is preview against export on one platform. Android and Apple can still differ from each
-   * other, which is reported as [ExportError.PlatformEffectAsymmetry].
+   * other, which is reported as [FilmstripError.PlatformEffectAsymmetry].
    */
   Exact,
 
   /**
    * Both paths render it, with a bounded, measured divergence named in [ParityNote.message].
    *
-   * Colour delta from decoder range and matrix handling, a cheaper preview resampling filter, or
+   * Color delta from decoder range and matrix handling, a cheaper preview resampling filter, or
    * glyph antialiasing on a downscaled overlay texture. For text, only glyph antialiasing is in
    * this class: line breaking, metrics and measured extent are [Exact].
    */
@@ -100,7 +100,7 @@ public enum class OutputProperty {
   /**
    * Grade, range and matrix handling.
    */
-  Colour,
+  Color,
 
   /**
    * Resampling detail on downscale.

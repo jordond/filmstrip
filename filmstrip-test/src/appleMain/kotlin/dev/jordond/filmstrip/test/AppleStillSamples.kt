@@ -1,23 +1,25 @@
 package dev.jordond.filmstrip.test
 
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.media.NearestMatrix
-import dev.jordond.filmstrip.media.YcbcrReading
-import dev.jordond.filmstrip.media.evaluator
-import dev.jordond.filmstrip.media.nearestReadable
-import dev.jordond.filmstrip.media.rgbMatrix
-import dev.jordond.filmstrip.media.ycbcrReading
-import kotlin.experimental.ExperimentalNativeApi
+import dev.jordond.filmstrip.color.NearestMatrix
+import dev.jordond.filmstrip.color.YcbcrReading
+import dev.jordond.filmstrip.color.evaluator
+import dev.jordond.filmstrip.color.nearestReadable
+import dev.jordond.filmstrip.color.rgbMatrix
+import dev.jordond.filmstrip.color.ycbcrReading
+import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.roundToInt
 
 /**
- * The RGB samples a [ColourPictures] AVIF or HEIC still decodes to on Apple, before any colour management, to within
+ * The RGB samples a [ColorPictures] AVIF or HEIC still decodes to on Apple, before any color management, to within
  * [TOLERANCE].
  *
  * Apple reads full range chroma over 254 codes rather than 255, the 1 to 255 CoreVideo's full range YCbCr formats
  * span. That is CoreVideo's limit, not the still's, so a full range still lands up to a third of a code off its
- * ITU-T H.273 reading on most of these stills and most of a code on [ColourPictures.NCLX_BT709_FULL_EDGE_CHROMA] and
- * [ColourPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA]. Every AVIF decode here carries it, and every HEIC decode on the
+ * ITU-T H.273 reading on most of these stills and most of a code on [ColorPictures.NCLX_BT709_FULL_EDGE_CHROMA] and
+ * [ColorPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA]. Every AVIF decode here carries it, and every HEIC decode on the
  * iOS simulator.
  *
  * A still decodes with the matrix and range its `colr nclx` names. A HEIC only does once its codestream states them
@@ -36,7 +38,7 @@ import kotlin.math.roundToInt
  * handed over as written decodes on both with its `nclx` matrix at the range its codestream signals.
  *
  * The macOS decodes were measured on macOS 26.6.2 (25G83) and the simulator's on the iOS 27.0 (24A434) and iOS 26.5
- * (23F77) simulators, each against the bitmap ImageIO hands back for every [ColourPictures] AVIF and HEIC alone and as
+ * (23F77) simulators, each against the bitmap ImageIO hands back for every [ColorPictures] AVIF and HEIC alone and as
  * a grid, and every HEIC handed over as written. That covers both ranges, both matrices and a codestream that
  * disagrees with its `nclx` on matrix or on range. Another OS build may decode them elsewhere, which reads as a model
  * miss.
@@ -76,41 +78,41 @@ public object AppleStillSamples {
     }
 
   /**
-   * HEICs painted like [ColourPictures.HEIC_NCLX_BT709_FULL] whose `colr nclx` names the BT.709 matrix 1 and the sRGB
+   * HEICs painted like [ColorPictures.HEIC_NCLX_BT709_FULL] whose `colr nclx` names the BT.709 matrix 1 and the sRGB
    * transfer 13 at full range, one beside Display P3's primaries 12 and one beside the unspecified primaries 2.
    */
   public val BT709_MATRIX_OTHER_PRIMARIES: List<HeicPicture> =
     listOf(
-      ColourPictures.HEIC_NCLX_DISPLAY_P3_PRIMARIES_BT709_MATRIX,
+      ColorPictures.HEIC_NCLX_DISPLAY_P3_PRIMARIES_BT709_MATRIX,
       HeicPicture(
         "HEIC nclx unspecified primaries, BT.709 matrix",
         CicpTag(UNSPECIFIED, UNSPECIFIED, BT709, true),
         profile = null,
-        ColourPictures.HEIC_NCLX_BT709_FULL.ycbcr,
+        ColorPictures.HEIC_NCLX_BT709_FULL.ycbcr,
       ),
     )
 
   /**
-   * A HEIC painted like [ColourPictures.HEIC_NCLX_BT709_FULL] whose `colr nclx` names the SMPTE 240M matrix 7 beside
+   * A HEIC painted like [ColorPictures.HEIC_NCLX_BT709_FULL] whose `colr nclx` names the SMPTE 240M matrix 7 beside
    * BT.709 primaries and the sRGB transfer at full range. Apple's decoder does not read that matrix, so the overlay
-   * raster restates the still to the matrix [landing] gives and [landed] models its decode.
+   * raster restates the still to the matrix [decoderMatrix] gives and [landed] models its decode.
    */
   public val UNREAD_MATRIX: HeicPicture =
     HeicPicture(
       "HEIC nclx SMPTE 240M matrix",
       CicpTag(BT709, SRGB_TRANSFER, SMPTE_240M, true),
       profile = null,
-      ColourPictures.HEIC_NCLX_BT709_FULL.ycbcr,
+      ColorPictures.HEIC_NCLX_BT709_FULL.ycbcr,
     )
 
   /**
    * Every texel Apple's decoder may hand back for [still] once its codestream and `colr nclx` state the matrix
-   * [landing] gives for its eight-bit 4:2:0 samples, as sixteen-bit red, green, blue and alpha. These are the decodes
-   * [of] gives for the same still under that matrix.
+   * [decoderMatrix] gives for its eight-bit 4:2:0 samples, as sixteen-bit red, green, blue and alpha. These are the
+   * decodes [of] gives for the same still under that matrix.
    *
    * @param read The texel this process's decoder handed back for [still], named in the failure where its decode is
    * unmeasured.
-   * @throws IllegalArgumentException for a still without an `nclx` or one [landing] refuses.
+   * @throws IllegalArgumentException for a still without an `nclx` or one [decoderMatrix] refuses.
    */
   public fun landed(
     still: HeicPicture,
@@ -123,7 +125,8 @@ public object AppleStillSamples {
     platform: ApplePlatform,
   ): List<ShortArray> {
     val nclx = requireNotNull(still.nclx) { "$still has no nclx to land" }
-    val landed = requireNotNull(landing(nclx, unsubsampled = false, EIGHT_BITS)) { "$still is refused before decoding" }
+    val landed =
+      requireNotNull(decoderMatrix(nclx, unsubsampled = false, EIGHT_BITS)) { "$still is refused before decoding" }
     val stated = CicpTag(nclx.primaries, nclx.transfer, landed.matrix, nclx.fullRange)
     return of(HeicPicture(still.name, stated, still.profile, still.ycbcr, still.vui, still.slice), read, platform)
   }
@@ -146,20 +149,20 @@ public object AppleStillSamples {
   ): List<ShortArray> {
     if (platform == ApplePlatform.Iphone) unmeasured(still.name, read, platform)
     if (still.bitDepth > EIGHT_BITS) return twelveBit(checkNotNull(still.nclx), heic = false, read, platform)
-    return listOf(roundedDecode(still.ycbcr, colourOf(still.nclx), still.nclx?.fullRange ?: true))
+    return listOf(roundedDecode(still.ycbcr, colorOf(still.nclx), still.nclx?.fullRange ?: true))
   }
 
   /**
-   * Every texel Apple's decoder may hand back for a [AvifColourPictures.twelveBit] AVIF, or a
-   * [HeicColourPictures.twelveBit] HEIC when [heic] is set, with [nclx] as its colour box, once its codestream and
-   * `nclx` state the matrix [landing] gives, as sixteen-bit red, green, blue and alpha. It is empty where [landing]
-   * refuses the still, or where ImageIO decodes it and hands out none of its samples.
+   * Every texel Apple's decoder may hand back for a [AvifColorPictures.twelveBit] AVIF, or a
+   * [HeicColorPictures.twelveBit] HEIC when [heic] is set, with [nclx] as its color box, once its codestream and
+   * `nclx` state the matrix [decoderMatrix] gives, as sixteen-bit red, green, blue and alpha. It is empty where
+   * [decoderMatrix] refuses the still, or where ImageIO decodes it and hands out none of its samples.
    *
    * ImageIO decodes either still at sixteen bits a sample, so the texel keeps the steps between eight-bit codes. It
-   * lands within rounding of the whole codes [ycbcrToRgb] gives at twelve bits through the matrix [landing] gives,
-   * read here as those codes. Neither platform hands out a HEIC's samples at limited range, and drawing that decode
-   * into a sixteen-bit bitmap draws nothing either. These were measured on macOS 26.6.2 (25G83) and the iOS 26.5
-   * (23F77) simulator, against the bitmap ImageIO hands back for each still restated the way [landing] says.
+   * lands within rounding of the whole codes [ycbcrToRgb] gives at twelve bits through the matrix [decoderMatrix]
+   * gives, read here as those codes. Neither platform hands out a HEIC's samples at limited range, and drawing that
+   * decode into a sixteen-bit bitmap draws nothing either. These were measured on macOS 26.6.2 (25G83) and the iOS 26.5
+   * (23F77) simulator, against the bitmap ImageIO hands back for each still restated the way [decoderMatrix] says.
    *
    * @param read The texel this process's decoder handed back, named in the failure where its decode is unmeasured.
    * @throws IllegalArgumentException for a matrix outside [TWELVE_BIT_MATRICES].
@@ -178,9 +181,9 @@ public object AppleStillSamples {
   ): List<ShortArray> {
     require(nclx.matrix in TWELVE_BIT_MATRICES) { "matrix ${nclx.matrix} has no twelve-bit decode measured on Apple" }
     if (platform == ApplePlatform.Iphone) unmeasured("The twelve-bit still with nclx $nclx", read, platform)
-    val landed = landing(nclx, unsubsampled = false, TWELVE_BITS) ?: return emptyList()
+    val landed = decoderMatrix(nclx, unsubsampled = false, TWELVE_BITS) ?: return emptyList()
     if (heic && !nclx.fullRange) return emptyList()
-    val (y, cb, cr) = AvifColourPictures.TWELVE_BIT_YCBCR
+    val (y, cb, cr) = AvifColorPictures.TWELVE_BIT_YCBCR
     val codes = ycbcrToRgb(y, cb, cr, landed.matrix, nclx.primaries, nclx.transfer, nclx.fullRange, TWELVE_BITS)
     return listOf(wholeCodeTexel(codes))
   }
@@ -213,7 +216,7 @@ public object AppleStillSamples {
    * A still that is [unsubsampled] at a depth in [EVALUATED_DEPTHS] and does not land exactly is not decoded through
    * it, and draws at [evaluated] instead.
    */
-  public fun landing(
+  public fun decoderMatrix(
     nclx: CicpTag,
     unsubsampled: Boolean,
     bitDepth: Int,
@@ -227,7 +230,7 @@ public object AppleStillSamples {
 
   /**
    * The texel the overlay raster draws for a 4:4:4 still with [nclx] whose stored [bitDepth]-bit samples are [ycbcr],
-   * as sixteen-bit red, green, blue and alpha, when [landing] is not exact.
+   * as sixteen-bit red, green, blue and alpha, when [decoderMatrix] is not exact.
    *
    * The raster restates such a still to the identity matrix at full range, so ImageIO hands out its stored samples,
    * and decodes each through core's [evaluator]. That holds at eight and ten bits, measured on macOS 26.6.2 (25G83) and
@@ -322,7 +325,7 @@ public object AppleStillSamples {
     asWritten: Boolean,
   ): ShortArray = roundedReading(heicDecode(still, asWritten))
 
-  // The samples, colour and range Apple's decoder decodes still with, handed over as written or with its codestream
+  // The samples, color and range Apple's decoder decodes still with, handed over as written or with its codestream
   // stating what its nclx names. Without an nclx both take the codestream's range.
   internal fun heicDecode(
     still: HeicPicture,
@@ -330,7 +333,7 @@ public object AppleStillSamples {
   ): HeicDecode {
     val nclx = still.nclx
     val full = if (nclx == null || asWritten) still.vui.fullRange else nclx.fullRange
-    return HeicDecode(still.ycbcr, colourOf(nclx), full)
+    return HeicDecode(still.ycbcr, colorOf(nclx), full)
   }
 
   private fun heicDecodes(
@@ -341,7 +344,7 @@ public object AppleStillSamples {
   ): List<ShortArray> =
     when (platform) {
       ApplePlatform.MacOs -> withinDrift(decode).narrowedTo(read)
-      ApplePlatform.Simulator -> listOf(roundedDecode(decode.ycbcr, decode.colour, decode.full))
+      ApplePlatform.Simulator -> listOf(roundedDecode(decode.ycbcr, decode.color, decode.full))
       ApplePlatform.Iphone -> unmeasured(still.name, read, platform)
     }
 
@@ -349,7 +352,7 @@ public object AppleStillSamples {
   // them.
   internal fun unroundedReading(decode: HeicDecode): List<Double> {
     val (y, cb, cr) = decode.ycbcr
-    return decode.colour.weights
+    return decode.color.weights
       .evaluator(EIGHT_BITS, decode.full)
       .rgb(y, cb, cr)
       .map { it * MAX_CODE }
@@ -358,6 +361,43 @@ public object AppleStillSamples {
   // Whole eight-bit red, green and blue codes as an opaque sixteen-bit texel.
   internal fun wholeCodeTexel(codes: IntArray): ShortArray =
     ShortArray(CHANNELS) { if (it < codes.size) (codes[it] * EIGHT_BIT_STEP).toShort() else OPAQUE }
+
+  // Every whole code within WHOLE_CODE_DRIFT of the unrounded reading on each channel, starting from the reading
+  // rounded, the texel ycbcrToRgb gives.
+  private fun withinDrift(decode: HeicDecode): List<ShortArray> {
+    val rounded = roundedReading(decode)
+    val (reds, greens, blues) =
+      unroundedReading(decode).map { code ->
+        val low = ceil(code - WHOLE_CODE_DRIFT).toInt().coerceAtLeast(0)
+        val high = floor(code + WHOLE_CODE_DRIFT).toInt().coerceAtMost(MAX_CODE)
+        (low..high).toList()
+      }
+    val box =
+      reds.flatMap { red ->
+        greens.flatMap { green -> blues.map { blue -> wholeCodeTexel(intArrayOf(red, green, blue)) } }
+      }
+    return listOf(rounded) + box.filterNot { it.contentEquals(rounded) }
+  }
+
+  // The unrounded reading rounded to whole codes on each channel, inside 0 to 255 since core's evaluator clamps, as
+  // ycbcrToRgb gives it.
+  internal fun roundedReading(decode: HeicDecode): ShortArray {
+    val codes = unroundedReading(decode).map { it.roundToInt() }
+    return wholeCodeTexel(codes.toIntArray())
+  }
+
+  // The decodes read lands on within TOLERANCE on red, green and blue, or all of them when it lands on none, so a miss
+  // still names every decode.
+  private fun List<ShortArray>.narrowedTo(read: ShortArray?): List<ShortArray> {
+    if (read == null) return this
+    val landed =
+      filter { decode ->
+        (0 until RGB).all { abs(eightBitCode(decode[it]) - eightBitCode(read[it])) <= TOLERANCE }
+      }
+    return landed.ifEmpty { this }
+  }
+
+  private fun eightBitCode(sample: Short): Float = (sample.toInt() and SAMPLE_MASK) / EIGHT_BIT_STEP.toFloat()
 
   private fun unmeasured(
     still: String,
@@ -372,22 +412,22 @@ public object AppleStillSamples {
   // The unrounded decode rounded to whole eight-bit codes, the way ImageIO decodes an AVIF and the simulator's a HEIC.
   private fun roundedDecode(
     ycbcr: List<Int>,
-    colour: StillColour,
+    color: StillColor,
     full: Boolean,
   ): ShortArray =
-    (reading(ycbcr, colour, full).map { (it * MAX_CODE).roundToInt() / MAX_CODE.toDouble() } + 1.0)
+    (reading(ycbcr, color, full).map { (it * MAX_CODE).roundToInt() / MAX_CODE.toDouble() } + 1.0)
       .map { (it * MAX_SAMPLE).roundToInt().toShort() }
       .toShortArray()
 
-  // Red, green and blue from 0 to 1 through core's matrix for colour, with full range chroma stretched from CoreVideo's
+  // Red, green and blue from 0 to 1 through core's matrix for color, with full range chroma stretched from CoreVideo's
   // 254 codes onto the 255 core reads, which ycbcrToRgb's whole codes cannot give. Stretching both chroma samples about
   // their middle moves each channel away from the luma the Kr and Kb weights give by the same factor.
   private fun reading(
     ycbcr: List<Int>,
-    colour: StillColour,
+    color: StillColor,
     full: Boolean,
   ): List<Double> {
-    val weights = colour.weights
+    val weights = color.weights
     val linear = checkNotNull(weights.rgbMatrix(EIGHT_BITS, full))
     val stretch = if (full) MAX_CODE / COREVIDEO_FULL_CHROMA else 1.0
     val (y, cb, cr) = ycbcr
@@ -398,24 +438,24 @@ public object AppleStillSamples {
 
   // The matrix, primaries and transfer a still decodes with, BT.601 beside unspecified primaries and transfer when it
   // has no nclx. Only a matrix core reads with Kr and Kb alone has a measured decode.
-  private fun colourOf(nclx: CicpTag?): StillColour {
+  private fun colorOf(nclx: CicpTag?): StillColor {
     val matrix = nclx?.matrix ?: BT601
     val primaries = nclx?.primaries ?: UNSPECIFIED
     val transfer = nclx?.transfer ?: UNSPECIFIED
     val reading = ycbcrReading(matrix, primaries, transfer)
     val unmeasured = "Apple's decode under matrix $matrix is unmeasured, only matrices read with Kr and Kb alone are"
-    require(matrix !in COLOUR_READING_MATRICES) { unmeasured }
+    require(matrix !in COLOR_READING_MATRICES) { unmeasured }
     require(reading is YcbcrReading.KrKb) { unmeasured }
-    return StillColour(matrix, primaries, transfer, reading)
+    return StillColor(matrix, primaries, transfer, reading)
   }
 
   internal class HeicDecode(
     val ycbcr: List<Int>,
-    val colour: StillColour,
+    val color: StillColor,
     val full: Boolean,
   )
 
-  internal class StillColour(
+  internal class StillColor(
     val matrix: Int,
     val primaries: Int,
     val transfer: Int,
@@ -432,6 +472,7 @@ public object AppleStillSamples {
   private const val SRGB_TRANSFER = 13
   private const val SMPTE_240M = 7
   private const val CHANNELS = 4
+  private const val RGB = 3
   internal const val MAX_CODE = 255
   private const val MAX_SAMPLE = 65535.0
   internal const val EIGHT_BIT_STEP = 257
@@ -440,7 +481,7 @@ public object AppleStillSamples {
 
   // The matrices whose reading takes the primaries or the transfer, BT.2020 constant luminance and the two derived
   // from chromaticities.
-  private val COLOUR_READING_MATRICES = setOf(10, 12, 13)
+  private val COLOR_READING_MATRICES = setOf(10, 12, 13)
 
   // CoreVideo's full range chroma runs 1 to 255.
   private const val COREVIDEO_FULL_CHROMA = 254.0
@@ -449,35 +490,8 @@ public object AppleStillSamples {
    * ImageIO's own limit on macOS, the most in eight-bit codes a whole code it decodes a HEIC to was measured off the
    * unrounded ITU-T H.273 reading on any channel, 1.39 codes.
    *
-   * That was on macOS 26.6.2 (25G83), where the blue of [ColourPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA] decoded to
+   * That was on macOS 26.6.2 (25G83), where the blue of [ColorPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA] decoded to
    * 251 for a reading of 252.3832, 1.3832 codes off.
    */
   internal const val WHOLE_CODE_DRIFT: Double = 1.39
-}
-
-/**
- * The Apple platforms a still's decode is measured or unmeasured on. [Iphone] is any iOS hardware, an iPad included.
- *
- * @property label How a failure names the platform.
- */
-internal enum class ApplePlatform(
-  val label: String,
-) {
-  MacOs("macOS"),
-  Simulator("the iOS simulator"),
-  Iphone("iOS hardware"),
-  ;
-
-  companion object {
-    /**
-     * The platform this process runs on.
-     */
-    @OptIn(ExperimentalNativeApi::class)
-    fun current(): ApplePlatform =
-      when {
-        Platform.osFamily == OsFamily.MACOSX -> MacOs
-        isSimulator() -> Simulator
-        else -> Iphone
-      }
-  }
 }

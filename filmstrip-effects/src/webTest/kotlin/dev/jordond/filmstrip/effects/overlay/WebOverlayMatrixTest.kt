@@ -1,8 +1,14 @@
-@file:OptIn(ExperimentalWasmJsInterop::class, InternalFilmstripApi::class)
+@file:OptIn(ExperimentalWasmJsInterop::class)
 
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.IDENTITY_MATRIX
+import dev.jordond.filmstrip.color.NearestMatrix
+import dev.jordond.filmstrip.color.YcbcrCoding
+import dev.jordond.filmstrip.color.equivalentCode
+import dev.jordond.filmstrip.color.nearestReadable
+import dev.jordond.filmstrip.color.rgbMatrix
+import dev.jordond.filmstrip.color.ycbcrReading
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -18,30 +24,23 @@ import dev.jordond.filmstrip.effect.WebGlOverlay
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.pictureYcbcrCoding
 import dev.jordond.filmstrip.media.ColorSpace
-import dev.jordond.filmstrip.media.IDENTITY_MATRIX
+import dev.jordond.filmstrip.media.ImageBitmap
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.NearestMatrix
-import dev.jordond.filmstrip.media.YcbcrCoding
-import dev.jordond.filmstrip.media.equivalentCode
-import dev.jordond.filmstrip.media.nearestReadable
-import dev.jordond.filmstrip.media.rgbMatrix
-import dev.jordond.filmstrip.media.ycbcrReading
+import dev.jordond.filmstrip.picture.pictureYcbcrCoding
 import dev.jordond.filmstrip.test.CicpTag
 import dev.jordond.filmstrip.test.ycbcrToRgb
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.unsafeCast
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -100,9 +99,9 @@ class WebOverlayMatrixTest {
   fun aLimitedRangeBt709PictureResolvesThroughChromesOwnDecode() =
     runTest {
       val bytes = MatrixAvif.EIGHT_BIT_420.bytes(CicpTag(BT709, SRGB_TRANSFER, BT709, fullRange = false))
-      val resolved = assertIs<EffectResolution.Resolved>(resolve(bytes))
+      val resolved = resolve(bytes).shouldBeInstanceOf<EffectResolution.Resolved>()
 
-      assertNull(imageOf(overlayOf(resolved.effect.overlay)).samples)
+      imageOf(overlayOf(resolved.effect.overlay)).samples.shouldBeNull()
     }
 
   @Test
@@ -110,7 +109,7 @@ class WebOverlayMatrixTest {
     runTest {
       val worst = limitedRangeDrift()
 
-      assertTrue(worst <= CHROME_LIMITED_RANGE_DRIFT, "Chrome's limited range drift grew to $worst")
+      withClue("Chrome's limited range drift grew to $worst") { (worst <= CHROME_LIMITED_RANGE_DRIFT) shouldBe true }
     }
 
   /**
@@ -132,12 +131,12 @@ class WebOverlayMatrixTest {
   fun aTenBit444ConstantLuminancePictureTakesTheNearestMatrixSinceACanvasReadsEightBits() =
     runTest {
       val bytes = MatrixAvif.TEN_BIT_444.bytes(CicpTag(BT709, SRGB_TRANSFER, BT2020_CONSTANT, fullRange = true))
-      val nearest = assertNotNull(nearestOf(assertNotNull(pictureYcbcrCoding(bytes))))
-      val degraded = assertIs<EffectResolution.Degraded>(resolve(bytes))
+      val nearest = nearestOf(pictureYcbcrCoding(bytes).shouldNotBeNull()).shouldNotBeNull()
+      val degraded = resolve(bytes).shouldBeInstanceOf<EffectResolution.Degraded>()
 
-      assertEquals(BT2020, nearest.matrix)
-      assertNull(imageOf(overlayOf(degraded.effect.overlay)).samples)
-      assertEquals(listOf(unreadMatrix(nearest), eightBitDecode(10)), degraded.causes)
+      nearest.matrix shouldBe BT2020
+      imageOf(overlayOf(degraded.effect.overlay)).samples.shouldBeNull()
+      degraded.causes shouldBe listOf(unreadMatrix(nearest), eightBitDecode(10))
     }
 
   @Test
@@ -145,10 +144,13 @@ class WebOverlayMatrixTest {
     runTest {
       for (picture in listOf(MatrixAvif.TEN_BIT_420, MatrixAvif.TEN_BIT_444, MatrixAvif.TWELVE_BIT_420)) {
         val bytes = picture.bytes(CicpTag(BT709, SRGB_TRANSFER, BT601, fullRange = true))
-        val cause = assertIs<EffectResolution.Degraded>(resolve(bytes), "$picture").causes.single()
+        val cause =
+          withClue("$picture") {
+            resolve(bytes).shouldBeInstanceOf<EffectResolution.Degraded>()
+          }.causes.single()
 
-        assertEquals(DegradationReason.PrecisionReduced, cause.reason, "$picture")
-        assertEquals(eightBitDecode(picture.bitDepth), cause, "$picture")
+        withClue("$picture") { cause.reason shouldBe DegradationReason.PrecisionReduced }
+        withClue("$picture") { cause shouldBe eightBitDecode(picture.bitDepth) }
       }
     }
 
@@ -156,15 +158,13 @@ class WebOverlayMatrixTest {
   fun aLimitedRangeYcgcoPictureIsRefusedPastTheBoundWithCoresFigures() =
     runTest {
       val bytes = MatrixAvif.EIGHT_BIT_420.bytes(CicpTag(BT709, SRGB_TRANSFER, YCGCO, fullRange = false))
-      val nearest = assertNotNull(nearestOf(assertNotNull(pictureYcbcrCoding(bytes))))
-      val unsupported = assertIs<EffectResolution.Unsupported>(resolve(bytes))
+      val nearest = nearestOf(pictureYcbcrCoding(bytes).shouldNotBeNull()).shouldNotBeNull()
+      val unsupported = resolve(bytes).shouldBeInstanceOf<EffectResolution.Unsupported>()
 
-      assertFalse(nearest.withinBound)
-      assertEquals(
+      nearest.withinBound shouldBe false
+      unsupported.message shouldBe
         "Chrome's AVIF decoder does not read this picture's matrix at its range, and the nearest one it reads, " +
-          "matrix ${nearest.matrix}, would turn its YCbCr samples into RGB with ${nearest.figures}.",
-        unsupported.message,
-      )
+        "matrix ${nearest.matrix}, would turn its YCbCr samples into RGB with ${nearest.figures}."
     }
 
   @Test
@@ -172,9 +172,11 @@ class WebOverlayMatrixTest {
     runTest {
       for (matrix in listOf(RESERVED, YDZDX, ICTCP)) {
         val bytes = MatrixAvif.EIGHT_BIT_444.bytes(CicpTag(BT709, SRGB_TRANSFER, matrix, fullRange = true))
-        val refusal = assertNotNull(assertNotNull(pictureYcbcrCoding(bytes)).refusal)
+        val refusal = pictureYcbcrCoding(bytes).shouldNotBeNull().refusal.shouldNotBeNull()
 
-        assertEquals(refusal, assertIs<EffectResolution.Unsupported>(resolve(bytes)).message, "matrix $matrix")
+        withClue("matrix $matrix") {
+          resolve(bytes).shouldBeInstanceOf<EffectResolution.Unsupported>().message shouldBe refusal
+        }
       }
     }
 
@@ -195,13 +197,13 @@ class WebOverlayMatrixTest {
     val limits = if (fullRange) FULL_RANGE_LIMITS else LIMITED_RANGE_LIMITS
     val expected = if (picture.unsubsampled && picture.bitDepth == 8) limits.mapValues { EVALUATED } else limits
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
-    assertEquals(expected, forced, "$picture at ${if (fullRange) "full" else "limited"} range")
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
+    withClue("$picture at ${if (fullRange) "full" else "limited"} range") { forced shouldBe expected }
   }
 
   private suspend fun outcomeOf(case: Case): Pair<String, String?> {
     val bytes = case.bytes()
-    val coding = assertNotNull(pictureYcbcrCoding(bytes), "$case")
+    val coding = withClue("$case") { pictureYcbcrCoding(bytes).shouldNotBeNull() }
     return when (val resolution = resolve(bytes)) {
       is EffectResolution.Unsupported -> {
         val refusal = coding.refusal
@@ -216,13 +218,13 @@ class WebOverlayMatrixTest {
         val overlay = overlayOf(resolution.effect.overlay)
         val causes = resolution.causes
         if (causes.takeLast(cut.size) != cut) return DEGRADED_VIA to "degraded without its eight-bit decode, $causes"
-        val colour = causes.dropLast(cut.size)
-        if (colour.isEmpty()) return drawn(case, overlay)
-        val landed = assertNotNull(nearestOf(coding), "$case")
+        val color = causes.dropLast(cut.size)
+        if (color.isEmpty()) return drawn(case, overlay)
+        val landed = withClue("$case") { nearestOf(coding).shouldNotBeNull() }
         val miss =
           when {
             !landed.withinBound -> "degraded past the bound"
-            colour.singleOrNull() != unreadMatrix(landed) -> "degraded with ${colour.map { it.message }}"
+            color.singleOrNull() != unreadMatrix(landed) -> "degraded with ${color.map { it.message }}"
             else -> landingMiss(case, overlay, landed.matrix)
           }
         "$DEGRADED_VIA${landed.matrix}" to miss
@@ -253,9 +255,15 @@ class WebOverlayMatrixTest {
     resolution: EffectResolution?,
   ): WebGlOverlay {
     val cut = cutOf(case.picture)
-    if (cut.isEmpty()) return overlayOf(assertIs<EffectResolution.Resolved>(resolution, "$case").effect.overlay)
-    val degraded = assertIs<EffectResolution.Degraded>(resolution, "$case")
-    assertEquals(cut, degraded.causes, "$case")
+    if (cut.isEmpty()) {
+      return overlayOf(
+        withClue("$case") {
+          resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
+        }.effect.overlay,
+      )
+    }
+    val degraded = withClue("$case") { resolution.shouldBeInstanceOf<EffectResolution.Degraded>() }
+    withClue("$case") { degraded.causes shouldBe cut }
     return overlayOf(degraded.effect.overlay)
   }
 
@@ -292,7 +300,7 @@ class WebOverlayMatrixTest {
   }
 
   // The furthest Chrome's decode of the overlay sits from core's decode under matrix, in eight-bit codes, over the
-  // blocks whose colour core puts inside the gamut, since Chrome clamps on the way.
+  // blocks whose color core puts inside the gamut, since Chrome clamps on the way.
   private fun chromeMiss(
     case: Case,
     overlay: WebGlOverlay,
@@ -300,7 +308,7 @@ class WebOverlayMatrixTest {
   ): Int {
     val picture = case.picture
     val nclx = case.nclx
-    val codes = assertNotNull(codesOf(imageOf(overlay).image.unsafeCast<ImageBitmap>()))
+    val codes = codesOf(imageOf(overlay).image.unsafeCast<ImageBitmap>()).shouldNotBeNull()
     val unclamped = ycbcrReading(matrix, nclx.primaries, nclx.transfer).rgbMatrix(picture.bitDepth, nclx.fullRange)
     var worst = 0
     for (block in 0 until MatrixAvif.BLOCKS) {
@@ -324,13 +332,14 @@ class WebOverlayMatrixTest {
   private suspend fun resolve(bytes: ByteArray): EffectResolution? {
     val image = ImageOverlay(ImageSource.ofBytes(bytes), Corner.TopStart)
     val resolver = BuiltInEffectResolver()
-    resolver.preload(EditComposition(listOf(Track(listOf(Clip(MediaSource.ofUri(CLIP), effects = listOf(image)))))))
+    resolver.prepare(EditComposition(listOf(Track(listOf(Clip(MediaSource.ofUri(CLIP), effects = listOf(image)))))))
     return resolver.resolve(image, CAPABILITIES, ATTRIBUTES)
   }
 
-  private fun overlayOf(overlay: WebGlOverlay?): WebGlOverlay = assertNotNull(overlay)
+  private fun overlayOf(overlay: WebGlOverlay?): WebGlOverlay = overlay.shouldNotBeNull()
 
-  private fun imageOf(overlay: WebGlOverlay): OverlaySource.Image = assertIs<OverlaySource.Image>(overlay.source)
+  private fun imageOf(overlay: WebGlOverlay): OverlaySource.Image =
+    overlay.source.shouldBeInstanceOf<OverlaySource.Image>()
 
   private class Case(
     val picture: MatrixAvif,
@@ -389,12 +398,12 @@ class WebOverlayMatrixTest {
       (0..ICTCP).map { BT709 to it } +
         listOf(DISPLAY_P3 to DERIVED, BT2020 to DERIVED, DISPLAY_P3 to DERIVED_CONSTANT, BT2020 to DERIVED_CONSTANT)
 
-    // How far Chrome's own decode may sit from core's, in eight-bit codes per channel, on colours inside the gamut.
+    // How far Chrome's own decode may sit from core's, in eight-bit codes per channel, on colors inside the gamut.
     // Measured at 2 on twelve-bit BT.601 at limited range and at 1 or less elsewhere.
     const val CHROME_ROUNDING = 2
 
     // Chrome's own limit. It turns limited range BT.709 and BT.2020 samples into RGB with coefficients coarser than
-    // H.273's, so on colours inside the gamut its decode sits up to this many eight-bit codes from core's.
+    // H.273's, so on colors inside the gamut its decode sits up to this many eight-bit codes from core's.
     const val CHROME_LIMITED_RANGE_DRIFT = 6
     val DRIFTING = setOf(BT709, BT2020)
 

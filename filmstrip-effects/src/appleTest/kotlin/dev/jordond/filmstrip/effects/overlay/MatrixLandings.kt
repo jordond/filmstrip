@@ -1,6 +1,9 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.IDENTITY_NOT_444_REASON
+import dev.jordond.filmstrip.color.YcbcrReading
+import dev.jordond.filmstrip.color.nearestReadable
+import dev.jordond.filmstrip.color.ycbcrReading
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -10,11 +13,7 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
-import dev.jordond.filmstrip.media.IDENTITY_NOT_444_REASON
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.YcbcrReading
-import dev.jordond.filmstrip.media.nearestReadable
-import dev.jordond.filmstrip.media.ycbcrReading
 import dev.jordond.filmstrip.test.AppleStillSamples
 import dev.jordond.filmstrip.test.CicpTag
 import kotlin.time.Duration.Companion.seconds
@@ -25,25 +24,23 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * How an image overlay on the picture in [bytes] resolves on a 64 by 64 SDR frame.
  */
-@OptIn(InternalFilmstripApi::class)
 internal fun overlayResolution(bytes: ByteArray): EffectResolution {
   val overlay = ImageOverlay(image = ImageSource.ofBytes(bytes), corner = Corner.TopStart)
   return checkNotNull(BuiltInEffectResolver().resolve(overlay, CAPABILITIES, ATTRIBUTES))
 }
 
 /**
- * What the Apple raster reports for a still with [nclx] and [bitDepth]-bit samples that [AppleStillSamples.landing]
- * refuses before decoding, or null when it lands. A reading core refuses reports core's reason, the identity matrix on
- * samples that are not 4:4:4 reports core's reason for that, and a landing past the bound reports [pastBound] of
- * core's nearest readable matrix.
+ * What the Apple raster reports for a still with [nclx] and [bitDepth]-bit samples that
+ * [AppleStillSamples.decoderMatrix] refuses before decoding, or null when it lands. A reading core refuses reports
+ * core's reason, the identity matrix on samples that are not 4:4:4 reports core's reason for that, and a landing past
+ * the bound reports [pastBound] of core's nearest readable matrix.
  */
-@OptIn(InternalFilmstripApi::class)
 internal fun refusalOf(
   nclx: CicpTag,
   unsubsampled: Boolean,
   bitDepth: Int,
 ): String? {
-  if (AppleStillSamples.landing(nclx, unsubsampled, bitDepth) != null) return null
+  if (AppleStillSamples.decoderMatrix(nclx, unsubsampled, bitDepth) != null) return null
   val reading = ycbcrReading(nclx.matrix, nclx.primaries, nclx.transfer)
   if (reading is YcbcrReading.Refused) return reading.reason
   if (nclx.matrix == IDENTITY && !unsubsampled) return IDENTITY_NOT_444_REASON

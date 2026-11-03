@@ -1,28 +1,31 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.color.brightness
-import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.export.VideoCodec
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.BRIGHTER
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.TIMEOUT
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.BRIGHTER
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
+import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
+import dev.jordond.filmstrip.ffmpeg.support.ffprobe
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -42,8 +45,8 @@ class FfmpegCopyTest {
       val composition = compositionOf { clip(MediaSource.of(fixture.landscape.absolutePath)) }
 
       val verdict = fixture.filmstrip.plan(composition, ExportSpec())
-      val plan = assertIs<Verdict.Capable>(verdict).plan
-      plan.path shouldBe ExportPath.Transmux
+      val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+      plan.path shouldBe ExportPath.Copy
       plan.output.videoCodec shouldBe VideoCodec.H264
       plan.output.audioCodec shouldBe AudioCodec.Aac
 
@@ -53,7 +56,7 @@ class FfmpegCopyTest {
           .toList()
           .last()
       if (finished is ExportStatus.Failure) error(finished.error.message)
-      assertIs<ExportStatus.Success>(finished)
+      finished.shouldBeInstanceOf<ExportStatus.Success>()
 
       // This fixture's own codec is H264, which is also the ladder's first pick, so a re-encode
       // would land on H264 too and the codec alone would not catch a silent fall back to it. File
@@ -62,10 +65,9 @@ class FfmpegCopyTest {
       // visibly different one.
       ffprobe(output.absolutePath).endsWith("h264 aac") shouldBe true
       val drift = abs(output.length() - fixture.landscape.length())
-      assertTrue(
-        drift <= CONTAINER_DRIFT_BYTES,
-        "the copy wrote ${output.length()} bytes against the source's ${fixture.landscape.length()}",
-      )
+      withClue("the copy wrote ${output.length()} bytes against the source's ${fixture.landscape.length()}") {
+        (drift <= CONTAINER_DRIFT_BYTES).shouldBeTrue()
+      }
 
       output.delete()
     }
@@ -100,11 +102,15 @@ class FfmpegCopyTest {
           .single()
           .start
       val keyFrame = keyFrameAtOrBefore(fixture.long.absolutePath, TRIM_START)
-      assertTrue(keyFrame < TRIM_START, "the window was meant to open between two sync samples")
+      withClue("the window was meant to open between two sync samples") { (keyFrame < TRIM_START).shouldBeTrue() }
       opensAt shouldBe keyFrame
 
-      val plan = assertIs<Verdict.Capable>(fixture.filmstrip.plan(composition, ExportSpec())).plan
-      plan.path shouldBe ExportPath.Transmux
+      val plan =
+        fixture.filmstrip
+          .plan(composition, ExportSpec())
+          .shouldBeInstanceOf<Verdict.Capable>()
+          .plan
+      plan.path shouldBe ExportPath.Copy
       plan.copyBlockedBy shouldBe emptyList()
 
       val finished =
@@ -113,32 +119,30 @@ class FfmpegCopyTest {
           .toList()
           .last()
       if (finished is ExportStatus.Failure) error(finished.error.message)
-      val written = assertIs<ExportStatus.Success>(finished).info
+      val written = finished.shouldBeInstanceOf<ExportStatus.Success>().info
 
       // Nothing was encoded, so the codecs are the source's, and the file is a fraction of it
       // rather than the whole container remuxed.
       ffprobe(output.absolutePath).endsWith("h264 aac") shouldBe true
-      assertTrue(
-        output.length() < fixture.long.length() / 2,
-        "the copy wrote ${output.length()} bytes against the source's ${fixture.long.length()}",
-      )
+      withClue("the copy wrote ${output.length()} bytes against the source's ${fixture.long.length()}") {
+        (output.length() < fixture.long.length() / 2).shouldBeTrue()
+      }
 
       // Where the output opens, read as pixels rather than as a timestamp: a length alone would
       // pass just as well for a copy that bounded its tail and ignored the seek entirely.
-      assertTrue(
+      withClue("the copy did not open on the frame at $opensAt that the plan resolved to") {
         fixture
           .frameAt(output.absolutePath, Duration.ZERO)
-          .contentEquals(fixture.frameAt(fixture.long.absolutePath, opensAt)),
-        "the copy did not open on the frame at $opensAt that the plan resolved to",
-      )
+          .contentEquals(fixture.frameAt(fixture.long.absolutePath, opensAt))
+          .shouldBeTrue()
+      }
 
       // Measured from where the copy opened rather than from the cut, since that is the window the
       // plan resolved and the one every backend lays.
       val window = TRIM_END - opensAt
-      assertTrue(
-        written.duration in (window - COPY_SLOP)..(window + COPY_SLOP),
-        "the copy runs for ${written.duration}, where the resolved window is $window",
-      )
+      withClue("the copy runs for ${written.duration}, where the resolved window is $window") {
+        (written.duration in (window - COPY_SLOP)..(window + COPY_SLOP)).shouldBeTrue()
+      }
 
       output.delete()
     }
@@ -155,10 +159,9 @@ class FfmpegCopyTest {
       val source = MediaSource.of(fixture.long.absolutePath)
       val composition = compositionOf { clip(source) { trim(TimeRange.of(TRIM_START, TRIM_END)) } }
 
-      assertTrue(
-        keyFrameAtOrBefore(fixture.long.absolutePath, TRIM_START) < TRIM_START,
-        "the cut was meant to sit between two sync samples",
-      )
+      withClue("the cut was meant to sit between two sync samples") {
+        (keyFrameAtOrBefore(fixture.long.absolutePath, TRIM_START) < TRIM_START).shouldBeTrue()
+      }
       fixture
         .plannedTracks(composition, ExportSpec(), listOf(source))
         .single()
@@ -166,7 +169,11 @@ class FfmpegCopyTest {
         .single()
         .start shouldBe TRIM_START
 
-      val plan = assertIs<Verdict.Capable>(fixture.filmstrip.plan(composition, ExportSpec())).plan
+      val plan =
+        fixture.filmstrip
+          .plan(composition, ExportSpec())
+          .shouldBeInstanceOf<Verdict.Capable>()
+          .plan
       plan.path shouldBe ExportPath.Transcode
       plan.copyBlockedBy shouldContain CopyBlocker.TrimNotOnSyncSample
 
@@ -176,15 +183,14 @@ class FfmpegCopyTest {
           .toList()
           .last()
       if (finished is ExportStatus.Failure) error(finished.error.message)
-      val written = assertIs<ExportStatus.Success>(finished).info
+      val written = finished.shouldBeInstanceOf<ExportStatus.Success>().info
 
       // The snapped window runs longer than the asked one by the whole group of pictures, so a
       // length is enough to say the cut never moved.
       val window = TRIM_END - TRIM_START
-      assertTrue(
-        written.duration in (window - COPY_SLOP)..(window + COPY_SLOP),
-        "the export runs for ${written.duration}, where the asked window is $window",
-      )
+      withClue("the export runs for ${written.duration}, where the asked window is $window") {
+        (written.duration in (window - COPY_SLOP)..(window + COPY_SLOP)).shouldBeTrue()
+      }
 
       output.delete()
     }
@@ -207,7 +213,11 @@ class FfmpegCopyTest {
           }
         }
 
-      val plan = assertIs<Verdict.Capable>(fixture.filmstrip.plan(composition, ExportSpec())).plan
+      val plan =
+        fixture.filmstrip
+          .plan(composition, ExportSpec())
+          .shouldBeInstanceOf<Verdict.Capable>()
+          .plan
 
       plan.path shouldBe ExportPath.Transcode
       plan.copyBlockedBy shouldContain CopyBlocker.ClipHasEffects
@@ -231,8 +241,8 @@ class FfmpegCopyTest {
       val composition = compositionOf { clip(MediaSource.of(silent.absolutePath)) }
 
       val verdict = fixture.filmstrip.plan(composition, ExportSpec())
-      val plan = assertIs<Verdict.Capable>(verdict).plan
-      plan.path shouldBe ExportPath.Transmux
+      val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+      plan.path shouldBe ExportPath.Copy
 
       val finished =
         fixture.filmstrip
@@ -240,7 +250,7 @@ class FfmpegCopyTest {
           .toList()
           .last()
       if (finished is ExportStatus.Failure) error(finished.error.message)
-      assertIs<ExportStatus.Success>(finished)
+      finished.shouldBeInstanceOf<ExportStatus.Success>()
 
       ffprobe(output.absolutePath) shouldBe "640x360 30/1 h264"
 

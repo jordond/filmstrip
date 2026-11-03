@@ -3,8 +3,8 @@ package dev.jordond.filmstrip.avfoundation
 /**
  * An opaque PNG of [width] by [height] pixels, every one of them [color].
  *
- * Written with no colour chunk and stored rather than compressed, so the file holds [color]'s codes
- * exactly and nothing in it names a colour space.
+ * Written with no color chunk and stored rather than compressed, so the file holds [color]'s codes
+ * exactly and nothing in it names a color space.
  */
 internal fun solidPng(
   width: Int,

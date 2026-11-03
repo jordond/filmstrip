@@ -24,9 +24,8 @@ kotlin {
       languageSettings.optIn("androidx.media3.common.util.UnstableApi")
 
       dependencies {
-        api(libs.media3.exoplayer)
-        api(libs.media3.ui)
-        api(libs.media3.common)
+        implementation(libs.media3.exoplayer)
+        implementation(libs.media3.transformer)
         implementation(libs.media3.inspector.frame)
         api(projects.filmstripTransformMedia3)
         implementation(libs.androidx.core)
@@ -50,7 +49,7 @@ kotlin {
     }
 
     named("androidDeviceTest") {
-      kotlin.srcDir("src/commonTest/kotlin/dev/jordond/filmstrip/playback/contract")
+      kotlin.srcDir("src/commonTest/kotlin/dev/jordond/filmstrip/player/contract")
       dependencies {
         implementation(kotlin("test"))
         implementation(projects.filmstripTest)

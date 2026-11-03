@@ -5,20 +5,25 @@ package dev.jordond.filmstrip.effects.overlay
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.PngExtent
-import dev.jordond.filmstrip.internal.pictureColour
-import dev.jordond.filmstrip.internal.pictureCropOf
-import dev.jordond.filmstrip.internal.pictureOrientationOf
-import dev.jordond.filmstrip.internal.pictureWithoutOrientationTag
-import dev.jordond.filmstrip.internal.pngExtent
-import dev.jordond.filmstrip.internal.pngSamples
+import dev.jordond.filmstrip.internal.awaitCatching
+import dev.jordond.filmstrip.media.ImageBitmap
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.PictureColour
-import dev.jordond.filmstrip.media.PictureOrientation
 import dev.jordond.filmstrip.media.blobOf
+import dev.jordond.filmstrip.media.createImageBitmap
+import dev.jordond.filmstrip.media.fetch
 import dev.jordond.filmstrip.media.toByteArray
+import dev.jordond.filmstrip.picture.PictureContainer
+import dev.jordond.filmstrip.picture.PictureCrop
+import dev.jordond.filmstrip.picture.PictureOrientation
+import dev.jordond.filmstrip.picture.pictureColor
+import dev.jordond.filmstrip.picture.pictureContainerOf
+import dev.jordond.filmstrip.picture.pictureCropOf
+import dev.jordond.filmstrip.picture.pictureOrientationOf
+import dev.jordond.filmstrip.picture.pictureWithoutOrientationTag
+import dev.jordond.filmstrip.picture.png.PngExtent
+import dev.jordond.filmstrip.picture.png.pngExtent
+import dev.jordond.filmstrip.picture.png.pngSamples
 import kotlinx.coroutines.await
-import kotlin.coroutines.cancellation.CancellationException
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.math.roundToInt
 
@@ -121,13 +126,8 @@ internal suspend fun preloadOverlays(
     .map { fontOf(it.style.weight, CAP_PROBE_SIZE, familyOf(it.style)) }
     .distinct()
     .forEach { font ->
-      try {
-        fonts.load(font).await()
-      } catch (cancelled: CancellationException) {
-        throw cancelled
-      } catch (unloadable: Throwable) {
-        // The browser draws the next family in the list instead.
-      }
+      // A font that does not load leaves the browser drawing the next family in the list.
+      awaitCatching { fonts.load(font).await() }
     }
 }
 
@@ -149,7 +149,7 @@ private fun overlayEffectsOf(composition: EditComposition): List<EffectSpec> =
     composition.tracks.flatMap { track -> track.effects + track.clips.flatMap { it.effects } }
 
 // A path names a filesystem no browser has, and a URI is fetched for its bytes. The browser decodes the bytes
-// avifLanding hands it, so an AVIF lands through the matrix core reads it with, through its samples and core's
+// avifRouteOf hands it, so an AVIF lands through the matrix core reads it with, through its samples and core's
 // evaluator, or through the nearest matrix Chrome reads. A PNG core cannot read is refused, since its samples are what
 // gets drawn, and it is sized from them. An AVIF is cut to the rectangle pictureCropOf reads out of its clap, and then
 // every picture is turned by the orientation pictureOrientationOf reads out of its bytes as given, never by the
@@ -158,7 +158,7 @@ private suspend fun decode(
   source: ImageSource,
   ceiling: Long,
 ): OverlayDecode =
-  try {
+  awaitCatching {
     val bytes =
       when (source) {
         is ImageSource.Path -> null
@@ -166,11 +166,7 @@ private suspend fun decode(
         is ImageSource.Bytes -> source.bytes
       }
     bytes?.let { pictureOf(it, ceiling) } ?: OverlayDecode.Undecodable
-  } catch (cancelled: CancellationException) {
-    throw cancelled
-  } catch (undecodable: Throwable) {
-    OverlayDecode.Undecodable
-  }
+  }.getOrDefault(OverlayDecode.Undecodable)
 
 private suspend fun fetchBytes(uri: String): ByteArray? {
   val response = fetch(uri).await()
@@ -184,37 +180,37 @@ private suspend fun pictureOf(
   ceiling: Long,
 ): OverlayDecode {
   val orientation = pictureOrientationOf(bytes)
-  if (isPng(bytes)) {
+  if (pictureContainerOf(bytes) == PictureContainer.Png) {
     val extent = pngExtent(bytes) ?: return OverlayDecode.Undecodable
     val peak = pngPeakBytes(extent)
     if (peak == null || peak > ceiling) return OverlayDecode.Refused(tooLargeToDecode(extent, peak, ceiling))
     val samples = pngSamples(bytes, ceiling) ?: return OverlayDecode.Undecodable
     val bitmap = bitmapOf(bytes)
     val (size, rgba) = orientation.laidOut(Size(samples.width, samples.height), samples.rgba)
-    return OverlayDecode.Decoded(OverlayPicture(bitmap, size, pictureColour(bytes), rgba))
+    return OverlayDecode.Decoded(OverlayPicture(bitmap, size, pictureColor(bytes), rgba))
   }
-  val landing =
-    when (val landing = avifLanding(bytes)) {
-      is AvifLanding.Refused -> return OverlayDecode.Refused(landing.message)
-      is AvifLanding.Decoded -> landing
-      is AvifLanding.Evaluated -> return evaluatedPicture(bytes, landing, orientation)
+  val route =
+    when (val route = avifRouteOf(bytes)) {
+      is PictureRoute.Refused -> return OverlayDecode.Refused(route.message)
+      is PictureRoute.Decoded -> route
+      is PictureRoute.Evaluated -> return evaluatedPicture(bytes, route, orientation)
     }
   val crop = pictureCropOf(bytes)
-  val bitmap = bitmapOf(landing.bytes).let { it.clapCropped(crop) ?: return clapRefused(it, checkNotNull(crop)) }
+  val bitmap = bitmapOf(route.bytes).let { it.clapCropped(crop) ?: return clapRefused(it, checkNotNull(crop)) }
   val size = Size(bitmap.width, bitmap.height)
-  val picture = OverlayPicture(bitmap, size, pictureColour(bytes), null, landing.limits, orientation)
+  val picture = OverlayPicture(bitmap, size, pictureColor(bytes), null, route.limits, orientation)
   return OverlayDecode.Decoded(picture)
 }
 
 // The identity bitmap's codes are the picture's luma, blue difference and red difference samples as green, blue and
-// red, so each texel is turned into colour by the landing's evaluator and carried as sixteen-bit samples.
+// red, so each texel is turned into color by the route's evaluator and carried as sixteen-bit samples.
 private suspend fun evaluatedPicture(
   bytes: ByteArray,
-  landing: AvifLanding.Evaluated,
+  route: PictureRoute.Evaluated,
   orientation: PictureOrientation,
 ): OverlayDecode {
   val crop = pictureCropOf(bytes)
-  val bitmap = bitmapOf(landing.bytes).let { it.clapCropped(crop) ?: return clapRefused(it, checkNotNull(crop)) }
+  val bitmap = bitmapOf(route.bytes).let { it.clapCropped(crop) ?: return clapRefused(it, checkNotNull(crop)) }
   val codes = codesOf(bitmap) ?: return OverlayDecode.Undecodable
   val samples = ShortArray(codes.size)
   val rgb = DoubleArray(RGB_CHANNELS)
@@ -222,12 +218,12 @@ private suspend fun evaluatedPicture(
     val red = codes[texel].toInt() and BYTE_MASK
     val green = codes[texel + 1].toInt() and BYTE_MASK
     val blue = codes[texel + 2].toInt() and BYTE_MASK
-    landing.evaluator.rgb(green, blue, red, rgb)
+    route.evaluator.rgb(green, blue, red, rgb)
     for (channel in 0 until RGB_CHANNELS) samples[texel + channel] = (rgb[channel] * TOP_SAMPLE).roundToInt().toShort()
     samples[texel + ALPHA] = ((codes[texel + ALPHA].toInt() and BYTE_MASK) * EIGHT_BIT_STEP).toShort()
   }
   val (size, rgba) = orientation.laidOut(Size(bitmap.width, bitmap.height), samples)
-  return OverlayDecode.Decoded(OverlayPicture(bitmap, size, pictureColour(bytes), rgba))
+  return OverlayDecode.Decoded(OverlayPicture(bitmap, size, pictureColor(bytes), rgba))
 }
 
 /**
@@ -237,6 +233,15 @@ private suspend fun evaluatedPicture(
  */
 internal suspend fun bitmapOf(bytes: ByteArray): ImageBitmap =
   createImageBitmap(blobOf(pictureWithoutOrientationTag(bytes), OCTET_STREAM), bitmapOptions()).await()
+
+/**
+ * The refusal of a picture whose decoded [bitmap] holds no rectangle [crop] names, with the sentence
+ * [PictureCrop.refusalFor] gives.
+ */
+internal fun clapRefused(
+  bitmap: ImageBitmap,
+  crop: PictureCrop,
+): OverlayDecode = OverlayDecode.Refused(crop.refusalFor(Size(bitmap.width, bitmap.height)))
 
 /**
  * The bytes decoding the PNG [extent] describes holds at its peak, its inflated rows and sixteen-bit samples beside the
@@ -273,21 +278,8 @@ internal fun codesOf(bitmap: ImageBitmap): ByteArray? {
     .toByteArray()
 }
 
-private fun isPng(bytes: ByteArray): Boolean =
-  bytes.size >= PNG_SIGNATURE.size && PNG_SIGNATURE.indices.all { bytes[it] == PNG_SIGNATURE[it] }
-
 private const val OCTET_STREAM = "application/octet-stream"
 private const val RGB_CHANNELS = 3
 private const val RGBA_CHANNELS = 4
 private const val ALPHA = 3
 private const val BYTE_MASK = 0xFF
-
-private val PNG_SIGNATURE = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
-
-// The image's own codes go to the texture, with no conversion into the canvas's colour space. A
-// tagged picture is converted from those codes by the compositor, as its colour describes them. The
-// texels stay in the order they are stored, whatever orientation the file names.
-// What every overlay picture is decoded and cut with: no colour conversion and no turn.
-internal fun bitmapOptions(): JsAny = JSON.parse(BITMAP_OPTIONS)
-
-private const val BITMAP_OPTIONS = """{"colorSpaceConversion":"none","imageOrientation":"none"}"""

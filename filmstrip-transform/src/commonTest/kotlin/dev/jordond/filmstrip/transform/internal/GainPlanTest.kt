@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.transform.internal
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.EditComposition
@@ -8,14 +9,15 @@ import dev.jordond.filmstrip.edit.EnvelopePoint
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.CopyBlocker
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.floats.plusOrMinus
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -161,7 +163,7 @@ class GainPlanTest {
         .clip(trim = TimeRange.of(Duration.ZERO, 2_000.milliseconds), fadeIn = 1_000.milliseconds)
         .withAudio(envelope)
 
-    assertIs<Verdict.Capable>(fixture.plan(composition(faded)))
+    fixture.plan(composition(faded)).shouldBeInstanceOf<Verdict.Capable>()
     val gain = firstClipOf(fixture.resolve(composition(faded))).gain
     gain.gainAt(Duration.ZERO) shouldBe 0f
     gain.gainAt(500.milliseconds) shouldBe (0.4375f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
@@ -232,7 +234,7 @@ class GainPlanTest {
     // ramps meet rather than cross, so the apex still reaches the level underneath them.
     val faded = fixture.clip(fadeIn = 3_000.milliseconds, fadeOut = 3_000.milliseconds)
 
-    assertIs<Verdict.Capable>(fixture.plan(composition(faded)))
+    fixture.plan(composition(faded)).shouldBeInstanceOf<Verdict.Capable>()
     val gain = firstClipOf(fixture.resolve(composition(faded))).gain
     gain.gainAt(Duration.ZERO) shouldBe 0f
     gain.gainAt(1_500.milliseconds) shouldBe (0.5f plusOrMinus ResolvedGain.PRODUCT_TOLERANCE)
@@ -245,8 +247,8 @@ class GainPlanTest {
   fun `a negative fade is refused by name`() {
     val verdict = fixture.plan(composition(fixture.clip(fadeIn = -1_000.milliseconds)))
 
-    val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+    val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
       "A clip's fade is negative, longer than the clip's trim, or its fade in and fade out " +
       "together run longer than the trim, so the two ramps would cross."
   }
@@ -255,8 +257,8 @@ class GainPlanTest {
   fun `a fade longer than the clip is refused by name`() {
     val verdict = fixture.plan(composition(fixture.clip(fadeIn = 9_000.milliseconds)))
 
-    val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+    val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
       "A clip's fade is negative, longer than the clip's trim, or its fade in and fade out " +
       "together run longer than the trim, so the two ramps would cross."
   }
@@ -265,8 +267,8 @@ class GainPlanTest {
   fun `a fade in and a fade out that would cross are refused by name`() {
     val verdict = fixture.plan(composition(fixture.clip(fadeIn = 4_000.milliseconds, fadeOut = 4_000.milliseconds)))
 
-    val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+    val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
       "A clip's fade is negative, longer than the clip's trim, or its fade in and fade out " +
       "together run longer than the trim, so the two ramps would cross."
   }
@@ -275,8 +277,13 @@ class GainPlanTest {
   fun `a track fade longer than the track is refused by name`() {
     val composition = EditComposition(listOf(Track(listOf(fixture.clip()), fadeOut = 9_000.milliseconds)))
 
-    val error = assertIs<Verdict.Incapable>(fixture.plan(composition)).reasons.single()
-    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+    val error =
+      fixture
+        .plan(composition)
+        .shouldBeInstanceOf<Verdict.Incapable>()
+        .reasons
+        .single()
+    error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
       "A track's fade is negative, longer than the track, or its fade in and fade out together " +
       "run longer than the track, so the two ramps would cross."
   }
@@ -286,7 +293,7 @@ class GainPlanTest {
     val past = AudioLevel.Envelope(listOf(EnvelopePoint(9_000.milliseconds, 1f)))
     val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip().withAudio(past))))))
 
-    assertIs<Verdict.Incapable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Incapable>()
   }
 
   @Test
@@ -294,7 +301,35 @@ class GainPlanTest {
     val negative = AudioLevel.Envelope(listOf(EnvelopePoint(Duration.ZERO, -1f)))
     val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip().withAudio(negative))))))
 
-    assertIs<Verdict.Incapable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Incapable>()
+  }
+
+  // A constant level is held to the rule an envelope point is, at every scope.
+  @Test
+  fun `a negative or non-finite volume is refused at every scope`() {
+    for (gain in listOf(-0.5f, Float.NaN, Float.POSITIVE_INFINITY)) {
+      val clip = composition(fixture.clip().withAudio(AudioLevel.Volume(gain)))
+      val track = EditComposition(listOf(Track(listOf(fixture.clip()), audio = AudioLevel.Volume(gain))))
+      val whole = composition(fixture.clip()).withAudio(AudioSpec.Volume(gain))
+
+      for (edit in listOf(clip, track, whole)) {
+        val error =
+          withClue("gain $gain") {
+            fixture.plan(edit).shouldBeInstanceOf<Verdict.Incapable>()
+          }.reasons.single()
+        error.shouldBeInstanceOf<FilmstripError.InvalidComposition>()
+      }
+    }
+  }
+
+  // Levels multiply and are not capped, so a boost plans at every scope like a cut does.
+  @Test
+  fun `a volume above one plans at every scope`() {
+    val clip = composition(fixture.clip().withAudio(AudioLevel.Volume(1.5f)))
+    val track = EditComposition(listOf(Track(listOf(fixture.clip()), audio = AudioLevel.Volume(1.5f))))
+    val whole = composition(fixture.clip()).withAudio(AudioSpec.Volume(1.5f))
+
+    for (edit in listOf(clip, track, whole)) fixture.plan(edit).shouldBeInstanceOf<Verdict.Capable>()
   }
 
   @Test
@@ -302,7 +337,7 @@ class GainPlanTest {
     val faded = fixture.clip().withAudio(fadeIn(1_000.milliseconds))
     val verdict = fixture.plan(composition(faded))
 
-    assertIs<Verdict.Capable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
     verdict.plan.copyBlockedBy shouldBe listOf(CopyBlocker.ClipGainChanged)
     fixture.resolve(composition(faded)).path shouldBe ExportPath.Transcode
   }
@@ -312,7 +347,7 @@ class GainPlanTest {
     val faded = fixture.clip(fadeIn = 1_000.milliseconds)
     val verdict = fixture.plan(composition(faded))
 
-    assertIs<Verdict.Capable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
     verdict.plan.copyBlockedBy shouldBe listOf(CopyBlocker.ClipGainChanged)
     fixture.resolve(composition(faded)).path shouldBe ExportPath.Transcode
   }
@@ -322,7 +357,7 @@ class GainPlanTest {
     val composition = EditComposition(listOf(Track(listOf(fixture.clip()), fadeOut = 1_000.milliseconds)))
     val verdict = fixture.plan(composition)
 
-    assertIs<Verdict.Capable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
     verdict.plan.copyBlockedBy shouldBe listOf(CopyBlocker.TrackGainChanged)
     fixture.resolve(composition).path shouldBe ExportPath.Transcode
   }
@@ -345,10 +380,9 @@ class GainPlanTest {
     // Sixty steps that each split to the cap would be nearly a thousand segments. The fade moves a
     // sixtieth of its range across one step, so each needs two chords and not sixteen.
     val ifEveryStepSplitToTheCap = 60 * ResolvedGain.MAX_PRODUCT_CHORDS
-    assertTrue(
-      gain.segments.size < ifEveryStepSplitToTheCap / 4,
-      "the fold produced ${gain.segments.size} segments against a $ifEveryStepSplitToTheCap worst case",
-    )
+    withClue("the fold produced ${gain.segments.size} segments against a $ifEveryStepSplitToTheCap worst case") {
+      (gain.segments.size < ifEveryStepSplitToTheCap / 4).shouldBeTrue()
+    }
     // Still accurate where it matters, sampled off a breakpoint and away from either end.
     val expected = detailedGainAt(2_950.milliseconds) * (2_950f / 6_000f)
     gain.gainAt(2_950.milliseconds) shouldBe (expected plusOrMinus 0.01f)

@@ -6,13 +6,14 @@ import android.graphics.ColorSpace
 import android.os.Build
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.test.CicpTag
-import dev.jordond.filmstrip.test.ColourPictures
-import dev.jordond.filmstrip.test.HeicColourPictures
+import dev.jordond.filmstrip.test.ColorPictures
+import dev.jordond.filmstrip.test.HeicColorPictures
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.Assume.assumeTrue
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNull
 
 /**
  * Android's HEIC decoder handed a twelve-bit HEIC the way an overlay hands it over, and as it stands.
@@ -31,8 +32,8 @@ class TwelveBitHeicTest {
       for (full in listOf(true, false)) {
         val picture = ImageSource.Bytes(twelveBit(matrix, full)).read(context = null)
 
-        val reason = assertIs<RefusedPicture>(picture, "matrix $matrix full $full").reason
-        assertEquals(DecoderRefusal.HeicTwelveBitNoFrame.message, reason, "matrix $matrix full $full")
+        val reason = withClue("matrix $matrix full $full") { picture.shouldBeInstanceOf<RefusedPicture>() }.reason
+        withClue("matrix $matrix full $full") { reason shouldBe DecoderRefusal.HeicTwelveBitNoFrame.message }
       }
     }
   }
@@ -48,18 +49,18 @@ class TwelveBitHeicTest {
         inPreferredColorSpace = ColorSpace.get(ColorSpace.Named.EXTENDED_SRGB)
       }
 
-    assertNull(BitmapFactory.decodeByteArray(file, 0, file.size))
-    assertNull(BitmapFactory.decodeByteArray(file, 0, file.size, wide))
+    BitmapFactory.decodeByteArray(file, 0, file.size).shouldBeNull()
+    BitmapFactory.decodeByteArray(file, 0, file.size, wide).shouldBeNull()
   }
 
   private fun twelveBit(
     matrix: Int,
     full: Boolean,
-  ): ByteArray = HeicColourPictures.twelveBit(CicpTag(BT709, SRGB_TRANSFER, matrix, full))
+  ): ByteArray = HeicColorPictures.twelveBit(CicpTag(BT709, SRGB_TRANSFER, matrix, full))
 
   private fun assumeHeicDecodes() {
     assumeTrue("Android decodes HEIC from API 28", Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
-    val first = ColourPictures.HEICS.first().bytes()
+    val first = ColorPictures.HEICS.first().bytes()
     assumeTrue(HEIC_FIXTURE_UNDECODED, BitmapFactory.decodeByteArray(first, 0, first.size) != null)
   }
 

@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.media
 
-import dev.jordond.filmstrip.export.ExportError
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.internal.PlatformProber
 import dev.jordond.filmstrip.media.probe.IMAGE_PROBE_DURATION
 import dev.jordond.filmstrip.media.probe.MIRRORED_IMAGE_PROBE_ORIENTATION
@@ -8,12 +8,13 @@ import dev.jordond.filmstrip.media.probe.expectedImageInfo
 import dev.jordond.filmstrip.media.probe.expectedRotatedImageInfo
 import dev.jordond.filmstrip.media.probe.imageProbeBytes
 import dev.jordond.filmstrip.media.probe.rotatedImageProbeBytes
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -30,7 +31,7 @@ class ImageProbeJvmTest {
 
       val result = PlatformProber().probe(MediaSource.Image(ImageSource.of(file.path), IMAGE_PROBE_DURATION))
 
-      assertEquals(expectedImageInfo(FORMAT), assertIs<ProbeResult.Success>(result).info)
+      result.shouldBeInstanceOf<ProbeResult.Success>().info shouldBe expectedImageInfo(FORMAT)
     }
 
   @Test
@@ -41,7 +42,7 @@ class ImageProbeJvmTest {
           MediaSource.Image(ImageSource.ofBytes(imageProbeBytes()), IMAGE_PROBE_DURATION),
         )
 
-      assertEquals(expectedImageInfo(FORMAT), assertIs<ProbeResult.Success>(result).info)
+      result.shouldBeInstanceOf<ProbeResult.Success>().info shouldBe expectedImageInfo(FORMAT)
     }
 
   @Test
@@ -53,7 +54,7 @@ class ImageProbeJvmTest {
       val result =
         PlatformProber().probe(MediaSource.Image(ImageSource.ofUri("file://${file.path}"), IMAGE_PROBE_DURATION))
 
-      assertEquals(expectedImageInfo(FORMAT), assertIs<ProbeResult.Success>(result).info)
+      result.shouldBeInstanceOf<ProbeResult.Success>().info shouldBe expectedImageInfo(FORMAT)
     }
 
   // A phone stores a photo taken in portrait landscape, with a tag saying which way up it goes, so
@@ -66,7 +67,7 @@ class ImageProbeJvmTest {
 
       val result = PlatformProber().probe(MediaSource.Image(ImageSource.of(file.path), IMAGE_PROBE_DURATION))
 
-      assertEquals(expectedRotatedImageInfo(JPEG), assertIs<ProbeResult.Success>(result).info)
+      result.shouldBeInstanceOf<ProbeResult.Success>().info shouldBe expectedRotatedImageInfo(JPEG)
     }
 
   @Test
@@ -76,7 +77,7 @@ class ImageProbeJvmTest {
 
       val result = PlatformProber().probe(source)
 
-      assertEquals(expectedRotatedImageInfo(JPEG), assertIs<ProbeResult.Success>(result).info)
+      result.shouldBeInstanceOf<ProbeResult.Success>().info shouldBe expectedRotatedImageInfo(JPEG)
     }
 
   // Transpose mirrors as well as turning. Filmstrip carries no mirror, so it has to report the turn
@@ -89,10 +90,8 @@ class ImageProbeJvmTest {
 
       val result = PlatformProber().probe(source)
 
-      assertEquals(
-        expectedRotatedImageInfo(JPEG, MIRRORED_IMAGE_PROBE_ORIENTATION),
-        assertIs<ProbeResult.Success>(result).info,
-      )
+      result.shouldBeInstanceOf<ProbeResult.Success>().info shouldBe
+        expectedRotatedImageInfo(JPEG, MIRRORED_IMAGE_PROBE_ORIENTATION)
     }
 
   // The length is the source's, not the file's, so two clips of the same photo have to report two
@@ -105,8 +104,8 @@ class ImageProbeJvmTest {
       val short = PlatformProber().probe(MediaSource.Image(ImageSource.ofBytes(bytes), 2.seconds))
       val long = PlatformProber().probe(MediaSource.Image(ImageSource.ofBytes(bytes), 11.seconds))
 
-      assertEquals(2.seconds, assertIs<ProbeResult.Success>(short).info.duration)
-      assertEquals(11.seconds, assertIs<ProbeResult.Success>(long).info.duration)
+      short.shouldBeInstanceOf<ProbeResult.Success>().info.duration shouldBe 2.seconds
+      long.shouldBeInstanceOf<ProbeResult.Success>().info.duration shouldBe 11.seconds
     }
 
   @Test
@@ -116,9 +115,9 @@ class ImageProbeJvmTest {
 
       val result = PlatformProber().probe(MediaSource.Image(ImageSource.of(missing), IMAGE_PROBE_DURATION))
 
-      val failure = assertIs<ProbeResult.Failure>(result)
-      val error = assertIs<ExportError.SourceUnreadable>(failure.error)
-      assertEquals(missing, error.source)
+      val failure = result.shouldBeInstanceOf<ProbeResult.Failure>()
+      val error = failure.error.shouldBeInstanceOf<FilmstripError.SourceUnreadable>()
+      error.source shouldBe missing
     }
 
   @Test
@@ -127,7 +126,7 @@ class ImageProbeJvmTest {
       val result =
         PlatformProber().probe(MediaSource.Image(ImageSource.ofBytes(byteArrayOf(1, 2, 3, 4)), IMAGE_PROBE_DURATION))
 
-      assertIs<ProbeResult.Failure>(result)
+      result.shouldBeInstanceOf<ProbeResult.Failure>()
     }
 
   // Everything that is not a still still declines by name here, because reading a container on the
@@ -137,9 +136,9 @@ class ImageProbeJvmTest {
     runTest {
       val result = PlatformProber().probe(MediaSource.of("/clips/a.mp4"))
 
-      val failure = assertIs<ProbeResult.Failure>(result)
-      val error = assertIs<ExportError.BackendMissing>(failure.error)
-      assertTrue(error.message.contains("ffprobe"), error.message)
+      val failure = result.shouldBeInstanceOf<ProbeResult.Failure>()
+      val error = failure.error.shouldBeInstanceOf<FilmstripError.BackendMissing>()
+      withClue(error.message) { error.message.contains("ffprobe").shouldBeTrue() }
     }
 
   private val temporaryDirectory = createTempDirectory("filmstrip-image-probe")

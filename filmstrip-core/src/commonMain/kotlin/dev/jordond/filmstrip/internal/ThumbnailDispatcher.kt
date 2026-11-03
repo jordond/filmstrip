@@ -2,9 +2,9 @@ package dev.jordond.filmstrip.internal
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.ComponentRegistry
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.effectsRevision
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.FrameResult
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
@@ -26,7 +26,7 @@ internal class ThumbnailDispatcher(
   fun frames(
     composition: EditComposition,
     at: List<Duration>,
-    heightPx: Int,
+    heightPx: Int?,
   ): Flow<FrameResult> =
     flow {
       if (at.isEmpty()) return@flow
@@ -140,8 +140,8 @@ internal class ThumbnailDispatcher(
     (this as? ThumbnailResult.Success)?.image?.close()
   }
 
-  private fun missing(): ExportError.BackendMissing =
-    ExportError.BackendMissing(
+  private fun missing(): FilmstripError.BackendMissing =
+    FilmstripError.BackendMissing(
       artifact = "dev.jordond.filmstrip:filmstrip-player",
       message =
         "No thumbnail source claimed the request. Effect-applied frames need " +

@@ -1,12 +1,13 @@
 package dev.jordond.filmstrip.ffmpeg
 
-import dev.drewhamilton.poko.Poko
-import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.FilmstripBuilder
+import dev.jordond.filmstrip.FilmstripComponents
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.effects.builtInEffects
-import dev.jordond.filmstrip.export.ExportError
+import dev.jordond.filmstrip.export.EngineComponents
+import dev.jordond.filmstrip.export.ExportEngineFactory
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegProber
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
@@ -20,7 +21,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
  * artifacts, and nothing about filmstrip's licence reaches theirs.
  *
  * Registration always succeeds, whether or not a binary is there. The four operations report
- * [ExportError.ToolchainMissing] when there is nothing usable to run, which is a value rather than
+ * [FilmstripError.ToolchainMissing] when there is nothing usable to run, which is a value rather than
  * a failure to construct the graph.
  *
  * Register it after another engine backend on a platform that has both and this one wins, because
@@ -31,11 +32,11 @@ import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
  */
 public fun FilmstripBuilder.ffmpegBackend(config: FfmpegConfig = FfmpegConfig()): FilmstripBuilder {
   // One runtime behind both, so resolving the binaries, probing a clip and measuring the encoder
-  // ladder happen once rather than once per component. The factory runs per caller, so the engine
+  // ladder happen once for every component. The factory runs per caller, so the engine
   // it hands back holds nothing worth keeping that the runtime does not already hold.
   val runtime = FfmpegRuntime.of(config)
   return builtInEffects()
-    .addExportEngineFactory { components -> FfmpegExportEngine(components, runtime) }
+    .addExportEngineFactory(FfmpegEngineFactory(runtime))
     .addMediaProberFactory { FfmpegProber(runtime) }
     .addBackendInfo(BackendInfo(name = "ffmpeg", artifact = "dev.jordond.filmstrip:filmstrip-transform-ffmpeg"))
 }
@@ -44,14 +45,13 @@ public fun FilmstripBuilder.ffmpegBackend(config: FfmpegConfig = FfmpegConfig())
  * Builds the engine every ffmpeg lowering goes through.
  *
  * The preview calls this too, so a previewed edit and an exported one negotiate against the same
- * codec ladder, the same parity table and the same copy rules rather than against two sets that
- * have to be kept in step.
+ * codec ladder, the same parity table and the same copy rules.
  *
  * The runtime behind it is the one [config] already resolved through, so an engine built here and
  * a backend registered with the same config share one toolchain resolution, one probe cache and one
- * measurement of the encoder ladder. A caller that registered [ffmpegBackend] with a config of its
- * own should reach for the registered engine rather than building one against a default it never
- * asked for.
+ * measurement of the encoder ladder. A caller lowering for a `Filmstrip` reads
+ * [registeredFfmpegEngine] instead, so it runs the toolchain the host registered rather than one
+ * built against a default it never asked for.
  *
  * @param components The components the owning `Filmstrip` was built with.
  * @param config How to find ffmpeg and what to pass it.
@@ -59,28 +59,27 @@ public fun FilmstripBuilder.ffmpegBackend(config: FfmpegConfig = FfmpegConfig())
  */
 @InternalFilmstripApi
 public fun ffmpegExportEngine(
-  components: ComponentRegistry,
+  components: EngineComponents,
   config: FfmpegConfig = FfmpegConfig(),
 ): FfmpegExportEngine = FfmpegExportEngine(components, FfmpegRuntime.of(config))
 
 /**
- * How the ffmpeg backend finds its binaries and what it passes them.
+ * The engine the [ffmpegBackend] registered in this registry builds, or null when none was registered.
  *
- * A class rather than a parameter list so a field can be added without breaking a caller.
+ * The engine runs the toolchain the registration's config names, so a preview lowering through it resolves the same
+ * binaries an export of the same `Filmstrip` does. The latest registration wins.
  *
- * @property executablePath An absolute path to `ffmpeg`, or null to read `FILMSTRIP_FFMPEG` from
- *   the environment and then search `PATH`.
- * @property probePath An absolute path to `ffprobe`, or null to resolve it the same way from
- *   `FILMSTRIP_FFPROBE`, then `PATH`, then beside whichever `ffmpeg` was found.
- * @property extraArgs Arguments appended to every encode, immediately before the output file.
- *   An escape hatch, and the thing that makes an edit non-portable: nothing here is understood by
- *   any other backend, so an edit that needs it renders differently everywhere else.
- * @property threads How many threads to allow, or null to let ffmpeg decide.
+ * @return The registered engine, or null when this registry has no ffmpeg backend.
  */
-@Poko
-public class FfmpegConfig(
-  public val executablePath: String? = null,
-  public val probePath: String? = null,
-  public val extraArgs: List<String> = emptyList(),
-  public val threads: Int? = null,
-)
+@InternalFilmstripApi
+public fun FilmstripComponents.registeredFfmpegEngine(): FfmpegExportEngine? =
+  exportEngineFactories.firstNotNullOfOrNull { (it as? FfmpegEngineFactory)?.create(this) }
+
+/**
+ * Builds engines over one registration's runtime, which is what [registeredFfmpegEngine] finds it by.
+ */
+private class FfmpegEngineFactory(
+  private val runtime: FfmpegRuntime,
+) : ExportEngineFactory {
+  override fun create(components: EngineComponents): FfmpegExportEngine = FfmpegExportEngine(components, runtime)
+}

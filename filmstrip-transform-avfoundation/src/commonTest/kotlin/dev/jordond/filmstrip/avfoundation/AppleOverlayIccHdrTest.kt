@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.pictureLight
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
@@ -16,9 +16,13 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
-import dev.jordond.filmstrip.media.pictureLight
 import dev.jordond.filmstrip.test.AppleStillSamples
 import dev.jordond.filmstrip.test.HdrOverlayCells
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
@@ -26,20 +30,16 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 
 /**
- * Colour described overlay pictures drawn onto a kept HDR grade and read back out of the written file.
+ * Color described overlay pictures drawn onto a kept HDR grade and read back out of the written file.
  *
  * A described badge is held to the codes [pictureLight] of its texel blends to over the fill, and the untagged badge to
  * [HdrOverlayCells.Cell.codes]. The light a described picture enters an HDR frame at is asserted with no encoder in the
  * effects module's Apple tests.
  */
-@OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 class AppleOverlayIccHdrTest : AppleOverlayIccCase() {
   @Test
   fun `a described picture on a kept grade lands at its description's light`() =
@@ -57,7 +57,10 @@ class AppleOverlayIccHdrTest : AppleOverlayIccCase() {
         val (path, size) = exportedHdr(source, transfer, badges)
         pictures.forEach { it.removeFile() }
         try {
-          val frame = assertNotNull(hdrFrameOf(path), "could not decode a frame of the $transfer export")
+          val frame =
+            withClue("could not decode a frame of the $transfer export") {
+              hdrFrameOf(path).shouldNotBeNull()
+            }
           pictures.zip(badges).forEach { (picture, badge) ->
             val rect = badge.placedOn(size, picture.size).rectOn(size)
             val read = frame.codesAt((rect.left + rect.right) / 2f, (rect.top + rect.bottom) / 2f)
@@ -77,7 +80,7 @@ class AppleOverlayIccHdrTest : AppleOverlayIccCase() {
       }
     }
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    withClue(misses.joinToString("\n")) { misses.isEmpty().shouldBeTrue() }
   }
 
   /**
@@ -107,9 +110,18 @@ class AppleOverlayIccHdrTest : AppleOverlayIccCase() {
 
     val finished = withContext(Dispatchers.Default) { filmstrip.export(plan, MediaSink.Temporary).toList() }.last()
     if (finished is ExportStatus.Failure) error("the $transfer export failed: ${finished.error.message}")
-    val path = assertIs<MediaSink.Path>(assertIs<ExportStatus.Success>(finished).output).path
-    val written = assertIs<ProbeResult.Success>(filmstrip.probe(MediaSource.of(path))).info.video
-    assertEquals(transfer, written?.hdrTransfer, "a $transfer grade was written as ${written?.hdrTransfer}")
-    return path to assertNotNull(written).displaySize
+    val path =
+      finished
+        .shouldBeInstanceOf<ExportStatus.Success>()
+        .output
+        .shouldBeInstanceOf<MediaSink.Path>()
+        .path
+    val written =
+      filmstrip
+        .probe(MediaSource.of(path))
+        .shouldBeInstanceOf<ProbeResult.Success>()
+        .info.video
+    written?.hdrTransfer shouldBe transfer
+    return path to written.shouldNotBeNull().displaySize
   }
 }

@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.geometry.Size
 
 /**
- * Sixty-four-by-sixty-four 4:4:4 HEICs painted one flat colour, at eight, ten and twelve bits, for HEIC stills whose
+ * Sixty-four-by-sixty-four 4:4:4 HEICs painted one flat color, at eight, ten and twelve bits, for HEIC stills whose
  * `nclx` names the identity matrix.
  *
  * Each codestream is coded losslessly, and its sequence parameter set carries no video signal type, so the `nclx`

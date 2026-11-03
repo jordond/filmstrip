@@ -6,7 +6,7 @@ import dev.drewhamilton.poko.Poko
 /**
  * What an overlay placement handle paints with.
  *
- * Built by [OverlayHandleDefaults.colors], which defaults every colour, so a host names only the ones it wants to
+ * Built by [OverlayHandleDefaults.colors], which defaults every color, so a host names only the ones it wants to
  * change.
  *
  * @property fill The wash over the overlay's own rectangle, which is what a handle with an empty content slot shows.

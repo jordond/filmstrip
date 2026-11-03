@@ -215,7 +215,7 @@ public class EditState {
     }
 
   /**
-   * The colour effects the knobs author, in the order the pipeline runs them, or an empty list while
+   * The color effects the knobs author, in the order the pipeline runs them, or an empty list while
    * every knob sits at its default. A saturation of zero is authored as the grayscale shorthand, and
    * the custom matrix goes last, after everything the sliders authored.
    */
@@ -238,7 +238,7 @@ public class EditState {
       }.build()
 
   /**
-   * Whether any colour knob is off its default.
+   * Whether any color knob is off its default.
    */
   val colorGraded: Boolean
     get() = colorEffects.isNotEmpty()

@@ -1,8 +1,8 @@
 package dev.jordond.filmstrip.test
 
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.media.rgbMatrix
-import dev.jordond.filmstrip.media.ycbcrReading
+import dev.jordond.filmstrip.color.rgbMatrix
+import dev.jordond.filmstrip.color.ycbcrReading
 import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.DoubleVar
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -39,11 +39,11 @@ import platform.CoreVideo.kCVImageBufferYCbCrMatrixKey
 import platform.CoreVideo.kCVImageBufferYCbCrMatrix_ITU_R_709_2
 
 /**
- * Reads and moves colours in the codes an SDR Apple export's BT.709 buffer holds.
+ * Reads and moves colors in the codes an SDR Apple export's BT.709 buffer holds.
  *
- * A probe that draws a decoded frame into device RGB reads it colour matched out of the codes the file was written
- * with. [fromDevice] and [toDevice] carry a colour between the two with Core Graphics, and [videoRangeCodesIn] reads
- * the codes straight off a Y'CbCr buffer with no colour matching at all.
+ * A probe that draws a decoded frame into device RGB reads it color matched out of the codes the file was written
+ * with. [fromDevice] and [toDevice] carry a color between the two with Core Graphics, and [videoRangeCodesIn] reads
+ * the codes straight off a Y'CbCr buffer with no color matching at all.
  */
 @InternalFilmstripApi
 @OptIn(ExperimentalForeignApi::class)
@@ -118,7 +118,7 @@ public object AppleBufferCodes {
       val moved =
         CGColorCreateCopyByMatchingToColorSpace(to, CGColorRenderingIntent.kCGRenderingIntentDefault, color, null)
       try {
-        val out = checkNotNull(CGColorGetComponents(moved)) { "could not match a colour into the other space" }
+        val out = checkNotNull(CGColorGetComponents(moved)) { "could not match a color into the other space" }
         FloatArray(CHANNELS) { out[it].toFloat() }
       } finally {
         CGColorRelease(moved)
@@ -129,10 +129,10 @@ public object AppleBufferCodes {
     }
 
   /**
-   * Creates the colour space CoreVideo builds for a buffer tagged with BT.709 primaries, transfer and matrix. The
+   * Creates the color space CoreVideo builds for a buffer tagged with BT.709 primaries, transfer and matrix. The
    * caller releases it.
    *
-   * A colour tagged with this space lands in such a buffer as the codes it was given.
+   * A color tagged with this space lands in such a buffer as the codes it was given.
    */
   private fun bt709BufferSpace(): CGColorSpaceRef? {
     val keys = kCFTypeDictionaryKeyCallBacks.ptr

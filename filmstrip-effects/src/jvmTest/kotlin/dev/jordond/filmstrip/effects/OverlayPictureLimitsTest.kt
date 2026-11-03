@@ -11,9 +11,9 @@ import dev.jordond.filmstrip.effects.overlay.decodedPng
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
 
 /**
  * An overlay whose decoder reads its picture short of what the file stores resolves degraded by each limit the decode
@@ -24,21 +24,21 @@ class OverlayPictureLimitsTest {
   fun `a tagged picture decoded with limits resolves degraded by them on an SDR grade`() {
     val spec = overlayOf(tagged(pngOf(rgbOf(TEXELS)), LINEAR))
     val resolution = resolverOf(LimitedDecoder).resolve(spec, capabilities(), attributes(null))
-    assertEquals(LIMITS, assertIs<EffectResolution.Degraded>(resolution).causes)
+    resolution.shouldBeInstanceOf<EffectResolution.Degraded>().causes shouldBe LIMITS
   }
 
   @Test
   fun `a picture decoded with limits resolves degraded by them on an HDR grade`() {
     val spec = overlayOf(pngOf(rgbOf(TEXELS)))
     val resolution = resolverOf(LimitedDecoder).resolve(spec, capabilities(), attributes(HdrTransfer.Pq))
-    assertEquals(LIMITS, assertIs<EffectResolution.Degraded>(resolution).causes)
+    resolution.shouldBeInstanceOf<EffectResolution.Degraded>().causes shouldBe LIMITS
   }
 
   @Test
   fun `a picture decoded with no limits resolves exactly`() {
     val spec = overlayOf(pngOf(rgbOf(TEXELS)))
     val resolution = resolverOf(ExactDecoder()).resolve(spec, capabilities(), attributes(HdrTransfer.Pq))
-    assertIs<EffectResolution.Resolved>(resolution)
+    resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
   }
 
   private open class ExactDecoder(
@@ -46,7 +46,7 @@ class OverlayPictureLimitsTest {
   ) : OverlayPictureDecoder {
     override fun decode(image: ImageSource): OverlayPictureDecode<DecodedPicture> {
       val png = checkNotNull(decodedPng((image as ImageSource.Bytes).bytes))
-      return OverlayPictureRead.Read(DecodedPicture(png.size, png.samples, png.colour, limits))
+      return OverlayPictureRead.Read(DecodedPicture(png.size, png.samples, png.color, limits))
     }
 
     override fun measure(image: ImageSource): OverlayPictureRead<Size> = OverlayPictureRead.Read(Size(8, 8))

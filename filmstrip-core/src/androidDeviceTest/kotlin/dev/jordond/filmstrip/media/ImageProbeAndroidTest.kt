@@ -5,10 +5,10 @@ import dev.jordond.filmstrip.media.probe.IMAGE_PROBE_DURATION
 import dev.jordond.filmstrip.media.probe.expectedImageInfo
 import dev.jordond.filmstrip.media.probe.expectedRotatedImageInfo
 import dev.jordond.filmstrip.media.probe.rotatedImageProbeBytes
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -29,7 +29,7 @@ class ImageProbeAndroidTest {
 
       val result = PlatformProber().probe(source)
 
-      assertEquals(expectedImageInfo(JPEG), assertIs<ProbeResult.Success>(result).info)
+      result.shouldBeInstanceOf<ProbeResult.Success>().info shouldBe expectedImageInfo(JPEG)
     }
 
   // A phone stores a photo taken in portrait landscape, with a tag saying which way up it goes, so
@@ -41,7 +41,7 @@ class ImageProbeAndroidTest {
 
       val result = PlatformProber().probe(source)
 
-      assertEquals(expectedRotatedImageInfo(JPEG), assertIs<ProbeResult.Success>(result).info)
+      result.shouldBeInstanceOf<ProbeResult.Success>().info shouldBe expectedRotatedImageInfo(JPEG)
     }
 
   // The length is the source's, not the file's, so two clips of the same photo report two lengths.
@@ -53,8 +53,8 @@ class ImageProbeAndroidTest {
       val short = PlatformProber().probe(MediaSource.Image(ImageSource.ofBytes(bytes), 2.seconds))
       val long = PlatformProber().probe(MediaSource.Image(ImageSource.ofBytes(bytes), 11.seconds))
 
-      assertEquals(2.seconds, assertIs<ProbeResult.Success>(short).info.duration)
-      assertEquals(11.seconds, assertIs<ProbeResult.Success>(long).info.duration)
+      short.shouldBeInstanceOf<ProbeResult.Success>().info.duration shouldBe 2.seconds
+      long.shouldBeInstanceOf<ProbeResult.Success>().info.duration shouldBe 11.seconds
     }
 
   @Test
@@ -62,7 +62,7 @@ class ImageProbeAndroidTest {
     runTest {
       val source = MediaSource.Image(ImageSource.ofBytes(byteArrayOf(1, 2, 3, 4)), IMAGE_PROBE_DURATION)
 
-      assertIs<ProbeResult.Failure>(PlatformProber().probe(source))
+      PlatformProber().probe(source).shouldBeInstanceOf<ProbeResult.Failure>()
     }
 
   private companion object {

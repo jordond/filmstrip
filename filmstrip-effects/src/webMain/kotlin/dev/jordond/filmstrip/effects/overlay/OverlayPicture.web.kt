@@ -2,30 +2,31 @@
 
 package dev.jordond.filmstrip.effects.overlay
 
+import dev.jordond.filmstrip.color.PictureColor
 import dev.jordond.filmstrip.effect.Degradation
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.media.PictureColour
-import dev.jordond.filmstrip.media.PictureCrop
-import dev.jordond.filmstrip.media.PictureOrientation
-import dev.jordond.filmstrip.media.orientedSamples
+import dev.jordond.filmstrip.media.ImageBitmap
+import dev.jordond.filmstrip.picture.PictureCrop
+import dev.jordond.filmstrip.picture.PictureOrientation
+import dev.jordond.filmstrip.picture.orientedSamples
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.Promise
 
 /**
- * A decoded overlay picture and how it describes the colour of its codes.
+ * A decoded overlay picture and how it describes the color of its codes.
  *
- * The bitmap holds the picture's stored codes with no colour conversion, eight bits a channel, as stored, since it is
+ * The bitmap holds the picture's stored codes with no color conversion, eight bits a channel, as stored, since it is
  * decoded with no orientation applied. A PNG also carries its stored samples at their full depth, and an AVIF Chrome
- * cannot decode through its own matrix carries the colour core's evaluator turns its samples into, which the
+ * cannot decode through its own matrix carries the color core's evaluator turns its samples into, which the
  * compositor converts from instead. Those samples are laid out the way the picture's orientation shows it, through
  * [orientedSamples], and a picture with none is laid out by the compositor as it draws, through [orientation].
  *
  * @property bitmap The decoded picture.
  * @property size The size the compositor uploads the picture at. A picture carrying samples takes their size as they
  * are laid out, and any other picture the size of [bitmap].
- * @property colour What [pictureColour] reads from the picture's bytes, or null when it is untagged.
- * @property samples What [pngSamples] reads from a PNG's bytes, what [AvifLanding.Evaluated] turns an AVIF's samples
+ * @property color What [pictureColor] reads from the picture's bytes, or null when it is untagged.
+ * @property samples What [pngSamples] reads from a PNG's bytes, what [PictureRoute.Evaluated] turns an AVIF's samples
  * into as sixteen-bit RGBA, or null for any other picture.
  * @property limits Why the picture lands short of how its bytes describe it, empty when it lands exactly.
  * @property orientation The turn the compositor lays the uploaded picture out by, [PictureOrientation.Normal] for one
@@ -34,7 +35,7 @@ import kotlin.js.Promise
 internal class OverlayPicture(
   val bitmap: ImageBitmap,
   val size: Size,
-  val colour: PictureColour?,
+  val color: PictureColor?,
   val samples: ShortArray?,
   val limits: List<Degradation> = emptyList(),
   val orientation: PictureOrientation = PictureOrientation.Normal,
@@ -66,15 +67,6 @@ internal suspend fun ImageBitmap.clapCropped(crop: PictureCrop?): ImageBitmap? {
   return createImageBitmap(this, crop.left, crop.top, crop.size.width, crop.size.height, bitmapOptions()).await()
 }
 
-/**
- * The refusal of a picture whose decoded [bitmap] holds no rectangle [crop] names, with the sentence
- * [PictureCrop.refusalFor] gives.
- */
-internal fun clapRefused(
-  bitmap: ImageBitmap,
-  crop: PictureCrop,
-): OverlayDecode = OverlayDecode.Refused(crop.refusalFor(Size(bitmap.width, bitmap.height)))
-
 internal external fun createImageBitmap(
   image: JsAny,
   sx: Int,
@@ -83,3 +75,11 @@ internal external fun createImageBitmap(
   sh: Int,
   options: JsAny,
 ): Promise<ImageBitmap>
+
+// The image's own codes go to the texture, with no conversion into the canvas's color space. A
+// tagged picture is converted from those codes by the compositor, as its color describes them. The
+// texels stay in the order they are stored, whatever orientation the file names.
+// What every overlay picture is decoded and cut with: no color conversion and no turn.
+internal fun bitmapOptions(): JsAny = JSON.parse(BITMAP_OPTIONS)
+
+private const val BITMAP_OPTIONS = """{"colorSpaceConversion":"none","imageOrientation":"none"}"""

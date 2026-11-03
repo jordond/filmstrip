@@ -8,12 +8,12 @@ import dev.jordond.filmstrip.effects.overlay.OverlayPictureRead
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
 
 /**
- * An overlay whose decoder does not draw the colour the picture describes is refused with the decoder's reason as it
+ * An overlay whose decoder does not draw the color the picture describes is refused with the decoder's reason as it
  * is, on an SDR grade and on an HDR one, rather than as a picture the decoder could not decode.
  */
 class OverlayPictureUndrawnTest {
@@ -21,14 +21,14 @@ class OverlayPictureUndrawnTest {
   fun `a tagged picture the decoder does not draw is refused with its reason alone on an SDR grade`() {
     val spec = overlayOf(tagged(pngOf(rgbOf(TEXELS)), LINEAR))
     val resolution = resolverOf(UndrawnDecoder).resolve(spec, capabilities(), attributes(null))
-    assertEquals(REASON, assertIs<EffectResolution.Unsupported>(resolution).message)
+    resolution.shouldBeInstanceOf<EffectResolution.Unsupported>().message shouldBe REASON
   }
 
   @Test
   fun `a picture the decoder does not draw is refused with its reason alone on an HDR grade`() {
     val spec = overlayOf(pngOf(rgbOf(TEXELS)))
     val resolution = resolverOf(UndrawnDecoder).resolve(spec, capabilities(), attributes(HdrTransfer.Pq))
-    assertEquals(REASON, assertIs<EffectResolution.Unsupported>(resolution).message)
+    resolution.shouldBeInstanceOf<EffectResolution.Unsupported>().message shouldBe REASON
   }
 
   private object UndrawnDecoder : OverlayPictureDecoder {

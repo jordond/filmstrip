@@ -26,7 +26,7 @@ sealed interface Fixture : Serializable {
  * @param hue Degrees of hue rotation applied to the test pattern, so clips in a concat are told
  * apart at a glance on a screen recording.
  * @param transfer The HDR transfer function to write the clip in, as 10-bit HEVC in BT.2020, or
- * null for 8-bit AVC in BT.709. The verification pass checks the colour tags, so a clip that asked
+ * null for 8-bit AVC in BT.709. The verification pass checks the color tags, so a clip that asked
  * for one grade and came back with another fails the build.
  * @param rotationDegrees Rotation written into the container as a display matrix, leaving the
  * frames landscape. This is what a phone camera writes for a portrait recording, and the only way
@@ -74,12 +74,12 @@ enum class FixtureTransfer(
 }
 
 /**
- * A flat square of one colour, painted over the middle of the frame after the noise.
+ * A flat square of one color, painted over the middle of the frame after the noise.
  *
  * `testsrc` is a pattern of hard edges and the middle of a 1280x720 frame lands on one. A 4:2:0
  * chroma sample there spans both sides of the edge, so what a single pixel reads back as moves with
  * the encoder and with the ffmpeg build. A point on the pattern drifts between 6 and 61 ten-bit
- * code values from what the transfer functions predict, where a flat patch of the same colours
+ * code values from what the transfer functions predict, where a flat patch of the same colors
  * drifts by 1 to 4.
  *
  * @param red Eight-bit channel value, since the pattern is generated in RGB and graded afterwards.

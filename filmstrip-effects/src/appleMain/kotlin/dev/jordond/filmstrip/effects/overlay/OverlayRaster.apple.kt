@@ -49,7 +49,6 @@ import platform.CoreGraphics.CGPathRelease
 import platform.CoreGraphics.CGRectMake
 import platform.CoreGraphics.CGSizeMake
 import platform.CoreGraphics.kCGBitmapByteOrder16Little
-import platform.CoreImage.CIImage
 import platform.CoreText.CTFontCreateCopyWithSymbolicTraits
 import platform.CoreText.CTFontCreateUIFontForLanguage
 import platform.CoreText.CTFontCreateWithName
@@ -77,16 +76,6 @@ import platform.CoreText.kCTTextAlignmentCenter
 import platform.CoreText.kCTTextAlignmentLeft
 import platform.CoreText.kCTTextAlignmentRight
 import kotlin.math.ceil
-import kotlin.math.roundToInt
-
-/**
- * The image's own pixel size.
- */
-@OptIn(ExperimentalForeignApi::class)
-internal fun CIImage.pixelSize(): Size =
-  extent.useContents {
-    Size(size.width.roundToInt().coerceAtLeast(1), size.height.roundToInt().coerceAtLeast(1))
-  }
 
 /**
  * Draws [text] into an image sized to the glyphs it actually covers, laid out by [laidOutText].
@@ -98,7 +87,7 @@ internal fun CIImage.pixelSize(): Size =
  * reason [textTooTallToLayOut] gives.
  *
  * @param frame The frame the text is drawn on, which every fraction in [style] is measured against.
- * @param ceiling The most bytes the raster may hold at its peak, [PICTURE_PEAK_CEILING] unless a test sets it.
+ * @param ceiling The most bytes the raster may hold at its peak, [PICTURE_PEAK_CEILING] by default.
  * @param bitmapOf Makes the bitmap context a raster of the given width and height is drawn into, or null when it
  * cannot, which refuses the raster.
  * @return The drawn text, or why there is none.
@@ -195,7 +184,7 @@ internal fun <T> laidOutText(
  * into an image, is refused with the reason [textAllocationFailed] gives.
  *
  * The bitmap holds sixteen bits a component, premultiplied and little endian, so a translucent texel keeps its
- * straight colour to within one sixteen-bit step over its alpha.
+ * straight color to within one sixteen-bit step over its alpha.
  *
  * A bitmap context is already bottom-left with +Y up, which is the space CoreText draws in and the
  * space Core Image measures in, so nothing is flipped on the way through.
@@ -345,7 +334,7 @@ private fun paragraphStyle(alignment: TextAlignment): CTParagraphStyleRef? =
  * `CFStringRef` constants and those do not bridge into a dictionary as keys. What comes back is a dictionary with
  * no recognised keys in it, and CoreText silently lays out with its defaults.
  *
- * [color] is the foreground colour every glyph run is drawn in.
+ * [color] is the foreground color every glyph run is drawn in.
  */
 @OptIn(ExperimentalForeignApi::class)
 private fun attributesOf(
@@ -384,7 +373,7 @@ private fun attributesOf(
 }
 
 /**
- * The colour [argb] packs, in the same space the bitmap is drawn in so nothing is converted on the way.
+ * The color [argb] packs, in the same space the bitmap is drawn in so nothing is converted on the way.
  */
 @OptIn(ExperimentalForeignApi::class)
 private fun cgColorOf(argb: Int): CGColorRef? =

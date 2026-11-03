@@ -1,21 +1,23 @@
 package dev.jordond.filmstrip.ffmpeg
 
-import dev.jordond.filmstrip.ffmpeg.internal.FRAME_EXIT_GRACE_MILLIS
-import dev.jordond.filmstrip.ffmpeg.internal.FrameStream
-import dev.jordond.filmstrip.ffmpeg.internal.ProcessRunner
-import dev.jordond.filmstrip.ffmpeg.internal.ToolchainLocator
-import dev.jordond.filmstrip.ffmpeg.internal.ToolchainResult
+import dev.jordond.filmstrip.ffmpeg.internal.process.FRAME_EXIT_GRACE_MILLIS
+import dev.jordond.filmstrip.ffmpeg.internal.process.FrameStream
+import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessRunner
+import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainLocator
+import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainResult
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TimeSource
@@ -27,6 +29,16 @@ import kotlin.time.TimeSource
  */
 class FrameStreamExitTest {
   private val runner = ProcessRunner()
+
+  @Test
+  fun `a child that cannot be started throws with the reason the system gave`() =
+    runTest(timeout = TIMEOUT) {
+      val missing = File(System.getProperty("java.io.tmpdir"), "filmstrip-no-such-ffmpeg").path
+
+      val failure = assertFailsWith<IOException> { runner.frames(listOf(missing)) }
+
+      failure.message.orEmpty() shouldContain missing
+    }
 
   @Test
   fun `a render that runs to its end exits with zero`() =
@@ -57,7 +69,7 @@ class FrameStreamExitTest {
         val read = TimeSource.Monotonic.markNow()
         stream.exitStatus() shouldBe 0
         val took = read.elapsedNow()
-        assertTrue(took < PROMPT, "the status took $took, not inside $PROMPT")
+        withClue("the status took $took, not inside $PROMPT") { (took < PROMPT).shouldBeTrue() }
       } finally {
         stream.close()
       }
@@ -104,9 +116,13 @@ class FrameStreamExitTest {
     }
 
   private suspend fun open(arguments: List<String>): FrameStream {
-    val toolchain = assertIs<ToolchainResult.Available>(ToolchainLocator(FfmpegConfig(), runner).toolchain()).toolchain
+    val toolchain =
+      ToolchainLocator(
+        FfmpegConfig(),
+        runner,
+      ).toolchain().shouldBeInstanceOf<ToolchainResult.Available>().toolchain
     val command = listOf(toolchain.ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin") + arguments
-    return assertNotNull(runner.frames(command), "ffmpeg did not start")
+    return runner.frames(command)
   }
 
   private fun generated(seconds: Int): List<String> =

@@ -1,10 +1,10 @@
 package dev.jordond.filmstrip.test
 
-import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.media.heifWithExplicitCodestreamColour
+import dev.jordond.filmstrip.picture.heif.heifWithExplicitCodestreamColor
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertTrue
 
 /**
  * Holds every HEIC still, alone, as a grid and handed over as written, to the one decode measured for it on this
@@ -16,28 +16,27 @@ import kotlin.test.assertTrue
  *
  * Also holds [AppleStillSamples.WHOLE_CODE_DRIFT] to the most those macOS codes sit off the unrounded reading.
  */
-@OptIn(InternalFilmstripApi::class)
 class AppleStillSamplesMeasureTest {
   private val heics =
-    ColourPictures.HEICS_WITH_SIGNAL_VARIANTS + AppleStillSamples.BT709_MATRIX_OTHER_PRIMARIES +
-      ColourPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA
+    ColorPictures.HEICS_WITH_SIGNAL_VARIANTS + AppleStillSamples.BT709_MATRIX_OTHER_PRIMARIES +
+      ColorPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA
 
   @Test
   fun everyHeicDecodesToExactlyTheWholeCodesMeasuredForIt() {
     val misses =
       heics.flatMap { heic ->
         listOfNotNull(
-          imageIoMiss("$heic", heifWithExplicitCodestreamColour(heic.bytes()).handed) {
+          imageIoMiss("$heic", heifWithExplicitCodestreamColor(heic.bytes()).handed) {
             measured(heic, asWritten = false, it)
           },
-          imageIoMiss("$heic grid", heifWithExplicitCodestreamColour(heic.gridBytes()).handed) {
+          imageIoMiss("$heic grid", heifWithExplicitCodestreamColor(heic.gridBytes()).handed) {
             measured(heic, asWritten = false, it)
           },
           imageIoMiss("$heic as written", heic.bytes()) { measured(heic, asWritten = true, it) },
         )
       }
 
-    assertTrue(misses.isEmpty(), "Measured decode misses on ${osBuild()}:\n" + misses.joinToString("\n"))
+    withClue("Measured decode misses on ${osBuild()}:\n" + misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   @Test
@@ -53,10 +52,10 @@ class AppleStillSamplesMeasureTest {
       }
     val most = drifts.max()
 
-    assertTrue(
-      most <= AppleStillSamples.WHOLE_CODE_DRIFT && most > AppleStillSamples.WHOLE_CODE_DRIFT - DRIFT_STEP,
-      "the most a measured decode sits off the unrounded reading is $most codes",
-    )
+    withClue("the most a measured decode sits off the unrounded reading is $most codes") {
+      (most <= AppleStillSamples.WHOLE_CODE_DRIFT && most > AppleStillSamples.WHOLE_CODE_DRIFT - DRIFT_STEP) shouldBe
+        true
+    }
   }
 
   // The one decode measured for heic on this platform. Asking for one unmeasured here fails the way the suite's does.
@@ -78,9 +77,9 @@ class AppleStillSamplesMeasureTest {
 
   private fun macOsCodes(decode: AppleStillSamples.HeicDecode): IntArray {
     val (y, cb, cr) = decode.ycbcr
-    val colour = decode.colour
-    return WHOLE_CODES_OFF_ROUNDED[WholeCodeDecode(decode.ycbcr, colour.matrix, decode.full)]
-      ?: ycbcrToRgb(y, cb, cr, colour.matrix, colour.primaries, colour.transfer, decode.full)
+    val color = decode.color
+    return WHOLE_CODES_OFF_ROUNDED[WholeCodeDecode(decode.ycbcr, color.matrix, decode.full)]
+      ?: ycbcrToRgb(y, cb, cr, color.matrix, color.primaries, color.transfer, decode.full)
   }
 
   // Eight-bit samples decoded under a matrix at a range.
@@ -99,8 +98,8 @@ class AppleStillSamplesMeasureTest {
     // The whole codes ImageIO decoded these samples to on macOS 26.6.2 (25G83) where they are not ycbcrToRgb's.
     val WHOLE_CODES_OFF_ROUNDED: Map<WholeCodeDecode, IntArray> =
       mapOf(
-        WholeCodeDecode(ColourPictures.FLAT_YCBCR, BT709, true) to intArrayOf(203, 112, 69),
-        WholeCodeDecode(ColourPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA.ycbcr, BT709, true) to intArrayOf(13, 7, 251),
+        WholeCodeDecode(ColorPictures.FLAT_YCBCR, BT709, true) to intArrayOf(203, 112, 69),
+        WholeCodeDecode(ColorPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA.ycbcr, BT709, true) to intArrayOf(13, 7, 251),
       )
   }
 }

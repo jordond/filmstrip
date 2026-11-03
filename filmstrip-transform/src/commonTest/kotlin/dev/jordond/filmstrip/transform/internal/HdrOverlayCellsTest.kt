@@ -1,20 +1,21 @@
 package dev.jordond.filmstrip.transform.internal
 
+import dev.jordond.filmstrip.color.authoredHdrNits
+import dev.jordond.filmstrip.color.signalFromNits
+import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.authoredHdrNits
-import dev.jordond.filmstrip.media.signalFromNits
-import dev.jordond.filmstrip.media.tenBitCodesFromSignal
-import dev.jordond.filmstrip.test.AuthoredColours
+import dev.jordond.filmstrip.test.AuthoredColors
 import dev.jordond.filmstrip.test.HdrOverlayCells
 import dev.jordond.filmstrip.test.HdrOverlayCells.BLACK
 import dev.jordond.filmstrip.test.HdrOverlayCells.Cell
 import dev.jordond.filmstrip.test.HdrOverlayCells.WHITE
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.floats.plusOrMinus
+import io.kotest.matchers.shouldBe
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertContains
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 class HdrOverlayCellsTest {
   // Every blend cell's misses are read off the shared wrong blends here, and the smallest of them over both
@@ -29,14 +30,12 @@ class HdrOverlayCellsTest {
           listOf(rule.missFrom(cell.signalBlendCodes(transfer)), rule.missFrom(cell.srgbBlendCodes(transfer)))
         }
       }
-    val closest = Cell(AuthoredColours.MID_GREEN, AuthoredColours.MID_GREY, QUARTER)
+    val closest = Cell(AuthoredColors.MID_GREEN, AuthoredColors.MID_GREY, QUARTER)
 
-    assertContains(HdrOverlayCells.BLENDS, closest)
-    assertEquals(misses.min(), HdrOverlayCells.SMALLEST_WRONG_BLEND_MISS)
-    assertEquals(
-      closest.codes(HdrTransfer.Pq).missFrom(closest.srgbBlendCodes(HdrTransfer.Pq)),
-      HdrOverlayCells.SMALLEST_WRONG_BLEND_MISS,
-    )
+    HdrOverlayCells.BLENDS shouldContain closest
+    HdrOverlayCells.SMALLEST_WRONG_BLEND_MISS shouldBe misses.min()
+    HdrOverlayCells.SMALLEST_WRONG_BLEND_MISS shouldBe
+      closest.codes(HdrTransfer.Pq).missFrom(closest.srgbBlendCodes(HdrTransfer.Pq))
   }
 
   @Test
@@ -44,8 +43,10 @@ class HdrOverlayCellsTest {
     val bound = HdrOverlayCells.MAX_BLEND_TOLERANCE
     val miss = HdrOverlayCells.SMALLEST_WRONG_BLEND_MISS
 
-    assertTrue(2 * bound < miss, "twice $bound codes reaches the smallest miss of $miss")
-    assertTrue(2 * (bound + 1) >= miss, "a bound of ${bound + 1} codes still sits clear of a miss of $miss")
+    withClue("twice $bound codes reaches the smallest miss of $miss") { (2 * bound < miss).shouldBeTrue() }
+    withClue("a bound of ${bound + 1} codes still sits clear of a miss of $miss") {
+      (2 * (bound + 1) >= miss).shouldBeTrue()
+    }
   }
 
   // A wrong blend over black reads the middle of the ramp, where mixing signals or eight-bit codes is not the
@@ -60,10 +61,14 @@ class HdrOverlayCellsTest {
       val halfSignal = transfer.signalFromNits(white).map { it * HALF }
       val signalBlend = transfer.signalFromNits(cell.signalBlendNits(transfer))
 
-      halfSignal.indices.forEach { assertEquals(halfSignal[it], signalBlend[it], SIGNAL_EPSILON, "$transfer") }
-      assertContentEquals(tenBitCodesFromSignal(halfSignal.toFloatArray()), cell.signalBlendCodes(transfer))
+      halfSignal.indices.forEach {
+        withClue("$transfer") {
+          signalBlend[it] shouldBe (halfSignal[it] plusOrMinus SIGNAL_EPSILON)
+        }
+      }
+      cell.signalBlendCodes(transfer) shouldBe tenBitCodesFromSignal(halfSignal.toFloatArray())
     }
-    assertContentEquals(authoredHdrNits(AuthoredColours.MID_GREY), cell.srgbBlendNits())
+    cell.srgbBlendNits() shouldBe authoredHdrNits(AuthoredColors.MID_GREY)
   }
 
   // An HLG reading held to the scene light blend says nothing unless a wrong blend lands more than twice the
@@ -75,11 +80,15 @@ class HdrOverlayCellsTest {
       val signalMiss = sceneLight.missFrom(cell.signalBlendCodes(HdrTransfer.Hlg))
       val srgbMiss = sceneLight.missFrom(cell.srgbBlendCodes(HdrTransfer.Hlg))
 
-      assertTrue(
-        minOf(signalMiss, srgbMiss) > 2 * HdrOverlayCells.MAX_BLEND_TOLERANCE,
+      withClue(
         "HLG scene light $cell misses a wrong blend by only ${minOf(signalMiss, srgbMiss)} codes " +
           "(signal $signalMiss, sRGB $srgbMiss)",
-      )
+      ) {
+        (
+          minOf(signalMiss, srgbMiss) >
+            2 * HdrOverlayCells.MAX_BLEND_TOLERANCE
+        ).shouldBeTrue()
+      }
     }
   }
 
@@ -88,15 +97,14 @@ class HdrOverlayCellsTest {
   @Test
   fun `white over grey and the black cells sit clear of display light in HLG scene light`() {
     val clear = HdrOverlayCells.BLENDS.filter { it.overlay == WHITE || it.background == BLACK }
-    assertTrue(clear.any { it.background == AuthoredColours.MID_GREY })
-    assertTrue(clear.any { it.background == BLACK })
+    clear.any { it.background == AuthoredColors.MID_GREY }.shouldBeTrue()
+    clear.any { it.background == BLACK }.shouldBeTrue()
 
     clear.forEach { cell ->
       val gap = cell.hlgSceneLightGap()
-      assertTrue(
-        gap > 2 * HdrOverlayCells.MAX_BLEND_TOLERANCE,
-        "HLG $cell lands only $gap codes from display light in scene light",
-      )
+      withClue("HLG $cell lands only $gap codes from display light in scene light") {
+        (gap > 2 * HdrOverlayCells.MAX_BLEND_TOLERANCE).shouldBeTrue()
+      }
     }
   }
 
@@ -104,15 +112,14 @@ class HdrOverlayCellsTest {
   // cannot tell a scene light blend from the rule.
   @Test
   fun `green over grey sits within the blend bound of display light in HLG scene light`() {
-    val green = HdrOverlayCells.BLENDS.filter { it.overlay == AuthoredColours.MID_GREEN }
-    assertTrue(green.isNotEmpty())
+    val green = HdrOverlayCells.BLENDS.filter { it.overlay == AuthoredColors.MID_GREEN }
+    green.isNotEmpty().shouldBeTrue()
 
     green.forEach { cell ->
       val gap = cell.hlgSceneLightGap()
-      assertTrue(
-        gap <= HdrOverlayCells.MAX_BLEND_TOLERANCE,
-        "HLG $cell lands $gap codes from display light in scene light",
-      )
+      withClue("HLG $cell lands $gap codes from display light in scene light") {
+        (gap <= HdrOverlayCells.MAX_BLEND_TOLERANCE).shouldBeTrue()
+      }
     }
   }
 

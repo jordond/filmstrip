@@ -1,15 +1,16 @@
 package dev.jordond.filmstrip.transform.internal
 
+import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.export.AdjustmentKind
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.geometry.outputHeightRefusal
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.test.assertIs
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -23,18 +24,18 @@ class OutputFormatTest {
 
   @Test
   fun `a target height keeps the source aspect`() {
-    val verdict = fixture.plan(composition(fixture.clip()), ExportSpec(targetHeight = 720))
+    val verdict = fixture.plan(composition(fixture.clip()), ExportSpec(heightPx = 720))
 
-    val plan = assertIs<Verdict.Capable>(verdict).plan
+    val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
     plan.output.size shouldBe Size(1280, 720)
     plan.path shouldBe ExportPath.Transcode
   }
 
   @Test
   fun `an odd frame rounds to the encoder's alignment and says so`() {
-    val verdict = fixture.plan(composition(fixture.clip(size = Size(1921, 1081))), canCopy = { false })
+    val verdict = fixture.plan(composition(fixture.clip(size = Size(1921, 1081))), muxerAccepts = { false })
 
-    val degraded = assertIs<Verdict.Degraded>(verdict)
+    val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
     degraded.plan.path shouldBe ExportPath.Transcode
     degraded.plan.output.size shouldBe Size(1920, 1080)
     degraded.adjustments.single().kind shouldBe AdjustmentKind.ResolutionClamped
@@ -43,11 +44,11 @@ class OutputFormatTest {
   // An encoder's alignment is the encoder's problem, and a copy runs none, so the odd frame goes
   // across whole rather than being reported as a clamp that never happens.
   @Test
-  fun `an odd frame copies whole rather than rounding when it can transmux`() {
+  fun `an odd frame copies whole rather than rounding when it can copy`() {
     val verdict = fixture.plan(composition(fixture.clip(size = Size(1921, 1081))))
 
-    val plan = assertIs<Verdict.Capable>(verdict).plan
-    plan.path shouldBe ExportPath.Transmux
+    val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.path shouldBe ExportPath.Copy
     plan.output.size shouldBe Size(1921, 1081)
   }
 
@@ -57,8 +58,8 @@ class OutputFormatTest {
     val verdict =
       fixture.plan(composition(fixture.clip(size = Size(3840, 2160))), device = fixture.device(video = listOf(small)))
 
-    val plan = assertIs<Verdict.Capable>(verdict).plan
-    plan.path shouldBe ExportPath.Transmux
+    val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.path shouldBe ExportPath.Copy
     plan.output.size shouldBe Size(3840, 2160)
   }
 
@@ -69,10 +70,10 @@ class OutputFormatTest {
       fixture.plan(
         composition(fixture.clip(size = Size(3840, 2160))),
         device = fixture.device(video = listOf(small)),
-        canCopy = { false },
+        muxerAccepts = { false },
       )
 
-    val degraded = assertIs<Verdict.Degraded>(verdict)
+    val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
     degraded.plan.output.size shouldBe Size(1280, 720)
     degraded.adjustments.single().kind shouldBe AdjustmentKind.ResolutionClamped
   }
@@ -86,10 +87,10 @@ class OutputFormatTest {
       fixture.plan(
         composition(fixture.clip(size = Size(1080, 1920))),
         device = fixture.device(video = listOf(landscapeOnly)),
-        canCopy = { false },
+        muxerAccepts = { false },
       )
 
-    val degraded = assertIs<Verdict.Degraded>(verdict)
+    val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
     degraded.plan.output.size shouldBe Size(608, 1080)
     degraded.adjustments.single().kind shouldBe AdjustmentKind.ResolutionClamped
   }
@@ -102,17 +103,17 @@ class OutputFormatTest {
         composition(fixture.clip(size = Size(3840, 2160))),
         ExportSpec(strict = true),
         device = fixture.device(video = listOf(small)),
-        canCopy = { false },
+        muxerAccepts = { false },
       )
 
-    val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.UnsupportedResolution>(error).max shouldBe Size(1280, 720)
+    val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    error.shouldBeInstanceOf<FilmstripError.UnsupportedResolution>().max shouldBe Size(1280, 720)
   }
 
   // strict says the numbers were not negotiable, and a copy negotiates none of them: the frame goes
   // across at its own size, so there is no clamp to refuse.
   @Test
-  fun `strict still transmuxes an oversized frame that copies untouched`() {
+  fun `strict still copies an oversized frame untouched`() {
     val small = fixture.encoder(VideoCodec.H264, maxSize = Size(1280, 720))
     val verdict =
       fixture.plan(
@@ -121,8 +122,8 @@ class OutputFormatTest {
         device = fixture.device(video = listOf(small)),
       )
 
-    val plan = assertIs<Verdict.Capable>(verdict).plan
-    plan.path shouldBe ExportPath.Transmux
+    val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.path shouldBe ExportPath.Copy
     plan.output.size shouldBe Size(3840, 2160)
   }
 
@@ -130,14 +131,16 @@ class OutputFormatTest {
   fun `a portrait source keeps its portrait output size`() {
     val verdict = fixture.plan(composition(fixture.clip(size = Size(1080, 1920))))
 
-    assertIs<Verdict.Capable>(verdict).plan.output.size shouldBe Size(1080, 1920)
+    verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.output.size shouldBe Size(1080, 1920)
   }
 
   @Test
   fun `an unavailable codec falls back and reports it`() {
     val verdict = fixture.plan(composition(fixture.clip()), ExportSpec(videoCodec = VideoCodec.Vp9))
 
-    val degraded = assertIs<Verdict.Degraded>(verdict)
+    val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
     degraded.plan.output.videoCodec shouldBe VideoCodec.H264
     degraded.adjustments.single().kind shouldBe AdjustmentKind.CodecFallback
   }
@@ -146,15 +149,19 @@ class OutputFormatTest {
   fun `strict refuses the fallback it would otherwise take`() {
     val verdict = fixture.plan(composition(fixture.clip()), ExportSpec(videoCodec = VideoCodec.Vp9, strict = true))
 
-    val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.NoEncoder>(error).codec shouldBe VideoCodec.Vp9
+    val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    error.shouldBeInstanceOf<FilmstripError.NoEncoder>().codec shouldBe VideoCodec.Vp9
   }
 
   @Test
   fun `a device with no video encoder at all is refused`() {
     val verdict = fixture.plan(composition(fixture.clip()), device = fixture.device(video = emptyList()))
 
-    assertIs<ExportError.NoEncoder>(assertIs<Verdict.Incapable>(verdict).reasons.single())
+    verdict
+      .shouldBeInstanceOf<Verdict.Incapable>()
+      .reasons
+      .single()
+      .shouldBeInstanceOf<FilmstripError.NoEncoder>()
   }
 
   @Test
@@ -162,18 +169,28 @@ class OutputFormatTest {
     listOf(0, -1).forEach { rate ->
       val verdict = fixture.plan(composition(fixture.clip()), ExportSpec(frameRate = rate))
 
-      val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
-      assertIs<ExportError.InvalidComposition>(error).message shouldBe
+      val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+      error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
         "The export asks for $rate fps, and a frame rate has to be positive. Leave it unset to keep the " +
         "source's rate."
+    }
+  }
+
+  @Test
+  fun `a height that is not positive is refused rather than kept at the source's`() {
+    listOf(0, -1).forEach { height ->
+      val verdict = fixture.plan(composition(fixture.clip()), ExportSpec(heightPx = height))
+
+      val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+      error.shouldBeInstanceOf<FilmstripError.InvalidComposition>() shouldBe outputHeightRefusal(height)
     }
   }
 
   // Only the rate that was asked for is read, so leaving it unset or naming a real one still plans.
   @Test
   fun `a frame rate left unset or positive still plans`() {
-    assertIs<Verdict.Capable>(fixture.plan(composition(fixture.clip()), ExportSpec()))
-    assertIs<Verdict.Capable>(fixture.plan(composition(fixture.clip()), ExportSpec(frameRate = 30)))
+    fixture.plan(composition(fixture.clip()), ExportSpec()).shouldBeInstanceOf<Verdict.Capable>()
+    fixture.plan(composition(fixture.clip()), ExportSpec(frameRate = 30)).shouldBeInstanceOf<Verdict.Capable>()
   }
 
   @Test
@@ -186,7 +203,7 @@ class OutputFormatTest {
         device = fixture.device(video = listOf(capped)),
       )
 
-    val degraded = assertIs<Verdict.Degraded>(verdict)
+    val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
     degraded.plan.output.frameRate shouldBe 30
     degraded.adjustments.single().kind shouldBe AdjustmentKind.FrameRateClamped
   }
@@ -211,8 +228,8 @@ class OutputFormatTest {
     val verdict =
       fixture.plan(composition(fixture.clip(frameRate = 120f)), device = fixture.device(video = listOf(capped)))
 
-    val plan = assertIs<Verdict.Capable>(verdict).plan
-    plan.path shouldBe ExportPath.Transmux
+    val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.path shouldBe ExportPath.Copy
     plan.output.frameRate shouldBe 120
   }
 
@@ -223,10 +240,10 @@ class OutputFormatTest {
       fixture.plan(
         composition(fixture.clip(frameRate = 120f)),
         device = fixture.device(video = listOf(capped)),
-        canCopy = { false },
+        muxerAccepts = { false },
       )
 
-    val plan = assertIs<Verdict.Capable>(verdict).plan
+    val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
     plan.path shouldBe ExportPath.Transcode
     plan.output.frameRate shouldBe 60
   }
@@ -240,9 +257,11 @@ class OutputFormatTest {
       fixture.plan(
         composition(fixture.clip(size = Size(1920, 1080))),
         device = fixture.device(video = listOf(narrow)),
-        canCopy = { false },
+        muxerAccepts = { false },
       )
 
-    assertIs<Verdict.Degraded>(verdict).plan.output.size shouldBe Size(1280, 720)
+    verdict
+      .shouldBeInstanceOf<Verdict.Degraded>()
+      .plan.output.size shouldBe Size(1280, 720)
   }
 }

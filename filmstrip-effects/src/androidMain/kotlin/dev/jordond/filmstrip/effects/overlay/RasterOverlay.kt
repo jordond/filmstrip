@@ -25,16 +25,15 @@ import androidx.media3.effect.TextOverlay as Media3TextOverlay
  * That branch is an `instanceof` rather than a documented contract, so it is worth re-reading when
  * media3 moves.
  *
- * Rasterizing here rather than handing media3 a string is what gives wrapping at an authored width,
- * an alignment and a background plate, none of which [Media3TextOverlay] exposes.
+ * The text is rasterized here, which gives it wrapping at an authored width, an alignment and a
+ * background plate, none of which [Media3TextOverlay] exposes.
  *
  * Nothing downcasts to [Media3TextOverlay], and [getText] is consulted only by the [getBitmap] this
  * overrides, so the string it returns never reaches anything.
  *
  * media3 hands the composition time to [getOverlaySettings], so [spec] is sampled there rather than
- * at resolve. The run it is sampled against comes from the resolver, which derives it once, and an
- * overlay with nothing to animate answers the settings built once at resolve and allocates nothing
- * for the rest of the export.
+ * at resolve. The drawn range it is sampled against comes from the resolver, which derives it once, and an
+ * overlay with nothing to animate answers the settings built once at resolve for the whole export.
  *
  * `OverlayShaderProgram.drawFrame` asks twice for one frame, once for the HDR luminance multiplier
  * and once for the matrix and the alpha, so the answer is held against the presentation time it was
@@ -46,7 +45,7 @@ import androidx.media3.effect.TextOverlay as Media3TextOverlay
  * @property placement Where the overlay lands with nothing animated, which an animation moves and
  *   resizes from.
  * @property raster [bitmap]'s own pixel size, which media3's scale is a multiplier on.
- * @property run The composition time range the overlay is drawn over, from `runWithin`.
+ * @property drawnRange The composition time range the overlay is drawn over, from `drawnRangeWithin`.
  * @property hdrLuminance The multiplier media3 reads [bitmap] through on an HDR frame, the one
  *   [rasterFor] mapped its texels against.
  */
@@ -55,7 +54,7 @@ internal class RasterOverlay(
   private val spec: OverlayEffect,
   private val placement: OverlayPlacement,
   private val raster: Size,
-  private val run: TimeRange,
+  private val drawnRange: TimeRange,
   private val hdrLuminance: Float = OverlaySettings.DEFAULT_HDR_LUMINANCE_MULTIPLIER,
 ) : Media3TextOverlay() {
   private val visible: StaticOverlaySettings = placement.toOverlaySettings(raster, 1f, hdrLuminance)
@@ -78,7 +77,7 @@ internal class RasterOverlay(
   }
 
   private fun settingsAt(presentationTimeUs: Long): OverlaySettings {
-    val frame = spec.frameWithin(run, presentationTimeUs.microseconds) ?: return hidden
+    val frame = spec.frameWithin(drawnRange, presentationTimeUs.microseconds) ?: return hidden
     if (frame == OverlayFrame.Identity) return visible
     return animated.update(placement.animatedBy(frame), raster, frame.opacity)
   }

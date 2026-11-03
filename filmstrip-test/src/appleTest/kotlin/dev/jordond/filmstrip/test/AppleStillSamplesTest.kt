@@ -1,23 +1,20 @@
 package dev.jordond.filmstrip.test
 
-import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.media.YcbcrReading
-import dev.jordond.filmstrip.media.evaluator
-import dev.jordond.filmstrip.media.heifWithExplicitCodestreamColour
-import dev.jordond.filmstrip.media.rgbMatrix
-import dev.jordond.filmstrip.media.ycbcrReading
+import dev.jordond.filmstrip.color.YcbcrReading
+import dev.jordond.filmstrip.color.evaluator
+import dev.jordond.filmstrip.color.rgbMatrix
+import dev.jordond.filmstrip.color.ycbcrReading
+import dev.jordond.filmstrip.picture.heif.heifWithExplicitCodestreamColor
 import dev.jordond.filmstrip.test.AppleStillSamples.EIGHT_BIT_STEP
 import dev.jordond.filmstrip.test.AppleStillSamples.MAX_CODE
 import dev.jordond.filmstrip.test.AppleStillSamples.SAMPLE_MASK
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertContains
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertFalse
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlin.test.fail
 
 /**
@@ -32,22 +29,21 @@ import kotlin.test.fail
  * build it was read on, since the decodes were measured on one build of each platform. A still whose decode is
  * unmeasured here is one more miss, so one run reports every still.
  */
-@OptIn(InternalFilmstripApi::class)
 class AppleStillSamplesTest {
   private val limitedUnderFullNclx =
     HeicPicture(
       "HEIC nclx BT.709 full, VUI BT.709 limited",
       CicpTag(1, 13, 1, true),
       profile = null,
-      ColourPictures.HEIC_NCLX_BT709_FULL.ycbcr,
+      ColorPictures.HEIC_NCLX_BT709_FULL.ycbcr,
       HevcVui.LimitedRangeBt709,
     )
 
   private val heics =
-    ColourPictures.HEICS_WITH_SIGNAL_VARIANTS + AppleStillSamples.BT709_MATRIX_OTHER_PRIMARIES +
-      ColourPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA
+    ColorPictures.HEICS_WITH_SIGNAL_VARIANTS + AppleStillSamples.BT709_MATRIX_OTHER_PRIMARIES +
+      ColorPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA
 
-  private val avifs = ColourPictures.AVIFS + ColourPictures.NCLX_BT709_FULL_EDGE_CHROMA
+  private val avifs = ColorPictures.AVIFS + ColorPictures.NCLX_BT709_FULL_EDGE_CHROMA
 
   @Test
   fun failsAFullRangeNclxOverALimitedRangeCodestreamAsWritten() {
@@ -55,9 +51,9 @@ class AppleStillSamplesTest {
 
     val failure = assertFailsWith<AssertionError> { AppleStillSamples.asWritten(limitedUnderFullNclx, read) }
 
-    assertContains(failure.message.orEmpty(), "unmeasured")
-    assertContains(failure.message.orEmpty(), "handed over as written")
-    assertContains(failure.message.orEmpty(), "${read.toList()}")
+    failure.message.orEmpty() shouldContain "unmeasured"
+    failure.message.orEmpty() shouldContain "handed over as written"
+    failure.message.orEmpty() shouldContain "${read.toList()}"
   }
 
   @Test
@@ -73,9 +69,9 @@ class AppleStillSamplesTest {
 
     asked.forEach { (name, decode) ->
       val failure = assertFailsWith<AppleStillSamples.UnmeasuredDecode>("$name was measured on an iPhone") { decode() }
-      assertContains(failure.message.orEmpty(), "unmeasured")
-      assertContains(failure.message.orEmpty(), "iOS hardware")
-      assertContains(failure.message.orEmpty(), "${read.toList()}")
+      failure.message.orEmpty() shouldContain "unmeasured"
+      failure.message.orEmpty() shouldContain "iOS hardware"
+      failure.message.orEmpty() shouldContain "${read.toList()}"
     }
   }
 
@@ -83,8 +79,8 @@ class AppleStillSamplesTest {
   fun failsAMatrixNoDecodeWasMeasuredUnder() {
     for (matrix in UNMEASURED_MATRICES) {
       val nclx = CicpTag(BT709_PRIMARIES, SRGB_TRANSFER, matrix, true)
-      val avif = AvifPicture("AVIF nclx matrix $matrix", nclx, profile = null, ColourPictures.FLAT_YCBCR)
-      val heic = HeicPicture("HEIC nclx matrix $matrix", nclx, profile = null, ColourPictures.FLAT_YCBCR)
+      val avif = AvifPicture("AVIF nclx matrix $matrix", nclx, profile = null, ColorPictures.FLAT_YCBCR)
+      val heic = HeicPicture("HEIC nclx matrix $matrix", nclx, profile = null, ColorPictures.FLAT_YCBCR)
       for (platform in listOf(ApplePlatform.MacOs, ApplePlatform.Simulator)) {
         val asked =
           listOf<Pair<String, () -> Unit>>(
@@ -94,7 +90,7 @@ class AppleStillSamplesTest {
           )
         asked.forEach { (name, decode) ->
           val failure = assertFailsWith<IllegalArgumentException>("$name on ${platform.label}") { decode() }
-          assertContains(failure.message.orEmpty(), "unmeasured")
+          failure.message.orEmpty() shouldContain "unmeasured"
         }
       }
     }
@@ -110,8 +106,8 @@ class AppleStillSamplesTest {
         }
       }
 
-    assertEquals(1, misses.size, "the unmeasured decodes were $misses")
-    assertContains(misses.single(), limitedUnderFullNclx.name)
+    withClue("the unmeasured decodes were $misses") { misses.size shouldBe 1 }
+    misses.single() shouldContain limitedUnderFullNclx.name
   }
 
   @Test
@@ -121,15 +117,15 @@ class AppleStillSamplesTest {
         AppleStillSamples.missOrUnmeasured { fail("a plain failure") }
       }
 
-    assertFalse(failure is AppleStillSamples.UnmeasuredDecode, "the plain failure became $failure")
-    assertEquals("a plain failure", failure.message)
+    withClue("the plain failure became $failure") { (failure is AppleStillSamples.UnmeasuredDecode) shouldBe false }
+    failure.message shouldBe "a plain failure"
   }
 
   @Test
   fun aHeicsFirstDecodeOnMacOsIsItsRoundedReading() {
     heics.forEach { still ->
       val first = AppleStillSamples.of(still, null, ApplePlatform.MacOs).first()
-      assertContentEquals(AppleStillSamples.rounded(still, asWritten = false), first, "$still")
+      withClue("$still") { first shouldBe AppleStillSamples.rounded(still, asWritten = false) }
 
       // A full range nclx over a limited range codestream has no decode as written, which the unmeasured case holds.
       val written =
@@ -138,7 +134,7 @@ class AppleStillSamplesTest {
         } catch (_: AppleStillSamples.UnmeasuredDecode) {
           return@forEach
         }
-      assertContentEquals(AppleStillSamples.rounded(still, asWritten = true), written, "$still as written")
+      withClue("$still as written") { written shouldBe AppleStillSamples.rounded(still, asWritten = true) }
     }
   }
 
@@ -151,7 +147,7 @@ class AppleStillSamplesTest {
 
       val rounded = AppleStillSamples.rounded(still, asWritten = false)
 
-      assertEquals(expected, rounded.take(RGB).codes(), "$still")
+      withClue("$still") { rounded.take(RGB).codes() shouldBe expected }
     }
   }
 
@@ -160,35 +156,38 @@ class AppleStillSamplesTest {
   fun aRoundedReadingOfAnOutOfGamutDecodeStaysInsideTheCodeRange() {
     val ycbcr = listOf(MID_CODE, MAX_CODE, 0)
     val (y, cb, cr) = ycbcr
-    val weights = assertIs<YcbcrReading.KrKb>(ycbcrReading(BT709_MATRIX, BT709_PRIMARIES, SRGB_TRANSFER))
-    val colour = AppleStillSamples.StillColour(BT709_MATRIX, BT709_PRIMARIES, SRGB_TRANSFER, weights)
+    val weights = ycbcrReading(BT709_MATRIX, BT709_PRIMARIES, SRGB_TRANSFER).shouldBeInstanceOf<YcbcrReading.KrKb>()
+    val color = AppleStillSamples.StillColor(BT709_MATRIX, BT709_PRIMARIES, SRGB_TRANSFER, weights)
     val unclamped =
       checkNotNull(weights.rgbMatrix(EIGHT_BITS, fullRange = true)).rgb(y.toDouble(), cb.toDouble(), cr.toDouble())
-    assertTrue(unclamped.any { it < 0.0 } && unclamped.any { it > 1.0 }, "${unclamped.toList()} is inside the gamut")
+    withClue("${unclamped.toList()} is inside the gamut") {
+      (unclamped.any { it < 0.0 } && unclamped.any { it > 1.0 }) shouldBe true
+    }
 
-    val rounded = roundedReading(AppleStillSamples.HeicDecode(ycbcr, colour, full = true)).take(RGB).codes()
+    val decode = AppleStillSamples.HeicDecode(ycbcr, color, full = true)
+    val rounded = AppleStillSamples.roundedReading(decode).take(RGB).codes()
 
-    assertEquals(ycbcrToRgb(y, cb, cr, BT709_MATRIX, BT709_PRIMARIES, SRGB_TRANSFER, true).toList(), rounded)
-    assertEquals(listOf(0, MAX_CODE), listOf(rounded.first(), rounded.last()), "red and blue of $rounded")
+    rounded shouldBe ycbcrToRgb(y, cb, cr, BT709_MATRIX, BT709_PRIMARIES, SRGB_TRANSFER, true).toList()
+    withClue("red and blue of $rounded") { listOf(rounded.first(), rounded.last()) shouldBe listOf(0, MAX_CODE) }
   }
 
   // Handed over as written the edge chroma still reads past black on red and green and past white on blue.
   @Test
   fun theAsWrittenEdgeChromaHeicsDecodesOnMacOsStayInsideTheCodeRange() {
-    val still = ColourPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA
+    val still = ColorPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA
     val box =
       listOf(0, 1).flatMap { red -> listOf(0, 1).flatMap { green -> listOf(254, 255).map { listOf(red, green, it) } } }
 
     val decodes = AppleStillSamples.asWritten(still, null, ApplePlatform.MacOs).map { it.take(RGB).codes() }
 
-    assertEquals(box.toSet(), decodes.toSet(), "$still as written")
-    assertEquals(box.size, decodes.size, "$still as written repeats a decode")
+    withClue("$still as written") { decodes.toSet() shouldBe box.toSet() }
+    withClue("$still as written repeats a decode") { decodes.size shouldBe box.size }
   }
 
   // The edge chroma still's blue reads between whole codes, so its decodes reach past rounding on both sides.
   @Test
   fun aHeicOnMacOsDecodesToEveryWholeCodeWithinImageIoDriftOfTheUnroundedReading() {
-    val still = ColourPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA
+    val still = ColorPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA
     val nclx = checkNotNull(still.nclx)
     val (y, cb, cr) = still.ycbcr
     val evaluator = ycbcrReading(nclx.matrix, nclx.primaries, nclx.transfer).evaluator(EIGHT_BITS, nclx.fullRange)
@@ -200,36 +199,42 @@ class AppleStillSamplesTest {
 
     val decodes = AppleStillSamples.of(still, null, ApplePlatform.MacOs).map { it.take(RGB).codes() }
 
-    assertEquals(decodes.size, decodes.toSet().size, "$still repeats a decode")
-    assertEquals(reachable.fold(1) { count, codes -> count * codes.size }, decodes.size, "$still decodes $decodes")
-    reachable.forEachIndexed { channel, codes ->
-      assertEquals(codes, decodes.map { it[channel] }.toSet(), "channel $channel of $still read at ${reading[channel]}")
+    withClue("$still repeats a decode") { decodes.toSet().size shouldBe decodes.size }
+    withClue("$still decodes $decodes") {
+      decodes.size shouldBe reachable.fold(1) { count, codes -> count * codes.size }
     }
-    assertTrue(reachable.any { it.size > 2 }, "no channel of $still reaches past rounding, read at $reading")
+    reachable.forEachIndexed { channel, codes ->
+      withClue("channel $channel of $still read at ${reading[channel]}") {
+        decodes.map { it[channel] }.toSet() shouldBe codes
+      }
+    }
+    withClue("no channel of $still reaches past rounding, read at $reading") {
+      reachable.any { it.size > 2 } shouldBe true
+    }
   }
 
   @Test
   fun aReadInsideTheDriftBoxNarrowsAHeicsDecodesOnMacOsToThatRead() {
-    val still = ColourPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA
+    val still = ColorPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA
     val box = AppleStillSamples.of(still, null, ApplePlatform.MacOs)
-    assertTrue(box.size > 1, "the drift box of $still holds one decode, so there is nothing to narrow")
+    withClue("the drift box of $still holds one decode, so there is nothing to narrow") { (box.size > 1) shouldBe true }
     val read = box.last()
 
     val decodes = AppleStillSamples.of(still, read, ApplePlatform.MacOs)
 
-    assertEquals(listOf(read.toList()), decodes.map { it.toList() }, "$still read at ${read.toList()}")
+    withClue("$still read at ${read.toList()}") { decodes.map { it.toList() } shouldBe listOf(read.toList()) }
   }
 
   @Test
   fun aReadOutsideTheDriftBoxKeepsEveryOneOfAHeicsDecodesOnMacOs() {
-    val still = ColourPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA
+    val still = ColorPictures.HEIC_NCLX_BT709_FULL_EDGE_CHROMA
     val box = AppleStillSamples.of(still, null, ApplePlatform.MacOs).map { it.toList() }
     val read = AppleStillSamples.wholeCodeTexel(intArrayOf(MID_CODE, MID_CODE, MID_CODE))
 
     val decodes = AppleStillSamples.of(still, read, ApplePlatform.MacOs).map { it.toList() }
 
-    assertTrue(read.toList() !in box, "${read.toList()} sits inside the drift box of $still")
-    assertEquals(box, decodes, "$still read at ${read.toList()}")
+    withClue("${read.toList()} sits inside the drift box of $still") { (read.toList() !in box) shouldBe true }
+    withClue("$still read at ${read.toList()}") { decodes shouldBe box }
   }
 
   @Test
@@ -237,30 +242,30 @@ class AppleStillSamplesTest {
     val misses =
       heics.flatMap { heic ->
         listOfNotNull(
-          imageIoMiss("$heic", heifWithExplicitCodestreamColour(heic.bytes()).handed) {
+          imageIoMiss("$heic", heifWithExplicitCodestreamColor(heic.bytes()).handed) {
             AppleStillSamples.of(heic, it)
           },
-          imageIoMiss("$heic grid", heifWithExplicitCodestreamColour(heic.gridBytes()).handed) {
+          imageIoMiss("$heic grid", heifWithExplicitCodestreamColor(heic.gridBytes()).handed) {
             AppleStillSamples.of(heic, it)
           },
           imageIoMiss("$heic as written", heic.bytes()) { AppleStillSamples.asWritten(heic, it) },
         )
       }
 
-    assertTrue(misses.isEmpty(), "Model misses on ${osBuild()}:\n" + misses.joinToString("\n"))
+    withClue("Model misses on ${osBuild()}:\n" + misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   @Test
   fun aHeicUnderAnUnreadMatrixDecodesThroughItsLandingToItsModel() {
     val still = AppleStillSamples.UNREAD_MATRIX
     val nclx = checkNotNull(still.nclx)
-    val landed = checkNotNull(AppleStillSamples.landing(nclx, unsubsampled = false, EIGHT_BITS))
-    assertFalse(landed.exact, "$still lands exactly through matrix ${landed.matrix}")
+    val landed = checkNotNull(AppleStillSamples.decoderMatrix(nclx, unsubsampled = false, EIGHT_BITS))
+    withClue("$still lands exactly through matrix ${landed.matrix}") { landed.exact shouldBe false }
 
     val miss =
       imageIoMiss("$still", landedBytes(still.bytes(), nclx, landed.matrix)) { AppleStillSamples.landed(still, it) }
 
-    assertEquals(null, miss, "Model miss on ${osBuild()}")
+    withClue("Model miss on ${osBuild()}") { miss shouldBe null }
   }
 
   @Test
@@ -268,17 +273,17 @@ class AppleStillSamplesTest {
     val misses =
       avifs.flatMap { avif ->
         listOfNotNull(
-          imageIoMiss("AVIF $avif", heifWithExplicitCodestreamColour(avif.bytes()).handed) {
+          imageIoMiss("AVIF $avif", heifWithExplicitCodestreamColor(avif.bytes()).handed) {
             AppleStillSamples.of(avif, it)
           },
           imageIoMiss(
             "AVIF $avif grid",
-            heifWithExplicitCodestreamColour(avif.gridBytes()).handed,
+            heifWithExplicitCodestreamColor(avif.gridBytes()).handed,
           ) { AppleStillSamples.of(avif, it) },
         )
       }
 
-    assertTrue(misses.isEmpty(), "Model misses on ${osBuild()}:\n" + misses.joinToString("\n"))
+    withClue("Model misses on ${osBuild()}:\n" + misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   private fun List<Short>.codes(): List<Int> = map { (it.toInt() and SAMPLE_MASK) / EIGHT_BIT_STEP }

@@ -1,13 +1,16 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.avfoundation.internal.fillCIColor
-import dev.jordond.filmstrip.avfoundation.internal.hasColorSpace
+import dev.jordond.filmstrip.avfoundation.internal.chain.fillCIColor
+import dev.jordond.filmstrip.avfoundation.internal.chain.hasColorSpace
+import dev.jordond.filmstrip.color.authoredHdrNits
+import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.authoredHdrNits
-import dev.jordond.filmstrip.media.signalFromNits
 import dev.jordond.filmstrip.test.AppleBufferCodes
-import dev.jordond.filmstrip.test.AuthoredColours
+import dev.jordond.filmstrip.test.AuthoredColors
 import dev.jordond.filmstrip.test.HdrOverlayCells
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
@@ -35,24 +38,26 @@ import platform.CoreVideo.kCVImageBufferYCbCrMatrix_ITU_R_709_2
 import platform.CoreVideo.kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
- * The colour a fill is handed to Core Image as.
+ * The color a fill is handed to Core Image as.
  *
- * [fillCIColor] falls back to sRGB when a platform cannot name an HDR colour space, which draws a
+ * [fillCIColor] falls back to sRGB when a platform cannot name an HDR color space, which draws a
  * bar at the wrong brightness rather than failing. That fallback is silent, so what these check is
  * that it is not being taken.
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleFillTest {
   @Test
-  fun `this platform can name both HDR colour spaces`() {
+  fun `this platform can name both HDR color spaces`() {
     // The fallback in fillCIColor is only correct as a last resort. Reaching it on a platform the
     // library supports would mean every HDR fill quietly draws dim.
-    assertTrue(HdrTransfer.Pq.hasColorSpace(), "PQ has no colour space here, so a PQ fill falls back to sRGB")
-    assertTrue(HdrTransfer.Hlg.hasColorSpace(), "HLG has no colour space here, so an HLG fill falls back to sRGB")
+    withClue("PQ has no color space here, so a PQ fill falls back to sRGB") {
+      HdrTransfer.Pq.hasColorSpace().shouldBeTrue()
+    }
+    withClue("HLG has no color space here, so an HLG fill falls back to sRGB") {
+      HdrTransfer.Hlg.hasColorSpace().shouldBeTrue()
+    }
   }
 
   @Test
@@ -66,14 +71,13 @@ class AppleFillTest {
 
   @Test
   fun `an sdr fill lands in a bt709 buffer as its own codes`() {
-    AuthoredColours.COLOURS.forEach { argb ->
+    AuthoredColors.COLORS.forEach { argb ->
       val landed = drawnIntoBt709Buffer(fillCIColor(argb, transfer = null))
 
-      AuthoredColours.channelsOf(argb).forEachIndexed { channel, code ->
-        assertTrue(
-          abs(landed[channel] - code) <= AuthoredColours.TOLERANCE,
-          "a fill authored as ${AuthoredColours.channelsOf(argb)} landed as ${landed.toList()}",
-        )
+      AuthoredColors.channelsOf(argb).forEachIndexed { channel, code ->
+        withClue("a fill authored as ${AuthoredColors.channelsOf(argb)} landed as ${landed.toList()}") {
+          (abs(landed[channel] - code) <= AuthoredColors.TOLERANCE).shouldBeTrue()
+        }
       }
     }
   }
@@ -82,7 +86,7 @@ class AppleFillTest {
    * [color] drawn by Core Image over a small bi-planar video range buffer tagged BT.709, read back as the R'G'B'
    * codes its Y'CbCr planes hold.
    *
-   * The buffer is written through the colour space CoreVideo builds from its own tags, the way an SDR export's
+   * The buffer is written through the color space CoreVideo builds from its own tags, the way an SDR export's
    * composition output is.
    */
   private fun drawnIntoBt709Buffer(color: CIColor): FloatArray =
@@ -90,7 +94,7 @@ class AppleFillTest {
       val out = alloc<CVPixelBufferRefVar>()
       val side = SIDE.toULong()
       val status = CVPixelBufferCreate(null, side, side, kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange, null, out.ptr)
-      val buffer = assertNotNull(out.value, "no pixel buffer, CoreVideo returned $status")
+      val buffer = withClue("no pixel buffer, CoreVideo returned $status") { out.value.shouldNotBeNull() }
 
       try {
         listOf(
@@ -124,7 +128,9 @@ class AppleFillTest {
 
     // One is what an untranslated white would carry, and it is the whole point of the conversion
     // that this is not that.
-    assertTrue(color.red() < 0.9, "an HDR white went in at ${color.red()}, which is the format's peak")
+    withClue("an HDR white went in at ${color.red()}, which is the format's peak") {
+      (color.red() < 0.9).shouldBeTrue()
+    }
   }
 
   @Test
@@ -132,7 +138,9 @@ class AppleFillTest {
     val pq = fillCIColor(HdrOverlayCells.WHITE, HdrTransfer.Pq).red()
     val hlg = fillCIColor(HdrOverlayCells.WHITE, HdrTransfer.Hlg).red()
 
-    assertTrue(abs(pq - hlg) > 0.05, "both transfer functions produced $pq, so one of them is not running")
+    withClue("both transfer functions produced $pq, so one of them is not running") {
+      (abs(pq - hlg) > 0.05).shouldBeTrue()
+    }
   }
 
   @Test
@@ -147,7 +155,7 @@ class AppleFillTest {
   }
 
   private infix fun Double.shouldBeNear(expected: Double) {
-    assertTrue(abs(this - expected) <= 1e-3, "expected $expected but was $this")
+    withClue("expected $expected but was $this") { (abs(this - expected) <= 1e-3).shouldBeTrue() }
   }
 
   private companion object {

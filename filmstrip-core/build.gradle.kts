@@ -54,15 +54,22 @@ kotlin {
       }
     }
 
-    androidMain.dependencies {
-      api(libs.kotlinx.coroutines.android)
-      implementation(libs.androidx.startup)
+    androidMain {
+      languageSettings.optIn("androidx.media3.common.util.UnstableApi")
+
+      dependencies {
+        api(libs.kotlinx.coroutines.android)
+        api(libs.media3.common)
+        api(libs.media3.effect)
+        implementation(libs.androidx.startup)
+      }
     }
 
     named("androidDeviceTest") {
       kotlin.srcDir("src/commonTest/kotlin/dev/jordond/filmstrip/media/probe")
       dependencies {
         implementation(kotlin("test"))
+        implementation(libs.kotest.assertions)
         implementation(libs.kotlinx.coroutines.test)
         implementation(libs.androidx.test.runner)
       }

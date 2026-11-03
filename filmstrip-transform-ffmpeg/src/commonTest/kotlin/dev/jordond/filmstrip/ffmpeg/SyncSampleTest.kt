@@ -1,11 +1,11 @@
 package dev.jordond.filmstrip.ffmpeg
 
-import dev.jordond.filmstrip.ffmpeg.internal.FfmpegVersion
-import dev.jordond.filmstrip.ffmpeg.internal.SYNC_SAMPLE_WINDOW
-import dev.jordond.filmstrip.ffmpeg.internal.Toolchain
-import dev.jordond.filmstrip.ffmpeg.internal.formatSeconds
-import dev.jordond.filmstrip.ffmpeg.internal.parseSyncSample
-import dev.jordond.filmstrip.ffmpeg.internal.syncSampleArguments
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.formatSeconds
+import dev.jordond.filmstrip.ffmpeg.internal.probe.SYNC_SAMPLE_WINDOW
+import dev.jordond.filmstrip.ffmpeg.internal.probe.parseSyncSample
+import dev.jordond.filmstrip.ffmpeg.internal.probe.syncSampleArguments
+import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
+import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 import kotlin.time.Duration

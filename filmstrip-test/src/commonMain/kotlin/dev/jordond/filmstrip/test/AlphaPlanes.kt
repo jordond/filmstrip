@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.geometry.Size
 
 /**
- * Alpha planes for the HEIF stills [ColourPictures] holds, coded losslessly so each decodes to the codes [avifAlpha],
+ * Alpha planes for the HEIF stills [ColorPictures] holds, coded losslessly so each decodes to the codes [avifAlpha],
  * [heicAlpha] and [avifTileAlpha] give.
  *
  * The AVIF ones are eight pixels a side, the size of an [AvifPicture], and the HEIC one sixty-four, the size of a
@@ -17,7 +17,7 @@ public object AlphaPlanes {
   /**
    * The eight-by-eight AV1 alpha plane, a monochrome codestream of [avifAlpha]'s codes.
    *
-   * @param premultiplied Whether the file records the colour item as multiplied by this alpha.
+   * @param premultiplied Whether the file records the color item as multiplied by this alpha.
    * @param fullRange Whether the sequence header states full range rather than limited.
    */
   public fun avif(
@@ -35,7 +35,7 @@ public object AlphaPlanes {
   /**
    * The sixty-four-by-sixty-four HEVC alpha plane, a 4:2:0 codestream whose luma holds [heicAlpha]'s codes.
    *
-   * @param premultiplied Whether the file records the colour item as multiplied by this alpha.
+   * @param premultiplied Whether the file records the color item as multiplied by this alpha.
    * @param fullRange Whether the sequence parameter set states full range rather than limited.
    */
   public fun heic(
@@ -132,57 +132,3 @@ public object AlphaPlanes {
       "a5d4cfb464"
   private val HEIC_QUADRANTS = intArrayOf(72, 104, 152, 184)
 }
-
-/**
- * A coded item a HEIF still carries as the alpha plane of its primary item.
- *
- * [HeifStills] writes it with its own `ispe`, a one channel `pixi` of [bitDepth], its essential [configuration] and
- * an `auxC` naming the AVIF alpha type for `av01` and the HEVC one for `hvc1`. Its luma is the alpha.
- *
- * @property itemType The item's four letter type, `av01` or `hvc1`.
- * @property configuration The whole decoder configuration box, such as an `av1C` or `hvcC`.
- * @property codestream The coded image the item's data holds.
- * @property size The image's width and height, which is the primary item's or, in a grid, a tile's.
- * @property premultiplied Whether the file records the primary item's colour as multiplied by this alpha.
- * @property bitDepth The bits a sample `pixi` declares.
- */
-@InternalFilmstripApi
-public class HeifAlphaPlane(
-  public val itemType: String,
-  public val configuration: ByteArray,
-  public val codestream: ByteArray,
-  public val size: Size,
-  public val premultiplied: Boolean = false,
-  public val bitDepth: Int = 8,
-) {
-  // One-based ipco indices for the item's properties, the third of them, its configuration, marked essential.
-  internal fun associations(vararg indices: Int): ByteArray =
-    ByteArray(indices.size) { (if (it == 2) HeifStills.ESSENTIAL or indices[it] else indices[it]).toByte() }
-
-  // The ispe of [size] and the one channel pixi the item carries.
-  internal fun properties(size: Size): List<ByteArray> =
-    listOf(
-      HeifStills.fullBox("ispe", HeifStills.int32(size.width) + HeifStills.int32(size.height)),
-      HeifStills.fullBox("pixi", byteArrayOf(1, bitDepth.toByte())),
-    )
-
-  internal fun auxC(): ByteArray {
-    val type = if (itemType == "av01") AVIF_ALPHA else HEVC_ALPHA
-    return HeifStills.fullBox("auxC", type.encodeToByteArray() + byteArrayOf(0))
-  }
-
-  // The auxl from [alpha] to [colour], and the prem from [colour] to [alpha] when the colour is premultiplied.
-  internal fun references(
-    alpha: Int,
-    colour: Int,
-  ): List<ByteArray> =
-    listOfNotNull(
-      HeifStills.box("auxl", HeifStills.uInt16(alpha) + HeifStills.uInt16(1) + HeifStills.uInt16(colour)),
-      HeifStills
-        .box("prem", HeifStills.uInt16(colour) + HeifStills.uInt16(1) + HeifStills.uInt16(alpha))
-        .takeIf { premultiplied },
-    )
-}
-
-private const val AVIF_ALPHA = "urn:mpeg:mpegB:cicp:systems:auxiliary:alpha"
-private const val HEVC_ALPHA = "urn:mpeg:hevc:2015:auxid:1"

@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.transform.internal
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -22,7 +23,6 @@ import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.export.AdjustmentKind
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.Verdict
@@ -31,11 +31,13 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.motion.Easing
+import dev.jordond.filmstrip.transform.internal.negotiation.Ask
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -52,9 +54,14 @@ class EffectPlanTest {
   fun `an unclaimed effect is refused by id and offers a plan without it`() {
     val verdict = fixture.plan(composition(fixture.clip(effects = listOf(Rotate(90)))), resolvers = emptyList())
 
-    val incapable = assertIs<Verdict.Incapable>(verdict)
-    assertIs<ExportError.UnsupportedEffect>(incapable.reasons.single()).specId shouldBe Rotate(90).id
-    assertNotNull(incapable.withoutUnsupported).effectOrder shouldBe emptyList()
+    val incapable = verdict.shouldBeInstanceOf<Verdict.Incapable>()
+    incapable.reasons
+      .single()
+      .shouldBeInstanceOf<FilmstripError.UnsupportedEffect>()
+      .specId shouldBe Rotate(90).id
+    val fallback = incapable.withoutUnsupported.shouldNotBeNull()
+    fallback.plan.effectOrder shouldBe emptyList()
+    fallback.adjustments.map { it.kind to it.requested } shouldBe listOf(AdjustmentKind.EffectDropped to Rotate(90).id)
   }
 
   @Test
@@ -65,7 +72,7 @@ class EffectPlanTest {
         resolvers = listOf(FakeResolver(refuse = setOf(Rotate(90).id))),
       )
 
-    val incapable = assertIs<Verdict.Incapable>(verdict)
+    val incapable = verdict.shouldBeInstanceOf<Verdict.Incapable>()
     incapable.reasons.single().message shouldBe "this resolver owns it and cannot render it"
   }
 
@@ -77,7 +84,7 @@ class EffectPlanTest {
         resolvers = listOf(FakeResolver(degrade = setOf(Rotate(90).id), causes = THREE_CAUSES)),
       )
 
-    val adjustments = assertIs<Verdict.Degraded>(verdict).adjustments
+    val adjustments = verdict.shouldBeInstanceOf<Verdict.Degraded>().adjustments
     val approximated = adjustments.filter { it.kind == AdjustmentKind.EffectApproximated }
     approximated.map { it.requested to it.message } shouldBe THREE_CAUSES.map { Rotate(90).id to it.message }
   }
@@ -90,10 +97,10 @@ class EffectPlanTest {
     val verdict =
       fixture
         .planner(resolvers = listOf(resolver))
-        .negotiate(composition, ExportSpec(), fixture.device(), fixture.infos(composition))
+        .negotiate(composition, Ask(ExportSpec(), fixture.device(), fixture.infos(composition)))
         .verdict
 
-    val adjustments = assertIs<Verdict.Degraded>(verdict).adjustments
+    val adjustments = verdict.shouldBeInstanceOf<Verdict.Degraded>().adjustments
     val approximated = adjustments.filter { it.kind == AdjustmentKind.EffectApproximated }
     approximated.map { it.requested to it.message } shouldBe
       listOf(EffectIds.BRIGHTNESS, EffectIds.CONTRAST, EffectIds.SEPIA).flatMap { id ->
@@ -111,7 +118,7 @@ class EffectPlanTest {
         resolvers = listOf(FakeResolver(degrade = setOf(Rotate(90).id), causes = THREE_CAUSES)),
       )
 
-    val adjustments = assertIs<Verdict.Degraded>(verdict).adjustments
+    val adjustments = verdict.shouldBeInstanceOf<Verdict.Degraded>().adjustments
     val approximated = adjustments.filter { it.kind == AdjustmentKind.EffectApproximated }
     approximated.map { it.message } shouldBe THREE_CAUSES.map { it.message }
   }
@@ -120,15 +127,17 @@ class EffectPlanTest {
   fun `a rotation swaps the output frame`() {
     val verdict = fixture.plan(composition(fixture.clip(effects = listOf(Rotate(90)))))
 
-    assertIs<Verdict.Capable>(verdict).plan.output.size shouldBe Size(1080, 1920)
+    verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.output.size shouldBe Size(1080, 1920)
   }
 
   // 1920x1080 at 480 high is 853.3 wide, and an encoder that wants even sides cannot have 853.
   @Test
   fun `a scale sets the output height and the alignment rounding is reported`() {
-    val verdict = fixture.plan(composition(fixture.clip(effects = listOf(Scale(targetHeight = 480)))))
+    val verdict = fixture.plan(composition(fixture.clip(effects = listOf(Scale(heightPx = 480)))))
 
-    val degraded = assertIs<Verdict.Degraded>(verdict)
+    val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
     degraded.plan.output.size shouldBe Size(852, 480)
     degraded.adjustments.single().kind shouldBe AdjustmentKind.ResolutionClamped
   }
@@ -198,17 +207,19 @@ class EffectPlanTest {
     val verdict =
       fixture
         .planner(resolvers = listOf(FakeResolver(declines = setOf(EffectIds.COLOR_MATRIX))))
-        .negotiate(composition, ExportSpec(), fixture.device(), fixture.infos(composition))
+        .negotiate(composition, Ask(ExportSpec(), fixture.device(), fixture.infos(composition)))
         .verdict
 
-    assertIs<Verdict.Incapable>(verdict)
-    verdict.reasons.map { (it as ExportError.UnsupportedEffect).specId } shouldBe
+    verdict.shouldBeInstanceOf<Verdict.Incapable>()
+    verdict.reasons.map { (it as FilmstripError.UnsupportedEffect).specId } shouldBe
       listOf(EffectIds.BRIGHTNESS, EffectIds.SEPIA)
     verdict.reasons.forEach { reason ->
-      val message = (reason as ExportError.UnsupportedEffect).message
-      assertTrue(message.contains(EffectIds.BRIGHTNESS), "the message reads $message")
-      assertTrue(message.contains(EffectIds.SEPIA), "the message reads $message")
-      assertTrue(!message.contains(EffectIds.COLOR_MATRIX), "the message names the id the fold made up: $message")
+      val message = (reason as FilmstripError.UnsupportedEffect).message
+      withClue("the message reads $message") { message.contains(EffectIds.BRIGHTNESS).shouldBeTrue() }
+      withClue("the message reads $message") { message.contains(EffectIds.SEPIA).shouldBeTrue() }
+      withClue("the message names the id the fold made up: $message") {
+        (!message.contains(EffectIds.COLOR_MATRIX)).shouldBeTrue()
+      }
     }
   }
 
@@ -234,7 +245,7 @@ class EffectPlanTest {
         effects = listOf(Crop(aspect = AspectRatio.Square, fit = Fit.Crop)),
       )
 
-    val resolved = fixture.resolve(composition, ExportSpec(targetHeight = 540))
+    val resolved = fixture.resolve(composition, ExportSpec(heightPx = 540))
 
     resolved.compositionInputSize shouldBe Size(1080, 1920)
     resolved.output.size shouldBe Size(540, 540)
@@ -247,13 +258,15 @@ class EffectPlanTest {
   fun `composition geometry runs after clip geometry rather than by merged rank`() {
     val composition =
       EditComposition(
-        tracks = listOf(Track(listOf(fixture.clip(effects = listOf(Scale(targetHeight = 540)))))),
+        tracks = listOf(Track(listOf(fixture.clip(effects = listOf(Scale(heightPx = 540)))))),
         effects = listOf(Rotate(90)),
       )
 
     val verdict = fixture.plan(composition)
 
-    assertIs<Verdict.Capable>(verdict).plan.output.size shouldBe Size(540, 960)
+    verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.output.size shouldBe Size(540, 960)
   }
 
   // CropRect resolves eagerly against spec.rect and never reads attributes.inputSize. This pins
@@ -265,14 +278,20 @@ class EffectPlanTest {
 
     val verdict = fixture.plan(composition)
 
-    assertIs<Verdict.Capable>(verdict).plan.output.size shouldBe Size(960, 1080)
+    verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.output.size shouldBe Size(960, 1080)
   }
 
   @Test
   fun `a clip-only effect plans capable on a clip`() {
     val verdict = fixture.plan(composition(fixture.clip(effects = listOf(PUSH_IN))))
 
-    assertIs<Verdict.Capable>(verdict).plan.effectOrder.map { it.spec.id } shouldBe listOf(EffectIds.KEN_BURNS)
+    verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.effectOrder
+      .map { it.spec.id } shouldBe
+      listOf(EffectIds.KEN_BURNS)
   }
 
   // The effect is defined on geometry rather than on stills, and a slow push over footage is an
@@ -281,7 +300,7 @@ class EffectPlanTest {
   fun `a clip-only effect plans capable over a video clip and over a photo alike`() {
     val over = composition(fixture.clip(effects = listOf(PUSH_IN)), fixture.imageClip().withEffects(listOf(PUSH_IN)))
 
-    val plan = assertIs<Verdict.Capable>(fixture.plan(over)).plan
+    val plan = fixture.plan(over).shouldBeInstanceOf<Verdict.Capable>().plan
     plan.path shouldBe ExportPath.Transcode
     plan.effectOrder.map { it.spec.id } shouldBe listOf(EffectIds.KEN_BURNS)
   }
@@ -291,16 +310,16 @@ class EffectPlanTest {
     val verdict =
       fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip()), effects = listOf(PUSH_IN)))))
 
-    val refused = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.UnsupportedEffect>(refused).specId shouldBe EffectIds.KEN_BURNS
+    val refused = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    refused.shouldBeInstanceOf<FilmstripError.UnsupportedEffect>().specId shouldBe EffectIds.KEN_BURNS
   }
 
   @Test
   fun `a clip-only effect declared on the composition is refused by name`() {
     val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip()))), effects = listOf(PUSH_IN)))
 
-    val refused = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.UnsupportedEffect>(refused).specId shouldBe EffectIds.KEN_BURNS
+    val refused = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    refused.shouldBeInstanceOf<FilmstripError.UnsupportedEffect>().specId shouldBe EffectIds.KEN_BURNS
   }
 
   @Test
@@ -315,8 +334,8 @@ class EffectPlanTest {
         ),
       )
 
-    val refused = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.UnsupportedEffect>(refused).specId shouldBe EffectIds.KEN_BURNS
+    val refused = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    refused.shouldBeInstanceOf<FilmstripError.UnsupportedEffect>().specId shouldBe EffectIds.KEN_BURNS
   }
 
   /**
@@ -386,7 +405,7 @@ class EffectPlanTest {
   fun `a pan over a photo survives the still frame clamp`() {
     val verdict = fixture.plan(composition(fixture.imageClip(size = Size(4032, 3024)).withEffects(listOf(PUSH_IN))))
 
-    val degraded = assertIs<Verdict.Degraded>(verdict)
+    val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
     degraded.adjustments.map { it.kind } shouldBe listOf(AdjustmentKind.ResolutionClamped)
     degraded.plan.output.size shouldBe Size(2880, 2160)
     degraded.plan.effectOrder.map { it.spec.id } shouldBe listOf(EffectIds.KEN_BURNS)

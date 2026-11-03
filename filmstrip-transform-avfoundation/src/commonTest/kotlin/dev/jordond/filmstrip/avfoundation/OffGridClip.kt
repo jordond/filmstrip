@@ -1,10 +1,10 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.avfoundation.internal.MEDIA_TIMESCALE
-import dev.jordond.filmstrip.avfoundation.internal.PIXEL_BUFFER_HEIGHT_KEY
-import dev.jordond.filmstrip.avfoundation.internal.PIXEL_BUFFER_WIDTH_KEY
-import dev.jordond.filmstrip.avfoundation.internal.PIXEL_FORMAT_KEY
-import dev.jordond.filmstrip.avfoundation.internal.toCMTime
+import dev.jordond.filmstrip.avfoundation.internal.interop.PIXEL_BUFFER_HEIGHT_KEY
+import dev.jordond.filmstrip.avfoundation.internal.interop.PIXEL_BUFFER_WIDTH_KEY
+import dev.jordond.filmstrip.avfoundation.internal.interop.PIXEL_FORMAT_KEY
+import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TIMESCALE
+import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.UByteVar
 import kotlinx.cinterop.alloc
@@ -80,7 +80,7 @@ import kotlin.time.TimeSource
 /**
  * Writes a movie of [frames] flat frames at [frameRate] to [path], whose video track runs until [endsAt].
  *
- * Every frame is one flat colour chosen by its own index, which [frameIndexOf] reads back, so a frame decoded out of
+ * Every frame is one flat color chosen by its own index, which [frameIndexOf] reads back, so a frame decoded out of
  * an export names the frame of this clip it came from. The session ends at [endsAt] rather than one frame after the
  * last, so the track is exactly that long and its last frame is held until then.
  *
@@ -101,7 +101,7 @@ internal fun writeOffGridClip(
   side: Int = CLIP_SIDE,
   timescale: Int = MEDIA_TIMESCALE,
 ) {
-  require(frames <= INDEXABLE_FRAMES) { "$frames frames is more than the $INDEXABLE_FRAMES colours an index reads as" }
+  require(frames <= INDEXABLE_FRAMES) { "$frames frames is more than the $INDEXABLE_FRAMES colors an index reads as" }
   NSFileManager.defaultManager.removeItemAtPath(path, error = null)
 
   val writer =
@@ -115,7 +115,7 @@ internal fun writeOffGridClip(
           AVVideoCodecKey to AVVideoCodecTypeH264,
           AVVideoWidthKey to side,
           AVVideoHeightKey to side,
-          // Tagged, so every platform decodes the colours with the matrix they were encoded with.
+          // Tagged, so every platform decodes the colors with the matrix they were encoded with.
           AVVideoColorPropertiesKey to
             mapOf(
               AVVideoColorPrimariesKey to AVVideoColorPrimaries_ITU_R_709_2,
@@ -187,7 +187,7 @@ internal fun writeOffGridClip(
 }
 
 /**
- * Which frame of a clip [writeOffGridClip] wrote this one is, read off the colour at its centre.
+ * Which frame of a clip [writeOffGridClip] wrote this one is, read off the color at its centre.
  */
 internal fun frameIndexOf(frame: FrameProbe): Int {
   val (red, green, blue) = frame.average(0.5f, 0.5f)
@@ -264,7 +264,7 @@ private fun silenceFor(length: Duration): Pair<CMAudioFormatDescriptionRef, CMSa
   }
 
 /**
- * Appends a frame of the colour [index] is written as, presented at [at].
+ * Appends a frame of the color [index] is written as, presented at [at].
  */
 @OptIn(ExperimentalForeignApi::class)
 private fun AVAssetWriterInputPixelBufferAdaptor.appendFlatFrame(
@@ -286,7 +286,7 @@ private fun AVAssetWriterInputPixelBufferAdaptor.appendFlatFrame(
   }
 
 /**
- * Fills the whole buffer with the colour [index] is written as, one base-[LEVELS] digit a channel.
+ * Fills the whole buffer with the color [index] is written as, one base-[LEVELS] digit a channel.
  */
 @OptIn(ExperimentalForeignApi::class)
 private fun CVPixelBufferRef.paint(index: Int) {
@@ -316,7 +316,7 @@ private fun levelOf(channel: Int): Int =
     LEVELS - 1,
   )
 
-// Three levels a channel, far enough apart that neither an encode nor a colour conversion moves a flat frame from one
+// Three levels a channel, far enough apart that neither an encode nor a color conversion moves a flat frame from one
 // to the next.
 private const val LEVELS = 3
 private const val DARKEST = 32

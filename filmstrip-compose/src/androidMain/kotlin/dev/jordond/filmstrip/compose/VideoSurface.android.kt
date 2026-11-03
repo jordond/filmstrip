@@ -25,9 +25,9 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.Player
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.playback.attachPreviewSurface
-import dev.jordond.filmstrip.playback.observePreviewStill
 import dev.jordond.filmstrip.player.VideoPlayer
+import dev.jordond.filmstrip.player.attachPreviewSurface
+import dev.jordond.filmstrip.player.observePreviewStill
 import kotlin.math.roundToInt
 import androidx.compose.ui.geometry.Size as ComposeSize
 

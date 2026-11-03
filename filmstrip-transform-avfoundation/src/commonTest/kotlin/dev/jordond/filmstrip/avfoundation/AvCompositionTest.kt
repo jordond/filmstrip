@@ -1,25 +1,23 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.avfoundation.internal.AppleLoweringFailure
-import dev.jordond.filmstrip.avfoundation.internal.AvComposition
-import dev.jordond.filmstrip.avfoundation.internal.MEDIA_TICK
-import dev.jordond.filmstrip.avfoundation.internal.respannedOnto
-import dev.jordond.filmstrip.avfoundation.internal.toAvComposition
-import dev.jordond.filmstrip.avfoundation.internal.toCMTime
-import dev.jordond.filmstrip.avfoundation.internal.toDuration
+import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
+import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
+import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TICK
+import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
+import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
-import dev.jordond.filmstrip.export.AudioCodec
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotTime
-import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.EXIF_ORIENTATION_NORMAL
 import dev.jordond.filmstrip.media.ImageSource
@@ -29,14 +27,16 @@ import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.imageMediaInfoOf
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.test.LoopingCases
-import dev.jordond.filmstrip.transform.internal.GainSegment
-import dev.jordond.filmstrip.transform.internal.ResolvedClip
-import dev.jordond.filmstrip.transform.internal.ResolvedComposition
-import dev.jordond.filmstrip.transform.internal.ResolvedGain
-import dev.jordond.filmstrip.transform.internal.ResolvedHdr
-import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.passesCovering
+import dev.jordond.filmstrip.transform.internal.resolve.GainSegment
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -60,8 +60,6 @@ import platform.CoreMedia.CMTimeRange
 import platform.CoreMedia.CMTimeRangeGetEnd
 import platform.Foundation.NSURL
 import kotlin.test.Test
-import kotlin.test.assertFailsWith
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
@@ -118,10 +116,9 @@ class AvCompositionTest {
     val composition = threeClips()
 
     val whole = composition.composition.duration.toDuration()
-    assertTrue(
-      composition.spans.last().end >= whole,
-      "the last span ends at ${composition.spans.last().end} and the composition runs to $whole",
-    )
+    withClue("the last span ends at ${composition.spans.last().end} and the composition runs to $whole") {
+      (composition.spans.last().end >= whole).shouldBeTrue()
+    }
   }
 
   // Every clip's effects were resolved against that clip's own frame, so the attributes a span
@@ -206,10 +203,9 @@ class AvCompositionTest {
     val opens = laid.map { gridTime(it.span.start, GRID_RATE).asLaid() }
     composition.spans.map { it.start } shouldBe opens
     composition.spans.zipWithNext().forEach { (first, second) -> first.end shouldBe second.start }
-    assertTrue(
-      composition.spans.last().end >= LoopingCases.PRIMARY_RUN,
-      "the last span ends at ${composition.spans.last().end}, short of the ${LoopingCases.PRIMARY_RUN} run",
-    )
+    withClue("the last span ends at ${composition.spans.last().end}, short of the ${LoopingCases.PRIMARY_RUN} run") {
+      (composition.spans.last().end >= LoopingCases.PRIMARY_RUN).shouldBeTrue()
+    }
     val video = composition.segmentsOf(AVMediaTypeVideo)
     video.map { it.start } shouldBe opens
     video.last().end shouldBe gridTime(LoopingCases.PRIMARY_RUN, GRID_RATE).asLaid()
@@ -245,22 +241,6 @@ class AvCompositionTest {
 
     composition.spans.map { it.attributes.inputSize } shouldBe
       listOf(laid[0], laid[2]).map { it.info.video?.displaySize }
-  }
-
-  // A swap finds each span's clip by the slots it covers, so a plan naming no frame rate cannot be swapped in. It fails
-  // the way laying that plan down fails rather than dropping every span.
-  @Test
-  fun `refuses a swap onto a plan with no frame rate the way laying it refuses`() {
-    val first = fixture("apple_export_a.mp4")
-    val clips = listOf(clip(first, Size(640, 360), Duration.ZERO, 1.seconds))
-    val spans = resolvedComposition(clips, 1.seconds).toAvComposition().spans
-
-    listOf(null, 0).forEach { rate ->
-      val unrated = resolvedComposition(clips, 1.seconds, frameRate = rate)
-      val laying = assertFailsWith<AppleLoweringFailure> { unrated.toAvComposition() }
-      val swapping = assertFailsWith<AppleLoweringFailure> { spans.respannedOnto(unrated) }
-      swapping.reason shouldBe laying.reason
-    }
   }
 
   // An untrimmed clip runs to the asset's duration, which here outlasts the picture by 30 ms. 2.03 s is 50.75 slots at
@@ -317,7 +297,9 @@ class AvCompositionTest {
       segments.none { it.empty } shouldBe true
       segments.last().end shouldBe closes
       segments.forEach { segment ->
-        assertTrue(segment.sourceEnd <= picture, "a segment reads to ${segment.sourceEnd}, past the $picture picture")
+        withClue("a segment reads to ${segment.sourceEnd}, past the $picture picture") {
+          (segment.sourceEnd <= picture).shouldBeTrue()
+        }
       }
       segments.last().sourceEnd shouldBe picture
     }
@@ -348,17 +330,18 @@ class AvCompositionTest {
     val video = composition.segmentsOf(AVMediaTypeVideo)
     video.last().end shouldBe outputSlotTime(tail.last + 1, GRID_RATE).asLaid()
     video.forEach { segment ->
-      assertTrue(
-        segment.sourceEnd <= primary.end,
-        "a segment reads to ${segment.sourceEnd}, past the ${primary.end} cut",
-      )
+      withClue("a segment reads to ${segment.sourceEnd}, past the ${primary.end} cut") {
+        (segment.sourceEnd <= primary.end).shouldBeTrue()
+      }
     }
     val held = video.last()
     held.start shouldBe lastCovered.asLaid()
     held.sourceStart shouldBe (primary.start + lastCovered - opens).asLaid()
     held.sourceEnd shouldBe (held.sourceStart + MEDIA_TICK).asLaid()
     composition.spans.last().heldFrom shouldBe lastCovered
-    assertTrue(composition.spans.last().end >= resolved.duration, "the last span ends short of the bed")
+    withClue("the last span ends short of the bed") {
+      (composition.spans.last().end >= resolved.duration).shouldBeTrue()
+    }
 
     composition.chain?.updateParameters(resolved)
     composition.spans.last().heldFrom shouldBe lastCovered
@@ -486,11 +469,15 @@ class AvCompositionTest {
     listOf(composition.spans.map { it.start }, video.map { it.start }).forEach { opens ->
       opens.size shouldBe frames.size
       opens.zip(frames).forEach { (opened, frame) ->
-        assertTrue((opened - frame).absoluteValue <= ON_THE_FRAME, "a clip opens at $opened, off its frame at $frame")
+        withClue("a clip opens at $opened, off its frame at $frame") {
+          ((opened - frame).absoluteValue <= ON_THE_FRAME).shouldBeTrue()
+        }
       }
     }
     val closes = frameTimeOf(outputSlotOf(laid.last().span.end(), WHOLE_TICK_RATE), WHOLE_TICK_RATE)
-    assertTrue((video.last().end - closes).absoluteValue <= ON_THE_FRAME, "the video ends at ${video.last().end}")
+    withClue("the video ends at ${video.last().end}") {
+      ((video.last().end - closes).absoluteValue <= ON_THE_FRAME).shouldBeTrue()
+    }
   }
 
   @Test
@@ -853,7 +840,7 @@ class AvCompositionTest {
   private fun resolvedComposition(
     clips: List<ResolvedClip>,
     duration: Duration,
-    frameRate: Int? = FRAME_RATE,
+    frameRate: Int = FRAME_RATE,
   ): ResolvedComposition =
     ResolvedComposition(
       tracks =

@@ -1,19 +1,16 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.internal.pictureColour
-import dev.jordond.filmstrip.internal.pictureCropOf
-import dev.jordond.filmstrip.internal.pictureOrientationOf
+import dev.jordond.filmstrip.color.PictureColor
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.PictureColour
-import dev.jordond.filmstrip.media.heifWithExplicitCodestreamColour
+import dev.jordond.filmstrip.picture.heif.heifWithExplicitCodestreamColor
+import dev.jordond.filmstrip.picture.pictureColor
+import dev.jordond.filmstrip.picture.pictureColorFromDecodedProfile
+import dev.jordond.filmstrip.picture.pictureCropOf
+import dev.jordond.filmstrip.picture.pictureOrientationOf
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.usePinned
-import platform.CoreFoundation.CFDataRef
-import platform.CoreFoundation.CFRelease
 import platform.CoreFoundation.CFRetain
 import platform.CoreGraphics.CGColorSpaceCopyICCData
 import platform.CoreGraphics.CGColorSpaceGetNumberOfComponents
@@ -21,13 +18,11 @@ import platform.CoreGraphics.CGImageGetColorSpace
 import platform.CoreGraphics.CGImageRelease
 import platform.CoreImage.CIImage
 import platform.Foundation.CFBridgingRelease
-import platform.Foundation.CFBridgingRetain
 import platform.Foundation.NSData
 import platform.Foundation.NSURL
 import platform.Foundation.create
 import platform.Foundation.dataWithContentsOfURL
 import platform.ImageIO.CGImageSourceCreateImageAtIndex
-import platform.ImageIO.CGImageSourceCreateWithData
 import platform.ImageIO.CGImageSourceGetType
 import platform.ImageIO.CGImageSourceRef
 import platform.posix.memcpy
@@ -36,23 +31,23 @@ import platform.posix.memcpy
  * Reads this source into Core Image. An image overlay whose picture is [PictureRead.Unreadable] here resolves as
  * unsupported, saying the image could not be decoded, and one refused resolves as unsupported with the reason.
  *
- * The source is read with no colour management at all, as the codes it holds, and the colour description it carries
- * goes along with them so the codes can be read as the colour it gives them. A path or a uri is copied into memory
+ * The source is read with no color management at all, as the codes it holds, and the color description it carries
+ * goes along with them so the codes can be read as the color it gives them. A path or a uri is copied into memory
  * once, here, and both the codes and the description come from that copy, so a file removed, replaced or rewritten in
  * place later changes neither.
  *
- * A picture ImageIO decodes as a HEIF is handed to it the way [imageIoLanding] says, so it lands through the matrix
+ * A picture ImageIO decodes as a HEIF is handed to it the way [imageIoRouteOf] says, so it lands through the matrix
  * core reads it with, through its stored samples and core's evaluator, or through the nearest matrix ImageIO reads,
- * degraded by [unreadMatrix]. A picture that cannot land is unsupported with the reason [imageIoLanding] gives. Any
- * other picture goes through [heifWithExplicitCodestreamColour], which leaves all but an AVIF or HEIC as it is. The
- * colour description always comes from the bytes as given.
+ * degraded by [unreadMatrix]. A picture that cannot land is unsupported with the reason [imageIoRouteOf] gives. Any
+ * other picture goes through [heifWithExplicitCodestreamColor], which leaves all but an AVIF or HEIC as it is. The
+ * color description always comes from the bytes as given.
  *
  * The codes come from [overlayCodes], and neither of its routes turns a picture by its orientation tag, a JPEG XL's
  * codestream orientation included. [OverlayPixels] lays them out by the orientation [pictureOrientationOf] reads out
  * of the bytes as given instead, so the picture draws the same way up as on every other backend. Neither route sees a
  * `clap` either, since the drop takes it off, and [OverlayPixels] cuts the codes to the rectangle [pictureCropOf]
  * reads before it turns them. Codes that rectangle does not lie within are refused with
- * [dev.jordond.filmstrip.media.PictureCrop.refusalFor].
+ * [dev.jordond.filmstrip.picture.PictureCrop.refusalFor].
  */
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 internal fun ImageSource.read(): PictureRead<OverlayPixels> =
@@ -74,19 +69,19 @@ private fun decoded(url: NSURL): PictureRead<OverlayPixels> =
   NSData.dataWithContentsOfURL(url, options = 0u, error = null)?.toByteArray()?.let(::decoded)
     ?: PictureRead.Unreadable
 
-@OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 private fun decoded(bytes: ByteArray): PictureRead<OverlayPixels> {
   if (bytes.isEmpty()) return PictureRead.Unreadable
   val original = bytes.nsData()
   val imageIo = original.withImageSource { it.typeIdentifier() } in IMAGE_IO_DECODED
-  val landing = if (imageIo) imageIoLanding(bytes) else explicitLanding(bytes)
+  val route = if (imageIo) imageIoRouteOf(bytes) else explicitRoute(bytes)
   val (data, limits) =
-    when (landing) {
-      is ImageIoLanding.Refused -> return PictureRead.Unsupported(landing.message)
-      is ImageIoLanding.Decoded -> landing.bytes.nsData() to landing.limits
-      is ImageIoLanding.Evaluated -> landing.bytes.nsData() to emptyList()
+    when (route) {
+      is PictureRoute.Refused -> return PictureRead.Unsupported(route.message)
+      is PictureRoute.Decoded -> route.bytes.nsData() to route.limits
+      is PictureRoute.Evaluated -> route.bytes.nsData() to emptyList()
     }
-  val codes = if (landing is ImageIoLanding.Evaluated) data.evaluatedCodes(landing) else data.overlayCodes()
+  val codes = if (route is PictureRoute.Evaluated) data.evaluatedCodes(route) else data.overlayCodes()
   val held =
     when (codes) {
       is PictureRead.Read -> codes.value
@@ -99,7 +94,7 @@ private fun decoded(bytes: ByteArray): PictureRead<OverlayPixels> {
   if (crop != null && !crop.liesWithin(stored)) return PictureRead.Unsupported(crop.refusalFor(stored))
   val orientation = pictureOrientationOf(bytes)
   val pixels =
-    OverlayPixels(held, { colourOf(bytes, original) }, limits = limits, orientation = orientation, crop = crop)
+    OverlayPixels(held, { colorOf(bytes, original) }, limits = limits, orientation = orientation, crop = crop)
   return PictureRead.Read(pixels)
 }
 
@@ -110,7 +105,7 @@ private fun decoded(bytes: ByteArray): PictureRead<OverlayPixels> {
 internal fun ByteArray.nsData(): NSData = usePinned { NSData.create(bytes = it.addressOf(0), length = size.toULong()) }
 
 /**
- * The encoded picture in this data as Core Image codes with no colour space, [PictureRead.Unreadable] when it holds no
+ * The encoded picture in this data as Core Image codes with no color space, [PictureRead.Unreadable] when it holds no
  * picture ImageIO or Core Image decodes.
  *
  * A HEIF ImageIO names `public.heic`, `public.heif`, `public.heics` or `public.avif` is decoded here, eagerly, by
@@ -140,35 +135,18 @@ private fun CGImageSourceRef.typeIdentifier(): String? =
   CGImageSourceGetType(this)?.let { CFBridgingRelease(CFRetain(it)) as? String }
 
 /**
- * What [read] makes of an ImageIO image source over this data, or null when ImageIO opens no source for it.
- */
-@OptIn(ExperimentalForeignApi::class)
-internal inline fun <T> NSData.withImageSource(read: (CGImageSourceRef) -> T?): T? {
-  val data: CFDataRef = CFBridgingRetain(this)?.reinterpret() ?: return null
-  val source = CGImageSourceCreateWithData(data, null)
-  CFRelease(data)
-  if (source == null) return null
-  try {
-    return read(source)
-  } finally {
-    CFRelease(source)
-  }
-}
-
-/**
- * How the encoded picture in [bytes] describes its colour, or null when it is untagged. [data] holds the same bytes.
+ * How the encoded picture in [bytes] describes its color, or null when it is untagged. [data] holds the same bytes.
  *
- * The container's own description comes from [pictureColour]. A JPEG XL keeps its colour inside the codestream, so
+ * The container's own description comes from [pictureColor]. A JPEG XL keeps its color inside the codestream, so
  * its description is the profile ImageIO decodes it with.
  */
-@OptIn(InternalFilmstripApi::class)
-private fun colourOf(
+private fun colorOf(
   bytes: ByteArray,
   data: NSData,
-): PictureColour? = pictureColour(bytes) ?: data.codestreamColour()
+): PictureColor? = pictureColor(bytes) ?: data.codestreamColor()
 
-@OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
-private fun NSData.codestreamColour(): PictureColour? =
+@OptIn(ExperimentalForeignApi::class)
+private fun NSData.codestreamColor(): PictureColor? =
   withImageSource { source ->
     if (source.typeIdentifier() != JPEG_XL) return@withImageSource null
     val image = CGImageSourceCreateImageAtIndex(source, 0u, null) ?: return@withImageSource null
@@ -177,7 +155,7 @@ private fun NSData.codestreamColour(): PictureColour? =
     val icc = CGColorSpaceCopyICCData(space)
     CGImageRelease(image)
     val profile = icc?.let { CFBridgingRelease(it) as? NSData }?.toByteArray() ?: return@withImageSource null
-    PictureColour.fromDecodedProfile(profile, channels)
+    pictureColorFromDecodedProfile(profile, channels)
   }
 
 @OptIn(ExperimentalForeignApi::class)

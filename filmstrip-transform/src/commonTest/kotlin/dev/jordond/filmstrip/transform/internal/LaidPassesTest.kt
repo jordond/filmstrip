@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.edit.TimeRange
-import dev.jordond.filmstrip.internal.outputSlotsOf
+import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.test.LoopingCases
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe

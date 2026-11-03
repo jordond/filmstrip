@@ -44,12 +44,19 @@ public sealed interface PreviewQualityPolicy {
    * Scale-dependent parameters still normalise correctly. Perceptual sharpness does not, so read
    * [PreviewInfo.renderScale] before judging detail.
    *
-   * @property heightPx The tallest the preview may render, in pixels.
+   * A cap at or above the composition's own output height renders at that height, since a preview
+   * is never scaled up.
+   *
+   * @property heightPx The tallest the preview may render, in pixels. At least one.
    */
   @Poko
   public class CapHeight(
     public val heightPx: Int,
-  ) : PreviewQualityPolicy
+  ) : PreviewQualityPolicy {
+    init {
+      require(heightPx > 0) { "A preview height cap has to be at least one pixel, got $heightPx." }
+    }
+  }
 }
 
 /**

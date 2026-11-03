@@ -2,8 +2,8 @@
 
 package dev.jordond.filmstrip.webcodecs.internal
 
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.awaitCatching
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.CodecKind
 import dev.jordond.filmstrip.media.ColorSpace
@@ -13,11 +13,12 @@ import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.VideoTrackInfo
-import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.displaySizeOf
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.webcodecs.internal.interop.InputAudioTrack
+import dev.jordond.filmstrip.webcodecs.internal.interop.InputVideoTrack
+import dev.jordond.filmstrip.webcodecs.internal.interop.Rational
 import kotlinx.coroutines.await
-import kotlin.coroutines.cancellation.CancellationException
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.time.Duration.Companion.microseconds
 
@@ -31,13 +32,9 @@ import kotlin.time.Duration.Companion.microseconds
  */
 internal class BrowserProber : MediaProber {
   override suspend fun probe(source: MediaSource): ProbeResult {
-    val reader = SourceReader.of(source) ?: return unreadable(source)
+    val reader = SourceReader.of(source) ?: return ProbeResult.Failure(unreadableSource(source))
     return try {
-      readInfo(reader, source)
-    } catch (cancelled: CancellationException) {
-      throw cancelled
-    } catch (unreadable: Throwable) {
-      unreadable(source)
+      awaitCatching { readInfo(reader, source) }.getOrElse { ProbeResult.Failure(unreadableSource(source)) }
     } finally {
       reader.close()
     }
@@ -49,7 +46,7 @@ internal class BrowserProber : MediaProber {
   ): ProbeResult {
     val video = reader.videoTrack()?.toTrackInfo()
     val audio = reader.audioTrack()?.toTrackInfo()
-    if (video == null && audio == null) return unreadable(source)
+    if (video == null && audio == null) return ProbeResult.Failure(unreadableSource(source))
 
     return ProbeResult.Success(
       MediaInfo(
@@ -78,7 +75,7 @@ internal class BrowserProber : MediaProber {
       displaySize = displaySizeOf(coded, rotation, pixelAspect),
       rotationDegrees = rotation,
       pixelAspectRatio = pixelAspect,
-      frameRate = measuredFrameRate(this),
+      frameRate = measuredFrameRate(),
       codec = trackCodec,
       bitDepth = bitDepth,
       colorSpace = space.primaries?.toString().toColorSpace(),
@@ -95,29 +92,6 @@ internal class BrowserProber : MediaProber {
       channelCount = getNumberOfChannels().await().toDouble().toInt(),
       bitrate = null,
     )
-  }
-
-  /**
-   * The track's real frame rate, measured over a bounded prefix of its packets rather than the
-   * whole file.
-   */
-  private suspend fun measuredFrameRate(track: InputVideoTrack): Float? {
-    val stats = track.computePacketStats(FRAME_RATE_SAMPLE_PACKETS).await()
-    if (stats.packetCount < 2) return null
-    val rate = stats.averagePacketRate
-    return if (rate > 0.0 && rate.isFinite()) rate.toFloat() else null
-  }
-
-  private fun unreadable(source: MediaSource): ProbeResult.Failure =
-    ProbeResult.Failure(ExportError.SourceUnreadable(source.describe(), UNREADABLE))
-
-  private companion object {
-    // Enough packets to measure a rate, few enough that measuring one does not walk a long file.
-    const val FRAME_RATE_SAMPLE_PACKETS = 120
-
-    const val UNREADABLE =
-      "A browser reads URLs and in-memory bytes. A path has no meaning here, and a file has to be " +
-        "loaded by the page first."
   }
 }
 

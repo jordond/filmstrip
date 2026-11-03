@@ -9,9 +9,10 @@ import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP_B
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -38,8 +39,8 @@ class AndroidOverlayTimingTest {
       val inside = probe.frame(written, INSIDE).gainedOver(probe.frame(plain, INSIDE), BOTTOM_END)
       val outside = probe.frame(written, OUTSIDE).gainedOver(probe.frame(plain, OUTSIDE), BOTTOM_END)
 
-      assertTrue(inside > COVERED, "the watermark is absent inside its window")
-      assertTrue(outside < UNTOUCHED, "the watermark is still there outside its window")
+      withClue("the watermark is absent inside its window") { (inside > COVERED) shouldBe true }
+      withClue("the watermark is still there outside its window") { (outside < UNTOUCHED) shouldBe true }
     }
 
   // What an effect's window is measured against, for an effect that lives on a clip instead of on
@@ -59,13 +60,17 @@ class AndroidOverlayTimingTest {
       // As a control, the same watermark with no window at all has to be visible at the timestamp
       // the other two are read at, or a failure below says nothing about which base was used.
       val always = probe.frame(probe.export(joined(first, second, timed(null))), IN_SECOND_CLIP)
-      assertTrue(always.gainedOver(plain, BOTTOM_END) > COVERED, "no clip-scoped watermark to time")
+      withClue("no clip-scoped watermark to time") { (always.gainedOver(plain, BOTTOM_END) > COVERED) shouldBe true }
 
       val onComposition = probe.frame(probe.export(joined(first, second, timed(COMPOSITION_WINDOW))), IN_SECOND_CLIP)
       val onClip = probe.frame(probe.export(joined(first, second, timed(CLIP_WINDOW))), IN_SECOND_CLIP)
 
-      assertTrue(onComposition.gainedOver(plain, BOTTOM_END) > COVERED, "a clip's window is not composition time")
-      assertTrue(onClip.gainedOver(plain, BOTTOM_END) < UNTOUCHED, "a clip's window is the clip's own time")
+      withClue("a clip's window is not composition time") {
+        (onComposition.gainedOver(plain, BOTTOM_END) > COVERED) shouldBe true
+      }
+      withClue("a clip's window is the clip's own time") {
+        (onClip.gainedOver(plain, BOTTOM_END) < UNTOUCHED) shouldBe true
+      }
     }
 
   @Test
@@ -82,7 +87,7 @@ class AndroidOverlayTimingTest {
       listOf(SLOT_OPENS, SLOT_CLOSES).forEach { at ->
         val gained = probe.frame(written, at).gainedOver(probe.frame(plain, at), BOTTOM_END)
 
-        assertTrue(gained > COVERED, "no watermark at $at, which is inside the clip's own slot")
+        withClue("no watermark at $at, which is inside the clip's own slot") { (gained > COVERED) shouldBe true }
       }
     }
 

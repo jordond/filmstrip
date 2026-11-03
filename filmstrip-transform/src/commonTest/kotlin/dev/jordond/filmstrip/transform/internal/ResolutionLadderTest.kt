@@ -1,8 +1,9 @@
 package dev.jordond.filmstrip.transform.internal
 
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertTrue
 
 /**
  * The rungs an encoder is probed at, and the one rung the HDR probe uses.
@@ -17,13 +18,13 @@ class ResolutionLadderTest {
     val pixels = RESOLUTION_LADDER.map { it.width.toLong() * it.height }
 
     pixels shouldBe pixels.sortedDescending()
-    assertTrue(pixels.distinct().size == pixels.size, "a repeated rung would be probed twice")
+    withClue("a repeated rung would be probed twice") { (pixels.distinct().size == pixels.size).shouldBeTrue() }
   }
 
   @Test
   fun `every rung is even on both axes since an encoder rejects an odd dimension`() {
     RESOLUTION_LADDER.forEach { size ->
-      assertTrue(size.width % 2 == 0 && size.height % 2 == 0, "$size is odd")
+      withClue("$size is odd") { (size.width % 2 == 0 && size.height % 2 == 0).shouldBeTrue() }
     }
   }
 

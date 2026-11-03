@@ -5,6 +5,8 @@ package dev.jordond.filmstrip.webcodecs
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.VideoEncoderCapability
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
@@ -13,10 +15,8 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
-import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.MediaInfo
@@ -24,30 +24,31 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.test.LoopingCases
-import dev.jordond.filmstrip.transform.internal.GainSegment
-import dev.jordond.filmstrip.transform.internal.ResolvedClip
-import dev.jordond.filmstrip.transform.internal.ResolvedGain
-import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.passesCovering
+import dev.jordond.filmstrip.transform.internal.resolve.GainSegment
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import dev.jordond.filmstrip.webcodecs.BrowserMixSeamTest.Companion.MAX_STEP
-import dev.jordond.filmstrip.webcodecs.internal.AudioBuffer
-import dev.jordond.filmstrip.webcodecs.internal.BrowserAudioMix
 import dev.jordond.filmstrip.webcodecs.internal.BrowserPlanner
 import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
-import dev.jordond.filmstrip.webcodecs.internal.DecodeCache
-import dev.jordond.filmstrip.webcodecs.internal.Float32Array
-import dev.jordond.filmstrip.webcodecs.internal.OfflineAudioContext
 import dev.jordond.filmstrip.webcodecs.internal.SourceCache
+import dev.jordond.filmstrip.webcodecs.internal.audio.BrowserAudioMix
+import dev.jordond.filmstrip.webcodecs.internal.audio.DecodeCache
+import dev.jordond.filmstrip.webcodecs.internal.interop.AudioBuffer
+import dev.jordond.filmstrip.webcodecs.internal.interop.Float32Array
+import dev.jordond.filmstrip.webcodecs.internal.interop.OfflineAudioContext
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -68,7 +69,7 @@ class BrowserMixSeamTest {
     runTest {
       val samples = mixToneOf(sampleRate = OUTPUT_RATE)
 
-      assertEquals(expectedFrames(), samples.length)
+      samples.length shouldBe expectedFrames()
       assertUnbroken(samples)
     }
 
@@ -80,7 +81,7 @@ class BrowserMixSeamTest {
     runTest {
       val samples = mixToneOf(sampleRate = 44_100)
 
-      assertEquals(expectedFrames(), samples.length)
+      samples.length shouldBe expectedFrames()
       assertUnbroken(samples)
     }
 
@@ -95,12 +96,12 @@ class BrowserMixSeamTest {
       val windowed = mixToneOf(sampleRate = 44_100)
       val oneShot = mixToneOf(sampleRate = 44_100, window = MIX_DURATION)
 
-      assertEquals(oneShot.length, windowed.length)
+      windowed.length shouldBe oneShot.length
       var worst = 0f
       for (index in 0 until oneShot.length) {
         worst = maxOf(worst, abs(oneShot.at(index) - windowed.at(index)))
       }
-      assertTrue(worst < MAX_DIVERGENCE, "windowed and one-shot mixes diverged by $worst")
+      withClue("windowed and one-shot mixes diverged by $worst") { (worst < MAX_DIVERGENCE) shouldBe true }
     }
 
   // The mixer schedules a fade as automation inside each window it renders, so a window boundary is
@@ -116,7 +117,7 @@ class BrowserMixSeamTest {
       val flat = mixToneOf(sampleRate = SOURCE_RATE, bytes = bytes)
       val faded = mixToneOf(sampleRate = SOURCE_RATE, bytes = bytes, gain = fade)
 
-      assertEquals(flat.length, faded.length)
+      faded.length shouldBe flat.length
       assertFollows(faded, flat, fade)
     }
 
@@ -150,8 +151,10 @@ class BrowserMixSeamTest {
       val samples = joined(windows)
       val middle = samples.length / 2
       val size = (GAIN_BLOCK.toDouble(DurationUnit.SECONDS) * OUTPUT_RATE).roundToInt()
-      assertTrue(rms(samples, middle, size) > SILENCE, "the looped mix was silent, so nothing was decoded")
-      assertEquals(1, decoded.decodes, "$LOOP_PASSES passes of one clip cost ${decoded.decodes} decodes")
+      withClue("the looped mix was silent, so nothing was decoded") {
+        (rms(samples, middle, size) > SILENCE) shouldBe true
+      }
+      withClue("$LOOP_PASSES passes of one clip cost ${decoded.decodes} decodes") { decoded.decodes shouldBe 1 }
     }
 
   /**
@@ -183,9 +186,9 @@ class BrowserMixSeamTest {
         )
       val mix = mixOf(composition)
 
-      assertEquals(LoopingCases.PRIMARY_RUN, mix.duration)
+      mix.duration shouldBe LoopingCases.PRIMARY_RUN
       mix.assertLaysPasses(LoopingCases.BED_LENGTHS)
-      assertEquals(framesOf(LoopingCases.PRIMARY_RUN), mix.faded.length)
+      mix.faded.length shouldBe framesOf(LoopingCases.PRIMARY_RUN)
 
       // A planner that restarted the ramp in every pass would fold each of them the same way and
       // the mix would agree with it, so what says the fade is one ramp over the whole run is that
@@ -193,14 +196,15 @@ class BrowserMixSeamTest {
       mix.laid.zipWithNext { earlier, later ->
         val closes = earlier.gain.gainAt(earlier.duration)
         val opens = later.gain.gainAt(Duration.ZERO)
-        assertTrue(
-          abs(opens - closes) < ResolvedGain.PRODUCT_TOLERANCE,
-          "a pass closed on $closes and the next opened on $opens, so the fade restarted",
-        )
+        withClue("a pass closed on $closes and the next opened on $opens, so the fade restarted") {
+          (abs(opens - closes) < ResolvedGain.PRODUCT_TOLERANCE) shouldBe true
+        }
       }
 
       val beforeTheBed = LoopingCases.BEFORE_BED
-      assertTrue(rmsAt(mix.faded, beforeTheBed) <= SILENCE, "the bed sounded at $beforeTheBed, before its track opens")
+      withClue("the bed sounded at $beforeTheBed, before its track opens") {
+        (rmsAt(mix.faded, beforeTheBed) <= SILENCE) shouldBe true
+      }
       LoopingCases.BED_READINGS.forEach { assertLevelAt(mix, it.pass, it.into) }
     }
 
@@ -240,16 +244,18 @@ class BrowserMixSeamTest {
         )
       val mix = mixOf(composition)
 
-      assertEquals(LoopingCases.PRIMARY_RUN, mix.duration)
+      mix.duration shouldBe LoopingCases.PRIMARY_RUN
       mix.assertLaysPasses(LoopingCases.PAIR_LENGTHS)
-      assertEquals(framesOf(LoopingCases.PRIMARY_RUN), mix.faded.length)
+      mix.faded.length shouldBe framesOf(LoopingCases.PRIMARY_RUN)
 
       // Two ways this fails: the bed going silent after its first pass, which the tone reading
       // catches, and the quiet clip playing over the loud one rather than after it, which reads as
       // the two summed rather than as the quieter alone and so misses the level the plan folded.
       val readings = LoopingCases.PAIR_READINGS
       val loud = assertLevelAt(mix, readings.first().pass, readings.first().into)
-      assertTrue(rmsAt(mix.faded, loud) > SILENCE, "the bed went silent at $loud, after its first pass")
+      withClue("the bed went silent at $loud, after its first pass") {
+        (rmsAt(mix.faded, loud) > SILENCE) shouldBe true
+      }
       readings.drop(1).forEach { assertLevelAt(mix, it.pass, it.into) }
     }
 
@@ -273,11 +279,14 @@ class BrowserMixSeamTest {
     val lowering =
       BrowserPlanner(listOf(BuiltInEffectResolver())).lower(
         composition = composition,
-        spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac),
-        device = MIX_DEVICE,
-        infos = probed(composition),
+        ask =
+          Ask(
+            ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac),
+            MIX_DEVICE,
+            probed(composition),
+          ),
       )
-    val render = assertNotNull(lowering.render, "the looping composition lowered to no render")
+    val render = withClue("the looping composition lowered to no render") { lowering.graph.shouldNotBeNull() }
     val tracks = render.audioTracks
     return LaidMix(
       laid = tracks[BED_TRACK].clips,
@@ -297,7 +306,7 @@ class BrowserMixSeamTest {
       passesCovering(lengths, duration - start).map { pass ->
         Triple(pass.index, start + pass.offset, start + pass.offset + pass.length)
       }
-    assertEquals(expected, laid.map { Triple(it.sourceIndex, it.span.start, it.span.endExclusive) })
+    laid.map { Triple(it.sourceIndex, it.span.start, it.span.endExclusive) } shouldBe expected
   }
 
   /**
@@ -316,14 +325,15 @@ class BrowserMixSeamTest {
   ): Duration {
     val at = mix.laid[pass].span.start + into
     val reference = rmsAt(mix.flat, at)
-    assertTrue(reference > SILENCE, "the same schedule at unity carried no tone at $at, so nothing there reads a gain")
+    withClue("the same schedule at unity carried no tone at $at, so nothing there reads a gain") {
+      (reference > SILENCE) shouldBe true
+    }
 
     val measured = rmsAt(mix.faded, at) / reference
     val expected = mix.laid[pass].gain.gainAt(into)
-    assertTrue(
-      abs(measured - expected) < MAX_GAIN_DRIFT,
-      "the mix read $measured at $at, and pass $pass of the plan folds to $expected $into in",
-    )
+    withClue("the mix read $measured at $at, and pass $pass of the plan folds to $expected $into in") {
+      (abs(measured - expected) < MAX_GAIN_DRIFT) shouldBe true
+    }
     return at
   }
 
@@ -341,7 +351,7 @@ class BrowserMixSeamTest {
       .flatMap { it.clips }
       .map { it.source }
       .distinct()
-      .associateWith { source -> assertIs<ProbeResult.Success>(prober.probe(source)).info }
+      .associateWith { source -> prober.probe(source).shouldBeInstanceOf<ProbeResult.Success>().info }
   }
 
   /**
@@ -510,16 +520,17 @@ class BrowserMixSeamTest {
     for (index in from + 1 until to) {
       maxStep = maxOf(maxStep, abs(samples.at(index) - samples.at(index - 1)))
     }
-    assertTrue(maxStep < MAX_STEP, "the mix stepped by $maxStep between two frames, expected a continuous tone")
+    withClue("the mix stepped by $maxStep between two frames, expected a continuous tone") {
+      (maxStep < MAX_STEP) shouldBe true
+    }
 
     val blocks = blockEnergy(samples, from, to)
     val median = blocks.sorted()[blocks.size / 2]
     val quietest = blocks.min()
-    assertTrue(median > SILENCE, "the analysed span was silent, median block energy was $median")
-    assertTrue(
-      quietest > median * MIN_BLOCK_RATIO,
-      "one block of the mix fell to $quietest against a median of $median, expected an unbroken tone",
-    )
+    withClue("the analysed span was silent, median block energy was $median") { (median > SILENCE) shouldBe true }
+    withClue("one block of the mix fell to $quietest against a median of $median, expected an unbroken tone") {
+      (quietest > median * MIN_BLOCK_RATIO) shouldBe true
+    }
   }
 
   /**
@@ -555,8 +566,10 @@ class BrowserMixSeamTest {
       }
     }
 
-    assertTrue(measured > MIN_MEASURED_BLOCKS, "only $measured blocks carried enough tone to measure the fade")
-    assertTrue(worst < MAX_GAIN_DRIFT, "the mix was off its fade by $worst at $worstAt")
+    withClue("only $measured blocks carried enough tone to measure the fade") {
+      (measured > MIN_MEASURED_BLOCKS) shouldBe true
+    }
+    withClue("the mix was off its fade by $worst at $worstAt") { (worst < MAX_GAIN_DRIFT) shouldBe true }
   }
 
   private fun blockEnergy(

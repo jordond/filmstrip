@@ -7,19 +7,19 @@ import androidx.compose.runtime.setValue
 import androidx.navigation3.runtime.NavBackStack
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.Bitrate
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.diagnostics.BackendInfo
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.export.Adjustment
-import dev.jordond.filmstrip.export.AudioCodec
-import dev.jordond.filmstrip.export.Bitrate
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
@@ -186,7 +186,7 @@ public class SampleAppState(
     private set
   var exportedInfo: ProbeResult? by mutableStateOf(null)
     private set
-  var exportFailure: ExportError? by mutableStateOf(null)
+  var exportFailure: FilmstripError? by mutableStateOf(null)
     private set
 
   var capabilities: CapabilitiesResult? by mutableStateOf(null)
@@ -367,7 +367,7 @@ public class SampleAppState(
   }
 
   fun spec(): ExportSpec = ExportSpec(
-    targetHeight = targetHeight,
+    heightPx = targetHeight,
     bitrate = bitrateMbps?.let(Bitrate::mbps),
     videoCodec = videoCodec,
     audioCodec = audioCodec,

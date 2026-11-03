@@ -10,13 +10,13 @@ import dev.jordond.filmstrip.geometry.Fit
 /**
  * Set the output height in pixels. The width follows from the composition's aspect.
  *
- * @property targetHeight Target height in pixels. Rounded up to the encoder's alignment, and the
+ * @property heightPx Target height in pixels. Rounded up to the encoder's alignment, and the
  * rounding is reported.
- * @property fit How the frame is fitted to [targetHeight].
+ * @property fit How the frame is fitted to [heightPx].
  */
 @Poko
 public class Scale(
-  public val targetHeight: Int,
+  public val heightPx: Int,
   public val fit: Fit = Fit.Contain,
 ) : EffectSpec {
   override val id: String get() = EffectIds.SCALE
@@ -25,9 +25,12 @@ public class Scale(
 }
 
 /**
- * Scale the output to [targetHeight] pixels tall.
+ * Scale the output to [heightPx] pixels tall.
+ *
+ * @param heightPx Target height in pixels.
+ * @param fit How the frame is fitted to [heightPx].
  */
 public fun EffectsBuilder.scale(
-  targetHeight: Int,
+  heightPx: Int,
   fit: Fit = Fit.Contain,
-): EffectsBuilder = add(Scale(targetHeight, fit))
+): EffectsBuilder = add(Scale(heightPx, fit))

@@ -1,9 +1,20 @@
 package dev.jordond.filmstrip.ffmpeg.internal
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.DeviceCapabilities
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime.Companion.of
+import dev.jordond.filmstrip.ffmpeg.internal.probe.PROBE_ARGUMENTS
+import dev.jordond.filmstrip.ffmpeg.internal.probe.parseMediaInfo
+import dev.jordond.filmstrip.ffmpeg.internal.probe.parseSyncSample
+import dev.jordond.filmstrip.ffmpeg.internal.probe.syncSampleArguments
+import dev.jordond.filmstrip.ffmpeg.internal.process.FrameStream
+import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessOutput
+import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessRunner
+import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
+import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainLocator
+import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainResult
+import dev.jordond.filmstrip.ffmpeg.internal.process.exclusively
 import dev.jordond.filmstrip.media.MediaInfo
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -23,7 +34,7 @@ internal class FfmpegRuntime private constructor(
   private val runner = ProcessRunner()
   private val locator = ToolchainLocator(config, runner)
   private val probeLock = Mutex()
-  private val probes = mutableMapOf<String, MediaInfo?>()
+  private val probes = mutableMapOf<String, MediaInfo>()
   private val syncSampleLock = Mutex()
   private val syncSamples = mutableMapOf<Pair<String, Duration>, Duration?>()
   private val capabilityLock = Mutex()
@@ -42,15 +53,19 @@ internal class FfmpegRuntime private constructor(
   var capabilityMeasures: Int = 0
     private set
 
+  // How many times an export's ffmpeg was spawned, so an export refused up front can be shown to
+  // have started nothing.
+  var streamSpawns: Int = 0
+    private set
+
   suspend fun toolchain(): ToolchainResult = locator.toolchain()
 
   /**
    * What this toolchain can encode, measured by [measure] the first time it is asked for.
    *
-   * Held here rather than on an engine, because a process builds an engine for every component that
-   * wants one and each would otherwise pay for the whole ladder. The lock is held across the
-   * measurement rather than around the assignment, so two callers arriving together measure once
-   * between them instead of once each.
+   * Held on the runtime, so every engine a process builds for its components shares one measurement
+   * of the ladder. The lock is held across the measurement, so two callers arriving together measure
+   * once between them.
    *
    * @param measure Runs the ladder against the toolchain this runtime resolved.
    */
@@ -68,33 +83,38 @@ internal class FfmpegRuntime private constructor(
     command: List<String>,
     onStdout: (String) -> Unit,
     onStderr: (String) -> Unit,
-  ): Int = runner.run(command, onStdout, onStderr)
+  ): Int {
+    streamSpawns++
+    return runner.run(command, onStdout, onStderr)
+  }
 
   /**
    * Spawns [command] and reads its stdout as whole frames, for the preview pump.
+   *
+   * @throws kotlinx.io.IOException When the child never started.
    */
-  suspend fun frames(command: List<String>): FrameStream? = runner.frames(command)
+  suspend fun frames(command: List<String>): FrameStream = runner.frames(command)
 
   /**
    * Reads [path] through ffprobe, or null when it could not be read.
    *
-   * Cached by path, negatives included, so a plan that names the same clip in several places spawns
-   * one ffprobe and a re-lowering spawns none.
+   * Each file read is cached by path, so a plan that names the same clip in several places spawns one ffprobe and a
+   * re-lowering spawns none. A path that could not be read is not held, so the next caller asks again and finds a
+   * file that turned up since.
    */
   suspend fun probe(
     toolchain: Toolchain,
     path: String,
   ): MediaInfo? =
     probeLock.withLock {
-      if (probes.containsKey(path)) return@withLock probes[path]
-      read(toolchain, path).also { probes[path] = it }
+      probes[path] ?: read(toolchain, path)?.also { probes[path] = it }
     }
 
   /**
    * The sync sample at or before [at] in [path]'s video stream, or null when there is none.
    *
    * Cached by path and cut, negatives included, so the plan, the resolve behind a preview and the
-   * export of one edit read the same answer rather than three that could disagree.
+   * export of one edit read the same answer.
    */
   suspend fun syncSampleAtOrBefore(
     toolchain: Toolchain,
@@ -118,7 +138,7 @@ internal class FfmpegRuntime private constructor(
     path: String,
   ): MediaInfo? =
     probeLock.withLock {
-      read(toolchain, path).also { probes[path] = it }
+      read(toolchain, path).also { if (it == null) probes.remove(path) else probes[path] = it }
     }
 
   private suspend fun read(
@@ -156,11 +176,11 @@ internal class FfmpegRuntime private constructor(
 
   companion object {
     // Keyed on the config, which compares structurally, so two callers that spelled the same
-    // configuration reach the same runtime. Held in use order and capped: a process registers one
-    // configuration in every case that is not a test, and a caller that keeps spelling fresh ones
-    // drops the least recently used rather than growing this forever. An evicted runtime owns no
-    // process and no handle, only the toolchain and probe answers it had cached, so the next
-    // caller to name that configuration pays for those again and nothing else.
+    // configuration reach the same runtime. Held in use order and capped: a process usually
+    // registers one configuration, and a caller that keeps spelling fresh ones drops the least
+    // recently used. An evicted runtime owns no process and no handle, only the toolchain and
+    // probe answers it had cached, so the next caller to name that configuration pays for those
+    // again and nothing else.
     const val MAX_RUNTIMES = 8
 
     private val runtimes = LinkedHashMap<FfmpegConfig, FfmpegRuntime>()
@@ -169,8 +189,7 @@ internal class FfmpegRuntime private constructor(
      * The runtime [config] resolves through, built the first time it is asked for.
      *
      * Every backend component goes through this, so an export, a probe and a preview built from
-     * the same configuration resolve the binaries once between them and share one probe cache
-     * rather than answering the same questions three times.
+     * the same configuration resolve the binaries once between them and share one probe cache.
      */
     fun of(config: FfmpegConfig): FfmpegRuntime =
       exclusively {
@@ -198,7 +217,7 @@ internal sealed interface ProbeOutcome {
   ) : ProbeOutcome
 
   class NoToolchain(
-    val error: ExportError.ToolchainMissing,
+    val error: FilmstripError.ToolchainMissing,
   ) : ProbeOutcome
 
   data object Unreadable : ProbeOutcome

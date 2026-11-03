@@ -1,15 +1,16 @@
 package dev.jordond.filmstrip.effects.color
 
-import dev.jordond.filmstrip.media.HDR_REFERENCE_WHITE_NITS
-import dev.jordond.filmstrip.media.HLG_NOMINAL_PEAK_NITS
+import dev.jordond.filmstrip.color.HDR_REFERENCE_WHITE_NITS
+import dev.jordond.filmstrip.color.HLG_NOMINAL_PEAK_NITS
+import dev.jordond.filmstrip.color.PQ_PEAK_NITS
+import dev.jordond.filmstrip.color.brightnessDisplayGain
+import dev.jordond.filmstrip.color.nitsFromSdrSignal
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.PQ_PEAK_NITS
-import dev.jordond.filmstrip.media.brightnessDisplayGain
-import dev.jordond.filmstrip.media.nitsFromSdrSignal
+import io.kotest.assertions.withClue
+import io.kotest.matchers.floats.plusOrMinus
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotEquals
-import kotlin.test.assertTrue
 
 /**
  * The numbers every backend lowers, checked against pixels worked out by hand.
@@ -22,8 +23,8 @@ class ColorMatrixTest {
   @Test
   fun theIdentityLeavesAPixelAlone() {
     assertPixel(ColorMatrix.Identity.transform(RED, GREEN, BLUE), RED, GREEN, BLUE)
-    assertTrue(ColorMatrix.Identity.isIdentity)
-    assertTrue(ColorMatrix.Identity.isDiagonal)
+    ColorMatrix.Identity.isIdentity shouldBe true
+    ColorMatrix.Identity.isDiagonal shouldBe true
   }
 
   @Test
@@ -31,7 +32,7 @@ class ColorMatrixTest {
     val luma = LUMA_RED * RED + LUMA_GREEN * GREEN + LUMA_BLUE * BLUE
 
     assertPixel(Saturation(0f).matrix.transform(RED, GREEN, BLUE), luma, luma, luma)
-    assertEquals(0.4634f, luma, TOLERANCE)
+    luma shouldBe (0.4634f plusOrMinus TOLERANCE)
   }
 
   @Test
@@ -83,7 +84,7 @@ class ColorMatrixTest {
 
     // A third of a turn carries red round to green, which is the sign of the rotation.
     val turned = HueRotate(120f).matrix.transform(1f, 0f, 0f)
-    assertTrue(turned[1] > turned[0] && turned[1] > turned[2], "red turned to ${turned.toList()}")
+    withClue("red turned to ${turned.toList()}") { (turned[1] > turned[0] && turned[1] > turned[2]) shouldBe true }
   }
 
   @Test
@@ -105,7 +106,7 @@ class ColorMatrixTest {
 
     assertPixel(composed, stepped[0], stepped[1], stepped[2])
     // Saturation keeps grey where it is, so it commutes with a contrast. A sepia tone does not.
-    assertNotEquals(first.then(Sepia().matrix), Sepia().matrix.then(first))
+    Sepia().matrix.then(first) shouldNotBe first.then(Sepia().matrix)
   }
 
   @Test
@@ -113,8 +114,8 @@ class ColorMatrixTest {
     val lift = ColorMatrix(rBias = 0.2f)
     val halve = Brightness(0.5f).matrix
 
-    assertEquals(0.1f, lift.then(halve).rBias, TOLERANCE)
-    assertEquals(0.2f, halve.then(lift).rBias, TOLERANCE)
+    lift.then(halve).rBias shouldBe (0.1f plusOrMinus TOLERANCE)
+    halve.then(lift).rBias shouldBe (0.2f plusOrMinus TOLERANCE)
   }
 
   @Test
@@ -137,22 +138,22 @@ class ColorMatrixTest {
 
     val gl = matrix.toColumnMajor4x4()
 
-    assertEquals(16, gl.size)
-    assertEquals(matrix.rr.stored(), gl[0])
-    assertEquals(matrix.rg.stored(), gl[4])
-    assertEquals(matrix.rb.stored(), gl[8])
-    assertEquals(matrix.rBias.stored(), gl[12])
-    assertEquals(matrix.gr.stored(), gl[1])
-    assertEquals(matrix.bb.stored(), gl[10])
-    assertEquals(1f, gl[15])
-    assertEquals(listOf(0f, 0f, 0f), listOf(gl[3], gl[7], gl[11]))
+    gl.size shouldBe 16
+    gl[0] shouldBe matrix.rr.stored()
+    gl[4] shouldBe matrix.rg.stored()
+    gl[8] shouldBe matrix.rb.stored()
+    gl[12] shouldBe matrix.rBias.stored()
+    gl[1] shouldBe matrix.gr.stored()
+    gl[10] shouldBe matrix.bb.stored()
+    gl[15] shouldBe 1f
+    listOf(gl[3], gl[7], gl[11]) shouldBe listOf(0f, 0f, 0f)
   }
 
   @Test
   fun aNaNEntryReadsAsTheIdentity() {
     val sanitised = ColorMatrix(rr = Float.NaN, gb = Float.NaN, bBias = Float.NaN).sanitised
 
-    assertEquals(ColorMatrix.Identity, sanitised)
+    sanitised shouldBe ColorMatrix.Identity
   }
 
   // An infinity is worse than a NaN downstream: ffmpeg's lut3d parses one, writes whatever the
@@ -163,7 +164,7 @@ class ColorMatrixTest {
       ColorMatrix(rr = Float.POSITIVE_INFINITY, gb = Float.NEGATIVE_INFINITY, bBias = Float.POSITIVE_INFINITY)
         .sanitised
 
-    assertEquals(ColorMatrix.Identity, sanitised)
+    sanitised shouldBe ColorMatrix.Identity
   }
 
   // Every effect guards its own input, and the shared lowering sanitises whatever comes back, so an
@@ -189,7 +190,7 @@ class ColorMatrixTest {
       val pixel = matrix.transform(RED, GREEN, BLUE)
 
       pixel.forEachIndexed { channel, value ->
-        assertTrue(value.isFinite(), "${spec.id} wrote $value into channel $channel")
+        withClue("${spec.id} wrote $value into channel $channel") { value.isFinite() shouldBe true }
       }
     }
   }
@@ -201,40 +202,37 @@ class ColorMatrixTest {
   fun aWholeTurnOfHueIsTheIdentity() {
     val matrix = checkNotNull(colorMatrixOf(HueRotate(360f)))
 
-    assertTrue(matrix.isDiagonal, "the cross terms of $matrix read as a mix")
-    assertTrue(matrix.isIdentity, "$matrix reads as something other than the identity")
+    withClue("the cross terms of $matrix read as a mix") { matrix.isDiagonal shouldBe true }
+    withClue("$matrix reads as something other than the identity") { matrix.isIdentity shouldBe true }
   }
 
-  // Which lowering a colour effect takes is the matrix's shape, not the type that wrote it, so a
+  // Which lowering a color effect takes is the matrix's shape, not the type that wrote it, so a
   // folded run that comes to a plain scale is as cheap as the brightness that spells the same thing.
   @Test
   fun aUniformScaleIsRecognisedWhateverWroteIt() {
-    assertEquals(0.5f, checkNotNull(colorMatrixOf(Brightness(0.5f))).uniformScale)
-    assertEquals(0.5f, checkNotNull(colorMatrixOf(ColorMatrix(rr = 0.5f, gg = 0.5f, bb = 0.5f))).uniformScale)
-    assertEquals(null, checkNotNull(colorMatrixOf(RgbAdjustment(red = 0.5f))).uniformScale)
-    assertEquals(null, checkNotNull(colorMatrixOf(Contrast(0.5f))).uniformScale)
-    assertEquals(null, checkNotNull(colorMatrixOf(Sepia())).uniformScale)
+    checkNotNull(colorMatrixOf(Brightness(0.5f))).uniformScale shouldBe 0.5f
+    checkNotNull(colorMatrixOf(ColorMatrix(rr = 0.5f, gg = 0.5f, bb = 0.5f))).uniformScale shouldBe 0.5f
+    checkNotNull(colorMatrixOf(RgbAdjustment(red = 0.5f))).uniformScale shouldBe null
+    checkNotNull(colorMatrixOf(Contrast(0.5f))).uniformScale shouldBe null
+    checkNotNull(colorMatrixOf(Sepia())).uniformScale shouldBe null
   }
 
   // A pass this side did not write is free to spell a uniform of that name any way it likes, and a
   // backend folding a foreign chain reads it back rather than failing the plan.
   @Test
   fun anArrayThatIsNotAMat4ReadsBackAsNothing() {
-    assertEquals(null, colorMatrixOfColumnMajor4x4OrNull(floatArrayOf(1f, 0f, 0f)))
-    assertEquals(ColorMatrix.Identity, colorMatrixOfColumnMajor4x4OrNull(ColorMatrix.Identity.toColumnMajor4x4()))
+    colorMatrixOfColumnMajor4x4OrNull(floatArrayOf(1f, 0f, 0f)) shouldBe null
+    colorMatrixOfColumnMajor4x4OrNull(ColorMatrix.Identity.toColumnMajor4x4()) shouldBe ColorMatrix.Identity
   }
 
   @Test
-  fun everyColourEffectHasAMatrixAndNothingElseDoes() {
-    assertEquals(Brightness(0.5f).matrix, colorMatrixOf(Brightness(0.5f)))
-    assertEquals(ColorMatrix(rg = 0.5f), colorMatrixOf(ColorMatrix(rg = 0.5f)))
-    assertEquals(
-      null,
-      colorMatrixOf(
-        dev.jordond.filmstrip.effects.geometry
-          .Rotate(90),
-      ),
-    )
+  fun everyColorEffectHasAMatrixAndNothingElseDoes() {
+    colorMatrixOf(Brightness(0.5f)) shouldBe Brightness(0.5f).matrix
+    colorMatrixOf(ColorMatrix(rg = 0.5f)) shouldBe ColorMatrix(rg = 0.5f)
+    colorMatrixOf(
+      dev.jordond.filmstrip.effects.geometry
+        .Rotate(90),
+    ) shouldBe null
   }
 
   // What a backend reads back out of a uniform is the matrix that wrote it, cross terms and bias
@@ -245,7 +243,7 @@ class ColorMatrixTest {
 
     val readBack = colorMatrixOfColumnMajor4x4(matrix.toColumnMajor4x4())
 
-    assertEquals(matrix.entries.map { it.stored() }, readBack.entries)
+    readBack.entries shouldBe matrix.entries.map { it.stored() }
   }
 
   // The middle of the range, worked out by hand: 100 nits is a signal of 0.7249, a contrast of 1.5
@@ -256,19 +254,19 @@ class ColorMatrixTest {
 
     val pixel = Contrast(1.5f).matrix.transformNits(100f, pivot, 10f, HdrTransfer.Pq)
 
-    assertEquals(44.18f, pivot, NITS_TOLERANCE)
-    assertEquals(137.33f, pixel[0], NITS_TOLERANCE)
-    assertEquals(pivot, pixel[1], NITS_TOLERANCE)
-    assertEquals(2.35f, pixel[2], NITS_TOLERANCE)
+    pivot shouldBe (44.18f plusOrMinus NITS_TOLERANCE)
+    pixel[0] shouldBe (137.33f plusOrMinus NITS_TOLERANCE)
+    pixel[1] shouldBe (pivot plusOrMinus NITS_TOLERANCE)
+    pixel[2] shouldBe (2.35f plusOrMinus NITS_TOLERANCE)
   }
 
   @Test
   fun onAGradeInvertTurnsAnythingAboveReferenceWhiteBlack() {
     val pixel = Invert().matrix.transformNits(1_000f, HDR_REFERENCE_WHITE_NITS, 10f, HdrTransfer.Pq)
 
-    assertEquals(0f, pixel[0], NITS_TOLERANCE)
-    assertEquals(0f, pixel[1], NITS_TOLERANCE)
-    assertEquals(106.39f, pixel[2], NITS_TOLERANCE)
+    pixel[0] shouldBe (0f plusOrMinus NITS_TOLERANCE)
+    pixel[1] shouldBe (0f plusOrMinus NITS_TOLERANCE)
+    pixel[2] shouldBe (106.39f plusOrMinus NITS_TOLERANCE)
   }
 
   // Without a bias the choice of white cancels, so a saturation or a hue rotation reads the same
@@ -280,15 +278,15 @@ class ColorMatrixTest {
     val dim = matrix.transformNits(80f, 40f, 10f, HdrTransfer.Pq)
     val bright = matrix.transformNits(800f, 400f, 100f, HdrTransfer.Pq)
 
-    repeat(3) { assertEquals(dim[it] * 10f, bright[it], bright[it] * 1e-3f) }
+    repeat(3) { bright[it] shouldBe (dim[it] * 10f plusOrMinus bright[it] * 1e-3f) }
   }
 
   @Test
   fun onAGradeBrightnessIsTheDisplayGain() {
     val pixel = Brightness(1.5f).matrix.transformNits(100f, 40f, 10f, HdrTransfer.Pq)
 
-    assertEquals(100f * brightnessDisplayGain(1.5f), pixel[0], NITS_TOLERANCE)
-    assertEquals(40f * brightnessDisplayGain(1.5f), pixel[1], NITS_TOLERANCE)
+    pixel[0] shouldBe (100f * brightnessDisplayGain(1.5f) plusOrMinus NITS_TOLERANCE)
+    pixel[1] shouldBe (40f * brightnessDisplayGain(1.5f) plusOrMinus NITS_TOLERANCE)
   }
 
   @Test
@@ -296,8 +294,8 @@ class ColorMatrixTest {
     val pq = Brightness(3f).matrix.transformNits(5_000f, 0f, 0f, HdrTransfer.Pq)
     val hlg = Brightness(3f).matrix.transformNits(500f, 0f, 0f, HdrTransfer.Hlg)
 
-    assertEquals(PQ_PEAK_NITS, pq[0], NITS_TOLERANCE)
-    assertEquals(HLG_NOMINAL_PEAK_NITS, hlg[0], NITS_TOLERANCE)
+    pq[0] shouldBe (PQ_PEAK_NITS plusOrMinus NITS_TOLERANCE)
+    hlg[0] shouldBe (HLG_NOMINAL_PEAK_NITS plusOrMinus NITS_TOLERANCE)
   }
 
   private fun assertPixel(
@@ -306,9 +304,9 @@ class ColorMatrixTest {
     green: Float,
     blue: Float,
   ) {
-    assertEquals(red, pixel[0], TOLERANCE, "red of ${pixel.toList()}")
-    assertEquals(green, pixel[1], TOLERANCE, "green of ${pixel.toList()}")
-    assertEquals(blue, pixel[2], TOLERANCE, "blue of ${pixel.toList()}")
+    withClue("red of ${pixel.toList()}") { pixel[0] shouldBe (red plusOrMinus TOLERANCE) }
+    withClue("green of ${pixel.toList()}") { pixel[1] shouldBe (green plusOrMinus TOLERANCE) }
+    withClue("blue of ${pixel.toList()}") { pixel[2] shouldBe (blue plusOrMinus TOLERANCE) }
   }
 
   // A Float on js is a double until it lands in a FloatArray, which holds 32 bits there as it does

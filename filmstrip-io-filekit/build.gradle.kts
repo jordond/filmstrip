@@ -29,6 +29,7 @@ kotlin {
     named("androidDeviceTest").dependencies {
       implementation(kotlin("test"))
       implementation(libs.androidx.test.runner)
+      implementation(libs.kotest.assertions)
     }
   }
 }

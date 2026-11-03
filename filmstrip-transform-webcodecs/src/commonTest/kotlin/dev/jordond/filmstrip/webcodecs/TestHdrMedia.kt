@@ -2,27 +2,27 @@
 
 package dev.jordond.filmstrip.webcodecs
 
+import dev.jordond.filmstrip.color.hlgDisplayNitsFromSignal
+import dev.jordond.filmstrip.color.hlgSignalFromDisplayNits
+import dev.jordond.filmstrip.color.nitsFromPqSignal
+import dev.jordond.filmstrip.color.pqSignalFromNits
+import dev.jordond.filmstrip.color.signalFromTenBitCodes
+import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.hlgDisplayNitsFromSignal
-import dev.jordond.filmstrip.media.hlgSignalFromDisplayNits
-import dev.jordond.filmstrip.media.nitsFromPqSignal
-import dev.jordond.filmstrip.media.pqSignalFromNits
-import dev.jordond.filmstrip.media.signalFromTenBitCodes
-import dev.jordond.filmstrip.media.tenBitCodesFromSignal
-import dev.jordond.filmstrip.webcodecs.internal.ArrayBuffer
-import dev.jordond.filmstrip.webcodecs.internal.BufferTarget
-import dev.jordond.filmstrip.webcodecs.internal.HDR_VP9_CODEC
-import dev.jordond.filmstrip.webcodecs.internal.JsOptions
-import dev.jordond.filmstrip.webcodecs.internal.Mp4OutputFormat
-import dev.jordond.filmstrip.webcodecs.internal.Output
-import dev.jordond.filmstrip.webcodecs.internal.Quality
 import dev.jordond.filmstrip.webcodecs.internal.SourceReader
-import dev.jordond.filmstrip.webcodecs.internal.Uint16Array
-import dev.jordond.filmstrip.webcodecs.internal.Uint8Array
-import dev.jordond.filmstrip.webcodecs.internal.VideoSample
-import dev.jordond.filmstrip.webcodecs.internal.VideoSampleSource
-import dev.jordond.filmstrip.webcodecs.internal.toUint8Array
+import dev.jordond.filmstrip.webcodecs.internal.interop.ArrayBuffer
+import dev.jordond.filmstrip.webcodecs.internal.interop.BufferTarget
+import dev.jordond.filmstrip.webcodecs.internal.interop.HDR_VP9_CODEC
+import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
+import dev.jordond.filmstrip.webcodecs.internal.interop.Mp4OutputFormat
+import dev.jordond.filmstrip.webcodecs.internal.interop.Output
+import dev.jordond.filmstrip.webcodecs.internal.interop.Quality
+import dev.jordond.filmstrip.webcodecs.internal.interop.Uint16Array
+import dev.jordond.filmstrip.webcodecs.internal.interop.Uint8Array
+import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
+import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSampleSource
+import dev.jordond.filmstrip.webcodecs.internal.interop.toUint8Array
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.get
@@ -240,7 +240,7 @@ internal suspend fun decodeTenBitFrames(
  *
  * The inverse of [displayNitsFromSignal], and what every backend keeping a grade writes for a
  * picture. It is not what a fill writes on HLG: a fill's opto-optical transfer is driven by the
- * colour's luminance, which `signalFromNits` spells and which a saturated colour parts from.
+ * color's luminance, which `signalFromNits` spells and which a saturated color parts from.
  */
 internal fun HdrTransfer.pictureSignalOf(nits: FloatArray): FloatArray =
   FloatArray(3) {

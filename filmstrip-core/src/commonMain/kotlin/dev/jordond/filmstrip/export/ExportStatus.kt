@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.export
 
 import dev.drewhamilton.poko.Poko
-import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import kotlin.time.Duration
@@ -24,7 +24,7 @@ public sealed interface ExportStatus {
   /**
    * The export has actually begun.
    *
-   * Not the same as the call returning. Exports are serialised on an internal lock, so this may
+   * Not the same as the call returning. Exports run one at a time across the process, so this may
    * arrive well after `export` was called. It is how a caller tells queued from running.
    */
   public data object Started : ExportStatus
@@ -32,9 +32,9 @@ public sealed interface ExportStatus {
   /**
    * Emitted at most once, before any [Progress], when the plan differs from the request.
    *
-   * Only the [Filmstrip.export] that plans emits this. Running an [ExportPlan] emits none, since
-   * the verdict that plan came from already carried the list, and [Success.adjustments] carries it
-   * again at the end whichever overload was called.
+   * Only the [dev.jordond.filmstrip.Filmstrip.export] that plans emits this. Running an
+   * [ExportPlan] emits none, since the verdict that plan came from already carried the list, and
+   * [Success.adjustments] carries it again at the end whichever overload was called.
    *
    * @property adjustments What filmstrip changed to make the export possible, in the order applied.
    */
@@ -77,11 +77,29 @@ public sealed interface ExportStatus {
   /**
    * The export failed.
    *
-   * @property error Why it failed.
+   * A run that stopped part way has one reason. An edit refused before any work started has every
+   * reason [dev.jordond.filmstrip.Filmstrip.plan] would have given for it, in the same order.
+   *
+   * @property reasons Why it failed, never empty.
+   * @throws IllegalArgumentException when [reasons] is empty.
    */
   @Poko
   public class Failure(
-    public val error: ExportError,
+    public val reasons: List<FilmstripError>,
   ) : ExportStatus,
-    Finished
+    Finished {
+    /**
+     * A failure with one reason, which is how a run that stopped part way reports.
+     */
+    public constructor(error: FilmstripError) : this(listOf(error))
+
+    init {
+      require(reasons.isNotEmpty()) { "A failure needs at least one reason" }
+    }
+
+    /**
+     * The first of [reasons], the one that stopped the export.
+     */
+    public val error: FilmstripError get() = reasons.first()
+  }
 }

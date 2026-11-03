@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.effects.overlay
 /**
  * The most bytes reading or drawing one overlay picture may hold at its peak, 1 GiB.
  *
- * Apple counts its reads and its draws at their colour against it, a browser counts decoding a PNG's samples beside
+ * Apple counts its reads and its draws at their color against it, a browser counts decoding a PNG's samples beside
  * the bitmap drawn from it, and a text raster on every backend counts itself, the floats an HDR frame draws it from
  * and any copies held on the way. A picture or text whose count passes it is refused by name, since iOS ends an app
  * past its memory limit without malloc ever failing and a browser tab runs out the same way. The reason names the
@@ -61,7 +61,7 @@ internal fun picturePeakBytes(
  * [Int.MAX_VALUE] does not fit, since every backend makes its raster with [Int] sides, so a raster that fits narrows
  * to an [Int] on both sides.
  *
- * @param ceiling The most bytes the raster may hold at its peak, [PICTURE_PEAK_CEILING] unless a test sets it.
+ * @param ceiling The most bytes the raster may hold at its peak, [PICTURE_PEAK_CEILING] by default.
  * @throws IllegalArgumentException When [bytesPerTexel] is not positive.
  */
 internal fun textRasterFits(

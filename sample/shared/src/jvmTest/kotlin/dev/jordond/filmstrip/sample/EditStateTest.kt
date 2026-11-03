@@ -15,7 +15,7 @@ import kotlin.test.assertTrue
  */
 class EditStateTest {
   @Test
-  fun `every colour knob reaches the composition in the order the pipeline runs them`() {
+  fun `every color knob reaches the composition in the order the pipeline runs them`() {
     val edit = EditState().apply {
       brightness = 1.2f
       channelRed = 0.9f

@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.test
 import dev.jordond.filmstrip.InternalFilmstripApi
 
 /**
- * A HEIF still painted one flat colour, either an [AvifPicture] or a [HeicPicture], as the colour boxes it carries and
+ * A HEIF still painted one flat color, either an [AvifPicture] or a [HeicPicture], as the color boxes it carries and
  * the samples its codestream decodes to.
  *
  * It carries no expected value.

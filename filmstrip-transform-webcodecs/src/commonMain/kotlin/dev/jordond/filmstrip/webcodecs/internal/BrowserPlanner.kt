@@ -1,171 +1,28 @@
 package dev.jordond.filmstrip.webcodecs.internal
 
-import dev.jordond.filmstrip.capability.DeviceCapabilities
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.EffectParity
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.EditComposition
-import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
-import dev.jordond.filmstrip.effect.WebGlOverlay
-import dev.jordond.filmstrip.effect.inCanonicalOrder
-import dev.jordond.filmstrip.effects.color.ColorMatrix
-import dev.jordond.filmstrip.effects.color.colorMatrixOfColumnMajor4x4OrNull
-import dev.jordond.filmstrip.effects.color.then
-import dev.jordond.filmstrip.effects.color.toColumnMajor4x4
-import dev.jordond.filmstrip.export.Adjustment
-import dev.jordond.filmstrip.export.AudioFormat
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPath
-import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.export.VideoCodec
-import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotTime
-import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.CodecKind
 import dev.jordond.filmstrip.media.ColorSpace
-import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.ExportPlanner
-import dev.jordond.filmstrip.transform.internal.Mp4Copy
-import dev.jordond.filmstrip.transform.internal.NegotiatedExport
-import dev.jordond.filmstrip.transform.internal.ResolvedComposition
-import dev.jordond.filmstrip.transform.internal.ResolvedEffect
-import dev.jordond.filmstrip.transform.internal.ResolvedTrack
-import dev.jordond.filmstrip.transform.internal.containScale
-import dev.jordond.filmstrip.transform.internal.coverScale
-import dev.jordond.filmstrip.transform.internal.effectsOverFill
-import dev.jordond.filmstrip.transform.internal.effectsUnderFill
-import dev.jordond.filmstrip.transform.internal.frameAfter
-import dev.jordond.filmstrip.transform.internal.heldTail
-import dev.jordond.filmstrip.transform.internal.stillUnsupportedMessage
-import dev.jordond.filmstrip.transform.internal.toResolvedComposition
-import kotlin.time.Duration
-import kotlin.time.DurationUnit
-
-/**
- * What a browser plan resolved to: what the shared negotiator settled on, and the render description
- * that runs when it is capable.
- */
-internal class BrowserLowering(
-  val export: NegotiatedExport,
-  val render: BrowserRender?,
-) {
-  val verdict: Verdict get() = export.verdict
-}
-
-/**
- * What the pipeline needs for one clip: a quad, a texture matrix and a colour matrix, all lowered
- * from the clip's effects, plus the trim window and the slots it fills on the output frame grid.
- *
- * @property firstSlot The output slot the clip opens on, counted from the start of the composition,
- *   so the render's lead frames come before it. The source's trim start is drawn on this slot.
- * @property coverHalfW Half the quad's width when the clip is scaled to cover the output rather
- *   than fit inside it. This is what a blurred fill's background draws with.
- * @property coverHalfH The same, for height.
- * @property hasBars Whether this clip leaves any letterbox bars at all. A clip whose aspect already
- *   matches the output has none, and a blurred fill skips its background passes for one that does
- *   not need them.
- * @property colorMatrix The clip's own colour chain as the sixteen floats a GL `mat4` uniform
- *   takes, column-major, applied to `vec4(rgb, 1)`. The identity when the chain grades nothing.
- * @property compositionColorMatrix The composition's colour chain, in the same form. The planner
- *   folds a run of colour effects per stage and every backend clamps between the two, so the two
- *   matrices stay apart here rather than being multiplied into one.
- * @property frames How many output slots this clip's span covers on the grid at the resolved rate,
- *   which is zero for a span too short to reach the point half way between two slots. The pipeline
- *   walks exactly this many slots, so progress is measured against what really gets encoded.
- * @property heldFrames How many slots past [frames] this clip holds its last covered frame over. That is the
- * composition's held tail on the last clip that covers a slot, and zero on every other. Each held slot is drawn at the
- * last covered slot's time and written at its own.
- * @property overlays The rasters the clip's own chain composites over it, in chain order. Each one is placed on the
- * clip's frame, so it is drawn inside the clip's quad and cut at its edge.
- */
-internal class RenderedClip(
-  val source: MediaSource,
-  val trimStartUs: Double,
-  val trimEndUs: Double,
-  val firstSlot: Long,
-  val quadHalfW: Float,
-  val quadHalfH: Float,
-  val coverHalfW: Float,
-  val coverHalfH: Float,
-  val hasBars: Boolean,
-  val matrix: FloatArray,
-  val colorMatrix: FloatArray,
-  val compositionColorMatrix: FloatArray,
-  val frames: Long,
-  val heldFrames: Long,
-  val overlays: List<WebGlOverlay>,
-)
-
-/**
- * Everything the pipeline needs that is not per-frame.
- *
- * @property writesVideo Whether the output carries a video track. False for an [AudioSpec.AudioOnly]
- * export, where [clips] is empty, [encoderCodec], [muxCodec] and [container] are null, and the
- * frame geometry, the bitrate and [estimatedFrames] all read zero because nothing is drawn.
- * @property encoderCodec The WebCodecs string [BrowserEncoder] opens its encoder with, or null on a
- * [dev.jordond.filmstrip.export.ExportPath.Transmux] render, which never opens one.
- * @property muxCodec The codec key [BrowserEncoder] hands mediabunny, or null for the same reason.
- * @property container The container [BrowserEncoder] writes, or null for the same reason.
- * [BrowserPassthrough] always writes mp4 regardless of what a copy's source codec would map to.
- * @property audioFormat The format the composition's audio is normalised to, or null when there is
- * none to mix.
- * @property audioTracks Every track of the negotiated composition, video and audio-only alike, for
- * [BrowserAudioMix] to mix. [clips] carries only the primary track's video.
- * @property leadFrames How many output slots the primary track's leading gap fills, which is the slot its start lands
- * on. Each of these slots is the fill alone, and the first clip opens on the slot after the last of them.
- * @property estimatedFrames Every slot the pipeline encodes, [leadFrames] included.
- * @property fill What the compositor fills the frame with where no clip's pixels land.
- * @property hdrTransfer The transfer function the written video carries, or null for SDR or for a
- * render that writes none.
- * @property compositionOverlays The rasters the composition composites over the whole output frame after the fill,
- * bars and gaps included, in chain order.
- * @property compositionGeometryMatrix The texture matrix the composition's own geometry lowers to, the same nine
- * floats a clip's [RenderedClip.matrix] folds in after the clip's own. A clip overlay is drawn through it, so a
- * composition crop or flip moves the overlay with the picture.
- */
-internal class BrowserRender(
-  val writesVideo: Boolean,
-  val clips: List<RenderedClip>,
-  val duration: Duration,
-  val frameRate: Int,
-  val width: Int,
-  val height: Int,
-  val encoderCodec: String?,
-  val muxCodec: String?,
-  val container: String?,
-  val bitrate: Int,
-  val leadFrames: Long,
-  val estimatedFrames: Long,
-  val adjustments: List<Adjustment>,
-  val audioFormat: AudioFormat?,
-  val audioTracks: List<ResolvedTrack>,
-  val fill: Fill,
-  val hdrTransfer: HdrTransfer?,
-  val compositionOverlays: List<WebGlOverlay>,
-  val compositionGeometryMatrix: FloatArray,
-) {
-  /**
-   * How long one output slot runs in microseconds at [frameRate]. Every pass that walks the output frame by frame
-   * steps on by this, and it is the duration each encoded frame carries.
-   */
-  val stepUs: Double = MICROS_PER_SECOND / frameRate
-
-  /**
-   * Where output [slot] sits on the composition timeline in microseconds at [frameRate], read off the shared grid.
-   * This is the timestamp a frame written on that slot carries.
-   */
-  fun slotUs(slot: Long): Double = outputSlotTime(slot, frameRate).toDouble(DurationUnit.MICROSECONDS)
-}
+import dev.jordond.filmstrip.transform.internal.LoweredExport
+import dev.jordond.filmstrip.transform.internal.copy.Mp4Copy
+import dev.jordond.filmstrip.transform.internal.negotiation.Ask
+import dev.jordond.filmstrip.transform.internal.refusedLowering
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.stillUnsupportedMessage
 
 /**
  * Turns a composition into a browser verdict.
@@ -175,9 +32,9 @@ internal class BrowserRender(
  * this backend's own ladder and its own answer to what it can and cannot do injected in.
  *
  * What stays here is what the negotiator does not, and cannot, own: refusals for gaps this backend
- * has that are not policy (no video to draw from an audio-only primary track, no baking a source's
- * container rotation), and the lowering from a [ResolvedComposition]'s platform effect chain onto
- * one quad, one texture matrix and one colour matrix per clip, which is what a single WebGL pass
+ * has that are not policy (no still to decode a video track from, no baking a source's container
+ * rotation), and the lowering from a [ResolvedComposition]'s platform effect chain onto
+ * one quad, one texture matrix and one color matrix per clip, which is what a single WebGL pass
  * draws.
  */
 internal class BrowserPlanner(
@@ -193,84 +50,66 @@ internal class BrowserPlanner(
           "builtInEffects(), or add a resolver that recognises RenderApi.WebGl."
       },
       ladder = BROWSER_LADDER,
-      supportsPassthrough = true,
+      supportsCopy = true,
       // The single WebGL pass has no tone-map stage of its own, so claiming one here would plan a
       // tone map this backend never actually runs.
       canToneMap = false,
       // A copy is only ever muxed into mp4. mediabunny's own writer carries two codecs on top of
-      // what mp4 otherwise takes, so they are added here rather than to the shared baseline.
-      canCopy = { info -> Mp4Copy.accepts(info, alsoVideo = MEDIABUNNY_VIDEO, alsoAudio = MEDIABUNNY_AUDIO) },
+      // what mp4 otherwise takes, and this backend adds them to the shared baseline here.
+      muxerAccepts = { info -> Mp4Copy.accepts(info, alsoVideo = MEDIABUNNY_VIDEO, alsoAudio = MEDIABUNNY_AUDIO) },
       // There is no browser encoder for HEVC Main10, and VP9 Profile 2 is the one HDR profile
       // Chromium was measured to encode.
       hdrLadder = listOf(VideoCodec.Vp9),
     )
 
   /**
-   * @param openings Where a stream copy of each source could open, which is the sync sample at or
-   *   before that clip's cut. The negotiator decides from this whether a copy can reach the cut and
-   *   which window it lays, so nothing downstream reads a source's sync samples again.
-   * @param layoutSize The output frame text is laid out against, for a caller planning a frame
-   *   smaller than the one an export writes. Null lays text out against the frame [spec] settles
-   *   on, which is what an export does.
+   * Negotiates [composition] against [ask] and lowers what it settles on onto a render.
+   *
+   * The negotiator decides from the openings in [ask] whether a copy can reach the cut and which window it lays, so
+   * nothing downstream reads a source's sync samples again.
    */
   internal fun lower(
     composition: EditComposition,
-    spec: ExportSpec,
-    device: DeviceCapabilities,
-    infos: Map<MediaSource, MediaInfo>,
-    openings: Map<MediaSource, Duration> = emptyMap(),
+    ask: Ask,
     dropped: Set<String> = emptySet(),
-    layoutSize: Size? = null,
     opaque: Set<MediaSource> = emptySet(),
-  ): BrowserLowering {
-    unconditionalRefusal(composition, infos)?.let { return it }
+  ): LoweredExport<BrowserRender> {
+    unconditionalRefusal(composition, ask.infos)?.let { return it }
 
-    val export =
-      planner.negotiate(
-        composition = composition,
-        spec = spec,
-        device = device,
-        infos = infos,
-        openings = openings,
-        dropped = dropped,
-        layoutSize = layoutSize,
-      )
+    val export = planner.negotiate(composition, ask, dropped)
     val negotiated =
-      export.composition ?: return opaqueRefusal(opaque) ?: BrowserLowering(export, null)
+      export.composition ?: return opaqueRefusal(opaque) ?: LoweredExport(export, null)
     val writesVideo = negotiated.audio != AudioSpec.AudioOnly
     if (writesVideo && negotiated.path == ExportPath.Transcode) {
-      transcodeOnlyRefusal(composition, infos)?.let { return it }
+      transcodeOnlyRefusal(composition, ask.infos)?.let { return it }
     }
-    return BrowserLowering(export, browserRenderOf(negotiated.toResolvedComposition(), composition))
+    return LoweredExport(export, browserRenderOf(negotiated, composition))
   }
 
   /**
    * Refusals that hold whatever the negotiated path turns out to be, checked before the shared
-   * negotiator ever sees the composition: a still anywhere on the timeline, a second video track,
-   * an audio-only primary track, and a clip past the first with no video track.
+   * negotiator ever sees the composition: a still anywhere on the timeline, and a clip past the
+   * first with no video track. The track shapes no backend lays are the negotiator's to refuse.
    */
   private fun unconditionalRefusal(
     composition: EditComposition,
     infos: Map<MediaSource, MediaInfo>,
-  ): BrowserLowering? {
+  ): LoweredExport<Nothing>? {
     // This backend draws its output by decoding a video track, and a still carries none, so every
     // clip on every track is refused by kind rather than only the ones that reach the negotiator's
     // own checks below. A still on an audio track would otherwise pass those unnoticed and only
     // fail later, as a source the export pipeline cannot open.
     if (composition.tracks.flatMap { it.clips }.any { it.source is MediaSource.Image }) {
-      return incapable(ExportError.SourceNotExportable(stillUnsupportedMessage("browser")))
+      return refusedLowering(FilmstripError.SourceNotExportable(stillUnsupportedMessage("browser")))
     }
 
     val primary = composition.tracks.firstOrNull() ?: return null
-    if (composition.tracks.drop(1).any { it.content != TrackContent.Audio }) return incapable(SECOND_VIDEO_TRACK)
-    if (primary.content == TrackContent.Audio) return incapable(AUDIO_ONLY_UNSUPPORTED)
-
     primary.clips.forEachIndexed { index, clip ->
       val info = infos[clip.source] ?: return@forEachIndexed
       // The negotiator already refuses a missing video track on the first clip by name. Every
       // other clip in this single video track needs the same check.
       if (index > 0 && info.video == null) {
-        return incapable("Clip ${clip.source.describe()} has no video track.")
+        return refusedLowering(FilmstripError.InvalidComposition("Clip ${clip.source.describe()} has no video track."))
       }
     }
     return null
@@ -284,14 +123,16 @@ internal class BrowserPlanner(
   private fun transcodeOnlyRefusal(
     composition: EditComposition,
     infos: Map<MediaSource, MediaInfo>,
-  ): BrowserLowering? {
+  ): LoweredExport<Nothing>? {
     val primary = composition.tracks.firstOrNull() ?: return null
     primary.clips.forEach { clip ->
       val info = infos[clip.source] ?: return@forEach
       if ((info.video?.rotationDegrees ?: 0) != 0) {
-        return incapable(
-          "The source ${clip.source.describe()} carries container rotation, and the browser " +
-            "pipeline does not bake it yet.",
+        return refusedLowering(
+          FilmstripError.InvalidComposition(
+            "The source ${clip.source.describe()} carries container rotation, and the browser " +
+              "pipeline does not bake it yet.",
+          ),
         )
       }
     }
@@ -306,163 +147,18 @@ internal class BrowserPlanner(
    * source is what separates "this browser cannot encode HDR" from "this browser cannot read this
    * clip", which are different things to do something about.
    */
-  private fun opaqueRefusal(opaque: Set<MediaSource>): BrowserLowering? {
+  private fun opaqueRefusal(opaque: Set<MediaSource>): LoweredExport<Nothing>? {
     val source = opaque.firstOrNull() ?: return null
 
-    return incapable(
-      ExportError.SourceNotExportable(
+    return refusedLowering(
+      FilmstripError.SourceNotExportable(
         "The source ${source.describe()} decodes to an opaque frame in this browser, so its " +
           "grade cannot be read. Export to SDR, or leave the clip untouched so its packets can " +
           "be copied across.",
       ),
     )
   }
-
-  private fun incapable(message: String): BrowserLowering = incapable(ExportError.InvalidComposition(message))
-
-  private fun incapable(error: ExportError): BrowserLowering =
-    BrowserLowering(NegotiatedExport(Verdict.Incapable(listOf(error), null), null), null)
-
-  private companion object {
-    const val SECOND_VIDEO_TRACK =
-      "This backend renders video from the primary track only. A second video track needs a " +
-        "compositor, which has not landed here."
-
-    const val AUDIO_ONLY_UNSUPPORTED =
-      "The primary track contributes no video, and this backend draws its output from that track."
-  }
 }
-
-/**
- * The lowering from a resolved composition onto what one WebGL pass draws per clip.
- *
- * A clip's own effects and the composition's, resolved separately by the negotiator, are one
- * combined texture matrix and one combined colour matrix here, because a single pass has no
- * intermediate canvas to apply them on separately. [composition] is the same one negotiation ran
- * against: dropping an unsupported effect's id never changes a clip's trim or its count, so the
- * clip a resolved one was laid from is the one its [ResolvedClip.sourceIndex] names.
- *
- * A [ExportPath.Transmux] render never opens an encoder, and `videoCodec` there is the source's
- * own codec rather than the ladder's pick, which [webCodecString] and [muxCodecKey] refuse to
- * name a WebCodecs string for. [encoderCodec], [muxCodec] and [container] are left null on that
- * path rather than asked for.
- */
-internal fun browserRenderOf(
-  plan: ResolvedComposition,
-  composition: EditComposition,
-): BrowserRender {
-  if (plan.audio == AudioSpec.AudioOnly) return audioOnlyRender(plan)
-
-  val track = composition.tracks.first()
-  val outputSize = plan.output.size
-  val videoCodec = plan.output.videoCodec
-  val encodes = plan.path == ExportPath.Transcode
-  // Always resolved, never left to the container to guess: the negotiator only leaves this null
-  // when a caller builds an OutputFormat by hand, which a resolved composition never does.
-  val frameRate = checkNotNull(plan.output.frameRate)
-
-  val primary = plan.tracks.first()
-  val leadFrames = outputSlotOf(primary.start, frameRate)
-  val slots = primary.clips.map { outputSlotsOf(it.span, frameRate) }
-  // The last covered slot belongs to the last clip that covers any, so a trailing clip too short to cover one leaves
-  // the hold on the clip before it.
-  val holder = slots.indexOfLast { !it.isEmpty() }
-  val heldFrames = plan.heldTail.size
-  // The composition's overlays run after the fill and are drawn on their own, so the passes folded into each clip stop
-  // short of them.
-  val compositionChain = plan.compositionGeometry + plan.effectsUnderFill
-  val clips =
-    primary.clips.mapIndexed { index, resolved ->
-      val raw = track.clips[resolved.sourceIndex]
-      val ownGeometry = (raw.effects + track.effects).inCanonicalOrder()
-      val drawnSize =
-        ownGeometry.fold(resolved.info.video?.displaySize ?: outputSize) { size, spec -> frameAfter(spec, size) }
-      val chain = resolved.effects + compositionChain
-      RenderedClip(
-        source = resolved.source,
-        trimStartUs = resolved.start.microseconds(),
-        // Open ended only where the pass really does read to the source's end. A looping track
-        // cuts its last pass, and that one carries a bound even though the clip it was laid from
-        // was never trimmed.
-        trimEndUs =
-          if (raw.trim?.endExclusive == null && resolved.end >= resolved.info.duration) {
-            OPEN_END
-          } else {
-            resolved.end.microseconds()
-          },
-        firstSlot = slots[index].first,
-        quadHalfW = drawnSize.width * containScale(drawnSize, outputSize) / outputSize.width,
-        quadHalfH = drawnSize.height * containScale(drawnSize, outputSize) / outputSize.height,
-        coverHalfW = drawnSize.width * coverScale(drawnSize, outputSize) / outputSize.width,
-        coverHalfH = drawnSize.height * coverScale(drawnSize, outputSize) / outputSize.height,
-        hasBars = !matchesOutputAspect(drawnSize, outputSize),
-        matrix = chain.matrix(),
-        colorMatrix = resolved.effects.colorMatrix(),
-        compositionColorMatrix = compositionChain.colorMatrix(),
-        frames = slots[index].size,
-        heldFrames = if (index == holder) heldFrames else 0L,
-        overlays = resolved.effects.mapNotNull { it.effect.overlay },
-      )
-    }
-
-  return BrowserRender(
-    writesVideo = true,
-    clips = clips,
-    duration = plan.duration,
-    frameRate = frameRate,
-    width = outputSize.width,
-    height = outputSize.height,
-    encoderCodec = if (encodes) webCodecString(videoCodec, outputSize, plan.hdrTransfer != null) else null,
-    muxCodec = if (encodes) muxCodecKey(videoCodec) else null,
-    container = if (encodes) containerFor(videoCodec, plan.hdrTransfer != null) else null,
-    bitrate =
-      (plan.output.bitrate?.bitsPerSecond ?: DEFAULT_BITRATE)
-        .coerceAtMost(
-          Int.MAX_VALUE.toLong(),
-        ).toInt(),
-    leadFrames = leadFrames,
-    // Summed from the gap and the clips, not the duration, so what progress measures against is
-    // exactly what the pipeline walks.
-    estimatedFrames = leadFrames + clips.sumOf { it.frames + it.heldFrames },
-    adjustments = plan.adjustments,
-    audioFormat = plan.output.audioFormat,
-    audioTracks = plan.tracks,
-    fill = plan.fill,
-    hdrTransfer = plan.hdrTransfer,
-    compositionOverlays = plan.effectsOverFill.mapNotNull { it.effect.overlay },
-    compositionGeometryMatrix = compositionChain.matrix(),
-  )
-}
-
-/**
- * The lowering for a composition that writes audio and no video.
- *
- * The mix reads the tracks, the audio format and the duration. Nothing else is asked for: no clip
- * is drawn, no encoder is opened, and the output frame the negotiator resolved describes a track
- * that never gets written.
- */
-private fun audioOnlyRender(plan: ResolvedComposition): BrowserRender =
-  BrowserRender(
-    writesVideo = false,
-    clips = emptyList(),
-    duration = plan.duration,
-    frameRate = 0,
-    width = 0,
-    height = 0,
-    encoderCodec = null,
-    muxCodec = null,
-    container = null,
-    bitrate = 0,
-    leadFrames = 0,
-    estimatedFrames = 0,
-    adjustments = plan.adjustments,
-    audioFormat = plan.output.audioFormat,
-    audioTracks = plan.tracks,
-    fill = plan.fill,
-    hdrTransfer = null,
-    compositionOverlays = emptyList(),
-    compositionGeometryMatrix = IDENTITY.copyOf(),
-  )
 
 /**
  * The order this backend tries video codecs in, most preferred first. VP9 is a browser encode
@@ -470,11 +166,6 @@ private fun audioOnlyRender(plan: ResolvedComposition): BrowserRender =
  * Chrome, so it goes last.
  */
 internal val BROWSER_LADDER: List<VideoCodec> = listOf(VideoCodec.H264, VideoCodec.Vp9, VideoCodec.Hevc)
-
-private const val DEFAULT_BITRATE = 8_000_000L
-
-// The pipeline reads this as "to the end of the track", never as a timestamp.
-private val OPEN_END = Double.POSITIVE_INFINITY
 
 /**
  * The ids this backend's built-in resolvers realise exactly. Shared with [ExportPlanner], so
@@ -500,49 +191,6 @@ internal fun browserParityOf(specId: String): EffectParity? =
     else -> null
   }
 
-private fun List<ResolvedEffect>.matrix(): FloatArray =
-  fold(IDENTITY.copyOf()) { combined, resolved ->
-    multiply(
-      combined,
-      resolved.effect.pass.uniforms[TEX_MATRIX_UNIFORM]
-        ?.copyOf() ?: IDENTITY.copyOf(),
-    )
-  }
-
-// Composed through the shared fold, so what a stage's passes come to here is the matrix the planner
-// would have made had it folded them itself. A pass this backend did not write is free to spell a
-// uniform of that name any way it likes, and one that is not a mat4 is left out rather than failing
-// the plan.
-private fun List<ResolvedEffect>.colorMatrix(): FloatArray =
-  fold(ColorMatrix.Identity) { combined, resolved ->
-    val columns = resolved.effect.pass.uniforms[COLOR_MATRIX_UNIFORM] ?: return@fold combined
-    colorMatrixOfColumnMajor4x4OrNull(columns)?.let { combined.then(it) } ?: combined
-  }.toColumnMajor4x4()
-
-private fun multiply(
-  left: FloatArray,
-  right: FloatArray,
-): FloatArray {
-  val out = FloatArray(9)
-  for (c in 0 until 3) {
-    for (r in 0 until 3) {
-      var sum = 0f
-      for (k in 0 until 3) sum += left[k * 3 + r] * right[c * 3 + k]
-      out[c * 3 + r] = sum
-    }
-  }
-  return out
-}
-
-/**
- * Whether [drawnSize] and [outputSize] share an aspect ratio exactly, checked as a cross
- * multiplication so no rounding in [containScale] or [coverScale] can flip the answer.
- */
-private fun matchesOutputAspect(
-  drawnSize: Size,
-  outputSize: Size,
-): Boolean = drawnSize.width.toLong() * outputSize.height == drawnSize.height.toLong() * outputSize.width
-
 /**
  * What the browser pipeline renders on this page, whatever size the composition is written at.
  *
@@ -562,20 +210,6 @@ internal fun renderCapabilities(encodesHdr: Boolean): RenderCapabilities =
     features = setOf(RenderFeature.ExternalTexture, RenderFeature.TextRendering),
   )
 
-private val LongRange.size: Long get() = if (isEmpty()) 0 else last - first + 1
-
-/**
- * WebCodecs timestamps are microseconds, as a double.
- */
-private fun Duration.microseconds(): Double = toDouble(DurationUnit.MICROSECONDS)
-
-private val IDENTITY = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f)
-
 // What mediabunny's mp4 muxer, which every copy is pinned to, will take as-is, without an encoder.
 private val MEDIABUNNY_VIDEO = setOf(CodecKind.Vp8)
 private val MEDIABUNNY_AUDIO = setOf(CodecKind.Vorbis)
-
-// The uniform names the built-in browser resolver writes. They are private there, so the names are
-// spelled out here and any resolver emitting the same names composes the same way.
-private const val TEX_MATRIX_UNIFORM = "uTexMatrix"
-private const val COLOR_MATRIX_UNIFORM = "uColorMatrix"

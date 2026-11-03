@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.time.Duration
 
 /**
  * Composite an image over the video.
@@ -17,9 +18,9 @@ import kotlin.math.roundToInt
  * an overlay lands in the same place at any preview or export resolution. That frame is the clip's
  * frame for an overlay added to a clip, and the output frame for one added to the composition.
  *
- * The picture is drawn in the colour its file describes, through an embedded ICC profile, CICP or
- * PNG's own colour chunks, and an untagged picture is read as sRGB. SDR output clips a tagged
- * picture's colours to BT.709, and an HDR grade keeps them inside BT.2020. A platform decoder that
+ * The picture is drawn in the color its file describes, through an embedded ICC profile, CICP or
+ * PNG's own color chunks, and an untagged picture is read as sRGB. SDR output clips a tagged
+ * picture's colors to BT.709, and an HDR grade keeps them inside BT.2020. A platform decoder that
  * cannot land the picture that way resolves the overlay as degraded or unsupported, naming why.
  *
  * @property image The image to composite.
@@ -72,6 +73,21 @@ public fun EffectsBuilder.imageOverlay(
   visibleDuring: TimeRange? = null,
   animation: OverlayAnimation? = null,
 ): EffectsBuilder = add(ImageOverlay(image, corner, margin, scale, opacity, visibleDuring, animation))
+
+/**
+ * Composite [image] into [corner], visible only during [at].
+ *
+ * Sized and inset the same way as the overload that takes a [TimeRange].
+ */
+public fun EffectsBuilder.imageOverlay(
+  image: ImageSource,
+  corner: Corner,
+  at: ClosedRange<Duration>,
+  margin: Float = ImageOverlay.DEFAULT_MARGIN,
+  scale: Float = ImageOverlay.DEFAULT_SCALE,
+  opacity: Float = 1f,
+  animation: OverlayAnimation? = null,
+): EffectsBuilder = add(ImageOverlay(image, corner, margin, scale, opacity, TimeRange(at), animation))
 
 /**
  * Resolves this overlay against the frame it is composited onto.

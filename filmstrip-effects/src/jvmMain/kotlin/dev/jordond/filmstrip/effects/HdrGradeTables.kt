@@ -1,37 +1,37 @@
 package dev.jordond.filmstrip.effects
 
+import dev.jordond.filmstrip.color.BT2020_CHROMA_SHIFT
+import dev.jordond.filmstrip.color.BT2020_DECODE_ROWS
+import dev.jordond.filmstrip.color.BT2020_ENCODE_ROWS
+import dev.jordond.filmstrip.color.SIXTEEN_BIT_MAX
+import dev.jordond.filmstrip.color.TEN_BIT_CHROMA_MID
+import dev.jordond.filmstrip.color.TEN_BIT_CHROMA_RANGE
+import dev.jordond.filmstrip.color.TEN_BIT_LUMA_FLOOR
+import dev.jordond.filmstrip.color.TEN_BIT_LUMA_RANGE
+import dev.jordond.filmstrip.color.TEN_BIT_MAX_CODE
+import dev.jordond.filmstrip.color.TEN_TO_SIXTEEN_BITS
+import dev.jordond.filmstrip.color.hlgDisplayNitsFromSignal
+import dev.jordond.filmstrip.color.hlgSignalFromDisplayNits
+import dev.jordond.filmstrip.color.nitsFromPqSignal
+import dev.jordond.filmstrip.color.nitsFromSdrSignal
+import dev.jordond.filmstrip.color.peakNits
+import dev.jordond.filmstrip.color.pqSignalFromNits
+import dev.jordond.filmstrip.color.sceneFromHlgSignal
+import dev.jordond.filmstrip.color.sdrSignalCeiling
+import dev.jordond.filmstrip.color.sdrSignalCeilingDouble
+import dev.jordond.filmstrip.color.sdrSignalFromNits
 import dev.jordond.filmstrip.effect.PlaneLanes
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.effects.color.ColorMatrix
 import dev.jordond.filmstrip.effects.color.isDiagonal
-import dev.jordond.filmstrip.media.BT2020_CHROMA_SHIFT
-import dev.jordond.filmstrip.media.BT2020_DECODE_ROWS
-import dev.jordond.filmstrip.media.BT2020_ENCODE_ROWS
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.SIXTEEN_BIT_MAX
-import dev.jordond.filmstrip.media.TEN_BIT_CHROMA_MID
-import dev.jordond.filmstrip.media.TEN_BIT_CHROMA_RANGE
-import dev.jordond.filmstrip.media.TEN_BIT_LUMA_FLOOR
-import dev.jordond.filmstrip.media.TEN_BIT_LUMA_RANGE
-import dev.jordond.filmstrip.media.TEN_BIT_MAX_CODE
-import dev.jordond.filmstrip.media.TEN_TO_SIXTEEN_BITS
-import dev.jordond.filmstrip.media.hlgDisplayNitsFromSignal
-import dev.jordond.filmstrip.media.hlgSignalFromDisplayNits
-import dev.jordond.filmstrip.media.nitsFromPqSignal
-import dev.jordond.filmstrip.media.nitsFromSdrSignal
-import dev.jordond.filmstrip.media.peakNits
-import dev.jordond.filmstrip.media.pqSignalFromNits
-import dev.jordond.filmstrip.media.sceneFromHlgSignal
-import dev.jordond.filmstrip.media.sdrSignalCeiling
-import dev.jordond.filmstrip.media.sdrSignalCeilingDouble
-import dev.jordond.filmstrip.media.sdrSignalFromNits
 import java.util.Formatter
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
-// The tables and mixer rows a colour effect or an overlay on a kept HDR grade runs through. Every entry is worked out
+// The tables and mixer rows a color effect or an overlay on a kept HDR grade runs through. Every entry is worked out
 // here in double from core's BT.2020 rows, constants and transfer functions, and ffmpeg holds it as a float.
 
 /**
@@ -82,7 +82,7 @@ internal class PlaneMix(
 }
 
 /**
- * The tables one colour [matrix] on a [transfer] grade runs through, in the order the graph runs them.
+ * The tables one color [matrix] on a [transfer] grade runs through, in the order the graph runs them.
  *
  * The grade's planes hold its codes as sixteen-bit fractions, luma on green, Cb on blue and Cr on red. [CODE_CENTRES]
  * takes each code to its distance from black or the chroma middle, and [DECODE_ROWS] mixes those into the R'G'B'
@@ -230,7 +230,7 @@ internal class HdrGradeTables(
      * The warp a signal goes through ahead of [lightCurve], on either transfer.
      *
      * Light climbs steeply off black on both, PQ's from its black level and HLG's as the square of the signal, so this
-     * is the warp a PQ signal takes ahead of a colour effect's curve too.
+     * is the warp a PQ signal takes ahead of a color effect's curve too.
      */
     val LIGHT_WARP: LutTable get() = DECODE_WARP_TABLE
 

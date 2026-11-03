@@ -11,6 +11,9 @@ import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.ImageSource
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import java.awt.Color
 import java.awt.image.BufferedImage
 import java.io.File
@@ -18,8 +21,6 @@ import java.nio.file.Files
 import javax.imageio.ImageIO
 import kotlin.test.AfterTest
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -45,7 +46,7 @@ class OverlayHeaderTest {
 
     val resolution = resolve(ImageSource.ofUri("file://${file.parent}/my%20logo.png"))
 
-    assertIs<EffectResolution.Resolved>(resolution)
+    resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
   }
 
   // The picker spells a name the JVM writes as %C3%A9, and the file on disk carries the character
@@ -56,14 +57,14 @@ class OverlayHeaderTest {
 
     val resolution = resolve(ImageSource.ofUri(file.toURI().toString()))
 
-    assertIs<EffectResolution.Resolved>(resolution)
+    resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
   }
 
   @Test
   fun `sizes an animated overlay named by a plain path`() {
     val file = writePng("plain.png")
 
-    assertIs<EffectResolution.Resolved>(resolve(ImageSource.of(file.path)))
+    resolve(ImageSource.of(file.path)).shouldBeInstanceOf<EffectResolution.Resolved>()
   }
 
   // Reading the encoding literally opens a file that is not there, and this backend has nothing to
@@ -72,8 +73,8 @@ class OverlayHeaderTest {
   fun `refuses an animated overlay whose file uri names nothing`() {
     val resolution = resolve(ImageSource.ofUri("file://$directory/no%20such%20logo.png"))
 
-    assertIs<EffectResolution.Unsupported>(resolution)
-    assertTrue(resolution.message.contains("header"), resolution.message)
+    resolution.shouldBeInstanceOf<EffectResolution.Unsupported>()
+    withClue(resolution.message) { resolution.message.contains("header") shouldBe true }
   }
 
   // The JVM has no content resolver, so a scheme it cannot open is refused the same way an
@@ -82,8 +83,8 @@ class OverlayHeaderTest {
   fun `refuses an animated overlay named by a uri this platform cannot open`() {
     val resolution = resolve(ImageSource.ofUri("content://media/external/images/1"))
 
-    assertIs<EffectResolution.Unsupported>(resolution)
-    assertTrue(resolution.message.contains("header"), resolution.message)
+    resolution.shouldBeInstanceOf<EffectResolution.Unsupported>()
+    withClue(resolution.message) { resolution.message.contains("header") shouldBe true }
   }
 
   private fun writePng(name: String): File {

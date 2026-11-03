@@ -6,14 +6,14 @@ import dev.jordond.filmstrip.media.ColorSpace
 /**
  * What the platform can actually render, on this device, right now.
  *
- * Handed to every [EffectResolver] so a resolver advertises against real capability rather than an
- * assumed platform floor. Constructed by filmstrip only.
+ * Handed to every [EffectResolver], which advertises what it can resolve against it. Constructed by
+ * filmstrip only.
  *
  * @property api Which rendering API is behind the pipeline.
  * @property supportsFragmentShader True when fragment shaders can run here.
  * @property supportsComputeShader True when compute shaders can run here.
  * @property supportsHdr True when HDR can be rendered without tone-mapping.
- * @property colorSpaces The colour spaces this device can render into.
+ * @property colorSpaces The color spaces this device can render into.
  * @property maxTextureSize The longest texture edge the pipeline accepts, in pixels.
  * @property features The additive capabilities present here.
  */

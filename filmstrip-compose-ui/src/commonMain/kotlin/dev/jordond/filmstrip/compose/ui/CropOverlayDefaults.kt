@@ -4,12 +4,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.compose.ui.interaction.CropConstraint
+import dev.jordond.filmstrip.compose.ui.interaction.DEFAULT_CROP_MIN_HEIGHT
+import dev.jordond.filmstrip.compose.ui.interaction.DEFAULT_CROP_MIN_WIDTH
+import dev.jordond.filmstrip.compose.ui.interaction.DefaultCropConstraint
 
 /**
- * The sizes, colours and constraint a crop overlay falls back to.
+ * The sizes, colors and constraint a crop overlay falls back to.
  *
- * The palette is neutral and self-contained rather than themed, because this module draws with foundation alone. A
- * themed host passes its own colours to [colors] at the one call site that builds the overlay.
+ * The palette is neutral and reads no theme. A themed host passes its own colors to [colors] at the one call site that
+ * builds the overlay.
  */
 public object CropOverlayDefaults {
   /**
@@ -25,25 +28,25 @@ public object CropOverlayDefaults {
   /**
    * The palette an overlay draws with unless a host passes its own.
    *
-   * A single instance rather than a call to [colors], so a component falling back to it allocates nothing on the
-   * recompositions a drag runs through.
+   * Built once from [colors] and shared by every overlay that falls back to it, across every recomposition a drag runs
+   * through.
    */
   public val Palette: CropColors = colors()
 
   /**
    * How narrow a crop may get by default, as a fraction of the frame.
    */
-  public val MinWidth: Float = 0.1f
+  public val MinWidth: Float = DEFAULT_CROP_MIN_WIDTH
 
   /**
    * How short a crop may get by default, as a fraction of the frame.
    */
-  public val MinHeight: Float = 0.1f
+  public val MinHeight: Float = DEFAULT_CROP_MIN_HEIGHT
 
   /**
    * What a crop gesture may produce unless a caller says otherwise.
    */
-  public val Constraint: CropConstraint = CropConstraint.Free(MinWidth, MinHeight)
+  public val Constraint: CropConstraint = DefaultCropConstraint
 
   /**
    * A neutral palette, and the one thing to override for a themed host.

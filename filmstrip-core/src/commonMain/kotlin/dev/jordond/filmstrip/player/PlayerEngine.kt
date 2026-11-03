@@ -3,9 +3,8 @@ package dev.jordond.filmstrip.player
 import androidx.compose.runtime.Immutable
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.Cancellable
-import dev.jordond.filmstrip.ComponentRegistry
+import dev.jordond.filmstrip.FilmstripComponents
 import dev.jordond.filmstrip.edit.EditComposition
-import dev.jordond.filmstrip.edit.TimeRange
 import kotlin.time.Duration
 
 /**
@@ -15,14 +14,14 @@ import kotlin.time.Duration
  * Swift, and register it with a [PlayerEngineFactory]. Consumers use [VideoPlayer], which is the
  * facade built on top of this.
  */
-public interface PlayerEngine {
+public interface PlayerEngine : PlayerTransport {
   /**
    * A stable identifier for diagnostics, such as `filmstrip.exoplayer`.
    */
   public val id: String
 
   /**
-   * What this engine can do on this device, discovered rather than assumed.
+   * What this engine can do, as it finds it on this device.
    */
   public val features: PlayerFeatures
 
@@ -62,77 +61,6 @@ public interface PlayerEngine {
   public fun addListener(listener: EngineListener): Cancellable
 
   /**
-   * Starts playback, or resumes it.
-   */
-  public fun play()
-
-  /**
-   * Pauses playback, holding the current position.
-   */
-  public fun pause()
-
-  /**
-   * Seeks to [position].
-   *
-   * Every issued seek must eventually yield exactly one completion, real or synthesised, or an
-   * unseekable source wedges the caller's scrubber.
-   *
-   * Completes with [PlaybackEvent.SeekCompleted] carrying the frame it landed on, which is the output slot nearest
-   * [position] on an exact seek, or the slot of the sync sample the platform settled on for a relaxed one.
-   *
-   * @param accuracy How exact the landing frame has to be.
-   */
-  public fun seekTo(
-    position: Duration,
-    accuracy: SeekAccuracy,
-  )
-
-  /**
-   * Steps by whole frames, forwards for a positive count and backwards for a negative one.
-   */
-  public fun stepFrames(frames: Int)
-
-  /**
-   * Enters scrubbing mode, where the engine may relax seek accuracy to keep up with a finger.
-   */
-  public fun beginScrub()
-
-  /**
-   * Leaves scrubbing mode and settles on an exact frame.
-   */
-  public fun endScrub()
-
-  /**
-   * Sets monitor volume in `0f..1f`.
-   *
-   * Requires [PlayerFeature.AudioMonitoring]. Monitor volume only, it does not reach the export.
-   * All gain that should end up in the file belongs in the composition's audio spec.
-   */
-  public fun setVolume(volume: Float)
-
-  /**
-   * Loops within [range], or plays straight through when null.
-   *
-   * Playback that passes the range's last frame wraps to the output slot its start lands on and reports
-   * [PlaybackEvent.RangeLooped]. When the composition ends inside the range, playback wraps at that end instead of
-   * stopping and reports no [PlaybackEvent.Ended]. That covers a range with no end, one ending exactly on the
-   * composition's duration, and one ending past it, whose end is held to the duration. A range that starts at or past
-   * the composition's end has nothing to loop, so playback runs to the end and reports [PlaybackEvent.Ended] as though
-   * no range were set. The playhead reports the slot a wrap lands on.
-   */
-  public fun setLoopRange(range: TimeRange?)
-
-  /**
-   * Restricts playback to [range], or to the whole composition when null.
-   */
-  public fun setPlaybackRange(range: TimeRange?)
-
-  /**
-   * Sets how hard the preview may work.
-   */
-  public fun setQualityPolicy(policy: PreviewQualityPolicy)
-
-  /**
    * Releases every resource. Idempotent, and nothing may be called afterwards.
    */
   public fun dispose()
@@ -141,7 +69,8 @@ public interface PlayerEngine {
 /**
  * Builds a [PlayerEngine], or declines.
  *
- * Factories are asked in registration order, and registration is always explicit.
+ * Factories are asked newest registration first, so one registered later overrides one registered
+ * earlier. Registration is always explicit.
  */
 public fun interface PlayerEngineFactory {
   /**
@@ -154,7 +83,7 @@ public fun interface PlayerEngineFactory {
    */
   public fun create(
     config: PlayerConfig,
-    components: ComponentRegistry,
+    components: FilmstripComponents,
   ): PlayerEngine?
 }
 

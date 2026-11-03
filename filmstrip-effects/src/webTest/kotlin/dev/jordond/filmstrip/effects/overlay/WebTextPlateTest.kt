@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.OverlaySource
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
@@ -12,31 +11,30 @@ import dev.jordond.filmstrip.test.greySignal
 import dev.jordond.filmstrip.test.sampleOfCode
 import dev.jordond.filmstrip.test.straightSampleTolerance
 import dev.jordond.filmstrip.test.straightSignalTolerance
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
  * How the browser's text raster stores a translucent plate.
  *
- * The raster lays the plate's straight colour into sixteen-bit samples, so every plate is read against the
- * [straightSampleTolerance] bound at colour equal to its alpha and at colour apart from it. An eight-bit canvas, the
- * store the raster drew to before, is read the same way and falls outside it at colour apart from its alpha.
+ * The raster lays the plate's straight color into sixteen-bit samples, so every plate is read against the
+ * [straightSampleTolerance] bound at color equal to its alpha and at color apart from it. An eight-bit canvas, the
+ * store the raster drew to before, is read the same way and falls outside it at color apart from its alpha.
  */
-@OptIn(InternalFilmstripApi::class, ExperimentalWasmJsInterop::class)
+@OptIn(ExperimentalWasmJsInterop::class)
 class WebTextPlateTest {
   @Test
-  fun aTranslucentPlateStoresItsAuthoredStraightColour() {
+  fun aTranslucentPlateStoresItsAuthoredStraightColor() {
     for (plate in PLAN_PLATES) assertStoredStraight(plate)
   }
 
   @Test
-  fun greyPlatesAcrossTheRangeStoreTheirAuthoredStraightColour() {
+  fun greyPlatesAcrossTheRangeStoreTheirAuthoredStraightColor() {
     val alphas = SWEEP_STEP..BYTE step SWEEP_STEP
     val plates = (0..BYTE step SWEEP_STEP).flatMap { code -> alphas.map { greyAt(code, it) } }
 
@@ -44,7 +42,7 @@ class WebTextPlateTest {
   }
 
   @Test
-  fun aTranslucentPlateKeepsItsColoursSignalOnAnHdrFrame() {
+  fun aTranslucentPlateKeepsItsColorsSignalOnAnHdrFrame() {
     for (plate in PLAN_PLATES) {
       val raster = drawnText("H", TextStyle(color = GREY, backgroundColor = plate), FRAME)
       val code = codeOf(plate, RED_SHIFT)
@@ -55,7 +53,9 @@ class WebTextPlateTest {
         val moved = signalMoved(code, stored, transfer)
         val bound = straightSignalTolerance(alpha, code, transfer)
 
-        assertTrue(moved <= bound, "the $transfer ${plate.hex()} plate stored $stored and moved $moved past $bound")
+        withClue("the $transfer ${plate.hex()} plate stored $stored and moved $moved past $bound") {
+          (moved <= bound) shouldBe true
+        }
       }
     }
   }
@@ -69,7 +69,9 @@ class WebTextPlateTest {
       val authored = sampleOfCode(codeOf(plate, RED_SHIFT))
       val bound = straightSampleTolerance(codeOf(plate, ALPHA_SHIFT))
 
-      assertTrue(abs(read - authored) > bound, "the ${plate.hex()} plate read $read on eight bits, inside $bound")
+      withClue("the ${plate.hex()} plate read $read on eight bits, inside $bound") {
+        (abs(read - authored) > bound) shouldBe true
+      }
     }
   }
 
@@ -83,7 +85,9 @@ class WebTextPlateTest {
         val moved = signalMoved(code, read, transfer)
         val bound = straightSignalTolerance(codeOf(plate, ALPHA_SHIFT), code, transfer)
 
-        assertTrue(moved > bound, "the $transfer ${plate.hex()} plate moved $moved on eight bits, inside $bound")
+        withClue("the $transfer ${plate.hex()} plate moved $moved on eight bits, inside $bound") {
+          (moved > bound) shouldBe true
+        }
       }
     }
   }
@@ -93,7 +97,7 @@ class WebTextPlateTest {
     val raster = drawnText("H", TextStyle(fontSize = BIG, color = withAlpha(GREY, HALF)), FRAME)
 
     val alphas = (raster.samples.indices step CHANNELS).map { raster.samples[it + ALPHA].toInt() and SAMPLE_MASK }
-    assertEquals(sampleOfCode(HALF), alphas.max(), "the most covered texel of half alpha text")
+    withClue("the most covered texel of half alpha text") { alphas.max() shouldBe sampleOfCode(HALF) }
   }
 
   @Test
@@ -103,12 +107,12 @@ class WebTextPlateTest {
 
     val resolved = BuiltInEffectResolver().resolve(TextOverlay("H", style), TEXT_CAPABILITIES, TEXT_ATTRIBUTES)
 
-    val overlay = assertNotNull(assertIs<EffectResolution.Resolved>(resolved).effect.overlay)
-    assertEquals(raster.size, overlay.size)
-    assertContentEquals(raster.samples, assertIs<OverlaySource.Samples>(overlay.source).samples)
+    val overlay = (resolved.shouldBeInstanceOf<EffectResolution.Resolved>().effect.overlay).shouldNotBeNull()
+    overlay.size shouldBe raster.size
+    overlay.source.shouldBeInstanceOf<OverlaySource.Samples>().samples shouldBe raster.samples
   }
 
-  // The colour may land one sample over its alpha off, and the alpha is laid exactly so it lands within one sample.
+  // The color may land one sample over its alpha off, and the alpha is laid exactly so it lands within one sample.
   private fun assertStoredStraight(plate: Int) {
     val raster = drawnText("H", TextStyle(color = GREY, backgroundColor = plate), FRAME)
     val alpha = codeOf(plate, ALPHA_SHIFT)
@@ -119,10 +123,9 @@ class WebTextPlateTest {
       authored.indices.map { channel ->
         straightSampleTolerance(if (channel == ALPHA) OPAQUE else alpha)
       }
-    assertTrue(
-      corner.indices.all { abs(corner[it] - authored[it]) <= tolerances[it] },
-      "the ${plate.hex()} plate's corner stored $corner and was authored as $authored, within $tolerances",
-    )
+    withClue("the ${plate.hex()} plate's corner stored $corner and was authored as $authored, within $tolerances") {
+      corner.indices.all { abs(corner[it] - authored[it]) <= tolerances[it] } shouldBe true
+    }
   }
 
   private fun signalMoved(
@@ -137,7 +140,7 @@ class WebTextPlateTest {
 
   // The red of a grey plate filled on an eight-bit canvas and read back, widened to its sample.
   private fun eightBitCanvasRead(plate: Int): Int {
-    val context = assertNotNull(OffscreenCanvas(1, 1).getContext(CONTEXT_2D))
+    val context = OffscreenCanvas(1, 1).getContext(CONTEXT_2D).shouldNotBeNull()
     val code = codeOf(plate, RED_SHIFT)
     context.fillStyle = "rgba($code, $code, $code, ${codeOf(plate, ALPHA_SHIFT) / FULL})"
     context.fillRect(0.0, 0.0, 1.0, 1.0)
@@ -178,15 +181,15 @@ class WebTextPlateTest {
 
     const val GREY = 0xFF808080.toInt()
 
-    // Colour equal to alpha, and colour apart from it so a swapped channel reads off.
+    // Color equal to alpha, and color apart from it so a swapped channel reads off.
     val PLAN_PLATES = listOf(0x80808080.toInt(), 0x40C8C8C8)
 
-    // Chrome's eight-bit canvas stores colour 0x80 at alpha 0x80 as 64 and divides it back to 0x80 exactly, so only the
-    // colour apart from its alpha tells that store from a sixteen-bit one.
+    // Chrome's eight-bit canvas stores color 0x80 at alpha 0x80 as 64 and divides it back to 0x80 exactly, so only the
+    // color apart from its alpha tells that store from a sixteen-bit one.
     val EIGHT_BIT_MISSES = listOf(0x40C8C8C8)
 
-    // Every seventeenth code, so the sweep takes sixteen colours from 0 to 255 and fifteen alphas from 17 to 255. An
-    // alpha of 0 leaves no colour to store.
+    // Every seventeenth code, so the sweep takes sixteen colors from 0 to 255 and fifteen alphas from 17 to 255. An
+    // alpha of 0 leaves no color to store.
     const val SWEEP_STEP = 17
 
     const val HALF = 0x80
@@ -206,15 +209,3 @@ class WebTextPlateTest {
     val SHIFTS = listOf(RED_SHIFT, GREEN_SHIFT, 0, ALPHA_SHIFT)
   }
 }
-
-/**
- * Draws [text] the way [rasterizeText] does and fails unless it is drawn.
- *
- * The texture side is [TEXT_CAPABILITIES]'s unless a test lifts it.
- */
-internal fun drawnText(
-  text: String,
-  style: TextStyle,
-  frame: Size,
-  maxSide: Int = TEXT_CAPABILITIES.maxTextureSize,
-): LaidOutText = assertIs<TextRaster.Drawn<LaidOutText>>(rasterizeText(text, style, frame, maxSide)).pixels

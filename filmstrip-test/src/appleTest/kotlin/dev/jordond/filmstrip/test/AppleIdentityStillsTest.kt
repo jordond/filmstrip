@@ -1,8 +1,9 @@
 package dev.jordond.filmstrip.test
 
-import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.media.RestatedColour
-import dev.jordond.filmstrip.media.heifWithRestatedColour
+import dev.jordond.filmstrip.picture.heif.RestatedColor
+import dev.jordond.filmstrip.picture.heif.heifWithRestatedColor
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -28,7 +29,6 @@ import platform.ImageIO.CGImageSourceCreateImageAtIndex
 import platform.ImageIO.CGImageSourceCreateWithData
 import platform.ImageIO.CGImageSourceGetPrimaryImageIndex
 import kotlin.test.Test
-import kotlin.test.assertTrue
 
 /**
  * Holds the measurement [AppleStillSamples.evaluated] rests on, against ImageIO itself. Every 4:4:4 HEIC at eight and
@@ -36,7 +36,7 @@ import kotlin.test.assertTrue
  * identity matrix at full range in its codestream and `nclx`, and ImageIO hands its stored samples back as they are,
  * the red difference as red, luma as green and the blue difference as blue.
  */
-@OptIn(InternalFilmstripApi::class, ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class)
 class AppleIdentityStillsTest {
   @Test
   fun imageIoHandsOutTheStoredSamplesOfAStillRestatedToIdentityAtFullRange() {
@@ -48,7 +48,7 @@ class AppleIdentityStillsTest {
             Triple("eight-bit $nclx", HeicIdentityPictures.bytes(nclx), HeicIdentityPictures.YCBCR),
             Triple("ten-bit $nclx", HeicIdentityPictures.tenBitBytes(nclx), HeicIdentityPictures.TEN_BIT_YCBCR),
           ).mapNotNull { (name, bytes, ycbcr) ->
-            val identity = heifWithRestatedColour(bytes) { _, _, _ -> RestatedColour(0, 1, true, nclx = true) }.restated
+            val identity = heifWithRestatedColor(bytes) { _, _, _ -> RestatedColor(0, 1, true, nclx = true) }.restated
             val read = storedCentre(identity)
             val expected = listOf(ycbcr[2], ycbcr[0], ycbcr[1])
             if (read == expected) null else "the $name HEIC handed out $read, where it stores $expected"
@@ -57,7 +57,7 @@ class AppleIdentityStillsTest {
       }
 
     val build = NSProcessInfo.processInfo.operatingSystemVersionString + if (isSimulator()) " simulator" else ""
-    assertTrue(misses.isEmpty(), "Misses on $build:\n${misses.joinToString("\n")}")
+    withClue("Misses on $build:\n${misses.joinToString("\n")}") { misses.isEmpty() shouldBe true }
   }
 
   // Red, green and blue at the centre of the bitmap ImageIO decodes bytes to, eight-bit RGBX or ten-bit RGB packed

@@ -1,7 +1,7 @@
-"""Builds colr-glyphs.ttf, the colour font the browser text tests draw.
+"""Builds colr-glyphs.ttf, the color font the browser text tests draw.
 
 "A" is a square with its left half red and its right half blue. "B" is a square with its top half green and its
-bottom half yellow. Each half is its own COLRv0 layer, so the inside of each glyph holds one palette colour and only
+bottom half yellow. Each half is its own COLRv0 layer, so the inside of each glyph holds one palette color and only
 its edges are shaded.
 
 Run it with fonttools installed, from any directory: python3 colr-glyphs.py. The timestamps are pinned, so the same

@@ -1,23 +1,22 @@
 package dev.jordond.filmstrip.effects
 
+import dev.jordond.filmstrip.color.pictureSrgbCodes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayOffset
 import dev.jordond.filmstrip.effects.overlay.slideIn
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.pictureColour
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.pictureSrgbCodes
+import dev.jordond.filmstrip.picture.pictureColor
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import java.awt.image.BufferedImage
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNull
-import kotlin.test.assertSame
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -29,7 +28,7 @@ class OverlayPictureReadTest {
   fun `an untagged PNG reaches an SDR graph as the bytes it was given`() {
     val spec = overlayOf(pngOf(rgbOf(TEXELS)))
 
-    assertSame(spec.image, auxImage(spec, null))
+    auxImage(spec, null) shouldBeSameInstanceAs spec.image
   }
 
   // The linear profile shares sRGB's primaries and drops its curve, so every mid tone moves when the profile is
@@ -37,15 +36,14 @@ class OverlayPictureReadTest {
   @Test
   fun `a tagged PNG reaches an SDR graph as an untagged PNG of the codes its profile gives`() {
     val png = tagged(pngOf(rgbOf(TEXELS)), LINEAR)
-    val expected = pictureSrgbCodes(pictureColour(png), TEXELS)
+    val expected = pictureSrgbCodes(pictureColor(png), TEXELS)
 
-    val drawn = assertIs<ImageSource.Bytes>(auxImage(overlayOf(png), null))
-    assertNull(pictureColour(drawn.bytes), "the PNG handed to the graph still describes its colour")
-    assertContentEquals(expected, argbOf(drawn.bytes))
-    assertTrue(
-      TEXELS.indices.any { channelGap(TEXELS[it], expected[it]) > MID_TONE_MOVE },
-      "the linear profile moves no texel, so this cannot tell a tagged read from an untagged one",
-    )
+    val drawn = auxImage(overlayOf(png), null).shouldBeInstanceOf<ImageSource.Bytes>()
+    withClue("the PNG handed to the graph still describes its color") { pictureColor(drawn.bytes).shouldBeNull() }
+    argbOf(drawn.bytes) shouldBe expected
+    withClue("the linear profile moves no texel, so this cannot tell a tagged read from an untagged one") {
+      TEXELS.indices.any { channelGap(TEXELS[it], expected[it]) > MID_TONE_MOVE } shouldBe true
+    }
   }
 
   @Test
@@ -54,87 +52,83 @@ class OverlayPictureReadTest {
     for (transfer in HdrTransfer.entries) {
       val raster = mappedRaster(png, transfer)
       TEXELS.indices.forEach { x ->
-        assertContentEquals(
-          signalOf(LINEAR_COLOUR, TEXELS[x], transfer),
-          raster.getPixel(x, 0, IntArray(4)),
-          "$transfer $x",
-        )
+        withClue("$transfer $x") {
+          raster.getPixel(x, 0, IntArray(4)) shouldBe signalOf(LINEAR_COLOR, TEXELS[x], transfer)
+        }
       }
     }
   }
 
-  // A JPEG XL keeps its colour inside its codestream, so the decoder is the only one that can say what it carries.
+  // A JPEG XL keeps its color inside its codestream, so the decoder is the only one that can say what it carries.
   @Test
-  fun `a JPEG XL is drawn on an SDR graph from the colour its decode carries`() {
-    val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(TEXELS), LINEAR_COLOUR))
+  fun `a JPEG XL is drawn on an SDR graph from the color its decode carries`() {
+    val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(TEXELS), LINEAR_COLOR))
 
-    val drawn = assertIs<ImageSource.Bytes>(auxImage(overlayOf(JPEG_XL), decoder))
-    assertContentEquals(pictureSrgbCodes(LINEAR_COLOUR, TEXELS), argbOf(drawn.bytes))
+    val drawn = auxImage(overlayOf(JPEG_XL), decoder).shouldBeInstanceOf<ImageSource.Bytes>()
+    argbOf(drawn.bytes) shouldBe pictureSrgbCodes(LINEAR_COLOR, TEXELS)
   }
 
   @Test
-  fun `a JPEG XL whose decode carries no colour reaches an SDR graph as the bytes it was given`() {
+  fun `a JPEG XL whose decode carries no color reaches an SDR graph as the bytes it was given`() {
     val spec = overlayOf(JPEG_XL)
     val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(TEXELS), null))
 
-    assertSame(spec.image, auxImage(spec, decoder))
+    auxImage(spec, decoder) shouldBeSameInstanceAs spec.image
   }
 
   @Test
-  fun `a JPEG XL lands on an HDR grade from the colour its decode carries`() {
+  fun `a JPEG XL lands on an HDR grade from the color its decode carries`() {
     val spec = overlayOf(JPEG_XL)
-    val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(TEXELS), LINEAR_COLOUR))
+    val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(TEXELS), LINEAR_COLOR))
     for (transfer in HdrTransfer.entries) {
       val raster = mappedRaster(spec, transfer, decoder)
       TEXELS.indices.forEach { x ->
-        assertContentEquals(
-          signalOf(LINEAR_COLOUR, TEXELS[x], transfer),
-          raster.getPixel(x, 0, IntArray(4)),
-          "$transfer $x",
-        )
+        withClue("$transfer $x") {
+          raster.getPixel(x, 0, IntArray(4)) shouldBe signalOf(LINEAR_COLOR, TEXELS[x], transfer)
+        }
       }
     }
   }
 
   // The decode is the toolchain's own, turned the way it turns the picture on an SDR grade, so it wins over the JDK's
-  // read of the same bytes, and its colour description over the decode's when the container carries one.
+  // read of the same bytes, and its color description over the decode's when the container carries one.
   @Test
   fun `every picture on an HDR grade is decoded by the decoder even when the JDK reads it`() {
     val turned = rgbOf(DECODED_TEXELS)
     for (png in listOf(pngOf(rgbOf(TEXELS)), tagged(pngOf(rgbOf(TEXELS)), LINEAR))) {
       val decoder = FakeDecoder(size = null, decoded = decodedOf(turned, null))
-      val colour = pictureColour(png)
+      val color = pictureColor(png)
       for (transfer in HdrTransfer.entries) {
         val raster = mappedRaster(overlayOf(png), transfer, decoder)
-        assertEquals(DECODED_TEXELS.size to 1, raster.width to raster.height, "$transfer read at the JDK's size")
+        withClue("$transfer read at the JDK's size") {
+          (raster.width to raster.height) shouldBe (DECODED_TEXELS.size to 1)
+        }
         DECODED_TEXELS.indices.forEach { x ->
-          assertContentEquals(
-            signalOf(colour, DECODED_TEXELS[x], transfer),
-            raster.getPixel(x, 0, IntArray(4)),
-            "$transfer $x",
-          )
+          withClue("$transfer $x") {
+            raster.getPixel(x, 0, IntArray(4)) shouldBe signalOf(color, DECODED_TEXELS[x], transfer)
+          }
         }
       }
-      assertEquals(HdrTransfer.entries.size, decoder.decodes.size, "the decoder was not asked for every grade")
+      withClue("the decoder was not asked for every grade") { decoder.decodes.size shouldBe HdrTransfer.entries.size }
     }
   }
 
   @Test
-  fun `a tagged picture is drawn on an SDR graph from the decoder's samples and its container's colour`() {
+  fun `a tagged picture is drawn on an SDR graph from the decoder's samples and its container's color`() {
     val png = tagged(pngOf(rgbOf(TEXELS)), LINEAR)
     val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(DECODED_TEXELS), null))
 
-    val drawn = assertIs<ImageSource.Bytes>(auxImage(overlayOf(png), decoder))
-    assertContentEquals(pictureSrgbCodes(pictureColour(png), DECODED_TEXELS), argbOf(drawn.bytes))
+    val drawn = auxImage(overlayOf(png), decoder).shouldBeInstanceOf<ImageSource.Bytes>()
+    argbOf(drawn.bytes) shouldBe pictureSrgbCodes(pictureColor(png), DECODED_TEXELS)
   }
 
   @Test
   fun `an untagged picture is never decoded on an SDR grade`() {
-    val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(DECODED_TEXELS), LINEAR_COLOUR))
+    val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(DECODED_TEXELS), LINEAR_COLOR))
     val spec = overlayOf(pngOf(rgbOf(TEXELS)))
 
-    assertSame(spec.image, auxImage(spec, decoder))
-    assertTrue(decoder.decodes.isEmpty(), "the decoder decoded an untagged picture on an SDR grade")
+    auxImage(spec, decoder) shouldBeSameInstanceAs spec.image
+    withClue("the decoder decoded an untagged picture on an SDR grade") { decoder.decodes.isEmpty() shouldBe true }
   }
 
   @Test
@@ -144,8 +138,8 @@ class OverlayPictureReadTest {
       val spec = sliding(ImageSource.ofBytes(bytes))
 
       val resolution = BuiltInEffectResolver(decoder).resolve(spec, capabilities(), attributes(null))
-      assertIs<EffectResolution.Resolved>(resolution)
-      assertEquals(listOf(spec.image), decoder.measured)
+      resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
+      decoder.measured shouldBe listOf(spec.image)
     }
   }
 
@@ -153,7 +147,12 @@ class OverlayPictureReadTest {
   fun `an animated overlay the JDK reads is sized from its header without a decoder`() {
     val spec = sliding(ImageSource.ofBytes(pngOf(BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB))))
 
-    assertIs<EffectResolution.Resolved>(BuiltInEffectResolver().resolve(spec, capabilities(), attributes(null)))
+    BuiltInEffectResolver()
+      .resolve(
+        spec,
+        capabilities(),
+        attributes(null),
+      ).shouldBeInstanceOf<EffectResolution.Resolved>()
   }
 
   @Test
@@ -161,8 +160,14 @@ class OverlayPictureReadTest {
     val spec = sliding(ImageSource.ofBytes(UNREADABLE))
     val resolver = BuiltInEffectResolver(FakeDecoder(size = null, reason = REASON))
 
-    val refused = assertIs<EffectResolution.Unsupported>(resolver.resolve(spec, capabilities(), attributes(null)))
-    assertTrue("header" in refused.message && REASON in refused.message, refused.message)
+    val refused =
+      resolver
+        .resolve(
+          spec,
+          capabilities(),
+          attributes(null),
+        ).shouldBeInstanceOf<EffectResolution.Unsupported>()
+    withClue(refused.message) { ("header" in refused.message && REASON in refused.message) shouldBe true }
   }
 
   @Test
@@ -171,8 +176,8 @@ class OverlayPictureReadTest {
       val resolver = BuiltInEffectResolver(FakeDecoder(size = null, reason = REASON))
 
       val resolution = resolver.resolve(overlayOf(bytes), capabilities(), attributes(HdrTransfer.Pq))
-      val refused = assertIs<EffectResolution.Unsupported>(resolution)
-      assertTrue(REASON in refused.message, refused.message)
+      val refused = resolution.shouldBeInstanceOf<EffectResolution.Unsupported>()
+      withClue(refused.message) { (REASON in refused.message) shouldBe true }
     }
   }
 
@@ -182,7 +187,7 @@ class OverlayPictureReadTest {
     val png = tagged(pngOf(rgbOf(TEXELS)), broken)
 
     val spec = overlayOf(png)
-    assertSame(spec.image, auxImage(spec, null))
+    auxImage(spec, null) shouldBeSameInstanceAs spec.image
   }
 
   @Test
@@ -190,24 +195,32 @@ class OverlayPictureReadTest {
     val resolver = BuiltInEffectResolver(FakeDecoder(size = null, reason = REASON))
 
     val refused =
-      assertIs<EffectResolution.Unsupported>(resolver.resolve(overlayOf(TAGGED_WEBP), capabilities(), attributes(null)))
-    assertTrue("describes its colour" in refused.message && REASON in refused.message, refused.message)
+      resolver
+        .resolve(
+          overlayOf(TAGGED_WEBP),
+          capabilities(),
+          attributes(null),
+        ).shouldBeInstanceOf<EffectResolution.Unsupported>()
+    withClue(refused.message) { ("describes its color" in refused.message && REASON in refused.message) shouldBe true }
   }
 
   @Test
   fun `a tagged picture the JDK cannot read is refused on an SDR grade without a decoder`() {
     val refused =
-      assertIs<EffectResolution.Unsupported>(
-        BuiltInEffectResolver().resolve(overlayOf(TAGGED_WEBP), capabilities(), attributes(null)),
-      )
-    assertTrue("without a picture decoder" in refused.message, refused.message)
+      BuiltInEffectResolver()
+        .resolve(
+          overlayOf(TAGGED_WEBP),
+          capabilities(),
+          attributes(null),
+        ).shouldBeInstanceOf<EffectResolution.Unsupported>()
+    withClue(refused.message) { ("without a picture decoder" in refused.message) shouldBe true }
   }
 
   @Test
   fun `a JPEG XL reaches an SDR graph as the bytes it was given without a decoder`() {
     val spec = overlayOf(JPEG_XL)
 
-    assertSame(spec.image, auxImage(spec, null))
+    auxImage(spec, null) shouldBeSameInstanceAs spec.image
   }
 
   @Test
@@ -215,8 +228,13 @@ class OverlayPictureReadTest {
     val resolver = BuiltInEffectResolver(FakeDecoder(size = null, reason = REASON))
 
     val refused =
-      assertIs<EffectResolution.Unsupported>(resolver.resolve(overlayOf(JPEG_XL), capabilities(), attributes(null)))
-    assertTrue("JPEG XL" in refused.message && REASON in refused.message, refused.message)
+      resolver
+        .resolve(
+          overlayOf(JPEG_XL),
+          capabilities(),
+          attributes(null),
+        ).shouldBeInstanceOf<EffectResolution.Unsupported>()
+    withClue(refused.message) { ("JPEG XL" in refused.message && REASON in refused.message) shouldBe true }
   }
 
   private fun sliding(image: ImageSource): ImageOverlay =

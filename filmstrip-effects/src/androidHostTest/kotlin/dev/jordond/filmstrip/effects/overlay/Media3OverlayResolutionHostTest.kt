@@ -1,26 +1,27 @@
 package dev.jordond.filmstrip.effects.overlay
 
+import dev.jordond.filmstrip.color.CodestreamSignal
+import dev.jordond.filmstrip.color.UNSPECIFIED_MATRIX_DECODES_AS
+import dev.jordond.filmstrip.color.nearestReadable
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.pictureColour
-import dev.jordond.filmstrip.internal.pictureYcbcrCoding
-import dev.jordond.filmstrip.media.CodestreamSignal
-import dev.jordond.filmstrip.media.RestatedColour
-import dev.jordond.filmstrip.media.RestatedHeif
-import dev.jordond.filmstrip.media.UNSPECIFIED_MATRIX_DECODES_AS
-import dev.jordond.filmstrip.media.UnturnedHeif
-import dev.jordond.filmstrip.media.heifWithExplicitCodestreamColour
-import dev.jordond.filmstrip.media.heifWithRestatedColour
-import dev.jordond.filmstrip.media.nearestReadable
-import dev.jordond.filmstrip.test.AvifColourPictures
-import dev.jordond.filmstrip.test.ColourPictures
+import dev.jordond.filmstrip.picture.heif.RestatedColor
+import dev.jordond.filmstrip.picture.heif.RestatedHeif
+import dev.jordond.filmstrip.picture.heif.UnturnedHeif
+import dev.jordond.filmstrip.picture.heif.heifWithExplicitCodestreamColor
+import dev.jordond.filmstrip.picture.heif.heifWithRestatedColor
+import dev.jordond.filmstrip.picture.pictureColor
+import dev.jordond.filmstrip.picture.pictureYcbcrCoding
+import dev.jordond.filmstrip.picture.withColorDescriptionsHidden
+import dev.jordond.filmstrip.test.AvifColorPictures
+import dev.jordond.filmstrip.test.ColorPictures
 import dev.jordond.filmstrip.test.OverlayPixels
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertSame
-import kotlin.test.assertTrue
 
 /**
  * How an overlay picture is prepared for Android's decoder and where the decoder lands it.
@@ -34,12 +35,14 @@ import kotlin.test.assertTrue
 class Media3OverlayResolutionHostTest {
   @Test
   fun everyHeicWithAnNclxReachesTheDecoderStatingWhatItsDecoderReads() {
-    for (picture in ColourPictures.HEICS_WITH_SIGNAL_VARIANTS.filter { it.nclx != null }) {
+    for (picture in ColorPictures.HEICS_WITH_SIGNAL_VARIANTS.filter { it.nclx != null }) {
       for (sdk in HEIC_API_LEVELS) {
         val prepared = picture.bytes().forAndroidDecoder(sdk).bytes
 
-        assertEquals(handedOver(picture.bytes(), sdk), pictureYcbcrCoding(prepared)?.codestream, "$picture on $sdk")
-        assertNull(pictureColour(prepared), "$picture still describes its colour to the decoder")
+        withClue("$picture on $sdk") {
+          pictureYcbcrCoding(prepared)?.codestream shouldBe handedOver(picture.bytes(), sdk)
+        }
+        withClue("$picture still describes its color to the decoder") { pictureColor(prepared).shouldBeNull() }
       }
     }
   }
@@ -53,7 +56,7 @@ class Media3OverlayResolutionHostTest {
           val prepared = file.forAndroidDecoder(sdk).bytes
 
           val what = "matrix $matrix, full range $fullRange on API $sdk"
-          assertEquals(handedOver(file, sdk), pictureYcbcrCoding(prepared)?.codestream, what)
+          withClue(what) { pictureYcbcrCoding(prepared)?.codestream shouldBe handedOver(file, sdk) }
         }
       }
     }
@@ -61,47 +64,47 @@ class Media3OverlayResolutionHostTest {
       val smpte240 = heicRecording(SMPTE_240, fullRange)
       val nearest = nearestFor(smpte240, sdk)
       val stated = CodestreamSignal(pairedPrimaries(nearest), UNSPECIFIED, nearest, fullRange)
-      assertEquals(stated, pictureYcbcrCoding(smpte240.forAndroidDecoder(sdk).bytes)?.codestream, "API $sdk")
+      withClue("API $sdk") { pictureYcbcrCoding(smpte240.forAndroidDecoder(sdk).bytes)?.codestream shouldBe stated }
     }
   }
 
   @Test
   fun aPictureCoreRefusesReachesTheDecoderAsItIs() {
     for (file in listOf(heicRecording(ICTCP, true), avifRecording(ICTCP, false), avifRecording(0, true))) {
-      val refusal = assertNotNull(pictureYcbcrCoding(file)?.refusal)
+      val refusal = pictureYcbcrCoding(file)?.refusal.shouldNotBeNull()
       for (sdk in AVIF_API_LEVELS) {
         val input = file.forAndroidDecoder(sdk)
 
-        assertSame(file, input.bytes, "API $sdk")
-        assertEquals(refusal, input.refusal, "API $sdk")
-        assertNull(input.landing, "API $sdk")
+        withClue("API $sdk") { input.bytes shouldBeSameInstanceAs file }
+        withClue("API $sdk") { input.refusal shouldBe refusal }
+        withClue("API $sdk") { input.conversion.shouldBeNull() }
       }
     }
   }
 
   @Test
   fun aHeicWhoseCodestreamDiffersFromItsNclxOnlyInPrimariesReachesTheDecoderWithPairedPrimaries() {
-    val picture = ColourPictures.HEIC_NCLX_BT709_VUI_DISPLAY_P3
+    val picture = ColorPictures.HEIC_NCLX_BT709_VUI_DISPLAY_P3
     val nclx = checkNotNull(picture.nclx)
-    val vui = checkNotNull(picture.vui.colour)
-    assertEquals(listOf(nclx.matrix, nclx.fullRange), listOf(vui.matrix, vui.fullRange))
-    assertTrue(nclx.primaries != vui.primaries)
+    val vui = checkNotNull(picture.vui.color)
+    listOf(vui.matrix, vui.fullRange) shouldBe listOf(nclx.matrix, nclx.fullRange)
+    (nclx.primaries != vui.primaries) shouldBe true
 
     val prepared = picture.bytes().forAndroidDecoder(LATEST_API).bytes
 
-    assertEquals(CodestreamSignal(BT709, UNSPECIFIED, BT709, true), pictureYcbcrCoding(prepared)?.codestream)
+    pictureYcbcrCoding(prepared)?.codestream shouldBe CodestreamSignal(BT709, UNSPECIFIED, BT709, true)
   }
 
   @Test
   fun everyAvifWithAnNclxReachesTheDecoderStatingWhatItsDecoderReads() {
-    for (picture in (ColourPictures.AVIFS + ColourPictures.NCLX_BT709_FULL_EDGE_CHROMA).filter { it.nclx != null }) {
+    for (picture in (ColorPictures.AVIFS + ColorPictures.NCLX_BT709_FULL_EDGE_CHROMA).filter { it.nclx != null }) {
       for (sdk in AVIF_API_LEVELS) {
         val prepared = picture.bytes().forAndroidDecoder(sdk).bytes
 
         val handed = handedOver(picture.bytes(), sdk)
-        assertEquals(handed, pictureYcbcrCoding(prepared)?.codestream, "$picture on $sdk")
-        assertEquals(handed.matrix, pictureYcbcrCoding(prepared)?.matrix, "$picture's nclx on $sdk")
-        assertNull(pictureColour(prepared), "$picture still describes its colour to the decoder")
+        withClue("$picture on $sdk") { pictureYcbcrCoding(prepared)?.codestream shouldBe handed }
+        withClue("$picture's nclx on $sdk") { pictureYcbcrCoding(prepared)?.matrix shouldBe handed.matrix }
+        withClue("$picture still describes its color to the decoder") { pictureColor(prepared).shouldBeNull() }
       }
     }
   }
@@ -115,7 +118,7 @@ class Media3OverlayResolutionHostTest {
           val prepared = file.forAndroidDecoder(sdk).bytes
 
           val what = "matrix $matrix, full range $fullRange on API $sdk"
-          assertEquals(handedOver(file, sdk), pictureYcbcrCoding(prepared)?.codestream, what)
+          withClue(what) { pictureYcbcrCoding(prepared)?.codestream shouldBe handedOver(file, sdk) }
         }
       }
     }
@@ -124,20 +127,22 @@ class Media3OverlayResolutionHostTest {
       val nearest = nearestFor(bt2020Constant, sdk)
       val prepared = bt2020Constant.forAndroidDecoder(sdk).bytes
       val stated = CodestreamSignal(pairedPrimaries(nearest), UNSPECIFIED, nearest, true)
-      assertEquals(stated, pictureYcbcrCoding(prepared)?.codestream, "API $sdk")
-      assertEquals(nearest, pictureYcbcrCoding(prepared)?.matrix, "the nclx on API $sdk")
+      withClue("API $sdk") { pictureYcbcrCoding(prepared)?.codestream shouldBe stated }
+      withClue("the nclx on API $sdk") { pictureYcbcrCoding(prepared)?.matrix shouldBe nearest }
     }
-    assertEquals(BT2020, nearestFor(avifRecording(BT2020_CONSTANT, true), 33), "constant luminance keeps its weights")
+    withClue("constant luminance keeps its weights") {
+      nearestFor(avifRecording(BT2020_CONSTANT, true), 33) shouldBe BT2020
+    }
     val smpte240 = avifRecording(SMPTE_240, false).forAndroidDecoder(LATEST_API).bytes
-    assertEquals(CodestreamSignal(BT601, UNSPECIFIED, SMPTE_240, false), pictureYcbcrCoding(smpte240)?.codestream)
+    pictureYcbcrCoding(smpte240)?.codestream shouldBe CodestreamSignal(BT601, UNSPECIFIED, SMPTE_240, false)
   }
 
   @Test
   fun aPictureWithoutAnNclxReachesTheDecoderStatingWhatItsDecoderReadsOfItsCodestream() {
-    val avifs = listOf(ColourPictures.PROFILE_DISPLAY_P3) + AvifColourPictures.CODESTREAM_COLOUR_AVIFS
+    val avifs = listOf(ColorPictures.PROFILE_DISPLAY_P3) + AvifColorPictures.CODESTREAM_COLOR_AVIFS
     val heics =
-      listOf(ColourPictures.HEIC_PROFILE_DISPLAY_P3, ColourPictures.HEIC_UNTAGGED) +
-        ColourPictures.CODESTREAM_COLOUR_HEICS
+      listOf(ColorPictures.HEIC_PROFILE_DISPLAY_P3, ColorPictures.HEIC_UNTAGGED) +
+        ColorPictures.CODESTREAM_COLOR_HEICS
     val pictures =
       avifs.filter { it.nclx == null }.map { "$it" to it.bytes() } +
         heics.filter { it.nclx == null }.map { "$it" to it.bytes() }
@@ -145,87 +150,107 @@ class Media3OverlayResolutionHostTest {
       for (sdk in AVIF_API_LEVELS) {
         val prepared = bytes.forAndroidDecoder(sdk).bytes
 
-        assertEquals(handedOver(bytes, sdk), pictureYcbcrCoding(prepared)?.codestream, "$name on API $sdk")
+        withClue("$name on API $sdk") { pictureYcbcrCoding(prepared)?.codestream shouldBe handedOver(bytes, sdk) }
       }
     }
   }
 
   @Test
   fun aPictureThatIsNeitherAvifNorHeicReachesTheDecoderAsItIs() {
-    val png = OverlayPixels.pngOf(SIDE, ColourPictures.TEXEL)
+    val png = OverlayPixels.pngOf(SIDE, ColorPictures.TEXEL)
     val input = png.forAndroidDecoder(LATEST_API)
 
-    assertSame(png, input.bytes)
-    assertNull(input.landing)
-    assertNull(input.refusal)
+    input.bytes shouldBeSameInstanceAs png
+    input.conversion.shouldBeNull()
+    input.refusal.shouldBeNull()
   }
 
   @Test
   fun aPictureWithoutAnNclxLandsAsItsCodestreamStatesIt() {
-    val silentFull = ColourPictures.PROFILE_DISPLAY_P3.bytes()
-    val bt709Limited = AvifColourPictures.AVIF_CODESTREAM_BT709_LIMITED.bytes()
-    val heicBt709Limited = ColourPictures.HEIC_CODESTREAM_BT709_LIMITED.bytes()
+    val silentFull = ColorPictures.PROFILE_DISPLAY_P3.bytes()
+    val bt709Limited = AvifColorPictures.AVIF_CODESTREAM_BT709_LIMITED.bytes()
+    val heicBt709Limited = ColorPictures.HEIC_CODESTREAM_BT709_LIMITED.bytes()
     for (sdk in AVIF_API_LEVELS) {
       val decodesAs = UNSPECIFIED_MATRIX_DECODES_AS
-      assertLanding(landing(decodesAs, true, sdk, avif = true), assertNotNull(silentFull.landing(sdk)), "API $sdk")
-      assertLanding(landing(BT709, false, sdk, avif = true), assertNotNull(bt709Limited.landing(sdk)), "API $sdk")
-      assertLanding(landing(BT709, false, sdk, avif = false), assertNotNull(heicBt709Limited.landing(sdk)), "API $sdk")
+      assertConversion(
+        conversion(decodesAs, true, sdk, avif = true),
+        silentFull.conversion(sdk).shouldNotBeNull(),
+        "API $sdk",
+      )
+      assertConversion(
+        conversion(BT709, false, sdk, avif = true),
+        bt709Limited.conversion(sdk).shouldNotBeNull(),
+        "API $sdk",
+      )
+      assertConversion(
+        conversion(BT709, false, sdk, avif = false),
+        heicBt709Limited.conversion(sdk).shouldNotBeNull(),
+        "API $sdk",
+      )
     }
-    assertEquals(emptyList(), silentFull.landing(33)?.limits)
+    silentFull.conversion(33)?.limits shouldBe emptyList()
     for (limited in listOf(bt709Limited, heicBt709Limited)) {
-      val limits = assertNotNull(limited.landing(33)).limits
-      assertEquals(1, limits.filterIsInstance<DecoderLimit.LandedThrough>().size)
+      val limits = limited.conversion(33).shouldNotBeNull().limits
+      limits.filterIsInstance<DecoderLimit.LandedThrough>().size shouldBe 1
     }
-    assertEquals(emptyList(), heicBt709Limited.landing(34)?.limits)
+    heicBt709Limited.conversion(34)?.limits shouldBe emptyList()
   }
 
   @Test
   fun aPictureLandsAsTheCodestreamItReachesTheDecoderWithStates() {
     for (sdk in AVIF_API_LEVELS) {
-      val heic = assertNotNull(heicRecording(BT709, false).landing(sdk))
-      assertLanding(landing(BT709, false, sdk, avif = false), heic, "API $sdk")
-      val avif = assertNotNull(avifRecording(BT709, false).landing(sdk))
-      assertLanding(landing(BT709, false, sdk, avif = true), avif, "API $sdk")
-      val smpte240 = assertNotNull(heicRecording(SMPTE_240, true).landing(sdk))
-      assertLanding(landing(SMPTE_240, true, sdk, avif = false), smpte240, "matrix 7 on API $sdk")
-      val derived = assertNotNull(avifRecording(CHROMATICITY_DERIVED, true).landing(sdk))
-      assertLanding(landing(BT709, true, sdk, avif = true), derived, "matrix 12 on API $sdk")
-      assertNull(OverlayPixels.pngOf(SIDE, ColourPictures.TEXEL).landing(sdk))
+      val heic = heicRecording(BT709, false).conversion(sdk).shouldNotBeNull()
+      assertConversion(conversion(BT709, false, sdk, avif = false), heic, "API $sdk")
+      val avif = avifRecording(BT709, false).conversion(sdk).shouldNotBeNull()
+      assertConversion(conversion(BT709, false, sdk, avif = true), avif, "API $sdk")
+      val smpte240 = heicRecording(SMPTE_240, true).conversion(sdk).shouldNotBeNull()
+      assertConversion(conversion(SMPTE_240, true, sdk, avif = false), smpte240, "matrix 7 on API $sdk")
+      val derived = avifRecording(CHROMATICITY_DERIVED, true).conversion(sdk).shouldNotBeNull()
+      assertConversion(conversion(BT709, true, sdk, avif = true), derived, "matrix 12 on API $sdk")
+      OverlayPixels.pngOf(SIDE, ColorPictures.TEXEL).conversion(sdk).shouldBeNull()
     }
   }
 
   @Test
   fun aPictureWhoseCodestreamDoesNotReadLandsWithoutALimit() {
-    val coding = assertNotNull(pictureYcbcrCoding(ColourPictures.PROFILE_DISPLAY_P3.bytes())).copy(codestream = null)
+    val coding = pictureYcbcrCoding(ColorPictures.PROFILE_DISPLAY_P3.bytes()).shouldNotBeNull().copy(codestream = null)
 
     for (sdk in AVIF_API_LEVELS) {
-      assertNull(coding.decoderLanding(sdk, handedFullRange = null, restated = false), "API $sdk")
+      withClue("API $sdk") { coding.decoderConversionOf(sdk, handedFullRange = null, restated = false).shouldBeNull() }
     }
   }
 
   @Test
   fun aPictureCoreCannotRewriteLandsOnlyWhereItsCodestreamStatesAMatrixItsDecoderReadsBesidePairedPrimaries() {
-    val heic = ColourPictures.HEIC_CODESTREAM_BT709_LIMITED.bytes().withMoov()
-    val avif = avifSequence(AvifColourPictures.AVIF_CODESTREAM_BT709_LIMITED.bytes())
+    val heic = ColorPictures.HEIC_CODESTREAM_BT709_LIMITED.bytes().withMoov()
+    val avif = avifSequence(AvifColorPictures.AVIF_CODESTREAM_BT709_LIMITED.bytes())
     for (sdk in AVIF_API_LEVELS) {
       val heicInput = heic.forAndroidDecoder(sdk)
       val avifInput = avif.forAndroidDecoder(sdk)
-      assertEquals(pictureYcbcrCoding(heic)?.codestream, pictureYcbcrCoding(heicInput.bytes)?.codestream)
-      assertEquals(pictureYcbcrCoding(avif)?.codestream, pictureYcbcrCoding(avifInput.bytes)?.codestream)
+      pictureYcbcrCoding(heicInput.bytes)?.codestream shouldBe pictureYcbcrCoding(heic)?.codestream
+      pictureYcbcrCoding(avifInput.bytes)?.codestream shouldBe pictureYcbcrCoding(avif)?.codestream
 
       if (sdk >= 34) {
-        assertLanding(landing(BT709, false, sdk, avif = false), assertNotNull(heicInput.landing), "HEIC on API $sdk")
-        assertLanding(landing(BT709, false, sdk, avif = true), assertNotNull(avifInput.landing), "AVIF on API $sdk")
+        assertConversion(
+          conversion(BT709, false, sdk, avif = false),
+          heicInput.conversion.shouldNotBeNull(),
+          "HEIC on API $sdk",
+        )
+        assertConversion(
+          conversion(BT709, false, sdk, avif = true),
+          avifInput.conversion.shouldNotBeNull(),
+          "AVIF on API $sdk",
+        )
       } else {
-        assertNull(heicInput.landing, "HEIC on API $sdk")
-        assertNull(avifInput.landing, "AVIF on API $sdk")
+        withClue("HEIC on API $sdk") { heicInput.conversion.shouldBeNull() }
+        withClue("AVIF on API $sdk") { avifInput.conversion.shouldBeNull() }
       }
     }
-    val besideOtherPrimaries = ColourPictures.HEIC_NCLX_BT709_VUI_DISPLAY_P3.bytes().withMoov()
-    val silent = ColourPictures.HEIC_NCLX_BT709_FULL.bytes().withMoov()
-    val nclxDisagrees = ColourPictures.HEIC_NCLX_BT601_VUI_BT709.bytes().withMoov()
+    val besideOtherPrimaries = ColorPictures.HEIC_NCLX_BT709_VUI_DISPLAY_P3.bytes().withMoov()
+    val silent = ColorPictures.HEIC_NCLX_BT709_FULL.bytes().withMoov()
+    val nclxDisagrees = ColorPictures.HEIC_NCLX_BT601_VUI_BT709.bytes().withMoov()
     for (file in listOf(besideOtherPrimaries, silent, nclxDisagrees)) {
-      assertNull(file.forAndroidDecoder(LATEST_API).landing)
+      file.forAndroidDecoder(LATEST_API).conversion.shouldBeNull()
     }
   }
 
@@ -236,13 +261,17 @@ class Media3OverlayResolutionHostTest {
         val heic = heicRecording(matrix, true)
         val prepared = heic.forAndroidDecoder(sdk).bytes
 
-        assertEquals(nearestFor(heic, sdk), pictureYcbcrCoding(prepared)?.matrix, "HEIC matrix $matrix on API $sdk")
+        withClue("HEIC matrix $matrix on API $sdk") {
+          pictureYcbcrCoding(prepared)?.matrix shouldBe nearestFor(heic, sdk)
+        }
       }
       for (sdk in AVIF_API_LEVELS) {
         val avif = avifRecording(matrix, true)
         val prepared = avif.forAndroidDecoder(sdk).bytes
 
-        assertEquals(nearestFor(avif, sdk), pictureYcbcrCoding(prepared)?.matrix, "AVIF matrix $matrix on API $sdk")
+        withClue("AVIF matrix $matrix on API $sdk") {
+          pictureYcbcrCoding(prepared)?.matrix shouldBe nearestFor(avif, sdk)
+        }
       }
     }
   }
@@ -251,66 +280,72 @@ class Media3OverlayResolutionHostTest {
   // they state, whether or not the decoder input counts as restated.
   @Test
   fun aPictureAlreadyStatingTheRestateLandsAsItStates() {
-    val hidden = avifRecording(BT601, true).withColourDescriptionsHidden(keepNclxPrimaries = true)
-    val restated = heifWithRestatedColour(hidden) { _, _, _ -> RestatedColour(BT601, BT601, nclx = true) }
-    val stated = assertIs<RestatedHeif.Restated>(restated).bytes
-    val coding = assertNotNull(pictureYcbcrCoding(stated))
-    assertEquals(CodestreamSignal(BT601, UNSPECIFIED, BT601, true), coding.codestream)
+    val hidden = avifRecording(BT601, true).withColorDescriptionsHidden(keepNclxPrimaries = true)
+    val restated = heifWithRestatedColor(hidden) { _, _, _ -> RestatedColor(BT601, BT601, nclx = true) }
+    val stated = restated.shouldBeInstanceOf<RestatedHeif.Restated>().bytes
+    val coding = pictureYcbcrCoding(stated).shouldNotBeNull()
+    coding.codestream shouldBe CodestreamSignal(BT601, UNSPECIFIED, BT601, true)
     for (sdk in AVIF_API_LEVELS) {
-      val described = stated.withColourDescriptionsHidden(keepNclxPrimaries = true)
-      val restate = assertNotNull(restatedForDecoder(coding.reading, true, sdk, avif = true, tenBit = false))
-      val again = heifWithRestatedColour(described) { _, _, _ -> restate }
-      assertSame(described, assertIs<RestatedHeif.Restated>(again, "API $sdk").bytes, "API $sdk")
+      val described = stated.withColorDescriptionsHidden(keepNclxPrimaries = true)
+      val restate = restatedForDecoder(coding.reading, true, sdk, avif = true, tenBit = false).shouldNotBeNull()
+      val again = heifWithRestatedColor(described) { _, _, _ -> restate }
+      withClue("API $sdk") {
+        withClue("API $sdk") { again.shouldBeInstanceOf<RestatedHeif.Restated>() }.bytes shouldBeSameInstanceAs
+          described
+      }
 
       val input = stated.forAndroidDecoder(sdk)
 
-      val want = landing(BT601, true, sdk, avif = true)
-      assertEquals(BT601, pictureYcbcrCoding(input.bytes)?.matrix, "API $sdk")
-      assertLanding(want, assertNotNull(input.landing), "API $sdk")
-      val unchanged = coding.decoderLanding(sdk, handedFullRange = true, restated = false)
-      assertLanding(want, assertNotNull(unchanged), "API $sdk as stated")
+      val want = conversion(BT601, true, sdk, avif = true)
+      withClue("API $sdk") { pictureYcbcrCoding(input.bytes)?.matrix shouldBe BT601 }
+      assertConversion(want, input.conversion.shouldNotBeNull(), "API $sdk")
+      val unchanged = coding.decoderConversionOf(sdk, handedFullRange = true, restated = false)
+      assertConversion(want, unchanged.shouldNotBeNull(), "API $sdk as stated")
     }
   }
 
   @Test
   fun aPictureCoreCannotRewriteWhoseNclxAgreesWithItsCodestreamLandsAsItStates() {
-    val stated = heifWithExplicitCodestreamColour(heicRecording(BT709, false))
-    val heic = assertIs<UnturnedHeif.Handed>(stated).bytes.withMoov()
-    val coding = assertNotNull(pictureYcbcrCoding(heic))
-    assertTrue(coding.fromNclx)
-    assertEquals(CodestreamSignal(BT709, SRGB_TRANSFER, BT709, false), coding.codestream)
+    val stated = heifWithExplicitCodestreamColor(heicRecording(BT709, false))
+    val heic = stated.shouldBeInstanceOf<UnturnedHeif.Handed>().bytes.withMoov()
+    val coding = pictureYcbcrCoding(heic).shouldNotBeNull()
+    coding.fromNclx shouldBe true
+    coding.codestream shouldBe CodestreamSignal(BT709, SRGB_TRANSFER, BT709, false)
     for (sdk in AVIF_API_LEVELS) {
       val input = heic.forAndroidDecoder(sdk)
-      assertEquals(coding.codestream, pictureYcbcrCoding(input.bytes)?.codestream, "API $sdk")
+      withClue("API $sdk") { pictureYcbcrCoding(input.bytes)?.codestream shouldBe coding.codestream }
 
       if (sdk >= 34) {
-        assertLanding(landing(BT709, false, sdk, avif = false), assertNotNull(input.landing), "API $sdk")
+        assertConversion(conversion(BT709, false, sdk, avif = false), input.conversion.shouldNotBeNull(), "API $sdk")
       } else {
-        assertNull(input.landing, "API $sdk")
+        withClue("API $sdk") { input.conversion.shouldBeNull() }
       }
     }
   }
 
   // How the decoder on [sdk] lands [this] once it is prepared for it, as read does.
-  private fun ByteArray.landing(sdk: Int): DecoderLanding? = forAndroidDecoder(sdk).landing
+  private fun ByteArray.conversion(sdk: Int): DecoderConversion? = forAndroidDecoder(sdk).conversion
 
   // How the decoder on [sdk] lands an eight-bit picture recording [matrix] beside BT.709 primaries and the sRGB
   // transfer at [fullRange].
-  private fun landing(
+  private fun conversion(
     matrix: Int,
     fullRange: Boolean,
     sdk: Int,
     avif: Boolean,
-  ): DecoderLanding = assertNotNull(decoderLanding(reading(matrix), fullRange, sdk, avif, tenBit = false))
+  ): DecoderConversion = decoderConversionOf(reading(matrix), fullRange, sdk, avif, tenBit = false).shouldNotBeNull()
 
   // The matrix core finds nearest to [file]'s own reading among those its decoder on [sdk] reads at its range.
   private fun nearestFor(
     file: ByteArray,
     sdk: Int,
   ): Int {
-    val coding = assertNotNull(pictureYcbcrCoding(file))
+    val coding = pictureYcbcrCoding(file).shouldNotBeNull()
     val readable = readableMatrices(coding.fullRange, sdk, coding.avif, coding.tenBitSamples)
-    return assertNotNull(coding.reading.nearestReadable(readable)).matrix
+    return coding.reading
+      .nearestReadable(readable)
+      .shouldNotBeNull()
+      .matrix
   }
 
   // The codestream [file] reaches the decoder on [sdk] with. The reading core gives the picture is restated to the
@@ -320,12 +355,12 @@ class Media3OverlayResolutionHostTest {
     file: ByteArray,
     sdk: Int,
   ): CodestreamSignal {
-    val coding = assertNotNull(pictureYcbcrCoding(file))
-    val stated = assertIs<UnturnedHeif.Handed>(heifWithExplicitCodestreamColour(file)).bytes
-    val own = assertNotNull(pictureYcbcrCoding(stated)?.codestream)
+    val coding = pictureYcbcrCoding(file).shouldNotBeNull()
+    val stated = heifWithExplicitCodestreamColor(file).shouldBeInstanceOf<UnturnedHeif.Handed>().bytes
+    val own = pictureYcbcrCoding(stated)?.codestream.shouldNotBeNull()
     val fullRange = own.fullRange ?: false
     val restated =
-      assertNotNull(restatedForDecoder(coding.reading, fullRange, sdk, coding.avif, coding.tenBitSamples))
+      restatedForDecoder(coding.reading, fullRange, sdk, coding.avif, coding.tenBitSamples).shouldNotBeNull()
     val transfer = if (coding.fromNclx) UNSPECIFIED else own.transfer
     return CodestreamSignal(restated.primaries, transfer, restated.matrix, fullRange)
   }
@@ -337,13 +372,13 @@ class Media3OverlayResolutionHostTest {
   private fun avifSequence(avif: ByteArray): ByteArray =
     avif.copyOf().also { "avis".encodeToByteArray().copyInto(it, BRAND) }.withMoov()
 
-  private fun assertLanding(
-    want: DecoderLanding,
-    landing: DecoderLanding,
+  private fun assertConversion(
+    want: DecoderConversion,
+    conversion: DecoderConversion,
     what: Any,
   ) {
-    val got = listOf(landing.matrix, landing.fullRange, landing.limits, landing.refusal)
-    assertEquals(listOf(want.matrix, want.fullRange, want.limits, want.refusal), got, "$what")
+    val got = listOf(conversion.matrix, conversion.fullRange, conversion.limits, conversion.refusal)
+    withClue("$what") { got shouldBe listOf(want.matrix, want.fullRange, want.limits, want.refusal) }
   }
 
   private companion object {

@@ -4,6 +4,9 @@ import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.capability.VideoEncoderCapability
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.Bitrate
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -16,10 +19,7 @@ import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
-import dev.jordond.filmstrip.export.AudioCodec
-import dev.jordond.filmstrip.export.Bitrate
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
@@ -31,7 +31,9 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.imageMediaInfoOf
 import dev.jordond.filmstrip.media.trackCodecOf
-import kotlin.test.assertNotNull
+import dev.jordond.filmstrip.transform.internal.negotiation.Ask
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import io.kotest.matchers.nulls.shouldNotBeNull
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -45,7 +47,7 @@ internal class PlannerFixture {
   fun planner(
     resolvers: List<EffectResolver> = listOf(FakeResolver()),
     canToneMap: Boolean = true,
-    canCopy: (MediaInfo) -> Boolean = { true },
+    muxerAccepts: (MediaInfo) -> Boolean = { true },
     renderApi: RenderApi = RenderApi.OpenGlEs,
     ladder: List<VideoCodec> = listOf(VideoCodec.H264, VideoCodec.Hevc),
   ) = ExportPlanner(
@@ -64,9 +66,9 @@ internal class PlannerFixture {
     parityOf = { EffectParity.Exact },
     unclaimedMessage = { "nothing claimed $it" },
     ladder = ladder,
-    supportsPassthrough = true,
+    supportsCopy = true,
     canToneMap = canToneMap,
-    canCopy = canCopy,
+    muxerAccepts = muxerAccepts,
   )
 
   // Every fabricated clip carries its own source, so the map is keyed the way the planner reads it.
@@ -84,10 +86,10 @@ internal class PlannerFixture {
     device: DeviceCapabilities = this.device(),
     resolvers: List<EffectResolver> = listOf(FakeResolver()),
     canToneMap: Boolean = true,
-    canCopy: (MediaInfo) -> Boolean = { true },
+    muxerAccepts: (MediaInfo) -> Boolean = { true },
     openings: Map<MediaSource, Duration> = emptyMap(),
-  ) = planner(resolvers, canToneMap = canToneMap, canCopy = canCopy)
-    .negotiate(composition, spec, device, infos(composition), openings)
+  ) = planner(resolvers, canToneMap = canToneMap, muxerAccepts = muxerAccepts)
+    .negotiate(composition, Ask(spec, device, infos(composition), openings))
     .verdict
 
   /**
@@ -99,14 +101,13 @@ internal class PlannerFixture {
     device: DeviceCapabilities = this.device(),
     resolvers: List<EffectResolver> = listOf(FakeResolver()),
     canToneMap: Boolean = true,
-    canCopy: (MediaInfo) -> Boolean = { true },
+    muxerAccepts: (MediaInfo) -> Boolean = { true },
     openings: Map<MediaSource, Duration> = emptyMap(),
     renderApi: RenderApi = RenderApi.OpenGlEs,
-  ) = assertNotNull(
-    planner(resolvers, canToneMap = canToneMap, canCopy = canCopy, renderApi = renderApi)
-      .negotiate(composition, spec, device, infos(composition), openings)
-      .composition,
-  )
+  ) = planner(resolvers, canToneMap = canToneMap, muxerAccepts = muxerAccepts, renderApi = renderApi)
+    .negotiate(composition, Ask(spec, device, infos(composition), openings))
+    .composition
+    .shouldNotBeNull()
 
   fun clip(
     size: Size = Size(1920, 1080),
@@ -205,7 +206,7 @@ internal fun composition(vararg clips: Clip) = EditComposition(listOf(Track(clip
 /**
  * The first clip on the first track of [resolved].
  */
-internal fun firstClipOf(resolved: NegotiatedComposition) =
+internal fun firstClipOf(resolved: ResolvedComposition) =
   resolved.tracks
     .first()
     .clips
@@ -251,7 +252,7 @@ internal val ROUNDS_IT = Degradation(DegradationReason.ApproximateAlgorithm, "th
 /**
  * A second cause a test can hand [FakeResolver], so the order of several causes can be checked.
  */
-internal val CONVERTS_IT = Degradation(DegradationReason.ColorSpaceConverted, "this resolver converts its colour")
+internal val CONVERTS_IT = Degradation(DegradationReason.ColorSpaceConverted, "this resolver converts its color")
 
 /**
  * A third cause a test can hand [FakeResolver], so a cause between the first and last can be checked.

@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 
 /**
- * Stretch or flatten every colour channel about mid grey.
+ * Stretch or flatten every color channel about mid grey.
  *
  * Each channel moves away from the middle of the encoded range by [factor], so `2f` doubles the
  * distance from mid grey and `0.5f` halves it. The pivot is the encoded signal's midpoint, which is
@@ -32,7 +32,7 @@ public class Contrast(
 }
 
 /**
- * Stretch every colour channel about mid grey by [factor], where `1f` leaves the frame unchanged.
+ * Stretch every color channel about mid grey by [factor], where `1f` leaves the frame unchanged.
  */
 public fun EffectsBuilder.contrast(factor: Float): EffectsBuilder = add(Contrast(factor))
 

@@ -51,7 +51,7 @@ public interface EffectSpec {
  *
  * A track effect is lowered by fanning it onto every clip under the track, and a composition-level
  * geometry effect is fanned the same way on a backend that has no composition-wide geometry pass.
- * An effect that reads the time a frame sits at within its run therefore draws a run of its own on
+ * An effect that reads the time a frame sits at within its span therefore sees a span of its own on
  * each clip rather than one across the track, which is a different picture on backends that fan and
  * on backends that do not.
  */
@@ -74,8 +74,8 @@ public enum class EffectScope {
  * [Geometry] has finished before [Composite] starts, which is what makes normalised coordinates well-defined.
  *
  * A composition-scope effect always runs on the composed frame before the fill is painted into any
- * region that frame does not cover, so a solid bar or a timeline gap keeps exactly the colour it was
- * given. A blurred background is made of the clip's own pixels rather than a named colour, so it
+ * region that frame does not cover, so a solid bar or a timeline gap keeps exactly the color it was
+ * given. A blurred background is made of the clip's own pixels rather than a named color, so it
  * carries the same grade the frame does.
  */
 public enum class EffectStage {
@@ -85,7 +85,7 @@ public enum class EffectStage {
   Geometry,
 
   /**
-   * Per-pixel colour, independent of position. Ranked to fuse into as few GPU passes as possible.
+   * Per-pixel color, independent of position. Ranked to fuse into as few GPU passes as possible.
    */
   Color,
 
@@ -146,8 +146,8 @@ public fun List<EffectSpec>.inCanonicalOrder(): List<EffectSpec> =
 
 // Rank within a stage. Ids with no entry sort after every ranked one. Rotate runs before crop so the
 // corners rotation adds can be cropped away, a pan runs after crop so it travels inside the framing
-// the crop chose, and scale is last because it sets the output size. Colour matrices do not commute,
-// so the colour stage runs exposure first, contrast on the exposed frame, the hue and tone changes
+// the crop chose, and scale is last because it sets the output size. Color matrices do not commute,
+// so the color stage runs exposure first, contrast on the exposed frame, the hue and tone changes
 // on that, and a caller's own matrix last as the look the rest was graded for.
 private val CANONICAL_RANK: Map<String, Int> =
   mapOf(

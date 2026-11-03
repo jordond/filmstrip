@@ -1,19 +1,20 @@
 package dev.jordond.filmstrip.transform.internal
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
-import dev.jordond.filmstrip.export.ExportError
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotsOf
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -105,8 +106,10 @@ class FrameCoverageTest {
         .tracks
         .first()
         .clips
-    assertTrue(outputSlotsOf(laid.first().span, GRID_RATE).isEmpty(), "the first pass covers a slot on its own")
-    assertTrue(laid.any { !outputSlotsOf(it.span, GRID_RATE).isEmpty() }, "no pass covers a slot")
+    withClue("the first pass covers a slot on its own") {
+      outputSlotsOf(laid.first().span, GRID_RATE).isEmpty().shouldBeTrue()
+    }
+    withClue("no pass covers a slot") { laid.any { !outputSlotsOf(it.span, GRID_RATE).isEmpty() }.shouldBeTrue() }
   }
 
   // A clip that covers no slot between two that do draws nothing on the backends, and the run it
@@ -129,7 +132,9 @@ class FrameCoverageTest {
         .tracks
         .first()
         .clips[1]
-    assertTrue(outputSlotsOf(middle.span, GRID_RATE).isEmpty(), "the middle clip covers a slot of its own")
+    withClue("the middle clip covers a slot of its own") {
+      outputSlotsOf(middle.span, GRID_RATE).isEmpty().shouldBeTrue()
+    }
   }
 
   // With no rate asked for, the grid is the source's own thirty frames a second, where half a slot is
@@ -138,7 +143,9 @@ class FrameCoverageTest {
   fun `a primary run is read against the rate the plan resolved from the source`() {
     val short = TimeRange.of(Duration.ZERO, 16.milliseconds)
     val long = TimeRange.of(Duration.ZERO, 17.milliseconds)
-    assertTrue(outputSlotsOf(long, GRID_RATE).isEmpty(), "the fixture's run covers a slot at $GRID_RATE fps too")
+    withClue("the fixture's run covers a slot at $GRID_RATE fps too") {
+      outputSlotsOf(long, GRID_RATE).isEmpty().shouldBeTrue()
+    }
 
     assertRefusedForCoveringNoFrame(
       fixture.plan(composition(fixture.clip(trim = short, frameRate = 30f))),
@@ -147,7 +154,9 @@ class FrameCoverageTest {
     )
     val verdict = fixture.plan(composition(fixture.clip(trim = long, frameRate = 30f)))
     assertCoversAFrameAndPlans(verdict, long, SOURCE_RATE)
-    assertIs<Verdict.Capable>(verdict).plan.output.frameRate shouldBe SOURCE_RATE
+    verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.output.frameRate shouldBe SOURCE_RATE
   }
 
   // The slots in front of a late primary are the fill, not the primary's video, so a primary whose
@@ -155,7 +164,7 @@ class FrameCoverageTest {
   @Test
   fun `a late primary that covers no frame of its own is refused even though its lead covers some`() {
     val primary = Track(listOf(fixture.clip(trim = TimeRange.of(Duration.ZERO, SHORT_RUN))), start = 1_000.milliseconds)
-    assertTrue(outputSlotOf(1_000.milliseconds, GRID_RATE) > 0, "the fixture's start leaves no lead")
+    withClue("the fixture's start leaves no lead") { (outputSlotOf(1_000.milliseconds, GRID_RATE) > 0).shouldBeTrue() }
 
     val verdict = fixture.plan(EditComposition(listOf(primary)), gridSpec())
 
@@ -172,9 +181,9 @@ class FrameCoverageTest {
   fun `an audio-only export of a primary that covers no frame still plans`() {
     val run = TimeRange.of(Duration.ZERO, SHORT_RUN)
     val composition = composition(fixture.clip(trim = run, audioRate = 44_100)).withAudio(AudioSpec.AudioOnly)
-    assertTrue(outputSlotsOf(run, GRID_RATE).isEmpty(), "the fixture's run covers a slot of its own")
+    withClue("the fixture's run covers a slot of its own") { outputSlotsOf(run, GRID_RATE).isEmpty().shouldBeTrue() }
 
-    assertIs<Verdict.Capable>(fixture.plan(composition, gridSpec()))
+    fixture.plan(composition, gridSpec()).shouldBeInstanceOf<Verdict.Capable>()
   }
 
   private fun gridSpec() = ExportSpec(frameRate = GRID_RATE)
@@ -187,9 +196,11 @@ class FrameCoverageTest {
     run: TimeRange,
     frameRate: Int,
   ) {
-    assertTrue(outputSlotsOf(run, frameRate).isEmpty(), "the fixture's run $run covers a slot at $frameRate fps")
-    val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+    withClue("the fixture's run $run covers a slot at $frameRate fps") {
+      outputSlotsOf(run, frameRate).isEmpty().shouldBeTrue()
+    }
+    val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
       "The primary track's video runs ${run.duration}, starting and ending on the same output frame at " +
       "$frameRate fps, so it covers none."
   }
@@ -202,8 +213,10 @@ class FrameCoverageTest {
     run: TimeRange,
     frameRate: Int,
   ) {
-    assertTrue(!outputSlotsOf(run, frameRate).isEmpty(), "the fixture's run $run covers no slot at $frameRate fps")
-    assertIs<Verdict.Capable>(verdict)
+    withClue("the fixture's run $run covers no slot at $frameRate fps") {
+      (!outputSlotsOf(run, frameRate).isEmpty()).shouldBeTrue()
+    }
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
   }
 
   private companion object {

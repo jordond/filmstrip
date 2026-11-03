@@ -7,12 +7,13 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlin.time.Duration.Companion.minutes
 
 /**
@@ -29,13 +30,13 @@ class AppleProbeTest {
   @Test
   fun `reads ten bit BT2020 PQ off an HDR clip`() =
     runTest(timeout = TIMEOUT) {
-      val video = assertNotNull(probe(HDR_FIXTURE).video, "no video track")
+      val video = probe(HDR_FIXTURE).video.shouldNotBeNull()
 
-      assertEquals(CodecKind.Hevc, video.codec.kind, "codec: ${video.codec}")
-      assertEquals("hvc1", video.codec.name, "AVFoundation names a codec by its four-character code")
-      assertEquals(10, video.bitDepth, "the fixture is ten bit")
-      assertEquals(ColorSpace.Bt2020, video.colorSpace)
-      assertEquals(HdrTransfer.Pq, video.hdrTransfer)
+      withClue("codec: ${video.codec}") { video.codec.kind shouldBe CodecKind.Hevc }
+      withClue("AVFoundation names a codec by its four-character code") { video.codec.name shouldBe "hvc1" }
+      video.bitDepth shouldBe 10
+      video.colorSpace shouldBe ColorSpace.Bt2020
+      video.hdrTransfer shouldBe HdrTransfer.Pq
     }
 
   // CoreMedia reads the depth out of the HEVC configuration record and has no equivalent for
@@ -43,24 +44,24 @@ class AppleProbeTest {
   @Test
   fun `says nothing about the depth of an H264 clip`() =
     runTest(timeout = TIMEOUT) {
-      val video = assertNotNull(probe(SDR_FIXTURE).video, "no video track")
+      val video = probe(SDR_FIXTURE).video.shouldNotBeNull()
 
-      assertEquals(CodecKind.H264, video.codec.kind)
-      assertNull(video.bitDepth, "H.264 carries no depth CoreMedia will report")
+      video.codec.kind shouldBe CodecKind.H264
+      withClue("H.264 carries no depth CoreMedia will report") { video.bitDepth.shouldBeNull() }
     }
 
   @Test
   fun `reads the channels and sample rate off the audio track`() =
     runTest(timeout = TIMEOUT) {
-      val audio = assertNotNull(probe(SDR_FIXTURE).audio, "no audio track")
+      val audio = probe(SDR_FIXTURE).audio.shouldNotBeNull()
 
-      assertEquals(CodecKind.Aac, audio.codec.kind, "codec: ${audio.codec}")
-      assertEquals(2, audio.channelCount, "the fixture is stereo")
-      assertEquals(48_000, audio.sampleRate, "the fixture is 48kHz")
+      withClue("codec: ${audio.codec}") { audio.codec.kind shouldBe CodecKind.Aac }
+      audio.channelCount shouldBe 2
+      audio.sampleRate shouldBe 48_000
     }
 
   private suspend fun probe(name: String): MediaInfo =
-    assertIs<ProbeResult.Success>(filmstrip.probe(MediaSource.of(fixture(name)))).info
+    filmstrip.probe(MediaSource.of(fixture(name))).shouldBeInstanceOf<ProbeResult.Success>().info
 
   private companion object {
     val TIMEOUT = 5.minutes

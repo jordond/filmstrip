@@ -43,11 +43,10 @@ import java.util.Locale
 /**
  * Lowers the built-in catalogue onto a filter graph.
  *
- * Every lowering is a pure function of the spec and the resolved [Attributes], so it is assertable
- * in a unit test with no toolchain installed, which neither of the other two resolvers can manage.
- * An overlay is the one lowering that reads anything. An animated one needs the picture's own pixel
+ * Every lowering is a pure function of the spec and the resolved [Attributes], and needs no
+ * toolchain installed. An overlay is the one lowering that reads anything. An animated one needs the picture's own pixel
  * size. One on an HDR grade decodes the picture to carry it onto the grade's signal, and one on an
- * SDR grade decodes a picture that describes its colour, or a JPEG XL, to draw it in that colour.
+ * SDR grade decodes a picture that describes its color, or a JPEG XL, to draw it in that color.
  * The backend's [OverlayPictureDecoder] decodes and sizes every picture when there is one, and the
  * JDK reads them when there is none.
  */
@@ -64,12 +63,12 @@ public actual class BuiltInEffectResolver : EffectResolver {
    * The ffmpeg backend builds its catalogue this way when it finds a [BuiltInEffectResolver] in the resolver list it
    * was given. It matches that type exactly, so a resolver of your own that wraps a [BuiltInEffectResolver] keeps the
    * JDK-only reads unless it builds the one it wraps with this constructor. Without a decoder, an animated overlay, one
-   * on an HDR grade and one that describes its colour are refused when the picture is in a format the JDK has no
+   * on an HDR grade and one that describes its color are refused when the picture is in a format the JDK has no
    * reader for, such as WebP, an AVIF or HEIC is refused on every grade, since the graph cannot repeat one as it is,
-   * and a JPEG XL on an SDR grade is drawn without looking for a colour description in it.
+   * and a JPEG XL on an SDR grade is drawn without looking for a color description in it.
    *
    * With a decoder, a URL only ffmpeg opens, such as an `https` one, is drawn from its decode, and refused when that
-   * decode describes its colour, since this process cannot read the description its container carries.
+   * decode describes its color, since this process cannot read the description its container carries.
    *
    * @param pictureDecoder Decodes and sizes every overlay picture the catalogue reads.
    */
@@ -123,7 +122,7 @@ public actual class BuiltInEffectResolver : EffectResolver {
       else -> emptyList()
     }
 
-  // Every colour effect in the catalogue is one affine map of the encoded signal, and it reaches
+  // Every color effect in the catalogue is one affine map of the encoded signal, and it reaches
   // the graph through whichever of two filters spells that map exactly. colorchannelmixer is
   // neither: it fails the graph above a gain of 2 rather than clamping, and it carries no bias.
   //
@@ -204,9 +203,8 @@ public actual class BuiltInEffectResolver : EffectResolver {
   // enough entry, is a file ffmpeg reads as something else.
   private fun entry(value: Float): String = String.format(Locale.ROOT, CUBE_ENTRY_FORMAT, value)
 
-  // Pixels are multiplied out here rather than emitted as an iw/ih expression. An expression that
-  // rounds differently from the planner's arithmetic makes plan() and the export disagree about
-  // the output frame, which is the one thing plan() exists to prevent.
+  // Pixels are multiplied out here with the planner's own arithmetic, so plan() and the export
+  // agree about the output frame.
   private fun crop(
     rect: NormalizedRect,
     inputSize: Size,

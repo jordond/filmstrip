@@ -8,9 +8,9 @@ import kotlinx.io.Source
 import kotlinx.io.files.Path
 import kotlinx.io.readByteArray
 
-// There is no sink from a RawSink here on purpose. Every export engine writes to a location of its
-// own choosing, so the honest shape is to export to MediaSink.Temporary and copy the result with
-// SystemFileSystem.source(output).transferTo(yourSink).
+// There is no sink from a RawSink here. Every export engine writes to a location of its own
+// choosing, so to land an export in a RawSink, export to MediaSink.Temporary and copy the result
+// with SystemFileSystem.source(output).transferTo(yourSink).
 
 /**
  * Reads video from this path.

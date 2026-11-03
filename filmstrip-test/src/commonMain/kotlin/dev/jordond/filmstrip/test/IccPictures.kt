@@ -12,7 +12,7 @@ import kotlin.math.roundToInt
  *
  * @property name What the profile is, for test messages.
  * @property profile The ICC profile's bytes, as a picture's `iCCP` chunk holds them once inflated.
- * @property texel The packed ARGB colour the picture is painted with, alpha included.
+ * @property texel The packed ARGB color the picture is painted with, alpha included.
  */
 @InternalFilmstripApi
 public class IccPicture internal constructor(
@@ -70,7 +70,7 @@ public object IccPictures {
     IccPicture(
       name = "sRGB",
       profile = matrixProfile("sRGB", SRGB_COLORANTS, parametricSrgbCurve()),
-      texel = AuthoredColours.MID_GREEN,
+      texel = AuthoredColors.MID_GREEN,
     )
 
   /**
@@ -80,7 +80,7 @@ public object IccPictures {
     IccPicture(
       name = "linear sRGB",
       profile = matrixProfile("Linear sRGB", SRGB_COLORANTS, curve(IntArray(0))),
-      texel = AuthoredColours.MID_GREY,
+      texel = AuthoredColors.MID_GREY,
     )
 
   /**
@@ -95,7 +95,7 @@ public object IccPictures {
     )
 
   /**
-   * sRGB as a `mAB` lookup table, painted a colour whose channels all fall between the table's grid points.
+   * sRGB as a `mAB` lookup table, painted a color whose channels all fall between the table's grid points.
    *
    * The A curves are the sRGB curve as a type 3 `para`. The three point CLUT holds the XYZ of linear sRGB at each
    * grid point, and the B curves are identities.
@@ -119,11 +119,11 @@ public object IccPictures {
       profile =
         profile(
           deviceClass = "mntr",
-          colourSpace = "GRAY",
+          colorSpace = "GRAY",
           description = "Grey gamma 563/256",
           tags = listOf("kTRC" to curve(intArrayOf(GAMMA_U8_FIXED8))),
         ),
-      texel = AuthoredColours.MID_GREY,
+      texel = AuthoredColors.MID_GREY,
     )
 
   /**
@@ -138,7 +138,7 @@ public object IccPictures {
   ): ByteArray =
     profile(
       deviceClass = "mntr",
-      colourSpace = "RGB ",
+      colorSpace = "RGB ",
       description = description,
       tags =
         listOf(
@@ -177,7 +177,7 @@ public object IccPictures {
 
     return profile(
       deviceClass = "scnr",
-      colourSpace = "RGB ",
+      colorSpace = "RGB ",
       description = "sRGB lookup table",
       tags = listOf("A2B0" to lut, "chad" to s15Fixed16Array(D65_TO_D50)),
     )
@@ -185,7 +185,7 @@ public object IccPictures {
 
   private fun profile(
     deviceClass: String,
-    colourSpace: String,
+    colorSpace: String,
     description: String,
     tags: List<Pair<String, ByteArray>>,
   ): ByteArray {
@@ -209,7 +209,7 @@ public object IccPictures {
         ByteArray(4) +
         byteArrayOf(4, 0x30, 0, 0) +
         deviceClass.encodeToByteArray() +
-        colourSpace.encodeToByteArray() +
+        colorSpace.encodeToByteArray() +
         "XYZ ".encodeToByteArray() +
         uInt16(2026) + uInt16(1) + uInt16(1) + ByteArray(6) +
         "acsp".encodeToByteArray() +

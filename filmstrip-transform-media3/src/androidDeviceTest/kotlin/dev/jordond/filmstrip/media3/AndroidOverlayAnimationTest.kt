@@ -16,10 +16,11 @@ import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -59,10 +60,9 @@ class AndroidOverlayAnimationTest {
             still.placedOn(frameSize, BADGE).core(frameSize),
           )
 
-        assertTrue(
-          abs(measured - expected) < ALPHA_TOLERANCE,
-          "at $at the fade measured $measured where the sampler says $expected",
-        )
+        withClue("at $at the fade measured $measured where the sampler says $expected") {
+          (abs(measured - expected) < ALPHA_TOLERANCE) shouldBe true
+        }
       }
     }
 
@@ -90,10 +90,9 @@ class AndroidOverlayAnimationTest {
             still.placedOn(frameSize, BADGE).core(frameSize),
           )
 
-        assertTrue(
-          abs(measured - expected) < ALPHA_TOLERANCE,
-          "at $at the fade out measured $measured where the sampler says $expected",
-        )
+        withClue("at $at the fade out measured $measured where the sampler says $expected") {
+          (abs(measured - expected) < ALPHA_TOLERANCE) shouldBe true
+        }
       }
     }
 
@@ -109,10 +108,9 @@ class AndroidOverlayAnimationTest {
         val rect = sliding.rectAt(at, here.frameSize())
         val measured = here.badgeCentre(rect.midY) ?: error("no watermark on the row at $at")
 
-        assertTrue(
-          abs(measured - rect.midX) < POSITION_TOLERANCE,
-          "at $at the watermark sits at $measured where the offset puts it at ${rect.midX}",
-        )
+        withClue("at $at the watermark sits at $measured where the offset puts it at ${rect.midX}") {
+          (abs(measured - rect.midX) < POSITION_TOLERANCE) shouldBe true
+        }
       }
     }
 
@@ -128,10 +126,9 @@ class AndroidOverlayAnimationTest {
         val rect = growing.rectAt(at, here.frameSize())
         val measured = here.badgeSpan(rect.midY)
 
-        assertTrue(
-          abs(measured - rect.width) < SPAN_TOLERANCE,
-          "at $at the watermark spans $measured where the scale makes it ${rect.width}",
-        )
+        withClue("at $at the watermark spans $measured where the scale makes it ${rect.width}") {
+          (abs(measured - rect.width) < SPAN_TOLERANCE) shouldBe true
+        }
       }
     }
 
@@ -144,7 +141,7 @@ class AndroidOverlayAnimationTest {
 
       val here = probe.frame(written, QUARTER)
       val rect = leaving.rectAt(QUARTER, here.frameSize())
-      assertTrue(rect.right > 1f, "this offset does not carry the watermark off the frame: $rect")
+      withClue("this offset does not carry the watermark off the frame: $rect") { (rect.right > 1f) shouldBe true }
 
       // media3 documents both anchors as @FloatRange(from = -1, to = 1) on
       // StaticOverlaySettings.Builder, so the background anchor is held at the frame's right edge
@@ -154,10 +151,9 @@ class AndroidOverlayAnimationTest {
       val held = 1f - rect.width / 2f
       val measured = here.badgeCentre(rect.midY) ?: error("the watermark left the frame entirely")
 
-      assertTrue(
-        abs(measured - held) < POSITION_TOLERANCE,
-        "the clamp left the watermark at $measured where media3's limit puts it at $held",
-      )
+      withClue("the clamp left the watermark at $measured where media3's limit puts it at $held") {
+        (abs(measured - held) < POSITION_TOLERANCE) shouldBe true
+      }
     }
 
   // Where the shared geometry puts the watermark on the frame written at `at`. The badge is square

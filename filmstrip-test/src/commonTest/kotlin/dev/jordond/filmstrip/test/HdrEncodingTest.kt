@@ -1,12 +1,12 @@
 package dev.jordond.filmstrip.test
 
 import dev.jordond.filmstrip.CapabilitiesResult
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.DeviceCapabilities
-import dev.jordond.filmstrip.export.ExportError
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 /**
  * How a capabilities answer reads as an HDR encoder, and that a failed query fails rather than skips.
@@ -14,17 +14,19 @@ import kotlin.test.assertTrue
 class HdrEncodingTest {
   @Test
   fun answersWhatTheDeviceAdvertises() {
-    assertTrue(CapabilitiesResult.Success(deviceWith(supportsHdrEncoding = true)).encodesHdr())
-    assertFalse(CapabilitiesResult.Success(deviceWith(supportsHdrEncoding = false)).encodesHdr())
+    CapabilitiesResult.Success(deviceWith(supportsHdrEncoding = true)).encodesHdr() shouldBe true
+    CapabilitiesResult.Success(deviceWith(supportsHdrEncoding = false)).encodesHdr() shouldBe false
   }
 
   @Test
   fun failsOnAFailedQueryInsteadOfReadingAsNoHdr() {
-    val error = ExportError.Underlying(ExportError.Underlying.NO_PLATFORM_CODE, "probe died")
+    val error = FilmstripError.Underlying(FilmstripError.Underlying.NO_PLATFORM_CODE, "probe died")
     val failed = CapabilitiesResult.Failure(error)
 
     val thrown = assertFailsWith<AssertionError> { failed.encodesHdr() }
-    assertTrue("probe died" in thrown.message.orEmpty(), "the failure should name the error, was ${thrown.message}")
+    withClue("the failure should name the error, was ${thrown.message}") {
+      ("probe died" in thrown.message.orEmpty()) shouldBe true
+    }
   }
 
   private fun deviceWith(supportsHdrEncoding: Boolean): DeviceCapabilities =

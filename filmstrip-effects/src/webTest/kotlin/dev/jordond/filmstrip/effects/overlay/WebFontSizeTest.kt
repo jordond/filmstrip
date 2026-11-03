@@ -1,10 +1,9 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.style.FontWeight
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 /**
  * How a font size is written into the CSS shorthand, which must never carry an exponent on js or wasm.
@@ -15,8 +14,8 @@ class WebFontSizeTest {
     for (size in SIZES) {
       val written = plainDecimalOf(size)
 
-      assertFalse(written.any { it == 'e' || it == 'E' }, "$size was written $written")
-      assertEquals(size, written.toFloat(), "$size was written $written")
+      withClue("$size was written $written") { written.any { it == 'e' || it == 'E' } shouldBe false }
+      withClue("$size was written $written") { written.toFloat() shouldBe size }
     }
   }
 
@@ -26,9 +25,9 @@ class WebFontSizeTest {
     val font = fontOf(FontWeight.Bold, HUGE, "serif")
     val size = font.removePrefix("700 ").removeSuffix("px serif")
 
-    assertEquals("700 ${size}px serif", font)
-    assertEquals(HUGE, size.toFloat(), "the size was written $size")
-    assertTrue(size.all { it.isDigit() || it == '.' }, "the size was written $size")
+    font shouldBe "700 ${size}px serif"
+    withClue("the size was written $size") { size.toFloat() shouldBe HUGE }
+    withClue("the size was written $size") { size.all { it.isDigit() || it == '.' } shouldBe true }
   }
 
   private companion object {

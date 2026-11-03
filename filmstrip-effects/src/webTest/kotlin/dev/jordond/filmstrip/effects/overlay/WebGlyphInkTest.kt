@@ -3,23 +3,23 @@ package dev.jordond.filmstrip.effects.overlay
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.test.GLYPH_INKS
 import dev.jordond.filmstrip.test.sampleOfCode
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 
 /**
- * How far the browser's ordinary glyph texels sit from the text colour, against the reach [platedSamples] reads ink
+ * How far the browser's ordinary glyph texels sit from the text color, against the reach [platedSamples] reads ink
  * by.
  *
  * A canvas stores a glyph premultiplied on eight bits and reads it back divided out, and Chrome's premultiply drifts
  * each channel on its own by a few premultiplied steps. Every texel has to sit within [glyphInkReach], or an ordinary
- * texel would keep its eight-bit colour rather than the text's.
+ * texel would keep its eight-bit color rather than the text's.
  */
 class WebGlyphInkTest {
   @Test
-  fun ordinaryGlyphsSitWithinTheInkReachOfTheirColour() {
+  fun ordinaryGlyphsSitWithinTheInkReachOfTheirColor() {
     var outside = 0
     var worst = 0.0
     var worstAt = "nothing"
@@ -41,11 +41,13 @@ class WebGlyphInkTest {
       }
     }
 
-    assertEquals(0, outside, "channels sat past the ink reach, the worst $worst premultiplied steps off at $worstAt")
+    withClue("channels sat past the ink reach, the worst $worst premultiplied steps off at $worstAt") {
+      outside shouldBe 0
+    }
   }
 
   @Test
-  fun everyOrdinaryGlyphTexelTakesTheTextColourExactly() {
+  fun everyOrdinaryGlyphTexelTakesTheTextColorExactly() {
     for (ink in GLYPH_INKS) {
       for (font in FONTS) {
         val glyphs = coverageOf(ink, font)
@@ -57,7 +59,7 @@ class WebGlyphInkTest {
             glyphs.codeAt(texel + ALPHA) > 0 &&
               (0 until RGB).any { (samples[texel + it].toInt() and SAMPLE_MASK) != expected[it] }
           }
-        assertEquals(0, missed, "${ink.hex()} text in $font kept its own colour at $missed texels")
+        withClue("${ink.hex()} text in $font kept its own color at $missed texels") { missed shouldBe 0 }
       }
     }
   }
@@ -72,8 +74,10 @@ class WebGlyphInkTest {
         context.textBaseline = ALPHABETIC
         LINES.forEachIndexed { index, line -> context.fillText(line, LINE_X, LINE_Y + index * LINE_ADVANCE) }
       }
-    val glyphs = assertIs<TextRaster.Drawn<ByteArray>>(drawn).pixels
-    assertTrue((glyphs.indices step CHANNELS).any { glyphs.codeAt(it + ALPHA) > 0 }, "${ink.hex()} in $font drew none")
+    val glyphs = drawn.shouldBeInstanceOf<TextRaster.Drawn<ByteArray>>().pixels
+    withClue("${ink.hex()} in $font drew none") {
+      (glyphs.indices step CHANNELS).any { glyphs.codeAt(it + ALPHA) > 0 } shouldBe true
+    }
     return glyphs
   }
 

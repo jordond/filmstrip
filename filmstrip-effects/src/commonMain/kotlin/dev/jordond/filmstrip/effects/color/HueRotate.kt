@@ -10,7 +10,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * Turn every hue around the colour wheel by the same angle.
+ * Turn every hue around the color wheel by the same angle.
  *
  * The rotation is the linear one `filter: hue-rotate()` in a browser applies, which spins the
  * chroma about the luma axis and leaves a grey pixel exactly where it was. A full turn is the
@@ -36,8 +36,8 @@ public fun EffectsBuilder.hueRotate(degrees: Float): EffectsBuilder = add(HueRot
 /**
  * The angle a backend actually applies, in degrees.
  *
- * Guarded here rather than on the matrix, because the trig runs first and both a NaN and an infinity
- * come out of it as a NaN in all nine entries.
+ * A NaN or an infinite angle applies as zero, since the trig would turn either into a NaN in all
+ * nine entries of the matrix.
  */
 internal val HueRotate.angle: Float get() = if (degrees.isFinite()) degrees else 0f
 

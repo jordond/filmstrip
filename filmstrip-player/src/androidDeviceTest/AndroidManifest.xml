@@ -3,7 +3,7 @@
 
     <application>
         <activity
-            android:name="dev.jordond.filmstrip.playback.SurfaceHostActivity"
+            android:name="dev.jordond.filmstrip.player.SurfaceHostActivity"
             android:exported="false" />
     </application>
 </manifest>

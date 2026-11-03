@@ -5,15 +5,16 @@ import androidx.media3.common.MediaItem
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotTime
-import dev.jordond.filmstrip.internal.outputSlotsOf
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
-import dev.jordond.filmstrip.transform.internal.ResolvedClip
-import dev.jordond.filmstrip.transform.internal.ResolvedComposition
-import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import dev.jordond.filmstrip.media3.internal.bounds.Media3FrameBounds
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import kotlin.time.Duration
 
 /**
@@ -30,11 +31,9 @@ internal class Lowering(
    * The track waits for the slot its start lands on, and each clip runs from the slot its span opens on to the one its
    * span closes on. Every item therefore opens where the one before it ended, and every boundary sits on a slot. A clip
    * covering no slot lays nothing. The wait, and the slots of a clip with no picture of its own, hold [gapItem]s.
-   *
-   * @throws Media3LoweringFailure when the plan settled on no frame rate to lay the grid at.
    */
   fun gridSequence(track: ResolvedTrack): EditedMediaItemSequence? {
-    val rate = plan.output.frameRate?.takeIf { it > 0 } ?: throw Media3LoweringFailure(NO_FRAME_RATE)
+    val rate = plan.output.frameRate
     val builder = EditedMediaItemSequence.Builder(setOf(C.TRACK_TYPE_VIDEO))
     val lead = outputSlotTime(outputSlotOf(track.start, rate), rate)
     if (lead > Duration.ZERO) builder.addItem(gapItem(lead, rate))
@@ -172,9 +171,7 @@ internal class Lowering(
       .setRemoveVideo(removeVideo)
       .apply {
         sourceDuration(info)
-        plan.output.frameRate
-          ?.takeIf { it > 0 }
-          ?.let(::setFrameRate)
+        setFrameRate(plan.output.frameRate)
       }.setEffects(
         Effects(
           if (removeAudio) emptyList() else audioProcessors(gain, mixesAudio),
@@ -232,12 +229,7 @@ internal class Lowering(
     removeAudio: Boolean,
     removeVideo: Boolean,
   ): EditedMediaItem {
-    val rate =
-      plan.output.frameRate?.takeIf { it > 0 }
-        ?: throw Media3LoweringFailure(
-          "${source.image.describe()} is a still, which has no cadence of its own, and the plan " +
-            "settled on no frame rate to hold it at.",
-        )
+    val rate = plan.output.frameRate
 
     val mediaItem =
       MediaItem
@@ -309,6 +301,3 @@ private const val IMAGE_MIME_PREFIX = "image/"
 private const val GAP_FRAME_MIME = "${IMAGE_MIME_PREFIX}png"
 
 private const val MICROS_PER_MILLISECOND = 1000L
-
-private const val NO_FRAME_RATE =
-  "The video lands every clip on the output's frame grid, and this plan settled on no frame rate to lay it at."

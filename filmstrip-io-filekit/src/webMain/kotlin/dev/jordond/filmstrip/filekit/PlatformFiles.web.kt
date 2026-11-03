@@ -66,8 +66,7 @@ private fun revokeObjectUrl(uri: String) {
 private const val OBJECT_URL_SCHEME = "blob:"
 
 /**
- * Object URL minting and revoking, declared here rather than taken from a DOM binding so that js
- * and wasmJs share one implementation.
+ * Object URL minting and revoking, declared here once for both js and wasmJs.
  */
 private external object URL : JsAny {
   fun createObjectURL(obj: JsAny): String

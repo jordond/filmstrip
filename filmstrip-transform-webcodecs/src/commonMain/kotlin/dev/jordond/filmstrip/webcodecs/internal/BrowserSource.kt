@@ -2,7 +2,27 @@
 
 package dev.jordond.filmstrip.webcodecs.internal
 
+import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.internal.awaitCatching
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.webcodecs.internal.interop.ALL_FORMATS
+import dev.jordond.filmstrip.webcodecs.internal.interop.ArrayBuffer
+import dev.jordond.filmstrip.webcodecs.internal.interop.AudioSample
+import dev.jordond.filmstrip.webcodecs.internal.interop.AudioSampleSink
+import dev.jordond.filmstrip.webcodecs.internal.interop.BufferSource
+import dev.jordond.filmstrip.webcodecs.internal.interop.EncodedPacketSink
+import dev.jordond.filmstrip.webcodecs.internal.interop.Input
+import dev.jordond.filmstrip.webcodecs.internal.interop.InputAudioTrack
+import dev.jordond.filmstrip.webcodecs.internal.interop.InputVideoTrack
+import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
+import dev.jordond.filmstrip.webcodecs.internal.interop.MediabunnyIterator
+import dev.jordond.filmstrip.webcodecs.internal.interop.UrlSource
+import dev.jordond.filmstrip.webcodecs.internal.interop.VideoDecoder
+import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
+import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSampleSink
+import dev.jordond.filmstrip.webcodecs.internal.interop.jsCopyWith
+import dev.jordond.filmstrip.webcodecs.internal.interop.toUint8Array
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
@@ -86,7 +106,7 @@ internal class SourceReader(
           .toDouble()
           .toInt(),
       codec = track.getCodec().await()?.toString() ?: return null,
-      frameRate = measuredFrameRate(track),
+      frameRate = track.measuredFrameRate(),
     )
   }
 
@@ -205,7 +225,7 @@ internal class SourceReader(
 
   private suspend fun softwareDecodes(track: InputVideoTrack): Boolean {
     val config = track.getDecoderConfig().await() ?: return false
-    return runCatching {
+    return awaitCatching {
       VideoDecoder
         .isConfigSupported(jsCopyWith(config, HARDWARE_ACCELERATION, SOFTWARE_HINT))
         .await()
@@ -223,7 +243,7 @@ internal class SourceReader(
    * the track answers no rather than failing the plan.
    */
   private suspend fun yieldsTenBit(open: () -> VideoSampleSink?): Boolean {
-    val sample = runCatching { open()?.getSample(0.0)?.await() }.getOrNull() ?: return false
+    val sample = awaitCatching { open()?.getSample(0.0)?.await() }.getOrNull() ?: return false
     return try {
       sample.format?.toString() == TEN_BIT_FORMAT
     } finally {
@@ -231,35 +251,29 @@ internal class SourceReader(
     }
   }
 
-  /**
-   * The track's real frame rate, measured over a bounded prefix of its packets rather than the
-   * whole file.
-   */
-  private suspend fun measuredFrameRate(track: InputVideoTrack): Float? {
-    val stats = track.computePacketStats(FRAME_RATE_SAMPLE_PACKETS).await()
-    if (stats.packetCount < 2) return null
-    val rate = stats.averagePacketRate
-    return if (rate > 0.0 && rate.isFinite()) rate.toFloat() else null
-  }
-
   companion object {
     /**
      * Opens [source], or returns null when a browser cannot read it. A URL is range-requested. A
-     * byte array is copied into the JavaScript heap once.
+     * byte array is copied into the JavaScript heap once. A source mediabunny refuses while its
+     * input is built reads as null too, so this never throws.
      */
-    fun of(source: MediaSource): SourceReader? {
-      val backing: JsAny =
-        when (source) {
-          is MediaSource.Uri -> UrlSource(source.uri)
-          is MediaSource.Bytes -> BufferSource(source.bytes.toUint8Array())
-          is MediaSource.Path -> return null
-          // A still has no container for the demuxer to open.
-          is MediaSource.Image -> return null
-        }
-      return SourceReader(Input(inputOptions(backing)))
-    }
+    fun of(source: MediaSource): SourceReader? =
+      try {
+        backingOf(source)?.let { SourceReader(Input(inputOptions(it))) }
+      } catch (refused: Throwable) {
+        null
+      }
 
     fun ofBuffer(buffer: ArrayBuffer): SourceReader = SourceReader(Input(inputOptions(BufferSource(buffer))))
+
+    private fun backingOf(source: MediaSource): JsAny? =
+      when (source) {
+        is MediaSource.Uri -> UrlSource(source.uri)
+        is MediaSource.Bytes -> BufferSource(source.bytes.toUint8Array())
+        is MediaSource.Path -> null
+        // A still has no container for the demuxer to open.
+        is MediaSource.Image -> null
+      }
 
     private fun inputOptions(backing: JsAny): JsAny =
       JsOptions()
@@ -270,14 +284,17 @@ internal class SourceReader(
 }
 
 /**
- * Decoded frames, pulled one at a time so the pipeline decodes only as fast as it encodes.
+ * What a mediabunny sink yields, pulled one at a time so a reader is fed only as fast as it reads.
  */
-internal class FrameStream(
-  private val iterator: VideoSampleIterator,
+internal class PulledStream<T : JsAny>(
+  private val iterator: MediabunnyIterator<T>,
 ) {
   private var finished = false
 
-  suspend fun next(): VideoSample? {
+  /**
+   * The next value, or null once the sink has yielded its last or this was closed.
+   */
+  suspend fun next(): T? {
     if (finished) return null
     val step = iterator.next().await()
     if (step.done) {
@@ -288,8 +305,8 @@ internal class FrameStream(
   }
 
   /**
-   * Releases the decoder. Iteration that stops on a trim boundary has to say so, or the decoder
-   * stays alive holding frames nobody will read.
+   * Releases what the sink holds for this stream. A reader that stops before the track's end has to say so, or the
+   * sink stays alive holding what nobody will read.
    */
   fun close() {
     if (finished) return
@@ -297,6 +314,11 @@ internal class FrameStream(
     iterator.`return`(null)
   }
 }
+
+/**
+ * Decoded frames, pulled one at a time so the pipeline decodes only as fast as it encodes.
+ */
+internal typealias FrameStream = PulledStream<VideoSample>
 
 /**
  * Random access into one video track: the frame at a time, or a forward run from a time.
@@ -330,31 +352,7 @@ internal class FrameSampler(
 /**
  * Decoded audio samples, pulled one at a time the same way [FrameStream] pulls frames.
  */
-internal class SampleStream(
-  private val iterator: AudioSampleIterator,
-) {
-  private var finished = false
-
-  suspend fun next(): AudioSample? {
-    if (finished) return null
-    val step = iterator.next().await()
-    if (step.done) {
-      finished = true
-      return null
-    }
-    return step.value
-  }
-
-  /**
-   * Releases the decoder. Iteration that stops before the track's end has to say so, or the decoder
-   * stays alive holding samples nobody will read.
-   */
-  fun close() {
-    if (finished) return
-    finished = true
-    iterator.`return`(null)
-  }
-}
+internal typealias SampleStream = PulledStream<AudioSample>
 
 /**
  * The readers an export is using, keyed by source.
@@ -368,7 +366,7 @@ internal class SourceCache {
 
   fun open(source: MediaSource): SourceReader? {
     readers[source]?.let { return it }
-    return runCatching { SourceReader.of(source) }.getOrNull()?.also { readers[source] = it }
+    return SourceReader.of(source)?.also { readers[source] = it }
   }
 
   fun close() {
@@ -376,6 +374,23 @@ internal class SourceCache {
     readers.clear()
   }
 }
+
+/**
+ * The message an export fails with when the browser cannot open [source] or finds no track in it to draw. The
+ * pipeline and the stream copy both throw it.
+ */
+internal fun unreadableMessage(source: MediaSource): String = "The browser could not read ${source.describe()}."
+
+/**
+ * The error a probe or an export answers with when the browser cannot open [source]. Its message says what a browser
+ * reads and that a file has to be loaded by the page first.
+ */
+internal fun unreadableSource(source: MediaSource): FilmstripError.SourceUnreadable =
+  FilmstripError.SourceUnreadable(source.describe(), UNREADABLE_REASON)
+
+private const val UNREADABLE_REASON =
+  "A browser reads URLs and in-memory bytes. A path has no meaning here, and a file has to be " +
+    "loaded by the page first."
 
 internal const val MICROS_PER_SECOND = 1_000_000.0
 
@@ -390,6 +405,18 @@ private const val SOFTWARE_HINT = "prefer-software"
 
 // mediabunny takes an end timestamp in seconds, and every real track ends long before this.
 private const val OPEN_ENDED_SECONDS = 1e12
+
+/**
+ * The track's real frame rate, measured over a bounded prefix of its packets rather than the whole file.
+ *
+ * @return The rate, or null when the prefix holds fewer than two packets or measures no finite positive rate.
+ */
+internal suspend fun InputVideoTrack.measuredFrameRate(): Float? {
+  val stats = computePacketStats(FRAME_RATE_SAMPLE_PACKETS).await()
+  if (stats.packetCount < 2) return null
+  val rate = stats.averagePacketRate
+  return if (rate > 0.0 && rate.isFinite()) rate.toFloat() else null
+}
 
 // Enough packets to measure a rate, few enough that measuring one does not walk a long file.
 private const val FRAME_RATE_SAMPLE_PACKETS = 120

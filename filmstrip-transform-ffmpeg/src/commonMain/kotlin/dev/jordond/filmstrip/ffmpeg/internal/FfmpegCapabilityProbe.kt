@@ -1,0 +1,131 @@
+package dev.jordond.filmstrip.ffmpeg.internal
+
+import dev.jordond.filmstrip.capability.AudioEncoderCapability
+import dev.jordond.filmstrip.capability.DeviceCapabilities
+import dev.jordond.filmstrip.capability.VideoEncoderCapability
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.FFMPEG_ENCODERS
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.FfmpegEncoder
+import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
+import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
+import dev.jordond.filmstrip.transform.internal.HDR_PROBE_SIZE
+import dev.jordond.filmstrip.transform.internal.RESOLUTION_LADDER
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+
+/**
+ * Measures what this toolchain's encoders can write by encoding a ladder of frames, since ffmpeg publishes no figure for
+ * it.
+ *
+ * Each rung encodes a single frame as cheaply as that encoder allows. Every codec in the table is probed, including the
+ * ones CODEC_LADDER leaves out of Auto, so a caller who names one still gets an answer. One encoder's ladder does not
+ * wait on another's, or a build carrying six of them would spend a second of somebody's startup. The caller caches the
+ * answer for the life of the runtime.
+ */
+internal suspend fun FfmpegRuntime.measureCapabilities(toolchain: Toolchain): DeviceCapabilities =
+  coroutineScope {
+    val video =
+      FFMPEG_ENCODERS.entries
+        .flatMap { (codec, encoders) -> encoders.map { codec to it } }
+        .filter { (_, encoder) -> toolchain.hasEncoder(encoder.name) }
+        .map { (codec, encoder) -> async { videoCapability(toolchain, codec, encoder) } }
+        .awaitAll()
+        .filterNotNull()
+
+    // Answered for the encoder an HDR export actually opens, not for any encoder the build
+    // carries. The planner pins a kept grade to DEFAULT_HDR_LADDER and then takes the first
+    // ranked encoder for it, so probing a different one would claim a grade this backend goes on
+    // to hand to an encoder that cannot write it.
+    //
+    // Probed at HDR_PROBE_SIZE, the one rung every backend asks this at.
+    val hdrEncoder =
+      DEFAULT_HDR_LADDER
+        .firstNotNullOfOrNull { codec -> video.firstOrNull { it.codec == codec } }
+        ?.encoderName
+        ?.let { name -> FFMPEG_ENCODERS.values.flatten().firstOrNull { it.name == name } }
+    val supportsHdrEncoding =
+      hdrEncoder?.hdrPixelFormat?.let { pixelFormat ->
+        canEncode(toolchain, hdrEncoder, HDR_PROBE_SIZE, pixelFormat, hdrEncoder.hdrProfile)
+      } ?: false
+
+    DeviceCapabilities(
+      video = video,
+      audio =
+        buildList {
+          if (toolchain.hasEncoder("aac")) add(AudioEncoderCapability(AudioCodec.Aac, SAMPLE_RATES, MAX_CHANNELS))
+          if (toolchain.hasEncoder("alac")) add(AudioEncoderCapability(AudioCodec.Alac, SAMPLE_RATES, MAX_CHANNELS))
+        },
+      supportsHdrEncoding = supportsHdrEncoding,
+      // A process is not a hardware codec session, so there is no budget to report.
+      concurrentSessionBudget = null,
+    )
+  }
+
+private suspend fun FfmpegRuntime.videoCapability(
+  toolchain: Toolchain,
+  codec: VideoCodec,
+  encoder: FfmpegEncoder,
+): VideoEncoderCapability? {
+  val largest = RESOLUTION_LADDER.firstOrNull { canEncode(toolchain, encoder, it) } ?: return null
+  return VideoEncoderCapability(
+    codec = codec,
+    encoderName = encoder.name,
+    maxSize = largest,
+    // ffmpeg publishes neither a rate ceiling nor a bitrate ceiling, and inventing one would make
+    // plan() refuse things that work.
+    maxFrameRate = null,
+    maxBitrate = null,
+    isHardwareAccelerated = encoder.isHardwareAccelerated,
+    sizeAlignment = SIZE_ALIGNMENT,
+  )
+}
+
+private suspend fun FfmpegRuntime.canEncode(
+  toolchain: Toolchain,
+  encoder: FfmpegEncoder,
+  size: Size,
+  pixelFormat: String? = null,
+  profile: String? = null,
+): Boolean {
+  val output =
+    capture(
+      buildList {
+        add(toolchain.ffmpeg)
+        add("-hide_banner")
+        add("-loglevel")
+        add("error")
+        add("-nostdin")
+        add("-f")
+        add("lavfi")
+        add("-i")
+        add("color=s=${size.width}x${size.height}:d=0.04")
+        pixelFormat?.let {
+          add("-vf")
+          add("format=$it")
+        }
+        add("-c:v")
+        add(encoder.name)
+        pixelFormat?.let {
+          add("-pix_fmt")
+          add(it)
+        }
+        addAll(encoder.probeArguments)
+        profile?.let {
+          add("-profile:v")
+          add(it)
+        }
+        add("-f")
+        add("null")
+        add("-")
+      },
+    )
+  return output.started && output.exitCode == 0
+}
+
+private const val SIZE_ALIGNMENT = 2
+private const val MAX_CHANNELS = 8
+
+private val SAMPLE_RATES = listOf(8_000, 16_000, 22_050, 24_000, 32_000, 44_100, 48_000, 96_000)

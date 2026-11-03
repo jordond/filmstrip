@@ -1,14 +1,13 @@
 package dev.jordond.filmstrip
 
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
-import kotlin.test.assertIs
 import kotlin.time.Duration.Companion.milliseconds
 
 // Registered probers answer ahead of core's own, and the dispatch is common code. It is tested on
@@ -26,7 +25,10 @@ class ProberChainTest {
           addMediaProberFactory { MediaProber { ProbeResult.Success(INFO) } }
         }
 
-      assertIs<ProbeResult.Success>(filmstrip.probe(source)).info.duration shouldBe 1_234.milliseconds
+      filmstrip
+        .probe(source)
+        .shouldBeInstanceOf<ProbeResult.Success>()
+        .info.duration shouldBe 1_234.milliseconds
     }
 
   @Test
@@ -38,7 +40,10 @@ class ProberChainTest {
           addMediaProberFactory { MediaProber { ProbeResult.Success(LATER) } }
         }
 
-      assertIs<ProbeResult.Success>(filmstrip.probe(source)).info.duration shouldBe 9_999.milliseconds
+      filmstrip
+        .probe(source)
+        .shouldBeInstanceOf<ProbeResult.Success>()
+        .info.duration shouldBe 9_999.milliseconds
     }
 
   @Test
@@ -50,7 +55,10 @@ class ProberChainTest {
           addMediaProberFactory { MediaProber { failure("second") } }
         }
 
-      assertIs<ProbeResult.Success>(filmstrip.probe(source)).info.duration shouldBe 1_234.milliseconds
+      filmstrip
+        .probe(source)
+        .shouldBeInstanceOf<ProbeResult.Success>()
+        .info.duration shouldBe 1_234.milliseconds
     }
 
   // The prober registered last knows the most, so its reason is the one the caller sees even though
@@ -64,7 +72,7 @@ class ProberChainTest {
           addMediaProberFactory { MediaProber { failure("second") } }
         }
 
-      val failure = assertIs<ProbeResult.Failure>(filmstrip.probe(source))
+      val failure = filmstrip.probe(source).shouldBeInstanceOf<ProbeResult.Failure>()
       failure.error.message shouldBe "second"
     }
 
@@ -77,11 +85,14 @@ class ProberChainTest {
           addMediaProberFactory { null }
         }
 
-      assertIs<ProbeResult.Success>(filmstrip.probe(source)).info.duration shouldBe 1_234.milliseconds
+      filmstrip
+        .probe(source)
+        .shouldBeInstanceOf<ProbeResult.Success>()
+        .info.duration shouldBe 1_234.milliseconds
     }
 
   private fun failure(message: String): ProbeResult.Failure =
-    ProbeResult.Failure(ExportError.SourceUnreadable(source = "test", message = message))
+    ProbeResult.Failure(FilmstripError.SourceUnreadable(source = "test", message = message))
 
   private companion object {
     val INFO = MediaInfo(duration = 1_234.milliseconds, video = null, audio = null, isExportable = true)

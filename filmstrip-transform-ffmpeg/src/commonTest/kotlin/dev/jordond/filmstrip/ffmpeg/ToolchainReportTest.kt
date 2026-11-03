@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg
 
-import dev.jordond.filmstrip.ffmpeg.internal.parseNameListing
-import dev.jordond.filmstrip.ffmpeg.internal.parseVersion
+import dev.jordond.filmstrip.ffmpeg.internal.process.parseNameListing
+import dev.jordond.filmstrip.ffmpeg.internal.process.parseVersion
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 

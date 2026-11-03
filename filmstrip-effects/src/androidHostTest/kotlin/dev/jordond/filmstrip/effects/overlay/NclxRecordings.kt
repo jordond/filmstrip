@@ -1,20 +1,20 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.media.YcbcrReading
-import dev.jordond.filmstrip.media.ycbcrReading
-import dev.jordond.filmstrip.test.ColourPictures
+import dev.jordond.filmstrip.color.YcbcrReading
+import dev.jordond.filmstrip.color.ycbcrReading
+import dev.jordond.filmstrip.test.ColorPictures
 
-// An AVIF whose codestream states no colour, recording [matrix] and [fullRange] in its nclx.
+// An AVIF whose codestream states no color, recording [matrix] and [fullRange] in its nclx.
 internal fun avifRecording(
   matrix: Int,
   fullRange: Boolean,
-): ByteArray = recording(ColourPictures.NCLX_DISPLAY_P3.bytes(), matrix, fullRange)
+): ByteArray = recording(ColorPictures.NCLX_DISPLAY_P3.bytes(), matrix, fullRange)
 
 // A HEIC whose codestream signals nothing, recording [matrix] and [fullRange] in its nclx.
 internal fun heicRecording(
   matrix: Int,
   fullRange: Boolean,
-): ByteArray = recording(ColourPictures.HEIC_NCLX_BT709_FULL.bytes(), matrix, fullRange)
+): ByteArray = recording(ColorPictures.HEIC_NCLX_BT709_FULL.bytes(), matrix, fullRange)
 
 // [file] with its nclx recording BT.709 primaries, the sRGB transfer, [matrix] and [fullRange].
 internal fun recording(

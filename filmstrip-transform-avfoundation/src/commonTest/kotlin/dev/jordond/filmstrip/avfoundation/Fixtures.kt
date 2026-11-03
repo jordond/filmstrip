@@ -1,10 +1,11 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.media.HdrTransfer
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSProcessInfo
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
  * The path of the fixture clip [name] inside the directory `FILMSTRIP_FIXTURES` names.
@@ -13,9 +14,14 @@ import kotlin.test.assertTrue
  * Apple test tasks, and the iPhone runner sets it to the fixtures copied into the app bundle.
  */
 internal fun fixture(name: String): String {
-  val directory = assertNotNull(NSProcessInfo.processInfo.environment[FIXTURES] as? String, "$FIXTURES is unset")
+  val directory =
+    withClue("$FIXTURES is unset") {
+      (NSProcessInfo.processInfo.environment[FIXTURES] as? String).shouldNotBeNull()
+    }
   val path = "$directory/$name"
-  assertTrue(NSFileManager.defaultManager.fileExistsAtPath(path), "$FIXTURES is set but $path is missing")
+  withClue("$FIXTURES is set but $path is missing") {
+    NSFileManager.defaultManager.fileExistsAtPath(path).shouldBeTrue()
+  }
   return path
 }
 

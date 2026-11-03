@@ -2,6 +2,9 @@ package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.effects.rasterReader
 import dev.jordond.filmstrip.geometry.Size
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.reinterpret
@@ -19,8 +22,6 @@ import platform.CoreGraphics.CGImageRef
 import platform.CoreGraphics.CGImageRelease
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertNotNull
 
 /**
  * Holds the stored samples the Apple overlay raster reads back to the ones a picture stores, however many bands the
@@ -43,7 +44,7 @@ class StoredSamplesTest {
       List(HEIGHT * WIDTH) { index -> texel(index % WIDTH, index / WIDTH) }.flatMap { (red, green, blue, alpha) ->
         if (alpha == 0) List(CHANNELS) { 0 } else listOf(red, green, blue, alpha).map { it * EIGHT_BIT_STEP }
       }
-    assertContentEquals(expected, read.map { it.toInt() and SAMPLE_MASK }, "the banded read moved or changed a texel")
+    withClue("the banded read moved or changed a texel") { read.map { it.toInt() and SAMPLE_MASK } shouldBe expected }
   }
 
   @Test
@@ -68,7 +69,7 @@ class StoredSamplesTest {
 
     val expected =
       listOf(0.0, 0.5, 0.25, 0.5, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.5, 0.5).map { (it * MAX_SAMPLE).roundToInt() }
-    assertContentEquals(expected, samples.map { it.toInt() and SAMPLE_MASK })
+    samples.map { it.toInt() and SAMPLE_MASK } shouldBe expected
   }
 
   /**
@@ -100,7 +101,7 @@ class StoredSamplesTest {
       )
     CGColorSpaceRelease(space)
     CGDataProviderRelease(provider)
-    return assertNotNull(image, "Core Graphics made no picture")
+    return withClue("Core Graphics made no picture") { image.shouldNotBeNull() }
   }
 
   private companion object {

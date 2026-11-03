@@ -1,10 +1,13 @@
 package dev.jordond.filmstrip.export
 
 import dev.drewhamilton.poko.Poko
-import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.capability.ParityNote
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.Bitrate
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
@@ -14,7 +17,7 @@ import kotlin.time.Duration
 /**
  * What this device will do with an edit, decided before any decoding, encoding or writing happens.
  *
- * Returned by [Filmstrip.plan], and the only source of an [ExportPlan].
+ * Returned by [dev.jordond.filmstrip.Filmstrip.plan], and the only source of an [ExportPlan].
  */
 public sealed interface Verdict {
   /**
@@ -32,24 +35,30 @@ public sealed interface Verdict {
    *
    * @property plan What will run, after every fallback.
    * @property adjustments What filmstrip changed to get there. Never empty.
+   * @throws IllegalArgumentException when [adjustments] is empty.
    */
   @Poko
   public class Degraded(
     public val plan: ExportPlan,
     public val adjustments: List<Adjustment>,
-  ) : Verdict
+  ) : Verdict {
+    init {
+      require(adjustments.isNotEmpty()) { "A degraded verdict needs at least one adjustment." }
+    }
+  }
 
   /**
    * The edit cannot run on this device. There is no plan.
    *
    * @property reasons Why it cannot run.
-   * @property withoutUnsupported The plan that would work with the impossible effects removed, or
-   *   null when no such plan exists.
+   * @property withoutUnsupported What would run with the impossible effects removed, or null when
+   *   nothing would. Its adjustments name each removed effect as [AdjustmentKind.EffectDropped],
+   *   alongside anything else the smaller edit changed.
    */
   @Poko
   public class Incapable(
-    public val reasons: List<ExportError>,
-    public val withoutUnsupported: ExportPlan?,
+    public val reasons: List<FilmstripError>,
+    public val withoutUnsupported: Degraded?,
   ) : Verdict
 }
 
@@ -73,7 +82,7 @@ public class Adjustment(
  * What kind of change an [Adjustment] describes.
  *
  * Not every kind needs to reach the user. [HdrToneMapped] and [EffectDropped] change how the output looks next to the
- * preview the user just watched, and [ColorSpaceChanged] can on a colour-managed player, so surface those.
+ * preview the user just watched, and [ColorSpaceChanged] can on a color-managed player, so surface those.
  */
 public enum class AdjustmentKind {
   /**
@@ -111,7 +120,10 @@ public enum class AdjustmentKind {
   EffectApproximated,
 
   /**
-   * An effect was removed. Only reachable through [Verdict.Incapable.withoutUnsupported].
+   * An effect was removed because this device cannot run it.
+   *
+   * Only carried by [Verdict.Incapable.withoutUnsupported], and by the [ExportStatus.Success] of an
+   * export that ran its plan.
    */
   EffectDropped,
 
@@ -121,10 +133,10 @@ public enum class AdjustmentKind {
   SoftwareFallback,
 
   /**
-   * The file records a different colour space than was asked for, because the encoder was measured converting into
+   * The file records a different color space than was asked for, because the encoder was measured converting into
    * that one when asked for the requested one.
    *
-   * The colours decode as authored through the recorded matrix. A colour-managed player can still show them a shade
+   * The colors decode as authored through the recorded matrix. A color-managed player can still show them a shade
    * apart where the recorded primaries differ from the requested ones.
    */
   ColorSpaceChanged,
@@ -182,9 +194,9 @@ public enum class CopyBlocker {
   AudioCodecNamed,
 
   /**
-   * [ExportSpec.targetHeight] asks for a frame the source is not already at.
+   * [ExportSpec.heightPx] names a height, which only an encoder can deliver.
    */
-  TargetHeightSet,
+  HeightSet,
 
   /**
    * [ExportSpec.bitrate] names a rate, which only an encoder can deliver.
@@ -197,7 +209,8 @@ public enum class CopyBlocker {
   FrameResized,
 
   /**
-   * [EditComposition.audio] asks for something other than the source's own audio.
+   * [EditComposition.audio] leaves a stream the source carries out of the file, the way
+   * [dev.jordond.filmstrip.edit.AudioSpec.Remove] and [dev.jordond.filmstrip.edit.AudioSpec.AudioOnly] do.
    */
   AudioSpecChanged,
 
@@ -222,7 +235,8 @@ public enum class CopyBlocker {
   TrackGainChanged,
 
   /**
-   * The composition's audio level is not unity, so the samples have to be scaled.
+   * The composition's audio level is not unity, so the samples have to be scaled. That is
+   * [dev.jordond.filmstrip.edit.AudioSpec.Mute], or a volume other than one.
    */
   CompositionGainChanged,
 
@@ -257,7 +271,8 @@ public enum class CopyBlocker {
 /**
  * What an export will actually do, resolved before it starts.
  *
- * Obtainable only from [Verdict.Capable] or [Verdict.Degraded].
+ * Obtainable only from [Verdict.Capable], [Verdict.Degraded], or the
+ * [Verdict.Incapable.withoutUnsupported] fallback of an edit carrying effects this device cannot run.
  *
  * @property path Whether the export copies streams, re-encodes only what the trim needs, or
  *   transcodes in full.
@@ -268,16 +283,19 @@ public enum class CopyBlocker {
  *   every effect is.
  * @property duration How long the file this export writes will run. A cut that moved back to a sync
  *   sample opens earlier than it was asked to, so this is measured from where each clip resolved to
- *   open rather than from where its trim was written. A [ExportPath.Transmux] copy cannot cut a
+ *   open rather than from where its trim was written. An [ExportPath.Copy] export cannot cut a
  *   packet in half, so its file runs out to the end of the last whole packet and can be a frame or
  *   two longer than this.
  * @property copyBlockedBy Why this export re-encodes rather than copying its streams across. Empty
- *   when [path] is [ExportPath.Transmux], and otherwise every term that applied, so a caller can
+ *   when [path] is [ExportPath.Copy], and otherwise every term that applied, so a caller can
  *   see which field to drop to get the near-instant path back.
- * @property composition The composition this plan was resolved from, echoed back unchanged so an
- *   engine can negotiate it again. Nothing resolved is folded into it, so read [duration] for the
- *   length this export writes rather than measuring its trims.
+ * @property composition The composition this plan was resolved from, so an engine can negotiate it
+ *   again. A [Verdict.Incapable.withoutUnsupported] plan carries it with the effects this device
+ *   cannot run removed, and every other plan echoes it back unchanged. Nothing resolved is folded
+ *   into it, so read [duration] for the length this export writes rather than measuring its trims.
  * @property spec The spec this plan was resolved from.
+ * @param droppedEffects One [AdjustmentKind.EffectDropped] per effect taken out of [composition],
+ *   which the export's [ExportStatus.Success] reports alongside what the engine changed.
  */
 public class ExportPlan
   @InternalFilmstripApi
@@ -291,6 +309,7 @@ public class ExportPlan
     public val copyBlockedBy: List<CopyBlocker>,
     @property:InternalFilmstripApi public val composition: EditComposition,
     @property:InternalFilmstripApi public val spec: ExportSpec,
+    internal val droppedEffects: List<Adjustment> = emptyList(),
   ) {
     override fun toString(): String =
       "ExportPlan(path=$path, output=$output, duration=$duration, effects=${effectOrder.size}, parity=$parity)"
@@ -303,7 +322,8 @@ public class ExportPlan
  * @property videoCodec The codec the video is encoded with.
  * @property audioCodec The codec the audio is encoded with.
  * @property bitrate The video bitrate, or null when the encoder chooses it.
- * @property frameRate The output frame rate, or null when it follows the source.
+ * @property frameRate The frame rate the export writes, in frames per second. The planner resolves it from the spec,
+ * the source or a default, so it is always above zero.
  * @property audioFormat The audio format the whole composition is normalised to, or null when there
  *   is no audio.
  */
@@ -313,9 +333,13 @@ public class OutputFormat(
   public val videoCodec: VideoCodec,
   public val audioCodec: AudioCodec,
   public val bitrate: Bitrate?,
-  public val frameRate: Int?,
+  public val frameRate: Int,
   public val audioFormat: AudioFormat?,
-)
+) {
+  init {
+    require(frameRate > 0) { "An output frame rate must be above zero, got $frameRate." }
+  }
+}
 
 /**
  * The sample rate and channel count the whole composition is normalised to.
@@ -355,7 +379,7 @@ public enum class ExportPath {
   /**
    * No re-encode at all. Near-instant, and the video is bit-for-bit the source.
    */
-  Transmux,
+  Copy,
 
   /**
    * Re-encode only what the trim requires, and stream-copy the rest.
@@ -377,12 +401,12 @@ public enum class ExportPath {
  *   estimated.
  * @property approximateDuration Roughly how long the export will take in wall-clock time, or null
  *   when it cannot be estimated.
- * @property isPassthrough True when nothing is re-encoded.
+ * @property isCopy True when nothing is re-encoded.
  */
 @Poko
 public class ExportEstimate(
   public val outputSizeBytesMin: Long?,
   public val outputSizeBytesMax: Long?,
   public val approximateDuration: Duration?,
-  public val isPassthrough: Boolean,
+  public val isCopy: Boolean,
 )

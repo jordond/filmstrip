@@ -30,8 +30,7 @@ public fun Modifier.zoomTimeline(
 
     // zoomIn and zoomOut are suspend, and the gesture loop below runs on the restricted scope
     // detectTransformGestures-style detectors use, which can only await its own pointer events.
-    // Launching them here, rather than awaiting them in place, is what lets the loop keep reading
-    // the gesture while a step's scroll settles.
+    // They are launched here, so the loop keeps reading the gesture while a step's scroll settles.
     coroutineScope {
       val gesture =
         ZoomGesture(

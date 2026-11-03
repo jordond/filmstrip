@@ -22,6 +22,7 @@ import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.compose.rememberFilmstripPlayer
 import dev.jordond.filmstrip.compose.ui.CLIP_LENGTH
 import dev.jordond.filmstrip.compose.ui.VideoStage
+import dev.jordond.filmstrip.compose.ui.VideoStageDefaults
 import dev.jordond.filmstrip.compose.ui.VideoStageScope
 import dev.jordond.filmstrip.compose.ui.testComposition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -156,7 +157,7 @@ class VideoStageTest {
     runComposeUiTest {
       var stage: Stage? = null
 
-      // Ten to one, against a stage that lays no box out wider than five to one.
+      // Ten to one, against a stage that lays no box out wider than the top of its range.
       setContent {
         StageBox {
           VideoStage(
@@ -168,10 +169,35 @@ class VideoStageTest {
       waitForIdle()
 
       val laidOut = stage!!
+      val boxHeight = 400f / VideoStageDefaults.AspectRange.endInclusive
       laidOut.width shouldBeCloseTo 400f
-      // The box stops at five to one, so it is 80 tall, and the picture fills 40 in the middle of it.
+      // The picture keeps its own ten to one, so it is 40 tall in the middle of the clamped box.
       laidOut.height shouldBeCloseTo 40f
-      laidOut.top shouldBeCloseTo 20f
+      laidOut.top shouldBeCloseTo (boxHeight - 40f) / 2f
+    }
+
+  @Test
+  fun `an aspect below the stage's range letterboxes the picture inside the narrowest box it will lay out`() =
+    runComposeUiTest {
+      var stage: Stage? = null
+
+      // One to ten, against a stage that lays no box out narrower than the bottom of its range.
+      setContent {
+        StageBox {
+          VideoStage(
+            player = null,
+            outputAspect = 0.1f,
+          ) { stage = record() }
+        }
+      }
+      waitForIdle()
+
+      val laidOut = stage!!
+      val boxWidth = 400f * VideoStageDefaults.AspectRange.start
+      laidOut.height shouldBeCloseTo 400f
+      // The picture keeps its own one to ten, so it is 40 wide in the middle of the clamped box.
+      laidOut.width shouldBeCloseTo 40f
+      laidOut.left shouldBeCloseTo (boxWidth - 40f) / 2f
     }
 
   @Test
@@ -231,6 +257,7 @@ private class Stage(
   val width: Float,
   val height: Float,
   val top: Float,
+  val left: Float,
 )
 
 private fun VideoStageScope.record(): Stage =
@@ -239,6 +266,7 @@ private fun VideoStageScope.record(): Stage =
     width = frame.contentRect.width,
     height = frame.contentRect.height,
     top = frame.contentRect.top,
+    left = frame.contentRect.left,
   )
 
 @Composable

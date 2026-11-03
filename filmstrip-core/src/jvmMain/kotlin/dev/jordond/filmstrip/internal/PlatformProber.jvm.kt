@@ -1,9 +1,8 @@
 package dev.jordond.filmstrip.internal
 
-import dev.jordond.filmstrip.export.ExportError
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
-import dev.jordond.filmstrip.media.probeImage
 
 // Android and Apple read metadata with an OS framework. Reading a container on the JVM means
 // driving an external toolchain, which lives in the module that already spawns one, so core
@@ -19,7 +18,7 @@ internal actual class PlatformProber actual constructor() {
       }
       is MediaSource.Path, is MediaSource.Uri, is MediaSource.Bytes -> {
         ProbeResult.Failure(
-          ExportError.BackendMissing(
+          FilmstripError.BackendMissing(
             artifact = FFMPEG_ARTIFACT,
             message =
               "`probe` has no toolchain-free implementation on the JVM. Add $FFMPEG_ARTIFACT and " +

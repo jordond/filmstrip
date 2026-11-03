@@ -4,41 +4,56 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.AUDIO_SAMPLE_RATE
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.FIRST_BLUE
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.GRID_RATE
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.HALF
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.PRIMARY_HZ
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.SECOND_BLUE
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.TIMEOUT
-import dev.jordond.filmstrip.ffmpeg.OverlayConstants.OVERLAY_SIZE
-import dev.jordond.filmstrip.ffmpeg.OverlayConstants.PROBE_SIDE
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.AUDIO_SAMPLE_RATE
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.FIRST_BLUE
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.GRID_RATE
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.HALF
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.PRIMARY_HZ
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.SECOND_BLUE
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
+import dev.jordond.filmstrip.ffmpeg.support.ExportedOverlay
+import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
+import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_SIZE
+import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.PROBE_SIDE
+import dev.jordond.filmstrip.ffmpeg.support.Shown
+import dev.jordond.filmstrip.ffmpeg.support.WrittenFrame
+import dev.jordond.filmstrip.ffmpeg.support.assertOnTheGrid
+import dev.jordond.filmstrip.ffmpeg.support.centreOf
+import dev.jordond.filmstrip.ffmpeg.support.decodedAudio
+import dev.jordond.filmstrip.ffmpeg.support.drawnAt
+import dev.jordond.filmstrip.ffmpeg.support.indexedClip
+import dev.jordond.filmstrip.ffmpeg.support.onlyClip
+import dev.jordond.filmstrip.ffmpeg.support.opensOn
+import dev.jordond.filmstrip.ffmpeg.support.pointIn
+import dev.jordond.filmstrip.ffmpeg.support.regionAverage
+import dev.jordond.filmstrip.ffmpeg.support.toneAt
+import dev.jordond.filmstrip.ffmpeg.support.writtenFrames
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotTime
-import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.test.ToneAnalysis
-import dev.jordond.filmstrip.transform.internal.NegotiatedComposition
 import dev.jordond.filmstrip.transform.internal.heldTail
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.videoSlots
 import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -75,13 +90,19 @@ class FfmpegHeldTailTest {
       val held = outputSlotsOf(laid[0].span, GRID_RATE)
       // The picture is written at the output's own rate, so its frames are the slots its length covers from zero.
       val pictureFrames = outputSlotOf(SHORT_PICTURE, GRID_RATE)
-      assertTrue(held.count() > pictureFrames, "the clip covers ${held.count()} slots, which its frames fill")
+      withClue("the clip covers ${held.count()} slots, which its frames fill") {
+        (held.count() > pictureFrames).shouldBeTrue()
+      }
 
       val output = File.createTempFile("filmstrip-grid-held", ".mp4").also { it.delete() }
       fixture.exported(fixture.plannedRun(composition, spec), output)
 
       val frames = writtenFrames(output.absolutePath)
-      val end = assertNotNull(laid.last().span.endExclusive)
+      val end =
+        laid
+          .last()
+          .span.endExclusive
+          .shouldNotBeNull()
       assertOnTheGrid(frames, outputSlotOf(end, GRID_RATE), GRID_RATE, "a picture shorter than its clip")
       (pictureFrames - 1..held.last).forEach { slot ->
         frames[slot.toInt()].shown shouldBe Shown(FIRST_BLUE, pictureFrames.toInt() - 1)
@@ -109,9 +130,13 @@ class FfmpegHeldTailTest {
       val sources = listOf(MediaSource.of(picture.absolutePath), MediaSource.of(fixture.long.absolutePath))
       val composition = underBed(sources[0], sources[1])
       val spec = ExportSpec(frameRate = GRID_RATE)
-      val negotiated = assertNotNull(fixture.plannedLowering(composition, spec, sources).export.composition)
+      val negotiated =
+        fixture
+          .plannedLowering(composition, spec, sources)
+          .export.composition
+          .shouldNotBeNull()
       val tail = negotiated.heldTail
-      assertTrue(!tail.isEmpty(), "the bed does not outlast the picture")
+      withClue("the bed does not outlast the picture") { (!tail.isEmpty()).shouldBeTrue() }
 
       val output = File.createTempFile("filmstrip-tail-held", ".mp4").also { it.delete() }
       fixture.exported(fixture.plannedRun(composition, spec), output)
@@ -123,16 +148,14 @@ class FfmpegHeldTailTest {
 
       val samples = decodedAudio(output.absolutePath)
       val bedSamples = (negotiated.duration.toDouble(DurationUnit.SECONDS) * AUDIO_SAMPLE_RATE).roundToInt()
-      assertTrue(
-        abs(samples.size - bedSamples) <= AAC_UNIT_SAMPLES,
-        "the audio decodes to ${samples.size} samples where the bed runs $bedSamples",
-      )
+      withClue("the audio decodes to ${samples.size} samples where the bed runs $bedSamples") {
+        (abs(samples.size - bedSamples) <= AAC_UNIT_SAMPLES).shouldBeTrue()
+      }
       val middle = outputSlotTime(tail.middle(), GRID_RATE)
       val level = samples.toneAt(middle, PRIMARY_HZ) / samples.toneAt(BESIDE_PICTURE, PRIMARY_HZ)
-      assertTrue(
-        abs(level - 1f) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
-        "at $middle the bed read $level of the level it held beside the picture",
-      )
+      withClue("at $middle the bed read $level of the level it held beside the picture") {
+        (abs(level - 1f) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE).shouldBeTrue()
+      }
 
       output.delete()
       picture.delete()
@@ -223,15 +246,24 @@ class FfmpegHeldTailTest {
     val composition = composed(sources[0], sources[1])
     val spec = ExportSpec(frameRate = GRID_RATE)
     val lowering = fixture.plannedLowering(composition, spec, sources)
-    val graph = assertNotNull(lowering.invocation).filterGraph
-    assertTrue(reaching in graph, "the export of $what carries no $reaching: $graph")
-    val laid = assertNotNull(lowering.export.composition).tracks.single().clips
+    val graph = lowering.graph.shouldNotBeNull().filterGraph
+    withClue("the export of $what carries no $reaching: $graph") { (reaching in graph).shouldBeTrue() }
+    val laid =
+      lowering.export.composition
+        .shouldNotBeNull()
+        .tracks
+        .single()
+        .clips
 
     val output = File.createTempFile("filmstrip-last-frame", ".mp4").also { it.delete() }
     fixture.exported(fixture.plannedRun(composition, spec), output)
 
     val frames = writtenFrames(output.absolutePath, middleOnly = true)
-    val end = assertNotNull(laid.last().span.endExclusive)
+    val end =
+      laid
+        .last()
+        .span.endExclusive
+        .shouldNotBeNull()
     assertOnTheGrid(frames, outputSlotOf(end, GRID_RATE), GRID_RATE, what)
     laid.forEachIndexed { index, clip ->
       val covered = outputSlotsOf(clip.span, GRID_RATE)
@@ -257,7 +289,11 @@ class FfmpegHeldTailTest {
       val sources = listOf(MediaSource.of(picture.absolutePath), MediaSource.of(fixture.long.absolutePath))
       val composition = underBed(sources[0], sources[1], bedStart = LATE_BED_START, bedLength = LATE_BED)
       val spec = ExportSpec(frameRate = GRID_RATE)
-      val negotiated = assertNotNull(fixture.plannedLowering(composition, spec, sources).export.composition)
+      val negotiated =
+        fixture
+          .plannedLowering(composition, spec, sources)
+          .export.composition
+          .shouldNotBeNull()
       negotiated.duration shouldBe LATE_BED_START + LATE_BED
 
       val output = File.createTempFile("filmstrip-tail-late", ".mp4").also { it.delete() }
@@ -293,12 +329,12 @@ class FfmpegHeldTailTest {
     val spec = ExportSpec(frameRate = GRID_RATE)
     val composition = underBed(sources[0], sources[1], overlay = overlay, onClip = onClip)
     val lowering = fixture.plannedLowering(composition, spec, sources)
-    val negotiated = assertNotNull(lowering.export.composition)
+    val negotiated = lowering.export.composition.shouldNotBeNull()
     // A composition overlay runs after the join, and the clones have to follow it to freeze it.
     if (!onClip) {
-      val graph = assertNotNull(lowering.invocation).filterGraph
+      val graph = lowering.graph.shouldNotBeNull().filterGraph
       val clones = "[vfx0]tpad=stop_mode=clone:stop=${negotiated.heldTail.count()}"
-      assertTrue(clones in graph, "the tail is cloned ahead of the composition overlay: $graph")
+      withClue("the tail is cloned ahead of the composition overlay: $graph") { (clones in graph).shouldBeTrue() }
     }
 
     val bare = exportedAs("filmstrip-tail-$what-bare", underBed(sources[0], sources[1]), spec)
@@ -311,13 +347,13 @@ class FfmpegHeldTailTest {
     assertOnTheGrid(writtenFrames(marked.file.absolutePath), negotiated.videoSlots, GRID_RATE, "a $what overlay")
     val drawnEarly = drawnAt(bare, marked, probe, BEFORE_CLOSING)
     if (window == null) {
-      assertTrue(drawnEarly, "the $what overlay is missing ahead of the tail")
+      withClue("the $what overlay is missing ahead of the tail") { drawnEarly.shouldBeTrue() }
     } else {
-      assertTrue(!drawnEarly, "the $what overlay is drawn ahead of its window")
+      withClue("the $what overlay is drawn ahead of its window") { (!drawnEarly).shouldBeTrue() }
     }
     tail.readings().forEach { slot ->
       val at = opensOn(slot.toInt(), marked.plan)
-      assertTrue(drawnAt(bare, marked, probe, at), "the $what overlay is gone from slot $slot")
+      withClue("the $what overlay is gone from slot $slot") { drawnAt(bare, marked, probe, at).shouldBeTrue() }
       withClue("the $what overlay on slot $slot") { shownAt(marked.file.absolutePath, size, at) shouldBe held }
     }
 
@@ -359,7 +395,7 @@ class FfmpegHeldTailTest {
 
   // The primary's own frame on the last slot it covers. The picture is written at the output's rate from its first
   // frame, so that is the frame whose index is one short of the slots its span covers.
-  private fun lastShown(negotiated: NegotiatedComposition): Shown {
+  private fun lastShown(negotiated: ResolvedComposition): Shown {
     val primary = negotiated.tracks.first().onlyClip
     return Shown(FIRST_BLUE, outputSlotsOf(primary.span, GRID_RATE).count() - 1)
   }

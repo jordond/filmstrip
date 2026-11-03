@@ -1,18 +1,18 @@
 package dev.jordond.filmstrip.test
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.media.authoredHdrNits
 import kotlin.math.roundToInt
 
 /**
  * The overlay images the pixel pins draw, where a blended overlay pixel should land, and how far an
  * encoded reading of one may sit from it.
  *
- * An overlay test paints its image from [pngOf] so it knows the colour it authored, predicts a partly
+ * An overlay test paints its image from [pngOf] so it knows the color it authored, predicts a partly
  * opaque draw with [sourceOver], or with [hdrSourceOver] on an HDR grade, and compares an exported reading
- * with [ENCODED_TOLERANCE]. The authored colours themselves and the colour-handling tolerance live in
- * [AuthoredColours].
+ * with [ENCODED_TOLERANCE]. The authored colors themselves and the color-handling tolerance live in
+ * [AuthoredColors].
  */
 @InternalFilmstripApi
 public object OverlayPixels {
@@ -23,7 +23,7 @@ public object OverlayPixels {
    * The prediction is the same pixel read without the encode, or a blend of readings off the same
    * file. Either way each side has been through the encoder and decoder at most once, and this bounds
    * the codec noise that round trip leaves on a pixel mixed from the overlay and the frame under it. It
-   * says nothing about colour handling, which [AuthoredColours.TOLERANCE] measures.
+   * says nothing about color handling, which [AuthoredColors.TOLERANCE] measures.
    */
   public const val ENCODED_TOLERANCE: Float = 6f
 
@@ -38,15 +38,15 @@ public object OverlayPixels {
   ): Int = (under + opacity * (over - under)).roundToInt()
 
   /**
-   * Where an [overlay] colour drawn at [alpha] over [background] display light lands on an HDR grade, in
+   * Where an [overlay] color drawn at [alpha] over [background] display light lands on an HDR grade, in
    * cd/m2.
    *
    * The overlay is mapped through [authoredHdrNits] and blended with the background in linear light, so
-   * an opaque overlay lands where a fill of the same colour does. [alpha] is the texel's alpha times the
+   * an opaque overlay lands where a fill of the same color does. [alpha] is the texel's alpha times the
    * overlay's opacity, and the alpha packed in [overlay] is ignored.
    *
    * @param background Linear BT.2020 red, green and blue in cd/m2, as [authoredHdrNits] returns them.
-   * @param overlay The packed ARGB colour drawn over [background].
+   * @param overlay The packed ARGB color drawn over [background].
    * @param alpha How much of the overlay covers the background, from 0 to 1.
    * @return Red, green and blue in that order.
    */
@@ -80,58 +80,58 @@ public object OverlayPixels {
    * than compressed, so a test builds its overlay image with no binary in the tree.
    *
    * A [profile] is embedded as an `iCCP` chunk. A grey profile makes the image eight-bit grey with alpha,
-   * painted from the red channel of [argb], so its red, green and blue must match. The chunks [colour] describes are
+   * painted from the red channel of [argb], so its red, green and blue must match. The chunks [color] describes are
    * written beside it, all ahead of the image data in the order `cICP`, `iCCP`, `sRGB`, `gAMA`, `cHRM`.
    *
    * @param profile The ICC profile bytes to tag the image with, or null for an untagged image.
-   * @param colour The other colour chunks to write, or null for none.
+   * @param color The other color chunks to write, or null for none.
    * @throws IllegalArgumentException When [profile] is shorter than an ICC header, or is grey and [argb] is not.
    */
   public fun pngOf(
     size: Size,
     argb: Int,
     profile: ByteArray? = null,
-    colour: PngColour? = null,
+    color: PngColor? = null,
   ): ByteArray {
     require(profile == null || profile.size >= ICC_HEADER_BYTES) {
       "An ICC profile needs its $ICC_HEADER_BYTES byte header, but this one is only ${profile?.size} bytes."
     }
-    val grey = profile != null && profile.decodeToString(COLOUR_SPACE_OFFSET, COLOUR_SPACE_OFFSET + 4) == "GRAY"
+    val grey = profile != null && profile.decodeToString(COLOR_SPACE_OFFSET, COLOR_SPACE_OFFSET + 4) == "GRAY"
     val channels = listOf(argb shr RED_SHIFT, argb shr GREEN_SHIFT, argb, argb ushr ALPHA_SHIFT).map { it and BYTE }
     require(!grey || (channels[0] == channels[1] && channels[1] == channels[2])) {
       "A grey PNG needs matching red, green and blue."
     }
     val texel = (if (grey) listOf(channels[0], channels[3]) else channels).map { it.toByte() }
-    return png(size, if (grey) GREY_ALPHA else RGBA, EIGHT_BITS, texel, colourChunks(profile, colour))
+    return png(size, if (grey) GREY_ALPHA else RGBA, EIGHT_BITS, texel, colorChunks(profile, color))
   }
 
   /**
    * A sixteen-bit RGBA PNG of [size] painted [texel] all over, as the bytes of the file.
    *
-   * It is written the way [pngOf] writes an eight-bit one, with the chunks [colour] describes ahead of the image data.
+   * It is written the way [pngOf] writes an eight-bit one, with the chunks [color] describes ahead of the image data.
    *
    * @param texel The red, green, blue and alpha samples, each from 0 to 65535.
-   * @param colour The colour chunks to write, or null for none.
+   * @param color The color chunks to write, or null for none.
    * @throws IllegalArgumentException When [texel] is not four samples in range.
    */
   public fun sixteenBitPngOf(
     size: Size,
     texel: List<Int>,
-    colour: PngColour? = null,
+    color: PngColor? = null,
   ): ByteArray {
     require(texel.size == 4 && texel.all { it in 0..SIXTEEN_BIT_MAX }) {
       "A sixteen-bit texel needs four samples from 0 to $SIXTEEN_BIT_MAX, but got $texel."
     }
     val bytes = texel.flatMap { listOf((it ushr 8).toByte(), it.toByte()) }
-    return png(size, RGBA, SIXTEEN_BITS, bytes, colourChunks(profile = null, colour))
+    return png(size, RGBA, SIXTEEN_BITS, bytes, colorChunks(profile = null, color))
   }
 
   private fun png(
     size: Size,
-    colourType: Byte,
+    colorType: Byte,
     bitDepth: Byte,
     texel: List<Byte>,
-    colourChunks: ByteArray,
+    colorChunks: ByteArray,
   ): ByteArray {
     val stride = size.width * texel.size + 1
     val rows = ByteArray(stride * size.height)
@@ -140,30 +140,30 @@ public object OverlayPixels {
       rows[index] = if (column < 0) 0 else texel[column % texel.size]
     }
 
-    val header = int32(size.width) + int32(size.height) + byteArrayOf(bitDepth, colourType, 0, 0, 0)
+    val header = int32(size.width) + int32(size.height) + byteArrayOf(bitDepth, colorType, 0, 0, 0)
     return byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A) +
       chunk("IHDR", header) +
-      colourChunks +
+      colorChunks +
       chunk("IDAT", zlibStored(rows)) +
       chunk("IEND", ByteArray(0))
   }
 
-  private fun colourChunks(
+  private fun colorChunks(
     profile: ByteArray?,
-    colour: PngColour?,
+    color: PngColor?,
   ): ByteArray {
     val chunks =
       listOfNotNull(
-        colour?.cicp?.let {
+        color?.cicp?.let {
           chunk(
             "cICP",
             byteArrayOf(it.primaries.toByte(), it.transfer.toByte(), it.matrix.toByte(), if (it.fullRange) 1 else 0),
           )
         },
         profile?.let { chunk("iCCP", PROFILE_NAME.encodeToByteArray() + byteArrayOf(0, 0) + zlibStored(it)) },
-        colour?.srgbIntent?.let { chunk("sRGB", byteArrayOf(it.toByte())) },
-        colour?.gamma?.let { chunk("gAMA", int32(it)) },
-        colour?.chromaticities?.let {
+        color?.srgbIntent?.let { chunk("sRGB", byteArrayOf(it.toByte())) },
+        color?.gamma?.let { chunk("gAMA", int32(it)) },
+        color?.chromaticities?.let {
           chunk("cHRM", it.values.fold(ByteArray(0)) { bytes, value -> bytes + int32(value) })
         },
       )
@@ -221,7 +221,7 @@ public object OverlayPixels {
   private const val EIGHT_BITS: Byte = 8
   private const val SIXTEEN_BITS: Byte = 16
   private const val SIXTEEN_BIT_MAX = 0xFFFF
-  private const val COLOUR_SPACE_OFFSET = 16
+  private const val COLOR_SPACE_OFFSET = 16
   private const val ICC_HEADER_BYTES = 128
   private const val PROFILE_NAME = "ICC profile"
   private const val RED_SHIFT = 16

@@ -1,10 +1,10 @@
 package dev.jordond.filmstrip.capability
 
-import dev.jordond.filmstrip.export.VideoCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.geometry.Size
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
 
 /**
  * What [DeviceCapabilities.encoderFor] returns when a codec has more than one encoder, which is
@@ -18,7 +18,7 @@ class DeviceCapabilitiesTest {
     val alternative = h264(hardware = true, maxHeight = 2_160)
     val device = deviceWith(listOf(preferred, alternative))
 
-    assertEquals(preferred, device.encoderFor(VideoCodec.H264))
+    device.encoderFor(VideoCodec.H264) shouldBe preferred
   }
 
   // The ffmpeg backend ranks libx264 above h264_videotoolbox and hevc_videotoolbox above libx265,
@@ -28,8 +28,8 @@ class DeviceCapabilitiesTest {
     val hardware = h264(hardware = true, maxHeight = 2_160)
     val software = h264(hardware = false, maxHeight = 1_080)
 
-    assertEquals(hardware, deviceWith(listOf(hardware, software)).encoderFor(VideoCodec.H264))
-    assertEquals(software, deviceWith(listOf(software, hardware)).encoderFor(VideoCodec.H264))
+    deviceWith(listOf(hardware, software)).encoderFor(VideoCodec.H264) shouldBe hardware
+    deviceWith(listOf(software, hardware)).encoderFor(VideoCodec.H264) shouldBe software
   }
 
   @Test
@@ -47,14 +47,14 @@ class DeviceCapabilitiesTest {
     val h264 = h264(hardware = false, maxHeight = 1_080)
     val device = deviceWith(listOf(hevc, h264))
 
-    assertEquals(h264, device.encoderFor(VideoCodec.H264))
+    device.encoderFor(VideoCodec.H264) shouldBe h264
   }
 
   @Test
   fun `returns null for a codec the device has no encoder for`() {
     val device = deviceWith(listOf(h264(hardware = true, maxHeight = 2_160)))
 
-    assertNull(device.encoderFor(VideoCodec.Hevc))
+    device.encoderFor(VideoCodec.Hevc).shouldBeNull()
   }
 
   private fun deviceWith(video: List<VideoEncoderCapability>): DeviceCapabilities =

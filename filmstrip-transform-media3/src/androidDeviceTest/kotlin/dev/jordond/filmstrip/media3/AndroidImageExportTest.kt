@@ -16,11 +16,11 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
@@ -29,6 +29,8 @@ import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP_B
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.test.eightBitFrameAt
 import dev.jordond.filmstrip.test.writeAtomically
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -36,9 +38,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -64,7 +63,7 @@ class AndroidImageExportTest {
       val written = exported(probe.plan(composition(Clip(still)), ExportSpec()))
 
       written.info.duration shouldBeCloseTo PHOTO
-      assertNotNull(written.info.video, "an image-only export wrote no video track")
+      withClue("an image-only export wrote no video track") { written.info.video.shouldNotBeNull() }
     }
 
   @Test
@@ -90,7 +89,7 @@ class AndroidImageExportTest {
       val last = probe.fixture(CLIP_B)
       val edit = composition(Clip(first), Clip(stillSource(PHOTO)), Clip(last))
 
-      val written = exported(probe.plan(edit, ExportSpec(targetHeight = 240)))
+      val written = exported(probe.plan(edit, ExportSpec(heightPx = 240)))
 
       written.info.duration shouldBeCloseTo CLIP_LENGTH + PHOTO + CLIP_LENGTH
       val opening = eightBitFrameAt(written.file, CLIP_LENGTH + EDGE)
@@ -133,11 +132,13 @@ class AndroidImageExportTest {
   // A still reports a codec no muxer can name, so the copy path is off the table before anything
   // asks whether the rest of the composition would have taken it.
   @Test
-  fun aCompositionCarryingAStillIsNeverTransmuxed() =
+  fun aCompositionCarryingAStillIsNeverCopied() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture(CLIP)
       val alone = probe.plan(composition(Clip(source)), ExportSpec())
-      assertTrue(alone.path == ExportPath.Transmux, "the video clip on its own was expected to copy across")
+      withClue("the video clip on its own was expected to copy across") {
+        (alone.path == ExportPath.Copy) shouldBe true
+      }
 
       val withStill = probe.plan(composition(Clip(source), Clip(stillSource(PHOTO))), ExportSpec())
 
@@ -161,9 +162,11 @@ class AndroidImageExportTest {
       val written = exported(probe.plan(edit, ExportSpec(frameRate = FRAME_RATE)))
 
       val times = videoSampleTimes(written.file)
-      assertEquals(outputSlotOf(held + 1.seconds, FRAME_RATE), times.size.toLong(), "one sample for each slot: $times")
+      withClue("one sample for each slot: $times") {
+        times.size.toLong() shouldBe outputSlotOf(held + 1.seconds, FRAME_RATE)
+      }
       times.forEachIndexed { slot, time ->
-        assertEquals(outputSlotTime(slot.toLong(), FRAME_RATE), time, "sample $slot is off its slot: $times")
+        withClue("sample $slot is off its slot: $times") { time shouldBe outputSlotTime(slot.toLong(), FRAME_RATE) }
       }
     }
 
@@ -271,10 +274,12 @@ class AndroidImageExportTest {
   private fun Bitmap.photoCoverage(): Float = badgeFraction(WHOLE_FRAME)
 
   private infix fun Float.shouldBeAbove(floor: Float) =
-    assertTrue(this > floor, "expected more than $floor of the frame to read as the photo, got $this")
+    withClue("expected more than $floor of the frame to read as the photo, got $this") { (this > floor) shouldBe true }
 
   private infix fun Duration.shouldBeCloseTo(expected: Duration) =
-    assertTrue((this - expected).absoluteValue <= DURATION_TOLERANCE, "expected about $expected, got $this")
+    withClue("expected about $expected, got $this") {
+      ((this - expected).absoluteValue <= DURATION_TOLERANCE) shouldBe true
+    }
 
   /**
    * A finished export, as the file it landed in and what a probe made of it.

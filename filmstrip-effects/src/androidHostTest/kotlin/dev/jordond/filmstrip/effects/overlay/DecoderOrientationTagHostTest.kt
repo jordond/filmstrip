@@ -1,13 +1,13 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.internal.pictureOrientationOf
-import dev.jordond.filmstrip.internal.pictureWithoutOrientationTag
-import dev.jordond.filmstrip.media.PictureOrientation
+import dev.jordond.filmstrip.picture.PictureOrientation
+import dev.jordond.filmstrip.picture.pictureOrientationOf
+import dev.jordond.filmstrip.picture.pictureWithoutOrientationTag
 import dev.jordond.filmstrip.test.OrientedPictures
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
 
 /**
  * Hands pictures tagged with every orientation to Android's decoder, checking it is given each one with the tag core
@@ -24,13 +24,13 @@ class DecoderOrientationTagHostTest {
           "TIFF" to OrientedPictures.tiff(orientation.exif),
         )
       for ((name, tagged) in pictures) {
-        assertEquals(orientation, pictureOrientationOf(tagged), "core reads $name $orientation")
+        withClue("core reads $name $orientation") { pictureOrientationOf(tagged) shouldBe orientation }
 
         val input = tagged.forAndroidDecoder(LATEST_API)
 
-        assertNull(input.refusal, "$name $orientation refused")
-        assertContentEquals(pictureWithoutOrientationTag(tagged), input.bytes, "$name $orientation")
-        assertEquals(PictureOrientation.Normal, pictureOrientationOf(input.bytes), "$name $orientation")
+        withClue("$name $orientation refused") { input.refusal.shouldBeNull() }
+        withClue("$name $orientation") { input.bytes shouldBe pictureWithoutOrientationTag(tagged) }
+        withClue("$name $orientation") { pictureOrientationOf(input.bytes) shouldBe PictureOrientation.Normal }
       }
     }
   }

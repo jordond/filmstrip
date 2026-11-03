@@ -1,6 +1,9 @@
 package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -30,20 +33,20 @@ import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.effects.overlay.fadeIn
 import dev.jordond.filmstrip.effects.overlay.frameAt
 import dev.jordond.filmstrip.effects.overlay.slideIn
-import dev.jordond.filmstrip.ffmpeg.internal.render
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.render
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotTime
-import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldStartWith
+import io.kotest.matchers.types.shouldBeInstanceOf
 import java.awt.Color
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
@@ -51,9 +54,6 @@ import java.util.Locale
 import javax.imageio.ImageIO
 import kotlin.math.ceil
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -117,7 +117,7 @@ class EffectLoweringTest {
   fun `scale claims the spec and emits nothing`() {
     val resolution = resolver.resolve(Scale(720), capabilities(), attributes())
 
-    assertIs<EffectResolution.Resolved>(resolution)
+    resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
     chainOf(Scale(720)) shouldBe ""
   }
 
@@ -126,7 +126,7 @@ class EffectLoweringTest {
     val spec = ImageOverlay(ImageSource.of("logo.png"), Corner.BottomEnd, margin = 0.04f, scale = 0.2f, opacity = 0.8f)
     val resolution = resolver.resolve(spec, capabilities(), attributes(Size(640, 360)))
 
-    assertIs<EffectResolution.Resolved>(resolution)
+    resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
     val fragment = resolution.effect.fragment
     fragment.auxInputs
       .single()
@@ -253,14 +253,14 @@ class EffectLoweringTest {
       ImageOverlay(overlayImage(SQUARE), Corner.TopStart, visibleDuring = window, animation = fadeIn(200.milliseconds))
     val span = TimeRange.of(20.milliseconds, 1_020.milliseconds)
     val opens = outputSlotTime(outputSlotOf(span.start, GRID_RATE), GRID_RATE)
-    assertTrue(opens >= window.start, "the span's first slot at $opens is ahead of the window")
+    withClue("the span's first slot at $opens is ahead of the window") { (opens >= window.start) shouldBe true }
 
     val fragment = fragmentOf(spec, attributes(Size(640, 360), span = span, frameRate = GRID_RATE.toFloat()))
     val lines = commandsOf(fragment)
 
     intervalsOf(lines, "aa").first() shouldStartWith "0.000000-"
     gatedFrames(fragment, GRID_RATE).first shouldBe 0
-    val sampled = assertNotNull(spec.frameAt(opens, span)).opacity
+    val sampled = spec.frameAt(opens, span).shouldNotBeNull().opacity
     valuesOf(lines, "aa").first() shouldBe String.format(Locale.ROOT, "%.6f", sampled)
   }
 
@@ -273,7 +273,7 @@ class EffectLoweringTest {
       ImageOverlay(overlayImage(SQUARE), Corner.TopStart, visibleDuring = window, animation = fadeIn(200.milliseconds))
     val span = TimeRange.of(30.milliseconds, 1_030.milliseconds)
     val landed = outputSlotOf(window.start, GRID_RATE)
-    assertTrue(outputSlotTime(landed, GRID_RATE) >= window.start, "the window's slot sits ahead of it")
+    withClue("the window's slot sits ahead of it") { (outputSlotTime(landed, GRID_RATE) >= window.start) shouldBe true }
     val frame = (landed - outputSlotOf(span.start, GRID_RATE)).toInt()
 
     val fragment = fragmentOf(spec, attributes(Size(640, 360), span = span, frameRate = GRID_RATE.toFloat()))
@@ -294,7 +294,7 @@ class EffectLoweringTest {
     val held = heldAt(commandsOf(spec, attributes), MIDWAY)
 
     held.keys shouldBe setOf("aa", "w", "h", "x", "y")
-    val sampled = assertNotNull(spec.frameAt(MIDWAY.seconds, attributes.span)).opacity
+    val sampled = spec.frameAt(MIDWAY.seconds, attributes.span).shouldNotBeNull().opacity
     held.getValue("aa") shouldBe String.format(Locale.ROOT, "%.6f", sampled)
   }
 
@@ -309,15 +309,21 @@ class EffectLoweringTest {
     val fragment = fragmentOf(spec, attributes)
 
     val instance = instanceOf(fragment)
-    assertTrue(
+    (
       fragment.auxInputs
         .single()
         .chain
         .render()
-        .contains("colorchannelmixer$instance=aa=1"),
-    )
+        .contains("colorchannelmixer$instance=aa=1")
+    ) shouldBe true
     valuesOf(commandsOf(spec, attributes), "aa").forEachIndexed { index, written ->
-      val sampled = assertNotNull(spec.frameAt(outputSlotTime(index.toLong(), RATE.toInt()), attributes.span)).opacity
+      val sampled =
+        spec
+          .frameAt(
+            outputSlotTime(index.toLong(), RATE.toInt()),
+            attributes.span,
+          ).shouldNotBeNull()
+          .opacity
       written shouldBe String.format(Locale.ROOT, "%.6f", sampled)
     }
   }
@@ -352,7 +358,7 @@ class EffectLoweringTest {
 
     val alphas = valuesOf(commandsOf(spec, attributes(Size(640, 360))), "aa").map { it.toFloat() }
 
-    alphas.forEach { assertTrue(it in -2f..2f, "an alpha of $it reached the graph") }
+    alphas.forEach { withClue("an alpha of $it reached the graph") { (it in -2f..2f) shouldBe true } }
     alphas.min() shouldBe 0f
     alphas.max() shouldBe 1f
   }
@@ -399,8 +405,8 @@ class EffectLoweringTest {
 
     val resolution = resolver.resolve(spec, capabilities(), attributes(Size(640, 360)))
 
-    assertIs<EffectResolution.Unsupported>(resolution)
-    assertTrue(resolution.message.contains("header"), resolution.message)
+    resolution.shouldBeInstanceOf<EffectResolution.Unsupported>()
+    withClue(resolution.message) { resolution.message.contains("header") shouldBe true }
   }
 
   // An unmeasurable image is only the animated path's problem. A still overlay hands the file
@@ -409,7 +415,7 @@ class EffectLoweringTest {
   fun `lowers a still overlay it cannot measure`() {
     val spec = ImageOverlay(ImageSource.of("/no/such/logo.png"), Corner.TopStart)
 
-    assertIs<EffectResolution.Resolved>(resolver.resolve(spec, capabilities(), attributes(Size(640, 360))))
+    resolver.resolve(spec, capabilities(), attributes(Size(640, 360))).shouldBeInstanceOf<EffectResolution.Resolved>()
   }
 
   // The animation is sampled onto the output frame grid, so a composition that resolved no rate has
@@ -420,8 +426,8 @@ class EffectLoweringTest {
 
     val resolution = resolver.resolve(spec, capabilities(), attributes(Size(640, 360), frameRate = null))
 
-    assertIs<EffectResolution.Unsupported>(resolution)
-    assertTrue(resolution.message.contains("frame rate"), resolution.message)
+    resolution.shouldBeInstanceOf<EffectResolution.Unsupported>()
+    withClue(resolution.message) { resolution.message.contains("frame rate") shouldBe true }
   }
 
   // An open-ended window used to skip the gate altogether, which drew the overlay from the branch's
@@ -464,7 +470,7 @@ class EffectLoweringTest {
   fun `refuses text because the build has no drawtext`() {
     val resolution = resolver.resolve(TextOverlay("hello"), capabilities(), attributes())
 
-    assertIs<EffectResolution.Unsupported>(resolution)
+    resolution.shouldBeInstanceOf<EffectResolution.Unsupported>()
     resolution.message.contains("drawtext") shouldBe true
   }
 
@@ -474,7 +480,7 @@ class EffectLoweringTest {
     val withText = capabilities(features = setOf(RenderFeature.TextRendering))
     val resolution = resolver.resolve(TextOverlay("hello"), withText, attributes())
 
-    assertIs<EffectResolution.Unsupported>(resolution)
+    resolution.shouldBeInstanceOf<EffectResolution.Unsupported>()
     resolution.message.contains("maxWidth") shouldBe true
   }
 
@@ -488,7 +494,7 @@ class EffectLoweringTest {
 
     val resolution = resolver.resolve(pan, capabilities(), attributes())
 
-    assertIs<EffectResolution.Unsupported>(resolution)
+    resolution.shouldBeInstanceOf<EffectResolution.Unsupported>()
     resolution.specId shouldBe EffectIds.KEN_BURNS
   }
 
@@ -553,7 +559,7 @@ class EffectLoweringTest {
   fun `an identity matrix claims the spec and emits nothing`() {
     val resolution = resolver.resolve(ColorMatrix.Identity, capabilities(), attributes())
 
-    assertIs<EffectResolution.Resolved>(resolution)
+    resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
     chainOf(ColorMatrix.Identity) shouldBe ""
     chainOf(Saturation(1f)) shouldBe ""
   }
@@ -578,7 +584,7 @@ class EffectLoweringTest {
       .decodeToString() shouldBe cube(spec)
   }
 
-  // The fold that merges a run of colour effects can land on a matrix whose off-diagonal entries
+  // The fold that merges a run of color effects can land on a matrix whose off-diagonal entries
   // all cancelled, and that one is three independent lines like any other.
   @Test
   fun `a diagonal matrix lowers to the per-channel table rather than a file`() {
@@ -631,7 +637,7 @@ class EffectLoweringTest {
     attributes: Attributes = attributes(),
   ): FilterFragment {
     val resolution = resolver.resolve(spec, capabilities(), attributes)
-    assertIs<EffectResolution.Resolved>(resolution)
+    resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
     return resolution.effect.fragment
   }
 
@@ -682,7 +688,7 @@ class EffectLoweringTest {
     fragment: FilterFragment,
     rate: Int = RATE.toInt(),
   ): IntRange {
-    val bounds = assertNotNull(Regex("""gte\(t\\,([^)]+)\)\*lt\(t\\,([^)]+)\)""").find(gateOf(fragment)))
+    val bounds = Regex("""gte\(t\\,([^)]+)\)\*lt\(t\\,([^)]+)\)""").find(gateOf(fragment)).shouldNotBeNull()
     val (open, shut) = bounds.destructured
     return ceil(open.toDouble() * rate).toInt() until ceil(shut.toDouble() * rate).toInt()
   }
@@ -739,7 +745,7 @@ class EffectLoweringTest {
     attributes: Attributes = attributes(),
   ): String {
     val resolution = resolver.resolve(spec, capabilities(), attributes)
-    assertIs<EffectResolution.Resolved>(resolution)
+    resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
     return resolution.effect.fragment.chain
       .render()
   }

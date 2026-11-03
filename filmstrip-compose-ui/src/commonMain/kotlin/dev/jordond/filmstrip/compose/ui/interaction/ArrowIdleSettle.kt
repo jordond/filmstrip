@@ -14,8 +14,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * never deliver one at all. This is the fallback that ends the gesture anyway, leaving a scrub relaxed a little
  * longer rather than leaving it relaxed forever.
  *
- * Split from the key handler that drives it for the same reason [ArrowScrubGesture] is: the countdown is a plain
- * timer rather than something only a real held key can exercise.
+ * Like [ArrowScrubGesture], the countdown is a plain timer apart from the key handler that drives it.
  */
 internal class ArrowIdleSettle(
   private val scope: CoroutineScope,

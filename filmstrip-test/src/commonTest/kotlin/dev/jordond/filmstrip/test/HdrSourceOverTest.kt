@@ -1,13 +1,11 @@
 package dev.jordond.filmstrip.test
 
-import dev.jordond.filmstrip.media.HDR_REFERENCE_WHITE_NITS
-import dev.jordond.filmstrip.media.authoredHdrNits
+import dev.jordond.filmstrip.color.HDR_REFERENCE_WHITE_NITS
+import dev.jordond.filmstrip.color.authoredHdrNits
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 /**
  * Where an overlay drawn over an HDR grade should land, in display light, read on every cell of [HdrOverlayCells].
@@ -19,7 +17,7 @@ class HdrSourceOverTest {
   fun whiteOverBlackLandsOnReferenceWhiteScaledByOpacity() {
     mapOf(0.5f to 2f, 0.25f to 4f).forEach { (opacity, divisor) ->
       val cell = HdrOverlayCells.Cell(HdrOverlayCells.WHITE, HdrOverlayCells.BLACK, opacity)
-      assertTrue(cell in HdrOverlayCells.CELLS, "$cell")
+      withClue("$cell") { (cell in HdrOverlayCells.CELLS) shouldBe true }
 
       cell.nits().forEach { channel -> channel shouldBeNear HDR_REFERENCE_WHITE_NITS / divisor }
     }
@@ -50,7 +48,7 @@ class HdrSourceOverTest {
   @Test
   fun landsOnTheOverlaysOwnLightScaledByOpacityOverBlack() {
     val overBlack = HdrOverlayCells.CELLS.filter { it.background == HdrOverlayCells.BLACK }
-    assertTrue(overBlack.any { it.opacity == 0.5f } && overBlack.any { it.opacity == 0.25f })
+    (overBlack.any { it.opacity == 0.5f } && overBlack.any { it.opacity == 0.25f }) shouldBe true
 
     overBlack.forEach { cell ->
       val over = authoredHdrNits(cell.overlay)
@@ -62,7 +60,7 @@ class HdrSourceOverTest {
   }
 
   @Test
-  fun landsWhereAFillOfTheSameColourDoesWhenOpaque() {
+  fun landsWhereAFillOfTheSameColorDoesWhenOpaque() {
     cellsAt(1f).forEach { cell ->
       val over = authoredHdrNits(cell.overlay)
       val landed = cell.nits()
@@ -75,37 +73,37 @@ class HdrSourceOverTest {
   fun blendsAreTheCellsThatPartFromTheFillBelowFullOpacity() {
     val overGrey =
       listOf(0.5f, 0.25f).flatMap { opacity ->
-        listOf(HdrOverlayCells.WHITE, AuthoredColours.MID_GREEN).map { overlay ->
-          HdrOverlayCells.Cell(overlay, AuthoredColours.MID_GREY, opacity)
+        listOf(HdrOverlayCells.WHITE, AuthoredColors.MID_GREEN).map { overlay ->
+          HdrOverlayCells.Cell(overlay, AuthoredColors.MID_GREY, opacity)
         }
       }
     val overBlack =
       listOf(0.5f, 0.25f).flatMap { opacity ->
-        listOf(HdrOverlayCells.WHITE, AuthoredColours.MID_GREY).map { overlay ->
+        listOf(HdrOverlayCells.WHITE, AuthoredColors.MID_GREY).map { overlay ->
           HdrOverlayCells.Cell(overlay, HdrOverlayCells.BLACK, opacity)
         }
       }
 
-    assertEquals((overGrey + overBlack).toSet(), HdrOverlayCells.BLENDS.toSet())
-    assertEquals(HdrOverlayCells.BLENDS.size, HdrOverlayCells.BLENDS.toSet().size)
+    HdrOverlayCells.BLENDS.toSet() shouldBe (overGrey + overBlack).toSet()
+    HdrOverlayCells.BLENDS.toSet().size shouldBe HdrOverlayCells.BLENDS.size
   }
 
   @Test
   fun greyOverGreyIsReadButIsNotABlend() {
     listOf(0.5f, 0.25f).forEach { opacity ->
-      val cell = HdrOverlayCells.Cell(AuthoredColours.MID_GREY, AuthoredColours.MID_GREY, opacity)
+      val cell = HdrOverlayCells.Cell(AuthoredColors.MID_GREY, AuthoredColors.MID_GREY, opacity)
 
-      assertTrue(cell in HdrOverlayCells.CELLS, "$cell")
-      assertFalse(cell in HdrOverlayCells.BLENDS, "$cell")
+      withClue("$cell") { (cell in HdrOverlayCells.CELLS) shouldBe true }
+      withClue("$cell") { (cell in HdrOverlayCells.BLENDS) shouldBe false }
     }
   }
 
   @Test
   fun anOverlayDifferingFromTheFillOnlyInAlphaIsNotABlend() {
-    val translucentGrey = AuthoredColours.MID_GREY and 0x00FFFFFF or 0x80000000.toInt()
+    val translucentGrey = AuthoredColors.MID_GREY and 0x00FFFFFF or 0x80000000.toInt()
 
-    assertFalse(HdrOverlayCells.Cell(translucentGrey, AuthoredColours.MID_GREY, 0.5f).isBlend)
-    assertTrue(HdrOverlayCells.Cell(translucentGrey, AuthoredColours.MID_GREEN, 0.5f).isBlend)
+    HdrOverlayCells.Cell(translucentGrey, AuthoredColors.MID_GREY, 0.5f).isBlend shouldBe false
+    HdrOverlayCells.Cell(translucentGrey, AuthoredColors.MID_GREEN, 0.5f).isBlend shouldBe true
   }
 
   @Test
@@ -113,27 +111,29 @@ class HdrSourceOverTest {
     val under = floatArrayOf(100f, 50f, 0f)
     val over = floatArrayOf(300f, 50f, 1000f)
 
-    assertContentEquals(floatArrayOf(200f, 50f, 500f), OverlayPixels.hdrSourceOver(under, over, 0.5f))
-    assertContentEquals(floatArrayOf(150f, 50f, 250f), OverlayPixels.hdrSourceOver(under, over, 0.25f))
+    OverlayPixels.hdrSourceOver(under, over, 0.5f) shouldBe floatArrayOf(200f, 50f, 500f)
+    OverlayPixels.hdrSourceOver(under, over, 0.25f) shouldBe floatArrayOf(150f, 50f, 250f)
   }
 
   @Test
-  fun theIntOverloadBlendsTheNitsOfItsColour() {
+  fun theIntOverloadBlendsTheNitsOfItsColor() {
     HdrOverlayCells.CELLS.forEach { cell ->
       val over = authoredHdrNits(cell.overlay)
       val under = authoredHdrNits(cell.background)
       val blended = FloatArray(3) { cell.opacity * over[it] + (1f - cell.opacity) * under[it] }
 
-      assertContentEquals(blended, OverlayPixels.hdrSourceOver(under, cell.overlay, cell.opacity), "$cell")
-      assertContentEquals(blended, OverlayPixels.hdrSourceOver(under, over, cell.opacity), "$cell")
-      assertContentEquals(blended, cell.nits(), "$cell")
+      withClue("$cell") { OverlayPixels.hdrSourceOver(under, cell.overlay, cell.opacity) shouldBe blended }
+      withClue("$cell") { OverlayPixels.hdrSourceOver(under, over, cell.opacity) shouldBe blended }
+      withClue("$cell") { cell.nits() shouldBe blended }
     }
   }
 
   private fun cellsAt(opacity: Float): List<HdrOverlayCells.Cell> =
-    HdrOverlayCells.CELLS.filter { it.opacity == opacity }.also { assertTrue(it.isNotEmpty()) }
+    HdrOverlayCells.CELLS.filter { it.opacity == opacity }.also { it.isNotEmpty() shouldBe true }
 
   private infix fun Float.shouldBeNear(expected: Float) {
-    assertTrue(abs(this - expected) <= abs(expected) * 1e-5f + 1e-5f, "expected $expected but was $this")
+    withClue("expected $expected but was $this") {
+      (abs(this - expected) <= abs(expected) * 1e-5f + 1e-5f) shouldBe true
+    }
   }
 }

@@ -2,29 +2,30 @@
 
 package dev.jordond.filmstrip.webcodecs
 
+import dev.jordond.filmstrip.color.authoredHdrNits
+import dev.jordond.filmstrip.color.hlgDisplayNitsFromScene
+import dev.jordond.filmstrip.color.hlgNitsFromScene
+import dev.jordond.filmstrip.color.hlgSceneFromDisplayNits
+import dev.jordond.filmstrip.color.hlgSceneFromNits
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.authoredHdrNits
-import dev.jordond.filmstrip.media.hlgDisplayNitsFromScene
-import dev.jordond.filmstrip.media.hlgNitsFromScene
-import dev.jordond.filmstrip.media.hlgSceneFromDisplayNits
-import dev.jordond.filmstrip.media.hlgSceneFromNits
-import dev.jordond.filmstrip.test.AuthoredColours
-import dev.jordond.filmstrip.webcodecs.internal.BrowserCompositor
-import dev.jordond.filmstrip.webcodecs.internal.FULLSCREEN_VERTEX_SHADER
-import dev.jordond.filmstrip.webcodecs.internal.JsOptions
-import dev.jordond.filmstrip.webcodecs.internal.OffscreenCanvas
-import dev.jordond.filmstrip.webcodecs.internal.WebGl2
-import dev.jordond.filmstrip.webcodecs.internal.eotfGlsl
-import dev.jordond.filmstrip.webcodecs.internal.packShader
-import dev.jordond.filmstrip.webcodecs.internal.toByteArray
-import dev.jordond.filmstrip.webcodecs.internal.toFloat32Array
-import dev.jordond.filmstrip.webcodecs.internal.toUint8Array
-import dev.jordond.filmstrip.webcodecs.internal.unpackShader
+import dev.jordond.filmstrip.test.AuthoredColors
+import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
+import dev.jordond.filmstrip.webcodecs.internal.interop.OffscreenCanvas
+import dev.jordond.filmstrip.webcodecs.internal.interop.WebGl2
+import dev.jordond.filmstrip.webcodecs.internal.interop.toByteArray
+import dev.jordond.filmstrip.webcodecs.internal.interop.toFloat32Array
+import dev.jordond.filmstrip.webcodecs.internal.interop.toUint8Array
+import dev.jordond.filmstrip.webcodecs.internal.render.FULLSCREEN_VERTEX_SHADER
+import dev.jordond.filmstrip.webcodecs.internal.render.eotfGlsl
+import dev.jordond.filmstrip.webcodecs.internal.render.linkedProgram
+import dev.jordond.filmstrip.webcodecs.internal.render.packShader
+import dev.jordond.filmstrip.webcodecs.internal.render.unpackShader
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertTrue
 
 /**
  * The shaders a kept grade decodes and packs through, compiled and linked on a bare WebGL2 context, and the HLG
@@ -42,7 +43,7 @@ class BrowserHdrShaderTest {
         mapOf("unpack" to unpackShader(transfer), "pack" to packShader(transfer)).forEach { (name, source) ->
           val program =
             try {
-              BrowserCompositor.link(gl, FULLSCREEN_VERTEX_SHADER, source)
+              linkedProgram(gl, FULLSCREEN_VERTEX_SHADER, source)
             } catch (failure: Throwable) {
               throw AssertionError("the $transfer $name shader did not build: ${failure.message}")
             }
@@ -54,11 +55,11 @@ class BrowserHdrShaderTest {
     }
   }
 
-  // A coloured value in the middle of the range, where a per channel power and the luminance driven transfer part
+  // A colored value in the middle of the range, where a per channel power and the luminance driven transfer part
   // company. The GPU's pow is not bit exact, so the read is held to a relative bound far inside that gap.
   @Test
   fun theShadersForwardHlgTransferIsCores() {
-    val scene = hlgSceneFromNits(authoredHdrNits(AuthoredColours.MID_GREEN))
+    val scene = hlgSceneFromNits(authoredHdrNits(AuthoredColors.MID_GREEN))
     val read = hlgTransferOnTheGpu("hlgDisplayFromScene", scene) ?: return
 
     assertOnCore(hlgNitsFromScene(scene), read, FloatArray(3) { hlgDisplayNitsFromScene(scene[it]) }, "forward")
@@ -66,7 +67,7 @@ class BrowserHdrShaderTest {
 
   @Test
   fun theShadersInverseHlgTransferIsCores() {
-    val nits = authoredHdrNits(AuthoredColours.MID_GREEN)
+    val nits = authoredHdrNits(AuthoredColors.MID_GREEN)
     val read = hlgTransferOnTheGpu("hlgSceneFromDisplay", nits) ?: return
 
     assertOnCore(hlgSceneFromNits(nits), read, FloatArray(3) { hlgSceneFromDisplayNits(nits[it]) }, "inverse")
@@ -82,7 +83,7 @@ class BrowserHdrShaderTest {
   ): FloatArray? {
     val gl = OffscreenCanvas(CHANNELS, 1).getContext("webgl2", JsOptions().build()) ?: return null
     try {
-      val program = BrowserCompositor.link(gl, FULLSCREEN_VERTEX_SHADER, probeShader(function))
+      val program = linkedProgram(gl, FULLSCREEN_VERTEX_SHADER, probeShader(function))
       gl.useProgram(program)
       draw(gl, program, input)
 
@@ -149,16 +150,17 @@ class BrowserHdrShaderTest {
     what: String,
   ) {
     repeat(CHANNELS) { channel ->
-      assertTrue(
-        abs(read[channel] - expected[channel]) <= abs(expected[channel]) * RELATIVE_TOLERANCE,
+      withClue(
         "the $what HLG transfer read ${read.toList()}, core says ${expected.toList()}, and a per channel " +
           "transfer would give ${perChannel.toList()}",
-      )
+      ) {
+        (abs(read[channel] - expected[channel]) <= abs(expected[channel]) * RELATIVE_TOLERANCE) shouldBe true
+      }
     }
-    assertTrue(
-      (0 until CHANNELS).any { abs(perChannel[it] - expected[it]) > abs(expected[it]) * RELATIVE_TOLERANCE },
-      "MID_GREEN reads the same under a per channel transfer, so the $what case pins nothing",
-    )
+    withClue("MID_GREEN reads the same under a per channel transfer, so the $what case pins nothing") {
+      (0 until CHANNELS).any { abs(perChannel[it] - expected[it]) > abs(expected[it]) * RELATIVE_TOLERANCE } shouldBe
+        true
+    }
   }
 
   private companion object {
@@ -167,7 +169,7 @@ class BrowserHdrShaderTest {
     const val BYTE_BITS = 8
     const val BYTE_MASK = 0xFF
 
-    // Far inside the gap between the two transfers on a coloured value, and far outside a GPU pow's own error.
+    // Far inside the gap between the two transfers on a colored value, and far outside a GPU pow's own error.
     const val RELATIVE_TOLERANCE = 1e-4f
 
     val QUAD = floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f)

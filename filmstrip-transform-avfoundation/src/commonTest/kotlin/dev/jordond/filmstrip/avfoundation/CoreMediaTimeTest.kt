@@ -1,10 +1,10 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.avfoundation.internal.MEDIA_TIMESCALE
-import dev.jordond.filmstrip.avfoundation.internal.timeRangeOf
-import dev.jordond.filmstrip.avfoundation.internal.toCMTime
-import dev.jordond.filmstrip.avfoundation.internal.toDuration
-import dev.jordond.filmstrip.internal.outputSlotTime
+import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TIMESCALE
+import dev.jordond.filmstrip.avfoundation.internal.time.timeRangeOf
+import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
+import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
+import dev.jordond.filmstrip.edit.outputSlotTime
 import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents

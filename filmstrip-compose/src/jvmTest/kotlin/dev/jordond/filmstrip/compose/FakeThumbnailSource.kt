@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.compose
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.export.ExportError
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.media.PlatformImage
 import dev.jordond.filmstrip.thumbnail.ThumbnailCallback
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
@@ -82,7 +82,7 @@ internal class FakeThumbnailSource : ThumbnailSource {
      */
     const val FRAME_BYTES: Long = FRAME_WIDTH.toLong() * FRAME_HEIGHT * BYTES_PER_PIXEL
 
-    val UNREADABLE = ExportError.SourceUnreadable("fake", "no decoder under this source")
+    val UNREADABLE = FilmstripError.SourceUnreadable("fake", "no decoder under this source")
   }
 }
 

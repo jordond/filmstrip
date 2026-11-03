@@ -1,16 +1,16 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.YcbcrReading
+import dev.jordond.filmstrip.color.ycbcrReading
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.YcbcrReading
-import dev.jordond.filmstrip.media.ycbcrReading
 import dev.jordond.filmstrip.test.AppleStillSamples
 import dev.jordond.filmstrip.test.CicpTag
 import dev.jordond.filmstrip.test.HeicIdentityPictures
 import dev.jordond.filmstrip.test.ycbcrToRgb
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertTrue
 
 /**
  * Eight and ten-bit 4:4:4 HEIC stills read by the Apple overlay raster under every matrix code point from 0 to 15, and
@@ -21,7 +21,6 @@ import kotlin.test.assertTrue
  * [AppleStillSamples.evaluated], core's evaluator on its stored samples, and its overlay resolves exactly. A still
  * core refuses is unsupported with core's reason. Every still that misses is one line of the failure.
  */
-@OptIn(InternalFilmstripApi::class)
 class UnsubsampledStillTest {
   @Test
   fun `every 4 4 4 still lands through its own matrix or core's evaluator or is refused`() {
@@ -30,7 +29,7 @@ class UnsubsampledStillTest {
         val read = ImageSource.ofBytes(still.bytes).read()
         AppleStillSamples.missOrUnmeasured {
           val samples = (read as? PictureRead.Read)?.value?.centreSamples()
-          val landed = AppleStillSamples.landing(still.nclx, unsubsampled = true, still.bitDepth)
+          val landed = AppleStillSamples.decoderMatrix(still.nclx, unsubsampled = true, still.bitDepth)
           val nclx = still.nclx
           val refusal = (ycbcrReading(nclx.matrix, nclx.primaries, nclx.transfer) as? YcbcrReading.Refused)?.reason
           val resolution = describe(overlayResolution(still.bytes))
@@ -44,7 +43,7 @@ class UnsubsampledStillTest {
         }
       }
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   private fun decodeMiss(

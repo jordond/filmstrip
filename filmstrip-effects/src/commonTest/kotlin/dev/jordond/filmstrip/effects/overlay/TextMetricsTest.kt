@@ -2,9 +2,9 @@ package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.style.TextStyle
+import io.kotest.matchers.shouldBe
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.test.assertEquals
 
 /**
  * The text metrics every platform's rasteriser reads, pinned at a style off the ends of both ranges so a
@@ -13,29 +13,29 @@ import kotlin.test.assertEquals
 class TextMetricsTest {
   @Test
   fun capHeightIsTheFontSizeAsAFractionOfFrameHeight() {
-    assertEquals(PLATED.fontSize * FRAME.height, PLATED.capHeightOn(FRAME))
+    PLATED.capHeightOn(FRAME) shouldBe PLATED.fontSize * FRAME.height
   }
 
   @Test
   fun wrapWidthIsTheMaxWidthAsAFractionOfFrameWidthRounded() {
-    assertEquals((PLATED.maxWidth * FRAME.width).roundToInt(), PLATED.wrapWidthOn(FRAME))
+    PLATED.wrapWidthOn(FRAME) shouldBe (PLATED.maxWidth * FRAME.width).roundToInt()
   }
 
   @Test
   fun aWrapWidthNeverFallsBelowOnePixel() {
-    assertEquals(1, TextStyle(maxWidth = 0f).wrapWidthOn(FRAME))
+    TextStyle(maxWidth = 0f).wrapWidthOn(FRAME) shouldBe 1
   }
 
   @Test
   fun platePaddingIsMeasuredOffTheCapHeight() {
-    assertEquals((PLATED.capHeightOn(FRAME) * 0.3f).roundToInt(), PLATED.platePaddingOn(FRAME))
+    PLATED.platePaddingOn(FRAME) shouldBe (PLATED.capHeightOn(FRAME) * 0.3f).roundToInt()
   }
 
   @Test
   fun textWithoutAPlateHasNoPadding() {
     val unplated = TextStyle(fontSize = PLATED.fontSize, maxWidth = PLATED.maxWidth)
 
-    assertEquals(0, unplated.platePaddingOn(FRAME))
+    unplated.platePaddingOn(FRAME) shouldBe 0
   }
 
   private companion object {

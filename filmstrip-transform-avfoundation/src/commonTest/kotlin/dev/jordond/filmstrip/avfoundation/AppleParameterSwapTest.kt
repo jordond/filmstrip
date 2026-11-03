@@ -1,18 +1,18 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.avfoundation.internal.AvComposition
-import dev.jordond.filmstrip.avfoundation.internal.toAvComposition
-import dev.jordond.filmstrip.avfoundation.internal.toCMTime
+import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
+import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
+import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.CoreImageEffect
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
-import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
@@ -24,13 +24,16 @@ import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.test.assertFramesDiffer
-import dev.jordond.filmstrip.transform.internal.ResolvedClip
-import dev.jordond.filmstrip.transform.internal.ResolvedComposition
-import dev.jordond.filmstrip.transform.internal.ResolvedEffect
-import dev.jordond.filmstrip.transform.internal.ResolvedGain
-import dev.jordond.filmstrip.transform.internal.ResolvedHdr
-import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
@@ -49,9 +52,6 @@ import platform.CoreImage.CIImage
 import platform.CoreImage.CIVector
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
-import kotlin.test.assertSame
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -77,7 +77,7 @@ class AppleParameterSwapTest {
     val source = fixture(CLIP_NAME)
 
     val av = graded(source, DIM).toAvComposition()
-    val chain = assertNotNull(av.chain, "a composition with a video track has a chain")
+    val chain = withClue("a composition with a video track has a chain") { av.chain.shouldNotBeNull() }
     val generator = generatorFor(av)
 
     val dimmed = generator.frameAt(PROBE)
@@ -96,31 +96,27 @@ class AppleParameterSwapTest {
     val source = fixture(CLIP_NAME)
 
     val av = graded(source, DIM).toAvComposition()
-    val chain = assertNotNull(av.chain, "a composition with a video track has a chain")
+    val chain = withClue("a composition with a video track has a chain") { av.chain.shouldNotBeNull() }
     val slots = chain.spans.map { it.start to it.end }
 
     val swapped = graded(source, BRIGHT)
     chain.updateParameters(swapped)
 
-    assertTrue(
-      chain.spans.map { it.start to it.end } == slots,
-      "the swap moved a span from $slots to ${chain.spans.map { it.start to it.end }}",
-    )
-    assertSame(
-      swapped.tracks
-        .single()
-        .clips
-        .single()
-        .effects,
-      chain.spans.single().effects,
-      "the span kept the effects it was built with",
-    )
+    chain.spans.map { it.start to it.end } shouldBe slots
+    withClue("the span kept the effects it was built with") {
+      chain.spans.single().effects shouldBeSameInstanceAs
+        swapped.tracks
+          .single()
+          .clips
+          .single()
+          .effects
+    }
   }
 
   @Test
   fun `a swap that moves the output frame is refused`() {
     val source = fixture(CLIP_NAME)
-    val chain = assertNotNull(graded(source, DIM).toAvComposition().chain)
+    val chain = graded(source, DIM).toAvComposition().chain.shouldNotBeNull()
 
     assertFailsWith<IllegalArgumentException> {
       chain.updateParameters(graded(source, BRIGHT, output = Size(160, 90)))
@@ -130,7 +126,7 @@ class AppleParameterSwapTest {
   @Test
   fun `a swap that moves the transfer function is refused`() {
     val source = fixture(CLIP_NAME)
-    val chain = assertNotNull(graded(source, DIM).toAvComposition().chain)
+    val chain = graded(source, DIM).toAvComposition().chain.shouldNotBeNull()
 
     assertFailsWith<IllegalArgumentException> {
       chain.updateParameters(graded(source, BRIGHT, transfer = HdrTransfer.Pq))
@@ -140,7 +136,7 @@ class AppleParameterSwapTest {
   @Test
   fun `a swap that moves the timeline is refused`() {
     val source = fixture(CLIP_NAME)
-    val chain = assertNotNull(graded(source, DIM).toAvComposition().chain)
+    val chain = graded(source, DIM).toAvComposition().chain.shouldNotBeNull()
 
     assertFailsWith<IllegalArgumentException> {
       chain.updateParameters(graded(source, BRIGHT, clipEnd = 700.milliseconds))
@@ -155,13 +151,15 @@ class AppleParameterSwapTest {
     val source = fixture(CLIP_NAME)
 
     val laid = loopedClips(source)
-    val chain = assertNotNull(loopingComposition(laid).toAvComposition().chain)
+    val chain = loopingComposition(laid).toAvComposition().chain.shouldNotBeNull()
     val swapped = loopingComposition(loopedClips(source, scale = BRIGHT))
     chain.updateParameters(swapped)
 
     chain.spans.size shouldBe laid.size
     swapped.tracks.single().clips.forEachIndexed { index, clip ->
-      assertSame(clip.effects, chain.spans[index].effects, "pass $index kept another pass's effects")
+      withClue("pass $index kept another pass's effects") {
+        chain.spans[index].effects shouldBeSameInstanceAs clip.effects
+      }
     }
   }
 
@@ -294,7 +292,7 @@ class AppleParameterSwapTest {
     )
 
   /**
-   * An effect that multiplies every colour channel by [scale].
+   * An effect that multiplies every color channel by [scale].
    *
    * A flat gain rather than one of the built-in effects, so the only thing separating two renders
    * is the number the swap carried in.

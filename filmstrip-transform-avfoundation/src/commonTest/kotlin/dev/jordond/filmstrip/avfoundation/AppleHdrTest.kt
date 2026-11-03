@@ -12,6 +12,13 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
@@ -19,11 +26,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 
 /**
@@ -44,18 +46,17 @@ class AppleHdrTest {
     runTest(timeout = TIMEOUT) {
       val source = hdrFixture(HdrTransfer.Pq)
       val run = export(source, HdrMode.KeepHdr)
-      val written = assertNotNull(run.info.video, "the written file has no video track")
+      val written = run.info.video.shouldNotBeNull()
 
       // The encoder tests pin each target's HDR answer, so this only holds the export to its report,
       // PQ kept or tone mapping reported. SDR out with nothing said about it is the case that fails.
       if (written.hdrTransfer == null) {
-        assertTrue(
-          run.toneMapped,
-          "HDR was dropped without an adjustment reporting it, so the caller was told nothing",
-        )
+        withClue("HDR was dropped without an adjustment reporting it, so the caller was told nothing") {
+          run.toneMapped.shouldBeTrue()
+        }
       } else {
-        assertEquals(HdrTransfer.Pq, written.hdrTransfer, "PQ went in and something else came out")
-        assertTrue(!run.toneMapped, "HDR survived but an adjustment said it was tone mapped")
+        written.hdrTransfer shouldBe HdrTransfer.Pq
+        withClue("HDR survived but an adjustment said it was tone mapped") { run.toneMapped.shouldBeFalse() }
       }
     }
 
@@ -65,11 +66,13 @@ class AppleHdrTest {
       val source = hdrFixture(HdrTransfer.Pq)
 
       val run = export(source, HdrMode.ToneMapToSdr)
-      val written = assertNotNull(run.info.video, "the written file has no video track")
+      val written = run.info.video.shouldNotBeNull()
 
-      assertNull(written.hdrTransfer, "tone mapping to SDR left an HDR transfer function behind")
+      withClue("tone mapping to SDR left an HDR transfer function behind") { written.hdrTransfer.shouldBeNull() }
       // Asked for, never fallen back to, so there is nothing to report as an adjustment.
-      assertTrue(!run.toneMapped, "an adjustment was reported for the tone mapping that was asked for")
+      withClue("an adjustment was reported for the tone mapping that was asked for") {
+        run.toneMapped.shouldBeFalse()
+      }
     }
 
   @Test
@@ -78,11 +81,11 @@ class AppleHdrTest {
       val source = hdrFixture(HdrTransfer.Pq)
 
       val run = export(source, HdrMode.Auto)
-      val written = assertNotNull(run.info.video, "the written file has no video track")
+      val written = run.info.video.shouldNotBeNull()
 
       // Every Apple target advertises an HDR encoder, which the encoder tests pin, so Auto keeps the grade silently.
-      assertEquals(HdrTransfer.Pq, written.hdrTransfer, "the device encodes HDR but Auto did not keep it")
-      assertTrue(!run.toneMapped, "HDR survived but an adjustment said it was tone mapped")
+      withClue("the device encodes HDR but Auto did not keep it") { written.hdrTransfer shouldBe HdrTransfer.Pq }
+      withClue("HDR survived but an adjustment said it was tone mapped") { run.toneMapped.shouldBeFalse() }
     }
 
   /**
@@ -95,7 +98,7 @@ class AppleHdrTest {
 
   private fun composition(source: String) = compositionOf { clip(MediaSource.of(source)) }
 
-  private fun spec(hdr: HdrMode) = ExportSpec(targetHeight = 720, hdr = hdr)
+  private fun spec(hdr: HdrMode) = ExportSpec(heightPx = 720, hdr = hdr)
 
   private suspend fun export(
     source: String,
@@ -114,12 +117,12 @@ class AppleHdrTest {
     val finished = statuses.last()
     if (finished is ExportStatus.Failure) error("export failed: ${finished.error.message}")
 
-    val success = assertIs<ExportStatus.Success>(finished)
+    val success = finished.shouldBeInstanceOf<ExportStatus.Success>()
     // Read off Success rather than ExportStatus.Adjusted. Adjusted belongs to the overload that
     // plans as well, and this runs a plan the test already holds, so nothing here ever emits one
     // and a test that looked there would read every export as having reported nothing.
     val toneMapped = success.adjustments.any { it.kind == AdjustmentKind.HdrToneMapped }
-    val path = assertIs<MediaSink.Path>(success.output).path
+    val path = success.output.shouldBeInstanceOf<MediaSink.Path>().path
 
     try {
       return Run(probe(path), toneMapped)
@@ -129,7 +132,7 @@ class AppleHdrTest {
   }
 
   private suspend fun probe(path: String): MediaInfo =
-    assertIs<ProbeResult.Success>(filmstrip.probe(MediaSource.of(path))).info
+    filmstrip.probe(MediaSource.of(path)).shouldBeInstanceOf<ProbeResult.Success>().info
 
   private companion object {
     val TIMEOUT = 5.minutes

@@ -2,10 +2,15 @@ package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.color.HDR_REFERENCE_WHITE_NITS
+import dev.jordond.filmstrip.color.sdrSignalFromNits
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
@@ -13,7 +18,6 @@ import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.effects.overlay.OverlayFrame
 import dev.jordond.filmstrip.effects.overlay.OverlayOffset
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
-import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
@@ -23,14 +27,10 @@ import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotTime
-import dev.jordond.filmstrip.media.HDR_REFERENCE_WHITE_NITS
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.sdrSignalFromNits
 import dev.jordond.filmstrip.style.TextStyle
 import dev.jordond.filmstrip.test.HdrOverlayCells
 import dev.jordond.filmstrip.test.OverlayPixels
@@ -40,28 +40,27 @@ import dev.jordond.filmstrip.webcodecs.BrowserHdrTest.Companion.LUMA_TOLERANCE
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
 import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
 import dev.jordond.filmstrip.webcodecs.internal.browserRenderOf
-import dev.jordond.filmstrip.webcodecs.internal.compositorLightOf
-import dev.jordond.filmstrip.webcodecs.internal.toBrowserPreview
+import dev.jordond.filmstrip.webcodecs.internal.preview.toBrowserPreview
+import dev.jordond.filmstrip.webcodecs.internal.render.compositorLightOf
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Overlays drawn on a kept grade, exported or previewed, and read back.
  *
  * Every overlay sits over the gap in front of a late primary, so what is under it is the fill's own light and never a
- * picture. Each case draws every cell of [HdrOverlayCells.CELLS], one frame per fill colour. An export is read as
+ * picture. Each case draws every cell of [HdrOverlayCells.CELLS], one frame per fill color. An export is read as
  * ten-bit codes and each cell has to land on [HdrOverlayCells.Cell.codes]. Every channel, chroma included, is held to
- * the luma tolerance [BrowserHdrTest] holds a fill to, so a coloured texel that blends anywhere but linear display
+ * the luma tolerance [BrowserHdrTest] holds a fill to, so a colored texel that blends anywhere but linear display
  * light misses.
  *
  * A preview is read as eight-bit codes, and each cell has to land on [HdrOverlayCells.Cell.nits] shown through the SDR
@@ -71,7 +70,7 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 class BrowserOverlayHdrTest {
   @Test
-  fun anImageOverlayLandsWhereItsColourDoesOnBothTransfers() =
+  fun anImageOverlayLandsWhereItsColorDoesOnBothTransfers() =
     runTest {
       if (!Filmstrip { webCodecsBackend() }.encodesHdr()) return@runTest
 
@@ -79,7 +78,7 @@ class BrowserOverlayHdrTest {
     }
 
   @Test
-  fun aTextOverlayLandsWhereItsColourDoesOnBothTransfers() =
+  fun aTextOverlayLandsWhereItsColorDoesOnBothTransfers() =
     runTest {
       if (!Filmstrip { webCodecsBackend() }.encodesHdr()) return@runTest
 
@@ -88,10 +87,9 @@ class BrowserOverlayHdrTest {
 
   @Test
   fun theOverlayBoundIsAtMostTheWidestBlendBound() {
-    assertTrue(
-      LUMA_TOLERANCE <= HdrOverlayCells.MAX_BLEND_TOLERANCE,
-      "overlays are held to $LUMA_TOLERANCE codes, past ${HdrOverlayCells.MAX_BLEND_TOLERANCE}",
-    )
+    withClue("overlays are held to $LUMA_TOLERANCE codes, past ${HdrOverlayCells.MAX_BLEND_TOLERANCE}") {
+      (LUMA_TOLERANCE <= HdrOverlayCells.MAX_BLEND_TOLERANCE) shouldBe true
+    }
   }
 
   // The preview composites through the export's own compositor and shows its float buffer through the SDR display
@@ -130,10 +128,9 @@ class BrowserOverlayHdrTest {
       }
     val (name, smallest) = misses.minBy { it.second }
 
-    assertTrue(
-      2 * PREVIEW_TOLERANCE < smallest,
-      "a $name misses by only $smallest, too close for a bound of $PREVIEW_TOLERANCE to tell apart",
-    )
+    withClue("a $name misses by only $smallest, too close for a bound of $PREVIEW_TOLERANCE to tell apart") {
+      (2 * PREVIEW_TOLERANCE < smallest) shouldBe true
+    }
   }
 
   private suspend fun assertPreviewsTheRule(grids: Map<Int, List<Placed>>) {
@@ -152,7 +149,7 @@ class BrowserOverlayHdrTest {
         grids.flatMap { (background, overlays) -> missesOf(transfer, background, overlays).map { "$transfer $it" } }
       }
 
-    assertTrue(misses.isEmpty(), misses.joinToString("; "))
+    withClue(misses.joinToString("; ")) { misses.isEmpty() shouldBe true }
   }
 
   private suspend fun missesOf(
@@ -186,11 +183,11 @@ class BrowserOverlayHdrTest {
     overlays: List<Placed>,
   ) {
     val composition = compositionOf(transfer, background, overlays.map { it.spec })
-    val resolved = assertIs<ResolveResult.Resolved>(engine().resolve(composition, SPEC)).composition
+    val resolved = engine().resolve(composition, SPEC).shouldBeInstanceOf<ResolveResult.Resolved>().composition
     val preview = resolved.toBrowserPreview(composition)
 
     try {
-      val drawn = assertNotNull(preview.frameAt(GAP_TIME), "$transfer drew no preview frame in the gap")
+      val drawn = withClue("$transfer drew no preview frame in the gap") { preview.frameAt(GAP_TIME).shouldNotBeNull() }
       for ((placed, rect) in overlays.zip(rectsOf(transfer, composition))) {
         val column = (rect.middleX * drawn.size.width).toInt()
         val row = (rect.middleY * drawn.size.height).toInt()
@@ -198,10 +195,11 @@ class BrowserOverlayHdrTest {
         val shown = presented(placed.cell.nits())
         repeat(3) { channel ->
           val previewed = drawn.pixels[offset + channel].toInt() and BYTE_MASK
-          assertTrue(
-            abs(previewed - shown[channel]) <= PREVIEW_TOLERANCE,
+          withClue(
             "$transfer ${nameOf(placed.cell)} channel $channel previewed $previewed, the rule shows ${shown[channel]}",
-          )
+          ) {
+            (abs(previewed - shown[channel]) <= PREVIEW_TOLERANCE) shouldBe true
+          }
         }
       }
     } finally {
@@ -219,7 +217,9 @@ class BrowserOverlayHdrTest {
     val frames = decodeTenBitFrames(exported(composition, transfer), transfer)
     val gapUs = GAP_TIME.inWholeMicroseconds.toDouble()
     val gap = frames.minBy { abs(it.timestampUs - gapUs) }
-    assertTrue(gap.timestampUs < LATE_START.inWholeMicroseconds, "the $transfer file has no frame in the gap")
+    withClue("the $transfer file has no frame in the gap") {
+      (gap.timestampUs < LATE_START.inWholeMicroseconds) shouldBe true
+    }
     return gap
   }
 
@@ -231,10 +231,14 @@ class BrowserOverlayHdrTest {
     transfer: HdrTransfer,
     composition: EditComposition,
   ): List<NormalizedRect> {
-    val resolved = assertIs<ResolveResult.Resolved>(engine().resolve(composition, SPEC)).composition
+    val resolved = engine().resolve(composition, SPEC).shouldBeInstanceOf<ResolveResult.Resolved>().composition
     val render = browserRenderOf(resolved, composition)
-    assertEquals(transfer, render.hdrTransfer)
-    return render.compositionOverlays.map { assertNotNull(it.drawAt(GAP_TIME), "an overlay is hidden in the gap").rect }
+    render.hdrTransfer shouldBe transfer
+    return render.compositionOverlays.map {
+      withClue("an overlay is hidden in the gap") {
+        it.drawAt(GAP_TIME).shouldNotBeNull()
+      }.rect
+    }
   }
 
   private suspend fun compositionOf(
@@ -273,13 +277,13 @@ class BrowserOverlayHdrTest {
     statuses.filterIsInstance<ExportStatus.Failure>().firstOrNull()?.let {
       throw AssertionError("the $transfer export failed: ${it.error.message}")
     }
-    val success = assertNotNull(statuses.filterIsInstance<ExportStatus.Success>().singleOrNull())
-    return MediaSource.Uri(assertIs<MediaSink.Uri>(success.output).uri)
+    val success = (statuses.filterIsInstance<ExportStatus.Success>().singleOrNull()).shouldNotBeNull()
+    return MediaSource.Uri(success.output.shouldBeInstanceOf<MediaSink.Uri>().uri)
   }
 
   private fun engine(): BrowserExportEngine =
-    browserExportEngine(
-      components = ComponentRegistry.Builder().add(BuiltInEffectResolver()).build(),
+    webCodecsExportEngine(
+      components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(),
       prober = BrowserProber(),
     )
 
@@ -308,29 +312,31 @@ class BrowserOverlayHdrTest {
   )
 
   /**
-   * One grid per fill colour of [HdrOverlayCells.CELLS], keyed by that colour, with a column per overlay colour and a
+   * One grid per fill color of [HdrOverlayCells.CELLS], keyed by that color, with a column per overlay color and a
    * row per opacity, built by [at].
    */
-  private fun grids(at: (colour: Int, opacity: Float, column: Int, row: Int) -> EffectSpec): Map<Int, List<Placed>> =
+  private fun grids(at: (color: Int, opacity: Float, column: Int, row: Int) -> EffectSpec): Map<Int, List<Placed>> =
     HdrOverlayCells.CELLS.groupBy { it.background }.mapValues { (_, cells) ->
-      val colours = cells.map { it.overlay }.distinct()
+      val colors = cells.map { it.overlay }.distinct()
       val opacities = cells.map { it.opacity }.distinct()
-      assertTrue(colours.size <= SLOTS && opacities.size <= SLOTS, "a fill has more cells than a frame has room for")
+      withClue("a fill has more cells than a frame has room for") {
+        (colors.size <= SLOTS && opacities.size <= SLOTS) shouldBe true
+      }
       cells.map { cell ->
-        val spec = at(cell.overlay, cell.opacity, colours.indexOf(cell.overlay), opacities.indexOf(cell.opacity))
+        val spec = at(cell.overlay, cell.opacity, colors.indexOf(cell.overlay), opacities.indexOf(cell.opacity))
         Placed(spec, cell)
       }
     }
 
   private fun imageAt(
-    colour: Int,
+    color: Int,
     opacity: Float,
     column: Int,
     row: Int,
   ): EffectSpec {
     val offset = OverlayFrame(offset = OverlayOffset(column * CELL_WIDTH, row * CELL_HEIGHT))
     return ImageOverlay(
-      ImageSource.ofBytes(OverlayPixels.pngOf(PNG, colour)),
+      ImageSource.ofBytes(OverlayPixels.pngOf(PNG, color)),
       Corner.TopStart,
       margin = CELL_MARGIN,
       scale = IMAGE_SCALE,
@@ -339,10 +345,10 @@ class BrowserOverlayHdrTest {
     )
   }
 
-  // The plate is the text's own colour, so the whole rect is that colour and the centre reads it whether or not a glyph
+  // The plate is the text's own color, so the whole rect is that color and the centre reads it whether or not a glyph
   // crosses it.
   private fun textAt(
-    colour: Int,
+    color: Int,
     opacity: Float,
     column: Int,
     row: Int,
@@ -350,7 +356,7 @@ class BrowserOverlayHdrTest {
     val frame = OverlayFrame(opacity = opacity)
     return TextOverlay(
       TEXT,
-      TextStyle(fontSize = FONT_SIZE, color = colour, backgroundColor = colour),
+      TextStyle(fontSize = FONT_SIZE, color = color, backgroundColor = color),
       Anchor((column + HALF) / SLOTS, (row + HALF) / SLOTS),
       animation = OverlayAnimation { frame },
     )

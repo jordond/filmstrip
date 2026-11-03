@@ -3,9 +3,10 @@ package dev.jordond.filmstrip.avfoundation
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.test.isSimulator
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 
 /**
@@ -24,7 +25,9 @@ class AppleHdrFillCoreImageTest {
       val off = filmstrip.exportedFrame(HdrTransfer.Hlg, MID_BLUE).lightOff(MID_BLUE)
       val drift = if (isSimulator()) IOS_SIMULATOR_CORE_IMAGE_HLG_DRIFT else MACOS_CORE_IMAGE_HLG_DRIFT
 
-      assertTrue(off.all { it in drift }, "Core Image's HLG decode read the bar off by $off where $drift is measured")
+      withClue("Core Image's HLG decode read the bar off by $off where $drift is measured") {
+        off.all { it in drift }.shouldBeTrue()
+      }
     }
 
   private companion object {

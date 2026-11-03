@@ -1,9 +1,9 @@
 package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.webcodecs.internal.copyWindow
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
-import kotlin.test.assertEquals
 
 /**
  * The rule a stream copy walks its packets by, driven by a written-out decode order rather than by
@@ -21,7 +21,7 @@ class CopyWindowTest {
           packets = listOf(0.0 to true, 0.4 to false, 1.2 to false, 1.3 to false, 0.8 to false),
         )
 
-      assertEquals(listOf(0.0, 0.4, 1.2, 1.3, 0.8), written)
+      written shouldBe listOf(0.0, 0.4, 1.2, 1.3, 0.8)
     }
 
   @Test
@@ -33,7 +33,7 @@ class CopyWindowTest {
           packets = listOf(0.0 to true, 0.4 to false, 1.2 to false, 1.5 to true, 0.8 to false),
         )
 
-      assertEquals(listOf(0.0, 0.4), written)
+      written shouldBe listOf(0.0, 0.4)
     }
 
   @Test
@@ -45,7 +45,7 @@ class CopyWindowTest {
           packets = listOf(0.0 to true, 0.4 to false, 1.2 to false, 1.3 to false),
         )
 
-      assertEquals(listOf(0.0, 0.4), written)
+      written shouldBe listOf(0.0, 0.4)
     }
 
   // The window is half open, so the packet on the boundary belongs to whatever comes after the cut.
@@ -56,7 +56,7 @@ class CopyWindowTest {
     runTest {
       val written = copied(endSeconds = 1.0, packets = listOf(0.0 to true, 0.4 to false, 1.0 to false))
 
-      assertEquals(listOf(0.0, 0.4), written)
+      written shouldBe listOf(0.0, 0.4)
     }
 
   /**

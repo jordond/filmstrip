@@ -73,7 +73,7 @@ body:
       placeholder: |
         1. Probe the clip
         2. Build the composition with crop(1, 1) then rotate(90)
-        3. plan() with targetHeight 1080 and codec H265
+        3. plan() with heightPx 1080 and codec H265
         4. export()
     validations:
       required: true
@@ -85,7 +85,7 @@ body:
   - type: textarea
     attributes:
       label: What happened
-      description: Include the `Verdict`, the `ExportError`, or the stack trace, whichever came back.
+      description: Include the `Verdict`, the `FilmstripError`, or the stack trace, whichever came back.
     validations:
       required: true
   - type: textarea

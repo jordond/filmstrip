@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.filekit
 
 import dev.jordond.filmstrip.media.MediaSink
 import io.github.vinceglb.filekit.FileKit
+import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.saveImageToGallery
 import io.github.vinceglb.filekit.saveVideoToGallery
@@ -17,15 +18,16 @@ import io.github.vinceglb.filekit.saveVideoToGallery
  *
  * @param output Where the export wrote, taken whole so a `content://` destination stays one.
  * @param filename The name the gallery entry takes, defaulting to the written file's own name.
- * @return [Result.failure] carrying FileKit's exception when the save does not go through.
- * @throws IllegalStateException on [MediaSink.Temporary], which is a request rather than a
- *   location. Read the resolved path off `ExportStatus.Success.output` instead.
+ * @return [Result.failure] when the save does not go through. It carries an [IllegalStateException] for
+ *   [MediaSink.Temporary], which is a request rather than a location, so read the resolved path off
+ *   `ExportStatus.Success.output` instead. A [MediaSink.Uri] this platform cannot parse carries an
+ *   [IllegalArgumentException], and anything else is FileKit's own exception.
  */
 public suspend fun FileKit.saveVideoToGallery(
   output: MediaSink,
   filename: String? = null,
 ): Result<Unit> {
-  val file = output.toPlatformFile()
+  val file = output.toGalleryFile().getOrElse { return Result.failure(it) }
 
   return saveVideoToGallery(file = file, filename = filename ?: file.name)
 }
@@ -39,15 +41,25 @@ public suspend fun FileKit.saveVideoToGallery(
  *
  * @param output Where the still was written, taken whole so a `content://` destination stays one.
  * @param filename The name the gallery entry takes, defaulting to the written file's own name.
- * @return [Result.failure] carrying FileKit's exception when the save does not go through.
- * @throws IllegalStateException on [MediaSink.Temporary], which is a request rather than a
- *   location. Read the resolved path off `ExportStatus.Success.output` instead.
+ * @return [Result.failure] when the save does not go through. It carries an [IllegalStateException] for
+ *   [MediaSink.Temporary], which is a request rather than a location, so read the resolved path off
+ *   `ExportStatus.Success.output` instead. A [MediaSink.Uri] this platform cannot parse carries an
+ *   [IllegalArgumentException], and anything else is FileKit's own exception.
  */
 public suspend fun FileKit.saveImageToGallery(
   output: MediaSink,
   filename: String? = null,
 ): Result<Unit> {
-  val file = output.toPlatformFile()
+  val file = output.toGalleryFile().getOrElse { return Result.failure(it) }
 
   return saveImageToGallery(file = file, filename = filename ?: file.name)
 }
+
+private fun MediaSink.toGalleryFile(): Result<PlatformFile> =
+  try {
+    Result.success(toPlatformFile())
+  } catch (unparseable: IllegalArgumentException) {
+    Result.failure(unparseable)
+  } catch (temporary: IllegalStateException) {
+    Result.failure(temporary)
+  }

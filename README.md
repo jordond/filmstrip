@@ -16,15 +16,15 @@ an ffmpeg you installed yourself.
 
 | Artifact | What's in it |
 |---|---|
-| `filmstrip` | The bundle: core, effects, player, and the right export engine for each target, plus `Filmstrip.create()`. Deliberately not Compose. |
-| `filmstrip-core` | Model, `MediaSource`/`MediaSink`, `probe()`, `thumbnail()`, and the effect SPI. No runtime, no effect catalogue. |
-| `filmstrip-effects` | The built-in effect catalogue. GL effects on Android, Core Image on Apple. |
-| `filmstrip-transform` | The export planner: shared policy every engine builds on. Add an engine artifact alongside it to actually export. |
-| `filmstrip-transform-media3` | The media3-transformer export engine, Android. |
-| `filmstrip-transform-avfoundation` | The AVFoundation export engine, iOS and macOS. |
-| `filmstrip-transform-webcodecs` | The WebCodecs export engine, browser. |
-| `filmstrip-transform-ffmpeg` | The ffmpeg export engine, JVM. Shells out to an `ffmpeg` and `ffprobe` already on the machine. |
-| `filmstrip-player` | Preview playback. media3-exoplayer on Android, AVKit on Apple. |
+| `filmstrip` | The bundle: core, effects, player, and the right backend for each target, plus `allBackends()` to register them. Deliberately not Compose. |
+| `filmstrip-core` | Model, `MediaSource`/`MediaSink`, `probe()`, `thumbnail()`, the `VideoPlayer` API and `PlayerEngine` SPI, and the effect SPI. No runtime, no effect catalogue. |
+| `filmstrip-effects` | The built-in effect catalogue. GL effects on Android, Core Image on Apple, ffmpeg filter graphs on the JVM, and canvas drawing in the browser. |
+| `filmstrip-transform` | The export planner: shared policy every backend builds on. Add a backend artifact alongside it to actually export. |
+| `filmstrip-transform-media3` | The Media3 backend, Android. Lowers an edit for media3-transformer export and for the player's preview. |
+| `filmstrip-transform-avfoundation` | The AVFoundation backend, iOS and macOS. Lowers an edit for export and for the player's preview. |
+| `filmstrip-transform-webcodecs` | The WebCodecs backend, browser. Lowers an edit for export and for the player's preview. |
+| `filmstrip-transform-ffmpeg` | The ffmpeg backend, JVM. Lowers an edit for export and for the player's preview, and shells out to an `ffmpeg` and `ffprobe` already on the machine. |
+| `filmstrip-player` | Preview playback over each target's backend. media3-exoplayer on Android, AVKit on Apple, an ffmpeg frame stream on the JVM, and WebCodecs with a canvas in the browser. |
 | `filmstrip-compose` | Compose Multiplatform bindings: player state, the frame strip's cache, and bare surfaces. |
 | `filmstrip-compose-ui` | The drawn timeline: scrolling strip, ruler, playhead, trim handles, scrub gestures. Foundation only, no Material. |
 | `filmstrip-test` | Test fixtures and the frame-similarity harness. |
@@ -33,9 +33,16 @@ an ffmpeg you installed yourself.
 | `filmstrip-io-okio` | Okio bindings: `Path`, `BufferedSource` and `ByteString` as sources, `Path` as a sink. |
 | `filmstrip-io-kotlinx` | kotlinx-io bindings: `Path` and `Source` as sources, `Path` as a sink. |
 
-Layering is `core -> {effects, io-filekit -> io-filekit-compose, io-okio, io-kotlinx}`, then
-`effects -> {transform -> engines, player} -> {compose -> compose-ui, filmstrip}`. The build enforces it: `check`
-runs a resolved-dependency guard on every module, plus an import guard where one is needed.
+Layering is one ladder, `core -> effects -> transform -> backends -> player -> compose -> compose-ui`, and a module
+may depend on any rung below its own. `filmstrip` sits over the player. The io adapters and `filmstrip-test` branch
+off core instead: `core -> {io-filekit -> io-filekit-compose, io-okio, io-kotlinx, test}`. The build enforces it:
+`check` runs a resolved-dependency guard on every module, plus an import guard where one is needed.
+
+Each backend lowers an edit for both export and preview. The player owns playback and drives that preview lowering
+through the backend's `@InternalFilmstripApi` declarations under a named set of its `internal` packages, since a
+backend may not take a playback runtime such as media3-exoplayer. `internal.preview` holds what only the player reads,
+and a few leaf packages hold what the backend's export reads as well. Nothing else in a backend imports
+`internal.preview`. The import guard keeps the player out of the rest of a backend's `internal` package.
 
 ## Building
 

@@ -59,9 +59,9 @@ val exportFixtures =
           transfer = FixtureTransfer.Hlg,
           patch = FixturePatch.Graded,
         ),
-        // AuthoredColours.MID_GREEN as a HEIC, a picture the JDK cannot read, so only ffmpeg's decode can
+        // AuthoredColors.MID_GREEN as a HEIC, a picture the JDK cannot read, so only ffmpeg's decode can
         // put it on a grade.
-        FixtureStill("overlay_mid_green", 64, 64, colour = 0x308020, container = StillContainer.Heic),
+        FixtureStill("overlay_mid_green", 64, 64, color = 0x308020, container = StillContainer.Heic),
       ),
   )
 

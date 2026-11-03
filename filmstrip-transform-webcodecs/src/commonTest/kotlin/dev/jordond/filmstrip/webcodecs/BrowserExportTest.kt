@@ -3,6 +3,8 @@ package dev.jordond.filmstrip.webcodecs
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
@@ -10,45 +12,42 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.Contrast
 import dev.jordond.filmstrip.effects.geometry.CropRect
-import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.NormalizedRect
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotTime
-import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.ResolveResult
-import dev.jordond.filmstrip.transform.internal.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.heldTail
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.videoSlots
-import dev.jordond.filmstrip.webcodecs.internal.BrowserCompositor
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
 import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
+import dev.jordond.filmstrip.webcodecs.internal.render.BrowserCompositor
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -68,10 +67,10 @@ class BrowserExportTest {
       val bytes = makeClip()
       val success = exportOf(compositionOf(MediaSource.Bytes(bytes)))
 
-      val video = assertNotNull(success.info.video)
-      assertEquals(64, video.displaySize.width)
-      assertEquals(64, video.displaySize.height)
-      assertTrue(success.info.duration > Duration.ZERO, "duration was ${success.info.duration}")
+      val video = success.info.video.shouldNotBeNull()
+      video.displaySize.width shouldBe 64
+      video.displaySize.height shouldBe 64
+      withClue("duration was ${success.info.duration}") { (success.info.duration > Duration.ZERO) shouldBe true }
     }
 
   @Test
@@ -83,11 +82,16 @@ class BrowserExportTest {
         }
       val success = exportOf(compositionOf(MediaSource.Bytes(bytes)), MediaSink.Uri(""))
 
-      val frame = assertNotNull(decodeFrames(outputOf(success)).firstOrNull(), "the export decoded no frames")
+      val frame =
+        withClue("the export decoded no frames") {
+          decodeFrames(outputOf(success)).firstOrNull().shouldNotBeNull()
+        }
       val top = frame.at(x = 0.5, y = 0.25)
       val bottom = frame.at(x = 0.5, y = 0.75)
-      assertTrue(top.isNear(Rgb.Red), "the top of the frame was $top, and the source's top was red")
-      assertTrue(bottom.isNear(Rgb.Blue), "the bottom of the frame was $bottom, and the source's bottom was blue")
+      withClue("the top of the frame was $top, and the source's top was red") { top.isNear(Rgb.Red) shouldBe true }
+      withClue("the bottom of the frame was $bottom, and the source's bottom was blue") {
+        bottom.isNear(Rgb.Blue) shouldBe true
+      }
     }
 
   @Test
@@ -111,11 +115,13 @@ class BrowserExportTest {
         )
       val success = exportOf(composition, MediaSink.Uri(""))
 
-      val frame = assertNotNull(decodeFrames(outputOf(success)).firstOrNull())
+      val frame = decodeFrames(outputOf(success)).firstOrNull().shouldNotBeNull()
       for (y in listOf(0.15, 0.5, 0.85)) {
         for (x in listOf(0.1, 0.5, 0.9)) {
-          val colour = frame.at(x, y)
-          assertTrue(colour.isNear(Rgb.Red), "the crop kept $colour at ($x, $y), and the source's top half was red")
+          val color = frame.at(x, y)
+          withClue("the crop kept $color at ($x, $y), and the source's top half was red") {
+            color.isNear(Rgb.Red) shouldBe true
+          }
         }
       }
     }
@@ -125,7 +131,7 @@ class BrowserExportTest {
     runTest {
       // The first clip sets the output size and fills it, so anything left in the bars afterwards
       // is the previous clip rather than a clear. The second is half as tall, so it letterboxes.
-      val filler = makeClip(colour = Rgb.Green)
+      val filler = makeClip(color = Rgb.Green)
       val wide =
         makeClip(width = 64, height = 32) { _, y ->
           if (y < WIDE_RED_ROWS) Rgb.Red else Rgb.Blue
@@ -139,47 +145,41 @@ class BrowserExportTest {
       val success = exportOf(composition, MediaSink.Uri(""))
 
       val frames = decodeFrames(outputOf(success))
-      assertTrue(frames.size > 1, "the export decoded ${frames.size} frames")
+      withClue("the export decoded ${frames.size} frames") { (frames.size > 1) shouldBe true }
       val letterboxed = frames.last()
 
-      assertTrue(
-        letterboxed.at(x = 0.5, y = 0.12).isNear(Rgb.Black),
-        "the top bar was ${letterboxed.at(0.5, 0.12)}, and a letterbox bar is cleared to black",
-      )
-      assertTrue(
-        letterboxed.at(x = 0.5, y = 0.88).isNear(Rgb.Black),
-        "the bottom bar was ${letterboxed.at(0.5, 0.88)}, and a letterbox bar is cleared to black",
-      )
+      withClue("the top bar was ${letterboxed.at(0.5, 0.12)}, and a letterbox bar is cleared to black") {
+        letterboxed.at(x = 0.5, y = 0.12).isNear(Rgb.Black) shouldBe true
+      }
+      withClue("the bottom bar was ${letterboxed.at(0.5, 0.88)}, and a letterbox bar is cleared to black") {
+        letterboxed.at(x = 0.5, y = 0.88).isNear(Rgb.Black) shouldBe true
+      }
       // The drawn band runs from a quarter to three quarters of the frame, and the source's top
       // eighth is red. Sampling a quarter of the way down lands inside it only when the whole
       // source is fitted into the band rather than centre-cropped into it.
-      assertTrue(
-        letterboxed.at(x = 0.5, y = 0.3125).isNear(Rgb.Red),
-        "the top of the letterboxed clip was ${letterboxed.at(0.5, 0.3125)}, and the source's top was red",
-      )
-      assertTrue(
-        letterboxed.at(x = 0.5, y = 0.6).isNear(Rgb.Blue),
-        "the middle of the letterboxed clip was ${letterboxed.at(0.5, 0.6)}, and the source's middle was blue",
-      )
+      withClue("the top of the letterboxed clip was ${letterboxed.at(0.5, 0.3125)}, and the source's top was red") {
+        letterboxed.at(x = 0.5, y = 0.3125).isNear(Rgb.Red) shouldBe true
+      }
+      withClue("the middle of the letterboxed clip was ${letterboxed.at(0.5, 0.6)}, and the source's middle was blue") {
+        letterboxed.at(x = 0.5, y = 0.6).isNear(Rgb.Blue) shouldBe true
+      }
     }
 
   @Test
-  fun aSolidFillOfANonBlackColourPaintsTheBars() =
+  fun aSolidFillOfANonBlackColorPaintsTheBars() =
     runTest {
       val success = exportOf(letterboxComposition(Fill.Solid(PURPLE_ARGB)), MediaSink.Uri(""))
 
       val letterboxed = decodeFrames(outputOf(success)).last()
-      assertTrue(
-        letterboxed.at(x = 0.5, y = 0.12).isNear(PURPLE_RGB),
-        "the top bar was ${letterboxed.at(0.5, 0.12)}, and the fill was $PURPLE_RGB",
-      )
-      assertTrue(
-        letterboxed.at(x = 0.5, y = 0.88).isNear(PURPLE_RGB),
-        "the bottom bar was ${letterboxed.at(0.5, 0.88)}, and the fill was $PURPLE_RGB",
-      )
+      withClue("the top bar was ${letterboxed.at(0.5, 0.12)}, and the fill was $PURPLE_RGB") {
+        letterboxed.at(x = 0.5, y = 0.12).isNear(PURPLE_RGB) shouldBe true
+      }
+      withClue("the bottom bar was ${letterboxed.at(0.5, 0.88)}, and the fill was $PURPLE_RGB") {
+        letterboxed.at(x = 0.5, y = 0.88).isNear(PURPLE_RGB) shouldBe true
+      }
     }
 
-  // A composition-level brightness must not reach a bar it was not given a colour for, whatever
+  // A composition-level brightness must not reach a bar it was not given a color for, whatever
   // it does to the clip's own pixels.
   @Test
   fun aCompositionBrightnessLeavesASolidFillsBarsUntouched() =
@@ -188,15 +188,13 @@ class BrowserExportTest {
       val success = exportOf(composition, MediaSink.Uri(""))
 
       val letterboxed = decodeFrames(outputOf(success)).last()
-      assertTrue(
-        letterboxed.at(x = 0.5, y = 0.12).isNear(PURPLE_RGB),
-        "the top bar was ${letterboxed.at(0.5, 0.12)}, and a composition brightness should not reach it",
-      )
+      withClue("the top bar was ${letterboxed.at(0.5, 0.12)}, and a composition brightness should not reach it") {
+        letterboxed.at(x = 0.5, y = 0.12).isNear(PURPLE_RGB) shouldBe true
+      }
       val dimmedBlue = Rgb(Rgb.Blue.red / 2, Rgb.Blue.green / 2, Rgb.Blue.blue / 2)
-      assertTrue(
-        letterboxed.at(x = 0.5, y = 0.6).isNear(dimmedBlue),
-        "the clip's own pixels read ${letterboxed.at(0.5, 0.6)}, and half of ${Rgb.Blue} is $dimmedBlue",
-      )
+      withClue("the clip's own pixels read ${letterboxed.at(0.5, 0.6)}, and half of ${Rgb.Blue} is $dimmedBlue") {
+        letterboxed.at(x = 0.5, y = 0.6).isNear(dimmedBlue) shouldBe true
+      }
     }
 
   // The picture opens where the composition does, so a primary that starts late sits behind the fill
@@ -226,7 +224,7 @@ class BrowserExportTest {
     frameRate: Int = LATE_FRAME_RATE,
     clipFrames: Int = LATE_CLIP_FRAMES,
   ) {
-    val bytes = makeClip(frames = clipFrames, frameRate = frameRate, colour = Rgb.Green)
+    val bytes = makeClip(frames = clipFrames, frameRate = frameRate, color = Rgb.Green)
     val composition =
       EditComposition(
         tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes))), start = start)),
@@ -235,8 +233,8 @@ class BrowserExportTest {
       )
     val engine = browserEngine()
 
-    val resolved = assertIs<ResolveResult.Resolved>(engine.resolve(composition, ExportSpec())).composition
-    assertEquals(frameRate, resolved.output.frameRate, "the slot counts here are for $frameRate fps")
+    val resolved = engine.resolve(composition, ExportSpec()).shouldBeInstanceOf<ResolveResult.Resolved>().composition
+    withClue("the slot counts here are for $frameRate fps") { resolved.output.frameRate shouldBe frameRate }
     val oneSlotUs = micros(1.seconds / frameRate)
     val clip =
       resolved.tracks
@@ -247,39 +245,38 @@ class BrowserExportTest {
     val startUs = micros(clip.span.start)
     val frames = decodeFrames(outputOf(exportWith(engine, planWith(engine, composition))))
 
-    assertEquals(
-      outputSlotOf(resolved.duration, frameRate).toInt(),
-      frames.size,
-      "a gap of $start wrote ${frames.size} frames",
-    )
+    withClue("a gap of $start wrote ${frames.size} frames") {
+      frames.size shouldBe outputSlotOf(resolved.duration, frameRate).toInt()
+    }
     frames.zipWithNext().forEach { (before, after) ->
-      assertTrue(
-        after.timestampUs > before.timestampUs,
-        "a frame at ${after.timestampUs}us follows one at ${before.timestampUs}us",
-      )
+      withClue("a frame at ${after.timestampUs}us follows one at ${before.timestampUs}us") {
+        (after.timestampUs > before.timestampUs) shouldBe true
+      }
     }
     val filled = frames.count { it.at(x = 0.5, y = 0.5).isNear(PURPLE_RGB) }
-    assertEquals(gapFrames, filled, "a gap of $start wrote $filled frames of fill")
+    withClue("a gap of $start wrote $filled frames of fill") { filled shouldBe gapFrames }
 
     // Each slot is drawn at the time the encoder writes, so the frames land one per slot of the grid
     // rather than bunched at the gap's opening or strung off the grid from the clip's own start.
     assertEveryFrameHoldsItsOwnSlot(frames, frameRate)
 
     val inGap = frames.nearestTo(startUs / 2).at(x = 0.5, y = 0.5)
-    assertTrue(inGap.isNear(PURPLE_RGB), "the middle of the gap was $inGap, and the fill was $PURPLE_RGB")
+    withClue("the middle of the gap was $inGap, and the fill was $PURPLE_RGB") {
+      inGap.isNear(PURPLE_RGB) shouldBe true
+    }
     val inClip = frames.nearestTo(micros(clip.span.start + clip.duration / 2)).at(x = 0.5, y = 0.5)
-    assertTrue(inClip.isNear(Rgb.Green), "the middle of the clip was $inClip, and the clip was ${Rgb.Green}")
+    withClue("the middle of the clip was $inClip, and the clip was ${Rgb.Green}") {
+      inClip.isNear(Rgb.Green) shouldBe true
+    }
 
-    val opening = assertNotNull(frames.firstOrNull { it.at(x = 0.5, y = 0.5).isNear(Rgb.Green) })
-    assertTrue(
-      abs(opening.timestampUs - startUs) < oneSlotUs,
-      "the clip opened at ${opening.timestampUs}us, and the track starts at ${startUs}us",
-    )
+    val opening = frames.firstOrNull { it.at(x = 0.5, y = 0.5).isNear(Rgb.Green) }.shouldNotBeNull()
+    withClue("the clip opened at ${opening.timestampUs}us, and the track starts at ${startUs}us") {
+      (abs(opening.timestampUs - startUs) < oneSlotUs) shouldBe true
+    }
     val endUs = frames.last().let { it.timestampUs + it.durationUs }
-    assertTrue(
-      abs(endUs - micros(resolved.duration)) < oneSlotUs,
-      "the video ends at ${endUs}us, and the composition runs ${micros(resolved.duration)}us",
-    )
+    withClue("the video ends at ${endUs}us, and the composition runs ${micros(resolved.duration)}us") {
+      (abs(endUs - micros(resolved.duration)) < oneSlotUs) shouldBe true
+    }
   }
 
   // A clip trimmed between two slots holds only the slots its span rounds onto, so its last frame and
@@ -293,12 +290,12 @@ class BrowserExportTest {
 
   /**
    * Exports a green clip trimmed to [length] with a red clip a second long after it, then checks the file holds one
-   * frame on every slot of the grid, the slots either side of the seam each from their own clip, and each clip's colour
+   * frame on every slot of the grid, the slots either side of the seam each from their own clip, and each clip's color
    * in its middle.
    */
   private suspend fun assertMeetsTheNext(length: Duration) {
-    val green = makeClip(frames = GRID_CLIP_FRAMES, frameRate = GRID_FRAME_RATE, colour = Rgb.Green)
-    val red = makeClip(frames = GRID_FRAME_RATE, frameRate = GRID_FRAME_RATE, colour = Rgb.Red)
+    val green = makeClip(frames = GRID_CLIP_FRAMES, frameRate = GRID_FRAME_RATE, color = Rgb.Green)
+    val red = makeClip(frames = GRID_FRAME_RATE, frameRate = GRID_FRAME_RATE, color = Rgb.Red)
     val composition =
       EditComposition(
         tracks =
@@ -315,21 +312,21 @@ class BrowserExportTest {
     val spec = ExportSpec(frameRate = GRID_FRAME_RATE)
     val engine = browserEngine()
 
-    val resolved = assertIs<ResolveResult.Resolved>(engine.resolve(composition, spec)).composition
+    val resolved = engine.resolve(composition, spec).shouldBeInstanceOf<ResolveResult.Resolved>().composition
     val frames = decodeFrames(outputOf(exportWith(engine, planWith(engine, composition, spec))))
 
-    assertEquals(
-      outputSlotOf(resolved.duration, GRID_FRAME_RATE).toInt(),
-      frames.size,
-      "a first clip of $length wrote ${frames.size} frames",
-    )
+    withClue("a first clip of $length wrote ${frames.size} frames") {
+      frames.size shouldBe outputSlotOf(resolved.duration, GRID_FRAME_RATE).toInt()
+    }
     assertEveryFrameHoldsItsOwnSlot(frames, GRID_FRAME_RATE)
 
     val seam = outputSlotOf(length, GRID_FRAME_RATE).toInt()
     val before = frames[seam - 1].at(x = 0.5, y = 0.5)
-    assertTrue(before.isNear(Rgb.Green), "slot ${seam - 1}, the last before a seam at $length, drew $before")
+    withClue("slot ${seam - 1}, the last before a seam at $length, drew $before") {
+      before.isNear(Rgb.Green) shouldBe true
+    }
     val after = frames[seam].at(x = 0.5, y = 0.5)
-    assertTrue(after.isNear(Rgb.Red), "slot $seam, the first after a seam at $length, drew $after")
+    withClue("slot $seam, the first after a seam at $length, drew $after") { after.isNear(Rgb.Red) shouldBe true }
 
     val second =
       resolved.tracks
@@ -337,9 +334,9 @@ class BrowserExportTest {
         .clips
         .last()
     val inFirst = frames.nearestTo(micros(length / 2)).at(x = 0.5, y = 0.5)
-    assertTrue(inFirst.isNear(Rgb.Green), "the middle of the first clip was $inFirst")
+    withClue("the middle of the first clip was $inFirst") { inFirst.isNear(Rgb.Green) shouldBe true }
     val inSecond = frames.nearestTo(micros(second.span.start + second.duration / 2)).at(x = 0.5, y = 0.5)
-    assertTrue(inSecond.isNear(Rgb.Red), "the middle of the second clip was $inSecond")
+    withClue("the middle of the second clip was $inSecond") { inSecond.isNear(Rgb.Red) shouldBe true }
   }
 
   // A pass trimmed to 1.030 seconds covers twenty six slots, so its last slot runs on to 1.040 and past
@@ -357,17 +354,17 @@ class BrowserExportTest {
       val spec = ExportSpec(frameRate = GRID_FRAME_RATE)
       val engine = browserEngine()
 
-      val resolved = assertIs<ResolveResult.Resolved>(engine.resolve(composition, spec)).composition
+      val resolved = engine.resolve(composition, spec).shouldBeInstanceOf<ResolveResult.Resolved>().composition
       val frames = decodeFrames(outputOf(exportWith(engine, planWith(engine, composition, spec))))
 
-      assertEquals(outputSlotOf(resolved.duration, GRID_FRAME_RATE).toInt(), frames.size)
+      frames.size shouldBe outputSlotOf(resolved.duration, GRID_FRAME_RATE).toInt()
       assertEveryFrameHoldsItsOwnSlot(frames, GRID_FRAME_RATE)
       resolved.tracks.first().clips.forEach { laid ->
         val slots = outputSlotsOf(laid.span, GRID_FRAME_RATE)
         val opening = frames[slots.first.toInt()].at(x = 0.5, y = 0.5)
-        assertTrue(opening.isNear(Rgb.Green), "the pass at ${laid.span.start} opened on $opening")
+        withClue("the pass at ${laid.span.start} opened on $opening") { opening.isNear(Rgb.Green) shouldBe true }
         val closing = frames[slots.last.toInt()].at(x = 0.5, y = 0.5)
-        assertTrue(closing.isNear(Rgb.Red), "the pass at ${laid.span.start} closed on $closing")
+        withClue("the pass at ${laid.span.start} closed on $closing") { closing.isNear(Rgb.Red) shouldBe true }
       }
     }
 
@@ -379,8 +376,10 @@ class BrowserExportTest {
       val (frames, tail) = exportUnderABed()
 
       heldProbes(tail).forEach { slot ->
-        val colour = frames[slot].at(x = 0.5, y = 0.5)
-        assertTrue(colour.isNear(Rgb.Red), "slot $slot of a tail over $tail drew $colour, and the primary ends on red")
+        val color = frames[slot].at(x = 0.5, y = 0.5)
+        withClue("slot $slot of a tail over $tail drew $color, and the primary ends on red") {
+          color.isNear(Rgb.Red) shouldBe true
+        }
       }
     }
 
@@ -393,13 +392,14 @@ class BrowserExportTest {
 
       val closing = frames[tail.first.toInt() - 1].at(x = 0.5, y = 0.5)
       val graded = Rgb.Red.graded(Brightness(HALF_BRIGHTNESS))
-      assertTrue(closing.isNear(graded), "the last covered slot drew $closing, and the primary's red graded is $graded")
+      withClue("the last covered slot drew $closing, and the primary's red graded is $graded") {
+        closing.isNear(graded) shouldBe true
+      }
       heldProbes(tail).forEach { slot ->
-        val colour = frames[slot].at(x = 0.5, y = 0.5)
-        assertTrue(
-          colour.isNear(closing, tolerance = HELD_TOLERANCE),
-          "slot $slot of a tail over $tail drew $colour, and the last covered slot drew $closing",
-        )
+        val color = frames[slot].at(x = 0.5, y = 0.5)
+        withClue("slot $slot of a tail over $tail drew $color, and the last covered slot drew $closing") {
+          color.isNear(closing, tolerance = HELD_TOLERANCE) shouldBe true
+        }
       }
     }
 
@@ -430,12 +430,12 @@ class BrowserExportTest {
     val spec = ExportSpec(frameRate = GRID_FRAME_RATE)
     val engine = browserEngine()
 
-    val resolved = assertIs<ResolveResult.Resolved>(engine.resolve(composition, spec)).composition
+    val resolved = engine.resolve(composition, spec).shouldBeInstanceOf<ResolveResult.Resolved>().composition
     val tail = resolved.heldTail
-    assertFalse(tail.isEmpty(), "a bed of $BED_FRAMES frames under a shorter primary left no tail")
+    withClue("a bed of $BED_FRAMES frames under a shorter primary left no tail") { tail.isEmpty() shouldBe false }
     val frames = decodeFrames(outputOf(exportWith(engine, planWith(engine, composition, spec))))
 
-    assertEquals(resolved.videoSlots.toInt(), frames.size, "a tail over $tail wrote ${frames.size} frames")
+    withClue("a tail over $tail wrote ${frames.size} frames") { frames.size shouldBe resolved.videoSlots.toInt() }
     assertEveryFrameHoldsItsOwnSlot(frames, GRID_FRAME_RATE)
     return frames to tail
   }
@@ -457,14 +457,12 @@ class BrowserExportTest {
     val slotUs = micros(1.seconds / frameRate)
     frames.forEachIndexed { slot, frame ->
       val opensUs = micros(outputSlotTime(slot.toLong(), frameRate))
-      assertTrue(
-        abs(frame.timestampUs - opensUs) < TIMESTAMP_TOLERANCE_US,
-        "frame $slot landed at ${frame.timestampUs}us where its slot sits at ${opensUs}us",
-      )
-      assertTrue(
-        abs(frame.durationUs - slotUs) < TIMESTAMP_TOLERANCE_US,
-        "frame $slot runs ${frame.durationUs}us where a slot runs ${slotUs}us",
-      )
+      withClue("frame $slot landed at ${frame.timestampUs}us where its slot sits at ${opensUs}us") {
+        (abs(frame.timestampUs - opensUs) < TIMESTAMP_TOLERANCE_US) shouldBe true
+      }
+      withClue("frame $slot runs ${frame.durationUs}us where a slot runs ${slotUs}us") {
+        (abs(frame.durationUs - slotUs) < TIMESTAMP_TOLERANCE_US) shouldBe true
+      }
     }
   }
 
@@ -478,10 +476,9 @@ class BrowserExportTest {
       // of the frame stays red while one closer to the sharp clip picks up blue from the blur.
       val nearEdge = letterboxed.at(x = 0.5, y = 0.03)
       val nearClip = letterboxed.at(x = 0.5, y = 0.23)
-      assertTrue(
-        !nearEdge.isNear(nearClip, tolerance = FLAT_TOLERANCE),
-        "the bar read $nearEdge at the edge and $nearClip near the clip, which is too flat for a blur",
-      )
+      withClue("the bar read $nearEdge at the edge and $nearClip near the clip, which is too flat for a blur") {
+        !nearEdge.isNear(nearClip, tolerance = FLAT_TOLERANCE) shouldBe true
+      }
     }
 
   @Test
@@ -491,7 +488,9 @@ class BrowserExportTest {
 
       val letterboxed = decodeFrames(outputOf(success)).last()
       val centre = letterboxed.at(x = 0.5, y = 0.6)
-      assertTrue(centre.isNear(Rgb.Blue), "the sharp region read $centre, and the source's middle was blue")
+      withClue("the sharp region read $centre, and the source's middle was blue") {
+        centre.isNear(Rgb.Blue) shouldBe true
+      }
     }
 
   @Test
@@ -500,10 +499,9 @@ class BrowserExportTest {
       val success = exportOf(letterboxComposition(Fill.Blurred(dim = 1f)), MediaSink.Uri(""))
 
       val letterboxed = decodeFrames(outputOf(success)).last()
-      assertTrue(
-        letterboxed.at(x = 0.5, y = 0.12).isNear(Rgb.Black),
-        "a fully dimmed bar was ${letterboxed.at(0.5, 0.12)}, and dim = 1f should read black",
-      )
+      withClue("a fully dimmed bar was ${letterboxed.at(0.5, 0.12)}, and dim = 1f should read black") {
+        letterboxed.at(x = 0.5, y = 0.12).isNear(Rgb.Black) shouldBe true
+      }
     }
 
   @Test
@@ -518,10 +516,9 @@ class BrowserExportTest {
       val undimmedBar = decodeFrames(outputOf(undimmed)).last().at(x = 0.5, y = 0.12)
       val halfDimmedBar = decodeFrames(outputOf(halfDimmed)).last().at(x = 0.5, y = 0.12)
       val expected = Rgb(undimmedBar.red / 2, undimmedBar.green / 2, undimmedBar.blue / 2)
-      assertTrue(
-        halfDimmedBar.isNear(expected, tolerance = HALF_DIM_TOLERANCE),
-        "half dim read $halfDimmedBar, and half of the undimmed $undimmedBar is $expected",
-      )
+      withClue("half dim read $halfDimmedBar, and half of the undimmed $undimmedBar is $expected") {
+        halfDimmedBar.isNear(expected, tolerance = HALF_DIM_TOLERANCE) shouldBe true
+      }
     }
 
   // Halving reads as half the signal, not as a lifted black: an additive brightness of the same
@@ -529,7 +526,7 @@ class BrowserExportTest {
   @Test
   fun brightnessScalesEveryChannel() =
     runTest {
-      val bytes = makeClip(colour = Rgb.Grey)
+      val bytes = makeClip(color = Rgb.Grey)
       val composition =
         EditComposition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), effects = listOf(Brightness(HALF_BRIGHTNESS)))))),
@@ -537,22 +534,21 @@ class BrowserExportTest {
         )
       val success = exportOf(composition, MediaSink.Uri(""))
 
-      val frame = assertNotNull(decodeFrames(outputOf(success)).firstOrNull())
+      val frame = decodeFrames(outputOf(success)).firstOrNull().shouldNotBeNull()
       val dimmed = frame.at(x = 0.5, y = 0.5)
       val expected = Rgb(Rgb.Grey.red / 2, Rgb.Grey.green / 2, Rgb.Grey.blue / 2)
-      assertTrue(
-        dimmed.isNear(expected),
-        "a half-brightness clip encoded as $dimmed, and half of ${Rgb.Grey} is $expected",
-      )
+      withClue("a half-brightness clip encoded as $dimmed, and half of ${Rgb.Grey} is $expected") {
+        dimmed.isNear(expected) shouldBe true
+      }
     }
 
-  // The other colour effects lower through the same uniform, so one that pivots rather than scales
+  // The other color effects lower through the same uniform, so one that pivots rather than scales
   // proves the whole matrix reached the shader and not only its diagonal.
   @Test
   fun contrastStretchesAboutMidGrey() =
     runTest {
       val contrast = Contrast(STRETCHED_CONTRAST)
-      val bytes = makeClip(colour = PIVOT_SPREAD)
+      val bytes = makeClip(color = PIVOT_SPREAD)
       val composition =
         EditComposition(
           tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), effects = listOf(contrast))))),
@@ -560,13 +556,12 @@ class BrowserExportTest {
         )
       val success = exportOf(composition, MediaSink.Uri(""))
 
-      val frame = assertNotNull(decodeFrames(outputOf(success)).firstOrNull())
+      val frame = decodeFrames(outputOf(success)).firstOrNull().shouldNotBeNull()
       val stretched = frame.at(x = 0.5, y = 0.5)
       val expected = PIVOT_SPREAD.graded(contrast)
-      assertTrue(
-        stretched.isNear(expected),
-        "a contrast of $STRETCHED_CONTRAST encoded $PIVOT_SPREAD as $stretched, and the matrix says $expected",
-      )
+      withClue("a contrast of $STRETCHED_CONTRAST encoded $PIVOT_SPREAD as $stretched, and the matrix says $expected") {
+        stretched.isNear(expected) shouldBe true
+      }
     }
 
   @Test
@@ -577,9 +572,11 @@ class BrowserExportTest {
         ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None, frameRate = 15)
       val success = exportOf(compositionOf(MediaSource.Bytes(bytes)), MediaSink.Uri(""), spec)
 
-      assertEquals(15f, assertNotNull(success.info.video).frameRate)
+      success.info.video
+        .shouldNotBeNull()
+        .frameRate shouldBe 15f
       // Twelve frames at thirty is four hundred milliseconds, which is six slots at fifteen.
-      assertEquals(6, decodeFrames(outputOf(success)).size)
+      decodeFrames(outputOf(success)).size shouldBe 6
     }
 
   @Test
@@ -588,10 +585,16 @@ class BrowserExportTest {
       val bytes = makeClip(frames = 12, frameRate = 20)
       val success = exportOf(compositionOf(MediaSource.Bytes(bytes)), MediaSink.Uri(""))
 
-      val rate = assertNotNull(assertNotNull(success.info.video).frameRate)
-      assertTrue(abs(rate - 20f) <= RATE_TOLERANCE, "the export ran at $rate, and the source runs at 20")
+      val rate =
+        success.info.video
+          .shouldNotBeNull()
+          .frameRate
+          .shouldNotBeNull()
+      withClue("the export ran at $rate, and the source runs at 20") {
+        (abs(rate - 20f) <= RATE_TOLERANCE) shouldBe true
+      }
       // A rate that defaulted to thirty would ask for eighteen frames out of a twelve frame source.
-      assertEquals(12, decodeFrames(outputOf(success)).size)
+      decodeFrames(outputOf(success)).size shouldBe 12
     }
 
   @Test
@@ -615,14 +618,13 @@ class BrowserExportTest {
       val success = exportOf(composition, MediaSink.Uri(""))
 
       val frames = decodeFrames(outputOf(success))
-      assertEquals(15, frames.size, "half a second at thirty frames a second is fifteen frames")
+      withClue("half a second at thirty frames a second is fifteen frames") { frames.size shouldBe 15 }
 
       val first = frames.first().at(x = 0.5, y = 0.5)
       val expected = Rgb(TRIM_START_FRAME * RAMP_STEP, 0, 0)
-      assertTrue(
-        first.isNear(expected),
-        "the export opened on $first, and the source's frame at one second is $expected",
-      )
+      withClue("the export opened on $first, and the source's frame at one second is $expected") {
+        first.isNear(expected) shouldBe true
+      }
     }
 
   // A trim used to force the encode path. A clip that lets the cut move back to a sync sample stays
@@ -636,29 +638,26 @@ class BrowserExportTest {
       val engine = browserEngine()
 
       val resolved = resolvedClipOf(engine, composition)
-      assertTrue(resolved.startsAtKeyFrame, "the plan did not resolve the cut onto a sync sample")
-      assertTrue(
-        resolved.start < TRIM_START,
-        "the cut resolved to ${resolved.start}, so the fixture never put the trim between two sync samples",
-      )
+      withClue("the plan did not resolve the cut onto a sync sample") { resolved.startsAtKeyFrame shouldBe true }
+      withClue("the cut resolved to ${resolved.start}, so the fixture never put the trim between two sync samples") {
+        (resolved.start < TRIM_START) shouldBe true
+      }
 
       val plan = planWith(engine, composition)
-      assertEquals(ExportPath.Transmux, plan.path, "a snapped trim on an untouched clip is meant to copy")
+      withClue("a snapped trim on an untouched clip is meant to copy") { plan.path shouldBe ExportPath.Copy }
 
       val ramp = rampOf(MediaSource.Bytes(bytes))
       val frames = decodeFrames(outputOf(exportWith(engine, plan)))
       val openedFrame = ramp.frameOf(frames.first().at(x = 0.5, y = 0.5))
-      assertEquals(
-        frameIndexAt(resolved.start),
-        openedFrame,
-        "the copy opened on frame $openedFrame and the plan resolved the cut to ${resolved.start}",
-      )
+      withClue("the copy opened on frame $openedFrame and the plan resolved the cut to ${resolved.start}") {
+        openedFrame shouldBe frameIndexAt(resolved.start)
+      }
       // Between the window it was asked for and the window plus what the snap put in front of it,
       // which is what says the tail was bounded as well as the head.
-      assertTrue(
-        frames.size in (TRIM_END_FRAME - TRIM_START_FRAME)..(TRIM_END_FRAME - openedFrame + REORDER_SLACK),
-        "the copy wrote ${frames.size} frames for a window of ${TRIM_END_FRAME - TRIM_START_FRAME}",
-      )
+      withClue("the copy wrote ${frames.size} frames for a window of ${TRIM_END_FRAME - TRIM_START_FRAME}") {
+        (frames.size in (TRIM_END_FRAME - TRIM_START_FRAME)..(TRIM_END_FRAME - openedFrame + REORDER_SLACK)) shouldBe
+          true
+      }
     }
 
   // Zero is the default and it keeps the cut where it was asked for. Nothing is a sync sample there,
@@ -671,23 +670,20 @@ class BrowserExportTest {
       val engine = browserEngine()
 
       val resolved = resolvedClipOf(engine, composition)
-      assertEquals(TRIM_START, resolved.start, "the cut moved with no tolerance to move it")
-      assertFalse(resolved.startsAtKeyFrame, "the cut was reported as opening on a sync sample")
+      withClue("the cut moved with no tolerance to move it") { resolved.start shouldBe TRIM_START }
+      withClue("the cut was reported as opening on a sync sample") { resolved.startsAtKeyFrame shouldBe false }
 
       val plan = planWith(engine, composition)
-      assertEquals(ExportPath.Transcode, plan.path, "a cut off a sync sample is not copyable")
-      assertTrue(
-        CopyBlocker.TrimNotOnSyncSample in plan.copyBlockedBy,
-        "the plan blamed ${plan.copyBlockedBy} for re-encoding",
-      )
+      withClue("a cut off a sync sample is not copyable") { plan.path shouldBe ExportPath.Transcode }
+      withClue("the plan blamed ${plan.copyBlockedBy} for re-encoding") {
+        (CopyBlocker.TrimNotOnSyncSample in plan.copyBlockedBy) shouldBe true
+      }
 
       val ramp = reencodedRampOf(engine, bytes)
       val frames = decodeFrames(outputOf(exportWith(engine, plan)))
-      assertEquals(
-        TRIM_START_FRAME,
-        ramp.frameOf(frames.first().at(x = 0.5, y = 0.5)),
-        "the re-encode opened somewhere other than the cut",
-      )
+      withClue("the re-encode opened somewhere other than the cut") {
+        ramp.frameOf(frames.first().at(x = 0.5, y = 0.5)) shouldBe TRIM_START_FRAME
+      }
     }
 
   // The two tracks are copied separately, so a seek applied to one and not the other leaves an
@@ -705,24 +701,22 @@ class BrowserExportTest {
       val engine = browserEngine()
 
       val plan = planWith(engine, composition)
-      assertEquals(ExportPath.Transmux, plan.path, "a snapped trim on an untouched clip is meant to copy")
+      withClue("a snapped trim on an untouched clip is meant to copy") { plan.path shouldBe ExportPath.Copy }
 
       val output = outputOf(exportWith(engine, plan))
-      val audio = assertNotNull(decodeAudio(output), "the copy dropped the audio track")
+      val audio = withClue("the copy dropped the audio track") { decodeAudio(output).shouldNotBeNull() }
       val frames = decodeFrames(output)
       val videoStartUs = frames.first().timestampUs
       val videoEndUs = frames.last().let { it.timestampUs + it.durationUs }
 
       // Both ends, since a seek applied to one track only leaves the other running the whole
       // source, and only one end of it would show.
-      assertTrue(
-        abs(audio.startUs - videoStartUs) <= TRACK_SKEW_TOLERANCE_US,
-        "the audio opens at ${audio.startUs}us under video that opens at ${videoStartUs}us",
-      )
-      assertTrue(
-        abs(audio.durationUs - videoEndUs) <= TRACK_SKEW_TOLERANCE_US,
-        "the audio ends at ${audio.durationUs}us under video that ends at ${videoEndUs}us",
-      )
+      withClue("the audio opens at ${audio.startUs}us under video that opens at ${videoStartUs}us") {
+        (abs(audio.startUs - videoStartUs) <= TRACK_SKEW_TOLERANCE_US) shouldBe true
+      }
+      withClue("the audio ends at ${audio.durationUs}us under video that ends at ${videoEndUs}us") {
+        (abs(audio.durationUs - videoEndUs) <= TRACK_SKEW_TOLERANCE_US) shouldBe true
+      }
     }
 
   @Test
@@ -730,9 +724,9 @@ class BrowserExportTest {
     runTest {
       val success = exportOf(compositionOf(MediaSource.Bytes(makeClip())), MediaSink.Uri(""))
 
-      val output = assertIs<MediaSink.Uri>(success.output)
-      assertTrue(output.uri.startsWith("blob:"), "a Uri sink handed back ${output.uri}")
-      assertTrue(decodeFrames(MediaSource.Uri(output.uri)).isNotEmpty(), "the blob url decoded nothing")
+      val output = success.output.shouldBeInstanceOf<MediaSink.Uri>()
+      withClue("a Uri sink handed back ${output.uri}") { output.uri.startsWith("blob:") shouldBe true }
+      withClue("the blob url decoded nothing") { decodeFrames(MediaSource.Uri(output.uri)).isNotEmpty() shouldBe true }
     }
 
   @Test
@@ -740,8 +734,18 @@ class BrowserExportTest {
     runTest {
       val success = exportOf(compositionOf(MediaSource.Bytes(makeClip())), MediaSink.Temporary)
 
-      val output = assertIs<MediaSink.Path>(success.output)
-      assertTrue(output.path.endsWith(".mp4"), "a Temporary sink resolved to ${output.path}")
+      val output = success.output.shouldBeInstanceOf<MediaSink.Path>()
+      withClue("a Temporary sink resolved to ${output.path}") { output.path.endsWith(".mp4") shouldBe true }
+    }
+
+  @Test
+  fun aPathWhoseDirectoryIsMissingStillDownloads() =
+    runTest {
+      val sink = MediaSink.Path("/filmstrip-absent/nested/out.mp4")
+
+      val success = exportOf(compositionOf(MediaSource.Bytes(makeClip())), sink)
+
+      success.output shouldBe sink
     }
 
   @Test
@@ -758,9 +762,11 @@ class BrowserExportTest {
       val sourcePackets = readEncodedVideoPackets(MediaSource.Bytes(bytes))
       val copiedPackets = readEncodedVideoPackets(outputOf(success))
 
-      assertEquals(sourcePackets.size, copiedPackets.size, "the copy carried a different packet count")
+      withClue("the copy carried a different packet count") { copiedPackets.size shouldBe sourcePackets.size }
       sourcePackets.zip(copiedPackets).forEachIndexed { index, (expected, actual) ->
-        assertTrue(expected.contentEquals(actual), "packet $index differed between the source and the copy")
+        withClue("packet $index differed between the source and the copy") {
+          expected.contentEquals(actual) shouldBe true
+        }
       }
     }
 
@@ -781,9 +787,11 @@ class BrowserExportTest {
       val sourcePackets = readEncodedVideoPackets(MediaSource.Bytes(bytes))
       val copiedPackets = readEncodedVideoPackets(outputOf(success))
 
-      assertEquals(sourcePackets.size, copiedPackets.size, "the copy carried a different packet count")
+      withClue("the copy carried a different packet count") { copiedPackets.size shouldBe sourcePackets.size }
       sourcePackets.zip(copiedPackets).forEachIndexed { index, (expected, actual) ->
-        assertTrue(expected.contentEquals(actual), "packet $index differed between the source and the copy")
+        withClue("packet $index differed between the source and the copy") {
+          expected.contentEquals(actual) shouldBe true
+        }
       }
     }
 
@@ -801,9 +809,11 @@ class BrowserExportTest {
       val sourcePackets = readEncodedVideoPackets(MediaSource.Bytes(bytes))
       val copiedPackets = readEncodedVideoPackets(outputOf(success))
 
-      assertEquals(sourcePackets.size, copiedPackets.size, "the copy carried a different packet count")
+      withClue("the copy carried a different packet count") { copiedPackets.size shouldBe sourcePackets.size }
       sourcePackets.zip(copiedPackets).forEachIndexed { index, (expected, actual) ->
-        assertTrue(expected.contentEquals(actual), "packet $index differed between the source and the copy")
+        withClue("packet $index differed between the source and the copy") {
+          expected.contentEquals(actual) shouldBe true
+        }
       }
     }
 
@@ -820,9 +830,12 @@ class BrowserExportTest {
         )
       val success = exportOf(composition, MediaSink.Uri(""), ExportSpec())
 
-      val audio = assertNotNull(decodeAudio(outputOf(success)), "the copy produced no readable audio track")
-      assertTrue(audio.sampleCount > 0, "the copy's audio track decoded no samples")
-      assertTrue(audio.durationUs > 0, "the copy's audio track had no duration")
+      val audio =
+        withClue("the copy produced no readable audio track") {
+          decodeAudio(outputOf(success)).shouldNotBeNull()
+        }
+      withClue("the copy's audio track decoded no samples") { (audio.sampleCount > 0) shouldBe true }
+      withClue("the copy's audio track had no duration") { (audio.durationUs > 0) shouldBe true }
     }
 
   // A trim forces the encode path rather than a copy, which is the one path that decodes, mixes and
@@ -841,12 +854,14 @@ class BrowserExportTest {
       val spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac)
       val success = exportOf(composition, MediaSink.Uri(""), spec)
 
-      val audio = assertNotNull(decodeAudio(outputOf(success)), "the export produced no readable audio track")
-      assertTrue(audio.durationUs > 0, "the export's audio track had no duration")
-      assertTrue(
-        audio.peakAmplitude > SILENCE_THRESHOLD,
-        "the export's audio peaked at ${audio.peakAmplitude}, expected an audible tone",
-      )
+      val audio =
+        withClue("the export produced no readable audio track") {
+          decodeAudio(outputOf(success)).shouldNotBeNull()
+        }
+      withClue("the export's audio track had no duration") { (audio.durationUs > 0) shouldBe true }
+      withClue("the export's audio peaked at ${audio.peakAmplitude}, expected an audible tone") {
+        (audio.peakAmplitude > SILENCE_THRESHOLD) shouldBe true
+      }
     }
 
   // The second-track refusal covers a video-carrying track only, which is what lets a bed reach
@@ -869,11 +884,13 @@ class BrowserExportTest {
       val spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac)
       val success = exportOf(composition, MediaSink.Uri(""), spec)
 
-      val audio = assertNotNull(decodeAudio(outputOf(success)), "the export produced no readable audio track")
-      assertTrue(
-        audio.peakAmplitude > SILENCE_THRESHOLD,
-        "the bed's tone did not reach the output, peak was ${audio.peakAmplitude}",
-      )
+      val audio =
+        withClue("the export produced no readable audio track") {
+          decodeAudio(outputOf(success)).shouldNotBeNull()
+        }
+      withClue("the bed's tone did not reach the output, peak was ${audio.peakAmplitude}") {
+        (audio.peakAmplitude > SILENCE_THRESHOLD) shouldBe true
+      }
     }
 
   // Proves ResolvedClip.gain reaches the mix end to end, rather than only in BrowserAudioMixTest's
@@ -891,11 +908,13 @@ class BrowserExportTest {
       val spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac)
       val success = exportOf(composition, MediaSink.Uri(""), spec)
 
-      val audio = assertNotNull(decodeAudio(outputOf(success)), "the export produced no readable audio track")
-      assertTrue(
-        audio.peakAmplitude < SILENCE_THRESHOLD,
-        "a muted clip's export peaked at ${audio.peakAmplitude}, expected silence",
-      )
+      val audio =
+        withClue("the export produced no readable audio track") {
+          decodeAudio(outputOf(success)).shouldNotBeNull()
+        }
+      withClue("a muted clip's export peaked at ${audio.peakAmplitude}, expected silence") {
+        (audio.peakAmplitude < SILENCE_THRESHOLD) shouldBe true
+      }
     }
 
   // AudioSpec.AudioOnly asks for a file with an audio track and no video track, so the video
@@ -906,7 +925,7 @@ class BrowserExportTest {
       if (!encodesAac()) return@runTest
       val success = exportOf(audioOnlyComposition(), MediaSink.Uri(""), aacSpec())
 
-      assertFalse(hasVideoTrack(outputOf(success)), "an audio-only export wrote a video track")
+      withClue("an audio-only export wrote a video track") { hasVideoTrack(outputOf(success)) shouldBe false }
     }
 
   @Test
@@ -915,12 +934,14 @@ class BrowserExportTest {
       if (!encodesAac()) return@runTest
       val success = exportOf(audioOnlyComposition(), MediaSink.Uri(""), aacSpec())
 
-      val audio = assertNotNull(decodeAudio(outputOf(success)), "the export produced no readable audio track")
-      assertTrue(audio.sampleCount > 0, "the export's audio track decoded no samples")
-      assertTrue(
-        audio.peakAmplitude > SILENCE_THRESHOLD,
-        "the export's audio peaked at ${audio.peakAmplitude}, expected an audible tone",
-      )
+      val audio =
+        withClue("the export produced no readable audio track") {
+          decodeAudio(outputOf(success)).shouldNotBeNull()
+        }
+      withClue("the export's audio track decoded no samples") { (audio.sampleCount > 0) shouldBe true }
+      withClue("the export's audio peaked at ${audio.peakAmplitude}, expected an audible tone") {
+        (audio.peakAmplitude > SILENCE_THRESHOLD) shouldBe true
+      }
     }
 
   @Test
@@ -929,13 +950,15 @@ class BrowserExportTest {
       if (!encodesAac()) return@runTest
       val success = exportOf(audioOnlyComposition(), MediaSink.Uri(""), aacSpec())
 
-      assertNull(success.info.video, "an audio-only export reported a video track")
-      val audio = assertNotNull(success.info.audio, "an audio-only export reported no audio track")
-      assertTrue(audio.sampleRate > 0, "the reported track ran at ${audio.sampleRate} hertz")
-      assertTrue(audio.channelCount > 0, "the reported track carried ${audio.channelCount} channels")
+      withClue("an audio-only export reported a video track") { success.info.video.shouldBeNull() }
+      val audio = withClue("an audio-only export reported no audio track") { success.info.audio.shouldNotBeNull() }
+      withClue("the reported track ran at ${audio.sampleRate} hertz") { (audio.sampleRate > 0) shouldBe true }
+      withClue("the reported track carried ${audio.channelCount} channels") { (audio.channelCount > 0) shouldBe true }
 
       val drift = (success.info.duration - AUDIO_ONLY_DURATION).absoluteValue
-      assertTrue(drift < DURATION_TOLERANCE, "the export ran ${success.info.duration}, the composition runs 1s")
+      withClue("the export ran ${success.info.duration}, the composition runs 1s") {
+        (drift < DURATION_TOLERANCE) shouldBe true
+      }
     }
 
   // The mirror of the audio-only case. A render that writes video writes the mix into the same
@@ -952,10 +975,13 @@ class BrowserExportTest {
         )
       val success = exportOf(composition, MediaSink.Uri(""), aacSpec())
 
-      assertNotNull(success.info.video, "an export carrying both tracks reported no video track")
-      val audio = assertNotNull(success.info.audio, "an export carrying both tracks reported no audio track")
-      assertTrue(audio.sampleRate > 0, "the reported track ran at ${audio.sampleRate} hertz")
-      assertTrue(audio.channelCount > 0, "the reported track carried ${audio.channelCount} channels")
+      withClue("an export carrying both tracks reported no video track") { success.info.video.shouldNotBeNull() }
+      val audio =
+        withClue("an export carrying both tracks reported no audio track") {
+          success.info.audio.shouldNotBeNull()
+        }
+      withClue("the reported track ran at ${audio.sampleRate} hertz") { (audio.sampleRate > 0) shouldBe true }
+      withClue("the reported track carried ${audio.channelCount} channels") { (audio.channelCount > 0) shouldBe true }
     }
 
   @Test
@@ -964,8 +990,8 @@ class BrowserExportTest {
       if (!encodesAac()) return@runTest
       val success = exportOf(audioOnlyComposition(), MediaSink.Temporary, aacSpec())
 
-      val output = assertIs<MediaSink.Path>(success.output)
-      assertTrue(output.path.endsWith(".m4a"), "an audio-only export resolved to ${output.path}")
+      val output = success.output.shouldBeInstanceOf<MediaSink.Path>()
+      withClue("an audio-only export resolved to ${output.path}") { output.path.endsWith(".m4a") shouldBe true }
     }
 
   @Test
@@ -988,10 +1014,9 @@ class BrowserExportTest {
           .takeWhile { it !is ExportStatus.Progress }
           .toList()
 
-      assertTrue(
-        statuses.none { it is ExportStatus.Success },
-        "a cancelled export still finished: ${statuses.map { it::class.simpleName }}",
-      )
+      withClue("a cancelled export still finished: ${statuses.map { it::class.simpleName }}") {
+        statuses.none { it is ExportStatus.Success } shouldBe true
+      }
     }
 
   private fun filmstrip(): Filmstrip = Filmstrip { webCodecsBackend() }
@@ -1002,8 +1027,8 @@ class BrowserExportTest {
    * come from the same negotiation.
    */
   private fun browserEngine(): BrowserExportEngine =
-    browserExportEngine(
-      components = ComponentRegistry.Builder().add(BuiltInEffectResolver()).build(),
+    webCodecsExportEngine(
+      components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(),
       prober = BrowserProber(),
     )
 
@@ -1040,7 +1065,9 @@ class BrowserExportTest {
     engine: BrowserExportEngine,
     composition: EditComposition,
   ): ResolvedClip =
-    assertIs<ResolveResult.Resolved>(engine.resolve(composition, ExportSpec()))
+    engine
+      .resolve(composition, ExportSpec())
+      .shouldBeInstanceOf<ResolveResult.Resolved>()
       .composition.tracks
       .first()
       .clips
@@ -1064,10 +1091,9 @@ class BrowserExportTest {
     val statuses = engine.export(plan, MediaSink.Uri("")).toList()
     val failure = statuses.filterIsInstance<ExportStatus.Failure>().firstOrNull()
     if (failure != null) throw AssertionError("the export failed: ${failure.error.message}")
-    return assertNotNull(
-      statuses.filterIsInstance<ExportStatus.Success>().singleOrNull(),
-      "statuses were ${statuses.map { it::class.simpleName }}",
-    )
+    return withClue("statuses were ${statuses.map { it::class.simpleName }}") {
+      (statuses.filterIsInstance<ExportStatus.Success>().singleOrNull()).shouldNotBeNull()
+    }
   }
 
   /**
@@ -1079,7 +1105,7 @@ class BrowserExportTest {
    * The whole ramp fixture after one more trip through the encoder, which is what a frame the export
    * re-encoded has to be matched against.
    *
-   * Every trip through the encoder can move a colour by a level or two, so a re-encoded frame sits
+   * Every trip through the encoder can move a color by a level or two, so a re-encoded frame sits
    * one trip further from the painted value than the fixture does. Naming a frame rate sends the
    * whole clip through the encoder without dropping or moving a frame.
    */
@@ -1088,13 +1114,13 @@ class BrowserExportTest {
     bytes: ByteArray,
   ): Ramp {
     val plan = planWith(engine, compositionOf(MediaSource.Bytes(bytes)), ExportSpec(frameRate = SNAPPED_FRAME_RATE))
-    assertEquals(ExportPath.Transcode, plan.path, "the reference ramp was meant to be re-encoded")
+    withClue("the reference ramp was meant to be re-encoded") { plan.path shouldBe ExportPath.Transcode }
     return rampOf(outputOf(exportWith(engine, plan)))
   }
 
   /**
    * A ramp fixture decoded back, so an exported frame is matched against the source through the
-   * same colour round trip rather than against the values it was painted with.
+   * same color round trip rather than against the values it was painted with.
    */
   private suspend fun rampOf(source: MediaSource): Ramp = Ramp(decodeFrames(source).map { it.at(x = 0.5, y = 0.5).red })
 
@@ -1118,7 +1144,7 @@ class BrowserExportTest {
     fill: Fill,
     effects: List<EffectSpec> = emptyList(),
   ): EditComposition {
-    val filler = makeClip(colour = Rgb.Green)
+    val filler = makeClip(color = Rgb.Green)
     val wide = makeClip(width = 64, height = 32) { _, y -> if (y < WIDE_RED_ROWS) Rgb.Red else Rgb.Blue }
     return EditComposition(
       tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(filler)), Clip(MediaSource.Bytes(wide))))),
@@ -1150,7 +1176,7 @@ class BrowserExportTest {
    */
   private suspend fun encodesAac(): Boolean {
     val result = filmstrip().capabilities()
-    val capabilities = assertIs<CapabilitiesResult.Success>(result).capabilities
+    val capabilities = result.shouldBeInstanceOf<CapabilitiesResult.Success>().capabilities
     return capabilities.audio.any { it.codec == AudioCodec.Aac }
   }
 
@@ -1174,14 +1200,13 @@ class BrowserExportTest {
     val statuses = filmstrip.export(planOf(filmstrip, composition, spec), to).toList()
     val failure = statuses.filterIsInstance<ExportStatus.Failure>().firstOrNull()
     if (failure != null) throw AssertionError("the export failed: ${failure.error.message}")
-    return assertNotNull(
-      statuses.filterIsInstance<ExportStatus.Success>().singleOrNull(),
-      "statuses were ${statuses.map { it::class.simpleName }}",
-    )
+    return withClue("statuses were ${statuses.map { it::class.simpleName }}") {
+      (statuses.filterIsInstance<ExportStatus.Success>().singleOrNull()).shouldNotBeNull()
+    }
   }
 
   private fun outputOf(success: ExportStatus.Success): MediaSource =
-    MediaSource.Uri(assertIs<MediaSink.Uri>(success.output).uri)
+    MediaSource.Uri(success.output.shouldBeInstanceOf<MediaSink.Uri>().uri)
 
   private companion object {
     const val HALF = 32
@@ -1265,12 +1290,12 @@ class BrowserExportTest {
 /**
  * The red channel of every frame of the ramp fixture, decoded back.
  *
- * A frame is named by whichever of these its colour sits closest to, so a shift the colour
+ * A frame is named by whichever of these its color sits closest to, so a shift the color
  * conversion applies to the export applies to the reference too and cancels. That only holds while
  * both have been through the encoder the same number of times.
  */
 private class Ramp(
   private val reds: List<Int>,
 ) {
-  fun frameOf(colour: Rgb): Int = reds.indices.minBy { abs(reds[it] - colour.red) }
+  fun frameOf(color: Rgb): Int = reds.indices.minBy { abs(reds[it] - color.red) }
 }

@@ -3,6 +3,9 @@ package dev.jordond.filmstrip.avfoundation
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.test.encodesHdr
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.cValue
 import kotlinx.coroutines.Dispatchers
@@ -14,8 +17,6 @@ import kotlin.experimental.ExperimentalNativeApi
 import kotlin.native.OsFamily
 import kotlin.native.Platform
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 
 /**
@@ -32,16 +33,19 @@ class AppleHardwareEncoderTest {
   fun `every listed video encoder is hardware`() =
     runTest(timeout = TIMEOUT) {
       val result = withContext(Dispatchers.Default) { Filmstrip { avFoundationBackend() }.capabilities() }
-      val video = assertIs<CapabilitiesResult.Success>(result).capabilities.video
+      val video = result.shouldBeInstanceOf<CapabilitiesResult.Success>().capabilities.video
 
-      assertTrue(video.isNotEmpty(), "expected at least one video encoder")
+      withClue("expected at least one video encoder") { video.isNotEmpty().shouldBeTrue() }
       if (Platform.osFamily == OsFamily.IOS && !reportsHardware()) {
-        assertTrue(
-          video.all { it.isHardwareAccelerated != false },
+        withClue(
           "VideoToolbox reports no hardware flag below iOS 17.4, so a listed encoder is unknown, not software: $video",
-        )
+        ) {
+          video.all { it.isHardwareAccelerated != false }.shouldBeTrue()
+        }
       } else {
-        assertTrue(video.all { it.isHardwareAccelerated == true }, "VideoToolbox listed a software encoder in $video")
+        withClue("VideoToolbox listed a software encoder in $video") {
+          video.all { it.isHardwareAccelerated == true }.shouldBeTrue()
+        }
       }
     }
 
@@ -49,12 +53,12 @@ class AppleHardwareEncoderTest {
   fun `the device advertises an hdr encoder`() =
     runTest(timeout = TIMEOUT) {
       val encodesHdr = withContext(Dispatchers.Default) { Filmstrip { avFoundationBackend() }.encodesHdr() }
-      assertTrue(encodesHdr, "the device advertises no HDR encoder")
+      withClue("the device advertises no HDR encoder") { encodesHdr.shouldBeTrue() }
     }
 
   @Test
   fun `imageio writes a display p3 heic`() {
-    assertTrue(imageIoWrites("public.heic"), "ImageIO wrote no Display P3 HEIC")
+    withClue("ImageIO wrote no Display P3 HEIC") { imageIoWrites("public.heic").shouldBeTrue() }
   }
 
   // VideoToolbox's limit. The session key that says whether an encoder is hardware arrived in iOS 17.4.

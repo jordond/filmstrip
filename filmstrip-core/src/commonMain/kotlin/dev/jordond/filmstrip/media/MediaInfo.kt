@@ -1,9 +1,9 @@
 package dev.jordond.filmstrip.media
 
 import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.DeviceCapabilities
-import dev.jordond.filmstrip.export.Bitrate
-import dev.jordond.filmstrip.export.ExportError
+import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.geometry.Size
 import kotlin.time.Duration
 
@@ -37,10 +37,10 @@ public class MediaInfo(
  * @property pixelAspectRatio Width of a stored pixel over its height, `1f` for square pixels.
  * @property frameRate Frames per second, or null when the container does not say.
  * @property codec What the track is encoded with.
- * @property bitDepth Bits per colour channel, 8 for SDR and 10 for most HDR, or null when the
+ * @property bitDepth Bits per color channel, 8 for SDR and 10 for most HDR, or null when the
  *   track does not say. Expect null often. Only HEVC carries the depth somewhere every backend can
  *   read it, so an H.264 track answers null on every platform.
- * @property colorSpace The track's colour space, or [ColorSpace.Unknown] for untagged media.
+ * @property colorSpace The track's color space, or [ColorSpace.Unknown] for untagged media.
  * @property hdrTransfer The HDR transfer function, or null for SDR.
  * @property bitrate The track's bitrate, or null when the container does not report one.
  */
@@ -117,7 +117,7 @@ public enum class CodecKind {
 }
 
 /**
- * A colour space, as far as both platforms agree on one.
+ * A color space, as far as both platforms agree on one.
  *
  * Describes what a source is. The composition declares the space its output is rendered in.
  */
@@ -159,6 +159,6 @@ public sealed interface ProbeResult {
    */
   @Poko
   public class Failure(
-    public val error: ExportError,
+    public val error: FilmstripError,
   ) : ProbeResult
 }

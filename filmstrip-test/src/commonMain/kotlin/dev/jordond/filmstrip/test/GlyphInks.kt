@@ -3,9 +3,9 @@ package dev.jordond.filmstrip.test
 import dev.jordond.filmstrip.InternalFilmstripApi
 
 /**
- * The opaque text colours a glyph ink test draws ordinary text in, as ARGB.
+ * The opaque text colors a glyph ink test draws ordinary text in, as ARGB.
  *
- * They run from black and white through greys, the primaries and secondaries, dark saturated colours and mid colours
+ * They run from black and white through greys, the primaries and secondaries, dark saturated colors and mid colors
  * apart in every channel. `0xFF172E1B` is the ink Chrome's premultiply was measured drifting furthest on.
  */
 @InternalFilmstripApi

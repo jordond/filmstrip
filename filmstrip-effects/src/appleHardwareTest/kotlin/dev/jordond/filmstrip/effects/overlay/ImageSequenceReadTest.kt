@@ -1,8 +1,9 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.effects.assertRasterReads
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertTrue
 
 /**
  * Holds a HEVC image sequence ImageIO writes to one answer however often it is read.
@@ -17,7 +18,7 @@ class ImageSequenceReadTest {
     assertRasterReads()
     val misses = orderMisses(orderedReads(listOf(HEICS, JPEG)))
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   private companion object {

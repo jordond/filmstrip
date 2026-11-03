@@ -1,11 +1,10 @@
 package dev.jordond.filmstrip.effects.overlay
 
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 /**
  * Apple's text raster check against the peak its HDR draw counts, for a sixteen-bit raster drawn through one band of
@@ -15,42 +14,42 @@ class TextRasterPeakTest {
   @Test
   fun refusesTheTextItsDrawWouldRefuse() {
     assertAgrees(WIDTH, TALL)
-    assertFalse(fits(WIDTH, TALL))
+    fits(WIDTH, TALL) shouldBe false
   }
 
   @Test
   fun agreesInTheMiddleOfWhereTheBandTipsIt() {
     assertAgrees(WIDTH, MIDDLE)
-    assertFalse(fits(WIDTH, MIDDLE))
+    fits(WIDTH, MIDDLE) shouldBe false
   }
 
   @Test
   fun agreesAtTheLastRowThatFitsAndTheFirstThatDoesNot() {
     assertAgrees(WIDTH, LAST_ROW)
-    assertTrue(fits(WIDTH, LAST_ROW))
+    fits(WIDTH, LAST_ROW) shouldBe true
     assertAgrees(WIDTH, LAST_ROW + 1)
-    assertFalse(fits(WIDTH, LAST_ROW + 1))
+    fits(WIDTH, LAST_ROW + 1) shouldBe false
   }
 
   @Test
   fun agreesOnASmallTextHeldInOneBand() {
     assertAgrees(SMALL_WIDTH, SMALL_HEIGHT)
-    assertTrue(fits(SMALL_WIDTH, SMALL_HEIGHT))
+    fits(SMALL_WIDTH, SMALL_HEIGHT) shouldBe true
   }
 
   @Test
   fun aRasterWithNoTexelsHoldsNoBand() {
-    assertEquals(0L, drawnBandBytes(0, SMALL_HEIGHT.toLong()))
-    assertEquals(0L, drawnBandBytes(SMALL_WIDTH.toLong(), 0))
+    drawnBandBytes(0, SMALL_HEIGHT.toLong()) shouldBe 0L
+    drawnBandBytes(SMALL_WIDTH.toLong(), 0) shouldBe 0L
   }
 
   @Test
   fun aRasterTooWideToReadInBandsHasNoBandAndDoesNotFit() {
     val wide = Int.MAX_VALUE / RGBA_CHANNELS + 1L
 
-    assertNull(drawnBandBytes(wide, 1))
-    assertNotNull(drawnBandBytes(wide - 1, 1))
-    assertFalse(textRasterFits(wide, 1, SIXTEEN_BIT_TEXEL, drawnBandBytes(wide, 1), Long.MAX_VALUE))
+    drawnBandBytes(wide, 1).shouldBeNull()
+    drawnBandBytes(wide - 1, 1).shouldNotBeNull()
+    textRasterFits(wide, 1, SIXTEEN_BIT_TEXEL, drawnBandBytes(wide, 1), Long.MAX_VALUE) shouldBe false
   }
 
   private fun fits(
@@ -67,8 +66,8 @@ class TextRasterPeakTest {
     height: Int,
   ) {
     val held = width.toLong() * height * SIXTEEN_BIT_TEXEL
-    val peak = assertNotNull(drawnPeakBytes(width.toLong(), height.toLong(), held))
-    assertEquals(peak <= PICTURE_PEAK_CEILING, fits(width, height), "$width by $height peaks at $peak")
+    val peak = drawnPeakBytes(width.toLong(), height.toLong(), held).shouldNotBeNull()
+    withClue("$width by $height peaks at $peak") { fits(width, height) shouldBe (peak <= PICTURE_PEAK_CEILING) }
   }
 
   private companion object {

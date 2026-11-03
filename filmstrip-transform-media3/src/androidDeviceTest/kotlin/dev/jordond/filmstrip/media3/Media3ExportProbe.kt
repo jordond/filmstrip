@@ -23,12 +23,12 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.test.eightBitFrameAt
 import dev.jordond.filmstrip.test.writeAtomically
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import org.junit.AssumptionViolatedException
 import java.io.File
-import kotlin.test.assertIs
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
@@ -79,7 +79,7 @@ internal class Media3ExportProbe {
    * Exports [composition] at [spec] and reads its first frame back as the codes the encoder wrote, with the matrix
    * and range the file records.
    *
-   * A test that reads an exact colour reads it here, through the file's own tag, rather than through
+   * A test that reads an exact color reads it here, through the file's own tag, rather than through
    * `MediaMetadataRetriever`'s conversion.
    */
   suspend fun written(
@@ -91,8 +91,8 @@ internal class Media3ExportProbe {
    * The first frame of the file [finished] wrote, as [written] reads it.
    */
   fun writtenBy(finished: ExportStatus.Success): Written {
-    val file = File(assertIs<MediaSink.Path>(finished.output).path)
-    val (matrix, fullRange) = colourTagOf(file)
+    val file = File(finished.output.shouldBeInstanceOf<MediaSink.Path>().path)
+    val (matrix, fullRange) = colorTagOf(file)
     return Written(firstEightBitFrame(file), matrix, fullRange)
   }
 
@@ -106,7 +106,7 @@ internal class Media3ExportProbe {
     val statuses = withContext(Dispatchers.Default) { filmstrip.export(plan, MediaSink.temporary()).toList() }
     val finished = statuses.last()
     if (finished is ExportStatus.Failure) throw AssertionError("export failed: ${finished.error.message}")
-    return assertIs<ExportStatus.Success>(finished)
+    return finished.shouldBeInstanceOf<ExportStatus.Success>()
   }
 
   /**
@@ -125,7 +125,8 @@ internal class Media3ExportProbe {
   /**
    * Probes [source] with [filmstrip], failing the test when the probe does not succeed.
    */
-  suspend fun infoOf(source: MediaSource): MediaInfo = assertIs<ProbeResult.Success>(filmstrip.probe(source)).info
+  suspend fun infoOf(source: MediaSource): MediaInfo =
+    filmstrip.probe(source).shouldBeInstanceOf<ProbeResult.Success>().info
 
   /**
    * Decodes the frame of [video] nearest [at].
@@ -175,7 +176,7 @@ internal class Media3ExportProbe {
 
   companion object {
     val TIMEOUT = 5.minutes
-    val SPEC = ExportSpec(targetHeight = 240)
+    val SPEC = ExportSpec(heightPx = 240)
 
     // Halfway through the two second fixture.
     val MID_CLIP = 1_000.milliseconds

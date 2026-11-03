@@ -11,9 +11,9 @@ import dev.jordond.filmstrip.geometry.Size
  * Where a composited overlay lands, in real pixels of the frame it is drawn on.
  *
  * Both backends place an overlay by naming a point inside the overlay and a point inside the frame,
- * then bringing the two together. Resolving that pair here rather than in each lowering is what
- * keeps the same overlay in the same relative spot on either platform and at any resolution, the
- * same reason [retainedRect] is shared.
+ * then bringing the two together. That pair is resolved here, once for every lowering, so the same
+ * overlay lands in the same relative spot on either platform and at any resolution, the way
+ * [retainedRect] is shared.
  *
  * @property size The overlay's drawn size, in pixels of the frame it lands on.
  * @property overlayAnchor The point inside the overlay that meets [frameAnchor], as a fraction of

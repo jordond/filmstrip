@@ -3,13 +3,15 @@ package dev.jordond.filmstrip.internal
 import android.content.Context
 import dev.jordond.filmstrip.media.FormatHint
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.picture.fixtures.Bytes
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 import java.io.File
 import kotlin.test.AfterTest
 import kotlin.test.Test
-import kotlin.test.assertTrue
 
 /**
  * The cache an in-memory source is written through before the platform can open it as a file.
@@ -34,7 +36,7 @@ class AndroidScratchTest {
   fun `writes the bytes under the extension it was given`() {
     val file = AndroidScratch.fileFor(context, PNG, "png")
 
-    assertTrue(file.extension == "png", "expected a png extension, got ${file.name}")
+    withClue("expected a png extension, got ${file.name}") { (file.extension == "png").shouldBeTrue() }
     file.readBytes().toList() shouldBe PNG.toList()
   }
 
@@ -42,14 +44,14 @@ class AndroidScratchTest {
   fun `a source names its file from its hint`() {
     val hinted = AndroidScratch.fileFor(context, MediaSource.Bytes(PNG, FormatHint.Mov))
 
-    assertTrue(hinted.extension == "mov", "expected a mov extension, got ${hinted.name}")
+    withClue("expected a mov extension, got ${hinted.name}") { (hinted.extension == "mov").shouldBeTrue() }
   }
 
   @Test
   fun `an unhinted source claims no container`() {
     val unhinted = AndroidScratch.fileFor(context, MediaSource.Bytes(PNG))
 
-    assertTrue(unhinted.extension == "tmp", "expected a tmp extension, got ${unhinted.name}")
+    withClue("expected a tmp extension, got ${unhinted.name}") { (unhinted.extension == "tmp").shouldBeTrue() }
   }
 
   @Test
@@ -81,7 +83,7 @@ class AndroidScratchTest {
     val first = AndroidScratch.fileFor(context, PNG, "png")
     val second = AndroidScratch.fileFor(context, JPEG, "jpeg")
 
-    assertTrue(first != second, "two different buffers landed on ${first.name}")
+    withClue("two different buffers landed on ${first.name}") { (first != second).shouldBeTrue() }
     first.readBytes().toList() shouldBe PNG.toList()
     second.readBytes().toList() shouldBe JPEG.toList()
   }

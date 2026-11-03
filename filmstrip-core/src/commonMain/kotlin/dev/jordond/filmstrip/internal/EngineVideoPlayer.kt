@@ -3,7 +3,6 @@ package dev.jordond.filmstrip.internal
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.edit.EditComposition
-import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.player.EngineListener
 import dev.jordond.filmstrip.player.PlaybackEvent
@@ -13,9 +12,9 @@ import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PlayerPositionListener
 import dev.jordond.filmstrip.player.PlayerState
 import dev.jordond.filmstrip.player.PlayerStateListener
+import dev.jordond.filmstrip.player.PlayerTransport
 import dev.jordond.filmstrip.player.PreviewFrameReadback
 import dev.jordond.filmstrip.player.PreviewInfo
-import dev.jordond.filmstrip.player.PreviewQualityPolicy
 import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.SetCompositionCallback
 import dev.jordond.filmstrip.player.SetCompositionRequest
@@ -34,11 +33,13 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.time.Duration
 
-// Turns an engine's callbacks into the flows and suspend members VideoPlayer exposes.
+// Turns an engine's callbacks into the flows and suspend members VideoPlayer exposes. Transport goes straight to the
+// engine, apart from a seek, which moves the playhead first.
 internal class EngineVideoPlayer(
   private val engine: PlayerEngine,
   initial: EditComposition,
-) : VideoPlayer {
+) : VideoPlayer,
+  PlayerTransport by engine {
   private val _state = MutableStateFlow(PlayerState.Initial)
   private val _previewInfo = MutableStateFlow(EMPTY_PREVIEW_INFO)
   private val _events =
@@ -47,6 +48,10 @@ internal class EngineVideoPlayer(
       extraBufferCapacity = EVENT_BUFFER,
     )
   private val positionState = MutableStateFlow(Duration.ZERO)
+
+  // Swapped whole on every change, so a listener cancelled from inside a callback does not
+  // disturb the walk that called it.
+  private var positionListeners: List<(Duration) -> Unit> = emptyList()
 
   private val listenerHandle: Cancellable =
     engine.addListener(
@@ -60,7 +65,7 @@ internal class EngineVideoPlayer(
         }
 
         override fun onPosition(position: Duration) {
-          positionState.value = position
+          movePlayhead(position)
         }
 
         override fun onPreviewInfo(info: PreviewInfo) {
@@ -70,8 +75,8 @@ internal class EngineVideoPlayer(
     )
 
   init {
-    // Result deliberately dropped: a failure surfaces as PlaybackStatus.Error on state, which is
-    // where a UI reads it.
+    // The result is dropped. A failure surfaces as PlaybackStatus.Error on state, which is where a
+    // UI reads it.
     engine.setComposition(SetCompositionRequest(initial)) { }
   }
 
@@ -115,32 +120,14 @@ internal class EngineVideoPlayer(
     callback: SetCompositionCallback,
   ): Cancellable = engine.setComposition(request, callback)
 
-  override fun play(): Unit = engine.play()
-
-  override fun pause(): Unit = engine.pause()
-
   override fun seekTo(
     position: Duration,
     accuracy: SeekAccuracy,
   ) {
     // Optimistic, so a scrubber thumb does not snap backwards while the engine catches up.
-    positionState.value = position
+    movePlayhead(position)
     engine.seekTo(position, accuracy)
   }
-
-  override fun stepFrames(frames: Int): Unit = engine.stepFrames(frames)
-
-  override fun beginScrub(): Unit = engine.beginScrub()
-
-  override fun endScrub(): Unit = engine.endScrub()
-
-  override fun setVolume(volume: Float): Unit = engine.setVolume(volume)
-
-  override fun setLoopRange(range: TimeRange?): Unit = engine.setLoopRange(range)
-
-  override fun setPlaybackRange(range: TimeRange?): Unit = engine.setPlaybackRange(range)
-
-  override fun setQualityPolicy(policy: PreviewQualityPolicy): Unit = engine.setQualityPolicy(policy)
 
   override fun addStateListener(listener: PlayerStateListener): Cancellable =
     engine.addListener(
@@ -173,23 +160,23 @@ internal class EngineVideoPlayer(
     listener: PlayerPositionListener,
   ): Cancellable {
     var lastTick: Duration? = null
-    return engine.addListener(
-      object : EngineListener {
-        override fun onStateChanged(state: PlayerState) = Unit
+    val onPosition: (Duration) -> Unit = { position ->
+      val snapped = position.snapTo(tick)
+      if (snapped != lastTick) {
+        lastTick = snapped
+        listener.onPosition(snapped)
+      }
+    }
+    positionListeners = positionListeners + onPosition
+    onPosition(positionState.value)
+    return Cancellable { positionListeners = positionListeners - onPosition }
+  }
 
-        override fun onEvent(event: PlaybackEvent) = Unit
-
-        override fun onPosition(position: Duration) {
-          val snapped = position.snapTo(tick)
-          if (snapped != lastTick) {
-            lastTick = snapped
-            listener.onPosition(snapped)
-          }
-        }
-
-        override fun onPreviewInfo(info: PreviewInfo) = Unit
-      },
-    )
+  // The one place the playhead moves, so the flow and the listeners read the same value, an
+  // optimistic seek included.
+  private fun movePlayhead(position: Duration) {
+    positionState.value = position
+    positionListeners.forEach { it(position) }
   }
 
   override fun close() {

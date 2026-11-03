@@ -1,11 +1,11 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.filePathOf
 import java.io.ByteArrayInputStream
@@ -15,28 +15,26 @@ import java.util.Locale
 import javax.imageio.ImageIO
 import javax.imageio.stream.ImageInputStream
 import kotlin.math.roundToInt
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.microseconds
 
-// Why this overlay's animation cannot be driven over [run] whatever its picture holds, or null when it can or has
-// none. It needs no read of the picture, so it runs ahead of one.
+// Why this overlay's animation cannot be driven over [drawnRange] whatever its picture holds, or null when it can or
+// has none. It needs no read of the picture, so it runs ahead of one.
 internal fun ImageOverlay.animationRefusal(
   attributes: Attributes,
-  run: TimeRange,
+  drawnRange: TimeRange,
 ): String? =
   when {
     animation == null -> null
     attributes.gridRate == null -> ANIMATION_NO_GRID
-    run.endExclusive == null -> ANIMATION_NO_RUN
+    drawnRange.endExclusive == null -> ANIMATION_NO_END
     else -> null
   }
 
 // What an animated overlay's branch has to be driven by. The animation is sampled once per output
-// frame of the run, and each option is written as the intervals it holds one value over. A
+// frame of the drawn range, and each option is written as the intervals it holds one value over. A
 // command written at exactly a frame's own time lands on that frame, so an interval opens on the
 // grid rather than anywhere nudged off it, and the clock is the branch's, the same one the enable
 // gate reads. An option is still only sent where its own value moves, and its intervals cover the
-// whole run, so a branch opened part way through reads what it is holding there instead of
+// whole drawn range, so a branch opened part way through reads what it is holding there instead of
 // whatever the graph configured the filter at.
 //
 // On an HDR grade the region the blend runs on has to hold every position the overlay reaches, so
@@ -48,14 +46,14 @@ internal fun ImageOverlay.animationRefusal(
 // the orientation the graph lays the picture out by.
 internal fun ImageOverlay.commandsFor(
   attributes: Attributes,
-  run: TimeRange,
+  drawnRange: TimeRange,
   graded: Boolean,
   decoder: OverlayPictureDecoder?,
   decoded: Size?,
 ): Driven {
   if (animation == null) return Driven.Still
   val rate = attributes.gridRate ?: return Driven.Refused(ANIMATION_NO_GRID)
-  val end = run.endExclusive ?: return Driven.Refused(ANIMATION_NO_RUN)
+  val end = drawnRange.endExclusive ?: return Driven.Refused(ANIMATION_NO_END)
   val imageSize =
     decoded ?: when (val read = decoder?.measure(image)) {
       is OverlayPictureRead.Read -> read.value
@@ -71,10 +69,10 @@ internal fun ImageOverlay.commandsFor(
   // A frame the sampler draws nothing on is left out rather than written as a change, so the
   // interval running across it carries on holding what it held.
   val frames =
-    (frameIndexAt(run.start, span, rate) until last).mapNotNull { index ->
-      frameWithin(run, outputSlotTime(firstSlot + index, rate))?.let { index to it }
+    (frameIndexAt(drawnRange.start, span, rate) until last).mapNotNull { index ->
+      frameWithin(drawnRange, outputSlotTime(firstSlot + index, rate))?.let { index to it }
     }
-  // A run reaching no output frame, which is a window falling outside the span or one shorter
+  // A drawn range reaching no output frame, which is a window falling outside the span or one shorter
   // than a frame. There is nothing to drive, and the gate on the branch already draws nothing.
   if (frames.isEmpty()) return Driven.Still
   val drawn = frames.map { (_, frame) -> drawnRect(base.animatedBy(frame), drawnOn) }
@@ -117,8 +115,8 @@ private fun List<Pair<Int, Map<String, String>>>.written(
         "${hold.command};\n"
     }
 
-// One option's intervals across a sampled run: each opens on the frame the value moves to and
-// runs to the frame that moves it next, or to the end of the run for the last of them.
+// One option's intervals across a sampled drawn range: each opens on the frame the value moves to and
+// runs to the frame that moves it next, or to the end of the drawn range for the last of them.
 private fun List<Pair<Int, Map<String, String>>>.holdsOf(
   command: String,
   end: Int,
@@ -136,7 +134,7 @@ private fun List<Pair<Int, Map<String, String>>>.holdsOf(
 // The keys come off the first frame sampled, so a frame answering a different set of them would
 // otherwise write a file that drives some of the filters and leaves the rest where they were.
 private fun Map<String, String>.driving(command: String): String =
-  this[command] ?: error("A sampled overlay frame carries no $command, so the commands cannot cover the run.")
+  this[command] ?: error("A sampled overlay frame carries no $command, so the commands cannot cover the drawn range.")
 
 // Where the overlay lands on one frame, in pixels. Every number is the shared placement's:
 // animatedBy scales both sides and moves the frame anchor, and the point inside the overlay that
@@ -230,20 +228,6 @@ internal fun ImageSource.openHeader(): ImageInputStream? =
 private fun alphaValue(opacity: Float): String =
   String.format(Locale.ROOT, COMMAND_FORMAT, opacity.coerceIn(MIXER_FLOOR, MIXER_CEILING))
 
-// The first output frame at or after a composition time, counted on the branch's own clock. The
-// branch's frames sit on the output slots from the one the span's start lands on, so this counts
-// the slots from there to the first one at or after [time]. The comparison is in whole
-// microseconds, the grid's own unit, so a time sitting on a slot counts as that slot.
-internal fun frameIndexAt(
-  time: Duration,
-  span: TimeRange,
-  rate: Int,
-): Int {
-  val landed = outputSlotOf(time, rate)
-  val atOrAfter = if (outputSlotTime(landed, rate) < time.inWholeMicroseconds.microseconds) landed + 1 else landed
-  return (atOrAfter - outputSlotOf(span.start, rate)).coerceAtLeast(0).toInt()
-}
-
 private fun commandSeconds(value: Double): String = String.format(Locale.ROOT, COMMAND_FORMAT, value)
 
 // The instance names have to be unique across the graph, and they are part of the file that
@@ -268,7 +252,7 @@ private class Hold(
 )
 
 internal sealed interface Driven {
-  // Nothing to drive: an overlay holding still, or one whose run reaches no output frame.
+  // Nothing to drive: an overlay holding still, or one whose drawn range reaches no output frame.
   object Still : Driven
 
   class Refused(
@@ -315,9 +299,9 @@ private const val ANIMATION_NO_GRID =
     "rate to sample it onto. Give the export a frame rate, or drop the animation to draw the " +
     "overlay still."
 
-private const val ANIMATION_NO_RUN =
-  "An animated overlay is sampled across the run it is drawn over, and this composition names no " +
-    "end for that run. Give the export a duration, or drop the animation to draw the overlay still."
+private const val ANIMATION_NO_END =
+  "An animated overlay is sampled across the range it is drawn over, and this composition names no " +
+    "end for that range. Give the export a duration, or drop the animation to draw the overlay still."
 
 private const val UNREADABLE_IMAGE =
   "The overlay image could not be read. An animated overlay is sized against the picture's own " +

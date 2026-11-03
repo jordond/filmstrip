@@ -6,11 +6,11 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import io.github.vinceglb.filekit.AndroidFile
 import io.github.vinceglb.filekit.PlatformFile
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import java.io.File
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertIs
 
 /**
  * The Android mapping, on a device because `Uri` is a framework type with no host implementation.
@@ -26,32 +26,42 @@ class PlatformFilesAndroidTest {
   fun fileWrapperReadsAsPathSource() {
     val picked = PlatformFile(AndroidFile.FileWrapper(file))
 
-    assertEquals(MediaSource.Path(file.absolutePath), picked.toMediaSource())
-    assertEquals(ImageSource.Path(file.absolutePath), picked.toImageSource())
-    assertEquals(MediaSink.Path(file.absolutePath), picked.toMediaSink())
+    picked.toMediaSource() shouldBe MediaSource.Path(file.absolutePath)
+    picked.toImageSource() shouldBe ImageSource.Path(file.absolutePath)
+    picked.toMediaSink() shouldBe MediaSink.Path(file.absolutePath)
   }
 
   @Test
   fun uriWrapperReadsAsUriSource() {
     val picked = PlatformFile(AndroidFile.UriWrapper(contentUri))
 
-    assertEquals(MediaSource.Uri(CONTENT), picked.toMediaSource())
-    assertEquals(ImageSource.Uri(CONTENT), picked.toImageSource())
-    assertEquals(MediaSink.Uri(CONTENT), picked.toMediaSink())
+    picked.toMediaSource() shouldBe MediaSource.Uri(CONTENT)
+    picked.toImageSource() shouldBe ImageSource.Uri(CONTENT)
+    picked.toMediaSink() shouldBe MediaSink.Uri(CONTENT)
   }
 
   @Test
   fun pathSinkComesBackAsAFile() {
-    val wrapper = assertIs<AndroidFile.FileWrapper>(MediaSink.of(file.path).toPlatformFile().androidFile)
+    val wrapper =
+      MediaSink
+        .of(file.path)
+        .toPlatformFile()
+        .androidFile
+        .shouldBeInstanceOf<AndroidFile.FileWrapper>()
 
-    assertEquals(file.path, wrapper.file.path)
+    wrapper.file.path shouldBe file.path
   }
 
   @Test
   fun contentUriSinkComesBackAsAUri() {
-    val wrapper = assertIs<AndroidFile.UriWrapper>(MediaSink.ofUri(CONTENT).toPlatformFile().androidFile)
+    val wrapper =
+      MediaSink
+        .ofUri(CONTENT)
+        .toPlatformFile()
+        .androidFile
+        .shouldBeInstanceOf<AndroidFile.UriWrapper>()
 
-    assertEquals(contentUri, wrapper.uri)
+    wrapper.uri shouldBe contentUri
   }
 
   @Test

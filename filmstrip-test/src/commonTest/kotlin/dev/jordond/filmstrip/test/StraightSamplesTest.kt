@@ -1,34 +1,36 @@
 package dev.jordond.filmstrip.test
 
 import dev.jordond.filmstrip.media.HdrTransfer
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.math.abs
 import kotlin.math.roundToLong
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertTrue
 
 /**
- * The straight sample tolerance against model stores built here. A sixteen-bit store rounds the premultiplied colour to
+ * The straight sample tolerance against model stores built here. A sixteen-bit store rounds the premultiplied color to
  * a whole sample and an eight-bit store rounds it to a whole eight-bit code. Each is read back by dividing by the alpha
  * it stored. The signal bound is checked against the signal of every sample the sample bound holds.
  */
 class StraightSamplesTest {
   @Test
   fun aSixteenBitStoreIsOneSampleOverTheAlpha() {
-    assertEquals(1f, straightSampleTolerance(0xFF))
-    assertEquals(255f / 0x80, straightSampleTolerance(0x80))
-    assertEquals(255f / 0x40, straightSampleTolerance(0x40))
-    assertEquals(255f, straightSampleTolerance(1))
+    straightSampleTolerance(0xFF) shouldBe 1f
+    straightSampleTolerance(0x80) shouldBe 255f / 0x80
+    straightSampleTolerance(0x40) shouldBe 255f / 0x40
+    straightSampleTolerance(1) shouldBe 255f
   }
 
   @Test
-  fun holdsEveryColourASixteenBitStoreReadsBack() {
+  fun holdsEveryColorASixteenBitStoreReadsBack() {
     for (alpha in 1..MAX_CODE) {
       val tolerance = straightSampleTolerance(alpha)
       for (straight in STRAIGHTS) {
         val error = abs(sixteenBitRead(straight, alpha) - straight)
-        assertTrue(error <= tolerance, "$straight at alpha $alpha read $error samples off, past $tolerance")
+        withClue("$straight at alpha $alpha read $error samples off, past $tolerance") {
+          (error <= tolerance) shouldBe true
+        }
       }
     }
   }
@@ -37,21 +39,23 @@ class StraightSamplesTest {
   fun turnsAwayAnEightBitStore() {
     for ((code, alpha) in MIDDLE_POINTS) {
       val error = abs(eightBitRead(code, alpha) - sampleOfCode(code))
-      assertTrue(error > straightSampleTolerance(alpha), "code $code at alpha $alpha read only $error samples off")
+      withClue("code $code at alpha $alpha read only $error samples off") {
+        (error > straightSampleTolerance(alpha)) shouldBe true
+      }
     }
   }
 
   @Test
   fun widensACodeToItsSample() {
-    assertEquals(0, sampleOfCode(0))
-    assertEquals(0x8080, sampleOfCode(0x80))
-    assertEquals(MAX_SAMPLE, sampleOfCode(MAX_CODE))
+    sampleOfCode(0) shouldBe 0
+    sampleOfCode(0x80) shouldBe 0x8080
+    sampleOfCode(MAX_CODE) shouldBe MAX_SAMPLE
     assertFailsWith<IllegalArgumentException> { sampleOfCode(-1) }
     assertFailsWith<IllegalArgumentException> { sampleOfCode(MAX_CODE + 1) }
   }
 
   @Test
-  fun refusesAnAlphaWithNoColour() {
+  fun refusesAnAlphaWithNoColor() {
     assertFailsWith<IllegalArgumentException> { straightSampleTolerance(0) }
     assertFailsWith<IllegalArgumentException> { straightSampleTolerance(MAX_CODE + 1) }
   }
@@ -66,7 +70,7 @@ class StraightSamplesTest {
         val authored = greySignal(straight.toFloat(), transfer)
         for (sample in straight - reach..straight + reach) {
           val moved = signalMove(greySignal(sample.toFloat(), transfer), authored)
-          assertTrue(moved <= bound, "$transfer sample $sample of code $code moved $moved past $bound")
+          withClue("$transfer sample $sample of code $code moved $moved past $bound") { (moved <= bound) shouldBe true }
         }
       }
     }
@@ -82,10 +86,9 @@ class StraightSamplesTest {
         val authored = greySignal(straight.toFloat(), transfer)
         val below = signalMove(greySignal((straight - past).toFloat(), transfer), authored)
         val above = signalMove(greySignal((straight + past).toFloat(), transfer), authored)
-        assertTrue(
-          maxOf(below, above) > bound,
-          "$transfer code $code moved $below and $above $past samples out, inside $bound",
-        )
+        withClue("$transfer code $code moved $below and $above $past samples out, inside $bound") {
+          (maxOf(below, above) > bound) shouldBe true
+        }
       }
     }
   }
@@ -94,13 +97,13 @@ class StraightSamplesTest {
   fun widensTheSignalBoundAsTheAlphaFalls() {
     for (transfer in HdrTransfer.entries) {
       val bounds = listOf(0xFF, 0x80, 0x40).map { straightSignalTolerance(it, 0x80, transfer) }
-      assertTrue(bounds.zipWithNext().all { (high, low) -> high < low }, "$transfer bounds $bounds")
-      assertTrue(bounds.first() > 0f, "$transfer bounds $bounds")
+      withClue("$transfer bounds $bounds") { bounds.zipWithNext().all { (high, low) -> high < low } shouldBe true }
+      withClue("$transfer bounds $bounds") { (bounds.first() > 0f) shouldBe true }
     }
   }
 
   @Test
-  fun refusesASignalBoundForAnAlphaWithNoColourOrACodeOutOfRange() {
+  fun refusesASignalBoundForAnAlphaWithNoColorOrACodeOutOfRange() {
     for (transfer in HdrTransfer.entries) {
       assertFailsWith<IllegalArgumentException> { straightSignalTolerance(0, 0x80, transfer) }
       assertFailsWith<IllegalArgumentException> { straightSignalTolerance(MAX_CODE, MAX_CODE + 1, transfer) }
@@ -135,7 +138,7 @@ class StraightSamplesTest {
     const val MAX_CODE = 255
     const val MAX_SAMPLE = 65535
 
-    // Colour equal to alpha, and colour apart from it at a low alpha, both away from the ends of the range.
+    // Color equal to alpha, and color apart from it at a low alpha, both away from the ends of the range.
     val MIDDLE_POINTS = listOf(0x80 to 0x80, 0xC8 to 0x40)
 
     // Every eight-bit code's sample, and samples between codes across the whole range.

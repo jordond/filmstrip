@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.CoreImageEffect
@@ -9,12 +10,14 @@ import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderCapabilities
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -22,8 +25,6 @@ import kotlinx.coroutines.withContext
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.concurrent.AtomicInt
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -52,15 +53,17 @@ class AppleStepFailureExportTest {
 
       val statuses =
         withContext(Dispatchers.Default) {
-          filmstrip.export(composition, ExportSpec(targetHeight = 180), MediaSink.of(output)).toList()
+          filmstrip.export(composition, ExportSpec(heightPx = 180), MediaSink.of(output)).toList()
         }
 
-      val failed = assertIs<ExportStatus.Failure>(statuses.last())
-      val error = assertIs<ExportError.UnsupportedEffect>(failed.error)
+      val failed = statuses.last().shouldBeInstanceOf<ExportStatus.Failure>()
+      val error = failed.error.shouldBeInstanceOf<FilmstripError.UnsupportedEffect>()
       error.specId shouldBe Throwing.id
       error.message shouldBe REASON
       val frames = (CLIP.inWholeMilliseconds * FRAME_RATE / 1_000).toInt()
-      assertTrue(drawn.value < frames / 2, "the step ran on ${drawn.value} of $frames frames before the run stopped")
+      withClue("the step ran on ${drawn.value} of $frames frames before the run stopped") {
+        (drawn.value < frames / 2).shouldBeTrue()
+      }
     }
 
   private object Throwing : EffectSpec {
@@ -91,7 +94,7 @@ class AppleStepFailureExportTest {
 
   private companion object {
     const val LANDSCAPE = "apple_export_a.mp4"
-    const val REASON = "The picture is too large to draw at its colour."
+    const val REASON = "The picture is too large to draw at its color."
     const val FRAME_RATE = 30
     val CLIP = 2.seconds
     val TIMEOUT = 2.seconds * 60

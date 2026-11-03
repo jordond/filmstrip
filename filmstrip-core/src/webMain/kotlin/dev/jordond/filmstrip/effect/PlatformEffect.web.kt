@@ -3,10 +3,10 @@
 package dev.jordond.filmstrip.effect
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.PictureColor
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.media.PictureColour
-import dev.jordond.filmstrip.media.PictureOrientation
+import dev.jordond.filmstrip.picture.PictureOrientation
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.time.Duration
@@ -68,7 +68,7 @@ public class WebGlPass(
  * @property size The pixel size the raster is uploaded at. A raster carrying samples takes their size, in the order
  * they are stored, and any other raster its own.
  * @property drawAt Where to draw the raster at a composition time, or null when it is not drawn on that frame.
- * @property colour How a picture describes the colour of its stored codes or samples, or null when the raster is
+ * @property color How a picture describes the color of its stored codes or samples, or null when the raster is
  * untagged and they are sRGB.
  * @property orientation The turn the compositor lays the uploaded raster out by when it draws it, which [drawAt]'s
  * rect already holds the shown picture's size in. A raster uploaded from samples is laid out already and takes
@@ -79,7 +79,7 @@ public class WebGlOverlay(
   public val source: OverlaySource,
   public val size: Size,
   public val drawAt: (compositionTime: Duration) -> WebGlOverlayDraw?,
-  public val colour: PictureColour? = null,
+  public val color: PictureColor? = null,
   public val orientation: PictureOrientation = PictureOrientation.Normal,
 ) {
   override fun toString(): String = "WebGlOverlay($size)"
@@ -88,9 +88,9 @@ public class WebGlOverlay(
 /**
  * What a [WebGlOverlay] is uploaded from.
  *
- * Samples are sixteen-bit RGBA, four a texel as [dev.jordond.filmstrip.internal.pngSamples] reads a PNG's. A PNG
- * carries its stored samples at their full depth, an AVIF the colour core's YCbCr evaluator turns its samples into,
- * and text the straight colour laid over its plate. The compositor converts samples wherever a raster carries them, in
+ * Samples are sixteen-bit RGBA, four a texel as [dev.jordond.filmstrip.picture.png.pngSamples] reads a PNG's. A PNG
+ * carries its stored samples at their full depth, an AVIF the color core's YCbCr evaluator turns its samples into,
+ * and text the straight color laid over its plate. The compositor converts samples wherever a raster carries them, in
  * place of an image's eight-bit codes.
  */
 @InternalFilmstripApi

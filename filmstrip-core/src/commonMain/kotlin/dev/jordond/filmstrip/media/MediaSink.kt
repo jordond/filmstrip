@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.media
 
 import dev.drewhamilton.poko.Poko
-import dev.jordond.filmstrip.export.ExportStatus
 
 /**
  * Defines where a media file should be exported to.
@@ -28,7 +27,8 @@ public sealed interface MediaSink {
   ) : MediaSink
 
   /**
-   * A library-chosen temporary location, reported back on [ExportStatus.Success.output] as a resolved [Path].
+   * A library-chosen temporary location, reported back on
+   * [dev.jordond.filmstrip.export.ExportStatus.Success.output] as a resolved [Path].
    *
    * The file belongs to the caller once the export finishes: filmstrip never deletes it.
    */

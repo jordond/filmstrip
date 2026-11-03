@@ -9,17 +9,20 @@ import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.trackCodecOf
-import dev.jordond.filmstrip.transform.internal.GainSegment
-import dev.jordond.filmstrip.transform.internal.ResolvedClip
-import dev.jordond.filmstrip.transform.internal.ResolvedGain
-import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import dev.jordond.filmstrip.transform.internal.resolve.GainSegment
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
+import dev.jordond.filmstrip.webcodecs.internal.audio.BrowserAudioMix
+import dev.jordond.filmstrip.webcodecs.internal.interop.OfflineAudioContext
+import dev.jordond.filmstrip.webcodecs.internal.interop.toFloat32Array
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.await
 import kotlinx.coroutines.test.runTest
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
@@ -98,8 +101,8 @@ class BrowserAudioMixTest {
     val hour = BrowserAudioMix.peakBytes(listOf(trackOf(60.minutes)), OUTPUT, 60.minutes)
     val minute = BrowserAudioMix.peakBytes(listOf(trackOf(1.minutes)), OUTPUT, 1.minutes)
 
-    assertEquals(minute, hour)
-    assertTrue(hour < BrowserAudioMix.MAX_MIX_BYTES, "one window of an hour cost $hour")
+    hour shouldBe minute
+    withClue("one window of an hour cost $hour") { (hour < BrowserAudioMix.MAX_MIX_BYTES) shouldBe true }
   }
 
   // Every pass of a looping clip asks the decode cache for the same slice, so a bed laid a thousand
@@ -111,8 +114,8 @@ class BrowserAudioMixTest {
     val many =
       BrowserAudioMix.peakBytes(listOf(trackOf(3.seconds, looping = true, passes = 1_200)), OUTPUT, 60.minutes)
 
-    assertEquals(few, many)
-    assertTrue(many < BrowserAudioMix.MAX_MIX_BYTES, "1200 passes of a three second bed cost $many")
+    many shouldBe few
+    withClue("1200 passes of a three second bed cost $many") { (many < BrowserAudioMix.MAX_MIX_BYTES) shouldBe true }
   }
 
   // Nothing here repeats, so every clip holds a buffer of its own and there is no shared one for a
@@ -126,7 +129,7 @@ class BrowserAudioMixTest {
     val output = BrowserAudioMix.peakBytes(emptyList(), OUTPUT, total)
     val expected = output + lengths.sumOf { BrowserAudioMix.peakBytes(listOf(trackOf(it)), OUTPUT, total) - output }
 
-    assertEquals(expected, BrowserAudioMix.peakBytes(listOf(trackOf(lengths)), OUTPUT, total))
+    BrowserAudioMix.peakBytes(listOf(trackOf(lengths)), OUTPUT, total) shouldBe expected
   }
 
   // One source read by several tracks is one buffer in the cache, since every track asks for the
@@ -138,7 +141,7 @@ class BrowserAudioMixTest {
     val output = BrowserAudioMix.peakBytes(emptyList(), OUTPUT, 60.minutes)
     val four = BrowserAudioMix.peakBytes(List(4) { bed }, OUTPUT, 60.minutes)
 
-    assertTrue(four - output < (one - output) * 4, "four tracks over one trim cost ${four - output}")
+    withClue("four tracks over one trim cost ${four - output}") { (four - output < (one - output) * 4) shouldBe true }
   }
 
   // Every pass sounds at the slot the planner laid it at, read off the plan rather than worked out
@@ -149,9 +152,9 @@ class BrowserAudioMixTest {
 
     val placed = BrowserAudioMix.placed(listOf(track))
 
-    assertEquals(track.clips.size, placed.size)
+    placed.size shouldBe track.clips.size
     placed.forEachIndexed { index, one ->
-      assertEquals(track.clips[index].span.start, one.offset, "pass $index opened at ${one.offset}")
+      withClue("pass $index opened at ${one.offset}") { one.offset shouldBe track.clips[index].span.start }
     }
   }
 
@@ -214,7 +217,9 @@ class BrowserAudioMixTest {
     expected: Float,
     actual: Float,
     epsilon: Float = EPSILON,
-  ) = assertTrue(abs(expected - actual) < epsilon, "expected $expected, was $actual")
+  ) {
+    withClue("expected $expected, was $actual") { (abs(expected - actual) < epsilon) shouldBe true }
+  }
 
   private companion object {
     val OUTPUT = AudioFormat(sampleRate = 48_000, channelCount = 2)

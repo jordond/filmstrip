@@ -6,4 +6,4 @@
 // - Show declarations: true
 
 // Library unique name: <filmstrip-root:filmstrip-player>
-final fun (dev.jordond.filmstrip/FilmstripBuilder).dev.jordond.filmstrip.playback/playerBackend(): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip.playback/playerBackend|playerBackend@dev.jordond.filmstrip.FilmstripBuilder(){}[0]
+final fun (dev.jordond.filmstrip/FilmstripBuilder).dev.jordond.filmstrip.player/playerBackend(): dev.jordond.filmstrip/FilmstripBuilder // dev.jordond.filmstrip.player/playerBackend|playerBackend@dev.jordond.filmstrip.FilmstripBuilder(){}[0]

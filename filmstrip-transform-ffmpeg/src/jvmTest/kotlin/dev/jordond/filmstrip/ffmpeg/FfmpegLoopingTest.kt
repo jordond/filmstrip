@@ -8,32 +8,37 @@ import dev.jordond.filmstrip.effects.overlay.fadeIn
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.BED_GAIN
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.BED_HZ
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.BED_START
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.FIXTURE_READING
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.PRIMARY_HZ
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.QUIET_READING
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.TIMEOUT
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.BED_GAIN
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.BED_HZ
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.BED_START
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.FIXTURE_READING
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.PRIMARY_HZ
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.QUIET_READING
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
+import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
+import dev.jordond.filmstrip.ffmpeg.support.decodedAudio
+import dev.jordond.filmstrip.ffmpeg.support.onlyClip
+import dev.jordond.filmstrip.ffmpeg.support.toneAt
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.test.LoopingCases
 import dev.jordond.filmstrip.test.ToneAnalysis
-import dev.jordond.filmstrip.transform.internal.ResolvedClip
-import dev.jordond.filmstrip.transform.internal.ResolvedGain
-import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.passesCovering
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.runLengthOf
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -69,7 +74,7 @@ class FfmpegLoopingTest {
             looping()
           }
         }
-      val spec = ExportSpec(targetHeight = 240)
+      val spec = ExportSpec(heightPx = 240)
 
       val output = File.createTempFile("filmstrip-bed", ".mp4").also { it.delete() }
       val finished =
@@ -78,7 +83,7 @@ class FfmpegLoopingTest {
           .toList()
           .last()
       if (finished is ExportStatus.Failure) error(finished.error.message)
-      assertIs<ExportStatus.Success>(finished)
+      finished.shouldBeInstanceOf<ExportStatus.Success>()
 
       val tracks = fixture.plannedTracks(composition, spec, listOf(primarySource, bedSource))
       val primaryGain = tracks.first().onlyClip.gain
@@ -87,7 +92,7 @@ class FfmpegLoopingTest {
       // that reading sits both come off the laid list rather than off the fixture's own length.
       val laid = tracks.last().clips
       val pass = laid.indexOfLast { it.span.start <= MIXED_READING }
-      assertTrue(pass >= 1, "$MIXED_READING lands in pass ${pass + 1} of a ${laid.size} pass bed")
+      withClue("$MIXED_READING lands in pass ${pass + 1} of a ${laid.size} pass bed") { (pass >= 1).shouldBeTrue() }
       val bedGain = laid[pass].gain
       val withinBed = MIXED_READING - laid[pass].span.start
 
@@ -99,18 +104,16 @@ class FfmpegLoopingTest {
       val expected =
         (bedTone / primaryTone) * (bedGain.gainAt(withinBed) / primaryGain.gainAt(MIXED_READING))
       val measured = written.toneAt(MIXED_READING, BED_HZ) / written.toneAt(MIXED_READING, PRIMARY_HZ)
-      assertTrue(
-        abs(measured - expected) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
-        "at $MIXED_READING the bed read $measured against $expected from the folded gain",
-      )
+      withClue("at $MIXED_READING the bed read $measured against $expected from the folded gain") {
+        (abs(measured - expected) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE).shouldBeTrue()
+      }
 
       // Before the track starts the bed contributes nothing, so its reading is held to the same
       // tolerance every other one is, against a gain of zero.
       val before = written.toneAt(QUIET_READING, BED_HZ) / written.toneAt(QUIET_READING, PRIMARY_HZ)
-      assertTrue(
-        before <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
-        "the bed read $before at $QUIET_READING, before it starts",
-      )
+      withClue("the bed read $before at $QUIET_READING, before it starts") {
+        (before <= ToneAnalysis.MEASURED_GAIN_TOLERANCE).shouldBeTrue()
+      }
 
       output.delete()
     }
@@ -141,7 +144,7 @@ class FfmpegLoopingTest {
             looping()
           }
         }
-      val spec = ExportSpec(targetHeight = 240)
+      val spec = ExportSpec(heightPx = 240)
 
       val output = File.createTempFile("filmstrip-loop-passes", ".mp4").also { it.delete() }
       val plan = fixture.plannedRun(composition, spec)
@@ -167,10 +170,9 @@ class FfmpegLoopingTest {
       // reading is against a gain of zero.
       val quiet = LoopingCases.BEFORE_BED
       val before = samples.bedAgainstPrimary(quiet)
-      assertTrue(
-        before <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
-        "the bed read $before at $quiet, before it starts",
-      )
+      withClue("the bed read $before at $quiet, before it starts") {
+        (before <= ToneAnalysis.MEASURED_GAIN_TOLERANCE).shouldBeTrue()
+      }
 
       output.delete()
     }
@@ -199,7 +201,7 @@ class FfmpegLoopingTest {
             looping()
           }
         }
-      val spec = ExportSpec(targetHeight = 240)
+      val spec = ExportSpec(heightPx = 240)
 
       val output = File.createTempFile("filmstrip-loop-two", ".mp4").also { it.delete() }
       val plan = fixture.plannedRun(composition, spec)
@@ -218,10 +220,9 @@ class FfmpegLoopingTest {
       // below would read as a gain that missed rather than as a bed that never arrived.
       val (firstPass, firstInto) = LoopingCases.PAIR_READINGS.first()
       val present = samples.bedAgainstPrimary(laid[firstPass].span.start + firstInto)
-      assertTrue(
-        present > ToneAnalysis.MEASURED_GAIN_TOLERANCE,
-        "the bed read $present a pass past its own end, where it should still be playing",
-      )
+      withClue("the bed read $present a pass past its own end, where it should still be playing") {
+        (present > ToneAnalysis.MEASURED_GAIN_TOLERANCE).shouldBeTrue()
+      }
 
       LoopingCases.PAIR_READINGS.forEach { (index, into) ->
         val clip = if (laid[index].sourceIndex == 0) "clip A" else "clip B"
@@ -254,7 +255,7 @@ class FfmpegLoopingTest {
             clip(toneSource) { trim(TimeRange.of(Duration.ZERO, LoopingCases.UNDERLAY_RUN)) }
           }
         }
-      val spec = ExportSpec(targetHeight = 240)
+      val spec = ExportSpec(heightPx = 240)
 
       val output = File.createTempFile("filmstrip-loop-video", ".mp4").also { it.delete() }
       val plan = fixture.plannedRun(composition, spec)
@@ -280,23 +281,23 @@ class FfmpegLoopingTest {
       LoopingCases.VIDEO_READINGS.forEach { (pass, into) ->
         val at = laid[pass].span.start + into
         val held = samples.toneAt(at, PRIMARY_HZ) / reference
-        assertTrue(
-          abs(held - 1f) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
-          "at $at the audio track read $held of the level it holds at $LOOP_VIDEO_REFERENCE",
-        )
+        withClue("at $at the audio track read $held of the level it holds at $LOOP_VIDEO_REFERENCE") {
+          (abs(held - 1f) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE).shouldBeTrue()
+        }
       }
 
-      // The picture inside a later pass, which is the bed's own pattern rather than the flat colour
+      // The picture inside a later pass, which is the bed's own pattern rather than the flat color
       // a composition with nothing laid on it falls back to.
       val (picturePass, pictureInto) = LoopingCases.VIDEO_READINGS.first()
       val pictureAt = laid[picturePass].span.start + pictureInto
       val fixtureSpread =
         fixture.frameAt(fixture.bed.absolutePath, LoopingCases.VIDEO_TRIM.start + pictureInto).spread()
       val spread = fixture.frameAt(output.absolutePath, pictureAt).spread()
-      assertTrue(
-        spread >= fixtureSpread * PICTURE_SPREAD_FLOOR,
+      withClue(
         "the frame at $pictureAt spans $spread against the fixture's own $fixtureSpread, so it carries the fill",
-      )
+      ) {
+        (spread >= fixtureSpread * PICTURE_SPREAD_FLOOR).shouldBeTrue()
+      }
 
       output.delete()
     }
@@ -312,11 +313,14 @@ class FfmpegLoopingTest {
     plan: ExportPlan,
     written: MediaInfo,
   ) {
-    val frame = 1.seconds / assertNotNull(written.video?.frameRate, "the written file names no frame rate").toDouble()
-    assertTrue(
-      abs((written.duration - plan.duration).inWholeMicroseconds) <= frame.inWholeMicroseconds,
-      "the file runs for ${written.duration}, where the plan laid ${plan.duration} and a frame is $frame",
-    )
+    val frame =
+      1.seconds /
+        withClue("the written file names no frame rate") {
+          written.video?.frameRate.shouldNotBeNull()
+        }.toDouble()
+    withClue("the file runs for ${written.duration}, where the plan laid ${plan.duration} and a frame is $frame") {
+      (abs((written.duration - plan.duration).inWholeMicroseconds) <= frame.inWholeMicroseconds).shouldBeTrue()
+    }
   }
 
   /**
@@ -345,10 +349,9 @@ class FfmpegLoopingTest {
     laid.zipWithNext { earlier, later ->
       val closed = earlier.gain.gainAt(earlier.duration)
       val opened = later.gain.gainAt(Duration.ZERO)
-      assertTrue(
-        abs(opened - closed) <= ResolvedGain.PRODUCT_TOLERANCE,
-        "a pass opened at $opened where the one before it closed at $closed, so the fade restarted",
-      )
+      withClue("a pass opened at $opened where the one before it closed at $closed, so the fade restarted") {
+        (abs(opened - closed) <= ResolvedGain.PRODUCT_TOLERANCE).shouldBeTrue()
+      }
     }
   }
 
@@ -376,15 +379,14 @@ class FfmpegLoopingTest {
     into: Duration,
     what: String,
   ) {
-    assertTrue(into < clip.duration, "$into runs past $what, which is ${clip.duration} long")
-    val level = assertNotNull(against.constant, "$what is read against a track whose own gain ramps")
+    withClue("$into runs past $what, which is ${clip.duration} long") { (into < clip.duration).shouldBeTrue() }
+    val level = withClue("$what is read against a track whose own gain ramps") { against.constant.shouldNotBeNull() }
     val at = clip.span.start + into
     val expected = fixtures * (clip.gain.gainAt(into) / level)
     val measured = samples.bedAgainstPrimary(at)
-    assertTrue(
-      abs(measured - expected) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
-      "at $at, $into into $what, the bed read $measured against $expected from the laid gain",
-    )
+    withClue("at $at, $into into $what, the bed read $measured against $expected from the laid gain") {
+      (abs(measured - expected) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE).shouldBeTrue()
+    }
   }
 
   /**
@@ -398,7 +400,7 @@ class FfmpegLoopingTest {
   /**
    * How far apart the lightest and darkest samples of a decoded frame sit.
    *
-   * A fill is one flat colour and reads near nothing here, where the fixture's own pattern spans
+   * A fill is one flat color and reads near nothing here, where the fixture's own pattern spans
    * most of the range, so this says whether a frame carries a picture at all.
    */
   private fun ByteArray.spread(): Int {

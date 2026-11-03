@@ -13,8 +13,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -142,7 +141,10 @@ public fun VideoStageScope.OverlayHandle(
       Canvas(Modifier.matchParentSize()) {
         drawRect(colors.fill)
         drawRect(colors.outline, style = Stroke(width = OUTLINE_WIDTH))
-        if (enabled) drawBrackets(min(handleLengthPx, min(size.width, size.height) / BRACKET_LIMIT), colors.handle)
+        if (enabled) {
+          val length = min(handleLengthPx, min(size.width, size.height) / BRACKET_LIMIT)
+          drawCornerBrackets(Rect(Offset.Zero, size), length, colors.handle, BRACKET_WIDTH)
+        }
       }
     }
   }
@@ -180,32 +182,6 @@ private fun Float.heldWithin(
   val lower = maxOf(0f, low)
   val upper = minOf(1f, high)
   return if (lower > upper) (lower + upper) / 2f else coerceIn(lower, upper)
-}
-
-/**
- * An inward bracket of [length] at each corner of the box being drawn.
- */
-private fun DrawScope.drawBrackets(
-  length: Float,
-  color: Color,
-) {
-  drawBracket(Offset.Zero, Offset(1f, 1f), length, color)
-  drawBracket(Offset(size.width, 0f), Offset(-1f, 1f), length, color)
-  drawBracket(Offset(size.width, size.height), Offset(-1f, -1f), length, color)
-  drawBracket(Offset(0f, size.height), Offset(1f, -1f), length, color)
-}
-
-/**
- * Two arms of [length] meeting at [corner], pointing inward along [direction].
- */
-private fun DrawScope.drawBracket(
-  corner: Offset,
-  direction: Offset,
-  length: Float,
-  color: Color,
-) {
-  drawLine(color, corner, corner + Offset(direction.x * length, 0f), strokeWidth = BRACKET_WIDTH)
-  drawLine(color, corner, corner + Offset(0f, direction.y * length), strokeWidth = BRACKET_WIDTH)
 }
 
 @Preview

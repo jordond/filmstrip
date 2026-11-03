@@ -1,11 +1,9 @@
 package dev.jordond.filmstrip.media3.internal
 
 import androidx.media3.transformer.ExportException
-import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.export.ExportError
-import dev.jordond.filmstrip.export.VideoCodec
-import java.util.Collections
-import java.util.IdentityHashMap
+import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.media3.internal.failure.causeMessages
 
 /**
  * Classifies what media3 reported into filmstrip's own error model.
@@ -18,8 +16,15 @@ import java.util.IdentityHashMap
  * message above it is left out.
  *
  * @param codec The codec the plan asked for, named when the failure is about encoding.
+ * @param sources What was being read, named when the failure is about the input. media3 does not say which source an
+ * IO failure came from, so this is every source the export reads.
+ * @param sink Where the output was going, named when the failure is about the destination.
  */
-internal fun ExportException.toExportError(codec: VideoCodec): ExportError {
+internal fun ExportException.toFilmstripError(
+  codec: VideoCodec,
+  sources: String,
+  sink: String,
+): FilmstripError {
   val detail = causeMessages().joinToString(": ").ifEmpty { "media3 reported error code $errorCode." }
 
   return when (errorCode) {
@@ -32,39 +37,17 @@ internal fun ExportException.toExportError(codec: VideoCodec): ExportError {
     ExportException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE,
     ExportException.ERROR_CODE_IO_BAD_HTTP_STATUS,
     ExportException.ERROR_CODE_IO_CLEARTEXT_NOT_PERMITTED,
-    -> ExportError.SourceUnreadable(codecInfo?.configurationFormat ?: "source", detail)
+    -> FilmstripError.SourceUnreadable(sources, detail)
     ExportException.ERROR_CODE_DECODER_INIT_FAILED,
     ExportException.ERROR_CODE_DECODING_FAILED,
     ExportException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
-    -> ExportError.DecoderRejectedInput(codecInfo?.configurationFormat ?: "unknown", detail)
+    -> FilmstripError.DecoderRejectedInput(codecInfo?.configurationFormat ?: "unknown", detail)
     ExportException.ERROR_CODE_ENCODER_INIT_FAILED,
     ExportException.ERROR_CODE_ENCODING_FORMAT_UNSUPPORTED,
-    -> ExportError.NoEncoder(codec, detail)
+    -> FilmstripError.NoEncoder(codec, detail)
     ExportException.ERROR_CODE_MUXING_FAILED,
     ExportException.ERROR_CODE_MUXING_APPEND,
-    -> ExportError.SinkUnwritable("output", detail)
-    else -> ExportError.Underlying(errorCode, detail)
-  }
-}
-
-/**
- * This throwable's own message followed by the message of every cause under it, outermost first.
- *
- * A wrapper built from a bare cause copies that cause's `toString()` as its own message, so a cause whose `toString()`
- * is the message above it has nothing to add and is left out. So is a blank one, and a chain that loops back on itself
- * is walked once.
- */
-@InternalFilmstripApi
-public fun Throwable.causeMessages(): List<String> {
-  val seen = Collections.newSetFromMap(IdentityHashMap<Throwable, Boolean>())
-  val chain = generateSequence(this) { it.cause }.takeWhile(seen::add)
-
-  return buildList {
-    for (throwable in chain) {
-      val message = throwable.message
-      val above = lastOrNull()
-      if (message.isNullOrBlank() || message == above || throwable.toString() == above) continue
-      add(message)
-    }
+    -> FilmstripError.SinkUnwritable(sink, detail)
+    else -> FilmstripError.Underlying(errorCode, detail)
   }
 }

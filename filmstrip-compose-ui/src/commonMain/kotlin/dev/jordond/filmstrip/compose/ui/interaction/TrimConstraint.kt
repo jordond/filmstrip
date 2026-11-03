@@ -25,8 +25,7 @@ public enum class TrimHandle {
 /**
  * What a trim gesture is allowed to produce.
  *
- * A closed type. The three modes are genuinely different rules rather than combinations of a nullable minimum and
- * maximum, most of whose combinations mean nothing.
+ * A closed type with three modes, each its own rule.
  *
  * Immutable, so a timeline holding one as an option stays skippable.
  */
@@ -109,9 +108,6 @@ public sealed interface TrimConstraint {
   }
 }
 
-/**
- * [TimeRange.endExclusive], or [duration] for a range left open.
- */
 private fun TimeRange.endOr(duration: Duration): Duration = endExclusive ?: duration
 
 /**

@@ -1,0 +1,98 @@
+package dev.jordond.filmstrip.transform.internal.negotiation
+
+import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.export.CopyBlocker
+import dev.jordond.filmstrip.export.ExportPath
+import dev.jordond.filmstrip.transform.internal.copy.CopySupport
+import dev.jordond.filmstrip.transform.internal.copy.copyBlockers
+import dev.jordond.filmstrip.transform.internal.copy.copyOpening
+import dev.jordond.filmstrip.transform.internal.copy.exportPath
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
+
+/**
+ * Whether the streams copy across and what happens to an HDR grade, settled before the codec,
+ * because a grade that survives to the encoder decides which codecs are eligible at all.
+ */
+internal fun gradeOf(
+  edit: EditComposition,
+  ask: Ask,
+  framing: Framing,
+  copySupport: CopySupport,
+  canToneMap: Boolean,
+): Phase<Grade> {
+  val sourceTransfers =
+    edit.tracks
+      .flatMap { it.clips }
+      .mapNotNull { ask.infos[it.source]?.video }
+      .mapTo(mutableSetOf()) { it.hdrTransfer }
+  val sourceIsHdr = sourceTransfers.any { it != null }
+  // Sources that disagree, an HDR clip sat beside an SDR one included, have no one transfer that
+  // describes the output, so there is no grade to keep and the export tone-maps or refuses.
+  val gradesAgree = sourceTransfers.size == 1
+  // The one clip a copy could ever cover, since a copy needs a single track carrying a single
+  // clip. Where that copy would open is settled here and nowhere else, so a backend lays the
+  // window this resolves to.
+  val onlyClip =
+    edit.tracks
+      .singleOrNull()
+      ?.clips
+      ?.singleOrNull()
+  val copyOpening = onlyClip?.let { copyOpening(it, ask.openings[it.source]) }
+  // Measured against the requested frame, since a copy runs no encoder and so has no ceiling to
+  // clamp to.
+  val blockers =
+    copyBlockers(
+      support = copySupport,
+      edit = edit,
+      spec = ask.spec,
+      sourceSize = framing.firstVideo.displaySize,
+      requestedSize = framing.requestedSize,
+      copyOpening = copyOpening,
+      info = ask.infos.getValue(framing.firstClip.source),
+    )
+  val copyKeepsHdr = blockers.isEmpty()
+  val hdr =
+    resolveHdr(ask.spec.hdr, sourceIsHdr, gradesAgree, ask.device.supportsHdrEncoding, canToneMap, copyKeepsHdr)
+      ?: return Phase.Refused(
+        invalid(
+          when {
+            !canToneMap -> NO_HDR_PATH
+            !gradesAgree -> MIXED_GRADES
+            else -> NO_HDR_ENCODER
+          },
+        ),
+      )
+  val path = exportPath(copyKeepsHdr, hdr)
+
+  return Phase.Next(
+    Grade(
+      sourceIsHdr = sourceIsHdr,
+      gradesAgree = gradesAgree,
+      hdr = hdr,
+      // A source that is HLG must not be written as PQ, so the transfer travels with the grade.
+      // Keeping a grade already means the sources agree on one, so there is exactly one to take.
+      hdrTransfer = if (hdr == ResolvedHdr.Keep) sourceTransfers.singleOrNull() else null,
+      // A copy that already keeps the grade needs nothing from the ladder, so it does not pin the
+      // codec to HEVC for a stream nobody is going to encode.
+      encodesHdr = sourceIsHdr && hdr == ResolvedHdr.Keep && !copyKeepsHdr,
+      path = path,
+      // A copy the grade alone ruled out has nothing else wrong with it, so that is the only term
+      // left to report.
+      copyBlockedBy =
+        if (copyKeepsHdr && path != ExportPath.Copy) listOf(CopyBlocker.GradeMustToneMap) else blockers,
+      // Non-null only on a copy, and then it is the window every backend lays.
+      copyOpensAt = copyOpening.takeIf { path == ExportPath.Copy },
+    ),
+  )
+}
+
+private const val NO_HDR_ENCODER =
+  "HDR was required and this device cannot encode it. Use HdrMode.Auto to tone-map instead."
+
+private const val NO_HDR_PATH =
+  "This source carries an HDR grade and this engine can neither encode it nor tone-map it, so " +
+    "there is nowhere to put it."
+
+private const val MIXED_GRADES =
+  "These sources do not share one HDR transfer, so no single grade describes the output. Use " +
+    "HdrMode.Auto or HdrMode.ToneMapToSdr to bring them down to SDR together."

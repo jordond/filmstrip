@@ -16,26 +16,25 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.pictureColour
-import dev.jordond.filmstrip.internal.pngExtent
-import dev.jordond.filmstrip.internal.pngSamples
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.PictureOrientation
-import dev.jordond.filmstrip.media.orientedSamples
+import dev.jordond.filmstrip.picture.PictureOrientation
+import dev.jordond.filmstrip.picture.orientedSamples
+import dev.jordond.filmstrip.picture.pictureColor
+import dev.jordond.filmstrip.picture.png.pngExtent
+import dev.jordond.filmstrip.picture.png.pngSamples
 import dev.jordond.filmstrip.style.TextStyle
 import dev.jordond.filmstrip.test.OrientedPictures
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.io.encoding.Base64
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -47,14 +46,18 @@ class WebOverlayTest {
 
     val style = TextStyle(maxWidth = (hello.width + whole.width) / 2f / FRAME.width)
     val wrap = style.wrapWidthOn(FRAME)
-    assertTrue(wrap in hello.width until whole.width, "wrap $wrap between ${hello.width} and ${whole.width}")
+    withClue("wrap $wrap between ${hello.width} and ${whole.width}") {
+      (wrap in hello.width until whole.width) shouldBe true
+    }
 
     val raster = drawnText(HELLO_WORLD, style, FRAME)
 
-    assertEquals(listOf("Hello", "world"), raster.lines)
-    assertTrue(raster.size.width <= wrap, "a ${raster.size.width} wide raster outgrew its $wrap wrap")
+    raster.lines shouldBe listOf("Hello", "world")
+    withClue("a ${raster.size.width} wide raster outgrew its $wrap wrap") { (raster.size.width <= wrap) shouldBe true }
     // The block is rounded up once rather than per line.
-    assertTrue(raster.size.height in 2 * hello.height - 1..2 * hello.height, "two lines stand ${raster.size}")
+    withClue("two lines stand ${raster.size}") {
+      (raster.size.height in 2 * hello.height - 1..2 * hello.height) shouldBe true
+    }
   }
 
   @Test
@@ -65,7 +68,7 @@ class WebOverlayTest {
 
     val lines = wrapLines("$word\nok", width = 2 * accented.length) { it.length.toDouble() }
 
-    assertEquals(listOf(accented.repeat(2), accented, "ok"), lines)
+    lines shouldBe listOf(accented.repeat(2), accented, "ok")
   }
 
   @Test
@@ -76,8 +79,8 @@ class WebOverlayTest {
     val with = drawnText(HELLO_WORLD, plated, FRAME).size
 
     val padding = plated.platePaddingOn(FRAME)
-    assertTrue(padding > 0)
-    assertEquals(Size(without.width + 2 * padding, without.height + 2 * padding), with)
+    (padding > 0) shouldBe true
+    with shouldBe Size(without.width + 2 * padding, without.height + 2 * padding)
   }
 
   @Test
@@ -87,16 +90,19 @@ class WebOverlayTest {
     val raster = drawnText("H", style, FRAME)
 
     val cap = style.capHeightOn(FRAME)
-    assertTrue(raster.capHeight in cap - 1f..cap + 1f, "capitals stand ${raster.capHeight} for $cap")
+    withClue("capitals stand ${raster.capHeight} for $cap") { (raster.capHeight in cap - 1f..cap + 1f) shouldBe true }
   }
 
   @Test
   fun aFamilyThatIsNoCssIdentifierStillParses() {
     val style = TextStyle(resolvedFontFamily = ODD_FAMILY)
 
-    assertIs<EffectResolution.Resolved>(
-      BuiltInEffectResolver().resolve(TextOverlay(HELLO_WORLD, style), CAPABILITIES, ATTRIBUTES),
-    )
+    BuiltInEffectResolver()
+      .resolve(
+        TextOverlay(HELLO_WORLD, style),
+        CAPABILITIES,
+        ATTRIBUTES,
+      ).shouldBeInstanceOf<EffectResolution.Resolved>()
     assertTheFontParses(style, "1 Weird, ", "Font")
   }
 
@@ -110,8 +116,8 @@ class WebOverlayTest {
     val text = TextOverlay(HELLO_WORLD)
     val resolver = BuiltInEffectResolver()
 
-    assertIs<EffectResolution.Unsupported>(resolver.resolve(text, NO_TEXT_CAPABILITIES, ATTRIBUTES))
-    assertIs<EffectResolution.Resolved>(resolver.resolve(text, CAPABILITIES, ATTRIBUTES))
+    resolver.resolve(text, NO_TEXT_CAPABILITIES, ATTRIBUTES).shouldBeInstanceOf<EffectResolution.Unsupported>()
+    resolver.resolve(text, CAPABILITIES, ATTRIBUTES).shouldBeInstanceOf<EffectResolution.Resolved>()
   }
 
   @Test
@@ -130,10 +136,10 @@ class WebOverlayTest {
       val image = ImageOverlay(ImageSource.ofBytes(pngOf(PNG)), Corner.TopEnd, animation = FADE)
       val resolver = BuiltInEffectResolver()
 
-      resolver.preload(compositionOf(image))
+      resolver.prepare(compositionOf(image))
       val overlay = overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES))
 
-      assertEquals(PNG, overlay.size)
+      overlay.size shouldBe PNG
       val base = image.placedOn(FRAME, overlay.size)
       assertDrawsAcrossTheFade(image, overlay) { frame -> base.animatedBy(frame).rectOn(FRAME) }
     }
@@ -145,9 +151,9 @@ class WebOverlayTest {
       val image = ImageOverlay(ImageSource.ofUri(uri), Corner.TopEnd)
       val resolver = BuiltInEffectResolver()
 
-      resolver.preload(compositionOf(image))
+      resolver.prepare(compositionOf(image))
 
-      assertEquals(PNG, overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES)).size)
+      overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES)).size shouldBe PNG
     }
 
   @Test
@@ -157,12 +163,15 @@ class WebOverlayTest {
         val image = ImageOverlay(ImageSource.ofBytes(pngOf(size)), Corner.TopEnd)
         val resolver = BuiltInEffectResolver()
         val longest = maxOf(size.width, size.height)
-        resolver.preload(compositionOf(image))
+        resolver.prepare(compositionOf(image))
 
-        assertEquals(size, overlayOf(resolver.resolve(image, textCapabilities(longest), ATTRIBUTES)).size)
+        overlayOf(resolver.resolve(image, textCapabilities(longest), ATTRIBUTES)).size shouldBe size
         val past = resolver.resolve(image, textCapabilities(longest - 1), ATTRIBUTES)
-        val refused = assertIs<EffectResolution.Unsupported>(past, "the $size picture resolved as $past")
-        assertEquals(picturePastTextureSide(size.width, size.height, longest - 1, WEBGL), refused.message)
+        val refused =
+          withClue("the $size picture resolved as $past") {
+            past.shouldBeInstanceOf<EffectResolution.Unsupported>()
+          }
+        refused.message shouldBe picturePastTextureSide(size.width, size.height, longest - 1, WEBGL)
       }
     }
 
@@ -175,33 +184,36 @@ class WebOverlayTest {
       val shown = turn.orientedSize(JPEG_SIZE)
       val longest = maxOf(shown.width, shown.height)
       val resolver = BuiltInEffectResolver()
-      resolver.preload(compositionOf(image))
+      resolver.prepare(compositionOf(image))
 
-      assertEquals(JPEG_SIZE, overlayOf(resolver.resolve(image, textCapabilities(longest), ATTRIBUTES)).size)
+      overlayOf(resolver.resolve(image, textCapabilities(longest), ATTRIBUTES)).size shouldBe JPEG_SIZE
       val past = resolver.resolve(image, textCapabilities(longest - 1), ATTRIBUTES)
-      val refused = assertIs<EffectResolution.Unsupported>(past, "the turned picture resolved as $past")
-      assertEquals(picturePastTextureSide(shown.width, shown.height, longest - 1, WEBGL), refused.message)
+      val refused =
+        withClue("the turned picture resolved as $past") {
+          past.shouldBeInstanceOf<EffectResolution.Unsupported>()
+        }
+      refused.message shouldBe picturePastTextureSide(shown.width, shown.height, longest - 1, WEBGL)
     }
 
-  // The bitmap keeps the stored codes, so the compositor needs the colour the picture's own bytes describe.
+  // The bitmap keeps the stored codes, so the compositor needs the color the picture's own bytes describe.
   @Test
-  fun aTaggedImageCarriesTheColourItsBytesDescribe() =
+  fun aTaggedImageCarriesTheColorItsBytesDescribe() =
     runTest {
       val bytes = pngOf(PNG, chunk(CICP, CICP_DISPLAY_P3))
       val uri = "data:image/png;base64," + Base64.encode(bytes)
-      val expected = assertNotNull(pictureColour(bytes))
+      val expected = pictureColor(bytes).shouldNotBeNull()
 
       for (source in listOf(ImageSource.ofBytes(bytes), ImageSource.ofUri(uri))) {
         val image = ImageOverlay(source, Corner.TopEnd)
         val resolver = BuiltInEffectResolver()
-        resolver.preload(compositionOf(image))
+        resolver.prepare(compositionOf(image))
 
-        assertEquals(expected, overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES)).colour, "$source")
+        withClue("$source") { overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES)).color shouldBe expected }
       }
     }
 
   @Test
-  fun anUntaggedImageCarriesNoColour() =
+  fun anUntaggedImageCarriesNoColor() =
     runTest {
       val bytes = pngOf(PNG)
       val uri = "data:image/png;base64," + Base64.encode(bytes)
@@ -209,9 +221,9 @@ class WebOverlayTest {
       for (source in listOf(ImageSource.ofBytes(bytes), ImageSource.ofUri(uri))) {
         val image = ImageOverlay(source, Corner.TopEnd)
         val resolver = BuiltInEffectResolver()
-        resolver.preload(compositionOf(image))
+        resolver.prepare(compositionOf(image))
 
-        assertNull(overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES)).colour, "$source")
+        withClue("$source") { overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES)).color.shouldBeNull() }
       }
     }
 
@@ -223,13 +235,13 @@ class WebOverlayTest {
       for (bytes in listOf(pngOf(PNG), pngOf(PNG, sixteenBitSample = SIXTEEN_BIT_SAMPLE))) {
         val image = ImageOverlay(ImageSource.ofBytes(bytes), Corner.TopEnd)
         val resolver = BuiltInEffectResolver()
-        resolver.preload(compositionOf(image))
+        resolver.prepare(compositionOf(image))
 
-        val samples = assertNotNull(samplesOf(overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES))))
-        assertContentEquals(assertNotNull(pngSamples(bytes)).rgba, samples)
+        val samples = samplesOf(overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES))).shouldNotBeNull()
+        samples shouldBe pngSamples(bytes).shouldNotBeNull().rgba
       }
-      val sixteenBit = assertNotNull(pngSamples(pngOf(PNG, sixteenBitSample = SIXTEEN_BIT_SAMPLE)))
-      assertEquals(SIXTEEN_BIT_SAMPLE, sixteenBit.rgba.first().toInt() and 0xFFFF)
+      val sixteenBit = pngSamples(pngOf(PNG, sixteenBitSample = SIXTEEN_BIT_SAMPLE)).shouldNotBeNull()
+      (sixteenBit.rgba.first().toInt() and 0xFFFF) shouldBe SIXTEEN_BIT_SAMPLE
     }
 
   // The browser decodes a picture with no orientation applied. A PNG's samples are laid out the way core reads its
@@ -237,16 +249,16 @@ class WebOverlayTest {
   @Test
   fun aPngWithAnExifOrientationCarriesItsSamplesLaidOutTheWayCoreReadsIt() =
     runTest {
-      val stored = assertNotNull(pngSamples(OrientedPictures.png()))
+      val stored = pngSamples(OrientedPictures.png()).shouldNotBeNull()
       val storedSize = Size(stored.width, stored.height)
       for (orientation in PictureOrientation.entries) {
         val bytes = OrientedPictures.taggedPng(OrientedPictures.png(), orientation.exif)
         val overlay = resolvedOverlay(ImageOverlay(ImageSource.ofBytes(bytes), Corner.TopEnd))
 
-        assertEquals(orientation.orientedSize(storedSize), overlay.size, "$orientation")
-        assertEquals(PictureOrientation.Normal, overlay.orientation, "$orientation")
-        val samples = assertNotNull(samplesOf(overlay), "$orientation")
-        assertContentEquals(orientedSamples(orientation, stored.rgba, storedSize), samples, "$orientation")
+        withClue("$orientation") { overlay.size shouldBe orientation.orientedSize(storedSize) }
+        withClue("$orientation") { overlay.orientation shouldBe PictureOrientation.Normal }
+        val samples = withClue("$orientation") { samplesOf(overlay).shouldNotBeNull() }
+        withClue("$orientation") { samples shouldBe orientedSamples(orientation, stored.rgba, storedSize) }
       }
     }
 
@@ -260,10 +272,10 @@ class WebOverlayTest {
         val image = ImageOverlay(ImageSource.ofBytes(tagged), Corner.TopEnd)
         val overlay = resolvedOverlay(image)
 
-        assertEquals(JPEG_SIZE, overlay.size, "$orientation")
-        assertEquals(orientation, overlay.orientation, "$orientation")
+        withClue("$orientation") { overlay.size shouldBe JPEG_SIZE }
+        withClue("$orientation") { overlay.orientation shouldBe orientation }
         val expected = image.placedOn(FRAME, orientation.orientedSize(JPEG_SIZE)).rectOn(FRAME)
-        assertEquals(expected, assertNotNull(overlay.drawAt(Duration.ZERO)).rect, "$orientation")
+        withClue("$orientation") { overlay.drawAt(Duration.ZERO).shouldNotBeNull().rect shouldBe expected }
       }
     }
 
@@ -272,7 +284,7 @@ class WebOverlayTest {
   @Test
   fun theBrowserDecodesEveryTaggedPictureAsStored() =
     runTest {
-      val png = assertNotNull(pngSamples(OrientedPictures.png()))
+      val png = pngSamples(OrientedPictures.png()).shouldNotBeNull()
       val pngSize = Size(png.width, png.height)
       for (orientation in PictureOrientation.entries) {
         val pictures =
@@ -283,14 +295,14 @@ class WebOverlayTest {
         for ((name, tagged, stored) in pictures) {
           val bitmap = bitmapOf(tagged)
 
-          assertEquals(stored, Size(bitmap.width, bitmap.height), "$name $orientation")
+          withClue("$name $orientation") { Size(bitmap.width, bitmap.height) shouldBe stored }
         }
       }
     }
 
   private suspend fun resolvedOverlay(image: ImageOverlay): WebGlOverlay {
     val resolver = BuiltInEffectResolver()
-    resolver.preload(compositionOf(image))
+    resolver.prepare(compositionOf(image))
     return overlayOf(resolver.resolve(image, CAPABILITIES, ATTRIBUTES))
   }
 
@@ -300,14 +312,14 @@ class WebOverlayTest {
   fun aPngWhosePeakPassesTheCeilingIsRefusedNamingItsSize() =
     runTest {
       val bytes = pngOf(PNG)
-      val extent = assertNotNull(pngExtent(bytes))
-      val peak = assertNotNull(pngPeakBytes(extent))
+      val extent = pngExtent(bytes).shouldNotBeNull()
+      val peak = pngPeakBytes(extent).shouldNotBeNull()
       val source = ImageSource.ofBytes(bytes)
       val past = OverlayImages(ceiling = peak - 1).apply { preload(source) }[source]
       val at = OverlayImages(ceiling = peak).apply { preload(source) }[source]
 
-      assertEquals(tooLargeToDecode(extent, peak, peak - 1), assertIs<OverlayDecode.Refused>(past).message)
-      assertIs<OverlayDecode.Decoded>(at)
+      past.shouldBeInstanceOf<OverlayDecode.Refused>().message shouldBe tooLargeToDecode(extent, peak, peak - 1)
+      at.shouldBeInstanceOf<OverlayDecode.Decoded>()
     }
 
   // Only the header is written, which is all the count reads, so a picture this large costs nothing to refuse.
@@ -315,19 +327,17 @@ class WebOverlayTest {
   fun theCeilingHoldsA48MpPngAtEitherDepthAndRefusesA64MpSixteenBitOne() =
     runTest {
       for (depth in listOf(8, 16)) {
-        val peak = assertNotNull(pngPeakBytes(assertNotNull(pngExtent(pngHeaderOnly(8_000, 6_000, depth)))))
-        assertTrue(peak <= PICTURE_PEAK_CEILING, "a 48 MP $depth-bit PNG peaks at $peak")
+        val peak = pngPeakBytes(pngExtent(pngHeaderOnly(8_000, 6_000, depth)).shouldNotBeNull()).shouldNotBeNull()
+        withClue("a 48 MP $depth-bit PNG peaks at $peak") { (peak <= PICTURE_PEAK_CEILING) shouldBe true }
       }
       val large = pngHeaderOnly(8_000, 8_000, 16)
-      val extent = assertNotNull(pngExtent(large))
+      val extent = pngExtent(large).shouldNotBeNull()
       val source = ImageSource.ofBytes(large)
       val refused = OverlayImages().apply { preload(source) }[source]
 
-      assertEquals(
-        tooLargeToDecode(extent, pngPeakBytes(extent), PICTURE_PEAK_CEILING),
-        assertIs<OverlayDecode.Refused>(refused).message,
-      )
-      assertEquals(1_280_008_000L, pngPeakBytes(extent))
+      refused.shouldBeInstanceOf<OverlayDecode.Refused>().message shouldBe
+        tooLargeToDecode(extent, pngPeakBytes(extent), PICTURE_PEAK_CEILING)
+      pngPeakBytes(extent) shouldBe 1_280_008_000L
     }
 
   @Test
@@ -337,7 +347,7 @@ class WebOverlayTest {
       val image = ImageOverlay(ImageSource.ofBytes(bytes), Corner.TopEnd)
       val resolver = BuiltInEffectResolver()
 
-      resolver.preload(compositionOf(image))
+      resolver.prepare(compositionOf(image))
 
       assertUnsupportedNaming("$CORRUPT_LENGTH-byte", resolver.resolve(image, CAPABILITIES, ATTRIBUTES))
     }
@@ -349,7 +359,7 @@ class WebOverlayTest {
       val image = ImageOverlay(ImageSource.Path(path), Corner.TopEnd)
       val resolver = BuiltInEffectResolver()
 
-      resolver.preload(compositionOf(image))
+      resolver.prepare(compositionOf(image))
 
       assertUnsupportedNaming(path, resolver.resolve(image, CAPABILITIES, ATTRIBUTES))
     }
@@ -370,22 +380,23 @@ class WebOverlayTest {
       val image = ImageOverlay(ImageSource.ofBytes(pngOf(PNG)), Corner.TopEnd)
       val text = TextOverlay(HELLO_WORLD)
       val resolver = BuiltInEffectResolver()
-      resolver.preload(compositionOf(image))
+      resolver.prepare(compositionOf(image))
 
       for (transfer in HdrTransfer.entries) {
         for (spec in listOf<EffectSpec>(image, text)) {
           val overlay = overlayOf(resolver.resolve(spec, CAPABILITIES, attributes(hdrTransfer = transfer)))
-          assertNotNull(overlay.drawAt(Duration.ZERO), "$spec on $transfer is not drawn")
+          withClue("$spec on $transfer is not drawn") { overlay.drawAt(Duration.ZERO).shouldNotBeNull() }
         }
       }
     }
 
   private fun overlayOf(resolution: EffectResolution?): WebGlOverlay {
-    val resolved = assertIs<EffectResolution.Resolved>(resolution)
-    return assertNotNull(resolved.effect.overlay)
+    val resolved = resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
+    return resolved.effect.overlay.shouldNotBeNull()
   }
 
-  private fun samplesOf(overlay: WebGlOverlay): ShortArray? = assertIs<OverlaySource.Image>(overlay.source).samples
+  private fun samplesOf(overlay: WebGlOverlay): ShortArray? =
+    overlay.source.shouldBeInstanceOf<OverlaySource.Image>().samples
 
   private fun assertDrawsAcrossTheFade(
     spec: OverlayEffect,
@@ -393,11 +404,11 @@ class WebOverlayTest {
     rectOf: (OverlayFrame) -> NormalizedRect,
   ) {
     for (time in listOf(FADE_LENGTH / 4, FADE_LENGTH * 3 / 4)) {
-      val frame = assertNotNull(spec.frameAt(time, SPAN))
-      val draw = assertNotNull(overlay.drawAt(time), "drawn at $time")
+      val frame = spec.frameAt(time, SPAN).shouldNotBeNull()
+      val draw = withClue("drawn at $time") { overlay.drawAt(time).shouldNotBeNull() }
 
-      assertEquals(frame.opacity, draw.opacity, "opacity at $time")
-      assertEquals(rectOf(frame), draw.rect, "rect at $time")
+      withClue("opacity at $time") { draw.opacity shouldBe frame.opacity }
+      withClue("rect at $time") { draw.rect shouldBe rectOf(frame) }
     }
   }
 
@@ -405,8 +416,8 @@ class WebOverlayTest {
     name: String,
     resolution: EffectResolution?,
   ) {
-    val unsupported = assertIs<EffectResolution.Unsupported>(resolution)
-    assertTrue(unsupported.message.contains(name), unsupported.message)
+    val unsupported = resolution.shouldBeInstanceOf<EffectResolution.Unsupported>()
+    withClue(unsupported.message) { unsupported.message.contains(name) shouldBe true }
   }
 
   // A shorthand the canvas cannot parse leaves the context on its 10px default, which stands a capital far below the
@@ -419,11 +430,15 @@ class WebOverlayTest {
     val raster = drawnText(HELLO_WORLD, style, FRAME)
 
     val cap = style.capHeightOn(FRAME)
-    assertTrue(raster.capHeight in cap - 1f..cap + 1f, "capitals stand ${raster.capHeight} for $cap")
-    val context = assertNotNull(OffscreenCanvas(1, 1).getContext(CONTEXT_2D))
+    withClue("capitals stand ${raster.capHeight} for $cap") { (raster.capHeight in cap - 1f..cap + 1f) shouldBe true }
+    val context = OffscreenCanvas(1, 1).getContext(CONTEXT_2D).shouldNotBeNull()
     context.font = raster.font
     val parsed = context.font
-    familyParts.forEach { assertTrue(it in parsed, "the font ${raster.font} parsed as $parsed, without $it") }
+    familyParts.forEach {
+      withClue("the font ${raster.font} parsed as $parsed, without $it") {
+        (it in parsed) shouldBe true
+      }
+    }
   }
 
   private fun compositionOf(effect: EffectSpec): EditComposition =

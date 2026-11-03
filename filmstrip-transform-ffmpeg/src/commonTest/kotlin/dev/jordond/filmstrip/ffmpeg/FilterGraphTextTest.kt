@@ -2,9 +2,9 @@ package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.PlaneLanes
-import dev.jordond.filmstrip.ffmpeg.internal.FilterGraphBuilder
-import dev.jordond.filmstrip.ffmpeg.internal.escapeFilterValue
-import dev.jordond.filmstrip.ffmpeg.internal.render
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.FilterGraphBuilder
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.escapeFilterValue
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.render
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldStartWith
@@ -197,7 +197,7 @@ class FilterGraphTextTest {
   }
 
   @Test
-  fun `refuses plane lanes naming alpha in place of a colour plane`() {
+  fun `refuses plane lanes naming alpha in place of a color plane`() {
     listOf(listOf("y", "u", "a"), listOf("r", "g", "a")).forEach { planes ->
       assertFailsWith<IllegalArgumentException>("$planes into $FLOAT_RGB") {
         FilterGraphBuilder().chain(listOf("0:v"), listOf(PlaneLanes.node(planes, FLOAT_RGB)), "a")

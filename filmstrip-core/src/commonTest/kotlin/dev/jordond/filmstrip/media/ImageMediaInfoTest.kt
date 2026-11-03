@@ -1,10 +1,11 @@
 package dev.jordond.filmstrip.media
 
+import dev.jordond.filmstrip.color.hdrTransfer
 import dev.jordond.filmstrip.geometry.Size
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -16,7 +17,7 @@ class ImageMediaInfoTest {
   fun theDeclaredDurationIsWhatTheInfoReports() {
     val info = imageMediaInfoOf(PHOTO, EXIF_ORIENTATION_NORMAL, "jpeg", 4.seconds)
 
-    assertEquals(4.seconds, info.duration)
+    info.duration shouldBe 4.seconds
   }
 
   @Test
@@ -24,9 +25,9 @@ class ImageMediaInfoTest {
     val info = imageMediaInfoOf(PHOTO, EXIF_ORIENTATION_NORMAL, "jpeg", 4.seconds)
     val video = requireNotNull(info.video)
 
-    assertEquals(PHOTO, video.codedSize)
-    assertEquals(PHOTO, video.displaySize)
-    assertEquals(0, video.rotationDegrees)
+    video.codedSize shouldBe PHOTO
+    video.displaySize shouldBe PHOTO
+    video.rotationDegrees shouldBe 0
   }
 
   // displaySize is what a target sizes an output from, so a photo a phone stored sideways has to
@@ -36,9 +37,9 @@ class ImageMediaInfoTest {
     val info = imageMediaInfoOf(PHOTO, ORIENTATION_ROTATE_90, "jpeg", 4.seconds)
     val video = requireNotNull(info.video)
 
-    assertEquals(PHOTO, video.codedSize)
-    assertEquals(Size(PHOTO.height, PHOTO.width), video.displaySize)
-    assertEquals(90, video.rotationDegrees)
+    video.codedSize shouldBe PHOTO
+    video.displaySize shouldBe Size(PHOTO.height, PHOTO.width)
+    video.rotationDegrees shouldBe 90
   }
 
   @Test
@@ -46,26 +47,26 @@ class ImageMediaInfoTest {
     val info = imageMediaInfoOf(PHOTO, ORIENTATION_ROTATE_180, "jpeg", 4.seconds)
     val video = requireNotNull(info.video)
 
-    assertEquals(PHOTO, video.displaySize)
-    assertEquals(180, video.rotationDegrees)
+    video.displaySize shouldBe PHOTO
+    video.rotationDegrees shouldBe 180
   }
 
-  // Other is what makes videoCodecOf refuse to name a codec, which is what stops a copy being
+  // Other is what makes videoCodecOf name no codec, which is what stops a copy being
   // planned over pixels no muxer carries. The format still travels, for a bug report to read.
   @Test
   fun theCodecNamesTheStillFormatAndIsRecognisedAsNothing() {
     val info = imageMediaInfoOf(PHOTO, EXIF_ORIENTATION_NORMAL, "heic", 4.seconds)
     val video = requireNotNull(info.video)
 
-    assertEquals("heic", video.codec.name)
-    assertEquals(CodecKind.Other, video.codec.kind)
+    video.codec.name shouldBe "heic"
+    video.codec.kind shouldBe CodecKind.Other
   }
 
   @Test
   fun aFormatNoTargetNamedIsReportedEmptyRatherThanGuessedAt() {
     val info = imageMediaInfoOf(PHOTO, EXIF_ORIENTATION_NORMAL, "", 4.seconds)
 
-    assertEquals("", requireNotNull(info.video).codec.name)
+    requireNotNull(info.video).codec.name shouldBe ""
   }
 
   @Test
@@ -73,11 +74,11 @@ class ImageMediaInfoTest {
     val info = imageMediaInfoOf(PHOTO, EXIF_ORIENTATION_NORMAL, "png", 4.seconds)
     val video = requireNotNull(info.video)
 
-    assertNull(video.frameRate)
-    assertNull(video.bitDepth)
-    assertNull(video.bitrate)
-    assertNull(video.hdrTransfer)
-    assertNull(info.audio)
+    video.frameRate.shouldBeNull()
+    video.bitDepth.shouldBeNull()
+    video.bitrate.shouldBeNull()
+    video.hdrTransfer.shouldBeNull()
+    info.audio.shouldBeNull()
   }
 
   @Test
@@ -85,33 +86,33 @@ class ImageMediaInfoTest {
     val info = imageMediaInfoOf(PHOTO, EXIF_ORIENTATION_NORMAL, "png", 4.seconds)
     val video = requireNotNull(info.video)
 
-    assertEquals(1f, video.pixelAspectRatio)
-    assertEquals(ColorSpace.Bt709, video.colorSpace)
-    assertTrue(info.isExportable)
+    video.pixelAspectRatio shouldBe 1f
+    video.colorSpace shouldBe ColorSpace.Bt709
+    info.isExportable.shouldBeTrue()
   }
 
   // The four mirrored orientations sit in the middle of the range and are the ones a mapping that
   // multiplied the tag out would get wrong. Each reports the turn it shares with its twin.
   @Test
   fun aMirroredOrientationReportsTheTurnItSharesWithItsTwin() {
-    assertEquals(imageRotationOf(EXIF_ORIENTATION_NORMAL), imageRotationOf(ORIENTATION_FLIP_HORIZONTAL))
-    assertEquals(imageRotationOf(ORIENTATION_ROTATE_180), imageRotationOf(ORIENTATION_FLIP_VERTICAL))
-    assertEquals(imageRotationOf(ORIENTATION_ROTATE_90), imageRotationOf(ORIENTATION_TRANSPOSE))
-    assertEquals(imageRotationOf(ORIENTATION_ROTATE_270), imageRotationOf(ORIENTATION_TRANSVERSE))
+    imageRotationOf(ORIENTATION_FLIP_HORIZONTAL) shouldBe imageRotationOf(EXIF_ORIENTATION_NORMAL)
+    imageRotationOf(ORIENTATION_FLIP_VERTICAL) shouldBe imageRotationOf(ORIENTATION_ROTATE_180)
+    imageRotationOf(ORIENTATION_TRANSPOSE) shouldBe imageRotationOf(ORIENTATION_ROTATE_90)
+    imageRotationOf(ORIENTATION_TRANSVERSE) shouldBe imageRotationOf(ORIENTATION_ROTATE_270)
   }
 
   @Test
   fun everyOrientationTheTagDefinesMapsToAQuarterTurn() {
     val turns = (EXIF_ORIENTATION_NORMAL..ORIENTATION_ROTATE_270).map(::imageRotationOf)
 
-    assertEquals(listOf(0, 0, 180, 180, 90, 90, 270, 270), turns)
+    turns shouldBe listOf(0, 0, 180, 180, 90, 90, 270, 270)
   }
 
   @Test
   fun aTagOutsideTheRangeReadsAsNoRotation() {
-    assertEquals(0, imageRotationOf(0))
-    assertEquals(0, imageRotationOf(9))
-    assertEquals(0, imageRotationOf(-1))
+    imageRotationOf(0) shouldBe 0
+    imageRotationOf(9) shouldBe 0
+    imageRotationOf(-1) shouldBe 0
   }
 
   private companion object {

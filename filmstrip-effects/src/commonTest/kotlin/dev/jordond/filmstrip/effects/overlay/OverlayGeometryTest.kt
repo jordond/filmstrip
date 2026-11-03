@@ -4,11 +4,11 @@ import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.math.abs
 import kotlin.math.min
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 /**
  * Overlay placement, computed once in shared code so both backends land a watermark in the same
@@ -19,7 +19,7 @@ class OverlayGeometryTest {
   fun scaleIsAFractionOfFrameWidthAndHeightFollowsTheImage() {
     val placement = imageOverlay(scale = 0.2f).placedOn(LANDSCAPE, Size(100, 50))
 
-    assertEquals(Size(384, 192), placement.size)
+    placement.size shouldBe Size(384, 192)
   }
 
   @Test
@@ -27,7 +27,7 @@ class OverlayGeometryTest {
     val placement = imageOverlay(scale = 0.1f).placedOn(LANDSCAPE, Size(50, 200))
 
     // A quarter as wide as it is tall, before and after.
-    assertEquals(Size(192, 768), placement.size)
+    placement.size shouldBe Size(192, 768)
   }
 
   @Test
@@ -58,11 +58,11 @@ class OverlayGeometryTest {
 
       // The overlay meets the frame at the matching point, which is what stops a corner watermark
       // hanging half outside the frame.
-      assertEquals(expected, placement.overlayAnchor)
+      placement.overlayAnchor shouldBe expected
       // The margin always moves the meeting point towards the middle, never past an edge.
-      assertTrue(placement.frameAnchor.x > 0f && placement.frameAnchor.x < 1f)
-      assertTrue(placement.frameAnchor.y > 0f && placement.frameAnchor.y < 1f)
-      assertTrue(abs(placement.frameAnchor.x - expected.x) > 0f)
+      (placement.frameAnchor.x > 0f && placement.frameAnchor.x < 1f) shouldBe true
+      (placement.frameAnchor.y > 0f && placement.frameAnchor.y < 1f) shouldBe true
+      (abs(placement.frameAnchor.x - expected.x) > 0f) shouldBe true
     }
   }
 
@@ -70,15 +70,15 @@ class OverlayGeometryTest {
   fun aMarginWiderThanTheFrameStopsAtTheMiddle() {
     val placement = imageOverlay(corner = Corner.TopStart, margin = 5f).placedOn(LANDSCAPE, SQUARE_IMAGE)
 
-    assertEquals(Anchor(0.5f, 0.5f), placement.frameAnchor)
+    placement.frameAnchor shouldBe Anchor(0.5f, 0.5f)
   }
 
   @Test
   fun noMarginPutsTheOverlayFlushWithTheCorner() {
     val placement = imageOverlay(corner = Corner.BottomEnd, margin = 0f).placedOn(LANDSCAPE, SQUARE_IMAGE)
 
-    assertEquals(Anchor.BottomEnd, placement.overlayAnchor)
-    assertEquals(Anchor.BottomEnd, placement.frameAnchor)
+    placement.overlayAnchor shouldBe Anchor.BottomEnd
+    placement.frameAnchor shouldBe Anchor.BottomEnd
   }
 
   @Test
@@ -86,18 +86,18 @@ class OverlayGeometryTest {
     val placement = TextOverlay("caption", anchor = Anchor.BottomCenter).placedOn(Size(300, 80))
 
     // TextOverlay carries no margin, so the block's own bottom-centre sits on the frame's.
-    assertEquals(Anchor.BottomCenter, placement.overlayAnchor)
-    assertEquals(Anchor.BottomCenter, placement.frameAnchor)
+    placement.overlayAnchor shouldBe Anchor.BottomCenter
+    placement.frameAnchor shouldBe Anchor.BottomCenter
     // Rasterised at the size it will occupy, so nothing rescales it.
-    assertEquals(Size(300, 80), placement.size)
+    placement.size shouldBe Size(300, 80)
   }
 
   @Test
   fun aDegenerateImageStillPlaces() {
     val placement = imageOverlay(scale = 0.2f).placedOn(LANDSCAPE, Size(0, 0))
 
-    assertEquals(384, placement.size.width)
-    assertTrue(placement.size.height >= 1)
+    placement.size.width shouldBe 384
+    (placement.size.height >= 1) shouldBe true
   }
 
   @Test
@@ -131,8 +131,8 @@ class OverlayGeometryTest {
 
     val rect = placement.rectOn(LANDSCAPE)
 
-    assertTrue(rect.left < 0f, "expected the overlay to hang off the start edge, was ${rect.left}")
-    assertTrue(!rect.isValid)
+    withClue("expected the overlay to hang off the start edge, was ${rect.left}") { (rect.left < 0f) shouldBe true }
+    !rect.isValid shouldBe true
   }
 
   @Test
@@ -166,17 +166,17 @@ class OverlayGeometryTest {
       val anchor = imageOverlay(corner = corner, margin = margin).placedOn(PORTRAIT, SQUARE_IMAGE).frameAnchor
       val inset = anchor.nearestCornerInset(PORTRAIT)
 
-      assertEquals(corner, inset.corner)
+      inset.corner shouldBe corner
       assertClose(margin, inset.margin)
     }
   }
 
   @Test
   fun `a point takes the corner of the quadrant it falls in`() {
-    assertEquals(Corner.TopStart, Anchor(0.3f, 0.2f).nearestCornerInset(LANDSCAPE).corner)
-    assertEquals(Corner.TopEnd, Anchor(0.8f, 0.2f).nearestCornerInset(LANDSCAPE).corner)
-    assertEquals(Corner.BottomStart, Anchor(0.3f, 0.8f).nearestCornerInset(LANDSCAPE).corner)
-    assertEquals(Corner.BottomEnd, Anchor(0.8f, 0.8f).nearestCornerInset(LANDSCAPE).corner)
+    Anchor(0.3f, 0.2f).nearestCornerInset(LANDSCAPE).corner shouldBe Corner.TopStart
+    Anchor(0.8f, 0.2f).nearestCornerInset(LANDSCAPE).corner shouldBe Corner.TopEnd
+    Anchor(0.3f, 0.8f).nearestCornerInset(LANDSCAPE).corner shouldBe Corner.BottomStart
+    Anchor(0.8f, 0.8f).nearestCornerInset(LANDSCAPE).corner shouldBe Corner.BottomEnd
   }
 
   @Test
@@ -185,7 +185,7 @@ class OverlayGeometryTest {
     // which is 204 / 1080 of the shorter side.
     val inset = Anchor(0.1f, 0.2f).nearestCornerInset(LANDSCAPE)
 
-    assertEquals(Corner.TopStart, inset.corner)
+    inset.corner shouldBe Corner.TopStart
     assertClose(204f / 1080f, inset.margin)
   }
 
@@ -194,7 +194,7 @@ class OverlayGeometryTest {
     val full = Anchor(0.12f, 0.28f).nearestCornerInset(LANDSCAPE)
     val quarter = Anchor(0.12f, 0.28f).nearestCornerInset(Size(480, 270))
 
-    assertEquals(full.corner, quarter.corner)
+    quarter.corner shouldBe full.corner
     assertClose(full.margin, quarter.margin)
   }
 
@@ -202,7 +202,7 @@ class OverlayGeometryTest {
   fun `an identity frame leaves the placement where it was`() {
     val placement = imageOverlay().placedOn(LANDSCAPE, SQUARE_IMAGE)
 
-    assertEquals(placement, placement.animatedBy(OverlayFrame.Identity))
+    placement.animatedBy(OverlayFrame.Identity) shouldBe placement
   }
 
   @Test
@@ -249,15 +249,15 @@ class OverlayGeometryTest {
 
     val rect = placement.animatedBy(OverlayFrame(offset = OverlayOffset(-0.5f, 0f))).rectOn(LANDSCAPE)
 
-    assertTrue(rect.left < 0f, "expected the overlay to leave the start edge, was ${rect.left}")
-    assertTrue(!rect.isValid)
+    withClue("expected the overlay to leave the start edge, was ${rect.left}") { (rect.left < 0f) shouldBe true }
+    !rect.isValid shouldBe true
   }
 
   @Test
   fun `a scale reaching zero still leaves a pixel to draw`() {
     val placement = imageOverlay().placedOn(LANDSCAPE, SQUARE_IMAGE)
 
-    assertEquals(Size(1, 1), placement.animatedBy(OverlayFrame(scale = 0f)).size)
+    placement.animatedBy(OverlayFrame(scale = 0f)).size shouldBe Size(1, 1)
   }
 
   private fun imageOverlay(
@@ -270,7 +270,7 @@ class OverlayGeometryTest {
     expected: Float,
     actual: Float,
   ) {
-    assertTrue(abs(expected - actual) < TOLERANCE, "expected $expected but was $actual")
+    withClue("expected $expected but was $actual") { (abs(expected - actual) < TOLERANCE) shouldBe true }
   }
 
   private companion object {

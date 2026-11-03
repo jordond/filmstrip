@@ -10,8 +10,8 @@ import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.test.assertIs
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -30,7 +30,7 @@ class TrimPlanTest {
     val trimmed = fixture.clip(trim = TimeRange.of(1_000.milliseconds, 3_000.milliseconds))
     val verdict = fixture.plan(composition(trimmed))
 
-    assertIs<Verdict.Capable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
     firstClipOf(fixture.resolve(composition(trimmed))).startsAtKeyFrame shouldBe false
     fixture.resolve(composition(trimmed)).duration shouldBe 2_000.milliseconds
   }
@@ -44,8 +44,8 @@ class TrimPlanTest {
     val verdict = fixture.plan(composition, openings = openings)
     val resolved = fixture.resolve(composition, openings = openings)
 
-    assertIs<Verdict.Capable>(verdict)
-    verdict.plan.path shouldBe ExportPath.Transmux
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
+    verdict.plan.path shouldBe ExportPath.Copy
     verdict.plan.copyBlockedBy.shouldBeEmpty()
     firstClipOf(resolved).startsAtKeyFrame shouldBe true
     firstClipOf(resolved).start shouldBe 1_000.milliseconds
@@ -75,7 +75,7 @@ class TrimPlanTest {
 
     val verdict = fixture.plan(composition, openings = openings(trimmed, 500.milliseconds))
 
-    assertIs<Verdict.Capable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
     verdict.plan.duration shouldBe 2_500.milliseconds
     composition.duration shouldBe 2_000.milliseconds
   }
@@ -104,7 +104,7 @@ class TrimPlanTest {
 
     val verdict = fixture.plan(composition, openings = openings)
 
-    assertIs<Verdict.Capable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
     verdict.plan.path shouldBe ExportPath.Transcode
     verdict.plan.copyBlockedBy shouldBe listOf(CopyBlocker.TrimNotOnSyncSample)
     firstClipOf(fixture.resolve(composition, openings = openings)).start shouldBe 1_000.milliseconds
@@ -116,7 +116,7 @@ class TrimPlanTest {
 
     val verdict = fixture.plan(composition)
 
-    assertIs<Verdict.Capable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
     verdict.plan.copyBlockedBy shouldBe listOf(CopyBlocker.TrimNotOnSyncSample)
   }
 
@@ -129,16 +129,16 @@ class TrimPlanTest {
 
     val verdict = fixture.plan(composition, ExportSpec(strict = true), openings = openings(trimmed, 500.milliseconds))
 
-    assertIs<Verdict.Capable>(verdict)
-    verdict.plan.path shouldBe ExportPath.Transmux
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
+    verdict.plan.path shouldBe ExportPath.Copy
   }
 
   @Test
   fun `an untouched export copies and blames nothing`() {
     val verdict = fixture.plan(composition(fixture.clip()))
 
-    assertIs<Verdict.Capable>(verdict)
-    verdict.plan.path shouldBe ExportPath.Transmux
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
+    verdict.plan.path shouldBe ExportPath.Copy
     verdict.plan.copyBlockedBy.shouldBeEmpty()
   }
 
@@ -149,10 +149,10 @@ class TrimPlanTest {
   fun `an export names every term that cost it the copy`() {
     val verdict = fixture.plan(composition(fixture.clip()), ExportSpec.Upload)
 
-    assertIs<Verdict.Capable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
     verdict.plan.path shouldBe ExportPath.Transcode
     verdict.plan.copyBlockedBy shouldContainExactlyInAnyOrder
-      listOf(CopyBlocker.VideoCodecNamed, CopyBlocker.TargetHeightSet, CopyBlocker.BitrateSet)
+      listOf(CopyBlocker.VideoCodecNamed, CopyBlocker.HeightSet, CopyBlocker.BitrateSet)
   }
 
   /**
@@ -173,8 +173,9 @@ class TrimPlanTest {
 
   @Test
   fun `a trim that keeps nothing is refused`() {
-    assertIs<Verdict.Incapable>(
-      fixture.plan(composition(fixture.clip(trim = TimeRange.of(6_000.milliseconds, 6_000.milliseconds)))),
-    )
+    fixture
+      .plan(
+        composition(fixture.clip(trim = TimeRange.of(6_000.milliseconds, 6_000.milliseconds))),
+      ).shouldBeInstanceOf<Verdict.Incapable>()
   }
 }

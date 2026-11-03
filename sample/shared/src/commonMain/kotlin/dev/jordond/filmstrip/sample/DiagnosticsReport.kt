@@ -2,11 +2,11 @@ package dev.jordond.filmstrip.sample
 
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.ExperimentalFilmstripApi
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.FilmstripVersion
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.export.Adjustment
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.Verdict
@@ -216,7 +216,7 @@ private fun MediaInfo.summary(): String {
 
 private fun ExportSpec.summary(): String =
   listOfNotNull(
-    targetHeight?.let { "height $it" },
+    heightPx?.let { "height $it" },
     bitrate?.let { "${it.bitsPerSecond / 1_000_000} Mbps" },
     "video $videoCodec",
     "audio $audioCodec",
@@ -239,7 +239,7 @@ private fun TimeRange?.summary(): String {
   return "${range.start.asClock()} to $end"
 }
 
-private fun ExportError.line(): String = "${this::class.simpleName ?: "Error"}: $message"
+private fun FilmstripError.line(): String = "${this::class.simpleName ?: "Error"}: $message"
 
 private fun EditComposition.effectIds(): List<String> =
   (effects + tracks.flatMap { track -> track.effects + track.clips.flatMap { it.effects } }).map { it.id }
@@ -248,7 +248,7 @@ private fun EditComposition.effectIds(): List<String> =
  * The fields of the spec a bug report needs, which is every field a caller can set.
  */
 private fun ExportSpec.asJson(): JsonObject = buildJsonObject {
-  put("targetHeight", targetHeight)
+  put("heightPx", heightPx)
   put("bitrate", bitrate?.bitsPerSecond)
   put("videoCodec", videoCodec.name)
   put("audioCodec", audioCodec.name)

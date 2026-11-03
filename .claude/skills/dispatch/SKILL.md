@@ -49,7 +49,7 @@ Point at the plan sections, never paste them. A pixel path unit gets `connectedA
 
 ## Verification scope
 Fill in the brief's scope from the files the unit owns.
-- Android device: API 30 and 36. A sweep of every level only when the unit edits a landing table (`heicLanding`, `avifLanding`, `DecoderLimit`).
+- Android device: API 30 and 36. A sweep of every level only when the unit edits a decoder conversion table (`decoderConversionOf`, `readableMatrices`, `DecoderLimit`).
 - Apple: macOS with `--tests` on the touched classes. iOS simulator only when the unit edits a simulator decode model, or in the final lane.
 - Player suites only when the unit touches the player.
 - ffmpeg on one host. A core-only unit runs the picture classes only.

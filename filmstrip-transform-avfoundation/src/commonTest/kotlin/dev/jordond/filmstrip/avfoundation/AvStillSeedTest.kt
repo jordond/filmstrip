@@ -1,21 +1,28 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.avfoundation.internal.FrameAppend
-import dev.jordond.filmstrip.avfoundation.internal.MEDIA_TIMESCALE
-import dev.jordond.filmstrip.avfoundation.internal.SEED_SIDE
-import dev.jordond.filmstrip.avfoundation.internal.STILL_SEED_LENGTH
-import dev.jordond.filmstrip.avfoundation.internal.STILL_SEED_WRITE_BUDGET
-import dev.jordond.filmstrip.avfoundation.internal.SeedAttempt
-import dev.jordond.filmstrip.avfoundation.internal.SeedWrite
-import dev.jordond.filmstrip.avfoundation.internal.seedFinishFor
-import dev.jordond.filmstrip.avfoundation.internal.seedLockFor
-import dev.jordond.filmstrip.avfoundation.internal.seedWriteFor
-import dev.jordond.filmstrip.avfoundation.internal.stillSeed
-import dev.jordond.filmstrip.avfoundation.internal.stillSeedAsset
-import dev.jordond.filmstrip.avfoundation.internal.stillSeedPath
-import dev.jordond.filmstrip.avfoundation.internal.toDuration
-import dev.jordond.filmstrip.avfoundation.internal.waitsForSeedInput
+import dev.jordond.filmstrip.avfoundation.internal.still.FrameAppend
+import dev.jordond.filmstrip.avfoundation.internal.still.SEED_SIDE
+import dev.jordond.filmstrip.avfoundation.internal.still.STILL_SEED_LENGTH
+import dev.jordond.filmstrip.avfoundation.internal.still.STILL_SEED_WRITE_BUDGET
+import dev.jordond.filmstrip.avfoundation.internal.still.SeedAttempt
+import dev.jordond.filmstrip.avfoundation.internal.still.SeedWrite
+import dev.jordond.filmstrip.avfoundation.internal.still.seedFinishFor
+import dev.jordond.filmstrip.avfoundation.internal.still.seedLockFor
+import dev.jordond.filmstrip.avfoundation.internal.still.seedWriteFor
+import dev.jordond.filmstrip.avfoundation.internal.still.stillSeed
+import dev.jordond.filmstrip.avfoundation.internal.still.stillSeedAsset
+import dev.jordond.filmstrip.avfoundation.internal.still.stillSeedPath
+import dev.jordond.filmstrip.avfoundation.internal.still.waitsForSeedInput
+import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TIMESCALE
+import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
+import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.AVFoundation.AVAssetTrack
 import platform.AVFoundation.AVAssetWriterStatusCancelled
@@ -42,11 +49,6 @@ import platform.darwin.dispatch_time
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
-import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
-import kotlin.test.assertNotSame
-import kotlin.test.assertSame
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -78,8 +80,8 @@ class AvStillSeedTest {
     val before = seedFiles()
 
     RATES.forEach { rate ->
-      val opened = assertNotNull(openedSeed(rate), "no seed was written at $rate fps")
-      assertNotNull(openedSeed(rate), "no seed came back on a second ask at $rate fps")
+      val opened = withClue("no seed was written at $rate fps") { openedSeed(rate).shouldNotBeNull() }
+      withClue("no seed came back on a second ask at $rate fps") { openedSeed(rate).shouldNotBeNull() }
       (opened.videoTrack() as? AVAssetTrack)?.naturalTimeScale shouldBe MEDIA_TIMESCALE
     }
 
@@ -89,10 +91,10 @@ class AvStillSeedTest {
   @Test
   fun `reads back the seed an earlier run left behind`() {
     val path = stillSeedPath(RATE)
-    assertNotNull(openedSeed(RATE), "no seed was written at $RATE fps")
+    withClue("no seed was written at $RATE fps") { openedSeed(RATE).shouldNotBeNull() }
     age(path)
 
-    assertNotNull(openedSeed(RATE), "the seed an earlier run wrote was not read back")
+    withClue("the seed an earlier run wrote was not read back") { openedSeed(RATE).shouldNotBeNull() }
 
     modified(path) shouldBe AGED
   }
@@ -104,13 +106,12 @@ class AvStillSeedTest {
     val path = stillSeedPath(RATE)
     NSFileManager.defaultManager.createFileAtPath(path, contents = null, attributes = null)
 
-    val asset = assertNotNull(openedSeed(RATE), "an unfinished seed was not rewritten")
+    val asset = withClue("an unfinished seed was not rewritten") { openedSeed(RATE).shouldNotBeNull() }
 
-    assertNotNull(asset.videoTrack(), "the rewritten seed carries no video track")
-    assertTrue(
-      (asset.duration.toDuration() - STILL_SEED_LENGTH).absoluteValue <= TOLERANCE,
-      "the rewritten seed runs for ${asset.duration.toDuration()}, not $STILL_SEED_LENGTH",
-    )
+    withClue("the rewritten seed carries no video track") { asset.videoTrack().shouldNotBeNull() }
+    withClue("the rewritten seed runs for ${asset.duration.toDuration()}, not $STILL_SEED_LENGTH") {
+      ((asset.duration.toDuration() - STILL_SEED_LENGTH).absoluteValue <= TOLERANCE).shouldBeTrue()
+    }
   }
 
   // Everything but the cadence matches, so a seed cut at the wrong rate is the one case the path,
@@ -118,13 +119,13 @@ class AvStillSeedTest {
   @Test
   fun `rewrites a seed carrying another rate's frames`() {
     val other = stillSeedPath(OTHER_RATE)
-    assertNotNull(openedSeed(RATE), "no seed was written at $RATE fps")
+    withClue("no seed was written at $RATE fps") { openedSeed(RATE).shouldNotBeNull() }
     NSFileManager.defaultManager.copyItemAtPath(stillSeedPath(RATE), toPath = other, error = null)
     age(other)
 
-    assertNotNull(openedSeed(OTHER_RATE), "a seed cut at another rate was not rewritten")
+    withClue("a seed cut at another rate was not rewritten") { openedSeed(OTHER_RATE).shouldNotBeNull() }
 
-    assertTrue(modified(other) != AGED, "the seed at $OTHER_RATE fps was read back at $RATE fps")
+    withClue("the seed at $OTHER_RATE fps was read back at $RATE fps") { modified(other) shouldNotBe AGED }
   }
 
   // Everything but the timescale matches, so a seed an earlier build wrote at 600 a second reads as good on its path,
@@ -135,9 +136,9 @@ class AvStillSeedTest {
     writeOffGridClip(path, RATE, RATE, STILL_SEED_LENGTH, side = SEED_SIDE, timescale = STALE_TIMESCALE)
     age(path)
 
-    val asset = assertNotNull(openedSeed(RATE), "no seed was opened at $RATE fps")
+    val asset = withClue("no seed was opened at $RATE fps") { openedSeed(RATE).shouldNotBeNull() }
 
-    assertTrue(modified(path) != AGED, "the seed written at $STALE_TIMESCALE a second was read back")
+    withClue("the seed written at $STALE_TIMESCALE a second was read back") { modified(path) shouldNotBe AGED }
     (asset.videoTrack() as? AVAssetTrack)?.naturalTimeScale shouldBe MEDIA_TIMESCALE
   }
 
@@ -158,11 +159,10 @@ class AvStillSeedTest {
   @Test
   fun `gives up on a writer that is not writing`() {
     STOPPED.forEach { status ->
-      assertFalse(waitsForSeedInput(status, ready = false), "waited on a writer at status $status")
-      assertFalse(
-        waitsForSeedInput(status, ready = true),
-        "waited on a writer at status $status whose input had room",
-      )
+      withClue("waited on a writer at status $status") { waitsForSeedInput(status, ready = false).shouldBeFalse() }
+      withClue("waited on a writer at status $status whose input had room") {
+        waitsForSeedInput(status, ready = true).shouldBeFalse()
+      }
     }
   }
 
@@ -181,10 +181,9 @@ class AvStillSeedTest {
   // cold lowering gives up on a write that was only slow.
   @Test
   fun `waits longer than a cold encoder takes to come up`() {
-    assertTrue(
-      STILL_SEED_WRITE_BUDGET > COLD_START,
-      "a seed write gives up after $STILL_SEED_WRITE_BUDGET, inside the $COLD_START a cold encoder has taken",
-    )
+    withClue("a seed write gives up after $STILL_SEED_WRITE_BUDGET, inside the $COLD_START a cold encoder has taken") {
+      (STILL_SEED_WRITE_BUDGET > COLD_START).shouldBeTrue()
+    }
   }
 
   // A finish is the same wait as an append, so running the budget out on one leaves the rate worth
@@ -214,23 +213,26 @@ class AvStillSeedTest {
 
   @Test
   fun `opens one lock a rate`() {
-    assertSame(seedLockFor(RATE), seedLockFor(RATE), "two asks at $RATE fps took locks of their own")
-    assertNotSame(seedLockFor(RATE), seedLockFor(OTHER_RATE), "$RATE and $OTHER_RATE fps share a lock")
+    withClue("two asks at $RATE fps took locks of their own") {
+      seedLockFor(RATE) shouldBeSameInstanceAs seedLockFor(RATE)
+    }
+    withClue("$RATE and $OTHER_RATE fps share a lock") {
+      seedLockFor(OTHER_RATE) shouldNotBeSameInstanceAs seedLockFor(RATE)
+    }
   }
 
   // What a lock a rate is for. A write runs for as long as the encoder behind it takes, and under
   // one lock over every rate that is every lowering in the process waiting on one cold encoder.
   @Test
   fun `opens a seed at one rate while another rate is held`() {
-    assertNotNull(stillSeed(FREE_RATE), "no seed was written at $FREE_RATE fps")
+    withClue("no seed was written at $FREE_RATE fps") { stillSeed(FREE_RATE).shouldNotBeNull() }
     val held = seedLockFor(HELD_RATE)
     held.lock()
 
     try {
-      assertTrue(
-        ranOffThread { stillSeed(FREE_RATE) },
-        "a lowering at $FREE_RATE fps waited on the lock held at $HELD_RATE fps",
-      )
+      withClue("a lowering at $FREE_RATE fps waited on the lock held at $HELD_RATE fps") {
+        ranOffThread { stillSeed(FREE_RATE) }.shouldBeTrue()
+      }
     } finally {
       held.unlock()
     }
@@ -281,7 +283,7 @@ class AvStillSeedTest {
   private fun modified(path: String): Double {
     val attributes = NSFileManager.defaultManager.attributesOfItemAtPath(path, error = null)
     val date = attributes?.get(NSFileModificationDate) as? NSDate
-    return assertNotNull(date, "nothing at $path to read a date from").timeIntervalSinceReferenceDate
+    return withClue("nothing at $path to read a date from") { date.shouldNotBeNull() }.timeIntervalSinceReferenceDate
   }
 
   private fun remove(path: String) {

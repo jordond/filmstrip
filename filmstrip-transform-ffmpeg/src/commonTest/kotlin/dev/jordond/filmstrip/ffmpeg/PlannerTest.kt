@@ -1,9 +1,12 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.capability.VideoEncoderCapability
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
@@ -11,6 +14,7 @@ import dev.jordond.filmstrip.edit.EnvelopePoint
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.geometry.Crop
@@ -20,32 +24,28 @@ import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.export.AdjustmentKind
-import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.CopyBlocker
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.export.VideoCodec
-import dev.jordond.filmstrip.ffmpeg.internal.EXPRESSION_SEGMENTS
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegParity
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPlanner
-import dev.jordond.filmstrip.ffmpeg.internal.FfmpegVersion
-import dev.jordond.filmstrip.ffmpeg.internal.InputSource
-import dev.jordond.filmstrip.ffmpeg.internal.READS_FILES
-import dev.jordond.filmstrip.ffmpeg.internal.Toolchain
-import dev.jordond.filmstrip.ffmpeg.internal.ffmpegEncoderNamed
-import dev.jordond.filmstrip.ffmpeg.internal.ffmpegEncoders
-import dev.jordond.filmstrip.ffmpeg.internal.formatSeconds
-import dev.jordond.filmstrip.ffmpeg.internal.readablePath
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.EXPRESSION_SEGMENTS
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegEncoderNamed
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegEncoders
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.formatSeconds
+import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
+import dev.jordond.filmstrip.ffmpeg.internal.process.READS_FILES
+import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
+import dev.jordond.filmstrip.ffmpeg.internal.process.readablePath
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.outputSlotOf
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -54,16 +54,18 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
-import dev.jordond.filmstrip.transform.internal.curveOver
-import dev.jordond.filmstrip.transform.internal.stillUnsupportedMessage
+import dev.jordond.filmstrip.transform.internal.negotiation.Ask
+import dev.jordond.filmstrip.transform.internal.resolve.curveOver
+import dev.jordond.filmstrip.transform.internal.resolve.stillUnsupportedMessage
+import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.math.ceil
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -113,7 +115,7 @@ class PlannerTest {
     val composition =
       EditComposition(listOf(Track(listOf(Clip(landscape, effects = listOf(Crop(AspectRatio.Portrait)))))))
 
-    val plan = capablePlan(composition, ExportSpec(targetHeight = 720))
+    val plan = capablePlan(composition, ExportSpec(heightPx = 720))
 
     plan.output.size shouldBe Size(404, 720)
     plan.output.frameRate shouldBe 30
@@ -126,7 +128,7 @@ class PlannerTest {
   fun `normalises every clip before the concat`() {
     val composition = EditComposition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))))
 
-    val graph = capableGraph(composition, ExportSpec(targetHeight = 360))
+    val graph = capableGraph(composition, ExportSpec(heightPx = 360))
 
     graph shouldContain "[0:v]"
     graph shouldContain "[1:v]"
@@ -161,7 +163,7 @@ class PlannerTest {
     val composition =
       EditComposition(listOf(Track(listOf(Clip(landscape, effects = listOf(mark)), Clip(portrait)))))
 
-    val invocation = planner().lower(composition, ExportSpec(), device(), infos).invocation!!
+    val invocation = planner().lower(composition, Ask(ExportSpec(), device(), infos)).graph!!
 
     // A chain's input labels link to its first filter, so the clip's own trim sits on a pad of its
     // own and the merge reads that pad. Written in one chain the graph is refused outright.
@@ -181,7 +183,7 @@ class PlannerTest {
     val composition =
       EditComposition(listOf(Track(listOf(Clip(landscape, effects = listOf(mark)), Clip(portrait)))))
 
-    val invocation = planner().lower(composition, ExportSpec(), device(), infos).invocation!!
+    val invocation = planner().lower(composition, Ask(ExportSpec(), device(), infos)).graph!!
 
     val image = invocation.inputs[2]
     image.loopFrameRate shouldBe 30f
@@ -204,11 +206,11 @@ class PlannerTest {
     val composition =
       EditComposition(listOf(Track(listOf(Clip(landscape), Clip(portrait, effects = listOf(mark))))))
 
-    val graph = planner().lower(composition, ExportSpec(), device(), infos).invocation!!.filterGraph
+    val graph = planner().lower(composition, Ask(ExportSpec(), device(), infos)).graph!!.filterGraph
 
     val gate =
       Regex("""colorchannelmixer=aa=0:enable=not\(gte\(t\\,([^)]+)\)\*lt\(t\\,([^)]+)\)\),setpts=expr=PTS-STARTPTS""")
-    val (open, shut) = assertNotNull(gate.find(graph), graph).destructured
+    val (open, shut) = withClue(graph) { gate.find(graph).shouldNotBeNull() }.destructured
     // A bound is compared against a frame's own time on the branch, so the frames it lets through
     // run from the first whose time reaches the one bound to the first whose time reaches the other.
     ceil(open.toDouble() * 30).toLong() shouldBe outputSlotOf(1.seconds, 30)
@@ -223,7 +225,7 @@ class PlannerTest {
     val composition =
       EditComposition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))), effects = listOf(mark))
 
-    val invocation = planner().lower(composition, ExportSpec(), device(), infos).invocation!!
+    val invocation = planner().lower(composition, Ask(ExportSpec(), device(), infos)).graph!!
 
     invocation.inputs.last().durationSeconds shouldBe 7.0 + 1.0 / 30f
   }
@@ -258,9 +260,9 @@ class PlannerTest {
   fun `reports the tone map it performs`() {
     val composition = EditComposition(listOf(Track(listOf(Clip(graded, effects = listOf(Rotate(90)))))))
 
-    val verdict = planner(toolchain(TONE_MAPPING)).lower(composition, ExportSpec(), device(), infos).verdict
+    val verdict = planner(toolchain(TONE_MAPPING)).lower(composition, Ask(ExportSpec(), device(), infos)).verdict
 
-    assertIs<Verdict.Degraded>(verdict).adjustments.map { it.kind } shouldBe
+    verdict.shouldBeInstanceOf<Verdict.Degraded>().adjustments.map { it.kind } shouldBe
       listOf(AdjustmentKind.HdrToneMapped)
   }
 
@@ -271,10 +273,11 @@ class PlannerTest {
   fun `refuses a graded source on a build with no zscale or libplacebo`() {
     val composition = EditComposition(listOf(Track(listOf(Clip(graded, effects = listOf(Rotate(90)))))))
 
-    val verdict = planner().lower(composition, ExportSpec(), device(), infos).verdict
+    val verdict = planner().lower(composition, Ask(ExportSpec(), device(), infos)).verdict
 
-    val reason = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.InvalidComposition>(reason).message shouldContain "neither encode it nor tone-map it"
+    val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldContain
+      "neither encode it nor tone-map it"
   }
 
   // Every export here writes mp4, and mp4 has no sample entry for VP8, so an otherwise untouched
@@ -286,20 +289,20 @@ class PlannerTest {
     val composition = EditComposition(listOf(Track(listOf(Clip(source)))))
     val infos = mapOf(source to info(Size(1920, 1080), 6_000.milliseconds, codec = "vp8"))
 
-    val verdict = planner().lower(composition, ExportSpec(), device(), infos).verdict
+    val verdict = planner().lower(composition, Ask(ExportSpec(), device(), infos)).verdict
 
-    assertIs<Verdict.Capable>(verdict).plan.path shouldBe ExportPath.Transcode
+    verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Transcode
   }
 
   // The cheapest fix for HDR on a build with no zscale: an untouched clip needs no filter graph at
   // all, so a copy keeps the grade exactly whatever the build can do.
   @Test
-  fun `an untouched graded source transmuxes on a build with no zscale`() {
+  fun `an untouched graded source copies on a build with no zscale`() {
     val composition = EditComposition(listOf(Track(listOf(Clip(graded)))))
 
-    val verdict = planner().lower(composition, ExportSpec(), device(), infos).verdict
+    val verdict = planner().lower(composition, Ask(ExportSpec(), device(), infos)).verdict
 
-    assertIs<Verdict.Capable>(verdict).plan.path shouldBe ExportPath.Transmux
+    verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Copy
   }
 
   // A trim used to force a re-encode on every backend. A snapWithin wide enough to reach the sync
@@ -309,9 +312,11 @@ class PlannerTest {
   fun `a reachable snap on an untouched clip copies the window rather than re-encoding it`() {
     val composition = trimmed(snapWithin = SNAP_WITHIN)
 
-    val lowering = planner().lower(composition, ExportSpec(), device(), infos, openings)
+    val lowering = planner().lower(composition, Ask(ExportSpec(), device(), infos, openings))
 
-    assertIs<Verdict.Capable>(lowering.verdict).plan.path shouldBe ExportPath.Transmux
+    lowering.verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.path shouldBe ExportPath.Copy
     val clip =
       lowering.export.composition!!
         .tracks
@@ -322,7 +327,7 @@ class PlannerTest {
     // The planner already moved the cut back, so the input lays that window and derives nothing of
     // its own.
     clip.start shouldBe SYNC_SAMPLE
-    val input = lowering.invocation!!.inputs.single()
+    val input = lowering.graph!!.inputs.single()
     input.startSeconds shouldBe clip.start.toDouble(DurationUnit.SECONDS)
     input.durationSeconds shouldBe clip.duration.toDouble(DurationUnit.SECONDS)
   }
@@ -348,9 +353,9 @@ class PlannerTest {
         ),
       )
 
-    val lowering = planner().lower(composition, ExportSpec(), device(), infos, openings)
+    val lowering = planner().lower(composition, Ask(ExportSpec(), device(), infos, openings))
 
-    val verdict = assertIs<Verdict.Capable>(lowering.verdict)
+    val verdict = lowering.verdict.shouldBeInstanceOf<Verdict.Capable>()
     verdict.plan.path shouldBe ExportPath.Transcode
     verdict.plan.copyBlockedBy shouldContain CopyBlocker.ClipHasEffects
     val clip =
@@ -370,9 +375,9 @@ class PlannerTest {
   fun `a cut left at the default snap does not move and does not copy`() {
     val composition = trimmed()
 
-    val lowering = planner().lower(composition, ExportSpec(), device(), infos, openings)
+    val lowering = planner().lower(composition, Ask(ExportSpec(), device(), infos, openings))
 
-    val verdict = assertIs<Verdict.Capable>(lowering.verdict)
+    val verdict = lowering.verdict.shouldBeInstanceOf<Verdict.Capable>()
     verdict.plan.path shouldBe ExportPath.Transcode
     verdict.plan.copyBlockedBy shouldContain CopyBlocker.TrimNotOnSyncSample
     lowering.export.composition!!
@@ -388,9 +393,9 @@ class PlannerTest {
   fun `a snap too narrow to reach the sync sample leaves the cut where it was asked`() {
     val composition = trimmed(snapWithin = TRIM_START - SYNC_SAMPLE - 1.milliseconds)
 
-    val lowering = planner().lower(composition, ExportSpec(), device(), infos, openings)
+    val lowering = planner().lower(composition, Ask(ExportSpec(), device(), infos, openings))
 
-    val verdict = assertIs<Verdict.Capable>(lowering.verdict)
+    val verdict = lowering.verdict.shouldBeInstanceOf<Verdict.Capable>()
     verdict.plan.path shouldBe ExportPath.Transcode
     verdict.plan.copyBlockedBy shouldContain CopyBlocker.TrimNotOnSyncSample
   }
@@ -407,12 +412,12 @@ class PlannerTest {
     val sourceInfos =
       infos + (source to info(Size(1920, 1080), 4_000.milliseconds, hdr = HdrTransfer.Pq, codec = "mpeg2video"))
 
-    val lowering = planner().lower(composition, ExportSpec(hdr = HdrMode.KeepHdr), device, sourceInfos)
+    val lowering = planner().lower(composition, Ask(ExportSpec(hdr = HdrMode.KeepHdr), device, sourceInfos))
 
-    val plan = assertIs<Verdict.Capable>(lowering.verdict).plan
+    val plan = lowering.verdict.shouldBeInstanceOf<Verdict.Capable>().plan
     plan.output.videoCodec shouldBe VideoCodec.Hevc
 
-    val invocation = lowering.invocation!!
+    val invocation = lowering.graph!!
     invocation.hdrTransfer shouldBe HdrTransfer.Pq
     val encoder = checkNotNull(ffmpegEncoderNamed(invocation.videoEncoder!!))
     invocation.filterGraph shouldContain "format=pix_fmts=${encoder.hdrPixelFormat}"
@@ -427,9 +432,9 @@ class PlannerTest {
     val device = device(listOf(VideoCodec.H264, VideoCodec.Hevc), supportsHdrEncoding = true)
     val hlgInfos = infos + (hlg to info(Size(1920, 1080), 4_000.milliseconds, hdr = HdrTransfer.Hlg))
 
-    val lowering = planner().lower(composition, ExportSpec(hdr = HdrMode.KeepHdr), device, hlgInfos)
+    val lowering = planner().lower(composition, Ask(ExportSpec(hdr = HdrMode.KeepHdr), device, hlgInfos))
 
-    lowering.invocation!!.hdrTransfer shouldBe HdrTransfer.Hlg
+    lowering.graph!!.hdrTransfer shouldBe HdrTransfer.Hlg
   }
 
   // Without gblur there is nothing to lower a blurred fill onto, and emitting the graph anyway
@@ -438,19 +443,19 @@ class PlannerTest {
   fun `refuses a blurred fill on a build with no gblur`() {
     val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))), fill = Fill.Blurred())
 
-    val verdict = planner().lower(composition, ExportSpec(), device(), infos).verdict
+    val verdict = planner().lower(composition, Ask(ExportSpec(), device(), infos)).verdict
 
-    val reason = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.InvalidComposition>(reason).message shouldContain "gblur"
+    val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldContain "gblur"
   }
 
-  // targetHeight forces a re-encode rather than the stream copy an untouched clip would take,
+  // heightPx forces a re-encode rather than the stream copy an untouched clip would take,
   // since a copy never reaches the filter graph at all.
   @Test
   fun `lowers a blurred fill once the build has gblur`() {
     val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))), fill = Fill.Blurred())
 
-    val graph = capableGraph(composition, ExportSpec(targetHeight = 720), toolchain(TONE_MAPPING + "gblur"))
+    val graph = capableGraph(composition, ExportSpec(heightPx = 720), toolchain(TONE_MAPPING + "gblur"))
 
     graph shouldContain "gblur=sigma="
   }
@@ -462,10 +467,10 @@ class PlannerTest {
     val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))), fill = Fill.Blurred(dim = 0.5f))
 
     val verdict =
-      planner(toolchain(TONE_MAPPING + "gblur")).lower(composition, ExportSpec(), device(), infos).verdict
+      planner(toolchain(TONE_MAPPING + "gblur")).lower(composition, Ask(ExportSpec(), device(), infos)).verdict
 
-    val reason = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.InvalidComposition>(reason).message shouldContain "colorchannelmixer"
+    val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldContain "colorchannelmixer"
   }
 
   // Crop leaves no bars for a blurred fill to show through, so the missing filter never matters
@@ -478,9 +483,9 @@ class PlannerTest {
         fill = Fill.Blurred(),
       )
 
-    val verdict = planner().lower(composition, ExportSpec(), device(), infos).verdict
+    val verdict = planner().lower(composition, Ask(ExportSpec(), device(), infos)).verdict
 
-    assertIs<Verdict.Capable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
   }
 
   @Test
@@ -578,15 +583,15 @@ class PlannerTest {
     val composition =
       EditComposition(listOf(Track(listOf(Clip(landscape, effects = listOf(Rotate(90), TextOverlay("hi")))))))
 
-    val verdict = planner().lower(composition, ExportSpec(), device(), infos).verdict
-    assertIs<Verdict.Incapable>(verdict)
+    val verdict = planner().lower(composition, Ask(ExportSpec(), device(), infos)).verdict
+    verdict.shouldBeInstanceOf<Verdict.Incapable>()
 
     val reason = verdict.reasons.single()
-    assertIs<ExportError.UnsupportedEffect>(reason)
+    reason.shouldBeInstanceOf<FilmstripError.UnsupportedEffect>()
     reason.specId shouldBe EffectIds.TEXT_OVERLAY
 
     val fallback = verdict.withoutUnsupported
-    fallback?.effectOrder?.map { it.spec.id } shouldBe listOf(EffectIds.ROTATE)
+    fallback?.plan?.effectOrder?.map { it.spec.id } shouldBe listOf(EffectIds.ROTATE)
   }
 
   @Test
@@ -594,9 +599,9 @@ class PlannerTest {
     val composition =
       EditComposition(listOf(Track(listOf(Clip(landscape))), Track(listOf(Clip(portrait)))))
 
-    val verdict = planner().lower(composition, ExportSpec(), device(), infos).verdict
-    assertIs<Verdict.Incapable>(verdict)
-    assertIs<ExportError.InvalidComposition>(verdict.reasons.single())
+    val verdict = planner().lower(composition, Ask(ExportSpec(), device(), infos)).verdict
+    verdict.shouldBeInstanceOf<Verdict.Incapable>()
+    verdict.reasons.single().shouldBeInstanceOf<FilmstripError.InvalidComposition>()
   }
 
   // This backend has no stills support, and the old refusal named the wrong problem: a still names
@@ -606,10 +611,10 @@ class PlannerTest {
     val still = MediaSource.Image(ImageSource.of("/photos/one.png"), 3_000.milliseconds)
     val composition = EditComposition(listOf(Track(listOf(Clip(still)))))
 
-    val verdict = planner().lower(composition, ExportSpec(), device(), emptyMap()).verdict
+    val verdict = planner().lower(composition, Ask(ExportSpec(), device(), emptyMap())).verdict
 
-    val reason = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.SourceNotExportable>(reason).message shouldBe stillUnsupportedMessage("ffmpeg")
+    val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    reason.shouldBeInstanceOf<FilmstripError.SourceNotExportable>().message shouldBe stillUnsupportedMessage("ffmpeg")
   }
 
   // The scan is over every track's clips, not just the primary one, so a still parked on a music
@@ -625,10 +630,10 @@ class PlannerTest {
         ),
       )
 
-    val verdict = planner().lower(composition, ExportSpec(), device(), infos).verdict
+    val verdict = planner().lower(composition, Ask(ExportSpec(), device(), infos)).verdict
 
-    val reason = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.SourceNotExportable>(reason).message shouldBe stillUnsupportedMessage("ffmpeg")
+    val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    reason.shouldBeInstanceOf<FilmstripError.SourceNotExportable>().message shouldBe stillUnsupportedMessage("ffmpeg")
   }
 
   // How a file: URL reads is filePathOf's answer, pinned in filmstrip-core. What this pins is that
@@ -663,9 +668,13 @@ class PlannerTest {
     val composition = EditComposition(listOf(Track(listOf(Clip(source)))))
     val infos = mapOf(source to info(Size(1920, 1080), 4_000.milliseconds))
 
-    val invocation = planner().lower(composition, ExportSpec(), device(), infos).invocation!!
+    val invocation = planner().lower(composition, Ask(ExportSpec(), device(), infos)).graph!!
 
-    assertIs<InputSource.OfPath>(invocation.inputs.first().source).path shouldBe "/clips/my holiday.mp4"
+    invocation.inputs
+      .first()
+      .source
+      .shouldBeInstanceOf<InputSource.OfPath>()
+      .path shouldBe "/clips/my holiday.mp4"
   }
 
   @Test
@@ -673,18 +682,18 @@ class PlannerTest {
     val source = MediaSource.ofUri("content://media/external/video/1")
     val composition = EditComposition(listOf(Track(listOf(Clip(source)))))
 
-    val verdict = planner().lower(composition, ExportSpec(), device(), emptyMap()).verdict
+    val verdict = planner().lower(composition, Ask(ExportSpec(), device(), emptyMap())).verdict
 
-    val reason = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.SourceUnreadable>(reason).message shouldBe READS_FILES
+    val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    reason.shouldBeInstanceOf<FilmstripError.SourceUnreadable>().message shouldBe READS_FILES
   }
 
   @Test
   fun `rounds an odd frame down and reports it`() {
     val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))))
 
-    val verdict = planner().lower(composition, ExportSpec(targetHeight = 721), device(), infos).verdict
-    assertIs<Verdict.Degraded>(verdict)
+    val verdict = planner().lower(composition, Ask(ExportSpec(heightPx = 721), device(), infos)).verdict
+    verdict.shouldBeInstanceOf<Verdict.Degraded>()
     verdict.plan.output.size shouldBe Size(1282, 720)
     verdict.adjustments.map { it.kind } shouldBe listOf(AdjustmentKind.ResolutionClamped)
   }
@@ -698,10 +707,10 @@ class PlannerTest {
     FfmpegParity.of(EffectIds.TEXT_OVERLAY) shouldBe null
   }
 
-  // Every colour matrix lowers to a table ffmpeg evaluates exactly, whether it is the per-channel
+  // Every color matrix lowers to a table ffmpeg evaluates exactly, whether it is the per-channel
   // one or the file, so none of them is the approximation Scale is.
   @Test
-  fun `reports every colour matrix as exact`() {
+  fun `reports every color matrix as exact`() {
     listOf(
       EffectIds.RGB_ADJUSTMENT,
       EffectIds.CONTRAST,
@@ -720,15 +729,24 @@ class PlannerTest {
     capablePlan(composition, ExportSpec()).parity shouldBe EffectParity.Approximate
   }
 
+  // Rotate is exact here and Scale is not, so a plan that took the strongest parity would read exact.
+  @Test
+  fun `an exact effect beside an approximate one plans approximate`() {
+    val effects = listOf(Rotate(90), Scale(360))
+    val composition = EditComposition(listOf(Track(listOf(Clip(landscape, effects = effects)))))
+
+    capablePlan(composition, ExportSpec()).parity shouldBe EffectParity.Approximate
+  }
+
   // Encoder availability gates the codec, so an Hevc request is not echoed back when libx265 is
   // absent and the plan never names a codec the encode would fail to open.
   @Test
   fun `an unavailable codec falls back to h264 and reports it`() {
     val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))))
 
-    val verdict = planner().lower(composition, ExportSpec(videoCodec = VideoCodec.Hevc), device(), infos).verdict
+    val verdict = planner().lower(composition, Ask(ExportSpec(videoCodec = VideoCodec.Hevc), device(), infos)).verdict
 
-    val degraded = assertIs<Verdict.Degraded>(verdict)
+    val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
     degraded.plan.output.videoCodec shouldBe VideoCodec.H264
     degraded.adjustments.single().kind shouldBe AdjustmentKind.CodecFallback
   }
@@ -740,10 +758,12 @@ class PlannerTest {
     val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))))
     val device = device(listOf(VideoCodec.H264, VideoCodec.Vp9))
 
-    val lowering = planner().lower(composition, ExportSpec(videoCodec = VideoCodec.Vp9), device, infos)
+    val lowering = planner().lower(composition, Ask(ExportSpec(videoCodec = VideoCodec.Vp9), device, infos))
 
-    assertIs<Verdict.Capable>(lowering.verdict).plan.output.videoCodec shouldBe VideoCodec.Vp9
-    lowering.invocation!!.videoEncoder shouldBe "libvpx-vp9"
+    lowering.verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.output.videoCodec shouldBe VideoCodec.Vp9
+    lowering.graph!!.videoEncoder shouldBe "libvpx-vp9"
   }
 
   // A build without libvpx has no Vp9 entry to resolve, so the request falls back the same way an
@@ -752,9 +772,9 @@ class PlannerTest {
   fun `a codec this build cannot encode falls back to h264 and reports it`() {
     val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))))
 
-    val verdict = planner().lower(composition, ExportSpec(videoCodec = VideoCodec.Vp9), device(), infos).verdict
+    val verdict = planner().lower(composition, Ask(ExportSpec(videoCodec = VideoCodec.Vp9), device(), infos)).verdict
 
-    val degraded = assertIs<Verdict.Degraded>(verdict)
+    val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
     degraded.plan.output.videoCodec shouldBe VideoCodec.H264
     degraded.adjustments.single().kind shouldBe AdjustmentKind.CodecFallback
   }
@@ -770,18 +790,24 @@ class PlannerTest {
     val composition = EditComposition(listOf(Track(listOf(Clip(source)))))
     val sourceInfos = infos + (source to info(Size(1920, 1080), 4_000.milliseconds, codec = "mpeg2video"))
 
-    val verdict = planner().lower(composition, ExportSpec(), device(listOf(VideoCodec.Hevc)), sourceInfos).verdict
+    val verdict = planner().lower(composition, Ask(ExportSpec(), device(listOf(VideoCodec.Hevc)), sourceInfos)).verdict
 
-    assertIs<Verdict.Capable>(verdict).plan.output.videoCodec shouldBe VideoCodec.Hevc
+    verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.output.videoCodec shouldBe VideoCodec.Hevc
   }
 
   @Test
   fun `a build with no video encoder at all is refused`() {
     val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))))
 
-    val verdict = planner().lower(composition, ExportSpec(), device(emptyList()), infos).verdict
+    val verdict = planner().lower(composition, Ask(ExportSpec(), device(emptyList()), infos)).verdict
 
-    assertIs<ExportError.NoEncoder>(assertIs<Verdict.Incapable>(verdict).reasons.single())
+    verdict
+      .shouldBeInstanceOf<Verdict.Incapable>()
+      .reasons
+      .single()
+      .shouldBeInstanceOf<FilmstripError.NoEncoder>()
   }
 
   private fun planner(toolchain: Toolchain = toolchain()) = FfmpegPlanner(toolchain, listOf(BuiltInEffectResolver()))
@@ -815,7 +841,7 @@ class PlannerTest {
   private fun capablePlan(
     composition: EditComposition,
     spec: ExportSpec,
-  ) = when (val verdict = planner().lower(composition, spec, device(), infos).verdict) {
+  ) = when (val verdict = planner().lower(composition, Ask(spec, device(), infos)).verdict) {
     is Verdict.Capable -> verdict.plan
     is Verdict.Degraded -> verdict.plan
     is Verdict.Incapable -> error("Expected a plan, got ${verdict.reasons.map { it.message }}")
@@ -825,7 +851,7 @@ class PlannerTest {
     composition: EditComposition,
     spec: ExportSpec,
     toolchain: Toolchain = toolchain(),
-  ): String = planner(toolchain).lower(composition, spec, device(), infos).invocation!!.filterGraph
+  ): String = planner(toolchain).lower(composition, Ask(spec, device(), infos)).graph!!.filterGraph
 
   private fun toolchain(filters: Set<String> = setOf("overlay", "concat", "amix")) =
     Toolchain(

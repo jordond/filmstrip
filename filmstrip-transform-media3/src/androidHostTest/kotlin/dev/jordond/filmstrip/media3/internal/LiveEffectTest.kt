@@ -5,6 +5,8 @@ import androidx.media3.effect.RgbMatrix
 import dev.jordond.filmstrip.effects.color.ColorMatrix
 import dev.jordond.filmstrip.effects.color.HdrColorMatrixEffect
 import dev.jordond.filmstrip.media.HdrTransfer
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldBeSameInstanceAs
@@ -18,7 +20,7 @@ import kotlin.test.Test
  */
 class LiveEffectTest {
   @Test
-  fun `a colour matrix on a kept grade gets a slot that swaps without a rebuild`() {
+  fun `a color matrix on a kept grade gets a slot that swaps without a rebuild`() {
     val slot = liveSlotFor(hdrMatrix(CONTRAST, HdrTransfer.Pq))
 
     slot.shouldBeInstanceOf<LiveHdrColorMatrix>()
@@ -29,18 +31,21 @@ class LiveEffectTest {
   fun `the slot takes another matrix on the same transfer and nothing else`() {
     val slot = liveSlotFor(hdrMatrix(CONTRAST, HdrTransfer.Pq))
 
-    slot.accepts(hdrMatrix(DESATURATE, HdrTransfer.Pq)) shouldBe true
-    slot.accepts(hdrMatrix(DESATURATE, HdrTransfer.Hlg)) shouldBe false
-    slot.accepts(AlphaScale(0.5f)) shouldBe false
-    slot.accepts(sdrMatrix()) shouldBe false
+    slot.swapTo(hdrMatrix(DESATURATE, HdrTransfer.Pq)).shouldNotBeNull()
+    slot.swapTo(hdrMatrix(DESATURATE, HdrTransfer.Hlg)).shouldBeNull()
+    slot.swapTo(AlphaScale(0.5f)).shouldBeNull()
+    slot.swapTo(sdrMatrix()).shouldBeNull()
   }
 
   @Test
   fun `installing a matrix is what the next draw reads`() {
-    val slot = liveSlotFor(hdrMatrix(CONTRAST, HdrTransfer.Pq)).shouldBeInstanceOf<LiveHdrColorMatrix>()
+    val initial = hdrMatrix(CONTRAST, HdrTransfer.Pq)
+    val slot = liveSlotFor(initial).shouldBeInstanceOf<LiveHdrColorMatrix>()
     val next = hdrMatrix(DESATURATE, HdrTransfer.Pq)
 
-    slot.install(next)
+    val swap = slot.swapTo(next).shouldNotBeNull()
+    slot.current shouldBeSameInstanceAs initial
+    swap.install()
 
     slot.current shouldBeSameInstanceAs next
   }
@@ -55,7 +60,7 @@ class LiveEffectTest {
   }
 
   @Test
-  fun `an sdr colour matrix keeps media3's own slot`() {
+  fun `an sdr color matrix keeps media3's own slot`() {
     liveSlotFor(sdrMatrix()).shouldBeInstanceOf<LiveRgbMatrix>()
   }
 

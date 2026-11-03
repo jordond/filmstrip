@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.player
 
 import androidx.compose.runtime.Immutable
 import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.player.PlaybackError.Underlying.Companion.NO_PLATFORM_CODE
 import kotlin.time.Duration
@@ -10,8 +11,7 @@ import kotlin.time.Duration
  * An atomic snapshot of the player, across five orthogonal axes.
  *
  * Never torn: a reader cannot see playing and errored at the same time. The constructor is marked
- * internal so a snapshot is only ever assembled where every axis is known, rather than by a caller
- * holding some of them.
+ * internal so a snapshot is only ever assembled where every axis is known.
  *
  * @property status Where the player is in its lifecycle.
  * @property playWhenReady Intent. Flipped synchronously by [VideoPlayer.play] and
@@ -106,6 +106,10 @@ public sealed interface PlaybackStatus {
 
 /**
  * Why playback failed.
+ *
+ * Everything a player reports carries one of these, its status, its events, setting a composition and reading a frame
+ * back alike. A preview planned or read through the lowering an export uses fails there with a [FilmstripError], which
+ * the player maps onto the arm here that means the same thing to playback.
  */
 public sealed interface PlaybackError {
   /**
@@ -158,14 +162,6 @@ public sealed interface PlaybackError {
   ) : PlaybackError
 
   /**
-   * Ran out of memory building or rendering the preview.
-   */
-  @Poko
-  public class OutOfMemory(
-    override val message: String,
-  ) : PlaybackError
-
-  /**
    * A platform failure filmstrip could not classify.
    *
    * @property platformCode The platform's own error code, or [NO_PLATFORM_CODE] when the platform
@@ -178,9 +174,10 @@ public sealed interface PlaybackError {
   ) : PlaybackError {
     public companion object {
       /**
-       * Sentinel for [platformCode] when the platform reported no numeric code.
+       * Sentinel for [platformCode] when the platform reported no numeric code, the same one
+       * [FilmstripError.Underlying] carries.
        */
-      public const val NO_PLATFORM_CODE: Int = 0
+      public const val NO_PLATFORM_CODE: Int = FilmstripError.Underlying.NO_PLATFORM_CODE
     }
   }
 }

@@ -1,11 +1,10 @@
 package dev.jordond.filmstrip.test
 
 import dev.jordond.filmstrip.geometry.Size
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertTrue
 
 /**
  * The blend prediction and the PNG the overlay pins draw from.
@@ -16,68 +15,68 @@ import kotlin.test.assertTrue
 class OverlayPixelsTest {
   @Test
   fun blendsAQuarterAndThreeQuartersOfTheWayToTheOverlay() {
-    assertEquals(UNDER + (OVER - UNDER) / 4, OverlayPixels.sourceOver(UNDER, OVER, QUARTER))
-    assertEquals(UNDER + (OVER - UNDER) * 3 / 4, OverlayPixels.sourceOver(UNDER, OVER, THREE_QUARTERS))
+    OverlayPixels.sourceOver(UNDER, OVER, QUARTER) shouldBe UNDER + (OVER - UNDER) / 4
+    OverlayPixels.sourceOver(UNDER, OVER, THREE_QUARTERS) shouldBe UNDER + (OVER - UNDER) * 3 / 4
   }
 
   @Test
   fun leavesTheFrameAloneAtNoOpacityAndCoversItAtFull() {
-    assertEquals(UNDER, OverlayPixels.sourceOver(UNDER, OVER, 0f))
-    assertEquals(OVER, OverlayPixels.sourceOver(UNDER, OVER, 1f))
+    OverlayPixels.sourceOver(UNDER, OVER, 0f) shouldBe UNDER
+    OverlayPixels.sourceOver(UNDER, OVER, 1f) shouldBe OVER
   }
 
   @Test
   fun writesAPngOfTheSizeAsked() {
-    val png = OverlayPixels.pngOf(SIZE, AuthoredColours.MID_GREEN)
+    val png = OverlayPixels.pngOf(SIZE, AuthoredColors.MID_GREEN)
 
-    assertContentEquals(SIGNATURE, png.copyOfRange(0, SIGNATURE.size))
-    assertEquals(SIZE.width, png.int32At(WIDTH_OFFSET))
-    assertEquals(SIZE.height, png.int32At(HEIGHT_OFFSET))
+    png.copyOfRange(0, SIGNATURE.size) shouldBe SIGNATURE
+    png.int32At(WIDTH_OFFSET) shouldBe SIZE.width
+    png.int32At(HEIGHT_OFFSET) shouldBe SIZE.height
   }
 
   @Test
-  fun storesTheAuthoredColourAsTheFirstPixel() {
-    val png = OverlayPixels.pngOf(SIZE, AuthoredColours.MID_GREEN)
+  fun storesTheAuthoredColorAsTheFirstPixel() {
+    val png = OverlayPixels.pngOf(SIZE, AuthoredColors.MID_GREEN)
     val pixel = png.copyOfRange(FIRST_PIXEL_OFFSET, FIRST_PIXEL_OFFSET + 4).map { it.toInt() and 0xFF }
 
-    assertEquals(AuthoredColours.channelsOf(AuthoredColours.MID_GREEN) + 0xFF, pixel)
+    pixel shouldBe AuthoredColors.channelsOf(AuthoredColors.MID_GREEN) + 0xFF
   }
 
   @Test
   fun closesOnTheStandardEndChunk() {
-    val png = OverlayPixels.pngOf(SIZE, AuthoredColours.MID_GREY)
+    val png = OverlayPixels.pngOf(SIZE, AuthoredColors.MID_GREY)
 
-    assertContentEquals(IEND, png.copyOfRange(png.size - IEND.size, png.size))
+    png.copyOfRange(png.size - IEND.size, png.size) shouldBe IEND
   }
 
   @Test
   fun splitsRowsOverOneStoredBlockAcrossSeveral() {
-    val png = OverlayPixels.pngOf(LARGE, AuthoredColours.MID_GREEN)
+    val png = OverlayPixels.pngOf(LARGE, AuthoredColors.MID_GREEN)
     val rowBytes = (LARGE.width * 4 + 1) * LARGE.height
     val idatEnd = IDAT_DATA_OFFSET + png.int32At(IDAT_LENGTH_OFFSET)
-    assertContentEquals("IDAT".encodeToByteArray(), png.copyOfRange(IDAT_LENGTH_OFFSET + 4, IDAT_DATA_OFFSET))
+    png.copyOfRange(IDAT_LENGTH_OFFSET + 4, IDAT_DATA_OFFSET) shouldBe "IDAT".encodeToByteArray()
 
     val lengths = mutableListOf<Int>()
     val lasts = mutableListOf<Boolean>()
     var at = IDAT_DATA_OFFSET + ZLIB_HEADER_BYTES
     do {
       val length = png.int16LittleEndianAt(at + 1)
-      assertEquals(length.inv() and 0xFFFF, png.int16LittleEndianAt(at + 3), "NLEN of block ${lengths.size}")
+      withClue("NLEN of block ${lengths.size}") { png.int16LittleEndianAt(at + 3) shouldBe (length.inv() and 0xFFFF) }
       lasts += png[at].toInt() == 1
       lengths += length
       at += STORED_BLOCK_HEADER_BYTES + length
     } while (!lasts.last() && at < idatEnd)
 
-    assertTrue(rowBytes > MAX_STORED_BLOCK, "$rowBytes bytes of rows fit one block")
+    withClue("$rowBytes bytes of rows fit one block") { (rowBytes > MAX_STORED_BLOCK) shouldBe true }
     val full = lengths.size - 1
-    assertEquals(List(full) { MAX_STORED_BLOCK } + (rowBytes - MAX_STORED_BLOCK * full), lengths)
-    assertEquals(List(full) { false } + true, lasts)
-    assertEquals(idatEnd, at + ADLER_BYTES, "The adler32 closes the stream")
+    lengths shouldBe List(full) { MAX_STORED_BLOCK } + (rowBytes - MAX_STORED_BLOCK * full)
+    lasts shouldBe List(full) { false } + true
+    withClue("The adler32 closes the stream") { at + ADLER_BYTES shouldBe idatEnd }
   }
 
   @Test
   fun refusesAProfileShorterThanAnIccHeader() {
-    assertFailsWith<IllegalArgumentException> { OverlayPixels.pngOf(SIZE, AuthoredColours.MID_GREY, ByteArray(20)) }
+    assertFailsWith<IllegalArgumentException> { OverlayPixels.pngOf(SIZE, AuthoredColors.MID_GREY, ByteArray(20)) }
   }
 
   private fun ByteArray.int16LittleEndianAt(offset: Int): Int =

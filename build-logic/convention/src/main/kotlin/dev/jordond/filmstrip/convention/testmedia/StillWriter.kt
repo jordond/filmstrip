@@ -10,9 +10,9 @@ import kotlin.math.abs
  * Writes a [FixtureStill] and reads it back to check it is the picture the spec asked for. [write] returns the still's
  * row for the generated fixture list.
  *
- * ffmpeg draws the colour into a PNG, and the container's own tool turns that into the fixture. The read back goes
- * through ffprobe for the size and codec, and through ffmpeg for the colour at the centre, so a still that came back
- * the wrong size, in the wrong codec or in another colour fails the build. A still that fails to write or to verify is
+ * ffmpeg draws the color into a PNG, and the container's own tool turns that into the fixture. The read back goes
+ * through ffprobe for the size and codec, and through ffmpeg for the color at the centre, so a still that came back
+ * the wrong size, in the wrong codec or in another color fails the build. A still that fails to write or to verify is
  * deleted, so a half written file is never left where a publish would pick it up.
  */
 internal class StillWriter(
@@ -102,7 +102,7 @@ internal class StillWriter(
     val height = single("height").toInt()
     val codec = single("codec_name")
     val centre = centreOf(target, width, height)
-    val asked = listOf(still.colour shr RED_SHIFT, still.colour shr GREEN_SHIFT, still.colour).map { it and BYTE }
+    val asked = listOf(still.color shr RED_SHIFT, still.color shr GREEN_SHIFT, still.color).map { it and BYTE }
 
     val drift =
       buildList {
@@ -110,7 +110,7 @@ internal class StillWriter(
           add("size ${width}x$height != ${still.width}x${still.height}")
         }
         if (codec != still.container.codec) add("codec $codec != ${still.container.codec}")
-        if (centre.zip(asked).any { (read, want) -> abs(read - want) > COLOUR_TOLERANCE }) {
+        if (centre.zip(asked).any { (read, want) -> abs(read - want) > COLOR_TOLERANCE }) {
           add("centre $centre != $asked")
         }
       }
@@ -165,7 +165,7 @@ internal class StillWriter(
     const val RED_SHIFT = 16
     const val GREEN_SHIFT = 8
 
-    // A flat colour through a lossy codec and back lands within a code value or two of where it started.
-    const val COLOUR_TOLERANCE = 4
+    // A flat color through a lossy codec and back lands within a code value or two of where it started.
+    const val COLOR_TOLERANCE = 4
   }
 }

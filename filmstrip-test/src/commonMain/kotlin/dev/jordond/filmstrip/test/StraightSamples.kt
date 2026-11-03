@@ -1,24 +1,24 @@
 package dev.jordond.filmstrip.test
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.authoredHdrNits
+import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.authoredHdrNits
-import dev.jordond.filmstrip.media.signalFromNits
 import kotlin.math.abs
 
 /**
- * How far a texel's straight colour may read back from the sample it was authored at, in sixteen-bit samples, when the
+ * How far a texel's straight color may read back from the sample it was authored at, in sixteen-bit samples, when the
  * texel is stored premultiplied in sixteen-bit samples with [alpha] as an eight-bit code.
  *
- * The store rounds the premultiplied colour to half a sample, and dividing by the alpha to read it back straight widens
+ * The store rounds the premultiplied color to half a sample, and dividing by the alpha to read it back straight widens
  * that to half a sample over the alpha. A read that lands on whole sixteen-bit samples adds another half. Both fit
  * inside one sample over the alpha, which is what this gives, so a texel at alpha 0xFF reads back within one sample and
  * one at 0x40 within just under four.
  *
- * A store that premultiplies on the eight-bit grid misses by 128.5 samples at colour 0x80 and alpha 0x80, and by
- * 200.8 at colour 0xC8 and alpha 0x40, outside this bound at both.
+ * A store that premultiplies on the eight-bit grid misses by 128.5 samples at color 0x80 and alpha 0x80, and by
+ * 200.8 at color 0xC8 and alpha 0x40, outside this bound at both.
  *
- * @throws IllegalArgumentException When [alpha] is not between 1 and 255, since a texel at alpha 0 has no colour.
+ * @throws IllegalArgumentException When [alpha] is not between 1 and 255, since a texel at alpha 0 has no color.
  */
 @InternalFilmstripApi
 public fun straightSampleTolerance(alpha: Int): Float {
@@ -34,7 +34,7 @@ public fun straightSampleTolerance(alpha: Int): Float {
  * The authored signal is [signalFromNits] of [authoredHdrNits] at [sampleOfCode] of [straightCode]. The stored sample
  * may land [straightSampleTolerance] either side of that, clamped to the sixteen-bit range, and this is the larger of
  * the two moves those ends make in signal, over all three channels. That sample bound is about twice what the store
- * rounds away, and the signal bound keeps the same slack on purpose. The read is taken to add nothing, so a test reads
+ * rounds away, and the signal bound keeps the same slack. The read is taken to add nothing, so a test reads
  * the signal through a float working format, not Core Image's default half floats.
  *
  * @throws IllegalArgumentException When [alpha] is not between 1 and 255 or [straightCode] is not an eight-bit code.

@@ -1,6 +1,10 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.color.HDR_REFERENCE_WHITE_NITS
+import dev.jordond.filmstrip.color.HLG_NOMINAL_PEAK_NITS
+import dev.jordond.filmstrip.color.hlgDisplayNitsFromScene
+import dev.jordond.filmstrip.color.hlgSceneFromDisplayNits
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -14,26 +18,23 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.media.HDR_REFERENCE_WHITE_NITS
-import dev.jordond.filmstrip.media.HLG_NOMINAL_PEAK_NITS
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.hlgDisplayNitsFromScene
-import dev.jordond.filmstrip.media.hlgSceneFromDisplayNits
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
 import kotlin.math.abs
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 
 /**
  * The centre pixel of [source] exported keeping its grade under [grade], in cd/m2.
  *
- * A reference frame carries a colour effect at its identity, so it goes through the same encoder as the frame under
+ * A reference frame carries a color effect at its identity, so it goes through the same encoder as the frame under
  * test rather than down the copy path. Fails the calling test when the plan is refused, the export fails or no frame
  * decodes, naming the grade by [at] when one is given.
  */
@@ -48,7 +49,7 @@ internal suspend fun Filmstrip.exportedGradeLight(
       clip(MediaSource.of(source))
       effects(grade)
     }
-  val spec = ExportSpec(targetHeight = 720, hdr = HdrMode.KeepHdr)
+  val spec = ExportSpec(heightPx = 720, hdr = HdrMode.KeepHdr)
   val plan =
     when (val verdict = plan(composition, spec)) {
       is Verdict.Capable -> verdict.plan
@@ -58,7 +59,12 @@ internal suspend fun Filmstrip.exportedGradeLight(
 
   val finished = withContext(Dispatchers.Default) { export(plan, MediaSink.Temporary).toList() }.last()
   if (finished is ExportStatus.Failure) error("export failed: ${finished.error.message}")
-  val path = assertIs<MediaSink.Path>(assertIs<ExportStatus.Success>(finished).output).path
+  val path =
+    finished
+      .shouldBeInstanceOf<ExportStatus.Success>()
+      .output
+      .shouldBeInstanceOf<MediaSink.Path>()
+      .path
 
   try {
     val frame = hdrFrameOf(path) ?: error("could not decode a frame of the export${at?.let { " at $it" }.orEmpty()}")
@@ -107,25 +113,27 @@ internal fun assertGraded(
     }
   wrongs.forEach { (domain, wrong) ->
     val miss = channels.maxOf { abs(wrong[it] - expected[it]) / expected[it] }
-    assertTrue(
-      miss > 2 * drift,
+    withClue(
       "the matrix run on $domain lands $miss off on ${hdrFixtureName(transfer)}, inside twice the $drift bound",
-    )
+    ) {
+      (miss > 2 * drift).shouldBeTrue()
+    }
   }
 
   channels.forEach { channel ->
-    assertTrue(
-      abs(read[channel] - expected[channel]) <= expected[channel] * drift,
+    withClue(
       "channel $channel read ${read[channel]} nits and the reading asks for ${expected[channel]}, off by " +
         "${read[channel] / expected[channel]}: read $read, expected ${expected.toList()}, from $lit at identity",
-    )
+    ) {
+      (abs(read[channel] - expected[channel]) <= expected[channel] * drift).shouldBeTrue()
+    }
   }
 }
 
 /**
  * The channels of a read that carry enough light to say anything.
  *
- * Measured against the brightest channel as well as against an absolute floor. A saturated colour carries its dim
+ * Measured against the brightest channel as well as against an absolute floor. A saturated color carries its dim
  * channel through 4:2:0 chroma, where the slop is a fraction of the bright channels rather than of the dim one, so a
  * channel far below them is moved more by the encode than by the effect. Fails the calling test when every channel
  * reads as black.
@@ -134,18 +142,20 @@ internal fun List<Float>.litChannels(): List<Int> {
   val floor = maxOf(FLOOR_NITS, (maxOrNull() ?: 0f) * FLOOR_FRACTION)
 
   return indices.filter { this[it] >= floor }.also {
-    assertTrue(it.isNotEmpty(), "every channel of the reference frame read as black, so nothing was measured")
+    withClue("every channel of the reference frame read as black, so nothing was measured") {
+      it.isNotEmpty().shouldBeTrue()
+    }
   }
 }
 
 /**
  * The matrix [specs] fold to, applied in order.
  *
- * Fails the calling test when a spec is not a colour matrix.
+ * Fails the calling test when a spec is not a color matrix.
  */
 internal fun matrixOf(vararg specs: EffectSpec): ColorMatrix =
   specs.fold(ColorMatrix.Identity) { folded, spec ->
-    folded.then(checkNotNull(colorMatrixOf(spec)) { "${spec.id} is not a colour matrix" })
+    folded.then(checkNotNull(colorMatrixOf(spec)) { "${spec.id} is not a color matrix" })
   }
 
 // A bias of one is reference white when the matrix is read as running on light.

@@ -1,20 +1,21 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.color.PQ_PEAK_NITS
 import dev.jordond.filmstrip.effects.color.Contrast
 import dev.jordond.filmstrip.effects.color.Saturation
 import dev.jordond.filmstrip.effects.color.contrast
 import dev.jordond.filmstrip.effects.color.saturation
 import dev.jordond.filmstrip.effects.color.transformNits
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.PQ_PEAK_NITS
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 
 /**
- * What a colour matrix does to a frame that keeps its grade, measured in light.
+ * What a color matrix does to a frame that keeps its grade, measured in light.
  *
  * Core Image holds an HDR frame as display referred linear light, and the lowering moves that into
  * the SDR signal a display at reference white would have been fed, runs the matrix there, and moves
@@ -72,13 +73,16 @@ class AppleHdrColorGradeTest {
       val expected = matrixOf(Contrast(HARSH)).transformNits(lit[0], lit[1], lit[2], HdrTransfer.Pq)
 
       val clipped = lit.litChannels().filter { expected[it] >= PQ_PEAK_NITS * HEADROOM }
-      assertTrue(clipped.isNotEmpty(), "no channel of $lit reached the ceiling under a contrast of $HARSH")
+      withClue("no channel of $lit reached the ceiling under a contrast of $HARSH") {
+        clipped.isNotEmpty().shouldBeTrue()
+      }
       clipped.forEach { channel ->
-        assertTrue(
-          graded[channel] > lit[channel] && graded[channel] >= PQ_PEAK_NITS * HEADROOM,
+        withClue(
           "channel $channel asked for ${expected[channel]} nits and read ${graded[channel]}, short of the " +
             "format's own ceiling",
-        )
+        ) {
+          (graded[channel] > lit[channel] && graded[channel] >= PQ_PEAK_NITS * HEADROOM).shouldBeTrue()
+        }
       }
     }
 

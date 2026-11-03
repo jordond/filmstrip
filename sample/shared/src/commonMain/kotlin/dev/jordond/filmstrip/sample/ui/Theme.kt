@@ -26,7 +26,7 @@ private val TextMid = Color(0xFFB4B4C2)
 private val TextLow = Color(0xFF77778A)
 
 /**
- * The sample's palette, mapped onto Material's colour roles.
+ * The sample's palette, mapped onto Material's color roles.
  *
  * An editor is looked at for a long time next to the frame it is grading, so the neutrals stay out
  * of the way and the three accents carry meaning: primary is anything the user can act on, tertiary

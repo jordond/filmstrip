@@ -24,28 +24,12 @@ public actual fun PlatformFile.toImageSource(): ImageSource =
 public actual fun PlatformFile.toMediaSink(): MediaSink =
   nsUrl.filePath()?.let(MediaSink::of) ?: MediaSink.ofUri(nsUrl.absoluteString.orEmpty())
 
-/**
- * Hands an export result back to FileKit, for a share sheet or a save dialog.
- *
- * A [MediaSink.Uri] is handed to `NSURL` unchecked, and `NSURL` takes a bare path as readily as it
- * takes a URL, so almost any string comes back as a file rather than as an error.
- *
- * @throws IllegalArgumentException on a [MediaSink.Uri] that `NSURL` will not parse at all.
- * @throws IllegalStateException on [MediaSink.Temporary], which is a request rather than a
- *   location. Read the resolved path off `ExportStatus.Success.output` instead.
- */
-public actual fun MediaSink.toPlatformFile(): PlatformFile =
-  when (this) {
-    is MediaSink.Path -> {
-      PlatformFile(NSURL.fileURLWithPath(path))
-    }
-    is MediaSink.Uri -> {
-      PlatformFile(NSURL.URLWithString(uri) ?: throw IllegalArgumentException("$uri is not a URL."))
-    }
-    is MediaSink.Temporary -> {
-      error("A temporary sink has no location until the export resolves it.")
-    }
-  }
+internal actual fun platformFileAt(path: String): PlatformFile = PlatformFile(NSURL.fileURLWithPath(path))
+
+// The uri is handed to NSURL unchecked, and NSURL takes a bare path as readily as it takes a URL, so almost any string
+// comes back as a file rather than as an error. Only one NSURL will not parse at all is refused.
+internal actual fun platformFileOf(uri: String): PlatformFile =
+  PlatformFile(NSURL.URLWithString(uri) ?: throw IllegalArgumentException("$uri is not a URL."))
 
 // Every URL carries a path component, http ones included, so the scheme decides the arm rather
 // than the path being present.

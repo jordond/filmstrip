@@ -31,8 +31,8 @@ public object AndroidScratch {
    * The file under [context]'s cache holding [source]'s bytes, named for the container its hint
    * claims.
    *
-   * Every caller that needs [source] as a file goes through here rather than naming the extension
-   * itself, so a source probed and then exported is written to one file rather than two.
+   * Every caller that needs [source] as a file goes through here, so a source probed and then
+   * exported is written to one file rather than two.
    *
    * @throws IOException when the directory or the file could not be written.
    */

@@ -1,14 +1,13 @@
 package dev.jordond.filmstrip.test
 
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.heifAlpha
-import dev.jordond.filmstrip.internal.heifPrimaryIsTiled
+import dev.jordond.filmstrip.picture.heif.heifAlpha
+import dev.jordond.filmstrip.picture.heifPrimaryIsTiled
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 /**
  * Core's read of the alpha item an AVIF or HEIC carries for its primary item, on the stills [HeifStills] writes with
@@ -17,41 +16,41 @@ import kotlin.test.assertTrue
 class HeifAlphaTest {
   @Test
   fun `a still with no alpha item has none`() {
-    assertNull(heifAlpha(ColourPictures.NCLX_UNSPECIFIED.bytes()))
-    assertNull(heifAlpha(ColourPictures.NCLX_UNSPECIFIED.gridBytes()))
-    assertNull(heifAlpha(byteArrayOf(1, 2, 3)))
+    heifAlpha(ColorPictures.NCLX_UNSPECIFIED.bytes()).shouldBeNull()
+    heifAlpha(ColorPictures.NCLX_UNSPECIFIED.gridBytes()).shouldBeNull()
+    heifAlpha(byteArrayOf(1, 2, 3)).shouldBeNull()
   }
 
   @Test
   fun `an AVIF and a HEIC alpha item are read by their id`() {
     for ((item, alpha) in listOf(AVIF to AlphaPlanes.avif(), HEIC to AlphaPlanes.heic())) {
-      val read = assertNotNull(heifAlpha(still(item, alpha)), item.itemType)
-      assertEquals(2L, read.item)
-      assertNull(read.grid)
-      assertFalse(read.premultiplied)
-      assertTrue(read.fullRange)
-      assertEquals(8, read.bitDepth)
+      val read = withClue(item.itemType) { heifAlpha(still(item, alpha)).shouldNotBeNull() }
+      read.item shouldBe 2L
+      read.grid.shouldBeNull()
+      read.premultiplied shouldBe false
+      read.fullRange shouldBe true
+      read.bitDepth shouldBe 8
     }
   }
 
   @Test
   fun `a limited range AVIF and HEIC alpha item read their range off their own codestream`() {
     for ((item, alpha) in listOf(AVIF to AlphaPlanes.avif(fullRange = false), HEIC to AlphaPlanes.heic(false, false))) {
-      val read = assertNotNull(heifAlpha(still(item, alpha)), item.itemType)
-      assertFalse(read.fullRange, item.itemType)
-      assertEquals(8, read.bitDepth, item.itemType)
+      val read = withClue(item.itemType) { heifAlpha(still(item, alpha)).shouldNotBeNull() }
+      withClue(item.itemType) { read.fullRange shouldBe false }
+      withClue(item.itemType) { read.bitDepth shouldBe 8 }
     }
   }
 
   @Test
   fun `the alpha item follows a thumbnail written ahead of the primary item`() {
-    val bytes = still(AVIF, AlphaPlanes.avif(), thumbnail = ColourPictures.NCLX_BT709_LIMITED.thumbnail())
-    assertEquals(3L, assertNotNull(heifAlpha(bytes)).item)
+    val bytes = still(AVIF, AlphaPlanes.avif(), thumbnail = ColorPictures.NCLX_BT709_LIMITED.thumbnail())
+    heifAlpha(bytes).shouldNotBeNull().item shouldBe 3L
   }
 
   @Test
   fun `a premultiplied alpha item says so`() {
-    assertTrue(assertNotNull(heifAlpha(still(AVIF, AlphaPlanes.avif(premultiplied = true)))).premultiplied)
+    heifAlpha(still(AVIF, AlphaPlanes.avif(premultiplied = true))).shouldNotBeNull().premultiplied shouldBe true
   }
 
   @Test
@@ -68,15 +67,15 @@ class HeifAlphaTest {
         size = Size(20, 12),
         alpha = List(6) { AlphaPlanes.avifTile(it) },
       )
-    assertTrue(heifPrimaryIsTiled(bytes))
-    val alpha = assertNotNull(heifAlpha(bytes))
-    assertEquals(8L, alpha.item)
-    val grid = assertNotNull(alpha.grid)
-    assertEquals((9L..14L).toList(), grid.tiles)
-    assertEquals(3, grid.columns)
-    assertEquals(2, grid.rows)
-    assertEquals(Size(20, 12), grid.size)
-    assertTrue(alpha.fullRange)
+    heifPrimaryIsTiled(bytes) shouldBe true
+    val alpha = heifAlpha(bytes).shouldNotBeNull()
+    alpha.item shouldBe 8L
+    val grid = alpha.grid.shouldNotBeNull()
+    grid.tiles shouldBe (9L..14L).toList()
+    grid.columns shouldBe 3
+    grid.rows shouldBe 2
+    grid.size shouldBe Size(20, 12)
+    alpha.fullRange shouldBe true
   }
 
   @Test
@@ -87,7 +86,7 @@ class HeifAlphaTest {
     val depthType = "urn:mpeg:mpegB:cicp:systems:auxiliary:depth".encodeToByteArray()
     val at = bytes.indexOf(alphaType)
     alphaType.indices.forEach { bytes[at + it] = depthType[it] }
-    assertNull(heifAlpha(bytes))
+    heifAlpha(bytes).shouldBeNull()
   }
 
   // The alpha item's entry comes last in the ipma, and claiming one more association than it holds runs it past the
@@ -99,12 +98,12 @@ class HeifAlphaTest {
     val ipmaEnd = ipma - 4 + (0 until 4).fold(0) { size, at -> (size shl 8) or (bytes[ipma - 4 + at].toInt() and 0xFF) }
     val primaryCount = ipma + 4 + 4 + 4 + 2
     val alphaCount = primaryCount + 1 + bytes[primaryCount] + 2
-    assertEquals(4, bytes[alphaCount].toInt())
-    assertEquals(ipmaEnd, alphaCount + 1 + 4)
-    assertNotNull(heifAlpha(bytes))
+    bytes[alphaCount].toInt() shouldBe 4
+    alphaCount + 1 + 4 shouldBe ipmaEnd
+    heifAlpha(bytes).shouldNotBeNull()
 
     bytes[alphaCount] = 5
-    assertNull(heifAlpha(bytes))
+    heifAlpha(bytes).shouldBeNull()
   }
 
   private fun still(
@@ -128,7 +127,7 @@ class HeifAlphaTest {
     (0..size - part.size).first { start -> part.indices.all { this[start + it] == part[it] } }
 
   private companion object {
-    val AVIF = ColourPictures.NCLX_UNSPECIFIED.thumbnail()
-    val HEIC = ColourPictures.HEIC_NCLX_BT709_FULL.thumbnail()
+    val AVIF = ColorPictures.NCLX_UNSPECIFIED.thumbnail()
+    val HEIC = ColorPictures.HEIC_NCLX_BT709_FULL.thumbnail()
   }
 }

@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Duration
 
@@ -28,8 +29,8 @@ public interface ExportDriver {
   public suspend fun capabilities(): DeviceCapabilities
 
   /**
-   * Describes what this platform's effect pipeline can render, so a resolver advertises against
-   * real capability rather than an assumed floor.
+   * Describes what this platform's effect pipeline can render, which is what a resolver advertises
+   * against.
    *
    * @param outputSize The frame the composition resolved to.
    * @param hdr Whether the pipeline is keeping HDR rather than tone-mapping.

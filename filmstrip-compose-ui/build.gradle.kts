@@ -7,8 +7,9 @@ kotlin {
     commonMain.dependencies {
       api(projects.filmstripCompose)
 
-      implementation(libs.compose.runtime)
-      implementation(libs.compose.foundation)
+      api(libs.compose.runtime)
+      api(libs.compose.ui)
+      api(libs.compose.foundation)
       implementation(libs.compose.ui.tooling.preview)
     }
 

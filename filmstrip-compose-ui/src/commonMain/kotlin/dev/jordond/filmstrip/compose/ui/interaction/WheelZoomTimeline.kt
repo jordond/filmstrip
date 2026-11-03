@@ -33,9 +33,8 @@ public fun Modifier.wheelZoomTimeline(
     if (!enabled) return@pointerInput
 
     // zoomIn and zoomOut are suspend, and this loop runs on the restricted scope
-    // awaitPointerEventScope gives it, which can only await its own pointer events. Launching
-    // them here, rather than awaiting them in place, is what lets the loop keep reading wheel
-    // events while a step's scroll settles.
+    // awaitPointerEventScope gives it, which can only await its own pointer events. They are
+    // launched here, so the loop keeps reading wheel events while a step's scroll settles.
     coroutineScope {
       val gesture =
         WheelZoomGesture(
@@ -64,7 +63,6 @@ public fun Modifier.wheelZoomTimeline(
 /**
  * Whether Control, or Command on a Mac, is held.
  *
- * Checking both together, rather than picking one by platform, is what lets this stay common code: a Windows or Linux
- * host reads Control and a Mac host reads Command, and neither needs to know which platform it is running on.
+ * Both are checked on every platform. A Windows or Linux host reads Control and a Mac host reads Command.
  */
 private fun PointerKeyboardModifiers.zoomsTimeline(): Boolean = isCtrlPressed || isMetaPressed

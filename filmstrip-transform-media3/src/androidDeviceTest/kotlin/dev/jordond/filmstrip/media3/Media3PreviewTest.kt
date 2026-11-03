@@ -3,33 +3,33 @@ package dev.jordond.filmstrip.media3
 import androidx.media3.common.Effect
 import androidx.media3.effect.RgbAdjustment
 import androidx.media3.effect.RgbMatrix
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
-import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.outputSlotTime
-import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
-import dev.jordond.filmstrip.media3.internal.Media3FrameBounds
-import dev.jordond.filmstrip.media3.internal.toMedia3Preview
-import dev.jordond.filmstrip.transform.internal.ResolvedClip
-import dev.jordond.filmstrip.transform.internal.ResolvedComposition
-import dev.jordond.filmstrip.transform.internal.ResolvedEffect
-import dev.jordond.filmstrip.transform.internal.ResolvedGain
-import dev.jordond.filmstrip.transform.internal.ResolvedHdr
-import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import dev.jordond.filmstrip.media3.internal.bounds.Media3FrameBounds
+import dev.jordond.filmstrip.media3.internal.preview.toMedia3Preview
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import io.kotest.matchers.floats.plusOrMinus
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
@@ -120,7 +120,7 @@ class Media3PreviewTest {
   }
 
   @Test
-  fun aColourParameterReachesTheStandingChainWithoutItBeingRebuilt() {
+  fun aColorParameterReachesTheStandingChainWithoutItBeingRebuilt() {
     val preview = composition(compositionEffects = listOf(brightness(DIM))).toMedia3Preview(Media3FrameBounds.None)
     val live = preview.compositionEffects.filterIsInstance<RgbMatrix>().single()
     live.gain() shouldBe (DIM plusOrMinus TOLERANCE)
@@ -158,7 +158,7 @@ class Media3PreviewTest {
   }
 
   @Test
-  fun aFillColourIsRefusedSinceThePassThatPaintsItIsBuiltOnce() {
+  fun aFillColorIsRefusedSinceThePassThatPaintsItIsBuiltOnce() {
     val preview = composition(fill = Fill.Solid(RED)).toMedia3Preview(Media3FrameBounds.None)
 
     preview.updateParameters(composition(fill = Fill.Solid(RED)), Media3FrameBounds.None) shouldBe true
@@ -175,7 +175,7 @@ class Media3PreviewTest {
   // An overlay is the one that matters in practice: it owns a texture media3 uploads and frees on
   // its own render thread, so there is no swap of one on offer and an edit carrying one rebuilds.
   @Test
-  fun anEffectThatIsNeitherAColourNorAGeometryMatrixIsRefused() {
+  fun anEffectThatIsNeitherAColorNorAGeometryMatrixIsRefused() {
     val preview = composition(compositionEffects = listOf(opaque())).toMedia3Preview(Media3FrameBounds.None)
 
     preview.updateParameters(composition(compositionEffects = listOf(opaque())), Media3FrameBounds.None) shouldBe false

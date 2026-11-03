@@ -1,11 +1,12 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.media.HLG_NOMINAL_PEAK_NITS
-import dev.jordond.filmstrip.media.brightnessDisplayGain
-import dev.jordond.filmstrip.media.hlgDisplayNitsFromScene
+import dev.jordond.filmstrip.color.HLG_NOMINAL_PEAK_NITS
+import dev.jordond.filmstrip.color.brightnessDisplayGain
+import dev.jordond.filmstrip.color.hlgDisplayNitsFromScene
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertTrue
 
 /**
  * Checks each bound AppleHdrBrightnessTest holds an HDR brightness read to still catches the wrong readings it is
@@ -36,7 +37,9 @@ class AppleHdrBrightnessBoundTest {
     what: String,
   ) {
     val miss = abs(wrong - expected) / expected
-    assertTrue(miss > 2 * drift, "$what lands $miss off $expected, inside twice the $drift bound that should catch it")
+    withClue("$what lands $miss off $expected, inside twice the $drift bound that should catch it") {
+      (miss > 2 * drift).shouldBeTrue()
+    }
   }
 
   // A display light gain applied to HLG scene light instead, which the system gamma raises once more on the way to the

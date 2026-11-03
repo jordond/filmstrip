@@ -9,7 +9,7 @@ import kotlin.time.Duration
 /**
  * How an overlay is drawn at one instant.
  *
- * Sampled once per output frame over the run the overlay is drawn across, so the opacity, offset
+ * Sampled once per output frame over the range the overlay is drawn across, so the opacity, offset
  * and scale it answers may differ on every frame. It is a `fun interface`, so a lambda is the
  * shorthand for a curve the built-in helpers do not cover.
  */
@@ -18,21 +18,21 @@ public fun interface OverlayAnimation {
   /**
    * Answers how the overlay is drawn at [time].
    *
-   * @param time Where the frame sits inside the run the overlay is drawn over.
+   * @param time Where the frame sits inside the range the overlay is drawn over.
    * @return What to draw the overlay with on that frame.
    */
   public fun frameAt(time: OverlayTime): OverlayFrame
 }
 
 /**
- * Where one frame sits inside the run an overlay is drawn over.
+ * Where one frame sits inside the range an overlay is drawn over.
  *
- * The run is the one [runWithin] derives, so [elapsed] and [remaining] count from the first frame
+ * The drawn range is the one [drawnRangeWithin] derives, so [elapsed] and [remaining] count from the first frame
  * the overlay is drawn on and to the last rather than from the start of the composition.
  *
  * @property elapsed How long the overlay has been drawn for, never negative.
- * @property remaining How much of the run is left, never negative, or [Duration.INFINITE] while the
- *   run has no end. A ramp measured off an infinite remainder never begins, so [fadeOut] holds full
+ * @property remaining How much of the drawn range is left, never negative, or [Duration.INFINITE] while the
+ *   drawn range has no end. A ramp measured off an infinite remainder never begins, so [fadeOut] holds full
  *   opacity and [slideOut] holds the authored position.
  * @property composition Where the frame sits on the composition's own timeline.
  */
@@ -108,7 +108,7 @@ public fun fadeIn(duration: Duration): OverlayAnimation = FadeAnimation(duration
  * Ramps the overlay's opacity down to nothing over [duration], counted back from its last drawn
  * frame.
  *
- * The ramp is linear. A run with no end never reaches it, so the overlay holds full opacity.
+ * The ramp is linear. A drawn range with no end never reaches it, so the overlay holds full opacity.
  *
  * @param duration How long the overlay takes to fade away.
  * @return An animation fading the overlay out.
@@ -118,7 +118,7 @@ public fun fadeOut(duration: Duration): OverlayAnimation = FadeAnimation(Duratio
 /**
  * Fades the overlay in over [inDuration] and back out over [outDuration].
  *
- * The two ramps are measured from opposite ends of the run, so a run shorter than the pair takes
+ * The two ramps are measured from opposite ends of the drawn range, so a drawn range shorter than the pair takes
  * the lower of the two opacities rather than the product. A duration of zero or less on either side
  * skips that side's ramp.
  *
@@ -152,7 +152,7 @@ public fun slideIn(
  * Slides the overlay from where it was authored to [to] over [duration], counted back from its last
  * drawn frame.
  *
- * The travel is linear. A run with no end never reaches it, and a duration of zero or less skips
+ * The travel is linear. A drawn range with no end never reaches it, and a duration of zero or less skips
  * it, so the overlay holds its authored position in both cases.
  *
  * @param to Where the overlay ends, relative to where it was authored.

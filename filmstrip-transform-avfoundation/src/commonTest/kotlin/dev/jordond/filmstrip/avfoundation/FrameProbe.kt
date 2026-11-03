@@ -1,9 +1,11 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.avfoundation.FrameProbe.Companion.PATCH
-import dev.jordond.filmstrip.avfoundation.internal.MEDIA_TIMESCALE
-import dev.jordond.filmstrip.avfoundation.internal.toCMTime
-import dev.jordond.filmstrip.avfoundation.internal.toDuration
+import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TIMESCALE
+import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
+import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.readValue
@@ -39,7 +41,6 @@ import platform.CoreMedia.CMTimeMake
 import platform.CoreMedia.CMTimeSubtract
 import platform.Foundation.NSURL
 import kotlin.math.abs
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 
 /**
@@ -59,7 +60,7 @@ internal class FrameProbe(
   private val pixels: ByteArray,
 ) {
   /**
-   * The colour of the single pixel at ([xFraction], [yFraction]).
+   * The color of the single pixel at ([xFraction], [yFraction]).
    */
   fun at(
     xFraction: Float,
@@ -76,7 +77,7 @@ internal class FrameProbe(
   }
 
   /**
-   * The average colour of a [PATCH] square centred on ([xFraction], [yFraction]).
+   * The average color of a [PATCH] square centred on ([xFraction], [yFraction]).
    *
    * A single pixel lands wherever chroma subsampling left it, so anything measuring a region reads
    * an average rather than a sample. Each channel rounds to the nearest code.
@@ -239,7 +240,7 @@ internal fun videoSamplesOf(path: String): List<VideoSample> {
 }
 
 /**
- * The colour of the single pixel at ([xFraction], [yFraction]) of the first frame of [path].
+ * The color of the single pixel at ([xFraction], [yFraction]) of the first frame of [path].
  */
 internal fun samplePixel(
   path: String,
@@ -248,7 +249,7 @@ internal fun samplePixel(
 ): Triple<Int, Int, Int> = frameOf(path).at(xFraction, yFraction)
 
 /**
- * The sum of each channel's difference between two colours.
+ * The sum of each channel's difference between two colors.
  */
 internal fun distance(
   a: Triple<Int, Int, Int>,
@@ -256,29 +257,28 @@ internal fun distance(
 ): Int = abs(a.first - b.first) + abs(a.second - b.second) + abs(a.third - b.third)
 
 /**
- * The sum of a colour's three channels.
+ * The sum of a color's three channels.
  */
 internal fun luminance(color: Triple<Int, Int, Int>): Int = color.first + color.second + color.third
 
 /**
- * Packs this RGB colour as opaque ARGB, the shape a solid fill takes.
+ * Packs this RGB color as opaque ARGB, the shape a solid fill takes.
  */
 internal fun Triple<Int, Int, Int>.toArgb(): Int =
   (ALPHA shl ALPHA_SHIFT) or (first shl RED_SHIFT) or (second shl GREEN_SHIFT) or third
 
 /**
  * Asserts [actual] is within [COLOR_TOLERANCE] of [expected], the slack a real hardware encode
- * leaves even on a flat colour.
+ * leaves even on a flat color.
  */
 internal fun assertClose(
   actual: Triple<Int, Int, Int>,
   expected: Triple<Int, Int, Int>,
   label: String,
 ) {
-  assertTrue(
-    distance(actual, expected) <= COLOR_TOLERANCE,
-    "expected $label to be close to $expected, got $actual",
-  )
+  withClue("expected $label to be close to $expected, got $actual") {
+    (distance(actual, expected) <= COLOR_TOLERANCE).shouldBeTrue()
+  }
 }
 
 internal const val COLOR_TOLERANCE = 24

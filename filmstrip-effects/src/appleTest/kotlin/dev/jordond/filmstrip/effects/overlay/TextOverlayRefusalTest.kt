@@ -8,12 +8,12 @@ import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.SPAN
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.style.TextStyle
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
 
 /**
  * What Apple's resolver reports for a text overlay it draws nothing for, by the reason [rasterizeText] gives.
@@ -22,25 +22,30 @@ import kotlin.test.assertNotNull
 class TextOverlayRefusalTest {
   @Test
   fun `text past the picture ceiling is refused with the reason its raster gives`() {
-    val size = assertNotNull(rasterSize(TALL_TEXT, TALL_STYLE), "the tall text measured nothing")
+    val size = withClue("the tall text measured nothing") { rasterSize(TALL_TEXT, TALL_STYLE).shouldNotBeNull() }
     val band = drawnBandBytes(size.width.toLong(), size.height.toLong())
-    assertFalse(
-      textRasterFits(size.width.toLong(), size.height.toLong(), TEXT_TEXEL_BYTES, band),
-      "a ${size.width} by ${size.height} raster fits under the ceiling, so it proves nothing",
-    )
+    withClue("a ${size.width} by ${size.height} raster fits under the ceiling, so it proves nothing") {
+      textRasterFits(size.width.toLong(), size.height.toLong(), TEXT_TEXEL_BYTES, band) shouldBe false
+    }
 
     val resolved = BuiltInEffectResolver().resolve(TextOverlay(TALL_TEXT, TALL_STYLE), CAPABILITIES, ATTRIBUTES)
 
-    val refused = assertIs<EffectResolution.Unsupported>(resolved, "the tall text resolved as $resolved")
-    assertEquals(textTooLargeToDraw(size.width.toLong(), size.height.toLong(), TEXT_TEXEL_BYTES), refused.message)
+    val refused =
+      withClue("the tall text resolved as $resolved") {
+        resolved.shouldBeInstanceOf<EffectResolution.Unsupported>()
+      }
+    refused.message shouldBe textTooLargeToDraw(size.width.toLong(), size.height.toLong(), TEXT_TEXEL_BYTES)
   }
 
   @Test
   fun `text that leaves nothing to draw is refused saying so`() {
     val resolved = BuiltInEffectResolver().resolve(TextOverlay(""), CAPABILITIES, ATTRIBUTES)
 
-    val refused = assertIs<EffectResolution.Unsupported>(resolved, "empty text resolved as $resolved")
-    assertEquals("The text and its style leave nothing to draw.", refused.message)
+    val refused =
+      withClue("empty text resolved as $resolved") {
+        resolved.shouldBeInstanceOf<EffectResolution.Unsupported>()
+      }
+    refused.message shouldBe "The text and its style leave nothing to draw."
   }
 
   // The size the raster would be drawn at, read where its bitmap would be made and refused there, so nothing is held.
@@ -53,7 +58,13 @@ class TextOverlayRefusalTest {
       size = Size(width, height)
       null
     }
-    assertIs<TextRaster.Refused>(rasterizeText(text, style, FRAME, ceiling = Long.MAX_VALUE, bitmapOf = measured))
+    rasterizeText(
+      text,
+      style,
+      FRAME,
+      ceiling = Long.MAX_VALUE,
+      bitmapOf = measured,
+    ).shouldBeInstanceOf<TextRaster.Refused>()
     return size
   }
 

@@ -37,9 +37,9 @@ public actual class PlatformEffect(
  * @property sidecars Files this effect needs on disk before the graph runs. A node references one
  * by writing its [Sidecar.placeholder] where the path belongs, and the backend swaps in the path it
  * wrote the bytes to.
- * @property crop The node that cuts the region this effect works on out of a copy of the pad it
- * receives. [chain], [merge] and [post] run on that region, which is then overlaid back onto the
- * uncropped pad at the position it was cut from. Null to work on the whole pad.
+ * @property crop The region this effect works on, cut out of a copy of the pad it receives.
+ * [chain], [merge] and [post] run on that region, which is then overlaid back onto the uncropped
+ * pad at the position it was cut from. Null to work on the whole pad.
  * The region is laid back with an `overlay`, so a worked region that carries alpha is blended over
  * the original by it rather than replacing it. A region meant to replace the pixels it was cut from
  * has to come out opaque.
@@ -53,8 +53,29 @@ public class FilterFragment(
   public val auxInputs: List<AuxInput> = emptyList(),
   public val merge: FilterNode? = null,
   public val sidecars: List<Sidecar> = emptyList(),
-  public val crop: FilterNode? = null,
+  public val crop: FilterCrop? = null,
   public val post: List<FilterNode> = emptyList(),
+)
+
+/**
+ * The region a [FilterFragment] works on, as the tool's `crop` filter would cut it.
+ *
+ * Every value is an expression the tool evaluates against the pad, such as `320` or `iw/2`.
+ *
+ * @property width The region's width.
+ * @property height The region's height.
+ * @property x Where the region's left edge sits, or null to centre it across the pad.
+ * @property y Where the region's top edge sits, or null to centre it down the pad.
+ * @property exact Whether the region is cut at exactly [x] and [y], rather than at the nearest
+ * position on the chroma grid of the pad it is cut from.
+ */
+@Poko
+public class FilterCrop(
+  public val width: String,
+  public val height: String,
+  public val x: String? = null,
+  public val y: String? = null,
+  public val exact: Boolean = true,
 )
 
 /**
@@ -132,7 +153,7 @@ public class AuxTimeline(
 )
 
 /**
- * A file an effect needs the tool to read, such as the lookup table a colour grade lowers to.
+ * A file an effect needs the tool to read, such as the lookup table a color grade lowers to.
  *
  * Carries the bytes rather than a path, the way [AuxInput] carries an image. The backend writes
  * them into its scratch directory before the graph runs, and a node reaches the file by writing

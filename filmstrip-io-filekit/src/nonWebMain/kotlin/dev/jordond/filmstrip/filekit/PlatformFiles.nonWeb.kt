@@ -16,7 +16,16 @@ import io.github.vinceglb.filekit.PlatformFile
  * @throws IllegalStateException on [MediaSink.Temporary], which is a request rather than a
  *   location. Read the resolved path off `ExportStatus.Success.output` instead.
  */
-public expect fun MediaSink.toPlatformFile(): PlatformFile
+public fun MediaSink.toPlatformFile(): PlatformFile =
+  when (this) {
+    is MediaSink.Path -> platformFileAt(path)
+    is MediaSink.Uri -> platformFileOf(uri)
+    is MediaSink.Temporary -> error("A temporary sink has no location until the export resolves it.")
+  }
+
+internal expect fun platformFileAt(path: String): PlatformFile
+
+internal expect fun platformFileOf(uri: String): PlatformFile
 
 /**
  * Does nothing.

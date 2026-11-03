@@ -13,7 +13,7 @@ internal actual fun imageDataOf(
   height: Int,
 ): ImageData {
   val image = newImageData(width, height)
-  pixels.copyInChunks { offset, text -> writeImageLatin1(image, offset, text) }
+  pixels.forEachLatin1Chunk { offset, text -> writeImageLatin1(image, offset, text) }
   return image
 }
 
@@ -28,25 +28,23 @@ public actual fun blobOf(
   type: String,
 ): Blob {
   val array = newByteArray(bytes.size)
-  bytes.copyInChunks { offset, text -> writeArrayLatin1(array, offset, text) }
+  bytes.forEachLatin1Chunk { offset, text -> writeArrayLatin1(array, offset, text) }
   return newBlob(array, type)
 }
 
 @InternalFilmstripApi
 public actual fun ArrayBuffer.toByteArray(): ByteArray {
   val view = viewOf(this)
-  val out = ByteArray(byteLength)
-  var offset = 0
-  while (offset < out.size) {
-    val end = minOf(offset + BYTE_CHUNK, out.size)
-    val chunk = readLatin1(view, offset, end - offset)
-    for (index in offset until end) out[index] = chunk[index - offset].code.toByte()
-    offset = end
-  }
-  return out
+  return latin1BytesOf(byteLength) { offset, length -> readLatin1(view, offset, length) }
 }
 
-private inline fun ByteArray.copyInChunks(write: (Int, String) -> Unit) {
+/**
+ * Hands this array to [write] as latin-1 text, a chunk at a time, with the offset each chunk's first byte sits at.
+ *
+ * Each character of a chunk is one byte, so a `@JsFun` on the other side writes it back out with `charCodeAt`.
+ */
+@InternalFilmstripApi
+public fun ByteArray.forEachLatin1Chunk(write: (offset: Int, text: String) -> Unit) {
   var offset = 0
   val chunk = StringBuilder(BYTE_CHUNK)
   while (offset < size) {
@@ -56,6 +54,28 @@ private inline fun ByteArray.copyInChunks(write: (Int, String) -> Unit) {
     write(offset, chunk.toString())
     offset = end
   }
+}
+
+/**
+ * An array of [size] bytes read back as latin-1 text, a chunk at a time, from whatever [read] returns for the offset
+ * and the length of each chunk.
+ *
+ * The other half of [forEachLatin1Chunk], for a `@JsFun` that reads bytes out with `String.fromCharCode`.
+ */
+@InternalFilmstripApi
+public fun latin1BytesOf(
+  size: Int,
+  read: (offset: Int, length: Int) -> String,
+): ByteArray {
+  val out = ByteArray(size)
+  var offset = 0
+  while (offset < size) {
+    val end = minOf(offset + BYTE_CHUNK, size)
+    val chunk = read(offset, end - offset)
+    for (index in offset until end) out[index] = chunk[index - offset].code.toByte()
+    offset = end
+  }
+  return out
 }
 
 @JsFun("(width, height) => new ImageData(width, height)")

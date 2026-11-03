@@ -2,7 +2,6 @@
 
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -16,24 +15,25 @@ import dev.jordond.filmstrip.effect.WebGlOverlay
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.pictureCropOf
-import dev.jordond.filmstrip.internal.pictureOrientationOf
 import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.ImageBitmap
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.PictureCrop
-import dev.jordond.filmstrip.media.UnturnedHeif
-import dev.jordond.filmstrip.media.heifWithoutOrientation
+import dev.jordond.filmstrip.picture.PictureCrop
+import dev.jordond.filmstrip.picture.heif.UnturnedHeif
+import dev.jordond.filmstrip.picture.heif.heifWithoutOrientation
+import dev.jordond.filmstrip.picture.pictureCropOf
+import dev.jordond.filmstrip.picture.pictureOrientationOf
 import dev.jordond.filmstrip.test.CicpTag
 import dev.jordond.filmstrip.test.OrientedPictures
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.unsafeCast
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -44,7 +44,6 @@ import kotlin.time.Duration.Companion.seconds
  * it. Each overlay holds the texels of the same picture without a `clap`, cut at [pictureCropOf]'s rectangle, which
  * core's still measure sizes the picture by.
  */
-@OptIn(InternalFilmstripApi::class)
 class WebOverlayClapTest {
   @Test
   fun aCentredAnOffsetAndACornerClapDrawTheTexelsCoreCropsTo() =
@@ -60,13 +59,13 @@ class WebOverlayClapTest {
         val full = drawnTexels(resolvedOverlay(still))
         for ((clap, expected) in crops) {
           val clapped = OrientedPictures.heifWithProperties(still, listOf(CLAPS.getValue(clap)))
-          assertEquals(expected, pictureCropOf(clapped), "$name $clap crop")
+          withClue("$name $clap crop") { pictureCropOf(clapped) shouldBe expected }
 
           val overlay = resolvedOverlay(clapped)
 
-          assertEquals(name == "evaluated", sourceOf(overlay).samples != null, "$name $clap route")
-          assertEquals(expected.size, overlay.size, "$name $clap size")
-          assertContentEquals(full.cropped(expected), drawnTexels(overlay), "$name $clap texels")
+          withClue("$name $clap route") { (sourceOf(overlay).samples != null) shouldBe (name == "evaluated") }
+          withClue("$name $clap size") { overlay.size shouldBe expected.size }
+          assertTexels(full.cropped(expected), drawnTexels(overlay), "$name $clap texels")
         }
       }
     }
@@ -79,13 +78,13 @@ class WebOverlayClapTest {
       val still = MatrixAvif.EIGHT_BIT_444.bytes(ROUTES.first().second)
       val full = drawnTexels(resolvedOverlay(still))
       val clapped = OrientedPictures.heifWithProperties(still, listOf(CLAPS.getValue("offset"), QUARTER_TURN))
-      val crop = assertNotNull(pictureCropOf(clapped))
+      val crop = pictureCropOf(clapped).shouldNotBeNull()
 
       val overlay = resolvedOverlay(clapped)
 
-      assertEquals(pictureOrientationOf(clapped), overlay.orientation)
-      assertEquals(crop.size, overlay.size)
-      assertContentEquals(full.cropped(crop), drawnTexels(overlay))
+      overlay.orientation shouldBe pictureOrientationOf(clapped)
+      overlay.size shouldBe crop.size
+      assertTexels(full.cropped(crop), drawnTexels(overlay))
     }
 
   // A clap listed after a quarter turn crops the turned frame. Core carries it back to a rectangle of the stored
@@ -96,13 +95,13 @@ class WebOverlayClapTest {
       val still = MatrixAvif.EIGHT_BIT_444.bytes(ROUTES.first().second)
       val full = drawnTexels(resolvedOverlay(still))
       val clapped = OrientedPictures.heifWithProperties(still, listOf(QUARTER_TURN, CLAPS.getValue("offset")))
-      val crop = assertNotNull(pictureCropOf(clapped))
+      val crop = pictureCropOf(clapped).shouldNotBeNull()
 
       val overlay = resolvedOverlay(clapped)
 
-      assertEquals(pictureOrientationOf(clapped), overlay.orientation)
-      assertEquals(crop.size, overlay.size)
-      assertContentEquals(full.cropped(crop), drawnTexels(overlay))
+      overlay.orientation shouldBe pictureOrientationOf(clapped)
+      overlay.size shouldBe crop.size
+      assertTexels(full.cropped(crop), drawnTexels(overlay))
     }
 
   // Chrome decodes the bytes the drop hands it at the whole stored frame, whatever clap the file lists.
@@ -113,11 +112,11 @@ class WebOverlayClapTest {
       val stored = resolvedOverlay(still).size
       for (clap in CLAPS.values) {
         val clapped = OrientedPictures.heifWithProperties(still, listOf(clap))
-        val handed = assertIs<UnturnedHeif.Dropped>(heifWithoutOrientation(clapped)).bytes
+        val handed = heifWithoutOrientation(clapped).shouldBeInstanceOf<UnturnedHeif.Dropped>().bytes
 
         val bitmap = bitmapOf(handed)
 
-        assertEquals(stored, Size(bitmap.width, bitmap.height))
+        Size(bitmap.width, bitmap.height) shouldBe stored
       }
     }
 
@@ -126,18 +125,19 @@ class WebOverlayClapTest {
     val source = sourceOf(overlay)
     val samples = source.samples
     if (samples != null) return Texels(overlay.size, IntArray(samples.size) { samples[it].toInt() })
-    val codes = assertNotNull(codesOf(source.image.unsafeCast<ImageBitmap>()))
+    val codes = codesOf(source.image.unsafeCast<ImageBitmap>()).shouldNotBeNull()
     return Texels(overlay.size, IntArray(codes.size) { codes[it].toInt() and BYTE })
   }
 
-  private fun sourceOf(overlay: WebGlOverlay): OverlaySource.Image = assertIs<OverlaySource.Image>(overlay.source)
+  private fun sourceOf(overlay: WebGlOverlay): OverlaySource.Image =
+    overlay.source.shouldBeInstanceOf<OverlaySource.Image>()
 
   private suspend fun resolvedOverlay(bytes: ByteArray): WebGlOverlay {
     val image = ImageOverlay(ImageSource.ofBytes(bytes), Corner.TopEnd)
     val resolver = BuiltInEffectResolver()
-    resolver.preload(EditComposition(listOf(Track(listOf(Clip(MediaSource.ofUri(CLIP), effects = listOf(image)))))))
-    val resolution = assertIs<EffectResolution.Resolved>(resolver.resolve(image, CAPABILITIES, ATTRIBUTES))
-    return assertNotNull(resolution.effect.overlay)
+    resolver.prepare(EditComposition(listOf(Track(listOf(Clip(MediaSource.ofUri(CLIP), effects = listOf(image)))))))
+    val resolution = resolver.resolve(image, CAPABILITIES, ATTRIBUTES).shouldBeInstanceOf<EffectResolution.Resolved>()
+    return resolution.effect.overlay.shouldNotBeNull()
   }
 
   // Four channels a texel, row by row.
@@ -158,13 +158,15 @@ class WebOverlayClapTest {
     }
   }
 
-  private fun assertContentEquals(
+  private fun assertTexels(
     expected: Texels,
     actual: Texels,
     message: String? = null,
   ) {
-    assertEquals(expected.size, actual.size, message)
-    assertContentEquals(expected.channels, actual.channels, message)
+    withClue(message) {
+      actual.size shouldBe expected.size
+      actual.channels shouldBe expected.channels
+    }
   }
 
   private companion object {

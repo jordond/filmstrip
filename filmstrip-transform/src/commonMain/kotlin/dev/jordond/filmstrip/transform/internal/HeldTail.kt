@@ -1,12 +1,13 @@
 package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.internal.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import kotlin.time.Duration
 
 // How long the picture holds under an audio track that outlasts it, derived once. Every backend writes the video
-// track to the composition's end on the primary's last frame, and reads the slots and the frame count from here
-// rather than working out its own.
+// track to the composition's end on the primary's last frame, and reads the slots and the frame count from here.
 
 /**
  * The output slots the primary's last frame is held over at [frameRate].
@@ -49,10 +50,7 @@ public fun videoSlotsOf(
  */
 @InternalFilmstripApi
 public val ResolvedComposition.heldTail: LongRange
-  get() {
-    val frameRate = checkNotNull(output.frameRate) { "The resolved output has no frame rate." }
-    return heldTailOf(tracks.first(), duration, frameRate)
-  }
+  get() = heldTailOf(tracks.first(), duration, output.frameRate)
 
 /**
  * How many frames this composition's video track writes, from [videoSlotsOf].
@@ -61,25 +59,4 @@ public val ResolvedComposition.heldTail: LongRange
  */
 @InternalFilmstripApi
 public val ResolvedComposition.videoSlots: Long
-  get() = videoSlotsOf(duration, checkNotNull(output.frameRate) { "The resolved output has no frame rate." })
-
-/**
- * The output slots this composition holds its primary's last frame over, from [heldTailOf].
- *
- * Empty when nothing outlasts the primary.
- */
-@InternalFilmstripApi
-public val NegotiatedComposition.heldTail: LongRange
-  get() {
-    val frameRate = checkNotNull(output.frameRate) { "The negotiated output has no frame rate." }
-    return heldTailOf(tracks.first(), duration, frameRate)
-  }
-
-/**
- * How many frames this composition's video track writes, from [videoSlotsOf].
- *
- * The last slot of a non-empty [heldTail] is the last of these.
- */
-@InternalFilmstripApi
-public val NegotiatedComposition.videoSlots: Long
-  get() = videoSlotsOf(duration, checkNotNull(output.frameRate) { "The negotiated output has no frame rate." })
+  get() = videoSlotsOf(duration, output.frameRate)

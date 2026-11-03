@@ -33,7 +33,7 @@ internal fun badgeFile(context: Context): File {
 }
 
 /**
- * How much more of [region] reads as the badge colour here than in [plain], as a fraction of the
+ * How much more of [region] reads as the badge color here than in [plain], as a fraction of the
  * cells sampled.
  *
  * Asserting on the increase rather than an absolute count is what makes the measurement hold on a
@@ -45,7 +45,7 @@ internal fun Bitmap.gainedOver(
 ): Float = badgeFraction(region) - plain.badgeFraction(region)
 
 /**
- * How much of [region] reads as the badge colour, as a fraction of the cells sampled.
+ * How much of [region] reads as the badge color, as a fraction of the cells sampled.
  */
 internal fun Bitmap.badgeFraction(region: Region): Float {
   var hits = 0
@@ -60,7 +60,7 @@ internal fun Bitmap.badgeFraction(region: Region): Float {
 }
 
 /**
- * How much of one full-width row reads as the badge colour, as a fraction of the width.
+ * How much of one full-width row reads as the badge color, as a fraction of the width.
  */
 internal fun Bitmap.badgeSpan(fy: Float): Float {
   var hits = 0
@@ -149,7 +149,7 @@ internal fun Bitmap.isBadgeAt(
 }
 
 /**
- * The average colour of a [PATCH] square whose top-left corner sits at ([fx], [fy]).
+ * The average color of a [PATCH] square whose top-left corner sits at ([fx], [fy]).
  */
 internal fun Bitmap.averageAt(
   fx: Float,
@@ -173,7 +173,7 @@ internal fun Bitmap.averageAt(
 }
 
 /**
- * The sum of each channel's difference between two colours.
+ * The sum of each channel's difference between two colors.
  */
 internal fun distance(
   a: Triple<Int, Int, Int>,
@@ -181,7 +181,7 @@ internal fun distance(
 ): Int = abs(a.first - b.first) + abs(a.second - b.second) + abs(a.third - b.third)
 
 /**
- * The sum of a colour's three channels.
+ * The sum of a color's three channels.
  */
 internal fun luminance(color: Triple<Int, Int, Int>): Int = color.first + color.second + color.third
 
@@ -206,6 +206,6 @@ internal const val SPAN_SAMPLES = 40
 internal const val CENTRE_SAMPLES = 80
 
 // Squared channel reach summed over every cell and channel. Below this the badge and whatever sits
-// under it are too close in colour for the ratio between them to mean anything.
+// under it are too close in color for the ratio between them to mean anything.
 internal const val BLEND_FLOOR = 50_000.0
 internal const val PNG_QUALITY = 100

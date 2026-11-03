@@ -20,11 +20,12 @@ import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.motion.Easing
 import dev.jordond.filmstrip.test.eightBitFrameAt
 import dev.jordond.filmstrip.test.writeAtomically
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -117,14 +118,12 @@ class AndroidKenBurnsTest {
       val late = eightBitFrameAt(panned, CLIP_LENGTH * FRACTIONS.last())
       val untouched = eightBitFrameAt(plain, CLIP_LENGTH * FRACTIONS.first())
 
-      assertTrue(
-        distance(early.averageAt(CENTRE, CENTRE), late.averageAt(CENTRE, CENTRE)) > MOVED,
-        "the panned video showed the same colour at both readings, so nothing travelled",
-      )
-      assertTrue(
-        distance(early.averageAt(CENTRE, CENTRE), untouched.averageAt(CENTRE, CENTRE)) > MOVED,
-        "the panned video matched the untouched one, so the pan resolved to nothing",
-      )
+      withClue("the panned video showed the same color at both readings, so nothing travelled") {
+        (distance(early.averageAt(CENTRE, CENTRE), late.averageAt(CENTRE, CENTRE)) > MOVED) shouldBe true
+      }
+      withClue("the panned video matched the untouched one, so the pan resolved to nothing") {
+        (distance(early.averageAt(CENTRE, CENTRE), untouched.averageAt(CENTRE, CENTRE)) > MOVED) shouldBe true
+      }
     }
 
   private fun assertRedFraction(
@@ -135,16 +134,15 @@ class AndroidKenBurnsTest {
     val expected = ((BOUNDARY - region.left) / region.width).coerceIn(0f, 1f)
     val measured = frame.redSpan()
 
-    assertTrue(
-      abs(measured - expected) < TOLERANCE,
-      "$where the region $region should leave $expected red, measured $measured",
-    )
+    withClue("$where the region $region should leave $expected red, measured $measured") {
+      (abs(measured - expected) < TOLERANCE) shouldBe true
+    }
   }
 
   /**
    * The share of one full-width row that came out of the red half of the photo.
    *
-   * Red against blue rather than a colour match, since the two are opposite ends of the one channel
+   * Red against blue rather than a color match, since the two are opposite ends of the one channel
    * an encoder cannot move without moving the other.
    */
   private fun Bitmap.redSpan(): Float {

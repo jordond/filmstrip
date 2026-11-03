@@ -10,7 +10,6 @@ import dev.jordond.filmstrip.effect.FrameInfo
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
-import dev.jordond.filmstrip.effect.RenderFeature
 import dev.jordond.filmstrip.effects.color.colorMatrixOf
 import dev.jordond.filmstrip.effects.color.withColorMatrix
 import dev.jordond.filmstrip.effects.geometry.Crop
@@ -24,15 +23,15 @@ import dev.jordond.filmstrip.effects.geometry.retainedRect
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.PictureRead
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
-import dev.jordond.filmstrip.effects.overlay.TextRaster
 import dev.jordond.filmstrip.effects.overlay.animatedBy
 import dev.jordond.filmstrip.effects.overlay.compositedOnto
+import dev.jordond.filmstrip.effects.overlay.drawnRangeWithin
 import dev.jordond.filmstrip.effects.overlay.drawnTextSize
 import dev.jordond.filmstrip.effects.overlay.frameWithin
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rasterizeText
 import dev.jordond.filmstrip.effects.overlay.read
-import dev.jordond.filmstrip.effects.overlay.runWithin
+import dev.jordond.filmstrip.effects.overlay.resolvedFrom
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -63,18 +62,17 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       is Crop -> step { image, frame -> image.cropped(spec.retainedRect(frame.attributes.inputSize)) }
       is CropRect -> step { image, _ -> image.cropped(spec.rect) }
       is KenBurns -> spec.toStep()
-      is Scale -> step { image, _ -> image.scaledToHeight(spec.targetHeight) }
+      is Scale -> step { image, _ -> image.scaledToHeight(spec.heightPx) }
       is ImageOverlay -> spec.toOverlay(attributes)
       is TextOverlay -> spec.toOverlay(capabilities, attributes)
       else -> spec.toColorStep()
     }
   }
 
-  // Which specs are colour matrices is the shared lowering's answer rather than a list kept here
-  // as well, brightness included: the cheap lowering a kept grade has for a plain scale is chosen
-  // from the matrix's shape there rather than from the type here. The transfer is read off the frame
-  // rather than off the plan, so a preview and the export it previews put the matrix in the same
-  // domain.
+  // Which specs are color matrices is the shared lowering's answer, brightness included: the
+  // cheap lowering a kept grade has for a plain scale is chosen from the matrix's shape there.
+  // The transfer is read off the frame rather than off the plan, so a preview and the export it
+  // previews put the matrix in the same domain.
   private fun EffectSpec.toColorStep(): EffectResolution? {
     val matrix = colorMatrixOf(this) ?: return null
 
@@ -92,7 +90,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
 
   // Rasterised at resolve and placed at apply. Where an overlay lands depends on the frame entering
   // it, and the preview and the export hand different frames to the same resolved effect, so a
-  // placement settled here would be right on one path and wrong on the other. The run is not one of
+  // placement settled here would be right on one path and wrong on the other. The drawn range is not one of
   // those: the slot an effect is handed is settled before any frame is drawn, so it is derived once
   // here and every frame samples within it.
   private fun ImageOverlay.toOverlay(attributes: Attributes): EffectResolution {
@@ -104,10 +102,10 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
         is PictureRead.Unsupported -> return EffectResolution.Unsupported(id, read.message)
       }
     val size = raster.size
-    val run = runWithin(attributes.span)
+    val drawnRange = drawnRangeWithin(attributes.span)
 
     return resolution(raster.limits) { image, frame ->
-      val sampled = frameWithin(run, frame.compositionTime)
+      val sampled = frameWithin(drawnRange, frame.compositionTime)
       if (sampled == null) {
         image
       } else {
@@ -128,37 +126,31 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   private fun TextOverlay.toOverlay(
     capabilities: RenderCapabilities,
     attributes: Attributes,
-  ): EffectResolution {
-    if (!capabilities.has(RenderFeature.TextRendering)) return EffectResolution.Unsupported(id, NO_TEXT_RENDERING)
-    val raster =
-      when (val drawn = rasterizeText(text, style, attributes.layoutSize)) {
-        is TextRaster.Drawn -> drawn.pixels
-        is TextRaster.Empty -> return EffectResolution.Unsupported(id, EMPTY_TEXT)
-        is TextRaster.Refused -> return EffectResolution.Unsupported(id, drawn.reason)
-      }
-    val size = raster.size
-    val run = runWithin(attributes.span)
+  ): EffectResolution =
+    resolvedFrom(capabilities, { rasterizeText(text, style, attributes.layoutSize) }) { raster ->
+      val size = raster.size
+      val drawnRange = drawnRangeWithin(attributes.span)
 
-    return step { image, frame ->
-      val sampled = frameWithin(run, frame.compositionTime)
-      if (sampled == null) {
-        image
-      } else {
-        // Laid out once against the frame an export writes and only resampled here, so a preview
-        // and the export it previews break their lines on the same words. An animated scale
-        // resamples that raster too rather than re-laying the glyphs at a new size.
-        val drawn = frame.attributes.drawnTextSize(size)
-        raster.enteringFrame(frame.attributes.hdrTransfer, frame.attributes.colorSpace).compositedOnto(
-          image,
-          placedOn(drawn).animatedBy(sampled),
-          frame.attributes.inputSize,
-          sampled.opacity,
-          frame.attributes.hdrTransfer,
-          frame.attributes.colorSpace,
-        )
+      step { image, frame ->
+        val sampled = frameWithin(drawnRange, frame.compositionTime)
+        if (sampled == null) {
+          image
+        } else {
+          // Laid out once against the frame an export writes and only resampled here, so a preview
+          // and the export it previews break their lines on the same words. An animated scale
+          // resamples that raster too rather than re-laying the glyphs at a new size.
+          val drawn = frame.attributes.drawnTextSize(size)
+          raster.enteringFrame(frame.attributes.hdrTransfer, frame.attributes.colorSpace).compositedOnto(
+            image,
+            placedOn(drawn).animatedBy(sampled),
+            frame.attributes.inputSize,
+            sampled.opacity,
+            frame.attributes.hdrTransfer,
+            frame.attributes.colorSpace,
+          )
+        }
       }
     }
-  }
 
   private fun step(block: (CIImage, FrameInfo) -> CIImage): EffectResolution = resolution(emptyList(), block)
 
@@ -234,9 +226,5 @@ internal fun unreadSamples(reason: String): String =
   "The overlay image could not be read. ImageIO decoded the picture, and this backend draws the samples it decodes " +
     "to, which it could not read. $reason"
 
-private const val EMPTY_TEXT = "The text and its style leave nothing to draw."
-
 private const val REGION_OUTSIDE_FRAME =
   "A pan travels between two regions of the frame, so both have to have area and lie inside it."
-
-private const val NO_TEXT_RENDERING = "This device cannot rasterise text into a frame."

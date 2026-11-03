@@ -1,7 +1,8 @@
 package dev.jordond.filmstrip.webcodecs.internal
 
-import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.webcodecs.internal.audio.BrowserAudioMix
+import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
+import dev.jordond.filmstrip.webcodecs.internal.render.BrowserCompositor
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlin.math.abs
@@ -10,9 +11,9 @@ import kotlin.math.abs
  * The export itself: every clip demuxed, decoded, drawn through one WebGL pass, encoded and muxed,
  * with the composition's audio mixed and encoded alongside it.
  *
- * The video loop is Kotlin rather than a JavaScript program handed over in one call, which is what
- * makes backpressure, cancellation between frames and `try`/`finally` around every frame possible at
- * all. Crossing the boundary once per frame costs a handle reference, not a copy.
+ * The video loop runs in Kotlin, one frame at a time, with backpressure, cancellation between frames
+ * and a `try`/`finally` around every frame. Crossing the boundary once per frame costs a handle
+ * reference, not a copy.
  */
 internal class BrowserPipeline(
   private val render: BrowserRender,
@@ -118,7 +119,7 @@ internal class BrowserPipeline(
       sources
         .open(clip.source)
         ?.frames(clip.trimStartUs, clip.trimEndUs, tenBit = render.hdrTransfer != null)
-        ?: throw BrowserExportFailure(unreadable(clip.source))
+        ?: throw BrowserExportFailure(unreadableMessage(clip.source))
 
     compositor.clip(clip, render.compositionGeometryMatrix)
 
@@ -179,8 +180,6 @@ internal class BrowserPipeline(
       abs(ahead.microsecondTimestamp - sourceUs) < abs(current.microsecondTimestamp - sourceUs) -> ahead
       else -> current
     }
-
-  private fun unreadable(source: MediaSource): String = "The browser could not read ${source.describe()}."
 }
 
 /**

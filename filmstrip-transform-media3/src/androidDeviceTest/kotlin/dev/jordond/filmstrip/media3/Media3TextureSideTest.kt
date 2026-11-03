@@ -3,13 +3,13 @@ package dev.jordond.filmstrip.media3
 import android.opengl.GLES20
 import dev.jordond.filmstrip.media3.internal.ES3_MIN_TEXTURE_SIDE
 import dev.jordond.filmstrip.media3.internal.media3RenderCapabilities
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import javax.microedition.khronos.egl.EGL10
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.egl.EGLContext
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotEquals
-import kotlin.test.assertTrue
 
 /**
  * The texture side media3's capabilities report, against the device's own `GL_MAX_TEXTURE_SIZE`.
@@ -22,8 +22,8 @@ class Media3TextureSideTest {
   fun theTextureSideIsTheOneTheDeviceGives() {
     val side = media3RenderCapabilities(hdr = false).maxTextureSize
 
-    assertEquals(deviceTextureSide(), side)
-    assertTrue(side >= ES3_MIN_TEXTURE_SIDE, "a $side pixel side is under the OpenGL ES 3.0 floor")
+    side shouldBe deviceTextureSide()
+    withClue("a $side pixel side is under the OpenGL ES 3.0 floor") { (side >= ES3_MIN_TEXTURE_SIDE) shouldBe true }
   }
 
   private fun deviceTextureSide(): Int {
@@ -34,7 +34,7 @@ class Media3TextureSideTest {
     val count = IntArray(1)
     check(egl.eglChooseConfig(display, CONFIG, configs, 1, count) && count[0] > 0) { "no pbuffer EGL config" }
     val context = egl.eglCreateContext(display, configs[0], EGL10.EGL_NO_CONTEXT, CONTEXT)
-    assertNotEquals(EGL10.EGL_NO_CONTEXT, context, "no EGL context")
+    withClue("no EGL context") { context shouldNotBe EGL10.EGL_NO_CONTEXT }
     val surface = egl.eglCreatePbufferSurface(display, configs[0], PBUFFER)
     try {
       check(egl.eglMakeCurrent(display, surface, surface, context)) { "the EGL context did not go current" }

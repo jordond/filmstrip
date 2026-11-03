@@ -1,18 +1,20 @@
 package dev.jordond.filmstrip.transform.internal
 
+import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.export.AdjustmentKind
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.transform.internal.negotiation.Ask
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.test.assertIs
 
 /**
  * How the planner keeps, copies or tone-maps an hdr grade.
@@ -25,9 +27,9 @@ class HdrPlanTest {
 
   @Test
   fun `hdr is tone-mapped when the device can neither encode it nor copy it across`() {
-    val verdict = fixture.plan(composition(fixture.clip(hdr = HdrTransfer.Hlg)), canCopy = { false })
+    val verdict = fixture.plan(composition(fixture.clip(hdr = HdrTransfer.Hlg)), muxerAccepts = { false })
 
-    val degraded = assertIs<Verdict.Degraded>(verdict)
+    val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
     val adjustment = degraded.adjustments.single()
     adjustment.kind shouldBe AdjustmentKind.HdrToneMapped
     adjustment.message shouldBe "This device cannot encode HDR, so the grade is tone-mapped to SDR."
@@ -39,7 +41,7 @@ class HdrPlanTest {
   fun `an auto export tone-maps and reports it when the edit is what forced the encode`() {
     val verdict = fixture.plan(composition(fixture.clip(hdr = HdrTransfer.Hlg, effects = listOf(Brightness(0.5f)))))
 
-    val degraded = assertIs<Verdict.Degraded>(verdict)
+    val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
     degraded.plan.path shouldBe ExportPath.Transcode
     val adjustment = degraded.adjustments.single()
     adjustment.kind shouldBe AdjustmentKind.HdrToneMapped
@@ -65,8 +67,8 @@ class HdrPlanTest {
   fun `an auto export keeps the grade through a copy on a device with no hdr encoder`() {
     val verdict = fixture.plan(composition(fixture.clip(hdr = HdrTransfer.Pq)))
 
-    val plan = assertIs<Verdict.Capable>(verdict).plan
-    plan.path shouldBe ExportPath.Transmux
+    val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.path shouldBe ExportPath.Copy
     plan.copyBlockedBy.shouldBeEmpty()
   }
 
@@ -77,7 +79,7 @@ class HdrPlanTest {
     val composition = composition(fixture.clip(hdr = HdrTransfer.Pq, effects = listOf(Brightness(0.5f))))
     val verdict = fixture.plan(composition, device = fixture.device(hdr = true))
 
-    val plan = assertIs<Verdict.Capable>(verdict).plan
+    val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
     plan.path shouldBe ExportPath.Transcode
     plan.output.videoCodec shouldBe VideoCodec.Hevc
     fixture.resolve(composition, device = fixture.device(hdr = true)).hdrTransfer shouldBe HdrTransfer.Pq
@@ -90,7 +92,7 @@ class HdrPlanTest {
   fun `a mixed grade on a device with no hdr encoder still blames the mix`() {
     val verdict = fixture.plan(composition(fixture.clip(hdr = HdrTransfer.Pq), fixture.clip()))
 
-    val degraded = assertIs<Verdict.Degraded>(verdict)
+    val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
     val adjustment = degraded.adjustments.single()
     adjustment.kind shouldBe AdjustmentKind.HdrToneMapped
     adjustment.message shouldBe
@@ -108,7 +110,7 @@ class HdrPlanTest {
         ExportSpec(hdr = HdrMode.ToneMapToSdr),
       )
 
-    assertIs<Verdict.Capable>(verdict).plan.path shouldBe ExportPath.Transcode
+    verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Transcode
   }
 
   // strict is a caller saying they wanted no surprises, and a dropped grade is the surprise the
@@ -121,8 +123,8 @@ class HdrPlanTest {
         ExportSpec(strict = true),
       )
 
-    val reason = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.InvalidComposition>(reason).message shouldBe
+    val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
       "This device cannot encode HDR, so the grade is tone-mapped to SDR."
   }
 
@@ -138,7 +140,7 @@ class HdrPlanTest {
         device = fixture.device(hdr = true),
       )
 
-    assertIs<Verdict.Capable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
   }
 
   @Test
@@ -150,7 +152,7 @@ class HdrPlanTest {
         device = fixture.device(hdr = true),
       )
 
-    assertIs<Verdict.Capable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
   }
 
   @Test
@@ -159,7 +161,9 @@ class HdrPlanTest {
 
     // Not H264, which is what the ladder prefers for everything else. Naming it here would have
     // the platform swap in HEVC anyway and the plan describe a file nobody wrote.
-    assertIs<Verdict.Capable>(verdict).plan.output.videoCodec shouldBe VideoCodec.Hevc
+    verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.output.videoCodec shouldBe VideoCodec.Hevc
   }
 
   @Test
@@ -171,7 +175,7 @@ class HdrPlanTest {
         device = fixture.device(hdr = true),
       )
 
-    val degraded = assertIs<Verdict.Degraded>(verdict)
+    val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
     degraded.plan.output.videoCodec shouldBe VideoCodec.Hevc
     degraded.adjustments.single().kind shouldBe AdjustmentKind.CodecFallback
   }
@@ -182,10 +186,10 @@ class HdrPlanTest {
       fixture.plan(
         composition(fixture.clip(hdr = HdrTransfer.Hlg)),
         ExportSpec(hdr = HdrMode.KeepHdr),
-        canCopy = { false },
+        muxerAccepts = { false },
       )
 
-    assertIs<Verdict.Incapable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Incapable>()
   }
 
   // An engine that can neither encode the grade, copy it across, nor bring it down has nowhere to
@@ -196,12 +200,12 @@ class HdrPlanTest {
     val composition = composition(fixture.clip(hdr = HdrTransfer.Pq))
     val verdict =
       fixture
-        .planner(canToneMap = false, canCopy = { false })
-        .negotiate(composition, ExportSpec(), fixture.device(), fixture.infos(composition))
+        .planner(canToneMap = false, muxerAccepts = { false })
+        .negotiate(composition, Ask(ExportSpec(), fixture.device(), fixture.infos(composition)))
         .verdict
 
-    val reason = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.InvalidComposition>(reason).message shouldBe
+    val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
       "This source carries an HDR grade and this engine can neither encode it nor tone-map it, so " +
       "there is nowhere to put it."
   }
@@ -216,10 +220,10 @@ class HdrPlanTest {
   }
 
   @Test
-  fun `an sdr source keeps the passthrough it was planned for`() {
+  fun `an sdr source keeps the copy it was planned for`() {
     val verdict = fixture.plan(composition(fixture.clip()), ExportSpec(hdr = HdrMode.ToneMapToSdr))
 
-    assertIs<Verdict.Capable>(verdict).plan.path shouldBe ExportPath.Transmux
+    verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Copy
   }
 
   // Two clips that disagree about the grade have nothing one transfer describes, so keeping either
@@ -233,8 +237,8 @@ class HdrPlanTest {
         device = fixture.device(hdr = true),
       )
 
-    val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+    val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
       "These sources do not share one HDR transfer, so no single grade describes the output. Use " +
       "HdrMode.Auto or HdrMode.ToneMapToSdr to bring them down to SDR together."
   }
@@ -249,8 +253,8 @@ class HdrPlanTest {
         device = fixture.device(hdr = true),
       )
 
-    val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+    val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
       "These sources do not share one HDR transfer, so no single grade describes the output. Use " +
       "HdrMode.Auto or HdrMode.ToneMapToSdr to bring them down to SDR together."
   }
@@ -260,7 +264,7 @@ class HdrPlanTest {
     val verdict =
       fixture.plan(composition(fixture.clip(hdr = HdrTransfer.Pq), fixture.clip()), device = fixture.device(hdr = true))
 
-    val degraded = assertIs<Verdict.Degraded>(verdict)
+    val degraded = verdict.shouldBeInstanceOf<Verdict.Degraded>()
     val adjustment = degraded.adjustments.single()
     adjustment.kind shouldBe AdjustmentKind.HdrToneMapped
     // This device encodes HDR, so the mix is the whole reason and blaming the encoder would send

@@ -1,11 +1,15 @@
 package dev.jordond.filmstrip.test
 
+import dev.jordond.filmstrip.color.HDR_REFERENCE_WHITE_NITS
+import dev.jordond.filmstrip.color.PictureColor
+import dev.jordond.filmstrip.color.linearToSrgb
+import dev.jordond.filmstrip.color.pictureLight
+import dev.jordond.filmstrip.color.pictureSrgbCodes
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.media.HDR_REFERENCE_WHITE_NITS
-import dev.jordond.filmstrip.media.PictureColour
-import dev.jordond.filmstrip.media.linearToSrgb
-import dev.jordond.filmstrip.media.pictureLight
-import dev.jordond.filmstrip.media.pictureSrgbCodes
+import dev.jordond.filmstrip.picture.pictureColorFromDecodedProfile
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import java.awt.Point
 import java.awt.color.ColorSpace
 import java.awt.color.ICC_ColorSpace
@@ -26,10 +30,6 @@ import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
  * The tagged pictures read by the JDK, as an independent check that their bytes mean what they were built to.
@@ -63,8 +63,8 @@ class IccPicturesJvmTest {
     val colorants = (ICC_Profile.getInstance(IccPictures.DISPLAY_P3.profile) as ICC_ProfileRGB).matrix
     val off = (0 until 3).maxOf { row -> (0 until 3).maxOf { abs(colorants[row][it] - P3_TO_XYZ[row][it]) } }
 
-    assertTrue(colorants[2][0] < 0f, "Red's Z is ${colorants[2][0]}")
-    assertTrue(off <= TOLERANCE, "The colorants are off by $off")
+    withClue("Red's Z is ${colorants[2][0]}") { (colorants[2][0] < 0f) shouldBe true }
+    withClue("The colorants are off by $off") { (off <= TOLERANCE) shouldBe true }
   }
 
   @Test
@@ -76,7 +76,7 @@ class IccPicturesJvmTest {
   fun greyGivesTheD50WhiteScaledByItsGamma() {
     val gamma = (ICC_Profile.getInstance(IccPictures.GREY.profile) as ICC_ProfileGray).gamma
 
-    assertEquals(GREY_GAMMA.toFloat(), gamma)
+    gamma shouldBe GREY_GAMMA.toFloat()
     assertXyz(IccPictures.GREY) { grey -> D50.map { it * grey[0].pow(GREY_GAMMA) } }
   }
 
@@ -84,16 +84,16 @@ class IccPicturesJvmTest {
   fun everyRgbProfileCarriesTheBradfordAdaptationFromD65ToD50() {
     for (picture in IccPictures.ALL - IccPictures.GREY) {
       val chad = ICC_Profile.getInstance(picture.profile).getData(ICC_Profile.icSigChromaticAdaptationTag)
-      assertTrue(chad != null, "$picture has no chad tag")
+      withClue("$picture has no chad tag") { (chad != null) shouldBe true }
       val read = ByteBuffer.wrap(chad)
-      assertEquals("sf32", String(chad, 0, 4, Charsets.US_ASCII), "$picture chad type")
-      assertEquals(SF32_HEADER_BYTES + 9 * 4, chad.size, "$picture chad size")
+      withClue("$picture chad type") { String(chad, 0, 4, Charsets.US_ASCII) shouldBe "sf32" }
+      withClue("$picture chad size") { chad.size shouldBe SF32_HEADER_BYTES + 9 * 4 }
 
       for (row in 0 until 3) {
         for (column in 0 until 3) {
           val value = read.getInt(SF32_HEADER_BYTES + (row * 3 + column) * 4) / 65536.0
           val off = abs(value - BRADFORD_D65_TO_D50[row][column])
-          assertTrue(off <= CHAD_TOLERANCE, "$picture chad[$row][$column] is $value, off by $off")
+          withClue("$picture chad[$row][$column] is $value, off by $off") { (off <= CHAD_TOLERANCE) shouldBe true }
         }
       }
     }
@@ -115,8 +115,8 @@ class IccPicturesJvmTest {
           intArrayOf(texel shr 16 and 0xFF, texel shr 8 and 0xFF, texel and 0xFF, texel ushr 24)
         }
 
-      assertContentEquals(expected, raster.getPixel(LARGE.width - 1, LARGE.height - 1, null as IntArray?), "$picture")
-      assertContentEquals(picture.profile, inflate(iccp.userObject as ByteArray), "$picture profile")
+      withClue("$picture") { raster.getPixel(LARGE.width - 1, LARGE.height - 1, null as IntArray?) shouldBe expected }
+      withClue("$picture profile") { inflate(iccp.userObject as ByteArray) shouldBe picture.profile }
     }
   }
 
@@ -124,14 +124,16 @@ class IccPicturesJvmTest {
   fun pictureLightAgreesWithTheJdkOnEveryProfile() {
     for (picture in IccPictures.ALL) {
       val (codes, xyz) = jdkGrid(picture)
-      val light = pictureLight(colourOf(picture), argbOf(codes))
+      val light = pictureLight(colorOf(picture), argbOf(codes))
 
       codes.indices.forEach { index ->
         val expected = PCS_TO_BT2020 * xyz[index]
         for (channel in 0 until 3) {
           val read = light[index * 4 + channel] / HDR_REFERENCE_WHITE_NITS.toDouble()
           val off = abs(read - expected[channel].coerceIn(0.0, 1.0))
-          assertTrue(off <= TOLERANCE, "$picture at ${codes[index].toList()} channel $channel is off by $off")
+          withClue("$picture at ${codes[index].toList()} channel $channel is off by $off") {
+            (off <= TOLERANCE) shouldBe true
+          }
         }
       }
     }
@@ -141,7 +143,7 @@ class IccPicturesJvmTest {
   fun pictureSrgbCodesAgreeWithTheJdkOnEveryProfile() {
     for (picture in IccPictures.ALL) {
       val (codes, xyz) = jdkGrid(picture)
-      val srgb = pictureSrgbCodes(colourOf(picture), argbOf(codes))
+      val srgb = pictureSrgbCodes(colorOf(picture), argbOf(codes))
 
       codes.indices.forEach { index ->
         val expected = PCS_TO_BT709 * xyz[index]
@@ -150,15 +152,17 @@ class IccPicturesJvmTest {
           val lowest = srgbCode(expected[channel] - TOLERANCE)
           val highest = srgbCode(expected[channel] + TOLERANCE)
           val code = srgb[index] shr (16 - channel * 8) and 0xFF
-          assertTrue(code in lowest..highest, "$picture at ${codes[index].toList()} channel $channel is $code")
+          withClue("$picture at ${codes[index].toList()} channel $channel is $code") {
+            (code in lowest..highest) shouldBe true
+          }
         }
       }
     }
   }
 
-  private fun colourOf(picture: IccPicture): PictureColour {
+  private fun colorOf(picture: IccPicture): PictureColor {
     val channels = if (picture === IccPictures.GREY) 1 else 3
-    return assertNotNull(PictureColour.fromDecodedProfile(picture.profile, channels), "$picture profile")
+    return withClue("$picture profile") { pictureColorFromDecodedProfile(picture.profile, channels).shouldNotBeNull() }
   }
 
   // Every stored code on a grid of 17 steps per channel, or 17 greys for a grey picture, and the D50 XYZ the JDK
@@ -208,7 +212,9 @@ class IccPicturesJvmTest {
       // The JDK's XYZ space holds nothing below zero, so P3 red's slightly negative Z reads as zero there.
       val built = intended(sample).map { it.coerceAtLeast(0.0) }
       val off = (0 until 3).maxOf { abs(read[it] - built[it]) }
-      assertTrue(off <= TOLERANCE, "$picture at $sample read ${read.toList()}, built for $built, off by $off")
+      withClue("$picture at $sample read ${read.toList()}, built for $built, off by $off") {
+        (off <= TOLERANCE) shouldBe true
+      }
     }
   }
 
@@ -226,7 +232,7 @@ class IccPicturesJvmTest {
     val inflater = Inflater().apply { setInput(bytes) }
     val buffer = ByteArray(bytes.size * 2 + 1024)
     val length = inflater.inflate(buffer)
-    assertTrue(inflater.finished(), "The profile inflates in one pass")
+    withClue("The profile inflates in one pass") { inflater.finished() shouldBe true }
     inflater.end()
     return buffer.copyOf(length)
   }

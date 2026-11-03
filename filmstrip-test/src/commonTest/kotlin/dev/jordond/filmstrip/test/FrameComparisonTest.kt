@@ -1,10 +1,10 @@
 package dev.jordond.filmstrip.test
 
 import dev.jordond.filmstrip.geometry.Size
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertTrue
 
 /**
  * The comparison the parity harness rests on.
@@ -18,9 +18,9 @@ class FrameComparisonTest {
     val frame = noise(SIZE)
     val comparison = compareFrames(frame, frame)
 
-    assertTrue(comparison.psnrDb.isInfinite())
-    assertEquals(0.0, comparison.meanAbsoluteDifference)
-    assertTrue(comparison.ssim > 0.999, "SSIM was ${comparison.ssim}")
+    comparison.psnrDb.isInfinite() shouldBe true
+    comparison.meanAbsoluteDifference shouldBe 0.0
+    withClue("SSIM was ${comparison.ssim}") { (comparison.ssim > 0.999) shouldBe true }
   }
 
   @Test
@@ -64,8 +64,8 @@ class FrameComparisonTest {
     }
 
     val comparison = compareFrames(frame, damaged)
-    assertTrue(comparison.ssim < 1.0, "SSIM was ${comparison.ssim}")
-    assertTrue(comparison.meanAbsoluteDifference > 0.0)
+    withClue("SSIM was ${comparison.ssim}") { (comparison.ssim < 1.0) shouldBe true }
+    (comparison.meanAbsoluteDifference > 0.0) shouldBe true
   }
 
   @Test

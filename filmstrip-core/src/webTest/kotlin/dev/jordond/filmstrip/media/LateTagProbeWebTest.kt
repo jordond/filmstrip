@@ -3,19 +3,21 @@
 package dev.jordond.filmstrip.media
 
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.LATE_PNG_SIZE
-import dev.jordond.filmstrip.internal.LATE_WEBP_SIZE
 import dev.jordond.filmstrip.internal.PlatformProber
-import dev.jordond.filmstrip.internal.lateTaggedJpeg
-import dev.jordond.filmstrip.internal.lateTaggedPng
-import dev.jordond.filmstrip.internal.lateTaggedWebp
 import dev.jordond.filmstrip.media.probe.IMAGE_PROBE_DURATION
 import dev.jordond.filmstrip.media.probe.IMAGE_PROBE_SIZE
+import dev.jordond.filmstrip.picture.fixtures.LATE_PNG_SIZE
+import dev.jordond.filmstrip.picture.fixtures.LATE_WEBP_SIZE
+import dev.jordond.filmstrip.picture.fixtures.lateTaggedJpeg
+import dev.jordond.filmstrip.picture.fixtures.lateTaggedPng
+import dev.jordond.filmstrip.picture.fixtures.lateTaggedWebp
+import dev.jordond.filmstrip.still.still
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
 
 /**
  * A still whose orientation tag sits past the first 64 KiB of the file is measured with that tag and its stored bounds,
@@ -36,11 +38,13 @@ class LateTagProbeWebTest {
             for (image in listOf(ImageSource.ofBytes(bytes), ImageSource.ofUri(url))) {
               val source = MediaSource.Image(image, IMAGE_PROBE_DURATION)
 
-              val info = assertIs<ProbeResult.Success>(PlatformProber().probe(source)).info
+              val info = PlatformProber().probe(source).shouldBeInstanceOf<ProbeResult.Success>().info
 
               val expected = imageMediaInfoOf(still.size, exif, still.format, IMAGE_PROBE_DURATION)
-              assertEquals(expected, info, "${still.format} $exif from $image")
-              assertEquals(displayed(still.size, exif), info.video?.displaySize, "${still.format} $exif from $image")
+              withClue("${still.format} $exif from $image") { info shouldBe expected }
+              withClue("${still.format} $exif from $image") {
+                info.video?.displaySize shouldBe displayed(still.size, exif)
+              }
             }
           } finally {
             URL.revokeObjectURL(url)

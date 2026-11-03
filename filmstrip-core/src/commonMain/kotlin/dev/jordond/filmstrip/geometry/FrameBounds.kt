@@ -18,9 +18,8 @@ public val MAX_STILL_FRAME: Size = Size(3840, 2160)
 /**
  * The largest frame with [size]'s aspect that fits inside [bounds], never larger than [size].
  *
- * Both sides scale by the same factor, so the frame keeps its shape. Coercing each side on its own
- * would land a 4:3 frame on a 16:9 ceiling as a 16:9 one, which changes the picture rather than its
- * size. A frame that already fits comes back untouched.
+ * Both sides scale by the same factor, so the frame keeps its shape and a 4:3 frame under a 16:9
+ * ceiling stays 4:3. A frame that already fits comes back untouched.
  */
 @InternalFilmstripApi
 public fun frameWithin(

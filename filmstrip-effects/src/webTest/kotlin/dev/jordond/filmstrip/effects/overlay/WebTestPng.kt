@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.effects.overlay
 import dev.jordond.filmstrip.geometry.Size
 
 /**
- * An opaque RGBA PNG of [size], its deflate stream left stored rather than compressed, with [colour] written between
+ * An opaque RGBA PNG of [size], its deflate stream left stored rather than compressed, with [color] written between
  * its header and its image data.
  *
  * Every channel is white at eight bits, or [sixteenBitSample] at sixteen bits with alpha opaque when one is given.
@@ -11,7 +11,7 @@ import dev.jordond.filmstrip.geometry.Size
  */
 internal fun pngOf(
   size: Size,
-  colour: ByteArray = ByteArray(0),
+  color: ByteArray = ByteArray(0),
   sixteenBitSample: Int? = null,
   texels: List<ByteArray>? = null,
 ): ByteArray {
@@ -40,7 +40,7 @@ internal fun pngOf(
 
   return byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A) +
     chunk("IHDR", header) +
-    colour +
+    color +
     chunk("IDAT", zlib) +
     chunk("IEND", ByteArray(0))
 }

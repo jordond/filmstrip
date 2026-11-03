@@ -1,12 +1,12 @@
 package dev.jordond.filmstrip.effects
 
+import dev.jordond.filmstrip.color.BT2020_CHROMA_SHIFT
 import dev.jordond.filmstrip.effect.FilterArgument
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.PlaneLanes
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.effects.color.ColorMatrix
-import dev.jordond.filmstrip.media.BT2020_CHROMA_SHIFT
 import dev.jordond.filmstrip.media.HdrTransfer
 
 // The nodes that carry an HDR grade's own Y'CbCr onto planar float R'G'B' and back. The matrix runs on core's constants
@@ -87,7 +87,7 @@ internal val CODES_TO_GRADE: List<FilterNode> =
   )
 
 /**
- * The fragment a colour [matrix] on a kept [transfer] grade lowers to, run through the tables of [HdrGradeTables].
+ * The fragment a color [matrix] on a kept [transfer] grade lowers to, run through the tables of [HdrGradeTables].
  *
  * [GRADE_TO_FLOAT] carries the grade's codes onto float planes, lut1d and colorchannelmixer run each table and set of
  * rows in turn, and [CODES_TO_GRADE] writes the whole codes the last table rounds to. Every table travels as a sidecar.

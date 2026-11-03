@@ -143,7 +143,7 @@ class StillRendererMeasureTest {
   }
 
   /**
-   * Fraction of sampled pixels with any non-zero colour channel.
+   * Fraction of sampled pixels with any non-zero color channel.
    */
   private fun nonZeroFraction(buffer: platform.CoreVideo.CVPixelBufferRef): Double {
     CVPixelBufferLockBaseAddress(buffer, kCVPixelBufferLock_ReadOnly)

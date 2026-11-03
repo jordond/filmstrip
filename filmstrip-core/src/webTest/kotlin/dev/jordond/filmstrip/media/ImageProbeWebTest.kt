@@ -9,12 +9,13 @@ import dev.jordond.filmstrip.media.probe.expectedImageInfo
 import dev.jordond.filmstrip.media.probe.expectedRotatedImageInfo
 import dev.jordond.filmstrip.media.probe.imageProbeBytes
 import dev.jordond.filmstrip.media.probe.rotatedImageProbeBytes
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -31,7 +32,7 @@ class ImageProbeWebTest {
 
       // The type comes off the bytes' own header, so it is the one an object URL of the same bytes
       // carries rather than nothing at all.
-      assertEquals(expectedImageInfo(BMP), assertIs<ProbeResult.Success>(result).info)
+      result.shouldBeInstanceOf<ProbeResult.Success>().info shouldBe expectedImageInfo(BMP)
     }
 
   @Test
@@ -42,7 +43,7 @@ class ImageProbeWebTest {
       try {
         val result = PlatformProber().probe(MediaSource.Image(ImageSource.ofUri(url), IMAGE_PROBE_DURATION))
 
-        assertEquals(expectedImageInfo(BMP), assertIs<ProbeResult.Success>(result).info)
+        result.shouldBeInstanceOf<ProbeResult.Success>().info shouldBe expectedImageInfo(BMP)
       } finally {
         URL.revokeObjectURL(url)
       }
@@ -57,7 +58,7 @@ class ImageProbeWebTest {
 
       val result = PlatformProber().probe(source)
 
-      assertEquals(expectedRotatedImageInfo(JPEG), assertIs<ProbeResult.Success>(result).info)
+      result.shouldBeInstanceOf<ProbeResult.Success>().info shouldBe expectedRotatedImageInfo(JPEG)
     }
 
   @Test
@@ -68,7 +69,7 @@ class ImageProbeWebTest {
       try {
         val result = PlatformProber().probe(MediaSource.Image(ImageSource.ofUri(url), IMAGE_PROBE_DURATION))
 
-        assertEquals(expectedRotatedImageInfo(JPEG), assertIs<ProbeResult.Success>(result).info)
+        result.shouldBeInstanceOf<ProbeResult.Success>().info shouldBe expectedRotatedImageInfo(JPEG)
       } finally {
         URL.revokeObjectURL(url)
       }
@@ -85,10 +86,8 @@ class ImageProbeWebTest {
 
       val result = PlatformProber().probe(source)
 
-      assertEquals(
-        expectedRotatedImageInfo(JPEG, MIRRORED_IMAGE_PROBE_ORIENTATION),
-        assertIs<ProbeResult.Success>(result).info,
-      )
+      result.shouldBeInstanceOf<ProbeResult.Success>().info shouldBe
+        expectedRotatedImageInfo(JPEG, MIRRORED_IMAGE_PROBE_ORIENTATION)
     }
 
   // The length is the source's, not the file's, so two clips of the same photo report two lengths.
@@ -100,8 +99,8 @@ class ImageProbeWebTest {
       val short = PlatformProber().probe(MediaSource.Image(ImageSource.ofBytes(bytes), 2.seconds))
       val long = PlatformProber().probe(MediaSource.Image(ImageSource.ofBytes(bytes), 11.seconds))
 
-      assertEquals(2.seconds, assertIs<ProbeResult.Success>(short).info.duration)
-      assertEquals(11.seconds, assertIs<ProbeResult.Success>(long).info.duration)
+      short.shouldBeInstanceOf<ProbeResult.Success>().info.duration shouldBe 2.seconds
+      long.shouldBeInstanceOf<ProbeResult.Success>().info.duration shouldBe 11.seconds
     }
 
   @Test
@@ -109,7 +108,7 @@ class ImageProbeWebTest {
     runTest {
       val source = MediaSource.Image(ImageSource.ofBytes(byteArrayOf(1, 2, 3, 4)), IMAGE_PROBE_DURATION)
 
-      assertIs<ProbeResult.Failure>(PlatformProber().probe(source))
+      PlatformProber().probe(source).shouldBeInstanceOf<ProbeResult.Failure>()
     }
 
   @Test
@@ -117,7 +116,7 @@ class ImageProbeWebTest {
     runTest {
       val source = MediaSource.Image(ImageSource.of("/photos/beach.bmp"), IMAGE_PROBE_DURATION)
 
-      assertIs<ProbeResult.Failure>(PlatformProber().probe(source))
+      PlatformProber().probe(source).shouldBeInstanceOf<ProbeResult.Failure>()
     }
 
   // Everything that is not a still still declines by name here, because reading a container in a
@@ -127,8 +126,12 @@ class ImageProbeWebTest {
     runTest {
       val result = PlatformProber().probe(MediaSource.ofUri("https://example.test/clip.mp4"))
 
-      val failure = assertIs<ProbeResult.Failure>(result)
-      assertTrue(failure.error.message.contains("demuxer"), failure.error.message)
+      val failure = result.shouldBeInstanceOf<ProbeResult.Failure>()
+      withClue(failure.error.message) {
+        failure.error.message
+          .contains("demuxer")
+          .shouldBeTrue()
+      }
     }
 
   private companion object {

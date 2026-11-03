@@ -7,8 +7,7 @@ import dev.jordond.filmstrip.player.VideoPlayer
 /**
  * The browser draws the composite itself, so there is no native view to attach.
  *
- * A `<video>` element would show the browser's own decode of the source rather than the
- * post-effect frame the encoder takes, so this draws the readback instead.
+ * This draws the readback, the post-effect frame the encoder takes.
  */
 @Composable
 public actual fun VideoSurface(

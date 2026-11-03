@@ -11,7 +11,11 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
@@ -20,9 +24,6 @@ import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -31,7 +32,7 @@ import kotlin.time.Duration.Companion.seconds
  * Photos on the timeline, exported by AVFoundation onto a real file and read back frame by frame.
  *
  * A still holds no track of its own, so it takes its slot from a generated segment and the filter
- * handler draws the photo over it. The photo is a flat colour, which is what tells a frame drawn
+ * handler draws the photo over it. The photo is a flat color, which is what tells a frame drawn
  * from it apart from a frame drawn from a generated video fixture wherever it is sampled.
  *
  * A case that reads a video fixture fails when it is missing, as in [AppleExportTest].
@@ -49,7 +50,7 @@ class AppleImageExportTest {
       val success = exported(composition(photoClip(PHOTO)), ExportSpec(), output)
 
       success.info.duration shouldBeCloseTo PHOTO
-      assertNotNull(success.info.video, "an image-only export wrote no video track")
+      success.info.video.shouldNotBeNull()
       success.info.video?.displaySize shouldBe PHOTO_SIZE
 
       remove(output)
@@ -174,12 +175,12 @@ class AppleImageExportTest {
   // A still reports a codec no muxer can name, so a copy is off the table before anything asks
   // whether the rest of the composition would have taken one.
   @Test
-  fun `never transmuxes a composition carrying a still`() =
+  fun `never copies a composition carrying a still`() =
     runTest(timeout = TIMEOUT) {
       val clip = fixture("apple_export_a.mp4")
 
       val alone = plan(compositionOf { clip(MediaSource.of(clip)) })
-      alone.path shouldBe ExportPath.Transmux
+      alone.path shouldBe ExportPath.Copy
 
       plan(composition(videoClip(clip), photoClip(PHOTO))).path shouldBe ExportPath.Transcode
     }
@@ -204,7 +205,7 @@ class AppleImageExportTest {
       val statuses = filmstrip.export(composition, spec, MediaSink.of(output)).toList()
       when (val finished = statuses.last()) {
         is ExportStatus.Failure -> error(finished.error.message)
-        else -> assertIs<ExportStatus.Success>(finished)
+        else -> finished.shouldBeInstanceOf<ExportStatus.Success>()
       }
     }
 
@@ -237,14 +238,15 @@ class AppleImageExportTest {
     actual: Triple<Int, Int, Int>,
     label: String,
   ) {
-    assertTrue(
-      distance(actual, PHOTO_COLOR) > COLOR_TOLERANCE,
-      "expected $label to be a video frame, but it read as the photo at $actual",
-    )
+    withClue("expected $label to be a video frame, but it read as the photo at $actual") {
+      (distance(actual, PHOTO_COLOR) > COLOR_TOLERANCE).shouldBeTrue()
+    }
   }
 
   private infix fun Duration.shouldBeCloseTo(expected: Duration) =
-    assertTrue((this - expected).absoluteValue <= DURATION_TOLERANCE, "expected about $expected, got $this")
+    withClue("expected about $expected, got $this") {
+      ((this - expected).absoluteValue <= DURATION_TOLERANCE).shouldBeTrue()
+    }
 
   private companion object {
     val TIMEOUT = 2.seconds * 60
@@ -266,7 +268,7 @@ class AppleImageExportTest {
     // The shape of the video fixtures, so no case turns on the output frame changing between clips.
     val PHOTO_SIZE = Size(640, 360)
 
-    // A colour a fixture's own pattern never draws, and one a 4:2:0 encode carries back inside the
+    // A color a fixture's own pattern never draws, and one a 4:2:0 encode carries back inside the
     // tolerance a flat patch is asserted at.
     val PHOTO_COLOR = Triple(0x11, 0xC2, 0xAA)
 

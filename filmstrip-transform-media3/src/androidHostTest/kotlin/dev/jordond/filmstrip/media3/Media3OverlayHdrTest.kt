@@ -1,38 +1,39 @@
 package dev.jordond.filmstrip.media3
 
+import dev.jordond.filmstrip.color.authoredHdrNits
+import dev.jordond.filmstrip.color.srgbToLinear
 import dev.jordond.filmstrip.effects.media3WorkingLight
 import dev.jordond.filmstrip.effects.overlay.media3HdrTexels
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.authoredHdrNits
-import dev.jordond.filmstrip.media.srgbToLinear
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 /**
  * What media3 is handed for an overlay on a kept grade.
  *
  * media3 reads an HDR overlay texel as its luminance multiplier times the sRGB decode of the code, so
  * every check here decodes the mapped codes that way and compares against [media3WorkingLight] of the
- * authored colour, the figure a fill of the same colour is written at.
+ * authored color, the figure a fill of the same color is written at.
  */
 class Media3OverlayHdrTest {
   @Test
-  fun `every texel read the way media3 reads it lands on the light of its authored colour`() {
+  fun `every texel read the way media3 reads it lands on the light of its authored color`() {
     HdrTransfer.entries.forEach { transfer ->
-      val texels = media3HdrTexels(COLOURS, transfer)
+      val texels = media3HdrTexels(COLORS, transfer)
 
-      COLOURS.forEachIndexed { index, colour ->
-        val expected = media3WorkingLight(authoredHdrNits(colour), transfer)
+      COLORS.forEachIndexed { index, color ->
+        val expected = media3WorkingLight(authoredHdrNits(color), transfer)
         CHANNEL_SHIFTS.forEachIndexed { channel, shift ->
           val code = (texels.argb[index] ushr shift) and 0xFF
           val read = texels.hdrLuminance * srgbToLinear(code / MAX_CODE)
           val slack = texels.hdrLuminance * halfCodeStep(code)
-          assertTrue(
-            abs(read - expected[channel]) <= slack,
-            "$transfer ${colour.toUInt().toString(16)} channel $channel read $read, expected ${expected[channel]}",
-          )
+          withClue(
+            "$transfer ${color.toUInt().toString(16)} channel $channel read $read, expected ${expected[channel]}",
+          ) {
+            (abs(read - expected[channel]) <= slack) shouldBe true
+          }
         }
       }
     }
@@ -43,8 +44,8 @@ class Media3OverlayHdrTest {
     HdrTransfer.entries.forEach { transfer ->
       val texels = media3HdrTexels(intArrayOf(WHITE), transfer)
 
-      assertEquals(WHITE, texels.argb[0], "$transfer white moved off the top code")
-      assertEquals(media3WorkingLight(authoredHdrNits(WHITE), transfer).max(), texels.hdrLuminance)
+      withClue("$transfer white moved off the top code") { texels.argb[0] shouldBe WHITE }
+      texels.hdrLuminance shouldBe media3WorkingLight(authoredHdrNits(WHITE), transfer).max()
     }
   }
 
@@ -54,16 +55,16 @@ class Media3OverlayHdrTest {
   fun `a neutral texel keeps its own code on a pq grade`() {
     val greys = IntArray(CODES) { code -> OPAQUE or (code shl 16) or (code shl 8) or code }
 
-    assertEquals(greys.toList(), media3HdrTexels(greys, HdrTransfer.Pq).argb.toList())
+    media3HdrTexels(greys, HdrTransfer.Pq).argb.toList() shouldBe greys.toList()
   }
 
   @Test
-  fun `a colour past white on an hlg grade raises the multiplier rather than clipping`() {
+  fun `a color past white on an hlg grade raises the multiplier rather than clipping`() {
     val white = media3WorkingLight(authoredHdrNits(WHITE), HdrTransfer.Hlg).max()
     val blue = media3WorkingLight(authoredHdrNits(BLUE), HdrTransfer.Hlg).max()
-    assertTrue(blue > white, "blue does not go past white in HLG scene light, nothing to measure")
+    withClue("blue does not go past white in HLG scene light, nothing to measure") { (blue > white) shouldBe true }
 
-    assertEquals(blue, media3HdrTexels(intArrayOf(WHITE, BLUE), HdrTransfer.Hlg).hdrLuminance)
+    media3HdrTexels(intArrayOf(WHITE, BLUE), HdrTransfer.Hlg).hdrLuminance shouldBe blue
   }
 
   @Test
@@ -73,7 +74,7 @@ class Media3OverlayHdrTest {
 
     HdrTransfer.entries.forEach { transfer ->
       val mapped = media3HdrTexels(texels, transfer).argb
-      assertEquals(alphas, mapped.map { it ushr 24 }, "$transfer changed an alpha")
+      withClue("$transfer changed an alpha") { mapped.map { it ushr 24 } shouldBe alphas }
     }
   }
 
@@ -94,7 +95,7 @@ class Media3OverlayHdrTest {
     const val QUARTER_GREY = 0xFF404040.toInt()
     const val THREE_QUARTER_GREY = 0xFFC0C0C0.toInt()
     const val BLUE = 0xFF0000FF.toInt()
-    val COLOURS = intArrayOf(WHITE, MID_GREY, MID_GREEN, QUARTER_GREY, THREE_QUARTER_GREY, BLUE)
+    val COLORS = intArrayOf(WHITE, MID_GREY, MID_GREEN, QUARTER_GREY, THREE_QUARTER_GREY, BLUE)
 
     const val QUARTER_ALPHA = 0x40
     const val HALF_ALPHA = 0x80

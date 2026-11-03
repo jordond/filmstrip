@@ -21,7 +21,7 @@ import dev.jordond.filmstrip.media.HdrTransfer
  *   an export, and larger for a preview rendering below the frame an export writes. A resolver that
  *   lays text out measures the type and the wrap width against this, then scales the raster it gets
  *   back to [inputSize], so a line breaks on the same word whichever of the two is being drawn.
- * @property colorSpace The colour space the pipeline normalises to before the first effect.
+ * @property colorSpace The color space the pipeline normalises to before the first effect.
  * @property hdrTransfer The transfer function the frame is held in, or null when the pipeline is
  *   working in SDR. An effect authored against an SDR encoding reads this to work out what its
  *   parameter means in the domain the backend is actually holding the frame in.

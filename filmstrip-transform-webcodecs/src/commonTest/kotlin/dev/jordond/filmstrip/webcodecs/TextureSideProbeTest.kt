@@ -2,8 +2,8 @@ package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.webcodecs.internal.WEBGL2_MIN_TEXTURE_SIDE
 import dev.jordond.filmstrip.webcodecs.internal.webGlTextureSideProbe
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
 
 /**
  * How the page's longest texture side is floored at what WebGL2 promises.
@@ -11,11 +11,11 @@ import kotlin.test.assertEquals
 class TextureSideProbeTest {
   @Test
   fun aPageThatGivesNoContextReadsTheWebGl2Floor() {
-    assertEquals(WEBGL2_MIN_TEXTURE_SIDE, webGlTextureSideProbe { null }.side())
+    webGlTextureSideProbe { null }.side() shouldBe WEBGL2_MIN_TEXTURE_SIDE
   }
 
   @Test
   fun aReadBelowTheWebGl2FloorIsHeldToIt() {
-    assertEquals(WEBGL2_MIN_TEXTURE_SIDE, webGlTextureSideProbe { WEBGL2_MIN_TEXTURE_SIDE - 1 }.side())
+    webGlTextureSideProbe { WEBGL2_MIN_TEXTURE_SIDE - 1 }.side() shouldBe WEBGL2_MIN_TEXTURE_SIDE
   }
 }

@@ -69,6 +69,22 @@ private val MEDIA3_RUNTIMES = setOf("androidx.media3:media3-transformer", "andro
  */
 private val COMPOSE_ANNOTATIONS = setOf("androidx.compose.runtime:runtime-annotation")
 
+/**
+ * The one hole in the `androidx.media3` ban.
+ *
+ * `common` declares `Effect` and `effect` declares `TextureOverlay`, the two types the Android `PlatformEffect` wraps.
+ * `effect` depends on `datasource`, which depends on `database`, so both come with it. None of the four plays or
+ * exports anything, which is what [MEDIA3_RUNTIMES] keeps out. `core` takes `common` and `effect` as `api`, so they
+ * reach every module that sees core and the allowance is repo-wide like [COMPOSE_ANNOTATIONS].
+ */
+private val MEDIA3_EFFECT_TYPES =
+  setOf(
+    "androidx.media3:media3-common",
+    "androidx.media3:media3-effect",
+    "androidx.media3:media3-datasource",
+    "androidx.media3:media3-database",
+  )
+
 private val COMPOSE_ANNOTATION_IMPORTS = setOf("androidx.compose.runtime.Immutable", "androidx.compose.runtime.Stable")
 
 /**
@@ -105,6 +121,34 @@ private val NATIVE_PLAYBACK_AND_EXPORT =
   )
 
 /**
+ * The packages under each backend's internal package that hold what the player consumes, keyed by backend.
+ *
+ * `preview` holds what only the player reads. The others hold what the backend's own export reads as well, so nothing
+ * in them imports `preview` and the player names them directly.
+ */
+private val PLAYER_PACKAGES: Map<String, Set<String>> =
+  mapOf(
+    "avfoundation" to setOf("composition", "failure", "time"),
+    "media3" to setOf("bounds", "failure", "preview"),
+    "ffmpeg" to setOf("preview"),
+    "webcodecs" to setOf("preview"),
+  )
+
+/**
+ * Every backend's internal package. The player drives each backend's preview lowering, and [PLAYER_IMPORTS] is the
+ * only part of these it may name.
+ */
+private val BACKEND_INTERNALS = PLAYER_PACKAGES.keys.map { "dev.jordond.filmstrip.$it.internal" }.toSet()
+
+/**
+ * Every package in [PLAYER_PACKAGES], by its full name.
+ */
+private val PLAYER_IMPORTS =
+  PLAYER_PACKAGES
+    .flatMap { (backend, packages) -> packages.map { "dev.jordond.filmstrip.$backend.internal.$it" } }
+    .toSet()
+
+/**
  * Import prefixes a layer must not name, limited to the ones that are on its classpath anyway. Anything else a rule
  * could ban is absent and fails to compile, so the rule would never fire.
  */
@@ -113,12 +157,20 @@ private val FORBIDDEN_IMPORTS: Map<Layer, Set<String>> =
     Layer.Core to NATIVE_PLAYBACK_AND_EXPORT,
     Layer.Transform to NATIVE_PLAYBACK_AND_EXPORT,
     Layer.Backend to setOf("androidx.media3.exoplayer"),
-    Layer.Compose to setOf("androidx.media3.transformer"),
+    Layer.Player to BACKEND_INTERNALS,
     // The material ban is what keeps compose-ui a foundation-only timeline. It covers `material`, `material3` and
     // `material3.adaptive` by prefix, so a tool panel or a styled control cannot be written there.
-    Layer.ComposeUi to setOf("androidx.media3.transformer", "androidx.compose.material"),
+    Layer.ComposeUi to setOf("androidx.compose.material"),
     Layer.Io to NATIVE_PLAYBACK_AND_EXPORT,
     Layer.IoCompose to NATIVE_PLAYBACK_AND_EXPORT,
+  )
+
+/**
+ * Import prefixes a layer may name even though one of its [FORBIDDEN_IMPORTS] covers them.
+ */
+private val ALLOWED_IMPORTS: Map<Layer, Set<String>> =
+  mapOf(
+    Layer.Player to PLAYER_IMPORTS,
   )
 
 /**
@@ -157,7 +209,7 @@ fun Project.configureArchitectureGuards() {
           description = "Verifies $path contains no forbidden imports."
           moduleName.set(path)
           forbiddenPrefixes.set(forbidden)
-          allowedPrefixes.set(COMPOSE_ANNOTATION_IMPORTS)
+          allowedPrefixes.set(COMPOSE_ANNOTATION_IMPORTS + ALLOWED_IMPORTS[module].orEmpty())
           sources.from(target.layout.projectDirectory.dir("src"))
         }
 
@@ -175,7 +227,7 @@ fun Project.configureArchitectureGuards() {
         allowedLayers.set(module.mayDependOn.map(Layer::name))
         allowedTestLayers.set((module.mayDependOn + Layer.Fixtures).map(Layer::name))
         forbiddenExternals.set(FORBIDDEN_EXTERNALS[module].orEmpty())
-        allowedExternals.set(COMPOSE_ANNOTATIONS)
+        allowedExternals.set(COMPOSE_ANNOTATIONS + MEDIA3_EFFECT_TYPES)
       }
 
     // Configurations only exist once the module has been evaluated.

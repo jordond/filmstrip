@@ -7,33 +7,32 @@ import dev.jordond.filmstrip.effects.overlay.OverlayOffset
 import dev.jordond.filmstrip.effects.overlay.slideIn
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.pictureColour
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.picture.pictureColor
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Which colour description a decoded overlay picture is drawn with, how an AVIF or HEIC reaches an SDR graph, how a
+ * Which color description a decoded overlay picture is drawn with, how an AVIF or HEIC reaches an SDR graph, how a
  * picture whose bytes this process cannot read is drawn, and where an animated overlay's size comes from when its
  * picture is decoded anyway.
  */
 class OverlayPictureDecodeTest {
-  // Only a JPEG XL keeps its colour where the container reader cannot see it. Any other picture's decode infers a
+  // Only a JPEG XL keeps its color where the container reader cannot see it. Any other picture's decode infers a
   // description core reads differently, so it is not taken.
   @Test
   fun `a picture other than a JPEG XL lands untagged on an HDR grade whatever its decode carries`() {
     for (bytes in listOf(UNREADABLE, HEIF)) {
-      val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(TEXELS), LINEAR_COLOUR))
+      val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(TEXELS), LINEAR_COLOR))
       for (transfer in HdrTransfer.entries) {
         val raster = mappedRaster(overlayOf(bytes), transfer, decoder)
         TEXELS.indices.forEach { x ->
-          assertContentEquals(signalOf(null, TEXELS[x], transfer), raster.getPixel(x, 0, IntArray(4)), "$transfer $x")
+          withClue("$transfer $x") { raster.getPixel(x, 0, IntArray(4)) shouldBe signalOf(null, TEXELS[x], transfer) }
         }
       }
     }
@@ -41,12 +40,12 @@ class OverlayPictureDecodeTest {
 
   @Test
   fun `an untagged AVIF or HEIC reaches an SDR graph as an untagged PNG of its decode`() {
-    val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(TEXELS), LINEAR_COLOUR))
+    val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(TEXELS), LINEAR_COLOR))
 
-    val drawn = assertIs<ImageSource.Bytes>(auxImage(overlayOf(HEIF), decoder))
-    assertNull(pictureColour(drawn.bytes), "the PNG handed to the graph describes its colour")
-    assertContentEquals(TEXELS, argbOf(drawn.bytes))
-    assertEquals(1, decoder.decodes.size, "the AVIF or HEIC was not decoded once")
+    val drawn = auxImage(overlayOf(HEIF), decoder).shouldBeInstanceOf<ImageSource.Bytes>()
+    withClue("the PNG handed to the graph describes its color") { pictureColor(drawn.bytes).shouldBeNull() }
+    argbOf(drawn.bytes) shouldBe TEXELS
+    withClue("the AVIF or HEIC was not decoded once") { decoder.decodes.size shouldBe 1 }
   }
 
   // The graph repeats a still with -loop, which ffmpeg refuses for the demuxer that opens an AVIF or HEIC.
@@ -54,47 +53,49 @@ class OverlayPictureDecodeTest {
   fun `an AVIF or HEIC without a decoder is refused on an SDR grade rather than handed to the graph`() {
     val resolution = resolverOf(null).resolve(overlayOf(HEIF), capabilities(), attributes(null))
 
-    val refused = assertIs<EffectResolution.Unsupported>(resolution)
-    assertTrue("AVIF or HEIC" in refused.message && "without a picture decoder" in refused.message, refused.message)
+    val refused = resolution.shouldBeInstanceOf<EffectResolution.Unsupported>()
+    withClue(refused.message) {
+      ("AVIF or HEIC" in refused.message && "without a picture decoder" in refused.message) shouldBe true
+    }
   }
 
   @Test
-  fun `a picture whose bytes this process cannot read is drawn untagged from a decode that describes no colour`() {
+  fun `a picture whose bytes this process cannot read is drawn untagged from a decode that describes no color`() {
     val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(TEXELS), null))
     val spec = ImageOverlay(UNREACHABLE, Corner.TopStart)
 
-    val drawn = assertIs<ImageSource.Bytes>(auxImage(spec, decoder))
-    assertNull(pictureColour(drawn.bytes), "the PNG handed to the graph describes its colour")
-    assertContentEquals(TEXELS, argbOf(drawn.bytes))
+    val drawn = auxImage(spec, decoder).shouldBeInstanceOf<ImageSource.Bytes>()
+    withClue("the PNG handed to the graph describes its color") { pictureColor(drawn.bytes).shouldBeNull() }
+    argbOf(drawn.bytes) shouldBe TEXELS
     for (transfer in HdrTransfer.entries) {
       val raster = mappedRaster(spec, transfer, decoder)
       TEXELS.indices.forEach { x ->
-        assertContentEquals(signalOf(null, TEXELS[x], transfer), raster.getPixel(x, 0, IntArray(4)), "$transfer $x")
+        withClue("$transfer $x") { raster.getPixel(x, 0, IntArray(4)) shouldBe signalOf(null, TEXELS[x], transfer) }
       }
     }
-    assertEquals(listOf(spec.image), decoder.decodes.distinct())
+    decoder.decodes.distinct() shouldBe listOf(spec.image)
   }
 
   // The graph opens a path itself and fails on one that is missing, so planning one reads nothing.
   @Test
   fun `a path this process cannot read reaches an SDR graph as it is without a decode`() {
-    val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(TEXELS), LINEAR_COLOUR))
+    val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(TEXELS), LINEAR_COLOR))
     val spec = ImageOverlay(ImageSource.of("/no/such/overlay.png"), Corner.TopStart)
 
-    assertEquals(spec.image, auxImage(spec, decoder))
-    assertEquals(emptyList(), decoder.decodes)
+    auxImage(spec, decoder) shouldBe spec.image
+    decoder.decodes shouldBe emptyList()
   }
 
   // Its container's description is out of reach, and a decode infers descriptions core reads differently.
   @Test
-  fun `a picture whose bytes this process cannot read is refused on every grade when its decode describes colour`() {
-    val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(TEXELS), LINEAR_COLOUR))
+  fun `a picture whose bytes this process cannot read is refused on every grade when its decode describes color`() {
+    val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(TEXELS), LINEAR_COLOR))
     val spec = ImageOverlay(UNREACHABLE, Corner.TopStart)
 
     for (transfer in listOf(null) + HdrTransfer.entries) {
       val resolution = BuiltInEffectResolver(decoder).resolve(spec, capabilities(), attributes(transfer))
-      val refused = assertIs<EffectResolution.Unsupported>(resolution, "$transfer")
-      assertTrue("cannot read the picture's bytes" in refused.message, "$transfer: ${refused.message}")
+      val refused = withClue("$transfer") { resolution.shouldBeInstanceOf<EffectResolution.Unsupported>() }
+      withClue("$transfer: ${refused.message}") { ("cannot read the picture's bytes" in refused.message) shouldBe true }
     }
   }
 
@@ -115,9 +116,9 @@ class OverlayPictureDecodeTest {
         )
 
       val resolution = resolverOf(decoder).resolve(sliding(ImageSource.ofBytes(HEIF)), capabilities(), unpaced)
-      assertIs<EffectResolution.Unsupported>(resolution, "$transfer")
-      assertEquals(emptyList(), decoder.decodes, "$transfer decoded")
-      assertEquals(emptyList(), decoder.measured, "$transfer measured")
+      withClue("$transfer") { resolution.shouldBeInstanceOf<EffectResolution.Unsupported>() }
+      withClue("$transfer decoded") { decoder.decodes shouldBe emptyList() }
+      withClue("$transfer measured") { decoder.measured shouldBe emptyList() }
     }
   }
 
@@ -126,8 +127,13 @@ class OverlayPictureDecodeTest {
     val resolver = BuiltInEffectResolver(FakeDecoder(size = null, reason = REASON))
 
     val refused =
-      assertIs<EffectResolution.Unsupported>(resolver.resolve(overlayOf(HEIF), capabilities(), attributes(null)))
-    assertTrue("AVIF or HEIC" in refused.message && REASON in refused.message, refused.message)
+      resolver
+        .resolve(
+          overlayOf(HEIF),
+          capabilities(),
+          attributes(null),
+        ).shouldBeInstanceOf<EffectResolution.Unsupported>()
+    withClue(refused.message) { ("AVIF or HEIC" in refused.message && REASON in refused.message) shouldBe true }
   }
 
   @Test
@@ -139,10 +145,12 @@ class OverlayPictureDecodeTest {
       val spec = sliding(ImageSource.ofBytes(bytes))
 
       val resolution = BuiltInEffectResolver(decoder).resolve(spec, capabilities(), attributes(transfer))
-      assertIs<EffectResolution.Resolved>(resolution, "$transfer")
+      withClue("$transfer") { resolution.shouldBeInstanceOf<EffectResolution.Resolved>() }
       val decodedHere = transfer != null || bytes === HEIF
-      assertEquals(if (decodedHere) emptyList() else listOf(spec.image), decoder.measured, "$transfer measured")
-      assertEquals(if (decodedHere) 1 else 0, decoder.decodes.size, "$transfer decodes")
+      withClue("$transfer measured") {
+        decoder.measured shouldBe (if (decodedHere) emptyList() else listOf(spec.image))
+      }
+      withClue("$transfer decodes") { decoder.decodes.size shouldBe (if (decodedHere) 1 else 0) }
     }
   }
 

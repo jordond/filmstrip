@@ -1,19 +1,20 @@
 package dev.jordond.filmstrip.effects
 
-import dev.jordond.filmstrip.media.HLG_NOMINAL_PEAK_NITS
+import dev.jordond.filmstrip.color.HLG_NOMINAL_PEAK_NITS
+import dev.jordond.filmstrip.color.PQ_PEAK_NITS
+import dev.jordond.filmstrip.color.authoredHdrNits
+import dev.jordond.filmstrip.color.hlgDisplayNitsFromScene
+import dev.jordond.filmstrip.color.sceneFromHlgSignal
+import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.PQ_PEAK_NITS
-import dev.jordond.filmstrip.media.authoredHdrNits
-import dev.jordond.filmstrip.media.hlgDisplayNitsFromScene
-import dev.jordond.filmstrip.media.sceneFromHlgSignal
-import dev.jordond.filmstrip.media.signalFromNits
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.math.sqrt
 import kotlin.test.Test
-import kotlin.test.assertTrue
 
 /**
  * The transfer expressions an HDR overlay's blend runs on, evaluated here the way ffmpeg reads them and held
@@ -32,27 +33,27 @@ class HdrExpressionsTest {
     assertNear(light, FloatArray(3) { expected }, "HLG $MID_SIGNAL")
   }
 
-  // A saturated colour is where HLG's luminance-weighted system gamma parts from one applied to each channel alone.
+  // A saturated color is where HLG's luminance-weighted system gamma parts from one applied to each channel alone.
   @Test
-  fun `a colour's HLG scene takes the display light core put it at`() {
-    for (colour in COLOURS) {
-      val nits = authoredHdrNits(colour)
+  fun `a color's HLG scene takes the display light core put it at`() {
+    for (color in COLORS) {
+      val nits = authoredHdrNits(color)
       val signal = HdrTransfer.Hlg.signalFromNits(nits)
       val light = decode(FloatArray(3) { sceneFromHlgSignal(signal[it]) })
 
-      assertNear(light, FloatArray(3) { nits[it] / HLG_NOMINAL_PEAK_NITS }, "HLG ${colour.toUInt().toString(16)}")
+      assertNear(light, FloatArray(3) { nits[it] / HLG_NOMINAL_PEAK_NITS }, "HLG ${color.toUInt().toString(16)}")
     }
   }
 
   @Test
-  fun `a colour's light encodes onto the signal core writes it at`() {
+  fun `a color's light encodes onto the signal core writes it at`() {
     for (transfer in HdrTransfer.entries) {
-      for (colour in COLOURS) {
-        val nits = authoredHdrNits(colour)
+      for (color in COLORS) {
+        val nits = authoredHdrNits(color)
         val peak = peakOf(transfer)
         val signal = encode(transfer, FloatArray(3) { nits[it] / peak })
 
-        assertNear(signal, transfer.signalFromNits(nits), "$transfer ${colour.toUInt().toString(16)}")
+        assertNear(signal, transfer.signalFromNits(nits), "$transfer ${color.toUInt().toString(16)}")
       }
     }
   }
@@ -80,10 +81,9 @@ class HdrExpressionsTest {
     expected: FloatArray,
     what: String,
   ) {
-    assertTrue(
-      read.indices.all { abs(read[it] - expected[it]) <= TOLERANCE * maxOf(1f, abs(expected[it])) },
-      "$what read ${read.toList()}, expected ${expected.toList()}",
-    )
+    withClue("$what read ${read.toList()}, expected ${expected.toList()}") {
+      read.indices.all { abs(read[it] - expected[it]) <= TOLERANCE * maxOf(1f, abs(expected[it])) } shouldBe true
+    }
   }
 
   /**
@@ -222,7 +222,7 @@ class HdrExpressionsTest {
     const val SATURATED = 0xFF308020.toInt()
 
     // White, a mid grey and the saturated green.
-    val COLOURS = listOf(0xFFFFFFFF.toInt(), 0xFF808080.toInt(), SATURATED)
+    val COLORS = listOf(0xFFFFFFFF.toInt(), 0xFF808080.toInt(), SATURATED)
 
     // Relative, and well under a ten-bit code, which is a thousandth of the signal.
     const val TOLERANCE = 1e-4f

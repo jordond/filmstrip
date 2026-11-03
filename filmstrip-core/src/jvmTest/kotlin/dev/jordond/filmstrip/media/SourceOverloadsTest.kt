@@ -2,12 +2,19 @@ package dev.jordond.filmstrip.media
 
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.still.SolidThumbnailSource
+import dev.jordond.filmstrip.still.StillFacadeTest
+import dev.jordond.filmstrip.still.StillFormat
+import dev.jordond.filmstrip.still.StillResult
+import dev.jordond.filmstrip.still.StillSpec
+import dev.jordond.filmstrip.still.frame
+import dev.jordond.filmstrip.still.still
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.io.path.createTempDirectory
 import kotlin.test.Test
-import kotlin.test.assertIs
 import kotlin.time.Duration
 
 /**
@@ -27,8 +34,8 @@ class SourceOverloadsTest {
       val fromSource = filmstrip.frame(SOURCE, Duration.ZERO, HEIGHT)
       val fromComposition = filmstrip.frame(compositionOf { clip(SOURCE) }, Duration.ZERO, HEIGHT)
 
-      assertIs<FrameResult.Success>(fromSource).image.toRgba8888() shouldBe
-        assertIs<FrameResult.Success>(fromComposition).image.toRgba8888()
+      fromSource.shouldBeInstanceOf<FrameResult.Success>().image.toRgba8888() shouldBe
+        fromComposition.shouldBeInstanceOf<FrameResult.Success>().image.toRgba8888()
     }
 
   @Test
@@ -48,8 +55,8 @@ class SourceOverloadsTest {
           spec,
         )
 
-      assertIs<StillResult.Success>(fromSource)
-      assertIs<StillResult.Success>(fromComposition)
+      fromSource.shouldBeInstanceOf<StillResult.Success>()
+      fromComposition.shouldBeInstanceOf<StillResult.Success>()
       fromSourceTarget.readBytes() shouldBe fromCompositionTarget.readBytes()
     }
 

@@ -1,10 +1,11 @@
 package dev.jordond.filmstrip.test
 
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
 import kotlin.test.Test
-import kotlin.test.assertTrue
 
 /**
  * The tone measurement, pinned against signals whose answer is known before it runs.
@@ -36,7 +37,7 @@ class ToneAnalysisTest {
 
     val measured = ToneAnalysis.amplitudeOf(tone, 880, RATE)
 
-    assertTrue(measured < 0.02f, "a frequency the signal does not carry read $measured")
+    withClue("a frequency the signal does not carry read $measured") { (measured < 0.02f) shouldBe true }
   }
 
   @Test
@@ -60,7 +61,7 @@ class ToneAnalysisTest {
 
     val mono = ToneAnalysis.toMono(interleaved, channels = 2)
 
-    assertTrue(mono.size == 3, "three frames came back as ${mono.size}")
+    withClue("three frames came back as ${mono.size}") { (mono.size == 3) shouldBe true }
     assertClose(0.5f, mono[0], "the first frame")
     assertClose(0.5f, mono[1], "the second frame")
     assertClose(0f, mono[2], "the third frame")
@@ -79,7 +80,7 @@ class ToneAnalysisTest {
     what: String,
     tolerance: Float = 0.01f,
   ) {
-    assertTrue(abs(expected - actual) <= tolerance, "$what read $actual, expected about $expected")
+    withClue("$what read $actual, expected about $expected") { (abs(expected - actual) <= tolerance) shouldBe true }
   }
 
   private companion object {

@@ -3,27 +3,34 @@ package dev.jordond.filmstrip.ffmpeg
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.FIRST_BLUE
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.GRID_RATE
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.QUIET_READING
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.SEAM_RATE
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.SECOND_BLUE
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.THIRD_BLUE
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.TIMEOUT
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotsOf
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.FIRST_BLUE
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.GRID_RATE
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.QUIET_READING
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.SEAM_RATE
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.SECOND_BLUE
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.THIRD_BLUE
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
+import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
+import dev.jordond.filmstrip.ffmpeg.support.Shown
+import dev.jordond.filmstrip.ffmpeg.support.assertOnTheGrid
+import dev.jordond.filmstrip.ffmpeg.support.decodedAudio
+import dev.jordond.filmstrip.ffmpeg.support.indexedClip
+import dev.jordond.filmstrip.ffmpeg.support.levelAt
+import dev.jordond.filmstrip.ffmpeg.support.writtenFrames
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.test.LoopingCases
-import dev.jordond.filmstrip.transform.internal.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.test.Test
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -132,7 +139,7 @@ class FfmpegFrameGridTest {
         }
       val spec = ExportSpec(frameRate = GRID_RATE)
       val laid = fixture.plannedTracks(composition, spec, listOf(pictureSource, toneSource)).first().clips
-      assertTrue(laid.size > 3, "the run laid ${laid.size} passes, too few for a pass to drift")
+      withClue("the run laid ${laid.size} passes, too few for a pass to drift") { (laid.size > 3).shouldBeTrue() }
 
       val output = File.createTempFile("filmstrip-grid-loop", ".mp4").also { it.delete() }
       fixture.exported(fixture.plannedRun(composition, spec), output)
@@ -205,13 +212,17 @@ class FfmpegFrameGridTest {
       val spec = ExportSpec(frameRate = GRID_RATE)
       val sources = listOf(before, between, after).map { MediaSource.of(it.absolutePath) }
       val laid = fixture.plannedTracks(composition, spec, sources).single().clips
-      assertTrue(outputSlotsOf(laid[1].span, GRID_RATE).isEmpty(), "the middle clip covers a slot")
+      withClue("the middle clip covers a slot") { outputSlotsOf(laid[1].span, GRID_RATE).isEmpty().shouldBeTrue() }
 
       val output = File.createTempFile("filmstrip-grid-zero", ".mp4").also { it.delete() }
       fixture.exported(fixture.plannedRun(composition, spec), output)
 
       val frames = writtenFrames(output.absolutePath)
-      val end = assertNotNull(laid.last().span.endExclusive)
+      val end =
+        laid
+          .last()
+          .span.endExclusive
+          .shouldNotBeNull()
       assertOnTheGrid(frames, outputSlotOf(end, GRID_RATE), GRID_RATE, "a clip covering no slot")
       frames.forEach { frame -> frame.shown?.blue shouldNotBe SECOND_BLUE }
       frames[outputSlotOf(laid[2].span.start, GRID_RATE).toInt()].shown shouldBe Shown(THIRD_BLUE, 0)
@@ -220,8 +231,12 @@ class FfmpegFrameGridTest {
       val tone = decodedAudio(between.absolutePath).levelAt(1.seconds)
       val samples = decodedAudio(output.absolutePath)
       val inside = laid[1].span.start + UNDER_HALF_SLOT / 2
-      assertTrue(samples.levelAt(inside) >= tone * CLIPPED_TONE_FLOOR, "the clip's own tone is missing at $inside")
-      assertTrue(samples.levelAt(QUIET_READING) <= tone * SILENCE_CEILING, "the silent clip carried sound")
+      withClue("the clip's own tone is missing at $inside") {
+        (samples.levelAt(inside) >= tone * CLIPPED_TONE_FLOOR).shouldBeTrue()
+      }
+      withClue("the silent clip carried sound") {
+        (samples.levelAt(QUIET_READING) <= tone * SILENCE_CEILING).shouldBeTrue()
+      }
 
       output.delete()
       listOf(before, between, after).forEach { it.delete() }

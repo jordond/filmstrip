@@ -19,17 +19,6 @@ import java.nio.ByteBuffer
 import kotlin.math.ceil
 
 /**
- * A run of text drawn at the size its glyphs cover, plus the plate around them, as straight sixteen-bit samples.
- *
- * @property size The pixel size of the raster.
- * @property samples Red, green, blue and alpha a texel row by row from the top left, as [platedSamples] lays them.
- */
-internal class TextSamples(
-  val size: Size,
-  val samples: ShortArray,
-)
-
-/**
  * The name of the graphics API media3 uploads its overlay textures through.
  *
  * It goes into [textPastTextureSide] and [picturePastTextureSide], so a refusal says whose texture side it hit.
@@ -42,9 +31,9 @@ internal const val OPEN_GL_ES: String = "OpenGL ES"
  * Laid out by [textBlock] at the real pixel size it will occupy on [frame], so the overlay is composited at one to one
  * and never resampled.
  *
- * The glyphs are drawn in the text's own colour at full alpha through [textCoverage], and [platedSamples] lays the
- * text colour at its alpha over the plate by how much of each texel they cover, so a translucent plate keeps its
- * straight colour exactly. A colour font's glyphs keep their own colour. Colours are written as the codes the style
+ * The glyphs are drawn in the text's own color at full alpha through [textCoverage], and [platedSamples] lays the
+ * text color at its alpha over the plate by how much of each texel they cover, so a translucent plate keeps its
+ * straight color exactly. A color font's glyphs keep their own color. Colors are written as the codes the style
  * names.
  *
  * The raster is counted by [textRasterFits] before [bitmapOf] runs, at [TEXT_TEXEL_BYTES] a texel with the band
@@ -56,9 +45,9 @@ internal const val OPEN_GL_ES: String = "OpenGL ES"
  * @param frame The frame the text is drawn on, which every fraction in [style] is measured against.
  * @param maxSide The most pixels a texture holds on a side, OpenGL ES's `GL_MAX_TEXTURE_SIZE`, the limit of the texture
  * media3 uploads the raster to.
- * @param ceiling The most bytes the raster may hold at its peak, [textCeiling] unless a test sets it.
+ * @param ceiling The most bytes the raster may hold at its peak, [textCeiling] by default.
  * @param bitmapOf Makes the bitmap the coverage of a raster of the given width and height is drawn into, [textBitmap]
- * unless a test sets it.
+ * by default.
  * @return The drawn text, or why there is none.
  */
 internal fun rasterizeText(
@@ -104,7 +93,7 @@ internal fun rasterizeText(
  *
  * Two passes: the first wraps at the authored maximum width, the second re-lays the wrapped text in a box tight to its
  * longest line, so an alignment is measured against the text rather than against an authored width the text never
- * reached. The paint is the text colour at full alpha. Media3's own `TextOverlay` lays out at a fixed hundred-pixel
+ * reached. The paint is the text color at full alpha. Media3's own `TextOverlay` lays out at a fixed hundred-pixel
  * paint and offers no wrap width, which is why filmstrip lays out and rasterizes instead.
  */
 internal fun textBlock(
@@ -144,7 +133,7 @@ internal fun textSidesPastLayout(
   return (width to height).takeIf { width > Int.MAX_VALUE || height > Int.MAX_VALUE }
 }
 
-// The paint text is laid out with, the text colour at full alpha and sized so a capital stands the cap height.
+// The paint text is laid out with, the text color at full alpha and sized so a capital stands the cap height.
 private fun textPaint(
   style: TextStyle,
   frame: Size,
@@ -163,9 +152,9 @@ private fun StaticLayout.widestLine(): Float = (0 until lineCount).maxOfOrNull {
  *
  * The bitmap starts transparent and holds eight-bit premultiplied ARGB, which is divided out here once with each
  * channel rounded to the nearest code. It is recycled once its texels are read or drawing it throws. Android shapes
- * the coverage of a glyph it draws from a mask by the colour it is drawn in, so [draw] fills in the text's own colour
- * at full alpha and each texel's alpha is how much of it the glyphs cover in that colour. A colour font's glyph keeps
- * its own colour in the texel.
+ * the coverage of a glyph it draws from a mask by the color it is drawn in, so [draw] fills in the text's own color
+ * at full alpha and each texel's alpha is how much of it the glyphs cover in that color. A color font's glyph keeps
+ * its own color in the texel.
  *
  * @throws IllegalStateException When [bitmapOf] makes a bitmap of any other size or config.
  */
@@ -222,7 +211,7 @@ internal fun textBitmap(
  * it is refused by name rather than run the app out of memory. The share is of the heap's limit rather than of what
  * is free, so the same text resolves the same way in a preview and an export.
  *
- * @param heap The most bytes the Java heap may grow to, `Runtime.maxMemory` unless a test sets it.
+ * @param heap The most bytes the Java heap may grow to, `Runtime.maxMemory` by default.
  */
 internal fun textCeiling(heap: Long = Runtime.getRuntime().maxMemory()): Long =
   minOf(PICTURE_PEAK_CEILING, heap / HEAP_SHARE)

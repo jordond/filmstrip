@@ -36,3 +36,4 @@ sample/media/build/
 !/.claude/
 /.claude/*
 !/.claude/skills/
+.desloppify/

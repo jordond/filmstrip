@@ -1,29 +1,29 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.Sidecar
-import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.OutputFormat
-import dev.jordond.filmstrip.export.VideoCodec
-import dev.jordond.filmstrip.ffmpeg.internal.FfmpegVersion
-import dev.jordond.filmstrip.ffmpeg.internal.InputSource
-import dev.jordond.filmstrip.ffmpeg.internal.InputSpec
-import dev.jordond.filmstrip.ffmpeg.internal.Invocation
-import dev.jordond.filmstrip.ffmpeg.internal.Toolchain
-import dev.jordond.filmstrip.ffmpeg.internal.arguments
-import dev.jordond.filmstrip.ffmpeg.internal.formatSeconds
-import dev.jordond.filmstrip.ffmpeg.internal.previewArguments
-import dev.jordond.filmstrip.ffmpeg.internal.previewFrameBytes
-import dev.jordond.filmstrip.ffmpeg.internal.previewLanding
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSpec
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.arguments
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.formatSeconds
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewArguments
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewFrameBytes
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewLanding
+import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
+import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media.ImageSource
+import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -106,7 +106,9 @@ class PreviewInvocationTest {
     // An input option, so it only moves the input it sits ahead of: past the clip's own -i, and
     // ahead of the image's.
     val offset = previewed.indexOf("-itsoffset")
-    assertTrue(offset > previewed.indexOf("-i") && offset < previewed.lastIndexOf("-i"), previewed.toString())
+    withClue(previewed.toString()) {
+      (offset > previewed.indexOf("-i") && offset < previewed.lastIndexOf("-i")) shouldBe true
+    }
   }
 
   // A scrub inside a frame period opens on the output slot it lands on, so the seek and the branch's
@@ -156,7 +158,7 @@ class PreviewInvocationTest {
       val previewed = previewArgumentsFor(at)
 
       previewed.after("-frames:v") shouldBe (VIDEO_SLOTS - outputSlotOf(at, RATE)).toString()
-      assertTrue(previewed.indexOf("-frames:v") > previewed.lastIndexOf("-map"), previewed.toString())
+      withClue(previewed.toString()) { (previewed.indexOf("-frames:v") > previewed.lastIndexOf("-map")) shouldBe true }
     }
   }
 
@@ -221,7 +223,7 @@ class PreviewInvocationTest {
   }
 
   @Test
-  fun `maps the source stream directly for a transmux`() {
+  fun `maps the source stream directly for a copy`() {
     val previewed = copied().previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, emptyList(), Duration.ZERO)
 
     previewed.after("-map") shouldBe "0:v:0"

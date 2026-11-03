@@ -1,16 +1,23 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.color.SIXTEEN_BIT_MAX
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.PlaneLanes
-import dev.jordond.filmstrip.ffmpeg.HdrRender.FLOAT_RGB
-import dev.jordond.filmstrip.ffmpeg.HdrRender.WIDE_YUV
-import dev.jordond.filmstrip.media.SIXTEEN_BIT_MAX
+import dev.jordond.filmstrip.ffmpeg.support.HdrGrid
+import dev.jordond.filmstrip.ffmpeg.support.HdrRender.FLOAT_RGB
+import dev.jordond.filmstrip.ffmpeg.support.HdrRender.WIDE_YUV
+import dev.jordond.filmstrip.ffmpeg.support.RawFrame
+import dev.jordond.filmstrip.ffmpeg.support.logged
+import dev.jordond.filmstrip.ffmpeg.support.packedShorts
+import dev.jordond.filmstrip.ffmpeg.support.planarShorts
+import dev.jordond.filmstrip.ffmpeg.support.rendered
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.shouldBe
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 /**
  * Plane lanes as the graph builder writes them, run through the ffmpeg on PATH.
@@ -30,7 +37,9 @@ class FfmpegPlaneLanesTest {
 
       val floats = floats(RawFrame(planarShorts(samples), WIDE_YUV).rendered(nodes, FLOAT_RGB), planes = 3)
 
-      assertTrue(misses(floats, samples).isEmpty(), "$tag: " + misses(floats, samples).joinToString("\n"))
+      withClue("$tag: " + misses(floats, samples).joinToString("\n")) {
+        misses(floats, samples).isEmpty().shouldBeTrue()
+      }
     }
   }
 
@@ -46,7 +55,9 @@ class FfmpegPlaneLanesTest {
       val floats = floats(picture.rendered(tag + lanes, FLOAT_RGB), planes = 3)
 
       val expected = listOf(rgb[1], rgb[2], rgb[0])
-      assertTrue(misses(floats, expected).isEmpty(), "$tag: " + misses(floats, expected).joinToString("\n"))
+      withClue("$tag: " + misses(floats, expected).joinToString("\n")) {
+        misses(floats, expected).isEmpty().shouldBeTrue()
+      }
     }
   }
 
@@ -58,7 +69,7 @@ class FfmpegPlaneLanesTest {
     val floats = floats(RawFrame(packedShorts(rgba), PICTURE).rendered(listOf(lanes), FLOAT_RGBA), planes = 4)
 
     val expected = listOf(rgba[1], rgba[2], rgba[0], rgba[3])
-    assertTrue(misses(floats, expected).isEmpty(), misses(floats, expected).joinToString("\n"))
+    withClue(misses(floats, expected).joinToString("\n")) { misses(floats, expected).isEmpty().shouldBeTrue() }
   }
 
   @Test
@@ -73,7 +84,7 @@ class FfmpegPlaneLanesTest {
     val log = RawFrame(planarShorts(gridSamples(planes = 3)), WIDE_YUV).logged(nodes, FLOAT_RGB)
 
     val ranges = Regex("color_range:(\\w+)").findAll(log).map { it.groupValues[1] }.toList()
-    assertEquals(listOf("tv"), ranges, log)
+    withClue(log) { ranges shouldBe listOf("tv") }
   }
 
   // Every sixteen bit code once on each plane, the rest of the grid frame padded with the last. Each plane steps
@@ -104,7 +115,7 @@ class FfmpegPlaneLanesTest {
     planes: Int,
   ): List<FloatArray> {
     val samples = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
-    assertEquals(HdrGrid.PIXELS * planes, samples.remaining(), "a planar float grid frame of $planes planes")
+    withClue("a planar float grid frame of $planes planes") { samples.remaining() shouldBe HdrGrid.PIXELS * planes }
     return (0 until planes).map { plane -> FloatArray(CODES) { samples.get(plane * HdrGrid.PIXELS + it) } }
   }
 

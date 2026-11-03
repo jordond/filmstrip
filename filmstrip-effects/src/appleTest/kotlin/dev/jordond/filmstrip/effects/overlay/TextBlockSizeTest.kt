@@ -3,11 +3,11 @@ package dev.jordond.filmstrip.effects.overlay
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.style.TextAlignment
 import dev.jordond.filmstrip.style.TextStyle
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 
 /**
  * How big a block Apple's [rasterizeText] draws, sized to its glyphs, wrapped at the authored width, scaled with the
@@ -20,11 +20,10 @@ class TextBlockSizeTest {
     val narrow = drawnText("hi", TextStyle(maxWidth = 0.9f), FRAME)
     val wide = drawnText("a much longer caption", TextStyle(maxWidth = 0.9f), FRAME)
 
-    assertTrue(
-      wide.size.width > narrow.size.width,
-      "both blocks came back the same width, so the box is the authored one",
-    )
-    assertTrue(narrow.size.width < FRAME.width, "the short block filled the whole wrap width")
+    withClue("both blocks came back the same width, so the box is the authored one") {
+      (wide.size.width > narrow.size.width) shouldBe true
+    }
+    withClue("the short block filled the whole wrap width") { (narrow.size.width < FRAME.width) shouldBe true }
   }
 
   @Test
@@ -33,7 +32,7 @@ class TextBlockSizeTest {
     val one = drawnText("one", style, FRAME)
     val many = drawnText("one two three four five six seven", style, FRAME)
 
-    assertTrue(many.size.height > one.size.height, "the long string did not wrap")
+    withClue("the long string did not wrap") { (many.size.height > one.size.height) shouldBe true }
   }
 
   @Test
@@ -43,7 +42,7 @@ class TextBlockSizeTest {
     val large = drawnText("caption", style, Size(1280, 720))
 
     val ratio = large.size.height.toFloat() / small.size.height
-    assertTrue(ratio in 1.8f..2.2f, "doubling the frame changed the block by ${ratio}x")
+    withClue("doubling the frame changed the block by ${ratio}x") { (ratio in 1.8f..2.2f) shouldBe true }
   }
 
   @Test
@@ -51,7 +50,7 @@ class TextBlockSizeTest {
     val plain = drawnText("caption", TextStyle(), FRAME)
     val plated = drawnText("caption", TextStyle(backgroundColor = BLACK), FRAME)
 
-    assertTrue(plated.size.width > plain.size.width, "the plate stops at the glyphs")
+    withClue("the plate stops at the glyphs") { (plated.size.width > plain.size.width) shouldBe true }
   }
 
   @Test
@@ -63,8 +62,8 @@ class TextBlockSizeTest {
     val without = drawnText(WORD, unplated, METRICS_FRAME).size
 
     val padding = plated.platePaddingOn(METRICS_FRAME)
-    assertEquals(without.width + 2 * padding, withPlate.width)
-    assertEquals(without.height + 2 * padding, withPlate.height)
+    withPlate.width shouldBe without.width + 2 * padding
+    withPlate.height shouldBe without.height + 2 * padding
   }
 
   @Test
@@ -75,14 +74,18 @@ class TextBlockSizeTest {
     // A wrap width half again the word's own width holds the word once but not twice.
     val style = TextStyle(fontSize = FONT_SIZE, maxWidth = 1.5f * word.width / METRICS_FRAME.width)
     val wrap = style.wrapWidthOn(METRICS_FRAME)
-    assertTrue(word.width <= wrap && wrap < 2 * word.width, "wrap $wrap against a word ${word.width} wide")
+    withClue("wrap $wrap against a word ${word.width} wide") {
+      (word.width <= wrap && wrap < 2 * word.width) shouldBe true
+    }
 
     val twice = drawnText("$WORD $WORD", style, METRICS_FRAME).size
 
     // CoreText measures a fractional line height and the block is rounded up once, not per line, so
     // two lines stand one pixel short of twice a rounded single line at most.
-    assertTrue(twice.height in 2 * word.height - 1..2 * word.height, "two lines stand ${twice.height} tall")
-    assertTrue(twice.width <= wrap, "a ${twice.width} wide raster outgrew its $wrap wrap")
+    withClue("two lines stand ${twice.height} tall") {
+      (twice.height in 2 * word.height - 1..2 * word.height) shouldBe true
+    }
+    withClue("a ${twice.width} wide raster outgrew its $wrap wrap") { (twice.width <= wrap) shouldBe true }
   }
 
   private fun drawnText(
@@ -90,7 +93,9 @@ class TextBlockSizeTest {
     style: TextStyle,
     frame: Size,
   ): OverlayPixels =
-    assertIs<TextRaster.Drawn<OverlayPixels>>(rasterizeText(text, style, frame), "the text drew nothing").pixels
+    withClue("the text drew nothing") {
+      rasterizeText(text, style, frame).shouldBeInstanceOf<TextRaster.Drawn<OverlayPixels>>()
+    }.pixels
 
   private companion object {
     val FRAME = Size(1280, 720)

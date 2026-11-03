@@ -17,17 +17,18 @@ import dev.jordond.filmstrip.effects.renderingContext
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.style.TextStyle
+import io.kotest.assertions.withClue
+import io.kotest.matchers.floats.plusOrMinus
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
+import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.CoreImage.CIColor
 import platform.CoreImage.CIContext
 import platform.CoreImage.CIImage
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertNotSame
-import kotlin.test.assertSame
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -44,7 +45,7 @@ import kotlin.time.Duration.Companion.seconds
  * additive and a multiplicative reading, and every expectation comes from [frameAt] and [animatedBy]
  * rather than from a number copied out of them.
  *
- * Pixels are read in the codes of the frame's own BT.709 colour space, the values an encoder writes
+ * Pixels are read in the codes of the frame's own BT.709 color space, the values an encoder writes
  * and the ones an SDR overlay blends on.
  */
 @OptIn(ExperimentalForeignApi::class)
@@ -54,9 +55,15 @@ class TimedOverlayTest {
     val step = stepFor(ImageOverlay(RED, Corner.BottomEnd, visibleDuring = WINDOW))
     val frame = background()
 
-    assertNotSame(frame, step.apply(frame, at(1.5.seconds)), "the watermark is absent inside its window")
-    assertSame(frame, step.apply(frame, at(3.seconds)), "the watermark is still drawn after its window")
-    assertSame(frame, step.apply(frame, at(0.5.seconds)), "the watermark is drawn before its window")
+    withClue("the watermark is absent inside its window") {
+      step.apply(frame, at(1.5.seconds)) shouldNotBeSameInstanceAs frame
+    }
+    withClue("the watermark is still drawn after its window") {
+      step.apply(frame, at(3.seconds)) shouldBeSameInstanceAs frame
+    }
+    withClue("the watermark is drawn before its window") {
+      step.apply(frame, at(0.5.seconds)) shouldBeSameInstanceAs frame
+    }
   }
 
   @Test
@@ -64,8 +71,12 @@ class TimedOverlayTest {
     val step = stepFor(TextOverlay("caption", TextStyle(), visibleDuring = WINDOW))
     val frame = background()
 
-    assertNotSame(frame, step.apply(frame, at(1.5.seconds)), "the text is absent inside its window")
-    assertSame(frame, step.apply(frame, at(3.seconds)), "the text is still drawn after its window")
+    withClue("the text is absent inside its window") {
+      step.apply(frame, at(1.5.seconds)) shouldNotBeSameInstanceAs frame
+    }
+    withClue("the text is still drawn after its window") {
+      step.apply(frame, at(3.seconds)) shouldBeSameInstanceAs frame
+    }
   }
 
   // The window is half-open, the same as every other TimeRange in filmstrip.
@@ -74,8 +85,8 @@ class TimedOverlayTest {
     val step = stepFor(ImageOverlay(RED, Corner.TopStart, visibleDuring = WINDOW))
     val frame = background()
 
-    assertNotSame(frame, step.apply(frame, at(1.seconds)), "the start of the window is excluded")
-    assertSame(frame, step.apply(frame, at(2.seconds)), "the end of the window is included")
+    withClue("the start of the window is excluded") { step.apply(frame, at(1.seconds)) shouldNotBeSameInstanceAs frame }
+    withClue("the end of the window is included") { step.apply(frame, at(2.seconds)) shouldBeSameInstanceAs frame }
   }
 
   // An overlay that named no window is drawn on every frame it is handed, the span's own bounds
@@ -86,7 +97,7 @@ class TimedOverlayTest {
     val frame = background()
 
     listOf(Duration.ZERO, 1.5.seconds, 99.seconds).forEach { time ->
-      assertNotSame(frame, step.apply(frame, at(time)), "an untimed overlay was absent at $time")
+      withClue("an untimed overlay was absent at $time") { step.apply(frame, at(time)) shouldNotBeSameInstanceAs frame }
     }
   }
 
@@ -98,12 +109,16 @@ class TimedOverlayTest {
     val overlay = ImageOverlay(RED, Corner.TopStart, opacity = HALF)
     val plain = pixels(background(), context)
     val whole = movedBy(stepFor(ImageOverlay(RED, Corner.TopStart)), BASELINE, context, plain)
-    assertTrue(whole > FLOOR, "the opaque watermark only moved the frame by $whole, so nothing here measures an alpha")
+    withClue("the opaque watermark only moved the frame by $whole, so nothing here measures an alpha") {
+      (whole > FLOOR) shouldBe true
+    }
 
-    val opacity = assertNotNull(overlay.frameAt(BASELINE, SPAN), "the watermark was not drawn").opacity
+    val opacity = withClue("the watermark was not drawn") { overlay.frameAt(BASELINE, SPAN).shouldNotBeNull() }.opacity
     val moved = movedBy(stepFor(overlay), BASELINE, context, plain)
 
-    assertEquals(opacity * whole, moved, whole * DRIFT, "a half alpha watermark moved $moved of a full $whole")
+    withClue("a half alpha watermark moved $moved of a full $whole") {
+      moved shouldBe (opacity * whole plusOrMinus whole * DRIFT)
+    }
   }
 
   @Test
@@ -113,18 +128,25 @@ class TimedOverlayTest {
     val faded = stepFor(overlay)
     val plain = pixels(background(), context)
     val whole = movedBy(stepFor(ImageOverlay(RED, Corner.TopStart)), BASELINE, context, plain)
-    assertTrue(whole > FLOOR, "the unfaded watermark only moved the frame by $whole, so nothing here measures a fade")
+    withClue("the unfaded watermark only moved the frame by $whole, so nothing here measures a fade") {
+      (whole > FLOOR) shouldBe true
+    }
 
     val drawn =
       RAMP_POINTS.map { time ->
-        val opacity = assertNotNull(overlay.frameAt(time, SPAN), "the watermark was not drawn at $time").opacity
+        val opacity =
+          withClue("the watermark was not drawn at $time") {
+            overlay.frameAt(time, SPAN).shouldNotBeNull()
+          }.opacity
         val moved = movedBy(faded, time, context, plain)
-        assertEquals(opacity * whole, moved, whole * DRIFT, "a fade at $time moved $moved of a full $whole")
+        withClue("a fade at $time moved $moved of a full $whole") {
+          moved shouldBe (opacity * whole plusOrMinus whole * DRIFT)
+        }
         moved
       }
 
-    assertTrue(drawn[0] < drawn[1], "the two points of the ramp drew the same picture: $drawn")
-    assertTrue(drawn[1] < whole, "three quarters of the ramp drew as much as the unfaded watermark")
+    withClue("the two points of the ramp drew the same picture: $drawn") { (drawn[0] < drawn[1]) shouldBe true }
+    withClue("three quarters of the ramp drew as much as the unfaded watermark") { (drawn[1] < whole) shouldBe true }
   }
 
   // TextOverlay carries no authored opacity, so everything it fades by comes from the animation. The
@@ -136,12 +158,19 @@ class TimedOverlayTest {
     val faded = stepFor(overlay)
     val plain = pixels(background(), context)
     val whole = movedBy(stepFor(TextOverlay(CAPTION, PLATED)), BASELINE, context, plain)
-    assertTrue(whole > FLOOR, "the unfaded text only moved the frame by $whole, so nothing here measures a fade")
+    withClue("the unfaded text only moved the frame by $whole, so nothing here measures a fade") {
+      (whole > FLOOR) shouldBe true
+    }
 
     RAMP_POINTS.forEach { time ->
-      val opacity = assertNotNull(overlay.frameAt(time, SPAN), "the text was not drawn at $time").opacity
+      val opacity =
+        withClue("the text was not drawn at $time") {
+          overlay.frameAt(time, SPAN).shouldNotBeNull()
+        }.opacity
       val moved = movedBy(faded, time, context, plain)
-      assertEquals(opacity * whole, moved, whole * DRIFT, "a fade at $time moved $moved of a full $whole")
+      withClue("a fade at $time moved $moved of a full $whole") {
+        moved shouldBe (opacity * whole plusOrMinus whole * DRIFT)
+      }
     }
   }
 
@@ -159,7 +188,7 @@ class TimedOverlayTest {
     val restingLeft = still.placedOn(FRAME, RASTER).rectOn(FRAME).left * FRAME.width
 
     RAMP_POINTS.forEach { time ->
-      val sampled = assertNotNull(overlay.frameAt(time, SPAN), "the watermark was not drawn at $time")
+      val sampled = withClue("the watermark was not drawn at $time") { overlay.frameAt(time, SPAN).shouldNotBeNull() }
       val expected =
         overlay
           .placedOn(FRAME, RASTER)
@@ -168,12 +197,9 @@ class TimedOverlayTest {
           .left * FRAME.width
       val drawn = leftEdgeOf(pixels(step.apply(background(), at(time)), context))
 
-      assertEquals(
-        expected - restingLeft,
-        (drawn - resting).toFloat(),
-        EDGE_DRIFT,
-        "a slide at $time moved the watermark ${drawn - resting} pixels from where it was authored",
-      )
+      withClue("a slide at $time moved the watermark ${drawn - resting} pixels from where it was authored") {
+        (drawn - resting).toFloat() shouldBe (expected - restingLeft plusOrMinus EDGE_DRIFT)
+      }
     }
   }
 
@@ -183,8 +209,12 @@ class TimedOverlayTest {
     val step = stepFor(overlay)
     val frame = background()
 
-    assertSame(frame, step.apply(frame, at(0.5.seconds)), "an animated watermark was drawn before its window")
-    assertSame(frame, step.apply(frame, at(3.seconds)), "an animated watermark was drawn after its window")
+    withClue("an animated watermark was drawn before its window") {
+      step.apply(frame, at(0.5.seconds)) shouldBeSameInstanceAs frame
+    }
+    withClue("an animated watermark was drawn after its window") {
+      step.apply(frame, at(3.seconds)) shouldBeSameInstanceAs frame
+    }
   }
 
   // The ramp is measured off the window rather than off the span, so a one second fade inside a one
@@ -196,13 +226,20 @@ class TimedOverlayTest {
     val step = stepFor(overlay)
     val plain = pixels(background(), context)
     val whole = movedBy(stepFor(ImageOverlay(RED, Corner.TopStart)), BASELINE, context, plain)
-    assertTrue(whole > FLOOR, "the unfaded watermark only moved the frame by $whole, so nothing here measures a fade")
+    withClue("the unfaded watermark only moved the frame by $whole, so nothing here measures a fade") {
+      (whole > FLOOR) shouldBe true
+    }
     val time = WINDOW.start + INTO_WINDOW
 
-    val opacity = assertNotNull(overlay.frameAt(time, SPAN), "the watermark was not drawn at $time").opacity
+    val opacity =
+      withClue("the watermark was not drawn at $time") {
+        overlay.frameAt(time, SPAN).shouldNotBeNull()
+      }.opacity
     val moved = movedBy(step, time, context, plain)
 
-    assertEquals(opacity * whole, moved, whole * DRIFT, "a fade at $time moved $moved of a full $whole")
+    withClue("a fade at $time moved $moved of a full $whole") {
+      moved shouldBe (opacity * whole plusOrMinus whole * DRIFT)
+    }
   }
 
   private fun background(): CIImage = CIImage(color = CIColor.blackColor).imageByCroppingToRect(FRAME_RECT)

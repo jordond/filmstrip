@@ -1,14 +1,15 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.color.PQ_PEAK_NITS
+import dev.jordond.filmstrip.color.brightnessDisplayGain
 import dev.jordond.filmstrip.effects.color.brightness
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.PQ_PEAK_NITS
-import dev.jordond.filmstrip.media.brightnessDisplayGain
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
 import kotlinx.coroutines.test.runTest
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 
 /**
@@ -54,25 +55,26 @@ class AppleHdrBrightnessTest {
       val gain = brightnessDisplayGain(BRIGHTER)
       val ceiling = PQ_PEAK_NITS * HEADROOM
       val (clipped, carried) = lit.indices.filter { lit[it] >= FLOOR_NITS }.partition { lit[it] * gain > ceiling }
-      assertTrue(
-        carried.isNotEmpty(),
-        "every channel of $lit runs past the ceiling at $BRIGHTER, so no gain was read",
-      )
-      assertTrue(clipped.isNotEmpty(), "no channel of $lit reaches the ceiling at $BRIGHTER, so no clip was read")
+      withClue("every channel of $lit runs past the ceiling at $BRIGHTER, so no gain was read") {
+        carried.isNotEmpty().shouldBeTrue()
+      }
+      withClue("no channel of $lit reaches the ceiling at $BRIGHTER, so no clip was read") {
+        clipped.isNotEmpty().shouldBeTrue()
+      }
 
       carried.forEach { channel ->
         val expected = lit[channel] * gain
-        assertTrue(
-          abs(brightened[channel] - expected) <= expected * BRIGHTENING_DRIFT,
-          "channel $channel read ${brightened[channel]} nits, expected $expected from ${lit[channel]} at full",
-        )
+        withClue("channel $channel read ${brightened[channel]} nits, expected $expected from ${lit[channel]} at full") {
+          (abs(brightened[channel] - expected) <= expected * BRIGHTENING_DRIFT).shouldBeTrue()
+        }
       }
       clipped.forEach { channel ->
-        assertTrue(
-          brightened[channel] > lit[channel] && brightened[channel] >= ceiling,
+        withClue(
           "channel $channel asked for ${lit[channel] * gain} nits and read ${brightened[channel]}, short of the " +
             "format's own ceiling",
-        )
+        ) {
+          (brightened[channel] > lit[channel] && brightened[channel] >= ceiling).shouldBeTrue()
+        }
       }
     }
 
@@ -90,10 +92,11 @@ class AppleHdrBrightnessTest {
 
     half.litChannels().forEach { channel ->
       val ratio = quarter[channel] / half[channel]
-      assertTrue(
-        abs(ratio - expected) <= expected * drift,
+      withClue(
         "channel $channel moved by $ratio, expected $expected between ${half[channel]} and ${quarter[channel]}",
-      )
+      ) {
+        (abs(ratio - expected) <= expected * drift).shouldBeTrue()
+      }
     }
   }
 

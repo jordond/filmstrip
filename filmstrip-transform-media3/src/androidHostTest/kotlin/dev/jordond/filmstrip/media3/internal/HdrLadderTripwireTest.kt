@@ -1,9 +1,10 @@
 package dev.jordond.filmstrip.media3.internal
 
-import dev.jordond.filmstrip.export.VideoCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
 
 /**
  * Pins the assumption that DEFAULT_HDR_LADDER holds exactly one codec.
@@ -17,13 +18,13 @@ import kotlin.test.assertEquals
 class HdrLadderTripwireTest {
   @Test
   fun `DEFAULT_HDR_LADDER is exactly Hevc only`() {
-    assertEquals(
-      listOf(VideoCodec.Hevc),
-      DEFAULT_HDR_LADDER,
+    withClue(
       "DEFAULT_HDR_LADDER changed. Media3Encoders.anyHdrEncoder() and " +
         "AvEncoders.opensMain10Session() both hardcode an HEVC Main10 profile against a codec the " +
         "ladder picks, so both answer for the wrong codec now. Map each ladder entry to its own " +
         "profile in both backends before adding a second codec.",
-    )
+    ) {
+      DEFAULT_HDR_LADDER shouldBe listOf(VideoCodec.Hevc)
+    }
   }
 }

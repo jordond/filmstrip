@@ -23,11 +23,12 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
@@ -35,7 +36,7 @@ import kotlin.time.Duration.Companion.seconds
  * Overlays over the fill, checked against the pixels that were written, not the plan.
  *
  * The fill is painted in before the overlays run, so an overlay placed in a bar or a gap has to
- * land over the fill's colour and leave the rest of it alone. Each test reads the overlay's own
+ * land over the fill's color and leave the rest of it alone. Each test reads the overlay's own
  * region for the badge and a stretch no overlay covers for the fill. Skipped when the fixtures are
  * absent, as in [AndroidExportTest].
  */
@@ -55,10 +56,12 @@ class AndroidOverlayFillTest {
 
       val frameSize = plain.frameSize()
       val core = inBar.placedOn(frameSize, BADGE).core(frameSize)
-      assertTrue(plain.readsFill(core), "the overlay is not placed inside the bar, nothing to measure")
+      withClue("the overlay is not placed inside the bar, nothing to measure") { plain.readsFill(core) shouldBe true }
 
-      assertTrue(marked.gainedOver(plain, core) > COVERED, "the fill was painted over the overlay in the bar")
-      assertTrue(marked.readsFill(core.mirrored()), "the bar outside the overlay lost the fill's colour")
+      withClue("the fill was painted over the overlay in the bar") {
+        (marked.gainedOver(plain, core) > COVERED) shouldBe true
+      }
+      withClue("the bar outside the overlay lost the fill's color") { marked.readsFill(core.mirrored()) shouldBe true }
     }
 
   @Test
@@ -73,13 +76,12 @@ class AndroidOverlayFillTest {
 
       val frameSize = plain.frameSize()
       val core = half.placedOn(frameSize, BADGE).core(frameSize)
-      assertTrue(plain.readsFill(core), "the overlay is not placed inside the bar, nothing to measure")
+      withClue("the overlay is not placed inside the bar, nothing to measure") { plain.readsFill(core) shouldBe true }
 
       val measured = blended.blendedOver(plain, full, core)
-      assertTrue(
-        abs(measured - half.opacity) < ALPHA_TOLERANCE,
-        "the overlay blended $measured of the way from the fill where its opacity is ${half.opacity}",
-      )
+      withClue("the overlay blended $measured of the way from the fill where its opacity is ${half.opacity}") {
+        (abs(measured - half.opacity) < ALPHA_TOLERANCE) shouldBe true
+      }
     }
 
   // media3's own gap is an opaque black picture the size stage fits as a square in the middle of the frame, so a fill
@@ -92,7 +94,9 @@ class AndroidOverlayFillTest {
 
       listOf(MIDDLE, TOP_START, TOP_END, BOTTOM_START, BOTTOM_END).forEach { region ->
         val read = gap.averageAt(region.left, region.top)
-        assertTrue(gap.readsFill(region), "the gap at (${region.left}, ${region.top}) does not read the fill: $read")
+        withClue("the gap at (${region.left}, ${region.top}) does not read the fill: $read") {
+          gap.readsFill(region) shouldBe true
+        }
       }
     }
 
@@ -106,13 +110,14 @@ class AndroidOverlayFillTest {
 
       val frameSize = plain.frameSize()
       val core = mark.placedOn(frameSize, BADGE).core(frameSize)
-      assertTrue(
-        plain.readsFill(core),
-        "the frame read is not in the gap, nothing to measure: ${plain.averageAt(core.left, core.top)}",
-      )
+      withClue("the frame read is not in the gap, nothing to measure: ${plain.averageAt(core.left, core.top)}") {
+        plain.readsFill(core) shouldBe true
+      }
 
-      assertTrue(marked.gainedOver(plain, core) > COVERED, "the fill was painted over the overlay in the gap")
-      assertTrue(marked.readsFill(core.mirrored()), "the gap outside the overlay lost the fill's colour")
+      withClue("the fill was painted over the overlay in the gap") {
+        (marked.gainedOver(plain, core) > COVERED) shouldBe true
+      }
+      withClue("the gap outside the overlay lost the fill's color") { marked.readsFill(core.mirrored()) shouldBe true }
     }
 
   // The clip in the middle carries sound and no picture, so the video between the other two is a gap.
@@ -128,11 +133,13 @@ class AndroidOverlayFillTest {
 
       val frameSize = plain.frameSize()
       val core = mark.placedOn(frameSize, BADGE).core(frameSize)
-      assertTrue(plain.readsFill(MIDDLE), "the gap does not read the fill at the centre")
-      assertTrue(plain.readsFill(core), "the frame read is not in the gap, nothing to measure")
+      withClue("the gap does not read the fill at the centre") { plain.readsFill(MIDDLE) shouldBe true }
+      withClue("the frame read is not in the gap, nothing to measure") { plain.readsFill(core) shouldBe true }
 
-      assertTrue(marked.gainedOver(plain, core) > COVERED, "the fill was painted over the overlay in the gap")
-      assertTrue(marked.readsFill(core.mirrored()), "the gap outside the overlay lost the fill's colour")
+      withClue("the fill was painted over the overlay in the gap") {
+        (marked.gainedOver(plain, core) > COVERED) shouldBe true
+      }
+      withClue("the gap outside the overlay lost the fill's color") { marked.readsFill(core.mirrored()) shouldBe true }
     }
 
   // A clip's overlay is drawn in the clip's own chain, so the half pushed off the top of the clip is
@@ -156,7 +163,9 @@ class AndroidOverlayFillTest {
           animation = OverlayAnimation { OverlayFrame(offset = pushed) },
         )
       val shifted = flush.placedOn(clipSize, BADGE).animatedBy(OverlayFrame(offset = pushed)).rectOn(clipSize)
-      assertTrue(shifted.top < 0f && shifted.bottom > 0f, "this offset does not push the overlay half off: $shifted")
+      withClue("this offset does not push the overlay half off: $shifted") {
+        (shifted.top < 0f && shifted.bottom > 0f) shouldBe true
+      }
 
       val onClip =
         EditComposition(
@@ -171,10 +180,16 @@ class AndroidOverlayFillTest {
       val rows = List(COLUMN_ROWS) { (it + 0.5f) / COLUMN_ROWS / 2f }
       val edge = rows.first { !plain.readsFillAt(x, it) }
       val bar = rows.filter { it < edge - EDGE_CLEARANCE }
-      assertTrue(bar.isNotEmpty(), "no bar above the clip at $x, nothing to measure")
+      withClue("no bar above the clip at $x, nothing to measure") { bar.isNotEmpty() shouldBe true }
 
-      assertTrue(rows.any { it >= edge && marked.isBadgeAt(x, it) }, "the half left on the clip was not drawn")
-      bar.forEach { y -> assertTrue(marked.readsFillAt(x, y), "the overlay reached the bar at ($x, $y)") }
+      withClue("the half left on the clip was not drawn") {
+        rows.any { it >= edge && marked.isBadgeAt(x, it) } shouldBe true
+      }
+      bar.forEach { y ->
+        withClue("the overlay reached the bar at ($x, $y)") {
+          marked.readsFillAt(x, y) shouldBe true
+        }
+      }
     }
 
   // Small enough that, inset from the top corner, it fits inside the bar a square crop leaves.

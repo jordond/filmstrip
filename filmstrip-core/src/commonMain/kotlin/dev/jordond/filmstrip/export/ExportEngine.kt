@@ -1,11 +1,12 @@
 package dev.jordond.filmstrip.export
 
 import dev.jordond.filmstrip.CapabilitiesResult
-import dev.jordond.filmstrip.ComponentRegistry
-import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
+import dev.jordond.filmstrip.diagnostics.DiagnosticListener
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.effect.EffectResolver
+import dev.jordond.filmstrip.media.MediaProberFactory
 import dev.jordond.filmstrip.media.MediaSink
 import kotlinx.coroutines.flow.Flow
 
@@ -54,7 +55,7 @@ public interface ExportEngine {
   ): Flow<ExportStatus>
 
   /**
-   * Answers [Filmstrip.parityOf] for this engine.
+   * Answers [dev.jordond.filmstrip.Filmstrip.parityOf] for this engine.
    *
    * Parity is a property of the pipeline that renders an effect, so the engine owns the answer. It
    * backs the cheapest of the three ways to read parity, so it must stay a lookup: no I/O, no
@@ -75,8 +76,40 @@ public fun interface ExportEngineFactory {
   /**
    * Builds an engine against [components].
    *
-   * @param components The components registered on the owning [Filmstrip].
+   * @param components The components registered on the owning [dev.jordond.filmstrip.Filmstrip].
    * @return An engine, or null to defer to the next factory.
    */
-  public fun create(components: ComponentRegistry): ExportEngine?
+  public fun create(components: EngineComponents): ExportEngine?
+}
+
+/**
+ * The parts of a [dev.jordond.filmstrip.Filmstrip]'s registry an engine is built against.
+ *
+ * An engine lowers effects through [effectResolvers], reads its sources through [mediaProberFactories] and reports what
+ * it learns to [diagnosticListeners]. Only filmstrip builds one, and [dev.jordond.filmstrip.ComponentRegistry] is the
+ * one every factory is handed.
+ */
+public abstract class EngineComponents internal constructor() {
+  /**
+   * Resolvers that lower an effect spec to something an engine can run.
+   *
+   * Asked newest registration first.
+   */
+  public abstract val effectResolvers: List<EffectResolver>
+
+  /**
+   * Factories that build a media prober.
+   *
+   * Core's own platform prober is consulted after every one of these, so an empty list still probes on a target that
+   * can.
+   */
+  @InternalFilmstripApi
+  public abstract val mediaProberFactories: List<MediaProberFactory>
+
+  /**
+   * Listeners that receive what the components learn while running.
+   *
+   * In registration order.
+   */
+  public abstract val diagnosticListeners: List<DiagnosticListener>
 }

@@ -2,10 +2,10 @@ package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.avfoundation.internal.AvFoundationDriver
-import dev.jordond.filmstrip.avfoundation.internal.syncSampleAtOrBefore
-import dev.jordond.filmstrip.avfoundation.internal.toAvComposition
-import dev.jordond.filmstrip.avfoundation.internal.toDuration
+import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
+import dev.jordond.filmstrip.avfoundation.internal.export.AvDriver
+import dev.jordond.filmstrip.avfoundation.internal.interop.syncSampleAtOrBefore
+import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
@@ -16,12 +16,16 @@ import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.internal.chainedProber
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.chainedProber
 import dev.jordond.filmstrip.transform.internal.ResolveResult
-import dev.jordond.filmstrip.transform.internal.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.readValue
 import kotlinx.cinterop.useContents
@@ -41,9 +45,6 @@ import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -66,7 +67,7 @@ class AppleFastTrimTest {
     runTest(timeout = TIMEOUT) {
       val resolved = trimmed()
 
-      resolved.path shouldBe ExportPath.Transmux
+      resolved.path shouldBe ExportPath.Copy
       resolved.tracks
         .first()
         .clips
@@ -80,12 +81,23 @@ class AppleFastTrimTest {
       val long = fixture(LONG)
       val resolved = trimmed()
 
-      val cut = assertNotNull(resolved.toAvComposition().composition.firstCut(AVMediaTypeVideo), "no video cut")
+      val cut =
+        withClue("no video cut") {
+          resolved
+            .toAvComposition()
+            .composition
+            .firstCut(AVMediaTypeVideo)
+            .shouldNotBeNull()
+        }
       val opening = sourceTrack(long, AVMediaTypeVideo).syncSampleAtOrBefore(TRIM_START)
 
       cut.start shouldBe opening
-      assertTrue(cut.start < TRIM_START, "the cut opened at ${cut.start} rather than earlier than $TRIM_START")
-      assertTrue(cut.start > Duration.ZERO, "the cut fell back to the start of the file instead of snapping")
+      withClue("the cut opened at ${cut.start} rather than earlier than $TRIM_START") {
+        (cut.start < TRIM_START).shouldBeTrue()
+      }
+      withClue("the cut fell back to the start of the file instead of snapping") {
+        (cut.start > Duration.ZERO).shouldBeTrue()
+      }
     }
 
   // The cut moves back to the nearest sync sample, not merely to some earlier one, so nothing
@@ -96,7 +108,10 @@ class AppleFastTrimTest {
     runTest(timeout = TIMEOUT) {
       val long = fixture(LONG)
       val track = sourceTrack(long, AVMediaTypeVideo)
-      val opening = assertNotNull(track.syncSampleAtOrBefore(TRIM_START), "no sync sample before $TRIM_START")
+      val opening =
+        withClue("no sync sample before $TRIM_START") {
+          track.syncSampleAtOrBefore(TRIM_START).shouldNotBeNull()
+        }
 
       track.syncSampleAtOrBefore(opening + (TRIM_START - opening) / 2) shouldBe opening
     }
@@ -108,7 +123,10 @@ class AppleFastTrimTest {
       val long = fixture(LONG)
       val track = sourceTrack(long, AVMediaTypeVideo)
 
-      val opening = assertNotNull(track.syncSampleAtOrBefore(TRIM_START), "no sync sample before $TRIM_START")
+      val opening =
+        withClue("no sync sample before $TRIM_START") {
+          track.syncSampleAtOrBefore(TRIM_START).shouldNotBeNull()
+        }
 
       opening shouldBe track.syncSampleAtOrBefore(opening)
     }
@@ -146,9 +164,11 @@ class AppleFastTrimTest {
       val composition = trimmed().toAvComposition().composition
 
       val video = composition.firstCut(AVMediaTypeVideo)
-      val audio = composition.firstCut(AVMediaTypeAudio)
+      val audio =
+        withClue("the copy wrote no audio track to keep in step with the picture") {
+          composition.firstCut(AVMediaTypeAudio).shouldNotBeNull()
+        }
 
-      assertTrue(audio != null, "the copy wrote no audio track to keep in step with the picture")
       audio.start shouldBe video?.start
     }
 
@@ -184,10 +204,9 @@ class AppleFastTrimTest {
 
       val plan = plan(asked)
       plan.path shouldBe ExportPath.Transcode
-      assertTrue(
-        CopyBlocker.TrimNotOnSyncSample in plan.copyBlockedBy,
-        "the copy was blocked by ${plan.copyBlockedBy} rather than by the trim",
-      )
+      withClue("the copy was blocked by ${plan.copyBlockedBy} rather than by the trim") {
+        (CopyBlocker.TrimNotOnSyncSample in plan.copyBlockedBy).shouldBeTrue()
+      }
 
       val resolved = resolved(asked)
       resolved.tracks
@@ -209,10 +228,9 @@ class AppleFastTrimTest {
     runTest(timeout = TIMEOUT) {
       val long = fixture(LONG)
       val opening =
-        assertNotNull(
-          sourceTrack(long, AVMediaTypeVideo).syncSampleAtOrBefore(TRIM_START),
-          "no sync sample before $TRIM_START",
-        )
+        withClue("no sync sample before $TRIM_START") {
+          sourceTrack(long, AVMediaTypeVideo).syncSampleAtOrBefore(TRIM_START).shouldNotBeNull()
+        }
       val output = NSTemporaryDirectory() + "filmstrip-apple-fast-trim.mp4"
 
       val written =
@@ -223,12 +241,11 @@ class AppleFastTrimTest {
             .last()
         }
 
-      val success = assertIs<ExportStatus.Success>(written)
+      val success = written.shouldBeInstanceOf<ExportStatus.Success>()
       val length = success.info.duration
-      assertTrue(
-        (length - (TRIM_END - opening)).absoluteValue <= FRAME,
-        "the file runs $length, and the copy opened at $opening so it should run ${TRIM_END - opening}",
-      )
+      withClue("the file runs $length, and the copy opened at $opening so it should run ${TRIM_END - opening}") {
+        ((length - (TRIM_END - opening)).absoluteValue <= FRAME).shouldBeTrue()
+      }
       NSFileManager.defaultManager.removeItemAtPath(output, error = null)
     }
 
@@ -268,23 +285,25 @@ class AppleFastTrimTest {
     }
 
   private fun engine() =
-    ComponentRegistry.Builder().add(BuiltInEffectResolver()).build().let { components ->
-      avFoundationExportEngine(chainedProber(components), components.effectResolvers)
+    ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build().let { components ->
+      avFoundationExportEngine(components)
     }
 
   private fun driver() =
-    AvFoundationDriver(chainedProber(ComponentRegistry.Builder().add(BuiltInEffectResolver()).build()))
+    AvDriver(chainedProber(ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()))
 
   private fun sourceTrack(
     path: String,
     mediaType: String?,
   ): AVAssetTrack =
-    assertNotNull(
-      AVURLAsset(uRL = NSURL.fileURLWithPath(path), options = null)
-        .tracksWithMediaType(mediaType)
-        .firstOrNull() as? AVAssetTrack,
-      "$path has no $mediaType track",
-    )
+    withClue("$path has no $mediaType track") {
+      (
+        AVURLAsset(
+          uRL = NSURL.fileURLWithPath(path),
+          options = null,
+        ).tracksWithMediaType(mediaType).firstOrNull() as? AVAssetTrack
+      ).shouldNotBeNull()
+    }
 
   private companion object {
     const val LONG = "apple_export_long.mp4"

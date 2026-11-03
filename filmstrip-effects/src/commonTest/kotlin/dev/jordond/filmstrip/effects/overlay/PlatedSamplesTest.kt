@@ -1,28 +1,29 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.test.sampleOfCode
+import io.kotest.assertions.withClue
+import io.kotest.matchers.floats.plusOrMinus
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import kotlin.math.floor
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertSame
 
 /**
  * How [platedSamples] lays text over a plate by its glyphs, the step the browser and Android draw text through.
  *
  * Glyph bytes are written by hand here, so every blend is read against source over worked from the authored codes'
  * samples. An ordinary glyph texel is modelled the way a platform stores it, premultiplied on the eight-bit grid and
- * divided back out, and a colour glyph texel holds a colour far from the text's.
+ * divided back out, and a color glyph texel holds a color far from the text's.
  */
 class PlatedSamplesTest {
   @Test
   fun uncoveredTexelsHoldThePlateAndCoveredOnesTheText() {
     val samples = platedSamples(inkOf(TEXT, 0, FULL_COVERAGE), TEXT, PLATE)
 
-    assertEquals(channelsOf(PLATE), texel(samples, 0))
-    assertEquals(channelsOf(TEXT), texel(samples, 1))
+    texel(samples, 0) shouldBe channelsOf(PLATE)
+    texel(samples, 1) shouldBe channelsOf(TEXT)
   }
 
   @Test
@@ -38,10 +39,10 @@ class PlatedSamplesTest {
   }
 
   @Test
-  fun aColourGlyphKeepsItsOwnColourAtTheTextAlphaSourceOverThePlate() {
+  fun aColorGlyphKeepsItsOwnColorAtTheTextAlphaSourceOverThePlate() {
     for (textAlpha in TEXT_ALPHAS) {
       for (cover in COVERAGES) {
-        for (plate in listOf(PLATE, null)) assertDrawnSourceOver(withAlpha(TEXT, textAlpha), COLOUR_GLYPH, cover, plate)
+        for (plate in listOf(PLATE, null)) assertDrawnSourceOver(withAlpha(TEXT, textAlpha), COLOR_GLYPH, cover, plate)
       }
     }
   }
@@ -51,17 +52,17 @@ class PlatedSamplesTest {
     val halfAlpha = texel(platedSamples(inkOf(TEXT, FULL_COVERAGE), withAlpha(TEXT, HALF), plate = null), 0)
     val halfCovered = texel(platedSamples(inkOf(TEXT, HALF_COVERAGE), TEXT, plate = null), 0)
 
-    assertEquals(halfCovered[ALPHA], halfAlpha[ALPHA])
+    halfAlpha[ALPHA] shouldBe halfCovered[ALPHA]
   }
 
   @Test
-  fun textWithNoPlateKeepsItsColourAtItsCoverage() {
+  fun textWithNoPlateKeepsItsColorAtItsCoverage() {
     val samples = platedSamples(inkOf(TEXT, 0, HALF_COVERAGE), TEXT, plate = null)
 
-    assertEquals(listOf(0, 0, 0, 0), texel(samples, 0))
+    texel(samples, 0) shouldBe listOf(0, 0, 0, 0)
     val half = texel(samples, 1)
-    assertEquals(channelsOf(TEXT).take(3), half.take(3))
-    assertEquals(sampleOfCode(HALF_COVERAGE), half[ALPHA])
+    half.take(3) shouldBe channelsOf(TEXT).take(3)
+    half[ALPHA] shouldBe sampleOfCode(HALF_COVERAGE)
   }
 
   // Every alpha a texel can hold, every code each channel can hold, through each way a platform rounds the round trip.
@@ -77,14 +78,16 @@ class PlatedSamplesTest {
 
         for (alpha in 1..TOP_CODE) {
           val read = texel(samples, alpha - 1).take(3)
-          assertEquals(ink.map(::sampleOfCode), read, "$store ${text.hex()} at alpha $alpha read as its own colour")
+          withClue("$store ${text.hex()} at alpha $alpha read as its own color") {
+            read shouldBe ink.map(::sampleOfCode)
+          }
         }
       }
     }
   }
 
   @Test
-  fun aTexelAtTheBoundReadsAsInkAndOnePastItAsItsOwnColour() {
+  fun aTexelAtTheBoundReadsAsInkAndOnePastItAsItsOwnColor() {
     for (alpha in BOUND_ALPHAS) {
       val reach = floor(glyphInkReach(alpha)).toInt()
       val ink = codesOf(TEXT)
@@ -93,8 +96,10 @@ class PlatedSamplesTest {
 
       val samples = platedSamples(glyphsOf(listOf(atBound + alpha, past + alpha)), TEXT, plate = null)
 
-      assertEquals(ink.map(::sampleOfCode), texel(samples, 0).take(3), "the texel at the bound at alpha $alpha")
-      assertEquals(past.map(::sampleOfCode), texel(samples, 1).take(3), "the texel past the bound at alpha $alpha")
+      withClue("the texel at the bound at alpha $alpha") { texel(samples, 0).take(3) shouldBe ink.map(::sampleOfCode) }
+      withClue("the texel past the bound at alpha $alpha") {
+        texel(samples, 1).take(3) shouldBe past.map(::sampleOfCode)
+      }
     }
   }
 
@@ -105,8 +110,8 @@ class PlatedSamplesTest {
 
     val samples = platedSamples(glyphs, TEXT, plate = null, samples = held)
 
-    assertSame(held, samples)
-    assertContentEquals(platedSamples(glyphs, TEXT, plate = null), samples)
+    samples shouldBeSameInstanceAs held
+    samples shouldBe platedSamples(glyphs, TEXT, plate = null)
     assertFailsWith<IllegalArgumentException> { platedSamples(glyphs, TEXT, PLATE, ShortArray(glyphs.size - 1)) }
   }
 
@@ -126,8 +131,14 @@ class PlatedSamplesTest {
     val alpha = over + under
     val blended = (0 until 3).map { (glyphChannels[it] * over + plateChannels[it] * under) / alpha }
     val case = "${text.hex()} text with glyph $glyph at coverage $cover over ${plate?.hex()}"
-    (0 until 3).forEach { assertEquals(blended[it], drawn[it].toFloat(), ONE_SAMPLE, "channel $it of $drawn, $case") }
-    assertEquals(alpha * TOP_SAMPLE, drawn[ALPHA].toFloat(), ONE_SAMPLE, "the alpha of $drawn, $case")
+    (0 until 3).forEach {
+      withClue("channel $it of $drawn, $case") {
+        drawn[it].toFloat() shouldBe (blended[it] plusOrMinus ONE_SAMPLE)
+      }
+    }
+    withClue("the alpha of $drawn, $case") {
+      drawn[ALPHA].toFloat() shouldBe (alpha * TOP_SAMPLE plusOrMinus ONE_SAMPLE)
+    }
   }
 
   private fun inkOf(
@@ -202,8 +213,8 @@ class PlatedSamplesTest {
     const val OPAQUE = 0xFF
     const val STALE: Short = 0x1234
 
-    // A colour glyph's own colour, every channel far from the text's.
-    val COLOUR_GLYPH = listOf(0x20, 0x30, 0xD0)
+    // A color glyph's own color, every channel far from the text's.
+    val COLOR_GLYPH = listOf(0x20, 0x30, 0xD0)
 
     // Text alphas and coverages apart from each other and from the ends, so a dropped text alpha moves the blend.
     val TEXT_ALPHAS = listOf(0xFF, 0x80, 0x40)

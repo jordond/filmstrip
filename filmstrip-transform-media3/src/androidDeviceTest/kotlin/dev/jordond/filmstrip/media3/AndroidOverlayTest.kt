@@ -13,18 +13,19 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.SPEC
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.style.TextStyle
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 
 /**
  * Where overlays land, checked against the pixels that were written, not the plan.
  *
  * Every claim here is about where something landed, so each test exports the same clip twice, once
  * plain and once with the overlay, and measures how much more of a region reads as the overlay's
- * colour. Two things make that measurement trustworthy. The overlay is orange, which none of the
+ * color. Two things make that measurement trustworthy. The overlay is orange, which none of the
  * test pattern's saturated bars come near, where red or green would collide with them. And it is
  * the increase over the same region of the same frame of the plain export that is asserted on, not
  * an absolute count, so whatever the pattern was already drawing there cancels out.
@@ -43,8 +44,12 @@ class AndroidOverlayTest {
       val plain = probe.frame(probe.export(source, emptyList()))
       val marked = probe.frame(probe.export(source, listOf(probe.watermark(Corner.BottomEnd))))
 
-      assertTrue(marked.gainedOver(plain, BOTTOM_END) > COVERED, "no watermark in the bottom-end corner")
-      assertTrue(marked.gainedOver(plain, TOP_START) < UNTOUCHED, "the watermark bled into the far corner")
+      withClue("no watermark in the bottom-end corner") {
+        (marked.gainedOver(plain, BOTTOM_END) > COVERED) shouldBe true
+      }
+      withClue("the watermark bled into the far corner") {
+        (marked.gainedOver(plain, TOP_START) < UNTOUCHED) shouldBe true
+      }
     }
 
   @Test
@@ -64,8 +69,10 @@ class AndroidOverlayTest {
         val (its, opposite) = regions
         val marked = probe.frame(probe.export(source, listOf(probe.watermark(corner))))
 
-        assertTrue(marked.gainedOver(plain, its) > COVERED, "$corner did not cover its own corner")
-        assertTrue(marked.gainedOver(plain, opposite) < UNTOUCHED, "$corner reached the opposite corner")
+        withClue("$corner did not cover its own corner") { (marked.gainedOver(plain, its) > COVERED) shouldBe true }
+        withClue("$corner reached the opposite corner") {
+          (marked.gainedOver(plain, opposite) < UNTOUCHED) shouldBe true
+        }
       }
     }
 
@@ -77,8 +84,12 @@ class AndroidOverlayTest {
       val flush = probe.frame(probe.export(source, listOf(probe.watermark(Corner.BottomEnd, margin = 0f))))
       val inset = probe.frame(probe.export(source, listOf(probe.watermark(Corner.BottomEnd, margin = 0.2f))))
 
-      assertTrue(flush.gainedOver(plain, CORNER) > COVERED, "a zero margin should reach the corner pixel")
-      assertTrue(inset.gainedOver(plain, CORNER) < UNTOUCHED, "a margin should hold the watermark off the corner")
+      withClue("a zero margin should reach the corner pixel") {
+        (flush.gainedOver(plain, CORNER) > COVERED) shouldBe true
+      }
+      withClue("a margin should hold the watermark off the corner") {
+        (inset.gainedOver(plain, CORNER) < UNTOUCHED) shouldBe true
+      }
     }
 
   @Test
@@ -89,11 +100,15 @@ class AndroidOverlayTest {
       val topStart = probe.frame(probe.export(source, listOf(caption(Anchor.TopStart))))
       val centre = probe.frame(probe.export(source, listOf(caption(Anchor.Center))))
 
-      assertTrue(topStart.gainedOver(plain, TOP_START) > COVERED, "no text at the top-start anchor")
-      assertTrue(topStart.gainedOver(plain, BOTTOM_END) < UNTOUCHED, "text reached the opposite corner")
+      withClue("no text at the top-start anchor") { (topStart.gainedOver(plain, TOP_START) > COVERED) shouldBe true }
+      withClue("text reached the opposite corner") {
+        (topStart.gainedOver(plain, BOTTOM_END) < UNTOUCHED) shouldBe true
+      }
       // The same string at the centre has to move, or the anchor is being ignored.
-      assertTrue(centre.gainedOver(plain, MIDDLE) > COVERED, "no text at the centre anchor")
-      assertTrue(centre.gainedOver(plain, TOP_START) < UNTOUCHED, "a centred caption stayed in the corner")
+      withClue("no text at the centre anchor") { (centre.gainedOver(plain, MIDDLE) > COVERED) shouldBe true }
+      withClue("a centred caption stayed in the corner") {
+        (centre.gainedOver(plain, TOP_START) < UNTOUCHED) shouldBe true
+      }
     }
 
   @Test
@@ -106,8 +121,12 @@ class AndroidOverlayTest {
 
       // The two are gathered into one OverlayEffect, so this is the check that gathering them keeps
       // both without dropping one or stacking them on the same spot.
-      assertTrue(both.gainedOver(plain, BOTTOM_END) > COVERED, "the watermark did not survive sharing a pass")
-      assertTrue(both.gainedOver(plain, TOP_START) > COVERED, "the text did not survive sharing a pass")
+      withClue("the watermark did not survive sharing a pass") {
+        (both.gainedOver(plain, BOTTOM_END) > COVERED) shouldBe true
+      }
+      withClue("the text did not survive sharing a pass") {
+        (both.gainedOver(plain, TOP_START) > COVERED) shouldBe true
+      }
     }
 
   @Test
@@ -124,8 +143,8 @@ class AndroidOverlayTest {
 
       // The first and last land either side of the chunk boundary, so both showing up is the check
       // that splitting kept every overlay and dropped no chunk.
-      assertTrue(crowded.gainedOver(plain, TOP_BAND) > COVERED, "the first overlay is missing")
-      assertTrue(crowded.gainedOver(plain, BOTTOM_BAND) > COVERED, "the last overlay is missing")
+      withClue("the first overlay is missing") { (crowded.gainedOver(plain, TOP_BAND) > COVERED) shouldBe true }
+      withClue("the last overlay is missing") { (crowded.gainedOver(plain, BOTTOM_BAND) > COVERED) shouldBe true }
     }
 
   @Test
@@ -145,11 +164,10 @@ class AndroidOverlayTest {
       // the width of the other. A watermark scale means the same fraction either way.
       val composedSpan = composed.badgeSpan(BADGE_ROW)
       val clippedSpan = clipped.badgeSpan(BADGE_ROW)
-      assertTrue(composedSpan > SPAN_FLOOR, "no watermark to measure: $composedSpan")
-      assertTrue(
-        abs(composedSpan - clippedSpan) < SPAN_TOLERANCE,
-        "clip-scoped span $clippedSpan does not match composition-scoped $composedSpan",
-      )
+      withClue("no watermark to measure: $composedSpan") { (composedSpan > SPAN_FLOOR) shouldBe true }
+      withClue("clip-scoped span $clippedSpan does not match composition-scoped $composedSpan") {
+        (abs(composedSpan - clippedSpan) < SPAN_TOLERANCE) shouldBe true
+      }
     }
 
   @Test
@@ -161,16 +179,15 @@ class AndroidOverlayTest {
       val verdict = probe.filmstrip.plan(EditComposition(listOf(Track(listOf(Clip(source)))), listOf(missing)), SPEC)
 
       // Refused before an encoder starts, with no throw on the GL thread mid-export.
-      val incapable = assertIs<Verdict.Incapable>(verdict)
-      assertTrue(
+      val incapable = verdict.shouldBeInstanceOf<Verdict.Incapable>()
+      withClue("unhelpful refusal: ${incapable.reasons}") {
         incapable.reasons.any {
           it.message.contains("could not be read")
-        },
-        "unhelpful refusal: ${incapable.reasons}",
-      )
+        } shouldBe true
+      }
     }
 
-  // Plated in the badge colour instead of the usual dark one, so text is measured the same way a
+  // Plated in the badge color instead of the usual dark one, so text is measured the same way a
   // watermark is.
   private fun caption(anchor: Anchor) =
     TextOverlay(

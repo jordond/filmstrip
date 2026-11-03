@@ -9,9 +9,9 @@ import kotlin.math.sqrt
  * Measures how much of one frequency a block of decoded audio carries.
  *
  * A mix test needs to say which source a level belongs to, and two sources at different frequencies
- * are told apart here rather than by peak amplitude, which only reports the sum. The Goertzel
- * recurrence is used instead of a transform because one frequency is wanted and not a spectrum, so
- * the whole measurement is a single pass with three accumulators.
+ * are told apart here by their own frequency, where peak amplitude only reports the sum. The
+ * measurement is one Goertzel recurrence for the one frequency wanted, a single pass with three
+ * accumulators.
  *
  * Every backend's export test shares this, so four measurements of one fade cannot disagree about
  * what they measured.

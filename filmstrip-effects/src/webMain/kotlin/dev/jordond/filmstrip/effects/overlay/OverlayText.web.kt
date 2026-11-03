@@ -36,16 +36,16 @@ internal class LaidOutText(
  * is aligned inside it, and a plate adds [platePaddingOn] on every side, counted by [plateSide] so a huge face is
  * refused by its measured size rather than wrapping negative.
  *
- * The glyphs are drawn in the text's own colour at full alpha through [textCoverage], in tiles no browser refuses. A
+ * The glyphs are drawn in the text's own color at full alpha through [textCoverage], in tiles no browser refuses. A
  * tile draws only the lines whose glyphs reach it, by [linesInTile] and then each line's own ink box. [platedSamples]
- * lays the text colour at its alpha over the plate from what the tiles read, so a translucent plate keeps its straight
- * colour exactly and a colour font's glyph keeps its own colour. Colours are written as the codes the style names, with
- * no colour management. Samples js cannot allocate are refused with the reason [textAllocationFailed] gives, while on
+ * lays the text color at its alpha over the plate from what the tiles read, so a translucent plate keeps its straight
+ * color exactly and a color font's glyph keeps its own color. Colors are written as the codes the style names, with
+ * no color management. Samples js cannot allocate are refused with the reason [textAllocationFailed] gives, while on
  * wasm an array too large traps, as [allocatedOrNull] says.
  *
  * @param maxSide The most pixels a texture holds on a side, past which the text is refused as [textCoverage] says.
- * @param ceiling The most bytes the raster may hold at its peak, [PICTURE_PEAK_CEILING] unless a test sets it.
- * @param tileSide The most pixels a tile holds on a side, [TEXT_TILE_SIDE] unless a test sets it.
+ * @param ceiling The most bytes the raster may hold at its peak, [PICTURE_PEAK_CEILING] by default.
+ * @param tileSide The most pixels a tile holds on a side, [TEXT_TILE_SIDE] by default.
  * @return The drawn text, or why there is none.
  */
 internal fun rasterizeText(
@@ -150,7 +150,7 @@ internal fun measuredText(
   return MeasuredText(font, lines, inks, metrics, width, height).takeIf { height > 0 }
 }
 
-// What a line's `measureText` gave, copied out so the lines hold numbers rather than one browser object each.
+// What a line's `measureText` gave, copied out into plain numbers.
 internal class InkBox(
   metrics: TextMetrics,
 ) {

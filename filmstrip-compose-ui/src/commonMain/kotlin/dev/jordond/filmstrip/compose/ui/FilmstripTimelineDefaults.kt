@@ -9,10 +9,10 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * The sizes, colours and formats a timeline falls back to.
+ * The sizes, colors and formats a timeline falls back to.
  *
- * The palette is neutral and self-contained rather than themed, because this module draws with foundation alone. A
- * themed host passes its own colours to [colors] at the one call site that builds the timeline.
+ * The palette is neutral and reads no theme. A themed host passes its own colors to [colors] at the one call site that
+ * builds the timeline.
  */
 public object FilmstripTimelineDefaults {
   /**
@@ -55,8 +55,7 @@ public object FilmstripTimelineDefaults {
   /**
    * How close two ruler ticks may be drawn before the ruler steps up to a coarser unit.
    *
-   * A [Dp], because the constraint is a legible distance on the screen rather than a count of pixels, and one pixel is
-   * a third of that on a dense phone.
+   * A distance on the screen, so the gap between ticks reads the same at every pixel density.
    */
   public val MinTickSpacing: Dp = 56.dp
 
@@ -73,8 +72,8 @@ public object FilmstripTimelineDefaults {
   /**
    * The palette a timeline draws with unless a host passes its own.
    *
-   * A single instance rather than a call to [colors], so a component falling back to it allocates nothing on the
-   * recompositions a scrubbing timeline runs through.
+   * Built once from [colors] and shared by every timeline that falls back to it, across every recomposition a scrub
+   * runs through.
    */
   public val Palette: TimelineColors = colors()
 

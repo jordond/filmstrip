@@ -1,14 +1,14 @@
 package dev.jordond.filmstrip.effects.color
 
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.media.HLG_SYSTEM_GAMMA
+import dev.jordond.filmstrip.color.HLG_SYSTEM_GAMMA
+import dev.jordond.filmstrip.color.SDR_DISPLAY_GAMMA
+import dev.jordond.filmstrip.color.sdrSignalCeiling
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.SDR_DISPLAY_GAMMA
-import dev.jordond.filmstrip.media.sdrSignalCeiling
 
 /**
  * What a shader needs to move a channel between the light a backend holds and an SDR signal, all
- * derived from the shared constants rather than typed into the shader.
+ * derived from the shared constants.
  *
  * @property white Reference white as a fraction of the display light the backend stores as one, so
  * a channel divided by it is the light an SDR display shows for a full signal.
@@ -27,7 +27,7 @@ public class HdrColorMatrixUniforms(
 )
 
 /**
- * The figures a colour matrix pass reads a frame of this transfer through.
+ * The figures a color matrix pass reads a frame of this transfer through.
  *
  * @param white Reference white in the units the backend's own texture holds. A backend storing
  * display light normalised against reference white passes one.
@@ -48,7 +48,7 @@ public fun HdrTransfer.hdrColorMatrixUniforms(
   )
 
 /**
- * The GLSL a backend pastes in to run a colour matrix on a frame that keeps its HDR grade.
+ * The GLSL a backend pastes in to run a color matrix on a frame that keeps its HDR grade.
  *
  * One function and no `main`, so a backend with a pass of its own for the matrix and a backend
  * running it inside a larger fragment shader compile the same body. Every figure arrives as an

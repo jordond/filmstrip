@@ -28,7 +28,7 @@ import platform.Foundation.create
 import platform.ImageIO.CGImageSourceCreateImageAtIndex
 import platform.ImageIO.CGImageSourceCreateWithData
 import platform.ImageIO.CGImageSourceGetPrimaryImageIndex
-import kotlin.test.assertTrue
+import kotlin.test.fail
 
 // The eight-bit red, green and blue ImageIO decodes bytes to at their centre, copied out of its own bitmap.
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
@@ -43,11 +43,10 @@ internal fun imageIoCentre(bytes: ByteArray): List<Int> {
     val info = CGImageGetBitmapInfo(image)
     val alpha = info and kCGBitmapAlphaInfoMask
     val order = info and kCGBitmapByteOrderMask
-    assertTrue(
+    val readable =
       CGImageGetBitsPerComponent(image) == 8uL && CGImageGetBitsPerPixel(image) == 32uL &&
-        (order == 0u || order == kCGBitmapByteOrder32Big) && alpha in RGB_FIRST,
-      "ImageIO decoded to a layout this read does not take, bitmap info $info",
-    )
+        (order == 0u || order == kCGBitmapByteOrder32Big) && alpha in RGB_FIRST
+    if (!readable) fail("ImageIO decoded to a layout this read does not take, bitmap info $info")
     val samples = checkNotNull(CGDataProviderCopyData(CGImageGetDataProvider(image)))
     try {
       val pointer = checkNotNull(CFDataGetBytePtr(samples))

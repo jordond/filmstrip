@@ -61,9 +61,8 @@ public fun EffectsBuilder.kenBurns(
 /**
  * Computes the region this pan shows at [time], as a fraction of the frame entering it.
  *
- * Every backend that draws a pan reads its region from here rather than interpolating one of its
- * own, which is what keeps two engines from putting the same clip in two different places at the
- * same composition time.
+ * Every backend that draws a pan reads its region from here, so every engine puts the same clip in
+ * the same place at the same composition time.
  *
  * [time] is composition-relative on every backend, so [span] is the clip's own slot on the
  * composition timeline. A time before the span holds [KenBurns.from] and a time after it holds

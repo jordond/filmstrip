@@ -1,12 +1,17 @@
 package dev.jordond.filmstrip.effects
 
-import dev.jordond.filmstrip.internal.pictureColour
+import dev.jordond.filmstrip.color.PictureColor
+import dev.jordond.filmstrip.color.SIXTEEN_BIT_MAX
+import dev.jordond.filmstrip.color.pictureLight
+import dev.jordond.filmstrip.color.pictureSrgbCodes
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.PictureColour
-import dev.jordond.filmstrip.media.SIXTEEN_BIT_MAX
-import dev.jordond.filmstrip.media.pictureLight
-import dev.jordond.filmstrip.media.pictureSrgbCodes
+import dev.jordond.filmstrip.picture.pictureColor
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import java.awt.Transparency
 import java.awt.image.BufferedImage
 import java.awt.image.ComponentColorModel
@@ -14,12 +19,6 @@ import java.awt.image.DataBuffer
 import java.awt.image.IndexColorModel
 import java.awt.image.Raster
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertSame
-import kotlin.test.assertTrue
 import java.awt.color.ColorSpace as AwtColorSpace
 
 /**
@@ -40,11 +39,9 @@ class OverlayPictureShapeTest {
       val fromGrey = mappedRaster(pngOf(grey), transfer)
       val fromRgb = mappedRaster(pngOf(rgb), transfer)
       levels.indices.forEach { x ->
-        assertContentEquals(
-          fromRgb.getPixel(x, 0, IntArray(4)),
-          fromGrey.getPixel(x, 0, IntArray(4)),
-          "$transfer grey ${levels[x]}",
-        )
+        withClue("$transfer grey ${levels[x]}") {
+          fromGrey.getPixel(x, 0, IntArray(4)) shouldBe fromRgb.getPixel(x, 0, IntArray(4))
+        }
       }
     }
   }
@@ -59,11 +56,9 @@ class OverlayPictureShapeTest {
       val raster = mappedRaster(png, transfer)
       levels.forEachIndexed { x, level ->
         val texel = OPAQUE or (level shl 16) or (level shl 8) or level
-        assertContentEquals(
-          signalOf(LINEAR_GREY_COLOUR, texel, transfer),
-          raster.getPixel(x, 0, IntArray(4)),
-          "$transfer $x",
-        )
+        withClue("$transfer $x") {
+          raster.getPixel(x, 0, IntArray(4)) shouldBe signalOf(LINEAR_GREY_COLOR, texel, transfer)
+        }
       }
     }
   }
@@ -74,21 +69,20 @@ class OverlayPictureShapeTest {
     val jpeg = jpegOf(blocksOf(TEXELS))
     val stored = argbOf(jpeg)
     val tagged = taggedJpeg(jpeg, LINEAR)
-    val colour = assertNotNull(pictureColour(tagged), "the JPEG does not carry the profile")
+    val color = withClue("the JPEG does not carry the profile") { pictureColor(tagged).shouldNotBeNull() }
     val converted = argbOf(tagged)
-    assertTrue(
-      stored.indices.any { channelGap(stored[it], converted[it]) > MID_TONE_MOVE },
-      "the JDK reads the tagged JPEG unconverted, so this cannot tell a stored read from a converted one",
-    )
+    withClue("the JDK reads the tagged JPEG unconverted, so this cannot tell a stored read from a converted one") {
+      stored.indices.any { channelGap(stored[it], converted[it]) > MID_TONE_MOVE } shouldBe true
+    }
 
-    val drawn = assertIs<ImageSource.Bytes>(auxImage(overlayOf(tagged), null))
-    assertContentEquals(pictureSrgbCodes(colour, stored), argbOf(drawn.bytes))
+    val drawn = auxImage(overlayOf(tagged), null).shouldBeInstanceOf<ImageSource.Bytes>()
+    argbOf(drawn.bytes) shouldBe pictureSrgbCodes(color, stored)
     val middle = BLOCK / 2
     for (transfer in HdrTransfer.entries) {
       val raster = mappedRaster(tagged, transfer)
       blockCentres(TEXELS.size).forEach { x ->
         val texel = stored[middle * TEXELS.size * BLOCK + x]
-        assertContentEquals(signalOf(colour, texel, transfer), raster.getPixel(x, middle, IntArray(4)), "$transfer $x")
+        withClue("$transfer $x") { raster.getPixel(x, middle, IntArray(4)) shouldBe signalOf(color, texel, transfer) }
       }
     }
   }
@@ -99,12 +93,12 @@ class OverlayPictureShapeTest {
     val tagged = taggedJpeg(jpeg, LINEAR_GREY)
 
     val spec = overlayOf(tagged)
-    assertSame(spec.image, auxImage(spec, null))
+    auxImage(spec, null) shouldBeSameInstanceAs spec.image
     for (transfer in HdrTransfer.entries) {
       val untagged = mappedRaster(jpeg, transfer)
       val graded = mappedRaster(tagged, transfer)
       blockCentres(TEXELS.size).forEach { x ->
-        assertContentEquals(untagged.getPixel(x, 0, IntArray(4)), graded.getPixel(x, 0, IntArray(4)), "$transfer $x")
+        withClue("$transfer $x") { graded.getPixel(x, 0, IntArray(4)) shouldBe untagged.getPixel(x, 0, IntArray(4)) }
       }
     }
   }
@@ -119,8 +113,8 @@ class OverlayPictureShapeTest {
     val image = BufferedImage(reds.size, 1, BufferedImage.TYPE_BYTE_INDEXED, model)
     image.raster.setPixels(0, 0, reds.size, 1, IntArray(reds.size) { it })
     val png = tagged(pngOf(image), LINEAR)
-    assertEquals(PALETTE, png[COLOUR_TYPE].toInt(), "the JDK wrote no palette PNG")
-    assertTrue("tRNS" in png.decodeToString(), "the palette PNG carries no transparency")
+    withClue("the JDK wrote no palette PNG") { png[COLOR_TYPE].toInt() shouldBe PALETTE }
+    withClue("the palette PNG carries no transparency") { ("tRNS" in png.decodeToString()) shouldBe true }
 
     val texels = IntArray(reds.size) { (alphas[it] shl 24) or (reds[it] shl 16) or (greens[it] shl 8) or blues[it] }
     assertDrawnFrom(png, texels)
@@ -133,7 +127,7 @@ class OverlayPictureShapeTest {
     raster.setPixels(0, 0, samples.size / 2, 1, samples)
     val image = BufferedImage(model(AwtColorSpace.CS_GRAY, DataBuffer.TYPE_BYTE), raster, false, null)
     val png = tagged(pngOf(image), LINEAR_GREY)
-    assertEquals(GREY_ALPHA, png[COLOUR_TYPE].toInt(), "the JDK wrote no grey and alpha PNG")
+    withClue("the JDK wrote no grey and alpha PNG") { png[COLOR_TYPE].toInt() shouldBe GREY_ALPHA }
 
     val texels =
       IntArray(samples.size / 2) {
@@ -148,7 +142,7 @@ class OverlayPictureShapeTest {
   fun `a tagged sixteen bit PNG of whole eight bit steps lands where those codes do`() {
     val codes = intArrayOf(0xFF, 0x80, 0x40, 0xFF, 0x20, 0xC0, 0x60, 0x80)
     val png = tagged(sixteenBitPng(IntArray(codes.size) { codes[it] * SIXTEEN_BIT_MAX / 0xFF }), LINEAR)
-    assertEquals(SIXTEEN_BITS, png[BIT_DEPTH].toInt(), "the JDK wrote no sixteen bit PNG")
+    withClue("the JDK wrote no sixteen bit PNG") { png[BIT_DEPTH].toInt() shouldBe SIXTEEN_BITS }
 
     val texels =
       IntArray(codes.size / 4) {
@@ -163,19 +157,19 @@ class OverlayPictureShapeTest {
   fun `a tagged sixteen bit PNG lands on an HDR grade at its full depth`() {
     val samples = intArrayOf(0x8040, 0x4020, 0xC0A0, 0xFFFF, 0x1234, 0x9876, 0x5555, 0xFFFF)
     val png = tagged(sixteenBitPng(samples), LINEAR)
-    val colour = pictureColour(png)
+    val color = pictureColor(png)
     val wide = ShortArray(samples.size) { samples[it].toShort() }
     val cut = IntArray(samples.size / 4) { texel -> argbCut(samples, texel) }
 
     for (transfer in HdrTransfer.entries) {
       val raster = mappedRaster(png, transfer)
-      val light = pictureLight(colour, wide)
-      val eightBit = pictureLight(colour, cut)
+      val light = pictureLight(color, wide)
+      val eightBit = pictureLight(color, cut)
       for (x in 0 until samples.size / 4) {
         val expected = wideSignal(light.copyOfRange(x * 4, x * 4 + 4), transfer)
         val truncated = wideSignal(eightBit.copyOfRange(x * 4, x * 4 + 4), transfer)
-        assertContentEquals(expected, raster.getPixel(x, 0, IntArray(4)), "$transfer $x")
-        assertTrue(!expected.contentEquals(truncated), "$transfer $x lands the same cut to eight bits")
+        withClue("$transfer $x") { raster.getPixel(x, 0, IntArray(4)) shouldBe expected }
+        withClue("$transfer $x lands the same cut to eight bits") { !expected.contentEquals(truncated) shouldBe true }
       }
     }
   }
@@ -184,14 +178,13 @@ class OverlayPictureShapeTest {
     png: ByteArray,
     texels: IntArray,
   ) {
-    val colour: PictureColour = assertNotNull(pictureColour(png), "the PNG does not describe its colour")
-    val drawn = assertIs<ImageSource.Bytes>(auxImage(overlayOf(png), null))
-    val expected = pictureSrgbCodes(colour, texels)
-    assertContentEquals(expected, argbOf(drawn.bytes))
-    assertTrue(
-      texels.indices.any { channelGap(texels[it], expected[it]) > MID_TONE_MOVE },
-      "the profile moves no texel, so this cannot tell a stored read from any other",
-    )
+    val color: PictureColor = withClue("the PNG does not describe its color") { pictureColor(png).shouldNotBeNull() }
+    val drawn = auxImage(overlayOf(png), null).shouldBeInstanceOf<ImageSource.Bytes>()
+    val expected = pictureSrgbCodes(color, texels)
+    argbOf(drawn.bytes) shouldBe expected
+    withClue("the profile moves no texel, so this cannot tell a stored read from any other") {
+      texels.indices.any { channelGap(texels[it], expected[it]) > MID_TONE_MOVE } shouldBe true
+    }
   }
 
   // A sixteen-bit RGBA PNG holding [samples], four to a texel in one row.
@@ -218,9 +211,9 @@ class OverlayPictureShapeTest {
   private fun bytesOf(values: IntArray): ByteArray = ByteArray(values.size) { values[it].toByte() }
 
   private companion object {
-    // Where a PNG's IHDR keeps its bit depth and colour type, and the colour types and depth written here.
+    // Where a PNG's IHDR keeps its bit depth and color type, and the color types and depth written here.
     const val BIT_DEPTH = 24
-    const val COLOUR_TYPE = 25
+    const val COLOR_TYPE = 25
     const val PALETTE = 3
     const val GREY_ALPHA = 4
     const val SIXTEEN_BITS = 16

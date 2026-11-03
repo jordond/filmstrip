@@ -1,12 +1,12 @@
 package dev.jordond.filmstrip.effects.color
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.SDR_DISPLAY_GAMMA
+import dev.jordond.filmstrip.color.brightnessDisplayGain
+import dev.jordond.filmstrip.color.displayLightCeiling
+import dev.jordond.filmstrip.color.sdrSignalCeiling
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.SDR_DISPLAY_GAMMA
-import dev.jordond.filmstrip.media.brightnessDisplayGain
-import dev.jordond.filmstrip.media.displayLightCeiling
-import dev.jordond.filmstrip.media.sdrSignalCeiling
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.ptr
 import platform.CoreFoundation.CFDictionaryCreateMutable
@@ -30,13 +30,13 @@ import platform.CoreVideo.kCVImageBufferYCbCrMatrixKey
 import platform.CoreVideo.kCVImageBufferYCbCrMatrix_ITU_R_709_2
 
 /**
- * Recombines the colour channels through [matrix], in the encoded domain the matrix is written for.
+ * Recombines the color channels through [matrix], in the encoded domain the matrix is written for.
  *
- * A `CIContext` works in linear light, so a bare colour matrix would mix light rather than signal
+ * A `CIContext` works in linear light, so a bare color matrix would mix light rather than signal
  * and land somewhere the three backends that mix what the encoder writes never do. An SDR frame is
  * carried into the codes of its own [colorSpace] for the matrix and back out again, so the matrix
  * mixes the values the encoder writes. The clamp runs once here rather than around each effect,
- * since a run of colour effects has already been folded into this one matrix by the time it arrives.
+ * since a run of color effects has already been folded into this one matrix by the time it arrives.
  *
  * On a kept grade the frame is display referred linear light with reference white at one, for PQ
  * and HLG alike, so the encoded domain is a bare power of it and the matrix runs between a gamma
@@ -55,9 +55,9 @@ import platform.CoreVideo.kCVImageBufferYCbCrMatrix_ITU_R_709_2
  *
  * Each row's offset rides in the fourth component of its vector instead of in the bias vector, so
  * it is multiplied by alpha. Core Image holds a frame premultiplied, and a bias vector would lift a
- * transparent pixel off black into a colour a later blend then reads as real.
+ * transparent pixel off black into a color a later blend then reads as real.
  *
- * @param colorSpace The colour space the frame is written in.
+ * @param colorSpace The color space the frame is written in.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun CIImage.withColorMatrix(
@@ -93,7 +93,7 @@ internal fun CIImage.withColorMatrix(
  * Runs [block] on the code values an SDR frame in [colorSpace] is written with, and carries what it
  * returns back to the working space.
  *
- * Core Image decodes a frame into its linear working space through the colour space the frame is
+ * Core Image decodes a frame into its linear working space through the color space the frame is
  * tagged with. [block] is handed the step that inverts that decode, so every image it moves through
  * that step carries the frame's own codes, the values the other backends read straight off the
  * buffer.
@@ -114,11 +114,11 @@ internal inline fun inCodesOf(
 }
 
 /**
- * Creates the colour space an SDR frame in this space holds its codes in. The caller releases it.
+ * Creates the color space an SDR frame in this space holds its codes in. The caller releases it.
  *
  * BT.2020 gets Core Graphics' named BT.2020 space. Every other space gets the one CoreVideo builds
  * from a buffer tagged with BT.709 primaries, transfer and matrix, the space AVFoundation decodes an
- * SDR source frame through and encodes an SDR composition's output through. A colour tagged with it
+ * SDR source frame through and encodes an SDR composition's output through. A color tagged with it
  * lands in the buffer as the codes it was given, so an SDR effect, fill or overlay uses it to work on
  * the frame's own codes.
  */

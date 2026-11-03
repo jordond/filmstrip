@@ -7,7 +7,7 @@ import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * The three looping edits every backend's export test measures, held as data so the four suites
- * build one edit rather than four that happen to agree.
+ * build the same edit.
  *
  * A suite takes the trims, offsets and lengths from here, builds the composition with its own
  * fixtures, and reads each level at [Reading.pass] of the laid list, [Reading.into] that pass. The

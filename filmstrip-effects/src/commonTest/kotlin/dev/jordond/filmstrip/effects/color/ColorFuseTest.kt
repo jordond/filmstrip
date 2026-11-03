@@ -3,13 +3,14 @@ package dev.jordond.filmstrip.effects.color
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.geometry.AspectRatio
+import io.kotest.matchers.floats.plusOrMinus
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertSame
 
 /**
- * The fold that decides what a run of colour effects means, run once in shared code so a backend
+ * The fold that decides what a run of color effects means, run once in shared code so a backend
  * that clamps around every effect lands on the same frame as one that clamps at the encoder.
  */
 class ColorFuseTest {
@@ -17,15 +18,23 @@ class ColorFuseTest {
   fun stackedBrightnessFactorsMultiply() {
     val fused = listOf(Brightness(4f), Brightness(0.25f)).fusedColorMatrices()
 
-    assertEquals(1, fused.size)
-    assertEquals(1f, assertIs<Brightness>(fused.single().spec).factor)
+    fused.size shouldBe 1
+    fused
+      .single()
+      .spec
+      .shouldBeInstanceOf<Brightness>()
+      .factor shouldBe 1f
   }
 
   @Test
   fun aRunOfMoreThanTwoMultiplies() {
     val fused = listOf(Brightness(2f), Brightness(2f), Brightness(0.5f)).fusedColorMatrices()
 
-    assertEquals(2f, assertIs<Brightness>(fused.single().spec).factor)
+    fused
+      .single()
+      .spec
+      .shouldBeInstanceOf<Brightness>()
+      .factor shouldBe 2f
   }
 
   @Test
@@ -35,8 +44,16 @@ class ColorFuseTest {
     val fromNaN = listOf(Brightness(Float.NaN), Brightness(0.5f)).fusedColorMatrices()
     val fromNegative = listOf(Brightness(-2f), Brightness(0.5f)).fusedColorMatrices()
 
-    assertEquals(0.5f, assertIs<Brightness>(fromNaN.single().spec).factor)
-    assertEquals(0f, assertIs<Brightness>(fromNegative.single().spec).factor)
+    fromNaN
+      .single()
+      .spec
+      .shouldBeInstanceOf<Brightness>()
+      .factor shouldBe 0.5f
+    fromNegative
+      .single()
+      .spec
+      .shouldBeInstanceOf<Brightness>()
+      .factor shouldBe 0f
   }
 
   // Brightness then saturation is the run where clamping in between shows: a channel pushed past
@@ -48,13 +65,13 @@ class ColorFuseTest {
 
     val fused = listOf(brightness, saturation).fusedColorMatrices()
 
-    val matrix = assertIs<ColorMatrix>(fused.single().spec)
-    assertEquals(brightness.matrix.then(saturation.matrix), matrix)
+    val matrix = fused.single().spec.shouldBeInstanceOf<ColorMatrix>()
+    matrix shouldBe brightness.matrix.then(saturation.matrix)
     val pixel = matrix.transform(0.6f, 0.2f, 0.2f)
     val clampedBetween = saturation.matrix.transform(1f, 0.4f, 0.4f)
-    assertEquals(0.885f, pixel[0], TOLERANCE)
-    assertEquals(0.485f, pixel[1], TOLERANCE)
-    assertEquals(0.764f, clampedBetween[0], TOLERANCE)
+    pixel[0] shouldBe (0.885f plusOrMinus TOLERANCE)
+    pixel[1] shouldBe (0.485f plusOrMinus TOLERANCE)
+    clampedBetween[0] shouldBe (0.764f plusOrMinus TOLERANCE)
   }
 
   @Test
@@ -64,7 +81,7 @@ class ColorFuseTest {
     val fused = chain.fusedColorMatrices()
 
     val expected = Brightness(2f).matrix.then(Contrast(0.5f).matrix).then(Brightness(0.5f).matrix)
-    assertEquals(expected, assertIs<ColorMatrix>(fused.single().spec))
+    fused.single().spec.shouldBeInstanceOf<ColorMatrix>() shouldBe expected
   }
 
   // A refusal or a degradation is reported against the names the caller wrote, so the fold keeps
@@ -75,7 +92,7 @@ class ColorFuseTest {
 
     val fused = chain.fusedColorMatrices()
 
-    assertEquals(chain, fused.single().sources)
+    fused.single().sources shouldBe chain
   }
 
   @Test
@@ -101,22 +118,22 @@ class ColorFuseTest {
 
     val fused = chain.fusedColorMatrices()
 
-    assertEquals(3, fused.size)
-    assertIs<ColorMatrix>(fused[0].spec)
-    assertEquals(chain.take(2), fused[0].sources)
-    assertSame(chain[2], fused[1].spec)
-    assertSame(trailing, fused[2].spec)
-    assertEquals(listOf(trailing), fused[2].sources)
+    fused.size shouldBe 3
+    fused[0].spec.shouldBeInstanceOf<ColorMatrix>()
+    fused[0].sources shouldBe chain.take(2)
+    fused[1].spec shouldBeSameInstanceAs chain[2]
+    fused[2].spec shouldBeSameInstanceAs trailing
+    fused[2].sources shouldBe listOf(trailing)
   }
 
   private fun assertEachLeftAsItself(
     chain: List<EffectSpec>,
     fused: List<FoldedSpec>,
   ) {
-    assertEquals(chain.size, fused.size)
+    fused.size shouldBe chain.size
     chain.zip(fused).forEach { (spec, folded) ->
-      assertSame(spec, folded.spec)
-      assertEquals(listOf(spec), folded.sources)
+      folded.spec shouldBeSameInstanceAs spec
+      folded.sources shouldBe listOf(spec)
     }
   }
 

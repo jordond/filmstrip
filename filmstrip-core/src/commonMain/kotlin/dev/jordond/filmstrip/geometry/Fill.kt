@@ -9,11 +9,12 @@ import dev.drewhamilton.poko.Poko
  * it plays, and rounding can leave a frame a pixel short of an edge. This is what fills all three.
  *
  * More arms will arrive as filmstrip adds fill kinds, so a consumer must handle one it does not
- * recognise rather than assume the set is closed.
+ * recognise rather than assume the set is closed. filmstrip's own backends match every arm, so a
+ * new one does not build until each of them lowers it.
  */
 public sealed interface Fill {
   /**
-   * A flat colour behind everything.
+   * A flat color behind everything.
    *
    * @property color Packed ARGB, as `0xAARRGGBB`. Alpha is ignored, since no output filmstrip
    *   writes carries an alpha channel.
@@ -32,9 +33,9 @@ public sealed interface Fill {
    * @property radius The blur's standard deviation as a fraction of the output frame's shorter
    *   side, in `0f..1f`, so the same edit blurs identically at any export resolution.
    * @property dim How far the background is darkened toward black, in `0f..1f`. The background's
-   *   encoded colour channels are multiplied by `1 - dim`, so `0f` leaves it alone, `0.5f` halves
+   *   encoded color channels are multiplied by `1 - dim`, so `0f` leaves it alone, `0.5f` halves
    *   the stored value and `1f` is black. The multiply lands on the encoded value rather than on
-   *   linear light, so a backend whose colour pipeline works in linear light compensates for its
+   *   linear light, so a backend whose color pipeline works in linear light compensates for its
    *   own transfer curve. Applies only to the background, never to the clip's own pixels.
    */
   @Poko

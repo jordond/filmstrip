@@ -8,7 +8,7 @@ import dev.jordond.filmstrip.test.HeifStills.uInt16
 /**
  * The picture an orientation test draws, and the tags that tell a decoder to turn or mirror a picture.
  *
- * The picture is [SIZE] as stored, painted in four quadrants of distinct colours with a one texel [MARKER] in its
+ * The picture is [SIZE] as stored, painted in four quadrants of distinct colors with a one texel [MARKER] in its
  * top-left corner, so each of the eight orientations displays it differently and a quarter turn swaps its width and
  * height.
  *
@@ -25,12 +25,12 @@ public object OrientedPictures {
   public val SIZE: Size = Size(6, 4)
 
   /**
-   * The packed ARGB colour of the stored picture's top-left texel.
+   * The packed ARGB color of the stored picture's top-left texel.
    */
   public const val MARKER: Int = 0xFFF0F0F0.toInt()
 
   /**
-   * The packed ARGB colours of the stored picture's quadrants, top-left, top-right, bottom-left then bottom-right.
+   * The packed ARGB colors of the stored picture's quadrants, top-left, top-right, bottom-left then bottom-right.
    *
    * The top-left quadrant holds [MARKER] in its corner texel.
    */
@@ -370,7 +370,7 @@ public object OrientedPictures {
   private val TIFF_HEADER = "MM".encodeToByteArray() + byteArrayOf(0, 42, 0, 0, 0, 8)
   private val EXIF_HEADER = "Exif".encodeToByteArray() + byteArrayOf(0, 0)
 
-  // The extended WebP chunks that come ahead of EXIF, the colour profile, animation and image data.
+  // The extended WebP chunks that come ahead of EXIF, the color profile, animation and image data.
   private val IMAGE_CHUNKS = setOf("ICCP", "ANIM", "ANMF", "ALPH", "VP8 ", "VP8L")
 
   private const val SOI = 0xFFD8

@@ -113,38 +113,6 @@ internal external interface TextMetrics : JsAny {
 }
 
 /**
- * A decoded image, ready to upload as a texture.
- */
-internal external interface ImageBitmap : JsAny {
-  val width: Int
-
-  val height: Int
-}
-
-internal external fun createImageBitmap(
-  image: JsAny,
-  options: JsAny,
-): Promise<ImageBitmap>
-
-/**
- * Enough of a fetch response to pull a blob out of it.
- */
-internal external interface OverlayResponse : JsAny {
-  val ok: Boolean
-
-  fun blob(): Promise<OverlayBlob>
-}
-
-/**
- * A fetched picture's bytes, which decode to a bitmap and read back whole.
- */
-internal external interface OverlayBlob : JsAny {
-  fun arrayBuffer(): Promise<ArrayBuffer>
-}
-
-internal external fun fetch(input: String): Promise<OverlayResponse>
-
-/**
  * Parses an options object, which is the one way to build an object literal that reads the same on
  * both targets.
  */

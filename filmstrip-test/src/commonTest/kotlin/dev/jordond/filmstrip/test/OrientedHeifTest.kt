@@ -4,8 +4,9 @@ import dev.jordond.filmstrip.test.HeifStills.box
 import dev.jordond.filmstrip.test.HeifStills.fullBox
 import dev.jordond.filmstrip.test.HeifStills.int32
 import dev.jordond.filmstrip.test.HeifStills.uInt16
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 /**
@@ -40,7 +41,7 @@ class OrientedHeifTest {
 
   @Test
   fun taggedHeifRefusesAPrimaryItemAlreadyOriented() {
-    val tagged = OrientedPictures.taggedHeif(ColourPictures.HEIC_NCLX_BT709_FULL.bytes(), 1, null)
+    val tagged = OrientedPictures.taggedHeif(ColorPictures.HEIC_NCLX_BT709_FULL.bytes(), 1, null)
 
     assertFailsWith<IllegalArgumentException> { OrientedPictures.taggedHeif(tagged, null, 0) }
     assertFailsWith<IllegalArgumentException> { OrientedPictures.taggedHeif(tagged, 2, null) }
@@ -77,27 +78,26 @@ class OrientedHeifTest {
         val after = heifProperties(tagged)
         val added = listOfNotNull(quarterTurns?.let { "irot" to it }, mirrorAxis?.let { "imir" to it })
 
-        assertEquals(before.types + added.map { it.first }, after.types, "$case ipco")
-        assertEquals(added.map { it.second }, after.payloads.takeLast(added.size), "$case values")
-        assertEquals(
-          before.associations.mapValues { (item, indices) ->
-            if (item != before.primary) {
-              indices
-            } else {
-              indices + added.indices.map { essential or (before.types.size + 1 + it) }
+        withClue("$case ipco") { after.types shouldBe before.types + added.map { it.first } }
+        withClue("$case values") { after.payloads.takeLast(added.size) shouldBe added.map { it.second } }
+        withClue("$case ipma") {
+          after.associations shouldBe
+            before.associations.mapValues { (item, indices) ->
+              if (item != before.primary) {
+                indices
+              } else {
+                indices + added.indices.map { essential or (before.types.size + 1 + it) }
+              }
             }
-          },
-          after.associations,
-          "$case ipma",
-        )
-        assertEquals(itemData(heif), itemData(tagged), "$case item data")
+        }
+        withClue("$case item data") { itemData(tagged) shouldBe itemData(heif) }
       }
     }
   }
 
   private fun heifs(): List<Pair<String, ByteArray>> {
-    val heic = ColourPictures.HEIC_NCLX_BT709_FULL
-    val avif = ColourPictures.AVIFS.first()
+    val heic = ColorPictures.HEIC_NCLX_BT709_FULL
+    val avif = ColorPictures.AVIFS.first()
     val item = avif.thumbnail()
     val alpha = AlphaPlanes.avif()
     val withAlpha =
@@ -138,7 +138,7 @@ class OrientedHeifTest {
         List(count) { if (wide) heif.uInt16At(offset + 1 + 2 * it) else heif.uInt8At(offset + 1 + it) }
       offset += 1 + count * (if (wide) 2 else 1)
     }
-    assertEquals(ipma.end, offset, "ipma entries fill the box")
+    withClue("ipma entries fill the box") { offset shouldBe ipma.end }
     val pitm = children.named("pitm")
     return HeifProperties(
       primary = if (heif.uInt8At(pitm.start) == 0) heif.uInt16At(pitm.start + 4) else heif.int32At(pitm.start + 4),
@@ -178,7 +178,7 @@ class OrientedHeifTest {
           }
         item to extents.flatten()
       }
-    assertEquals(iloc.end, offset, "iloc items fill the box")
+    withClue("iloc items fill the box") { offset shouldBe iloc.end }
     return data.toMap()
   }
 

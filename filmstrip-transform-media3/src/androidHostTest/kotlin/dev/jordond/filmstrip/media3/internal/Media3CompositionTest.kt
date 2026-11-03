@@ -2,19 +2,20 @@ package dev.jordond.filmstrip.media3.internal
 
 import android.net.Uri
 import androidx.media3.common.C
+import androidx.media3.common.Effect
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.GainProcessor
 import androidx.media3.effect.AlphaScale
 import androidx.media3.effect.RgbMatrix
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
-import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
@@ -24,16 +25,22 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
-import dev.jordond.filmstrip.transform.internal.GainSegment
-import dev.jordond.filmstrip.transform.internal.ResolvedClip
-import dev.jordond.filmstrip.transform.internal.ResolvedComposition
-import dev.jordond.filmstrip.transform.internal.ResolvedEffect
-import dev.jordond.filmstrip.transform.internal.ResolvedGain
-import dev.jordond.filmstrip.transform.internal.ResolvedHdr
-import dev.jordond.filmstrip.transform.internal.ResolvedTrack
-import dev.jordond.filmstrip.transform.internal.sigmaFor
+import dev.jordond.filmstrip.media3.internal.bounds.Media3FrameBounds
+import dev.jordond.filmstrip.media3.internal.fill.FillCoverBlur
+import dev.jordond.filmstrip.media3.internal.fill.FillFlatten
+import dev.jordond.filmstrip.media3.internal.fill.MAX_TAP_RADIUS
+import dev.jordond.filmstrip.media3.internal.fill.TAP_STANDARD_DEVIATIONS
+import dev.jordond.filmstrip.media3.internal.fill.downscaleFor
+import dev.jordond.filmstrip.media3.internal.fill.tapRadiusFor
+import dev.jordond.filmstrip.transform.internal.geometry.sigmaFor
+import dev.jordond.filmstrip.transform.internal.resolve.GainSegment
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.floats.plusOrMinus
 import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -95,7 +102,7 @@ class Media3CompositionTest {
   }
 
   // media3 merges consecutive matrices into one shader program with nothing clamping between them,
-  // and the planner folds a run of colour effects per stage. The boundary pass writes the clip's
+  // and the planner folds a run of color effects per stage. The boundary pass writes the clip's
   // stage out before the composition's runs, which is what the other backends do by writing a frame.
   @Test
   fun `a clip grade and a composition grade are separated by a boundary`() {
@@ -118,7 +125,7 @@ class Media3CompositionTest {
     compositionOnly.compositionVideoEffects().any { it is ColorStageBoundary } shouldBe false
   }
 
-  // A kept grade lowers its colour to a pass of its own, which ends the program and clamps at the
+  // A kept grade lowers its color to a pass of its own, which ends the program and clamps at the
   // transfer's ceiling without help.
   @Test
   fun `a kept grade needs no boundary either`() {
@@ -144,15 +151,6 @@ class Media3CompositionTest {
     landscape
       .clipVideoEffects(Fit.Contain, Fill.Solid(0xFFFF0000.toInt()), squareOutput)
       .any { it is FillCoverBlur } shouldBe false
-  }
-
-  // Pinned against the shared Fill.Blurred.sigmaFor, not a number typed here, so a later change to
-  // the KDoc's formula moves this test rather than leaving it silently wrong.
-  @Test
-  fun `sigma is the radius times the output's shorter side`() {
-    val output = Size(1080, 1920)
-
-    Fill.Blurred(radius = 0.04f).sigmaFor(output) shouldBe (43.2f plusOrMinus 0.01f)
   }
 
   // The default radius against a 1080-pixel shorter side, pinned so a later change to the tap
@@ -444,9 +442,9 @@ class Media3CompositionTest {
     )
 
   private fun resolvedEffect(
-    handle: Any,
+    effect: Effect,
     stage: EffectStage = EffectStage.Color,
-  ): ResolvedEffect = ResolvedEffect("test", PlatformEffect(handle), stage)
+  ): ResolvedEffect = ResolvedEffect("test", PlatformEffect(effect), stage)
 }
 
 // Eight frames a second, so a frame position lands on a round time and a test can name the time it

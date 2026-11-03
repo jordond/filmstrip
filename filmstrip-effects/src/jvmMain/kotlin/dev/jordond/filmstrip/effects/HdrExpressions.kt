@@ -1,21 +1,21 @@
 package dev.jordond.filmstrip.effects
 
-import dev.jordond.filmstrip.media.BT2020_LUMA_B
-import dev.jordond.filmstrip.media.BT2020_LUMA_G
-import dev.jordond.filmstrip.media.BT2020_LUMA_R
-import dev.jordond.filmstrip.media.HLG_A
-import dev.jordond.filmstrip.media.HLG_B
-import dev.jordond.filmstrip.media.HLG_C
-import dev.jordond.filmstrip.media.HLG_SYSTEM_GAMMA
+import dev.jordond.filmstrip.color.BT2020_LUMA_B
+import dev.jordond.filmstrip.color.BT2020_LUMA_G
+import dev.jordond.filmstrip.color.BT2020_LUMA_R
+import dev.jordond.filmstrip.color.HLG_A
+import dev.jordond.filmstrip.color.HLG_B
+import dev.jordond.filmstrip.color.HLG_C
+import dev.jordond.filmstrip.color.HLG_SYSTEM_GAMMA
+import dev.jordond.filmstrip.color.PQ_C1
+import dev.jordond.filmstrip.color.PQ_C2
+import dev.jordond.filmstrip.color.PQ_C3
+import dev.jordond.filmstrip.color.PQ_M1
+import dev.jordond.filmstrip.color.PQ_M2
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.PQ_C1
-import dev.jordond.filmstrip.media.PQ_C2
-import dev.jordond.filmstrip.media.PQ_C3
-import dev.jordond.filmstrip.media.PQ_M1
-import dev.jordond.filmstrip.media.PQ_M2
 
-// The transfer functions an HDR grade is written in, spelled as ffmpeg expressions. Every constant is core's, so a
-// graph and the figures a test expects are built from the same numbers.
+// The transfer functions an HDR grade is written in, spelled as ffmpeg expressions. Every constant is core's, the
+// same numbers every other backend reads.
 
 private fun pqScaled(light: String): String = "pow($light,$PQ_M1)"
 
@@ -33,7 +33,7 @@ internal fun hlgSignal(scene: String): String =
  * Takes a pixel's three channels of HLG scene light to linear BT.2020 display light, one expression per channel.
  *
  * The light is a fraction of the nominal thousand cd/m2 peak. HLG runs its opto-optical transfer on the scene's
- * luminance, so every channel of a colour is scaled by the same figure rather than raised to a power on its own.
+ * luminance, so every channel of a color is scaled by the same figure rather than raised to a power on its own.
  *
  * @param scene The red, green and blue scene light, each an expression in the range zero to one.
  * @return Red, green and blue display light, in that order.
@@ -50,7 +50,7 @@ internal fun displayLightFromHlgScene(scene: List<String>): List<String> {
  * Each result is clipped to the range zero to one, which is where the format runs out.
  *
  * A figure an expression reads more than once is worked out once and stored in one of ffmpeg's expression variables,
- * so geq runs each transfer once per figure rather than once per mention. The answer is the same to the bit.
+ * so geq runs each transfer once per figure.
  *
  * @param light The red, green and blue display light, each an expression holding a fraction of the transfer's peak.
  * @return Red, green and blue signal, in that order.

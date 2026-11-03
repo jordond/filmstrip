@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.export.ExportSpec
@@ -14,14 +15,13 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
-import dev.jordond.filmstrip.media.authoredHdrNits
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
 
 /**
  * A frame of the graded fixture carrying [transfer], square cropped over a [color] fill and exported keeping its grade.
@@ -41,7 +41,7 @@ internal suspend fun Filmstrip.exportedFrame(
       fill(Fill.Solid(color))
       effects { crop(AspectRatio.Square, Fit.Contain) }
     }
-  val spec = ExportSpec(targetHeight = 720, hdr = HdrMode.KeepHdr)
+  val spec = ExportSpec(heightPx = 720, hdr = HdrMode.KeepHdr)
   val plan =
     when (val verdict = plan(composition, spec)) {
       is Verdict.Capable -> verdict.plan
@@ -51,11 +51,16 @@ internal suspend fun Filmstrip.exportedFrame(
 
   val finished = withContext(Dispatchers.Default) { export(plan, MediaSink.Temporary).toList() }.last()
   if (finished is ExportStatus.Failure) error("export failed: ${finished.error.message}")
-  val path = assertIs<MediaSink.Path>(assertIs<ExportStatus.Success>(finished).output).path
+  val path =
+    finished
+      .shouldBeInstanceOf<ExportStatus.Success>()
+      .output
+      .shouldBeInstanceOf<MediaSink.Path>()
+      .path
 
   try {
-    val written = assertIs<ProbeResult.Success>(probe(MediaSource.of(path))).info.video
-    assertEquals(transfer, written?.hdrTransfer, "a $transfer grade was written as ${written?.hdrTransfer}")
+    val written = probe(MediaSource.of(path)).shouldBeInstanceOf<ProbeResult.Success>().info.video
+    written?.hdrTransfer shouldBe transfer
 
     return hdrFrameOf(path) ?: error("could not decode a frame of the $transfer export")
   } finally {
@@ -76,5 +81,5 @@ internal const val FILL_CENTRE = 0.5f
 
 internal const val MID_BLUE = 0xFF6699CC.toInt()
 
-// What a hardware encode leaves on a flat colour, a code or two either way.
+// What a hardware encode leaves on a flat color, a code or two either way.
 internal const val FILL_CODE_TOLERANCE = 2

@@ -1,5 +1,9 @@
 package dev.jordond.filmstrip.effects
 
+import dev.jordond.filmstrip.color.PictureColor
+import dev.jordond.filmstrip.color.SIXTEEN_BIT_MAX
+import dev.jordond.filmstrip.color.pictureLight
+import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -15,10 +19,10 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.PictureColour
-import dev.jordond.filmstrip.media.SIXTEEN_BIT_MAX
-import dev.jordond.filmstrip.media.pictureLight
-import dev.jordond.filmstrip.media.signalFromNits
+import dev.jordond.filmstrip.picture.pictureColorFromDecodedProfile
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import java.awt.color.ICC_Profile
 import java.awt.image.BufferedImage
 import java.awt.image.Raster
@@ -30,8 +34,6 @@ import java.util.zip.DeflaterOutputStream
 import javax.imageio.ImageIO
 import kotlin.math.abs
 import kotlin.math.roundToInt
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import java.awt.color.ColorSpace as AwtColorSpace
@@ -43,9 +45,9 @@ internal const val OPAQUE = 0xFF shl 24
 internal val LINEAR: ByteArray = ICC_Profile.getInstance(AwtColorSpace.CS_LINEAR_RGB).data
 internal val LINEAR_GREY: ByteArray = ICC_Profile.getInstance(AwtColorSpace.CS_GRAY).data
 
-// The colour descriptions the linear profiles are, read through core the way a decoder's would be.
-internal val LINEAR_COLOUR: PictureColour = checkNotNull(PictureColour.fromDecodedProfile(LINEAR, 3))
-internal val LINEAR_GREY_COLOUR: PictureColour = checkNotNull(PictureColour.fromDecodedProfile(LINEAR_GREY, 1))
+// The color descriptions the linear profiles are, read through core the way a decoder's would be.
+internal val LINEAR_COLOR: PictureColor = checkNotNull(pictureColorFromDecodedProfile(LINEAR, 3))
+internal val LINEAR_GREY_COLOR: PictureColor = checkNotNull(pictureColorFromDecodedProfile(LINEAR_GREY, 1))
 
 // Every texel opaque, a mid tone among them, so the light each lands at is read apart from its alpha.
 internal val TEXELS =
@@ -72,7 +74,7 @@ internal fun auxImage(
   decoder: OverlayPictureDecoder?,
 ): ImageSource {
   val resolution = resolverOf(decoder).resolve(spec, capabilities(), attributes(null))
-  val resolved = assertIs<EffectResolution.Resolved>(resolution)
+  val resolved = resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
   return resolved.effect.fragment.auxInputs
     .first()
     .image
@@ -87,13 +89,15 @@ internal fun mappedRaster(
   decoder: OverlayPictureDecoder? = null,
 ): Raster {
   val resolved =
-    assertIs<EffectResolution.Resolved>(resolverOf(decoder).resolve(spec, capabilities(), attributes(transfer)))
+    resolverOf(
+      decoder,
+    ).resolve(spec, capabilities(), attributes(transfer)).shouldBeInstanceOf<EffectResolution.Resolved>()
   val mapped =
-    assertIs<ImageSource.Bytes>(
-      resolved.effect.fragment.auxInputs
-        .first()
-        .image,
-    ).bytes
+    resolved.effect.fragment.auxInputs
+      .first()
+      .image
+      .shouldBeInstanceOf<ImageSource.Bytes>()
+      .bytes
   return ImageIO.read(ByteArrayInputStream(mapped)).raster
 }
 
@@ -106,13 +110,13 @@ internal fun resolverOf(decoder: OverlayPictureDecoder?): BuiltInEffectResolver 
   decoder?.let(::BuiltInEffectResolver) ?: BuiltInEffectResolver()
 
 /**
- * The sixteen-bit RGBA the grade's raster holds for an opaque [texel] described by [colour].
+ * The sixteen-bit RGBA the grade's raster holds for an opaque [texel] described by [color].
  */
 internal fun signalOf(
-  colour: PictureColour?,
+  color: PictureColor?,
   texel: Int,
   transfer: HdrTransfer,
-): IntArray = wideSignal(pictureLight(colour, intArrayOf(texel)), transfer)
+): IntArray = wideSignal(pictureLight(color, intArrayOf(texel)), transfer)
 
 /**
  * The sixteen-bit RGBA the grade's raster holds for the opaque light in the first three of [light].
@@ -146,13 +150,18 @@ internal fun pngOf(image: BufferedImage): ByteArray =
   ByteArrayOutputStream().also { ImageIO.write(image, "png", it) }.toByteArray()
 
 internal fun jpegOf(image: BufferedImage): ByteArray =
-  ByteArrayOutputStream().also { assertTrue(ImageIO.write(image, "jpg", it), "the JDK wrote no JPEG") }.toByteArray()
+  ByteArrayOutputStream()
+    .also {
+      withClue("the JDK wrote no JPEG") {
+        ImageIO.write(image, "jpg", it) shouldBe true
+      }
+    }.toByteArray()
 
-// A row of squares [BLOCK] pixels a side, one to a colour, so the middle of each holds its colour through a JPEG.
-internal fun blocksOf(colours: IntArray): BufferedImage =
-  BufferedImage(colours.size * BLOCK, BLOCK, BufferedImage.TYPE_INT_RGB).apply {
+// A row of squares [BLOCK] pixels a side, one to a color, so the middle of each holds its color through a JPEG.
+internal fun blocksOf(colors: IntArray): BufferedImage =
+  BufferedImage(colors.size * BLOCK, BLOCK, BufferedImage.TYPE_INT_RGB).apply {
     for (x in 0 until width) {
-      for (y in 0 until height) setRGB(x, y, colours[x / BLOCK])
+      for (y in 0 until height) setRGB(x, y, colors[x / BLOCK])
     }
   }
 
@@ -243,16 +252,16 @@ internal fun taggedWebpHeader(profile: ByteArray): ByteArray {
 }
 
 /**
- * A decoder's answer for [image]'s texels, described by [colour].
+ * A decoder's answer for [image]'s texels, described by [color].
  */
 internal fun decodedOf(
   image: BufferedImage,
-  colour: PictureColour?,
+  color: PictureColor?,
 ): DecodedPicture =
   DecodedPicture(
     Size(image.width, image.height),
     StoredSamples.Argb(image.getRGB(0, 0, image.width, image.height, null, 0, image.width)),
-    colour,
+    color,
   )
 
 internal fun attributes(transfer: HdrTransfer?): Attributes =

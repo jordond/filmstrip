@@ -16,9 +16,9 @@ import dev.jordond.filmstrip.effects.color.then
 import androidx.compose.ui.graphics.ColorMatrix as ComposeColorMatrix
 
 /**
- * Draws the content through the colour grade [effects] author, folded through the same fold the
+ * Draws the content through the color grade [effects] author, folded through the same fold the
  * backends lower, so the schematic shows the grade the export will write. Anything in [effects]
- * that is not a colour matrix is skipped, and an identity grade draws the content as it is.
+ * that is not a color matrix is skipped, and an identity grade draws the content as it is.
  */
 internal fun Modifier.colorGraded(effects: List<EffectSpec>): Modifier {
   val matrix =
@@ -38,7 +38,7 @@ internal fun Modifier.colorGraded(effects: List<EffectSpec>): Modifier {
   }
 }
 
-// Compose lays a colour matrix out as four rows of five, with alpha as the fourth input and the
+// Compose lays a color matrix out as four rows of five, with alpha as the fourth input and the
 // bias in the fifth column on a scale of 0 to 255.
 private fun ColorMatrix.toComposeColorMatrix(): ComposeColorMatrix =
   ComposeColorMatrix(

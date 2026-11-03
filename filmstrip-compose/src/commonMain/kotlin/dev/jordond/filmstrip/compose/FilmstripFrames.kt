@@ -13,9 +13,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.ImageBitmap
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.effectsRevision
-import dev.jordond.filmstrip.media.FrameRenderer
 import dev.jordond.filmstrip.media.FrameResult
 import dev.jordond.filmstrip.media.PlatformImage
+import dev.jordond.filmstrip.still.FrameRenderer
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.withIndex
 import kotlin.time.Duration
@@ -121,8 +121,8 @@ public class FilmstripFrames internal constructor(
     if (frames.isEmpty()) return
     if (previous.positions == next.positions) return
 
-    // Keyed by the position a frame was decoded for rather than by the index it sat at, so what is
-    // built here is the size of what is held rather than the size of the strip.
+    // Keyed by the position a frame was decoded for, so what is built here is the size of what is
+    // held, not the size of the strip.
     val source = mutableMapOf<Duration, StripFrame>()
     frames.forEach { (index, frame) ->
       val position = previous.positions.getOrNull(index)
@@ -171,9 +171,6 @@ public class FilmstripFrames internal constructor(
     return ((visible.first - overscan).coerceIn(indices)..(visible.last + overscan).coerceIn(indices)).toList()
   }
 
-  /**
-   * Closes everything outside [window].
-   */
   private fun retain(window: List<Int>) {
     frames.keys.filterNot { it in window }.forEach(::evict)
   }
@@ -239,8 +236,8 @@ public object FilmstripFramesDefaults {
   /**
    * How many bytes of decoded frames a strip holds.
    *
-   * Bytes rather than a count of frames, because a decoded frame costs its own pixels wherever it
-   * lives and a strip drawn at two heights holds wildly different amounts under the same count.
+   * Each decoded frame counts its own pixels against it, so a strip drawn taller holds fewer
+   * frames under the same cap.
    */
   public val MaxBytes: Long = 16L * 1024 * 1024
 
@@ -267,7 +264,8 @@ public object FilmstripFramesDefaults {
  * @param renderer What renders the frames, usually the `Filmstrip` itself.
  * @param composition The edit to render from.
  * @param positions Where in the composition each strip item sits.
- * @param heightPx The height to render at, in pixels.
+ * @param heightPx The height to render at, in pixels. Null renders at the composition's own output
+ *   height, and a height of zero or less renders nothing.
  * @param maxBytes How many bytes of decoded frames to hold.
  * @param overscan How many items either side of the visible ones to keep ready.
  * @return State keyed to [renderer], the same instance across recompositions.
@@ -277,7 +275,7 @@ public fun rememberFilmstripFrames(
   renderer: FrameRenderer,
   composition: EditComposition,
   positions: List<Duration>,
-  heightPx: Int,
+  heightPx: Int?,
   maxBytes: Long = FilmstripFramesDefaults.MaxBytes,
   overscan: Int = FilmstripFramesDefaults.Overscan,
 ): FilmstripFrames {
@@ -302,7 +300,7 @@ internal class StripSpec(
   val composition: EditComposition,
   val revision: Long,
   val positions: List<Duration>,
-  val heightPx: Int,
+  val heightPx: Int?,
   val maxBytes: Long,
   val overscan: Int,
 ) {
@@ -342,6 +340,6 @@ internal class StripFrame(
 }
 
 /**
- * What one pixel costs the strip's cache, shared with tests pinning a source's own frame cost.
+ * What one pixel costs the strip's cache, four bytes for each pixel of a decoded frame.
  */
 internal const val BYTES_PER_PIXEL = 4

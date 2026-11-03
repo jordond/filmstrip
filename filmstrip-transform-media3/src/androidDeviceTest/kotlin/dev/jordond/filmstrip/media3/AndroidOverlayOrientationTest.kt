@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.media3
 
 import android.graphics.Color
+import dev.jordond.filmstrip.color.pictureSrgbCodes
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
@@ -9,16 +10,16 @@ import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.PictureOrientation
-import dev.jordond.filmstrip.media.orientedSamples
-import dev.jordond.filmstrip.media.pictureSrgbCodes
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
+import dev.jordond.filmstrip.picture.PictureOrientation
+import dev.jordond.filmstrip.picture.orientedSamples
 import dev.jordond.filmstrip.test.OrientedPictures
 import dev.jordond.filmstrip.test.OverlayPixels.ENCODED_TOLERANCE
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertTrue
 
 /**
  * A picture tagged with a quarter turn on real media3, placed at the size the turn shows it at and drawn turned.
@@ -53,7 +54,7 @@ class AndroidOverlayOrientationTest {
             .takeIf { off > ENCODED_TOLERANCE }
         }
 
-      assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+      withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
     }
 
   // The middle texel of each quadrant of a picture shown at width by height.

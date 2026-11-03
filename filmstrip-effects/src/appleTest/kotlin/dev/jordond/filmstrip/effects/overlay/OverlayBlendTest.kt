@@ -13,6 +13,10 @@ import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.stepFor
 import dev.jordond.filmstrip.effects.renderingContext
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.media.ImageSource
+import io.kotest.assertions.withClue
+import io.kotest.matchers.floats.plusOrMinus
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.CoreGraphics.CGColorSpaceCreateWithName
 import platform.CoreGraphics.CGColorSpaceRelease
@@ -22,14 +26,11 @@ import platform.CoreImage.CIContext
 import platform.CoreImage.CIImage
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
  * How an overlay blends onto an SDR frame, read off the pixels.
  *
- * An SDR overlay blends on the codes of the frame's own BT.709 colour space, the values an encoder
+ * An SDR overlay blends on the codes of the frame's own BT.709 color space, the values an encoder
  * writes and the ones the other backends blend on. Each case draws a raster with a half alpha band
  * over a flat fill and reads that band, so an edge that fringes or a blend worked on sRGB's codes
  * lands outside the tolerance.
@@ -37,8 +38,8 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalForeignApi::class)
 class OverlayBlendTest {
   // The raster's right half is drawn at half alpha, the way an antialiased glyph or image edge is.
-  // That band lands its own alpha times the opacity of the way from the fill to the overlay's colour,
-  // at every opacity, so a blend that reads a premultiplied edge as a colour fringes here.
+  // That band lands its own alpha times the opacity of the way from the fill to the overlay's color,
+  // at every opacity, so a blend that reads a premultiplied edge as a color fringes here.
   @Test
   fun `blends a soft edge by its own alpha`() {
     val context = renderingContext()
@@ -46,12 +47,9 @@ class OverlayBlendTest {
     listOf(1f, HALF, QUARTER_OPACITY).forEach { opacity ->
       val band = softBand(opacity, context)
       band.expected.indices.forEach { channel ->
-        assertEquals(
-          band.expected[channel],
-          band.drawn[channel],
-          CODE_DRIFT,
-          "a soft edge at $opacity drew ${band.drawn} where its own alpha asks for ${band.expected}",
-        )
+        withClue("a soft edge at $opacity drew ${band.drawn} where its own alpha asks for ${band.expected}") {
+          band.drawn[channel] shouldBe (band.expected[channel] plusOrMinus CODE_DRIFT)
+        }
       }
     }
   }
@@ -66,10 +64,11 @@ class OverlayBlendTest {
 
     listOf(1f, HALF).forEach { opacity ->
       val band = softBand(opacity, context)
-      assertTrue(
-        band.expected.indices.any { abs(band.expected[it] - band.inSrgb[it]) > CODE_DRIFT },
+      withClue(
         "at $opacity the frame's codes ask for ${band.expected} and sRGB's for ${band.inSrgb}, too close to tell",
-      )
+      ) {
+        band.expected.indices.any { abs(band.expected[it] - band.inSrgb[it]) > CODE_DRIFT } shouldBe true
+      }
     }
   }
 
@@ -77,7 +76,7 @@ class OverlayBlendTest {
    * What the half alpha band of [SOFT] drew at [opacity] over a flat fill, and what the blend asks
    * for there.
    *
-   * The overlay's colour is read off the raster's opaque half, drawn fully opaque, so it carries the
+   * The overlay's color is read off the raster's opaque half, drawn fully opaque, so it carries the
    * codes it lands with rather than the ones it was authored with.
    */
   private fun softBand(
@@ -89,7 +88,7 @@ class OverlayBlendTest {
     val middle = (rect.top + rect.bottom) / 2f
     val band = offsetOf(rect.left + rect.width * THREE_QUARTERS_ACROSS, middle)
     val solid = offsetOf(rect.left + rect.width * QUARTER_ACROSS, middle)
-    val sampled = assertNotNull(overlay.frameAt(BASELINE, SPAN), "the watermark was not drawn").opacity
+    val sampled = withClue("the watermark was not drawn") { overlay.frameAt(BASELINE, SPAN).shouldNotBeNull() }.opacity
     val coverage = SOFT_ALPHA * sampled
 
     val opaqueStep = stepFor(ImageOverlay(SOFT, Corner.TopStart))
@@ -120,7 +119,7 @@ class OverlayBlendTest {
   ): Int = ((yFraction * FRAME.height).toInt() * FRAME.width + (xFraction * FRAME.width).toInt()) * CHANNELS
 
   /**
-   * The frame's own codes for a colour given in sRGB's.
+   * The frame's own codes for a color given in sRGB's.
    */
   private fun codesOf(
     srgb: List<Float>,
@@ -136,7 +135,7 @@ class OverlayBlendTest {
         colorSpace = space,
       )
     CGColorSpaceRelease(space)
-    val flat = CIImage(color = assertNotNull(color, "no sRGB colour")).imageByCroppingToRect(FRAME_RECT)
+    val flat = CIImage(color = withClue("no sRGB color") { color.shouldNotBeNull() }).imageByCroppingToRect(FRAME_RECT)
 
     return pixels(flat, context).take(COLOR_CHANNELS)
   }

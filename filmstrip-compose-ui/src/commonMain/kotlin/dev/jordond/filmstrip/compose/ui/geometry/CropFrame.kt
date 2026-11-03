@@ -10,7 +10,7 @@ import dev.jordond.filmstrip.geometry.NormalizedRect
  * The mapping between a normalized crop rectangle and the view pixels the video is actually drawn into.
  *
  * [contentRect] is the letterboxed rectangle a video fills inside its surface, from `videoContentRect` . Every part of
- * the overlay reads its geometry through this rather than re-deriving the letterbox maths.
+ * the overlay reads its geometry through this.
  *
  * @property contentRect Where the video is drawn, in the overlay's own coordinate space.
  */

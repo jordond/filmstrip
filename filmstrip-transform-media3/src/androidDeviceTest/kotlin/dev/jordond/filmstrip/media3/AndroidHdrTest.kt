@@ -17,13 +17,13 @@ import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.test.assumeDecodesTenBitHevc
 import dev.jordond.filmstrip.test.assumeEncodesHdr
 import dev.jordond.filmstrip.test.encodesHdr
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 /**
  * The HDR branch, against a ten-bit BT.2020 PQ clip on real hardware.
@@ -43,11 +43,11 @@ class AndroidHdrTest {
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture(HDR_CLIP)
 
-      val video = assertNotNull(probe.infoOf(source).video, "the fixture has no video track")
+      val video = withClue("the fixture has no video track") { probe.infoOf(source).video.shouldNotBeNull() }
 
       // The prober, not ffprobe. A fixture the library cannot see as HDR would make every other
       // test here pass for the wrong reason.
-      assertEquals(HdrTransfer.Pq, video.hdrTransfer, "the fixture is not PQ")
+      withClue("the fixture is not PQ") { video.hdrTransfer shouldBe HdrTransfer.Pq }
     }
 
   @Test
@@ -57,24 +57,23 @@ class AndroidHdrTest {
       // KeepHdr is documented to refuse instead of quietly tone-mapping, so a device with no HDR
       // encoder refusing is the contract holding. There is nothing left to measure after that.
       if (!probe.filmstrip.encodesHdr()) {
-        assertIs<Verdict.Incapable>(probe.filmstrip.plan(composition(source), spec(HdrMode.KeepHdr)))
+        probe.filmstrip.plan(composition(source), spec(HdrMode.KeepHdr)).shouldBeInstanceOf<Verdict.Incapable>()
         return@runTest
       }
 
       val run = export(source, HdrMode.KeepHdr)
-      val written = assertNotNull(run.info.video, "the written file has no video track")
+      val written = withClue("the written file has no video track") { run.info.video.shouldNotBeNull() }
 
       // A disjunction, not a fixed expectation, since whether HDR survives is the device's answer
       // and never this code's. The third case is the one that is not allowed, SDR out with
       // nothing said about it.
       if (written.hdrTransfer == null) {
-        assertTrue(
-          run.toneMapped,
-          "HDR was dropped without an adjustment reporting it, so the caller was told nothing",
-        )
+        withClue("HDR was dropped without an adjustment reporting it, so the caller was told nothing") {
+          run.toneMapped shouldBe true
+        }
       } else {
-        assertEquals(HdrTransfer.Pq, written.hdrTransfer, "PQ went in and something else came out")
-        assertTrue(!run.toneMapped, "HDR survived but an adjustment said it was tone mapped")
+        withClue("PQ went in and something else came out") { written.hdrTransfer shouldBe HdrTransfer.Pq }
+        withClue("HDR survived but an adjustment said it was tone mapped") { !run.toneMapped shouldBe true }
       }
     }
 
@@ -88,11 +87,11 @@ class AndroidHdrTest {
       assumeDecodesTenBitHevc()
 
       val run = export(source, HdrMode.ToneMapToSdr)
-      val written = assertNotNull(run.info.video, "the written file has no video track")
+      val written = withClue("the written file has no video track") { run.info.video.shouldNotBeNull() }
 
-      assertNull(written.hdrTransfer, "tone mapping to SDR left an HDR transfer function behind")
+      withClue("tone mapping to SDR left an HDR transfer function behind") { written.hdrTransfer.shouldBeNull() }
       // Asked for, never fallen back to, so there is nothing to report as an adjustment.
-      assertTrue(!run.toneMapped, "an adjustment was reported for the tone mapping that was asked for")
+      withClue("an adjustment was reported for the tone mapping that was asked for") { !run.toneMapped shouldBe true }
     }
 
   @Test
@@ -106,8 +105,10 @@ class AndroidHdrTest {
       // in one direction only. A device may advertise HDR and still fall back, but a device that
       // wrote HDR while advertising none has a capability probe that is lying.
       val capabilities = probe.filmstrip.capabilities()
-      val advertised = assertIs<CapabilitiesResult.Success>(capabilities).capabilities
-      assertTrue(!kept || advertised.supportsHdrEncoding, "the device wrote HDR while advertising none")
+      val advertised = capabilities.shouldBeInstanceOf<CapabilitiesResult.Success>().capabilities
+      withClue("the device wrote HDR while advertising none") {
+        (!kept || advertised.supportsHdrEncoding) shouldBe true
+      }
     }
 
   /**
@@ -120,7 +121,7 @@ class AndroidHdrTest {
 
   private fun composition(source: MediaSource) = EditComposition(listOf(Track(listOf(Clip(source)))))
 
-  private fun spec(hdr: HdrMode) = ExportSpec(targetHeight = 720, hdr = hdr)
+  private fun spec(hdr: HdrMode) = ExportSpec(heightPx = 720, hdr = hdr)
 
   private suspend fun export(
     source: MediaSource,

@@ -8,28 +8,34 @@ import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.overlay.fadeIn
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.BED_GAIN
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.BED_HZ
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.BED_START
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.FIXTURE_READING
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.PRIMARY_HZ
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.QUIET_READING
-import dev.jordond.filmstrip.ffmpeg.ExportConstants.TIMEOUT
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.BED_GAIN
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.BED_HZ
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.BED_START
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.FIXTURE_READING
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.PRIMARY_HZ
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.QUIET_READING
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
+import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
+import dev.jordond.filmstrip.ffmpeg.support.decodedAudio
+import dev.jordond.filmstrip.ffmpeg.support.levelAt
+import dev.jordond.filmstrip.ffmpeg.support.onlyClip
+import dev.jordond.filmstrip.ffmpeg.support.toneAt
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.test.ToneAnalysis
-import dev.jordond.filmstrip.transform.internal.curveOver
+import dev.jordond.filmstrip.transform.internal.resolve.curveOver
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -61,13 +67,14 @@ class FfmpegAudioTest {
           .last()
       if (finished is ExportStatus.Failure) error(finished.error.message)
 
-      val success = assertIs<ExportStatus.Success>(finished)
-      assertNull(success.info.video)
-      assertNotNull(success.info.audio).sampleRate shouldBe 48_000
-      assertTrue(
-        success.info.duration in 1_800.milliseconds..2_300.milliseconds,
-        "duration was ${success.info.duration}",
-      )
+      val success = finished.shouldBeInstanceOf<ExportStatus.Success>()
+      success.info.video.shouldBeNull()
+      success.info.audio
+        .shouldNotBeNull()
+        .sampleRate shouldBe 48_000
+      withClue("duration was ${success.info.duration}") {
+        (success.info.duration in 1_800.milliseconds..2_300.milliseconds).shouldBeTrue()
+      }
 
       // Verified independently of the code under test.
       streamTypes(output.absolutePath) shouldBe listOf("audio")
@@ -108,7 +115,11 @@ class FfmpegAudioTest {
    */
   private suspend fun assertRamps(level: AudioLevel) {
     val source = MediaSource.of(fixture.landscape.absolutePath)
-    val length = assertIs<ProbeResult.Success>(fixture.filmstrip.probe(source)).info.duration
+    val length =
+      fixture.filmstrip
+        .probe(source)
+        .shouldBeInstanceOf<ProbeResult.Success>()
+        .info.duration
     val output = File.createTempFile("filmstrip-ramp", ".mp4").also { it.delete() }
     val composition = compositionOf { clip(source) { audio(level) } }
 
@@ -118,7 +129,7 @@ class FfmpegAudioTest {
         .toList()
         .last()
     if (finished is ExportStatus.Failure) error(finished.error.message)
-    assertIs<ExportStatus.Success>(finished)
+    finished.shouldBeInstanceOf<ExportStatus.Success>()
 
     val curve = level.curveOver(length)
     val samples = decodedAudio(output.absolutePath)
@@ -127,10 +138,9 @@ class FfmpegAudioTest {
     RAMP_READINGS.forEach { at ->
       val expected = curve.gainAt(at)
       val measured = samples.levelAt(at) / reference
-      assertTrue(
-        abs(measured - expected) <= ENVELOPE_DRIFT,
-        "at $at the ramp read $measured against $expected from the resolved curve",
-      )
+      withClue("at $at the ramp read $measured against $expected from the resolved curve") {
+        (abs(measured - expected) <= ENVELOPE_DRIFT).shouldBeTrue()
+      }
     }
 
     output.delete()
@@ -162,7 +172,7 @@ class FfmpegAudioTest {
             fadeOut(BED_FADE_OUT)
           }
         }
-      val spec = ExportSpec(targetHeight = 240)
+      val spec = ExportSpec(heightPx = 240)
 
       val output = File.createTempFile("filmstrip-fade", ".mp4").also { it.delete() }
       val finished =
@@ -171,14 +181,14 @@ class FfmpegAudioTest {
           .toList()
           .last()
       if (finished is ExportStatus.Failure) error(finished.error.message)
-      assertIs<ExportStatus.Success>(finished)
+      finished.shouldBeInstanceOf<ExportStatus.Success>()
 
       val tracks = fixture.plannedTracks(composition, spec, listOf(primarySource, bedSource))
       val primaryGain = tracks.first().onlyClip.gain
       val bedGain = tracks.last().onlyClip.gain
       // Without this the fades could have been dropped before the plan and every reading below
       // would agree with a flat curve, passing while proving nothing.
-      assertNull(bedGain.constant, "the folded bed gain never ramps, so there is no fade to read")
+      withClue("the folded bed gain never ramps, so there is no fade to read") { bedGain.constant.shouldBeNull() }
 
       // Where the ramps sit is derived from the bed's own length as the planner resolved it, so the
       // readings follow the fades rather than pinning instants that a different fixture would move.
@@ -201,17 +211,15 @@ class FfmpegAudioTest {
         val expected =
           (bedTone / primaryTone) * (bedGain.gainAt(withinBed) / primaryGain.gainAt(at))
         val measured = written.toneAt(at, BED_HZ) / written.toneAt(at, PRIMARY_HZ)
-        assertTrue(
-          abs(measured - expected) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
-          "at $withinBed into the bed it read $measured against $expected from the folded curve",
-        )
+        withClue("at $withinBed into the bed it read $measured against $expected from the folded curve") {
+          (abs(measured - expected) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE).shouldBeTrue()
+        }
       }
 
       val before = written.toneAt(QUIET_READING, BED_HZ) / written.toneAt(QUIET_READING, PRIMARY_HZ)
-      assertTrue(
-        before <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
-        "the bed read $before at $QUIET_READING, before it starts",
-      )
+      withClue("the bed read $before at $QUIET_READING, before it starts") {
+        (before <= ToneAnalysis.MEASURED_GAIN_TOLERANCE).shouldBeTrue()
+      }
 
       output.delete()
     }

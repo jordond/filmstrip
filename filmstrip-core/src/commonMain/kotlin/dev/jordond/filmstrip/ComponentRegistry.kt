@@ -12,8 +12,8 @@ import dev.jordond.filmstrip.thumbnail.ThumbnailSourceFactory
 /**
  * Every pluggable piece a [Filmstrip] instance was built with.
  *
- * Components are always registered explicitly, through [Builder]. Later registrations win: each
- * `add` inserts at the front, so registering your own after a built-in overrides it.
+ * Components are always registered explicitly, through [Builder]. Resolvers and factories are inserted at the front,
+ * so one registered after a built-in overrides it. Backend infos and diagnostic listeners keep registration order.
  *
  * @property effectResolvers Resolvers that lower an effect spec to something an engine can run.
  * @property playerEngineFactories Factories that build a preview player.
@@ -26,14 +26,14 @@ import dev.jordond.filmstrip.thumbnail.ThumbnailSourceFactory
  * @property diagnosticListeners Listeners that receive what the components learn while running.
  */
 public class ComponentRegistry internal constructor(
-  public val effectResolvers: List<EffectResolver>,
+  override val effectResolvers: List<EffectResolver>,
   public val playerEngineFactories: List<PlayerEngineFactory>,
   public val thumbnailSourceFactories: List<ThumbnailSourceFactory>,
-  @property:InternalFilmstripApi public val exportEngineFactories: List<ExportEngineFactory>,
-  @property:InternalFilmstripApi public val mediaProberFactories: List<MediaProberFactory>,
+  @property:InternalFilmstripApi override val exportEngineFactories: List<ExportEngineFactory>,
+  @property:InternalFilmstripApi override val mediaProberFactories: List<MediaProberFactory>,
   public val backends: List<BackendInfo>,
-  public val diagnosticListeners: List<DiagnosticListener>,
-) {
+  override val diagnosticListeners: List<DiagnosticListener>,
+) : FilmstripComponents() {
   /**
    * Starts a builder from what is already registered here.
    *
@@ -42,7 +42,8 @@ public class ComponentRegistry internal constructor(
   public fun newBuilder(): Builder = Builder(this)
 
   /**
-   * Accumulates components, front-first so later registrations take precedence.
+   * Accumulates components. Resolvers and factories go in front-first so later registrations take precedence, and
+   * backend infos and listeners are appended.
    */
   @FilmstripDsl
   public class Builder {
@@ -75,40 +76,44 @@ public class ComponentRegistry internal constructor(
     /**
      * Registers an effect resolver, ahead of everything already registered.
      */
-    public fun add(resolver: EffectResolver): Builder = apply { effectResolvers.add(0, resolver) }
+    public fun addEffectResolver(resolver: EffectResolver): Builder = apply { effectResolvers.add(0, resolver) }
 
     /**
      * Registers a player engine factory, ahead of everything already registered.
      */
-    public fun add(factory: PlayerEngineFactory): Builder = apply { playerEngineFactories.add(0, factory) }
+    public fun addPlayerEngineFactory(factory: PlayerEngineFactory): Builder =
+      apply { playerEngineFactories.add(0, factory) }
 
     /**
      * Registers a thumbnail source factory, ahead of everything already registered.
      */
-    public fun add(factory: ThumbnailSourceFactory): Builder = apply { thumbnailSourceFactories.add(0, factory) }
+    public fun addThumbnailSourceFactory(factory: ThumbnailSourceFactory): Builder =
+      apply { thumbnailSourceFactories.add(0, factory) }
 
     /**
      * Registers an export engine factory, ahead of everything already registered.
      */
     @InternalFilmstripApi
-    public fun add(factory: ExportEngineFactory): Builder = apply { exportEngineFactories.add(0, factory) }
+    public fun addExportEngineFactory(factory: ExportEngineFactory): Builder =
+      apply { exportEngineFactories.add(0, factory) }
 
     /**
      * Registers a media prober factory, ahead of everything already registered.
      */
     @InternalFilmstripApi
-    public fun add(factory: MediaProberFactory): Builder = apply { mediaProberFactories.add(0, factory) }
+    public fun addMediaProberFactory(factory: MediaProberFactory): Builder =
+      apply { mediaProberFactories.add(0, factory) }
 
     /**
      * Records what a backend says about itself, at the end of the list.
      */
     @InternalFilmstripApi
-    public fun add(backend: BackendInfo): Builder = apply { backends += backend }
+    public fun addBackendInfo(info: BackendInfo): Builder = apply { backends += info }
 
     /**
      * Registers a diagnostic listener, at the end of the list.
      */
-    public fun add(listener: DiagnosticListener): Builder = apply { diagnosticListeners += listener }
+    public fun addDiagnosticListener(listener: DiagnosticListener): Builder = apply { diagnosticListeners += listener }
 
     /**
      * Freezes what has been registered.

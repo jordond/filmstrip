@@ -4,29 +4,28 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
 import androidx.core.graphics.createBitmap
+import dev.jordond.filmstrip.color.pictureSrgbCodes
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.pictureCropOf
-import dev.jordond.filmstrip.internal.pictureOrientationOf
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.PictureCrop
-import dev.jordond.filmstrip.media.PictureOrientation
-import dev.jordond.filmstrip.media.UnturnedHeif
-import dev.jordond.filmstrip.media.croppedSamples
-import dev.jordond.filmstrip.media.heifWithoutOrientation
-import dev.jordond.filmstrip.media.orientedSamples
-import dev.jordond.filmstrip.media.pictureSrgbCodes
+import dev.jordond.filmstrip.picture.PictureCrop
+import dev.jordond.filmstrip.picture.PictureOrientation
+import dev.jordond.filmstrip.picture.croppedSamples
+import dev.jordond.filmstrip.picture.heif.UnturnedHeif
+import dev.jordond.filmstrip.picture.heif.heifWithoutOrientation
+import dev.jordond.filmstrip.picture.orientedSamples
+import dev.jordond.filmstrip.picture.pictureCropOf
+import dev.jordond.filmstrip.picture.pictureOrientationOf
 import dev.jordond.filmstrip.test.CicpTag
 import dev.jordond.filmstrip.test.HeicSubsampledPictures
 import dev.jordond.filmstrip.test.OrientedPictures
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.Assume.assumeTrue
 import java.io.ByteArrayOutputStream
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
  * Overlay pictures tagged with an orientation, decoded by Android and prepared for a frame the way core reads the tag.
@@ -44,9 +43,9 @@ class OrientedPictureRasterTest {
     val asStored = decoded("the HEIC", HEIC)
     val read = decoded("the HEIC tagged 6", tagged)
 
-    assertEquals(PictureOrientation.Rotate90, read.orientation)
-    assertEquals(asStored.bitmap.size(), read.bitmap.size(), "the HEIC tagged 6 decoded turned")
-    assertContentEquals(asStored.bitmap.argb(), read.bitmap.argb(), "the HEIC tagged 6 decoded turned")
+    read.orientation shouldBe PictureOrientation.Rotate90
+    withClue("the HEIC tagged 6 decoded turned") { read.bitmap.size() shouldBe asStored.bitmap.size() }
+    withClue("the HEIC tagged 6 decoded turned") { read.bitmap.argb() shouldBe asStored.bitmap.argb() }
   }
 
   @Test
@@ -55,8 +54,8 @@ class OrientedPictureRasterTest {
       val asStored = decoded(name, untagged)
       val read = decoded("$name tagged 6", tagging(PictureOrientation.Rotate90))
 
-      assertEquals(asStored.bitmap.size(), read.bitmap.size(), "$name tagged 6 decoded turned")
-      assertContentEquals(asStored.bitmap.argb(), read.bitmap.argb(), "$name tagged 6 decoded turned")
+      withClue("$name tagged 6 decoded turned") { read.bitmap.size() shouldBe asStored.bitmap.size() }
+      withClue("$name tagged 6 decoded turned") { read.bitmap.argb() shouldBe asStored.bitmap.argb() }
     }
   }
 
@@ -74,10 +73,10 @@ class OrientedPictureRasterTest {
           val shown = orientation.orientedSize(crop.size)
           val oriented = orientedSamples(orientation, samples, crop.size)
           listOf(null, HdrTransfer.Pq).mapNotNull { transfer ->
-            val raster = read.bitmap.rasterFor(transfer, read.colour, read.orientation, read.crop)
-            val colour = read.colour
+            val raster = read.bitmap.rasterFor(transfer, read.color, read.orientation, read.crop)
+            val color = read.color
             val expected =
-              transfer?.let { media3HdrTexels(oriented, it, colour).argb } ?: pictureSrgbCodes(colour, oriented)
+              transfer?.let { media3HdrTexels(oriented, it, color).argb } ?: pictureSrgbCodes(color, oriented)
             when {
               read.orientation != orientation -> "$name $orientation read as ${read.orientation}"
               raster.bitmap.size() != shown -> "$name $orientation rastered at ${raster.bitmap.size()}, not $shown"
@@ -88,7 +87,7 @@ class OrientedPictureRasterTest {
         }
       }
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   // A centred and an offset clap, and one listed after a quarter turn. Android's decoder is handed each with its clap
@@ -103,21 +102,21 @@ class OrientedPictureRasterTest {
     val samples = frame.bitmap.argb()
     for ((name, properties) in CLAPPED) {
       val clapped = OrientedPictures.heifWithProperties(still, properties)
-      val crop = assertNotNull(pictureCropOf(clapped), name)
+      val crop = withClue(name) { pictureCropOf(clapped).shouldNotBeNull() }
       val orientation = pictureOrientationOf(clapped)
-      val handed = assertIs<UnturnedHeif.Dropped>(heifWithoutOrientation(clapped), name).bytes
+      val handed = withClue(name) { heifWithoutOrientation(clapped).shouldBeInstanceOf<UnturnedHeif.Dropped>() }.bytes
       val read = decoded(name, clapped)
 
-      val raster = read.bitmap.rasterFor(null, read.colour, read.orientation, read.crop)
+      val raster = read.bitmap.rasterFor(null, read.color, read.orientation, read.crop)
 
-      val bare = assertNotNull(BitmapFactory.decodeByteArray(handed, 0, handed.size), name)
-      assertEquals(size, bare.size(), "$name dropped bytes decoded cropped")
-      assertEquals(size, read.bitmap.size(), "$name decoded cropped")
-      assertEquals(crop, read.crop, name)
-      assertEquals(orientation.orientedSize(crop.size), raster.bitmap.size(), name)
+      val bare = withClue(name) { BitmapFactory.decodeByteArray(handed, 0, handed.size).shouldNotBeNull() }
+      withClue("$name dropped bytes decoded cropped") { bare.size() shouldBe size }
+      withClue("$name decoded cropped") { read.bitmap.size() shouldBe size }
+      withClue(name) { read.crop shouldBe crop }
+      withClue(name) { raster.bitmap.size() shouldBe orientation.orientedSize(crop.size) }
       val shown = orientedSamples(orientation, croppedSamples(crop, samples, size), crop.size)
-      val expected = pictureSrgbCodes(read.colour, shown)
-      assertContentEquals(expected, raster.bitmap.argb(), name)
+      val expected = pictureSrgbCodes(read.color, shown)
+      withClue(name) { raster.bitmap.argb() shouldBe expected }
     }
   }
 
@@ -136,7 +135,10 @@ class OrientedPictureRasterTest {
   private fun decoded(
     name: String,
     picture: ByteArray,
-  ): DecodedPicture = assertNotNull(ImageSource.Bytes(picture).decode(context = null), "$name did not decode")
+  ): DecodedPicture =
+    withClue("$name did not decode") {
+      ImageSource.Bytes(picture).decode(context = null).shouldNotBeNull()
+    }
 
   private fun Bitmap.argb(): IntArray = IntArray(width * height).also { getPixels(it, 0, width, 0, 0, width, height) }
 

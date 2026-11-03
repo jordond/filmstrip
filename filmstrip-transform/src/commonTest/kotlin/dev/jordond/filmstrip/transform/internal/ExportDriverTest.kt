@@ -1,0 +1,259 @@
+package dev.jordond.filmstrip.transform.internal
+
+import dev.jordond.filmstrip.capability.DeviceCapabilities
+import dev.jordond.filmstrip.capability.EffectParity
+import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.EffectResolution
+import dev.jordond.filmstrip.effect.EffectResolver
+import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effect.RenderApi
+import dev.jordond.filmstrip.effect.RenderCapabilities
+import dev.jordond.filmstrip.export.CopyBlocker
+import dev.jordond.filmstrip.export.ExportPath
+import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.ExportStatus
+import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.MediaInfo
+import dev.jordond.filmstrip.media.MediaProber
+import dev.jordond.filmstrip.media.MediaSink
+import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+
+// What a driver answers is all PlannedExportEngine knows about the platform, so these pin how each
+// answer reaches the plan and how often the engine has to ask.
+class ExportDriverTest {
+  private val fixture = PlannerFixture()
+
+  @Test
+  fun `a driver that keeps the default names no sync sample and the trim costs the copy`() =
+    runTest {
+      val trimmed = composition(fixture.clip(trim = TimeRange.of(1_000.milliseconds, 3_000.milliseconds)))
+      val driver = DefaultSyncDriver(fixture.device())
+
+      driver.syncSampleAtOrBefore(
+        trimmed.tracks
+          .single()
+          .clips
+          .single()
+          .source,
+        1.seconds,
+      ) shouldBe null
+
+      val plan = engine(driver, trimmed).plan(trimmed, SPEC).shouldBeInstanceOf<Verdict.Capable>()
+      plan.plan.path shouldBe ExportPath.Transcode
+      plan.plan.copyBlockedBy shouldBe listOf(CopyBlocker.TrimNotOnSyncSample)
+    }
+
+  @Test
+  fun `a sync sample the driver names lets a trimmed clip copy from there`() =
+    runTest {
+      val clip =
+        fixture.clip(trim = TimeRange.of(1_000.milliseconds, 3_000.milliseconds), snapWithin = 500.milliseconds)
+      val trimmed = composition(clip)
+      val driver = RecordingDriver(fixture.device(), opening = 750.milliseconds)
+      val engine = engine(driver, trimmed)
+
+      val plan = engine.plan(trimmed, SPEC).shouldBeInstanceOf<Verdict.Capable>()
+      val resolved = engine.resolve(trimmed, SPEC).shouldBeInstanceOf<ResolveResult.Resolved>()
+
+      plan.plan.path shouldBe ExportPath.Copy
+      plan.plan.copyBlockedBy.shouldBeEmpty()
+      firstResolvedClip(resolved.composition).start shouldBe 750.milliseconds
+      driver.asked shouldBe listOf(clip.source to 1_000.milliseconds)
+    }
+
+  @Test
+  fun `the engine reads the device once however often it negotiates`() =
+    runTest {
+      val edit = composition(fixture.clip())
+      val driver = RecordingDriver(fixture.device(), opening = null)
+      val engine = engine(driver, edit)
+
+      engine.capabilities()
+      val plan = engine.plan(edit, SPEC).shouldBeInstanceOf<Verdict.Capable>()
+      engine.export(plan.plan, SINK).toList()
+
+      driver.capabilityReads shouldBe 1
+    }
+
+  // An untrimmed clip opens at zero, so asking the driver would cost a probe for an answer the
+  // planner already has.
+  @Test
+  fun `an untrimmed clip never asks the driver for a sync sample`() =
+    runTest {
+      val edit = composition(fixture.clip())
+      val driver = RecordingDriver(fixture.device(), opening = Duration.ZERO)
+
+      engine(driver, edit).plan(edit, SPEC)
+
+      driver.asked.shouldBeEmpty()
+    }
+
+  @Test
+  fun `an export hands the driver the lowered edit and passes its statuses through`() =
+    runTest {
+      val edit = composition(fixture.clip())
+      val driver = RecordingDriver(fixture.device(), opening = null)
+      val engine = engine(driver, edit)
+      val plan = engine.plan(edit, SPEC).shouldBeInstanceOf<Verdict.Capable>()
+
+      val statuses = engine.export(plan.plan, SINK).toList()
+
+      statuses shouldBe listOf(ExportStatus.Started)
+      driver.exported.single().second shouldBe SINK
+      driver.exported
+        .single()
+        .first.path shouldBe ExportPath.Copy
+      driver.exported
+        .single()
+        .first.duration shouldBe plan.plan.duration
+    }
+
+  @Test
+  fun `every resolver prepares for the edit before each negotiation of it`() =
+    runTest {
+      val edit = composition(fixture.clip())
+      val preparing = PreparingResolver()
+      val engine = engine(RecordingDriver(fixture.device(), opening = null), edit, preparing)
+
+      val plan = engine.plan(edit, SPEC).shouldBeInstanceOf<Verdict.Capable>()
+      engine.resolve(edit, SPEC)
+      engine.export(plan.plan, SINK).toList()
+
+      preparing.prepared shouldBe listOf(edit, edit, edit)
+    }
+
+  @Test
+  fun `the engine reports the parity it was built with and nothing for an unknown id`() {
+    val driver = RecordingDriver(fixture.device(), opening = null)
+    val engine = engine(driver, composition(fixture.clip()))
+
+    engine.parityOf(KNOWN_ID) shouldBe EffectParity.Exact
+    engine.parityOf("dev.jordond.filmstrip.unknown") shouldBe null
+  }
+
+  private fun engine(
+    driver: ExportDriver,
+    composition: EditComposition,
+    vararg extra: EffectResolver,
+  ) = PlannedExportEngine(
+    backend = driver,
+    prober = MapProber(fixture.infos(composition)),
+    resolvers = listOf(FakeResolver()) + extra,
+    parity = mapOf(KNOWN_ID to EffectParity.Exact),
+    ladder = listOf(VideoCodec.H264, VideoCodec.Hevc),
+    supportsCopy = true,
+    muxerAccepts = { true },
+  )
+}
+
+/**
+ * A resolver that claims nothing and records every composition it was asked to prepare for.
+ */
+private class PreparingResolver : EffectResolver {
+  val prepared = mutableListOf<EditComposition>()
+
+  override fun resolve(
+    spec: EffectSpec,
+    capabilities: RenderCapabilities,
+    attributes: Attributes,
+  ): EffectResolution? = null
+
+  override suspend fun prepare(composition: EditComposition) {
+    prepared += composition
+  }
+}
+
+/**
+ * A driver that keeps every default it is allowed to, so a test can read what the defaults do.
+ */
+private open class DefaultSyncDriver(
+  private val device: DeviceCapabilities,
+) : ExportDriver {
+  var capabilityReads: Int = 0
+    private set
+
+  val exported = mutableListOf<Pair<ResolvedComposition, MediaSink>>()
+
+  override suspend fun capabilities(): DeviceCapabilities {
+    capabilityReads++
+    return device
+  }
+
+  override fun renderCapabilities(
+    outputSize: Size,
+    hdr: Boolean,
+  ): RenderCapabilities =
+    RenderCapabilities(
+      api = RenderApi.OpenGlEs,
+      supportsFragmentShader = true,
+      supportsComputeShader = false,
+      supportsHdr = hdr,
+      colorSpaces = setOf(ColorSpace.Bt709),
+      maxTextureSize = maxOf(outputSize.width, outputSize.height),
+      features = emptySet(),
+    )
+
+  override fun unclaimed(specId: String): String = "nothing claimed $specId"
+
+  override fun export(
+    resolved: ResolvedComposition,
+    to: MediaSink,
+  ): Flow<ExportStatus> {
+    exported += resolved to to
+    return flowOf(ExportStatus.Started)
+  }
+}
+
+/**
+ * A driver that names [opening] as the sync sample before every cut and records each cut it was asked about.
+ */
+private class RecordingDriver(
+  device: DeviceCapabilities,
+  private val opening: Duration?,
+) : DefaultSyncDriver(device) {
+  val asked = mutableListOf<Pair<MediaSource, Duration>>()
+
+  override suspend fun syncSampleAtOrBefore(
+    source: MediaSource,
+    cut: Duration,
+  ): Duration? {
+    asked += source to cut
+    return opening
+  }
+}
+
+private class MapProber(
+  private val infos: Map<MediaSource, MediaInfo>,
+) : MediaProber {
+  override suspend fun probe(source: MediaSource): ProbeResult = ProbeResult.Success(infos.getValue(source))
+}
+
+private fun firstResolvedClip(resolved: ResolvedComposition) =
+  resolved.tracks
+    .first()
+    .clips
+    .first()
+
+private val SPEC = ExportSpec()
+
+private val SINK = MediaSink.of("/out/driver.mp4")
+
+private const val KNOWN_ID = "dev.jordond.filmstrip.known"

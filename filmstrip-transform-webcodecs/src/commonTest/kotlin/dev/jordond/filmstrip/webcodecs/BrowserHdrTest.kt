@@ -3,6 +3,12 @@
 package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.color.authoredHdrNits
+import dev.jordond.filmstrip.color.hlgNitsFromSignal
+import dev.jordond.filmstrip.color.linearDimGain
+import dev.jordond.filmstrip.color.signalFromNits
+import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
@@ -13,7 +19,6 @@ import dev.jordond.filmstrip.effects.color.Saturation
 import dev.jordond.filmstrip.effects.color.colorMatrixOf
 import dev.jordond.filmstrip.effects.color.transformNits
 import dev.jordond.filmstrip.effects.geometry.CropRect
-import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
@@ -26,23 +31,18 @@ import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.authoredHdrNits
-import dev.jordond.filmstrip.media.hlgNitsFromSignal
-import dev.jordond.filmstrip.media.linearDimGain
-import dev.jordond.filmstrip.media.signalFromNits
-import dev.jordond.filmstrip.media.tenBitCodesFromSignal
 import dev.jordond.filmstrip.test.encodesHdr
 import dev.jordond.filmstrip.webcodecs.internal.SourceReader
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.await
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.DurationUnit
 
@@ -52,7 +52,7 @@ import kotlin.time.DurationUnit
  * that never saw the encoder and read as code values.
  *
  * Every expected figure comes off the shared functions rather than off a number written here, so a
- * change to what a transfer or a colour matrix means moves the assertion with it. The fixtures sit
+ * change to what a transfer or a color matrix means moves the assertion with it. The fixtures sit
  * in the middle of the range rather than at black and peak, because the ends agree under readings
  * that part company everywhere else.
  */
@@ -65,15 +65,15 @@ class BrowserHdrTest {
       val bytes = makeHdrClip(HdrTransfer.Pq) { y -> if (y < HALF) DIM else BRIGHT }
       val success = exportOf(cropped(bytes), HdrTransfer.Pq)
 
-      val video = assertNotNull(success.info.video)
-      assertEquals(HdrTransfer.Pq, video.hdrTransfer)
-      assertEquals(ColorSpace.Bt2020, video.colorSpace)
-      assertEquals(CodecKind.Vp9, video.codec.kind, "the HDR ladder pins the encode to VP9")
+      val video = success.info.video.shouldNotBeNull()
+      video.hdrTransfer shouldBe HdrTransfer.Pq
+      video.colorSpace shouldBe ColorSpace.Bt2020
+      withClue("the HDR ladder pins the encode to VP9") { video.codec.kind shouldBe CodecKind.Vp9 }
 
       val output = outputOf(success)
       assertTag(output, "pq")
 
-      val frame = assertNotNull(decodeTenBitFrames(output, HdrTransfer.Pq).firstOrNull())
+      val frame = decodeTenBitFrames(output, HdrTransfer.Pq).firstOrNull().shouldNotBeNull()
       val (expectedLuma, expectedCb, expectedCr) = tenBitCodesFromSignal(HdrTransfer.Pq.pictureSignalOf(DIM))
       for (y in listOf(0.2, 0.5, 0.8)) {
         assertNear(expectedLuma, frame.lumaAt(x = 0.5, y = y), LUMA_TOLERANCE, "luma at $y")
@@ -104,7 +104,7 @@ class BrowserHdrTest {
 
   // The fill is authored as sRGB and the bar has to carry the same light every other backend puts
   // there. On HLG the pack pass runs the luminance driven inverse transfer the shared answer runs,
-  // and a purple fill is coloured enough to tell it from a per channel one.
+  // and a purple fill is colored enough to tell it from a per channel one.
   @Test
   fun aLetterboxBarCarriesTheFillsOwnSignalOnBothTransfers() =
     runTest {
@@ -113,10 +113,9 @@ class BrowserHdrTest {
       HdrTransfer.entries.forEach { transfer ->
         val success = exportOf(letterboxed(transfer, Fill.Solid(PURPLE_ARGB)), transfer)
         val frame =
-          assertNotNull(
-            decodeTenBitFrames(outputOf(success), transfer).lastOrNull(),
-            "the letterboxed export decoded no frames on $transfer",
-          )
+          withClue("the letterboxed export decoded no frames on $transfer") {
+            decodeTenBitFrames(outputOf(success), transfer).lastOrNull().shouldNotBeNull()
+          }
 
         val expected = transfer.signalFromNits(authoredHdrNits(PURPLE_ARGB))
         val (expectedLuma, expectedCb, expectedCr) = tenBitCodesFromSignal(expected)
@@ -147,7 +146,9 @@ class BrowserHdrTest {
         val startUs = LATE_START.toDouble(DurationUnit.MICROSECONDS)
 
         val gap = frames.minBy { abs(it.timestampUs - startUs / 2) }
-        assertTrue(gap.timestampUs < startUs, "the $transfer file has no frame in front of ${startUs}us")
+        withClue("the $transfer file has no frame in front of ${startUs}us") {
+          (gap.timestampUs < startUs) shouldBe true
+        }
         val (fillLuma, fillCb, fillCr) = tenBitCodesFromSignal(transfer.signalFromNits(authoredHdrNits(PURPLE_ARGB)))
         val (gapCb, gapCr) = gap.chromaAt(x = 0.5, y = 0.5)
         assertNear(fillLuma, gap.lumaAt(x = 0.5, y = 0.5), LUMA_TOLERANCE, "$transfer gap luma")
@@ -172,21 +173,20 @@ class BrowserHdrTest {
       val bright = barLightOf(Fill.Blurred(dim = 0f))
       val dimmed = barLightOf(Fill.Blurred(dim = HALF_DIM))
 
-      assertTrue(dimmed < bright, "the dimmed bar carried $dimmed nits and the undimmed one $bright")
+      withClue("the dimmed bar carried $dimmed nits and the undimmed one $bright") { (dimmed < bright) shouldBe true }
       // The gain lands on light, so a half dim takes far more than half of it away. A gain read
       // straight off the dim would leave the bar above this.
-      assertTrue(
-        dimmed < bright * linearDimGain(HALF_DIM) * DIM_HEADROOM,
-        "the bar dimmed to $dimmed nits from $bright, which is short of the ${linearDimGain(HALF_DIM)} gain",
-      )
+      withClue("the bar dimmed to $dimmed nits from $bright, which is short of the ${linearDimGain(HALF_DIM)} gain") {
+        (dimmed < bright * linearDimGain(HALF_DIM) * DIM_HEADROOM) shouldBe true
+      }
     }
 
   // A blur averages the buffer's light, which on HLG is the luminance driven display light unpack
-  // decodes to. A flat colour blurs to itself, and two row stripes of magenta and green blurred far
+  // decodes to. A flat color blurs to itself, and two row stripes of magenta and green blurred far
   // past their period land on the mean of their two lights. The per channel transfer puts that mean
   // somewhere else, which is checked to sit more than twice the tolerance away before the read is held to it.
   @Test
-  fun aBlurredFillOnHlgMixesItsColoursInDisplayLight() =
+  fun aBlurredFillOnHlgMixesItsColorsInDisplayLight() =
     runTest {
       if (!filmstrip().encodesHdr()) return@runTest
 
@@ -196,11 +196,12 @@ class BrowserHdrTest {
       val striped = pillarBarCodesOf { y -> if ((y / 2) % 2 == 0) MAGENTA else GREEN }
       val mixed = hlgBlurCodesOf(MAGENTA, GREEN)
       val perChannel = perChannelBlurCodesOf(MAGENTA, GREEN)
-      assertTrue(
-        abs(mixed[0] - perChannel[0]) > 2 * LUMA_TOLERANCE ||
-          (1..2).any { abs(mixed[it] - perChannel[it]) > 2 * CHROMA_TOLERANCE },
-        "the stripes mix to ${mixed.toList()} either way, so they pin nothing",
-      )
+      withClue("the stripes mix to ${mixed.toList()} either way, so they pin nothing") {
+        (
+          abs(mixed[0] - perChannel[0]) > 2 * LUMA_TOLERANCE ||
+            (1..2).any { abs(mixed[it] - perChannel[it]) > 2 * CHROMA_TOLERANCE }
+        ) shouldBe true
+      }
       assertCodes(mixed, striped, "the striped bar, which a per channel mix puts at ${perChannel.toList()},")
     }
 
@@ -212,8 +213,8 @@ class BrowserHdrTest {
       val graded = MediaSource.Bytes(makeHdrClip(HdrTransfer.Pq) { BRIGHT })
       val plain = MediaSource.Bytes(makeClip())
 
-      assertTrue(readsTenBit(graded), "a VP9 Profile 2 fixture decoded to something other than $TEN_BIT")
-      assertTrue(!readsTenBit(plain), "an eight-bit H.264 fixture claimed to hand out ten-bit planes")
+      withClue("a VP9 Profile 2 fixture decoded to something other than $TEN_BIT") { readsTenBit(graded) shouldBe true }
+      withClue("an eight-bit H.264 fixture claimed to hand out ten-bit planes") { !readsTenBit(plain) shouldBe true }
     }
 
   /**
@@ -227,7 +228,7 @@ class BrowserHdrTest {
   ) {
     if (!filmstrip().encodesHdr()) return
 
-    val bytes = makeHdrClip(transfer) { COLOURED }
+    val bytes = makeHdrClip(transfer) { COLORED }
     val composition =
       EditComposition(
         tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), effects = listOf(spec))))),
@@ -235,9 +236,9 @@ class BrowserHdrTest {
       )
     val success = exportOf(composition, transfer)
 
-    val frame = assertNotNull(decodeTenBitFrames(outputOf(success), transfer).firstOrNull())
+    val frame = decodeTenBitFrames(outputOf(success), transfer).firstOrNull().shouldNotBeNull()
     val matrix = checkNotNull(colorMatrixOf(spec))
-    val expected = matrix.transformNits(COLOURED[0], COLOURED[1], COLOURED[2], transfer)
+    val expected = matrix.transformNits(COLORED[0], COLORED[1], COLORED[2], transfer)
     val measured = frame.nitsAt(x = 0.5, y = 0.5)
 
     repeat(3) { channel ->
@@ -256,10 +257,9 @@ class BrowserHdrTest {
   private suspend fun barLightOf(fill: Fill): Float {
     val success = exportOf(letterboxed(HdrTransfer.Pq, fill), HdrTransfer.Pq)
     val frame =
-      assertNotNull(
-        decodeTenBitFrames(outputOf(success), HdrTransfer.Pq).lastOrNull(),
-        "the blurred export decoded no frames",
-      )
+      withClue("the blurred export decoded no frames") {
+        decodeTenBitFrames(outputOf(success), HdrTransfer.Pq).lastOrNull().shouldNotBeNull()
+      }
     return frame.nitsAt(x = 0.5, y = BAR)[1]
   }
 
@@ -277,10 +277,12 @@ class BrowserHdrTest {
         fill = Fill.Blurred(radius = WIDE_BLUR),
       )
     val frame =
-      assertNotNull(
-        decodeTenBitFrames(outputOf(exportOf(composition, HdrTransfer.Hlg)), HdrTransfer.Hlg).lastOrNull(),
-        "the pillarboxed export decoded no frames",
-      )
+      withClue("the pillarboxed export decoded no frames") {
+        decodeTenBitFrames(
+          outputOf(exportOf(composition, HdrTransfer.Hlg)),
+          HdrTransfer.Hlg,
+        ).lastOrNull().shouldNotBeNull()
+      }
     val (cb, cr) = frame.chromaAt(x = PILLAR, y = 0.5)
     return intArrayOf(frame.lumaAt(x = PILLAR, y = 0.5), cb, cr)
   }
@@ -352,7 +354,7 @@ class BrowserHdrTest {
     fill: Fill,
   ): EditComposition {
     val filler = makeHdrClip(transfer) { BRIGHT }
-    val wide = makeHdrClip(transfer, height = HALF, frames = SHORT) { COLOURED }
+    val wide = makeHdrClip(transfer, height = HALF, frames = SHORT) { COLORED }
     return EditComposition(
       tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(filler)), Clip(MediaSource.Bytes(wide))))),
       audio = AudioSpec.Remove,
@@ -367,9 +369,9 @@ class BrowserHdrTest {
     val reader = checkNotNull(SourceReader.of(source))
     try {
       val colorSpace = checkNotNull(reader.videoTrack()).getColorSpace().await()
-      assertEquals("bt2020", colorSpace.primaries?.toString())
-      assertEquals(transfer, colorSpace.transfer?.toString())
-      assertEquals("bt2020-ncl", colorSpace.matrix?.toString())
+      colorSpace.primaries?.toString() shouldBe "bt2020"
+      colorSpace.transfer?.toString() shouldBe transfer
+      colorSpace.matrix?.toString() shouldBe "bt2020-ncl"
     } finally {
       reader.close()
     }
@@ -395,10 +397,9 @@ class BrowserHdrTest {
     val statuses = filmstrip.export(planOf(filmstrip, composition, spec), MediaSink.Uri("")).toList()
     val failure = statuses.filterIsInstance<ExportStatus.Failure>().firstOrNull()
     if (failure != null) throw AssertionError("the $transfer export failed: ${failure.error.message}")
-    return assertNotNull(
-      statuses.filterIsInstance<ExportStatus.Success>().singleOrNull(),
-      "statuses were ${statuses.map { it::class.simpleName }}",
-    )
+    return withClue("statuses were ${statuses.map { it::class.simpleName }}") {
+      (statuses.filterIsInstance<ExportStatus.Success>().singleOrNull()).shouldNotBeNull()
+    }
   }
 
   private suspend fun planOf(
@@ -413,7 +414,7 @@ class BrowserHdrTest {
     }
 
   private fun outputOf(success: ExportStatus.Success): MediaSource =
-    MediaSource.Uri(assertIs<MediaSink.Uri>(success.output).uri)
+    MediaSource.Uri(success.output.shouldBeInstanceOf<MediaSink.Uri>().uri)
 
   private fun assertNear(
     expected: Int,
@@ -421,10 +422,9 @@ class BrowserHdrTest {
     tolerance: Int,
     what: String,
   ) {
-    assertTrue(
-      abs(expected - actual) <= tolerance,
-      "$what was $actual, and the shared functions say $expected",
-    )
+    withClue("$what was $actual, and the shared functions say $expected") {
+      (abs(expected - actual) <= tolerance) shouldBe true
+    }
   }
 
   private fun assertRelative(
@@ -434,7 +434,7 @@ class BrowserHdrTest {
     what: String,
   ) {
     val allowed = maxOf(abs(expected) * tolerance, NITS_FLOOR)
-    assertTrue(abs(expected - actual) <= allowed, "$what: expected $expected but was $actual")
+    withClue("$what: expected $expected but was $actual") { (abs(expected - actual) <= allowed) shouldBe true }
   }
 
   internal companion object {
@@ -453,7 +453,7 @@ class BrowserHdrTest {
     // channels has something to mix and a gain above one has headroom to move into.
     val DIM = floatArrayOf(28f, 34f, 22f)
     val BRIGHT = floatArrayOf(240f, 205f, 275f)
-    val COLOURED = floatArrayOf(120f, 180f, 75f)
+    val COLORED = floatArrayOf(120f, 180f, 75f)
 
     // Saturated and far apart in hue, so a mix of the two in display light and one per channel
     // land several codes apart.

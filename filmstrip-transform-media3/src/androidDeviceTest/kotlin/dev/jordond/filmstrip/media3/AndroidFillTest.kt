@@ -19,10 +19,11 @@ import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.test.assumeDecodesTenBitHevc
 import dev.jordond.filmstrip.test.assumeEncodesHdr
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.test.Test
-import kotlin.test.assertTrue
 
 /**
  * The letterbox fill, checked against the pixels a real export writes.
@@ -35,17 +36,17 @@ class AndroidFillTest {
   private val probe = Media3ExportProbe()
 
   @Test
-  fun aSolidFillWritesBarsOfItsOwnColour() =
+  fun aSolidFillWritesBarsOfItsOwnColor() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture()
       val written = magentaExport(source, listOf(squareCrop()))
 
       val bar = written.averageAt(CENTRE_X, BAR_Y)
-      assertTrue(colourDistance(bar, MAGENTA) < COLOUR_TOLERANCE, "bar $bar is not magenta")
+      withClue("bar $bar is not magenta") { (colorDistance(bar, MAGENTA) < COLOR_TOLERANCE) shouldBe true }
     }
 
   // The fill-paint-order regression: a composition-scope grade must not reach a bar it was not
-  // given a colour for, whatever it does to the frame it sits around.
+  // given a color for, whatever it does to the frame it sits around.
   @Test
   fun aCompositionBrightnessLeavesASolidFillsBarsUntouched() =
     runTest(timeout = TIMEOUT) {
@@ -54,16 +55,18 @@ class AndroidFillTest {
       val dimmed = magentaExport(source, listOf(squareCrop(), Brightness(0.5f)))
 
       val bar = dimmed.averageAt(CENTRE_X, BAR_Y)
-      assertTrue(colourDistance(bar, MAGENTA) < COLOUR_TOLERANCE, "bar $bar is not magenta")
+      withClue("bar $bar is not magenta") { (colorDistance(bar, MAGENTA) < COLOR_TOLERANCE) shouldBe true }
 
       val brightCentre = plain.averageAt(CENTRE_X, CENTRE_Y).luminance()
       val dimCentre = dimmed.averageAt(CENTRE_X, CENTRE_Y).luminance()
-      assertTrue(dimCentre < brightCentre, "the centre did not darken: $dimCentre against $brightCentre")
+      withClue("the centre did not darken: $dimCentre against $brightCentre") {
+        (dimCentre < brightCentre) shouldBe true
+      }
     }
 
   // The same regression with a bias in the matrix, which is the half a brightness cannot cover. The
   // flatten mixes the fill under a pixel by that pixel's alpha, so a bar comes out the fill's own
-  // colour and never picks up the offset the contrast adds to the frame around it.
+  // color and never picks up the offset the contrast adds to the frame around it.
   @Test
   fun aCompositionContrastLeavesASolidFillsBarsUntouched() =
     runTest(timeout = TIMEOUT) {
@@ -72,19 +75,18 @@ class AndroidFillTest {
       val graded = magentaExport(source, listOf(squareCrop(), Contrast(0.5f)))
 
       val bar = graded.averageAt(CENTRE_X, BAR_Y)
-      assertTrue(colourDistance(bar, MAGENTA) < COLOUR_TOLERANCE, "bar $bar is not magenta")
+      withClue("bar $bar is not magenta") { (colorDistance(bar, MAGENTA) < COLOR_TOLERANCE) shouldBe true }
 
-      val before = plain.averageAt(COLOUR_BAR_X, CENTRE_Y)
-      val after = graded.averageAt(COLOUR_BAR_X, CENTRE_Y)
-      assertTrue(
-        colourDistance(before, after) > GRADE_SHIFT,
-        "the frame inside the bars did not change: $after against $before",
-      )
+      val before = plain.averageAt(COLOR_BAR_X, CENTRE_Y)
+      val after = graded.averageAt(COLOR_BAR_X, CENTRE_Y)
+      withClue("the frame inside the bars did not change: $after against $before") {
+        (colorDistance(before, after) > GRADE_SHIFT) shouldBe true
+      }
     }
 
-  // The §5.1 regression: a colour operation changes a pixel's RGB without touching its alpha, so a
+  // The §5.1 regression: a color operation changes a pixel's RGB without touching its alpha, so a
   // letterbox bar cleared to black with zero alpha reads back grey once something downstream of
-  // Presentation touches colour. Tone-mapping an HDR source to SDR is exactly such an operation, and
+  // Presentation touches color. Tone-mapping an HDR source to SDR is exactly such an operation, and
   // it is the one every export with an HDR source and Fill.Black is required to run.
   @Test
   fun aBlackFillStaysBlackThroughToneMapping() =
@@ -98,10 +100,9 @@ class AndroidFillTest {
         )
 
       val bar = bitmap.averageAt(CENTRE_X, BAR_Y)
-      assertTrue(
-        bar.red < BLACK_CEILING && bar.green < BLACK_CEILING && bar.blue < BLACK_CEILING,
-        "bar $bar is not black",
-      )
+      withClue("bar $bar is not black") {
+        (bar.red < BLACK_CEILING && bar.green < BLACK_CEILING && bar.blue < BLACK_CEILING) shouldBe true
+      }
     }
 
   @Test
@@ -113,17 +114,15 @@ class AndroidFillTest {
       val left = bitmap.averageAt(LEFT_X, BAR_Y)
       val right = bitmap.averageAt(RIGHT_X, BAR_Y)
 
-      assertTrue(
-        left.red > BLACK_CEILING || left.green > BLACK_CEILING || left.blue > BLACK_CEILING,
-        "blurred bar $left reads as black",
-      )
-      assertTrue(
-        colourDistance(left, right) > FLAT_TOLERANCE,
-        "two points in the blurred bar read the same: $left, $right",
-      )
+      withClue("blurred bar $left reads as black") {
+        (left.red > BLACK_CEILING || left.green > BLACK_CEILING || left.blue > BLACK_CEILING) shouldBe true
+      }
+      withClue("two points in the blurred bar read the same: $left, $right") {
+        (colorDistance(left, right) > FLAT_TOLERANCE) shouldBe true
+      }
     }
 
-  // dim is a multiply of the background's colour channels, never an offset, so half dim has to land
+  // dim is a multiply of the background's color channels, never an offset, so half dim has to land
   // the background halfway to black rather than at some other fraction. An endpoint check would not
   // catch a backend applying dim as an offset, since dim = 1f is black either way.
   @Test
@@ -135,10 +134,10 @@ class AndroidFillTest {
 
       val bright = undimmed.averageAt(CENTRE_X, BAR_Y).luminance()
       val half = halfDimmed.averageAt(CENTRE_X, BAR_Y).luminance()
-      assertTrue(bright > BLACK_CEILING, "the undimmed bar reads as black, nothing to compare against")
+      withClue("the undimmed bar reads as black, nothing to compare against") { (bright > BLACK_CEILING) shouldBe true }
 
       val ratio = half.toFloat() / bright
-      assertTrue(ratio in DIM_RATIO_RANGE, "half dim landed at $ratio of undimmed, not mid-range")
+      withClue("half dim landed at $ratio of undimmed, not mid-range") { (ratio in DIM_RATIO_RANGE) shouldBe true }
     }
 
   @Test
@@ -148,8 +147,8 @@ class AndroidFillTest {
       val plain = probe.frame(export(source, effects = emptyList(), fill = Fill.Black))
       val contained = probe.frame(export(source, effects = listOf(squareCrop()), fill = Fill.Blurred()))
 
-      val distance = colourDistance(plain.averageAt(CENTRE_X, CENTRE_Y), contained.averageAt(CENTRE_X, CENTRE_Y))
-      assertTrue(distance < COLOUR_TOLERANCE, "the sharp centre drifted from the source by $distance")
+      val distance = colorDistance(plain.averageAt(CENTRE_X, CENTRE_Y), contained.averageAt(CENTRE_X, CENTRE_Y))
+      withClue("the sharp centre drifted from the source by $distance") { (distance < COLOR_TOLERANCE) shouldBe true }
     }
 
   // An HDR frame reaches an effect as linear light normalised to a thousand nits, where an sRGB
@@ -167,10 +166,12 @@ class AndroidFillTest {
 
       val bright = white.averageAt(CENTRE_X, BAR_Y).luminance()
       val mid = grey.averageAt(CENTRE_X, BAR_Y).luminance()
-      assertTrue(bright > BLACK_CEILING, "the white bar reads as black, nothing to compare against")
+      withClue("the white bar reads as black, nothing to compare against") { (bright > BLACK_CEILING) shouldBe true }
 
       val ratio = mid.toFloat() / bright
-      assertTrue(ratio < HDR_GREY_CEILING, "a mid grey landed at $ratio of white, so the fill skipped its conversion")
+      withClue("a mid grey landed at $ratio of white, so the fill skipped its conversion") {
+        (ratio < HDR_GREY_CEILING) shouldBe true
+      }
     }
 
   @Test
@@ -181,10 +182,9 @@ class AndroidFillTest {
 
       val kept = probe.frame(export(source, listOf(squareCrop()), Fill.Black, HdrMode.KeepHdr))
       val bar = kept.averageAt(CENTRE_X, BAR_Y)
-      assertTrue(
-        bar.red < BLACK_CEILING && bar.green < BLACK_CEILING && bar.blue < BLACK_CEILING,
-        "bar $bar is not black on an export that kept its HDR grade",
-      )
+      withClue("bar $bar is not black on an export that kept its HDR grade") {
+        (bar.red < BLACK_CEILING && bar.green < BLACK_CEILING && bar.blue < BLACK_CEILING) shouldBe true
+      }
     }
 
   private fun squareCrop(): EffectSpec = Crop(AspectRatio.Square, fit = Fit.Contain)
@@ -199,7 +199,7 @@ class AndroidFillTest {
     return probe.export(composition, ExportSpec(hdr = hdr))
   }
 
-  // A magenta fill export, read back as the codes its encoder wrote so the bar's colour is exact.
+  // A magenta fill export, read back as the codes its encoder wrote so the bar's color is exact.
   private suspend fun magentaExport(
     source: MediaSource,
     effects: List<EffectSpec>,
@@ -217,7 +217,7 @@ class AndroidFillTest {
   }
 
   /**
-   * The average colour of a small patch centred at the fractional coordinate ([fx], [fy]).
+   * The average color of a small patch centred at the fractional coordinate ([fx], [fy]).
    */
   private fun Bitmap.averageAt(
     fx: Float,
@@ -240,7 +240,7 @@ class AndroidFillTest {
     return Rgb(red / pixels, green / pixels, blue / pixels)
   }
 
-  private fun colourDistance(
+  private fun colorDistance(
     a: Rgb,
     b: Rgb,
   ): Int = kotlin.math.abs(a.red - b.red) + kotlin.math.abs(a.green - b.green) + kotlin.math.abs(a.blue - b.blue)
@@ -265,16 +265,16 @@ class AndroidFillTest {
     const val LEFT_X = 0.15f
     const val RIGHT_X = 0.85f
 
-    // The middle of one of the pattern's colour bars, which a contrast has to move. The frame's own
+    // The middle of one of the pattern's color bars, which a contrast has to move. The frame's own
     // centre sits on the seam between two of them and reads as a mid grey the pivot leaves alone.
-    const val COLOUR_BAR_X = 0.19f
+    const val COLOR_BAR_X = 0.19f
 
     const val MAGENTA_ARGB = 0xFFFF00FF.toInt()
     const val GREY_ARGB = 0xFF808080.toInt()
     val MAGENTA = Rgb(255, 0, 255)
 
     const val BLACK_CEILING = 12
-    const val COLOUR_TOLERANCE = 30
+    const val COLOR_TOLERANCE = 30
     const val GRADE_SHIFT = 60
     const val FLAT_TOLERANCE = 20
     val DIM_RATIO_RANGE = 0.35f..0.65f

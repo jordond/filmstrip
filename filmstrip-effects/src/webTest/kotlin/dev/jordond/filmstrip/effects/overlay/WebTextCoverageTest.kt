@@ -1,45 +1,43 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.toByteArray
 import dev.jordond.filmstrip.style.TextStyle
 import dev.jordond.filmstrip.test.sampleOfCode
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertIs
-import kotlin.test.assertNotEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
- * The glyph coverage the browser's text raster is drawn from, in the text's own colour and in tiles.
+ * The glyph coverage the browser's text raster is drawn from, in the text's own color and in tiles.
  *
- * A browser shapes a glyph's coverage by the colour it is filled with, so the coverage is read against the same text
- * drawn on one plain canvas in its colour. Tiles are read against one canvas small enough to hold the whole text.
+ * A browser shapes a glyph's coverage by the color it is filled with, so the coverage is read against the same text
+ * drawn on one plain canvas in its color. Tiles are read against one canvas small enough to hold the whole text.
  */
-@OptIn(InternalFilmstripApi::class, ExperimentalWasmJsInterop::class)
+@OptIn(ExperimentalWasmJsInterop::class)
 class WebTextCoverageTest {
   @Test
-  fun textAtFullAlphaKeepsTheCoverageItsOwnColourDrawsAt() {
+  fun textAtFullAlphaKeepsTheCoverageItsOwnColorDrawsAt() {
     for (ink in INKS) {
       val coverage = drawnCoverage(ink, TEXT_TILE_SIDE)
       val samples = platedSamples(coverage, ink, plate = null)
       val canvas = plainCanvasRead(ink)
 
       val missed = (canvas.indices step CHANNELS).count { sampleAt(samples, it) != alphaOf(canvas, it) }
-      assertEquals(0, missed, "${ink.hex()} text kept a coverage apart from its own colour's at $missed texels")
-      assertTrue(canvas.indices.any { canvas[it] != 0.toByte() }, "${ink.hex()} text drew nothing")
+      withClue("${ink.hex()} text kept a coverage apart from its own color's at $missed texels") { missed shouldBe 0 }
+      withClue("${ink.hex()} text drew nothing") { canvas.indices.any { canvas[it] != 0.toByte() } shouldBe true }
     }
   }
 
   @Test
-  fun everyTileIsFilledInTheTextColourAtFullAlpha() {
+  fun everyTileIsFilledInTheTextColorAtFullAlpha() {
     for (ink in INKS + TRANSLUCENT_INK) {
       val fills = mutableSetOf<String>()
 
@@ -47,17 +45,17 @@ class WebTextCoverageTest {
         fills += context.fillStyle
       }
 
-      assertEquals(setOf(cssHexOf(ink)), fills, "${ink.hex()} text was filled in $fills")
+      withClue("${ink.hex()} text was filled in $fills") { fills shouldBe setOf(cssHexOf(ink)) }
     }
   }
 
-  // The fill rests on this. A browser that covered glyphs alike in every colour fails it rather than skipping it.
+  // The fill rests on this. A browser that covered glyphs alike in every color fails it rather than skipping it.
   @Test
-  fun aBrowserCoversGlyphsByTheColourTheyAreDrawnIn() {
+  fun aBrowserCoversGlyphsByTheColorTheyAreDrawnIn() {
     val white = alphasOf(plainCanvasRead(WHITE))
 
     for (ink in INKS) {
-      assertNotEquals(white, alphasOf(plainCanvasRead(ink)), "${ink.hex()} glyphs cover as white ones do")
+      withClue("${ink.hex()} glyphs cover as white ones do") { alphasOf(plainCanvasRead(ink)) shouldNotBe white }
     }
   }
 
@@ -67,7 +65,7 @@ class WebTextCoverageTest {
       val whole = drawnCoverage(ink, TEXT_TILE_SIDE)
       val tiled = drawnCoverage(ink, TINY_TILE_SIDE)
 
-      assertContentEquals(whole, tiled, "${ink.hex()} text drawn in $TINY_TILE_SIDE pixel tiles")
+      withClue("${ink.hex()} text drawn in $TINY_TILE_SIDE pixel tiles") { tiled shouldBe whole }
     }
   }
 
@@ -78,11 +76,11 @@ class WebTextCoverageTest {
         context.fillRect(0.0, 0.0, 1.0, TALL_COLUMN.toDouble())
       }
 
-    val coverage = assertIs<TextRaster.Drawn<ByteArray>>(drawn).pixels
-    assertTrue(TALL_COLUMN > 2 * TEXT_TILE_SIDE)
-    assertEquals(TALL_COLUMN * CHANNELS, coverage.size)
+    val coverage = drawn.shouldBeInstanceOf<TextRaster.Drawn<ByteArray>>().pixels
+    (TALL_COLUMN > 2 * TEXT_TILE_SIDE) shouldBe true
+    coverage.size shouldBe TALL_COLUMN * CHANNELS
     val bare = (0 until TALL_COLUMN).filter { (coverage[it * CHANNELS + ALPHA].toInt() and BYTE) != BYTE }
-    assertTrue(bare.isEmpty(), "rows ${bare.take(SHOWN)} of $TALL_COLUMN are not covered")
+    withClue("rows ${bare.take(SHOWN)} of $TALL_COLUMN are not covered") { bare.isEmpty() shouldBe true }
   }
 
   @Test
@@ -90,11 +88,11 @@ class WebTextCoverageTest {
     val raster = drawnText(LONG_TEXT, LONG_STYLE, FRAME, NO_SIDE_LIMIT)
     val (width, height) = raster.size.width to raster.size.height
 
-    assertTrue(height > 2 * TEXT_TILE_SIDE, "the long text stands $height tall")
+    withClue("the long text stands $height tall") { (height > 2 * TEXT_TILE_SIDE) shouldBe true }
     for (top in 0 until height step TEXT_TILE_SIDE) {
       val rows = top until minOf(top + TEXT_TILE_SIDE, height)
       val covered = rows.any { y -> (0 until width).any { sampleAt(raster.samples, (y * width + it) * CHANNELS) > 0 } }
-      assertTrue(covered, "the tile from row $top holds no text")
+      withClue("the tile from row $top holds no text") { covered shouldBe true }
     }
   }
 
@@ -105,35 +103,38 @@ class WebTextCoverageTest {
     val line = drawnText("i", LONG_STYLE, FRAME).size.height
     val text = List((TEXT_TILE_SIDE + maxSide) / 2 / line) { "i" }.joinToString("\n")
     val height = drawnText(text, LONG_STYLE, FRAME, maxSide).size.height
-    assertTrue(height in TEXT_TILE_SIDE + 1..maxSide, "the text stands $height tall")
+    withClue("the text stands $height tall") { (height in TEXT_TILE_SIDE + 1..maxSide) shouldBe true }
 
     val resolver = BuiltInEffectResolver()
     val fits = resolver.resolve(TextOverlay(text, LONG_STYLE), capabilities, TEXT_ATTRIBUTES)
-    assertIs<EffectResolution.Resolved>(fits, "the text $height tall resolved as $fits")
+    withClue("the text $height tall resolved as $fits") { fits.shouldBeInstanceOf<EffectResolution.Resolved>() }
 
     val past = resolver.resolve(TextOverlay(LONG_TEXT, LONG_STYLE), capabilities, TEXT_ATTRIBUTES)
-    val refused = assertIs<TextRaster.Refused>(rasterizeText(LONG_TEXT, LONG_STYLE, FRAME, maxSide))
-    val unsupported = assertIs<EffectResolution.Unsupported>(past, "the long text resolved as $past")
-    assertEquals(refused.reason, unsupported.message)
+    val refused = rasterizeText(LONG_TEXT, LONG_STYLE, FRAME, maxSide).shouldBeInstanceOf<TextRaster.Refused>()
+    val unsupported =
+      withClue("the long text resolved as $past") {
+        past.shouldBeInstanceOf<EffectResolution.Unsupported>()
+      }
+    unsupported.message shouldBe refused.reason
   }
 
   @Test
   fun aRasterATileWideDrawsInOneTileAndOneTexelMoreInFour() {
     val side = TEXT_TILE_SIDE
     val one = filledInTiles(side)
-    assertEquals(1, one.tiles, "a $side pixel square drew in ${one.tiles} tiles")
+    withClue("a $side pixel square drew in ${one.tiles} tiles") { one.tiles shouldBe 1 }
     for ((x, y) in listOf(0 to 0, side / 2 to side / 2, side - 1 to side - 1)) {
-      assertEquals(BYTE, alphaAt(one.coverage, side, x, y), "texel $x, $y of the $side pixel square")
+      withClue("texel $x, $y of the $side pixel square") { alphaAt(one.coverage, side, x, y) shouldBe BYTE }
     }
 
     val four = filledInTiles(side + 1)
-    assertEquals(4, four.tiles, "a ${side + 1} pixel square drew in ${four.tiles} tiles")
+    withClue("a ${side + 1} pixel square drew in ${four.tiles} tiles") { four.tiles shouldBe 4 }
     val seams = listOf(0, side - 1, side)
     val bare =
       (0..side)
         .flatMap { along -> seams.flatMap { across -> listOf(along to across, across to along) } }
         .filter { (x, y) -> alphaAt(four.coverage, side + 1, x, y) != BYTE }
-    assertTrue(bare.isEmpty(), "texels ${bare.take(SHOWN)} on the corners and seams are not covered")
+    withClue("texels ${bare.take(SHOWN)} on the corners and seams are not covered") { bare.isEmpty() shouldBe true }
   }
 
   @Test
@@ -144,9 +145,9 @@ class WebTextCoverageTest {
       contexts += context
     }
 
-    assertTrue(contexts.size > 1, "the text drew ${contexts.size} tiles")
+    withClue("the text drew ${contexts.size} tiles") { (contexts.size > 1) shouldBe true }
     val held = contexts.filter { it.canvas.width != 0 || it.canvas.height != 0 }
-    assertTrue(held.isEmpty(), "${held.size} of ${contexts.size} tile canvases still hold pixels")
+    withClue("${held.size} of ${contexts.size} tile canvases still hold pixels") { held.isEmpty() shouldBe true }
   }
 
   @Test
@@ -160,8 +161,8 @@ class WebTextCoverageTest {
       }
     }
 
-    val canvas = assertNotNull(drawnOn, "the draw was never called").canvas
-    assertEquals(0 to 0, canvas.width to canvas.height, "the tile canvas still holds pixels")
+    val canvas = withClue("the draw was never called") { drawnOn.shouldNotBeNull() }.canvas
+    withClue("the tile canvas still holds pixels") { (canvas.width to canvas.height) shouldBe (0 to 0) }
   }
 
   private class Filled(
@@ -176,7 +177,7 @@ class WebTextCoverageTest {
         tiles++
         context.fillRect(0.0, 0.0, side.toDouble(), side.toDouble())
       }
-    return Filled(assertIs<TextRaster.Drawn<ByteArray>>(drawn).pixels, tiles)
+    return Filled(drawn.shouldBeInstanceOf<TextRaster.Drawn<ByteArray>>().pixels, tiles)
   }
 
   private fun alphaAt(
@@ -194,10 +195,10 @@ class WebTextCoverageTest {
       textCoverage(WIDE, TALL, ink, NO_SIDE_LIMIT, tileSide = tileSide) { context, _ ->
         drawLines(context)
       }
-    return assertIs<TextRaster.Drawn<ByteArray>>(drawn).pixels
+    return drawn.shouldBeInstanceOf<TextRaster.Drawn<ByteArray>>().pixels
   }
 
-  // The same lines drawn the way the raster drew them before it kept only their coverage, in the text colour on an
+  // The same lines drawn the way the raster drew them before it kept only their coverage, in the text color on an
   // eight-bit canvas.
   private fun plainCanvasRead(ink: Int): ByteArray {
     val canvas = OffscreenCanvas(SIZE.width, SIZE.height)
@@ -234,11 +235,11 @@ class WebTextCoverageTest {
   private fun alphasOf(codes: ByteArray): List<Byte> = codes.filterIndexed { index, _ -> index % CHANNELS == ALPHA }
 
   private companion object {
-    // Black, which a mask keyed to white covers least, and a mid colour apart in every channel. Both cover apart from
+    // Black, which a mask keyed to white covers least, and a mid color apart in every channel. Both cover apart from
     // white in Chrome.
     val INKS = listOf(0xFF000000.toInt(), 0xFF3060C0.toInt())
 
-    // The mid colour at half alpha, whose alpha the fill leaves out.
+    // The mid color at half alpha, whose alpha the fill leaves out.
     const val TRANSLUCENT_INK = 0x803060C0.toInt()
 
     const val WHITE = 0xFFFFFFFF.toInt()

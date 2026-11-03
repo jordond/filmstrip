@@ -4,17 +4,18 @@ import dev.jordond.filmstrip.effects.overlay.Driven
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayOffset
 import dev.jordond.filmstrip.effects.overlay.commandsFor
-import dev.jordond.filmstrip.effects.overlay.runWithin
+import dev.jordond.filmstrip.effects.overlay.drawnRangeWithin
 import dev.jordond.filmstrip.effects.overlay.slideIn
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.PictureOrientation
+import dev.jordond.filmstrip.picture.PictureOrientation
 import dev.jordond.filmstrip.test.OrientedPictures
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import java.awt.image.BufferedImage
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotEquals
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -34,8 +35,8 @@ class OverlayOrientedCommandsTest {
       val twin = commandsOf(pngOf(BufferedImage(shown.width, shown.height, BufferedImage.TYPE_INT_ARGB)))
       val tagged = commandsOf(OrientedPictures.taggedPng(OrientedPictures.png(), orientation.exif))
 
-      assertEquals(twin.sidecar, tagged.sidecar, "$orientation")
-      if (orientation.swapsAxes) assertNotEquals(stored.sidecar, tagged.sidecar, "$orientation")
+      withClue("$orientation") { tagged.sidecar shouldBe twin.sidecar }
+      if (orientation.swapsAxes) withClue("$orientation") { tagged.sidecar shouldNotBe stored.sidecar }
     }
   }
 
@@ -43,8 +44,8 @@ class OverlayOrientedCommandsTest {
     val spec =
       ImageOverlay(ImageSource.ofBytes(png), Corner.BottomEnd, animation = slideIn(OverlayOffset(0f, SLIDE), 1.seconds))
     val attributes = attributes(null)
-    val driven = spec.commandsFor(attributes, spec.runWithin(attributes.span), false, null, null)
-    return assertIs<Driven.Commands>(driven)
+    val driven = spec.commandsFor(attributes, spec.drawnRangeWithin(attributes.span), false, null, null)
+    return driven.shouldBeInstanceOf<Driven.Commands>()
   }
 
   private companion object {

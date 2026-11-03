@@ -1,13 +1,12 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.signalFromNits
+import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.effects.color.createCodeSpace
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.signalFromNits
-import dev.jordond.filmstrip.media.tenBitCodesFromSignal
-import dev.jordond.filmstrip.test.AuthoredColours
+import dev.jordond.filmstrip.test.AuthoredColors
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.FloatVar
 import kotlinx.cinterop.allocArray
@@ -39,7 +38,7 @@ internal fun sdrMiss(
   sdrMiss(
     name,
     png,
-    AuthoredColours.channelsOf(expected).map { it.toFloat() },
+    AuthoredColors.channelsOf(expected).map { it.toFloat() },
     (expected ushr ALPHA_SHIFT) / MAX_CODE,
     context,
     tolerance,
@@ -47,12 +46,12 @@ internal fun sdrMiss(
 
 /**
  * Decodes [png], draws it onto an SDR BT.709 frame and returns why its centre misses the unrounded red, green and blue
- * codes [colour] at [alpha], or null when it lands there.
+ * codes [color] at [alpha], or null when it lands there.
  */
 internal fun sdrMiss(
   name: String,
   png: ByteArray,
-  colour: List<Float>,
+  color: List<Float>,
   alpha: Float,
   context: CIContext,
   tolerance: Float = SDR_TOLERANCE,
@@ -60,7 +59,7 @@ internal fun sdrMiss(
   val read = drawnSdr(name, png, context)
   val codes = read.take(ALPHA)
   return when {
-    codes.indices.any { abs(codes[it] - colour[it]) > tolerance } -> "$name drew $codes, where its colour is $colour"
+    codes.indices.any { abs(codes[it] - color[it]) > tolerance } -> "$name drew $codes, where its color is $color"
     abs(read[ALPHA] - alpha) > ALPHA_TOLERANCE -> "$name drew alpha ${read[ALPHA]}, not $alpha"
     else -> null
   }
@@ -118,7 +117,6 @@ internal fun hdrMiss(
 /**
  * One texel of these sixteen-bit samples, red, green, blue and alpha, as the shared functions read them.
  */
-@OptIn(InternalFilmstripApi::class)
 internal fun dev.jordond.filmstrip.test.HdrPngPicture.samples(): ShortArray =
   ShortArray(CHANNELS) { texel[it].toShort() }
 
@@ -134,7 +132,7 @@ internal fun CIImage.centreIn(
 
 /**
  * The premultiplied red, green, blue and alpha at the centre of the image, rendered into [transfer]'s own space so
- * the colour reads as that transfer's signal.
+ * the color reads as that transfer's signal.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun CIImage.centreIn(

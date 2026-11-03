@@ -287,7 +287,7 @@ public fun AnchorGrid(
 }
 
 /**
- * A row of colour swatches, with an optional "none" well for a nullable colour.
+ * A row of color swatches, with an optional "none" well for a nullable color.
  */
 @Composable
 public fun SwatchRow(

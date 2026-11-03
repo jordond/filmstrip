@@ -1,10 +1,16 @@
 package dev.jordond.filmstrip.media3
 
 import androidx.media3.effect.RgbMatrix
+import dev.jordond.filmstrip.color.HDR_REFERENCE_WHITE_NITS
+import dev.jordond.filmstrip.color.HLG_NOMINAL_PEAK_NITS
+import dev.jordond.filmstrip.color.HLG_SYSTEM_GAMMA
+import dev.jordond.filmstrip.color.SDR_DISPLAY_GAMMA
+import dev.jordond.filmstrip.color.sdrSignalCeiling
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effect.Media3Handle
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
@@ -16,22 +22,16 @@ import dev.jordond.filmstrip.effects.color.colorMatrixOf
 import dev.jordond.filmstrip.effects.color.toColumnMajor4x4
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
-import dev.jordond.filmstrip.media.HDR_REFERENCE_WHITE_NITS
-import dev.jordond.filmstrip.media.HLG_NOMINAL_PEAK_NITS
-import dev.jordond.filmstrip.media.HLG_SYSTEM_GAMMA
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.SDR_DISPLAY_GAMMA
-import dev.jordond.filmstrip.media.sdrSignalCeiling
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotEquals
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * What a colour matrix lowers to on each of the two colour spaces media3 works in.
+ * What a color matrix lowers to on each of the two color spaces media3 works in.
  *
  * On SDR media3's own matrix multiplies the encoded signal the matrix is written against. A kept
  * grade reaches the shader as linear light, so the matrix travels in a pass of its own that moves
@@ -42,25 +42,27 @@ class Media3ColorGradeTest {
   private val resolver = BuiltInEffectResolver()
 
   @Test
-  fun `a colour matrix runs through the hdr pass on an export that keeps its grade`() {
+  fun `a color matrix runs through the hdr pass on an export that keeps its grade`() {
     val effect = hdrPassFor(Contrast(FACTOR), HdrTransfer.Pq)
 
-    assertEquals(HdrTransfer.Pq, effect.transfer)
-    assertEquals(colorMatrixOf(Contrast(FACTOR)), effect.matrix)
+    effect.transfer shouldBe HdrTransfer.Pq
+    effect.matrix shouldBe colorMatrixOf(Contrast(FACTOR))
   }
 
   @Test
-  fun `a colour matrix resolves to media3's own matrix on an sdr export`() {
+  fun `a color matrix resolves to media3's own matrix on an sdr export`() {
     val resolution = resolver.resolve(Contrast(FACTOR), capabilities(hdr = false), attributes(null))
 
-    assertIs<RgbMatrix>(assertIs<EffectResolution.Resolved>(resolution).effect.handle)
+    val handle = resolution.shouldBeInstanceOf<EffectResolution.Resolved>().effect.handle
+
+    handle.shouldBeInstanceOf<Media3Handle.Video>().effect.shouldBeInstanceOf<RgbMatrix>()
   }
 
   @Test
   fun `the pass carries the matrix as the columns the shader multiplies by`() {
     val effect = hdrPassFor(Saturation(FACTOR), HdrTransfer.Hlg)
 
-    assertContentEquals(checkNotNull(colorMatrixOf(Saturation(FACTOR))).toColumnMajor4x4(), effect.columns)
+    effect.columns shouldBe checkNotNull(colorMatrixOf(Saturation(FACTOR))).toColumnMajor4x4()
   }
 
   // Every figure the shader reads comes off the shared constants, so a change to what reference
@@ -69,20 +71,20 @@ class Media3ColorGradeTest {
   fun `a pq frame is read as display light against media3's peak`() {
     val uniforms = hdrPassFor(Contrast(FACTOR), HdrTransfer.Pq).uniforms
 
-    assertEquals(HDR_REFERENCE_WHITE_NITS / MEDIA3_HDR_PEAK_NITS, uniforms.white)
-    assertEquals(SDR_DISPLAY_GAMMA.toFloat(), uniforms.displayGamma)
-    assertEquals(1f, uniforms.ootfGamma)
-    assertEquals(HdrTransfer.Pq.sdrSignalCeiling, uniforms.ceiling)
+    uniforms.white shouldBe HDR_REFERENCE_WHITE_NITS / MEDIA3_HDR_PEAK_NITS
+    uniforms.displayGamma shouldBe SDR_DISPLAY_GAMMA.toFloat()
+    uniforms.ootfGamma shouldBe 1f
+    uniforms.ceiling shouldBe HdrTransfer.Pq.sdrSignalCeiling
   }
 
   @Test
   fun `an hlg frame is read as scene light through the system gamma`() {
     val uniforms = hdrPassFor(Contrast(FACTOR), HdrTransfer.Hlg).uniforms
 
-    assertEquals(HDR_REFERENCE_WHITE_NITS / HLG_NOMINAL_PEAK_NITS, uniforms.white)
-    assertEquals(SDR_DISPLAY_GAMMA.toFloat(), uniforms.displayGamma)
-    assertEquals(HLG_SYSTEM_GAMMA.toFloat(), uniforms.ootfGamma)
-    assertEquals(HdrTransfer.Hlg.sdrSignalCeiling, uniforms.ceiling)
+    uniforms.white shouldBe HDR_REFERENCE_WHITE_NITS / HLG_NOMINAL_PEAK_NITS
+    uniforms.displayGamma shouldBe SDR_DISPLAY_GAMMA.toFloat()
+    uniforms.ootfGamma shouldBe HLG_SYSTEM_GAMMA.toFloat()
+    uniforms.ceiling shouldBe HdrTransfer.Hlg.sdrSignalCeiling
   }
 
   @Test
@@ -90,17 +92,17 @@ class Media3ColorGradeTest {
     val pq = hdrPassFor(Contrast(FACTOR), HdrTransfer.Pq).uniforms
     val hlg = hdrPassFor(Contrast(FACTOR), HdrTransfer.Hlg).uniforms
 
-    assertNotEquals(pq.ootfGamma, hlg.ootfGamma)
-    assertNotEquals(pq.ceiling, hlg.ceiling)
+    hlg.ootfGamma shouldNotBe pq.ootfGamma
+    hlg.ceiling shouldNotBe pq.ceiling
   }
 
   @Test
   fun `the pass compares by the matrix and the transfer it carries`() {
     val contrast = hdrPassFor(Contrast(FACTOR), HdrTransfer.Pq)
 
-    assertEquals(hdrPassFor(Contrast(FACTOR), HdrTransfer.Pq), contrast)
-    assertNotEquals(hdrPassFor(Contrast(FACTOR), HdrTransfer.Hlg), contrast)
-    assertNotEquals(hdrPassFor(Saturation(FACTOR), HdrTransfer.Pq), contrast)
+    contrast shouldBe hdrPassFor(Contrast(FACTOR), HdrTransfer.Pq)
+    contrast shouldNotBe hdrPassFor(Contrast(FACTOR), HdrTransfer.Hlg)
+    contrast shouldNotBe hdrPassFor(Saturation(FACTOR), HdrTransfer.Pq)
   }
 
   private fun hdrPassFor(
@@ -109,7 +111,9 @@ class Media3ColorGradeTest {
   ): HdrColorMatrixEffect {
     val resolution = resolver.resolve(spec, capabilities(hdr = true), attributes(transfer))
 
-    return assertIs<HdrColorMatrixEffect>(assertIs<EffectResolution.Resolved>(resolution).effect.handle)
+    val handle = resolution.shouldBeInstanceOf<EffectResolution.Resolved>().effect.handle
+
+    return handle.shouldBeInstanceOf<Media3Handle.Video>().effect.shouldBeInstanceOf<HdrColorMatrixEffect>()
   }
 
   private fun attributes(transfer: HdrTransfer?) =

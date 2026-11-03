@@ -1,14 +1,13 @@
 package dev.jordond.filmstrip.effects.color
 
-import dev.jordond.filmstrip.media.HLG_SYSTEM_GAMMA
+import dev.jordond.filmstrip.color.HLG_SYSTEM_GAMMA
+import dev.jordond.filmstrip.color.SDR_DISPLAY_GAMMA
+import dev.jordond.filmstrip.color.sdrSignalCeiling
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.SDR_DISPLAY_GAMMA
-import dev.jordond.filmstrip.media.sdrSignalCeiling
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNotEquals
-import kotlin.test.assertTrue
 
 /**
  * The figures both backends read a kept grade through, and the body they both compile.
@@ -23,10 +22,10 @@ class HdrColorMatrixShaderTest {
     HdrTransfer.entries.forEach { transfer ->
       val uniforms = transfer.hdrColorMatrixUniforms(white = 1f, holdsSceneLight = false)
 
-      assertEquals(1f, uniforms.white)
-      assertEquals(SDR_DISPLAY_GAMMA.toFloat(), uniforms.displayGamma)
-      assertEquals(1f, uniforms.ootfGamma)
-      assertEquals(transfer.sdrSignalCeiling, uniforms.ceiling)
+      uniforms.white shouldBe 1f
+      uniforms.displayGamma shouldBe SDR_DISPLAY_GAMMA.toFloat()
+      uniforms.ootfGamma shouldBe 1f
+      uniforms.ceiling shouldBe transfer.sdrSignalCeiling
     }
   }
 
@@ -37,24 +36,24 @@ class HdrColorMatrixShaderTest {
     val pq = HdrTransfer.Pq.hdrColorMatrixUniforms(white = 1f, holdsSceneLight = false)
     val hlg = HdrTransfer.Hlg.hdrColorMatrixUniforms(white = 1f, holdsSceneLight = false)
 
-    assertNotEquals(pq.ceiling, hlg.ceiling)
-    assertTrue(pq.ceiling > hlg.ceiling, "PQ carries the higher peak, so it has the higher ceiling")
+    hlg.ceiling shouldNotBe pq.ceiling
+    withClue("PQ carries the higher peak, so it has the higher ceiling") { (pq.ceiling > hlg.ceiling) shouldBe true }
   }
 
   @Test
   fun `a backend holding scene light runs the opto-optical transfer`() {
     val uniforms = HdrTransfer.Hlg.hdrColorMatrixUniforms(white = 0.203f, holdsSceneLight = true)
 
-    assertEquals(0.203f, uniforms.white)
-    assertEquals(HLG_SYSTEM_GAMMA.toFloat(), uniforms.ootfGamma)
+    uniforms.white shouldBe 0.203f
+    uniforms.ootfGamma shouldBe HLG_SYSTEM_GAMMA.toFloat()
   }
 
   // Both callers paste this into a shader of their own, so it has to be a function block and
   // nothing else.
   @Test
   fun `the shared body is one function with no entry point of its own`() {
-    assertTrue(HDR_COLOR_MATRIX_GLSL.contains("vec3 filmstripGradeHdr("))
-    assertFalse(HDR_COLOR_MATRIX_GLSL.contains("void main"))
-    assertFalse(HDR_COLOR_MATRIX_GLSL.contains("uniform"))
+    HDR_COLOR_MATRIX_GLSL.contains("vec3 filmstripGradeHdr(") shouldBe true
+    HDR_COLOR_MATRIX_GLSL.contains("void main") shouldBe false
+    HDR_COLOR_MATRIX_GLSL.contains("uniform") shouldBe false
   }
 }

@@ -1,9 +1,9 @@
 package dev.jordond.filmstrip.effects.overlay
 
+import dev.jordond.filmstrip.color.pictureLight
+import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.pictureLight
-import dev.jordond.filmstrip.media.signalFromNits
 import java.awt.Transparency
 import java.awt.color.ColorSpace
 import java.awt.image.BufferedImage
@@ -17,9 +17,9 @@ import kotlin.math.roundToInt
 /**
  * An overlay picture carried onto an HDR grade's signal, as the bytes of a sixteen-bit RGBA PNG.
  *
- * Each texel's straight colour goes through [pictureLight] and then [HdrTransfer.signalFromNits], so an opaque texel
- * holds the signal the grade writes that colour's light at. Alpha is carried across untouched and the colour stays
- * straight, so the graph can decode the colour to light and read the alpha as the blend's mask. Sixteen bits hold
+ * Each texel's straight color goes through [pictureLight] and then [HdrTransfer.signalFromNits], so an opaque texel
+ * holds the signal the grade writes that color's light at. Alpha is carried across untouched and the color stays
+ * straight, so the graph can decode the color to light and read the alpha as the blend's mask. Sixteen bits hold
  * every ten-bit code the grade is written at.
  *
  * @property png The PNG's bytes.
@@ -34,8 +34,8 @@ internal class HdrOverlayRaster(
  * Maps [picture] onto [transfer]'s signal.
  *
  * The picture comes from [storedPicture], so its texels reach the mapping as the samples it stores, at the depth it
- * stores them, with the colour description that defines them, and [pictureLight] lands them in the grade's display
- * light. Every distinct colour is mapped once, so a flat picture costs a single conversion.
+ * stores them, with the color description that defines them, and [pictureLight] lands them in the grade's display
+ * light. Every distinct color is mapped once, so a flat picture costs a single conversion.
  */
 internal fun hdrOverlayRaster(
   picture: StoredPicture,
@@ -46,9 +46,9 @@ internal fun hdrOverlayRaster(
   val firsts = mutableListOf<Int>()
   val slotOf =
     IntArray(stored.texelCount) { index ->
-      slots.getOrPut(stored.colourKey(index)) { firsts.size.also { firsts += index } }
+      slots.getOrPut(stored.colorKey(index)) { firsts.size.also { firsts += index } }
     }
-  val signals = signalCodes(stored.opaqueAt(firsts.toIntArray()).light(picture.colour), firsts.size, transfer)
+  val signals = signalCodes(stored.opaqueAt(firsts.toIntArray()).light(picture.color), firsts.size, transfer)
 
   val samples = IntArray(slotOf.size * CHANNELS)
   slotOf.forEachIndexed { index, slot ->
@@ -61,7 +61,7 @@ internal fun hdrOverlayRaster(
   return HdrOverlayRaster(wideRgbaPng(samples, size.width, size.height), size)
 }
 
-// The signal each of [count] colours' light is written at, as sixteen-bit codes, three per colour.
+// The signal each of [count] colors' light is written at, as sixteen-bit codes, three per color.
 private fun signalCodes(
   texels: FloatArray,
   count: Int,

@@ -1,5 +1,7 @@
 package dev.jordond.filmstrip.effects.overlay
 
+import dev.jordond.filmstrip.color.authoredHdrNits
+import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.effects.assertRasterReads
 import dev.jordond.filmstrip.effects.color.createCodeSpace
 import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.decodeHex
@@ -8,14 +10,17 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.authoredHdrNits
-import dev.jordond.filmstrip.media.signalFromNits
 import dev.jordond.filmstrip.style.TextStyle
 import dev.jordond.filmstrip.test.greySignal
 import dev.jordond.filmstrip.test.sampleOfCode
 import dev.jordond.filmstrip.test.straightSampleTolerance
 import dev.jordond.filmstrip.test.straightSignalTolerance
+import io.kotest.assertions.withClue
+import io.kotest.matchers.doubles.plusOrMinus
+import io.kotest.matchers.floats.plusOrMinus
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.FloatVar
@@ -38,10 +43,6 @@ import platform.CoreImage.kCIFormatRGBAf
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
  * The CoreText rasteriser, including which way up it draws.
@@ -61,24 +62,23 @@ class OverlayRasterTest {
     val (top, bottom) = raster.codes.inkByHalf(size, context)
     // A full stop sits on the baseline, so its ink belongs in the lower half. A flipped context
     // puts it in the upper one and nothing else about the image changes.
-    assertTrue(bottom > top, "ink was $top above and $bottom below, so the raster is upside down")
+    withClue("ink was $top above and $bottom below, so the raster is upside down") { (bottom > top) shouldBe true }
   }
 
   @Test
-  fun `draws glyphs in the authored colour`() {
+  fun `draws glyphs in the authored color`() {
     val context = renderingContext()
 
-    // Two saturated colours, since one alone lets a run that swaps a channel read as correct.
+    // Two saturated colors, since one alone lets a run that swaps a channel read as correct.
     for (authored in listOf(RED, BLUE)) {
       val raster = drawnText("H", TextStyle(fontSize = 0.5f, color = authored), FRAME)
       val drawn =
         raster.enteringFrame(transfer = null, ColorSpace.Bt709).opaqueInk(raster.size, context, inCodes = true)
 
       for (shift in listOf(RED_SHIFT, GREEN_SHIFT, BLUE_SHIFT)) {
-        assertTrue(
-          abs(((authored shr shift) and BYTE) - ((drawn shr shift) and BYTE)) <= TOLERANCE,
-          "asked for ${authored.hex()} and drew ${drawn.hex()}",
-        )
+        withClue("asked for ${authored.hex()} and drew ${drawn.hex()}") {
+          (abs(((authored shr shift) and BYTE) - ((drawn shr shift) and BYTE)) <= TOLERANCE) shouldBe true
+        }
       }
     }
   }
@@ -98,11 +98,11 @@ class OverlayRasterTest {
       raster.codes.matchedFrom(CGColorSpaceCreateDeviceRGB()).opaqueInk(raster.size, context, inCodes = true)
     val gap = distance(managed, GREY)
 
-    assertTrue(gap > 0, "the managed plate drew ${managed.hex()}, the same as its own codes")
-    assertTrue(distance(entered, GREY) * 2 < gap, "asked for ${GREY.hex()} and drew ${entered.hex()}")
+    withClue("the managed plate drew ${managed.hex()}, the same as its own codes") { (gap > 0) shouldBe true }
+    withClue("asked for ${GREY.hex()} and drew ${entered.hex()}") { (distance(entered, GREY) * 2 < gap) shouldBe true }
   }
 
-  // Read back in the transfer's own space, a plate on an HDR frame carries the signal a fill of its colour does. The
+  // Read back in the transfer's own space, a plate on an HDR frame carries the signal a fill of its color does. The
   // read runs in a float working format, so the bound is the stored sample's alone.
   @Test
   fun `a plate enters an hdr frame at the shared fill signal`() {
@@ -115,19 +115,20 @@ class OverlayRasterTest {
       val read = raster.enteringFrame(transfer, ColorSpace.Bt2020).signalAtCentre(raster.size, context, transfer)
       val bound = straightSignalTolerance(OPAQUE, code, transfer)
 
-      assertTrue(
-        (0 until 3).all { abs(read[it] - expected[it]) <= bound },
+      withClue(
         "the $transfer plate carried ${read.toList()} and the shared fill asks for ${expected.toList()} within $bound",
-      )
-      assertEquals(1f, read[ALPHA], alphaTolerance(), "the $transfer plate lost its alpha")
+      ) {
+        (0 until 3).all { abs(read[it] - expected[it]) <= bound } shouldBe true
+      }
+      withClue("the $transfer plate lost its alpha") { read[ALPHA] shouldBe (1f plusOrMinus alphaTolerance()) }
     }
   }
 
-  // The colour is mapped before the alpha multiplies it, so a translucent texel keeps the straight signal of its
-  // colour and carries its alpha alongside. The read runs in a float working format, so the bound is the stored
+  // The color is mapped before the alpha multiplies it, so a translucent texel keeps the straight signal of its
+  // color and carries its alpha alongside. The read runs in a float working format, so the bound is the stored
   // sample's alone.
   @Test
-  fun `a translucent texel keeps its colour's signal on an hdr frame`() {
+  fun `a translucent texel keeps its color's signal on an hdr frame`() {
     val context = renderingContext(floatFormat = true)
 
     for (plate in TRANSLUCENT_PLATES) {
@@ -142,10 +143,10 @@ class OverlayRasterTest {
         val bound = straightSignalTolerance(authoredAlpha, code, transfer)
         val plateName = "the $transfer ${plate.hex()} plate"
 
-        assertEquals(authoredAlpha / FULL, alpha, alphaTolerance(), "$plateName lost its alpha")
+        withClue("$plateName lost its alpha") { alpha shouldBe (authoredAlpha / FULL plusOrMinus alphaTolerance()) }
         (0 until 3).forEach { channel ->
           val straight = corner[channel] / alpha
-          assertEquals(expected[channel], straight, bound, "$plateName read ${corner.toList()}")
+          withClue("$plateName read ${corner.toList()}") { straight shouldBe (expected[channel] plusOrMinus bound) }
         }
       }
     }
@@ -167,34 +168,35 @@ class OverlayRasterTest {
         val moved = (0 until 3).maxOf { abs(read[it] - authored[it]) }
         val bound = straightSignalTolerance(alpha, code, transfer)
 
-        assertTrue(moved > bound, "the $transfer ${plate.hex()} plate moved $moved stored at eight bits, inside $bound")
+        withClue("the $transfer ${plate.hex()} plate moved $moved stored at eight bits, inside $bound") {
+          (moved > bound) shouldBe true
+        }
       }
     }
   }
 
-  // Premultiplied on the eight-bit grid, colour 0x80 at alpha 0x80 reads back straight 128.5 samples short and colour
+  // Premultiplied on the eight-bit grid, color 0x80 at alpha 0x80 reads back straight 128.5 samples short and color
   // 0xC8 at alpha 0x40 200.8 samples off, both outside what a sixteen-bit store rounds away.
   @Test
-  fun `a translucent texel stores its authored straight colour`() {
+  fun `a translucent texel stores its authored straight color`() {
     assertRasterReads()
 
     for (plate in TRANSLUCENT_PLATES) {
       val raster = drawnText("H", TextStyle(color = GREY, backgroundColor = plate), FRAME)
-      val samples = assertNotNull(raster.stored)
+      val samples = raster.stored.shouldNotBeNull()
       val alpha = plate ushr ALPHA_SHIFT
 
       val corner = (0 until CHANNELS).map { samples[it].toInt() and SAMPLE_MASK }
       val authored =
         listOf(RED_SHIFT, GREEN_SHIFT, BLUE_SHIFT, ALPHA_SHIFT).map { sampleOfCode((plate ushr it) and BYTE) }
-      // The alpha is stored as it is, the way an opaque texel's colour is, so it never divides by itself.
+      // The alpha is stored as it is, the way an opaque texel's color is, so it never divides by itself.
       val tolerances =
         authored.indices.map { channel ->
           straightSampleTolerance(if (channel == ALPHA) OPAQUE else alpha)
         }
-      assertTrue(
-        corner.indices.all { abs(corner[it] - authored[it]) <= tolerances[it] },
-        "the ${plate.hex()} plate's corner stored $corner and was authored as $authored, within $tolerances",
-      )
+      withClue("the ${plate.hex()} plate's corner stored $corner and was authored as $authored, within $tolerances") {
+        corner.indices.all { abs(corner[it] - authored[it]) <= tolerances[it] } shouldBe true
+      }
     }
   }
 
@@ -204,17 +206,17 @@ class OverlayRasterTest {
     val raster = drawnText(".", TextStyle(fontSize = 0.5f), FRAME)
 
     val (top, bottom) = raster.enteringFrame(HdrTransfer.Pq, ColorSpace.Bt2020).inkByHalf(raster.size, context)
-    assertTrue(bottom > top, "ink was $top above and $bottom below, so the HDR raster is upside down")
+    withClue("ink was $top above and $bottom below, so the HDR raster is upside down") { (bottom > top) shouldBe true }
   }
 
   @Test
   fun `draws nothing for an empty string`() {
-    assertEquals(TextRaster.Empty, rasterizeText("", TextStyle(), FRAME))
+    rasterizeText("", TextStyle(), FRAME) shouldBe TextRaster.Empty
   }
 
   @Test
   fun `reads no image from empty bytes`() {
-    assertIs<PictureRead.Unreadable>(ImageSource.ofBytes(ByteArray(0)).read())
+    ImageSource.ofBytes(ByteArray(0)).read().shouldBeInstanceOf<PictureRead.Unreadable>()
   }
 
   // Matched from the sRGB space the PNG names, a mid grey lands off its own codes in a BT.709
@@ -224,7 +226,7 @@ class OverlayRasterTest {
     val context = renderingContext()
     val pixels = GREY_PNG.read().orFail("the PNG")
 
-    assertEquals(PNG_SIZE, pixels.codes.pixelSize(), "the codes image is not the PNG's size")
+    withClue("the codes image is not the PNG's size") { pixels.codes.pixelSize() shouldBe PNG_SIZE }
 
     val managed =
       pixels.codes
@@ -233,8 +235,10 @@ class OverlayRasterTest {
     val entered = pixels.enteringFrame(transfer = null, ColorSpace.Bt709).opaqueInk(PNG_SIZE, context, inCodes = true)
     val gap = distance(managed, GREY)
 
-    assertTrue(gap > 0, "the managed image drew ${managed.hex()}, the same as its own codes")
-    assertTrue(distance(entered, GREY) * 2 < gap, "the PNG holds ${GREY.hex()} and drew ${entered.hex()}")
+    withClue("the managed image drew ${managed.hex()}, the same as its own codes") { (gap > 0) shouldBe true }
+    withClue("the PNG holds ${GREY.hex()} and drew ${entered.hex()}") {
+      (distance(entered, GREY) * 2 < gap) shouldBe true
+    }
   }
 
   @Test
@@ -248,7 +252,9 @@ class OverlayRasterTest {
     style: TextStyle,
     frame: Size,
   ): OverlayPixels =
-    assertIs<TextRaster.Drawn<OverlayPixels>>(rasterizeText(text, style, frame), "the text drew nothing").pixels
+    withClue("the text drew nothing") {
+      rasterizeText(text, style, frame).shouldBeInstanceOf<TextRaster.Drawn<OverlayPixels>>()
+    }.pixels
 
   // An alpha stored at sixteen bits reads back within one sample, as a fraction of full.
   private fun alphaTolerance(): Float = straightSampleTolerance(OPAQUE) / sampleOfCode(OPAQUE)
@@ -275,9 +281,9 @@ class OverlayRasterTest {
     }
 
   /**
-   * The colour of the most opaque pixel, packed as `0xRRGGBB`.
+   * The color of the most opaque pixel, packed as `0xRRGGBB`.
    *
-   * The bitmap is premultiplied, so a pixel at full alpha already carries the colour it was drawn
+   * The bitmap is premultiplied, so a pixel at full alpha already carries the color it was drawn
    * with and the multiply never has to be undone.
    */
   private fun CIImage.opaqueInk(
@@ -331,10 +337,10 @@ class OverlayRasterTest {
     }
 
   /**
-   * These codes read as colours in [space] and carried into the working space. Releases [space].
+   * These codes read as colors in [space] and carried into the working space. Releases [space].
    */
   private fun CIImage.matchedFrom(space: CGColorSpaceRef?): CIImage {
-    val matched = imageByColorMatchingColorSpaceToWorkingSpace(assertNotNull(space)) ?: this
+    val matched = imageByColorMatchingColorSpaceToWorkingSpace(space.shouldNotBeNull()) ?: this
     CGColorSpaceRelease(space)
     return matched
   }
@@ -347,7 +353,7 @@ class OverlayRasterTest {
 
   /**
    * The premultiplied red, green, blue and alpha at ([column], [row]), rendered into [transfer]'s own space so the
-   * colour reads as that transfer's signal. Row zero is the top of the image.
+   * color reads as that transfer's signal. Row zero is the top of the image.
    */
   private fun CIImage.signalAt(
     column: Int,
@@ -380,7 +386,7 @@ class OverlayRasterTest {
 
   private fun Int.hex(): String = "0x${toUInt().toString(HEX)}"
 
-  // The one code a grey colour holds in every channel, which a grey signal bound is read at.
+  // The one code a grey color holds in every channel, which a grey signal bound is read at.
   private fun greyCode(argb: Int): Int {
     val code = (argb shr RED_SHIFT) and BYTE
     require(code == (argb shr GREEN_SHIFT) and BYTE && code == argb and BYTE) { "${argb.hex()} is not grey" }
@@ -423,7 +429,7 @@ class OverlayRasterTest {
     // exact code value it started from.
     const val TOLERANCE = 2
 
-    // Colour equal to alpha, and colour apart from it at a low alpha, where a divide by alpha widens any rounding most.
+    // Color equal to alpha, and color apart from it at a low alpha, where a divide by alpha widens any rounding most.
     val TRANSLUCENT_PLATES = listOf(0x80808080.toInt(), 0x40C8C8C8)
   }
 }

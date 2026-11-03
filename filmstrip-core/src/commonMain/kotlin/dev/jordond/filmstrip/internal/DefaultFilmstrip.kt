@@ -3,28 +3,32 @@ package dev.jordond.filmstrip.internal
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.effectsRevision
 import dev.jordond.filmstrip.export.ExportEngine
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.geometry.outputHeightRefusal
 import dev.jordond.filmstrip.media.FrameResult
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
-import dev.jordond.filmstrip.media.chainedProber
 import dev.jordond.filmstrip.player.PlayerConfig
 import dev.jordond.filmstrip.player.VideoPlayer
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.time.Duration
 
 // Dispatches the facade's operations to whatever was registered. Probe is the only one core can
@@ -66,7 +70,7 @@ internal class DefaultFilmstrip(
       if (engine == null) {
         emit(ExportStatus.Failure(missingTransform("export")))
       } else {
-        emitAll(engine.export(plan, to))
+        emitAll(engine.run(plan, to).withDropped(plan))
       }
     }
 
@@ -79,15 +83,15 @@ internal class DefaultFilmstrip(
     return flow {
       when (val verdict = engine.plan(composition, spec)) {
         is Verdict.Capable -> {
-          emitAll(engine.export(verdict.plan, to))
+          emitAll(engine.run(verdict.plan, to))
         }
         is Verdict.Degraded -> {
           // Adjustments reach the caller before any progress does.
           emit(ExportStatus.Adjusted(verdict.adjustments))
-          emitAll(engine.export(verdict.plan, to))
+          emitAll(engine.run(verdict.plan, to))
         }
         is Verdict.Incapable -> {
-          emit(ExportStatus.Failure(verdict.reasons.first()))
+          emit(ExportStatus.Failure(verdict.reasons))
         }
       }
     }
@@ -96,9 +100,10 @@ internal class DefaultFilmstrip(
   override suspend fun frame(
     composition: EditComposition,
     at: Duration,
-    heightPx: Int,
-  ): FrameResult =
-    thumbnails.frame(
+    heightPx: Int?,
+  ): FrameResult {
+    outputHeightRefusal(heightPx)?.let { return FrameResult.Failure(it) }
+    return thumbnails.frame(
       ThumbnailRequest(
         composition = composition,
         position = at,
@@ -107,12 +112,16 @@ internal class DefaultFilmstrip(
         precise = true,
       ),
     )
+  }
 
   override fun frames(
     composition: EditComposition,
     at: List<Duration>,
-    heightPx: Int,
-  ): Flow<FrameResult> = thumbnails.frames(composition, at, heightPx)
+    heightPx: Int?,
+  ): Flow<FrameResult> {
+    val refusal = outputHeightRefusal(heightPx) ?: return thumbnails.frames(composition, at, heightPx)
+    return at.map { FrameResult.Failure(refusal) }.asFlow()
+  }
 
   override fun preview(
     composition: EditComposition,
@@ -130,8 +139,30 @@ internal class DefaultFilmstrip(
 
   private val thumbnails = ThumbnailDispatcher(components)
 
-  private fun missingTransform(operation: String): ExportError.BackendMissing =
-    ExportError.BackendMissing(
+  // Every engine runs behind the one lock, so Started marks the moment an export leaves the queue
+  // on every backend rather than on the one whose encoder sessions run out.
+  private fun ExportEngine.run(
+    plan: ExportPlan,
+    to: MediaSink,
+  ): Flow<ExportStatus> = flow { exportLock.withLock { emitAll(export(plan, to)) } }
+
+  // An engine runs a plan with its dropped effects already gone, so it has nothing to say about
+  // them. They are carried on the plan and added back to what it finished with.
+  private fun Flow<ExportStatus>.withDropped(plan: ExportPlan): Flow<ExportStatus> =
+    if (plan.droppedEffects.isEmpty()) {
+      this
+    } else {
+      map { status ->
+        if (status is ExportStatus.Success) {
+          ExportStatus.Success(status.output, status.info, status.adjustments + plan.droppedEffects)
+        } else {
+          status
+        }
+      }
+    }
+
+  private fun missingTransform(operation: String): FilmstripError.BackendMissing =
+    FilmstripError.BackendMissing(
       artifact = EXPORT_BACKEND.artifact,
       message =
         "`$operation` needs an export backend. Add ${EXPORT_BACKEND.artifact} and register it " +
@@ -145,3 +176,12 @@ internal class DefaultFilmstrip(
         "register it with Filmstrip { playerBackend() }."
   }
 }
+
+/**
+ * Holds exports to one at a time across the process.
+ *
+ * Hardware encode sessions are a small pool every [Filmstrip] instance shares, and a device that
+ * has none left refuses the session instead of queueing for one. Running exports one at a time
+ * turns that into a wait.
+ */
+private val exportLock = Mutex()

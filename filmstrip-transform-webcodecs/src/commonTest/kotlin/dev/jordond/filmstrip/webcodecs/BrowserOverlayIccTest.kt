@@ -4,17 +4,24 @@ package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.color.authoredHdrTexels
+import dev.jordond.filmstrip.color.pictureLight
+import dev.jordond.filmstrip.color.pictureSrgbCodes
+import dev.jordond.filmstrip.color.signalFromNits
+import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.effects.overlay.OverlayFrame
 import dev.jordond.filmstrip.effects.overlay.OverlayOffset
-import dev.jordond.filmstrip.export.AudioCodec
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
@@ -22,21 +29,14 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.NormalizedRect
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotTime
-import dev.jordond.filmstrip.internal.pictureColour
-import dev.jordond.filmstrip.internal.pngSamples
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.authoredHdrTexels
-import dev.jordond.filmstrip.media.pictureLight
-import dev.jordond.filmstrip.media.pictureSrgbCodes
-import dev.jordond.filmstrip.media.signalFromNits
-import dev.jordond.filmstrip.media.tenBitCodesFromSignal
-import dev.jordond.filmstrip.test.AuthoredColours
-import dev.jordond.filmstrip.test.ColourPictures
+import dev.jordond.filmstrip.picture.pictureColor
+import dev.jordond.filmstrip.picture.png.pngSamples
+import dev.jordond.filmstrip.test.AuthoredColors
+import dev.jordond.filmstrip.test.ColorPictures
 import dev.jordond.filmstrip.test.HdrOverlayCells
 import dev.jordond.filmstrip.test.IccPictures
 import dev.jordond.filmstrip.test.OverlayPixels
@@ -51,30 +51,28 @@ import dev.jordond.filmstrip.webcodecs.OverlayPictures.SIXTEEN_BIT_PICTURES
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
 import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
 import dev.jordond.filmstrip.webcodecs.internal.browserRenderOf
-import dev.jordond.filmstrip.webcodecs.internal.hdrOverlayTexels
-import dev.jordond.filmstrip.webcodecs.internal.sdrOverlayCodes
-import dev.jordond.filmstrip.webcodecs.internal.toBrowserPreview
+import dev.jordond.filmstrip.webcodecs.internal.preview.toBrowserPreview
+import dev.jordond.filmstrip.webcodecs.internal.render.hdrOverlayTexels
+import dev.jordond.filmstrip.webcodecs.internal.render.sdrOverlayCodes
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
- * Colour-tagged overlay pictures drawn into a browser export and a preview, and read back.
+ * Color-tagged overlay pictures drawn into a browser export and a preview, and read back.
  *
  * A PNG reaches the compositor as the samples core's PNG reader reads from it, and any other picture as its codes read
- * back through a 2D canvas from a bitmap decoded with no colour conversion. A tagged picture then has to land where the
- * shared functions put those for the colour [pictureColour] reads from its bytes: [pictureSrgbCodes] on SDR, and
+ * back through a 2D canvas from a bitmap decoded with no color conversion. A tagged picture then has to land where the
+ * shared functions put those for the color [pictureColor] reads from its bytes: [pictureSrgbCodes] on SDR, and
  * [pictureLight] blended with the fill by [OverlayPixels.hdrSourceOver] on PQ and HLG. An untagged picture is one of
  * them and lands where it always has. Every picture sits over the fill in the gap before a late primary, once opaque
  * and once at half opacity, and two of them store half alpha.
@@ -86,12 +84,12 @@ class BrowserOverlayIccTest {
   fun everyPngReachesTheCompositorAsTheSamplesItStores() {
     for (picture in PICTURES + SIXTEEN_BIT_PICTURES) {
       val stored = picture.stored ?: continue
-      val samples = assertNotNull(pngSamples(picture.bytes), "$picture").rgba
+      val samples = withClue("$picture") { pngSamples(picture.bytes).shouldNotBeNull() }.rgba
       val middle = ((PNG.height / 2) * PNG.width + PNG.width / 2) * RGBA_CHANNELS
       val texel = samples.copyOfRange(middle, middle + RGBA_CHANNELS)
 
-      assertEquals(stored.srgbCodes(null), pictureSrgbCodes(null, texel).single(), "$picture")
-      assertContentEquals(stored.light(null), pictureLight(null, texel), "$picture")
+      withClue("$picture") { pictureSrgbCodes(null, texel).single() shouldBe stored.srgbCodes(null) }
+      withClue("$picture") { pictureLight(null, texel) shouldBe stored.light(null) }
     }
   }
 
@@ -100,16 +98,20 @@ class BrowserOverlayIccTest {
   @Test
   fun aSixteenBitPngConvertsFromItsFullSamples() {
     for (picture in SIXTEEN_BIT_PICTURES) {
-      val texel = assertIs<StoredTexel.SixteenBit>(picture.stored).samples
-      val colour = pictureColour(picture.bytes)
-      assertTrue(texel.take(3).none { it % SAMPLE_PER_CODE == 0 }, "$picture samples are codes times 257")
+      val texel = picture.stored.shouldBeInstanceOf<StoredTexel.SixteenBit>().samples
+      val color = pictureColor(picture.bytes)
+      withClue("$picture samples are codes times 257") {
+        texel.take(3).none { it % SAMPLE_PER_CODE == 0 } shouldBe true
+      }
       val samples = ShortArray(PIXELS * RGBA_CHANNELS) { texel[it % RGBA_CHANNELS].toShort() }
       val highBytes = ByteArray(samples.size) { (texel[it % RGBA_CHANNELS] ushr BYTE_BITS).toByte() }
 
-      val codes = pictureSrgbCodes(colour, samples).flatMap { rgbaOf(it) }.toByteArray()
-      assertContentEquals(codes, sdrOverlayCodes(samples, colour), "$picture")
-      assertContentEquals(premultiplied(pictureLight(colour, samples)), hdrOverlayTexels(samples, colour), "$picture")
-      assertFalse(hdrOverlayTexels(samples, colour).contentEquals(hdrOverlayTexels(highBytes, colour)), "$picture")
+      val codes = pictureSrgbCodes(color, samples).flatMap { rgbaOf(it) }.toByteArray()
+      withClue("$picture") { sdrOverlayCodes(samples, color) shouldBe codes }
+      withClue("$picture") { hdrOverlayTexels(samples, color) shouldBe premultiplied(pictureLight(color, samples)) }
+      withClue("$picture") {
+        hdrOverlayTexels(samples, color).contentEquals(hdrOverlayTexels(highBytes, color)) shouldBe false
+      }
     }
   }
 
@@ -122,14 +124,14 @@ class BrowserOverlayIccTest {
   fun everyAvifDecodesToItsYcbcrUnderItsNclx() =
     runTest {
       val misses =
-        ColourPictures.AVIFS.mapNotNull { picture ->
+        ColorPictures.AVIFS.mapNotNull { picture ->
           val matrix = picture.nclx?.matrix ?: UNSPECIFIED
           val primaries = picture.nclx?.primaries ?: UNSPECIFIED
           val transfer = picture.nclx?.transfer ?: UNSPECIFIED
           val fullRange = picture.nclx?.fullRange ?: true
           val (y, cb, cr) = picture.ycbcr
           val expected = ycbcrToRgb(y, cb, cr, matrix, primaries, transfer, fullRange)
-          val decoded = AuthoredColours.channelsOf(decodedCodeOf(picture.bytes()))
+          val decoded = AuthoredColors.channelsOf(decodedCodeOf(picture.bytes()))
           val landed =
             if (!fullRange && matrix in CHROME_DRIFTING_MATRICES) {
               val others =
@@ -142,19 +144,21 @@ class BrowserOverlayIccTest {
           if (landed) null else "$picture decoded $decoded for ${expected.toList()}"
         }
 
-      assertTrue(misses.isEmpty(), misses.joinToString("; "))
+      withClue(misses.joinToString("; ")) { misses.isEmpty() shouldBe true }
     }
 
   @Test
   fun aHeicOverlayIsRefusedAsUndecodable() =
     runTest {
-      for (picture in ColourPictures.HEICS + ColourPictures.HEIC_UNTAGGED) {
+      for (picture in ColorPictures.HEICS + ColorPictures.HEIC_UNTAGGED) {
         val overlay = ImageOverlay(ImageSource.ofBytes(picture.bytes()), Corner.TopStart)
         val verdict = engine().plan(compositionOf(null, listOf(overlay)), SDR_SPEC)
 
-        val reasons = assertIs<Verdict.Incapable>(verdict, "$picture").reasons
-        val refused = reasons.filterIsInstance<ExportError.UnsupportedEffect>()
-        assertTrue(refused.any { it.specId == overlay.id && UNDECODABLE in it.message }, "$picture: $refused")
+        val reasons = withClue("$picture") { verdict.shouldBeInstanceOf<Verdict.Incapable>() }.reasons
+        val refused = reasons.filterIsInstance<FilmstripError.UnsupportedEffect>()
+        withClue("$picture: $refused") {
+          refused.any { it.specId == overlay.id && UNDECODABLE in it.message } shouldBe true
+        }
       }
     }
 
@@ -162,23 +166,23 @@ class BrowserOverlayIccTest {
   fun untaggedCodesMapToTheLightTheyAlwaysHave() {
     val codes = midRangeCodes()
 
-    assertContentEquals(premultiplied(authoredHdrTexels(argbOf(codes))), hdrOverlayTexels(codes, colour = null))
+    hdrOverlayTexels(codes, color = null) shouldBe premultiplied(authoredHdrTexels(argbOf(codes)))
   }
 
   @Test
   fun anSrgbProfileLeavesTheCodesAsStored() {
     val codes = midRangeCodes()
-    val colour = assertNotNull(pictureColour(IccPictures.SRGB.pngOf(PNG)))
+    val color = pictureColor(IccPictures.SRGB.pngOf(PNG)).shouldNotBeNull()
 
-    assertContentEquals(codes, sdrOverlayCodes(codes, colour))
+    sdrOverlayCodes(codes, color) shouldBe codes
   }
 
   @Test
-  fun everyPictureLandsWhereItsColourDoesOnSdr() =
+  fun everyPictureLandsWhereItsColorDoesOnSdr() =
     runTest {
       val misses = batches().flatMap { cells -> sdrMissesOf(cells) }
 
-      assertTrue(misses.isEmpty(), misses.joinToString("; "))
+      withClue(misses.joinToString("; ")) { misses.isEmpty() shouldBe true }
     }
 
   @Test
@@ -191,20 +195,20 @@ class BrowserOverlayIccTest {
           batches().flatMap { cells -> hdrMissesOf(transfer, cells).map { "$transfer $it" } }
         }
 
-      assertTrue(misses.isEmpty(), misses.joinToString("; "))
+      withClue(misses.joinToString("; ")) { misses.isEmpty() shouldBe true }
     }
 
   @Test
-  fun aPreviewFrameShowsEveryPictureWhereItsColourDoesOnSdr() =
+  fun aPreviewFrameShowsEveryPictureWhereItsColorDoesOnSdr() =
     runTest {
       val misses =
         batches().flatMap { cells -> previewReadingsOf(null, cells) }.mapNotNull { reading ->
           val expected = reading.cell.sdrCodes(FILL)
           val miss = (0 until 3).maxOf { abs(reading.read[it] - expected[it]) }
-          if (miss <= AuthoredColours.TOLERANCE) null else "$reading for ${expected.toList()}"
+          if (miss <= AuthoredColors.TOLERANCE) null else "$reading for ${expected.toList()}"
         }
 
-      assertTrue(misses.isEmpty(), misses.joinToString("; "))
+      withClue(misses.joinToString("; ")) { misses.isEmpty() shouldBe true }
     }
 
   // A renderer rounds every half-float tie one way, so the whole run has to land under a single rule.
@@ -225,36 +229,37 @@ class BrowserOverlayIccTest {
           }
         }
 
-      assertTrue(
-        missesByRule.values.any { it.isEmpty() },
+      withClue(
         missesByRule.entries.joinToString("\n") { (tiesUp, misses) -> "ties up $tiesUp: ${misses.joinToString("; ")}" },
-      )
+      ) {
+        missesByRule.values.any { it.isEmpty() } shouldBe true
+      }
     }
 
   @Test
   fun aHalfFloatTieRoundsUpOrToEvenByItsRule() {
     val step = 2.0.pow(-12).toFloat()
-    assertEquals(1246 * step, halfFloat(1246.5f * step, tiesUp = false))
-    assertEquals(1247 * step, halfFloat(1246.5f * step, tiesUp = true))
-    assertEquals(1248 * step, halfFloat(1247.5f * step, tiesUp = false))
-    assertEquals(1248 * step, halfFloat(1247.5f * step, tiesUp = true))
+    halfFloat(1246.5f * step, tiesUp = false) shouldBe 1246 * step
+    halfFloat(1246.5f * step, tiesUp = true) shouldBe 1247 * step
+    halfFloat(1247.5f * step, tiesUp = false) shouldBe 1248 * step
+    halfFloat(1247.5f * step, tiesUp = true) shouldBe 1248 * step
 
     val subnormal = 2.0.pow(-24).toFloat()
-    assertEquals(2 * subnormal, halfFloat(2.5f * subnormal, tiesUp = false))
-    assertEquals(3 * subnormal, halfFloat(2.5f * subnormal, tiesUp = true))
-    assertEquals(-2 * subnormal, halfFloat(-2.5f * subnormal, tiesUp = false))
+    halfFloat(2.5f * subnormal, tiesUp = false) shouldBe 2 * subnormal
+    halfFloat(2.5f * subnormal, tiesUp = true) shouldBe 3 * subnormal
+    halfFloat(-2.5f * subnormal, tiesUp = false) shouldBe -2 * subnormal
   }
 
   // A preview that converted no picture would show each tagged one where its stored texel lands untagged. Twice the
   // preview bound has to sit below the smallest such miss under either tie rule, or one reading could land within the
-  // bound of both. A picture whose colour gives the same sRGB codes as untagged describes sRGB itself, so it has no
+  // bound of both. A picture whose color gives the same sRGB codes as untagged describes sRGB itself, so it has no
   // wrong reading to tell apart and is left out.
   @Test
   fun thePreviewBoundIsBelowTheSmallestMissOfTheStoredCodes() =
     runTest {
       val misses =
         batches().flatten().mapNotNull { cell ->
-          if (cell.stored.srgbCodes(cell.colour) == cell.stored.srgbCodes(null)) return@mapNotNull null
+          if (cell.stored.srgbCodes(cell.color) == cell.stored.srgbCodes(null)) return@mapNotNull null
           val miss =
             HALF_FLOAT_TIES.minOf { tiesUp ->
               val shown = cell.presented(FILL, tiesUp = tiesUp)
@@ -267,18 +272,16 @@ class BrowserOverlayIccTest {
         }
       val (cell, smallest) = misses.minBy { it.second }
 
-      assertTrue(
-        2 * PREVIEW_TOLERANCE < smallest,
-        "$cell misses by only $smallest untagged, too close for a bound of $PREVIEW_TOLERANCE to tell apart",
-      )
+      withClue("$cell misses by only $smallest untagged, too close for a bound of $PREVIEW_TOLERANCE to tell apart") {
+        (2 * PREVIEW_TOLERANCE < smallest) shouldBe true
+      }
     }
 
   @Test
   fun theOverlayBoundIsAtMostTheWidestBlendBound() {
-    assertTrue(
-      LUMA_TOLERANCE <= HdrOverlayCells.MAX_BLEND_TOLERANCE,
-      "overlays are held to $LUMA_TOLERANCE codes, past ${HdrOverlayCells.MAX_BLEND_TOLERANCE}",
-    )
+    withClue("overlays are held to $LUMA_TOLERANCE codes, past ${HdrOverlayCells.MAX_BLEND_TOLERANCE}") {
+      (LUMA_TOLERANCE <= HdrOverlayCells.MAX_BLEND_TOLERANCE) shouldBe true
+    }
   }
 
   private suspend fun sdrMissesOf(cells: List<OverlayCell>): List<String> {
@@ -287,7 +290,7 @@ class BrowserOverlayIccTest {
     return cells.zip(rectsOf(null, composition)).mapNotNull { (cell, rect) ->
       val read = gap.at(rect.middleX, rect.middleY)
       val expected = cell.sdrCodes(FILL)
-      val tolerance = if (cell.translucent) OverlayPixels.ENCODED_TOLERANCE else AuthoredColours.TOLERANCE
+      val tolerance = if (cell.translucent) OverlayPixels.ENCODED_TOLERANCE else AuthoredColors.TOLERANCE
       val miss = maxOf(abs(read.red - expected[0]), abs(read.green - expected[1]), abs(read.blue - expected[2]))
       if (miss <= tolerance) null else "$cell read $read for ${expected.toList()}"
     }
@@ -320,11 +323,11 @@ class BrowserOverlayIccTest {
   ): List<PreviewReading> {
     val composition = compositionOf(transfer, cells.map { it.spec })
     val spec = if (transfer == null) SDR_SPEC else HDR_SPEC
-    val resolved = assertIs<ResolveResult.Resolved>(engine().resolve(composition, spec)).composition
+    val resolved = engine().resolve(composition, spec).shouldBeInstanceOf<ResolveResult.Resolved>().composition
     val rects = rectsOf(transfer, composition)
     val preview = resolved.toBrowserPreview(composition)
     try {
-      val drawn = assertNotNull(preview.frameAt(GAP_TIME), "$transfer drew no preview frame in the gap")
+      val drawn = withClue("$transfer drew no preview frame in the gap") { preview.frameAt(GAP_TIME).shouldNotBeNull() }
       return cells.zip(rects).map { (cell, rect) ->
         val column = (rect.middleX * drawn.size.width).toInt()
         val row = (rect.middleY * drawn.size.height).toInt()
@@ -347,7 +350,7 @@ class BrowserOverlayIccTest {
   private fun <T> gapOf(frames: List<Pair<Double, T>>): T {
     val gapUs = GAP_TIME.inWholeMicroseconds.toDouble()
     val (timestampUs, gap) = frames.minBy { abs(it.first - gapUs) }
-    assertTrue(timestampUs < LATE_START.inWholeMicroseconds, "the file has no frame in the gap")
+    withClue("the file has no frame in the gap") { (timestampUs < LATE_START.inWholeMicroseconds) shouldBe true }
     return gap
   }
 
@@ -360,10 +363,14 @@ class BrowserOverlayIccTest {
     composition: EditComposition,
   ): List<NormalizedRect> {
     val spec = if (transfer == null) SDR_SPEC else HDR_SPEC
-    val resolved = assertIs<ResolveResult.Resolved>(engine().resolve(composition, spec)).composition
+    val resolved = engine().resolve(composition, spec).shouldBeInstanceOf<ResolveResult.Resolved>().composition
     val render = browserRenderOf(resolved, composition)
-    assertEquals(transfer, render.hdrTransfer)
-    return render.compositionOverlays.map { assertNotNull(it.drawAt(GAP_TIME), "an overlay is hidden in the gap").rect }
+    render.hdrTransfer shouldBe transfer
+    return render.compositionOverlays.map {
+      withClue("an overlay is hidden in the gap") {
+        it.drawAt(GAP_TIME).shouldNotBeNull()
+      }.rect
+    }
   }
 
   private suspend fun compositionOf(
@@ -372,7 +379,7 @@ class BrowserOverlayIccTest {
   ): EditComposition {
     val clip =
       if (transfer == null) {
-        makeClip(width = WIDTH, height = HEIGHT, frames = CLIP_FRAMES, frameRate = FRAME_RATE, colour = Rgb.Blue)
+        makeClip(width = WIDTH, height = HEIGHT, frames = CLIP_FRAMES, frameRate = FRAME_RATE, color = Rgb.Blue)
       } else {
         makeHdrClip(transfer, width = WIDTH, height = HEIGHT, frames = CLIP_FRAMES, frameRate = FRAME_RATE) { PICTURE }
       }
@@ -399,8 +406,8 @@ class BrowserOverlayIccTest {
     statuses.filterIsInstance<ExportStatus.Failure>().firstOrNull()?.let {
       throw AssertionError("the export failed: ${it.error.message}")
     }
-    val success = assertNotNull(statuses.filterIsInstance<ExportStatus.Success>().singleOrNull())
-    return MediaSource.Uri(assertIs<MediaSink.Uri>(success.output).uri)
+    val success = (statuses.filterIsInstance<ExportStatus.Success>().singleOrNull()).shouldNotBeNull()
+    return MediaSource.Uri(success.output.shouldBeInstanceOf<MediaSink.Uri>().uri)
   }
 
   private fun codeDistance(
@@ -409,8 +416,8 @@ class BrowserOverlayIccTest {
   ): Int = (0 until 3).maxOf { abs(decoded[it] - expected[it]) }
 
   private fun engine(): BrowserExportEngine =
-    browserExportEngine(
-      components = ComponentRegistry.Builder().add(BuiltInEffectResolver()).build(),
+    webCodecsExportEngine(
+      components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(),
       prober = BrowserProber(),
     )
 
@@ -422,7 +429,7 @@ class BrowserOverlayIccTest {
     (PICTURES + SIXTEEN_BIT_PICTURES).chunked(PICTURES_PER_FRAME).map { batch ->
       batch.flatMapIndexed { index, picture ->
         val stored = picture.stored ?: StoredTexel.EightBit(decodedCodeOf(picture.bytes))
-        val colour = pictureColour(picture.bytes)
+        val color = pictureColor(picture.bytes)
         listOf(1f, HALF).mapIndexed { pass, opacity ->
           val offset = OverlayOffset((index % COLUMNS) * CELL_WIDTH, ((index / COLUMNS) * 2 + pass) * CELL_HEIGHT)
           val spec =
@@ -434,7 +441,7 @@ class BrowserOverlayIccTest {
               opacity = opacity,
               animation = OverlayAnimation { OverlayFrame(offset = offset) },
             )
-          OverlayCell(picture, spec, opacity, colour, stored)
+          OverlayCell(picture, spec, opacity, color, stored)
         }
       }
     }
@@ -455,7 +462,7 @@ class BrowserOverlayIccTest {
 
     // The clip after the gap. The overlays never sit over it, so its light only has to be a legal grade.
     val PICTURE = floatArrayOf(120f, 180f, 75f)
-    val FILL = AuthoredColours.MID_GREY
+    val FILL = AuthoredColors.MID_GREY
 
     // A square badge three twentieths of the frame wide, a column a third of the frame wide and a row a quarter of
     // it tall.

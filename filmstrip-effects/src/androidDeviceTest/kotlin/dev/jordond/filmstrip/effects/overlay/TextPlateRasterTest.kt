@@ -1,10 +1,10 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import android.graphics.Bitmap
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
+import dev.jordond.filmstrip.effect.Media3Handle
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
@@ -17,72 +17,68 @@ import dev.jordond.filmstrip.test.greySignal
 import dev.jordond.filmstrip.test.sampleOfCode
 import dev.jordond.filmstrip.test.straightSampleTolerance
 import dev.jordond.filmstrip.test.straightSignalTolerance
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.Assume.assumeTrue
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertFalse
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
  * How Android's text raster stores a translucent plate and translucent text.
  *
- * The raster lays the plate and the text's straight colours into sixteen-bit samples by the glyphs' coverage, so every
- * plate texel is read against the [straightSampleTolerance] bound at colour equal to its alpha and at colour apart
+ * The raster lays the plate and the text's straight colors into sixteen-bit samples by the glyphs' coverage, so every
+ * plate texel is read against the [straightSampleTolerance] bound at color equal to its alpha and at color apart
  * from it. Translucent text is read against the shared blend, [platedSamples] of the coverage the same text draws at
- * full alpha in its own colour.
+ * full alpha in its own color.
  */
-@OptIn(InternalFilmstripApi::class)
 class TextPlateRasterTest {
   @Test
-  fun aTranslucentPlateStoresItsAuthoredStraightColour() {
+  fun aTranslucentPlateStoresItsAuthoredStraightColor() {
     for (plate in PLAN_PLATES) {
       val corner = texel(drawnText(TextStyle(color = TEXT, backgroundColor = plate)).samples, 0)
       val alpha = codeOf(plate, ALPHA_SHIFT)
 
       val authored = channelsOf(plate)
-      // The alpha is stored as it is, the way an opaque texel's colour is, so it never divides by itself.
+      // The alpha is stored as it is, the way an opaque texel's color is, so it never divides by itself.
       val tolerances =
         authored.indices.map { channel ->
           straightSampleTolerance(if (channel == ALPHA) OPAQUE else alpha)
         }
-      assertTrue(
-        corner.indices.all { abs(corner[it] - authored[it]) <= tolerances[it] },
-        "the ${plate.hex()} plate's corner stored $corner and was authored as $authored, within $tolerances",
-      )
+      withClue("the ${plate.hex()} plate's corner stored $corner and was authored as $authored, within $tolerances") {
+        corner.indices.all { abs(corner[it] - authored[it]) <= tolerances[it] } shouldBe true
+      }
     }
   }
 
   @Test
-  fun partlyCoveredTextKeepsItsStraightColourOverAPlateAndOverNone() {
+  fun partlyCoveredTextKeepsItsStraightColorOverAPlateAndOverNone() {
     val solid = drawnText(TextStyle(fontSize = BIG, color = TEXT))
     val covered = (0 until solid.size.width * solid.size.height).filter { coverageAt(solid, it) in 1 until OPAQUE }
-    assertTrue(covered.isNotEmpty(), "no texel of the text is partly covered")
+    withClue("no texel of the text is partly covered") { covered.isNotEmpty() shouldBe true }
 
     for (textAlpha in TEXT_ALPHAS) {
       for (plate in listOf(PLATE, null)) {
         val style = TextStyle(fontSize = BIG, color = withAlpha(TEXT, textAlpha), backgroundColor = plate)
         val padding = style.platePaddingOn(FRAME)
         val drawn = drawnText(style)
-        assertEquals(solid.size.width + 2 * padding, drawn.size.width, "the plate moved the glyphs")
+        withClue("the plate moved the glyphs") { drawn.size.width shouldBe solid.size.width + 2 * padding }
 
         val expected = platedSamples(glyphBytes(solid, TEXT, padding), withAlpha(TEXT, textAlpha), plate)
-        assertContentEquals(expected, drawn.samples, "${textAlpha.toString(16)} text over ${plate?.hex()}")
+        withClue("${textAlpha.toString(16)} text over ${plate?.hex()}") { drawn.samples shouldBe expected }
       }
     }
   }
 
-  // Android shapes the coverage of a glyph it draws from a mask by the colour it is drawn in, so text is covered in its
-  // own colour, apart from white's, and laid at its alpha by that coverage. A device that stops keying the mask skips
+  // Android shapes the coverage of a glyph it draws from a mask by the color it is drawn in, so text is covered in its
+  // own color, apart from white's, and laid at its alpha by that coverage. A device that stops keying the mask skips
   // here, and that skip is what to look for.
   @Test
-  fun translucentTextIsCoveredInItsOwnColour() {
+  fun translucentTextIsCoveredInItsOwnColor() {
     val white = alphasOf(drawnText(TextStyle(fontSize = SMALL, color = WHITE), WORDS))
 
     for (ink in INKS) {
@@ -91,12 +87,12 @@ class TextPlateRasterTest {
 
       val half = drawnText(TextStyle(fontSize = SMALL, color = withAlpha(ink, HALF)), WORDS)
       val expected = platedSamples(glyphBytes(solid, ink), withAlpha(ink, HALF), plate = null)
-      assertContentEquals(expected, half.samples, "${ink.hex()} text at half alpha")
+      withClue("${ink.hex()} text at half alpha") { half.samples shouldBe expected }
     }
   }
 
   @Test
-  fun aTranslucentPlateKeepsItsColoursSignalOnAnHdrFrame() {
+  fun aTranslucentPlateKeepsItsColorsSignalOnAnHdrFrame() {
     for (plate in PLAN_PLATES) {
       val code = codeOf(plate, RED_SHIFT)
       val alpha = codeOf(plate, ALPHA_SHIFT)
@@ -108,23 +104,25 @@ class TextPlateRasterTest {
         val moved = (0 until 3).maxOf { abs(read[it] - authored[it]) }
         val bound = straightSignalTolerance(alpha, code, transfer)
 
-        assertTrue(moved <= bound, "the $transfer ${plate.hex()} plate stored $stored and moved $moved past $bound")
+        withClue("the $transfer ${plate.hex()} plate stored $stored and moved $moved past $bound") {
+          (moved <= bound) shouldBe true
+        }
       }
     }
   }
 
-  // The codes media3 draws a plate from on an HDR frame are the ones the shared mapping gives its authored colour.
+  // The codes media3 draws a plate from on an HDR frame are the ones the shared mapping gives its authored color.
   @Test
-  fun aTranslucentPlateReachesMedia3AtItsAuthoredColoursHdrCodes() {
+  fun aTranslucentPlateReachesMedia3AtItsAuthoredColorsHdrCodes() {
     for (plate in PLAN_PLATES) {
       val plated = drawnText(TextStyle(color = TEXT, backgroundColor = plate))
       HdrTransfer.entries.forEach { transfer ->
         val expected = media3HdrTexels(intArrayOf(plate), transfer)
-        val drawn = assertIs<TextRaster.Drawn<Raster>>(plated.rasterFor(transfer)).pixels
+        val drawn = plated.rasterFor(transfer).shouldBeInstanceOf<TextRaster.Drawn<Raster>>().pixels
         val corner = drawn.bitmap.reading { it.getPixel(0, 0) }
 
-        assertEquals(expected.argb[0].hex(), corner.hex(), "the $transfer ${plate.hex()} plate")
-        assertEquals(expected.hdrLuminance, drawn.hdrLuminance, "the $transfer ${plate.hex()} plate")
+        withClue("the $transfer ${plate.hex()} plate") { corner.hex() shouldBe expected.argb[0].hex() }
+        withClue("the $transfer ${plate.hex()} plate") { drawn.hdrLuminance shouldBe expected.hdrLuminance }
       }
     }
   }
@@ -135,7 +133,7 @@ class TextPlateRasterTest {
     val size = drawnText(style).size
     val texels = size.width.toLong() * size.height
     val band = textBandBytes(size.width.toLong(), size.height.toLong())
-    val peak = assertNotNull(picturePeakBytes(texels * TEXT_TEXEL_BYTES, band, texels * FLOAT_TEXEL_BYTES))
+    val peak = picturePeakBytes(texels * TEXT_TEXEL_BYTES, band, texels * FLOAT_TEXEL_BYTES).shouldNotBeNull()
     var made = false
     val counted = { width: Int, height: Int ->
       made = true
@@ -143,18 +141,22 @@ class TextPlateRasterTest {
     }
 
     val refused =
-      assertIs<TextRaster.Refused>(
-        rasterizeText("H", style, FRAME, ANY_SIDE, ceiling = peak - 1, bitmapOf = counted),
-      )
-    assertEquals(
-      textTooLargeToDraw(size.width.toLong(), size.height.toLong(), TEXT_TEXEL_BYTES, peak - 1),
-      refused.reason,
-    )
-    assertFalse(made, "the bitmap was made before the raster was refused")
+      rasterizeText(
+        "H",
+        style,
+        FRAME,
+        ANY_SIDE,
+        ceiling = peak - 1,
+        bitmapOf = counted,
+      ).shouldBeInstanceOf<TextRaster.Refused>()
+    refused.reason shouldBe textTooLargeToDraw(size.width.toLong(), size.height.toLong(), TEXT_TEXEL_BYTES, peak - 1)
+    withClue("the bitmap was made before the raster was refused") { made shouldBe false }
 
     val drawn = rasterizeText("H", style, FRAME, ANY_SIDE, ceiling = peak, bitmapOf = counted)
-    val samples = assertIs<TextRaster.Drawn<TextSamples>>(drawn).pixels.samples
-    assertEquals(texels * TEXT_TEXEL_BYTES, samples.size.toLong() * Short.SIZE_BYTES, "the samples were miscounted")
+    val samples = drawn.shouldBeInstanceOf<TextRaster.Drawn<TextSamples>>().pixels.samples
+    withClue("the samples were miscounted") {
+      samples.size.toLong() * Short.SIZE_BYTES shouldBe texels * TEXT_TEXEL_BYTES
+    }
   }
 
   // Text that fits under the picture ceiling but not under its share of the Java heap is refused at that share,
@@ -167,15 +169,14 @@ class TextPlateRasterTest {
     val text = List(lines) { "H" }.joinToString("\n")
     val size = measured(text)
     val peak = size.width.toLong() * size.height * PEAK_TEXEL_BYTES
-    assertTrue(peak in ceiling + 1..PICTURE_PEAK_CEILING, "$lines lines hold $peak bytes against $ceiling")
+    withClue("$lines lines hold $peak bytes against $ceiling") {
+      (peak in ceiling + 1..PICTURE_PEAK_CEILING) shouldBe true
+    }
 
     val drawn = rasterizeText(text, TextStyle(), FRAME, ANY_SIDE, ceiling = ceiling, bitmapOf = unmade)
-    val refused = assertIs<TextRaster.Refused>(drawn)
+    val refused = drawn.shouldBeInstanceOf<TextRaster.Refused>()
 
-    assertEquals(
-      textTooLargeToDraw(size.width.toLong(), size.height.toLong(), TEXT_TEXEL_BYTES, ceiling),
-      refused.reason,
-    )
+    refused.reason shouldBe textTooLargeToDraw(size.width.toLong(), size.height.toLong(), TEXT_TEXEL_BYTES, ceiling)
   }
 
   // Android ends the allocation with an error rather than a null, which refuses the text by its own reason.
@@ -189,10 +190,17 @@ class TextPlateRasterTest {
       throw OutOfMemoryError("the heap is spent")
     }
 
-    val refused = assertIs<TextRaster.Refused>(rasterizeText("H", style, FRAME, ANY_SIDE, bitmapOf = exhausted))
+    val refused =
+      rasterizeText(
+        "H",
+        style,
+        FRAME,
+        ANY_SIDE,
+        bitmapOf = exhausted,
+      ).shouldBeInstanceOf<TextRaster.Refused>()
 
-    assertTrue(asked, "the text was refused before its bitmap was asked for")
-    assertEquals(textAllocationFailed(size.width, size.height), refused.reason)
+    withClue("the text was refused before its bitmap was asked for") { asked shouldBe true }
+    refused.reason shouldBe textAllocationFailed(size.width, size.height)
   }
 
   @Test
@@ -202,9 +210,11 @@ class TextPlateRasterTest {
 
     val drawn = rasterizeText("H", TextStyle(color = TEXT), FRAME, ANY_SIDE, bitmapOf = kept)
 
-    assertIs<TextRaster.Drawn<TextSamples>>(drawn)
+    drawn.shouldBeInstanceOf<TextRaster.Drawn<TextSamples>>()
 
-    assertTrue(assertNotNull(made, "the bitmap was never made").isRecycled, "the bitmap outlived its read")
+    withClue("the bitmap outlived its read") {
+      withClue("the bitmap was never made") { made.shouldNotBeNull() }.isRecycled shouldBe true
+    }
   }
 
   @Test
@@ -223,7 +233,9 @@ class TextPlateRasterTest {
       rasterizeText("H", TextStyle(color = TEXT, backgroundColor = PLATE), FRAME, ANY_SIDE, bitmapOf = immutable)
     }
 
-    assertTrue(assertNotNull(made, "the bitmap was never made").isRecycled, "the bitmap outlived the failed draw")
+    withClue("the bitmap outlived the failed draw") {
+      withClue("the bitmap was never made") { made.shouldNotBeNull() }.isRecycled shouldBe true
+    }
   }
 
   // Thousands of lines lay out to a raster many times the ceiling, which the resolver refuses by name rather than try
@@ -235,11 +247,9 @@ class TextPlateRasterTest {
 
     val resolved = BuiltInEffectResolver().resolve(TextOverlay(TALL_TEXT, style), CAPABILITIES, PREVIEW)
 
-    val refused = assertIs<EffectResolution.Unsupported>(resolved)
-    assertEquals(
-      textTooLargeToDraw(size.width.toLong(), size.height.toLong(), TEXT_TEXEL_BYTES, textCeiling()),
-      refused.message,
-    )
+    val refused = resolved.shouldBeInstanceOf<EffectResolution.Unsupported>()
+    refused.message shouldBe
+      textTooLargeToDraw(size.width.toLong(), size.height.toLong(), TEXT_TEXEL_BYTES, textCeiling())
   }
 
   // Preview and export resolve text through the same resolver, so the bitmap media3 is handed here is the one a
@@ -251,9 +261,10 @@ class TextPlateRasterTest {
 
       val resolved = BuiltInEffectResolver().resolve(TextOverlay("H", style), CAPABILITIES, PREVIEW)
 
-      val overlay = assertIs<RasterOverlay>(assertIs<EffectResolution.Resolved>(resolved).effect.handle)
+      val handle = resolved.shouldBeInstanceOf<EffectResolution.Resolved>().effect.handle
+      val overlay = handle.shouldBeInstanceOf<Media3Handle.Overlay>().overlay.shouldBeInstanceOf<RasterOverlay>()
       val corner = overlay.getBitmap(0).reading { it.getPixel(0, 0) }
-      assertEquals(channelsOf(plate), channelsOf(corner), "the ${plate.hex()} plate drew ${corner.hex()}")
+      withClue("the ${plate.hex()} plate drew ${corner.hex()}") { channelsOf(corner) shouldBe channelsOf(plate) }
     }
   }
 
@@ -274,7 +285,7 @@ class TextPlateRasterTest {
     assertFailsWith<Unmade> {
       rasterizeText(text, style, FRAME, ANY_SIDE, ceiling = Long.MAX_VALUE, bitmapOf = measure)
     }
-    return assertNotNull(asked, "the text laid out to nothing")
+    return withClue("the text laid out to nothing") { asked.shouldNotBeNull() }
   }
 
   // Glyph bytes in the ink's own codes at the coverage solid text drew, laid padding texels in from every edge.
@@ -298,10 +309,9 @@ class TextPlateRasterTest {
     style: TextStyle,
     text: String = "H",
   ): TextSamples =
-    assertIs<TextRaster.Drawn<TextSamples>>(
-      rasterizeText(text, style, FRAME, ANY_SIDE),
-      "the text drew nothing",
-    ).pixels
+    withClue("the text drew nothing") {
+      rasterizeText(text, style, FRAME, ANY_SIDE).shouldBeInstanceOf<TextRaster.Drawn<TextSamples>>()
+    }.pixels
 
   // How much of a texel of text drawn at full alpha over no plate the glyphs cover, as an eight-bit code.
   private fun coverageAt(
@@ -339,7 +349,7 @@ class TextPlateRasterTest {
   private companion object {
     val FRAME = Size(1280, 720)
 
-    // Colour equal to alpha, and colour apart from it so a swapped channel reads off.
+    // Color equal to alpha, and color apart from it so a swapped channel reads off.
     val PLAN_PLATES = listOf(0x80808080.toInt(), 0x40C8C8C8)
     val PLATE = PLAN_PLATES.last()
 
@@ -380,7 +390,7 @@ class TextPlateRasterTest {
     // What textRasterFits counts a texel at, the samples, the band and the floats.
     val PEAK_TEXEL_BYTES = TEXT_TEXEL_BYTES + FLOAT_TEXEL_BYTES + checkNotNull(textBandBytes(1, 1))
 
-    // Black, which a mask keyed to white covers least, and a mid colour apart in every channel. Both cover apart from
+    // Black, which a mask keyed to white covers least, and a mid color apart in every channel. Both cover apart from
     // white on API 30 and 36.
     val INKS = listOf(0xFF000000.toInt(), 0xFF3060C0.toInt())
 

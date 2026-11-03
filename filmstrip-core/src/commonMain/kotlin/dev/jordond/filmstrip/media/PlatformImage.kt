@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.media
 
 import dev.drewhamilton.poko.Poko
-import dev.jordond.filmstrip.export.ExportError
+import dev.jordond.filmstrip.FilmstripError
 import kotlin.time.Duration
 
 /**
@@ -53,7 +53,7 @@ public sealed interface FrameResult {
    * @property image The rendered frame. The caller owns it and must [PlatformImage.close] it.
    * @property presentationTime The composition time that was actually rendered, which may sit
    *   a little either side of the time that was asked for.
-   * @property colorSpace The colour space the frame was rendered in.
+   * @property colorSpace The color space the frame was rendered in.
    */
   @Poko
   public class Success(
@@ -69,6 +69,6 @@ public sealed interface FrameResult {
    */
   @Poko
   public class Failure(
-    public val error: ExportError,
+    public val error: FilmstripError,
   ) : FrameResult
 }

@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.media3.internal
 import android.opengl.EGL14
 import android.opengl.EGLConfig
 import android.opengl.GLES20
-import dev.jordond.filmstrip.transform.internal.TextureSideProbe
+import dev.jordond.filmstrip.transform.internal.probe.TextureSideProbe
 
 /**
  * The most pixels an OpenGL ES texture holds on a side on this device, its `GL_MAX_TEXTURE_SIZE`.
@@ -16,7 +16,7 @@ import dev.jordond.filmstrip.transform.internal.TextureSideProbe
 internal fun media3MaxTextureSide(): Int = deviceTextureSide.side()
 
 /**
- * A [TextureSideProbe] floored at [ES3_MIN_TEXTURE_SIDE], reading the device's own side unless a test sets [read].
+ * A [TextureSideProbe] floored at [ES3_MIN_TEXTURE_SIDE], reading the device's own side by default.
  *
  * @param read The device's `GL_MAX_TEXTURE_SIZE`, or null when it could not be read.
  */

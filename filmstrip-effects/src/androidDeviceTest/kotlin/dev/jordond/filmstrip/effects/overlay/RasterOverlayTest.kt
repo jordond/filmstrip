@@ -7,12 +7,12 @@ import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.style.TextStyle
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertSame
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -33,7 +33,7 @@ class RasterOverlayTest {
 
     // Built once at resolve and handed back untouched, so an overlay with nothing to animate
     // allocates nothing for the length of an export.
-    assertSame(overlay.getOverlaySettings(0), overlay.getOverlaySettings(ONE_SECOND_US))
+    overlay.getOverlaySettings(ONE_SECOND_US) shouldBeSameInstanceAs overlay.getOverlaySettings(0)
   }
 
   @Test
@@ -42,7 +42,7 @@ class RasterOverlayTest {
 
     // media3 reads the object inside drawFrame and keeps no reference to it, so one instance
     // rewritten each frame is the whole per-frame cost of animating an overlay.
-    assertSame(overlay.getOverlaySettings(0), overlay.getOverlaySettings(ONE_SECOND_US))
+    overlay.getOverlaySettings(ONE_SECOND_US) shouldBeSameInstanceAs overlay.getOverlaySettings(0)
   }
 
   @Test
@@ -64,10 +64,10 @@ class RasterOverlayTest {
     // twice for every frame of every export.
     overlay.getOverlaySettings(ONE_SECOND_US)
     overlay.getOverlaySettings(ONE_SECOND_US)
-    assertEquals(1, sampled)
+    sampled shouldBe 1
 
     overlay.getOverlaySettings(ONE_SECOND_US + 1)
-    assertEquals(2, sampled)
+    sampled shouldBe 2
   }
 
   @Test
@@ -77,7 +77,7 @@ class RasterOverlayTest {
 
     val alpha = overlay.getOverlaySettings(ONE_SECOND_US).alphaScale
 
-    assertEquals(spec.frameAt(1.seconds, SPAN)?.opacity, alpha)
+    alpha shouldBe spec.frameAt(1.seconds, SPAN)?.opacity
   }
 
   @Test
@@ -90,7 +90,7 @@ class RasterOverlayTest {
     listOf(500.milliseconds, 1_500.milliseconds).forEach { at ->
       val expected = spec.frameAt(at, SPAN) ?: error("the watermark is not drawn at $at")
 
-      assertEquals(expected.opacity, overlay.getOverlaySettings(at.inWholeMicroseconds).alphaScale, "at $at")
+      withClue("at $at") { overlay.getOverlaySettings(at.inWholeMicroseconds).alphaScale shouldBe expected.opacity }
     }
   }
 
@@ -98,7 +98,7 @@ class RasterOverlayTest {
   fun aFrameOutsideTheWindowIsHandedNoAlpha() {
     val overlay = overlayFor(watermark(visibleDuring = TimeRange.of(Duration.ZERO, 1.seconds)))
 
-    assertEquals(0f, overlay.getOverlaySettings(TWO_SECONDS_US).alphaScale)
+    overlay.getOverlaySettings(TWO_SECONDS_US).alphaScale shouldBe 0f
   }
 
   @Test
@@ -112,8 +112,8 @@ class RasterOverlayTest {
     // StaticOverlaySettings.Builder, and implementing OverlaySettings directly walks past that
     // check rather than lifting the limit. This slide starts well past the edge on both axes, so
     // one reading pins both ends of the range.
-    assertEquals(1f, anchor.first)
-    assertEquals(-1f, anchor.second)
+    anchor.first shouldBe 1f
+    anchor.second shouldBe -1f
   }
 
   @Test
@@ -126,8 +126,10 @@ class RasterOverlayTest {
     // media3's scale is a multiplier on the raster's own pixel size rather than a fraction of the
     // frame, and the drawn size is the one animatedBy answers.
     val drawn = PLACEMENT.animatedBy(spec.frameAt(Duration.ZERO, SPAN)!!).size
-    assertTrue(abs(scale.first - drawn.width.toFloat() / RASTER.width) < TOLERANCE, "width: $scale")
-    assertTrue(abs(scale.second - drawn.height.toFloat() / RASTER.height) < TOLERANCE, "height: $scale")
+    withClue("width: $scale") { (abs(scale.first - drawn.width.toFloat() / RASTER.width) < TOLERANCE) shouldBe true }
+    withClue("height: $scale") {
+      (abs(scale.second - drawn.height.toFloat() / RASTER.height) < TOLERANCE) shouldBe true
+    }
   }
 
   @Test
@@ -139,8 +141,8 @@ class RasterOverlayTest {
     val without = drawnText(WORD, unplated, FRAME)
 
     val padding = plated.platePaddingOn(FRAME)
-    assertEquals(without.width + 2 * padding, withPlate.width)
-    assertEquals(without.height + 2 * padding, withPlate.height)
+    withPlate.width shouldBe without.width + 2 * padding
+    withPlate.height shouldBe without.height + 2 * padding
   }
 
   @Test
@@ -150,19 +152,21 @@ class RasterOverlayTest {
     // A wrap width half again the word's own width holds the word once but not twice.
     val style = TextStyle(fontSize = FONT_SIZE, maxWidth = 1.5f * once.width / FRAME.width)
     val wrap = style.wrapWidthOn(FRAME)
-    assertTrue(once.width <= wrap && wrap < 2 * once.width, "wrap $wrap against a word ${once.width} wide")
+    withClue("wrap $wrap against a word ${once.width} wide") {
+      (once.width <= wrap && wrap < 2 * once.width) shouldBe true
+    }
 
     val twice = drawnText("$WORD $WORD", style, FRAME)
 
-    assertEquals(2 * once.height, twice.height)
-    assertTrue(twice.width <= wrap, "a ${twice.width} wide raster outgrew its $wrap wrap")
+    twice.height shouldBe 2 * once.height
+    withClue("a ${twice.width} wide raster outgrew its $wrap wrap") { (twice.width <= wrap) shouldBe true }
   }
 
   private fun drawnText(
     text: String,
     style: TextStyle,
     frame: Size,
-  ): Size = assertIs<TextRaster.Drawn<TextSamples>>(rasterizeText(text, style, frame, ANY_SIDE)).pixels.size
+  ): Size = rasterizeText(text, style, frame, ANY_SIDE).shouldBeInstanceOf<TextRaster.Drawn<TextSamples>>().pixels.size
 
   private fun overlayFor(
     spec: OverlayEffect,
@@ -173,7 +177,7 @@ class RasterOverlayTest {
       spec = spec,
       placement = OverlayPlacement(PLACEMENT.size, PLACEMENT.overlayAnchor, frameAnchor),
       raster = RASTER,
-      run = spec.runWithin(SPAN),
+      drawnRange = spec.drawnRangeWithin(SPAN),
     )
 
   private fun watermark(

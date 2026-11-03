@@ -1,9 +1,13 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.media.YcbcrEvaluator
-import dev.jordond.filmstrip.media.evaluator
-import dev.jordond.filmstrip.media.ycbcrReading
+import dev.jordond.filmstrip.color.YcbcrEvaluator
+import dev.jordond.filmstrip.color.evaluator
+import dev.jordond.filmstrip.color.ycbcrReading
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.UByteVar
@@ -38,22 +42,17 @@ import platform.CoreGraphics.kCGBitmapByteOrder32Little
 import platform.posix.memcpy
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlin.test.fail
 
 /**
  * Holds [evaluatedImage] to core's evaluator on every texel of an image laid out each way ImageIO hands out stored
- * samples, with every texel its own colour and every row padded past its texels, and to refusing any other layout.
+ * samples, with every texel its own color and every row padded past its texels, and to refusing any other layout.
  *
  * The result is sixteen-bit little endian RGBA, its alpha straight and kept from an eight-bit layout that stores one.
  * A picture whose result would not fit in a [Long] count of bytes, or whose peak passes the ceiling it is read under,
  * is refused before any of it is read. Every depth in [EVALUATED_DEPTHS] has a layout read.
  */
-@OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 class YcbcrBitmapTest {
   @Test
   fun `every texel of a padded eight bit image is read in order at its own stride`() {
@@ -63,14 +62,14 @@ class YcbcrBitmapTest {
         miss(layout.name, image, LINEAR_EIGHT, 8, stored = layout.stored)
       }
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   @Test
   fun `every texel of a padded ten bit image is read in order at its own stride`() {
     val image = image(WIDTH, HEIGHT, PADDED_ROW, TEN, TEN_BIT_INFO) { x, y -> packed(tenBitTexelOf(x, y)) }
 
-    assertNull(miss("the packed ten-bit layout", image, CONSTANT_LUMINANCE_TEN, TEN, stored = false))
+    miss("the packed ten-bit layout", image, CONSTANT_LUMINANCE_TEN, TEN, stored = false).shouldBeNull()
   }
 
   @Test
@@ -81,7 +80,7 @@ class YcbcrBitmapTest {
       val image = image(WIDTH, HEIGHT, PADDED_ROW, 8, alpha.value) { x, y -> texelOf(x, y).toByteArray() }
       val read = image.use { it.evaluatedImage(LINEAR_EIGHT, 8) }
 
-      assertEquals(unreadLayout(8), assertIs<PictureRead.Refused>(read, "$alpha was read").reason)
+      withClue("$alpha was read") { read.shouldBeInstanceOf<PictureRead.Refused>() }.reason shouldBe unreadLayout(8)
     }
   }
 
@@ -96,45 +95,54 @@ class YcbcrBitmapTest {
     val asEight = tenBit.use { it.evaluatedImage(LINEAR_EIGHT, 8) }
     val asTen = eightBit.use { it.evaluatedImage(CONSTANT_LUMINANCE_TEN, TEN) }
 
-    assertEquals(unreadLayout(8), assertIs<PictureRead.Refused>(asEight, "ten bits were read as eight").reason)
-    assertEquals(unreadLayout(TEN), assertIs<PictureRead.Refused>(asTen, "eight bits were read as ten").reason)
+    withClue("ten bits were read as eight") {
+      asEight.shouldBeInstanceOf<PictureRead.Refused>()
+    }.reason shouldBe unreadLayout(8)
+    withClue("eight bits were read as ten") {
+      asTen.shouldBeInstanceOf<PictureRead.Refused>()
+    }.reason shouldBe unreadLayout(TEN)
   }
 
   @Test
   fun `a result whose size or row does not fit is refused before it is read`() {
-    assertEquals(48_000_000L * 8, sixteenBitRgbaBytes(8_000, 6_000))
-    assertEquals(0L, sixteenBitRgbaBytes(0, 6_000))
-    assertNull(sixteenBitRgbaBytes(1L shl 31, 1L shl 31))
-    assertNull(sixteenBitRgbaBytes(Long.MAX_VALUE, 1))
-    assertNull(sixteenBitRgbaBytes(-1, 1))
-    assertEquals(Int.MAX_VALUE / 8 * 8L, sixteenBitRgbaBytes(Int.MAX_VALUE / 8L, 1))
-    assertNull(sixteenBitRgbaBytes(Int.MAX_VALUE / 8L + 1, 1))
+    sixteenBitRgbaBytes(8_000, 6_000) shouldBe 48_000_000L * 8
+    sixteenBitRgbaBytes(0, 6_000) shouldBe 0L
+    sixteenBitRgbaBytes(1L shl 31, 1L shl 31).shouldBeNull()
+    sixteenBitRgbaBytes(Long.MAX_VALUE, 1).shouldBeNull()
+    sixteenBitRgbaBytes(-1, 1).shouldBeNull()
+    sixteenBitRgbaBytes(Int.MAX_VALUE / 8L, 1) shouldBe Int.MAX_VALUE / 8 * 8L
+    sixteenBitRgbaBytes(Int.MAX_VALUE / 8L + 1, 1).shouldBeNull()
   }
 
   @Test
   fun `a picture whose peak passes the ceiling is refused before it is read`() {
-    val result = assertNotNull(sixteenBitRgbaBytes(WIDTH.toLong(), HEIGHT.toLong()))
-    val peak = assertNotNull(evaluatedPeakBytes(result, PADDED_ROW.toLong(), HEIGHT.toLong()))
+    val result = sixteenBitRgbaBytes(WIDTH.toLong(), HEIGHT.toLong()).shouldNotBeNull()
+    val peak = evaluatedPeakBytes(result, PADDED_ROW.toLong(), HEIGHT.toLong()).shouldNotBeNull()
     val padded = { image(WIDTH, HEIGHT, PADDED_ROW, 8, RGBX) { x, y -> texelOf(x, y).toByteArray() } }
 
     val past = padded().use { it.evaluatedImage(LINEAR_EIGHT, 8, ceiling = peak - 1) }
     val at = padded().use { it.evaluatedImage(LINEAR_EIGHT, 8, ceiling = peak) }
 
-    val refused = assertIs<PictureRead.Refused>(past, "a read past the ceiling went through")
-    assertEquals(tooLarge(WIDTH.toLong(), HEIGHT.toLong(), peak - 1), refused.reason)
+    val refused = withClue("a read past the ceiling went through") { past.shouldBeInstanceOf<PictureRead.Refused>() }
+    refused.reason shouldBe tooLarge(WIDTH.toLong(), HEIGHT.toLong(), peak - 1)
     CGImageRelease(at.orFail("the picture at the ceiling"))
   }
 
   @Test
   fun `the peak counts the result beside two copies of the samples and a 48 mp picture fits under the ceiling`() {
-    val peak = assertNotNull(evaluatedPeakBytes(assertNotNull(sixteenBitRgbaBytes(8_000, 6_000)), 8_000L * 4, 6_000))
+    val peak =
+      evaluatedPeakBytes(
+        sixteenBitRgbaBytes(8_000, 6_000).shouldNotBeNull(),
+        8_000L * 4,
+        6_000,
+      ).shouldNotBeNull()
 
-    assertEquals(768_000_000L, peak)
-    assertTrue(peak <= PICTURE_PEAK_CEILING)
-    assertEquals(1L shl 30, PICTURE_PEAK_CEILING)
-    assertEquals(0L, evaluatedPeakBytes(0, 32, 0))
-    assertNull(evaluatedPeakBytes(8, Long.MAX_VALUE / 2, 2))
-    assertNull(evaluatedPeakBytes(-1, 32, 1))
+    peak shouldBe 768_000_000L
+    (peak <= PICTURE_PEAK_CEILING) shouldBe true
+    PICTURE_PEAK_CEILING shouldBe (1L shl 30)
+    evaluatedPeakBytes(0, 32, 0) shouldBe 0L
+    evaluatedPeakBytes(8, Long.MAX_VALUE / 2, 2).shouldBeNull()
+    evaluatedPeakBytes(-1, 32, 1).shouldBeNull()
   }
 
   @Test
@@ -257,9 +265,9 @@ class YcbcrBitmapTest {
     texel: (Int, Int) -> ByteArray,
   ): CGImageRef {
     val size = row.toLong() * height
-    val data = assertNotNull(CFDataCreateMutable(null, size))
+    val data = CFDataCreateMutable(null, size).shouldNotBeNull()
     CFDataSetLength(data, size)
-    val bytes = assertNotNull(CFDataGetMutableBytePtr(data))
+    val bytes = CFDataGetMutableBytePtr(data).shouldNotBeNull()
     val rows = HashMap<Int, ByteArray>()
     for (y in 0 until height) {
       val pattern =
@@ -287,7 +295,7 @@ class YcbcrBitmapTest {
       )
     CGColorSpaceRelease(space)
     CGDataProviderRelease(provider)
-    return assertNotNull(image, "Core Graphics made no $width by $height image with bitmap info $info")
+    return withClue("Core Graphics made no $width by $height image with bitmap info $info") { image.shouldNotBeNull() }
   }
 
   private inline fun <T> CGImageRef.use(read: (CGImageRef) -> T): T =
@@ -298,9 +306,9 @@ class YcbcrBitmapTest {
     }
 
   private inline fun <T> CGImageRef.withSamples(read: (CPointer<UByteVar>) -> T): T {
-    val copy: CFDataRef = assertNotNull(CGDataProviderCopyData(CGImageGetDataProvider(this)))
+    val copy: CFDataRef = CGDataProviderCopyData(CGImageGetDataProvider(this)).shouldNotBeNull()
     try {
-      return read(assertNotNull(CFDataGetBytePtr(copy)))
+      return read(CFDataGetBytePtr(copy).shouldNotBeNull())
     } finally {
       CFRelease(copy)
     }

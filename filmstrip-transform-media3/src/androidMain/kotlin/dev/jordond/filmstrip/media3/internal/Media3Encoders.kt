@@ -6,12 +6,12 @@ import android.media.MediaFormat
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.VideoEncoderCapability
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.Bitrate
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
-import dev.jordond.filmstrip.export.AudioCodec
-import dev.jordond.filmstrip.export.Bitrate
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 
@@ -34,7 +34,7 @@ internal fun encoderCapabilities(): DeviceCapabilities {
 /**
  * What media3's effect pipeline can draw for an offline export.
  *
- * @param maxTextureSide The most pixels a texture holds on a side, [media3MaxTextureSide] unless a test sets it.
+ * @param maxTextureSide The most pixels a texture holds on a side, [media3MaxTextureSide] by default.
  */
 internal fun media3RenderCapabilities(
   hdr: Boolean,

@@ -21,7 +21,7 @@ import kotlin.time.Duration
  * @return The range the overlay is drawn over, in composition time.
  */
 @InternalFilmstripApi
-public fun OverlayEffect.runWithin(span: TimeRange): TimeRange {
+public fun OverlayEffect.drawnRangeWithin(span: TimeRange): TimeRange {
   val window = visibleDuring ?: return span
   val windowEnd = window.endExclusive
   val spanEnd = span.endExclusive
@@ -37,34 +37,34 @@ public fun OverlayEffect.runWithin(span: TimeRange): TimeRange {
 }
 
 /**
- * Samples this overlay at one output frame of a run already derived by [runWithin].
+ * Samples this overlay at one output frame of a drawn range already derived by [drawnRangeWithin].
  *
  * Allocates nothing beyond what it answers, so a backend may call it on its render thread for every
  * frame it draws.
  *
  * An overlay carrying no [OverlayEffect.visibleDuring] is drawn on every frame it is handed. The
- * run is the planner's own half-open slot and each backend counts [compositionTime] its own way, so
+ * drawn range is the planner's own half-open slot and each backend counts [compositionTime] its own way, so
  * a timestamp landing on either bound would otherwise drop a frame nothing asked to hide. One
  * carrying a window is gated by that window and answers null outside it.
  *
  * [OverlayTime.elapsed] and [OverlayTime.remaining] are held at zero or more, so a timestamp
- * drifting off the run reads as the nearer end of it rather than as negative time.
+ * drifting off the drawn range reads as the nearer end of it rather than as negative time.
  *
  * The answer already carries [ImageOverlay.opacity], with the opacity held in `0f..1f` and the
  * scale at zero or more, so a backend draws what it is handed without multiplying anything itself.
  * A NaN or an infinity from a caller's animation reads as the value that changes nothing, so a
  * runaway scale cannot grow the drawn size past what a backend can hold.
  *
- * @param run The range the overlay is drawn over, in composition time.
+ * @param drawnRange The range the overlay is drawn over, in composition time.
  * @param compositionTime Where the frame sits on the composition's timeline.
  * @return What to draw the overlay with, or null when it is not drawn on that frame.
  */
 @InternalFilmstripApi
 public fun OverlayEffect.frameWithin(
-  run: TimeRange,
+  drawnRange: TimeRange,
   compositionTime: Duration,
 ): OverlayFrame? {
-  if (visibleDuring != null && compositionTime !in run) return null
+  if (visibleDuring != null && compositionTime !in drawnRange) return null
 
   val authored = ((this as? ImageOverlay)?.opacity ?: 1f).orUnchanged(1f)
   val animation = animation
@@ -73,9 +73,9 @@ public fun OverlayEffect.frameWithin(
     return if (still == 1f) OverlayFrame.Identity else OverlayFrame(opacity = still)
   }
 
-  val since = compositionTime - run.start
+  val since = compositionTime - drawnRange.start
   val elapsed = if (since < Duration.ZERO) Duration.ZERO else since
-  val end = run.endExclusive
+  val end = drawnRange.endExclusive
   val remaining =
     when {
       end == null -> Duration.INFINITE
@@ -95,11 +95,11 @@ public fun OverlayEffect.frameWithin(
 }
 
 /**
- * Samples this overlay at one output frame, deriving its run from [span].
+ * Samples this overlay at one output frame, deriving its drawn range from [span].
  *
  * [compositionTime] is read against the same clock [Attributes.span] is, which is the one every
- * backend hands an effect. The sampling is [frameWithin]'s, and the run is [runWithin]'s. A caller
- * drawing frame after frame derives the run once and calls [frameWithin] instead.
+ * backend hands an effect. The sampling is [frameWithin]'s, and the drawn range is [drawnRangeWithin]'s. A caller
+ * drawing frame after frame derives the drawn range once and calls [frameWithin] instead.
  *
  * @param compositionTime Where the frame sits on the composition's timeline.
  * @param span The composition time range the frames entering this effect fall in.
@@ -109,7 +109,7 @@ public fun OverlayEffect.frameWithin(
 public fun OverlayEffect.frameAt(
   compositionTime: Duration,
   span: TimeRange,
-): OverlayFrame? = frameWithin(runWithin(span), compositionTime)
+): OverlayFrame? = frameWithin(drawnRangeWithin(span), compositionTime)
 
 /**
  * Moves and resizes this placement by what an animation answered for one frame.

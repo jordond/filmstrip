@@ -1,8 +1,10 @@
 package dev.jordond.filmstrip.test
 
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.test.AppleStillSamples.EIGHT_BIT_STEP
 import dev.jordond.filmstrip.test.AppleStillSamples.SAMPLE_MASK
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -32,18 +34,13 @@ import platform.ImageIO.CGImageSourceCreateWithData
 import platform.ImageIO.CGImageSourceGetPrimaryImageIndex
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertContains
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertTrue
 
 /**
  * Holds every twelve-bit AVIF and HEIC under each matrix [AppleStillSamples.twelveBit] covers, at both ranges, restated
- * the way [AppleStillSamples.landing] lands it, to the sixteen-bit bitmap ImageIO decodes it to, or to ImageIO handing
- * out none of its samples. Also holds the twelve-bit model to failing where its decode is unmeasured.
+ * the way [AppleStillSamples.decoderMatrix] lands it, to the sixteen-bit bitmap ImageIO decodes it to, or to ImageIO
+ * handing out none of its samples. Also holds the twelve-bit model to failing where its decode is unmeasured.
  */
-@OptIn(InternalFilmstripApi::class)
 class AppleTwelveBitStillsTest {
   @Test
   fun aTwelveBitDecodeOnAnIphoneIsUnmeasured() {
@@ -54,8 +51,8 @@ class AppleTwelveBitStillsTest {
         AppleStillSamples.twelveBit(CicpTag(1, 13, 1, true), heic = false, read, ApplePlatform.Iphone)
       }
 
-    assertContains(failure.message.orEmpty(), "iOS hardware")
-    assertContains(failure.message.orEmpty(), "${read.toList()}")
+    failure.message.orEmpty() shouldContain "iOS hardware"
+    failure.message.orEmpty() shouldContain "${read.toList()}"
   }
 
   @Test
@@ -64,7 +61,9 @@ class AppleTwelveBitStillsTest {
       AppleStillSamples.TWELVE_BIT_MATRICES.forEach { matrix ->
         val nclx = CicpTag(1, 13, matrix, false)
         val decodes = AppleStillSamples.twelveBit(nclx, heic = true, read = null, platform)
-        assertTrue(decodes.isEmpty(), "the limited range HEIC under matrix $matrix decodes on ${platform.label}")
+        withClue("the limited range HEIC under matrix $matrix decodes on ${platform.label}") {
+          decodes.isEmpty() shouldBe true
+        }
       }
     }
   }
@@ -73,20 +72,22 @@ class AppleTwelveBitStillsTest {
   // reading that matrix, or BT.709 for both, fails here. FCC's mid code rounds to BT.601's, so it is left out.
   @Test
   fun aTwelveBitStillUnderAnUnreadMatrixLandsThroughTheNearestReadableMatrix() {
-    val (y, cb, cr) = AvifColourPictures.TWELVE_BIT_YCBCR
+    val (y, cb, cr) = AvifColorPictures.TWELVE_BIT_YCBCR
     for (platform in listOf(ApplePlatform.MacOs, ApplePlatform.Simulator)) {
       for (matrix in listOf(7, 10)) {
         val nclx = CicpTag(1, 13, matrix, true)
-        val landed = AppleStillSamples.landing(nclx, unsubsampled = false, TWELVE_BITS)
+        val landed = AppleStillSamples.decoderMatrix(nclx, unsubsampled = false, TWELVE_BITS)
         checkNotNull(landed) { "matrix $matrix" }
         val expected = ycbcrToRgb(y, cb, cr, landed.matrix, 1, 13, true, 12).map { (it * EIGHT_BIT_STEP).toShort() }
         val named = ycbcrToRgb(y, cb, cr, matrix, 1, 13, true, 12).map { (it * EIGHT_BIT_STEP).toShort() }
 
         val decode = AppleStillSamples.twelveBit(nclx, heic = false, read = null, platform).single()
-        assertContentEquals(expected, decode.take(RGB), "matrix $matrix on ${platform.label}")
+        withClue("matrix $matrix on ${platform.label}") { decode.take(RGB) shouldBe expected }
         val readable = landed.matrix in AppleStillSamples.READABLE_MATRICES
-        assertTrue(readable, "matrix $matrix lands through ${landed.matrix}")
-        assertTrue(named != expected, "matrix $matrix reads as ${landed.matrix} does, so this cannot tell them apart")
+        withClue("matrix $matrix lands through ${landed.matrix}") { readable shouldBe true }
+        withClue("matrix $matrix reads as ${landed.matrix} does, so this cannot tell them apart") {
+          (named != expected) shouldBe true
+        }
       }
     }
   }
@@ -95,8 +96,10 @@ class AppleTwelveBitStillsTest {
   fun aTwelveBitStillRefusedBeforeDecodingHasNoDecode() {
     for (matrix in listOf(0, 3, 11, 14, 15)) {
       val nclx = CicpTag(1, 13, matrix, true)
-      assertEquals(null, AppleStillSamples.landing(nclx, unsubsampled = false, TWELVE_BITS), "matrix $matrix lands")
-      assertTrue(AppleStillSamples.twelveBit(nclx, heic = false, read = null, ApplePlatform.MacOs).isEmpty())
+      withClue("matrix $matrix lands") {
+        AppleStillSamples.decoderMatrix(nclx, unsubsampled = false, TWELVE_BITS) shouldBe null
+      }
+      AppleStillSamples.twelveBit(nclx, heic = false, read = null, ApplePlatform.MacOs).isEmpty() shouldBe true
     }
   }
 
@@ -116,10 +119,10 @@ class AppleTwelveBitStillsTest {
         listOf(true, false).flatMap { full ->
           val nclx = CicpTag(1, 13, matrix, full)
           listOf(
-            TwelveBitStill("AVIF $nclx", AvifColourPictures.twelveBit(nclx).bytes(), heic = false),
-            TwelveBitStill("HEIC $nclx", HeicColourPictures.twelveBit(nclx), heic = true),
+            TwelveBitStill("AVIF $nclx", AvifColorPictures.twelveBit(nclx).bytes(), heic = false),
+            TwelveBitStill("HEIC $nclx", HeicColorPictures.twelveBit(nclx), heic = true),
           ).mapNotNull { still ->
-            val landed = AppleStillSamples.landing(nclx, unsubsampled = false, TWELVE_BITS)
+            val landed = AppleStillSamples.decoderMatrix(nclx, unsubsampled = false, TWELVE_BITS)
             AppleStillSamples.missOrUnmeasured {
               val read = landed?.let { imageIoDeepCentre(landedBytes(still.bytes, nclx, it.matrix)) }
               val texel = read?.let { r -> ShortArray(r.size) { r[it].toShort() } }
@@ -130,7 +133,7 @@ class AppleTwelveBitStillsTest {
         }
       }
 
-    assertTrue(misses.isEmpty(), "Model misses on ${osBuild()}:\n" + misses.joinToString("\n"))
+    withClue("Model misses on ${osBuild()}:\n" + misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   /**
@@ -175,13 +178,13 @@ class AppleTwelveBitStillsTest {
     CFRelease(source)
     try {
       val info = CGImageGetBitmapInfo(image)
-      assertTrue(
-        CGImageGetBitsPerComponent(image) == DEEP_BITS.toULong() && CGImageGetBitsPerPixel(image) == 64uL &&
-          info and kCGBitmapByteOrderMask == kCGBitmapByteOrder16Little && info and kCGBitmapAlphaInfoMask in RGB_FIRST,
-        "ImageIO decoded to a layout this read does not take, bitmap info $info at ${CGImageGetBitsPerComponent(
-          image,
-        )}",
-      )
+      val depth = CGImageGetBitsPerComponent(image)
+      val readable =
+        depth == DEEP_BITS.toULong() && CGImageGetBitsPerPixel(image) == 64uL &&
+          info and kCGBitmapByteOrderMask == kCGBitmapByteOrder16Little && info and kCGBitmapAlphaInfoMask in RGB_FIRST
+      withClue("ImageIO decoded to a layout this read does not take, bitmap info $info at $depth") {
+        readable shouldBe true
+      }
       val samples = CGDataProviderCopyData(CGImageGetDataProvider(image)) ?: return null
       try {
         val pointer = checkNotNull(CFDataGetBytePtr(samples))

@@ -18,7 +18,7 @@ internal class Written(
   val fullRange: Boolean,
 ) {
   /**
-   * The colour at the fractions [fx] and [fy] of the frame, turned into RGB through [matrix] and [fullRange].
+   * The color at the fractions [fx] and [fy] of the frame, turned into RGB through [matrix] and [fullRange].
    */
   fun rgbAt(
     fx: Float,
@@ -34,7 +34,7 @@ internal class Written(
 /**
  * The ITU-T H.273 matrix and full range flag [video]'s video track records.
  */
-internal fun colourTagOf(video: File): Pair<Int, Boolean> {
+internal fun colorTagOf(video: File): Pair<Int, Boolean> {
   val extractor = MediaExtractor()
   try {
     extractor.setDataSource(video.path)
@@ -43,7 +43,7 @@ internal fun colourTagOf(video: File): Pair<Int, Boolean> {
         .map(extractor::getTrackFormat)
         .first { it.getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true }
     val standard = format.getInteger(MediaFormat.KEY_COLOR_STANDARD)
-    val matrix = checkNotNull(MATRIX_OF_STANDARD[standard]) { "$video records colour standard $standard" }
+    val matrix = checkNotNull(MATRIX_OF_STANDARD[standard]) { "$video records color standard $standard" }
     return matrix to (format.getInteger(MediaFormat.KEY_COLOR_RANGE) == MediaFormat.COLOR_RANGE_FULL)
   } finally {
     extractor.release()
@@ -51,7 +51,7 @@ internal fun colourTagOf(video: File): Pair<Int, Boolean> {
 }
 
 /**
- * The H.273 matrix code each `MediaFormat` colour standard reads through.
+ * The H.273 matrix code each `MediaFormat` color standard reads through.
  */
 internal val MATRIX_OF_STANDARD =
   mapOf(

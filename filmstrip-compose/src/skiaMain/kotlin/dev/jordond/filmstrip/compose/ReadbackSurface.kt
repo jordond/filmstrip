@@ -18,8 +18,8 @@ import androidx.compose.ui.unit.IntSize
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.player.ReadbackResult
 import dev.jordond.filmstrip.player.VideoPlayer
+import dev.jordond.filmstrip.player.frameAt
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.math.roundToInt
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -68,20 +68,12 @@ private fun ImageBitmap.closeSkiaBacking() {
   asSkiaBitmap().close()
 }
 
+// Converted only once the readback has landed, so a tick the playhead already moved past never allocates a bitmap
+// nobody draws.
 private suspend fun VideoPlayer.frameAt(position: Duration): ImageBitmap? =
-  suspendCancellableCoroutine { continuation ->
-    val request =
-      readback.requestFrame(position) { result ->
-        val bitmap =
-          when (result) {
-            is ReadbackResult.Success -> result.frame.toImageBitmap()
-            is ReadbackResult.Failure -> null
-          }
-        // A frame resumed into a continuation the tick has already moved past reaches nobody, and
-        // nothing else is left holding it.
-        continuation.resume(bitmap) { _, dropped, _ -> dropped?.closeSkiaBacking() }
-      }
-    continuation.invokeOnCancellation { request.cancel() }
+  when (val result = readback.frameAt(position)) {
+    is ReadbackResult.Success -> result.frame.toImageBitmap()
+    is ReadbackResult.Failure -> null
   }
 
 // Sizes the video rectangle to the composition's output aspect. The effect pipeline preserves that

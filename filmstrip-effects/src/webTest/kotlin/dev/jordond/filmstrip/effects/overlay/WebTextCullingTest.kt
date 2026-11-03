@@ -2,11 +2,11 @@ package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.style.TextStyle
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.math.ceil
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 
 /**
  * Which lines each tile of the browser's text raster draws.
@@ -27,25 +27,31 @@ class WebTextCullingTest {
       val range = linesInTile(top, bottom, FIRST_BASELINE, ADVANCE, REACH_UP, REACH_DOWN, LINES)
       taken += range.count()
 
-      assertTrue(range.count() <= widest, "the tile from row $top took ${range.count()} lines, past $widest")
+      withClue("the tile from row $top took ${range.count()} lines, past $widest") {
+        (range.count() <= widest) shouldBe true
+      }
       val missed =
         (0 until LINES).filter { line ->
           val baseline = FIRST_BASELINE + line * ADVANCE
           baseline + REACH_DOWN + INK_MARGIN > top && baseline - REACH_UP - INK_MARGIN < bottom && line !in range
         }
-      assertTrue(missed.isEmpty(), "the tile from row $top left out lines ${missed.take(SHOWN)} that reach it")
+      withClue("the tile from row $top left out lines ${missed.take(SHOWN)} that reach it") {
+        missed.isEmpty() shouldBe true
+      }
     }
-    assertTrue(taken <= 2L * LINES, "the tiles took $taken lines of $LINES")
+    withClue("the tiles took $taken lines of $LINES") { (taken <= 2L * LINES) shouldBe true }
   }
 
   @Test
   fun textThatOverhangsItsLinesDrawsTheSameInSmallTiles() {
     val whole = rasterOf(TEXT_TILE_SIDE)
-    assertTrue(whole.size.width <= TEXT_TILE_SIDE && whole.size.height <= TEXT_TILE_SIDE, "${whole.size} is one tile")
-    assertTrue(whole.samples.any { it != 0.toShort() }, "the overhanging text drew nothing")
+    withClue("${whole.size} is one tile") {
+      (whole.size.width <= TEXT_TILE_SIDE && whole.size.height <= TEXT_TILE_SIDE) shouldBe true
+    }
+    withClue("the overhanging text drew nothing") { whole.samples.any { it != 0.toShort() } shouldBe true }
 
     for (tileSide in SEAM_TILE_SIDES) {
-      assertContentEquals(whole.samples, rasterOf(tileSide).samples, "the text drawn in $tileSide pixel tiles")
+      withClue("the text drawn in $tileSide pixel tiles") { rasterOf(tileSide).samples shouldBe whole.samples }
     }
   }
 
@@ -53,21 +59,29 @@ class WebTextCullingTest {
   fun aHundredThousandLinesDrawInkInTheFirstMiddleAndLastTiles() {
     val text = List(LINES) { "i" }.joinToString("\n")
 
-    val raster = assertIs<TextRaster.Drawn<LaidOutText>>(rasterizeText(text, LONG_STYLE, FRAME, Int.MAX_VALUE)).pixels
+    val raster =
+      rasterizeText(
+        text,
+        LONG_STYLE,
+        FRAME,
+        Int.MAX_VALUE,
+      ).shouldBeInstanceOf<TextRaster.Drawn<LaidOutText>>().pixels
 
     val (width, height) = raster.size.width to raster.size.height
     val tops = (0 until height step TEXT_TILE_SIDE).toList()
-    assertTrue(tops.size > 2, "the text stands $height tall")
+    withClue("the text stands $height tall") { (tops.size > 2) shouldBe true }
     for (top in listOf(tops.first(), tops[tops.size / 2], tops.last())) {
       val rows = top until minOf(top + TEXT_TILE_SIDE, height)
       val inked = rows.any { y -> (0 until width).any { raster.samples[(y * width + it) * CHANNELS + ALPHA] != ZERO } }
-      assertTrue(inked, "the tile from row $top holds no text")
+      withClue("the tile from row $top holds no text") { inked shouldBe true }
     }
   }
 
   private fun rasterOf(tileSide: Int): LaidOutText {
     val drawn = rasterizeText(OVERHANGING, SEAM_STYLE, FRAME, Int.MAX_VALUE, tileSide = tileSide)
-    return assertIs<TextRaster.Drawn<LaidOutText>>(drawn, "the text in $tileSide pixel tiles").pixels
+    return withClue("the text in $tileSide pixel tiles") {
+      drawn.shouldBeInstanceOf<TextRaster.Drawn<LaidOutText>>()
+    }.pixels
   }
 
   private companion object {

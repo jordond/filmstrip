@@ -4,10 +4,11 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.motion.Easing
 import dev.jordond.filmstrip.motion.paced
+import io.kotest.assertions.withClue
+import io.kotest.matchers.floats.plusOrMinus
+import io.kotest.matchers.shouldBe
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -64,10 +65,10 @@ class KenBurnsGeometryTest {
     val easedIn = KenBurns(FROM, TO, Easing.EaseIn).regionAt(at(0.4), SPAN)
     val easedOut = KenBurns(FROM, TO, Easing.EaseOut).regionAt(at(0.4), SPAN)
 
-    assertTrue(abs(easedIn.left - linear.left) > TOLERANCE, "EaseIn matched Linear at 40%")
-    assertTrue(abs(easedOut.left - linear.left) > TOLERANCE, "EaseOut matched Linear at 40%")
-    assertTrue(easedIn.left < linear.left, "EaseIn should be behind Linear at 40%")
-    assertTrue(easedOut.left > linear.left, "EaseOut should be ahead of Linear at 40%")
+    withClue("EaseIn matched Linear at 40%") { (abs(easedIn.left - linear.left) > TOLERANCE) shouldBe true }
+    withClue("EaseOut matched Linear at 40%") { (abs(easedOut.left - linear.left) > TOLERANCE) shouldBe true }
+    withClue("EaseIn should be behind Linear at 40%") { (easedIn.left < linear.left) shouldBe true }
+    withClue("EaseOut should be ahead of Linear at 40%") { (easedOut.left > linear.left) shouldBe true }
   }
 
   /**
@@ -110,10 +111,10 @@ class KenBurnsGeometryTest {
     actual: NormalizedRect,
     message: String = "",
   ) {
-    assertEquals(expected.left, actual.left, TOLERANCE, "left $message")
-    assertEquals(expected.top, actual.top, TOLERANCE, "top $message")
-    assertEquals(expected.right, actual.right, TOLERANCE, "right $message")
-    assertEquals(expected.bottom, actual.bottom, TOLERANCE, "bottom $message")
+    withClue("left $message") { actual.left shouldBe (expected.left plusOrMinus TOLERANCE) }
+    withClue("top $message") { actual.top shouldBe (expected.top plusOrMinus TOLERANCE) }
+    withClue("right $message") { actual.right shouldBe (expected.right plusOrMinus TOLERANCE) }
+    withClue("bottom $message") { actual.bottom shouldBe (expected.bottom plusOrMinus TOLERANCE) }
   }
 
   private companion object {

@@ -2,10 +2,9 @@ package dev.jordond.filmstrip.capability
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.export.Adjustment
-import dev.jordond.filmstrip.export.AudioCodec
-import dev.jordond.filmstrip.export.Bitrate
-import dev.jordond.filmstrip.export.VideoCodec
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.Bitrate
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.geometry.Size
 
 /**
@@ -58,7 +57,7 @@ public class DeviceCapabilities
  * @property isHardwareAccelerated False for a software encoder, true for a hardware one, or null
  *   when the platform will not say which it is.
  * @property sizeAlignment The alignment each dimension must have, typically 2 and sometimes 16.
- *   Filmstrip rounds a frame to this and reports the rounding as an [Adjustment].
+ *   Filmstrip rounds a frame to this and reports the rounding among the export's adjustments.
  */
 @Poko
 public class VideoEncoderCapability(

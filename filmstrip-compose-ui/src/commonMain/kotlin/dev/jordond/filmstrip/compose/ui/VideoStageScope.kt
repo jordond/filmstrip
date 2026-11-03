@@ -8,8 +8,7 @@ import dev.jordond.filmstrip.compose.ui.geometry.CropFrame
  * What content drawn over a [VideoStage] is given.
  *
  * A [BoxScope], so an overlay places itself with `align` and `matchParentSize` the way it would in any box. [frame] is
- * the letterbox the stage already computed, so an overlay reads where the picture is rather than measuring for it a
- * second time.
+ * the letterbox the stage already computed, which tells an overlay where the picture is.
  *
  * A `Row` or a `Column` opened inside the content shadows this scope, so chrome that reads [frame] or [aspect] from
  * inside one takes them as parameters.

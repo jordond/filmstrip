@@ -1,15 +1,13 @@
 package dev.jordond.filmstrip.webcodecs.internal
 
 import dev.jordond.filmstrip.CapabilitiesResult
-import dev.jordond.filmstrip.ComponentRegistry
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
+import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.edit.EditComposition
-import dev.jordond.filmstrip.effects.BuiltInEffectResolver
-import dev.jordond.filmstrip.export.Bitrate
-import dev.jordond.filmstrip.export.ExportEngine
-import dev.jordond.filmstrip.export.ExportError
+import dev.jordond.filmstrip.export.EngineComponents
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
@@ -23,14 +21,16 @@ import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
-import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.trackCodecOf
-import dev.jordond.filmstrip.transform.internal.ProbeCache
-import dev.jordond.filmstrip.transform.internal.ProbeCacheResult
+import dev.jordond.filmstrip.transform.internal.EngineLowering
+import dev.jordond.filmstrip.transform.internal.LoweredExport
+import dev.jordond.filmstrip.transform.internal.LoweringExportEngine
 import dev.jordond.filmstrip.transform.internal.ResolveResult
-import dev.jordond.filmstrip.transform.internal.copyOpenings
-import dev.jordond.filmstrip.transform.internal.refusal
-import dev.jordond.filmstrip.transform.internal.toResolveResult
+import dev.jordond.filmstrip.transform.internal.negotiation.Ask
+import dev.jordond.filmstrip.transform.internal.probe.PlanningReadResult
+import dev.jordond.filmstrip.transform.internal.probe.PlanningReads
+import dev.jordond.filmstrip.transform.internal.refusedLowering
+import dev.jordond.filmstrip.webcodecs.internal.interop.Date
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
@@ -52,134 +52,64 @@ import kotlin.time.Duration.Companion.microseconds
  */
 @InternalFilmstripApi
 public class BrowserExportEngine(
-  components: ComponentRegistry,
+  components: EngineComponents,
   prober: MediaProber,
-) : ExportEngine {
-  private val backend = WebCodecsCapabilities()
+) : LoweringExportEngine() {
+  private val backend = BrowserCapabilities()
   private val sources = SourceCache()
   private val planner = BrowserPlanner(components.effectResolvers)
+  private val reads =
+    PlanningReads(prober, backend::capabilities) { source, cut -> sources.open(source)?.syncSampleAtOrBefore(cut) }
+  override val lowering: EngineLowering<*> =
+    EngineLowering(components.effectResolvers, ::lower) { render, plan, to -> run(render, plan.path, to) }
 
-  // A browser decodes an overlay image only asynchronously and a resolver cannot wait, so every built-in resolver
-  // decodes the composition's images before it is lowered.
-  private val preloading = components.effectResolvers.filterIsInstance<BuiltInEffectResolver>()
-  private var device: DeviceCapabilities? = null
-  private val probes = ProbeCache(prober)
+  override suspend fun capabilities(): CapabilitiesResult = CapabilitiesResult.Success(reads.device())
 
-  // Where a stream copy of each cut could open. The same edit is negotiated to plan it, to resolve
-  // it for a preview and again to export it, and the answer cannot move between those.
-  private val openings = mutableMapOf<Pair<MediaSource, Duration>, Duration?>()
+  override fun parityOf(specId: String): EffectParity? = browserParityOf(specId)
 
-  override suspend fun capabilities(): CapabilitiesResult = CapabilitiesResult.Success(backend.capabilities())
-
-  override suspend fun plan(
+  private suspend fun lower(
     composition: EditComposition,
     spec: ExportSpec,
-  ): Verdict =
-    when (val result = negotiate(composition, spec)) {
-      is NegotiationResult.Failed -> Verdict.Incapable(listOf(result.error), null)
-      is NegotiationResult.Done -> result.lowering.verdict
-    }
+    layoutSize: Size?,
+  ): LoweredExport<BrowserRender> {
+    val read =
+      when (val result = reads.read(composition)) {
+        is PlanningReadResult.Failed -> return refusedLowering(result.error)
+        is PlanningReadResult.Read -> result
+      }
+    // Only worth asking where the device would otherwise take the grade. Where it would not, the
+    // refusal is already about the device and probing would open a reader a plan-only caller never
+    // asked for.
+    val opaque = if (read.device.supportsHdrEncoding) opaqueGrades(read.infos) else emptySet()
+    val device = if (opaque.isEmpty()) read.device else read.device.withoutHdrEncoding()
+    return planner.lower(composition, Ask(spec, device, read.infos, read.openings, layoutSize), opaque = opaque)
+  }
 
-  override fun export(
-    plan: ExportPlan,
+  private fun run(
+    render: BrowserRender,
+    path: ExportPath,
     to: MediaSink,
   ): Flow<ExportStatus> =
     flow {
       emit(ExportStatus.Started)
       try {
-        runExport(plan, to)
+        runRender(render, path, to)
       } finally {
         sources.close()
       }
     }
 
-  override fun parityOf(specId: String): EffectParity? = browserParityOf(specId)
-
-  /**
-   * Negotiates [composition] and lowers it into the graph [export] would run, writing nothing.
-   *
-   * A preview presents the same edit an export of it writes, so it lowers through this rather than
-   * through a negotiation of its own. Sharing the call is what makes the two pipelines the same
-   * one: the same probes, the same device answer, the same output format and the same effect chain.
-   *
-   * @param composition The edit to lower.
-   * @param spec What the export would be asked for.
-   * @param layoutSize The output frame text is laid out against, for a caller lowering a frame
-   *   smaller than the one an export writes. Null lays text out against the frame [spec] settles
-   *   on, which is what an export does.
-   * @return The lowered composition and the verdict it came with, or why it cannot run here.
-   */
-  @InternalFilmstripApi
-  public suspend fun resolve(
-    composition: EditComposition,
-    spec: ExportSpec,
-    layoutSize: Size? = null,
-  ): ResolveResult =
-    when (val result = negotiate(composition, spec, layoutSize)) {
-      is NegotiationResult.Failed -> ResolveResult.Refused(result.error)
-      is NegotiationResult.Done -> result.lowering.export.toResolveResult()
-    }
-
-  /**
-   * Re-negotiates the plan's own composition and spec, so exporting costs nothing beyond
-   * re-planning against cached probes.
-   */
-  private suspend fun negotiate(
-    composition: EditComposition,
-    spec: ExportSpec,
-    layoutSize: Size? = null,
-  ): NegotiationResult =
-    when (val probed = probes.read(composition)) {
-      is ProbeCacheResult.Failed -> {
-        NegotiationResult.Failed(probed.error)
-      }
-      is ProbeCacheResult.Read -> {
-        preloading.forEach { it.preload(composition) }
-        val device = deviceCapabilities()
-        // Only worth asking where the device would otherwise take the grade. Where it would not,
-        // the refusal is already about the device and probing would open a reader a plan-only
-        // caller never asked for.
-        val opaque = if (device.supportsHdrEncoding) opaqueGrades(probed.infos) else emptySet()
-        NegotiationResult.Done(
-          planner.lower(
-            composition,
-            spec,
-            if (opaque.isEmpty()) device else device.withoutHdrEncoding(),
-            probed.infos,
-            openings = copyOpenings(composition, ::openingFor),
-            layoutSize = layoutSize,
-            opaque = opaque,
-          ),
-        )
-      }
-    }
-
-  private suspend fun FlowCollector<ExportStatus>.runExport(
-    plan: ExportPlan,
+  private suspend fun FlowCollector<ExportStatus>.runRender(
+    render: BrowserRender,
+    path: ExportPath,
     to: MediaSink,
   ) {
-    val lowering =
-      when (val result = negotiate(plan.composition, plan.spec)) {
-        is NegotiationResult.Failed -> {
-          emit(ExportStatus.Failure(result.error))
-          return
-        }
-        is NegotiationResult.Done -> {
-          result.lowering
-        }
-      }
-    val render =
-      lowering.render ?: run {
-        emit(ExportStatus.Failure(lowering.export.refusal()))
-        return
-      }
-
     // render.clips is empty on an audio-only export, so what has to be readable is every source the
     // render reads, the audio tracks' included.
-    val reads =
+    val readable =
       render.clips.map { it.source } + render.audioTracks.flatMap { track -> track.clips.map { it.source } }
-    reads.distinct().firstOrNull { sources.open(it) == null }?.let { source ->
-      emit(ExportStatus.Failure(ExportError.SourceUnreadable(source.describe(), UNREADABLE)))
+    readable.distinct().firstOrNull { sources.open(it) == null }?.let { source ->
+      emit(ExportStatus.Failure(unreadableSource(source)))
       return
     }
 
@@ -187,14 +117,13 @@ public class BrowserExportEngine(
     // caller already read the adjustments off. Filmstrip.export emits the one Adjusted an export
     // gets, so emitting a second from in here would report the same list twice.
 
-    val path = pathOf(lowering.verdict)
     val total = render.estimatedFrames.coerceAtLeast(1)
     var nextEmission = PROGRESS_STEP
     val result =
       try {
-        if (path == ExportPath.Transmux) {
+        if (path == ExportPath.Copy) {
           // Near-instant, so the completion emission below is the only progress this run needs.
-          BrowserPassthrough(render, sources).run { _, _ -> }
+          BrowserStreamCopy(render, sources).run { _, _ -> }
         } else {
           BrowserPipeline(render, sources).run { frames, positionUs ->
             val fraction = (frames.toDouble() / total).toFloat().coerceIn(0f, 1f)
@@ -213,12 +142,12 @@ public class BrowserExportEngine(
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (failure: BrowserExportFailure) {
-        emit(ExportStatus.Failure(ExportError.InvalidComposition(failure.message ?: UNKNOWN_FAILURE)))
+        emit(ExportStatus.Failure(FilmstripError.InvalidComposition(failure.message ?: UNKNOWN_FAILURE)))
         return
       } catch (error: Throwable) {
         emit(
           ExportStatus.Failure(
-            ExportError.Underlying(ExportError.Underlying.NO_PLATFORM_CODE, error.message ?: UNKNOWN_FAILURE),
+            FilmstripError.Underlying(FilmstripError.Underlying.NO_PLATFORM_CODE, error.message ?: error.toString()),
           ),
         )
         return
@@ -226,14 +155,16 @@ public class BrowserExportEngine(
 
     val verified = if (render.writesVideo) result.file.verify() else result.file.verifyAudio()
     if (verified == null) {
-      emit(ExportStatus.Failure(ExportError.InvalidComposition(if (render.writesVideo) MUX_VERIFY else MUX_NO_AUDIO)))
+      emit(
+        ExportStatus.Failure(FilmstripError.InvalidComposition(if (render.writesVideo) MUX_VERIFY else MUX_NO_AUDIO)),
+      )
       return
     }
     // An audio-only run encodes no frames, so comparing against that count would hold whatever came
     // back, silence included. What has to hold there is that the mix reads back as real samples.
     val leastThatCounts = if (render.writesVideo) result.encodedFrames else 1
     if (verified.decodedFrames < leastThatCounts) {
-      emit(ExportStatus.Failure(ExportError.InvalidComposition(if (render.writesVideo) MUX_SHORT else NO_SAMPLES)))
+      emit(ExportStatus.Failure(FilmstripError.InvalidComposition(if (render.writesVideo) MUX_SHORT else NO_SAMPLES)))
       return
     }
 
@@ -244,15 +175,9 @@ public class BrowserExportEngine(
         estimatedRemaining = Duration.ZERO,
       ),
     )
-    // A copy is always mp4, and render.container is null there rather than named for an encode
-    // that never runs. An audio-only export writes mp4 too, under the extension a player expects a
-    // file with no video track to carry.
-    val extension =
-      when {
-        path == ExportPath.Transmux -> MP4_EXTENSION
-        !render.writesVideo -> M4A_EXTENSION
-        else -> checkNotNull(render.container)
-      }
+    // A copy opens no encoder and is always mp4. An audio-only export writes mp4 too, under the extension a player
+    // expects a file with no video track to carry.
+    val extension = render.videoEncoding?.container ?: if (render.writesVideo) MP4_EXTENSION else M4A_EXTENSION
     emit(
       ExportStatus.Success(
         output = deliver(result.file, to, extension),
@@ -263,24 +188,12 @@ public class BrowserExportEngine(
   }
 
   /**
-   * Which path the negotiator settled on. A refused verdict never reaches this, since [runExport]
-   * already returned by the time it would be asked, so [ExportPath.Transcode] there is unreachable
-   * rather than meaningful.
-   */
-  private fun pathOf(verdict: Verdict): ExportPath =
-    when (verdict) {
-      is Verdict.Capable -> verdict.plan.path
-      is Verdict.Degraded -> verdict.plan.path
-      is Verdict.Incapable -> ExportPath.Transcode
-    }
-
-  /**
    * Hands the finished file over the way the sink asked for it, and only ever after it has been
    * read back. A download that fired before verification would put a file the caller cannot use in
    * their downloads folder and then tell them it failed.
    *
    * [extension] names the file's real container, resolved by the caller rather than read off
-   * [BrowserRender.container], which is null on a copy.
+   * [BrowserRender.videoEncoding], which is null on a copy.
    */
   private fun deliver(
     file: EncodedFile,
@@ -292,6 +205,9 @@ public class BrowserExportEngine(
         MediaSink.Uri(file.objectUrl())
       }
       is MediaSink.Path -> {
+        // A browser has no directories to write into, so only the last segment survives, as the name the download is
+        // saved under. That is the browser's limit, and it is why the parent is never checked here the way
+        // sinkParentRefusal checks it on every backend with a filesystem.
         file.download(to.path.substringAfterLast('/').ifBlank { to.path })
         to
       }
@@ -331,21 +247,6 @@ public class BrowserExportEngine(
       supportsHdrEncoding = false,
       concurrentSessionBudget = concurrentSessionBudget,
     )
-
-  private suspend fun deviceCapabilities(): DeviceCapabilities = device ?: backend.capabilities().also { device = it }
-
-  /**
-   * The sync sample a stream copy of [source] could open on for a cut at [cut], read once per pair
-   * and held for the life of the engine.
-   */
-  private suspend fun openingFor(
-    source: MediaSource,
-    cut: Duration,
-  ): Duration? {
-    val key = source to cut
-    if (key in openings) return openings[key]
-    return sources.open(source)?.syncSampleAtOrBefore(cut).also { openings[key] = it }
-  }
 
   private fun infoOf(
     verified: VerifiedFile,
@@ -407,26 +308,12 @@ public class BrowserExportEngine(
       else -> codec
     }
 
-  private sealed interface NegotiationResult {
-    class Done(
-      val lowering: BrowserLowering,
-    ) : NegotiationResult
-
-    class Failed(
-      val error: ExportError,
-    ) : NegotiationResult
-  }
-
   private companion object {
     const val PROGRESS_STEP = 0.05f
     const val BITS_PER_BYTE = 8L
     const val MICROS_PER_SECOND = 1_000_000.0
     const val MP4_EXTENSION = "mp4"
     const val M4A_EXTENSION = "m4a"
-
-    const val UNREADABLE =
-      "A browser reads URLs and in-memory bytes. A path has no meaning here, and a file has to be " +
-        "loaded by the page first."
 
     const val UNKNOWN_FAILURE = "The browser export failed without saying why."
 

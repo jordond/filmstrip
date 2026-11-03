@@ -13,8 +13,7 @@ package dev.jordond.filmstrip.webcodecs.internal
  * The walk itself ends on the first key packet at or past [endSeconds]. A key packet opens a group
  * nothing before it presents into, so there is nothing after it this copy can still need.
  *
- * Generic over the packet so the rule can be driven by a plain sequence of timestamps rather than
- * only by a demuxer.
+ * Generic over the packet, so a demuxer or a plain sequence of timestamps can drive it.
  *
  * @param next The next packet in decode order, or null once the walk has run out.
  * @param timestampOf When a packet presents, in seconds.

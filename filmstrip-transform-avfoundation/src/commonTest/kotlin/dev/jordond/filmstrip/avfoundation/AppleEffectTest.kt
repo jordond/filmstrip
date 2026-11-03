@@ -23,6 +23,9 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
@@ -32,29 +35,27 @@ import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /**
  * The built-in effects, checked against the pixels a real export writes.
  *
- * A generated clip carries no colour anyone can name, so each test paints one on: an opaque orange
+ * A generated clip carries no color anyone can name, so each test paints one on: an opaque orange
  * badge is composited into a named corner of the clip's own frame, which is finished before any
  * composition geometry runs. The effect under test then moves, drops or dims that badge, and what
  * is asserted is where it ended up.
  *
- * Two things make the measurement trustworthy. Orange is the one colour ordering no bar of the test
+ * Two things make the measurement trustworthy. Orange is the one color ordering no bar of the test
  * pattern shares, red well above green well above blue. And every claim is the increase over the
  * same region of the same export without the badge, so whatever the pattern already drew there
  * cancels out. The first test is the control for the technique itself.
  *
- * The colour cases draw from a flat photo rather than from a fixture at all. A badge says where a
+ * The color cases draw from a flat photo rather than from a fixture at all. A badge says where a
  * pixel went, which is all the geometry cases need, and a matrix needs a pixel whose value can be
- * predicted. Every colour the generated pattern draws is either a saturated primary or a hard edge
+ * predicted. Every color the generated pattern draws is either a saturated primary or a hard edge
  * between two of them, and the middle of a range is exactly what neither of those reports on.
  *
- * A geometry case fails when its fixture is missing, as in [AppleExportTest]. The colour cases carry their own clip.
+ * A geometry case fails when its fixture is missing, as in [AppleExportTest]. The color cases carry their own clip.
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleEffectTest {
@@ -68,8 +69,10 @@ class AppleEffectTest {
       val plain = exported(source, "marker-plain", marked = false) {}
       val marked = exported(source, "marker", marked = true) {}
 
-      assertTrue(marked.gainedOver(plain, TOP_START) > COVERED, "no marker in the corner it was given")
-      assertTrue(marked.gainedOver(plain, TOP_END) < UNTOUCHED, "the marker reached the far corner")
+      withClue("no marker in the corner it was given") {
+        (marked.gainedOver(plain, TOP_START) > COVERED).shouldBeTrue()
+      }
+      withClue("the marker reached the far corner") { (marked.gainedOver(plain, TOP_END) < UNTOUCHED).shouldBeTrue() }
     }
 
   @Test
@@ -80,8 +83,12 @@ class AppleEffectTest {
       val plain = exported(source, "flip-h-plain", marked = false) { flip(FlipAxis.Horizontal) }
       val marked = exported(source, "flip-h", marked = true) { flip(FlipAxis.Horizontal) }
 
-      assertTrue(marked.gainedOver(plain, TOP_END) > COVERED, "the marker did not cross to the other side")
-      assertTrue(marked.gainedOver(plain, TOP_START) < UNTOUCHED, "the marker stayed on the side it started")
+      withClue("the marker did not cross to the other side") {
+        (marked.gainedOver(plain, TOP_END) > COVERED).shouldBeTrue()
+      }
+      withClue("the marker stayed on the side it started") {
+        (marked.gainedOver(plain, TOP_START) < UNTOUCHED).shouldBeTrue()
+      }
     }
 
   @Test
@@ -92,8 +99,10 @@ class AppleEffectTest {
       val plain = exported(source, "flip-v-plain", marked = false) { flip(FlipAxis.Vertical) }
       val marked = exported(source, "flip-v", marked = true) { flip(FlipAxis.Vertical) }
 
-      assertTrue(marked.gainedOver(plain, BOTTOM_START) > COVERED, "the marker did not cross to the bottom")
-      assertTrue(marked.gainedOver(plain, TOP_START) < UNTOUCHED, "the marker stayed at the top")
+      withClue("the marker did not cross to the bottom") {
+        (marked.gainedOver(plain, BOTTOM_START) > COVERED).shouldBeTrue()
+      }
+      withClue("the marker stayed at the top") { (marked.gainedOver(plain, TOP_START) < UNTOUCHED).shouldBeTrue() }
     }
 
   // A quarter turn counter-clockwise carries the top edge round to the left one, so a badge in the
@@ -106,9 +115,13 @@ class AppleEffectTest {
       val plain = exported(source, "rotate-plain", marked = false) { rotate(QUARTER_TURN) }
       val marked = exported(source, "rotate", marked = true) { rotate(QUARTER_TURN) }
 
-      assertTrue(marked.probe.height > marked.probe.width, "a quarter turn of a landscape clip is portrait")
-      assertTrue(marked.gainedOver(plain, BOTTOM_START) > COVERED, "the marker did not turn with the frame")
-      assertTrue(marked.gainedOver(plain, TOP_START) < UNTOUCHED, "the marker stayed where it was")
+      withClue("a quarter turn of a landscape clip is portrait") {
+        (marked.probe.height > marked.probe.width).shouldBeTrue()
+      }
+      withClue("the marker did not turn with the frame") {
+        (marked.gainedOver(plain, BOTTOM_START) > COVERED).shouldBeTrue()
+      }
+      withClue("the marker stayed where it was") { (marked.gainedOver(plain, TOP_START) < UNTOUCHED).shouldBeTrue() }
     }
 
   @Test
@@ -121,8 +134,12 @@ class AppleEffectTest {
       val droppedPlain = exported(source, "rect-dropped-plain", marked = false) { crop(RIGHT_HALF) }
       val dropped = exported(source, "rect-dropped", marked = true) { crop(RIGHT_HALF) }
 
-      assertTrue(kept.gainedOver(keptPlain, TOP_START) > COVERED, "the half holding the marker lost it")
-      assertTrue(dropped.gainedOver(droppedPlain, TOP_START) < UNTOUCHED, "the marker survived a crop past it")
+      withClue("the half holding the marker lost it") {
+        (kept.gainedOver(keptPlain, TOP_START) > COVERED).shouldBeTrue()
+      }
+      withClue("the marker survived a crop past it") {
+        (dropped.gainedOver(droppedPlain, TOP_START) < UNTOUCHED).shouldBeTrue()
+      }
     }
 
   @Test
@@ -135,10 +152,9 @@ class AppleEffectTest {
       // The output frame is the planner's arithmetic rather than the resolver's, so this is the
       // half of the claim the sibling test's pixels cannot make: the frame the encoder was given
       // is the one the rect asks for. Half the width of a 16:9 clip is taller than it is wide.
-      assertTrue(
-        cropped.probe.height > cropped.probe.width,
-        "half of a landscape frame came out ${cropped.probe.width}x${cropped.probe.height}",
-      )
+      withClue("half of a landscape frame came out ${cropped.probe.width}x${cropped.probe.height}") {
+        (cropped.probe.height > cropped.probe.width).shouldBeTrue()
+      }
     }
 
   // Core Image works in linear light, so the multiply is carried into the buffer's own codes to land
@@ -155,10 +171,9 @@ class AppleEffectTest {
       val lit = full.codesAtCentre().sum()
       val dimmed = half.codesAtCentre().sum()
       val ratio = dimmed / lit
-      assertTrue(
-        ratio in HALF - SIGNAL_DRIFT..HALF + SIGNAL_DRIFT,
-        "half brightness read $dimmed against $lit at full, a ratio of $ratio",
-      )
+      withClue("half brightness read $dimmed against $lit at full, a ratio of $ratio") {
+        (ratio in HALF - SIGNAL_DRIFT..HALF + SIGNAL_DRIFT).shouldBeTrue()
+      }
     }
 
   // A gain of 1.5 rather than an end of the range. Both ends agree under a reading that scales the
@@ -191,7 +206,7 @@ class AppleEffectTest {
    * where the shared matrix says it should land.
    *
    * The expectation is the plain export's own reading pushed through the matrix rather than the
-   * colour the photo was authored with, so whatever the encoder did to a flat colour is in both
+   * color the photo was authored with, so whatever the encoder did to a flat color is in both
    * readings and cancels. The matrix runs on the buffer's own codes, so the reading is carried into
    * them and the answer back out. What the matrix asks for has to be further from the plain reading than
    * the tolerance reaches, otherwise a lowering that did nothing at all would pass.
@@ -203,20 +218,21 @@ class AppleEffectTest {
     val plain = photoCentre("$name-plain") {}
     val graded = photoCentre(name) { add(spec) }
 
-    val matrix = checkNotNull(colorMatrixOf(spec)) { "$name is not a colour matrix" }
+    val matrix = checkNotNull(colorMatrixOf(spec)) { "$name is not a color matrix" }
     val codes = plain.inBufferCodes()
     val expected = matrix.transform(codes[0], codes[1], codes[2]).inProbeCodes()
 
-    assertTrue(distance(expected, plain) > CHANNELS * CHANNEL_DRIFT, "$name asks for $expected from $plain")
+    withClue("$name asks for $expected from $plain") {
+      (distance(expected, plain) > CHANNELS * CHANNEL_DRIFT).shouldBeTrue()
+    }
     listOf(
       "red" to graded.first - expected.first,
       "green" to graded.second - expected.second,
       "blue" to graded.third - expected.third,
     ).forEach { (channel, off) ->
-      assertTrue(
-        abs(off) <= CHANNEL_DRIFT,
-        "$name read $graded and the matrix asks for $expected from a plain $plain, $channel off by $off",
-      )
+      withClue("$name read $graded and the matrix asks for $expected from a plain $plain, $channel off by $off") {
+        (abs(off) <= CHANNEL_DRIFT).shouldBeTrue()
+      }
     }
   }
 
@@ -239,7 +255,7 @@ class AppleEffectTest {
   }
 
   /**
-   * The flat photo the colour cases draw from, written into the temporary directory once.
+   * The flat photo the color cases draw from, written into the temporary directory once.
    */
   private fun photoFile(): String = photoFixture("filmstrip-apple-effect-photo", PHOTO_SIZE, PHOTO_COLOR)
 
@@ -273,7 +289,7 @@ class AppleEffectTest {
       val statuses = filmstrip.export(composition, SPEC, MediaSink.of(output)).toList()
       when (val finished = statuses.last()) {
         is ExportStatus.Failure -> error(finished.error.message)
-        else -> assertIs<ExportStatus.Success>(finished)
+        else -> finished.shouldBeInstanceOf<ExportStatus.Success>()
       }
     }
   }
@@ -287,7 +303,7 @@ class AppleEffectTest {
     val probe: FrameProbe,
   ) {
     /**
-     * How much more of [region] reads as the badge colour here than in [plain], as a fraction of
+     * How much more of [region] reads as the badge color here than in [plain], as a fraction of
      * the cells sampled.
      */
     fun gainedOver(
@@ -337,7 +353,7 @@ class AppleEffectTest {
   private companion object {
     const val SOURCE = "apple_export_a.mp4"
     val TIMEOUT = 2.seconds * 60
-    val SPEC = ExportSpec(targetHeight = 180)
+    val SPEC = ExportSpec(heightPx = 180)
 
     const val QUARTER_TURN = 90
     const val HALF = 0.5f
@@ -348,7 +364,7 @@ class AppleEffectTest {
     const val FIRMER = 1.5f
     const val MUTED = 0.5f
 
-    // How long the colour cases hold their photo, and where in that span they read it. Not the
+    // How long the color cases hold their photo, and where in that span they read it. Not the
     // halfway point, which a span laid an interval out lands on however it drifted.
     val PHOTO = 1.seconds
     const val MIDDLE = 0.4
@@ -359,8 +375,8 @@ class AppleEffectTest {
     // clamps, since a clamp answers the same whatever the lowering computed.
     val PHOTO_COLOR = Triple(0x66, 0x99, 0xCC)
 
-    // What a real encode, a 4:2:0 round trip and the colour match either side of the matrix leave on
-    // one channel of a flat colour.
+    // What a real encode, a 4:2:0 round trip and the color match either side of the matrix leave on
+    // one channel of a flat color.
     const val CHANNEL_DRIFT = 6
 
     val LEFT_HALF = NormalizedRect(0f, 0f, 0.5f, 1f)

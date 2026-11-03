@@ -20,8 +20,6 @@ kotlin {
     androidMain {
       languageSettings.optIn("androidx.media3.common.util.UnstableApi")
       dependencies {
-        api(libs.media3.effect)
-        api(libs.media3.common)
         implementation(libs.androidx.core)
       }
     }
@@ -40,6 +38,7 @@ kotlin {
       implementation(kotlin("test"))
       implementation(libs.androidx.test.runner)
       implementation(projects.filmstripTest)
+      implementation(libs.kotest.assertions)
     }
   }
 }

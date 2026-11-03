@@ -2,6 +2,12 @@
 
 package dev.jordond.filmstrip.webcodecs
 
+import dev.jordond.filmstrip.color.HDR_REFERENCE_WHITE_NITS
+import dev.jordond.filmstrip.color.PictureColor
+import dev.jordond.filmstrip.color.authoredHdrNits
+import dev.jordond.filmstrip.color.pictureLight
+import dev.jordond.filmstrip.color.pictureSrgbCodes
+import dev.jordond.filmstrip.color.sdrSignalFromNits
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -16,29 +22,23 @@ import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
-import dev.jordond.filmstrip.media.HDR_REFERENCE_WHITE_NITS
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.PictureColour
-import dev.jordond.filmstrip.media.authoredHdrNits
-import dev.jordond.filmstrip.media.pictureLight
-import dev.jordond.filmstrip.media.pictureSrgbCodes
-import dev.jordond.filmstrip.media.sdrSignalFromNits
-import dev.jordond.filmstrip.test.AuthoredColours
-import dev.jordond.filmstrip.test.ColourPictures
+import dev.jordond.filmstrip.test.AuthoredColors
+import dev.jordond.filmstrip.test.ColorPictures
 import dev.jordond.filmstrip.test.IccPictures
 import dev.jordond.filmstrip.test.OverlayPixels
-import dev.jordond.filmstrip.webcodecs.internal.ReadbackCanvas
-import dev.jordond.filmstrip.webcodecs.internal.Uint8Array
-import dev.jordond.filmstrip.webcodecs.internal.compositorLightOf
+import dev.jordond.filmstrip.webcodecs.internal.interop.Uint8Array
+import dev.jordond.filmstrip.webcodecs.internal.render.ReadbackCanvas
+import dev.jordond.filmstrip.webcodecs.internal.render.compositorLightOf
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.pow
 import kotlin.math.round
 import kotlin.math.roundToInt
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
 import kotlin.test.fail
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -61,7 +61,7 @@ internal class OverlayPicture(
 /**
  * Every picture the overlay tests draw, each painted one texel all over.
  *
- * The eight-bit ones are an untagged PNG, two PNGs at half alpha, a PNG per ICC profile and per other colour
+ * The eight-bit ones are an untagged PNG, two PNGs at half alpha, a PNG per ICC profile and per other color
  * description, and the AVIFs. The sixteen-bit ones are the HDR PNGs and their samples written untagged.
  */
 internal object OverlayPictures {
@@ -69,11 +69,11 @@ internal object OverlayPictures {
   val PIXELS = PNG.width * PNG.height
 
   // Half alpha on the untagged texel and on Display P3's, which reach the compositor unpremultiplied.
-  private val HALF_ALPHA_UNTAGGED = halfAlpha(ColourPictures.TEXEL)
+  private val HALF_ALPHA_UNTAGGED = halfAlpha(ColorPictures.TEXEL)
   private val HALF_ALPHA_P3 = halfAlpha(IccPictures.DISPLAY_P3.texel)
 
   val PICTURES: List<OverlayPicture> =
-    listOf(eightBit("untagged", OverlayPixels.pngOf(PNG, ColourPictures.TEXEL), ColourPictures.TEXEL)) +
+    listOf(eightBit("untagged", OverlayPixels.pngOf(PNG, ColorPictures.TEXEL), ColorPictures.TEXEL)) +
       eightBit("half-alpha untagged", OverlayPixels.pngOf(PNG, HALF_ALPHA_UNTAGGED), HALF_ALPHA_UNTAGGED) +
       eightBit(
         "half-alpha iCCP ${IccPictures.DISPLAY_P3.name}",
@@ -81,14 +81,14 @@ internal object OverlayPictures {
         HALF_ALPHA_P3,
       ) +
       IccPictures.ALL.map { eightBit("iCCP ${it.name}", it.pngOf(PNG), it.texel) } +
-      ColourPictures.PNGS.map { eightBit(it.name, it.pngOf(PNG), it.texel) } +
-      ColourPictures.AVIFS.map { OverlayPicture("AVIF ${it.name}", it.bytes(), stored = null) }
+      ColorPictures.PNGS.map { eightBit(it.name, it.pngOf(PNG), it.texel) } +
+      ColorPictures.AVIFS.map { OverlayPicture("AVIF ${it.name}", it.bytes(), stored = null) }
 
-  // The HDR pictures' own samples, written with no colour chunk at all.
-  private val UNTAGGED_SAMPLES = ColourPictures.CICP_PQ.texel
+  // The HDR pictures' own samples, written with no color chunk at all.
+  private val UNTAGGED_SAMPLES = ColorPictures.CICP_PQ.texel
 
   val SIXTEEN_BIT_PICTURES: List<OverlayPicture> =
-    ColourPictures.HDR_PNGS.map { sixteenBit("sixteen-bit ${it.name}", it.pngOf(PNG), it.texel) } +
+    ColorPictures.HDR_PNGS.map { sixteenBit("sixteen-bit ${it.name}", it.pngOf(PNG), it.texel) } +
       sixteenBit("sixteen-bit untagged", OverlayPixels.sixteenBitPngOf(PNG, UNTAGGED_SAMPLES), UNTAGGED_SAMPLES)
 
   private fun halfAlpha(argb: Int): Int = (argb and 0x00FFFFFF) or (HALF_ALPHA shl ALPHA_SHIFT)
@@ -107,21 +107,21 @@ internal object OverlayPictures {
 }
 
 /**
- * The one texel a test picture is painted with, as the picture stores it before any colour conversion.
+ * The one texel a test picture is painted with, as the picture stores it before any color conversion.
  *
  * Either form answers through the shared functions, so an expected code is never copied in by hand.
  */
 internal sealed interface StoredTexel {
-  fun srgbCodes(colour: PictureColour?): Int
+  fun srgbCodes(color: PictureColor?): Int
 
-  fun light(colour: PictureColour?): FloatArray
+  fun light(color: PictureColor?): FloatArray
 
   class EightBit(
     private val argb: Int,
   ) : StoredTexel {
-    override fun srgbCodes(colour: PictureColour?): Int = pictureSrgbCodes(colour, intArrayOf(argb)).single()
+    override fun srgbCodes(color: PictureColor?): Int = pictureSrgbCodes(color, intArrayOf(argb)).single()
 
-    override fun light(colour: PictureColour?): FloatArray = pictureLight(colour, intArrayOf(argb))
+    override fun light(color: PictureColor?): FloatArray = pictureLight(color, intArrayOf(argb))
   }
 
   class SixteenBit(
@@ -129,14 +129,14 @@ internal sealed interface StoredTexel {
   ) : StoredTexel {
     private val rgba = ShortArray(samples.size) { samples[it].toShort() }
 
-    override fun srgbCodes(colour: PictureColour?): Int = pictureSrgbCodes(colour, rgba).single()
+    override fun srgbCodes(color: PictureColor?): Int = pictureSrgbCodes(color, rgba).single()
 
-    override fun light(colour: PictureColour?): FloatArray = pictureLight(colour, rgba)
+    override fun light(color: PictureColor?): FloatArray = pictureLight(color, rgba)
   }
 }
 
 /**
- * One picture drawn at one opacity over a fill, with the texel it stores and the colour its bytes describe.
+ * One picture drawn at one opacity over a fill, with the texel it stores and the color its bytes describe.
  *
  * Each reading the tests compare against is worked out here from the shared functions.
  */
@@ -144,11 +144,11 @@ internal class OverlayCell(
   val picture: OverlayPicture,
   val spec: ImageOverlay,
   val opacity: Float,
-  val colour: PictureColour?,
+  val color: PictureColor?,
   val stored: StoredTexel,
 ) {
   // The texel's own alpha and the overlay's opacity together.
-  private val alpha: Float = (stored.srgbCodes(colour) ushr ALPHA_SHIFT) / MAX_CODE.toFloat() * opacity
+  private val alpha: Float = (stored.srgbCodes(color) ushr ALPHA_SHIFT) / MAX_CODE.toFloat() * opacity
 
   /**
    * Whether the picture is blended with the fill under it rather than covering it.
@@ -161,8 +161,8 @@ internal class OverlayCell(
    * The sRGB codes the picture lands on over [fill], blended on the frame's own codes by its alpha and the opacity.
    */
   fun sdrCodes(fill: Int): IntArray {
-    val over = AuthoredColours.channelsOf(stored.srgbCodes(colour))
-    val under = AuthoredColours.channelsOf(fill)
+    val over = AuthoredColors.channelsOf(stored.srgbCodes(color))
+    val under = AuthoredColors.channelsOf(fill)
     return IntArray(3) { OverlayPixels.sourceOver(under[it], over[it], alpha) }
   }
 
@@ -170,7 +170,7 @@ internal class OverlayCell(
    * The light the picture lands on over [fill], blended in linear display light by its alpha and the opacity.
    */
   fun nits(fill: Int): FloatArray {
-    val texel = stored.light(colour)
+    val texel = stored.light(color)
     return OverlayPixels.hdrSourceOver(authoredHdrNits(fill), texel.copyOf(3), texel[3] * opacity)
   }
 
@@ -180,15 +180,15 @@ internal class OverlayCell(
    * Every buffer on the way holds half floats: the overlay's premultiplied texel, the fill the frame is cleared to and
    * the blend of the two. Each is rounded to its nearest half float here as it is stored, a tie going up when [tiesUp]
    * is set and to even otherwise, then the blend is clamped at reference white and put through the SDR display curve.
-   * [asUntagged] reads the stored texel as though the picture carried no colour, which is where a compositor that
-   * dropped [colour] would put it.
+   * [asUntagged] reads the stored texel as though the picture carried no color, which is where a compositor that
+   * dropped [color] would put it.
    */
   fun presentedLevels(
     fill: Int,
     asUntagged: Boolean = false,
     tiesUp: Boolean = false,
   ): DoubleArray {
-    val texel = stored.light(if (asUntagged) null else colour)
+    val texel = stored.light(if (asUntagged) null else color)
     val light = compositorLightOf(texel.copyOf(3))
     val under = compositorLightOf(authoredHdrNits(fill))
     val texelAlpha = halfFloat(texel[3], tiesUp)
@@ -235,7 +235,7 @@ internal fun halfFloat(
 }
 
 /**
- * The packed ARGB codes at the middle of the overlay the browser resolver makes of [bytes], decoded with no colour
+ * The packed ARGB codes at the middle of the overlay the browser resolver makes of [bytes], decoded with no color
  * conversion.
  *
  * They are read back through a 2D canvas the way the compositor reads a raster, so an AVIF Chrome lands through
@@ -244,17 +244,17 @@ internal fun halfFloat(
 internal suspend fun decodedCodeOf(bytes: ByteArray): Int {
   val spec = ImageOverlay(ImageSource.ofBytes(bytes), Corner.TopStart)
   val resolver = BuiltInEffectResolver()
-  resolver.preload(EditComposition(listOf(Track(listOf(Clip(MediaSource.ofUri(READ_CLIP), effects = listOf(spec)))))))
+  resolver.prepare(EditComposition(listOf(Track(listOf(Clip(MediaSource.ofUri(READ_CLIP), effects = listOf(spec)))))))
   val effect =
     when (val resolution = resolver.resolve(spec, READ_CAPABILITIES, READ_ATTRIBUTES)) {
       is EffectResolution.Resolved -> resolution.effect
       is EffectResolution.Degraded -> resolution.effect
       else -> fail("the overlay did not resolve: $resolution")
     }
-  val overlay = assertNotNull(effect.overlay)
+  val overlay = effect.overlay.shouldNotBeNull()
   val (width, height) = overlay.size.width to overlay.size.height
-  val context = assertNotNull(ReadbackCanvas(width, height).getContext("2d"))
-  context.drawImage(assertIs<OverlaySource.Image>(overlay.source).image, 0.0, 0.0)
+  val context = ReadbackCanvas(width, height).getContext("2d").shouldNotBeNull()
+  context.drawImage(overlay.source.shouldBeInstanceOf<OverlaySource.Image>().image, 0.0, 0.0)
   val data = Uint8Array(context.getImageData(0, 0, width, height).data.buffer)
   val offset = ((height / 2) * width + width / 2) * 4
   return (data.at(offset + 3) shl 24) or (data.at(offset) shl 16) or (data.at(offset + 1) shl 8) or data.at(offset + 2)
@@ -298,8 +298,8 @@ internal fun rgbaOf(argb: Int): List<Byte> = listOf(argb ushr 16, argb ushr 8, a
  * A conversion that only held at black and white would miss them.
  */
 internal fun midRangeCodes(): ByteArray =
-  listOf(ColourPictures.TEXEL, AuthoredColours.MID_GREY, AuthoredColours.MID_GREEN)
-    .flatMap { argb -> AuthoredColours.channelsOf(argb) + (argb ushr 24) }
+  listOf(ColorPictures.TEXEL, AuthoredColors.MID_GREY, AuthoredColors.MID_GREEN)
+    .flatMap { argb -> AuthoredColors.channelsOf(argb) + (argb ushr 24) }
     .map { it.toByte() }
     .toByteArray()
 

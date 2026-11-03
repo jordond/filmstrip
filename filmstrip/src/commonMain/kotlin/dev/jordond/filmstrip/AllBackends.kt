@@ -1,39 +1,33 @@
 package dev.jordond.filmstrip
 
-import dev.jordond.filmstrip.playback.playerBackend
+import dev.jordond.filmstrip.player.playerBackend
 
 /**
- * Creates a [Filmstrip] with every backend this artifact bundles already registered.
- *
- * The same thing, registered by hand from `filmstrip-core`:
+ * Registers every backend this artifact bundles: the preview backend and this target's export
+ * backend.
  *
  * ```kotlin
  * val filmstrip = Filmstrip {
- *   playerBackend()
- *   transformBackend()
+ *   allBackends()
  * }
  * ```
  *
- * [block] runs after the bundled backends, so a resolver registered there overrides a built-in.
+ * Registrations made after it in the same block override a bundled one. Without this artifact the
+ * same setup is `playerBackend()` from `filmstrip-player` plus the export backend from its own
+ * engine artifact: `media3Backend()`, `avFoundationBackend()`, `webCodecsBackend()` or
+ * `ffmpegBackend()`.
  *
- * @param block Registers anything extra on the builder.
- * @return The configured instance.
- */
-public fun Filmstrip.Companion.create(block: FilmstripBuilder.() -> Unit = {}): Filmstrip =
-  FilmstripBuilder().allBackends().apply(block).build()
-
-/**
- * Registers the preview backend and the export backend.
- *
- * The composable form, for a consumer assembling a builder themselves.
+ * @return This builder.
  */
 public fun FilmstripBuilder.allBackends(): FilmstripBuilder = playerBackend().transformBackend()
 
 /**
- * Registers this artifact's default export backend for the current target.
+ * Registers the export backend for the current target.
  *
- * media3 on Android, AVFoundation on Apple, WebCodecs in the browser and ffmpeg on the JVM. Take a
- * single engine artifact instead to choose a different one.
+ * That is media3 on Android, AVFoundation on Apple, WebCodecs in the browser and ffmpeg on the JVM,
+ * the only one each target has. `filmstrip-player` already brings that backend in, so a player
+ * consumer can register it without this artifact through `media3Backend()`, `avFoundationBackend()`,
+ * `webCodecsBackend()` or `ffmpegBackend()`.
  */
 public fun FilmstripBuilder.transformBackend(): FilmstripBuilder = installDefaultTransform()
 

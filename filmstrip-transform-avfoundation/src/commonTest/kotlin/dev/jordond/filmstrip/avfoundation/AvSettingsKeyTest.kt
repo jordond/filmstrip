@@ -1,16 +1,17 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.avfoundation.internal.audioWriterSettings
-import dev.jordond.filmstrip.avfoundation.internal.pcmReaderSettings
-import dev.jordond.filmstrip.avfoundation.internal.stillSeedBufferAttributes
-import dev.jordond.filmstrip.avfoundation.internal.videoReaderSettings
-import dev.jordond.filmstrip.export.AudioCodec
+import dev.jordond.filmstrip.avfoundation.internal.still.stillSeedBufferAttributes
+import dev.jordond.filmstrip.avfoundation.internal.writer.audioWriterSettings
+import dev.jordond.filmstrip.avfoundation.internal.writer.pcmReaderSettings
+import dev.jordond.filmstrip.avfoundation.internal.writer.videoReaderSettings
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.OutputFormat
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Size
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
 import kotlin.test.Test
-import kotlin.test.assertTrue
 
 /**
  * Every dictionary this backend hands to AVFoundation is keyed by strings.
@@ -39,9 +40,9 @@ class AvSettingsKeyTest {
   }
 
   private fun Map<Any?, Any?>.assertStringKeyed() {
-    assertTrue(isNotEmpty(), "an empty dictionary proves nothing")
+    withClue("an empty dictionary proves nothing") { isNotEmpty().shouldBeTrue() }
     keys.forEach { key ->
-      assertTrue(key is String, "$key is a ${key?.let { it::class.simpleName }}, not a string")
+      withClue("$key is a ${key?.let { it::class.simpleName }}, not a string") { (key is String).shouldBeTrue() }
     }
   }
 

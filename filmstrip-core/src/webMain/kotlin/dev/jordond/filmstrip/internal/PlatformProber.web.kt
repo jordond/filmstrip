@@ -1,10 +1,9 @@
 package dev.jordond.filmstrip.internal
 
-import dev.jordond.filmstrip.export.ExportError
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.describe
-import dev.jordond.filmstrip.media.probeImage
 
 // Android and Apple probe with a read-only OS API. Reading a container's tracks in a browser means
 // demuxing it, and a demuxer is an npm dependency that core's layering row rules out, so core
@@ -19,7 +18,7 @@ internal actual class PlatformProber actual constructor() {
         probeImage(source)
       }
       is MediaSource.Path, is MediaSource.Uri, is MediaSource.Bytes -> {
-        ProbeResult.Failure(ExportError.SourceUnreadable(source = source.describe(), message = NO_DEMUXER))
+        ProbeResult.Failure(FilmstripError.SourceUnreadable(source = source.describe(), message = NO_DEMUXER))
       }
     }
 

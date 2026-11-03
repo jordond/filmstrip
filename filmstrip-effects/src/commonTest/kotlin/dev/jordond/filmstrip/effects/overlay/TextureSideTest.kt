@@ -1,8 +1,8 @@
 package dev.jordond.filmstrip.effects.overlay
 
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 /**
  * Where a raster stops fitting a texture side, and what a refusal past it names.
@@ -10,10 +10,10 @@ import kotlin.test.assertTrue
 class TextureSideTest {
   @Test
   fun aRasterFitsAtTheSideAndNotOnePixelPastOnEitherSide() {
-    assertTrue(fitsTextureSide(MAX_SIDE, MAX_SIDE, MAX_SIDE))
-    assertTrue(fitsTextureSide(MAX_SIDE / 2, MAX_SIDE / 3, MAX_SIDE))
-    assertFalse(fitsTextureSide(MAX_SIDE + 1, 1, MAX_SIDE))
-    assertFalse(fitsTextureSide(1, MAX_SIDE + 1, MAX_SIDE))
+    fitsTextureSide(MAX_SIDE, MAX_SIDE, MAX_SIDE) shouldBe true
+    fitsTextureSide(MAX_SIDE / 2, MAX_SIDE / 3, MAX_SIDE) shouldBe true
+    fitsTextureSide(MAX_SIDE + 1, 1, MAX_SIDE) shouldBe false
+    fitsTextureSide(1, MAX_SIDE + 1, MAX_SIDE) shouldBe false
   }
 
   @Test
@@ -22,9 +22,9 @@ class TextureSideTest {
       listOf(textPastTextureSide(WIDTH, HEIGHT, MAX_SIDE, API), picturePastTextureSide(WIDTH, HEIGHT, MAX_SIDE, API))
 
     for (reason in reasons) {
-      assertTrue("$WIDTH by $HEIGHT" in reason, reason)
-      assertTrue("A $API texture" in reason, reason)
-      assertTrue("$MAX_SIDE pixels" in reason, reason)
+      withClue(reason) { ("$WIDTH by $HEIGHT" in reason) shouldBe true }
+      withClue(reason) { ("A $API texture" in reason) shouldBe true }
+      withClue(reason) { ("$MAX_SIDE pixels" in reason) shouldBe true }
     }
   }
 

@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 
 /**
- * Multiply each colour channel by its own factor.
+ * Multiply each color channel by its own factor.
  *
  * [Brightness] with a separate factor per channel: the multiply lands on the encoded signal, black
  * stays black, and a channel that climbs past white clamps there. Unequal factors tint the frame,
@@ -30,7 +30,7 @@ public class RgbAdjustment(
 }
 
 /**
- * Multiply each colour channel by its own factor, where `1f` leaves a channel unchanged.
+ * Multiply each color channel by its own factor, where `1f` leaves a channel unchanged.
  */
 public fun EffectsBuilder.rgbAdjustment(
   red: Float = 1f,

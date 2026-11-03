@@ -5,6 +5,7 @@ import io.github.vinceglb.filekit.FileKit
 import io.github.vinceglb.filekit.FileKitUserDirectory
 import io.github.vinceglb.filekit.userDirectory
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.test.Test
@@ -53,6 +54,24 @@ class GalleryJvmTest {
       } finally {
         written.delete()
       }
+    }
+
+  @Test
+  fun `a temporary sink fails the save rather than throwing`() =
+    runTest {
+      val video = FileKit.saveVideoToGallery(MediaSink.temporary())
+      val image = FileKit.saveImageToGallery(MediaSink.temporary())
+
+      video.exceptionOrNull().shouldBeInstanceOf<IllegalStateException>()
+      image.exceptionOrNull().shouldBeInstanceOf<IllegalStateException>()
+    }
+
+  @Test
+  fun `a uri that is not a local file fails the save rather than throwing`() =
+    runTest {
+      val result = FileKit.saveVideoToGallery(MediaSink.ofUri("content://media/external/video/media/42"))
+
+      result.exceptionOrNull().shouldBeInstanceOf<IllegalArgumentException>()
     }
 
   private fun sourceFile(extension: String): File =

@@ -14,6 +14,7 @@ import io.github.vinceglb.filekit.dialogs.compose.rememberShareFileLauncher
  *
  * @throws IllegalStateException on [MediaSink.Temporary], which is a request rather than a
  *   location. Read the resolved path off `ExportStatus.Success.output` instead.
+ * @throws IllegalArgumentException on a [MediaSink.Uri] this platform cannot parse.
  */
 public fun ShareResultLauncher.launch(output: MediaSink): Unit = launch(output.toPlatformFile())
 

@@ -8,8 +8,8 @@ import io.github.vinceglb.filekit.dialogs.FileKitDialogException
 /**
  * Hands a file to the platform's share sheet.
  *
- * Takes the sink an export reported rather than a path string, so a content uri destination reaches
- * the sheet as the uri it is instead of being flattened to something the sheet cannot open.
+ * Takes the sink an export reported, so a content uri destination reaches the sheet as the uri it
+ * is.
  */
 public interface ShareLauncher {
   /**
@@ -22,6 +22,7 @@ public interface ShareLauncher {
    *
    * @throws IllegalStateException on [MediaSink.Temporary], which is a request rather than a
    *   location. Read the resolved path off `ExportStatus.Success.output` instead.
+   * @throws IllegalArgumentException on a [MediaSink.Uri] this platform cannot parse.
    */
   public fun launch(output: MediaSink)
 }

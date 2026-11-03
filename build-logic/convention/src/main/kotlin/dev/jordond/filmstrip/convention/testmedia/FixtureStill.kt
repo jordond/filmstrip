@@ -1,24 +1,24 @@
 package dev.jordond.filmstrip.convention.testmedia
 
 /**
- * One generated still picture of a single flat colour.
+ * One generated still picture of a single flat color.
  *
  * A test that needs a picture in a format the JDK cannot write reads one of these instead of encoding its own, so its
  * input does not move with whatever tool the runner has installed.
  *
- * @param colour The picture's colour as `0xRRGGBB`, drawn in RGB before the container's encoder sees it.
+ * @param color The picture's color as `0xRRGGBB`, drawn in RGB before the container's encoder sees it.
  * @param container What the picture is written as, which also names its file extension.
  */
 data class FixtureStill(
   override val name: String,
   val width: Int,
   val height: Int,
-  val colour: Int,
+  val color: Int,
   val container: StillContainer,
 ) : Fixture {
   override val fileName: String get() = "$name.${container.extension}"
 
-  val hex: String get() = "0x%06X".format(colour and RGB_MASK)
+  val hex: String get() = "0x%06X".format(color and RGB_MASK)
 
   companion object {
     private const val serialVersionUID: Long = 1L

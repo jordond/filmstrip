@@ -1,5 +1,10 @@
 package dev.jordond.filmstrip.effects.color
 
+import dev.jordond.filmstrip.color.HDR_REFERENCE_WHITE_NITS
+import dev.jordond.filmstrip.color.HLG_NOMINAL_PEAK_NITS
+import dev.jordond.filmstrip.color.PQ_PEAK_NITS
+import dev.jordond.filmstrip.color.hlgSignalFromDisplayNits
+import dev.jordond.filmstrip.color.pqSignalFromNits
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -11,12 +16,11 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.renderingContext
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
-import dev.jordond.filmstrip.media.HDR_REFERENCE_WHITE_NITS
-import dev.jordond.filmstrip.media.HLG_NOMINAL_PEAK_NITS
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.PQ_PEAK_NITS
-import dev.jordond.filmstrip.media.hlgSignalFromDisplayNits
-import dev.jordond.filmstrip.media.pqSignalFromNits
+import io.kotest.assertions.withClue
+import io.kotest.matchers.floats.plusOrMinus
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.FloatVar
 import kotlinx.cinterop.UByteVar
@@ -40,19 +44,16 @@ import platform.CoreImage.kCIFormatRGBAf
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * What the Apple lowering of a colour matrix draws, read off the pixels.
+ * What the Apple lowering of a color matrix draws, read off the pixels.
  *
  * A flat frame is rendered twice, once untouched and once through the resolved step, and the second
- * reading is checked against the first pushed through [transform]. Nothing here carries a colour of
+ * reading is checked against the first pushed through [transform]. Nothing here carries a color of
  * its own: whatever the untouched render came back with is what the matrix is asked to move. Both
- * renders are read in the codes of the frame's own BT.709 colour space, the values an encoder writes
+ * renders are read in the codes of the frame's own BT.709 color space, the values an encoder writes
  * and the ones the other backends mix.
  *
  * The tolerance is a code value or two rather than an encoder's worth, since no encoder runs. Every
@@ -126,14 +127,14 @@ class CoreImageColorTest {
 
   // The offset rides in the fourth component of each row vector rather than in the bias vector, so
   // it is multiplied by alpha. Core Image holds a frame premultiplied and a transparent pixel that
-  // gained a colour here would reach the fill blend as a real one.
+  // gained a color here would reach the fill blend as a real one.
   @Test
   fun `a bias leaves a transparent pixel black`() {
     val context = renderingContext()
 
     val drawn = stepFor(Contrast(0f)).apply(CIImage.emptyImage().imageByCroppingToRect(RECT), FRAME)
 
-    assertEquals(listOf(0, 0, 0, 0), read(drawn, context), "an offset reached a pixel with no alpha")
+    withClue("an offset reached a pixel with no alpha") { read(drawn, context) shouldBe listOf(0, 0, 0, 0) }
   }
 
   @Test
@@ -184,11 +185,13 @@ class CoreImageColorTest {
       readLight(step.apply(extremes(), frameOn(HdrTransfer.Hlg)), context, kCGColorSpaceExtendedLinearITUR_2020)
 
     val peak = HLG_NOMINAL_PEAK_NITS / HDR_REFERENCE_WHITE_NITS
-    assertEquals(peak, drawn[0], peak * LIGHT_DRIFT, "red was not held at the format's peak: ${drawn.toList()}")
-    assertEquals(0f, drawn[2], LIGHT_DRIFT, "blue was not floored at black: ${drawn.toList()}")
+    withClue("red was not held at the format's peak: ${drawn.toList()}") {
+      drawn[0] shouldBe (peak plusOrMinus peak * LIGHT_DRIFT)
+    }
+    withClue("blue was not floored at black: ${drawn.toList()}") { drawn[2] shouldBe (0f plusOrMinus LIGHT_DRIFT) }
   }
 
-  // What pins the reading above. A colour named in the PQ colour space at reference white comes
+  // What pins the reading above. A color named in the PQ color space at reference white comes
   // through the context at one, the HLG signal for the same light does too, and PQ's own peak lands
   // where dividing by reference white puts it, so the SDR signal is a bare power of what the frame
   // holds with no scale in front of it.
@@ -202,11 +205,11 @@ class CoreImageColorTest {
     val peak = readLight(grey(pqSignalFromNits(PQ_PEAK_NITS), kCGColorSpaceITUR_2100_PQ), context)
 
     repeat(CHANNELS) { channel ->
-      assertEquals(1f, pq[channel], WHITE_DRIFT, "PQ reference white read ${pq.toList()}")
-      assertEquals(1f, hlg[channel], WHITE_DRIFT, "HLG reference white read ${hlg.toList()}")
+      withClue("PQ reference white read ${pq.toList()}") { pq[channel] shouldBe (1f plusOrMinus WHITE_DRIFT) }
+      withClue("HLG reference white read ${hlg.toList()}") { hlg[channel] shouldBe (1f plusOrMinus WHITE_DRIFT) }
     }
     val expectedPeak = PQ_PEAK_NITS / HDR_REFERENCE_WHITE_NITS
-    assertEquals(expectedPeak, peak[0], expectedPeak * WHITE_DRIFT, "PQ peak read ${peak.toList()}")
+    withClue("PQ peak read ${peak.toList()}") { peak[0] shouldBe (expectedPeak plusOrMinus expectedPeak * WHITE_DRIFT) }
   }
 
   /**
@@ -220,18 +223,16 @@ class CoreImageColorTest {
     val plain = read(frame, context)
     val drawn = read(stepFor(spec).apply(frame, FRAME), context)
 
-    val matrix = checkNotNull(colorMatrixOf(spec)) { "${spec.id} is not a colour matrix" }
+    val matrix = checkNotNull(colorMatrixOf(spec)) { "${spec.id} is not a color matrix" }
     val moved = matrix.transform(plain[0] / FULL, plain[1] / FULL, plain[2] / FULL)
     val expected = List(CHANNELS) { channel -> (moved[channel] * FULL).roundToInt() }
 
-    assertTrue(
-      expected.indices.sumOf { abs(expected[it] - plain[it]) } > CHANNELS * DRIFT,
-      "${spec.id} asks for $expected from a plain $plain, which is inside the tolerance",
-    )
-    assertTrue(
-      expected.indices.all { abs(drawn[it] - expected[it]) <= DRIFT },
-      "${spec.id} drew $drawn and the matrix asks for $expected from a plain $plain",
-    )
+    withClue("${spec.id} asks for $expected from a plain $plain, which is inside the tolerance") {
+      (expected.indices.sumOf { abs(expected[it] - plain[it]) } > CHANNELS * DRIFT) shouldBe true
+    }
+    withClue("${spec.id} drew $drawn and the matrix asks for $expected from a plain $plain") {
+      expected.indices.all { abs(drawn[it] - expected[it]) <= DRIFT } shouldBe true
+    }
     return expected
   }
 
@@ -247,17 +248,18 @@ class CoreImageColorTest {
   ) {
     val expected = assertDraws(spec, context, frame)
 
-    val matrix = checkNotNull(colorMatrixOf(spec)) { "${spec.id} is not a colour matrix" }
+    val matrix = checkNotNull(colorMatrixOf(spec)) { "${spec.id} is not a color matrix" }
     val plain = readLight(frame, context, kCGColorSpaceSRGB)
     val moved = matrix.transform(plain[0], plain[1], plain[2])
     val inSrgb =
       readLight(flatIn(moved[0], moved[1], moved[2], kCGColorSpaceSRGB), context, ColorSpace.Bt709.createCodeSpace())
     val srgbExpected = List(CHANNELS) { channel -> (inSrgb[channel] * FULL).roundToInt() }
 
-    assertTrue(
-      expected.indices.any { abs(expected[it] - srgbExpected[it]) > 2 * DRIFT },
+    withClue(
       "${spec.id} asks for $expected on the frame's codes and $srgbExpected on sRGB's, too close to tell apart",
-    )
+    ) {
+      expected.indices.any { abs(expected[it] - srgbExpected[it]) > 2 * DRIFT } shouldBe true
+    }
   }
 
   /**
@@ -273,7 +275,7 @@ class CoreImageColorTest {
     val drawn =
       readLight(stepFor(spec, transfer).apply(lit(), frameOn(transfer)), context, kCGColorSpaceExtendedLinearITUR_2020)
 
-    val matrix = checkNotNull(colorMatrixOf(spec)) { "${spec.id} is not a colour matrix" }
+    val matrix = checkNotNull(colorMatrixOf(spec)) { "${spec.id} is not a color matrix" }
     val moved =
       matrix.transformNits(
         plain[0] * HDR_REFERENCE_WHITE_NITS,
@@ -283,25 +285,29 @@ class CoreImageColorTest {
       )
     val expected = FloatArray(CHANNELS) { moved[it] / HDR_REFERENCE_WHITE_NITS }
 
-    assertTrue(
-      expected.indices.sumOf { abs(expected[it] - plain[it]).toDouble() } > CHANNELS * LIGHT_DRIFT,
-      "${spec.id} asks for ${expected.toList()} from a plain ${plain.toList()}, which is inside the tolerance",
-    )
+    withClue("${spec.id} asks for ${expected.toList()} from a plain ${plain.toList()}, which is inside the tolerance") {
+      (expected.indices.sumOf { abs(expected[it] - plain[it]).toDouble() } > CHANNELS * LIGHT_DRIFT) shouldBe true
+    }
     expected.indices.forEach { channel ->
-      assertEquals(
-        expected[channel],
-        drawn[channel],
-        maxOf(expected[channel], 1f) * LIGHT_DRIFT,
+      withClue(
         "${spec.id} on $transfer drew ${drawn.toList()} and the reading asks for ${expected.toList()} " +
           "from ${plain.toList()}",
-      )
+      ) {
+        drawn[channel] shouldBe (expected[channel] plusOrMinus maxOf(expected[channel], 1f) * LIGHT_DRIFT)
+      }
     }
   }
 
   private fun stepFor(
     spec: EffectSpec,
     transfer: HdrTransfer? = null,
-  ) = assertIs<EffectResolution.Resolved>(resolver.resolve(spec, CAPABILITIES, attributes(transfer))).effect.step
+  ) = resolver
+    .resolve(
+      spec,
+      CAPABILITIES,
+      attributes(transfer),
+    ).shouldBeInstanceOf<EffectResolution.Resolved>()
+    .effect.step
 
   private fun flat(): CIImage = CIImage(color = COLOR).imageByCroppingToRect(RECT)
 
@@ -344,7 +350,7 @@ class CoreImageColorTest {
     val color =
       checkNotNull(
         CIColor.colorWithRed(red.toDouble(), green.toDouble(), blue.toDouble(), alpha = 1.0, colorSpace = space),
-      ) { "no colour in $space" }
+      ) { "no color in $space" }
     CGColorSpaceRelease(space)
 
     return CIImage(color = color).imageByCroppingToRect(RECT)

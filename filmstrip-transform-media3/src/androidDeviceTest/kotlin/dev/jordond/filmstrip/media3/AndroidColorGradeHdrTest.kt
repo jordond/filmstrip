@@ -15,16 +15,17 @@ import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HLG_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.test.assumeEncodesHdr
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.test.Test
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
- * A colour matrix on an export that keeps its grade, on real media3.
+ * A color matrix on an export that keeps its grade, on real media3.
  *
  * Every assertion is directional. `MediaMetadataRetriever` tone-maps an HDR frame on the way out
  * and never says how, so what a code value there means is not something to hold to a figure. What
@@ -63,22 +64,26 @@ class AndroidColorGradeHdrTest {
       val toned = probe.frame(export(source, listOf(Brightness(DIM)))).averageAt(CENTRE, CENTRE)
       val grey = probe.frame(export(source, listOf(Brightness(DIM), Saturation(0f)))).averageAt(CENTRE, CENTRE)
 
-      assertTrue(luminance(grey) > BLACK_CEILING, "the desaturated patch reads as black, nothing to compare against")
-      assertTrue(spread(grey) < EQUAL_GAP, "a desaturated patch still reads as $grey")
-      assertTrue(spread(toned) > spread(grey), "the toned patch $toned is no more colourful than the grey one $grey")
+      withClue("the desaturated patch reads as black, nothing to compare against") {
+        (luminance(grey) > BLACK_CEILING) shouldBe true
+      }
+      withClue("a desaturated patch still reads as $grey") { (spread(grey) < EQUAL_GAP) shouldBe true }
+      withClue("the toned patch $toned is no more colorful than the grey one $grey") {
+        (spread(toned) > spread(grey)) shouldBe true
+      }
     }
 
   @Test
-  fun aKeptGradeSurvivesAColourMatrix() =
+  fun aKeptGradeSurvivesAColorMatrix() =
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture(HDR_CLIP)
       probe.filmstrip.assumeEncodesHdr()
 
       val written = export(source, listOf(Contrast(HIGH)))
       val probed = probe.infoOf(MediaSource.of(written.path))
-      val video = assertNotNull(probed.video, "the written file has no video track")
+      val video = withClue("the written file has no video track") { probed.video.shouldNotBeNull() }
 
-      assertTrue(video.hdrTransfer != null, "a colour matrix on a kept grade wrote an SDR file")
+      withClue("a color matrix on a kept grade wrote an SDR file") { (video.hdrTransfer != null) shouldBe true }
     }
 
   // HLG is the arm where the pass reads scene light through the system gamma rather than display
@@ -104,8 +109,12 @@ class AndroidColorGradeHdrTest {
     val flatSpread = luminance(flat.averageAt(CENTRE, CENTRE)) - flatBlack
     val steepSpread = luminance(steep.averageAt(CENTRE, CENTRE)) - steepBlack
 
-    assertTrue(flatBlack > steepBlack + BLACK_LIFT, "a contrast of $LOW left black at $flatBlack against $steepBlack")
-    assertTrue(steepSpread > flatSpread, "a contrast of $HIGH read a spread of $steepSpread against $flatSpread")
+    withClue("a contrast of $LOW left black at $flatBlack against $steepBlack") {
+      (flatBlack > steepBlack + BLACK_LIFT) shouldBe true
+    }
+    withClue("a contrast of $HIGH read a spread of $steepSpread against $flatSpread") {
+      (steepSpread > flatSpread) shouldBe true
+    }
   }
 
   private suspend fun export(

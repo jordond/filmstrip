@@ -6,8 +6,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.UIKitView
-import dev.jordond.filmstrip.playback.attachPreviewLayer
 import dev.jordond.filmstrip.player.VideoPlayer
+import dev.jordond.filmstrip.player.attachPreviewLayer
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.ObjCClass

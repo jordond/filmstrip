@@ -1,16 +1,20 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.PictureColor
+import dev.jordond.filmstrip.color.pictureLight
+import dev.jordond.filmstrip.color.pictureSrgbCodes
+import dev.jordond.filmstrip.color.signalFromNits
 import dev.jordond.filmstrip.effects.assertRasterReads
 import dev.jordond.filmstrip.effects.color.createCodeSpace
 import dev.jordond.filmstrip.effects.rasterReader
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.PictureColour
-import dev.jordond.filmstrip.media.pictureLight
-import dev.jordond.filmstrip.media.pictureSrgbCodes
-import dev.jordond.filmstrip.media.signalFromNits
+import dev.jordond.filmstrip.picture.pictureColorFromDecodedProfile
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -44,26 +48,22 @@ import platform.Foundation.NSData
 import platform.Foundation.create
 import platform.posix.memcpy
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 /**
  * Holds a described picture drawn a band of rows at a time to the floats its whole frame of samples gives when they
  * are read and converted at once, at eight and sixteen bits, with alpha and without, on an SDR frame and on each HDR
- * transfer. It also holds a picture too large to draw at its colour to a refusal on each frame that converts it, and
+ * transfer. It also holds a picture too large to draw at its color to a refusal on each frame that converts it, and
  * an untagged one to drawing at its codes on an SDR frame, which converts nothing.
  *
  * The draws are read back through the raster's own [codeReader].
  */
-@OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 class BandedDrawTest {
   @Test
   fun `a picture drawn in bands lands every texel where its whole frame converted at once does`() {
     val reader = rasterReader()
-    val colour = displayP3()
+    val color = displayP3()
 
     val misses =
       Layout.entries.flatMap { layout ->
@@ -71,12 +71,12 @@ class BandedDrawTest {
         val codes = image.bitmapCodes().orFail(layout.name)
         CGImageRelease(image)
         val whole = codes.image.storedSamples(SIZE, reader, bandTexels = WIDTH * HEIGHT)
-        val banded = OverlayPixels(codes, readColour = { colour }, bandTexels = BAND_TEXELS_HERE)
+        val banded = OverlayPixels(codes, readColor = { color }, bandTexels = BAND_TEXELS_HERE)
         val sdr =
           miss(
             "${layout.name} on SDR",
             banded.enteringFrame(transfer = null, ColorSpace.Bt709),
-            wholeSrgb(colour, whole, codes.image).inCodesOf(ColorSpace.Bt709),
+            wholeSrgb(color, whole, codes.image).inCodesOf(ColorSpace.Bt709),
             reader,
           )
         val hdr =
@@ -84,14 +84,14 @@ class BandedDrawTest {
             miss(
               "${layout.name} on ${transfer.name}",
               banded.enteringFrame(transfer, ColorSpace.Bt2020),
-              wholeLight(colour, whole, transfer),
+              wholeLight(color, whole, transfer),
               reader,
             )
           }
         listOfNotNull(sdr) + hdr.filterNotNull()
       }
 
-    assertEquals(emptyList(), misses)
+    misses shouldBe emptyList()
   }
 
   @Test
@@ -100,10 +100,10 @@ class BandedDrawTest {
     // bands above it again, so the case above crosses that restart as well as the band edges.
     val grey = ShortArray(GREY_ROWS * WIDTH * CHANNELS) { index -> sampleOf(Layout.EIGHT_OPAQUE, index) }
     val first = GREY_ROWS * WIDTH * CHANNELS
-    val coloured = ShortArray(WIDTH * CHANNELS) { index -> sampleOf(Layout.EIGHT_OPAQUE, first + index) }
+    val colored = ShortArray(WIDTH * CHANNELS) { index -> sampleOf(Layout.EIGHT_OPAQUE, first + index) }
 
-    assertTrue(pictureSrgbCodes(displayP3(), grey) contentEquals pictureSrgbCodes(null, grey))
-    assertTrue(!(pictureSrgbCodes(displayP3(), coloured) contentEquals pictureSrgbCodes(null, coloured)))
+    (pictureSrgbCodes(displayP3(), grey) contentEquals pictureSrgbCodes(null, grey)) shouldBe true
+    !(pictureSrgbCodes(displayP3(), colored) contentEquals pictureSrgbCodes(null, colored)) shouldBe true
   }
 
   @Test
@@ -112,7 +112,7 @@ class BandedDrawTest {
     val image = Layout.EIGHT_STRAIGHT.picture()
     val codes = image.bitmapCodes().orFail("the picture")
     CGImageRelease(image)
-    val peak = assertNotNull(drawnPeakBytes(WIDTH.toLong(), HEIGHT.toLong(), codes.bytes, BAND_TEXELS_HERE))
+    val peak = drawnPeakBytes(WIDTH.toLong(), HEIGHT.toLong(), codes.bytes, BAND_TEXELS_HERE).shouldNotBeNull()
     val past = OverlayPixels(codes, bandTexels = BAND_TEXELS_HERE, ceiling = peak - 1)
     val at = OverlayPixels(codes, bandTexels = BAND_TEXELS_HERE, ceiling = peak)
 
@@ -124,8 +124,8 @@ class BandedDrawTest {
         }.message
       }
 
-    assertNull(miss("the untagged picture on SDR", sdr, codes.image.inCodesOf(ColorSpace.Bt709), reader))
-    assertEquals(HdrTransfer.entries.map { tooLargeToDraw(WIDTH.toLong(), HEIGHT.toLong(), peak - 1) }, refusals)
+    miss("the untagged picture on SDR", sdr, codes.image.inCodesOf(ColorSpace.Bt709), reader).shouldBeNull()
+    refusals shouldBe HdrTransfer.entries.map { tooLargeToDraw(WIDTH.toLong(), HEIGHT.toLong(), peak - 1) }
     HdrTransfer.entries.forEach { at.enteringFrame(it, ColorSpace.Bt2020) }
   }
 
@@ -137,13 +137,13 @@ class BandedDrawTest {
     CGImageRelease(image)
     val uncounted = OverlayPixels(HeldCodes(codes.image, bytes = null), bandTexels = BAND_TEXELS_HERE)
 
-    assertNull(drawnPeakBytes(WIDTH.toLong(), HEIGHT.toLong(), held = null, BAND_TEXELS_HERE))
+    drawnPeakBytes(WIDTH.toLong(), HEIGHT.toLong(), held = null, BAND_TEXELS_HERE).shouldBeNull()
     HdrTransfer.entries.forEach { transfer ->
       val refused =
         assertFailsWith<PictureTooLargeToDraw>("uncounted codes were drawn on ${transfer.name}") {
           uncounted.enteringFrame(transfer, ColorSpace.Bt2020)
         }
-      assertEquals(tooLargeToDraw(WIDTH.toLong(), HEIGHT.toLong(), PICTURE_PEAK_CEILING), refused.message)
+      refused.message shouldBe tooLargeToDraw(WIDTH.toLong(), HEIGHT.toLong(), PICTURE_PEAK_CEILING)
     }
   }
 
@@ -153,10 +153,10 @@ class BandedDrawTest {
     val image = Layout.EIGHT_OPAQUE.picture()
     val codes = image.bitmapCodes().orFail("the picture")
     CGImageRelease(image)
-    val peak = assertNotNull(drawnPeakBytes(WIDTH.toLong(), HEIGHT.toLong(), codes.bytes, BAND_TEXELS_HERE))
-    val colour = displayP3()
-    val past = OverlayPixels(codes, readColour = { colour }, bandTexels = BAND_TEXELS_HERE, ceiling = peak - 1)
-    val at = OverlayPixels(codes, readColour = { colour }, bandTexels = BAND_TEXELS_HERE, ceiling = peak)
+    val peak = drawnPeakBytes(WIDTH.toLong(), HEIGHT.toLong(), codes.bytes, BAND_TEXELS_HERE).shouldNotBeNull()
+    val color = displayP3()
+    val past = OverlayPixels(codes, readColor = { color }, bandTexels = BAND_TEXELS_HERE, ceiling = peak - 1)
+    val at = OverlayPixels(codes, readColor = { color }, bandTexels = BAND_TEXELS_HERE, ceiling = peak)
 
     val refusals =
       List(2) {
@@ -165,31 +165,28 @@ class BandedDrawTest {
         }.message
       }
 
-    assertEquals(List(2) { tooLargeToDraw(WIDTH.toLong(), HEIGHT.toLong(), peak - 1) }, refusals)
+    refusals shouldBe List(2) { tooLargeToDraw(WIDTH.toLong(), HEIGHT.toLong(), peak - 1) }
     at.enteringFrame(transfer = null, ColorSpace.Bt709)
   }
 
   @Test
   fun `the drawn peak counts the codes and floats beside one band and only an eight-bit 48 mp picture fits`() {
     val floatsAndBand = 8_000L * 6_000 * 16 + 131L * 8_000 * 48
-    val eightBit = assertNotNull(drawnPeakBytes(8_000, 6_000, held = 8_000L * 6_000 * 4))
-    val sixteenBit = assertNotNull(drawnPeakBytes(8_000, 6_000, held = 8_000L * 6_000 * 8))
+    val eightBit = drawnPeakBytes(8_000, 6_000, held = 8_000L * 6_000 * 4).shouldNotBeNull()
+    val sixteenBit = drawnPeakBytes(8_000, 6_000, held = 8_000L * 6_000 * 8).shouldNotBeNull()
 
-    assertEquals(818_304_000L, floatsAndBand)
-    assertEquals(picturePeakBytes(8_000L * 6_000 * 4, 131L * 8_000 * 48, 8_000L * 6_000 * 16), eightBit)
-    assertEquals(1_010_304_000L, eightBit)
-    assertTrue(eightBit <= PICTURE_PEAK_CEILING)
-    assertEquals(1_202_304_000L, sixteenBit)
-    assertTrue(sixteenBit > PICTURE_PEAK_CEILING)
-    assertEquals(WIDTH * HEIGHT * (16L + 48) + 7, drawnPeakBytes(WIDTH.toLong(), HEIGHT.toLong(), held = 7))
-    assertEquals(
-      4_000L * 3_000 * 16 + 4_000L * 2 * 48,
-      drawnPeakBytes(4_000, 3_000, held = 0, bandTexels = 8_000),
-    )
-    assertEquals(9L, drawnPeakBytes(0, 6_000, held = 9))
-    assertNull(drawnPeakBytes(Int.MAX_VALUE.toLong(), 1, held = 0))
-    assertNull(drawnPeakBytes(1, Long.MAX_VALUE, held = 0))
-    assertNull(drawnPeakBytes(1, 1, held = Long.MAX_VALUE))
+    floatsAndBand shouldBe 818_304_000L
+    eightBit shouldBe picturePeakBytes(8_000L * 6_000 * 4, 131L * 8_000 * 48, 8_000L * 6_000 * 16)
+    eightBit shouldBe 1_010_304_000L
+    (eightBit <= PICTURE_PEAK_CEILING) shouldBe true
+    sixteenBit shouldBe 1_202_304_000L
+    (sixteenBit > PICTURE_PEAK_CEILING) shouldBe true
+    drawnPeakBytes(WIDTH.toLong(), HEIGHT.toLong(), held = 7) shouldBe WIDTH * HEIGHT * (16L + 48) + 7
+    drawnPeakBytes(4_000, 3_000, held = 0, bandTexels = 8_000) shouldBe 4_000L * 3_000 * 16 + 4_000L * 2 * 48
+    drawnPeakBytes(0, 6_000, held = 9) shouldBe 9L
+    drawnPeakBytes(Int.MAX_VALUE.toLong(), 1, held = 0).shouldBeNull()
+    drawnPeakBytes(1, Long.MAX_VALUE, held = 0).shouldBeNull()
+    drawnPeakBytes(1, 1, held = Long.MAX_VALUE).shouldBeNull()
   }
 
   @Test
@@ -201,7 +198,7 @@ class BandedDrawTest {
         PremultipliedFloats(Size(width, height), PICTURE_PEAK_CEILING)
       }
 
-    assertEquals(tooLargeToDraw(width.toLong(), height.toLong(), PICTURE_PEAK_CEILING), refused.message)
+    refused.message shouldBe tooLargeToDraw(width.toLong(), height.toLong(), PICTURE_PEAK_CEILING)
   }
 
   /**
@@ -242,11 +239,11 @@ class BandedDrawTest {
 
   // The SDR image the whole frame gives, made the way the raster made it before it drew in bands.
   private fun wholeSrgb(
-    colour: PictureColour,
+    color: PictureColor,
     samples: ShortArray,
     codes: CIImage,
   ): CIImage {
-    val drawn = pictureSrgbCodes(colour, samples)
+    val drawn = pictureSrgbCodes(color, samples)
     val eightBit = samples.all { (it.toInt() and 0xFFFF) % 257 == 0 }
     if (eightBit && drawn contentEquals pictureSrgbCodes(null, samples)) return codes
     val floats = FloatArray(drawn.size * CHANNELS)
@@ -262,11 +259,11 @@ class BandedDrawTest {
 
   // The HDR image the whole frame gives on transfer, each texel's signal premultiplied by its alpha.
   private fun wholeLight(
-    colour: PictureColour,
+    color: PictureColor,
     samples: ShortArray,
     transfer: HdrTransfer,
   ): CIImage {
-    val texels = pictureLight(colour, samples)
+    val texels = pictureLight(color, samples)
     for (offset in texels.indices step CHANNELS) {
       val signal = transfer.signalFromNits(texels.copyOfRange(offset, offset + 3))
       repeat(3) { texels[offset + it] = signal[it] * texels[offset + 3] }
@@ -302,13 +299,15 @@ class BandedDrawTest {
     }
   }
 
-  private fun displayP3(): PictureColour {
+  private fun displayP3(): PictureColor {
     val space = CGColorSpaceCreateWithName(kCGColorSpaceDisplayP3)
     val icc = CFBridgingRelease(CGColorSpaceCopyICCData(space)) as NSData
     CGColorSpaceRelease(space)
     val profile = ByteArray(icc.length.toInt())
     profile.usePinned { memcpy(it.addressOf(0), icc.bytes, icc.length) }
-    return assertNotNull(PictureColour.fromDecodedProfile(profile, 3), "Display P3 read as no description")
+    return withClue("Display P3 read as no description") {
+      pictureColorFromDecodedProfile(profile, 3).shouldNotBeNull()
+    }
   }
 
   /**
@@ -358,7 +357,7 @@ class BandedDrawTest {
         )
       CGColorSpaceRelease(space)
       CGDataProviderRelease(provider)
-      return assertNotNull(image, "Core Graphics made no $name picture")
+      return withClue("Core Graphics made no $name picture") { image.shouldNotBeNull() }
     }
   }
 

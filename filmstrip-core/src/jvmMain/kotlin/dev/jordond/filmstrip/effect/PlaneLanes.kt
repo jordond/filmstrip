@@ -14,7 +14,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
  * `gbrpf32le` puts red in the red slot, the same as `g`, `b`, `r`. The merged frame is tagged limited range.
  *
  * Effects build the node with [node]. A backend recognises it by [NAME] and reads its arguments by [PLANES] and
- * [FORMAT] rather than spelling any of them itself.
+ * [FORMAT].
  */
 @InternalFilmstripApi
 public object PlaneLanes {
@@ -46,8 +46,7 @@ public object PlaneLanes {
   /**
    * The RGB planes in the slots they fill in every target, green, blue, red and then alpha.
    *
-   * This is the order planar `gbr` formats store their planes in. A backend reads it rather than spelling the order
-   * itself.
+   * This is the order planar `gbr` formats store their planes in, and a backend reads the order from here.
    */
   public val RGB_SLOTS: List<String> = listOf("g", "b", "r", ALPHA)
 
@@ -60,16 +59,16 @@ public object PlaneLanes {
   public val YCBCR_SLOTS: List<String> = listOf("y", "u", "v", ALPHA)
 
   /**
-   * The target with no alpha, which fills the three colour slots.
+   * The target with no alpha, which fills the three color slots.
    *
-   * A pad carried here keeps its colour planes and drops the rest.
+   * A pad carried here keeps its color planes and drops the rest.
    */
   public val OPAQUE: Target = Target("gbrpf32le", RGB_SLOTS - ALPHA)
 
   /**
    * The target with alpha, which fills every slot of [RGB_SLOTS].
    *
-   * A pad carried here keeps its colour planes and its alpha.
+   * A pad carried here keeps its color planes and its alpha.
    */
   public val WITH_ALPHA: Target = Target("gbrapf32le", RGB_SLOTS)
 
@@ -81,7 +80,7 @@ public object PlaneLanes {
    */
   public val TARGETS: List<Target> = listOf(OPAQUE, WITH_ALPHA)
 
-  // Every plane name, the colour planes of each family in slot order and alpha last, which is the order a node writes.
+  // Every plane name, the color planes of each family in slot order and alpha last, which is the order a node writes.
   private val slotOrder = (RGB_SLOTS + YCBCR_SLOTS).distinct().sortedBy { it == ALPHA }
 
   /**
@@ -117,7 +116,7 @@ public object PlaneLanes {
    * One planar float pixel format a plane lanes node may target, and the slots it fills.
    *
    * The slots are named as in [RGB_SLOTS], and a Y'CbCr pad fills the same slots by position. A backend reads the
-   * plane count and whether alpha is carried from here rather than from the format's name.
+   * plane count and whether alpha is carried from here.
    *
    * @property format The pixel format's name.
    * @property slots The slots the format holds, in the order it stores them.

@@ -1,20 +1,21 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.internal.pictureOrientationOf
-import dev.jordond.filmstrip.internal.pictureYcbcrCoding
-import dev.jordond.filmstrip.media.PictureOrientation
-import dev.jordond.filmstrip.media.RestatedColour
-import dev.jordond.filmstrip.media.RestatedHeif
-import dev.jordond.filmstrip.media.UnturnedHeif
-import dev.jordond.filmstrip.media.heifWithRestatedColour
-import dev.jordond.filmstrip.media.heifWithoutOrientation
+import dev.jordond.filmstrip.picture.PictureOrientation
+import dev.jordond.filmstrip.picture.heif.RestatedColor
+import dev.jordond.filmstrip.picture.heif.RestatedHeif
+import dev.jordond.filmstrip.picture.heif.UnturnedHeif
+import dev.jordond.filmstrip.picture.heif.heifWithRestatedColor
+import dev.jordond.filmstrip.picture.heif.heifWithoutOrientation
+import dev.jordond.filmstrip.picture.pictureOrientationOf
+import dev.jordond.filmstrip.picture.pictureYcbcrCoding
+import dev.jordond.filmstrip.picture.withColorDescriptionsHidden
 import dev.jordond.filmstrip.test.OrientedPictures
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 
 /**
  * Hands HEICs with an `irot` on their primary item to Android's decoder, checking the decoder never gets one it would
@@ -26,28 +27,29 @@ class TaggedHeifHostTest {
   @Test
   fun aTaggedPictureWhoseDropIsRefusedIsRefusedByNameOnBothRoutes() {
     val uncoded = tagged.renamed("hvc1", "hvcX").renamed("colr", "colX")
-    assertNotNull(pictureYcbcrCoding(tagged))
-    assertNull(pictureYcbcrCoding(uncoded))
+    pictureYcbcrCoding(tagged).shouldNotBeNull()
+    pictureYcbcrCoding(uncoded).shouldBeNull()
     for (picture in listOf(tagged, uncoded)) {
       val sequence = picture + byteArrayOf(0, 0, 0, BOX_HEADER) + "moov".encodeToByteArray()
-      val refused = assertIs<UnturnedHeif.Refused>(heifWithoutOrientation(sequence))
+      val refused = heifWithoutOrientation(sequence).shouldBeInstanceOf<UnturnedHeif.Refused>()
 
-      assertEquals(refused.message, sequence.forAndroidDecoder(LATEST_API).refusal)
+      sequence.forAndroidDecoder(LATEST_API).refusal shouldBe refused.message
     }
   }
 
   @Test
   fun aTaggedPictureCoreCannotRestateStillLosesItsIrot() {
     val unread = tagged.renamed("hvcC", "hvcX")
-    val described = unread.withColourDescriptionsHidden(keepNclxPrimaries = true)
-    val unrestated = heifWithRestatedColour(described) { _, _, _ -> RestatedColour(BT601, BT709) }
-    assertEquals(PictureOrientation.Normal, pictureOrientationOf(assertIs<RestatedHeif.Unrestated>(unrestated).bytes))
-    assertNotEquals(PictureOrientation.Normal, pictureOrientationOf(unread))
+    val described = unread.withColorDescriptionsHidden(keepNclxPrimaries = true)
+    val unrestated = heifWithRestatedColor(described) { _, _, _ -> RestatedColor(BT601, BT709) }
+    pictureOrientationOf(unrestated.shouldBeInstanceOf<RestatedHeif.Unrestated>().bytes) shouldBe
+      PictureOrientation.Normal
+    pictureOrientationOf(unread) shouldNotBe PictureOrientation.Normal
 
     val input = unread.forAndroidDecoder(LATEST_API)
 
-    assertNull(input.refusal)
-    assertEquals(PictureOrientation.Normal, pictureOrientationOf(input.bytes))
+    input.refusal.shouldBeNull()
+    pictureOrientationOf(input.bytes) shouldBe PictureOrientation.Normal
   }
 
   // A copy with the first run of type's bytes written as replacement.

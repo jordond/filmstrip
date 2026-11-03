@@ -1,30 +1,30 @@
 package dev.jordond.filmstrip.test
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.authoredHdrNits
+import dev.jordond.filmstrip.color.hlgSceneFromNits
+import dev.jordond.filmstrip.color.hlgSignalFromScene
+import dev.jordond.filmstrip.color.nitsFromSignal
+import dev.jordond.filmstrip.color.signalFromNits
+import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.authoredHdrNits
-import dev.jordond.filmstrip.media.hlgSceneFromNits
-import dev.jordond.filmstrip.media.hlgSignalFromScene
-import dev.jordond.filmstrip.media.nitsFromSignal
-import dev.jordond.filmstrip.media.signalFromNits
-import dev.jordond.filmstrip.media.tenBitCodesFromSignal
 import kotlin.math.abs
 
 /**
- * The overlay cells every backend's HDR overlay test draws and reads back, each one overlay colour drawn at one opacity
+ * The overlay cells every backend's HDR overlay test draws and reads back, each one overlay color drawn at one opacity
  * over one fill.
  *
  * A backend iterates [CELLS] to build its grid and predicts each reading from [Cell.nits]. The grid crosses white,
- * [AuthoredColours.MID_GREY] and [AuthoredColours.MID_GREEN] over a mid grey fill with full, half and quarter opacity,
+ * [AuthoredColors.MID_GREY] and [AuthoredColors.MID_GREEN] over a mid grey fill with full, half and quarter opacity,
  * and adds white and mid grey over [BLACK] at half and a quarter. [BLENDS] holds the cells whose reading depends on how
  * the overlay is blended, and every cell carries the two wrong blends a backend could land on instead of the rule.
  */
 @InternalFilmstripApi
 public object HdrOverlayCells {
   /**
-   * An opaque white, the brightest colour an overlay can author.
+   * An opaque white, the brightest color an overlay can author.
    *
-   * It lands at reference white on an HDR grade, as far above a mid grey fill as an authored colour goes.
+   * It lands at reference white on an HDR grade, as far above a mid grey fill as an authored color goes.
    */
   public const val WHITE: Int = 0xFFFFFFFF.toInt()
 
@@ -36,9 +36,9 @@ public object HdrOverlayCells {
   public const val BLACK: Int = 0xFF000000.toInt()
 
   /**
-   * One [overlay] colour drawn at [opacity] over a fill of [background].
+   * One [overlay] color drawn at [opacity] over a fill of [background].
    *
-   * Both colours are packed sRGB with alpha ignored, and [opacity] is the overlay's own opacity applied to fully opaque
+   * Both colors are packed sRGB with alpha ignored, and [opacity] is the overlay's own opacity applied to fully opaque
    * texels. Besides where the cell lands, it gives where a signal blend and an sRGB blend of it land.
    */
   @InternalFilmstripApi
@@ -50,8 +50,8 @@ public object HdrOverlayCells {
     /**
      * Whether a reading of this cell depends on how the overlay is blended.
      *
-     * An opaque overlay replaces the fill, and an overlay the same colour as the fill lands on it at any opacity, so
-     * neither one is a blend. The colours are compared on red, green and blue alone.
+     * An opaque overlay replaces the fill, and an overlay the same color as the fill lands on it at any opacity, so
+     * neither one is a blend. The colors are compared on red, green and blue alone.
      */
     public val isBlend: Boolean
       get() = opacity < 1f && (overlay and RGB) != (background and RGB)
@@ -94,15 +94,15 @@ public object HdrOverlayCells {
     /**
      * Where this cell lands when the overlay is blended on the eight-bit sRGB codes before they are mapped to light.
      *
-     * Each channel is mixed through [OverlayPixels.sourceOver] and the mixed colour is mapped through
+     * Each channel is mixed through [OverlayPixels.sourceOver] and the mixed color is mapped through
      * [authoredHdrNits], so the light is the same on either transfer.
      *
      * @return Linear BT.2020 red, green and blue in cd/m2, in that order.
      */
     public fun srgbBlendNits(): FloatArray {
       val (red, green, blue) =
-        AuthoredColours.channelsOf(background).zip(AuthoredColours.channelsOf(overlay)) { under, over ->
-          OverlayPixels.sourceOver(under, over, opacity) / AuthoredColours.FULL_SCALE
+        AuthoredColors.channelsOf(background).zip(AuthoredColors.channelsOf(overlay)) { under, over ->
+          OverlayPixels.sourceOver(under, over, opacity) / AuthoredColors.FULL_SCALE
         }
       return authoredHdrNits(red, green, blue)
     }
@@ -131,7 +131,7 @@ public object HdrOverlayCells {
     /**
      * Where this cell lands on an HLG grade when the overlay is blended in scene light instead of display light.
      *
-     * Both colours go to scene light through [hlgSceneFromNits] of their [authoredHdrNits], mix there by [opacity], and
+     * Both colors go to scene light through [hlgSceneFromNits] of their [authoredHdrNits], mix there by [opacity], and
      * the mix is encoded with [hlgSignalFromScene]. A backend that holds an HLG frame in scene light blends this way.
      *
      * @return The HLG signal for red, green and blue, each from zero to one.
@@ -152,16 +152,16 @@ public object HdrOverlayCells {
   /**
    * Every cell an HDR overlay grid reads, the mid grey fill's nine first and then the four over [BLACK].
    *
-   * The opaque cells pin where a fill of the overlay's colour lands, and the rest read the middle of the opacity ramp.
+   * The opaque cells pin where a fill of the overlay's color lands, and the rest read the middle of the opacity ramp.
    */
   public val CELLS: List<Cell> =
     listOf(1f, HALF, QUARTER).flatMap { opacity ->
-      listOf(WHITE, AuthoredColours.MID_GREY, AuthoredColours.MID_GREEN).map { overlay ->
-        Cell(overlay, AuthoredColours.MID_GREY, opacity)
+      listOf(WHITE, AuthoredColors.MID_GREY, AuthoredColors.MID_GREEN).map { overlay ->
+        Cell(overlay, AuthoredColors.MID_GREY, opacity)
       }
     } +
       listOf(HALF, QUARTER).flatMap { opacity ->
-        listOf(WHITE, AuthoredColours.MID_GREY).map { overlay -> Cell(overlay, BLACK, opacity) }
+        listOf(WHITE, AuthoredColors.MID_GREY).map { overlay -> Cell(overlay, BLACK, opacity) }
       }
 
   /**

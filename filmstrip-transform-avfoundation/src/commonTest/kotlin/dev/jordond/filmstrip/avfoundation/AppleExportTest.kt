@@ -3,16 +3,20 @@ package dev.jordond.filmstrip.avfoundation
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.avfoundation.internal.MEDIA_TICK
-import dev.jordond.filmstrip.avfoundation.internal.copyFormatDescription
-import dev.jordond.filmstrip.avfoundation.internal.toAvComposition
-import dev.jordond.filmstrip.avfoundation.internal.toDuration
+import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
+import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TICK
+import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.brightness
 import dev.jordond.filmstrip.effects.color.contrast
@@ -21,38 +25,39 @@ import dev.jordond.filmstrip.effects.geometry.scale
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.fadeIn
 import dev.jordond.filmstrip.export.AdjustmentKind
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotTime
-import dev.jordond.filmstrip.internal.outputSlotsOf
+import dev.jordond.filmstrip.internal.copyFormatDescription
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.chainedProber
 import dev.jordond.filmstrip.test.LoopingCases
 import dev.jordond.filmstrip.test.ToneAnalysis
 import dev.jordond.filmstrip.transform.internal.ResolveResult
-import dev.jordond.filmstrip.transform.internal.ResolvedClip
-import dev.jordond.filmstrip.transform.internal.ResolvedComposition
-import dev.jordond.filmstrip.transform.internal.ResolvedGain
-import dev.jordond.filmstrip.transform.internal.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.passesCovering
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.runLengthOf
 import dev.jordond.filmstrip.transform.internal.videoSlots
 import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -78,9 +83,6 @@ import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
@@ -101,19 +103,18 @@ class AppleExportTest {
   fun `reports what the encoders can do`() =
     runTest(timeout = TIMEOUT) {
       val result = withContext(Dispatchers.Default) { filmstrip.capabilities() }
-      val capabilities = assertIs<CapabilitiesResult.Success>(result).capabilities
+      val capabilities = result.shouldBeInstanceOf<CapabilitiesResult.Success>().capabilities
 
-      assertTrue(capabilities.video.isNotEmpty(), "expected at least one video encoder")
+      withClue("expected at least one video encoder") { capabilities.video.isNotEmpty().shouldBeTrue() }
       capabilities.audio
         .single()
         .codec.name shouldBe "Aac"
 
       // The encoder tests pin each target's HDR answer, so this only checks the HEVC encoder that
       // answer rides on is listed.
-      assertTrue(
-        capabilities.video.any { it.codec == VideoCodec.Hevc },
-        "expected an HEVC encoder in the listing",
-      )
+      withClue("expected an HEVC encoder in the listing") {
+        capabilities.video.any { it.codec == VideoCodec.Hevc }.shouldBeTrue()
+      }
     }
 
   // One clip, trimmed, scaled, written and read back at the size the plan promised.
@@ -128,11 +129,13 @@ class AppleExportTest {
         }
 
       val output = temporaryPath("trimmed")
-      val success = exported(composition, ExportSpec(targetHeight = 240), output)
+      val success = exported(composition, ExportSpec(heightPx = 240), output)
 
       success.info.video!!.displaySize shouldBe Size(426, 240)
-      assertTrue(success.info.duration in 800.milliseconds..1_300.milliseconds, "duration was ${success.info.duration}")
-      assertTrue(success.info.audio != null, "the audio track did not survive")
+      withClue("duration was ${success.info.duration}") {
+        (success.info.duration in 800.milliseconds..1_300.milliseconds).shouldBeTrue()
+      }
+      withClue("the audio track did not survive") { success.info.audio.shouldNotBeNull() }
 
       remove(output)
     }
@@ -150,13 +153,12 @@ class AppleExportTest {
         }
 
       val output = temporaryPath("concat")
-      val success = exported(composition, ExportSpec(targetHeight = 240), output)
+      val success = exported(composition, ExportSpec(heightPx = 240), output)
 
       success.info.video!!.displaySize shouldBe Size(426, 240)
-      assertTrue(
-        success.info.duration in 1_800.milliseconds..2_300.milliseconds,
-        "duration was ${success.info.duration}",
-      )
+      withClue("duration was ${success.info.duration}") {
+        (success.info.duration in 1_800.milliseconds..2_300.milliseconds).shouldBeTrue()
+      }
 
       remove(output)
     }
@@ -173,10 +175,10 @@ class AppleExportTest {
         }
 
       val output = temporaryPath("reframe")
-      val success = exported(composition, ExportSpec(targetHeight = 640), output)
+      val success = exported(composition, ExportSpec(heightPx = 640), output)
 
       val size = success.info.video!!.displaySize
-      assertTrue(size.height > size.width, "expected a portrait frame, got $size")
+      withClue("expected a portrait frame, got $size") { (size.height > size.width).shouldBeTrue() }
 
       remove(output)
     }
@@ -203,7 +205,7 @@ class AppleExportTest {
     }
 
   @Test
-  fun `fills the letterbox bars with a solid colour`() =
+  fun `fills the letterbox bars with a solid color`() =
     runTest(timeout = TIMEOUT) {
       val landscape = fixture("apple_export_a.mp4")
       val teal = Triple(0x11, 0xC2, 0xAA)
@@ -225,7 +227,7 @@ class AppleExportTest {
     }
 
   // The fill-paint-order regression: a composition brightness must not reach a bar it was not
-  // given a colour for, whatever it does to the clip's own pixels.
+  // given a color for, whatever it does to the clip's own pixels.
   @Test
   fun `a composition brightness leaves a solid fill's bars untouched`() =
     runTest(timeout = TIMEOUT) {
@@ -259,10 +261,9 @@ class AppleExportTest {
       val fullCentre = luminance(samplePixel(plain, 0.5f, 0.5f))
       val dimCentre = luminance(samplePixel(dimmed, 0.5f, 0.5f))
       val ratio = dimCentre.toFloat() / fullCentre.toFloat()
-      assertTrue(
-        ratio in 0.35f..0.65f,
-        "expected the centre near half brightness, got $ratio ($fullCentre -> $dimCentre)",
-      )
+      withClue("expected the centre near half brightness, got $ratio ($fullCentre -> $dimCentre)") {
+        (ratio in 0.35f..0.65f).shouldBeTrue()
+      }
 
       remove(plain)
       remove(dimmed)
@@ -271,7 +272,7 @@ class AppleExportTest {
   // The same claim for the half of a matrix a brightness does not have. A contrast carries a bias,
   // Core Image holds the frame premultiplied, and an offset landing where the picture has no alpha
   // is exactly what would tint the bar the fill was given to own. The clip is a flat photo, so the
-  // centre is a colour the effect is predicted to move rather than one that merely differs.
+  // centre is a color the effect is predicted to move rather than one that merely differs.
   @Test
   fun `a composition contrast leaves a solid fill's bars untouched`() =
     runTest(timeout = TIMEOUT) {
@@ -304,10 +305,9 @@ class AppleExportTest {
 
       val before = frameOf(plain, PHOTO * MIDDLE).average(0.5f, 0.5f)
       val after = graded.average(0.5f, 0.5f)
-      assertTrue(
-        distance(before, after) > COLOR_TOLERANCE,
-        "the contrast never reached the picture, which read $before plain and $after graded",
-      )
+      withClue("the contrast never reached the picture, which read $before plain and $after graded") {
+        (distance(before, after) > COLOR_TOLERANCE).shouldBeTrue()
+      }
 
       remove(plain)
       remove(firmer)
@@ -353,8 +353,10 @@ class AppleExportTest {
       val near = samplePixel(output, 0.15f, 0.05f)
       val far = samplePixel(output, 0.85f, 0.05f)
 
-      assertTrue(near != BLACK, "expected a blurred bar, got black")
-      assertTrue(distance(near, far) > COLOR_TOLERANCE, "expected the blur to vary across the bar, got $near and $far")
+      near shouldNotBe BLACK
+      withClue("expected the blur to vary across the bar, got $near and $far") {
+        (distance(near, far) > COLOR_TOLERANCE).shouldBeTrue()
+      }
 
       remove(output)
     }
@@ -419,7 +421,9 @@ class AppleExportTest {
       val half = samplePixel(halfDimmed, 0.15f, 0.05f)
       val ratio = luminance(half).toFloat() / luminance(full).toFloat()
 
-      assertTrue(ratio in 0.35f..0.65f, "expected half dim near half brightness, got $ratio ($full -> $half)")
+      withClue("expected half dim near half brightness, got $ratio ($full -> $half)") {
+        (ratio in 0.35f..0.65f).shouldBeTrue()
+      }
 
       remove(undimmed)
       remove(halfDimmed)
@@ -449,20 +453,18 @@ class AppleExportTest {
       val output = temporaryPath("crop-fill")
       exported(composition, ExportSpec(), output)
 
-      assertTrue(
-        distance(samplePixel(output, 0.5f, 0.02f), magenta) > COLOR_TOLERANCE,
-        "the fill leaked into the top edge",
-      )
-      assertTrue(
-        distance(samplePixel(output, 0.5f, 0.98f), magenta) > COLOR_TOLERANCE,
-        "the fill leaked into the bottom edge",
-      )
+      withClue("the fill leaked into the top edge") {
+        (distance(samplePixel(output, 0.5f, 0.02f), magenta) > COLOR_TOLERANCE).shouldBeTrue()
+      }
+      withClue("the fill leaked into the bottom edge") {
+        (distance(samplePixel(output, 0.5f, 0.98f), magenta) > COLOR_TOLERANCE).shouldBeTrue()
+      }
 
       remove(output)
     }
 
   /**
-   * The plan claims a passthrough, so the file has to prove one ran.
+   * The plan claims a copy, so the file has to prove one ran.
    *
    * An encoder stamps its own name into the format description, so the source's survives a copy and
    * not a re-encode. The trim is the control: it is the same export down to the path the planner
@@ -474,12 +476,12 @@ class AppleExportTest {
     runTest(timeout = TIMEOUT) {
       val landscape = fixture("apple_export_a.mp4")
       val source = formatName(landscape)
-      assertTrue(source != null, "the fixture's own format description could not be read")
+      withClue("the fixture's own format description could not be read") { source.shouldNotBeNull() }
 
-      val output = temporaryPath("transmux")
+      val output = temporaryPath("copy")
       val composition = compositionOf { clip(MediaSource.of(landscape)) }
-      val plan = assertIs<Verdict.Capable>(filmstrip.plan(composition, ExportSpec())).plan
-      plan.path shouldBe ExportPath.Transmux
+      val plan = filmstrip.plan(composition, ExportSpec()).shouldBeInstanceOf<Verdict.Capable>().plan
+      plan.path shouldBe ExportPath.Copy
       exported(composition, ExportSpec(), output)
       formatName(output) shouldBe source
 
@@ -488,10 +490,12 @@ class AppleExportTest {
         compositionOf {
           clip(MediaSource.of(landscape)) { trim(500.milliseconds, 1.seconds) }
         }
-      val control = assertIs<Verdict.Capable>(filmstrip.plan(trimmed, ExportSpec())).plan
+      val control = filmstrip.plan(trimmed, ExportSpec()).shouldBeInstanceOf<Verdict.Capable>().plan
       control.path shouldBe ExportPath.Transcode
       exported(trimmed, ExportSpec(), reEncoded)
-      assertTrue(formatName(reEncoded) != source, "the trimmed export passed the source's format off as its own")
+      withClue("the trimmed export passed the source's format off as its own") {
+        formatName(reEncoded) shouldNotBe source
+      }
 
       remove(output)
       remove(reEncoded)
@@ -511,11 +515,11 @@ class AppleExportTest {
         }
 
       val output = temporaryPath("muted")
-      val success = exported(composition, ExportSpec(targetHeight = 240), output)
+      val success = exported(composition, ExportSpec(heightPx = 240), output)
 
       // Mute keeps the track and writes silence into it, which is a different operation from
       // dropping it.
-      assertTrue(success.info.audio != null, "the muted track was dropped and not silenced")
+      withClue("the muted track was dropped and not silenced") { success.info.audio.shouldNotBeNull() }
 
       remove(output)
     }
@@ -536,11 +540,12 @@ class AppleExportTest {
       val output = temporaryPath("audio-only")
       val success = exported(composition, ExportSpec(), output)
 
-      val audio = success.info.audio
-      assertTrue(audio != null, "the audio track did not survive")
-      assertTrue(audio.sampleRate > 0, "expected a sane sample rate, got ${audio.sampleRate}")
-      assertNull(success.info.video, "AudioSpec.AudioOnly must not leave a video track behind")
-      assertTrue(success.info.duration in 800.milliseconds..1_300.milliseconds, "duration was ${success.info.duration}")
+      val audio = withClue("the audio track did not survive") { success.info.audio.shouldNotBeNull() }
+      audio.sampleRate shouldBeGreaterThan 0
+      withClue("AudioSpec.AudioOnly must not leave a video track behind") { success.info.video.shouldBeNull() }
+      withClue("duration was ${success.info.duration}") {
+        (success.info.duration in 800.milliseconds..1_300.milliseconds).shouldBeTrue()
+      }
 
       remove(output)
     }
@@ -575,7 +580,7 @@ class AppleExportTest {
           }
         }
 
-      val spec = ExportSpec(targetHeight = 240)
+      val spec = ExportSpec(heightPx = 240)
       val resolved = resolved(composition, spec)
       val bedTrack = resolved.tracks.single { it.content == TrackContent.Audio }
       val primaryTrack = resolved.tracks.single { it.content != TrackContent.Audio }
@@ -585,7 +590,9 @@ class AppleExportTest {
       // the laid list rather than worked out from the bed's own length.
       val middle = LOOPED + WINDOW / 2
       val pass = bedTrack.clips.indexOfLast { it.span.start <= middle }
-      assertTrue(pass >= 1, "the window at $middle sits in pass ${pass + 1}, which the loop never had to lay down")
+      withClue("the window at $middle sits in pass ${pass + 1}, which the loop never had to lay down") {
+        (pass >= 1).shouldBeTrue()
+      }
       val bedClip = bedTrack.clips[pass]
 
       val output = temporaryPath("audio-bed")
@@ -599,21 +606,23 @@ class AppleExportTest {
       println("440Hz: $beforePrimary before the bed, $primaryTone inside pass ${pass + 1}")
       println("880Hz: $beforeBed before the bed, $bedTone inside pass ${pass + 1}")
 
-      assertTrue(primaryTone > AUDIBLE, "the primary's own tone never reached the file, reading $primaryTone")
-      assertTrue(beforePrimary > AUDIBLE, "the window before the bed carries no primary, reading $beforePrimary")
-      assertTrue(
-        beforeBed < bedTone * SILENT,
-        "the bed was audible at $beforeBed before its $BED_START start, against $bedTone once it had opened",
-      )
+      withClue("the primary's own tone never reached the file, reading $primaryTone") {
+        (primaryTone > AUDIBLE).shouldBeTrue()
+      }
+      withClue("the window before the bed carries no primary, reading $beforePrimary") {
+        (beforePrimary > AUDIBLE).shouldBeTrue()
+      }
+      withClue("the bed was audible at $beforeBed before its $BED_START start, against $bedTone once it had opened") {
+        (beforeBed < bedTone * SILENT).shouldBeTrue()
+      }
 
       // The gain the planner folded, read off the plan rather than typed here, and sampled in the
       // pass's own time at the point inside it the window's middle lands on.
       val expected = bedClip.gain.gainAt(middle - bedClip.span.start) / primaryClip.gain.gainAt(middle)
       val measured = bedTone / primaryTone
-      assertTrue(
-        abs(measured - expected) <= GAIN_TOLERANCE,
-        "expected the bed at $expected of the primary, measured $measured ($bedTone against $primaryTone)",
-      )
+      withClue("expected the bed at $expected of the primary, measured $measured ($bedTone against $primaryTone)") {
+        (abs(measured - expected) <= GAIN_TOLERANCE).shouldBeTrue()
+      }
 
       remove(output)
     }
@@ -644,7 +653,7 @@ class AppleExportTest {
             looping()
           }
         }
-      val spec = ExportSpec(targetHeight = 240)
+      val spec = ExportSpec(heightPx = 240)
 
       val resolved = resolved(composition, spec)
       val bedTrack = resolved.tracks.single { it.content == TrackContent.Audio }
@@ -673,10 +682,9 @@ class AppleExportTest {
       // reading against a folded gain is.
       val quiet = LoopingCases.BEFORE_BED
       val before = audio.bedAgainstPrimary(quiet)
-      assertTrue(
-        before <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
-        "the bed read $before at $quiet, before its ${laid.first().span.start} start",
-      )
+      withClue("the bed read $before at $quiet, before its ${laid.first().span.start} start") {
+        (before <= ToneAnalysis.MEASURED_GAIN_TOLERANCE).shouldBeTrue()
+      }
 
       remove(output)
     }
@@ -707,7 +715,7 @@ class AppleExportTest {
             looping()
           }
         }
-      val spec = ExportSpec(targetHeight = 240)
+      val spec = ExportSpec(heightPx = 240)
 
       val resolved = resolved(composition, spec)
       val bedTrack = resolved.tracks.single { it.content == TrackContent.Audio }
@@ -729,10 +737,9 @@ class AppleExportTest {
       // below would report as a gain that missed rather than as a bed that never arrived.
       val (firstPass, firstInto) = LoopingCases.PAIR_READINGS.first()
       val present = audio.bedAgainstPrimary(laid[firstPass].span.start + firstInto)
-      assertTrue(
-        present > ToneAnalysis.MEASURED_GAIN_TOLERANCE,
-        "the bed read $present a pass past its own end, where it should still be playing",
-      )
+      withClue("the bed read $present a pass past its own end, where it should still be playing") {
+        (present > ToneAnalysis.MEASURED_GAIN_TOLERANCE).shouldBeTrue()
+      }
 
       LoopingCases.PAIR_READINGS.forEach { (index, into) ->
         val clip = if (laid[index].sourceIndex == 0) "clip A" else "clip B"
@@ -767,7 +774,7 @@ class AppleExportTest {
             clip(MediaSource.of(long)) { trim(TimeRange.of(Duration.ZERO, LoopingCases.UNDERLAY_RUN)) }
           }
         }
-      val spec = ExportSpec(targetHeight = 240)
+      val spec = ExportSpec(heightPx = 240)
 
       val resolved = resolved(composition, spec)
       val videoTrack = resolved.tracks.single { it.content != TrackContent.Audio }
@@ -795,22 +802,22 @@ class AppleExportTest {
       LoopingCases.VIDEO_READINGS.forEach { (pass, into) ->
         val at = laid[pass].span.start + into
         val held = audio.toneAt(at, PRIMARY_HZ) / reference
-        assertTrue(
-          abs(held - 1f) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
-          "at $at the audio track read $held of the level it holds at $LOOP_VIDEO_REFERENCE",
-        )
+        withClue("at $at the audio track read $held of the level it holds at $LOOP_VIDEO_REFERENCE") {
+          (abs(held - 1f) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE).shouldBeTrue()
+        }
       }
 
-      // The picture inside a later pass, which is the bed's own pattern rather than the flat colour
+      // The picture inside a later pass, which is the bed's own pattern rather than the flat color
       // a composition with nothing laid on it falls back to.
       val (picturePass, pictureInto) = LoopingCases.VIDEO_READINGS.first()
       val pictureAt = laid[picturePass].span.start + pictureInto
       val fixtureSpread = spreadOf(frameOf(bed, LoopingCases.VIDEO_TRIM.start + pictureInto))
       val spread = spreadOf(frameOf(output, pictureAt))
-      assertTrue(
-        spread >= fixtureSpread * PICTURE_SPREAD_FLOOR,
+      withClue(
         "the frame at $pictureAt spans $spread against the fixture's own $fixtureSpread, so it carries the fill",
-      )
+      ) {
+        (spread >= fixtureSpread * PICTURE_SPREAD_FLOOR).shouldBeTrue()
+      }
 
       remove(output)
     }
@@ -820,7 +827,7 @@ class AppleExportTest {
    *
    * 1.010 s is 30.3 slots at 30 fps and rounds down, and 1.020 s is 30.6 and rounds up, so the seam moves to either
    * side of where the plan put it. The second fixture is the first one's pattern turned a third of the way round the
-   * colour wheel, so which clip a frame came from reads off which of the two it sits closer to.
+   * color wheel, so which clip a frame came from reads off which of the two it sits closer to.
    */
   @Test
   fun `hands a clip trimmed off the frame grid to the next one on it`() =
@@ -836,7 +843,7 @@ class AppleExportTest {
           }
 
         val output = temporaryPath("off-grid-seam")
-        exported(composition, ExportSpec(frameRate = FIXTURE_RATE, targetHeight = 240), output)
+        exported(composition, ExportSpec(frameRate = FIXTURE_RATE, heightPx = 240), output)
 
         assertOnTheGrid(sampleTimesOf(output), length + 1.seconds, FIXTURE_RATE, "a first clip of $length")
         val seam = outputSlotOf(length, FIXTURE_RATE)
@@ -873,7 +880,7 @@ class AppleExportTest {
           }
 
         val output = temporaryPath("off-grid-start")
-        exported(composition, ExportSpec(frameRate = FIXTURE_RATE, targetHeight = 240), output)
+        exported(composition, ExportSpec(frameRate = FIXTURE_RATE, heightPx = 240), output)
 
         assertOnTheGrid(sampleTimesOf(output), start + 2.seconds, FIXTURE_RATE, "a primary starting at $start")
         val opening = outputSlotOf(start, FIXTURE_RATE)
@@ -881,10 +888,11 @@ class AppleExportTest {
           val at = outputSlotTime(slot, FIXTURE_RATE)
           val spread = spreadOf(frameOf(output, at))
           val carriesPicture = spread >= picture * PICTURE_SPREAD_FLOOR
-          assertTrue(
-            carriesPicture == (slot == opening),
+          withClue(
             "a primary starting at $start opens on slot $opening, and the frame at $at spans $spread against $picture",
-          )
+          ) {
+            carriesPicture shouldBe (slot == opening)
+          }
         }
 
         remove(output)
@@ -978,10 +986,9 @@ class AppleExportTest {
       val times = sampleTimesOf(output)
       times.forEach { time ->
         val slot = outputSlotTime(outputSlotOf(time, OFF_GRID_RATE), OFF_GRID_RATE)
-        assertTrue(
-          (time - slot).absoluteValue <= SAMPLE_TOLERANCE,
-          "a frame was written at $time, off the grid: $times",
-        )
+        withClue("a frame was written at $time, off the grid: $times") {
+          ((time - slot).absoluteValue <= SAMPLE_TOLERANCE).shouldBeTrue()
+        }
       }
       val written = times.map { outputSlotOf(it, OFF_GRID_RATE) }
       written shouldBe written.distinct().sorted()
@@ -989,7 +996,9 @@ class AppleExportTest {
         (0 until outputSlotOf(resolved.duration, OFF_GRID_RATE)).filterNot { slot ->
           slot in first && outputSlotTime(slot, OFF_GRID_RATE) >= pictureEnds
         }
-      assertTrue(written.containsAll(shown), "every slot inside a picture carries its own frame: $times")
+      withClue("every slot inside a picture carries its own frame: $times") {
+        written.containsAll(shown).shouldBeTrue()
+      }
 
       listOf(lastFrame, pictureEnds, pastThePicture, lateInTheTail).forEach { at ->
         withClue("the frame at $at") { frameIndexOf(frameOf(output, at)) shouldBe SHORT_FRAMES - 1 }
@@ -1037,7 +1046,9 @@ class AppleExportTest {
         val spec = ExportSpec(frameRate = OFF_GRID_RATE)
         val resolved = resolved(composition, spec)
         val tail = resolved.heldTail
-        assertTrue(tail.count() > OFF_GRID_RATE, "under a $run bed the tail holds only $tail, not seconds of it")
+        withClue("under a $run bed the tail holds only $tail, not seconds of it") {
+          (tail.count() > OFF_GRID_RATE).shouldBeTrue()
+        }
 
         val output = temporaryPath("held-tail")
         exported(composition, spec, output)
@@ -1053,17 +1064,17 @@ class AppleExportTest {
         val covered = frameOf(output, lastCovered)
         frameIndexOf(covered) shouldBe OFF_GRID_FRAMES - 1
         val shown = covered.average(BADGE_X, BADGE_Y)
-        assertTrue(
-          distance(shown, covered.average(HALF, HALF)) > BADGE_VISIBLE,
-          "the badge at $lastCovered reads $shown, the same as the frame under it",
-        )
+        withClue("the badge at $lastCovered reads $shown, the same as the frame under it") {
+          (distance(shown, covered.average(HALF, HALF)) > BADGE_VISIBLE).shouldBeTrue()
+        }
         held.forEach { at ->
           val frame = frameOf(output, at)
           withClue("the frame at $at under a $run bed") { frameIndexOf(frame) shouldBe OFF_GRID_FRAMES - 1 }
-          assertTrue(
-            distance(frame.average(BADGE_X, BADGE_Y), shown) <= BADGE_HELD,
+          withClue(
             "the badge at $at reads ${frame.average(BADGE_X, BADGE_Y)} against $shown on the last covered slot",
-          )
+          ) {
+            (distance(frame.average(BADGE_X, BADGE_Y), shown) <= BADGE_HELD).shouldBeTrue()
+          }
         }
 
         val lowered = resolved.toAvComposition()
@@ -1088,7 +1099,9 @@ class AppleExportTest {
         .tracksWithMediaType(mediaType)
         .single() as AVAssetTrack
     val ends = CMTimeRangeGetEnd(track.timeRange).toDuration()
-    assertTrue((ends - end).absoluteValue <= MEDIA_TICK, "the $mediaType track ends at $ends, not at $end")
+    withClue("the $mediaType track ends at $ends, not at $end") {
+      ((ends - end).absoluteValue <= MEDIA_TICK).shouldBeTrue()
+    }
   }
 
   /**
@@ -1105,16 +1118,18 @@ class AppleExportTest {
       val landscape = fixture("apple_export_a.mp4")
 
       val composition = compositionOf { clip(MediaSource.of(landscape)) { trim(Duration.ZERO, COPY_TRIM_END) } }
-      assertIs<Verdict.Capable>(filmstrip.plan(composition, ExportSpec())).plan.path shouldBe ExportPath.Transmux
+      filmstrip
+        .plan(composition, ExportSpec())
+        .shouldBeInstanceOf<Verdict.Capable>()
+        .plan.path shouldBe ExportPath.Copy
 
       val output = temporaryPath("off-grid-copy")
       exported(composition, ExportSpec(), output)
 
       val shown = videoEndOf(output)
-      assertTrue(
-        (shown - COPY_TRIM_END).absoluteValue <= SAMPLE_TOLERANCE,
-        "the copy shows its picture until $shown, not the $COPY_TRIM_END trim",
-      )
+      withClue("the copy shows its picture until $shown, not the $COPY_TRIM_END trim") {
+        ((shown - COPY_TRIM_END).absoluteValue <= SAMPLE_TOLERANCE).shouldBeTrue()
+      }
       sampleTimesOf(output).filter { it < shown } shouldBe sampleTimesOf(landscape).filter { it < COPY_TRIM_END }
 
       remove(output)
@@ -1136,7 +1151,10 @@ class AppleExportTest {
       }
 
       val composition = compositionOf { clip(MediaSource.of(offGrid)) }
-      assertIs<Verdict.Capable>(filmstrip.plan(composition, ExportSpec())).plan.path shouldBe ExportPath.Transmux
+      filmstrip
+        .plan(composition, ExportSpec())
+        .shouldBeInstanceOf<Verdict.Capable>()
+        .plan.path shouldBe ExportPath.Copy
 
       val output = temporaryPath("short-picture-copy")
       exported(composition, ExportSpec(), output)
@@ -1160,7 +1178,10 @@ class AppleExportTest {
       }
 
       val composition = compositionOf { clip(MediaSource.of(source)) }
-      assertIs<Verdict.Capable>(filmstrip.plan(composition, ExportSpec())).plan.path shouldBe ExportPath.Transmux
+      filmstrip
+        .plan(composition, ExportSpec())
+        .shouldBeInstanceOf<Verdict.Capable>()
+        .plan.path shouldBe ExportPath.Copy
 
       val output = temporaryPath("whole-tick-copy")
       exported(composition, ExportSpec(), output)
@@ -1207,16 +1228,16 @@ class AppleExportTest {
       // genuinely the first thing a caller sees.
       val statuses =
         withContext(Dispatchers.Default) {
-          filmstrip.export(composition, ExportSpec(targetHeight = 360), MediaSink.of(output)).toList()
+          filmstrip.export(composition, ExportSpec(heightPx = 360), MediaSink.of(output)).toList()
         }
 
-      assertIs<ExportStatus.Started>(statuses.first())
+      statuses.first().shouldBeInstanceOf<ExportStatus.Started>()
       val progress = statuses.filterIsInstance<ExportStatus.Progress>()
-      assertTrue(progress.isNotEmpty(), "expected at least one progress report")
+      withClue("expected at least one progress report") { progress.isNotEmpty().shouldBeTrue() }
       progress.zipWithNext().forEach { (first, second) ->
-        assertTrue(second.fraction >= first.fraction, "progress went backwards")
+        withClue("progress went backwards") { (second.fraction >= first.fraction).shouldBeTrue() }
       }
-      assertIs<ExportStatus.Success>(statuses.last())
+      statuses.last().shouldBeInstanceOf<ExportStatus.Success>()
 
       remove(output)
     }
@@ -1237,7 +1258,7 @@ class AppleExportTest {
         val started = CompletableDeferred<Unit>()
         val job =
           launch {
-            filmstrip.export(composition, ExportSpec(targetHeight = 360), MediaSink.of(output)).collect {
+            filmstrip.export(composition, ExportSpec(heightPx = 360), MediaSink.of(output)).collect {
               if (it is ExportStatus.Started) started.complete(Unit)
             }
           }
@@ -1260,14 +1281,14 @@ class AppleExportTest {
 
       val success =
         withContext(Dispatchers.Default) {
-          val statuses = filmstrip.export(composition, ExportSpec(targetHeight = 180), MediaSink.Temporary).toList()
+          val statuses = filmstrip.export(composition, ExportSpec(heightPx = 180), MediaSink.Temporary).toList()
           when (val finished = statuses.last()) {
             is ExportStatus.Failure -> error(finished.error.message)
-            else -> assertIs<ExportStatus.Success>(finished)
+            else -> finished.shouldBeInstanceOf<ExportStatus.Success>()
           }
         }
 
-      val path = assertIs<MediaSink.Path>(success.output).path
+      val path = success.output.shouldBeInstanceOf<MediaSink.Path>().path
       NSFileManager.defaultManager.fileExistsAtPath(path) shouldBe true
       remove(path)
     }
@@ -1281,14 +1302,16 @@ class AppleExportTest {
       val statuses =
         withContext(Dispatchers.Default) {
           filmstrip
-            .export(composition, ExportSpec(targetHeight = 240), MediaSink.of("/nonexistent/dir/out.mp4"))
+            .export(composition, ExportSpec(heightPx = 240), MediaSink.of("/nonexistent/dir/out.mp4"))
             .toList()
         }
 
-      val failure = assertIs<ExportStatus.Failure>(statuses.last())
-      assertIs<ExportError.SinkUnwritable>(failure.error)
+      val failure = statuses.last().shouldBeInstanceOf<ExportStatus.Failure>()
+      failure.error.shouldBeInstanceOf<FilmstripError.SinkUnwritable>()
       // Nothing was opened, so the export never began.
-      assertTrue(statuses.none { it is ExportStatus.Started }, "the export started on an unwritable sink")
+      withClue("the export started on an unwritable sink") {
+        statuses.none { it is ExportStatus.Started }.shouldBeTrue()
+      }
     }
 
   @Test
@@ -1299,7 +1322,7 @@ class AppleExportTest {
 
       val composition = compositionOf { clip(MediaSource.of(landscape)) }
       withContext(Dispatchers.Default) {
-        filmstrip.export(composition, ExportSpec(targetHeight = 240), MediaSink.of(output)).toList()
+        filmstrip.export(composition, ExportSpec(heightPx = 240), MediaSink.of(output)).toList()
       }
       remove(output)
 
@@ -1320,7 +1343,7 @@ class AppleExportTest {
       val statuses = filmstrip.export(composition, spec, MediaSink.of(output)).toList()
       when (val finished = statuses.last()) {
         is ExportStatus.Failure -> error(finished.error.message)
-        else -> assertIs<ExportStatus.Success>(finished)
+        else -> finished.shouldBeInstanceOf<ExportStatus.Success>()
       }
     }
 
@@ -1344,17 +1367,16 @@ class AppleExportTest {
         is Verdict.Capable -> {
         }
         is Verdict.Degraded -> {
-          assertTrue(
-            verdict.adjustments.all { it.kind == AdjustmentKind.ResolutionClamped },
-            "the plan degraded for more than the frame: ${verdict.adjustments.map { it.message }}",
-          )
+          withClue("the plan degraded for more than the frame: ${verdict.adjustments.map { it.message }}") {
+            verdict.adjustments.all { it.kind == AdjustmentKind.ResolutionClamped }.shouldBeTrue()
+          }
         }
       }
 
       val statuses = filmstrip.export(composition, spec, MediaSink.of(output)).toList()
       when (val finished = statuses.last()) {
         is ExportStatus.Failure -> error(finished.error.message)
-        else -> assertIs<ExportStatus.Success>(finished).info
+        else -> finished.shouldBeInstanceOf<ExportStatus.Success>().info
       }
     }
 
@@ -1371,10 +1393,9 @@ class AppleExportTest {
   ) {
     val frame = 1.seconds / (written.video?.frameRate?.toDouble() ?: OUTPUT_FRAME_RATE)
     val overrun = written.duration - planned
-    assertTrue(
-      abs(overrun.inWholeMicroseconds) <= frame.inWholeMicroseconds,
-      "the file runs for ${written.duration} against the planned $planned, out by $overrun on a $frame frame",
-    )
+    withClue("the file runs for ${written.duration} against the planned $planned, out by $overrun on a $frame frame") {
+      (abs(overrun.inWholeMicroseconds) <= frame.inWholeMicroseconds).shouldBeTrue()
+    }
   }
 
   /**
@@ -1406,16 +1427,14 @@ class AppleExportTest {
 
     val times = sampleTimesOf(output)
     val slots = outputSlotOf(resolved.duration, frameRate)
-    assertTrue(
-      times.size.toLong() == slots,
-      "the export wrote ${times.size} frames where the grid holds $slots: $times",
-    )
+    withClue("the export wrote ${times.size} frames where the grid holds $slots: $times") {
+      times.size.toLong() shouldBe slots
+    }
     times.forEachIndexed { index, time ->
       val slot = outputSlotTime(index.toLong(), frameRate)
-      assertTrue(
-        (time - slot).absoluteValue <= tolerance,
-        "frame $index was written at $time, off its slot at $slot",
-      )
+      withClue("frame $index was written at $time, off its slot at $slot") {
+        ((time - slot).absoluteValue <= tolerance).shouldBeTrue()
+      }
     }
 
     val lowered = resolved.toAvComposition()
@@ -1440,13 +1459,14 @@ class AppleExportTest {
     what: String,
   ) {
     val slots = outputSlotOf(end, frameRate)
-    assertTrue(times.size.toLong() == slots, "$what wrote ${times.size} frames where the grid holds $slots: $times")
+    withClue("$what wrote ${times.size} frames where the grid holds $slots: $times") {
+      times.size.toLong() shouldBe slots
+    }
     times.forEachIndexed { index, time ->
       val slot = outputSlotTime(index.toLong(), frameRate)
-      assertTrue(
-        (time - slot).absoluteValue <= SAMPLE_TOLERANCE,
-        "$what wrote frame $index at $time, off its slot at $slot: $times",
-      )
+      withClue("$what wrote frame $index at $time, off its slot at $slot: $times") {
+        ((time - slot).absoluteValue <= SAMPLE_TOLERANCE).shouldBeTrue()
+      }
     }
   }
 
@@ -1461,7 +1481,9 @@ class AppleExportTest {
   ) {
     val near = differenceOf(frame, expected)
     val far = differenceOf(frame, other)
-    assertTrue(near < far, "$what sits $near from the clip it should show and $far from the other one")
+    withClue("$what sits $near from the clip it should show and $far from the other one") {
+      (near < far).shouldBeTrue()
+    }
   }
 
   /**
@@ -1508,10 +1530,9 @@ class AppleExportTest {
     laid.zipWithNext { earlier, later ->
       val closed = earlier.gain.gainAt(earlier.duration)
       val opened = later.gain.gainAt(Duration.ZERO)
-      assertTrue(
-        abs(opened - closed) <= ResolvedGain.PRODUCT_TOLERANCE,
-        "a pass opened at $opened where the one before it closed at $closed, so the fade restarted",
-      )
+      withClue("a pass opened at $opened where the one before it closed at $closed, so the fade restarted") {
+        (abs(opened - closed) <= ResolvedGain.PRODUCT_TOLERANCE).shouldBeTrue()
+      }
     }
   }
 
@@ -1532,14 +1553,13 @@ class AppleExportTest {
     into: Duration,
     what: String,
   ) {
-    assertTrue(into < clip.duration, "$into runs past $what, which is ${clip.duration} long")
+    withClue("$into runs past $what, which is ${clip.duration} long") { (into < clip.duration).shouldBeTrue() }
     val at = clip.span.start + into
     val expected = fixtures * (clip.gain.gainAt(into) / against.gain.gainAt(at - against.span.start))
     val measured = audio.bedAgainstPrimary(at)
-    assertTrue(
-      abs(measured - expected) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE,
-      "at $at, $into into $what, the bed read $measured against $expected from the laid gain",
-    )
+    withClue("at $at, $into into $what, the bed read $measured against $expected from the laid gain") {
+      (abs(measured - expected) <= ToneAnalysis.MEASURED_GAIN_TOLERANCE).shouldBeTrue()
+    }
   }
 
   /**
@@ -1574,9 +1594,9 @@ class AppleExportTest {
   /**
    * How far apart the lightest and darkest of a grid of samples across [frame] sit.
    *
-   * A fill is one flat colour and reads near nothing here, where the fixture's own pattern spans
+   * A fill is one flat color and reads near nothing here, where the fixture's own pattern spans
    * most of the range, so this says whether a frame carries a picture at all. A grid rather than
-   * every pixel because a few dozen points already separate a pattern from a flat colour.
+   * every pixel because a few dozen points already separate a pattern from a flat color.
    */
   private fun spreadOf(frame: FrameProbe): Int {
     val samples =
@@ -1600,8 +1620,8 @@ class AppleExportTest {
     spec: ExportSpec,
   ): ResolvedComposition =
     withContext(Dispatchers.Default) {
-      val components = ComponentRegistry.Builder().add(BuiltInEffectResolver()).build()
-      val engine = avFoundationExportEngine(chainedProber(components), components.effectResolvers)
+      val components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()
+      val engine = avFoundationExportEngine(components)
       when (val result = engine.resolve(composition, spec)) {
         is ResolveResult.Refused -> error(result.error.message)
         is ResolveResult.Resolved -> result.composition

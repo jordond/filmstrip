@@ -9,6 +9,8 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.geometry.crop
@@ -24,39 +26,43 @@ import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.ffmpeg.OverlayConstants.BAR_FILL
-import dev.jordond.filmstrip.ffmpeg.OverlayConstants.OVERLAY_COLOUR
-import dev.jordond.filmstrip.ffmpeg.OverlayConstants.OVERLAY_SIZE
-import dev.jordond.filmstrip.ffmpeg.OverlayConstants.PROBE_SIDE
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
-import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPreviewStream
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
+import dev.jordond.filmstrip.ffmpeg.internal.preview.FfmpegPreviewStream
+import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
+import dev.jordond.filmstrip.ffmpeg.internal.preview.openPreview
+import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.BAR_FILL
+import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_COLOR
+import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_SIZE
+import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.PROBE_SIDE
+import dev.jordond.filmstrip.ffmpeg.support.assertNear
+import dev.jordond.filmstrip.ffmpeg.support.channelsOf
+import dev.jordond.filmstrip.ffmpeg.support.containedRect
+import dev.jordond.filmstrip.ffmpeg.support.pngOf
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.ResolveResult
-import dev.jordond.filmstrip.transform.internal.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.heldTail
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.videoSlots
 import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import java.awt.Color
 import java.io.File
 import kotlin.test.Test
-import kotlin.test.assertFalse
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.test.fail
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -83,8 +89,8 @@ class FfmpegPreviewTest {
   private val components =
     ComponentRegistry
       .Builder()
-      .add(BuiltInEffectResolver())
-      .add(DiagnosticListener { event -> synchronized(commands) { commands += event } })
+      .addEffectResolver(BuiltInEffectResolver())
+      .addDiagnosticListener(DiagnosticListener { event -> synchronized(commands) { commands += event } })
       .build()
 
   private val engine = FfmpegExportEngine(components, FfmpegRuntime.of(FfmpegConfig()))
@@ -96,15 +102,15 @@ class FfmpegPreviewTest {
       val output = File.createTempFile("filmstrip-preview-parity", ".mp4").also { it.delete() }
 
       val verdict = engine.plan(composition, ExportSpec())
-      val plan = assertIs<Verdict.Capable>(verdict).plan
+      val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
       val finished = engine.export(plan, MediaSink.of(output.absolutePath)).toList().last()
       if (finished is ExportStatus.Failure) fail("the export refused the fixture: ${finished.error.message}")
 
-      val opened = assertIs<PreviewStreamResult.Opened>(engine.openPreview(composition, ExportSpec()))
+      val opened = engine.openPreview(composition, ExportSpec()).shouldBeInstanceOf<PreviewStreamResult.Opened>()
       opened.stream.close()
       output.delete()
 
-      graphOf("invocation") shouldBe graphOf("preview")
+      graphOf(DiagnosticEvent.INVOCATION) shouldBe graphOf(DiagnosticEvent.PREVIEW)
     }
 
   // Reading forward from the head and seeking straight there have to reach the same frame, or the
@@ -117,8 +123,12 @@ class FfmpegPreviewTest {
       val read = open(composition, Duration.ZERO)
       val forward =
         try {
-          repeat(PROBE_FRAME) { assertNotNull(read.next(), "the pump ran out before frame $PROBE_FRAME") }
-          assertNotNull(read.next(), "the pump ran out before frame $PROBE_FRAME")
+          repeat(PROBE_FRAME) {
+            withClue("the pump ran out before frame $PROBE_FRAME") {
+              read.next().shouldNotBeNull()
+            }
+          }
+          withClue("the pump ran out before frame $PROBE_FRAME") { read.next().shouldNotBeNull() }
         } finally {
           read.close()
         }
@@ -126,13 +136,15 @@ class FfmpegPreviewTest {
       val seeked = open(composition, PROBE_POSITION)
       val landed =
         try {
-          assertNotNull(seeked.next(), "the seeked pump delivered no frame")
+          withClue("the seeked pump delivered no frame") { seeked.next().shouldNotBeNull() }
         } finally {
           seeked.close()
         }
 
       seeked.startPosition shouldBe PROBE_POSITION
-      assertTrue(forward.contentEquals(landed), "the seek landed on a different frame than reading forward did")
+      withClue("the seek landed on a different frame than reading forward did") {
+        forward.contentEquals(landed).shouldBeTrue()
+      }
     }
 
   // An overlay image cannot be seeked into, so its branch is carried to the scrub instead. Without
@@ -147,22 +159,28 @@ class FfmpegPreviewTest {
       val read = open(faded, Duration.ZERO)
       val forward =
         try {
-          repeat(PROBE_FRAME) { assertNotNull(read.next(), "the pump ran out before frame $PROBE_FRAME") }
-          assertNotNull(read.next(), "the pump ran out before frame $PROBE_FRAME")
+          repeat(PROBE_FRAME) {
+            withClue("the pump ran out before frame $PROBE_FRAME") {
+              read.next().shouldNotBeNull()
+            }
+          }
+          withClue("the pump ran out before frame $PROBE_FRAME") { read.next().shouldNotBeNull() }
         } finally {
           read.close()
         }
 
       val landed = firstFrame(faded, PROBE_POSITION)
-      assertTrue(forward.contentEquals(landed), "the scrubbed animation drew a different frame than playback did")
+      withClue("the scrubbed animation drew a different frame than playback did") {
+        forward.contentEquals(landed).shouldBeTrue()
+      }
 
       // Both ends of the same fade, scrubbed to the same frame of the same clip, so the overlay is
       // all that differs between them. A fifth of the way up the ramp is neither.
       val hidden = firstFrame(overlaid(watermark(opacity = 0f)), PROBE_POSITION)
       val whole = firstFrame(overlaid(watermark(opacity = 1f)), PROBE_POSITION)
-      assertFalse(hidden.contentEquals(whole), "the overlay changed nothing at the probe")
-      assertFalse(landed.contentEquals(hidden), "the scrubbed animation drew no overlay at all")
-      assertFalse(landed.contentEquals(whole), "the scrubbed animation drew the overlay whole")
+      withClue("the overlay changed nothing at the probe") { hidden.contentEquals(whole).shouldBeFalse() }
+      withClue("the scrubbed animation drew no overlay at all") { landed.contentEquals(hidden).shouldBeFalse() }
+      withClue("the scrubbed animation drew the overlay whole") { landed.contentEquals(whole).shouldBeFalse() }
     }
 
   // A command is only written where its own value moves, so a scrub landing after the last of them
@@ -177,8 +195,12 @@ class FfmpegPreviewTest {
       val read = open(settled, Duration.ZERO)
       val forward =
         try {
-          repeat(SETTLED_FRAME) { assertNotNull(read.next(), "the pump ran out before frame $SETTLED_FRAME") }
-          assertNotNull(read.next(), "the pump ran out before frame $SETTLED_FRAME")
+          repeat(SETTLED_FRAME) {
+            withClue("the pump ran out before frame $SETTLED_FRAME") {
+              read.next().shouldNotBeNull()
+            }
+          }
+          withClue("the pump ran out before frame $SETTLED_FRAME") { read.next().shouldNotBeNull() }
         } finally {
           read.close()
         }
@@ -186,8 +208,12 @@ class FfmpegPreviewTest {
       val landed = firstFrame(settled, SETTLED_POSITION)
       val whole = firstFrame(overlaid(watermark()), SETTLED_POSITION)
 
-      assertTrue(forward.contentEquals(landed), "the settled overlay was drawn differently than playback drew it")
-      assertFalse(landed.contentEquals(whole), "the settled overlay was drawn at the opacity its node opens on")
+      withClue("the settled overlay was drawn differently than playback drew it") {
+        forward.contentEquals(landed).shouldBeTrue()
+      }
+      withClue("the settled overlay was drawn at the opacity its node opens on") {
+        landed.contentEquals(whole).shouldBeFalse()
+      }
     }
 
   // A scrub inside a frame period opens on the output slot it lands on, the clip and the overlay's
@@ -202,8 +228,8 @@ class FfmpegPreviewTest {
       val read = open(faded, Duration.ZERO)
       val forward =
         try {
-          repeat(slot.toInt()) { assertNotNull(read.next(), "the pump ran out before slot $slot") }
-          assertNotNull(read.next(), "the pump ran out before slot $slot")
+          repeat(slot.toInt()) { withClue("the pump ran out before slot $slot") { read.next().shouldNotBeNull() } }
+          withClue("the pump ran out before slot $slot") { read.next().shouldNotBeNull() }
         } finally {
           read.close()
         }
@@ -211,13 +237,15 @@ class FfmpegPreviewTest {
       val seeked = open(faded, OFF_GRID_POSITION)
       val landed =
         try {
-          assertNotNull(seeked.next(), "the seeked pump delivered no frame")
+          withClue("the seeked pump delivered no frame") { seeked.next().shouldNotBeNull() }
         } finally {
           seeked.close()
         }
 
       seeked.startPosition shouldBe outputSlotTime(slot, FIXTURE_RATE)
-      assertTrue(forward.contentEquals(landed), "the branch was read a frame off the one the clip delivered")
+      withClue("the branch was read a frame off the one the clip delivered") {
+        forward.contentEquals(landed).shouldBeTrue()
+      }
     }
 
   // The window rides the overlay's own branch, which the scrub carries to the seek, so a frame
@@ -232,18 +260,32 @@ class FfmpegPreviewTest {
       val open = firstFrame(windowed, INSIDE_WINDOW)
       val shut = firstFrame(windowed, AFTER_WINDOW)
 
-      assertTrue(early.contentEquals(forwardFrame(windowed, BEFORE_WINDOW)), "the window was open before its start")
-      assertTrue(open.contentEquals(forwardFrame(windowed, INSIDE_WINDOW)), "the window was shut at the scrub")
-      assertTrue(shut.contentEquals(forwardFrame(windowed, AFTER_WINDOW)), "the window was open past its own end")
+      withClue("the window was open before its start") {
+        early.contentEquals(forwardFrame(windowed, BEFORE_WINDOW)).shouldBeTrue()
+      }
+      withClue("the window was shut at the scrub") {
+        open.contentEquals(forwardFrame(windowed, INSIDE_WINDOW)).shouldBeTrue()
+      }
+      withClue("the window was open past its own end") {
+        shut.contentEquals(forwardFrame(windowed, AFTER_WINDOW)).shouldBeTrue()
+      }
 
       // The overlay is all the two references differ by, read at the same scrub, so a probe that
       // matched both would say nothing about the window.
       val always = overlaid(watermark())
       val hidden = overlaid(watermark(opacity = 0f))
-      assertTrue(open.contentEquals(firstFrame(always, INSIDE_WINDOW)), "the overlay was drawn at some other value")
-      assertFalse(open.contentEquals(firstFrame(hidden, INSIDE_WINDOW)), "the overlay changed nothing at the probe")
-      assertTrue(early.contentEquals(firstFrame(hidden, BEFORE_WINDOW)), "the overlay was drawn before the window")
-      assertTrue(shut.contentEquals(firstFrame(hidden, AFTER_WINDOW)), "the overlay was still drawn past the window")
+      withClue("the overlay was drawn at some other value") {
+        open.contentEquals(firstFrame(always, INSIDE_WINDOW)).shouldBeTrue()
+      }
+      withClue("the overlay changed nothing at the probe") {
+        open.contentEquals(firstFrame(hidden, INSIDE_WINDOW)).shouldBeFalse()
+      }
+      withClue("the overlay was drawn before the window") {
+        early.contentEquals(firstFrame(hidden, BEFORE_WINDOW)).shouldBeTrue()
+      }
+      withClue("the overlay was still drawn past the window") {
+        shut.contentEquals(firstFrame(hidden, AFTER_WINDOW)).shouldBeTrue()
+      }
     }
 
   // The clip has no frame past its own end to seek to, so a scrub into the held tail opens on the last one it covers
@@ -255,7 +297,7 @@ class FfmpegPreviewTest {
     runTest(timeout = TIMEOUT) {
       val edit = underBed()
       val resolved = resolved(edit)
-      val rate = checkNotNull(resolved.output.frameRate)
+      val rate = resolved.output.frameRate
       val at = insideTail(resolved)
       val held = forwardFrame(edit, outputSlotTime(resolved.heldTail.first - 1, rate))
 
@@ -270,7 +312,7 @@ class FfmpegPreviewTest {
 
       delivered.size shouldBe (resolved.videoSlots - outputSlotOf(at, rate)).toInt()
       delivered.forEachIndexed { index, frame ->
-        assertTrue(frame.contentEquals(held), "frame $index of the scrub is not the primary's last")
+        withClue("frame $index of the scrub is not the primary's last") { frame.contentEquals(held).shouldBeTrue() }
       }
     }
 
@@ -282,15 +324,17 @@ class FfmpegPreviewTest {
     runTest(timeout = TIMEOUT) {
       val closing = underBed(watermark(visibleDuring = CLOSES_WITH_PRIMARY))
       val resolved = resolved(closing)
-      val rate = checkNotNull(resolved.output.frameRate)
+      val rate = resolved.output.frameRate
       val at = insideTail(resolved)
 
       val landed = firstFrame(closing, at)
 
       val lastCovered = outputSlotTime(resolved.heldTail.first - 1, rate)
-      assertTrue(landed.contentEquals(forwardFrame(closing, lastCovered)), "the scrub drew another frame than the last")
+      withClue("the scrub drew another frame than the last") {
+        landed.contentEquals(forwardFrame(closing, lastCovered)).shouldBeTrue()
+      }
       val hidden = firstFrame(underBed(watermark(opacity = 0f)), at)
-      assertFalse(landed.contentEquals(hidden), "the held frame carries no overlay")
+      withClue("the held frame carries no overlay") { landed.contentEquals(hidden).shouldBeFalse() }
     }
 
   // The fade on the composition runs the whole bed, so it is still moving when the primary runs out, and the tail
@@ -302,7 +346,7 @@ class FfmpegPreviewTest {
     runTest(timeout = TIMEOUT) {
       val faded = underBed(watermark(animation = fadeIn(FIXTURE_LENGTH)))
       val resolved = resolved(faded)
-      val rate = checkNotNull(resolved.output.frameRate)
+      val rate = resolved.output.frameRate
       val tail = resolved.heldTail
       val lastCovered = tail.first - 1
       val opening = tail.first - PLAY_IN_SLOTS
@@ -311,8 +355,12 @@ class FfmpegPreviewTest {
       val forward = frames(faded, Duration.ZERO, (middle + 1).toInt())
       val held = forward[lastCovered.toInt()]
       val scrub = outputSlotTime(lastCovered, rate)
-      assertFalse(held.contentEquals(firstFrame(underBed(watermark(opacity = 0f)), scrub)), "the fade had not begun")
-      assertFalse(held.contentEquals(firstFrame(underBed(watermark()), scrub)), "the fade was over before the tail")
+      withClue("the fade had not begun") {
+        held.contentEquals(firstFrame(underBed(watermark(opacity = 0f)), scrub)).shouldBeFalse()
+      }
+      withClue("the fade was over before the tail") {
+        held.contentEquals(firstFrame(underBed(watermark()), scrub)).shouldBeFalse()
+      }
 
       val played = frames(faded, outputSlotTime(opening, rate), (middle - opening + 1).toInt())
       val strayed =
@@ -342,16 +390,20 @@ class FfmpegPreviewTest {
       val marked = underBed(watermark(), onClip = true)
       val hidden = underBed(watermark(opacity = 0f), onClip = true)
       val resolved = resolved(marked)
-      val rate = checkNotNull(resolved.output.frameRate)
+      val rate = resolved.output.frameRate
       val covered = resolved.heldTail.first
       val forward = frames(marked, Duration.ZERO, covered.toInt())
       val last = forward.last()
-      assertFalse(last.contentEquals(forward[forward.size - 2]), "reading forward holds the frame before the last")
+      withClue("reading forward holds the frame before the last") {
+        last.contentEquals(forward[forward.size - 2]).shouldBeFalse()
+      }
 
       listOf(outputSlotTime(covered - 1, rate), insideTail(resolved)).forEach { at ->
         val landed = firstFrame(marked, at)
-        assertTrue(landed.contentEquals(last), "the scrub to $at delivered another frame than the clip's last")
-        assertFalse(landed.contentEquals(firstFrame(hidden, at)), "the scrub to $at drew no overlay")
+        withClue("the scrub to $at delivered another frame than the clip's last") {
+          landed.contentEquals(last).shouldBeTrue()
+        }
+        withClue("the scrub to $at drew no overlay") { landed.contentEquals(firstFrame(hidden, at)).shouldBeFalse() }
       }
     }
 
@@ -365,8 +417,8 @@ class FfmpegPreviewTest {
       listOf(ROUNDS_DOWN_TRIM, ROUNDS_UP_TRIM).forEach { end ->
         val edit = copied(end)
         val resolved = resolved(edit)
-        val rate = checkNotNull(resolved.output.frameRate)
-        resolved.path shouldBe ExportPath.Transmux
+        val rate = resolved.output.frameRate
+        resolved.path shouldBe ExportPath.Copy
 
         listOf(Duration.ZERO, OFF_GRID_POSITION).forEach { at ->
           val stream = open(edit, at)
@@ -389,7 +441,10 @@ class FfmpegPreviewTest {
     runTest(timeout = TIMEOUT) {
       val tracks = resolved(letterboxed()).tracks
       val clip = tracks.first().clips.first()
-      val source = assertNotNull(clip.info.video).displaySize
+      val source =
+        clip.info.video
+          .shouldNotBeNull()
+          .displaySize
       val image = ImageSource.ofBytes(OVERLAY_SQUARE)
       val placed = ImageOverlay(image, Corner.TopStart, scale = CLIP_OVERLAY_SCALE).placedOn(source, OVERLAY_SIZE)
       val unmoved = placed.rectOn(source)
@@ -397,7 +452,9 @@ class FfmpegPreviewTest {
       val pushed =
         ImageOverlay(image, Corner.TopStart, scale = CLIP_OVERLAY_SCALE, animation = OverlayAnimation { push })
       val rect = placed.animatedBy(push).rectOn(source)
-      assertTrue(rect.left < 0f && rect.right > 0f, "the overlay at $rect does not straddle the clip's edge")
+      withClue("the overlay at $rect does not straddle the clip's edge") {
+        (rect.left < 0f && rect.right > 0f).shouldBeTrue()
+      }
 
       val (size, bare) = sizedFrame(letterboxed(), PROBE_POSITION)
       val (markedSize, marked) = sizedFrame(letterboxed(pushed), PROBE_POSITION)
@@ -407,7 +464,7 @@ class FfmpegPreviewTest {
 
       assertNear(
         marked.readAt(size, picture, rect.right / 2, middle),
-        channelsOf(OVERLAY_COLOUR),
+        channelsOf(OVERLAY_COLOR),
         "the overlay's half on the clip",
       )
       assertNear(marked.readAt(size, picture, rect.left / 2, middle), channelsOf(BAR_FILL), "the bar beside the clip")
@@ -429,7 +486,7 @@ class FfmpegPreviewTest {
       val stream = open(graded(), Duration.ZERO)
       try {
         stream.size shouldBe FIXTURE_FRAME
-        assertNotNull(stream.next()).size shouldBe FIXTURE_FRAME.width * FIXTURE_FRAME.height * CHANNELS
+        stream.next().shouldNotBeNull().size shouldBe FIXTURE_FRAME.width * FIXTURE_FRAME.height * CHANNELS
       } finally {
         stream.close()
       }
@@ -469,8 +526,8 @@ class FfmpegPreviewTest {
   fun `closing a stream leaves no process behind`() =
     runTest(timeout = TIMEOUT) {
       val stream = open(graded(), Duration.ZERO)
-      val pid = assertNotNull(stream.processId, "the pump reported no process id")
-      assertNotNull(stream.next(), "the pump delivered no frame")
+      val pid = withClue("the pump reported no process id") { stream.processId.shouldNotBeNull() }
+      withClue("the pump delivered no frame") { stream.next().shouldNotBeNull() }
 
       stream.close()
 
@@ -483,7 +540,7 @@ class FfmpegPreviewTest {
     at: Duration,
   ): FfmpegPreviewStream {
     val result = engine.openPreview(composition, ExportSpec(), at = at)
-    return assertIs<FfmpegPreviewStream>(assertIs<PreviewStreamResult.Opened>(result).stream)
+    return result.shouldBeInstanceOf<PreviewStreamResult.Opened>().stream.shouldBeInstanceOf<FfmpegPreviewStream>()
   }
 
   private suspend fun firstFrame(
@@ -506,7 +563,13 @@ class FfmpegPreviewTest {
     val stream = open(composition, at)
     return try {
       buildList {
-        repeat(count) { index -> add(assertNotNull(stream.next(), "the pump ran out before frame $index at $at")) }
+        repeat(count) { index ->
+          add(
+            withClue("the pump ran out before frame $index at $at") {
+              stream.next().shouldNotBeNull()
+            },
+          )
+        }
       }
     } finally {
       stream.close()
@@ -514,7 +577,7 @@ class FfmpegPreviewTest {
   }
 
   private fun overlaid(overlay: ImageOverlay): EditComposition {
-    assertTrue(landscape.isFile, "the fixture ${landscape.absolutePath} was not downloaded")
+    withClue("the fixture ${landscape.absolutePath} was not downloaded") { landscape.isFile.shouldBeTrue() }
     return EditComposition(
       tracks = listOf(Track(listOf(Clip(MediaSource.of(landscape.absolutePath))))),
       effects = listOf(overlay),
@@ -544,7 +607,7 @@ class FfmpegPreviewTest {
     overlay: ImageOverlay? = null,
     onClip: Boolean = false,
   ): EditComposition {
-    assertTrue(landscape.isFile, "the fixture ${landscape.absolutePath} was not downloaded")
+    withClue("the fixture ${landscape.absolutePath} was not downloaded") { landscape.isFile.shouldBeTrue() }
     val source = MediaSource.of(landscape.absolutePath)
     val primary =
       Clip(source, TimeRange.of(Duration.ZERO, 1.seconds), effects = listOfNotNull(overlay.takeIf { onClip }))
@@ -559,16 +622,16 @@ class FfmpegPreviewTest {
   }
 
   private suspend fun resolved(composition: EditComposition): ResolvedComposition =
-    assertIs<ResolveResult.Resolved>(engine.resolve(composition, ExportSpec())).composition
+    engine.resolve(composition, ExportSpec()).shouldBeInstanceOf<ResolveResult.Resolved>().composition
 
   // The middle of the held tail and a third of a slot on, so the scrub lands on a slot it is not sitting on.
   private fun insideTail(resolved: ResolvedComposition): Duration {
     val tail = resolved.heldTail
-    return outputSlotTime(tail.first + (tail.last - tail.first) / 2, checkNotNull(resolved.output.frameRate)) + OFF_SLOT
+    return outputSlotTime(tail.first + (tail.last - tail.first) / 2, resolved.output.frameRate) + OFF_SLOT
   }
 
   private fun graded(): EditComposition {
-    assertTrue(landscape.isFile, "the fixture ${landscape.absolutePath} was not downloaded")
+    withClue("the fixture ${landscape.absolutePath} was not downloaded") { landscape.isFile.shouldBeTrue() }
     return EditComposition(
       tracks = listOf(Track(listOf(Clip(MediaSource.of(landscape.absolutePath))))),
       effects = listOf(Brightness(BRIGHTNESS)),
@@ -577,14 +640,14 @@ class FfmpegPreviewTest {
 
   // The fixture's opening up to [end], with nothing else on the edit, which a stream copy covers.
   private fun copied(end: Duration): EditComposition {
-    assertTrue(landscape.isFile, "the fixture ${landscape.absolutePath} was not downloaded")
+    withClue("the fixture ${landscape.absolutePath} was not downloaded") { landscape.isFile.shouldBeTrue() }
     return EditComposition(
       tracks = listOf(Track(listOf(Clip(MediaSource.of(landscape.absolutePath), TimeRange.of(Duration.ZERO, end))))),
     )
   }
 
   private fun twoClips(): EditComposition {
-    assertTrue(landscape.isFile && portrait.isFile, "the fixtures were not downloaded")
+    withClue("the fixtures were not downloaded") { (landscape.isFile && portrait.isFile).shouldBeTrue() }
     return EditComposition(
       tracks =
         listOf(
@@ -605,7 +668,7 @@ class FfmpegPreviewTest {
   ): Pair<Size, ByteArray> {
     val stream = open(composition, at)
     return try {
-      stream.size to assertNotNull(stream.next(), "the pump delivered no frame at $at")
+      stream.size to withClue("the pump delivered no frame at $at") { stream.next().shouldNotBeNull() }
     } finally {
       stream.close()
     }
@@ -613,7 +676,7 @@ class FfmpegPreviewTest {
 
   // The portrait fixture contained in a landscape frame over a [BAR_FILL] fill, with [clipOverlay] on its only clip.
   private fun letterboxed(clipOverlay: ImageOverlay? = null): EditComposition {
-    assertTrue(portrait.isFile, "the fixture ${portrait.absolutePath} was not downloaded")
+    withClue("the fixture ${portrait.absolutePath} was not downloaded") { portrait.isFile.shouldBeTrue() }
     return compositionOf {
       clip(MediaSource.of(portrait.absolutePath)) {
         clipOverlay?.let { mark -> effects { add(mark) } }
@@ -623,7 +686,7 @@ class FfmpegPreviewTest {
     }
   }
 
-  // The mean colour of a probe square centred on a point given as a fraction of [picture], which is itself a fraction
+  // The mean color of a probe square centred on a point given as a fraction of [picture], which is itself a fraction
   // of this RGBA frame of [size].
   private fun ByteArray.readAt(
     size: Size,
@@ -651,7 +714,7 @@ class FfmpegPreviewTest {
       synchronized(commands) { commands.lastOrNull { it.name == name } }
         ?: fail("no $name command was reported")
     return command.detail
-      .getValue("command")
+      .getValue(DiagnosticEvent.Detail.COMMAND)
       .substringAfter("-filter_complex ")
       .substringBefore(" -map ")
   }
@@ -717,6 +780,6 @@ class FfmpegPreviewTest {
     const val RGB = 3
 
     val WHITE_SQUARE: ByteArray = pngOf(Color.WHITE.rgb, OVERLAY_SIZE)
-    val OVERLAY_SQUARE: ByteArray = pngOf(OVERLAY_COLOUR, OVERLAY_SIZE)
+    val OVERLAY_SQUARE: ByteArray = pngOf(OVERLAY_COLOR, OVERLAY_SIZE)
   }
 }

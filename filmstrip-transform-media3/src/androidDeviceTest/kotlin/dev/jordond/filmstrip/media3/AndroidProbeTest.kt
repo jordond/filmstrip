@@ -9,10 +9,11 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 
 /**
  * What the prober reports about a track, against clips whose every field is known up front.
@@ -30,12 +31,16 @@ class AndroidProbeTest {
   fun readsTheTrackRatherThanTheContainer() =
     runTest(timeout = TIMEOUT) {
       val info = infoOf(CLIP)
-      val video = assertNotNull(info.video, "no video track")
+      val video = withClue("no video track") { info.video.shouldNotBeNull() }
 
       // A file-level read reports the container's video/mp4 for both tracks, so a codec that tells
       // the two apart is the check that these come off the tracks.
-      assertEquals(CodecKind.H264, video.codec.kind, "video codec: ${video.codec}")
-      assertEquals(CodecKind.Aac, assertNotNull(info.audio).codec.kind, "audio codec")
+      withClue("video codec: ${video.codec}") { video.codec.kind shouldBe CodecKind.H264 }
+      withClue("audio codec") {
+        info.audio
+          .shouldNotBeNull()
+          .codec.kind shouldBe CodecKind.Aac
+      }
     }
 
   @Test
@@ -46,28 +51,28 @@ class AndroidProbeTest {
 
       // The planner falls back to thirty when the source rate is absent, so a single thirty-fps
       // fixture cannot tell a real reading from the fallback.
-      assertEquals(30f, thirty.video?.frameRate, "30fps clip")
-      assertEquals(24f, twentyFour.video?.frameRate, "24fps clip")
+      withClue("30fps clip") { thirty.video?.frameRate shouldBe 30f }
+      withClue("24fps clip") { twentyFour.video?.frameRate shouldBe 24f }
     }
 
   @Test
   fun readsTheChannelsAndSampleRateOffTheAudioTrack() =
     runTest(timeout = TIMEOUT) {
-      val audio = assertNotNull(infoOf(CLIP).audio, "no audio track")
+      val audio = withClue("no audio track") { infoOf(CLIP).audio.shouldNotBeNull() }
 
-      assertEquals(2, audio.channelCount, "the fixture is stereo")
-      assertEquals(48_000, audio.sampleRate, "the fixture is 48kHz")
+      withClue("the fixture is stereo") { audio.channelCount shouldBe 2 }
+      withClue("the fixture is 48kHz") { audio.sampleRate shouldBe 48_000 }
     }
 
   @Test
   fun readsTenBitBt2020OffAnHdrClip() =
     runTest(timeout = TIMEOUT) {
-      val video = assertNotNull(infoOf(HDR_CLIP).video, "no video track")
+      val video = withClue("no video track") { infoOf(HDR_CLIP).video.shouldNotBeNull() }
 
-      assertEquals(CodecKind.Hevc, video.codec.kind)
-      assertEquals(10, video.bitDepth, "the fixture is ten bit")
-      assertEquals(ColorSpace.Bt2020, video.colorSpace)
-      assertEquals(HdrTransfer.Pq, video.hdrTransfer)
+      video.codec.kind shouldBe CodecKind.Hevc
+      withClue("the fixture is ten bit") { video.bitDepth shouldBe 10 }
+      video.colorSpace shouldBe ColorSpace.Bt2020
+      video.hdrTransfer shouldBe HdrTransfer.Pq
     }
 
   // Eight bit is a reading here, not a default. It comes from the profile, and the ladder
@@ -75,9 +80,9 @@ class AndroidProbeTest {
   @Test
   fun readsEightBitOffAnSdrClip() =
     runTest(timeout = TIMEOUT) {
-      val video = assertNotNull(infoOf(CLIP).video, "no video track")
+      val video = withClue("no video track") { infoOf(CLIP).video.shouldNotBeNull() }
 
-      assertEquals(8, video.bitDepth, "H.264 High is eight bit")
+      withClue("H.264 High is eight bit") { video.bitDepth shouldBe 8 }
     }
 
   @Test
@@ -90,12 +95,12 @@ class AndroidProbeTest {
 
       // The buffer is written to the cache and probed as the file it landed on, so the two readings
       // are of the same container and every field has to agree.
-      assertEquals(fromFile.duration, fromBytes.duration, "duration")
-      assertEquals(fromFile.video?.codec?.kind, fromBytes.video?.codec?.kind, "video codec")
-      assertEquals(fromFile.video?.displaySize, fromBytes.video?.displaySize, "frame")
-      assertEquals(fromFile.video?.frameRate, fromBytes.video?.frameRate, "frame rate")
-      assertEquals(fromFile.audio?.codec?.kind, fromBytes.audio?.codec?.kind, "audio codec")
-      assertEquals(fromFile.audio?.sampleRate, fromBytes.audio?.sampleRate, "sample rate")
+      withClue("duration") { fromBytes.duration shouldBe fromFile.duration }
+      withClue("video codec") { fromBytes.video?.codec?.kind shouldBe fromFile.video?.codec?.kind }
+      withClue("frame") { fromBytes.video?.displaySize shouldBe fromFile.video?.displaySize }
+      withClue("frame rate") { fromBytes.video?.frameRate shouldBe fromFile.video?.frameRate }
+      withClue("audio codec") { fromBytes.audio?.codec?.kind shouldBe fromFile.audio?.codec?.kind }
+      withClue("sample rate") { fromBytes.audio?.sampleRate shouldBe fromFile.audio?.sampleRate }
     }
 
   @Test
@@ -107,7 +112,7 @@ class AndroidProbeTest {
       // the retriever has to work it out from the bytes.
       val info = probe.infoOf(MediaSource.ofBytes(bytes))
 
-      assertEquals(CodecKind.H264, assertNotNull(info.video, "no video track").codec.kind)
+      withClue("no video track") { info.video.shouldNotBeNull() }.codec.kind shouldBe CodecKind.H264
     }
 
   private fun bytesOf(name: String): ByteArray = probe.fixtureFile(name).readBytes()

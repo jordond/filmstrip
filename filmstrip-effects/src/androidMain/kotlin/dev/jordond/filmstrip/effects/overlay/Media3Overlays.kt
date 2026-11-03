@@ -10,7 +10,6 @@ import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.NearestMatrix
 import android.util.Pair as AndroidPair
 import androidx.media3.effect.OverlayEffect as Media3OverlayEffect
 
@@ -159,7 +158,7 @@ private fun Int.ratioTo(native: Int): Float = if (native <= 0) 1f else toFloat()
  * Decides how an overlay resolves onto a frame of [transfer], or an SDR one when it is null.
  *
  * The texels are mapped for the transfer before this is asked, so an opaque texel lands where a fill
- * of its colour does on every grade. Every overlay on an HLG grade reports as degraded, opaque or not,
+ * of its color does on every grade. Every overlay on an HLG grade reports as degraded, opaque or not,
  * since media3 blends it in scene light and nothing here knows whether its texels are partly covered.
  * A picture Android's decoder lands short of its file reports each of its [limits] as a cause, on every grade.
  * The causes list the limits in order, then the HLG blend when the grade is HLG.
@@ -177,68 +176,6 @@ internal fun media3OverlayResolution(
   return if (causes.isEmpty()) EffectResolution.Resolved(effect) else EffectResolution.Degraded(effect, causes)
 }
 
-/**
- * A way Android's decoder lands an overlay picture short of what its file stores, each Android's limit rather than
- * filmstrip's.
- *
- * @property reason What the picture gives up.
- * @property message What the overlay reports, naming Android's decoder.
- */
-internal sealed class DecoderLimit(
-  val reason: DegradationReason,
-  val message: String,
-) {
-  /**
-   * The [reason] and [message] as one cause of a degraded resolution.
-   */
-  val cause: Degradation
-    get() = Degradation(reason, message)
-
-  /**
-   * A sixteen-bit picture decoded into eight bits a sample, since API 24 and 25 have no half float bitmap.
-   */
-  data object EightBitCut : DecoderLimit(
-    DegradationReason.PrecisionReduced,
-    "This Android decodes the overlay image into eight bits a sample, so a picture stored at sixteen bits loses " +
-      "the steps between eight-bit codes.",
-  )
-
-  /**
-   * A twelve-bit AVIF decoded from API 36, where Android's AVIF decoder hands it back only at eight bits a sample.
-   */
-  data object AvifTwelveBitCut : DecoderLimit(
-    DegradationReason.PrecisionReduced,
-    "Android's AVIF decoder from API 36 decodes a twelve-bit AVIF only into eight bits a sample, so this picture " +
-      "loses the steps between eight-bit codes.",
-  )
-
-  /**
-   * A full range AVIF decoded before API 33. Android's AVIF decoder on API 31 reads every AVIF at limited range,
-   * whatever the file records. API 32 is given API 31's landing.
-   */
-  data object AvifBeforeApi33 : DecoderLimit(
-    DegradationReason.ColorSpaceConverted,
-    "Android's AVIF decoder on API 31 reads every AVIF at limited range, and API 32 is taken to as well, so on this " +
-      "API level this full range picture's YCbCr samples are turned into RGB at a range its file does not record.",
-  )
-
-  /**
-   * A HEIC or AVIF whose matrix Android's decoder on its API level does not read, so the codestream it is handed
-   * states [nearest]'s matrix and the picture lands through it. Its [message] ends on [NearestMatrix.figures].
-   *
-   * @property avif Whether the picture is an AVIF rather than a HEIC.
-   * @property nearest The matrix the picture lands through and how far that moves its colours.
-   */
-  data class LandedThrough(
-    val avif: Boolean,
-    val nearest: NearestMatrix,
-  ) : DecoderLimit(
-      DegradationReason.ColorSpaceConverted,
-      "${decoderName(avif)} on this API level does not read this picture's matrix, so its YCbCr samples are turned " +
-        "into RGB through matrix ${nearest.matrix} instead, ${nearest.figures}.",
-    )
-}
-
 // media3 1.11.1 holds an HLG frame as scene light and its overlay shader blends in whatever light the
 // frame is held in, with no hook to move the blend elsewhere. That is media3's limit rather than
 // filmstrip's: the same overlay blends in display light on every other backend.
@@ -246,6 +183,6 @@ internal val HLG_SCENE_LIGHT: Degradation =
   Degradation(
     DegradationReason.ApproximateAlgorithm,
     "On an HLG grade media3 blends an overlay into the frame in scene light rather than display light. " +
-      "Opaque texels land where a fill of their colour does, and soft edges and partial opacity land a " +
+      "Opaque texels land where a fill of their color does, and soft edges and partial opacity land a " +
       "little darker than the same blend on the other backends.",
   )

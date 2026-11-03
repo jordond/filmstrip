@@ -2,8 +2,10 @@ package dev.jordond.filmstrip.media3.internal
 
 import android.content.Context
 import android.net.Uri
-import dev.jordond.filmstrip.export.ExportError
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.media.MediaSink
+import dev.jordond.filmstrip.media.sinkParentRefusal
+import dev.jordond.filmstrip.media.writeContentUri
 import java.io.File
 import java.io.IOException
 
@@ -30,17 +32,9 @@ internal class Media3Destination(
     val destination = target ?: return PublishResult.Success(reported)
 
     return try {
-      val stream = context.contentResolver.openOutputStream(destination)
-      if (stream == null) {
-        PublishResult.Failure(ExportError.SinkUnwritable(destination.toString(), NO_STREAM))
-      } else {
-        stream.use { out -> File(path).inputStream().use { it.copyTo(out) } }
-        PublishResult.Success(reported)
-      }
-    } catch (failure: IOException) {
-      PublishResult.Failure(ExportError.SinkUnwritable(destination.toString(), failure.message ?: UNWRITABLE))
-    } catch (denied: SecurityException) {
-      PublishResult.Failure(ExportError.SinkUnwritable(destination.toString(), denied.message ?: DENIED))
+      val refused =
+        context.contentResolver.writeContentUri(destination) { out -> File(path).inputStream().use { it.copyTo(out) } }
+      if (refused == null) PublishResult.Success(reported) else PublishResult.Failure(refused)
     } finally {
       discard()
     }
@@ -66,14 +60,8 @@ internal class Media3Destination(
     ) : PublishResult
 
     class Failure(
-      val error: ExportError,
+      val error: FilmstripError,
     ) : PublishResult
-  }
-
-  private companion object {
-    const val NO_STREAM = "The content provider gave back no stream to write to."
-    const val UNWRITABLE = "The destination could not be written."
-    const val DENIED = "Writing the destination was denied."
   }
 }
 
@@ -86,7 +74,7 @@ internal sealed interface DestinationResult {
   ) : DestinationResult
 
   class Failed(
-    val error: ExportError,
+    val error: FilmstripError,
   ) : DestinationResult
 }
 
@@ -117,26 +105,29 @@ private fun Context.forUri(uri: String): DestinationResult {
   val scheme = parsed?.scheme
 
   return when {
-    parsed == null -> DestinationResult.Failed(ExportError.SinkUnwritable(uri, "The destination is not a valid URI."))
-    scheme != null && scheme != "file" -> forScratch(target = parsed, reported = MediaSink.Uri(uri))
-    parsed.path == null -> DestinationResult.Failed(ExportError.SinkUnwritable(uri, "The file URI names no path."))
-    else -> forFile(parsed.path.orEmpty(), MediaSink.Path(parsed.path.orEmpty()))
+    parsed == null -> {
+      DestinationResult.Failed(
+        FilmstripError.SinkUnwritable(uri, "The destination is not a valid URI."),
+      )
+    }
+    scheme != null && scheme != "file" -> {
+      forScratch(target = parsed, reported = MediaSink.Uri(uri))
+    }
+    parsed.path == null -> {
+      DestinationResult.Failed(FilmstripError.SinkUnwritable(uri, "The file URI names no path."))
+    }
+    else -> {
+      forFile(parsed.path.orEmpty(), MediaSink.Path(parsed.path.orEmpty()))
+    }
   }
 }
 
 private fun Context.forFile(
   path: String,
   reported: MediaSink,
-): DestinationResult {
-  val parent = File(path).parentFile
-  return if (parent == null || !parent.isDirectory) {
-    DestinationResult.Failed(
-      ExportError.SinkUnwritable(path, "The destination's parent directory does not exist."),
-    )
-  } else {
-    DestinationResult.Ready(Media3Destination(path, this, target = null, reported = reported))
-  }
-}
+): DestinationResult =
+  sinkParentRefusal(path)?.let { DestinationResult.Failed(it) }
+    ?: DestinationResult.Ready(Media3Destination(path, this, target = null, reported = reported))
 
 private fun Context.forScratch(
   target: Uri?,
@@ -147,7 +138,7 @@ private fun Context.forScratch(
     DestinationResult.Ready(Media3Destination(file.path, this, target, reported ?: MediaSink.Path(file.path)))
   } catch (failure: IOException) {
     DestinationResult.Failed(
-      ExportError.SinkUnwritable(
+      FilmstripError.SinkUnwritable(
         cacheDir.path,
         failure.message ?: "A temporary file could not be created in the cache directory.",
       ),

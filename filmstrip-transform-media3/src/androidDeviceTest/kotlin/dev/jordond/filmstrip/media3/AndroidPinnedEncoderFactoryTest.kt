@@ -8,10 +8,11 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.transformer.EncoderSelector
 import androidx.media3.transformer.ExportException
 import androidx.test.platform.app.InstrumentationRegistry
-import dev.jordond.filmstrip.media3.internal.pinnedEncoderFactory
+import dev.jordond.filmstrip.media3.internal.encoder.pinnedEncoderFactory
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import org.junit.Assume.assumeTrue
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 /**
@@ -38,7 +39,7 @@ class AndroidPinnedEncoderFactoryTest {
     names.forEach { (name, mimeType) ->
       val codec = pinnedEncoderFactory(context, name).createForVideoEncoding(format(mimeType), null)
       try {
-        assertEquals(name, codec.name, "the factory pinned to $name")
+        withClue("the factory pinned to $name") { codec.name shouldBe name }
       } finally {
         codec.release()
       }
@@ -52,7 +53,7 @@ class AndroidPinnedEncoderFactoryTest {
         pinnedEncoderFactory(context, UNLISTED).createForVideoEncoding(format(MimeTypes.VIDEO_H264), null)
       }
 
-    assertEquals(ExportException.ERROR_CODE_ENCODING_FORMAT_UNSUPPORTED, failure.errorCode, failure.toString())
+    withClue(failure.toString()) { failure.errorCode shouldBe ExportException.ERROR_CODE_ENCODING_FORMAT_UNSUPPORTED }
   }
 
   private fun format(mimeType: String): Format =

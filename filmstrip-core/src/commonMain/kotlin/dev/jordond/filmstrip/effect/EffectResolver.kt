@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effect
 
 import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.edit.EditComposition
 
 /**
  * Realizes an [EffectSpec] as something the current platform can render.
@@ -10,8 +11,8 @@ import dev.drewhamilton.poko.Poko
  * resolver cannot substitute a different rendering.
  *
  * Registered on [dev.jordond.filmstrip.FilmstripBuilder] through
- * [dev.jordond.filmstrip.FilmstripBuilder.addEffectResolver], in registration order: the first
- * resolver to return a non-null result wins. Export engines are the same shape, registered through
+ * [dev.jordond.filmstrip.FilmstripBuilder.addEffectResolver] and asked newest registration first:
+ * the first resolver to return a non-null result wins. Export engines are the same shape, registered through
  * [dev.jordond.filmstrip.FilmstripBuilder.addExportEngineFactory]. A third-party render backend is
  * written the same way filmstrip's own are: an extension function on `FilmstripBuilder` that
  * registers a resolver, an export engine factory, or both. The four built-in export engines are
@@ -34,6 +35,15 @@ public fun interface EffectResolver {
     capabilities: RenderCapabilities,
     attributes: Attributes,
   ): EffectResolution?
+
+  /**
+   * Gets ready to resolve the effects in [composition], before any of them is asked for.
+   *
+   * Every export engine calls this before each negotiation of [composition], so work a platform can
+   * only do asynchronously, such as decoding an overlay image in a browser, is done by the time
+   * [resolve] needs it. The default does nothing.
+   */
+  public suspend fun prepare(composition: EditComposition) {}
 }
 
 /**
@@ -125,7 +135,7 @@ public enum class DegradationReason {
   ResolutionClamped,
 
   /**
-   * Converted between colour spaces, including HDR tone-mapped to SDR.
+   * Converted between color spaces, including HDR tone-mapped to SDR.
    */
   ColorSpaceConverted,
 
@@ -140,7 +150,7 @@ public enum class DegradationReason {
   RealtimeApproximation,
 
   /**
-   * The alpha a picture's file carries was not read, so the picture draws opaque. The colour still lands as the file
+   * The alpha a picture's file carries was not read, so the picture draws opaque. The color still lands as the file
    * stores it.
    */
   AlphaDiscarded,

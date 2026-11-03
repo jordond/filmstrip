@@ -3,7 +3,7 @@ package dev.jordond.filmstrip.thumbnail
 import dev.jordond.filmstrip.Cancellable
 
 /**
- * Walks a run of requests through a source one at a time, which is what
+ * Walks a run of requests through [request] one at a time, which is what
  * [ThumbnailSource.requestThumbnails] does for a source that overrides nothing.
  *
  * The next request is asked for once the one before it has been delivered, so a source sees the
@@ -13,7 +13,7 @@ import dev.jordond.filmstrip.Cancellable
  * owned it has gone.
  */
 internal class SerialThumbnailRun(
-  private val source: ThumbnailSource,
+  private val request: (ThumbnailRequest, ThumbnailCallback) -> Cancellable,
   private val requests: List<ThumbnailRequest>,
   private val callback: ThumbnailBatchCallback,
 ) : Cancellable {
@@ -37,8 +37,8 @@ internal class SerialThumbnailRun(
   /**
    * Asks for requests until one of them has to be waited on.
    *
-   * Iterative rather than recursive, so a source that answers on the thread that asked serves a
-   * long strip on one frame of stack rather than one per entry.
+   * Loops over the requests, so a source that answers on the thread that asked serves a long strip
+   * on one frame of stack rather than one per entry.
    */
   private fun pump() {
     if (pumping) return
@@ -52,7 +52,7 @@ internal class SerialThumbnailRun(
         // however that request ended. Released after the next is issued, so a source holding
         // anything across the run is never left with nothing outstanding.
         val previous = handle
-        handle = source.requestThumbnail(requests[index]) { result -> deliver(index, result) }
+        handle = request(requests[index], ThumbnailCallback { result -> deliver(index, result) })
         previous?.cancel()
         if (!deliveredWhilePumping) return
       }

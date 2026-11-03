@@ -1,16 +1,21 @@
 package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.ComponentRegistry
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.capability.VideoEncoderCapability
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -31,21 +36,16 @@ import dev.jordond.filmstrip.effects.geometry.Flip
 import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.export.AdjustmentKind
-import dev.jordond.filmstrip.export.AudioCodec
 import dev.jordond.filmstrip.export.CopyBlocker
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -57,23 +57,23 @@ import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.test.LoopingCases
+import dev.jordond.filmstrip.transform.internal.LoweredExport
 import dev.jordond.filmstrip.transform.internal.heldTail
+import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.passesCovering
-import dev.jordond.filmstrip.transform.internal.stillUnsupportedMessage
-import dev.jordond.filmstrip.transform.internal.toResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.stillUnsupportedMessage
 import dev.jordond.filmstrip.transform.internal.videoSlots
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
-import dev.jordond.filmstrip.webcodecs.internal.BrowserLowering
 import dev.jordond.filmstrip.webcodecs.internal.BrowserPlanner
-import dev.jordond.filmstrip.webcodecs.internal.HDR_VP9_CODEC
+import dev.jordond.filmstrip.webcodecs.internal.BrowserRender
+import dev.jordond.filmstrip.webcodecs.internal.interop.HDR_VP9_CODEC
+import io.kotest.assertions.withClue
+import io.kotest.matchers.floats.plusOrMinus
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
@@ -90,7 +90,7 @@ class BrowserPlannerTest {
     device: DeviceCapabilities = device(VideoCodec.H264, VideoCodec.Vp9),
     opaque: Set<MediaSource> = emptySet(),
     openings: Map<MediaSource, Duration> = emptyMap(),
-  ): BrowserLowering = planner.lower(composition, spec, device, infos, openings, opaque = opaque)
+  ): LoweredExport<BrowserRender> = planner.lower(composition, Ask(spec, device, infos, openings), opaque = opaque)
 
   private fun infosOf(composition: EditComposition): Map<MediaSource, MediaInfo> =
     composition.clips.map { it.source to info() }.toMap()
@@ -98,40 +98,40 @@ class BrowserPlannerTest {
   @Test
   fun emptyCompositionIsIncapable() {
     val verdict = lower(EditComposition(tracks = emptyList())).verdict
-    assertIs<Verdict.Incapable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Incapable>()
   }
 
   @Test
   fun audioIsAllowedWhetherKeptOrRemoved() {
     val spec = ExportSpec(videoCodec = VideoCodec.H264)
     val withAudio = EditComposition(tracks = listOf(Track(listOf(Clip(source("a"))))), audio = AudioSpec.Keep)
-    assertIs<Verdict.Capable>(lower(withAudio, spec).verdict)
+    lower(withAudio, spec).verdict.shouldBeInstanceOf<Verdict.Capable>()
 
     val withoutAudio = EditComposition(tracks = listOf(Track(listOf(Clip(source("a"))))), audio = AudioSpec.Remove)
-    assertIs<Verdict.Capable>(lower(withoutAudio, spec).verdict)
+    lower(withoutAudio, spec).verdict.shouldBeInstanceOf<Verdict.Capable>()
   }
 
   @Test
   fun audioNonePassesEvenWithAudioSpec() {
     val composition = EditComposition(tracks = listOf(Track(listOf(Clip(source("a"))))), audio = AudioSpec.Keep)
     val spec = ExportSpec(audioCodec = AudioCodec.None)
-    assertIs<Verdict.Capable>(lower(composition, spec).verdict)
+    lower(composition, spec).verdict.shouldBeInstanceOf<Verdict.Capable>()
   }
 
   @Test
   fun pathSourceIsUnreadable() {
     val composition = EditComposition(tracks = listOf(Track(listOf(Clip(MediaSource.Path("/tmp/clip.mp4"))))))
     val verdict = lower(composition, infos = emptyMap()).verdict
-    assertIs<Verdict.Incapable>(verdict)
-    assertTrue(verdict.reasons.any { it is ExportError.SourceUnreadable })
+    verdict.shouldBeInstanceOf<Verdict.Incapable>()
+    verdict.reasons.any { it is FilmstripError.SourceUnreadable } shouldBe true
   }
 
   @Test
   fun rotatedSourceIsRefused() {
     val clip = Clip(source("a"))
     val verdict = lower(compositionOf(listOf(clip)), infos = mapOf(clip.source to info(rotation = 90))).verdict
-    assertIs<Verdict.Incapable>(verdict)
-    assertTrue(verdict.reasons.any { it.message.contains("rotation") })
+    verdict.shouldBeInstanceOf<Verdict.Incapable>()
+    verdict.reasons.any { it.message.contains("rotation") } shouldBe true
   }
 
   // This backend draws its output by decoding a video track. A still is refused at plan time
@@ -141,9 +141,9 @@ class BrowserPlannerTest {
     val still = MediaSource.Image(ImageSource.of("/photos/one.png"), 3_000.milliseconds)
     val verdict = lower(compositionOf(listOf(Clip(still)))).verdict
 
-    val reason = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.SourceNotExportable>(reason)
-    assertEquals(stillUnsupportedMessage("browser"), reason.message)
+    val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    reason.shouldBeInstanceOf<FilmstripError.SourceNotExportable>()
+    reason.message shouldBe stillUnsupportedMessage("browser")
   }
 
   // The scan is over every track's clips, not just the primary one, so a still parked on a
@@ -163,18 +163,18 @@ class BrowserPlannerTest {
 
     val verdict = lower(composition).verdict
 
-    val reason = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.SourceNotExportable>(reason)
-    assertEquals(stillUnsupportedMessage("browser"), reason.message)
+    val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    reason.shouldBeInstanceOf<FilmstripError.SourceNotExportable>()
+    reason.message shouldBe stillUnsupportedMessage("browser")
   }
 
   @Test
   fun oddSizeIsEvenedAndReported() {
     val clip = Clip(source("a"))
     val verdict = lower(compositionOf(listOf(clip)), infos = mapOf(clip.source to info(1921, 1081))).verdict
-    assertIs<Verdict.Degraded>(verdict)
-    assertEquals(Size(1920, 1080), verdict.plan.output.size)
-    assertTrue(verdict.adjustments.any { it.kind == AdjustmentKind.ResolutionClamped })
+    verdict.shouldBeInstanceOf<Verdict.Degraded>()
+    verdict.plan.output.size shouldBe Size(1920, 1080)
+    verdict.adjustments.any { it.kind == AdjustmentKind.ResolutionClamped } shouldBe true
   }
 
   // Every export here is a real decode-draw-encode pass, so a portrait clip is encoded at its own
@@ -184,14 +184,16 @@ class BrowserPlannerTest {
     val clip = Clip(source("a"))
     val verdict = lower(compositionOf(listOf(clip)), infos = mapOf(clip.source to info(1080, 1920))).verdict
 
-    assertEquals(Size(1080, 1920), assertIs<Verdict.Capable>(verdict).plan.output.size)
+    verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.output.size shouldBe Size(1080, 1920)
   }
 
   @Test
-  fun targetHeightScalesOutput() {
-    val verdict = lower(compositionOf(listOf(Clip(source("a")))), spec = videoSpec(targetHeight = 360)).verdict
-    assertIs<Verdict.Capable>(verdict)
-    assertEquals(Size(640, 360), verdict.plan.output.size)
+  fun heightScalesOutput() {
+    val verdict = lower(compositionOf(listOf(Clip(source("a")))), spec = videoSpec(heightPx = 360)).verdict
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
+    verdict.plan.output.size shouldBe Size(640, 360)
   }
 
   // A pass here carries one texture matrix settled at resolve, and a pan moves the region on every
@@ -203,18 +205,18 @@ class BrowserPlannerTest {
 
     val verdict = lower(compositionOf(listOf(clip))).verdict
 
-    assertIs<Verdict.Incapable>(verdict)
-    assertTrue(verdict.reasons.any { it is ExportError.UnsupportedEffect && it.specId == EffectIds.KEN_BURNS })
+    verdict.shouldBeInstanceOf<Verdict.Incapable>()
+    verdict.reasons.any { it is FilmstripError.UnsupportedEffect && it.specId == EffectIds.KEN_BURNS } shouldBe true
   }
 
   @Test
   fun unsupportedEffectRefusesWithFallback() {
     val composition = compositionOf(listOf(Clip(source("a"))), effects = listOf(Rotate(90)))
     val verdict = lower(composition).verdict
-    assertIs<Verdict.Incapable>(verdict)
-    assertTrue(verdict.reasons.any { it is ExportError.UnsupportedEffect })
-    val fallback = assertNotNull(verdict.withoutUnsupported)
-    assertEquals(emptyList(), fallback.effectOrder)
+    verdict.shouldBeInstanceOf<Verdict.Incapable>()
+    verdict.reasons.any { it is FilmstripError.UnsupportedEffect } shouldBe true
+    val fallback = verdict.withoutUnsupported.shouldNotBeNull()
+    fallback.plan.effectOrder shouldBe emptyList()
   }
 
   @Test
@@ -222,23 +224,25 @@ class BrowserPlannerTest {
     val effects: List<EffectSpec> =
       listOf(Crop(AspectRatio(16, 9), Fit.Crop), Flip(FlipAxis.Horizontal), Brightness(0.5f))
     val verdict = lower(compositionOf(listOf(Clip(source("a"))), effects = effects)).verdict
-    assertIs<Verdict.Capable>(verdict)
-    assertEquals(EffectParity.Exact, verdict.plan.parity)
-    assertEquals(3, verdict.plan.effectOrder.size)
-    val render = assertNotNull(lower(compositionOf(listOf(Clip(source("a"))), effects = effects)).render)
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
+    verdict.plan.parity shouldBe EffectParity.Exact
+    verdict.plan.effectOrder.size shouldBe 3
+    val render = lower(compositionOf(listOf(Clip(source("a"))), effects = effects)).graph.shouldNotBeNull()
     val graded = render.clips.single().compositionColorMatrix
-    assertTrue(graded.contentEquals(matrixOf(Brightness(0.5f))), "the composition lowered to ${graded.toList()}")
+    withClue("the composition lowered to ${graded.toList()}") {
+      graded.contentEquals(matrixOf(Brightness(0.5f))) shouldBe true
+    }
   }
 
-  // The planner folds a run of colour effects per stage and the pass clamps between the two, the
+  // The planner folds a run of color effects per stage and the pass clamps between the two, the
   // way ffmpeg writes the clip's stage into a frame before the composition's filters run. The two
   // matrices therefore reach the shader as two rather than as their product.
   @Test
-  fun clipAndCompositionColourStayTwoMatrices() {
+  fun clipAndCompositionColorStayTwoMatrices() {
     val clip = Clip(source("a"), effects = listOf(Sepia(1f)))
     val composition = compositionOf(listOf(clip), effects = listOf(Contrast(1.5f)))
 
-    val render = assertNotNull(lower(composition).render)
+    val render = lower(composition).graph.shouldNotBeNull()
     val drawn = render.clips.single()
 
     assertMatrix(checkNotNull(colorMatrixOf(Sepia(1f))).toColumnMajor4x4(), drawn.colorMatrix, "the clip")
@@ -256,37 +260,36 @@ class BrowserPlannerTest {
     lowered: FloatArray,
     what: String,
   ) {
-    assertEquals(expected.size, lowered.size)
+    lowered.size shouldBe expected.size
     expected.indices.forEach { index ->
-      assertEquals(
-        expected[index],
-        lowered[index],
-        MATRIX_TOLERANCE,
-        "$what lowered to ${lowered.toList()}, and the matrix it wrote is ${expected.toList()}",
-      )
+      withClue("$what lowered to ${lowered.toList()}, and the matrix it wrote is ${expected.toList()}") {
+        lowered[index] shouldBe (expected[index] plusOrMinus MATRIX_TOLERANCE)
+      }
     }
   }
 
   // The pass carries the matrix as authored either way. The compositor is what knows which domain
   // the frame is in, and it wraps the same entries in the shared HDR arm when it keeps a grade.
   @Test
-  fun colourLowersTheSameWayOnAKeptGradeAsOnAnSdrFrame() {
+  fun colorLowersTheSameWayOnAKeptGradeAsOnAnSdrFrame() {
     val resolver = BuiltInEffectResolver()
 
     val graded =
-      assertIs<EffectResolution.Resolved>(
-        resolver.resolve(Sepia(), webCapabilities(), attributesOf(HdrTransfer.Pq)),
-      )
+      resolver
+        .resolve(
+          Sepia(),
+          webCapabilities(),
+          attributesOf(HdrTransfer.Pq),
+        ).shouldBeInstanceOf<EffectResolution.Resolved>()
     val sdr =
-      assertIs<EffectResolution.Resolved>(
-        resolver.resolve(Sepia(), webCapabilities(), attributesOf(null)),
-      )
+      resolver.resolve(Sepia(), webCapabilities(), attributesOf(null)).shouldBeInstanceOf<EffectResolution.Resolved>()
 
-    assertContentEquals(
-      sdr.effect.pass.uniforms
-        .getValue("uColorMatrix"),
+    (
       graded.effect.pass.uniforms
-        .getValue("uColorMatrix"),
+        .getValue("uColorMatrix")
+    ) shouldBe (
+      sdr.effect.pass.uniforms
+        .getValue("uColorMatrix")
     )
   }
 
@@ -316,20 +319,26 @@ class BrowserPlannerTest {
   // spelling it as something other than a mat4 is a lowering the fold leaves alone rather than an
   // exception out of plan().
   @Test
-  fun foreignColourUniformThatIsNotAMat4IsLeftOutOfTheFold() {
+  fun foreignColorUniformThatIsNotAMat4IsLeftOutOfTheFold() {
     val foreign = BrowserPlanner(listOf(ForeignPassResolver(), BuiltInEffectResolver()))
     val composition = compositionOf(listOf(Clip(source("a"), effects = listOf(Brightness(0.5f)))))
 
     val render =
-      assertNotNull(foreign.lower(composition, videoSpec(), device(VideoCodec.H264), infosOf(composition)).render)
+      foreign
+        .lower(
+          composition,
+          Ask(videoSpec(), device(VideoCodec.H264), infosOf(composition)),
+        ).graph
+        .shouldNotBeNull()
 
-    assertTrue(
-      render.clips
-        .single()
-        .colorMatrix
-        .contentEquals(matrixOf(Brightness(1f))),
-      "the clip lowered to ${render.clips.single().colorMatrix.toList()}",
-    )
+    withClue("the clip lowered to ${render.clips.single().colorMatrix.toList()}") {
+      (
+        render.clips
+          .single()
+          .colorMatrix
+          .contentEquals(matrixOf(Brightness(1f)))
+      ) shouldBe true
+    }
   }
 
   // Composition geometry resolves against the frame clip geometry leaves behind, not the frame it
@@ -340,23 +349,23 @@ class BrowserPlannerTest {
     val effects: List<EffectSpec> = listOf(Crop(AspectRatio.Square, Fit.Crop))
     val composition = compositionOf(listOf(Clip(source("a"))), effects = effects)
 
-    val render = assertNotNull(lower(composition).render)
+    val render = lower(composition).graph.shouldNotBeNull()
 
-    assertFalse(
+    (
       render.clips
         .single()
         .matrix
-        .contentEquals(IDENTITY_MATRIX),
-    )
+        .contentEquals(IDENTITY_MATRIX)
+    ) shouldBe false
   }
 
   @Test
   fun missingCodecFallsBack() {
     val spec = ExportSpec(videoCodec = VideoCodec.Hevc, audioCodec = AudioCodec.None)
     val verdict = lower(compositionOf(listOf(Clip(source("a")))), spec).verdict
-    assertIs<Verdict.Degraded>(verdict)
-    assertEquals(VideoCodec.H264, verdict.plan.output.videoCodec)
-    assertTrue(verdict.adjustments.any { it.kind == AdjustmentKind.CodecFallback })
+    verdict.shouldBeInstanceOf<Verdict.Degraded>()
+    verdict.plan.output.videoCodec shouldBe VideoCodec.H264
+    verdict.adjustments.any { it.kind == AdjustmentKind.CodecFallback } shouldBe true
   }
 
   // Proves this backend's own registered ladder, BROWSER_LADDER, not a copy of it: a device
@@ -367,16 +376,19 @@ class BrowserPlannerTest {
     val clip = Clip(source("a"))
     val spec = ExportSpec(videoCodec = VideoCodec.Auto, audioCodec = AudioCodec.None)
     val vp9AndHevcOnly = device(VideoCodec.Vp9, VideoCodec.Hevc)
-    val verdict = planner.lower(compositionOf(listOf(clip)), spec, vp9AndHevcOnly, mapOf(clip.source to info())).verdict
-    assertEquals(VideoCodec.Vp9, assertIs<Verdict.Capable>(verdict).plan.output.videoCodec)
+    val ask = Ask(spec, vp9AndHevcOnly, mapOf(clip.source to info()))
+    val verdict = planner.lower(compositionOf(listOf(clip)), ask).verdict
+    verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.output.videoCodec shouldBe VideoCodec.Vp9
   }
 
   @Test
   fun strictMissingCodecRefuses() {
     val spec = ExportSpec(videoCodec = VideoCodec.Hevc, audioCodec = AudioCodec.None, strict = true)
     val verdict = lower(compositionOf(listOf(Clip(source("a")))), spec).verdict
-    assertIs<Verdict.Incapable>(verdict)
-    assertTrue(verdict.reasons.any { it is ExportError.NoEncoder })
+    verdict.shouldBeInstanceOf<Verdict.Incapable>()
+    verdict.reasons.any { it is FilmstripError.NoEncoder } shouldBe true
   }
 
   // A trim used to force the encode path. A clip that lets the cut move back far enough to reach a
@@ -390,14 +402,14 @@ class BrowserPlannerTest {
 
     val lowering = lower(composition, ExportSpec(), openings = mapOf(clip.source to OPENING))
 
-    val plan = assertIs<Verdict.Capable>(lowering.verdict).plan
-    assertEquals(ExportPath.Transmux, plan.path)
-    assertTrue(plan.copyBlockedBy.isEmpty(), "the copy was blocked by ${plan.copyBlockedBy}")
-    val render = assertNotNull(lowering.render)
-    assertEquals(TRIM_END - OPENING, render.duration)
+    val plan = lowering.verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.path shouldBe ExportPath.Copy
+    withClue("the copy was blocked by ${plan.copyBlockedBy}") { plan.copyBlockedBy.isEmpty() shouldBe true }
+    val render = lowering.graph.shouldNotBeNull()
+    render.duration shouldBe TRIM_END - OPENING
     val rendered = render.clips.single()
-    assertEquals(OPENING.inWholeMicroseconds.toDouble(), rendered.trimStartUs)
-    assertEquals(TRIM_END.inWholeMicroseconds.toDouble(), rendered.trimEndUs)
+    rendered.trimStartUs shouldBe OPENING.inWholeMicroseconds.toDouble()
+    rendered.trimEndUs shouldBe TRIM_END.inWholeMicroseconds.toDouble()
   }
 
   // The same opening, with a tolerance that does not reach it. The cut stays where it was asked
@@ -409,12 +421,14 @@ class BrowserPlannerTest {
 
     val lowering = lower(composition, ExportSpec(), openings = mapOf(clip.source to OPENING))
 
-    val plan = assertIs<Verdict.Capable>(lowering.verdict).plan
-    assertEquals(ExportPath.Transcode, plan.path)
-    assertTrue(CopyBlocker.TrimNotOnSyncSample in plan.copyBlockedBy, "the plan blamed ${plan.copyBlockedBy}")
-    val render = assertNotNull(lowering.render)
-    assertEquals(TRIM_END - TRIM_START, render.duration)
-    assertEquals(TRIM_START.inWholeMicroseconds.toDouble(), render.clips.single().trimStartUs)
+    val plan = lowering.verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.path shouldBe ExportPath.Transcode
+    withClue("the plan blamed ${plan.copyBlockedBy}") {
+      (CopyBlocker.TrimNotOnSyncSample in plan.copyBlockedBy) shouldBe true
+    }
+    val render = lowering.graph.shouldNotBeNull()
+    render.duration shouldBe TRIM_END - TRIM_START
+    render.clips.single().trimStartUs shouldBe TRIM_START.inWholeMicroseconds.toDouble()
   }
 
   // Zero is the default, and it says the cut lands where it was asked for however close a sync
@@ -426,10 +440,16 @@ class BrowserPlannerTest {
 
     val lowering = lower(composition, ExportSpec(), openings = mapOf(clip.source to OPENING))
 
-    val plan = assertIs<Verdict.Capable>(lowering.verdict).plan
-    assertEquals(ExportPath.Transcode, plan.path)
-    assertTrue(CopyBlocker.TrimNotOnSyncSample in plan.copyBlockedBy, "the plan blamed ${plan.copyBlockedBy}")
-    assertEquals(TRIM_START.inWholeMicroseconds.toDouble(), assertNotNull(lowering.render).clips.single().trimStartUs)
+    val plan = lowering.verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.path shouldBe ExportPath.Transcode
+    withClue("the plan blamed ${plan.copyBlockedBy}") {
+      (CopyBlocker.TrimNotOnSyncSample in plan.copyBlockedBy) shouldBe true
+    }
+    lowering.graph
+      .shouldNotBeNull()
+      .clips
+      .single()
+      .trimStartUs shouldBe TRIM_START.inWholeMicroseconds.toDouble()
   }
 
   // Snapping only saves the work it costs accuracy for on a copy. Anything that re-encodes decodes
@@ -448,12 +468,14 @@ class BrowserPlannerTest {
 
     val lowering = lower(composition, ExportSpec(), openings = mapOf(clip.source to OPENING))
 
-    val plan = assertIs<Verdict.Capable>(lowering.verdict).plan
-    assertEquals(ExportPath.Transcode, plan.path)
-    assertTrue(CopyBlocker.ClipHasEffects in plan.copyBlockedBy, "the plan blamed ${plan.copyBlockedBy}")
-    val render = assertNotNull(lowering.render)
-    assertEquals(TRIM_END - TRIM_START, render.duration)
-    assertEquals(TRIM_START.inWholeMicroseconds.toDouble(), render.clips.single().trimStartUs)
+    val plan = lowering.verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.path shouldBe ExportPath.Transcode
+    withClue("the plan blamed ${plan.copyBlockedBy}") {
+      (CopyBlocker.ClipHasEffects in plan.copyBlockedBy) shouldBe true
+    }
+    val render = lowering.graph.shouldNotBeNull()
+    render.duration shouldBe TRIM_END - TRIM_START
+    render.clips.single().trimStartUs shouldBe TRIM_START.inWholeMicroseconds.toDouble()
   }
 
   // An HDR source goes through the same HdrMode negotiation media3 and AVFoundation use, so it is
@@ -468,7 +490,7 @@ class BrowserPlannerTest {
         spec,
         infos = mapOf(clip.source to info(hdr = HdrTransfer.Hlg)),
       ).verdict
-    assertIs<Verdict.Incapable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Incapable>()
   }
 
   // The single WebGL pass has no tone-map stage, so a source it can neither encode nor copy has
@@ -477,26 +499,27 @@ class BrowserPlannerTest {
   fun hdrIsRefusedByDefaultWhenItCanNeitherEncodeNorCopy() {
     val clip = Clip(source("a"))
     val verdict = lower(compositionOf(listOf(clip)), infos = mapOf(clip.source to info(hdr = HdrTransfer.Hlg))).verdict
-    assertIs<Verdict.Incapable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Incapable>()
   }
 
   // An untouched clip needs no WebGL pass at all, so mediabunny's packet copy carries HDR through
   // exactly whatever this backend's own encoder can do, which is the case the tone-map refusal above
   // does not cover.
   @Test
-  fun anUntouchedHdrClipTransmuxesRatherThanBeingRefused() {
+  fun anUntouchedHdrClipCopiesRatherThanBeingRefused() {
     val clip = Clip(source("a"))
     val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
     val infos = mapOf(clip.source to info(hdr = HdrTransfer.Hlg, codec = "hvc1"))
 
     val lowering = lower(composition, ExportSpec(), infos)
 
-    val plan = assertIs<Verdict.Capable>(lowering.verdict).plan
-    assertEquals(ExportPath.Transmux, plan.path)
+    val plan = lowering.verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.path shouldBe ExportPath.Copy
     // The copy carries the source's own grade, and the render says which one so the muxer tags it
     // rather than guessing. Claiming Capable alone would pass just as well for a silent SDR write.
-    assertEquals(HdrTransfer.Hlg, assertNotNull(lowering.render).hdrTransfer)
-    assertNull(lowering.render.encoderCodec, "a copy opens no encoder, so it names no codec string")
+    val render = lowering.graph.shouldNotBeNull()
+    render.hdrTransfer shouldBe HdrTransfer.Hlg
+    withClue("a copy opens no encoder, so it names no codec string") { render.videoEncoding.shouldBeNull() }
   }
 
   // A browser's default decoder keeps an HDR frame opaque above some size, and HEVC has no software
@@ -519,11 +542,10 @@ class BrowserPlannerTest {
         opaque = setOf(clip.source),
       ).verdict
 
-    val reasons = assertIs<Verdict.Incapable>(verdict).reasons
-    assertTrue(
-      reasons.any { it.message.contains("opaque frame") },
-      "the refusal was ${reasons.map { it.message }}, which does not say the source is the reason",
-    )
+    val reasons = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons
+    withClue("the refusal was ${reasons.map { it.message }}, which does not say the source is the reason") {
+      reasons.any { it.message.contains("opaque frame") } shouldBe true
+    }
   }
 
   // Nothing about a source is wrong when the device simply has no HDR encoder, so the refusal stays
@@ -537,11 +559,10 @@ class BrowserPlannerTest {
 
     val verdict = lower(composition, spec, infos).verdict
 
-    val reasons = assertIs<Verdict.Incapable>(verdict).reasons
-    assertTrue(
-      reasons.none { it.message.contains("opaque frame") },
-      "the refusal blamed the source where the device is what has no encoder",
-    )
+    val reasons = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons
+    withClue("the refusal blamed the source where the device is what has no encoder") {
+      reasons.none { it.message.contains("opaque frame") } shouldBe true
+    }
   }
 
   // There is no browser encoder for HEVC Main10, so an HDR export that has to encode pins the
@@ -557,24 +578,26 @@ class BrowserPlannerTest {
 
     val lowering = lower(composition, spec, infos, device)
 
-    val plan = assertIs<Verdict.Capable>(lowering.verdict).plan
-    assertEquals(ExportPath.Transcode, plan.path)
-    assertEquals(VideoCodec.Vp9, plan.output.videoCodec)
-    assertEquals(HdrTransfer.Hlg, assertNotNull(lowering.render).hdrTransfer)
+    val plan = lowering.verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.path shouldBe ExportPath.Transcode
+    plan.output.videoCodec shouldBe VideoCodec.Vp9
+    lowering.graph.shouldNotBeNull().hdrTransfer shouldBe HdrTransfer.Hlg
     // The codec alone does not settle the bit depth: VP9 Profile 0 is 8-bit and would write an SDR
     // stream into a file tagged BT.2020.
-    assertEquals(HDR_VP9_CODEC, lowering.render?.encoderCodec)
+    lowering.graph?.videoEncoding?.encoderCodec shouldBe HDR_VP9_CODEC
   }
 
   // ffmpeg and the mobile backends stream-copy an untouched clip straight through. This pipeline
   // now can too: mediabunny reads the source's packets and writes them into a new container with
   // no decode, draw or encode step, so a request for exactly what the source already is claims it.
   @Test
-  fun untouchedCompositionClaimsPassthrough() {
+  fun untouchedCompositionClaimsACopy() {
     val composition =
       EditComposition(tracks = listOf(Track(listOf(Clip(source("a"))))), audio = AudioSpec.Keep)
     val verdict = lower(composition, ExportSpec()).verdict
-    assertEquals(true, assertIs<Verdict.Capable>(verdict).plan.estimate.isPassthrough)
+    verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.estimate.isCopy shouldBe true
   }
 
   // mediabunny's writer carries VP8 and Vorbis into mp4, which is more than the shared mp4 baseline
@@ -588,13 +611,13 @@ class BrowserPlannerTest {
 
     val verdict = lower(composition, ExportSpec(), infos).verdict
 
-    assertEquals(ExportPath.Transmux, assertIs<Verdict.Capable>(verdict).plan.path)
+    verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Copy
   }
 
   // On a copy, ExportPlanner reports the source's own codec in output.videoCodec rather than the
   // ladder's pick, and VideoCodec has entries webCodecString/muxCodecKey never encode. Planning
   // must succeed rather than throw
-  // building fields an encode never runs, and render.container has to say so rather than disagree
+  // building fields an encode never runs, and render.videoEncoding has to say so rather than disagree
   // with the mp4 a copy actually writes.
   @Test
   fun anUntouchedVp8OrAv1SourcePlansWithoutThrowing() {
@@ -603,20 +626,27 @@ class BrowserPlannerTest {
       val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
       val lowering = lower(composition, ExportSpec(), infos = mapOf(clip.source to info(codec = codecName)))
 
-      val plan = assertIs<Verdict.Capable>(lowering.verdict).plan
-      assertEquals(expected, plan.output.videoCodec, "codec $codecName")
-      assertNull(assertNotNull(lowering.render).container, "codec $codecName")
+      val plan = lowering.verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+      withClue("codec $codecName") { plan.output.videoCodec shouldBe expected }
+      withClue("codec $codecName") {
+        lowering.graph
+          .shouldNotBeNull()
+          .videoEncoding
+          .shouldBeNull()
+      }
     }
   }
 
-  // canCopy refusing a codec falls back to a normal transcode rather than a refusal or a broken
+  // muxerAccepts refusing a codec falls back to a normal transcode rather than a refusal or a broken
   // copy. Audio is off here to isolate that fallback from anything about audio.
   @Test
   fun uncopyableCodecStillPlansTranscode() {
     val clip = Clip(source("a"))
     val spec = ExportSpec(videoCodec = VideoCodec.Auto, audioCodec = AudioCodec.None)
     val verdict = lower(compositionOf(listOf(clip)), spec, infos = mapOf(clip.source to info(codec = "theora"))).verdict
-    assertEquals(false, assertIs<Verdict.Capable>(verdict).plan.estimate.isPassthrough)
+    verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.estimate.isCopy shouldBe false
   }
 
   // AudioSpec.AudioOnly writes a file with an audio track and nothing else. The plan has to say so
@@ -629,20 +659,20 @@ class BrowserPlannerTest {
     val lowering =
       planner.lower(
         composition,
-        spec,
-        device(VideoCodec.H264, audio = listOf(AudioEncoderCapability(AudioCodec.Aac, listOf(48_000), 2))),
-        mapOf(clip.source to info(audio = AudioTrackInfo(trackCodecOf("mp4a"), 48_000, 2, null))),
+        Ask(
+          spec,
+          device(VideoCodec.H264, audio = listOf(AudioEncoderCapability(AudioCodec.Aac, listOf(48_000), 2))),
+          mapOf(clip.source to info(audio = AudioTrackInfo(trackCodecOf("mp4a"), 48_000, 2, null))),
+        ),
       )
 
-    assertIs<Verdict.Capable>(lowering.verdict)
-    val render = assertNotNull(lowering.render)
-    assertEquals(false, render.writesVideo)
-    assertEquals(emptyList(), render.clips)
-    assertNull(render.encoderCodec)
-    assertNull(render.muxCodec)
-    assertNull(render.container)
-    assertEquals(0L, render.estimatedFrames)
-    assertEquals(48_000, assertNotNull(render.audioFormat).sampleRate)
+    lowering.verdict.shouldBeInstanceOf<Verdict.Capable>()
+    val render = lowering.graph.shouldNotBeNull()
+    render.writesVideo shouldBe false
+    render.clips shouldBe emptyList()
+    render.videoEncoding.shouldBeNull()
+    render.estimatedFrames shouldBe 0L
+    render.audioFormat.shouldNotBeNull().sampleRate shouldBe 48_000
   }
 
   // The mixer renders in windows, so a long timeline costs a window at a time and there is nothing
@@ -651,20 +681,27 @@ class BrowserPlannerTest {
   fun aLongMixIsPlannedRatherThanRefused() {
     val lowering = mixExport()
 
-    assertIs<Verdict.Capable>(lowering.verdict)
-    assertEquals(48_000, assertNotNull(assertNotNull(lowering.render).audioFormat).sampleRate)
+    lowering.verdict.shouldBeInstanceOf<Verdict.Capable>()
+    lowering.graph
+      .shouldNotBeNull()
+      .audioFormat
+      .shouldNotBeNull()
+      .sampleRate shouldBe 48_000
   }
 
   @Test
   fun aLongCopyStillCopies() {
     val lowering = mixExport(spec = ExportSpec())
 
-    assertIs<Verdict.Capable>(lowering.verdict)
-    assertNull(assertNotNull(lowering.render).encoderCodec)
+    lowering.verdict.shouldBeInstanceOf<Verdict.Capable>()
+    lowering.graph
+      .shouldNotBeNull()
+      .videoEncoding
+      .shouldBeNull()
   }
 
   private fun transcodeSpec(audioCodec: AudioCodec): ExportSpec =
-    ExportSpec(targetHeight = 720, videoCodec = VideoCodec.H264, audioCodec = audioCodec)
+    ExportSpec(heightPx = 720, videoCodec = VideoCodec.H264, audioCodec = audioCodec)
 
   // One clip of a source that carries audio, running well past a single mix window by default.
   private fun mixExport(
@@ -672,18 +709,21 @@ class BrowserPlannerTest {
     duration: Duration = 30.minutes,
     sampleRate: Int = 48_000,
     channelCount: Int = 2,
-  ): BrowserLowering {
+  ): LoweredExport<BrowserRender> {
     val clip = Clip(source("a"))
     return planner.lower(
       composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep),
-      spec = spec,
-      device = device(VideoCodec.H264, audio = listOf(AudioEncoderCapability(AudioCodec.Aac, listOf(48_000), 2))),
-      infos =
-        mapOf(
-          clip.source to
-            info(
-              duration = duration,
-              audio = AudioTrackInfo(trackCodecOf("mp4a"), sampleRate, channelCount, null),
+      ask =
+        Ask(
+          spec = spec,
+          device = device(VideoCodec.H264, audio = listOf(AudioEncoderCapability(AudioCodec.Aac, listOf(48_000), 2))),
+          infos =
+            mapOf(
+              clip.source to
+                info(
+                  duration = duration,
+                  audio = AudioTrackInfo(trackCodecOf("mp4a"), sampleRate, channelCount, null),
+                ),
             ),
         ),
     )
@@ -717,19 +757,22 @@ class BrowserPlannerTest {
               ),
             audio = AudioSpec.Keep,
           ),
-        spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac, frameRate = GRID_RATE),
-        device = device(VideoCodec.H264, audio = listOf(AudioEncoderCapability(AudioCodec.Aac, listOf(48_000), 2))),
-        infos =
-          mapOf(
-            bed.source to info(width = 320, height = 240, duration = LOOP_SOURCE, audio = tone),
-            under.source to info(duration = UNDER_SOURCE, audio = tone),
+        ask =
+          Ask(
+            spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac, frameRate = GRID_RATE),
+            device = device(VideoCodec.H264, audio = listOf(AudioEncoderCapability(AudioCodec.Aac, listOf(48_000), 2))),
+            infos =
+              mapOf(
+                bed.source to info(width = 320, height = 240, duration = LOOP_SOURCE, audio = tone),
+                under.source to info(duration = UNDER_SOURCE, audio = tone),
+              ),
           ),
       )
 
-    assertIs<Verdict.Capable>(lowering.verdict)
-    val render = assertNotNull(lowering.render)
-    assertEquals(LoopingCases.UNDERLAY_RUN, render.duration)
-    assertEquals(GRID_RATE, render.frameRate)
+    lowering.verdict.shouldBeInstanceOf<Verdict.Capable>()
+    val render = lowering.graph.shouldNotBeNull()
+    render.duration shouldBe LoopingCases.UNDERLAY_RUN
+    render.frameRate shouldBe GRID_RATE
 
     // The schedule by name first, so a wrong pass count or an uncut last pass fails before any
     // geometry is compared.
@@ -739,33 +782,31 @@ class BrowserPlannerTest {
       passesCovering(LoopingCases.VIDEO_LENGTHS, render.duration - track.start).map { pass ->
         Triple(pass.index, track.start + pass.offset, track.start + pass.offset + pass.length)
       }
-    assertEquals(expected, laid.map { Triple(it.sourceIndex, it.span.start, it.span.endExclusive) })
+    laid.map { Triple(it.sourceIndex, it.span.start, it.span.endExclusive) } shouldBe expected
 
     // And the drawn clips against the laid ones rather than against those numbers again, since a
     // render working the repeat out for itself is what this pins.
-    assertEquals(laid.size, render.clips.size)
+    render.clips.size shouldBe laid.size
     var opens = render.leadFrames
     laid.forEachIndexed { index, pass ->
       val drawn = render.clips[index]
-      assertEquals(bed.source, drawn.source, "pass $index")
-      assertEquals(outputSlotOf(pass.span.start, GRID_RATE), drawn.firstSlot, "pass $index")
-      assertEquals(opens, drawn.firstSlot, "pass $index opens away from where the one before it ended")
-      assertEquals(micros(pass.start), drawn.trimStartUs, "pass $index")
-      assertEquals(micros(pass.end), drawn.trimEndUs, "pass $index")
+      withClue("pass $index") { drawn.source shouldBe bed.source }
+      withClue("pass $index") { drawn.firstSlot shouldBe outputSlotOf(pass.span.start, GRID_RATE) }
+      withClue("pass $index opens away from where the one before it ended") { drawn.firstSlot shouldBe opens }
+      withClue("pass $index") { drawn.trimStartUs shouldBe micros(pass.start) }
+      withClue("pass $index") { drawn.trimEndUs shouldBe micros(pass.end) }
       opens = drawn.firstSlot + drawn.frames
     }
-    assertEquals(
-      outputSlotOf(checkNotNull(laid.last().span.endExclusive), GRID_RATE),
-      render.leadFrames + render.clips.sumOf { it.frames },
-    )
+    render.leadFrames + render.clips.sumOf { it.frames } shouldBe
+      outputSlotOf(checkNotNull(laid.last().span.endExclusive), GRID_RATE)
     // The loop runs the primary to the composition's end, so nothing is left for a held frame to cover.
-    render.clips.forEachIndexed { index, drawn -> assertEquals(0L, drawn.heldFrames, "pass $index") }
+    render.clips.forEachIndexed { index, drawn -> withClue("pass $index") { drawn.heldFrames shouldBe 0L } }
 
     // The track underneath does not loop, so it lays its one clip once across the whole run and
     // nothing about the primary's repeat reaches it.
     val beneath = render.audioTracks[1].clips.single()
-    assertEquals(Duration.ZERO, beneath.span.start)
-    assertEquals(LoopingCases.UNDERLAY_RUN, beneath.span.endExclusive)
+    beneath.span.start shouldBe Duration.ZERO
+    beneath.span.endExclusive shouldBe LoopingCases.UNDERLAY_RUN
   }
 
   // A primary that starts late draws every pass on the slot the grid puts it on, and the slots in
@@ -778,20 +819,20 @@ class BrowserPlannerTest {
     val composition =
       EditComposition(tracks = listOf(Track(listOf(first, second), start = LATE_START)), audio = AudioSpec.Remove)
 
-    val render = assertNotNull(lower(composition).render)
+    val render = lower(composition).graph.shouldNotBeNull()
 
     val laid = render.audioTracks.first().clips
-    assertEquals(LATE_START, laid.first().span.start)
-    assertEquals(laid.size, render.clips.size)
+    laid.first().span.start shouldBe LATE_START
+    render.clips.size shouldBe laid.size
     laid.forEachIndexed { index, pass ->
-      assertEquals(outputSlotOf(pass.span.start, render.frameRate), render.clips[index].firstSlot, "clip $index")
+      withClue("clip $index") { render.clips[index].firstSlot shouldBe outputSlotOf(pass.span.start, render.frameRate) }
     }
 
-    assertEquals(outputSlotOf(LATE_START, render.frameRate), render.leadFrames)
-    assertEquals(render.leadFrames + render.clips.sumOf { it.frames }, render.estimatedFrames)
+    render.leadFrames shouldBe outputSlotOf(LATE_START, render.frameRate)
+    render.estimatedFrames shouldBe render.leadFrames + render.clips.sumOf { it.frames }
     // No gap slot reaches the first clip, so the timestamps the pipeline writes keep climbing
     // across the seam.
-    assertEquals(render.leadFrames, render.clips.first().firstSlot)
+    render.clips.first().firstSlot shouldBe render.leadFrames
   }
 
   // The gap is the slot the shared grid puts the start on, which is what ffmpeg's tpad pads the same
@@ -808,7 +849,9 @@ class BrowserPlannerTest {
       // Under half a slot.
       10.milliseconds to 30,
     ).forEach { (start, frameRate) ->
-      assertEquals(outputSlotOf(start, frameRate), leadOf(start, frameRate), "a start of $start at $frameRate fps")
+      withClue("a start of $start at $frameRate fps") {
+        leadOf(start, frameRate) shouldBe outputSlotOf(start, frameRate)
+      }
     }
   }
 
@@ -820,19 +863,19 @@ class BrowserPlannerTest {
       EditComposition(tracks = listOf(Track(listOf(Clip(source("a"))), start = start)), audio = AudioSpec.Remove)
     val spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None, frameRate = frameRate)
 
-    val render = assertNotNull(lower(composition, spec).render)
-    assertEquals(frameRate, render.frameRate, "the plan ran at another rate than $start was measured against")
+    val render = lower(composition, spec).graph.shouldNotBeNull()
+    withClue("the plan ran at another rate than $start was measured against") { render.frameRate shouldBe frameRate }
     return render.leadFrames
   }
 
   // A primary with no gap leads with nothing, and its first clip opens the composition.
   @Test
   fun aPrimaryThatStartsWithTheCompositionHasNoLead() {
-    val render = assertNotNull(lower(compositionOf(listOf(Clip(source("a"))))).render)
+    val render = lower(compositionOf(listOf(Clip(source("a"))))).graph.shouldNotBeNull()
 
-    assertEquals(0L, render.leadFrames)
-    assertEquals(0L, render.clips.single().firstSlot)
-    assertEquals(render.clips.single().frames, render.estimatedFrames)
+    render.leadFrames shouldBe 0L
+    render.clips.single().firstSlot shouldBe 0L
+    render.estimatedFrames shouldBe render.clips.single().frames
   }
 
   // A clip trimmed a quarter of a slot past a whole one covers the slots its span does and no more,
@@ -843,12 +886,12 @@ class BrowserPlannerTest {
     val first = Clip(source("a"), trim = TimeRange(Duration.ZERO, OFF_GRID_LENGTH))
     val second = Clip(source("b"))
 
-    val render = assertNotNull(lower(compositionOf(listOf(first, second)), gridSpec()).render)
+    val render = lower(compositionOf(listOf(first, second)), gridSpec()).graph.shouldNotBeNull()
 
     val laid = render.audioTracks.first().clips
-    assertEquals(outputSlotsOf(laid.first().span, GRID_RATE).count().toLong(), render.clips.first().frames)
-    assertEquals(render.clips.first().firstSlot + render.clips.first().frames, render.clips.last().firstSlot)
-    assertEquals(outputSlotOf(checkNotNull(laid.last().span.endExclusive), GRID_RATE), render.estimatedFrames)
+    render.clips.first().frames shouldBe outputSlotsOf(laid.first().span, GRID_RATE).count().toLong()
+    render.clips.last().firstSlot shouldBe render.clips.first().firstSlot + render.clips.first().frames
+    render.estimatedFrames shouldBe outputSlotOf(checkNotNull(laid.last().span.endExclusive), GRID_RATE)
   }
 
   // Exactly half a slot in. The gap takes the slot the grid rounds the start onto, and the first clip
@@ -861,10 +904,10 @@ class BrowserPlannerTest {
         audio = AudioSpec.Remove,
       )
 
-    val render = assertNotNull(lower(composition, gridSpec()).render)
+    val render = lower(composition, gridSpec()).graph.shouldNotBeNull()
 
-    assertEquals(outputSlotOf(HALF_SLOT_START, GRID_RATE), render.leadFrames)
-    assertEquals(render.leadFrames, render.clips.first().firstSlot)
+    render.leadFrames shouldBe outputSlotOf(HALF_SLOT_START, GRID_RATE)
+    render.clips.first().firstSlot shouldBe render.leadFrames
   }
 
   // Ten milliseconds from a whole second never reaches the point half way to the next slot, so the
@@ -880,12 +923,14 @@ class BrowserPlannerTest {
         ),
       )
 
-    val render = assertNotNull(lower(composition, gridSpec()).render)
+    val render = lower(composition, gridSpec()).graph.shouldNotBeNull()
 
     val laid = render.audioTracks.first().clips
-    assertTrue(outputSlotsOf(laid[1].span, GRID_RATE).isEmpty(), "a span of $UNDER_HALF_SLOT covers a slot of its own")
-    assertEquals(0L, render.clips[1].frames)
-    assertEquals(render.clips[0].firstSlot + render.clips[0].frames, render.clips[2].firstSlot)
+    withClue("a span of $UNDER_HALF_SLOT covers a slot of its own") {
+      outputSlotsOf(laid[1].span, GRID_RATE).isEmpty() shouldBe true
+    }
+    render.clips[1].frames shouldBe 0L
+    render.clips[2].firstSlot shouldBe render.clips[0].firstSlot + render.clips[0].frames
   }
 
   // A bed that outlasts the primary sets the composition's length, and the render holds the primary's last clip over
@@ -900,18 +945,18 @@ class BrowserPlannerTest {
       )
     val lowering = lowerUnderABed(primary)
 
-    val resolved = checkNotNull(lowering.export.composition).toResolvedComposition()
-    val render = assertNotNull(lowering.render)
+    val resolved = checkNotNull(lowering.export.composition)
+    val render = lowering.graph.shouldNotBeNull()
     val tail = resolved.heldTail
-    assertFalse(tail.isEmpty(), "a bed of $BED_SOURCE under a shorter primary left no tail")
+    withClue("a bed of $BED_SOURCE under a shorter primary left no tail") { tail.isEmpty() shouldBe false }
 
     val laid = render.audioTracks.first().clips
     val last = render.clips.last()
-    assertEquals(outputSlotsOf(laid.last().span, GRID_RATE).count().toLong(), last.frames)
-    assertEquals(tail.count().toLong(), last.heldFrames)
-    assertEquals(last.firstSlot + last.frames, tail.first)
-    render.clips.dropLast(1).forEachIndexed { index, clip -> assertEquals(0L, clip.heldFrames, "clip $index") }
-    assertEquals(resolved.videoSlots, render.estimatedFrames)
+    last.frames shouldBe outputSlotsOf(laid.last().span, GRID_RATE).count().toLong()
+    last.heldFrames shouldBe tail.count().toLong()
+    tail.first shouldBe last.firstSlot + last.frames
+    render.clips.dropLast(1).forEachIndexed { index, clip -> withClue("clip $index") { clip.heldFrames shouldBe 0L } }
+    render.estimatedFrames shouldBe resolved.videoSlots
   }
 
   // Nothing outlasts the primary here, so no clip holds and the render walks the slots the grid gives the composition.
@@ -921,11 +966,13 @@ class BrowserPlannerTest {
       compositionOf(listOf(Clip(source("a")), Clip(source("b"), trim = TimeRange(Duration.ZERO, OFF_GRID_LENGTH))))
     val lowering = lower(composition, gridSpec())
 
-    val resolved = checkNotNull(lowering.export.composition).toResolvedComposition()
-    val render = assertNotNull(lowering.render)
-    assertTrue(resolved.heldTail.isEmpty(), "a primary with nothing under it left a tail of ${resolved.heldTail}")
-    render.clips.forEachIndexed { index, clip -> assertEquals(0L, clip.heldFrames, "clip $index") }
-    assertEquals(resolved.videoSlots, render.estimatedFrames)
+    val resolved = checkNotNull(lowering.export.composition)
+    val render = lowering.graph.shouldNotBeNull()
+    withClue("a primary with nothing under it left a tail of ${resolved.heldTail}") {
+      resolved.heldTail.isEmpty() shouldBe true
+    }
+    render.clips.forEachIndexed { index, clip -> withClue("clip $index") { clip.heldFrames shouldBe 0L } }
+    render.estimatedFrames shouldBe resolved.videoSlots
   }
 
   // A last clip too short to cover a slot draws nothing, so the frame held over the tail is the one the clip before it
@@ -935,17 +982,17 @@ class BrowserPlannerTest {
     val lowering =
       lowerUnderABed(listOf(Clip(source("a")), Clip(source("b"), trim = TimeRange(Duration.ZERO, UNDER_HALF_SLOT))))
 
-    val resolved = checkNotNull(lowering.export.composition).toResolvedComposition()
-    val render = assertNotNull(lowering.render)
+    val resolved = checkNotNull(lowering.export.composition)
+    val render = lowering.graph.shouldNotBeNull()
     val tail = resolved.heldTail
-    assertFalse(tail.isEmpty(), "a bed of $BED_SOURCE under a shorter primary left no tail")
+    withClue("a bed of $BED_SOURCE under a shorter primary left no tail") { tail.isEmpty() shouldBe false }
 
     val (covered, empty) = render.clips
-    assertEquals(0L, empty.frames)
-    assertEquals(0L, empty.heldFrames)
-    assertEquals(tail.count().toLong(), covered.heldFrames)
-    assertEquals(covered.firstSlot + covered.frames, tail.first)
-    assertEquals(resolved.videoSlots, render.estimatedFrames)
+    empty.frames shouldBe 0L
+    empty.heldFrames shouldBe 0L
+    covered.heldFrames shouldBe tail.count().toLong()
+    tail.first shouldBe covered.firstSlot + covered.frames
+    render.estimatedFrames shouldBe resolved.videoSlots
   }
 
   /**
@@ -954,7 +1001,7 @@ class BrowserPlannerTest {
    * The bed's source carries no audio, so nothing is mixed and the bed does no more than set how long the composition
    * runs.
    */
-  private fun lowerUnderABed(primary: List<Clip>): BrowserLowering {
+  private fun lowerUnderABed(primary: List<Clip>): LoweredExport<BrowserRender> {
     val bed = Clip(source("bed"))
     val composition =
       EditComposition(
@@ -975,24 +1022,27 @@ class BrowserPlannerTest {
         tracks = listOf(Track(listOf(Clip(source("a")))), Track(listOf(Clip(source("b"))))),
         audio = AudioSpec.Remove,
       )
-    assertIs<Verdict.Incapable>(lower(composition).verdict)
+    lower(composition).verdict.shouldBeInstanceOf<Verdict.Incapable>()
   }
 
   @Test
   fun vp9GoesToWebm() {
     val spec = ExportSpec(videoCodec = VideoCodec.Vp9, audioCodec = AudioCodec.None)
     val lowering = lower(compositionOf(listOf(Clip(source("a")))), spec)
-    assertIs<Verdict.Capable>(lowering.verdict)
-    assertEquals("webm", assertNotNull(lowering.render).container)
+    lowering.verdict.shouldBeInstanceOf<Verdict.Capable>()
+    lowering.graph
+      .shouldNotBeNull()
+      .videoEncoding
+      ?.container shouldBe "webm"
   }
 
   @Test
   fun parityIsExactForSupportedAndNullForTheRest() {
-    val prober = MediaProber { ProbeResult.Failure(ExportError.SourceUnreadable("", "unused by this test")) }
+    val prober = MediaProber { ProbeResult.Failure(FilmstripError.SourceUnreadable("", "unused by this test")) }
     val engine = BrowserExportEngine(ComponentRegistry.Builder().build(), prober)
-    assertEquals(EffectParity.Exact, engine.parityOf(EffectIds.CROP))
-    COLOR_IDS.forEach { id -> assertEquals(EffectParity.Exact, engine.parityOf(id), id) }
-    assertNull(engine.parityOf(EffectIds.ROTATE))
+    engine.parityOf(EffectIds.CROP) shouldBe EffectParity.Exact
+    COLOR_IDS.forEach { id -> withClue(id) { engine.parityOf(id) shouldBe EffectParity.Exact } }
+    engine.parityOf(EffectIds.ROTATE).shouldBeNull()
   }
 
   private fun matrixOf(spec: EffectSpec): FloatArray = checkNotNull(colorMatrixOf(spec)).toColumnMajor4x4()
@@ -1013,8 +1063,8 @@ class BrowserPlannerTest {
 
   private fun source(name: String): MediaSource = MediaSource.Bytes(name.encodeToByteArray())
 
-  private fun videoSpec(targetHeight: Int? = null): ExportSpec =
-    ExportSpec(targetHeight = targetHeight, videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None)
+  private fun videoSpec(heightPx: Int? = null): ExportSpec =
+    ExportSpec(heightPx = heightPx, videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None)
 
   private fun info(
     width: Int = 1920,

@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.geometry.crop
@@ -28,11 +29,15 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
-import dev.jordond.filmstrip.media.authoredHdrNits
 import dev.jordond.filmstrip.style.TextStyle
-import dev.jordond.filmstrip.test.AuthoredColours
+import dev.jordond.filmstrip.test.AuthoredColors
 import dev.jordond.filmstrip.test.HdrOverlayCells
 import dev.jordond.filmstrip.test.OverlayPixels
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
@@ -41,10 +46,6 @@ import kotlinx.coroutines.withContext
 import platform.Foundation.NSFileManager
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
@@ -57,7 +58,7 @@ import kotlin.time.Duration.Companion.seconds
  * A square crop of the 16:9 HDR fixtures leaves a bar above and below the picture that only the fill paints, so the
  * light under every overlay is [authoredHdrNits] of the fill. The grid is [HdrOverlayCells.CELLS], one export per fill
  * and opacity, and each cell is held to [HdrOverlayCells.Cell.codes]. An opaque overlay lands where a fill of its
- * colour does and a partly opaque one blends with the bar in linear light. A blend that misses is reported next to
+ * color does and a partly opaque one blends with the bar in linear light. A blend that misses is reported next to
  * where the cell's signal blend and sRGB blend land, so the failure says which wrong blend ran.
  *
  * A case fails when its fixture is missing, as in [AppleExportTest].
@@ -79,7 +80,10 @@ class AppleOverlayHdrTest {
               ImageOverlay(ImageSource.ofBytes(png), CORNERS[index], opacity = cell.opacity)
             }
           exported(transfer, "image", cells.first().background, badges) { path, size ->
-            val frame = assertNotNull(hdrFrameOf(path), "could not decode a frame of the $transfer export")
+            val frame =
+              withClue("could not decode a frame of the $transfer export") {
+                hdrFrameOf(path).shouldNotBeNull()
+              }
             badges.zip(cells).forEach { (badge, cell) ->
               val rect = badge.placedOn(size, RASTER).rectOn(size)
               val x = (rect.left + rect.right) / 2f
@@ -90,10 +94,10 @@ class AppleOverlayHdrTest {
         }
       }
 
-      assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+      withClue(misses.joinToString("\n")) { misses.isEmpty().shouldBeTrue() }
     }
 
-  // The plate and the glyphs share one colour, so every pixel of the block is that colour whatever the font lays out,
+  // The plate and the glyphs share one color, so every pixel of the block is that color whatever the font lays out,
   // and a point one cap height in from the anchored corner is inside it.
   @Test
   fun `text on a kept grade lands where the shared blend puts it`() =
@@ -110,7 +114,10 @@ class AppleOverlayHdrTest {
               TextOverlay(CAPTION, style, ANCHORS[index], animation = held)
             }
           exported(transfer, "text", cells.first().background, captions) { path, size ->
-            val frame = assertNotNull(hdrFrameOf(path), "could not decode a frame of the $transfer export")
+            val frame =
+              withClue("could not decode a frame of the $transfer export") {
+                hdrFrameOf(path).shouldNotBeNull()
+              }
             captions.zip(cells).forEach { (caption, cell) ->
               val anchor = caption.anchor
               val x = anchor.x + (1f - 2f * anchor.x) * FONT_SIZE * size.height / size.width
@@ -121,7 +128,7 @@ class AppleOverlayHdrTest {
         }
       }
 
-      assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+      withClue(misses.joinToString("\n")) { misses.isEmpty().shouldBeTrue() }
     }
 
   // Read inside the written file at a quarter and three quarters of the ramp. Both ends of a ramp agree whether the
@@ -139,24 +146,28 @@ class AppleOverlayHdrTest {
       exported(transfer, "fade", BAR, listOf(faded)) { path, size ->
         val rect = faded.placedOn(size, RASTER).rectOn(size)
         RAMP_POINTS.forEach { time ->
-          val opacity = assertNotNull(faded.frameAt(time, SPAN), "the badge was not drawn at $time").opacity
-          val frame = assertNotNull(hdrFrameOf(path, time), "could not decode the frame at $time")
+          val opacity =
+            withClue("the badge was not drawn at $time") {
+              faded.frameAt(time, SPAN).shouldNotBeNull()
+            }.opacity
+          val frame = withClue("could not decode the frame at $time") { hdrFrameOf(path, time).shouldNotBeNull() }
           val x = (rect.left + rect.right) / 2f
           val y = (rect.top + rect.bottom) / 2f
           misses += missed(frame, transfer, HdrOverlayCells.Cell(white, BAR, opacity), x, y, "fade at $time")
         }
       }
 
-      assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+      withClue(misses.joinToString("\n")) { misses.isEmpty().shouldBeTrue() }
     }
 
   @Test
   fun `a blend is held to a bound a wrong blend falls outside`() {
-    assertTrue(
-      BLEND_TOLERANCE <= HdrOverlayCells.MAX_BLEND_TOLERANCE,
+    withClue(
       "a blend held to $BLEND_TOLERANCE codes would pass a wrong blend, which the cells only promise to miss by " +
         "more than ${HdrOverlayCells.MAX_BLEND_TOLERANCE}",
-    )
+    ) {
+      (BLEND_TOLERANCE <= HdrOverlayCells.MAX_BLEND_TOLERANCE).shouldBeTrue()
+    }
   }
 
   /**
@@ -213,7 +224,7 @@ class AppleOverlayHdrTest {
           overlays.forEach { add(it) }
         }
       }
-    val spec = ExportSpec(targetHeight = 720, hdr = HdrMode.KeepHdr)
+    val spec = ExportSpec(heightPx = 720, hdr = HdrMode.KeepHdr)
     val plan =
       when (val verdict = filmstrip.plan(composition, spec)) {
         is Verdict.Capable -> verdict.plan
@@ -223,12 +234,21 @@ class AppleOverlayHdrTest {
 
     val finished = withContext(Dispatchers.Default) { filmstrip.export(plan, MediaSink.Temporary).toList() }.last()
     if (finished is ExportStatus.Failure) error("export failed: ${finished.error.message}")
-    val path = assertIs<MediaSink.Path>(assertIs<ExportStatus.Success>(finished).output).path
+    val path =
+      finished
+        .shouldBeInstanceOf<ExportStatus.Success>()
+        .output
+        .shouldBeInstanceOf<MediaSink.Path>()
+        .path
 
     try {
-      val written = assertIs<ProbeResult.Success>(filmstrip.probe(MediaSource.of(path))).info.video
-      assertEquals(transfer, written?.hdrTransfer, "a $transfer grade was written as ${written?.hdrTransfer}")
-      read(path, assertNotNull(written).displaySize)
+      val written =
+        filmstrip
+          .probe(MediaSource.of(path))
+          .shouldBeInstanceOf<ProbeResult.Success>()
+          .info.video
+      written?.hdrTransfer shouldBe transfer
+      read(path, written.shouldNotBeNull().displaySize)
     } finally {
       NSFileManager.defaultManager.removeItemAtPath(path, error = null)
     }
@@ -244,7 +264,7 @@ class AppleOverlayHdrTest {
     val RAMP = 800.milliseconds
     val RAMP_POINTS = listOf(RAMP / 4, RAMP * 3 / 4)
 
-    const val BAR = AuthoredColours.MID_GREY
+    const val BAR = AuthoredColors.MID_GREY
 
     // A blend is read off the same encode as the fill, so it holds to the fill's own bound.
     const val BLEND_TOLERANCE = FILL_CODE_TOLERANCE

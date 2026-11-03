@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.color.sdrSignalCeiling
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
@@ -19,20 +20,19 @@ import dev.jordond.filmstrip.effects.color.RgbAdjustment
 import dev.jordond.filmstrip.effects.color.Saturation
 import dev.jordond.filmstrip.effects.color.Sepia
 import dev.jordond.filmstrip.effects.color.colorMatrixOf
-import dev.jordond.filmstrip.ffmpeg.internal.render
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.render
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.sdrSignalCeiling
+import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
-// What a colour effect on a kept grade lowers to: the frame's codes onto float planes one plane at a time, a table and
+// What a color effect on a kept grade lowers to: the frame's codes onto float planes one plane at a time, a table and
 // mixer rows that decode them to the signal, a warp on PQ and the curve to the scaled SDR signal, the matrix, a warp
 // and the curve back onto the signal, mixer rows and a table that round it to whole codes, and the way back into the
 // grade's codes.
@@ -40,7 +40,7 @@ private val FRONT = listOf("setrange", PlaneLanes.NAME, "lut1d", "colorchannelmi
 private val TAIL = listOf("lut1d", "lut1d", "colorchannelmixer", "lut1d", "format", "mergeplanes", "format")
 
 /**
- * How a colour effect on a kept HDR grade lowers onto lut1d and colorchannelmixer, each table a sidecar the graph
+ * How a color effect on a kept HDR grade lowers onto lut1d and colorchannelmixer, each table a sidecar the graph
  * names.
  *
  * The figures the tables hold are checked in the effects module against core's own. Here the chain's shape, the tables
@@ -83,7 +83,9 @@ class GradedLoweringTest {
       val pq = fragmentOf(spec, HdrTransfer.Pq).sidecars.toSet()
       val hlg = fragmentOf(spec, HdrTransfer.Hlg).sidecars.toSet()
 
-      assertTrue(pq != hlg, "one set of tables served both transfer functions, so one of them is wrong")
+      withClue("one set of tables served both transfer functions, so one of them is wrong") {
+        (pq != hlg) shouldBe true
+      }
     }
   }
 
@@ -97,7 +99,7 @@ class GradedLoweringTest {
   // The planes are carried onto float one at a time, the first and last tables read the entry nearest a code and every
   // table between them interpolates.
   @Test
-  fun `lowers every colour matrix on a kept grade`() {
+  fun `lowers every color matrix on a kept grade`() {
     val specs =
       listOf(RgbAdjustment(red = 1.2f), Contrast(STRETCH), Invert()) +
         listOf(Saturation(HALF), HueRotate(QUARTER_TURN), Sepia(), ColorMatrix(rg = HALF), BIASED_MIX)
@@ -149,7 +151,9 @@ class GradedLoweringTest {
         corners
       }
 
-    assertTrue(tables[0][0] != tables[1][0], "one table served both transfer functions, so one of them is wrong")
+    withClue("one table served both transfer functions, so one of them is wrong") {
+      (tables[0][0] != tables[1][0]) shouldBe true
+    }
   }
 
   private fun FilterFragment.readsEveryTableAsASidecar() {
@@ -181,7 +185,7 @@ class GradedLoweringTest {
     expected: Float,
     what: String,
   ) {
-    assertTrue(abs(read - expected) <= TOLERANCE, "$what read $read, expected $expected")
+    withClue("$what read $read, expected $expected") { (abs(read - expected) <= TOLERANCE) shouldBe true }
   }
 
   private fun fragmentOf(
@@ -189,7 +193,7 @@ class GradedLoweringTest {
     transfer: HdrTransfer,
   ): FilterFragment {
     val resolution = resolver.resolve(spec, capabilities(), attributes(transfer))
-    assertIs<EffectResolution.Resolved>(resolution)
+    resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
     return resolution.effect.fragment
   }
 

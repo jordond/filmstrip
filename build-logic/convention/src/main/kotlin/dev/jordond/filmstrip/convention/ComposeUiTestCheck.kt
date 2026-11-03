@@ -1,26 +1,56 @@
 package dev.jordond.filmstrip.convention
 
 import org.gradle.api.Project
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.artifacts.result.ResolvedComponentResult
+import org.gradle.api.artifacts.result.ResolvedDependencyResult
+import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
+import org.jetbrains.kotlin.gradle.plugin.KotlinCompilation
 
-private val WEB_TARGETS =
-  mapOf(
-    "Js" to listOf("commonTest", "webTest", "jsTest"),
-    "WasmJs" to listOf("commonTest", "webTest", "wasmJsTest"),
-  )
+private const val CHECK_TASK_PREFIX = "checkComposeUiTestConfigurationFor"
+private const val UI_TEST_GROUP = "org.jetbrains.compose.ui"
+private const val UI_TEST_MODULE = "ui-test"
 
 /**
- * Skips the Compose web UI test check on a module that has no tests for it to look at.
+ * Runs the Compose web UI test check only for a web target whose test compilation resolves Compose UI test.
  *
- * The check is registered on every web target whether or not the module has any, and it fails one
- * that has none. Declaring `binaries.executable()` to satisfy it would put a webpack bundle in a
- * published library. The check runs again on its own once one of the source sets that target
- * compiles carries a file.
+ * The Compose plugin registers `checkComposeUiTestConfigurationFor<Target>` on every web target and fails it when the
+ * test classpath carries Skiko but the target declares no `binaries.executable()`. Skiko comes along with any Compose
+ * UI library, so a module whose web tests only drive the Compose runtime would fail it too. This skips the check
+ * unless `org.jetbrains.compose.ui:ui-test` is on that target's test compile classpath, which is what
+ * `runComposeUiTest` needs and what loads the Skiko bundle. A target with no web tests resolves no `ui-test` either,
+ * so its check is skipped as well.
  */
 internal fun Project.configureComposeUiTestCheck() {
-  WEB_TARGETS.forEach { (target, sourceSets) ->
-    val sources = objects.fileCollection().from(sourceSets.map { layout.projectDirectory.dir("src/$it") })
-    tasks.matching { it.name == "checkComposeUiTestConfigurationFor$target" }.configureEach {
-      onlyIf { !sources.asFileTree.filter { file -> file.extension == "kt" }.isEmpty }
-    }
+  tasks.matching { it.name.startsWith(CHECK_TASK_PREFIX) }.configureEach {
+    val targetName = name.removePrefix(CHECK_TASK_PREFIX).replaceFirstChar { it.lowercase() }
+    val target =
+      project.extensions
+        .getByType(KotlinMultiplatformExtension::class.java)
+        .targets
+        .getByName(targetName)
+    val compilation = target.compilations.getByName(KotlinCompilation.TEST_COMPILATION_NAME)
+    val resolvesUiTest =
+      project.configurations
+        .named(compilation.compileDependencyConfigurationName)
+        .flatMap { it.incoming.resolutionResult.rootComponent }
+        .map { it.reachesUiTest() }
+    onlyIf("the web tests resolve Compose UI test") { resolvesUiTest.get() }
   }
+}
+
+private fun ResolvedComponentResult.reachesUiTest(): Boolean {
+  val seen = mutableSetOf(this)
+  val queue = ArrayDeque(listOf(this))
+  while (queue.isNotEmpty()) {
+    val component = queue.removeFirst()
+    val id = component.id
+    if (id is ModuleComponentIdentifier && id.group == UI_TEST_GROUP && id.module == UI_TEST_MODULE) return true
+    component.dependencies
+      .filterIsInstance<ResolvedDependencyResult>()
+      .map { it.selected }
+      .filter(seen::add)
+      .forEach(queue::addLast)
+  }
+  return false
 }

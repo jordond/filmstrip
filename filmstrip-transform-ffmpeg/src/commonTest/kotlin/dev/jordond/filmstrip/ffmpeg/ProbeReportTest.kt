@@ -1,6 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg
 
-import dev.jordond.filmstrip.ffmpeg.internal.parseMediaInfo
+import dev.jordond.filmstrip.ffmpeg.internal.probe.parseMediaInfo
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.CodecKind
 import dev.jordond.filmstrip.media.ColorSpace

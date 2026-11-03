@@ -47,7 +47,7 @@ public fun imageMediaInfoOf(
         // No still format any of the header reads opens stores a non-square pixel.
         pixelAspectRatio = SQUARE,
         // A still has no cadence of its own, so the output takes its rate from the clips that do
-        // and from the export spec, rather than from a number invented here.
+        // and from the export spec.
         frameRate = null,
         codec = TrackCodec(name = format, kind = CodecKind.Other),
         // A header read reports the depth for some formats and not others, and the field is

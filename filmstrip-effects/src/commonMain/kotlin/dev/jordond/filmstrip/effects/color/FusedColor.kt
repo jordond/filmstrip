@@ -5,7 +5,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effect.EffectSpec
 
 /**
- * One entry of a chain after its colour runs have been folded: the effect a backend lowers, and the
+ * One entry of a chain after its color runs have been folded: the effect a backend lowers, and the
  * effects the caller wrote that it stands for.
  *
  * @property spec What is lowered. The authored effect itself outside a run, and one effect carrying
@@ -21,7 +21,7 @@ public class FoldedSpec(
 )
 
 /**
- * Folds every run of consecutive colour matrix effects in an ordered chain into one effect.
+ * Folds every run of consecutive color matrix effects in an ordered chain into one effect.
  *
  * A backend clamps to the encoding's range as it writes, some once for the whole chain and some
  * around each effect, so where a run stops being several matrices decides what a channel pushed past
@@ -38,13 +38,13 @@ public class FoldedSpec(
 @InternalFilmstripApi
 public fun List<EffectSpec>.fusedColorMatrices(): List<FoldedSpec> {
   val folded = mutableListOf<FoldedSpec>()
-  // Each effect's matrix is worked out once here rather than once to decide the run and again to
-  // fold it, since a hue rotation and a sepia each cost trig to build.
-  val run = mutableListOf<Pair<EffectSpec, ColorMatrix>>()
+  // Each effect's matrix is worked out once here, and that one serves both to decide the run and
+  // to fold it, since a hue rotation and a sepia each cost trig to build.
+  val pending = mutableListOf<Pair<EffectSpec, ColorMatrix>>()
 
   fun flush() {
-    if (run.isEmpty()) return
-    val sources = run.map { it.first }
+    if (pending.isEmpty()) return
+    val sources = pending.map { it.first }
     val spec =
       when {
         sources.size == 1 -> {
@@ -54,17 +54,17 @@ public fun List<EffectSpec>.fusedColorMatrices(): List<FoldedSpec> {
           Brightness(sources.fold(1f) { scale, spec -> scale * (spec as Brightness).scale })
         }
         else -> {
-          run.fold(ColorMatrix.Identity) { combined, (_, matrix) -> combined.then(matrix) }
+          pending.fold(ColorMatrix.Identity) { combined, (_, matrix) -> combined.then(matrix) }
         }
       }
     folded += FoldedSpec(spec, sources)
-    run.clear()
+    pending.clear()
   }
 
   forEach { spec ->
     val matrix = colorMatrixOf(spec)
     if (matrix != null) {
-      run += spec to matrix
+      pending += spec to matrix
     } else {
       flush()
       folded += FoldedSpec(spec, listOf(spec))

@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.effect
 
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 /**
@@ -21,7 +21,7 @@ class DegradedResolutionTest {
         Degradation(DegradationReason.PrecisionReduced, "cut"),
       )
 
-    assertEquals(causes, EffectResolution.Degraded(EFFECT, causes).causes)
+    EffectResolution.Degraded(EFFECT, causes).causes shouldBe causes
   }
 
   @Test
@@ -34,18 +34,16 @@ class DegradedResolutionTest {
     val degraded = EffectResolution.Degraded(EFFECT, causes)
     causes.clear()
 
-    assertEquals(listOf(first, second, third), degraded.causes)
+    degraded.causes shouldBe listOf(first, second, third)
   }
 
   @Test
   fun `two degraded resolutions with the same effect and causes are equal`() {
     val causes = listOf(Degradation(DegradationReason.ColorSpaceConverted, "converted"))
 
-    assertEquals(EffectResolution.Degraded(EFFECT, causes), EffectResolution.Degraded(EFFECT, causes.toList()))
-    assertEquals(
-      EffectResolution.Degraded(EFFECT, causes).hashCode(),
-      EffectResolution.Degraded(EFFECT, causes.toList()).hashCode(),
-    )
+    EffectResolution.Degraded(EFFECT, causes.toList()) shouldBe EffectResolution.Degraded(EFFECT, causes)
+    EffectResolution.Degraded(EFFECT, causes.toList()).hashCode() shouldBe
+      EffectResolution.Degraded(EFFECT, causes).hashCode()
   }
 
   private companion object {

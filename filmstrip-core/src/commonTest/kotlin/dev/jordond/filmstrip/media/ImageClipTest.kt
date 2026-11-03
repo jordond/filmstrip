@@ -1,14 +1,12 @@
 package dev.jordond.filmstrip.media
 
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.edit.CompositionBuilder
-import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -21,8 +19,8 @@ class ImageClipTest {
     val a = MediaSource.Image(ImageSource.of("/photos/beach.jpg"), 5.seconds)
     val b = MediaSource.Image(ImageSource.of("/photos/beach.jpg"), 5.seconds)
 
-    assertEquals(a, b)
-    assertEquals(a.hashCode(), b.hashCode())
+    b shouldBe a
+    b.hashCode() shouldBe a.hashCode()
   }
 
   // Sources key the probe cache, so two lengths of the same photo have to stay two entries.
@@ -31,14 +29,14 @@ class ImageClipTest {
     val short = MediaSource.Image(ImageSource.of("/photos/beach.jpg"), 2.seconds)
     val long = MediaSource.Image(ImageSource.of("/photos/beach.jpg"), 5.seconds)
 
-    assertEquals(2, setOf<MediaSource>(short, long).size)
+    setOf<MediaSource>(short, long).size shouldBe 2
   }
 
   @Test
   fun anUntrimmedImageClipIsAsLongAsItsSourceSaysWithoutProbing() {
     val clip = Clip(MediaSource.Image(ImageSource.of("/photos/beach.jpg"), 5.seconds))
 
-    assertEquals(5.seconds, clip.duration)
+    clip.duration shouldBe 5.seconds
   }
 
   @Test
@@ -49,7 +47,7 @@ class ImageClipTest {
         trim = TimeRange(1.seconds, 3.seconds),
       )
 
-    assertEquals(2.seconds, clip.duration)
+    clip.duration shouldBe 2.seconds
   }
 
   // What the planner lays for the same clip, so a ruler drawn off this and the exported file agree.
@@ -61,7 +59,7 @@ class ImageClipTest {
         trim = TimeRange.from(1.seconds),
       )
 
-    assertEquals(4.seconds, clip.duration)
+    clip.duration shouldBe 4.seconds
   }
 
   @Test
@@ -72,14 +70,14 @@ class ImageClipTest {
         trim = TimeRange(1.seconds, 9.seconds),
       )
 
-    assertEquals(4.seconds, clip.duration)
+    clip.duration shouldBe 4.seconds
   }
 
   @Test
   fun anUntrimmedVideoClipStillNeedsAProbe() {
     val clip = Clip(MediaSource.of("/clips/a.mp4"))
 
-    assertNull(clip.duration)
+    clip.duration.shouldBeNull()
   }
 
   // An all-image edit folds its length up from the clips, so a slideshow reports its runtime with
@@ -92,7 +90,7 @@ class ImageClipTest {
         image(ImageSource.of("/photos/two.jpg"), 4.seconds)
       }
 
-    assertEquals(7.seconds, edit.duration)
+    edit.duration shouldBe 7.seconds
   }
 
   @Test
@@ -100,7 +98,7 @@ class ImageClipTest {
     val edit = compositionOf { image(ImageSource.of("/photos/one.jpg"), 3.seconds) }
 
     val source = edit.clips.single().source
-    assertEquals(MediaSource.Image(ImageSource.of("/photos/one.jpg"), 3.seconds), source)
+    source shouldBe MediaSource.Image(ImageSource.of("/photos/one.jpg"), 3.seconds)
   }
 
   @Test
@@ -111,8 +109,8 @@ class ImageClipTest {
       }
 
     val clip = edit.clips.single()
-    assertEquals(TimeRange(1.seconds, 3.seconds), clip.trim)
-    assertEquals(2.seconds, clip.duration)
+    clip.trim shouldBe TimeRange(1.seconds, 3.seconds)
+    clip.duration shouldBe 2.seconds
   }
 
   @Test
@@ -128,8 +126,8 @@ class ImageClipTest {
         .last()
         .clips
         .single()
-    assertEquals(MediaSource.Image(ImageSource.of("/photos/logo.png"), 2.seconds), overlay.source)
-    assertEquals(2.seconds, overlay.duration)
+    overlay.source shouldBe MediaSource.Image(ImageSource.of("/photos/logo.png"), 2.seconds)
+    overlay.duration shouldBe 2.seconds
   }
 
   @Test
@@ -137,7 +135,7 @@ class ImageClipTest {
     val path = MediaSource.Image(ImageSource.of("/photos/beach.jpg"), 5.seconds)
     val bytes = MediaSource.Image(ImageSource.ofBytes(byteArrayOf(1, 2, 3)), 5.seconds)
 
-    assertEquals("/photos/beach.jpg", path.describe())
-    assertEquals("bytes[3]", bytes.describe())
+    path.describe() shouldBe "/photos/beach.jpg"
+    bytes.describe() shouldBe "bytes[3]"
   }
 }

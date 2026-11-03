@@ -1,8 +1,9 @@
 package dev.jordond.filmstrip.effects.overlay
 
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
-import kotlin.test.assertTrue
 
 /**
  * What this browser's Chrome does to a limited range BT.709 or BT.2020 AVIF overlay, read the way
@@ -18,6 +19,8 @@ class WebOverlayMatrixMeasureTest {
     runTest {
       val worst = WebOverlayMatrixTest().limitedRangeDrift()
 
-      assertTrue(worst > WebOverlayMatrixTest.CHROME_ROUNDING, "Chrome's limited range drift fell to $worst")
+      withClue("Chrome's limited range drift fell to $worst") {
+        (worst > WebOverlayMatrixTest.CHROME_ROUNDING) shouldBe true
+      }
     }
 }

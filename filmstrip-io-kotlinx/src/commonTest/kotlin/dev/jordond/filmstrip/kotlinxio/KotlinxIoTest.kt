@@ -5,11 +5,11 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.io.Buffer
 import kotlinx.io.files.Path
 import kotlinx.io.writeString
 import kotlin.test.Test
-import kotlin.test.assertIs
 
 /**
  * A path keeps the string kotlinx-io renders it as, and a source is drained into bytes. Nothing
@@ -22,16 +22,16 @@ class KotlinxIoTest {
 
   @Test
   fun aPathReadsAsItsOwnString() {
-    assertIs<MediaSource.Path>(path.toMediaSource()).path shouldBe path.toString()
-    assertIs<ImageSource.Path>(path.toImageSource()).path shouldBe path.toString()
-    assertIs<MediaSink.Path>(path.toMediaSink()).path shouldBe path.toString()
+    path.toMediaSource().shouldBeInstanceOf<MediaSource.Path>().path shouldBe path.toString()
+    path.toImageSource().shouldBeInstanceOf<ImageSource.Path>().path shouldBe path.toString()
+    path.toMediaSink().shouldBeInstanceOf<MediaSink.Path>().path shouldBe path.toString()
   }
 
   @Test
   fun aSourceIsDrainedWithTheHintItWasGiven() {
     val buffer = Buffer().apply { write(BYTES) }
 
-    val source = assertIs<MediaSource.Bytes>(buffer.readMediaSource(FormatHint.Mp4))
+    val source = buffer.readMediaSource(FormatHint.Mp4).shouldBeInstanceOf<MediaSource.Bytes>()
 
     source.bytes shouldBe BYTES
     source.hint shouldBe FormatHint.Mp4
@@ -40,14 +40,18 @@ class KotlinxIoTest {
 
   @Test
   fun aSourceWithNoHintLeavesTheBackendToSniff() {
-    assertIs<MediaSource.Bytes>(Buffer().apply { write(BYTES) }.readMediaSource()).hint shouldBe null
+    Buffer()
+      .apply { write(BYTES) }
+      .readMediaSource()
+      .shouldBeInstanceOf<MediaSource.Bytes>()
+      .hint shouldBe null
   }
 
   @Test
   fun aSourceIsDrainedAsAnImage() {
     val buffer = Buffer().apply { writeString(TEXT) }
 
-    assertIs<ImageSource.Bytes>(buffer.readImageSource()).bytes shouldBe TEXT.encodeToByteArray()
+    buffer.readImageSource().shouldBeInstanceOf<ImageSource.Bytes>().bytes shouldBe TEXT.encodeToByteArray()
     buffer.exhausted() shouldBe true
   }
 

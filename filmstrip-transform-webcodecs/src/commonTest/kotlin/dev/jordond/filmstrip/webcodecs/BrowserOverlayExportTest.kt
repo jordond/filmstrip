@@ -1,12 +1,15 @@
 package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.ComponentRegistry
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Sepia
@@ -23,33 +26,29 @@ import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.FlipAxis
-import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.outputSlotOf
-import dev.jordond.filmstrip.internal.outputSlotTime
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.test.AuthoredColours
+import dev.jordond.filmstrip.test.AuthoredColors
 import dev.jordond.filmstrip.test.OverlayPixels
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
 import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
-import dev.jordond.filmstrip.webcodecs.internal.toBrowserPreview
+import dev.jordond.filmstrip.webcodecs.internal.preview.toBrowserPreview
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.test.assertFalse
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -57,8 +56,8 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * Overlays drawn into a real browser export and read back out of the written file.
  *
- * Every rect comes from `placedOn` and `rectOn`, every opacity from `frameAt`, and every authored colour
- * from [AuthoredColours], so a case measures the compositor against the shared functions rather than
+ * Every rect comes from `placedOn` and `rectOn`, every opacity from `frameAt`, and every authored color
+ * from [AuthoredColors], so a case measures the compositor against the shared functions rather than
  * against a number of its own.
  */
 class BrowserOverlayExportTest {
@@ -79,7 +78,7 @@ class BrowserOverlayExportTest {
     }
 
   // Both ends of a ramp agree whether the opacity is added or multiplied in, so it is read at a quarter
-  // and three quarters. The two colours it blends are read off the same file, the clip where the fade
+  // and three quarters. The two colors it blends are read off the same file, the clip where the fade
   // has not started and the badge where it has finished.
   @Test
   fun aFadeInLandsAtTheSharedOpacityInsideItsRamp() =
@@ -90,12 +89,14 @@ class BrowserOverlayExportTest {
       val rect = badge.placedOn(size, PNG).rectOn(size)
       val span = TimeRange(Duration.ZERO, LONG_FRAMES.seconds / FRAME_RATE)
 
-      assertTrue(assertNotNull(badge.frameAt(Duration.ZERO, span)).opacity == 0f, "the fade opens drawn")
+      withClue("the fade opens drawn") {
+        (badge.frameAt(Duration.ZERO, span).shouldNotBeNull().opacity == 0f) shouldBe true
+      }
       val under = frames.first().around(rect.middleX, rect.middleY)
       val over = frames.last().around(rect.middleX, rect.middleY)
       for (at in listOf(RAMP / 4, RAMP * 3 / 4)) {
         val slot = outputSlotOf(at, FRAME_RATE)
-        val opacity = assertNotNull(badge.frameAt(outputSlotTime(slot, FRAME_RATE), span)).opacity
+        val opacity = badge.frameAt(outputSlotTime(slot, FRAME_RATE), span).shouldNotBeNull().opacity
         val drawn = frames[slot.toInt()].around(rect.middleX, rect.middleY)
         assertReads(under.towards(over, opacity), drawn, "slot $slot at $opacity", OverlayPixels.ENCODED_TOLERANCE)
       }
@@ -132,29 +133,29 @@ class BrowserOverlayExportTest {
     }
 
   // A composition overlay is placed on the output frame, so one authored into a bar draws there and
-  // the fill keeps its own colour everywhere else.
+  // the fill keeps its own color everywhere else.
   @Test
   fun aCompositionOverlayDrawsOverASolidBar() =
     runTest {
       val badge = ImageOverlay(IMAGE, Corner.TopStart)
       val frame = exported(letterboxed(effects = listOf(badge))).last()
       val rect = badge.placedOn(frame.size, PNG).rectOn(frame.size)
-      assertTrue(rect.right < BAR, "the badge reaches ${rect.right}, past the bar at $BAR")
+      withClue("the badge reaches ${rect.right}, past the bar at $BAR") { (rect.right < BAR) shouldBe true }
 
       assertReads(OVERLAY, frame.around(rect.middleX, rect.middleY), "the badge in the bar")
       assertReads(FILL, frame.around(rect.middleX, (rect.bottom + 1.0) / 2), "the bar under the badge")
       assertReads(FILL, frame.around(1.0 - BAR / 2, 0.5), "the far bar")
     }
 
-  // An SDR overlay blends on the frame's own codes on every backend, and both colours land there as
-  // authored, so where a partial opacity lands is predicted from the two colours' own codes.
+  // An SDR overlay blends on the frame's own codes on every backend, and both colors land there as
+  // authored, so where a partial opacity lands is predicted from the two colors' own codes.
   @Test
   fun aHalfOpaqueCompositionOverlayBlendsWithTheBarOnItsCodes() =
     runTest {
       val badge = ImageOverlay(IMAGE, Corner.TopStart, opacity = HALF)
       val frame = exported(letterboxed(effects = listOf(badge))).last()
       val rect = badge.placedOn(frame.size, PNG).rectOn(frame.size)
-      val opacity = assertNotNull(badge.frameAt(Duration.ZERO, TimeRange(Duration.ZERO, 1.seconds))).opacity
+      val opacity = badge.frameAt(Duration.ZERO, TimeRange(Duration.ZERO, 1.seconds)).shouldNotBeNull().opacity
 
       assertReads(FILL.towards(OVERLAY, opacity), frame.around(rect.middleX, rect.middleY), "the half opaque badge")
     }
@@ -164,7 +165,7 @@ class BrowserOverlayExportTest {
     runTest {
       val badge = ImageOverlay(IMAGE, Corner.TopStart)
       val frame =
-        exported(single(effects = listOf(badge), start = LATE_START, fill = Fill.Solid(AuthoredColours.MID_GREY)))
+        exported(single(effects = listOf(badge), start = LATE_START, fill = Fill.Solid(AuthoredColors.MID_GREY)))
           .first()
       val rect = badge.placedOn(frame.size, PNG).rectOn(frame.size)
 
@@ -183,7 +184,9 @@ class BrowserOverlayExportTest {
       val push = OverlayFrame(offset = OverlayOffset(-(unmoved.left + unmoved.width / 2f), 0f))
       val badge = ImageOverlay(IMAGE, Corner.TopStart, scale = CLIP_BADGE_SCALE, animation = OverlayAnimation { push })
       val rect = placed.animatedBy(push).rectOn(PORTRAIT)
-      assertTrue(rect.left < 0f && rect.right > 0f, "the badge at $rect does not straddle the clip's edge")
+      withClue("the badge at $rect does not straddle the clip's edge") {
+        (rect.left < 0f && rect.right > 0f) shouldBe true
+      }
 
       val frame = exported(letterboxed(clipEffects = listOf(badge))).last()
 
@@ -192,15 +195,17 @@ class BrowserOverlayExportTest {
       assertReads(FILL, frame.around(BAR + rect.left * PICTURE / 2, rect.middleY), "the bar beside it")
     }
 
-  // A blurred fill has no colour of its own, so the bar is read against the same export without the
+  // A blurred fill has no color of its own, so the bar is read against the same export without the
   // overlay. Every other backend blurs the frame after the clip's chain has run, overlays included.
   @Test
   fun aBlurredFillsBarMovesTowardALargeClipOverlay() =
     runTest {
-      val tall = ImageSource.ofBytes(OverlayPixels.pngOf(TALL_PNG, AuthoredColours.MID_GREEN))
+      val tall = ImageSource.ofBytes(OverlayPixels.pngOf(TALL_PNG, AuthoredColors.MID_GREEN))
       val cover = ImageOverlay(tall, Corner.TopStart, 0f, 1f)
       val rect = cover.placedOn(PORTRAIT, TALL_PNG).rectOn(PORTRAIT)
-      assertTrue(rect.left <= 0f && rect.right >= 1f, "the overlay at $rect does not cover the clip's width")
+      withClue("the overlay at $rect does not cover the clip's width") {
+        (rect.left <= 0f && rect.right >= 1f) shouldBe true
+      }
       val probeX = BAR * 3 / 4
 
       val without = exported(letterboxed(fill = Fill.Blur)).last().around(probeX, rect.middleY)
@@ -209,10 +214,9 @@ class BrowserOverlayExportTest {
           letterboxed(clipEffects = listOf(cover), fill = Fill.Blur),
         ).last().around(probeX, rect.middleY)
 
-      assertTrue(
-        with.distanceTo(OVERLAY) + BLUR_SHIFT < without.distanceTo(OVERLAY),
-        "the bar read $with with the overlay and $without without it, and the overlay is $OVERLAY",
-      )
+      withClue("the bar read $with with the overlay and $without without it, and the overlay is $OVERLAY") {
+        (with.distanceTo(OVERLAY) + BLUR_SHIFT < without.distanceTo(OVERLAY)) shouldBe true
+      }
     }
 
   // The held tail draws the last covered slot again, overlays included, so a fade that would still be
@@ -222,7 +226,7 @@ class BrowserOverlayExportTest {
     runTest {
       val badge = ImageOverlay(IMAGE, Corner.TopEnd, animation = fadeIn(BED_LENGTH))
       val primary =
-        makeClip(width = WIDTH, height = HEIGHT, frames = FRAME_RATE, frameRate = FRAME_RATE, colour = Rgb.Blue)
+        makeClip(width = WIDTH, height = HEIGHT, frames = FRAME_RATE, frameRate = FRAME_RATE, color = Rgb.Blue)
       val bed = makeClip(width = WIDTH, height = HEIGHT, frames = BED_FRAMES, frameRate = FRAME_RATE)
       val composition =
         EditComposition(
@@ -234,8 +238,12 @@ class BrowserOverlayExportTest {
           effects = listOf(badge),
           audio = AudioSpec.Remove,
         )
-      val tail = assertIs<ResolveResult.Resolved>(engine().resolve(composition, SPEC)).composition.heldTail
-      assertFalse(tail.isEmpty(), "a bed under a shorter primary left no tail")
+      val tail =
+        engine()
+          .resolve(composition, SPEC)
+          .shouldBeInstanceOf<ResolveResult.Resolved>()
+          .composition.heldTail
+      withClue("a bed under a shorter primary left no tail") { tail.isEmpty() shouldBe false }
 
       val frames = exported(composition)
       val rect = badge.placedOn(frames.first().size, PNG).rectOn(frames.first().size)
@@ -257,13 +265,16 @@ class BrowserOverlayExportTest {
       val composition = single(effects = listOf(badge), frames = LONG_FRAMES)
       val frames = exported(composition)
       val rect = badge.placedOn(frames.first().size, PNG).rectOn(frames.first().size)
-      val resolved = assertIs<ResolveResult.Resolved>(engine().resolve(composition, SPEC)).composition
+      val resolved = engine().resolve(composition, SPEC).shouldBeInstanceOf<ResolveResult.Resolved>().composition
       val preview = resolved.toBrowserPreview(composition)
 
       try {
         for (at in listOf(RAMP / 4, RAMP * 3 / 4)) {
           val slot = outputSlotOf(at, FRAME_RATE)
-          val drawn = assertNotNull(preview.frameAt(outputSlotTime(slot, FRAME_RATE)), "no preview frame at $at")
+          val drawn =
+            withClue("no preview frame at $at") {
+              preview.frameAt(outputSlotTime(slot, FRAME_RATE)).shouldNotBeNull()
+            }
           val column = (rect.middleX * drawn.size.width).toInt()
           val row = (rect.middleY * drawn.size.height).toInt()
           val offset = (row * drawn.size.width + column) * RGBA_CHANNELS
@@ -291,7 +302,7 @@ class BrowserOverlayExportTest {
     start: Duration = Duration.ZERO,
     fill: Fill = Fill.Black,
   ): EditComposition {
-    val clip = makeClip(width = WIDTH, height = HEIGHT, frames = frames, frameRate = FRAME_RATE, colour = Rgb.Blue)
+    val clip = makeClip(width = WIDTH, height = HEIGHT, frames = frames, frameRate = FRAME_RATE, color = Rgb.Blue)
     return EditComposition(
       tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(clip), effects = clipEffects)), start = start)),
       effects = effects,
@@ -307,17 +318,17 @@ class BrowserOverlayExportTest {
   private suspend fun letterboxed(
     clipEffects: List<EffectSpec> = emptyList(),
     effects: List<EffectSpec> = emptyList(),
-    fill: Fill = Fill.Solid(AuthoredColours.MID_GREY),
+    fill: Fill = Fill.Solid(AuthoredColors.MID_GREY),
   ): EditComposition {
     val landscape =
-      makeClip(width = WIDTH, height = HEIGHT, frames = SHORT_FRAMES, frameRate = FRAME_RATE, colour = Rgb.Green)
+      makeClip(width = WIDTH, height = HEIGHT, frames = SHORT_FRAMES, frameRate = FRAME_RATE, color = Rgb.Green)
     val portrait =
       makeClip(
         width = PORTRAIT.width,
         height = PORTRAIT.height,
         frames = SHORT_FRAMES,
         frameRate = FRAME_RATE,
-        colour = Rgb.Blue,
+        color = Rgb.Blue,
       )
     return EditComposition(
       tracks =
@@ -342,13 +353,13 @@ class BrowserOverlayExportTest {
     statuses.filterIsInstance<ExportStatus.Failure>().firstOrNull()?.let {
       throw AssertionError("the export failed: ${it.error.message}")
     }
-    val success = assertNotNull(statuses.filterIsInstance<ExportStatus.Success>().singleOrNull())
-    return decodeFrames(MediaSource.Uri(assertIs<MediaSink.Uri>(success.output).uri))
+    val success = (statuses.filterIsInstance<ExportStatus.Success>().singleOrNull()).shouldNotBeNull()
+    return decodeFrames(MediaSource.Uri(success.output.shouldBeInstanceOf<MediaSink.Uri>().uri))
   }
 
   private fun engine(): BrowserExportEngine =
-    browserExportEngine(
-      components = ComponentRegistry.Builder().add(BuiltInEffectResolver()).build(),
+    webCodecsExportEngine(
+      components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(),
       prober = BrowserProber(),
     )
 
@@ -356,16 +367,16 @@ class BrowserOverlayExportTest {
     expected: Rgb,
     drawn: Rgb,
     what: String,
-    tolerance: Float = AuthoredColours.TOLERANCE,
+    tolerance: Float = AuthoredColors.TOLERANCE,
   ) {
     val off = maxOf(abs(drawn.red - expected.red), abs(drawn.green - expected.green), abs(drawn.blue - expected.blue))
-    assertTrue(off <= tolerance, "$what read $drawn, where $expected was expected within $tolerance")
+    withClue("$what read $drawn, where $expected was expected within $tolerance") { (off <= tolerance) shouldBe true }
   }
 
   private val OutputFrame.size: Size get() = Size(width, height)
 
   /**
-   * The mean colour of the three by three block around a point, so one pixel's rounding does not
+   * The mean color of the three by three block around a point, so one pixel's rounding does not
    * decide a reading.
    */
   private fun OutputFrame.around(
@@ -390,9 +401,9 @@ class BrowserOverlayExportTest {
   private companion object {
     val PNG = Size(8, 4)
     val TALL_PNG = Size(8, 16)
-    val IMAGE: ImageSource = ImageSource.ofBytes(OverlayPixels.pngOf(PNG, AuthoredColours.MID_GREEN))
-    val OVERLAY = rgbOf(AuthoredColours.MID_GREEN)
-    val FILL = rgbOf(AuthoredColours.MID_GREY)
+    val IMAGE: ImageSource = ImageSource.ofBytes(OverlayPixels.pngOf(PNG, AuthoredColors.MID_GREEN))
+    val OVERLAY = rgbOf(AuthoredColors.MID_GREEN)
+    val FILL = rgbOf(AuthoredColors.MID_GREY)
 
     const val WIDTH = 256
     const val HEIGHT = 128

@@ -57,7 +57,7 @@ public fun interface CoreImageEffect {
  * Constructed by filmstrip only. New fields may be added in a later release, so read the ones you
  * need instead of destructuring.
  *
- * @property attributes The frame size, colour space and render scale the pipeline resolved before
+ * @property attributes The frame size, color space and render scale the pipeline resolved before
  *   any effect ran. Settled once per effect, so it is the same object on every frame.
  * @property compositionTime Where this frame sits on the composition's timeline, counted from the
  *   start of the whole composition, not from the clip the frame came from. That is the base

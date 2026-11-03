@@ -9,10 +9,10 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.PlayerConfig
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.nulls.shouldNotBeNull
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
-import kotlin.test.assertContains
-import kotlin.test.assertNotNull
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -23,7 +23,7 @@ class ComponentsReachFactoriesTest {
   @Test
   fun previewHandsItsComponentsToThePlayerEngineFactory() {
     val resolver = HostResolver()
-    var seen: ComponentRegistry? = null
+    var seen: FilmstripComponents? = null
     val filmstrip =
       Filmstrip {
         addEffectResolver(resolver)
@@ -35,14 +35,14 @@ class ComponentsReachFactoriesTest {
 
     filmstrip.preview(oneClip(), PlayerConfig())
 
-    assertContains(assertNotNull(seen).effectResolvers, resolver)
+    seen.shouldNotBeNull().effectResolvers shouldContain resolver
   }
 
   @Test
   fun aFrameHandsItsComponentsToTheThumbnailSourceFactory() =
     runTest {
       val resolver = HostResolver()
-      var seen: ComponentRegistry? = null
+      var seen: FilmstripComponents? = null
       val filmstrip =
         Filmstrip {
           addEffectResolver(resolver)
@@ -54,7 +54,7 @@ class ComponentsReachFactoriesTest {
 
       filmstrip.frame(oneClip(), 0.milliseconds)
 
-      assertContains(assertNotNull(seen).effectResolvers, resolver)
+      seen.shouldNotBeNull().effectResolvers shouldContain resolver
     }
 
   private fun oneClip(): EditComposition = compositionOf { clip(MediaSource.of("/fixtures/clip.mp4")) }

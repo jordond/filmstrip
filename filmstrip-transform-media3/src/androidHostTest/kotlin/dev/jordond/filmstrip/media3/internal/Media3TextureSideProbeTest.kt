@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.media3.internal
 
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
 
 /**
  * How the device's longest texture side is floored at what OpenGL ES 3.0 promises.
@@ -9,12 +9,12 @@ import kotlin.test.assertEquals
 class Media3TextureSideProbeTest {
   @Test
   fun `a device that cannot be asked reads the es 3 floor`() {
-    assertEquals(ES3_MIN_TEXTURE_SIDE, media3TextureSideProbe { null }.side())
+    media3TextureSideProbe { null }.side() shouldBe ES3_MIN_TEXTURE_SIDE
   }
 
   @Test
   fun `a read below the es 3 floor is held to it`() {
-    assertEquals(ES3_MIN_TEXTURE_SIDE, media3TextureSideProbe { ES3_MIN_TEXTURE_SIDE - 1 }.side())
+    media3TextureSideProbe { ES3_MIN_TEXTURE_SIDE - 1 }.side() shouldBe ES3_MIN_TEXTURE_SIDE
   }
 
   @Test
@@ -22,9 +22,9 @@ class Media3TextureSideProbeTest {
     val reads = mutableListOf(null, LARGE_SIDE)
     val probe = media3TextureSideProbe { reads.removeAt(0) }
 
-    assertEquals(ES3_MIN_TEXTURE_SIDE, probe.side())
-    assertEquals(LARGE_SIDE, probe.side())
-    assertEquals(LARGE_SIDE, probe.side())
+    probe.side() shouldBe ES3_MIN_TEXTURE_SIDE
+    probe.side() shouldBe LARGE_SIDE
+    probe.side() shouldBe LARGE_SIDE
   }
 
   private companion object {

@@ -3,29 +3,31 @@ package dev.jordond.filmstrip.media3.internal
 import android.net.Uri
 import androidx.media3.common.MediaItem
 import androidx.media3.transformer.EditedMediaItem
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
-import dev.jordond.filmstrip.export.AudioCodec
+import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.outputSlotTime
-import dev.jordond.filmstrip.internal.outputSlotsOf
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
-import dev.jordond.filmstrip.transform.internal.ResolvedClip
-import dev.jordond.filmstrip.transform.internal.ResolvedComposition
-import dev.jordond.filmstrip.transform.internal.ResolvedGain
-import dev.jordond.filmstrip.transform.internal.ResolvedHdr
-import dev.jordond.filmstrip.transform.internal.ResolvedTrack
+import dev.jordond.filmstrip.media3.internal.bounds.Media3FrameBounds
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
@@ -34,7 +36,6 @@ import io.mockk.unmockkAll
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
-import kotlin.test.assertNotNull
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
@@ -68,7 +69,11 @@ class Media3ClippingTest {
   fun `a snapped trim carries its window and opens on a key frame`() {
     val clip = clip(startsAtKeyFrame = true)
 
-    val clipping = assertNotNull(composition(clip, ExportPath.Transmux).firstItem().mediaItem.clippingConfiguration)
+    val clipping =
+      composition(clip, ExportPath.Copy)
+        .firstItem()
+        .mediaItem.clippingConfiguration
+        .shouldNotBeNull()
 
     clipping.startPositionUs shouldBe clip.start.inWholeMicroseconds
     clipping.endPositionUs shouldBe clip.end.inWholeMicroseconds
@@ -85,15 +90,15 @@ class Media3ClippingTest {
 
     val (video, audio) =
       plan.toMedia3(Media3FrameBounds.None).sequences.map {
-        assertNotNull(
+        (
           it.editedMediaItems
             .single()
-            .mediaItem.clippingConfiguration,
-        )
+            .mediaItem.clippingConfiguration
+        ).shouldNotBeNull()
       }
 
     video.startPositionUs shouldBe clip.start.inWholeMicroseconds
-    video.endPositionUs shouldBe clip.gridEndUs(checkNotNull(plan.output.frameRate))
+    video.endPositionUs shouldBe clip.gridEndUs(plan.output.frameRate)
     video.startsAtKeyFrame shouldBe false
     audio.startPositionUs shouldBe clip.start.inWholeMicroseconds
     audio.endPositionUs shouldBe clip.end.inWholeMicroseconds
@@ -106,7 +111,7 @@ class Media3ClippingTest {
   fun `an untrimmed clip on the copy path carries no clipping configuration`() {
     val clip = clip(start = Duration.ZERO, end = SOURCE_LENGTH, startsAtKeyFrame = true)
 
-    val item = composition(clip, ExportPath.Transmux).firstItem()
+    val item = composition(clip, ExportPath.Copy).firstItem()
 
     item.mediaItem.clippingConfiguration shouldBe MediaItem.ClippingConfiguration.UNSET
   }

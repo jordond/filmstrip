@@ -7,6 +7,10 @@ import dev.jordond.filmstrip.media.MediaSource
 import io.github.vinceglb.filekit.BrowserFile
 import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.WebFile
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldStartWith
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.await
 import kotlinx.coroutines.test.runTest
 import kotlin.js.ExperimentalWasmJsInterop
@@ -15,9 +19,6 @@ import kotlin.js.Promise
 import kotlin.js.toJsArray
 import kotlin.js.toJsString
 import kotlin.test.Test
-import kotlin.test.assertFalse
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 
 /**
  * The browser mapping, and what releasing one of its sources frees.
@@ -31,7 +32,7 @@ class PlatformFilesWebTest {
     runTest {
       val source = pickedFile().toMediaSource()
 
-      assertTrue(assertIs<MediaSource.Uri>(source).uri.startsWith("blob:"), source.uri)
+      source.shouldBeInstanceOf<MediaSource.Uri>().uri shouldStartWith "blob:"
     }
 
   @Test
@@ -39,7 +40,7 @@ class PlatformFilesWebTest {
     runTest {
       val source = pickedFile().toImageSource()
 
-      assertTrue(assertIs<ImageSource.Uri>(source).uri.startsWith("blob:"), source.uri)
+      source.shouldBeInstanceOf<ImageSource.Uri>().uri shouldStartWith "blob:"
     }
 
   @Test
@@ -47,9 +48,9 @@ class PlatformFilesWebTest {
     runTest {
       val source = pickedFile().toMediaSource()
 
-      assertTrue(source.isReadable(), "a freshly picked file should be readable")
+      withClue("a freshly picked file should be readable") { source.isReadable() shouldBe true }
       source.release()
-      assertFalse(source.isReadable(), "a released file should no longer be readable")
+      withClue("a released file should no longer be readable") { source.isReadable() shouldBe false }
     }
 
   @Test
@@ -57,9 +58,9 @@ class PlatformFilesWebTest {
     runTest {
       val source = pickedFile().toImageSource()
 
-      assertTrue(source.isReadable(), "a freshly picked still should be readable")
+      withClue("a freshly picked still should be readable") { source.isReadable() shouldBe true }
       source.release()
-      assertFalse(source.isReadable(), "a released still should no longer be readable")
+      withClue("a released still should no longer be readable") { source.isReadable() shouldBe false }
     }
 
   // Two picks are two URLs, so releasing one has to leave the other alone.
@@ -71,8 +72,8 @@ class PlatformFilesWebTest {
 
       released.release()
 
-      assertFalse(released.isReadable(), "the released pick should no longer be readable")
-      assertTrue(kept.isReadable(), "the other pick should still be readable")
+      withClue("the released pick should no longer be readable") { released.isReadable() shouldBe false }
+      withClue("the other pick should still be readable") { kept.isReadable() shouldBe true }
     }
 
   @Test
@@ -96,9 +97,9 @@ class PlatformFilesWebTest {
       ImageSource.ofBytes(byteArrayOf(1, 2, 3, 4)).release()
     }
 
-  private suspend fun MediaSource.isReadable(): Boolean = isReadable(assertIs<MediaSource.Uri>(this).uri)
+  private suspend fun MediaSource.isReadable(): Boolean = isReadable(this.shouldBeInstanceOf<MediaSource.Uri>().uri)
 
-  private suspend fun ImageSource.isReadable(): Boolean = isReadable(assertIs<ImageSource.Uri>(this).uri)
+  private suspend fun ImageSource.isReadable(): Boolean = isReadable(this.shouldBeInstanceOf<ImageSource.Uri>().uri)
 
   private suspend fun isReadable(uri: String): Boolean =
     try {

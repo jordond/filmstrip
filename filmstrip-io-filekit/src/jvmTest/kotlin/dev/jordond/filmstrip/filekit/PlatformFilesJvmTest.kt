@@ -3,7 +3,9 @@ package dev.jordond.filmstrip.filekit
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.filePathOf
 import io.github.vinceglb.filekit.PlatformFile
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import java.io.File
 import kotlin.test.Test
@@ -49,28 +51,50 @@ class PlatformFilesJvmTest {
 
   @Test
   fun `a file url sink is percent-decoded`() {
+    val uri = "file:///tmp/my%20clip.mp4"
+
     MediaSink
-      .ofUri("file:///tmp/my%20clip.mp4")
+      .ofUri(uri)
       .toPlatformFile()
-      .file.path shouldBe "/tmp/my clip.mp4"
+      .file.path shouldBe filePathOf(uri)
+  }
+
+  @Test
+  fun `a file url sink is read without regard to the scheme's case`() {
+    val uri = "FILE:///tmp/clip.mp4"
+
+    MediaSink
+      .ofUri(uri)
+      .toPlatformFile()
+      .file.path shouldBe filePathOf(uri).shouldNotBeNull()
   }
 
   @Test
   fun `a file url sink with a raw space is refused`() {
-    assertFailsWith<IllegalArgumentException> {
-      MediaSink.ofUri("file:///tmp/my clip.mp4").toPlatformFile()
-    }
+    assertRefused("file:///tmp/my clip.mp4")
+  }
+
+  @Test
+  fun `a file url sink naming another host is refused`() {
+    assertRefused("file://server/share/clip.mp4")
   }
 
   @Test
   fun `a non-file url sink is refused`() {
-    assertFailsWith<IllegalArgumentException> {
-      MediaSink.ofUri("content://media/external/video/media/42").toPlatformFile()
-    }
+    assertRefused("content://media/external/video/media/42")
   }
 
   @Test
   fun `a temporary sink has no file`() {
     assertFailsWith<IllegalStateException> { MediaSink.temporary().toPlatformFile() }
+  }
+
+  // Core's decoder answers null for every one of these, so each is refused the same way.
+  private fun assertRefused(uri: String) {
+    filePathOf(uri) shouldBe null
+
+    val refusal = assertFailsWith<IllegalArgumentException> { MediaSink.ofUri(uri).toPlatformFile() }
+
+    refusal.message shouldBe "$uri is not a local file: URL."
   }
 }

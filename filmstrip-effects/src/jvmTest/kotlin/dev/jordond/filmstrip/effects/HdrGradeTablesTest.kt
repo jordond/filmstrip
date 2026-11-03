@@ -1,5 +1,22 @@
 package dev.jordond.filmstrip.effects
 
+import dev.jordond.filmstrip.color.BT2020_CHROMA_SHIFT
+import dev.jordond.filmstrip.color.SIXTEEN_BIT_MAX
+import dev.jordond.filmstrip.color.TEN_BIT_LUMA_RANGE
+import dev.jordond.filmstrip.color.TEN_TO_SIXTEEN_BITS
+import dev.jordond.filmstrip.color.authoredHdrNits
+import dev.jordond.filmstrip.color.hlgDisplayNitsFromSignal
+import dev.jordond.filmstrip.color.hlgSignalFromDisplayNits
+import dev.jordond.filmstrip.color.hlgSignalFromScene
+import dev.jordond.filmstrip.color.nitsFromPqSignal
+import dev.jordond.filmstrip.color.nitsFromSdrSignal
+import dev.jordond.filmstrip.color.peakNits
+import dev.jordond.filmstrip.color.pqSignalFromNits
+import dev.jordond.filmstrip.color.sdrSignalCeiling
+import dev.jordond.filmstrip.color.sdrSignalFromNits
+import dev.jordond.filmstrip.color.signalFromNits
+import dev.jordond.filmstrip.color.signalFromTenBitCodes
+import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.ColorMatrix
 import dev.jordond.filmstrip.effects.color.Contrast
@@ -7,34 +24,17 @@ import dev.jordond.filmstrip.effects.color.HueRotate
 import dev.jordond.filmstrip.effects.color.Saturation
 import dev.jordond.filmstrip.effects.color.colorMatrixOf
 import dev.jordond.filmstrip.effects.color.transformNits
-import dev.jordond.filmstrip.media.BT2020_CHROMA_SHIFT
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.SIXTEEN_BIT_MAX
-import dev.jordond.filmstrip.media.TEN_BIT_LUMA_RANGE
-import dev.jordond.filmstrip.media.TEN_TO_SIXTEEN_BITS
-import dev.jordond.filmstrip.media.authoredHdrNits
-import dev.jordond.filmstrip.media.hlgDisplayNitsFromSignal
-import dev.jordond.filmstrip.media.hlgSignalFromDisplayNits
-import dev.jordond.filmstrip.media.hlgSignalFromScene
-import dev.jordond.filmstrip.media.nitsFromPqSignal
-import dev.jordond.filmstrip.media.nitsFromSdrSignal
-import dev.jordond.filmstrip.media.peakNits
-import dev.jordond.filmstrip.media.pqSignalFromNits
-import dev.jordond.filmstrip.media.sdrSignalCeiling
-import dev.jordond.filmstrip.media.sdrSignalFromNits
-import dev.jordond.filmstrip.media.signalFromNits
-import dev.jordond.filmstrip.media.signalFromTenBitCodes
-import dev.jordond.filmstrip.media.tenBitCodesFromSignal
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.shouldBe
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 /**
- * The tables and mixer rows a colour effect on a kept HDR grade runs through, read here the way ffmpeg's lut1d and
+ * The tables and mixer rows a color effect on a kept HDR grade runs through, read here the way ffmpeg's lut1d and
  * colorchannelmixer read them and held against core's own figures.
  *
  * Every level is read in the middle of its range, where a gain read as additive and one read as multiplicative part
@@ -106,23 +106,22 @@ class HdrGradeTablesTest {
       val written = HdrGradeTables.CODE_STEPS.nearest(mixed(HdrGradeTables.ENCODE_ROWS, shifted))
       val expected = tenBitCodesFromSignal(signal)
 
-      assertEquals(
-        listOf(expected[2], expected[0], expected[1]),
-        written.map { (it * SIXTEEN_BIT_MAX / TEN_TO_SIXTEEN_BITS).roundToInt() },
-        "${codes.toList()}",
-      )
+      withClue("${codes.toList()}") {
+        written.map { (it * SIXTEEN_BIT_MAX / TEN_TO_SIXTEEN_BITS).roundToInt() } shouldBe
+          listOf(expected[2], expected[0], expected[1])
+      }
     }
   }
 
   // Every matrix shape: diagonal ones folded into the curve, mixes without a bias on the mixer and one with a bias on
   // the two-point table.
   @Test
-  fun `each colour effect walked through its tables lands on the signal the shared grade writes`() {
+  fun `each color effect walked through its tables lands on the signal the shared grade writes`() {
     for (transfer in HdrTransfer.entries) {
       for (matrix in MATRICES) {
         val tables = HdrGradeTables(matrix, transfer)
-        for (colour in COLOURS) {
-          val codes = tenBitCodesFromSignal(transfer.signalFromNits(authoredHdrNits(colour)))
+        for (color in COLORS) {
+          val codes = tenBitCodesFromSignal(transfer.signalFromNits(authoredHdrNits(color)))
           val read = walked(tables, codes)
           val expected = sharedGrade(matrix, transfer, codes)
 
@@ -137,9 +136,9 @@ class HdrGradeTablesTest {
     val transfer = HdrTransfer.Pq
     val biased = HdrGradeTables(MATRICES.last(), transfer).mix
 
-    assertNull(HdrGradeTables(checkNotNull(colorMatrixOf(Contrast(MID_FACTOR))), transfer).mix)
-    assertNull(HdrGradeTables(checkNotNull(colorMatrixOf(Saturation(MID_FACTOR))), transfer).mix?.bias)
-    assertTrue(biased?.bias != null, "a mix with a bias runs on the two-point table")
+    HdrGradeTables(checkNotNull(colorMatrixOf(Contrast(MID_FACTOR))), transfer).mix.shouldBeNull()
+    HdrGradeTables(checkNotNull(colorMatrixOf(Saturation(MID_FACTOR))), transfer).mix?.bias.shouldBeNull()
+    withClue("a mix with a bias runs on the two-point table") { (biased?.bias != null) shouldBe true }
   }
 
   // colorchannelmixer refuses a gain past two, so a mix that reaches past it is scaled down, and the tables after it
@@ -152,7 +151,9 @@ class HdrGradeTablesTest {
         checkNotNull(HdrGradeTables(it, HdrTransfer.Pq).mix).rows
       } + HdrGradeTables.DECODE_ROWS + HdrGradeTables.ENCODE_ROWS
 
-    assertTrue(rows.all { row -> row.all { abs(it) <= MIXER_GAIN } }, rows.map { it.toList() }.toString())
+    withClue(rows.map { it.toList() }.toString()) {
+      rows.all { row -> row.all { abs(it) <= MIXER_GAIN } } shouldBe true
+    }
   }
 
   // ffmpeg's lut1d holds at most MAX_1D_LEVEL entries, and that is one per sixteen-bit sample, so the nearest read off
@@ -164,10 +165,10 @@ class HdrGradeTablesTest {
       listOfNotNull(HdrGradeTables.CODE_CENTRES, tables.decodeWarp, tables.curve, tables.encodeWarp, tables.encode) +
         HdrGradeTables.LIGHT_WARP + HdrTransfer.entries.map { HdrGradeTables.lightCurve(it) }
 
-    assertEquals(SIXTEEN_BIT_MAX + 1, MAX_1D_LEVEL)
+    MAX_1D_LEVEL shouldBe SIXTEEN_BIT_MAX + 1
     for (table in all) {
-      assertEquals("LUT_1D_SIZE $MAX_1D_LEVEL", table.cubeLines().first())
-      assertTrue(table.columns.all { it.size == MAX_1D_LEVEL }, "a column of $MAX_1D_LEVEL entries")
+      table.cubeLines().first() shouldBe "LUT_1D_SIZE $MAX_1D_LEVEL"
+      withClue("a column of $MAX_1D_LEVEL entries") { table.columns.all { it.size == MAX_1D_LEVEL } shouldBe true }
     }
   }
 
@@ -177,7 +178,7 @@ class HdrGradeTablesTest {
     val node = MAX_1D_LEVEL / 2
     val row = table.cubeLines()[node + 1]
 
-    assertEquals(table.columns.joinToString(" ") { String.format(Locale.ROOT, "%.9g", it[node]) }, row)
+    row shouldBe table.columns.joinToString(" ") { String.format(Locale.ROOT, "%.9g", it[node]) }
   }
 
   // The grade core writes: each channel's light through the matrix on its SDR signal, back onto the transfer's signal.
@@ -258,7 +259,7 @@ class HdrGradeTablesTest {
     expected: Float,
     what: String,
   ) {
-    assertTrue(abs(read - expected) <= TOLERANCE, "$what read $read, expected $expected")
+    withClue("$what read $read, expected $expected") { (abs(read - expected) <= TOLERANCE) shouldBe true }
   }
 
   private companion object {
@@ -281,7 +282,7 @@ class HdrGradeTablesTest {
     const val HALF = 0.5
 
     // White, a mid grey and a saturated green, where a figure read per channel and one read on luminance part ways.
-    val COLOURS = listOf(0xFFFFFFFF.toInt(), 0xFF808080.toInt(), 0xFF308020.toInt())
+    val COLORS = listOf(0xFFFFFFFF.toInt(), 0xFF808080.toInt(), 0xFF308020.toInt())
 
     val MATRICES: List<ColorMatrix> =
       listOf(Brightness(MID_FACTOR), Brightness(1.5f), Contrast(1.5f), Saturation(MID_FACTOR), HueRotate(90f))

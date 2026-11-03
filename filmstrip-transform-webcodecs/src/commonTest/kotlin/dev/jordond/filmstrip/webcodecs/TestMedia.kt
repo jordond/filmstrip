@@ -6,22 +6,22 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.color.colorMatrixOf
 import dev.jordond.filmstrip.effects.color.transform
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.webcodecs.internal.ArrayBuffer
-import dev.jordond.filmstrip.webcodecs.internal.AudioSample
-import dev.jordond.filmstrip.webcodecs.internal.AudioSampleSink
-import dev.jordond.filmstrip.webcodecs.internal.AudioSampleSource
-import dev.jordond.filmstrip.webcodecs.internal.BufferTarget
-import dev.jordond.filmstrip.webcodecs.internal.EncodedPacketSink
-import dev.jordond.filmstrip.webcodecs.internal.JsOptions
-import dev.jordond.filmstrip.webcodecs.internal.Mp4OutputFormat
-import dev.jordond.filmstrip.webcodecs.internal.Output
 import dev.jordond.filmstrip.webcodecs.internal.PacketStream
-import dev.jordond.filmstrip.webcodecs.internal.Quality
 import dev.jordond.filmstrip.webcodecs.internal.SourceReader
-import dev.jordond.filmstrip.webcodecs.internal.Uint8Array
-import dev.jordond.filmstrip.webcodecs.internal.VideoSample
-import dev.jordond.filmstrip.webcodecs.internal.VideoSampleSource
-import dev.jordond.filmstrip.webcodecs.internal.toUint8Array
+import dev.jordond.filmstrip.webcodecs.internal.interop.ArrayBuffer
+import dev.jordond.filmstrip.webcodecs.internal.interop.AudioSample
+import dev.jordond.filmstrip.webcodecs.internal.interop.AudioSampleSink
+import dev.jordond.filmstrip.webcodecs.internal.interop.AudioSampleSource
+import dev.jordond.filmstrip.webcodecs.internal.interop.BufferTarget
+import dev.jordond.filmstrip.webcodecs.internal.interop.EncodedPacketSink
+import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
+import dev.jordond.filmstrip.webcodecs.internal.interop.Mp4OutputFormat
+import dev.jordond.filmstrip.webcodecs.internal.interop.Output
+import dev.jordond.filmstrip.webcodecs.internal.interop.Quality
+import dev.jordond.filmstrip.webcodecs.internal.interop.Uint8Array
+import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
+import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSampleSource
+import dev.jordond.filmstrip.webcodecs.internal.interop.toUint8Array
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.math.PI
@@ -30,7 +30,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
- * A colour, as the eight-bit channels a test asserts on.
+ * A color, as the eight-bit channels a test asserts on.
  */
 internal class Rgb(
   val red: Int,
@@ -38,7 +38,7 @@ internal class Rgb(
   val blue: Int,
 ) {
   /**
-   * True when every channel is within [tolerance] of [other]. Colour survives a 4:2:0 round trip
+   * True when every channel is within [tolerance] of [other]. Color survives a 4:2:0 round trip
    * approximately, never exactly.
    */
   fun isNear(
@@ -63,7 +63,7 @@ internal class Rgb(
 }
 
 /**
- * This colour after [spec], taken through the matrix every backend lowers rather than through a
+ * This color after [spec], taken through the matrix every backend lowers rather than through a
  * number of a test's own.
  */
 internal fun Rgb.graded(spec: EffectSpec): Rgb {
@@ -88,7 +88,7 @@ internal class OutputFrame(
   private val rgba: Uint8Array,
 ) {
   /**
-   * The colour at a point given as fractions of the frame, measured from the top left the way
+   * The color at a point given as fractions of the frame, measured from the top left the way
    * filmstrip measures everything else.
    */
   fun at(
@@ -143,12 +143,12 @@ internal suspend fun makeClip(
   val pixels = ByteArray(width * height * RGBA_CHANNELS)
   for (index in 0 until frames) {
     for (y in 0 until height) {
-      val colour = row(index, y)
+      val color = row(index, y)
       for (x in 0 until width) {
         val offset = (y * width + x) * RGBA_CHANNELS
-        pixels[offset] = colour.red.toByte()
-        pixels[offset + 1] = colour.green.toByte()
-        pixels[offset + 2] = colour.blue.toByte()
+        pixels[offset] = color.red.toByte()
+        pixels[offset + 1] = color.green.toByte()
+        pixels[offset + 2] = color.blue.toByte()
         pixels[offset + 3] = OPAQUE
       }
     }
@@ -182,8 +182,8 @@ internal suspend fun makeClip(
   height: Int = 64,
   frames: Int = 12,
   frameRate: Int = 30,
-  colour: Rgb = Rgb.Grey,
-): ByteArray = makeClip(width, height, frames, frameRate) { _, _ -> colour }
+  color: Rgb = Rgb.Grey,
+): ByteArray = makeClip(width, height, frames, frameRate) { _, _ -> color }
 
 /**
  * A solid clip encoded with [codec] rather than H.264. [fullCodecString] is left for mediabunny to
@@ -195,7 +195,7 @@ internal suspend fun makeClipInCodec(
   height: Int = 64,
   frames: Int = 12,
   frameRate: Int = 30,
-  colour: Rgb = Rgb.Grey,
+  color: Rgb = Rgb.Grey,
 ): ByteArray {
   val target = BufferTarget()
   val output =
@@ -220,9 +220,9 @@ internal suspend fun makeClipInCodec(
   for (y in 0 until height) {
     for (x in 0 until width) {
       val offset = (y * width + x) * RGBA_CHANNELS
-      pixels[offset] = colour.red.toByte()
-      pixels[offset + 1] = colour.green.toByte()
-      pixels[offset + 2] = colour.blue.toByte()
+      pixels[offset] = color.red.toByte()
+      pixels[offset + 1] = color.green.toByte()
+      pixels[offset + 2] = color.blue.toByte()
       pixels[offset + 3] = OPAQUE
     }
   }
@@ -257,7 +257,7 @@ internal suspend fun makeClipWithAudio(
   height: Int = 64,
   frames: Int = 12,
   frameRate: Int = 30,
-  colour: Rgb = Rgb.Grey,
+  color: Rgb = Rgb.Grey,
   sampleRate: Int = 48_000,
   keyFrameSeconds: Double = DEFAULT_KEY_FRAME_SECONDS,
 ): ByteArray {
@@ -294,9 +294,9 @@ internal suspend fun makeClipWithAudio(
     for (y in 0 until height) {
       for (x in 0 until width) {
         val offset = (y * width + x) * RGBA_CHANNELS
-        pixels[offset] = colour.red.toByte()
-        pixels[offset + 1] = colour.green.toByte()
-        pixels[offset + 2] = colour.blue.toByte()
+        pixels[offset] = color.red.toByte()
+        pixels[offset + 1] = color.green.toByte()
+        pixels[offset + 2] = color.blue.toByte()
         pixels[offset + 3] = OPAQUE
       }
     }

@@ -8,7 +8,7 @@ import kotlin.test.Test
 import kotlin.time.Duration.Companion.minutes
 
 /**
- * Core Image's lowering of a colour matrix on a frame that keeps its grade, on the iOS simulator and on an iPhone.
+ * Core Image's lowering of a color matrix on a frame that keeps its grade, on the iOS simulator and on an iPhone.
  *
  * Runs the mid-range PQ contrast case of AppleHdrColorGradeTest, which holds every grade on macOS, against the same
  * shared reading and bound. A case fails when its fixture is missing, as in [AppleExportTest].

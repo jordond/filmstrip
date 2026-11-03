@@ -70,7 +70,7 @@ public actual class PlatformImage
     }
 
     /**
-     * The pixels are read in the frame's own colour space wherever Core Graphics will take one.
+     * The pixels are read in the frame's own color space wherever Core Graphics will take one.
      * Naming a device space instead converts the frame on its way out, and a frame rendered for
      * Rec.709 then stops matching the file the same pipeline encodes. A device space is the
      * fallback for an image Core Graphics will not open a matching context for, such as a
@@ -113,8 +113,8 @@ public actual class PlatformImage
      * A tightly packed RGBA context over [target], or null when [space] is not one Core Graphics
      * will draw eight-bit RGBA into.
      *
-     * The row stride is set rather than left to Core Graphics, which would round it up to its own
-     * alignment and leave the padding the contract forbids.
+     * The row stride is set here, so the rows carry none of the padding Core Graphics adds for its
+     * own alignment, which the contract forbids.
      */
     private fun contextFor(
       target: CValuesRef<*>,

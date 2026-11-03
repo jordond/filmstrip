@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 
 /**
- * Multiply every colour channel of the frame.
+ * Multiply every color channel of the frame.
  *
  * The multiply lands on the encoded signal rather than on linear light, which is what
  * `filter: brightness()` in a browser does and what every backend here reaches for first. Black
@@ -19,7 +19,7 @@ import dev.jordond.filmstrip.effect.EffectStage
  * white where SDR clips, so a factor above `1f` matches an SDR export through the midtones and
  * keeps going where that one saturates.
  *
- * A run of colour effects multiplies out before anything clamps, so a factor above `1f` followed by
+ * A run of color effects multiplies out before anything clamps, so a factor above `1f` followed by
  * its reciprocal returns the frame unchanged rather than a saturated frame the second factor darkens.
  *
  * @property factor The multiplier, where `1f` leaves the frame unchanged and `0f` writes black.
@@ -35,7 +35,7 @@ public class Brightness(
 }
 
 /**
- * Multiply every colour channel by [factor], where `1f` leaves the frame unchanged.
+ * Multiply every color channel by [factor], where `1f` leaves the frame unchanged.
  */
 public fun EffectsBuilder.brightness(factor: Float): EffectsBuilder = add(Brightness(factor))
 

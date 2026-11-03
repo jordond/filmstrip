@@ -1,15 +1,14 @@
 package dev.jordond.filmstrip.test
 
+import dev.jordond.filmstrip.color.pictureLight
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.pictureColour
-import dev.jordond.filmstrip.media.PictureColour
-import dev.jordond.filmstrip.media.pictureLight
+import dev.jordond.filmstrip.picture.pictureColor
+import dev.jordond.filmstrip.picture.pictureColorFromDecodedProfile
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
  * The shape of the tagged pictures' profiles and the PNGs that carry them.
@@ -24,10 +23,10 @@ class IccPicturesTest {
     for (picture in IccPictures.ALL) {
       val profile = picture.profile
 
-      assertEquals(profile.size, profile.int32At(0), "$picture size")
-      assertEquals("acsp", profile.textAt(SIGNATURE_OFFSET), "$picture signature")
-      assertEquals(VERSION_4_3, profile.int32At(VERSION_OFFSET), "$picture version")
-      assertEquals("XYZ ", profile.textAt(PCS_OFFSET), "$picture connection space")
+      withClue("$picture size") { profile.int32At(0) shouldBe profile.size }
+      withClue("$picture signature") { profile.textAt(SIGNATURE_OFFSET) shouldBe "acsp" }
+      withClue("$picture version") { profile.int32At(VERSION_OFFSET) shouldBe VERSION_4_3 }
+      withClue("$picture connection space") { profile.textAt(PCS_OFFSET) shouldBe "XYZ " }
     }
   }
 
@@ -36,7 +35,7 @@ class IccPicturesTest {
     for (picture in IccPictures.ALL) {
       val expected = if (picture == IccPictures.GREY) "GRAY" else "RGB "
 
-      assertEquals(expected, picture.profile.textAt(COLOUR_SPACE_OFFSET), "$picture colour space")
+      withClue("$picture color space") { picture.profile.textAt(COLOR_SPACE_OFFSET) shouldBe expected }
     }
   }
 
@@ -46,11 +45,11 @@ class IccPicturesTest {
       val profile = picture.profile
       val tags = tagsOf(profile)
 
-      assertTrue("desc" in tags && "cprt" in tags && "wtpt" in tags, "$picture required tags")
+      withClue("$picture required tags") { ("desc" in tags && "cprt" in tags && "wtpt" in tags) shouldBe true }
       for ((signature, place) in tags) {
         val (offset, size) = place
-        assertEquals(0, offset % 4, "$picture $signature alignment")
-        assertTrue(offset + size <= profile.size, "$picture $signature bounds")
+        withClue("$picture $signature alignment") { offset % 4 shouldBe 0 }
+        withClue("$picture $signature bounds") { (offset + size <= profile.size) shouldBe true }
       }
     }
   }
@@ -60,11 +59,11 @@ class IccPicturesTest {
     val matrix = listOf("rXYZ", "gXYZ", "bXYZ", "rTRC", "gTRC", "bTRC")
 
     for (picture in listOf(IccPictures.SRGB, IccPictures.LINEAR_SRGB, IccPictures.DISPLAY_P3)) {
-      assertTrue(tagsOf(picture.profile).keys.containsAll(matrix), "$picture matrix tags")
+      withClue("$picture matrix tags") { tagsOf(picture.profile).keys.containsAll(matrix) shouldBe true }
     }
-    assertEquals("mAB ", IccPictures.LUT_SRGB.profile.tagType("A2B0"))
-    assertEquals("curv", IccPictures.GREY.profile.tagType("kTRC"))
-    assertEquals("para", IccPictures.SRGB.profile.tagType("rTRC"))
+    IccPictures.LUT_SRGB.profile.tagType("A2B0") shouldBe "mAB "
+    IccPictures.GREY.profile.tagType("kTRC") shouldBe "curv"
+    IccPictures.SRGB.profile.tagType("rTRC") shouldBe "para"
   }
 
   @Test
@@ -72,16 +71,16 @@ class IccPicturesTest {
     val profile = IccPictures.GREY.profile
     val curve = tagsOf(profile).getValue("kTRC").first
 
-    assertEquals(1, profile.int32At(curve + CURVE_COUNT_OFFSET))
-    assertEquals(GREY_GAMMA_U8_FIXED8, profile.uInt16At(curve + CURVE_ENTRIES_OFFSET))
+    profile.int32At(curve + CURVE_COUNT_OFFSET) shouldBe 1
+    profile.uInt16At(curve + CURVE_ENTRIES_OFFSET) shouldBe GREY_GAMMA_U8_FIXED8
   }
 
   @Test
   fun everyRgbProfileCarriesAChromaticAdaptationAndGreyDoesNot() {
     for (picture in IccPictures.ALL - IccPictures.GREY) {
-      assertEquals("sf32", picture.profile.tagType("chad"), "$picture")
+      withClue("$picture") { picture.profile.tagType("chad") shouldBe "sf32" }
     }
-    assertTrue("chad" !in tagsOf(IccPictures.GREY.profile), "grey")
+    withClue("grey") { ("chad" !in tagsOf(IccPictures.GREY.profile)) shouldBe true }
   }
 
   @Test
@@ -89,31 +88,34 @@ class IccPicturesTest {
     for (picture in IccPictures.ALL) {
       val chunks = chunksOf(picture.pngOf(SIZE))
 
-      assertEquals(listOf("IHDR", "iCCP", "IDAT", "IEND"), chunks.map { it.first }, "$picture chunks")
+      withClue("$picture chunks") { chunks.map { it.first } shouldBe listOf("IHDR", "iCCP", "IDAT", "IEND") }
       val iccp = chunks[1].second
       val nameEnd = iccp.indexOf(0)
-      assertEquals(0, iccp[nameEnd + 1].toInt(), "$picture compression method")
-      assertContentEquals(picture.profile, storedInflate(iccp.copyOfRange(nameEnd + 2, iccp.size)), "$picture profile")
+      withClue("$picture compression method") { iccp[nameEnd + 1].toInt() shouldBe 0 }
+      withClue("$picture profile") { storedInflate(iccp.copyOfRange(nameEnd + 2, iccp.size)) shouldBe picture.profile }
     }
   }
 
   @Test
   fun everyTaggedPngReadsBackTheLightOfItsProfile() {
     for (picture in IccPictures.ALL) {
-      val embedded = assertNotNull(pictureColour(picture.pngOf(SIZE)), "$picture embedded colour")
+      val embedded = withClue("$picture embedded color") { pictureColor(picture.pngOf(SIZE)).shouldNotBeNull() }
       val channels = if (picture === IccPictures.GREY) 1 else 3
-      val profile = assertNotNull(PictureColour.fromDecodedProfile(picture.profile, channels), "$picture profile")
+      val profile =
+        withClue("$picture profile") {
+          pictureColorFromDecodedProfile(picture.profile, channels).shouldNotBeNull()
+        }
       val texels = intArrayOf(picture.texel)
 
-      assertContentEquals(pictureLight(profile, texels), pictureLight(embedded, texels), "$picture light")
+      withClue("$picture light") { pictureLight(embedded, texels) shouldBe pictureLight(profile, texels) }
     }
   }
 
   @Test
   fun anUntaggedPngHasNoProfileChunk() {
-    val chunks = chunksOf(OverlayPixels.pngOf(SIZE, AuthoredColours.MID_GREY))
+    val chunks = chunksOf(OverlayPixels.pngOf(SIZE, AuthoredColors.MID_GREY))
 
-    assertEquals(listOf("IHDR", "IDAT", "IEND"), chunks.map { it.first })
+    chunks.map { it.first } shouldBe listOf("IHDR", "IDAT", "IEND")
   }
 
   @Test
@@ -122,9 +124,9 @@ class IccPicturesTest {
     val header = chunksOf(picture.pngOf(SIZE)).first().second
     val rows = storedInflate(chunksOf(picture.pngOf(SIZE)).single { it.first == "IDAT" }.second)
 
-    assertEquals(RGBA, header[COLOUR_TYPE_OFFSET].toInt())
-    assertEquals(SIZE.height * (SIZE.width * 4 + 1), rows.size)
-    assertEquals(AuthoredColours.channelsOf(picture.texel) + 0xFF, rows.copyOfRange(1, 5).map { it.toInt() and 0xFF })
+    header[COLOR_TYPE_OFFSET].toInt() shouldBe RGBA
+    rows.size shouldBe SIZE.height * (SIZE.width * 4 + 1)
+    rows.copyOfRange(1, 5).map { it.toInt() and 0xFF } shouldBe AuthoredColors.channelsOf(picture.texel) + 0xFF
   }
 
   @Test
@@ -133,15 +135,15 @@ class IccPicturesTest {
     val header = chunksOf(picture.pngOf(SIZE)).first().second
     val rows = storedInflate(chunksOf(picture.pngOf(SIZE)).single { it.first == "IDAT" }.second)
 
-    assertEquals(GREY_ALPHA, header[COLOUR_TYPE_OFFSET].toInt())
-    assertEquals(SIZE.height * (SIZE.width * 2 + 1), rows.size)
-    assertEquals(listOf(picture.texel and 0xFF, 0xFF), rows.copyOfRange(1, 3).map { it.toInt() and 0xFF })
+    header[COLOR_TYPE_OFFSET].toInt() shouldBe GREY_ALPHA
+    rows.size shouldBe SIZE.height * (SIZE.width * 2 + 1)
+    rows.copyOfRange(1, 3).map { it.toInt() and 0xFF } shouldBe listOf(picture.texel and 0xFF, 0xFF)
   }
 
   @Test
-  fun aGreyProfileRefusesAColouredTexel() {
+  fun aGreyProfileRefusesAColoredTexel() {
     assertFailsWith<IllegalArgumentException> {
-      OverlayPixels.pngOf(SIZE, AuthoredColours.MID_GREEN, IccPictures.GREY.profile)
+      OverlayPixels.pngOf(SIZE, AuthoredColors.MID_GREEN, IccPictures.GREY.profile)
     }
   }
 
@@ -191,7 +193,7 @@ class IccPicturesTest {
   private companion object {
     val SIZE = Size(6, 2)
 
-    const val COLOUR_SPACE_OFFSET = 16
+    const val COLOR_SPACE_OFFSET = 16
     const val PCS_OFFSET = 20
     const val SIGNATURE_OFFSET = 36
     const val VERSION_OFFSET = 8
@@ -211,8 +213,8 @@ class IccPicturesTest {
     // A chunk's length, type and checksum around its data.
     const val CHUNK_OVERHEAD = 12
 
-    // The colour type byte inside the IHDR data.
-    const val COLOUR_TYPE_OFFSET = 9
+    // The color type byte inside the IHDR data.
+    const val COLOR_TYPE_OFFSET = 9
     const val RGBA = 6
     const val GREY_ALPHA = 4
   }

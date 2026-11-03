@@ -11,10 +11,10 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 /**
  * Composition-level geometry, checked against the pixels a real export writes.
@@ -39,10 +39,14 @@ class AndroidGeometryTest {
       val cropped = probe.written(composition(source, Fit.Crop), ExportSpec())
 
       val bar = contained.rgbAt(CENTRE_X, EDGE_Y)
-      assertTrue(distance(bar, MAGENTA) < COLOUR_TOLERANCE, "the contained export left no bar to compare against")
+      withClue("the contained export left no bar to compare against") {
+        (distance(bar, MAGENTA) < COLOR_TOLERANCE) shouldBe true
+      }
 
       val edge = cropped.rgbAt(CENTRE_X, EDGE_Y)
-      assertTrue(distance(edge, MAGENTA) > COLOUR_TOLERANCE, "the cropped export still has a fill bar at $edge")
+      withClue("the cropped export still has a fill bar at $edge") {
+        (distance(edge, MAGENTA) > COLOR_TOLERANCE) shouldBe true
+      }
     }
 
   @Test
@@ -52,7 +56,7 @@ class AndroidGeometryTest {
 
       val frame = probe.frame(probe.export(composition(source, Fit.Crop), ExportSpec()))
 
-      assertEquals(Size(frame.width, frame.height), SQUARE, "the export did not write the frame the plan named")
+      withClue("the export did not write the frame the plan named") { SQUARE shouldBe Size(frame.width, frame.height) }
     }
 
   private fun composition(
@@ -75,6 +79,6 @@ class AndroidGeometryTest {
     const val MAGENTA_ARGB = 0xFFFF00FF.toInt()
     val MAGENTA = Triple(255, 0, 255)
 
-    const val COLOUR_TOLERANCE = 30
+    const val COLOR_TOLERANCE = 30
   }
 }

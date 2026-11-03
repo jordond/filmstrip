@@ -12,16 +12,16 @@ import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.PictureCrop
-import dev.jordond.filmstrip.media.PictureOrientation
+import dev.jordond.filmstrip.picture.PictureCrop
+import dev.jordond.filmstrip.picture.PictureOrientation
 import dev.jordond.filmstrip.style.TextStyle
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.kotest.matchers.types.shouldNotBeInstanceOf
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertIsNot
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -38,10 +38,10 @@ class OverlaySideTest {
     val size = drawnSize()
     val side = maxOf(size.width, size.height)
 
-    assertIs<TextRaster.Drawn<TextSamples>>(rasterizeText(TEXT, STYLE, FRAME, side))
-    val refused = assertIs<TextRaster.Refused>(rasterizeText(TEXT, STYLE, FRAME, side - 1))
+    rasterizeText(TEXT, STYLE, FRAME, side).shouldBeInstanceOf<TextRaster.Drawn<TextSamples>>()
+    val refused = rasterizeText(TEXT, STYLE, FRAME, side - 1).shouldBeInstanceOf<TextRaster.Refused>()
 
-    assertEquals(textPastTextureSide(size.width, size.height, side - 1, OPEN_GL_ES), refused.reason)
+    refused.reason shouldBe textPastTextureSide(size.width, size.height, side - 1, OPEN_GL_ES)
   }
 
   // The resolver hands the raster the side its capabilities give, so text past it never reaches media3.
@@ -52,21 +52,21 @@ class OverlaySideTest {
 
     val resolved = BuiltInEffectResolver().resolve(TextOverlay(TEXT, STYLE), capabilities(side), PREVIEW)
 
-    val refused = assertIs<EffectResolution.Unsupported>(resolved)
-    assertEquals(textPastTextureSide(size.width, size.height, side, OPEN_GL_ES), refused.message)
+    val refused = resolved.shouldBeInstanceOf<EffectResolution.Unsupported>()
+    refused.message shouldBe textPastTextureSide(size.width, size.height, side, OPEN_GL_ES)
   }
 
   @Test
   fun aPictureAsLongAsTheTextureSideResolvesAndOnePastIsRefused() {
     val overlay = ImageOverlay(ImageSource.Bytes(ByteArray(0)), Corner.TopStart, 0f, OVERLAY_SCALE)
-    val picture = DecodedPicture(createBitmap(PICTURE.width, PICTURE.height), colour = null)
+    val picture = DecodedPicture(createBitmap(PICTURE.width, PICTURE.height), color = null)
 
     val drawn = with(BuiltInEffectResolver()) { overlay.toOverlay(picture, PREVIEW, PICTURE.width) }
     val past = with(BuiltInEffectResolver()) { overlay.toOverlay(picture, PREVIEW, PICTURE.width - 1) }
 
-    assertIsNot<EffectResolution.Unsupported>(drawn)
-    val refused = assertIs<EffectResolution.Unsupported>(past)
-    assertEquals(picturePastTextureSide(PICTURE.width, PICTURE.height, PICTURE.width - 1, OPEN_GL_ES), refused.message)
+    drawn.shouldNotBeInstanceOf<EffectResolution.Unsupported>()
+    val refused = past.shouldBeInstanceOf<EffectResolution.Unsupported>()
+    refused.message shouldBe picturePastTextureSide(PICTURE.width, PICTURE.height, PICTURE.width - 1, OPEN_GL_ES)
   }
 
   // The raster media3 uploads is the picture cut and turned, so the side is read off the shown size. The stored width
@@ -75,29 +75,32 @@ class OverlaySideTest {
   fun aCutAndTurnedPictureIsMeasuredAtTheSizeItIsShown() {
     val overlay = ImageOverlay(ImageSource.Bytes(ByteArray(0)), Corner.TopStart, 0f, OVERLAY_SCALE)
     val bitmap = createBitmap(PICTURE.width, PICTURE.height)
-    val picture = DecodedPicture(bitmap, colour = null, orientation = PictureOrientation.Rotate90, crop = CUT)
+    val picture = DecodedPicture(bitmap, color = null, orientation = PictureOrientation.Rotate90, crop = CUT)
     val shown = PictureOrientation.Rotate90.orientedSize(CUT.size)
     val side = maxOf(shown.width, shown.height)
 
     val drawn = with(BuiltInEffectResolver()) { overlay.toOverlay(picture, PREVIEW, side) }
     val past = with(BuiltInEffectResolver()) { overlay.toOverlay(picture, PREVIEW, side - 1) }
 
-    assertIsNot<EffectResolution.Unsupported>(drawn)
-    val refused = assertIs<EffectResolution.Unsupported>(past)
-    assertEquals(picturePastTextureSide(shown.width, shown.height, side - 1, OPEN_GL_ES), refused.message)
+    drawn.shouldNotBeInstanceOf<EffectResolution.Unsupported>()
+    val refused = past.shouldBeInstanceOf<EffectResolution.Unsupported>()
+    refused.message shouldBe picturePastTextureSide(shown.width, shown.height, side - 1, OPEN_GL_ES)
   }
 
   // A font size far past the documented range lays out past any side an Int holds, which is refused by its size.
   @Test
   fun hugeTextWithAPlateIsRefusedAndNeverThrows() {
     val style = TextStyle(fontSize = HUGE, backgroundColor = PLATE)
-    val (width, height) = assertNotNull(textSidesPastLayout(TEXT, style, FRAME), "the huge text laid out in an Int")
+    val (width, height) =
+      withClue("the huge text laid out in an Int") {
+        textSidesPastLayout(TEXT, style, FRAME).shouldNotBeNull()
+      }
     val padding = 2L * style.platePaddingOn(FRAME)
 
-    val refused = assertIs<TextRaster.Refused>(rasterizeText(TEXT, style, FRAME, Int.MAX_VALUE))
+    val refused = rasterizeText(TEXT, style, FRAME, Int.MAX_VALUE).shouldBeInstanceOf<TextRaster.Refused>()
 
     val reason = textTooLargeToDraw(width + padding, height + padding, TEXT_TEXEL_BYTES, textCeiling())
-    assertEquals(reason, refused.reason)
+    refused.reason shouldBe reason
   }
 
   // StaticLayout places its lines in Int pixels, so the block lays out at every size whose sides an Int holds and at
@@ -112,21 +115,25 @@ class OverlaySideTest {
       val block = textBlock(TEXT, style, FRAME)
       val sides = textSidesPastLayout(TEXT, style, FRAME)
       val laidOut = block?.let { "${it.width} by ${it.height}" }
-      assertEquals(sides != null, block == null, "at $fontSize the block laid out $laidOut and the sides $sides")
+      withClue("at $fontSize the block laid out $laidOut and the sides $sides") {
+        (block == null) shouldBe (sides != null)
+      }
       sizes++
       if (sides != null) past++
       fontSize *= SWEEP_STEP
     }
-    assertTrue(past in 1 until sizes, "$past of $sizes font sizes measured past an Int, so the sweep missed the edge")
+    withClue("$past of $sizes font sizes measured past an Int, so the sweep missed the edge") {
+      (past in 1 until sizes) shouldBe true
+    }
   }
 
   @Test
   fun ordinaryTextLaysOutInsideWhatAnIntHolds() {
-    assertNull(textSidesPastLayout(TEXT, STYLE, FRAME))
+    textSidesPastLayout(TEXT, STYLE, FRAME).shouldBeNull()
   }
 
   private fun drawnSize(): Size =
-    assertIs<TextRaster.Drawn<TextSamples>>(rasterizeText(TEXT, STYLE, FRAME, Int.MAX_VALUE)).pixels.size
+    rasterizeText(TEXT, STYLE, FRAME, Int.MAX_VALUE).shouldBeInstanceOf<TextRaster.Drawn<TextSamples>>().pixels.size
 
   private fun capabilities(maxTextureSize: Int): RenderCapabilities =
     RenderCapabilities(

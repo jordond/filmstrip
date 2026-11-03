@@ -3,12 +3,13 @@ package dev.jordond.filmstrip.avfoundation
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.test.encodesHdr
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 
 /**
@@ -23,25 +24,30 @@ class AppleSimulatorEncoderTest {
   fun `the simulator reports no hardware flag for any video encoder`() =
     runTest(timeout = TIMEOUT) {
       val result = withContext(Dispatchers.Default) { Filmstrip { avFoundationBackend() }.capabilities() }
-      val video = assertIs<CapabilitiesResult.Success>(result).capabilities.video
+      val video = result.shouldBeInstanceOf<CapabilitiesResult.Success>().capabilities.video
 
-      assertTrue(video.isNotEmpty(), "expected at least one video encoder")
-      assertTrue(
-        video.all { it.isHardwareAccelerated == null },
+      withClue("expected at least one video encoder") { video.isNotEmpty().shouldBeTrue() }
+      withClue(
         "the simulator said whether an encoder is hardware in $video, so VideoToolbox's limit there no longer holds",
-      )
+      ) {
+        video.all { it.isHardwareAccelerated == null }.shouldBeTrue()
+      }
     }
 
   @Test
   fun `the simulator advertises an hdr encoder`() =
     runTest(timeout = TIMEOUT) {
       val encodesHdr = withContext(Dispatchers.Default) { Filmstrip { avFoundationBackend() }.encodesHdr() }
-      assertTrue(encodesHdr, "the simulator's own measured answer is an HDR encoder, and it advertised none")
+      withClue("the simulator's own measured answer is an HDR encoder, and it advertised none") {
+        encodesHdr.shouldBeTrue()
+      }
     }
 
   @Test
   fun `imageio writes a display p3 heic on the simulator`() {
-    assertTrue(imageIoWrites("public.heic"), "the simulator's own measured answer is a written HEIC, and it wrote none")
+    withClue("the simulator's own measured answer is a written HEIC, and it wrote none") {
+      imageIoWrites("public.heic").shouldBeTrue()
+    }
   }
 
   private companion object {

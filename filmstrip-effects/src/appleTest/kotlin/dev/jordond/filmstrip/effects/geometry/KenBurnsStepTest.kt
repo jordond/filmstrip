@@ -12,6 +12,9 @@ import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.motion.Easing
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.UByteVar
 import kotlinx.cinterop.allocArray
@@ -27,8 +30,6 @@ import platform.CoreImage.CIImage
 import platform.CoreImage.kCIFormatRGBA8
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -83,10 +84,9 @@ class KenBurnsStepTest {
       val drawn = step.apply(frame(), FrameInfo(ATTRIBUTES, SPAN_START + SPAN_LENGTH * fraction))
 
       drawn.extent.useContents {
-        assertTrue(
-          abs(size.width - FRAME.width) < 1.0 && abs(size.height - FRAME.height) < 1.0,
-          "the pan handed back ${size.width}x${size.height} at $fraction",
-        )
+        withClue("the pan handed back ${size.width}x${size.height} at $fraction") {
+          (abs(size.width - FRAME.width) < 1.0 && abs(size.height - FRAME.height) < 1.0) shouldBe true
+        }
       }
     }
   }
@@ -95,14 +95,14 @@ class KenBurnsStepTest {
   fun `refuses a region that leaves the frame`() {
     val outside = KenBurns(NormalizedRect.Full, NormalizedRect(0.5f, 0f, 1.5f, 1f))
 
-    assertIs<EffectResolution.Unsupported>(resolver.resolve(outside, CAPABILITIES, ATTRIBUTES))
+    resolver.resolve(outside, CAPABILITIES, ATTRIBUTES).shouldBeInstanceOf<EffectResolution.Unsupported>()
   }
 
   @Test
   fun `refuses a region with no area`() {
     val empty = KenBurns(NormalizedRect.Full, NormalizedRect(0.5f, 0.5f, 0.5f, 0.5f))
 
-    assertIs<EffectResolution.Unsupported>(resolver.resolve(empty, CAPABILITIES, ATTRIBUTES))
+    resolver.resolve(empty, CAPABILITIES, ATTRIBUTES).shouldBeInstanceOf<EffectResolution.Unsupported>()
   }
 
   private fun assertRegion(
@@ -117,14 +117,16 @@ class KenBurnsStepTest {
     val drawn = stepFor(pan).apply(frame(), FrameInfo(ATTRIBUTES, time))
     val measured = redFraction(drawn, context)
 
-    assertTrue(
-      abs(measured - expected) < TOLERANCE,
-      "at $fraction of a ${pan.easing} pan the region $region should leave $expected red, measured $measured",
-    )
+    withClue("at $fraction of a ${pan.easing} pan the region $region should leave $expected red, measured $measured") {
+      (abs(measured - expected) < TOLERANCE) shouldBe true
+    }
   }
 
   private fun stepFor(spec: KenBurns) =
-    assertIs<EffectResolution.Resolved>(resolver.resolve(spec, CAPABILITIES, ATTRIBUTES)).effect.step
+    resolver
+      .resolve(spec, CAPABILITIES, ATTRIBUTES)
+      .shouldBeInstanceOf<EffectResolution.Resolved>()
+      .effect.step
 
   private fun frame(): CIImage {
     val whole = CGRectMake(0.0, 0.0, FRAME.width.toDouble(), FRAME.height.toDouble())
@@ -173,7 +175,7 @@ class KenBurnsStepTest {
     const val BOUNDARY = 0.5f
 
     // Both windows are a quarter of the frame wide and neither straddles the boundary, so at each
-    // end the frame is one flat colour and every reading in between is a real measurement.
+    // end the frame is one flat color and every reading in between is a real measurement.
     val PAN =
       KenBurns(
         from = NormalizedRect(0f, 0f, 0.25f, 1f),

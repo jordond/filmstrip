@@ -10,12 +10,10 @@ import kotlin.time.Duration
  * every repeat into its own exact, cancelling seek, the failure the scrub protocol exists to prevent. This starts
  * once, on the first repeat of a burst, and stays started across every later one until [end] is called.
  *
- * The target advances from itself rather than from a freshly read position, because the reported position is
- * deliberately behind while a scrub is relaxed: reading it again mid-burst would resume from wherever the player
- * last caught up to rather than from where the previous repeat left off.
+ * The target advances from where the previous repeat left it, not from the reported position, which lags behind while
+ * a scrub is relaxed.
  *
- * Split from the key handler that drives it for the same reason [ScrubGesture] is: the ordering is a plain state
- * machine rather than something only real key repeat can exercise.
+ * Like [ScrubGesture], the ordering is a plain state machine apart from the key handler that drives it.
  *
  * @param onStart Called once, as the first repeat of a burst begins a scrub.
  * @param onSeek Called with the accumulated target, for every repeat.

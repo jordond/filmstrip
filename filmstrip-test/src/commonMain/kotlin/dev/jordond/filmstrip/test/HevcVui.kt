@@ -8,67 +8,67 @@ import dev.jordond.filmstrip.InternalFilmstripApi
  *
  * @property videoSignalType Whether the video signal type is present at all. Without it the range reads as limited.
  * @property fullRange The video full range flag, false when [videoSignalType] is absent.
- * @property colour The colour description's primaries, transfer and matrix with [fullRange], or null when it has none.
+ * @property color The color description's primaries, transfer and matrix with [fullRange], or null when it has none.
  */
 @InternalFilmstripApi
 public enum class HevcVui(
   public val videoSignalType: Boolean,
   public val fullRange: Boolean,
-  public val colour: CicpTag?,
+  public val color: CicpTag?,
   internal val configuration: String,
 ) {
   /**
-   * No video signal type, so no range flag and no colour description.
+   * No video signal type, so no range flag and no color description.
    */
   Unsignalled(
     videoSignalType = false,
     fullRange = false,
-    colour = null,
+    color = null,
     configuration =
       HVCC_HEADER + HVCC_VPS +
         "a10001002542010103700000030090000003000003001ea020810596ea4932b80400000fa000000fa020" + HVCC_PPS,
   ),
 
   /**
-   * The video full range flag set, with no colour description.
+   * The video full range flag set, with no color description.
    */
   FullRange(
     videoSignalType = true,
     fullRange = true,
-    colour = null,
+    color = null,
     configuration =
       HVCC_HEADER + HVCC_VPS +
         "a10001002642010103700000030090000003000003001ea020810596ea4932b9b02000007d000003007d01" + HVCC_PPS,
   ),
 
   /**
-   * The video full range flag set, with a colour description of BT.709 primaries, the sRGB transfer 13 and the BT.709
+   * The video full range flag set, with a color description of BT.709 primaries, the sRGB transfer 13 and the BT.709
    * matrix 1.
    */
   FullRangeBt709(
     videoSignalType = true,
     fullRange = true,
-    colour = CicpTag(1, 13, 1, true),
+    color = CicpTag(1, 13, 1, true),
     configuration =
       HVCC_HEADER + HVCC_VPS +
         "a10001002942010103700000030090000003000003001ea020810596ea4932b9b80868082000007d000003007d01" + HVCC_PPS,
   ),
 
   /**
-   * The video full range flag clear, with a colour description of BT.709 primaries, the sRGB transfer 13 and the BT.709
+   * The video full range flag clear, with a color description of BT.709 primaries, the sRGB transfer 13 and the BT.709
    * matrix 1.
    */
   LimitedRangeBt709(
     videoSignalType = true,
     fullRange = false,
-    colour = CicpTag(1, 13, 1, false),
+    color = CicpTag(1, 13, 1, false),
     configuration =
       HVCC_HEADER + HVCC_VPS +
         "a10001002942010103700000030090000003000003001ea020810596ea4932b9a80868082000007d000003007d01" + HVCC_PPS,
   ),
 
   /**
-   * The video full range flag set, with a colour description of Display P3 primaries 12, the sRGB transfer 13 and the
+   * The video full range flag set, with a color description of Display P3 primaries 12, the sRGB transfer 13 and the
    * BT.709 matrix 1.
    *
    * Made as [FullRangeBt709] is, with `--colorprim smpte432` in place of `--colorprim bt709`.
@@ -76,7 +76,7 @@ public enum class HevcVui(
   FullRangeDisplayP3(
     videoSignalType = true,
     fullRange = true,
-    colour = CicpTag(12, 13, 1, true),
+    color = CicpTag(12, 13, 1, true),
     configuration =
       HVCC_HEADER + HVCC_VPS +
         "a10001002942010103700000030090000003000003001ea020810596ea4932b9b86068082000007d000003007d01" + HVCC_PPS,

@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.media.YcbcrEvaluator
+import dev.jordond.filmstrip.color.YcbcrEvaluator
 import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.UByteVar
@@ -43,19 +42,19 @@ import kotlin.math.roundToInt
 
 /**
  * The primary image ImageIO decodes from this data under the identity matrix, each texel's stored samples turned into
- * colour by [landing]'s evaluator and handed to Core Image with no colour space as sixteen-bit RGBA.
+ * color by [landing]'s evaluator and handed to Core Image with no color space as sixteen-bit RGBA.
  *
  * It is [PictureRead.Unreadable] when ImageIO decodes no image, and refused when [evaluatedCodes] cannot read the
  * samples it hands out.
  */
-@OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
-internal fun NSData.evaluatedCodes(landing: ImageIoLanding.Evaluated): PictureRead<HeldCodes> =
+@OptIn(ExperimentalForeignApi::class)
+internal fun NSData.evaluatedCodes(route: PictureRoute.Evaluated): PictureRead<HeldCodes> =
   withImageSource { source ->
     val decoded =
       CGImageSourceCreateImageAtIndex(source, CGImageSourceGetPrimaryImageIndex(source), null)
         ?: return@withImageSource PictureRead.Unreadable
     try {
-      decoded.evaluatedCodes(landing.evaluator, landing.bitDepth)
+      decoded.evaluatedCodes(route.evaluator, route.bitDepth)
     } finally {
       CGImageRelease(decoded)
     }
@@ -63,10 +62,10 @@ internal fun NSData.evaluatedCodes(landing: ImageIoLanding.Evaluated): PictureRe
 
 /**
  * This image's samples, green holding luma, blue the blue difference and red the red difference at [bitDepth] bits,
- * turned into red, green and blue by [evaluator] and handed to Core Image with no colour space as sixteen-bit RGBA,
+ * turned into red, green and blue by [evaluator] and handed to Core Image with no color space as sixteen-bit RGBA,
  * the way [evaluatedImage] makes them.
  */
-@OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 internal fun CGImageRef.evaluatedCodes(
   evaluator: YcbcrEvaluator,
   bitDepth: Int,
@@ -92,15 +91,15 @@ internal fun CGImageRef.evaluatedCodes(
  * On an Apple M4 Max under macOS 26.6.2 (25G83), an eight-bit 8000 by 6000 picture takes 0.65 s under the linear
  * SMPTE 240M reading and 3.2 s under BT.2020 constant luminance in a release build, and 8.5 s and 23 s in a debug one.
  *
- * @param ceiling The most bytes the read may hold at its peak, [PICTURE_PEAK_CEILING] unless a test sets it.
+ * @param ceiling The most bytes the read may hold at its peak, [PICTURE_PEAK_CEILING] by default.
  */
-@OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 internal fun CGImageRef.evaluatedImage(
   evaluator: YcbcrEvaluator,
   bitDepth: Int,
   ceiling: Long = PICTURE_PEAK_CEILING,
 ): PictureRead<CGImageRef> {
-  val layout = storedLayout(bitDepth) ?: return PictureRead.Refused(unreadLayout(bitDepth))
+  val layout = codeLayout(bitDepth) ?: return PictureRead.Refused(unreadLayout(bitDepth))
   val width = CGImageGetWidth(this).toLong()
   val height = CGImageGetHeight(this).toLong()
   val row = CGImageGetBytesPerRow(this).toLong()
@@ -188,11 +187,11 @@ internal fun tooLarge(
 
 // Writes each texel of the samples at bytes, row bytes a row, into rgba as sixteen-bit little endian RGBA, one row at a
 // time through a row of samples and a row of results.
-@OptIn(ExperimentalForeignApi::class, InternalFilmstripApi::class)
+@OptIn(ExperimentalForeignApi::class)
 private fun evaluate(
   bytes: CPointer<UByteVar>,
   row: Long,
-  layout: StoredLayout,
+  layout: CodeLayout,
   evaluator: YcbcrEvaluator,
   width: Int,
   height: Long,
@@ -225,7 +224,7 @@ private fun evaluate(
 /**
  * Where one texel's red, green, blue and alpha sit in a decoded buffer, and whether its alpha is stored.
  */
-private sealed class StoredLayout(
+private sealed class CodeLayout(
   val alpha: Boolean,
 ) {
   /**
@@ -241,7 +240,7 @@ private sealed class StoredLayout(
   class EightBit(
     private val offsets: IntArray,
     alpha: Boolean,
-  ) : StoredLayout(alpha) {
+  ) : CodeLayout(alpha) {
     override fun read(
       bytes: ByteArray,
       at: Int,
@@ -253,7 +252,7 @@ private sealed class StoredLayout(
   }
 
   // Ten bits a channel packed into a little endian word, red highest and two unused bits above it.
-  data object TenBit : StoredLayout(alpha = false) {
+  data object TenBit : CodeLayout(alpha = false) {
     override fun read(
       bytes: ByteArray,
       at: Int,
@@ -271,7 +270,7 @@ private sealed class StoredLayout(
 
 // The layout of this image's texels when it is one evaluatedCodes reads at bitDepth, or null.
 @OptIn(ExperimentalForeignApi::class)
-private fun CGImageRef.storedLayout(bitDepth: Int): StoredLayout? {
+private fun CGImageRef.codeLayout(bitDepth: Int): CodeLayout? {
   val info = CGImageGetBitmapInfo(this)
   val alpha = info and kCGBitmapAlphaInfoMask
   val order = info and kCGBitmapByteOrderMask
@@ -282,7 +281,7 @@ private fun CGImageRef.storedLayout(bitDepth: Int): StoredLayout? {
   if (depth == TEN) {
     val skipFirst = CGImageAlphaInfo.kCGImageAlphaNoneSkipFirst.value
     val packed = format == RGB101010 && order == kCGBitmapByteOrder32Little && alpha == skipFirst
-    return StoredLayout.TenBit.takeIf { packed }
+    return CodeLayout.TenBit.takeIf { packed }
   }
   if (depth != EIGHT || format != 0u) return null
   val first = alpha in ALPHA_FIRST
@@ -295,7 +294,7 @@ private fun CGImageRef.storedLayout(bitDepth: Int): StoredLayout? {
       else -> return null
     }
   val stored = alpha == CGImageAlphaInfo.kCGImageAlphaFirst.value || alpha == CGImageAlphaInfo.kCGImageAlphaLast.value
-  return StoredLayout.EightBit(offsets.toIntArray(), stored)
+  return CodeLayout.EightBit(offsets.toIntArray(), stored)
 }
 
 /**

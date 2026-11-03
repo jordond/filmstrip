@@ -111,7 +111,10 @@ internal class MissingEnginePlayer(
   override fun addPositionListener(
     tick: Duration,
     listener: PlayerPositionListener,
-  ): Cancellable = Cancellable { }
+  ): Cancellable {
+    listener.onPosition(Duration.ZERO)
+    return Cancellable { }
+  }
 
   override fun close(): Unit = Unit
 

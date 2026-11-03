@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.media3.internal
 
 import androidx.media3.common.C
 import androidx.media3.common.audio.GainProcessor
-import dev.jordond.filmstrip.transform.internal.ResolvedGain
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
@@ -68,9 +68,6 @@ internal class ResolvedGainProvider(
 /**
  * The processor that walks [gain] frame by frame, or null when the curve holds one number and a
  * scaled mixing matrix carries it instead.
- *
- * `internal` rather than private so a test can make this call without building the mixer that goes
- * with it, which stores its matrices in an `android.util.SparseArray` and so only runs on device.
  */
 internal fun rampProcessorFor(gain: ResolvedGain): GainProcessor? =
   if (gain.isConstant) null else GainProcessor(ResolvedGainProvider(gain))

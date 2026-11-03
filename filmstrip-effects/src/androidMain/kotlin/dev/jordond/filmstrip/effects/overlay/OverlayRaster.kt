@@ -7,18 +7,18 @@ import android.util.Half
 import androidx.core.graphics.createBitmap
 import androidx.media3.common.OverlaySettings
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.PictureColor
+import dev.jordond.filmstrip.color.authoredHdrNits
+import dev.jordond.filmstrip.color.linearToSrgb
+import dev.jordond.filmstrip.color.pictureLight
+import dev.jordond.filmstrip.color.pictureSrgbCodes
 import dev.jordond.filmstrip.effects.media3WorkingLight
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.PictureColour
-import dev.jordond.filmstrip.media.PictureCrop
-import dev.jordond.filmstrip.media.PictureOrientation
-import dev.jordond.filmstrip.media.authoredHdrNits
-import dev.jordond.filmstrip.media.croppedSamples
-import dev.jordond.filmstrip.media.linearToSrgb
-import dev.jordond.filmstrip.media.orientedSamples
-import dev.jordond.filmstrip.media.pictureLight
-import dev.jordond.filmstrip.media.pictureSrgbCodes
+import dev.jordond.filmstrip.picture.PictureCrop
+import dev.jordond.filmstrip.picture.PictureOrientation
+import dev.jordond.filmstrip.picture.croppedSamples
+import dev.jordond.filmstrip.picture.orientedSamples
 import java.nio.ShortBuffer
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -47,12 +47,12 @@ internal fun textBandBytes(
  * prepares a sixteen-bit picture, or refuses it with the reason [textAllocationFailed] gives when Android cannot
  * allocate what that holds.
  *
- * @param rasterOf Makes the raster from the samples, the step every sixteen-bit read shares unless a test sets it.
+ * @param rasterOf Makes the raster from the samples, the step every sixteen-bit read shares by default.
  * @return The raster media3 draws, or why there is none.
  */
 internal fun TextSamples.rasterFor(
   transfer: HdrTransfer?,
-  rasterOf: (samples: ShortArray, size: Size, transfer: HdrTransfer?, colour: PictureColour?) -> Raster = ::rasterOf,
+  rasterOf: (samples: ShortArray, size: Size, transfer: HdrTransfer?, color: PictureColor?) -> Raster = ::rasterOf,
 ): TextRaster.Made<Raster> =
   try {
     TextRaster.Drawn(rasterOf(samples, size, transfer, null))
@@ -75,7 +75,7 @@ internal class Raster(
  * Prepares [this] for a frame of [transfer], or for an SDR frame when it is null.
  *
  * Either way media3 gets a copy stored straight rather than premultiplied, since its overlay shader multiplies by the
- * alpha it reads itself. An SDR frame takes the colours [pictureSrgbCodes] gives the stored samples under [colour]. An
+ * alpha it reads itself. An SDR frame takes the colors [pictureSrgbCodes] gives the stored samples under [color]. An
  * HDR one takes the codes [media3HdrTexels] writes for the light [pictureLight] gives them. A half float bitmap, the
  * way Android decodes a sixteen-bit picture, is read at its own depth rather than cut to eight bits, through the curve
  * [halfFloatCurve] reads off it.
@@ -83,14 +83,14 @@ internal class Raster(
  * The stored samples are first cut to [crop] through [croppedSamples] and then laid out the way [orientation] shows
  * them through [orientedSamples], so the raster is the picture as shown, its sides swapped for a quarter turn.
  *
- * @param colour How the stored samples describe their colour, or null for colours that are already sRGB, such as an
+ * @param color How the stored samples describe their color, or null for colors that are already sRGB, such as an
  * untagged picture.
  * @param orientation The turn the picture's own tag asks for, or [PictureOrientation.Normal] to keep the stored layout.
  * @param crop The texels of the stored samples kept, or null to keep them all. It has to lie within the bitmap.
  */
 internal fun Bitmap.rasterFor(
   transfer: HdrTransfer?,
-  colour: PictureColour? = null,
+  color: PictureColor? = null,
   orientation: PictureOrientation = PictureOrientation.Normal,
   crop: PictureCrop? = null,
 ): Raster {
@@ -100,14 +100,14 @@ internal fun Bitmap.rasterFor(
   val wide = wideSamples()
   if (wide != null) {
     val cut = crop?.let { croppedSamples(it, wide, stored) } ?: wide
-    return rasterOf(orientedSamples(orientation, cut, kept), shown, transfer, colour)
+    return rasterOf(orientedSamples(orientation, cut, kept), shown, transfer, color)
   }
   val pixels = IntArray(width * height)
   getPixels(pixels, 0, width, 0, 0, width, height)
   val cut = crop?.let { croppedSamples(it, pixels, stored) } ?: pixels
   val oriented = orientedSamples(orientation, cut, kept)
-  if (transfer == null) return sdrRaster(shown, pictureSrgbCodes(colour, oriented))
-  val texels = media3HdrTexels(oriented, transfer, colour)
+  if (transfer == null) return sdrRaster(shown, pictureSrgbCodes(color, oriented))
+  val texels = media3HdrTexels(oriented, transfer, color)
   return Raster(straightBitmap(shown, texels.argb), texels.hdrLuminance)
 }
 
@@ -116,10 +116,10 @@ private fun rasterOf(
   samples: ShortArray,
   size: Size,
   transfer: HdrTransfer?,
-  colour: PictureColour?,
+  color: PictureColor?,
 ): Raster {
-  if (transfer == null) return sdrRaster(size, pictureSrgbCodes(colour, samples))
-  val texels = media3HdrTexels(pictureLight(colour, samples), transfer)
+  if (transfer == null) return sdrRaster(size, pictureSrgbCodes(color, samples))
+  val texels = media3HdrTexels(pictureLight(color, samples), transfer)
   return Raster(straightBitmap(size, texels.argb), texels.hdrLuminance)
 }
 
@@ -128,8 +128,8 @@ private fun sdrRaster(
   argb: IntArray,
 ): Raster = Raster(straightBitmap(size, argb), OverlaySettings.DEFAULT_HDR_LUMINANCE_MULTIPLIER)
 
-// getPixels answers unpremultiplied colours whatever the bitmap stores, and setPixels on a bitmap that is not
-// premultiplied keeps the colours it is handed that way.
+// getPixels answers unpremultiplied colors whatever the bitmap stores, and setPixels on a bitmap that is not
+// premultiplied keeps the colors it is handed that way.
 private fun straightBitmap(
   size: Size,
   argb: IntArray,
@@ -162,7 +162,7 @@ private fun Bitmap.wideSamples(): ShortArray? {
 }
 
 /**
- * How a half float bitmap's colour channels are encoded, read off the colour space Android decoded it into.
+ * How a half float bitmap's color channels are encoded, read off the color space Android decoded it into.
  *
  * A sixteen-bit picture is asked for in extended sRGB, whose curve is the one an undescribed picture is read through.
  * Some versions decode it into linear extended sRGB whatever was asked for, so its channels are linear light and are
@@ -180,13 +180,13 @@ internal enum class HalfFloatCurve {
   Linear,
 
   /**
-   * Any other colour space, which an overlay refuses rather than read through a curve it does not have.
+   * Any other color space, which an overlay refuses rather than read through a curve it does not have.
    */
   Unknown,
 }
 
 /**
- * The curve this bitmap's colour channels are encoded with, or null when it does not hold half floats.
+ * The curve this bitmap's color channels are encoded with, or null when it does not hold half floats.
  */
 internal fun Bitmap.halfFloatCurve(): HalfFloatCurve? {
   if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || config != Bitmap.Config.RGBA_F16) return null
@@ -198,16 +198,16 @@ internal fun Bitmap.halfFloatCurve(): HalfFloatCurve? {
 }
 
 /**
- * Overlay texels rewritten so media3's HDR overlay path lands each one on the light [pictureLight] gives its colour.
+ * Overlay texels rewritten so media3's HDR overlay path lands each one on the light [pictureLight] gives its color.
  *
  * media3 1.11.1 draws a text overlay onto an HDR frame as its HDR luminance multiplier times the sRGB decode of each
- * texel, with no change of primaries, then blends that with the frame by the texel's alpha. Each colour here is
+ * texel, with no change of primaries, then blends that with the frame by the texel's alpha. Each color here is
  * [media3WorkingLight] of that light, divided by [hdrLuminance] and encoded back to sRGB, so media3's own read of it
  * undoes the mapping.
  *
  * @property argb Straight ARGB texels, each alpha as it came in.
  * @property hdrLuminance The multiplier the texels are written against, never below the level reference white reaches,
- * and raised to the brightest channel when a colour goes past it.
+ * and raised to the brightest channel when a color goes past it.
  */
 @InternalFilmstripApi
 public class Media3HdrTexels(
@@ -218,19 +218,19 @@ public class Media3HdrTexels(
 /**
  * Maps straight ARGB [argb] texels onto the codes media3 reads back as their light on a frame of [transfer].
  *
- * The light is what [pictureLight] gives each texel under [colour], so an untagged texel lands on its authored light.
+ * The light is what [pictureLight] gives each texel under [color], so an untagged texel lands on its authored light.
  * Reference white lands on the top code, so on a PQ frame an untagged neutral texel keeps its own code and only a
- * saturated one moves, by the change of primaries. On an HLG frame a saturated colour can hold more scene light in one
+ * saturated one moves, by the change of primaries. On an HLG frame a saturated color can hold more scene light in one
  * channel than white does, and the multiplier rises to fit it rather than clip it.
  *
- * @param colour How the texels describe their colour, or null when they are authored sRGB.
+ * @param color How the texels describe their color, or null when they are authored sRGB.
  */
 @InternalFilmstripApi
 public fun media3HdrTexels(
   argb: IntArray,
   transfer: HdrTransfer,
-  colour: PictureColour? = null,
-): Media3HdrTexels = media3HdrTexels(pictureLight(colour, argb), transfer)
+  color: PictureColor? = null,
+): Media3HdrTexels = media3HdrTexels(pictureLight(color, argb), transfer)
 
 // Each texel of [light] is red, green and blue in nits and then alpha, as pictureLight writes it.
 private fun media3HdrTexels(

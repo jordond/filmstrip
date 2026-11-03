@@ -5,6 +5,8 @@ import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 import kotlin.time.Duration
 
 /**
@@ -32,6 +34,21 @@ public fun interface PreviewFrameReadback {
     callback: ReadbackCallback,
   ): Cancellable
 }
+
+/**
+ * Renders the frame at [position] through the current effect chain, suspending until it is ready.
+ *
+ * The suspend form of [PreviewFrameReadback.requestFrame], with the same promise about transport
+ * state. Cancelling the caller cancels the request.
+ *
+ * @param position The composition time to render.
+ * @return The frame, or why it could not be rendered.
+ */
+public suspend fun PreviewFrameReadback.frameAt(position: Duration): ReadbackResult =
+  suspendCancellableCoroutine { continuation ->
+    val request = requestFrame(position) { result -> continuation.resume(result) }
+    continuation.invokeOnCancellation { request.cancel() }
+  }
 
 /**
  * Receives the outcome of one [PreviewFrameReadback.requestFrame].
@@ -78,7 +95,7 @@ public sealed interface ReadbackResult {
  * @property size The frame's dimensions, in pixels.
  * @property presentationTime The composition time actually rendered, which may differ from
  *   the requested position.
- * @property colorSpace The colour space the pixels are in.
+ * @property colorSpace The color space the pixels are in.
  * @property renderScale The preview-only downscale in force, `1f` when there is none.
  */
 public class ReadbackFrame

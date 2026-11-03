@@ -17,14 +17,23 @@ import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
+import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.MediaInfo
+import dev.jordond.filmstrip.media.MediaProber
+import dev.jordond.filmstrip.media.MediaProberFactory
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.ProbeResult
+import dev.jordond.filmstrip.media.VideoTrackInfo
+import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.transform.internal.ResolveResult
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -59,22 +68,27 @@ class FfmpegResolveTest {
         FfmpegExportEngine(
           ComponentRegistry
             .Builder()
-            .add(BuiltInEffectResolver())
-            .add(recorded)
+            .addEffectResolver(BuiltInEffectResolver())
+            .addEffectResolver(recorded)
             .build(),
           FfmpegRuntime.of(FfmpegConfig()),
         )
 
-      val natural = assertIs<ResolveResult.Resolved>(engine.resolve(composition, ExportSpec()))
+      val natural = engine.resolve(composition, ExportSpec()).shouldBeInstanceOf<ResolveResult.Resolved>()
       val naturalSize = natural.composition.output.size
 
       val cap = (naturalSize.height * CAP_FRACTION).toInt()
       val capped =
-        assertIs<ResolveResult.Resolved>(engine.resolve(composition, ExportSpec(targetHeight = cap), naturalSize))
+        engine
+          .resolve(
+            composition,
+            ExportSpec(heightPx = cap),
+            naturalSize,
+          ).shouldBeInstanceOf<ResolveResult.Resolved>()
       val cappedSize = capped.composition.output.size
 
       cappedSize.height shouldBe cap
-      assertTrue(cappedSize.width < naturalSize.width, "the capped frame is $cappedSize")
+      withClue("the capped frame is $cappedSize") { (cappedSize.width < naturalSize.width).shouldBeTrue() }
       capped.composition.layoutSize shouldBe naturalSize
 
       // The natural frame is settled before the cap is applied to it, so the cap's own lowering is
@@ -98,12 +112,34 @@ class FfmpegResolveTest {
       // in this module resolves through the runtime the default config is memoised against.
       val runtime = FfmpegRuntime.unshared(FfmpegConfig())
       val engine =
-        FfmpegExportEngine(ComponentRegistry.Builder().add(BuiltInEffectResolver()).build(), runtime)
+        FfmpegExportEngine(ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(), runtime)
 
-      assertIs<ResolveResult.Resolved>(engine.resolve(composition, ExportSpec()))
-      assertIs<ResolveResult.Resolved>(engine.resolve(composition, ExportSpec(targetHeight = CAPPED_HEIGHT)))
+      engine.resolve(composition, ExportSpec()).shouldBeInstanceOf<ResolveResult.Resolved>()
+      engine.resolve(composition, ExportSpec(heightPx = CAPPED_HEIGHT)).shouldBeInstanceOf<ResolveResult.Resolved>()
 
       runtime.probeSpawns shouldBe 1
+    }
+
+  // A host prober answers ahead of ffprobe here the way it does on every other engine, so what it says the source is
+  // is what the plan is built on, and ffprobe is never asked.
+  @Test
+  fun `a registered prober answers ahead of ffprobe`() =
+    runTest(timeout = TIMEOUT) {
+      if (!landscape.isFile) return@runTest
+
+      val runtime = FfmpegRuntime.unshared(FfmpegConfig())
+      val components =
+        ComponentRegistry
+          .Builder()
+          .addEffectResolver(BuiltInEffectResolver())
+          .addMediaProberFactory(MediaProberFactory { MediaProber { ProbeResult.Success(hostInfo) } })
+          .build()
+      val engine = FfmpegExportEngine(components, runtime)
+
+      val resolved = engine.resolve(composition, ExportSpec()).shouldBeInstanceOf<ResolveResult.Resolved>()
+
+      resolved.composition.output.size shouldBe HOST_SIZE
+      runtime.probeSpawns shouldBe 0
     }
 
   // One edit is negotiated to plan it, to resolve it for a preview and again to export it. A sync
@@ -116,7 +152,7 @@ class FfmpegResolveTest {
 
       val runtime = FfmpegRuntime.unshared(FfmpegConfig())
       val engine =
-        FfmpegExportEngine(ComponentRegistry.Builder().add(BuiltInEffectResolver()).build(), runtime)
+        FfmpegExportEngine(ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(), runtime)
       val trimmed =
         EditComposition(
           listOf(
@@ -133,7 +169,7 @@ class FfmpegResolveTest {
         )
 
       engine.plan(trimmed, ExportSpec())
-      assertIs<ResolveResult.Resolved>(engine.resolve(trimmed, ExportSpec()))
+      engine.resolve(trimmed, ExportSpec()).shouldBeInstanceOf<ResolveResult.Resolved>()
 
       runtime.syncSampleSpawns shouldBe 1
     }
@@ -146,13 +182,13 @@ class FfmpegResolveTest {
     runTest(timeout = TIMEOUT) {
       if (!landscape.isFile) return@runTest
 
-      val components = ComponentRegistry.Builder().add(BuiltInEffectResolver()).build()
+      val components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()
       val first = ffmpegExportEngine(components)
       val second = ffmpegExportEngine(components)
 
-      assertIs<ResolveResult.Resolved>(first.resolve(composition, ExportSpec()))
+      first.resolve(composition, ExportSpec()).shouldBeInstanceOf<ResolveResult.Resolved>()
       val spawns = FfmpegRuntime.of(FfmpegConfig()).probeSpawns
-      assertIs<ResolveResult.Resolved>(second.resolve(composition, ExportSpec()))
+      second.resolve(composition, ExportSpec()).shouldBeInstanceOf<ResolveResult.Resolved>()
 
       FfmpegRuntime.of(FfmpegConfig()).probeSpawns shouldBe spawns
     }
@@ -166,14 +202,14 @@ class FfmpegResolveTest {
       // Unshared, because what this asserts is what a cold runtime costs and every other suite in
       // this module measures through the one the default config is memoised against.
       val runtime = FfmpegRuntime.unshared(FfmpegConfig())
-      val components = ComponentRegistry.Builder().add(BuiltInEffectResolver()).build()
+      val components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()
       val first = FfmpegExportEngine(components, runtime)
       val second = FfmpegExportEngine(components, runtime)
 
       // Gated on the toolchain rather than on a fixture, since this reads nothing off disk and the
       // fixtures download whether or not the machine has an ffmpeg to run them through.
       if (first.capabilities() is CapabilitiesResult.Failure) return@runTest
-      assertIs<CapabilitiesResult.Success>(second.capabilities())
+      second.capabilities().shouldBeInstanceOf<CapabilitiesResult.Success>()
 
       runtime.capabilityMeasures shouldBe 1
     }
@@ -190,6 +226,29 @@ class FfmpegResolveTest {
     const val CAP_FRACTION = 0.6f
     const val CAPPED_HEIGHT = 216
     const val BRIGHTNESS = 0.5f
+
+    // Half the landscape fixture's own frame, so a plan built on ffprobe's answer cannot land on it.
+    val HOST_SIZE = Size(320, 180)
+
+    val hostInfo =
+      MediaInfo(
+        duration = 2.seconds,
+        video =
+          VideoTrackInfo(
+            codedSize = HOST_SIZE,
+            displaySize = HOST_SIZE,
+            rotationDegrees = 0,
+            pixelAspectRatio = 1f,
+            frameRate = 30f,
+            codec = trackCodecOf("avc1"),
+            bitDepth = 8,
+            colorSpace = ColorSpace.Bt709,
+            hdrTransfer = null,
+            bitrate = null,
+          ),
+        audio = null,
+        isExportable = true,
+      )
   }
 }
 

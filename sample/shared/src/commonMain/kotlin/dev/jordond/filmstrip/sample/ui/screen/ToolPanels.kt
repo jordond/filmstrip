@@ -501,7 +501,7 @@ private fun AdjustPanel(state: SampleAppState) {
 
   ControlGroup("Tone") {
     Text(
-      "Every slider is a colour matrix, and a run of them is folded into one before anything clamps, " +
+      "Every slider is a color matrix, and a run of them is folded into one before anything clamps, " +
           "so a brightness above 100% and a contrast that pulls it back cancel out.",
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.outline,
@@ -802,7 +802,7 @@ private fun TextPanel(state: SampleAppState) {
     )
   }
 
-  ControlGroup("Colour") {
+  ControlGroup("Color") {
     SwatchRow(
       colors = Palette,
       selected = edit.textColor,
@@ -1088,7 +1088,7 @@ private fun BackgroundPanel(state: SampleAppState) {
   }
 
   when (edit.fillMode) {
-    FillMode.Solid -> ControlGroup("Colour") {
+    FillMode.Solid -> ControlGroup("Color") {
       SwatchRow(
         colors = Plates,
         selected = edit.fillColor,

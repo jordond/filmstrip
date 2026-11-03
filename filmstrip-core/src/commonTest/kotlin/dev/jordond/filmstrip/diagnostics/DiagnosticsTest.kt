@@ -1,9 +1,9 @@
 package dev.jordond.filmstrip.diagnostics
 
 import dev.jordond.filmstrip.ComponentRegistry
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.shouldBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 class DiagnosticsTest {
   @Test
@@ -13,17 +13,17 @@ class DiagnosticsTest {
     val registry =
       ComponentRegistry
         .Builder()
-        .add(DiagnosticListener { first += it })
-        .add(DiagnosticListener { second += it })
+        .addDiagnosticListener(DiagnosticListener { first += it })
+        .addDiagnosticListener(DiagnosticListener { second += it })
         .build()
 
     registry.report("ffmpeg", "toolchain", mapOf("version" to "7.1"))
 
-    assertEquals(1, first.size)
-    assertEquals(1, second.size)
-    assertEquals("ffmpeg", first.single().source)
-    assertEquals("toolchain", first.single().name)
-    assertEquals("7.1", first.single().detail["version"])
+    first.size shouldBe 1
+    second.size shouldBe 1
+    first.single().source shouldBe "ffmpeg"
+    first.single().name shouldBe "toolchain"
+    first.single().detail["version"] shouldBe "7.1"
   }
 
   @Test
@@ -32,13 +32,13 @@ class DiagnosticsTest {
     val registry =
       ComponentRegistry
         .Builder()
-        .add(DiagnosticListener { error("no") })
-        .add(DiagnosticListener { seen += it })
+        .addDiagnosticListener(DiagnosticListener { error("no") })
+        .addDiagnosticListener(DiagnosticListener { seen += it })
         .build()
 
     registry.report("core", "anything", emptyMap())
 
-    assertEquals(1, seen.size)
+    seen.size shouldBe 1
   }
 
   @Test
@@ -46,11 +46,11 @@ class DiagnosticsTest {
     val registry =
       ComponentRegistry
         .Builder()
-        .add(BackendInfo("media3", "dev.jordond.filmstrip:filmstrip-transform-media3"))
-        .add(BackendInfo("ffmpeg", "dev.jordond.filmstrip:filmstrip-transform-ffmpeg"))
+        .addBackendInfo(BackendInfo("media3", "dev.jordond.filmstrip:filmstrip-transform-media3"))
+        .addBackendInfo(BackendInfo("ffmpeg", "dev.jordond.filmstrip:filmstrip-transform-ffmpeg"))
         .build()
 
-    assertEquals(listOf("media3", "ffmpeg"), registry.backends.map { it.name })
+    registry.backends.map { it.name } shouldBe listOf("media3", "ffmpeg")
   }
 
   @Test
@@ -59,14 +59,14 @@ class DiagnosticsTest {
     val original =
       ComponentRegistry
         .Builder()
-        .add(BackendInfo("ffmpeg", "dev.jordond.filmstrip:filmstrip-transform-ffmpeg"))
-        .add(DiagnosticListener { seen += it })
+        .addBackendInfo(BackendInfo("ffmpeg", "dev.jordond.filmstrip:filmstrip-transform-ffmpeg"))
+        .addDiagnosticListener(DiagnosticListener { seen += it })
         .build()
 
     val copy = original.newBuilder().build()
     copy.report("ffmpeg", "invocation", mapOf("command" to "ffmpeg -i in.mp4 out.mp4"))
 
-    assertEquals(listOf("ffmpeg"), copy.backends.map { it.name })
-    assertTrue(seen.isNotEmpty())
+    copy.backends.map { it.name } shouldBe listOf("ffmpeg")
+    seen.isNotEmpty().shouldBeTrue()
   }
 }

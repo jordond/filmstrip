@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.createCodeSpace
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.FloatVar
 import kotlinx.cinterop.allocArray
@@ -24,7 +25,6 @@ import platform.CoreGraphics.CGRectMake
 import platform.CoreImage.CIContext
 import platform.CoreImage.CIImage
 import platform.CoreImage.kCIFormatRGBAf
-import kotlin.test.assertIs
 import kotlin.test.fail
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -74,14 +74,18 @@ internal object OverlayFixtures {
   private const val HEX = 16
 
   fun stepFor(spec: EffectSpec) =
-    assertIs<EffectResolution.Resolved>(
-      BuiltInEffectResolver().resolve(spec, CAPABILITIES, ATTRIBUTES),
-    ).effect.step
+    BuiltInEffectResolver()
+      .resolve(
+        spec,
+        CAPABILITIES,
+        ATTRIBUTES,
+      ).shouldBeInstanceOf<EffectResolution.Resolved>()
+      .effect.step
 
   fun at(time: Duration) = FrameInfo(ATTRIBUTES, time)
 
   /**
-   * The whole of [FRAME] in the codes of the colour space [spaceName] names, four floats per pixel
+   * The whole of [FRAME] in the codes of the color space [spaceName] names, four floats per pixel
    * from the top row down.
    *
    * With no [spaceName] that is the frame's own BT.709 code space, the codes an encoder writes and the

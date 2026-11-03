@@ -2,9 +2,10 @@ package dev.jordond.filmstrip.media3
 
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media3.internal.Media3Driver
+import io.kotest.assertions.withClue
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
-import kotlin.test.assertSame
 
 /**
  * Every driver in a process reads one encoder capability answer.
@@ -20,7 +21,7 @@ class AndroidEncoderCacheTest {
       val first = Media3Driver(prober = UNUSED_PROBER).capabilities()
       val second = Media3Driver(prober = UNUSED_PROBER).capabilities()
 
-      assertSame(first, second, "each driver probed the encoders for itself")
+      withClue("each driver probed the encoders for itself") { second shouldBeSameInstanceAs first }
     }
 
   private companion object {

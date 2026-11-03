@@ -93,10 +93,11 @@ public external interface Blob : JsAny {
  * Object URL minting. A URL outlives the page's reference to the blob, so whoever mints one owns
  * revoking it.
  */
-internal external object URL : JsAny {
-  fun createObjectURL(obj: JsAny): String
+@InternalFilmstripApi
+public external object URL : JsAny {
+  public fun createObjectURL(obj: JsAny): String
 
-  fun revokeObjectURL(url: String)
+  public fun revokeObjectURL(url: String)
 }
 
 /**
@@ -138,6 +139,27 @@ internal external fun setTimeout(
   handler: () -> Unit,
   timeout: Int,
 ): Int
+
+/**
+ * Saves [blob], a JavaScript `Blob`, under [filename] through a download anchor.
+ *
+ * The URL is revoked on the next task, since the browser has taken its own reference to the blob by
+ * the time the click dispatch returns.
+ */
+@InternalFilmstripApi
+public fun downloadBlob(
+  blob: JsAny,
+  filename: String,
+) {
+  val url = URL.createObjectURL(blob)
+  val anchor = document.createElement("a")
+  anchor.href = url
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  setTimeout({ URL.revokeObjectURL(url) }, 0)
+}
 
 /**
  * Wraps the frame's pixels in an `ImageData` the canvas will take.

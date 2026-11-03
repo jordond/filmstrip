@@ -1,13 +1,12 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.test.CicpTag
 import dev.jordond.filmstrip.test.HeifStills
 
 /**
  * A 32 by 32 AVIF painted in 64 blocks of four by four texels, each block one luma, blue difference and red
- * difference sample, so one picture holds mid-range and saturated colours under whatever `nclx` it is given.
+ * difference sample, so one picture holds mid-range and saturated colors under whatever `nclx` it is given.
  *
  * Block `b` sits at column `b % 8` and row `b / 8`. Its eight-bit samples are luma `32 + 56 * (b % 4)`, blue difference
  * `16 + 74 * ((b / 4) % 4)` and red difference `16 + 74 * (b / 16)`, times 4 plus 1 at ten bits and times 16 plus 5 at
@@ -17,7 +16,6 @@ import dev.jordond.filmstrip.test.HeifStills
  * @property bitDepth The bits per sample the codestream stores.
  * @property unsubsampled Whether the codestream is 4:4:4 rather than 4:2:0.
  */
-@OptIn(InternalFilmstripApi::class)
 internal class MatrixAvif private constructor(
   val name: String,
   val bitDepth: Int,
@@ -43,7 +41,7 @@ internal class MatrixAvif private constructor(
   fun texelOf(block: Int): Int = ((block / GRID) * BLOCK + 1) * SIDE + (block % GRID) * BLOCK + 1
 
   /**
-   * The picture as an AVIF file whose only colour box is a `colr nclx` holding [nclx].
+   * The picture as an AVIF file whose only color box is a `colr nclx` holding [nclx].
    */
   fun bytes(nclx: CicpTag): ByteArray {
     val av1c = hex(configuration)

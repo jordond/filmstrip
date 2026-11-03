@@ -1,24 +1,26 @@
 package dev.jordond.filmstrip.transform.internal
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
+import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.Bitrate
+import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effects.geometry.Rotate
-import dev.jordond.filmstrip.export.AudioCodec
-import dev.jordond.filmstrip.export.Bitrate
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.Verdict
-import dev.jordond.filmstrip.export.VideoCodec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.transform.internal.negotiation.audioFormat
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.test.assertIs
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -32,22 +34,22 @@ class ExportPlannerTest {
   private val fixture = PlannerFixture()
 
   @Test
-  fun `an untouched single clip plans capable and transmuxes`() {
+  fun `an untouched single clip plans capable and copies`() {
     val verdict = fixture.plan(composition(fixture.clip(audioRate = 44_100)))
 
-    val plan = assertIs<Verdict.Capable>(verdict).plan
+    val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
     plan.output.size shouldBe Size(1920, 1080)
     plan.output.videoCodec shouldBe VideoCodec.H264
     plan.output.audioCodec shouldBe AudioCodec.Aac
-    plan.path shouldBe ExportPath.Transmux
-    plan.estimate.isPassthrough shouldBe true
+    plan.path shouldBe ExportPath.Copy
+    plan.estimate.isCopy shouldBe true
   }
 
   @Test
-  fun `an untouched clip transmuxes when no canCopy is supplied`() {
+  fun `an untouched clip copies when no muxerAccepts is supplied`() {
     val verdict = fixture.plan(composition(fixture.clip()))
 
-    assertIs<Verdict.Capable>(verdict).plan.path shouldBe ExportPath.Transmux
+    verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Copy
   }
 
   // The ladder's first pick for Auto is H264, and this source is HEVC, so a plan that reported the
@@ -56,17 +58,19 @@ class ExportPlannerTest {
   fun `a copy reports the source's real codec rather than the ladder's pick`() {
     val verdict = fixture.plan(composition(fixture.clip(codec = "hvc1")))
 
-    assertIs<Verdict.Capable>(verdict).plan.output.videoCodec shouldBe VideoCodec.Hevc
+    verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.output.videoCodec shouldBe VideoCodec.Hevc
   }
 
-  // A permissive canCopy agrees to copy anything the muxer takes, which is a wider set than the
+  // A permissive muxerAccepts agrees to copy anything the muxer takes, which is a wider set than the
   // codecs VideoCodec and AudioCodec have members for. Transcoding instead of naming the wrong
-  // thing is what keeps the plan honest when a backend's own canCopy does not narrow this itself.
+  // thing is what keeps the plan honest when a backend's own muxerAccepts does not narrow this itself.
   @Test
   fun `a source whose codec neither enum can name transcodes rather than crashing`() {
     val verdict = fixture.plan(composition(fixture.clip(codec = "some-future-codec")))
 
-    assertIs<Verdict.Capable>(verdict).plan.path shouldBe ExportPath.Transcode
+    verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Transcode
   }
 
   @Test
@@ -74,77 +78,80 @@ class ExportPlannerTest {
     val device = fixture.device(audio = listOf(AudioEncoderCapability(AudioCodec.Aac, listOf(44_100, 48_000), 1)))
     val verdict = fixture.plan(composition(fixture.clip(audioRate = 37_800)), device = device)
 
-    val format = assertIs<Verdict.Capable>(verdict).plan.output.audioFormat
+    val format =
+      verdict
+        .shouldBeInstanceOf<Verdict.Capable>()
+        .plan.output.audioFormat
     format?.sampleRate shouldBe 37_800
     format?.channelCount shouldBe 2
   }
 
   @Test
-  fun `a canCopy refusal on an otherwise untouched clip transcodes`() {
-    val verdict = fixture.plan(composition(fixture.clip()), canCopy = { false })
+  fun `a muxerAccepts refusal on an otherwise untouched clip transcodes`() {
+    val verdict = fixture.plan(composition(fixture.clip()), muxerAccepts = { false })
 
-    assertIs<Verdict.Capable>(verdict).plan.path shouldBe ExportPath.Transcode
+    verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Transcode
   }
 
   @Test
   fun `a bitrate target on an otherwise untouched clip transcodes`() {
     val verdict = fixture.plan(composition(fixture.clip()), ExportSpec(bitrate = Bitrate.mbps(2)))
 
-    assertIs<Verdict.Capable>(verdict).plan.path shouldBe ExportPath.Transcode
+    verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Transcode
   }
 
   @Test
   fun `a requested audio codec on an otherwise untouched clip transcodes`() {
     val verdict = fixture.plan(composition(fixture.clip()), ExportSpec(audioCodec = AudioCodec.Aac))
 
-    assertIs<Verdict.Capable>(verdict).plan.path shouldBe ExportPath.Transcode
+    verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Transcode
   }
 
   @Test
   fun `a track with a lead-in transcodes`() {
     val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip()), start = 2_000.milliseconds))))
 
-    assertIs<Verdict.Capable>(verdict).plan.path shouldBe ExportPath.Transcode
+    verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Transcode
   }
 
   @Test
   fun `a muted clip on an otherwise untouched clip transcodes`() {
     val verdict = fixture.plan(composition(fixture.clip().withAudio(AudioLevel.Mute)))
 
-    assertIs<Verdict.Capable>(verdict).plan.path shouldBe ExportPath.Transcode
+    verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Transcode
   }
 
   @Test
   fun `a track volume level on an otherwise untouched clip transcodes`() {
     val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip()), audio = AudioLevel.Volume(0.5f)))))
 
-    assertIs<Verdict.Capable>(verdict).plan.path shouldBe ExportPath.Transcode
+    verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Transcode
   }
 
   @Test
   fun `a video-only track on an otherwise untouched clip transcodes`() {
     val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip()), content = TrackContent.Video))))
 
-    assertIs<Verdict.Capable>(verdict).plan.path shouldBe ExportPath.Transcode
+    verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Transcode
   }
 
   // A copy would already have kept this untouched clip's grade with no tone map at all, so the
-  // canCopy refusal below is what actually forces the tone map this test is about.
+  // muxerAccepts refusal below is what actually forces the tone map this test is about.
   @Test
   fun `a tone-mapped hdr source that cannot copy transcodes`() {
-    val verdict = fixture.plan(composition(fixture.clip(hdr = HdrTransfer.Hlg)), canCopy = { false })
+    val verdict = fixture.plan(composition(fixture.clip(hdr = HdrTransfer.Hlg)), muxerAccepts = { false })
 
-    assertIs<Verdict.Degraded>(verdict).plan.path shouldBe ExportPath.Transcode
+    verdict.shouldBeInstanceOf<Verdict.Degraded>().plan.path shouldBe ExportPath.Transcode
   }
 
   // The cheapest fix for HDR on a device with no HDR encoder: an untouched clip needs no encoder at
   // all, so a copy keeps the grade exactly whatever the device can do.
   @Test
-  fun `an untouched hdr clip transmuxes when the device can neither encode nor tone-map it`() {
+  fun `an untouched hdr clip copies when the device can neither encode nor tone-map it`() {
     val verdict = fixture.plan(composition(fixture.clip(hdr = HdrTransfer.Hlg)), canToneMap = false)
 
-    val plan = assertIs<Verdict.Capable>(verdict).plan
-    plan.path shouldBe ExportPath.Transmux
+    val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.path shouldBe ExportPath.Copy
   }
 
   @Test
@@ -161,7 +168,7 @@ class ExportPlannerTest {
     val verdict =
       fixture.plan(composition(fixture.clip(hdr = HdrTransfer.Hlg, effects = listOf(Rotate(90)))), canToneMap = false)
 
-    assertIs<Verdict.Incapable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Incapable>()
   }
 
   @Test
@@ -169,7 +176,7 @@ class ExportPlannerTest {
     val trimmed = fixture.clip(hdr = HdrTransfer.Hlg, trim = TimeRange.of(1_000.milliseconds, 3_000.milliseconds))
     val verdict = fixture.plan(composition(trimmed), canToneMap = false)
 
-    assertIs<Verdict.Incapable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Incapable>()
   }
 
   // A cut at zero opens on the first sample of the stream, which is always a sync sample, so the
@@ -179,22 +186,26 @@ class ExportPlannerTest {
     val trimmed = fixture.clip(hdr = HdrTransfer.Hlg, trim = TimeRange.of(Duration.ZERO, 3_000.milliseconds))
     val verdict = fixture.plan(composition(trimmed), canToneMap = false)
 
-    assertIs<Verdict.Capable>(verdict)
-    verdict.plan.path shouldBe ExportPath.Transmux
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
+    verdict.plan.path shouldBe ExportPath.Copy
   }
 
   @Test
   fun `a resized hdr clip still refuses when it can neither encode nor tone-map`() {
     val verdict =
-      fixture.plan(composition(fixture.clip(hdr = HdrTransfer.Hlg)), ExportSpec(targetHeight = 720), canToneMap = false)
+      fixture.plan(composition(fixture.clip(hdr = HdrTransfer.Hlg)), ExportSpec(heightPx = 720), canToneMap = false)
 
-    assertIs<Verdict.Incapable>(verdict)
+    verdict.shouldBeInstanceOf<Verdict.Incapable>()
   }
 
   @Test
   fun `a protected source is refused before anything is decoded`() {
     val verdict = fixture.plan(composition(fixture.clip(exportable = false)))
 
-    assertIs<ExportError.SourceNotExportable>(assertIs<Verdict.Incapable>(verdict).reasons.single())
+    verdict
+      .shouldBeInstanceOf<Verdict.Incapable>()
+      .reasons
+      .single()
+      .shouldBeInstanceOf<FilmstripError.SourceNotExportable>()
   }
 }

@@ -24,7 +24,7 @@ public val RESOLUTION_LADDER: List<Size> =
 /**
  * The size the HDR probe opens its encoder at.
  *
- * Whether an encoder takes a ten-bit profile is a format question rather than a size one, so every
+ * Whether an encoder takes a ten-bit profile does not depend on the size it opens at, so every
  * backend asks it at one rung and at the cheapest. An encoder that lands the profile here is
  * trusted to land it at whatever size the plan goes on to ask for.
  */

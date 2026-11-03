@@ -17,6 +17,11 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.style.TextStyle
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.get
@@ -67,21 +72,15 @@ import platform.ImageIO.CGImageSourceCreateWithData
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.test.assertContains
-import kotlin.test.assertContentEquals
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /**
  * Holds the samples ImageIO decodes a picture to as the ones the Apple overlay raster reads back, whatever layout they
  * are stored in.
  *
- * Every layout [bitmapCodes] takes reads back at the straight colour its bytes hold, read one after another in one
+ * Every layout [bitmapCodes] takes reads back at the straight color its bytes hold, read one after another in one
  * process so a grey layout read before an RGB one cannot leave its layout behind. A translucent HEIC reads back at the
- * colour ImageIO decodes it to, its colour above its alpha included, and so does a translucent text plate. A texel
+ * color ImageIO decodes it to, its color above its alpha included, and so does a translucent text plate. A texel
  * with no alpha reads back black, and one Core Image hands back as not a number reads back as 0. A grey HEIC with
  * alpha, whose samples ImageIO does not hand out, is refused saying so, and a CMYK image is refused too. A grey layout
  * the read does not take is refused naming its alpha and byte order, and bytes holding no picture are refused naming
@@ -90,7 +89,7 @@ import kotlin.time.Duration.Companion.seconds
 @OptIn(ExperimentalForeignApi::class)
 class ImageIoBitmapTest {
   @Test
-  fun `every layout reads back at the straight colour it stores`() {
+  fun `every layout reads back at the straight color it stores`() {
     assertRasterReads()
     val misses =
       BitmapLayouts.ALL.mapNotNull { layout ->
@@ -100,7 +99,7 @@ class ImageIoBitmapTest {
         if (read == expected) null else "${layout.name} read $read, where it stores $expected"
       }
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   // A grey copy holds ImageIO's decode, the copy read from it and the RGBA written from that, and an RGB copy holds the
@@ -116,7 +115,7 @@ class ImageIoBitmapTest {
           val rgba = width * height * CHANNELS * (CGImageGetBitsPerComponent(image).toLong() / BITS)
           val peak =
             if (layout.grey) picturePeakBytes(decode, decode, rgba) else picturePeakBytes(decode, 0L, decode)
-          val ceiling = assertNotNull(peak, layout.name)
+          val ceiling = withClue(layout.name) { peak.shouldNotBeNull() }
           val past = image.bitmapCodes(ceiling = ceiling - 1)
           val at = image.bitmapCodes(ceiling = ceiling)
           when {
@@ -133,7 +132,7 @@ class ImageIoBitmapTest {
         }
       }
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   @Test
@@ -141,26 +140,27 @@ class ImageIoBitmapTest {
     val layout = Layout("CMYK8", grey = false, BITS, CGImageAlphaInfo.kCGImageAlphaNone.value, bytes(10, 20, 30, 40))
     val read = layout.image(CGColorSpaceCreateDeviceCMYK()).useImage { it.bitmapCodes() }
 
-    assertIs<PictureRead.Refused>(read, "a CMYK image was read")
+    withClue("a CMYK image was read") { read.shouldBeInstanceOf<PictureRead.Refused>() }
   }
 
   @Test
   fun `a grey image with alpha first is refused naming its layout`() {
     val layout =
       Layout("GreyA8 first", grey = true, BITS, CGImageAlphaInfo.kCGImageAlphaFirst.value, bytes(128, 200))
-    val read = assertIs<PictureRead.Refused>(layout.image().useImage { it.bitmapCodes() }, "alpha first was read")
+    val read =
+      withClue("alpha first was read") {
+        layout.image().useImage { it.bitmapCodes() }.shouldBeInstanceOf<PictureRead.Refused>()
+      }
 
-    assertEquals(
+    read.reason shouldBe
       "ImageIO decoded it to 8-bit integer grey with kCGImageAlphaFirst in kCGBitmapByteOrderDefault. Grey is read " +
-        "at eight or sixteen bits, as integers, with no alpha or alpha last.",
-      read.reason,
-    )
+      "at eight or sixteen bits, as integers, with no alpha or alpha last."
   }
 
   // The float source decodes to premultiplied eight-bit samples whose straight red sits above their alpha, and the
   // eight-bit source decodes to straight ones.
   @Test
-  fun `a translucent heic reads back at the colour imageio decodes it to`() {
+  fun `a translucent heic reads back at the color imageio decodes it to`() {
     assertRasterReads()
     val misses =
       listOf(Painted.Float, Painted.EightBit).mapNotNull { painted ->
@@ -185,7 +185,7 @@ class ImageIoBitmapTest {
         }
       }
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   @Test
@@ -193,33 +193,43 @@ class ImageIoBitmapTest {
     val heic = heicOf(Painted.Float)
     val expected = imageIoStraight(heic)
 
-    assertTrue(expected[0] > expected[ALPHA], "ImageIO decoded the HEIC to $expected, so no colour sits above alpha")
+    withClue("ImageIO decoded the HEIC to $expected, so no color sits above alpha") {
+      (expected[0] > expected[ALPHA]) shouldBe true
+    }
   }
 
   @Test
-  fun `a translucent text plate reads back at its straight colour`() {
+  fun `a translucent text plate reads back at its straight color`() {
     assertRasterReads()
     val style = TextStyle(color = OPAQUE_BLACK, backgroundColor = HALF_WHITE)
     val drawn = rasterizeText("H", style, FRAME)
-    val raster = assertIs<TextRaster.Drawn<OverlayPixels>>(drawn, "the text drew nothing").pixels
-    val stored = assertNotNull(raster.stored, "the plate read nothing")
+    val raster =
+      withClue("the text drew nothing") {
+        drawn.shouldBeInstanceOf<TextRaster.Drawn<OverlayPixels>>()
+      }.pixels
+    val stored = withClue("the plate read nothing") { raster.stored.shouldNotBeNull() }
     val corner = stored.take(CHANNELS).map { it.toInt() and SAMPLE_MASK }
 
-    assertContentEquals(listOf(MAX, MAX, MAX, HALF * EIGHT_BIT_STEP), corner, "the plate's corner lost its colour")
+    withClue("the plate's corner lost its color") { corner shouldBe listOf(MAX, MAX, MAX, HALF * EIGHT_BIT_STEP) }
   }
 
   @Test
   fun `a grey heic with alpha is refused saying imageio handed out no samples`() {
     val heic = heicOf(Painted.Grey)
     val read =
-      assertIs<PictureRead.Refused>(ImageSource.ofBytes(heic).read(), "ImageIO hands out a grey HEIC's samples")
-    assertEquals(SAMPLES_WITHHELD, read.reason)
+      withClue("ImageIO hands out a grey HEIC's samples") {
+        ImageSource.ofBytes(heic).read().shouldBeInstanceOf<PictureRead.Refused>()
+      }
+    read.reason shouldBe SAMPLES_WITHHELD
 
     val overlay = ImageOverlay(image = ImageSource.ofBytes(heic), corner = Corner.TopStart)
     val resolved = BuiltInEffectResolver().resolve(overlay, CAPABILITIES, ATTRIBUTES)
 
-    val refused = assertIs<EffectResolution.Unsupported>(resolved, "the grey HEIC resolved as $resolved")
-    assertEquals(unreadSamples(SAMPLES_WITHHELD), refused.message)
+    val refused =
+      withClue("the grey HEIC resolved as $resolved") {
+        resolved.shouldBeInstanceOf<EffectResolution.Unsupported>()
+      }
+    refused.message shouldBe unreadSamples(SAMPLES_WITHHELD)
   }
 
   @Test
@@ -227,10 +237,13 @@ class ImageIoBitmapTest {
     val overlay = ImageOverlay(image = ImageSource.ofBytes(bytes(1, 2, 3)), corner = Corner.TopStart)
     val resolved = BuiltInEffectResolver().resolve(overlay, CAPABILITIES, ATTRIBUTES)
 
-    val refused = assertIs<EffectResolution.Unsupported>(resolved, "three stray bytes resolved as $resolved")
-    assertEquals(UNREADABLE_IMAGE, refused.message)
+    val refused =
+      withClue("three stray bytes resolved as $resolved") {
+        resolved.shouldBeInstanceOf<EffectResolution.Unsupported>()
+      }
+    refused.message shouldBe UNREADABLE_IMAGE
     listOf("ImageIO or Core Image", "PNG", "JPEG", "HEIC", "AVIF", "WebP", "JPEG XL").forEach { named ->
-      assertContains(refused.message, named)
+      refused.message shouldContain named
     }
   }
 
@@ -248,27 +261,28 @@ class ImageIoBitmapTest {
     }
 
   /**
-   * The straight sixteen-bit colour ImageIO decodes [heic] to at its centre, read from the eight or sixteen-bit RGBA
+   * The straight sixteen-bit color ImageIO decodes [heic] to at its centre, read from the eight or sixteen-bit RGBA
    * bitmap it hands back and divided by alpha here when that bitmap is premultiplied.
    */
   private fun imageIoStraight(heic: ByteArray): List<Int> {
     val data = heic.usePinned { CFDataCreate(null, it.addressOf(0).reinterpret(), heic.size.toLong()) }
-    val source = assertNotNull(CGImageSourceCreateWithData(data, null))
+    val source = CGImageSourceCreateWithData(data, null).shouldNotBeNull()
     CFRelease(data)
-    val image = assertNotNull(CGImageSourceCreateImageAtIndex(source, 0u, null))
+    val image = CGImageSourceCreateImageAtIndex(source, 0u, null).shouldNotBeNull()
     CFRelease(source)
     return image.useImage {
       val info = CGImageGetBitmapInfo(it)
       val alpha = info and kCGBitmapAlphaInfoMask
       val depth = CGImageGetBitsPerComponent(it).toInt()
       val order = info and kCGBitmapByteOrderMask
-      assertTrue(
-        alpha in RGBA_LAST && CGImageGetBitsPerPixel(it).toInt() == depth * CHANNELS &&
-          ((depth == BITS && order == 0u) || (depth == 2 * BITS && order == kCGBitmapByteOrder16Little)),
-        "ImageIO decoded the HEIC to a layout this read does not take, bitmap info $info at $depth bits",
-      )
-      val samples = assertNotNull(CGDataProviderCopyData(CGImageGetDataProvider(it)))
-      val pointer = assertNotNull(CFDataGetBytePtr(samples))
+      withClue("ImageIO decoded the HEIC to a layout this read does not take, bitmap info $info at $depth bits") {
+        (
+          alpha in RGBA_LAST && CGImageGetBitsPerPixel(it).toInt() == depth * CHANNELS &&
+            ((depth == BITS && order == 0u) || (depth == 2 * BITS && order == kCGBitmapByteOrder16Little))
+        ) shouldBe true
+      }
+      val samples = CGDataProviderCopyData(CGImageGetDataProvider(it)).shouldNotBeNull()
+      val pointer = CFDataGetBytePtr(samples).shouldNotBeNull()
       val bytes = depth / BITS
       val centre =
         (CGImageGetHeight(it).toInt() / 2 * CGImageGetBytesPerRow(it).toInt()) +
@@ -315,7 +329,10 @@ class ImageIoBitmapTest {
         kCGBitmapByteOrder16Little
     val depth = if (painted == Painted.Float) 16uL else 8uL
     val info = if (painted == Painted.Float) float else CGImageAlphaInfo.kCGImageAlphaPremultipliedLast.value
-    val context = assertNotNull(CGBitmapContextCreate(null, 16u, 16u, depth, 0u, space, info), "no $painted context")
+    val context =
+      withClue("no $painted context") {
+        CGBitmapContextCreate(null, 16u, 16u, depth, 0u, space, info).shouldNotBeNull()
+      }
     CGColorSpaceRelease(space)
     if (painted == Painted.Grey) {
       CGContextSetGrayFillColor(context, 0.6, 0.5)
@@ -323,10 +340,10 @@ class ImageIoBitmapTest {
       CGContextSetRGBFillColor(context, 0.9, 0.4, 0.2, 0.5)
     }
     CGContextFillRect(context, CGRectMake(0.0, 0.0, 16.0, 16.0))
-    val image = assertNotNull(CGBitmapContextCreateImage(context))
+    val image = CGBitmapContextCreateImage(context).shouldNotBeNull()
     CGContextRelease(context)
 
-    val data = assertNotNull(CFDataCreateMutable(null, 0))
+    val data = CFDataCreateMutable(null, 0).shouldNotBeNull()
     val type = CFStringCreateWithCString(null, HEIC, kCFStringEncodingUTF8)
     val destination = CGImageDestinationCreateWithData(data, type, 1u, null)
     type?.let(::CFRelease)
@@ -338,7 +355,7 @@ class ImageIoBitmapTest {
     CGImageRelease(image)
     val bytes = if (written) CFDataGetBytePtr(data)?.readBytes(CFDataGetLength(data).toInt()) else null
     CFRelease(data)
-    return assertNotNull(bytes, "ImageIO wrote no $HEIC for the $painted picture")
+    return withClue("ImageIO wrote no $HEIC for the $painted picture") { bytes.shouldNotBeNull() }
   }
 
   private companion object {

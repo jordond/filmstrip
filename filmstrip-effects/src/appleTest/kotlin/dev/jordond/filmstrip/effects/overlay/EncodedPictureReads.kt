@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.effects.overlay
 
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.effects.overlay.EncodedPictures.SIZE
 import dev.jordond.filmstrip.effects.overlay.EncodedPictures.TEXEL
 import dev.jordond.filmstrip.geometry.Size
@@ -8,15 +7,16 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.test.AppleDisplayP3
 import dev.jordond.filmstrip.test.AppleStillSamples
 import dev.jordond.filmstrip.test.AvifPicture
-import dev.jordond.filmstrip.test.ColourPictures
+import dev.jordond.filmstrip.test.ColorPictures
 import dev.jordond.filmstrip.test.HeicPicture
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import platform.Foundation.NSData
 import platform.Foundation.create
-import kotlin.test.assertNotNull
 
 /**
  * The pixels [bytes] decode to handed over as written rather than through the raster's rewrite, decoded the way the
@@ -70,7 +70,7 @@ internal fun orderedReads(written: List<String>): List<OrderedRead> =
  */
 private fun imageIoRead(type: String): OrderedRead {
   val name = "$type written by ImageIO"
-  val bytes = assertNotNull(AppleDisplayP3.picture(type, SIZE, TEXEL), "ImageIO wrote no $type")
+  val bytes = withClue("ImageIO wrote no $type") { AppleDisplayP3.picture(type, SIZE, TEXEL).shouldNotBeNull() }
   return OrderedRead(name) {
     ImageSource
       .ofBytes(bytes)
@@ -117,24 +117,23 @@ internal class Still(
 
 // The picture size, texel, stills and decode bound the encoded picture cases share, and the eight-bit code a
 // sixteen-bit sample reads as.
-@OptIn(InternalFilmstripApi::class)
 internal object EncodedPictures {
   val SIZE = Size(16, 8)
   const val TEXEL = 0xFFC08040.toInt()
 
   // Each representative still, and HEIC_NCLX_BT709_FULL as a two by two grid of its codestream.
   val STILLS by lazy {
-    ColourPictures.RASTER_REPRESENTATIVES.map { still ->
+    ColorPictures.RASTER_REPRESENTATIVES.map { still ->
       val name = if (still is AvifPicture) "AVIF $still" else "$still"
       Still(name, still.bytes()) { AppleStillSamples.of(still, it) }
     } +
-      ColourPictures.HEIC_NCLX_BT709_FULL.let { heic ->
+      ColorPictures.HEIC_NCLX_BT709_FULL.let { heic ->
         Still("$heic grid", heic.gridBytes()) { AppleStillSamples.of(heic, it) }
       }
   }
 
   // The representative HEICs, which the as written and determinism cases read handed over as written.
-  val WRITTEN_HEICS by lazy { ColourPictures.RASTER_REPRESENTATIVES.filterIsInstance<HeicPicture>() }
+  val WRITTEN_HEICS by lazy { ColorPictures.RASTER_REPRESENTATIVES.filterIsInstance<HeicPicture>() }
 
   // A decode lands off its model, or a JPEG XL off its stored codes, by rounding alone.
   const val TOLERANCE = AppleStillSamples.TOLERANCE

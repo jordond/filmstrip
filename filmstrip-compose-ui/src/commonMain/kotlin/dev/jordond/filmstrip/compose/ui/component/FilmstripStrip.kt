@@ -31,7 +31,7 @@ import dev.jordond.filmstrip.compose.ui.geometry.StripGrid
  * The scrolling strip of tiles.
  *
  * Reports its own window to [frames] as it scrolls, which is what keeps decoding to the tiles on screen and their
- * overscan. [frames] is passed in rather than built here, so the byte cap and the overscan are the caller's to set.
+ * overscan. The caller builds [frames], and with it sets the byte cap and the overscan.
  *
  * ```
  * BoxWithConstraints {
@@ -163,7 +163,7 @@ private fun FilmstripStripPreview() {
       renderer = Filmstrip(),
       composition = previewComposition(),
       positions = emptyList(),
-      heightPx = 0,
+      heightPx = null,
     )
 
   PreviewSurface {

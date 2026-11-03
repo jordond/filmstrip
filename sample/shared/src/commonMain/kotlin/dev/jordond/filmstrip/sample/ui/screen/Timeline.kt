@@ -50,7 +50,7 @@ import kotlin.time.Duration.Companion.seconds
  * Tiles are addressed in source time rather than trimmed time, so the strip covers the same ground
  * no matter where the trim handles sit. The library draws all of it, and the sample adds only what
  * a foundation-only artifact cannot ship: the sprockets, the tile placeholders, the Material
- * chrome and the theme's colours.
+ * chrome and the theme's colors.
  */
 @Composable
 public fun Timeline(
@@ -116,7 +116,7 @@ public fun Timeline(
 /**
  * The timeline's palette, taken from the app's theme.
  *
- * `filmstrip-compose-ui` draws with foundation alone and takes its colours as parameters, so this
+ * `filmstrip-compose-ui` draws with foundation alone and takes its colors as parameters, so this
  * is the one place Material and the timeline meet.
  */
 @Composable
@@ -211,7 +211,7 @@ private fun KeyboardControl(
 /**
  * What a tile shows before its frame arrives.
  *
- * A slot rather than a colour on the library's side, because what fills an empty tile is a design
+ * A slot rather than a color on the library's side, because what fills an empty tile is a design
  * opinion and this one is the sample's.
  */
 @Composable

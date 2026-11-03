@@ -32,7 +32,8 @@ abstract class ForbiddenImportsTask : DefaultTask() {
   abstract val forbiddenPrefixes: SetProperty<String>
 
   /**
-   * Exact FQNs the rules do not apply to, checked before [forbiddenPrefixes].
+   * Imports the rules do not apply to, checked before [forbiddenPrefixes]. Each matches the exact FQN or anything under
+   * it as a package, the way a rule without a `*` does.
    */
   @get:Input
   abstract val allowedPrefixes: SetProperty<String>
@@ -54,7 +55,7 @@ abstract class ForbiddenImportsTask : DefaultTask() {
               .filter { (_, line) -> line.startsWith("import ") }
               .filter { (_, line) ->
                 val fqn = line.removePrefix("import ").substringBefore(' ').trim()
-                if (fqn in allowed) return@filter false
+                if (allowed.any { fqn == it || fqn.startsWith("$it.") }) return@filter false
                 prefixes.any { rule ->
                   if (rule.endsWith("*")) {
                     fqn.startsWith(rule.dropLast(1))

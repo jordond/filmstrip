@@ -2,8 +2,8 @@ package dev.jordond.filmstrip.media3.internal
 
 import android.os.SystemClock
 import androidx.media3.transformer.ExportException
-import dev.jordond.filmstrip.export.ExportError
-import dev.jordond.filmstrip.export.VideoCodec
+import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.codec.VideoCodec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
@@ -16,7 +16,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 
 /**
- * The message an [ExportException] leaves on the [ExportError] it is classified as.
+ * The message an [ExportException] leaves on the [FilmstripError] it is classified as.
  *
  * media3 gives most failures a fixed message naming the stage, like "Muxer error", and puts what happened in the
  * cause. These build the exceptions with media3's own factories and check that the cause reaches the caller.
@@ -40,9 +40,13 @@ class Media3ErrorsTest {
   fun `a muxer timeout keeps the abort media3 gave as its cause`() {
     val abort = IllegalStateException("$ABORT DebugTrace: VideoEncoder: no frames")
 
-    val error = muxerException(abort, ExportException.ERROR_CODE_MUXING_TIMEOUT).toExportError(VideoCodec.H264)
+    val error =
+      muxerException(
+        abort,
+        ExportException.ERROR_CODE_MUXING_TIMEOUT,
+      ).toFilmstripError(VideoCodec.H264, SOURCES, SINK)
 
-    val underlying = error.shouldBeInstanceOf<ExportError.Underlying>()
+    val underlying = error.shouldBeInstanceOf<FilmstripError.Underlying>()
     underlying.platformCode shouldBe ExportException.ERROR_CODE_MUXING_TIMEOUT
     underlying.message shouldBe "Muxer error: $ABORT DebugTrace: VideoEncoder: no frames"
   }
@@ -51,9 +55,32 @@ class Media3ErrorsTest {
   fun `a muxer failure is still classified by its code`() {
     val error =
       muxerException(IOException("No space left on device"), ExportException.ERROR_CODE_MUXING_FAILED)
-        .toExportError(VideoCodec.H264)
+        .toFilmstripError(VideoCodec.H264, SOURCES, SINK)
 
-    error.shouldBeInstanceOf<ExportError.SinkUnwritable>().message shouldBe "Muxer error: No space left on device"
+    error.shouldBeInstanceOf<FilmstripError.SinkUnwritable>().message shouldBe "Muxer error: No space left on device"
+  }
+
+  @Test
+  fun `a denied read names the sources the export reads`() {
+    val denied = SecurityException("Permission Denial: opening provider")
+
+    val error =
+      ExportException
+        .createForAssetLoader(denied, ExportException.ERROR_CODE_IO_NO_PERMISSION)
+        .toFilmstripError(VideoCodec.H264, SOURCES, SINK)
+
+    val unreadable = error.shouldBeInstanceOf<FilmstripError.SourceUnreadable>()
+    unreadable.source shouldBe SOURCES
+    unreadable.message shouldBe "Asset loader error: Permission Denial: opening provider"
+  }
+
+  @Test
+  fun `a muxer failure names the file being written`() {
+    val error =
+      muxerException(IOException("No space left on device"), ExportException.ERROR_CODE_MUXING_FAILED)
+        .toFilmstripError(VideoCodec.H264, SOURCES, SINK)
+
+    error.shouldBeInstanceOf<FilmstripError.SinkUnwritable>().sink shouldBe SINK
   }
 
   @Test
@@ -63,9 +90,9 @@ class Media3ErrorsTest {
     val error =
       ExportException
         .createForAssetLoader(chain, ExportException.ERROR_CODE_IO_UNSPECIFIED)
-        .toExportError(VideoCodec.H264)
+        .toFilmstripError(VideoCodec.H264, SOURCES, SINK)
 
-    error.shouldBeInstanceOf<ExportError.SourceUnreadable>().message shouldBe
+    error.shouldBeInstanceOf<FilmstripError.SourceUnreadable>().message shouldBe
       "Asset loader error: read failed: codec released"
   }
 
@@ -77,7 +104,7 @@ class Media3ErrorsTest {
     val error =
       ExportException
         .createForAssetLoader(IOException(missing), ExportException.ERROR_CODE_IO_FILE_NOT_FOUND)
-        .toExportError(VideoCodec.H264)
+        .toFilmstripError(VideoCodec.H264, SOURCES, SINK)
 
     error.message shouldBe "Asset loader error: java.io.FileNotFoundException: /sdcard/clip.mp4: open failed: ENOENT"
   }
@@ -86,7 +113,7 @@ class Media3ErrorsTest {
   fun `a cause repeating the message above it is named once`() {
     val cause = IllegalStateException("surface lost", IllegalStateException("surface lost"))
 
-    val error = ExportException.createForUnexpected(cause).toExportError(VideoCodec.H264)
+    val error = ExportException.createForUnexpected(cause).toFilmstripError(VideoCodec.H264, SOURCES, SINK)
 
     error.message shouldBe "Unexpected runtime error: surface lost"
   }
@@ -95,7 +122,7 @@ class Media3ErrorsTest {
   fun `a cause with no message is skipped`() {
     val cause = IllegalStateException(null, IllegalStateException(" ", IllegalStateException("encoder stalled")))
 
-    val error = ExportException.createForUnexpected(cause).toExportError(VideoCodec.H264)
+    val error = ExportException.createForUnexpected(cause).toFilmstripError(VideoCodec.H264, SOURCES, SINK)
 
     error.message shouldBe "Unexpected runtime error: encoder stalled"
   }
@@ -107,7 +134,7 @@ class Media3ErrorsTest {
     first.initCause(second)
     second.initCause(first)
 
-    val error = ExportException.createForUnexpected(first).toExportError(VideoCodec.H264)
+    val error = ExportException.createForUnexpected(first).toFilmstripError(VideoCodec.H264, SOURCES, SINK)
 
     error.message shouldBe "Unexpected runtime error: first: second"
   }
@@ -116,9 +143,9 @@ class Media3ErrorsTest {
   fun `a failure with no message anywhere names its code`() {
     val exception = exportException(null, IllegalStateException(), ExportException.ERROR_CODE_MUXING_TIMEOUT)
 
-    val error = exception.toExportError(VideoCodec.H264)
+    val error = exception.toFilmstripError(VideoCodec.H264, SOURCES, SINK)
 
-    val underlying = error.shouldBeInstanceOf<ExportError.Underlying>()
+    val underlying = error.shouldBeInstanceOf<FilmstripError.Underlying>()
     underlying.platformCode shouldBe ExportException.ERROR_CODE_MUXING_TIMEOUT
     underlying.message shouldBe "media3 reported error code ${ExportException.ERROR_CODE_MUXING_TIMEOUT}."
   }
@@ -145,6 +172,8 @@ class Media3ErrorsTest {
       .newInstance(message, cause, errorCode)
 
   private companion object {
+    const val SOURCES = "/sdcard/first.mp4, content://media/external/video/media/7"
+    const val SINK = "/data/user/0/app/cache/filmstrip-1.mp4"
     const val ABORT = "Abort: no output sample written in the last 10000 milliseconds."
   }
 }

@@ -1,8 +1,8 @@
 package dev.jordond.filmstrip.sample
 
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
@@ -39,7 +39,7 @@ class PreviewStartTest {
     onRestart()
     assertEquals(0, recorder.events.count { it.label == "player.opened" }, "opened while the probe was still running")
 
-    resolved.complete(ProbeResult.Failure(ExportError.SourceUnreadable("/tmp/clip.mp4", "unreadable in a test")))
+    resolved.complete(ProbeResult.Failure(FilmstripError.SourceUnreadable("/tmp/clip.mp4", "unreadable in a test")))
     onRestart()
     assertEquals(1, recorder.events.count { it.label == "player.opened" })
   }

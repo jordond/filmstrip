@@ -1,14 +1,14 @@
 package dev.jordond.filmstrip.ffmpeg
 
-import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPreviewStream
-import dev.jordond.filmstrip.ffmpeg.internal.FrameStream
-import dev.jordond.filmstrip.ffmpeg.internal.PreviewFrames
-import dev.jordond.filmstrip.ffmpeg.internal.Scratch
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.PreviewFrames
+import dev.jordond.filmstrip.ffmpeg.internal.preview.FfmpegPreviewStream
+import dev.jordond.filmstrip.ffmpeg.internal.process.FrameStream
+import dev.jordond.filmstrip.ffmpeg.internal.process.Scratch
 import dev.jordond.filmstrip.geometry.Size
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
-import kotlin.test.assertNotNull
 import kotlin.time.Duration
 
 /**
@@ -40,8 +40,8 @@ class FfmpegPreviewStreamTest {
   fun `hands every held frame over as bytes of its own`() =
     runTest {
       val stream = streamOf(Numbered(1), PreviewFrames(rendered = 1, held = 2))
-      assertNotNull(stream.next()).fill(0)
-      val first = assertNotNull(stream.next())
+      stream.next().shouldNotBeNull().fill(0)
+      val first = stream.next().shouldNotBeNull()
       first.single().toInt() shouldBe 1
       first.fill(0)
 

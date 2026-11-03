@@ -1,13 +1,14 @@
 package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.media.PictureOrientation
-import dev.jordond.filmstrip.media.orientedSamples
+import dev.jordond.filmstrip.picture.PictureOrientation
+import dev.jordond.filmstrip.picture.orientedSamples
 import dev.jordond.filmstrip.test.OrientedPictures
-import dev.jordond.filmstrip.webcodecs.internal.textureMatrixOf
+import dev.jordond.filmstrip.webcodecs.internal.render.textureMatrixOf
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.math.floor
 import kotlin.test.Test
-import kotlin.test.assertEquals
 
 /**
  * The texture matrix the overlay pass lays a raster uploaded as stored out by, read the way its shader reads it.
@@ -28,7 +29,7 @@ class BrowserOverlayOrientationTest {
       for (y in 0 until shown.height) {
         for (x in 0 until shown.width) {
           val read = texels[storedIndex(matrix, (x + HALF) / shown.width, (y + HALF) / shown.height, stored)]
-          assertEquals(expected[y * shown.width + x], read, "$orientation at ($x, $y)")
+          withClue("$orientation at ($x, $y)") { read shouldBe expected[y * shown.width + x] }
         }
       }
     }

@@ -2,8 +2,22 @@
 
 package dev.jordond.filmstrip.webcodecs.internal
 
+import dev.jordond.filmstrip.media.URL
+import dev.jordond.filmstrip.media.downloadBlob
+import dev.jordond.filmstrip.webcodecs.internal.interop.ArrayBuffer
+import dev.jordond.filmstrip.webcodecs.internal.interop.AudioBuffer
+import dev.jordond.filmstrip.webcodecs.internal.interop.AudioBufferSource
+import dev.jordond.filmstrip.webcodecs.internal.interop.Blob
+import dev.jordond.filmstrip.webcodecs.internal.interop.BufferTarget
+import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
+import dev.jordond.filmstrip.webcodecs.internal.interop.Mp4OutputFormat
+import dev.jordond.filmstrip.webcodecs.internal.interop.Output
+import dev.jordond.filmstrip.webcodecs.internal.interop.Quality
+import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
+import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSampleSource
+import dev.jordond.filmstrip.webcodecs.internal.interop.WebMOutputFormat
+import dev.jordond.filmstrip.webcodecs.internal.interop.jsArrayOf
 import kotlinx.coroutines.await
-import kotlin.coroutines.cancellation.CancellationException
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 
@@ -55,7 +69,8 @@ internal class BrowserEncoder private constructor(
     suspend fun open(render: BrowserRender): BrowserEncoder {
       // A file with no video track is mp4 as well, since AAC is the only codec encoded here and
       // mp4 is what carries it.
-      val container = if (render.writesVideo) checkNotNull(render.container) else MP4_CONTAINER
+      val video = render.videoEncoding
+      val container = video?.container ?: MP4_CONTAINER
 
       val target = BufferTarget()
       val format: JsAny = if (container == MP4_CONTAINER) Mp4OutputFormat() else WebMOutputFormat()
@@ -68,14 +83,12 @@ internal class BrowserEncoder private constructor(
         )
 
       val videoSource =
-        if (render.writesVideo) {
-          // Only ever asked for on a path that encodes video, where the planner always resolves
-          // both of these.
+        if (video != null) {
           val source =
             VideoSampleSource(
               JsOptions()
-                .put("codec", checkNotNull(render.muxCodec))
-                .put("fullCodecString", checkNotNull(render.encoderCodec))
+                .put("codec", video.muxCodec)
+                .put("fullCodecString", video.encoderCodec)
                 .put("quality", Quality(JsOptions().put("bitrate", render.bitrate).build()))
                 // In seconds, so the key frame spacing follows the real output rate instead of a
                 // hardcoded frame count that means something different at every rate.
@@ -103,7 +116,7 @@ internal class BrowserEncoder private constructor(
         }
 
       output.start().await()
-      val mimeType = if (render.writesVideo) "video/$container" else "audio/$container"
+      val mimeType = if (video != null) "video/$container" else "audio/$container"
       return BrowserEncoder(output, videoSource, audioSource, target, mimeType)
     }
 
@@ -140,159 +153,8 @@ internal class EncodedFile(
 
   /**
    * Saves the file under [filename] through a download anchor.
-   *
-   * The URL is revoked on the next task rather than after an arbitrary delay: the browser has taken
-   * its own reference to the blob by the time the click dispatch returns.
    */
-  fun download(filename: String) {
-    val url = URL.createObjectURL(blob())
-    val anchor = document.createElement("a")
-    anchor.href = url
-    anchor.download = filename
-    document.body.appendChild(anchor)
-    anchor.click()
-    anchor.remove()
-    setTimeout({ URL.revokeObjectURL(url) }, 0)
-  }
+  fun download(filename: String): Unit = downloadBlob(blob(), filename)
 
   private fun blob(): Blob = Blob(jsArrayOf(buffer), JsOptions().put("type", mimeType).build())
 }
-
-/**
- * What reading the muxed file back proved: bytes that a demuxer accepts, frames a decoder yields,
- * and the timeline the frames actually cover.
- *
- * @property video The video track the read found, or null on a file that carries none.
- * @property audio The audio track the read found, or null on a file that carries none.
- * @property decodedFrames Video frames on a file that carries video, audio samples on one that
- *   carries only audio.
- */
-internal class VerifiedFile(
-  val video: VerifiedVideo?,
-  val audio: VerifiedAudio?,
-  val decodedFrames: Long,
-  val durationUs: Double,
-)
-
-/**
- * The video track a read back found, as the container names it.
- */
-internal class VerifiedVideo(
-  val codec: String,
-)
-
-/**
- * The audio track a read back found, described by the file rather than by the plan that wrote it.
- *
- * A transmux copies the source's packets without normalising them, so a run that takes that path
- * leaves the render's audio format null while still writing audio. Reading the rate and the channel
- * count back off the file covers both paths with one answer.
- */
-internal class VerifiedAudio(
-  val codec: String,
-  val sampleRate: Int,
-  val channelCount: Int,
-)
-
-/**
- * Demuxes and decodes the file through a reader that never saw the encoder.
- *
- * Counting bytes proves nothing, because a muxer that writes a broken index writes bytes too. The
- * duration comes from the walked samples rather than from the container, which reports zero for a
- * buffer the muxer only just finalized.
- */
-internal suspend fun EncodedFile.verify(): VerifiedFile? = verified { readBack() }
-
-/**
- * The same read-back for a file that carries audio and no video, where the video track [verify]
- * looks for is the one thing that is meant to be missing.
- */
-internal suspend fun EncodedFile.verifyAudio(): VerifiedFile? = verified { readBackAudio() }
-
-private suspend fun verified(read: suspend () -> VerifiedFile?): VerifiedFile? =
-  try {
-    read()
-  } catch (cancelled: CancellationException) {
-    throw cancelled
-  } catch (unreadable: Throwable) {
-    // A file the demuxer refuses outright fails verification the same way one that decodes short
-    // does, and for the same reason: nobody should be handed it.
-    null
-  }
-
-private suspend fun EncodedFile.readBack(): VerifiedFile? {
-  val reader = reader()
-  try {
-    val codec =
-      reader
-        .videoTrack()
-        ?.getCodec()
-        ?.await()
-        ?.toString() ?: return null
-    val audio = reader.verifiedAudio()
-    val stream = reader.frames(0.0, Double.POSITIVE_INFINITY) ?: return null
-    var decoded = 0L
-    var durationUs = 0.0
-    try {
-      while (true) {
-        val sample = stream.next() ?: break
-        try {
-          decoded++
-          durationUs = maxOf(durationUs, sample.microsecondTimestamp + sample.microsecondDuration)
-        } finally {
-          sample.close()
-        }
-      }
-    } finally {
-      stream.close()
-    }
-    return VerifiedFile(VerifiedVideo(codec), audio, decoded, durationUs)
-  } finally {
-    reader.close()
-  }
-}
-
-private suspend fun EncodedFile.readBackAudio(): VerifiedFile? {
-  val reader = reader()
-  try {
-    val audio = reader.verifiedAudio() ?: return null
-    val stream = reader.samples(0.0, Double.POSITIVE_INFINITY) ?: return null
-    var decoded = 0L
-    var durationUs = 0.0
-    try {
-      while (true) {
-        val sample = stream.next() ?: break
-        try {
-          decoded++
-          durationUs = maxOf(durationUs, sample.microsecondTimestamp + sample.microsecondDuration)
-        } finally {
-          sample.close()
-        }
-      }
-    } finally {
-      stream.close()
-    }
-    return VerifiedFile(null, audio, decoded, durationUs)
-  } finally {
-    reader.close()
-  }
-}
-
-/**
- * The audio track of the file being read back, or null when it carries none.
- */
-private suspend fun SourceReader.verifiedAudio(): VerifiedAudio? {
-  val track = audioTrack() ?: return null
-  val codec = track.getCodec().await()?.toString() ?: return null
-  val sampleRate = track.getSampleRate().await().toDouble()
-  val channels = track.getNumberOfChannels().await().toDouble()
-  return VerifiedAudio(codec, sampleRate.toInt(), channels.toInt())
-}
-
-/**
- * A browser-side failure with a message worth showing. Anything else that escapes the pipeline is
- * reported with whatever the platform said.
- */
-internal class BrowserExportFailure(
-  message: String,
-) : Exception(message)

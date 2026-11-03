@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
@@ -18,7 +19,6 @@ import dev.jordond.filmstrip.effects.overlay.imageOverlay
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.effects.overlay.textOverlay
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
@@ -32,7 +32,12 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.style.TextStyle
+import io.kotest.assertions.withClue
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.floats.plusOrMinus
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
@@ -43,10 +48,6 @@ import platform.Foundation.NSTemporaryDirectory
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -82,7 +83,7 @@ class AppleOverlayExportTest {
           }
 
         val output = temporaryPath("watermark-$corner")
-        val success = exported(composition, ExportSpec(targetHeight = 180), output)
+        val success = exported(composition, ExportSpec(heightPx = 180), output)
         success.info.video!!.displaySize shouldBe Size(320, 180)
         remove(output)
       }
@@ -100,7 +101,7 @@ class AppleOverlayExportTest {
         }
 
       val output = temporaryPath("text")
-      val success = exported(composition, ExportSpec(targetHeight = 180), output)
+      val success = exported(composition, ExportSpec(heightPx = 180), output)
 
       success.info.video!!.displaySize shouldBe Size(320, 180)
       remove(output)
@@ -118,7 +119,7 @@ class AppleOverlayExportTest {
         }
 
       val output = temporaryPath("brightness")
-      exported(composition, ExportSpec(targetHeight = 180), output)
+      exported(composition, ExportSpec(heightPx = 180), output)
       remove(output)
     }
 
@@ -142,11 +143,11 @@ class AppleOverlayExportTest {
           }
         }
 
-      val verdict = withContext(Dispatchers.Default) { filmstrip.plan(composition, ExportSpec(targetHeight = 180)) }
-      assertIs<Verdict.Capable>(verdict)
+      val verdict = withContext(Dispatchers.Default) { filmstrip.plan(composition, ExportSpec(heightPx = 180)) }
+      verdict.shouldBeInstanceOf<Verdict.Capable>()
 
       val output = temporaryPath("timed-watermark")
-      exported(composition, ExportSpec(targetHeight = 180), output)
+      exported(composition, ExportSpec(heightPx = 180), output)
       remove(output)
     }
 
@@ -165,11 +166,18 @@ class AppleOverlayExportTest {
       val rect = faded.placedOn(OUTPUT, RASTER).rectOn(OUTPUT)
 
       RAMP_POINTS.forEach { time ->
-        val opacity = assertNotNull(faded.frameAt(time, SPAN), "the watermark was not drawn at $time").opacity
+        val opacity =
+          withClue("the watermark was not drawn at $time") {
+            faded.frameAt(time, SPAN).shouldNotBeNull()
+          }.opacity
         val (whole, moved) = coveredBy(rect, frameOf(opaque, time), frameOf(ramped, time), frameOf(bare, time))
 
-        assertTrue(whole > FLOOR, "the opaque watermark only moved $whole of the frame, so no fade is measurable")
-        assertEquals(opacity * whole, moved, whole * DRIFT, "a fade at $time moved $moved of a full $whole")
+        withClue("the opaque watermark only moved $whole of the frame, so no fade is measurable") {
+          (whole > FLOOR).shouldBeTrue()
+        }
+        withClue("a fade at $time moved $moved of a full $whole") {
+          moved shouldBe (opacity * whole plusOrMinus whole * DRIFT)
+        }
       }
 
       listOf(bare, opaque, ramped).forEach(::remove)
@@ -186,13 +194,17 @@ class AppleOverlayExportTest {
           effects { imageOverlay(ImageSource.of("/nonexistent/badge.png"), Corner.TopStart) }
         }
 
-      val verdict = withContext(Dispatchers.Default) { filmstrip.plan(composition, ExportSpec(targetHeight = 180)) }
-      val incapable = assertIs<Verdict.Incapable>(verdict)
-      assertIs<ExportError.UnsupportedEffect>(incapable.reasons.single()).specId shouldBe EffectIds.IMAGE_OVERLAY
+      val verdict = withContext(Dispatchers.Default) { filmstrip.plan(composition, ExportSpec(heightPx = 180)) }
+      val incapable = verdict.shouldBeInstanceOf<Verdict.Incapable>()
+      incapable.reasons
+        .single()
+        .shouldBeInstanceOf<FilmstripError.UnsupportedEffect>()
+        .specId shouldBe
+        EffectIds.IMAGE_OVERLAY
     }
 
   // A composition overlay is placed on the output frame, so one authored into a bar draws there and
-  // the fill keeps its own colour everywhere else.
+  // the fill keeps its own color everywhere else.
   @Test
   fun `draws a composition overlay over a solid bar`() =
     runTest(timeout = TIMEOUT) {
@@ -201,7 +213,7 @@ class AppleOverlayExportTest {
 
       val box = letterboxed(portrait, "bar-overlay", overlay = badge)
       val rect = badge.placedOn(box.size, RASTER).rectOn(box.size)
-      assertTrue(rect.right < box.bar, "the badge reaches ${rect.right}, past the bar at ${box.bar}")
+      withClue("the badge reaches ${rect.right}, past the bar at ${box.bar}") { (rect.right < box.bar).shouldBeTrue() }
 
       val drawn = frameOf(box.path, MIDDLE)
       assertClose(drawn.average(rect.middleX, rect.middleY), RED, "the badge in the bar")
@@ -210,8 +222,8 @@ class AppleOverlayExportTest {
       remove(box.path)
     }
 
-  // An SDR overlay blends on the buffer's own codes on every backend, and both colours land there as
-  // authored, so where a partial opacity lands is predicted from the two colours' own codes. Red's
+  // An SDR overlay blends on the buffer's own codes on every backend, and both colors land there as
+  // authored, so where a partial opacity lands is predicted from the two colors' own codes. Red's
   // green and blue sit at zero, where sRGB's curve and BT.709's part company, so the case also says
   // which of the two the blend ran on.
   @Test
@@ -272,7 +284,9 @@ class AppleOverlayExportTest {
       val badge =
         ImageOverlay(authored.image, authored.corner, scale = authored.scale, animation = OverlayAnimation { push })
       val rect = placed.animatedBy(push).rectOn(clipFrame)
-      assertTrue(rect.left < 0f && rect.right > 0f, "the badge at $rect does not straddle the clip's edge")
+      withClue("the badge at $rect does not straddle the clip's edge") {
+        (rect.left < 0f && rect.right > 0f).shouldBeTrue()
+      }
 
       val box = letterboxed(portrait, "clip-overlay-off", clipOverlay = badge)
 
@@ -315,7 +329,11 @@ class AppleOverlayExportTest {
         }
       }
     val output = temporaryPath(name)
-    val size = assertNotNull(exported(composition, SPEC, output).info.video).displaySize
+    val size =
+      exported(composition, SPEC, output)
+        .info.video
+        .shouldNotBeNull()
+        .displaySize
     val source = frameOf(portrait)
     return Letterbox(output, size, source.width.toFloat() / source.height * size.height / size.width)
   }
@@ -346,11 +364,12 @@ class AppleOverlayExportTest {
     val drawn = frameOf(box.path, MIDDLE).average(rect.middleX, rect.middleY)
     remove(box.path)
 
-    assertTrue(gap > 0, "at $opacity the buffer's codes and sRGB's both ask for $inCodes, so nothing tells them apart")
-    assertTrue(
-      distance(drawn, inCodes) * 2 < gap,
-      "the badge at $opacity drew $drawn, where the buffer's codes ask for $inCodes and sRGB's for $inSrgb",
-    )
+    withClue("at $opacity the buffer's codes and sRGB's both ask for $inCodes, so nothing tells them apart") {
+      (gap > 0).shouldBeTrue()
+    }
+    withClue("the badge at $opacity drew $drawn, where the buffer's codes ask for $inCodes and sRGB's for $inSrgb") {
+      (distance(drawn, inCodes) * 2 < gap).shouldBeTrue()
+    }
   }
 
   private val NormalizedRect.middleX: Float get() = (left + right) / 2f
@@ -358,7 +377,7 @@ class AppleOverlayExportTest {
   private val NormalizedRect.middleY: Float get() = (top + bottom) / 2f
 
   /**
-   * The colour a source over draw of [overlay] at [opacity] leaves on this one, worked on sRGB's code
+   * The color a source over draw of [overlay] at [opacity] leaves on this one, worked on sRGB's code
    * values in `0..255` rather than on the buffer's own.
    */
   private fun Triple<Int, Int, Int>.towards(
@@ -451,7 +470,7 @@ class AppleOverlayExportTest {
       val statuses = filmstrip.export(composition, spec, MediaSink.of(output)).toList()
       when (val finished = statuses.last()) {
         is ExportStatus.Failure -> error(finished.error.message)
-        else -> assertIs<ExportStatus.Success>(finished)
+        else -> finished.shouldBeInstanceOf<ExportStatus.Success>()
       }
     }
 
@@ -467,7 +486,7 @@ class AppleOverlayExportTest {
     const val BLACK = 0xFF000000.toInt()
     val TIMEOUT = 2.seconds * 60
 
-    val SPEC = ExportSpec(targetHeight = 180)
+    val SPEC = ExportSpec(heightPx = 180)
     val OUTPUT = Size(320, 180)
     val RASTER = Size(4, 2)
     val CLIP = 2.seconds
@@ -507,5 +526,5 @@ class AppleOverlayExportTest {
   }
 }
 
-// The colour the overlay export tests draw their badges in.
+// The color the overlay export tests draw their badges in.
 internal val RED = Triple(0xFF, 0x00, 0x00)

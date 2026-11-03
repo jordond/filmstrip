@@ -1,8 +1,7 @@
 package dev.jordond.filmstrip.test
 
-import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.media.RestatedHeif
-import dev.jordond.filmstrip.media.UnturnedHeif
+import dev.jordond.filmstrip.picture.heif.RestatedHeif
+import dev.jordond.filmstrip.picture.heif.UnturnedHeif
 import kotlin.test.fail
 
 /**
@@ -10,7 +9,6 @@ import kotlin.test.fail
  *
  * Fails the test with the rewrite's reason when it refuses the file.
  */
-@OptIn(InternalFilmstripApi::class)
 internal val UnturnedHeif.handed: ByteArray
   get() =
     when (this) {
@@ -19,11 +17,10 @@ internal val UnturnedHeif.handed: ByteArray
     }
 
 /**
- * The bytes of a restate that applied, with the colour stated in them.
+ * The bytes of a restate that applied, with the color stated in them.
  *
  * Fails the test when the restate does not apply or the file is refused.
  */
-@OptIn(InternalFilmstripApi::class)
 internal val RestatedHeif.restated: ByteArray
   get() =
     when (this) {

@@ -2,25 +2,25 @@ package dev.jordond.filmstrip.effects.color
 
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.color.nitsFromSdrSignal
+import dev.jordond.filmstrip.color.peakNits
+import dev.jordond.filmstrip.color.sdrSignalFromNits
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.media.nitsFromSdrSignal
-import dev.jordond.filmstrip.media.peakNits
-import dev.jordond.filmstrip.media.sdrSignalFromNits
 import kotlin.math.abs
 
 /**
- * Recombine the colour channels of every pixel through a 3x3 matrix and an offset.
+ * Recombine the color channels of every pixel through a 3x3 matrix and an offset.
  *
  * Each output channel is a weighted sum of the three input channels plus a bias, so red comes out as
  * `rr * r + rg * g + rb * b + rBias` and the other two rows read the same way. Channels are the
  * encoded signal in the range zero to one, the same domain [Brightness] multiplies, and the result
  * is clamped back into that range once the whole matrix has been applied. Alpha is never touched.
  *
- * Every other colour effect in this package is one of these under the hood, and a run of them is
+ * Every other color effect in this package is one of these under the hood, and a run of them is
  * folded into a single matrix before any backend clamps, so an effect that pushes a channel past
  * white and one that pulls it back again cancel out rather than saturating in between.
  *
@@ -74,7 +74,7 @@ public class ColorMatrix(
 }
 
 /**
- * Recombine the colour channels through a matrix. See [ColorMatrix] for how the entries are read.
+ * Recombine the color channels through a matrix. See [ColorMatrix] for how the entries are read.
  */
 public fun EffectsBuilder.colorMatrix(matrix: ColorMatrix): EffectsBuilder = add(matrix)
 
@@ -132,7 +132,7 @@ internal val ColorMatrix.isDiagonal: Boolean
  * A uniform scale with no bias and no mixing commutes with a change of primaries and with the
  * transfer function either side of a matrix, so a backend holding linear light multiplies the light
  * by a power of this rather than moving the frame into the encoded signal and back. Which lowering a
- * colour effect takes is this shape rather than which type wrote it, so a run that folded to a
+ * color effect takes is this shape rather than which type wrote it, so a run that folded to a
  * [ColorMatrix] takes the same one a [Brightness] does.
  */
 internal val ColorMatrix.uniformScale: Float?
@@ -180,8 +180,7 @@ public fun ColorMatrix.then(next: ColorMatrix): ColorMatrix =
 /**
  * What this matrix writes for an encoded pixel, clamped to the range a frame can hold.
  *
- * This is the reference every backend is measured against, so a backend test computes its expected
- * pixel here rather than carrying a number of its own.
+ * This is the reference every backend is measured against.
  *
  * @return red, green and blue in the range zero to one.
  */
@@ -202,8 +201,7 @@ public fun ColorMatrix.transform(
  *
  * The light is read as the SDR signal of [sdrSignalFromNits], the matrix runs on that as written, a
  * negative channel is floored at black, and the result goes back to light and is clamped at the
- * transfer's peak. This is the reference every backend that keeps a grade is measured against, so a
- * backend pixel test computes its expected light here rather than carrying a number of its own.
+ * transfer's peak. This is the reference every backend that keeps a grade is measured against.
  *
  * @param transfer The transfer the grade is written in, which sets the ceiling.
  * @return red, green and blue in cd/m2, between zero and the transfer's peak.
@@ -294,25 +292,3 @@ internal fun scaleMatrix(
   green: Float,
   blue: Float,
 ): ColorMatrix = ColorMatrix(rr = red, gg = green, bb = blue)
-
-/**
- * The matrix behind [spec], or null for an effect that is not a colour matrix.
- *
- * This is the one place the catalogue's colour effects are turned into numbers, so every backend
- * lowers the same matrix and the fold that merges a run of them sees the same one too.
- *
- * @return the matrix, or null for an effect that is not a colour matrix.
- */
-@InternalFilmstripApi
-public fun colorMatrixOf(spec: EffectSpec): ColorMatrix? =
-  when (spec) {
-    is Brightness -> spec.matrix
-    is RgbAdjustment -> spec.matrix
-    is Contrast -> spec.matrix
-    is Saturation -> spec.matrix
-    is HueRotate -> spec.matrix
-    is Sepia -> spec.matrix
-    is Invert -> spec.matrix
-    is ColorMatrix -> spec
-    else -> null
-  }?.sanitised

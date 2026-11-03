@@ -47,7 +47,7 @@ import kotlin.test.assertTrue
  * 2. `CGBitmapContext` readback to RGBA_8888, what the `toRgba8888()` escape costs on top.
  *    Only a caller who asks for bytes pays it.
  *
- * The source is a `CVPixelBuffer` rather than a generated `CIImage` on purpose: a solid-colour or
+ * The source is a `CVPixelBuffer` rather than a generated `CIImage` on purpose: a solid-color or
  * generator-backed image lets Core Image defer work into `createCGImage` and inflate arm 1 with
  * pixel production that the real path, a decoded frame already in a buffer, does not do.
  *

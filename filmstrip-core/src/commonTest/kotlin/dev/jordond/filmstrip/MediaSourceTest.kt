@@ -2,9 +2,9 @@ package dev.jordond.filmstrip
 
 import dev.jordond.filmstrip.media.FormatHint
 import dev.jordond.filmstrip.media.MediaSource
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotEquals
 
 /**
  * [MediaSource.Bytes] is used as a map key on the probe path, so its hash is memoized. These pin
@@ -16,8 +16,8 @@ class MediaSourceTest {
     val a = MediaSource.Bytes(byteArrayOf(1, 2, 3), FormatHint.Mp4)
     val b = MediaSource.Bytes(byteArrayOf(1, 2, 3), FormatHint.Mp4)
 
-    assertEquals(a, b)
-    assertEquals(a.hashCode(), b.hashCode())
+    b shouldBe a
+    b.hashCode() shouldBe a.hashCode()
   }
 
   @Test
@@ -25,7 +25,7 @@ class MediaSourceTest {
     val a = MediaSource.Bytes(byteArrayOf(1, 2, 3))
     val b = MediaSource.Bytes(byteArrayOf(1, 2, 4))
 
-    assertNotEquals(a, b)
+    b shouldNotBe a
   }
 
   @Test
@@ -33,7 +33,7 @@ class MediaSourceTest {
     val mp4 = MediaSource.Bytes(byteArrayOf(1, 2, 3), FormatHint.Mp4)
     val mov = MediaSource.Bytes(byteArrayOf(1, 2, 3), FormatHint.Mov)
 
-    assertNotEquals(mp4, mov)
+    mov shouldNotBe mp4
   }
 
   @Test
@@ -46,8 +46,8 @@ class MediaSourceTest {
     // is how the memo becomes observable: a recomputing hash would follow the edit.
     bytes[0] = 100
 
-    assertEquals(first, source.hashCode())
-    assertNotEquals(first, MediaSource.Bytes(bytes, FormatHint.Mov).hashCode())
+    source.hashCode() shouldBe first
+    MediaSource.Bytes(bytes, FormatHint.Mov).hashCode() shouldNotBe first
   }
 
   // The memo fills in the first time something asks for it, so a source that has been hashed and
@@ -58,8 +58,8 @@ class MediaSourceTest {
     hashed.hashCode()
     val fresh = MediaSource.Bytes(byteArrayOf(1, 2, 3), FormatHint.Mp4)
 
-    assertEquals(hashed, fresh)
-    assertEquals(fresh, hashed)
+    fresh shouldBe hashed
+    hashed shouldBe fresh
   }
 
   @Test
@@ -67,8 +67,8 @@ class MediaSourceTest {
     val key = MediaSource.Bytes(byteArrayOf(4, 5, 6), FormatHint.M4a)
     val cache = mutableMapOf<MediaSource, String>(key to "probed")
 
-    assertEquals("probed", cache[key])
-    assertEquals("probed", cache[MediaSource.Bytes(byteArrayOf(4, 5, 6), FormatHint.M4a)])
-    assertEquals(1, listOf(key, MediaSource.Bytes(byteArrayOf(4, 5, 6), FormatHint.M4a)).distinct().size)
+    cache[key] shouldBe "probed"
+    cache[MediaSource.Bytes(byteArrayOf(4, 5, 6), FormatHint.M4a)] shouldBe "probed"
+    listOf(key, MediaSource.Bytes(byteArrayOf(4, 5, 6), FormatHint.M4a)).distinct().size shouldBe 1
   }
 }

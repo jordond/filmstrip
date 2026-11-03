@@ -3,30 +3,31 @@ package dev.jordond.filmstrip.effects.overlay
 import android.graphics.Bitmap
 import android.os.Build
 import android.util.Half
+import dev.jordond.filmstrip.color.pictureLight
+import dev.jordond.filmstrip.color.pictureSrgbCodes
+import dev.jordond.filmstrip.color.srgbToLinear
 import dev.jordond.filmstrip.effects.media3WorkingLight
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.internal.pictureColour
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.pictureLight
-import dev.jordond.filmstrip.media.pictureSrgbCodes
-import dev.jordond.filmstrip.media.srgbToLinear
-import dev.jordond.filmstrip.test.ColourPictures
+import dev.jordond.filmstrip.picture.pictureColor
+import dev.jordond.filmstrip.test.ColorPictures
 import dev.jordond.filmstrip.test.IccPictures
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import java.nio.ShortBuffer
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
- * Colour described pictures decoded by Android and prepared for a frame, read back the way media3 reads an overlay.
+ * Color described pictures decoded by Android and prepared for a frame, read back the way media3 reads an overlay.
  *
  * Each texel of an HDR raster, times its HDR luminance multiplier, is the light media3 draws. That light is held to
- * [media3WorkingLight] of what [pictureLight] gives the picture's colour, so the decode, the colour it reports and
+ * [media3WorkingLight] of what [pictureLight] gives the picture's color, so the decode, the color it reports and
  * [rasterFor] are checked together with no encoder in the way. An SDR raster is held to [pictureSrgbCodes]. Every
- * [IccPictures] and [ColourPictures] PNG is read, the sixteen-bit ones at their own depth.
+ * [IccPictures] and [ColorPictures] PNG is read, the sixteen-bit ones at their own depth.
  */
 class TaggedPictureRasterTest {
   @Test
@@ -35,7 +36,7 @@ class TaggedPictureRasterTest {
       pictures().flatMap { picture ->
         val decoded = picture.decoded
         HdrTransfer.entries.mapNotNull { transfer ->
-          val raster = decoded.bitmap.rasterFor(transfer, decoded.colour)
+          val raster = decoded.bitmap.rasterFor(transfer, decoded.color)
           val expected = media3WorkingLight(picture.light.copyOf(RGB), transfer)
           val texel = raster.bitmap.getPixel(1, 1)
           val off =
@@ -48,33 +49,33 @@ class TaggedPictureRasterTest {
         }
       }
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   @Test
   fun everyTaggedPictureRastersOntoItsSrgbCodesOnAnSdrFrame() {
     val misses =
       pictures().mapNotNull { picture ->
-        val raster = picture.decoded.bitmap.rasterFor(transfer = null, picture.decoded.colour)
+        val raster = picture.decoded.bitmap.rasterFor(transfer = null, picture.decoded.color)
         val read = raster.bitmap.getPixel(1, 1)
         "${picture.name} wrote ${read.hex()} where core gives ${picture.srgb.hex()}".takeIf { read != picture.srgb }
       }
 
-    assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+    withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
   }
 
   // Every expected value comes from core's read of the file itself. A sixteen-bit picture decodes to half floats, so
-  // its expected value is core's read of the samples the decode holds. HiddenColourDescriptionsTest holds those to the
+  // its expected value is core's read of the samples the decode holds. HiddenColorDescriptionsTest holds those to the
   // file's own.
   private fun pictures(): List<Picture> =
     IccPictures.ALL.map { eightBit(it.name, it.texel, it.pngOf(SIDE)) } +
-      ColourPictures.PNGS.map { eightBit(it.name, it.texel, it.pngOf(SIDE)) } +
-      ColourPictures.HDR_PNGS.map { tagged ->
+      ColorPictures.PNGS.map { eightBit(it.name, it.texel, it.pngOf(SIDE)) } +
+      ColorPictures.HDR_PNGS.map { tagged ->
         val png = tagged.pngOf(SIDE)
         val decoded = decode(tagged.name, png)
-        val colour = pictureColour(png)
+        val color = pictureColor(png)
         val samples = decoded.bitmap.firstSamples()
-        Picture(tagged.name, decoded, pictureLight(colour, samples), pictureSrgbCodes(colour, samples)[0])
+        Picture(tagged.name, decoded, pictureLight(color, samples), pictureSrgbCodes(color, samples)[0])
       }
 
   private fun eightBit(
@@ -82,15 +83,15 @@ class TaggedPictureRasterTest {
     texel: Int,
     png: ByteArray,
   ): Picture {
-    val colour = pictureColour(png)
+    val color = pictureColor(png)
     val texels = intArrayOf(texel)
-    return Picture(name, decode(name, png), pictureLight(colour, texels), pictureSrgbCodes(colour, texels)[0])
+    return Picture(name, decode(name, png), pictureLight(color, texels), pictureSrgbCodes(color, texels)[0])
   }
 
   private fun decode(
     name: String,
     png: ByteArray,
-  ): DecodedPicture = assertNotNull(ImageSource.Bytes(png).decode(context = null), name)
+  ): DecodedPicture = withClue(name) { ImageSource.Bytes(png).decode(context = null).shouldNotBeNull() }
 
   // The first texel's samples, at sixteen bits from a half float bitmap or eight bits times 257 from any other.
   private fun Bitmap.firstSamples(): ShortArray {

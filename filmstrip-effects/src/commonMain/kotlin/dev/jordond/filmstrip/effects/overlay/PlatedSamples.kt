@@ -4,17 +4,17 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * How many premultiplied eight-bit steps a glyph texel's colour may sit from the text colour and still read as the
+ * How many premultiplied eight-bit steps a glyph texel's color may sit from the text color and still read as the
  * text's ink.
  *
  * A platform stores a glyph premultiplied on the eight-bit grid and hands it back divided out, so a channel of an
- * edge texel can read back a few steps from the text colour. [glyphInkReach] turns these steps into codes at a texel's
+ * edge texel can read back a few steps from the text color. [glyphInkReach] turns these steps into codes at a texel's
  * alpha.
  */
 internal const val INK_STEPS: Int = 3
 
 /**
- * The most codes a glyph texel's channel may sit from the text colour's and still read as ink, at [coverage] alpha.
+ * The most codes a glyph texel's channel may sit from the text color's and still read as ink, at [coverage] alpha.
  *
  * It is [INK_STEPS] premultiplied steps seen through the texel's alpha, 255 over [coverage] codes for each step, so a
  * texel at full alpha reads as ink within three codes and one at alpha 12 within about 64.
@@ -24,16 +24,16 @@ internal fun glyphInkReach(coverage: Int): Double = INK_STEPS * TOP_CODE.toDoubl
 /**
  * Lays [text] over [plate] by [glyphs] into straight sixteen-bit RGBA samples, four a texel.
  *
- * Each texel is the glyph's colour, at the text's alpha times the texel's coverage, drawn source over the plate, or
- * over nothing when [plate] is null. A texel whose every channel sits within [glyphInkReach] of the text colour at its
- * alpha is ink and takes the text colour exactly. Any other texel, such as one of a colour font's glyphs, keeps its own
- * colour at the eight bits it was read at. The blend is worked on straight colours and rounded once to sixteen bits, so
- * a texel the glyphs leave uncovered holds the plate's colour and alpha exactly as the codes it names widen.
+ * Each texel is the glyph's color, at the text's alpha times the texel's coverage, drawn source over the plate, or
+ * over nothing when [plate] is null. A texel whose every channel sits within [glyphInkReach] of the text color at its
+ * alpha is ink and takes the text color exactly. Any other texel, such as one of a color font's glyphs, keeps its own
+ * color at the eight bits it was read at. The blend is worked on straight colors and rounded once to sixteen bits, so
+ * a texel the glyphs leave uncovered holds the plate's color and alpha exactly as the codes it names widen.
  *
  * @param glyphs Four bytes a texel, the straight red, green, blue and alpha the glyphs were drawn in at the text
- * colour's own red, green and blue and full alpha. Each alpha is how much of the texel the glyphs cover.
- * @param text The text colour, straight ARGB.
- * @param plate The plate colour, straight ARGB, or null for no plate.
+ * color's own red, green and blue and full alpha. Each alpha is how much of the texel the glyphs cover.
+ * @param text The text color, straight ARGB.
+ * @param plate The plate color, straight ARGB, or null for no plate.
  * @param samples Where the samples are written, as long as [glyphs]. A new array unless the caller allocates its own.
  * @return [samples], filled.
  * @throws IllegalArgumentException When [samples] is not as long as [glyphs].
@@ -48,7 +48,7 @@ internal fun platedSamples(
   val textAlpha = levelOf(text, ALPHA_SHIFT)
   val plateAlpha = plate?.let { levelOf(it, ALPHA_SHIFT) } ?: 0.0
   val ink = IntArray(RGB_CHANNELS) { codeOf(text, RGB_SHIFTS[it]) }
-  val plateColour = DoubleArray(RGB_CHANNELS) { channel -> plate?.let { levelOf(it, RGB_SHIFTS[channel]) } ?: 0.0 }
+  val plateColor = DoubleArray(RGB_CHANNELS) { channel -> plate?.let { levelOf(it, RGB_SHIFTS[channel]) } ?: 0.0 }
 
   for (texel in glyphs.indices step RGBA_CHANNELS) {
     val coverage = glyphs.codeAt(texel + ALPHA)
@@ -62,7 +62,7 @@ internal fun platedSamples(
     val inked = coverage == 0 || glyphs.isInk(texel, coverage, ink)
     for (channel in 0 until RGB_CHANNELS) {
       val glyph = (if (inked) ink[channel] else glyphs.codeAt(texel + channel)).toDouble() / TOP_CODE
-      samples[texel + channel] = sampleOf((glyph * over + plateColour[channel] * under) / alpha)
+      samples[texel + channel] = sampleOf((glyph * over + plateColor[channel] * under) / alpha)
     }
     samples[texel + ALPHA] = sampleOf(alpha)
   }

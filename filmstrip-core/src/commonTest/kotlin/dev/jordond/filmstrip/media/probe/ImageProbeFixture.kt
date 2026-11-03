@@ -87,7 +87,7 @@ internal fun imageProbeBytes(): ByteArray {
   file.putShort(FILE_HEADER_BYTES + 14, BYTES_PER_PIXEL * BITS_PER_BYTE)
   file.putInt(FILE_HEADER_BYTES + 20, pixels)
 
-  // A flat mid grey. The colours are never asserted on, only the bounds, but a reader that
+  // A flat mid grey. The colors are never asserted on, only the bounds, but a reader that
   // rejected an all-zero buffer would be a confusing way to find that out.
   for (index in HEADER_BYTES until file.size) file[index] = GREY
 

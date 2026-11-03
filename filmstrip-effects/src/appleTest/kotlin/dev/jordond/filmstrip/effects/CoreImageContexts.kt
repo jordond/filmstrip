@@ -2,9 +2,10 @@ package dev.jordond.filmstrip.effects
 
 import dev.jordond.filmstrip.effects.overlay.codeReader
 import dev.jordond.filmstrip.effects.overlay.contextOptions
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.CoreImage.CIContext
-import kotlin.test.assertNotNull
 import kotlin.test.fail
 
 /**
@@ -37,7 +38,7 @@ internal fun renderingContext(floatFormat: Boolean = false): CIContext {
  * back.
  */
 internal fun rasterReader(): CIContext =
-  assertNotNull(codeReader, "the overlay raster built no code reader, so it reads no samples back")
+  withClue("the overlay raster built no code reader, so it reads no samples back") { codeReader.shouldNotBeNull() }
 
 /**
  * Fails the calling test unless the overlay raster built its [codeReader], for a case that reads samples through the

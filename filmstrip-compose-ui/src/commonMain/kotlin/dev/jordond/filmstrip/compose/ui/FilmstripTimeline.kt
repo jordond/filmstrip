@@ -23,7 +23,7 @@ import dev.jordond.filmstrip.compose.ui.interaction.wheelZoomTimeline
 import dev.jordond.filmstrip.compose.ui.interaction.zoomTimeline
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
-import dev.jordond.filmstrip.media.FrameRenderer
+import dev.jordond.filmstrip.still.FrameRenderer
 import kotlin.time.Duration
 
 /**

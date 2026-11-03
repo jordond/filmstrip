@@ -6,8 +6,8 @@ import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import dev.jordond.filmstrip.FilmstripContext
-import dev.jordond.filmstrip.export.Bitrate
-import dev.jordond.filmstrip.export.ExportError
+import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
@@ -18,7 +18,6 @@ import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.displaySizeOf
-import dev.jordond.filmstrip.media.probeImage
 import dev.jordond.filmstrip.media.trackCodecOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -42,7 +41,7 @@ internal actual class PlatformProber actual constructor() {
         val android = FilmstripContext.get()
         if (android == null) {
           ProbeResult.Failure(
-            ExportError.SourceUnreadable(source = source.uri, message = FilmstripContext.MISSING_CONTEXT),
+            FilmstripError.SourceUnreadable(source = source.uri, message = FilmstripContext.MISSING_CONTEXT),
           )
         } else {
           source.readContainer { setDataSource(android, Uri.parse(source.uri)) }
@@ -66,7 +65,7 @@ internal actual class PlatformProber actual constructor() {
       val context =
         FilmstripContext.get()
           ?: return@withContext Cached.Failed(
-            ExportError.SourceUnreadable(source = describe(), message = FilmstripContext.MISSING_CONTEXT),
+            FilmstripError.SourceUnreadable(source = describe(), message = FilmstripContext.MISSING_CONTEXT),
           )
 
       try {
@@ -78,8 +77,8 @@ internal actual class PlatformProber actual constructor() {
       }
     }
 
-  private fun MediaSource.Bytes.unwritable(reason: String?): ExportError.SourceUnreadable =
-    ExportError.SourceUnreadable(
+  private fun MediaSource.Bytes.unwritable(reason: String?): FilmstripError.SourceUnreadable =
+    FilmstripError.SourceUnreadable(
       source = describe(),
       message =
         "An in-memory source is written to a temporary file before probing, and it could not " +
@@ -95,7 +94,7 @@ internal actual class PlatformProber actual constructor() {
     ) : Cached
 
     class Failed(
-      val error: ExportError.SourceUnreadable,
+      val error: FilmstripError.SourceUnreadable,
     ) : Cached
   }
 
@@ -167,8 +166,8 @@ internal actual class PlatformProber actual constructor() {
   private fun MediaMetadataRetriever.readInfo(tracks: SourceTracks?): MediaInfo {
     val video = tracks?.video
     val audio = tracks?.audio
-    val hasVideo = metadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO) == "yes"
-    val hasAudio = metadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) == "yes"
+    val hasVideo = extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO) == "yes"
+    val hasAudio = extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) == "yes"
     val rotation = int(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION) ?: 0
     val coded =
       Size(
@@ -236,7 +235,7 @@ internal actual class PlatformProber actual constructor() {
   )
 
   /**
-   * Bits per colour channel, or null when nothing in the track says.
+   * Bits per color channel, or null when nothing in the track says.
    *
    * The profile is what carries this. Some vendor extractors publish the luma depth outright, and
    * where they do it is authoritative, but AOSP only ever sets that key on audio tracks, so a
@@ -299,20 +298,18 @@ internal actual class PlatformProber actual constructor() {
 
   private fun MediaFormat.string(key: String): String? = if (containsKey(key)) getString(key) else null
 
-  private fun MediaMetadataRetriever.metadata(key: Int): String? = extractMetadata(key)
-
   private fun MediaMetadataRetriever.int(key: Int): Int? = extractMetadata(key)?.toIntOrNull()
 
   private fun MediaMetadataRetriever.long(key: Int): Long? = extractMetadata(key)?.toLongOrNull()
 
-  private fun MediaSource.unreadable(detail: String?): ExportError.SourceUnreadable =
-    ExportError.SourceUnreadable(
+  private fun MediaSource.unreadable(detail: String?): FilmstripError.SourceUnreadable =
+    FilmstripError.SourceUnreadable(
       source = describe(),
       message = detail ?: "The source could not be opened.",
     )
 
   private companion object {
-    // MediaFormat colour keys and constants, inlined because MediaFormat declares them above
+    // MediaFormat color keys and constants, inlined because MediaFormat declares them above
     // minSdk. A device too old to have them never writes them, so the reads fall through.
     const val COLOR_STANDARD = "color-standard"
     const val COLOR_TRANSFER = "color-transfer"

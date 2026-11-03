@@ -6,7 +6,7 @@ import dev.drewhamilton.poko.Poko
 /**
  * What a timeline paints with.
  *
- * Built by [FilmstripTimelineDefaults.colors], which defaults every colour, so a host names only the ones it wants to
+ * Built by [FilmstripTimelineDefaults.colors], which defaults every color, so a host names only the ones it wants to
  * change.
  *
  * @property tile The ground behind a tile whose frame has not arrived.

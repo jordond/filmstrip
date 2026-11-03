@@ -1,6 +1,9 @@
 package dev.jordond.filmstrip.media3
 
 import android.graphics.Color
+import dev.jordond.filmstrip.color.authoredHdrNits
+import dev.jordond.filmstrip.color.signalFromNits
+import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
@@ -22,9 +25,6 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media.authoredHdrNits
-import dev.jordond.filmstrip.media.signalFromNits
-import dev.jordond.filmstrip.media.tenBitCodesFromSignal
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HLG_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
@@ -32,6 +32,10 @@ import dev.jordond.filmstrip.style.TextStyle
 import dev.jordond.filmstrip.test.HdrOverlayCells
 import dev.jordond.filmstrip.test.OverlayPixels.pngOf
 import dev.jordond.filmstrip.test.assumeEncodesHdr
+import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import org.junit.AssumptionViolatedException
 import org.junit.runner.RunWith
@@ -40,9 +44,6 @@ import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertIs
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 /**
  * Overlays on an export that keeps its HDR grade, on real media3.
@@ -74,8 +75,10 @@ class AndroidOverlayHdrTest {
       val plain = probe.frame(export(source, emptyList()))
       val marked = probe.frame(export(source, listOf(probe.watermark(Corner.BottomEnd))))
 
-      assertTrue(marked.gainedOver(plain, BOTTOM_END) > COVERED, "no watermark on a kept PQ grade")
-      assertTrue(marked.gainedOver(plain, TOP_START) < UNTOUCHED, "the watermark bled into the far corner")
+      withClue("no watermark on a kept PQ grade") { (marked.gainedOver(plain, BOTTOM_END) > COVERED) shouldBe true }
+      withClue("the watermark bled into the far corner") {
+        (marked.gainedOver(plain, TOP_START) < UNTOUCHED) shouldBe true
+      }
     }
 
   // HLG holds scene light where PQ holds display light, and media3 carries the two through
@@ -89,8 +92,10 @@ class AndroidOverlayHdrTest {
       val plain = probe.frame(export(source, emptyList()))
       val marked = probe.frame(export(source, listOf(probe.watermark(Corner.BottomEnd))))
 
-      assertTrue(marked.gainedOver(plain, BOTTOM_END) > COVERED, "no watermark on a kept HLG grade")
-      assertTrue(marked.gainedOver(plain, TOP_START) < UNTOUCHED, "the watermark bled into the far corner")
+      withClue("no watermark on a kept HLG grade") { (marked.gainedOver(plain, BOTTOM_END) > COVERED) shouldBe true }
+      withClue("the watermark bled into the far corner") {
+        (marked.gainedOver(plain, TOP_START) < UNTOUCHED) shouldBe true
+      }
     }
 
   @Test
@@ -102,8 +107,10 @@ class AndroidOverlayHdrTest {
       val plain = probe.frame(export(source, emptyList()))
       val captioned = probe.frame(export(source, listOf(caption(Anchor.TopStart))))
 
-      assertTrue(captioned.gainedOver(plain, TOP_START) > COVERED, "no burned-in text on a kept grade")
-      assertTrue(captioned.gainedOver(plain, BOTTOM_END) < UNTOUCHED, "the caption reached the opposite corner")
+      withClue("no burned-in text on a kept grade") { (captioned.gainedOver(plain, TOP_START) > COVERED) shouldBe true }
+      withClue("the caption reached the opposite corner") {
+        (captioned.gainedOver(plain, BOTTOM_END) < UNTOUCHED) shouldBe true
+      }
     }
 
   // Both overlay kinds resolve to the same RasterOverlay, so this is the check that gathering two of
@@ -117,8 +124,12 @@ class AndroidOverlayHdrTest {
       val plain = probe.frame(export(source, emptyList()))
       val both = probe.frame(export(source, listOf(probe.watermark(Corner.BottomEnd), caption(Anchor.TopStart))))
 
-      assertTrue(both.gainedOver(plain, BOTTOM_END) > COVERED, "the watermark did not survive sharing a pass")
-      assertTrue(both.gainedOver(plain, TOP_START) > COVERED, "the text did not survive sharing a pass")
+      withClue("the watermark did not survive sharing a pass") {
+        (both.gainedOver(plain, BOTTOM_END) > COVERED) shouldBe true
+      }
+      withClue("the text did not survive sharing a pass") {
+        (both.gainedOver(plain, TOP_START) > COVERED) shouldBe true
+      }
     }
 
   @Test
@@ -129,9 +140,9 @@ class AndroidOverlayHdrTest {
 
       val written = export(source, listOf(probe.watermark(Corner.BottomEnd)))
       val probed = probe.infoOf(MediaSource.of(written.path))
-      val video = assertNotNull(probed.video, "the written file has no video track")
+      val video = withClue("the written file has no video track") { probed.video.shouldNotBeNull() }
 
-      assertTrue(video.hdrTransfer != null, "an overlay on a kept grade wrote an SDR file")
+      withClue("an overlay on a kept grade wrote an SDR file") { (video.hdrTransfer != null) shouldBe true }
     }
 
   // The texels are mapped onto the grade's own light before media3 reads them, so on PQ nothing is left
@@ -145,10 +156,9 @@ class AndroidOverlayHdrTest {
       val verdict = probe.filmstrip.plan(marked(source), SPEC)
 
       val adjustments = (verdict as? Verdict.Degraded)?.adjustments.orEmpty()
-      assertTrue(
-        adjustments.none { it.kind == AdjustmentKind.EffectApproximated },
-        "an overlay on PQ was reported as approximated: $adjustments",
-      )
+      withClue("an overlay on PQ was reported as approximated: $adjustments") {
+        adjustments.none { it.kind == AdjustmentKind.EffectApproximated } shouldBe true
+      }
     }
 
   // What an overlay reports keys on the grade being written, so a device that could write HDR says
@@ -159,13 +169,12 @@ class AndroidOverlayHdrTest {
       val source = probe.fixture()
       probe.filmstrip.assumeEncodesHdr()
 
-      val verdict = probe.filmstrip.plan(marked(source), ExportSpec(targetHeight = 360))
+      val verdict = probe.filmstrip.plan(marked(source), ExportSpec(heightPx = 360))
 
       val adjustments = (verdict as? Verdict.Degraded)?.adjustments.orEmpty()
-      assertTrue(
-        adjustments.none { it.kind == AdjustmentKind.EffectApproximated },
-        "an overlay on an SDR export was reported as approximated: $adjustments",
-      )
+      withClue("an overlay on an SDR export was reported as approximated: $adjustments") {
+        adjustments.none { it.kind == AdjustmentKind.EffectApproximated } shouldBe true
+      }
     }
 
   // media3 blends an HLG frame in scene light, which a mapping of the texels cannot move, so the plan
@@ -176,20 +185,19 @@ class AndroidOverlayHdrTest {
       val source = probe.fixture(HLG_CLIP)
       probe.filmstrip.assumeEncodesHdr()
 
-      val degraded = assertIs<Verdict.Degraded>(probe.filmstrip.plan(marked(source), SPEC))
+      val degraded = probe.filmstrip.plan(marked(source), SPEC).shouldBeInstanceOf<Verdict.Degraded>()
 
-      assertTrue(
-        degraded.adjustments.any { it.kind == AdjustmentKind.EffectApproximated },
-        "an overlay on HLG was planned without reporting its blend: ${degraded.adjustments}",
-      )
+      withClue("an overlay on HLG was planned without reporting its blend: ${degraded.adjustments}") {
+        degraded.adjustments.any { it.kind == AdjustmentKind.EffectApproximated } shouldBe true
+      }
     }
 
   @Test
-  fun theBlendBoundCanTellAWrongBlend() =
-    assertTrue(
-      PATCH_NOISE <= HdrOverlayCells.MAX_BLEND_TOLERANCE,
-      "a bound of $PATCH_NOISE codes passes a wrong blend, ${HdrOverlayCells.MAX_BLEND_TOLERANCE} is the most",
-    )
+  fun theBlendBoundCanTellAWrongBlend() {
+    withClue("a bound of $PATCH_NOISE codes passes a wrong blend, ${HdrOverlayCells.MAX_BLEND_TOLERANCE} is the most") {
+      (PATCH_NOISE <= HdrOverlayCells.MAX_BLEND_TOLERANCE) shouldBe true
+    }
+  }
 
   private fun marked(source: MediaSource) =
     EditComposition(listOf(Track(listOf(Clip(source)))), listOf(probe.watermark(Corner.BottomEnd)))
@@ -211,8 +219,8 @@ class AndroidOverlayHdrTest {
  * The ten-bit codes media3 writes for every cell of [HdrOverlayCells] over one fill on one kept grade.
  *
  * A run covers one fill of [HdrOverlayCells.CELLS] on one transfer, PQ or HLG, and exports every cell over that fill.
- * Each reading is held to [HdrOverlayCells.Cell.codes], where an overlay texel lands on [authoredHdrNits] of its colour
- * and blends in display light, so an opaque one lands where a fill of that colour does. On HLG the blend cells read
+ * Each reading is held to [HdrOverlayCells.Cell.codes], where an overlay texel lands on [authoredHdrNits] of its color
+ * and blends in display light, so an opaque one lands where a fill of that color does. On HLG the blend cells read
  * media3's scene light blend instead. A blend that misses is reported next to where the cell's signal blend and sRGB
  * blend land, so the failure says which wrong blend ran.
  *
@@ -256,7 +264,7 @@ class AndroidOverlayHdrLevelTest(
         )
       val misses = if (inBar != null) listOf(inBar) else cells.mapNotNull { missOf(source, it, fx, fy) }
 
-      assertTrue(misses.isEmpty(), misses.joinToString("\n"))
+      withClue(misses.joinToString("\n")) { misses.isEmpty() shouldBe true }
     }
 
   // A throw on one cell's export or frame read is that cell's miss, so the cells already read still report. That
@@ -362,7 +370,7 @@ class AndroidOverlayHdrLevelTest(
   }
 }
 
-private val SPEC = ExportSpec(targetHeight = 360, hdr = HdrMode.KeepHdr)
+private val SPEC = ExportSpec(heightPx = 360, hdr = HdrMode.KeepHdr)
 
 // The encoder's noise on a flat patch, in ten-bit codes, unmeasured on a hardware HEVC encoder. At most
 // HdrOverlayCells.MAX_BLEND_TOLERANCE, so a wrong blend reads outside it on every blend cell.

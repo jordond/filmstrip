@@ -323,10 +323,7 @@ private fun DrawScope.drawHandles(
   length: Float,
   color: Color,
 ) {
-  drawCorner(view.topLeft, Offset(1f, 1f), length, color)
-  drawCorner(Offset(view.right, view.top), Offset(-1f, 1f), length, color)
-  drawCorner(Offset(view.right, view.bottom), Offset(-1f, -1f), length, color)
-  drawCorner(Offset(view.left, view.bottom), Offset(1f, -1f), length, color)
+  drawCornerBrackets(view, length, color, HANDLE_WIDTH)
 
   val centerX = (view.left + view.right) / 2f
   val centerY = (view.top + view.bottom) / 2f
@@ -345,19 +342,6 @@ private fun DrawScope.drawGrip(
   color: Color,
 ) {
   drawLine(color, mid - span / 2f, mid + span / 2f, strokeWidth = HANDLE_WIDTH)
-}
-
-/**
- * Two arms of [length] meeting at [corner], pointing inward along [direction].
- */
-private fun DrawScope.drawCorner(
-  corner: Offset,
-  direction: Offset,
-  length: Float,
-  color: Color,
-) {
-  drawLine(color, corner, corner + Offset(direction.x * length, 0f), strokeWidth = HANDLE_WIDTH)
-  drawLine(color, corner, corner + Offset(0f, direction.y * length), strokeWidth = HANDLE_WIDTH)
 }
 
 @Preview

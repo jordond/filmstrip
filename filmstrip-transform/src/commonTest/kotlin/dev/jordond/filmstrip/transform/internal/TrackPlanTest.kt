@@ -1,17 +1,19 @@
 package dev.jordond.filmstrip.transform.internal
 
+import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
-import dev.jordond.filmstrip.export.AudioCodec
-import dev.jordond.filmstrip.export.ExportError
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.test.LoopingCases
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
 import io.kotest.matchers.floats.plusOrMinus
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
-import kotlin.test.assertIs
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -29,8 +31,8 @@ class TrackPlanTest {
     val second = Track(listOf(fixture.clip()), content = TrackContent.AudioAndVideo)
     val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip())), second)))
 
-    val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+    val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
       "This backend renders video from the primary track only. A second video track needs a " +
       "compositor, which has not landed here. A second audio-only track works."
   }
@@ -45,7 +47,7 @@ class TrackPlanTest {
       )
     val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip())), bed)))
 
-    val plan = assertIs<Verdict.Capable>(verdict).plan
+    val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
     plan.output.audioCodec shouldBe AudioCodec.Aac
   }
 
@@ -53,8 +55,8 @@ class TrackPlanTest {
   fun `a composition where every track loops is refused by name`() {
     val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip()), looping = true))))
 
-    val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+    val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
       "Every track loops, so the composition has nothing to bound it."
   }
 
@@ -90,8 +92,8 @@ class TrackPlanTest {
   fun `a looping track one pass over the ceiling is refused by name`() {
     val verdict = fixture.plan(loopingFor(passes = MAX_LAID_PASSES + 1))
 
-    val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+    val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
       "The track at index 1 lays more than $MAX_LAID_PASSES passes, which is the most one track may lay. A " +
       "looping track repeats until the composition ends, so a short clip under a long composition asks for a " +
       "pass per repeat. A track laid once lays one pass per clip."
@@ -103,8 +105,8 @@ class TrackPlanTest {
   fun `a looping track far over the ceiling is refused by name`() {
     val verdict = fixture.plan(loopingFor(passes = MAX_LAID_PASSES * 6))
 
-    val error = assertIs<Verdict.Incapable>(verdict).reasons.single()
-    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+    val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
       "The track at index 1 lays more than $MAX_LAID_PASSES passes, which is the most one track may lay. A " +
       "looping track repeats until the composition ends, so a short clip under a long composition asks for a " +
       "pass per repeat. A track laid once lays one pass per clip."
@@ -218,7 +220,7 @@ class TrackPlanTest {
     val bed = Track(listOf(fixture.clip(duration = 4_000.milliseconds)), content = TrackContent.Audio)
     val primary = Track(listOf(fixture.clip()), start = 4_000.milliseconds, looping = true)
 
-    assertIs<Verdict.Incapable>(fixture.plan(EditComposition(listOf(primary, bed))))
+    fixture.plan(EditComposition(listOf(primary, bed))).shouldBeInstanceOf<Verdict.Incapable>()
   }
 
   /**
@@ -282,8 +284,13 @@ class TrackPlanTest {
   fun `a primary track that starts before the composition is refused by name`() {
     val composition = EditComposition(listOf(Track(listOf(fixture.clip()), start = (-500).milliseconds)))
 
-    val error = assertIs<Verdict.Incapable>(fixture.plan(composition)).reasons.single()
-    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+    val error =
+      fixture
+        .plan(composition)
+        .shouldBeInstanceOf<Verdict.Incapable>()
+        .reasons
+        .single()
+    error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
       "A track's start is negative, so it would begin before the composition does. A start is " +
       "measured from the start of the composition and has to be zero or later."
   }
@@ -300,8 +307,13 @@ class TrackPlanTest {
         ),
       )
 
-    val error = assertIs<Verdict.Incapable>(fixture.plan(composition)).reasons.single()
-    assertIs<ExportError.InvalidComposition>(error).message shouldBe
+    val error =
+      fixture
+        .plan(composition)
+        .shouldBeInstanceOf<Verdict.Incapable>()
+        .reasons
+        .single()
+    error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
       "A track's start is negative, so it would begin before the composition does. A start is " +
       "measured from the start of the composition and has to be zero or later."
   }

@@ -39,7 +39,7 @@ public class LaidPass(
  *
  * A looping track runs from where it starts to the end of the composition, and one laid down once runs the sum of its
  * own [lengths]. This is what [passesCovering] fills, derived here so a backend, the planner and a test all read the
- * same run rather than each working out where a track stops.
+ * same run.
  *
  * @param duration How long the whole composition runs.
  */

@@ -2,12 +2,12 @@ package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
-import dev.jordond.filmstrip.transform.internal.sigmaFor
-import dev.jordond.filmstrip.webcodecs.internal.blurPlan
+import dev.jordond.filmstrip.transform.internal.geometry.sigmaFor
+import dev.jordond.filmstrip.webcodecs.internal.render.blurPlan
+import io.kotest.assertions.withClue
+import io.kotest.matchers.shouldBe
 import kotlin.math.abs
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 /**
  * The pure downscale, sigma and tap radius arithmetic [blurPlan] drives, without a WebGL context
@@ -24,11 +24,11 @@ class BrowserBlurPlanTest {
     val sigma = Fill.Blurred(radius = 0.04f).sigmaFor(Size(1080, 1920))
     val plan = blurPlan(sigma, width = 1080, height = 1920)
 
-    assertEquals(6, plan.downscale)
-    assertEquals(180, plan.smallWidth)
-    assertEquals(320, plan.smallHeight)
-    assertTrue(abs(plan.sigma - 7.2f) < 0.01f, "sigma was ${plan.sigma}, expected close to 7.2")
-    assertEquals(22, plan.tapRadius)
+    plan.downscale shouldBe 6
+    plan.smallWidth shouldBe 180
+    plan.smallHeight shouldBe 320
+    withClue("sigma was ${plan.sigma}, expected close to 7.2") { (abs(plan.sigma - 7.2f) < 0.01f) shouldBe true }
+    plan.tapRadius shouldBe 22
   }
 
   @Test
@@ -39,6 +39,6 @@ class BrowserBlurPlanTest {
     val sigma = Fill.Blurred(radius = 1f).sigmaFor(Size(4320, 7680))
     val plan = blurPlan(sigma, width = 4320, height = 7680)
 
-    assertTrue(plan.tapRadius <= 24, "the tap radius was ${plan.tapRadius}, expected at most 24")
+    withClue("the tap radius was ${plan.tapRadius}, expected at most 24") { (plan.tapRadius <= 24) shouldBe true }
   }
 }
