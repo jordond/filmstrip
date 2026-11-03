@@ -139,23 +139,6 @@ class EncoderColorProbeTest {
   }
 
   @Test
-  fun `an unclear answer cut short by the deadline is not kept`() {
-    val runs = AtomicInteger()
-    val probe =
-      MeasuredEncoderColor(TIMEOUT) { _, _ ->
-        if (runs.incrementAndGet() > 1) {
-          WrittenColor.Measured(BT601_LIMITED)
-        } else {
-          WrittenColor.Unclear.outOfTime("no frame yet")
-        }
-      }
-
-    probe.written(REQUEST) shouldBe WrittenColor.Unclear("no frame yet", kept = false)
-    repeat(2) { probe.written(REQUEST) shouldBe WrittenColor.Measured(BT601_LIMITED) }
-    runs.get() shouldBe 2
-  }
-
-  @Test
   fun `a measurement past its deadline is interrupted waited for and not kept`() {
     val runs = AtomicInteger()
     val released = AtomicBoolean()

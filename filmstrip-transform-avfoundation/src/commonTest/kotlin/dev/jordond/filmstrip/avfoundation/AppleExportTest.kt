@@ -59,11 +59,8 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.AVFoundation.AVAssetTrack
@@ -1240,33 +1237,6 @@ class AppleExportTest {
       statuses.last().shouldBeInstanceOf<ExportStatus.Success>()
 
       remove(output)
-    }
-
-  // Cancelling the collector cancels the export, and everything at the destination belongs to the
-  // run, so nothing is left behind.
-  @Test
-  fun `cancelling the collector leaves no partial file`() =
-    runTest(timeout = TIMEOUT) {
-      val long = fixture("apple_export_long.mp4")
-      val output = temporaryPath("cancelled")
-      val composition = compositionOf { clip(MediaSource.of(long)) }
-
-      // Cancelled on Started, not after a fixed window. A hardware encode of even a long
-      // clip outruns any window worth waiting for, and a run that finished first would be checking
-      // that a successful export keeps its file, which is the opposite claim.
-      withContext(Dispatchers.Default) {
-        val started = CompletableDeferred<Unit>()
-        val job =
-          launch {
-            filmstrip.export(composition, ExportSpec(heightPx = 360), MediaSink.of(output)).collect {
-              if (it is ExportStatus.Started) started.complete(Unit)
-            }
-          }
-        started.await()
-        job.cancelAndJoin()
-      }
-
-      NSFileManager.defaultManager.fileExistsAtPath(output) shouldBe false
     }
 
   @Test

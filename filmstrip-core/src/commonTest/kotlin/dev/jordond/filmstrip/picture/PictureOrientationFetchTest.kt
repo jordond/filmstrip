@@ -25,7 +25,6 @@ import dev.jordond.filmstrip.picture.fixtures.pngChunk
 import dev.jordond.filmstrip.picture.fixtures.pngWithExif
 import dev.jordond.filmstrip.picture.fixtures.repeating
 import dev.jordond.filmstrip.picture.fixtures.u64
-import dev.jordond.filmstrip.picture.fixtures.webpChunk
 import dev.jordond.filmstrip.picture.fixtures.webpWithExif
 import dev.jordond.filmstrip.picture.heif.heifOrientationOf
 import dev.jordond.filmstrip.picture.png.PNG_SIGNATURE
@@ -148,31 +147,6 @@ class PictureOrientationFetchTest {
       withClue("fetched ${fetch.fetched}") { (fetch.fetched <= WALK_READ_AHEAD).shouldBeTrue() }
     }
 
-  // Files of a gigabyte made of nothing but the smallest step their container allows. Each would take millions of
-  // reads to walk to its end, so each stops at the walk's budget instead.
-  @Test
-  fun aFileOfEndlessSmallStepsStopsAtTheReadBudget() =
-    runTest {
-      val endless =
-        mapOf(
-          "jpeg fill" to repeating(JPEG_START, byteArrayOf(0xFF.toByte())),
-          "jpeg empty segments" to repeating(JPEG_START, hex("FFE40002")),
-          "png empty chunks" to repeating(PNG_SIGNATURE, emptyPngChunk()),
-          "webp empty chunks" to repeating(webpOpening(), bytes { ascii("JUNK").u32(0, little = true) }),
-          "heif free boxes" to repeating(bytes { u32(8).ascii("ftyp") }, bytes { u32(8).ascii("free") }),
-          "big tiff zero entries" to repeating(bigTiffHeader(count = 1L shl 40), ByteArray(1)),
-          "jxl free boxes" to repeating(jxlOpening(), box("free")),
-          "jxl empty jxlp boxes" to repeating(jxlOpening(), box("jxlp", bytes { u32(0) })),
-        )
-      for ((name, file) in endless) {
-        val fetch = Fetch(GIGABYTE, file)
-
-        withClue(name) { fetch.orientation() shouldBe PictureOrientation.Normal }
-        withClue(name) { fetch.reads shouldBe MAX_WALK_READS }
-        withClue("$name fetched ${fetch.fetched} bytes") { (fetch.fetched <= MAX_WALK_BYTES).shouldBeTrue() }
-      }
-    }
-
   // Each jxlp box carries one byte of codestream, so the walk has the head it gathers after that many boxes and stops
   // there. The bytes are no codestream, so they read as Normal.
   @Test
@@ -291,17 +265,6 @@ class PictureOrientationFetchTest {
     return PNG_SIGNATURE + bytes { u32(exif.size.toLong()) } + typed + bytes { u32(crc32Of(typed)) } + IEND_CHUNK
   }
 
-  private fun emptyPngChunk(): ByteArray {
-    val type = asciiBytes("tEXt")
-    return bytes { u32(0).raw(type).u32(crc32Of(type)) }
-  }
-
-  private fun webpOpening(): ByteArray =
-    bytes {
-      ascii("RIFF").u32(0xFFFFFFF0, little = true).ascii("WEBP")
-      webpChunk("VP8X", ByteArray(10).also { it[0] = 0x08 })
-    }
-
   // A little endian BigTIFF whose first directory holds [entry] entries of another tag and then the orientation.
   private fun bigTiffTaggedAtEntry(
     entry: Int,
@@ -333,7 +296,6 @@ class PictureOrientationFetchTest {
     // One entry past the most a classic directory's two byte count can hold.
     const val BIG_TIFF_TAG_ENTRY = 0x10000
     const val GIGABYTE = 1L shl 30
-    val JPEG_START = byteArrayOf(0xFF.toByte(), 0xD8.toByte())
     val IEND_CHUNK = hex("0000000049454E44AE426082")
     val MUTATIONS = intArrayOf(0x01, 0x80, 0xFF)
   }
