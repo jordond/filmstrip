@@ -37,3 +37,6 @@ sample/media/build/
 /.claude/*
 !/.claude/skills/
 .desloppify/
+
+.claude/skills/desloppify/
+scorecard.png
