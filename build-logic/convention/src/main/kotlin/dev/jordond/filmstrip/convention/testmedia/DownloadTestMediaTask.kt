@@ -12,6 +12,8 @@ import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 import java.io.File
+import java.io.IOException
+import java.net.HttpURLConnection
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
@@ -80,11 +82,7 @@ abstract class DownloadTestMediaTask : DefaultTask() {
 
     logger.lifecycle("fetching ${entry.fileName}")
     target.replaceWith { partial ->
-      runCatching {
-        URI(url).toURL().openStream().use { stream -> Files.copy(stream, partial) }
-      }.onFailure {
-        throw GradleException("could not fetch ${entry.fileName} from $url", it)
-      }
+      downloadWithRetry(entry.fileName, url, partial)
 
       // Hashing what arrived is what makes a replaced object a build failure rather than a test
       // failure somewhere else entirely.
@@ -96,6 +94,73 @@ abstract class DownloadTestMediaTask : DefaultTask() {
         )
       }
     }
+  }
+
+  /**
+   * Copies [url] into [partial], trying again after a short wait when the network fails or the server answers 5xx or
+   * 429. Any other 4xx fails at once, as does the last failed attempt.
+   */
+  private fun downloadWithRetry(
+    fileName: String,
+    url: String,
+    partial: Path,
+  ) {
+    for (attempt in 1..FETCH_ATTEMPTS) {
+      val failure =
+        try {
+          download(url, partial)
+          return
+        } catch (error: TransientFetchFailure) {
+          error
+        } catch (error: IOException) {
+          error
+        }
+
+      if (attempt == FETCH_ATTEMPTS) {
+        throw GradleException("could not fetch $fileName from $url after $FETCH_ATTEMPTS attempts", failure)
+      }
+      val backoff = RETRY_BACKOFF_MILLIS shl (attempt - 1)
+      logger.lifecycle(
+        "fetching $fileName failed on attempt $attempt of $FETCH_ATTEMPTS (${failure.message}), retrying in ${backoff}ms",
+      )
+      Thread.sleep(backoff)
+    }
+  }
+
+  private fun download(
+    url: String,
+    partial: Path,
+  ) {
+    val connection = URI(url).toURL().openConnection() as HttpURLConnection
+    connection.connectTimeout = CONNECT_TIMEOUT_MILLIS
+    connection.readTimeout = READ_TIMEOUT_MILLIS
+    try {
+      val status = connection.responseCode
+      when {
+        status in 200..299 -> {
+          connection.inputStream.use { stream -> Files.copy(stream, partial, StandardCopyOption.REPLACE_EXISTING) }
+        }
+        status >= 500 || status == 429 -> {
+          throw TransientFetchFailure("HTTP $status")
+        }
+        else -> {
+          throw GradleException("could not fetch $url, the server answered HTTP $status")
+        }
+      }
+    } finally {
+      connection.disconnect()
+    }
+  }
+
+  private class TransientFetchFailure(
+    message: String,
+  ) : Exception(message)
+
+  private companion object {
+    const val FETCH_ATTEMPTS = 4
+    const val RETRY_BACKOFF_MILLIS = 1_000L
+    const val CONNECT_TIMEOUT_MILLIS = 15_000
+    const val READ_TIMEOUT_MILLIS = 60_000
   }
 }
 
