@@ -1,10 +1,10 @@
 package dev.jordond.filmstrip.effects
 
-import dev.jordond.filmstrip.effects.overlay.Driven
+import dev.jordond.filmstrip.effect.EffectResolution
+import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayOffset
-import dev.jordond.filmstrip.effects.overlay.commandsFor
-import dev.jordond.filmstrip.effects.overlay.drawnRangeWithin
+import dev.jordond.filmstrip.effects.overlay.filterGraphOverlay
 import dev.jordond.filmstrip.effects.overlay.slideIn
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.media.ImageSource
@@ -35,17 +35,17 @@ class OverlayOrientedCommandsTest {
       val twin = commandsOf(pngOf(BufferedImage(shown.width, shown.height, BufferedImage.TYPE_INT_ARGB)))
       val tagged = commandsOf(OrientedPictures.taggedPng(OrientedPictures.png(), orientation.exif))
 
-      withClue("$orientation") { tagged.sidecar shouldBe twin.sidecar }
-      if (orientation.swapsAxes) withClue("$orientation") { tagged.sidecar shouldNotBe stored.sidecar }
+      withClue("$orientation") { tagged shouldBe twin }
+      if (orientation.swapsAxes) withClue("$orientation") { tagged shouldNotBe stored }
     }
   }
 
-  private fun commandsOf(png: ByteArray): Driven.Commands {
+  private fun commandsOf(png: ByteArray): Sidecar {
     val spec =
       ImageOverlay(ImageSource.ofBytes(png), Corner.BottomEnd, animation = slideIn(OverlayOffset(0f, SLIDE), 1.seconds))
-    val attributes = attributes(null)
-    val driven = spec.commandsFor(attributes, spec.drawnRangeWithin(attributes.span), false, null, null)
-    return driven.shouldBeInstanceOf<Driven.Commands>()
+    val resolved = filterGraphOverlay(spec, attributes(null), null).shouldBeInstanceOf<EffectResolution.Resolved>()
+    return resolved.effect.fragment.sidecars
+      .single()
   }
 
   private companion object {

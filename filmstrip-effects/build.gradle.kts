@@ -44,3 +44,8 @@ kotlin {
 }
 
 bootIosSimulatorForTests()
+
+// ffmpeg-text-overlay: the JVM text raster is drawn the way a server draws it, with no display to reach.
+tasks.named<Test>("jvmTest") {
+  systemProperty("java.awt.headless", "true")
+}

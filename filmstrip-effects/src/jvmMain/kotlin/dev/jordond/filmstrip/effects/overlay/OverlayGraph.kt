@@ -1,30 +1,26 @@
 package dev.jordond.filmstrip.effects.overlay
 
+import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.AuxInput
-import dev.jordond.filmstrip.effect.Degradation
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.FilterArgument
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.PlatformEffect
-import dev.jordond.filmstrip.geometry.Corner
-import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.picture.PictureOrientation
-import kotlin.math.roundToInt
 
 /**
  * Lowers [spec] onto a filter graph fragment that draws it over the frames it merges onto.
  *
- * On an SDR frame the picture is scaled and merged with `overlay`, whose corner arithmetic is written as an expression
- * of the main frame's W and H and the overlay's w and h. The margin is not. It is a fraction of the shorter side of
- * the frame the overlay is drawn on, which is the input, the clip's own for a clip overlay and the output for a
- * composition one. A picture that describes its color is drawn from the sRGB codes its description gives it,
- * through [sdrOverlayImage], an AVIF or HEIC from its decode, and any other untagged one from its own bytes. On an HDR
- * grade the picture is decoded and blended in linear display light instead. [decoder] decodes every picture this needs
- * decoded and sizes one for an animation, so the texels and the size are the ones the toolchain draws, and a picture
- * decoded anyway is sized from that decode. Without one the JDK reads them. An animation that cannot be driven at all
- * is refused before the picture is read.
+ * The picture is read for the grade it lands on and placed by [ImageOverlay.placedOn] against its shown size, then
+ * drawn by [lowered]. A picture that describes its color is drawn on an SDR grade from the sRGB codes its description
+ * gives it, through [sdrOverlayImage], an AVIF or HEIC from its decode, and any other untagged one from its own bytes.
+ * On an HDR grade the picture is decoded and blended in linear display light instead. [decoder] decodes every picture
+ * this needs decoded, so the texels are the ones the toolchain draws, and a picture decoded anyway is sized from that
+ * decode. One that was not is sized from its header by [shownSize], which asks [decoder] only for a format the JDK
+ * reads no header of. Without a decoder the JDK reads them all. A picture this process cannot read, or an animation
+ * that cannot be driven at all, is refused before the graph is built.
  *
  * @return The fragment, [EffectResolution.Degraded] by each limit the decode of its picture reports, or
  * [EffectResolution.Unsupported] when the picture or its animation cannot be lowered here.
@@ -35,11 +31,7 @@ internal fun filterGraphOverlay(
   decoder: OverlayPictureDecoder?,
 ): EffectResolution {
   val drawnOn = attributes.inputSize
-  val span = attributes.span
-  val drawnRange = spec.drawnRangeWithin(span)
-  spec.animationRefusal(attributes, drawnRange)?.let { return EffectResolution.Unsupported(spec.id, it) }
-  val margin = (minOf(drawnOn.width, drawnOn.height) * spec.margin).roundToInt()
-  val overlayWidth = (drawnOn.width * spec.scale).roundToInt().coerceAtLeast(1)
+  spec.animationRefusal(attributes, spec.drawnRangeWithin(attributes.span))?.let { return spec.refused(it) }
   val transfer = attributes.hdrTransfer
   if (transfer != null) {
     val picture =
@@ -51,30 +43,64 @@ internal fun filterGraphOverlay(
         StoredRead.Unseen -> return spec.refused(UNSEEN_COLOR)
       }
     val graded = hdrOverlayRaster(picture, transfer)
-    val driven = spec.commandsFor(attributes, drawnRange, graded = true, decoder, graded.size)
-    if (driven is Driven.Refused) return EffectResolution.Unsupported(spec.id, driven.message)
-    val animated = driven as? Driven.Commands
-    val still = spec.stillRect(drawnOn, graded.size, overlayWidth, margin)
-    val fragment = spec.gradedOverlay(attributes, drawnRange, transfer, graded, animated, still, overlayWidth)
-    return resolution(PlatformEffect(fragment), picture.limits)
+    val placement = spec.placedOn(drawnOn, graded.size)
+    return PlacedPicture(spec, GraphPicture.Graded(graded, transfer), placement, spec.opacity, picture.limits)
+      .lowered(attributes)
   }
   val drawn =
     when (val read = sdrOverlayImage(spec.image, decoder)) {
       is SdrOverlayImage.Drawn -> read
-      is SdrOverlayImage.Refused -> return EffectResolution.Unsupported(spec.id, read.message)
+      is SdrOverlayImage.Refused -> return spec.refused(read.message)
     }
-  val driven = spec.commandsFor(attributes, drawnRange, graded = false, decoder, drawn.size)
-  if (driven is Driven.Refused) return EffectResolution.Unsupported(spec.id, driven.message)
-  val animated = driven as? Driven.Commands
-  val instance = animated?.instance.orEmpty()
+  val shown = drawn.size ?: spec.image.shownSize(decoder) { return spec.refused(it) }
+  val placement = spec.placedOn(drawnOn, shown)
+  val opened = GraphPicture.Opened(drawn.image, drawn.orientation)
+  return PlacedPicture(spec, opened, placement, spec.opacity, drawn.limits).lowered(attributes)
+}
 
+/**
+ * Lowers this picture onto a filter graph fragment that draws it over the frames it merges onto.
+ *
+ * Every size and position is the pixels [drawnRect] reads off [PlacedPicture.placement], or off each frame's placement
+ * when the overlay is animated. A [GraphPicture.Opened] picture is scaled and merged with `overlay`. A
+ * [GraphPicture.Graded] one is blended in linear display light by [gradedOverlay].
+ *
+ * @return The fragment, [EffectResolution.Degraded] by each of [PlacedPicture.limits], or
+ * [EffectResolution.Unsupported] when the animation cannot be driven here.
+ */
+internal fun PlacedPicture.lowered(attributes: Attributes): EffectResolution {
+  val drawnRange = effect.drawnRangeWithin(attributes.span)
+  val still = drawnRect(placement, attributes.inputSize)
+  val driven = commandsFor(attributes, drawnRange, graded = picture is GraphPicture.Graded)
+  if (driven is Driven.Refused) return EffectResolution.Unsupported(effect.id, driven.message)
+  val animated = driven as? Driven.Commands
+  val fragment =
+    when (val picture = picture) {
+      is GraphPicture.Graded -> gradedOverlay(attributes, drawnRange, picture, animated, still)
+      is GraphPicture.Opened -> openedOverlay(attributes, drawnRange, picture, animated, still)
+    }
+  return if (limits.isEmpty()) {
+    EffectResolution.Resolved(PlatformEffect(fragment))
+  } else {
+    EffectResolution.Degraded(PlatformEffect(fragment), limits)
+  }
+}
+
+private fun PlacedPicture.openedOverlay(
+  attributes: Attributes,
+  drawnRange: TimeRange,
+  picture: GraphPicture.Opened,
+  animated: Driven.Commands?,
+  still: PixelRect,
+): FilterFragment {
+  val instance = animated?.instance.orEmpty()
   val prepare =
     buildList {
-      addAll(orientationNodes(drawn.orientation))
+      addAll(orientationNodes(picture.orientation))
       animated?.let { add(FilterNode("sendcmd", "f" to it.sidecar.placeholder)) }
-      add(FilterNode("scale$instance", "w" to overlayWidth.toString(), "h" to "-1"))
+      add(FilterNode("scale$instance", "w" to still.width.toString(), "h" to still.height.toString()))
       add(FilterNode("format", "pix_fmts" to "rgba"))
-      addAll(spec.alphaNodes(drawnRange, span, attributes.gridRate, instance, animated != null))
+      addAll(alphaNodes(drawnRange, attributes.span, attributes.gridRate, instance, animated != null))
       // ffmpeg's own limit, and only where a command can resize the branch. Where the frames the
       // overlay merges onto carry alpha, which is what a deferred fill leaves them holding, the
       // converter ffmpeg inserts to bring both inputs to one pixel format is a scale pinned to
@@ -83,39 +109,20 @@ internal fun filterGraphOverlay(
       if (animated != null) add(FilterNode("scale", PER_FRAME_SIZE))
     }
 
-  val placement =
-    buildList {
-      add(FilterArgument("x", if (spec.corner.isTrailing) "W-w-$margin" else "$margin"))
-      add(FilterArgument("y", if (spec.corner.isBottom) "H-h-$margin" else "$margin"))
-      add(FilterArgument("format", "auto"))
+  val merge =
+    listOf(
+      FilterArgument("x", still.x.toString()),
+      FilterArgument("y", still.y.toString()),
+      FilterArgument("format", "auto"),
       // What overlay does once the image branch ends: hand the main frame on undrawn. The branch
       // is looped for as long as the one it merges onto, so nothing reaches it.
-      add(FilterArgument("eof_action", "pass"))
-    }
-
-  val fragment =
-    FilterFragment(
-      auxInputs = listOf(AuxInput(drawn.image, prepare, attributes.auxTimeline())),
-      merge = FilterNode("overlay$instance", placement),
-      sidecars = listOfNotNull(animated?.sidecar),
+      FilterArgument("eof_action", "pass"),
     )
-  return resolution(PlatformEffect(fragment), drawn.limits)
-}
 
-// Where a still overlay lands, in the numbers the SDR merge's corner expressions come to. The height is the one
-// scale answers for a width and -1, which rounds the picture's aspect to the nearest pixel.
-internal fun ImageOverlay.stillRect(
-  drawnOn: Size,
-  picture: Size,
-  width: Int,
-  margin: Int,
-): PixelRect {
-  val height = ((width.toLong() * picture.height + picture.width / 2) / picture.width).toInt()
-  return PixelRect(
-    x = if (corner.isTrailing) drawnOn.width - width - margin else margin,
-    y = if (corner.isBottom) drawnOn.height - height - margin else margin,
-    width = width,
-    height = height,
+  return FilterFragment(
+    auxInputs = listOf(AuxInput(picture.image, prepare, attributes.auxTimeline())),
+    merge = FilterNode("overlay$instance", merge),
+    sidecars = listOfNotNull(animated?.sidecar),
   )
 }
 
@@ -138,19 +145,6 @@ internal fun orientationNodes(orientation: PictureOrientation): List<FilterNode>
     PictureOrientation.Transverse -> listOf(FilterNode("transpose", "dir" to "clock_flip"))
     PictureOrientation.Rotate270 -> listOf(FilterNode("transpose", "dir" to "cclock"))
   }
-
-// Degraded by each of the decoder's [limits], and resolved exactly when there are none.
-private fun resolution(
-  effect: PlatformEffect,
-  limits: List<Degradation>,
-): EffectResolution =
-  if (limits.isEmpty()) EffectResolution.Resolved(effect) else EffectResolution.Degraded(effect, limits)
-
-internal val Corner.isTrailing: Boolean
-  get() = this == Corner.TopEnd || this == Corner.BottomEnd
-
-internal val Corner.isBottom: Boolean
-  get() = this == Corner.BottomStart || this == Corner.BottomEnd
 
 private fun ImageOverlay.refused(message: String): EffectResolution = EffectResolution.Unsupported(id, message)
 

@@ -10,7 +10,6 @@ import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
-import dev.jordond.filmstrip.effect.RenderFeature
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.ColorMatrix
@@ -34,6 +33,7 @@ import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayPictureDecoder
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.effects.overlay.filterGraphOverlay
+import dev.jordond.filmstrip.effects.overlay.filterGraphText
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
@@ -44,9 +44,10 @@ import java.util.Locale
  * Lowers the built-in catalogue onto a filter graph.
  *
  * Every lowering is a pure function of the spec and the resolved [Attributes], and needs no
- * toolchain installed. An overlay is the one lowering that reads anything. An animated one needs the picture's own pixel
- * size. One on an HDR grade decodes the picture to carry it onto the grade's signal, and one on an
- * SDR grade decodes a picture that describes its color, or a JPEG XL, to draw it in that color.
+ * toolchain installed. An overlay is the one lowering that reads anything. An image overlay needs the picture's own
+ * pixel size to place it. One on an HDR grade decodes the picture to carry it onto the grade's signal, and one on an
+ * SDR grade decodes a picture that describes its color, or a JPEG XL, to draw it in that color. A text overlay is
+ * drawn to a picture with the JVM's own fonts and placed the same way.
  * The backend's [OverlayPictureDecoder] decodes and sizes every picture when there is one, and the
  * JDK reads them when there is none.
  */
@@ -104,7 +105,7 @@ public actual class BuiltInEffectResolver : EffectResolver {
       is ColorMatrix,
       -> colorMatrix(spec, attributes.hdrTransfer)
       is ImageOverlay -> filterGraphOverlay(spec, attributes, pictureDecoder)
-      is TextOverlay -> EffectResolution.Unsupported(spec.id, textMessage(capabilities))
+      is TextOverlay -> filterGraphText(spec, capabilities, attributes)
       else -> null
     }
   }
@@ -223,9 +224,6 @@ public actual class BuiltInEffectResolver : EffectResolver {
       ),
     )
   }
-
-  private fun textMessage(capabilities: RenderCapabilities): String =
-    if (capabilities.has(RenderFeature.TextRendering)) TEXT_CANNOT_WRAP else TEXT_NO_FILTER
 }
 
 // Two points a side is the whole of an affine map, and every entry between them is interpolated
@@ -242,13 +240,3 @@ private const val PAN_PENDING =
   "A pan moves the region it shows on every frame, and this backend resolves a crop to whole " +
     "pixels once at plan time so that the plan and the export cannot disagree about the frame. " +
     "The time-varying form has not landed here yet."
-
-private const val TEXT_NO_FILTER =
-  "This ffmpeg build has no drawtext filter, so text cannot be burned in. drawtext needs " +
-    "--enable-libfreetype and --enable-libharfbuzz, which the common prebuilt packages leave " +
-    "out. Export without the caption, or install a build that has it."
-
-private const val TEXT_CANNOT_WRAP =
-  "drawtext breaks lines only on a literal newline, so TextStyle.maxWidth cannot be honoured " +
-    "and line breaks would land on different words than every other backend. TextOverlay layout is " +
-    "required to be exact, so it is refused here rather than rendered differently."

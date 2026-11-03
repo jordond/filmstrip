@@ -10,6 +10,8 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effect.RenderCapabilities
+import dev.jordond.filmstrip.effect.RenderFeature
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
@@ -331,8 +333,24 @@ class FfmpegOverlayHdrTest {
   }
 
   @Test
-  fun `a text overlay stays refused on a kept grade`() {
-    resolve(TextOverlay("caption"), HdrTransfer.Pq).shouldBeInstanceOf<EffectResolution.Unsupported>()
+  fun `a text overlay is blended in linear light on a kept grade`() {
+    val withText =
+      RenderCapabilities(
+        api = CAPABILITIES.api,
+        supportsFragmentShader = false,
+        supportsComputeShader = false,
+        supportsHdr = true,
+        colorSpaces = CAPABILITIES.colorSpaces,
+        maxTextureSize = CAPABILITIES.maxTextureSize,
+        features = setOf(RenderFeature.TextRendering),
+      )
+    val resolution =
+      BuiltInEffectResolver().resolve(TextOverlay("caption"), withText, attributes(HdrTransfer.Pq, 2.seconds))
+
+    resolution
+      .shouldBeInstanceOf<EffectResolution.Resolved>()
+      .effect.fragment.merge
+      ?.name shouldBe "maskedmerge"
   }
 
   // The opaque cells of the shared grid, each drawn straight over its fill and held to the fill's bound.

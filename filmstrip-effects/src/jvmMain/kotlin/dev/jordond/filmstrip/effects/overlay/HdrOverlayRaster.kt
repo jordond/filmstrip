@@ -78,7 +78,12 @@ private fun signalCodes(
   return codes
 }
 
-private fun wideRgbaPng(
+/**
+ * The bytes of a [width] by [height] sixteen-bit RGBA PNG of [samples], four unsigned values a texel row by row.
+ *
+ * The alpha is straight, as the samples hold it.
+ */
+internal fun wideRgbaPng(
   samples: IntArray,
   width: Int,
   height: Int,

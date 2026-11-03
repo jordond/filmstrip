@@ -71,6 +71,11 @@ jobs:
         if: matrix.config.ffmpeg && runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
+      # The JVM draws a text overlay with the fonts fontconfig finds, so the jvm cell pins one it always has.
+      - name: Install fonts (jvm)
+        if: matrix.config.target == 'jvm'
+        run: sudo apt-get install -y --no-install-recommends fontconfig fonts-dejavu-core
+
       - name: Install ffmpeg (macos)
         if: matrix.config.ffmpeg && runner.os == 'macOS'
         run: brew install ffmpeg

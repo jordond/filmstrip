@@ -7,18 +7,17 @@ import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
-import dev.jordond.filmstrip.media.filePathOf
+import dev.jordond.filmstrip.media.describe
 import java.io.ByteArrayInputStream
-import java.io.File
 import java.io.IOException
 import java.util.Locale
 import javax.imageio.ImageIO
-import javax.imageio.stream.ImageInputStream
-import kotlin.math.roundToInt
+import javax.imageio.ImageReader
+import javax.imageio.metadata.IIOMetadataNode
 
 // Why this overlay's animation cannot be driven over [drawnRange] whatever its picture holds, or null when it can or
 // has none. It needs no read of the picture, so it runs ahead of one.
-internal fun ImageOverlay.animationRefusal(
+internal fun OverlayEffect.animationRefusal(
   attributes: Attributes,
   drawnRange: TimeRange,
 ): String? =
@@ -41,28 +40,17 @@ internal fun ImageOverlay.animationRefusal(
 // it is laid out from all of them before a command is written. Each of the two branches gets its
 // own file, since sendcmd hands a command to the first filter of that name and no further.
 //
-// [decoded] is the picture's size when it was already decoded for this resolve. Otherwise the decoder sizes it
-// whenever there is one, and the JDK when there is not, and the size is cut to the crop cropLeftOf reads and turned by
-// the orientation the graph lays the picture out by.
-internal fun ImageOverlay.commandsFor(
+// Each frame's placement is the still placement moved by what the animation answers for that frame.
+internal fun PlacedPicture.commandsFor(
   attributes: Attributes,
   drawnRange: TimeRange,
   graded: Boolean,
-  decoder: OverlayPictureDecoder?,
-  decoded: Size?,
 ): Driven {
-  if (animation == null) return Driven.Still
+  if (effect.animation == null) return Driven.Still
   val rate = attributes.gridRate ?: return Driven.Refused(ANIMATION_NO_GRID)
   val end = drawnRange.endExclusive ?: return Driven.Refused(ANIMATION_NO_END)
-  val imageSize =
-    decoded ?: when (val read = decoder?.measure(image)) {
-      is OverlayPictureRead.Read -> read.value
-      is OverlayPictureRead.Refused -> return Driven.Refused(UNREADABLE_IMAGE.saying(read.reason))
-      null -> measureOverlay(image) ?: return Driven.Refused(UNREADABLE_IMAGE)
-    }.let { stored -> image.encodedBytes().let { orientationLeftOf(it).orientedSize(cropLeftOf(it)?.size ?: stored) } }
   val span = attributes.span
   val drawnOn = attributes.inputSize
-  val base = placedOn(drawnOn, imageSize)
 
   val firstSlot = outputSlotOf(span.start, rate)
   val last = frameIndexAt(end, span, rate)
@@ -70,12 +58,12 @@ internal fun ImageOverlay.commandsFor(
   // interval running across it carries on holding what it held.
   val frames =
     (frameIndexAt(drawnRange.start, span, rate) until last).mapNotNull { index ->
-      frameWithin(drawnRange, outputSlotTime(firstSlot + index, rate))?.let { index to it }
+      effect.frameWithin(drawnRange, outputSlotTime(firstSlot + index, rate))?.let { index to it }
     }
   // A drawn range reaching no output frame, which is a window falling outside the span or one shorter
   // than a frame. There is nothing to drive, and the gate on the branch already draws nothing.
   if (frames.isEmpty()) return Driven.Still
-  val drawn = frames.map { (_, frame) -> drawnRect(base.animatedBy(frame), drawnOn) }
+  val drawn = frames.map { (_, frame) -> drawnRect(placement.animatedBy(frame), drawnOn) }
   val layout = if (graded) hdrOverlayLayout(drawn, drawnOn) else null
   val sampled =
     frames.mapIndexed { position, (index, frame) -> index to commandValues(frame, drawn[position], layout) }
@@ -136,26 +124,6 @@ private fun List<Pair<Int, Map<String, String>>>.holdsOf(
 private fun Map<String, String>.driving(command: String): String =
   this[command] ?: error("A sampled overlay frame carries no $command, so the commands cannot cover the drawn range.")
 
-// Where the overlay lands on one frame, in pixels. Every number is the shared placement's:
-// animatedBy scales both sides and moves the frame anchor, and the point inside the overlay that
-// the anchor holds is what turns the pair into a position.
-private fun drawnRect(
-  drawn: OverlayPlacement,
-  drawnOn: Size,
-): PixelRect {
-  val width = drawn.size.width
-  val height = drawn.size.height
-  val anchorX = (drawn.frameAnchor.x * drawnOn.width).roundToInt()
-  val anchorY = (drawn.frameAnchor.y * drawnOn.height).roundToInt()
-
-  return PixelRect(
-    x = anchorX - (drawn.overlayAnchor.x * width).roundToInt(),
-    y = anchorY - (drawn.overlayAnchor.y * height).roundToInt(),
-    width = width,
-    height = height,
-  )
-}
-
 // What each driven filter is set to on one frame, keyed by the target and option the command
 // names, so each one can be written over the frames it holds. The position goes to the merge, or
 // on an HDR grade to the cut that lines the picture up with the region the blend runs on.
@@ -178,22 +146,42 @@ private fun commandValues(
 }
 
 /**
- * The overlay image's stored pixel size, or null when the JDK cannot read it.
+ * The size this picture is shown at, which is the size the graph places it by.
  *
- * ImageIO picks a reader off the stream's own magic bytes and answers the bounds out of the
- * header, so nothing here pulls the picture into memory. A URI is read as the file path the
- * backend materialises it to, which is the file ffmpeg itself opens. Only read for a catalogue
- * built without an [OverlayPictureDecoder].
+ * The JDK reads the size out of the picture's header, and [decoder] measures it only when the JDK has no reader for
+ * the format. A path or file URL that is not a file this process can read is handed to [refuse] without asking
+ * [decoder], as is a picture neither can size. The size is cut to the crop [cropLeftOf] reads and turned by the
+ * orientation the graph lays the picture out by.
  */
-private fun measureOverlay(image: ImageSource): Size? {
-  val stream = image.openHeader() ?: return null
+internal inline fun ImageSource.shownSize(
+  decoder: OverlayPictureDecoder?,
+  refuse: (String) -> Nothing,
+): Size {
+  val bytes = encodedBytes() ?: refuse(unreadableImageFile(this))
+  val stored =
+    measureOverlay(bytes) ?: when (val read = decoder?.measure(this)) {
+      is OverlayPictureRead.Read -> read.value
+      is OverlayPictureRead.Refused -> refuse(UNREADABLE_IMAGE.saying(read.reason))
+      null -> refuse(UNREADABLE_IMAGE)
+    }
+  return orientationLeftOf(bytes).orientedSize(cropLeftOf(bytes)?.size ?: stored)
+}
+
+/**
+ * The stored pixel size of the picture [bytes] encode, or null when the JDK has no reader for them.
+ *
+ * ImageIO picks a reader off the bytes' own magic and answers the bounds out of the header, so no texel is decoded. A
+ * GIF answers its logical screen rather than its first frame's bounds, since that canvas is the frame ffmpeg decodes.
+ */
+internal fun measureOverlay(bytes: ByteArray): Size? {
+  val stream = ImageIO.createImageInputStream(ByteArrayInputStream(bytes)) ?: return null
 
   return try {
     val reader = ImageIO.getImageReaders(stream).asSequence().firstOrNull()
     reader?.let {
       try {
         it.input = stream
-        Size(it.getWidth(FIRST_IMAGE), it.getHeight(FIRST_IMAGE))
+        it.gifScreen() ?: Size(it.getWidth(FIRST_IMAGE), it.getHeight(FIRST_IMAGE))
       } finally {
         it.dispose()
       }
@@ -205,22 +193,18 @@ private fun measureOverlay(image: ImageSource): Size? {
   }
 }
 
-internal fun ImageSource.openHeader(): ImageInputStream? =
-  try {
-    when (this) {
-      is ImageSource.Path -> {
-        File(path).takeIf { it.isFile }?.let(ImageIO::createImageInputStream)
-      }
-      is ImageSource.Uri -> {
-        filePathOf(uri)?.let(::File)?.takeIf { it.isFile }?.let(ImageIO::createImageInputStream)
-      }
-      is ImageSource.Bytes -> {
-        ImageIO.createImageInputStream(ByteArrayInputStream(bytes))
-      }
-    }
-  } catch (unreadable: IOException) {
-    null
-  }
+// The logical screen a GIF's stream metadata describes, or null for a reader of any other format.
+private fun ImageReader.gifScreen(): Size? {
+  if (!formatName.equals(GIF, ignoreCase = true)) return null
+  val root = streamMetadata?.getAsTree(GIF_STREAM_METADATA) ?: return null
+  val screen =
+    (0 until root.childNodes.length)
+      .map { root.childNodes.item(it) }
+      .firstOrNull { it.nodeName == LOGICAL_SCREEN } as? IIOMetadataNode ?: return null
+  val width = screen.getAttribute(SCREEN_WIDTH).toIntOrNull() ?: return null
+  val height = screen.getAttribute(SCREEN_HEIGHT).toIntOrNull() ?: return null
+  return Size(width, height)
+}
 
 // colorchannelmixer documents its coefficients in -2..2, which is this filter's own limit. The
 // shared sampler already answers an opacity in 0f..1f, so this pins that guarantee rather than
@@ -294,6 +278,13 @@ internal const val MASK_INSTANCE = "a"
 // The image in an ImageIO stream, which is the only one a still carries.
 private const val FIRST_IMAGE = 0
 
+// The JDK GIF reader's format name and the stream metadata nodes it writes the logical screen to.
+private const val GIF = "gif"
+private const val GIF_STREAM_METADATA = "javax_imageio_gif_stream_1.0"
+private const val LOGICAL_SCREEN = "LogicalScreenDescriptor"
+private const val SCREEN_WIDTH = "logicalScreenWidth"
+private const val SCREEN_HEIGHT = "logicalScreenHeight"
+
 private const val ANIMATION_NO_GRID =
   "An animated overlay is sampled once per output frame, and this composition resolved no frame " +
     "rate to sample it onto. Give the export a frame rate, or drop the animation to draw the " +
@@ -303,8 +294,14 @@ private const val ANIMATION_NO_END =
   "An animated overlay is sampled across the range it is drawn over, and this composition names no " +
     "end for that range. Give the export a duration, or drop the animation to draw the overlay still."
 
-private const val UNREADABLE_IMAGE =
-  "The overlay image could not be read. An animated overlay is sized against the picture's own " +
+internal const val UNREADABLE_IMAGE =
+  "The overlay image could not be read. An overlay is sized and placed against the picture's own " +
     "pixels, so this backend reads its header, and neither the JDK nor this ffmpeg could read it. " +
     "Check that the path or URL is readable by this process, and that the bytes are a picture this " +
     "ffmpeg build decodes."
+
+// Why an overlay is refused when [image] names no file this process can read, with the path or URL it names.
+internal fun unreadableImageFile(image: ImageSource): String =
+  "The overlay image ${image.describe()} could not be read. An overlay is sized and placed against the picture's " +
+    "own pixels, so this backend reads its header, and this process found no file there to read. Check that the " +
+    "path or URL names a file readable by this process."

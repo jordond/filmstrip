@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
+import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
@@ -54,6 +55,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.test.OrientedPictures
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.resolve.curveOver
 import dev.jordond.filmstrip.transform.internal.resolve.stillUnsupportedMessage
@@ -159,7 +161,7 @@ class PlannerTest {
   // the overlay image has claimed one.
   @Test
   fun `overlays a watermark declared on a clip`() {
-    val mark = ImageOverlay(ImageSource.of("/logo.png"), Corner.TopStart)
+    val mark = ImageOverlay(ImageSource.ofBytes(OrientedPictures.png()), Corner.TopStart)
     val composition =
       EditComposition(listOf(Track(listOf(Clip(landscape, effects = listOf(mark)), Clip(portrait)))))
 
@@ -169,7 +171,8 @@ class PlannerTest {
     // own and the merge reads that pad. Written in one chain the graph is refused outright.
     invocation.filterGraph shouldContain "[v0m0pre][v0m0a0]overlay=x=43:y=43:format=auto:eof_action=pass"
     // The image claims an input after both clips, so the graph reads it at index 2.
-    invocation.filterGraph shouldContain "[2:v]scale=w=384:h=-1,format=pix_fmts=rgba"
+    val height = mark.placedOn(Size(1920, 1080), OrientedPictures.SIZE).size.height
+    invocation.filterGraph shouldContain "[2:v]scale=w=384:h=$height,format=pix_fmts=rgba"
     invocation.inputs.size shouldBe 3
   }
 
@@ -179,7 +182,7 @@ class PlannerTest {
   // short.
   @Test
   fun `loops the overlay image across the clip it is drawn on`() {
-    val mark = ImageOverlay(ImageSource.of("/logo.png"), Corner.TopStart)
+    val mark = ImageOverlay(ImageSource.ofBytes(OrientedPictures.png()), Corner.TopStart)
     val composition =
       EditComposition(listOf(Track(listOf(Clip(landscape, effects = listOf(mark)), Clip(portrait)))))
 
@@ -199,7 +202,7 @@ class PlannerTest {
   fun `writes a clip's window against the clip's own clock`() {
     val mark =
       ImageOverlay(
-        image = ImageSource.of("/logo.png"),
+        image = ImageSource.ofBytes(OrientedPictures.png()),
         corner = Corner.TopStart,
         visibleDuring = TimeRange.of(5_000.milliseconds, 6_000.milliseconds),
       )
@@ -221,7 +224,7 @@ class PlannerTest {
   // rather than the first one.
   @Test
   fun `loops a composition overlay across the whole composition`() {
-    val mark = ImageOverlay(ImageSource.of("/logo.png"), Corner.TopStart)
+    val mark = ImageOverlay(ImageSource.ofBytes(OrientedPictures.png()), Corner.TopStart)
     val composition =
       EditComposition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))), effects = listOf(mark))
 
@@ -579,19 +582,15 @@ class PlannerTest {
   }
 
   @Test
-  fun `refuses text and offers a plan without it`() {
+  fun `plans text beside the clip's other effects`() {
     val composition =
       EditComposition(listOf(Track(listOf(Clip(landscape, effects = listOf(Rotate(90), TextOverlay("hi")))))))
 
-    val verdict = planner().lower(composition, Ask(ExportSpec(), device(), infos)).verdict
-    verdict.shouldBeInstanceOf<Verdict.Incapable>()
+    val lowered = planner().lower(composition, Ask(ExportSpec(), device(), infos))
+    val verdict = lowered.verdict.shouldBeInstanceOf<Verdict.Capable>()
 
-    val reason = verdict.reasons.single()
-    reason.shouldBeInstanceOf<FilmstripError.UnsupportedEffect>()
-    reason.specId shouldBe EffectIds.TEXT_OVERLAY
-
-    val fallback = verdict.withoutUnsupported
-    fallback?.plan?.effectOrder?.map { it.spec.id } shouldBe listOf(EffectIds.ROTATE)
+    verdict.plan.effectOrder.map { it.spec.id } shouldBe listOf(EffectIds.ROTATE, EffectIds.TEXT_OVERLAY)
+    lowered.graph.shouldNotBeNull().filterGraph shouldContain "overlay="
   }
 
   @Test
@@ -698,13 +697,13 @@ class PlannerTest {
     verdict.adjustments.map { it.kind } shouldBe listOf(AdjustmentKind.ResolutionClamped)
   }
 
-  // This backend reports its own parity: Scale is not Exact here, and TextOverlay has no answer.
+  // This backend reports its own parity: Scale and TextOverlay are not Exact here.
   @Test
   fun `reports its own parity and not the mobile table`() {
     FfmpegParity.of(EffectIds.SCALE) shouldBe EffectParity.Approximate
     FfmpegParity.of(EffectIds.ROTATE) shouldBe EffectParity.Exact
     FfmpegParity.of(EffectIds.BRIGHTNESS) shouldBe EffectParity.Exact
-    FfmpegParity.of(EffectIds.TEXT_OVERLAY) shouldBe null
+    FfmpegParity.of(EffectIds.TEXT_OVERLAY) shouldBe EffectParity.Approximate
   }
 
   // Every color matrix lowers to a table ffmpeg evaluates exactly, whether it is the per-channel

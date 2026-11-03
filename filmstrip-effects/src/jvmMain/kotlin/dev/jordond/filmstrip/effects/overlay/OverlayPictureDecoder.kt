@@ -15,10 +15,10 @@ import javax.imageio.ImageIO
  *
  * Every picture the catalogue decodes in this process comes here when the backend has a decoder, so its texels are the
  * ones the toolchain draws, turned by no orientation tag but a JPEG XL's, which its decoder applies itself. The caller
- * lays them out by the orientation the picture's bytes carry. An animated overlay is sized here too, so its size and
- * its texels agree. An overlay on an HDR grade is decoded so its colors can be carried onto the grade's signal, and a
- * color-tagged picture is decoded on an SDR grade too, so its colors can be drawn the way its description defines
- * them, as is every AVIF and HEIC. The JDK reads pictures only for a catalogue built without a decoder.
+ * lays them out by the orientation the picture's bytes carry. An overlay on an HDR grade is decoded so its colors can
+ * be carried onto the grade's signal, and a color-tagged picture is decoded on an SDR grade too, so its colors can be
+ * drawn the way its description defines them, as is every AVIF and HEIC. A picture that is not decoded is sized from
+ * its header by the JDK, and measured here only when the JDK has no reader for its format.
  */
 @InternalFilmstripApi
 public interface OverlayPictureDecoder {

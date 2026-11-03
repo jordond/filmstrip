@@ -76,16 +76,6 @@ class OverlayPictureDecodeTest {
     decoder.decodes.distinct() shouldBe listOf(spec.image)
   }
 
-  // The graph opens a path itself and fails on one that is missing, so planning one reads nothing.
-  @Test
-  fun `a path this process cannot read reaches an SDR graph as it is without a decode`() {
-    val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(TEXELS), LINEAR_COLOR))
-    val spec = ImageOverlay(ImageSource.of("/no/such/overlay.png"), Corner.TopStart)
-
-    auxImage(spec, decoder) shouldBe spec.image
-    decoder.decodes shouldBe emptyList()
-  }
-
   // Its container's description is out of reach, and a decode infers descriptions core reads differently.
   @Test
   fun `a picture whose bytes this process cannot read is refused on every grade when its decode describes color`() {
@@ -137,7 +127,7 @@ class OverlayPictureDecodeTest {
   }
 
   @Test
-  fun `an animated overlay decoded anyway is sized from that decode without a measure`() {
+  fun `an animated overlay decoded anyway or read by the JDK is sized without a measure`() {
     val picture = rgbOf(TEXELS)
     val grades = listOf(null to pngOf(picture)) + HdrTransfer.entries.map { it to pngOf(picture) } + (null to HEIF)
     for ((transfer, bytes) in grades) {
@@ -147,9 +137,7 @@ class OverlayPictureDecodeTest {
       val resolution = BuiltInEffectResolver(decoder).resolve(spec, capabilities(), attributes(transfer))
       withClue("$transfer") { resolution.shouldBeInstanceOf<EffectResolution.Resolved>() }
       val decodedHere = transfer != null || bytes === HEIF
-      withClue("$transfer measured") {
-        decoder.measured shouldBe (if (decodedHere) emptyList() else listOf(spec.image))
-      }
+      withClue("$transfer measured") { decoder.measured shouldBe emptyList() }
       withClue("$transfer decodes") { decoder.decodes.size shouldBe (if (decodedHere) 1 else 0) }
     }
   }

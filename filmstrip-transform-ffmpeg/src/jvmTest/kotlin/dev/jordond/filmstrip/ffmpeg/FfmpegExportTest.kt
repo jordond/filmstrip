@@ -350,7 +350,7 @@ class FfmpegExportTest {
     }
 
   @Test
-  fun `refuses text and offers the same edit without it`() =
+  fun `exports text without dropping it`() =
     runTest(timeout = TIMEOUT) {
       if (!fixture.available()) return@runTest
 
@@ -364,24 +364,20 @@ class FfmpegExportTest {
         }
 
       val verdict = fixture.filmstrip.plan(composition, ExportSpec(heightPx = 240))
-      val incapable = verdict.shouldBeInstanceOf<Verdict.Incapable>()
-      incapable.reasons.single().shouldBeInstanceOf<FilmstripError.UnsupportedEffect>()
-      val fallback = incapable.withoutUnsupported!!
-      fallback.plan.effectOrder
-        .none { it.spec.id == EffectIds.TEXT_OVERLAY } shouldBe true
+      // Text is Approximate here, since its glyphs follow this machine's fonts, so the plan is degraded.
+      val plan = verdict.shouldBeInstanceOf<Verdict.Degraded>().plan
+      plan.effectOrder.map { it.spec.id } shouldBe listOf(EffectIds.TEXT_OVERLAY)
 
-      // The engine runs the plan without the text, so only the plan can say it was dropped.
       val finished =
         fixture.filmstrip
-          .export(fallback.plan, MediaSink.of(output.absolutePath))
+          .export(plan, MediaSink.of(output.absolutePath))
           .toList()
           .last()
       if (finished is ExportStatus.Failure) error(finished.reasons.joinToString { it.message })
       finished
         .shouldBeInstanceOf<ExportStatus.Success>()
         .adjustments
-        .filter { it.kind == AdjustmentKind.EffectDropped }
-        .map { it.requested } shouldBe listOf(EffectIds.TEXT_OVERLAY)
+        .none { it.kind == AdjustmentKind.EffectDropped } shouldBe true
 
       output.delete()
     }

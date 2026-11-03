@@ -34,6 +34,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.test.OrientedPictures
 import dev.jordond.filmstrip.transform.internal.LoweredExport
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
@@ -277,7 +278,7 @@ class HeldTailLoweringTest {
       effects = effects,
     )
 
-  private fun logo(): ImageOverlay = ImageOverlay(ImageSource.of("/logo.png"), Corner.TopStart)
+  private fun logo(): ImageOverlay = ImageOverlay(ImageSource.ofBytes(OrientedPictures.png()), Corner.TopStart)
 
   private fun List<String>.after(flag: String): String = this[indexOf(flag) + 1]
 

@@ -36,23 +36,42 @@ class OverlayGraphTest {
     for (corner in Corner.entries) {
       val spec = ImageOverlay(PICTURE, corner, margin = MARGIN)
       val fragment = sdrFragment(spec)
-      val placed = spec.placedOn(FRAME, OrientedPictures.SIZE)
-      val inset = insetOf(spec)
+      val drawn = drawnRect(spec.placedOn(FRAME, OrientedPictures.SIZE), FRAME)
 
       val image = fragment.auxInputs.single()
       withClue("$corner") { image.image shouldBe PICTURE }
       withClue("$corner") {
         image.chain shouldBe
           listOf(
-            FilterNode("scale", "w" to placed.size.width.toString(), "h" to "-1"),
+            FilterNode("scale", "w" to drawn.width.toString(), "h" to drawn.height.toString()),
             FilterNode("format", "pix_fmts" to "rgba"),
           )
       }
-      val x = if (corner == Corner.TopEnd || corner == Corner.BottomEnd) "W-w-$inset" else "$inset"
-      val y = if (corner == Corner.BottomStart || corner == Corner.BottomEnd) "H-h-$inset" else "$inset"
+      withClue("$corner") { fragment.merge shouldBe mergeAt(drawn) }
+    }
+  }
+
+  // An odd frame width, where a scale of w and -1 and the shared placement round the height and the far edge apart.
+  @Test
+  fun `a still on an odd frame lands where the shared placement puts it`() {
+    val frame = Size(ODD_WIDTH, FRAME.height)
+    for (corner in Corner.entries) {
+      val spec = ImageOverlay(PICTURE, corner, margin = ODD_MARGIN, scale = ODD_SCALE)
+      val placed = spec.placedOn(frame, OrientedPictures.SIZE)
+      val fragment = sdrFragment(spec, sdr(inputSize = frame))
+      val drawn = drawnRect(placed, frame)
+
+      val rect = placed.rectOn(frame)
+      withClue("$corner") { drawn.x shouldBe (rect.left * frame.width).roundToInt() }
+      withClue("$corner") { drawn.y shouldBe (rect.top * frame.height).roundToInt() }
       withClue("$corner") {
-        fragment.merge shouldBe FilterNode("overlay", "x" to x, "y" to y, "format" to "auto", "eof_action" to "pass")
+        fragment.auxInputs
+          .single()
+          .chain
+          .first() shouldBe
+          FilterNode("scale", "w" to placed.size.width.toString(), "h" to placed.size.height.toString())
       }
+      withClue("$corner") { fragment.merge shouldBe mergeAt(drawn) }
     }
   }
 
@@ -123,18 +142,10 @@ class OverlayGraphTest {
   fun `an animated overlay is driven by its commands and carries each resize past the merge`() {
     val spec = ImageOverlay(PICTURE, Corner.BottomEnd, animation = slideIn(OverlayOffset(0f, SLIDE), 1.seconds))
     val attributes = sdr()
-    val driven =
-      spec
-        .commandsFor(
-          attributes,
-          spec.drawnRangeWithin(attributes.span),
-          false,
-          null,
-          null,
-        ).shouldBeInstanceOf<Driven.Commands>()
     val fragment = sdrFragment(spec, attributes)
-    val instance = driven.instance
-    val width = spec.placedOn(FRAME, OrientedPictures.SIZE).size.width
+    val driven = fragment.sidecars.single()
+    val instance = checkNotNull(fragment.merge).name.removePrefix("overlay")
+    val placed = spec.placedOn(FRAME, OrientedPictures.SIZE).size
 
     (
       fragment.auxInputs
@@ -142,14 +153,13 @@ class OverlayGraphTest {
         .chain
     ) shouldBe
       listOf(
-        FilterNode("sendcmd", "f" to driven.sidecar.placeholder),
-        FilterNode("scale$instance", "w" to width.toString(), "h" to "-1"),
+        FilterNode("sendcmd", "f" to driven.placeholder),
+        FilterNode("scale$instance", "w" to placed.width.toString(), "h" to placed.height.toString()),
         FilterNode("format", "pix_fmts" to "rgba"),
         FilterNode("colorchannelmixer$instance", "aa" to "1"),
         FilterNode("scale", "w" to "iw", "h" to "ih", "eval" to "frame"),
       )
-    fragment.merge?.name shouldBe "overlay$instance"
-    fragment.sidecars shouldBe listOf(driven.sidecar)
+    withClue("the merge is not the instance the commands drive") { instance.startsWith("@fs") shouldBe true }
   }
 
   @Test
@@ -209,17 +219,8 @@ class OverlayGraphTest {
       filterGraphOverlay(spec, attributes, null).shouldBeInstanceOf<EffectResolution.Resolved>()
     }.effect.fragment
 
-  // The inset placedOn gives a top start overlay, in whole pixels.
-  private fun insetOf(spec: ImageOverlay): Int =
-    (
-      ImageOverlay(
-        spec.image,
-        Corner.TopStart,
-        spec.margin,
-        spec.scale,
-      ).placedOn(FRAME, OrientedPictures.SIZE).frameAnchor.x *
-        FRAME.width
-    ).roundToInt()
+  private fun mergeAt(drawn: PixelRect): FilterNode =
+    FilterNode("overlay", "x" to "${drawn.x}", "y" to "${drawn.y}", "format" to "auto", "eof_action" to "pass")
 
   private fun boundOf(time: Duration): Double = (frameIndexAt(time, SDR_SPAN, RATE.toInt()) - 0.5) / RATE.toInt()
 
@@ -286,6 +287,9 @@ class OverlayGraphTest {
     const val MARGIN = 0.1f
     const val HALF = 0.5f
     const val SLIDE = 0.25f
+    const val ODD_WIDTH = 1918
+    const val ODD_SCALE = 0.37f
+    const val ODD_MARGIN = 0.05f
     val SPAN_LENGTH = 2.seconds
     val SDR_SPAN = TimeRange.of(Duration.ZERO, SPAN_LENGTH)
 

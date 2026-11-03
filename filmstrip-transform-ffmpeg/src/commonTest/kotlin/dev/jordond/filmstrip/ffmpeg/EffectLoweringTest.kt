@@ -32,8 +32,11 @@ import dev.jordond.filmstrip.effects.overlay.OverlayOffset
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.effects.overlay.fadeIn
 import dev.jordond.filmstrip.effects.overlay.frameAt
+import dev.jordond.filmstrip.effects.overlay.placedOn
+import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.effects.overlay.slideIn
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.render
+import dev.jordond.filmstrip.geometry.Anchor
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.FlipAxis
@@ -53,6 +56,7 @@ import java.io.ByteArrayOutputStream
 import java.util.Locale
 import javax.imageio.ImageIO
 import kotlin.math.ceil
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -122,17 +126,23 @@ class EffectLoweringTest {
   }
 
   @Test
-  fun `places a watermark against the frame variables`() {
-    val spec = ImageOverlay(ImageSource.of("logo.png"), Corner.BottomEnd, margin = 0.04f, scale = 0.2f, opacity = 0.8f)
-    val resolution = resolver.resolve(spec, capabilities(), attributes(Size(640, 360)))
+  fun `places a watermark where the shared placement puts it`() {
+    val spec = ImageOverlay(overlayImage(WIDE), Corner.BottomEnd, margin = 0.04f, scale = 0.2f, opacity = 0.8f)
+    val frame = Size(640, 360)
+    val resolution = resolver.resolve(spec, capabilities(), attributes(frame))
 
     resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
     val fragment = resolution.effect.fragment
+    val placed = spec.placedOn(frame, WIDE)
+    val rect = placed.rectOn(frame)
     fragment.auxInputs
       .single()
       .chain
-      .render() shouldBe "scale=w=128:h=-1,format=pix_fmts=rgba,colorchannelmixer=aa=0.8"
-    fragment.merge!!.render() shouldBe "overlay=x=W-w-14:y=H-h-14:format=auto:eof_action=pass"
+      .render() shouldBe
+      "scale=w=${placed.size.width}:h=${placed.size.height},format=pix_fmts=rgba,colorchannelmixer=aa=0.8"
+    val x = (rect.left * frame.width).roundToInt()
+    val y = (rect.top * frame.height).roundToInt()
+    fragment.merge!!.render() shouldBe "overlay=x=$x:y=$y:format=auto:eof_action=pass"
   }
 
   // The merge reads the clip's clock, which a scrubbed preview opens at the seek. The overlay's own
@@ -142,7 +152,7 @@ class EffectLoweringTest {
   fun `gates the window on the overlay's branch rather than on the merge`() {
     val spec =
       ImageOverlay(
-        image = ImageSource.of("logo.png"),
+        image = overlayImage(SQUARE),
         corner = Corner.TopStart,
         visibleDuring = TimeRange.of(1.seconds, 2.seconds),
       )
@@ -152,7 +162,7 @@ class EffectLoweringTest {
     fragment.auxInputs
       .single()
       .chain
-      .render() shouldStartWith "scale=w=128:h=-1,format=pix_fmts=rgba,colorchannelmixer=aa=0:enable=not(gte(t"
+      .render() shouldStartWith "scale=w=128:h=128,format=pix_fmts=rgba,colorchannelmixer=aa=0:enable=not(gte(t"
     gatedFrames(fragment) shouldBe branchFrames(1.seconds, 2.seconds)
     fragment.merge!!.render() shouldBe "overlay=x=14:y=14:format=auto:eof_action=pass"
   }
@@ -163,7 +173,7 @@ class EffectLoweringTest {
   fun `counts a clip's window from the clip rather than the composition`() {
     val spec =
       ImageOverlay(
-        image = ImageSource.of("logo.png"),
+        image = overlayImage(SQUARE),
         corner = Corner.TopStart,
         visibleDuring = TimeRange.of(3.seconds, 4.seconds),
       )
@@ -177,7 +187,7 @@ class EffectLoweringTest {
   fun `leaves a composition window where it was written`() {
     val spec =
       ImageOverlay(
-        image = ImageSource.of("logo.png"),
+        image = overlayImage(SQUARE),
         corner = Corner.TopStart,
         visibleDuring = TimeRange.of(1.seconds, 2.seconds),
       )
@@ -192,7 +202,7 @@ class EffectLoweringTest {
   fun `clips a window that outlasts the span`() {
     val spec =
       ImageOverlay(
-        image = ImageSource.of("logo.png"),
+        image = overlayImage(SQUARE),
         corner = Corner.TopStart,
         visibleDuring = TimeRange.of(1.seconds, 9.seconds),
       )
@@ -343,7 +353,7 @@ class EffectLoweringTest {
       .single()
       .chain
       .render() shouldBe
-      "sendcmd=f=$placeholder,scale$instance=w=128:h=-1,format=pix_fmts=rgba," +
+      "sendcmd=f=$placeholder,scale$instance=w=128:h=128,format=pix_fmts=rgba," +
       "colorchannelmixer$instance=aa=1,scale=w=iw:h=ih:eval=frame"
     fragment.merge!!.name shouldBe "overlay$instance"
   }
@@ -409,13 +419,15 @@ class EffectLoweringTest {
     withClue(resolution.message) { resolution.message.contains("header") shouldBe true }
   }
 
-  // An unmeasurable image is only the animated path's problem. A still overlay hands the file
-  // straight to ffmpeg, which reads formats the JDK does not.
+  // A still is placed in pixels too, so it is measured the same way an animated one is.
   @Test
-  fun `lowers a still overlay it cannot measure`() {
+  fun `refuses a still overlay it cannot measure`() {
     val spec = ImageOverlay(ImageSource.of("/no/such/logo.png"), Corner.TopStart)
 
-    resolver.resolve(spec, capabilities(), attributes(Size(640, 360))).shouldBeInstanceOf<EffectResolution.Resolved>()
+    val resolution = resolver.resolve(spec, capabilities(), attributes(Size(640, 360)))
+
+    resolution.shouldBeInstanceOf<EffectResolution.Unsupported>()
+    withClue(resolution.message) { resolution.message.contains("header") shouldBe true }
   }
 
   // The animation is sampled onto the output frame grid, so a composition that resolved no rate has
@@ -436,7 +448,7 @@ class EffectLoweringTest {
   fun `gates an open-ended window on the run`() {
     val spec =
       ImageOverlay(
-        image = ImageSource.of("logo.png"),
+        image = overlayImage(SQUARE),
         corner = Corner.TopStart,
         visibleDuring = TimeRange.from(1.seconds),
       )
@@ -466,22 +478,26 @@ class EffectLoweringTest {
     gatedFrames(fragment).isEmpty() shouldBe true
   }
 
+  // Text is drawn to a picture here and merged the way an image overlay is, so no drawtext is needed.
   @Test
-  fun `refuses text because the build has no drawtext`() {
-    val resolution = resolver.resolve(TextOverlay("hello"), capabilities(), attributes())
+  fun `lowers text as a picture merged where its anchor puts it`() {
+    val withText = capabilities(features = setOf(RenderFeature.TextRendering))
+    val resolution = resolver.resolve(TextOverlay("hello", anchor = Anchor.TopStart), withText, attributes())
 
-    resolution.shouldBeInstanceOf<EffectResolution.Unsupported>()
-    resolution.message.contains("drawtext") shouldBe true
+    resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
+    val fragment = resolution.effect.fragment
+    fragment.auxInputs
+      .single()
+      .image
+      .shouldBeInstanceOf<ImageSource.Bytes>()
+    fragment.merge!!.render() shouldBe "overlay=x=0:y=0:format=auto:eof_action=pass"
   }
 
-  // Where drawtext does exist it still cannot wrap, and text layout is required to be exact.
   @Test
-  fun `refuses text even where drawtext exists`() {
-    val withText = capabilities(features = setOf(RenderFeature.TextRendering))
-    val resolution = resolver.resolve(TextOverlay("hello"), withText, attributes())
-
-    resolution.shouldBeInstanceOf<EffectResolution.Unsupported>()
-    resolution.message.contains("maxWidth") shouldBe true
+  fun `refuses text where the capabilities draw none`() {
+    resolver
+      .resolve(TextOverlay("hello"), capabilities(), attributes())
+      .shouldBeInstanceOf<EffectResolution.Unsupported>()
   }
 
   // A crop is resolved to whole pixels once, so that the plan and the export cannot disagree about

@@ -86,8 +86,8 @@ internal fun storedPicture(
  * turn [orientationLeftOf] gives. A tagged one is read through [storedPicture] and its texels go through
  * [pictureSrgbCodes]. When that lands every texel where an untagged read does, as an sRGB profile or one that does not
  * parse does, the graph opens [image] too. Otherwise it opens an untagged PNG of the codes, laid out already. A JPEG
- * XL keeps its color in its codestream, so with a [decoder] it is decoded to find out whether it carries any, and
- * without one it is drawn as it is.
+ * XL keeps its color in its codestream, so with a [decoder] it is decoded to find out whether it carries any. Without
+ * one it is handed back as itself with no size, and [shownSize] refuses it, since the JDK reads no JPEG XL header.
  *
  * An AVIF or HEIC with a [decoder] always reaches the graph as an untagged PNG of its decode, tagged or not. The graph
  * repeats a still with the image demuxer's `-loop`, which ffmpeg refuses for the demuxer that opens an AVIF or HEIC,
@@ -96,8 +96,8 @@ internal fun storedPicture(
  *
  * A URI only the toolchain opens, such as an `https` URL, could be any of these, so with a [decoder] it is decoded and
  * drawn as an untagged PNG of its decode, and refused when that decode describes its color, as [storedPicture] reads
- * it. Without one it is drawn as it is, the one picture whose format nothing here can check before the graph opens it.
- * A path or file URL this process cannot read is drawn as it is too, and the graph that opens it fails on it.
+ * it. Without one it is handed back as itself with no size. So is a path or file URL that is not a file this process
+ * can read, and [shownSize] refuses both before a graph is built.
  */
 internal fun sdrOverlayImage(
   image: ImageSource,

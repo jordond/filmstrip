@@ -12,7 +12,7 @@ import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.DurationUnit
 
 // The gate and the opacity, which is everything a branch does to its picture's alpha.
-internal fun ImageOverlay.alphaNodes(
+internal fun PlacedPicture.alphaNodes(
   drawnRange: TimeRange,
   span: TimeRange,
   rate: Int?,
@@ -47,12 +47,12 @@ internal fun ImageOverlay.alphaNodes(
 // two output frames out of one source frame either side of a boundary, so on a clip whose own
 // rate differs from the output's an edge lands within one output frame of the sampler's. That is
 // the resampler's limit rather than the window's.
-private fun ImageOverlay.windowGate(
+private fun PlacedPicture.windowGate(
   drawnRange: TimeRange,
   span: TimeRange,
   rate: Int?,
 ): FilterNode? {
-  if (visibleDuring == null) return null
+  if (effect.visibleDuring == null) return null
   val end = drawnRange.endExclusive ?: return null
 
   val open = "gte(t,${branchSeconds(drawnRange.start, span, rate)})*lt(t,${branchSeconds(end, span, rate)})"

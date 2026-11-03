@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.export.ExportPlan
@@ -105,6 +106,7 @@ class FfmpegDestinationTest {
       runtime.streamSpawns shouldBe 0
     }
 
+  // The export lowers the overlay again, and placing it in pixels sizes the picture, so a missing one is refused there.
   @Test
   fun `names an overlay picture that went missing after planning`() =
     runTest(timeout = TIMEOUT) {
@@ -122,7 +124,9 @@ class FfmpegDestinationTest {
 
       val statuses = engine.export(plan, MediaSink.of(File(root, "out.mp4").path)).toList()
 
-      failureOf(statuses).shouldBeInstanceOf<FilmstripError.SourceUnreadable>().source shouldBe image.describe()
+      val refusal = failureOf(statuses).shouldBeInstanceOf<FilmstripError.UnsupportedEffect>()
+      refusal.specId shouldBe EffectIds.IMAGE_OVERLAY
+      withClue(refusal.message) { (picture.path in refusal.message) shouldBe true }
       runtime.streamSpawns shouldBe 0
     }
 

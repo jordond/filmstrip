@@ -124,7 +124,7 @@ class OverlayPictureReadTest {
 
   @Test
   fun `an untagged picture is never decoded on an SDR grade`() {
-    val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(DECODED_TEXELS), LINEAR_COLOR))
+    val decoder = FakeDecoder(size = ROW, decoded = decodedOf(rgbOf(DECODED_TEXELS), LINEAR_COLOR))
     val spec = overlayOf(pngOf(rgbOf(TEXELS)))
 
     auxImage(spec, decoder) shouldBeSameInstanceAs spec.image
@@ -132,15 +132,23 @@ class OverlayPictureReadTest {
   }
 
   @Test
-  fun `an animated overlay is sized by the decoder whenever there is one`() {
-    for (bytes in listOf(UNREADABLE, pngOf(BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB)))) {
-      val decoder = FakeDecoder(size = SQUARE)
-      val spec = sliding(ImageSource.ofBytes(bytes))
+  fun `an animated overlay the JDK reads no header of is sized by the decoder`() {
+    val decoder = FakeDecoder(size = SQUARE)
+    val spec = sliding(ImageSource.ofBytes(UNREADABLE))
 
-      val resolution = BuiltInEffectResolver(decoder).resolve(spec, capabilities(), attributes(null))
-      resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
-      decoder.measured shouldBe listOf(spec.image)
-    }
+    val resolution = BuiltInEffectResolver(decoder).resolve(spec, capabilities(), attributes(null))
+    resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
+    decoder.measured shouldBe listOf(spec.image)
+  }
+
+  @Test
+  fun `an animated overlay the JDK reads is sized from its header with a decoder too`() {
+    val decoder = FakeDecoder(size = SQUARE)
+    val spec = sliding(ImageSource.ofBytes(pngOf(BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB))))
+
+    val resolution = BuiltInEffectResolver(decoder).resolve(spec, capabilities(), attributes(null))
+    resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
+    decoder.measured shouldBe emptyList()
   }
 
   @Test
@@ -216,11 +224,14 @@ class OverlayPictureReadTest {
     withClue(refused.message) { ("without a picture decoder" in refused.message) shouldBe true }
   }
 
+  // The graph places an overlay by its shown size, and the JDK reads no JPEG XL header.
   @Test
-  fun `a JPEG XL reaches an SDR graph as the bytes it was given without a decoder`() {
-    val spec = overlayOf(JPEG_XL)
-
-    auxImage(spec, null) shouldBeSameInstanceAs spec.image
+  fun `a JPEG XL is refused on an SDR grade without a decoder to size it`() {
+    val refused =
+      BuiltInEffectResolver()
+        .resolve(overlayOf(JPEG_XL), capabilities(), attributes(null))
+        .shouldBeInstanceOf<EffectResolution.Unsupported>()
+    withClue(refused.message) { ("header" in refused.message) shouldBe true }
   }
 
   @Test
@@ -245,6 +256,7 @@ class OverlayPictureReadTest {
     const val REASON = "Invalid data found when processing input"
     val UNREADABLE = "not a picture the JDK reads".encodeToByteArray()
     val SQUARE = Size(64, 64)
+    val ROW = Size(TEXELS.size, 1)
 
     // Texels a decoder hands back in place of the JDK's, each a mid tone the linear profile moves, and fewer of them
     // than the JDK reads, the way a turned picture's row differs from its unturned one.

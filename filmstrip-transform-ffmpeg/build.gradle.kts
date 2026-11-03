@@ -67,5 +67,7 @@ val exportFixtures =
 
 tasks.named<Test>("jvmTest") {
   systemProperty("filmstrip.fixtures", exportFixtures.directory.absolutePath)
+  // ffmpeg-text-overlay: text overlays are drawn by the JVM the way a server draws them, with no display to reach.
+  systemProperty("java.awt.headless", "true")
   dependsOn(exportFixtures.download)
 }

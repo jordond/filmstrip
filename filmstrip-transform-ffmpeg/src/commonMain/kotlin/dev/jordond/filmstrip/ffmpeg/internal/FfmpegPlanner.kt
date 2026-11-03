@@ -149,7 +149,7 @@ private fun renderCapabilities(
     features =
       buildSet {
         add(RenderFeature.MultipassRender)
-        if (toolchain.hasFilter("drawtext")) add(RenderFeature.TextRendering)
+        add(RenderFeature.TextRendering)
         if (toneMapRoute != null) add(RenderFeature.HdrToneMapping)
       },
   )

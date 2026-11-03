@@ -82,7 +82,7 @@ it recognises, and declines the rest so the next resolver gets a look.
 | `Brightness` [^hdr-brightness]          | ✅                    | ✅                | ✅                | ✅                     |
 | Color matrices [^matrix] [^sdr-matrix] | ✅                    | ✅                | ✅                | ✅                     |
 | `ImageOverlay` [^hdr-overlay]           | ✅ [^android-overlay] | ✅                | ✅ [^web-image]   | ✅ [^ffmpeg-image]     |
-| `TextOverlay` [^hdr-overlay]            | ✅ [^text-raster]     | ✅ [^text-raster] | ✅ [^web-text]    | ❌ [^ffmpeg-text]      |
+| `TextOverlay` [^hdr-overlay]            | ✅ [^text-raster]     | ✅ [^text-raster] | ✅ [^web-text]    | ✅ [^text-raster]      |
 | Overlay animation                       | ✅ [^media3-anchor]   | ✅                | ✅                | ✅ [^ffmpeg-animation] |
 
 [^matrix]:
@@ -146,7 +146,10 @@ it recognises, and declines the rest so the next resolver gets a look.
 
 [^text-raster]:
     Text is rasterised at resolve against the frame an export writes and only resampled
-    after that, so a preview and its export break lines on the same words. A device that reports no
+    after that, so a preview and its export break lines on the same words. ffmpeg needs no `drawtext`
+    for it. The JVM draws the glyphs' coverage with `java.awt`, the plate and text colors are laid
+    from it the way Android lays them, and the graph merges the raster the way it merges an
+    `ImageOverlay`, so every ffmpeg build draws text. A device that reports no
     `RenderFeature.TextRendering` refuses by name, and so does text and a style that leave nothing to
     draw. A plate's margin is a share of the cap height on every backend, so a plate on Android comes
     out smaller than it did when its margin was a share of the font size. Every backend stores the
@@ -157,7 +160,8 @@ it recognises, and declines the rest so the next resolver gets a look.
     at the eight bits the platform draws them in, and a glyph texel within three premultiplied
     eight-bit steps of the text color takes the text color exactly. Text is refused by name before
     its raster is made when the raster, the floats an HDR frame draws it from and what is held on the
-    way would pass 1 GiB. Android and the browser count that at 40 bytes a texel, and Apple counts its
+    way would pass 1 GiB. Android and the browser count that at 40 bytes a texel, ffmpeg at 32, and
+    Apple counts its
     raster, its floats and the band of rows it draws through. Apple also refuses text in a face whose
     line stands taller than 10,000,000 pixels, the tallest line Core Text lays out. Android also refuses
     a raster past half of the app's Java heap, so how much text fits there depends on the device.
@@ -165,7 +169,14 @@ it recognises, and declines the rest so the next resolver gets a look.
     OpenGL ES's `GL_MAX_TEXTURE_SIZE` on Android and WebGL's `MAX_TEXTURE_SIZE` in the browser. Text
     that fits all of those but that the platform cannot allocate is refused saying so on Android, Apple
     and js. On wasmJs only the canvas read is refused that way, since wasm traps on an array it cannot
-    allocate and a trap cannot be caught.
+    allocate and a trap cannot be caught. ffmpeg draws with the fonts the JVM finds on the machine, the
+    JVM's logical sans serif when no family is named, so a host with none it can draw a capital in,
+    such as a bare Linux container without fontconfig fonts, refuses text by name rather than drawing
+    empty boxes. Text holding a character the face has no glyph for is refused the same way, naming its
+    code point, so which emoji and scripts ffmpeg draws depends on the fonts the host has. macOS draws
+    emoji in their own colors from Apple Color Emoji, while a Linux host with only fonts-dejavu-core
+    refuses each emoji it has no glyph for, and CJK text needs a font that covers it, such as
+    fonts-noto-cjk.
 
 [^web-image]:
     The image is decoded before planning, so one the browser cannot decode is refused by
@@ -181,6 +192,11 @@ it recognises, and declines the rest so the next resolver gets a look.
     each tile, and an image overlay (`iovl`) from its inputs, each turned into color on its own and
     drawn at its offset over the canvas color. The ffmpeg backend needs ffmpeg 8.0 or later, and
     refuses an older one by name.
+    Every overlay is placed in whole pixels off its picture's own size, read from its header by the
+    JVM where it has a reader for the format and by the backend's ffmpeg where it has none. A picture
+    neither can read, or one deleted between planning and export, is refused by name at resolve rather
+    than handed to the graph. ffmpeg sizes and places an animated GIF
+    overlay by its logical screen, the canvas ffmpeg decodes, not by its first frame.
 
 [^web-text]:
     Text is rasterised at resolve against the frame an export writes, as on Android and
@@ -234,13 +250,6 @@ it recognises, and declines the rest so the next resolver gets a look.
     is not the per-channel one media3 and ffmpeg apply, so an offset or a mix on a saturated HLG color
     lands a few percent apart between Apple and the other two, and grey agrees everywhere.
 
-[^ffmpeg-text]:
-    Refused for one of two reasons, and the message says which. Either the ffmpeg build
-    has no `drawtext` filter, which needs `--enable-libfreetype` and `--enable-libharfbuzz` and the
-    common prebuilt packages leave out, or it has one and `drawtext` breaks lines only on a literal
-    newline, so `TextStyle.maxWidth` cannot be honoured. Text layout has to be exact, so it is refused
-    rather than rendered differently.
-
 [^media3-anchor]:
     Both frame anchors are held in `-1f..1f`, which is the range media3 documents on
     `StaticOverlaySettings.Builder` and which implementing `OverlaySettings` directly walks past rather
@@ -257,8 +266,7 @@ it recognises, and declines the rest so the next resolver gets a look.
     to size the drawn picture off its own pixels. The size comes from the picture's decode when the
     resolve already decoded it, and otherwise from the backend's own ffmpeg, which decodes one frame of
     it and reads the size that frame comes out at, so a picture animates wherever the ffmpeg build
-    decodes it, WebP and HEIC included. ffmpeg draws no `TextOverlay` at all,
-    so this is `ImageOverlay` alone.
+    decodes it, WebP and HEIC included. A `TextOverlay` is sized off the raster the JVM drew for it.
 
 ### Overlay picture color
 
@@ -560,11 +568,11 @@ table.
 | ------- | ------------------------------------------------- | ------------- |
 | Android | everything it lowers except `TextOverlay`         | `TextOverlay` |
 | Apple   | everything it lowers except `TextOverlay`         | `TextOverlay` |
-| ffmpeg  | everything it lowers except `Scale`               | `Scale`       |
+| ffmpeg  | everything it lowers except `Scale` and `TextOverlay` | `Scale`, `TextOverlay` |
 | Browser | everything it lowers                              | none          |
 
 `TextOverlay`'s approximation is glyph antialiasing only: line breaks, metrics and measured extent
-are exact on both platforms. The browser's preview draws the same raster its export draws, so its
+are exact on Android, Apple and ffmpeg. The browser's preview draws the same raster its export draws, so its
 text is exact. `Scale` on ffmpeg goes through swscale's bicubic kernel, which is not
 the one a preview resamples with. Anything with no entry answers null from `parityOf`, and the plan
 reads a null as `Exact`.

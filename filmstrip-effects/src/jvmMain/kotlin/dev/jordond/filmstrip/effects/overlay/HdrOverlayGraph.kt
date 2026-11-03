@@ -34,14 +34,12 @@ import dev.jordond.filmstrip.media.ImageSource
 // holds its one frame under every frame of the region. That keeps the picture's decode to light
 // off the frame loop for a still overlay or one that only fades, and the alpha's too when no
 // window gates it and no fade drives it.
-internal fun ImageOverlay.gradedOverlay(
+internal fun PlacedPicture.gradedOverlay(
   attributes: Attributes,
   drawnRange: TimeRange,
-  transfer: HdrTransfer,
-  graded: HdrOverlayRaster,
+  graded: GraphPicture.Graded,
   animated: Driven.Commands?,
   still: PixelRect,
-  overlayWidth: Int,
 ): FilterFragment {
   val layout = animated?.layout ?: hdrOverlayLayout(listOf(still), attributes.inputSize)
   val at = animated?.first ?: still
@@ -54,7 +52,7 @@ internal fun ImageOverlay.gradedOverlay(
     moving: Boolean,
   ): AuxInput =
     AuxInput(
-      ImageSource.ofBytes(graded.png),
+      ImageSource.ofBytes(graded.raster.png),
       buildList {
         sidecar?.let { add(FilterNode("sendcmd", "f" to it.placeholder)) }
         add(FilterNode("scale$instance", "w" to size[0], "h" to size[1]))
@@ -65,7 +63,7 @@ internal fun ImageOverlay.gradedOverlay(
       if (moving) attributes.auxTimeline() else null,
     )
 
-  val stillSize = listOf(overlayWidth.toString(), "-1")
+  val stillSize = listOf(still.width.toString(), still.height.toString())
   val masked = animated?.let { it.instance + MASK_INSTANCE }.orEmpty()
   val driven = animated?.takeUnless { it.pictureHeld }
   val picture =
@@ -80,10 +78,10 @@ internal fun ImageOverlay.gradedOverlay(
       animated?.mask,
       stillSize,
       alphaNodes(drawnRange, attributes.span, attributes.gridRate, masked, animated != null),
-      moving = animated != null || visibleDuring != null,
+      moving = animated != null || effect.visibleDuring != null,
     )
 
-  return hdrOverlayFragment(transfer, layout, picture, mask, listOfNotNull(driven?.sidecar, animated?.mask))
+  return hdrOverlayFragment(graded.transfer, layout, picture, mask, listOfNotNull(driven?.sidecar, animated?.mask))
 }
 
 /**

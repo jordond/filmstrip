@@ -35,9 +35,8 @@ class HdrOverlayGraphTest {
         val spec = ImageOverlay(ImageSource.ofBytes(ByteArray(0)), corner)
         val placed = spec.placedOn(FRAME, picture)
         val rect = placed.rectOn(FRAME)
-        val margin = (minOf(FRAME.width, FRAME.height) * spec.margin).roundToInt()
 
-        val still = spec.stillRect(FRAME, picture, placed.size.width, margin)
+        val still = drawnRect(placed, FRAME)
         withClue("$picture $corner") { Size(still.width, still.height) shouldBe placed.size }
         withClue("$picture $corner") { still.x shouldBe (rect.left * FRAME.width).roundToInt() }
         withClue("$picture $corner") { still.y shouldBe (rect.top * FRAME.height).roundToInt() }
@@ -119,12 +118,7 @@ class HdrOverlayGraphTest {
       val spec = ImageOverlay(ImageSource.ofBytes(OrientedPictures.png()), Corner.BottomEnd, opacity = HALF)
       val fragment = hdrFragment(spec, transfer)
       val placed = spec.placedOn(FRAME, OrientedPictures.SIZE)
-      val margin = (minOf(FRAME.width, FRAME.height) * spec.margin).roundToInt()
-      val region =
-        hdrOverlayLayout(
-          listOf(spec.stillRect(FRAME, OrientedPictures.SIZE, placed.size.width, margin)),
-          FRAME,
-        ).region
+      val region = hdrOverlayLayout(listOf(drawnRect(placed, FRAME)), FRAME).region
 
       val crop = fragment.crop.shouldNotBeNull()
       withClue("$transfer") {
@@ -192,7 +186,7 @@ class HdrOverlayGraphTest {
 
     val (picture, mask) = fragment.auxInputs
     picture.chain[0] shouldBe FilterNode("sendcmd", "f" to PICTURE_COMMANDS.placeholder)
-    picture.chain[1] shouldBe FilterNode("scale$INSTANCE", "w" to "86", "h" to "-1")
+    picture.chain[1] shouldBe FilterNode("scale$INSTANCE", "w" to "86", "h" to "58")
     (
       picture.chain
         .single { it.name == "pad" }
@@ -202,7 +196,7 @@ class HdrOverlayGraphTest {
     withClue("the picture's window cannot be moved") { picture.chain.any { it.name == "crop$INSTANCE" } shouldBe true }
     picture.timeline shouldBe attributes.auxTimeline()
     mask.chain[0] shouldBe FilterNode("sendcmd", "f" to MASK_COMMANDS.placeholder)
-    mask.chain[1] shouldBe FilterNode("scale$INSTANCE$MASK_INSTANCE", "w" to "86", "h" to "-1")
+    mask.chain[1] shouldBe FilterNode("scale$INSTANCE$MASK_INSTANCE", "w" to "86", "h" to "58")
     mask.timeline shouldBe attributes.auxTimeline()
     withClue("a command file was dropped") {
       fragment.sidecars.containsAll(listOf(PICTURE_COMMANDS, MASK_COMMANDS)) shouldBe true
@@ -234,8 +228,9 @@ class HdrOverlayGraphTest {
     val commands = Driven.Commands(PICTURE_COMMANDS, INSTANCE, MASK_COMMANDS, layout, first, pictureHeld)
     val attributes = attributes(HdrTransfer.Pq)
 
-    val fragment =
-      spec.gradedOverlay(attributes, attributes.span, HdrTransfer.Pq, raster, commands, first, first.width)
+    val graded = GraphPicture.Graded(raster, HdrTransfer.Pq)
+    val placed = PlacedPicture(spec, graded, spec.placedOn(FRAME, raster.size), spec.opacity)
+    val fragment = placed.gradedOverlay(attributes, attributes.span, graded, commands, first)
     return fragment to attributes
   }
 
