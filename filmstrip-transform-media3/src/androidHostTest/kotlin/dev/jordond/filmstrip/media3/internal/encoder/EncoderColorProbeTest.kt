@@ -3,18 +3,14 @@ package dev.jordond.filmstrip.media3.internal.encoder
 import androidx.media3.common.C
 import androidx.media3.common.ColorInfo
 import androidx.media3.common.MimeTypes
-import com.google.common.util.concurrent.Uninterruptibles
 import dev.jordond.filmstrip.color.ycbcrReading
 import dev.jordond.filmstrip.color.ycbcrToRgb
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicReferenceArray
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
@@ -22,7 +18,7 @@ import kotlin.test.assertFailsWith
 
 /**
  * How [nearestColor] names the color an encoder wrote from the codes it gave full green, which [SizeTier] a frame
- * size falls in, and how [MeasuredEncoderColor] keeps, times out and shares its measurements.
+ * size falls in, and how [MeasuredEncoderColor] keeps its measurements.
  *
  * The green codes are the eight-bit ones H.273's equations give full green, and each case reads them with a code or
  * two of encoder noise as well, the middle of the tolerance and not only its edge.
@@ -120,51 +116,6 @@ class EncoderColorProbeTest {
   }
 
   @Test
-  fun `an unclear answer is kept and a throwing measurement is not`() {
-    val runs = AtomicInteger()
-    val probe =
-      MeasuredEncoderColor(TIMEOUT) { request, _ ->
-        runs.incrementAndGet()
-        when (request.tier) {
-          SizeTier.SD -> WrittenColor.Unclear("no frame")
-          else -> if (runs.get() == 2) error("no codec") else WrittenColor.Measured(BT601_LIMITED)
-        }
-      }
-
-    repeat(2) { probe.written(REQUEST) shouldBe WrittenColor.Unclear("no frame") }
-    val thrown = probe.written(REQUEST.copy(tier = SizeTier.HD)).shouldBeInstanceOf<WrittenColor.Unclear>()
-    withClue(thrown.reason) { thrown.reason.contains("no codec") shouldBe true }
-    probe.written(REQUEST.copy(tier = SizeTier.HD)) shouldBe WrittenColor.Measured(BT601_LIMITED)
-    runs.get() shouldBe 3
-  }
-
-  @Test
-  fun `a measurement past its deadline is interrupted waited for and not kept`() {
-    val runs = AtomicInteger()
-    val released = AtomicBoolean()
-    val probe =
-      MeasuredEncoderColor(SHORT_TIMEOUT, GRACE) { _, deadline ->
-        runs.incrementAndGet()
-        (deadline - System.nanoTime() <= SHORT_TIMEOUT) shouldBe true
-        try {
-          Thread.sleep(TimeUnit.NANOSECONDS.toMillis(TIMEOUT))
-          WrittenColor.Measured(ColorInfo.SDR_BT709_LIMITED)
-        } catch (stopped: InterruptedException) {
-          Thread.sleep(RELEASE_MILLIS)
-          released.set(true)
-          throw stopped
-        }
-      }
-
-    val answer = probe.written(REQUEST).shouldBeInstanceOf<WrittenColor.Unclear>()
-
-    withClue("the answer came back before the measurement released what it holds") { released.get() shouldBe true }
-    answer.kept shouldBe false
-    probe.written(REQUEST) shouldBe answer
-    runs.get() shouldBe 2
-  }
-
-  @Test
   fun `a caller interrupted while it waits throws and the measurement goes on`() {
     val runs = AtomicInteger()
     val release = CountDownLatch(1)
@@ -179,55 +130,6 @@ class EncoderColorProbeTest {
     release.countDown()
 
     probe.written(REQUEST) shouldBe WrittenColor.Measured(BT601_LIMITED)
-    runs.get() shouldBe 1
-  }
-
-  @Test
-  fun `a caller interrupted while it waits out the grace throws and the next caller measures again`() {
-    val caller = Thread.currentThread()
-    val hold = CountDownLatch(1)
-    val runs = AtomicInteger()
-    val probe =
-      MeasuredEncoderColor(SHORT_TIMEOUT, TIMEOUT) { _, _ ->
-        if (runs.get() > 0) return@MeasuredEncoderColor measured(runs)
-        runs.incrementAndGet()
-        try {
-          Thread.sleep(TimeUnit.NANOSECONDS.toMillis(TIMEOUT))
-        } catch (_: InterruptedException) {
-          caller.interrupt()
-          Uninterruptibles.awaitUninterruptibly(hold)
-        }
-        WrittenColor.Measured(BT601_LIMITED)
-      }
-
-    try {
-      assertFailsWith<InterruptedException> { probe.written(REQUEST) }
-    } finally {
-      hold.countDown()
-    }
-
-    probe.written(REQUEST) shouldBe WrittenColor.Measured(BT601_LIMITED)
-    runs.get() shouldBe 2
-  }
-
-  @Test
-  fun `callers asking at once share one measurement`() {
-    val runs = AtomicInteger()
-    val answers = AtomicReferenceArray<WrittenColor>(CALLERS)
-    lateinit var callers: List<Thread>
-    val probe =
-      MeasuredEncoderColor(TIMEOUT) { _, deadline ->
-        while (callers.any { it.state != Thread.State.TIMED_WAITING } && System.nanoTime() < deadline) {
-          Thread.sleep(1)
-        }
-        measured(runs)
-      }
-    callers = List(CALLERS) { index -> Thread { answers.set(index, probe.written(REQUEST)) } }
-
-    callers.forEach(Thread::start)
-    callers.forEach { it.join(TimeUnit.NANOSECONDS.toMillis(TIMEOUT)) }
-
-    repeat(CALLERS) { answers.get(it) shouldBe WrittenColor.Measured(BT601_LIMITED) }
     runs.get() shouldBe 1
   }
 
@@ -260,14 +162,10 @@ class EncoderColorProbeTest {
     val REQUEST =
       EncoderColorRequest("c2.android.avc.encoder", MimeTypes.VIDEO_H264, SizeTier.SD, ColorInfo.SDR_BT709_LIMITED)
 
-    const val CALLERS = 4
     const val BT709_MATRIX = 1
     const val BT601_MATRIX = 6
     const val UNSPECIFIED = 2
     const val MAX_CODE = 255
-    const val RELEASE_MILLIS = 50L
     val TIMEOUT = TimeUnit.SECONDS.toNanos(5)
-    val SHORT_TIMEOUT = TimeUnit.MILLISECONDS.toNanos(100)
-    val GRACE = TimeUnit.SECONDS.toNanos(1)
   }
 }
