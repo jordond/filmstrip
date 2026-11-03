@@ -7,7 +7,6 @@ import dev.jordond.filmstrip.effects.overlay.StoredSamples
 import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
 import dev.jordond.filmstrip.ffmpeg.internal.picture.PictureRoute
 import dev.jordond.filmstrip.ffmpeg.internal.picture.pictureRoute
-import dev.jordond.filmstrip.ffmpeg.support.assumeHeif
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.picture.pictureYcbcrCoding
 import dev.jordond.filmstrip.test.AvifColorPictures
@@ -37,7 +36,6 @@ import kotlin.test.Test
  * on primaries no named matrix matches land from their planes through core's evaluator, exactly at eight bits and
  * within one code at twelve, where the sixteen-bit samples are rounded once more. Each of those is checked to land
  * elsewhere under BT.601, the matrix swscale falls back to. Identity has its own test, since it needs 4:4:4 samples.
- * ffmpeg 6.1 has no HEIF demuxer, which skips the HEIC cases as an assumption.
  */
 @RunWith(Parameterized::class)
 class FfmpegPictureMatrixTest internal constructor(
@@ -45,7 +43,6 @@ class FfmpegPictureMatrixTest internal constructor(
 ) {
   @Test
   fun `lands where core reads it`() {
-    if (case.container == MatrixContainer.Heic) assumeHeif()
     case.stills().forEach(::assertLanded)
   }
 

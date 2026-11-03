@@ -392,7 +392,7 @@ class FfmpegOverlayIccTest {
     const val BYTE_MAX = 0xFF
     val PQ_ONLY = listOf(HdrTransfer.Pq)
 
-    // The AV1 encoders either build may have, cerebro's 6.1.1 the first two and the Mac's 9.0.2 the last.
+    // The AV1 encoders a build may have, whichever of them it was configured with.
     val AV1_ENCODERS = listOf("libaom-av1", "librav1e", "libsvtav1")
     val CAPABILITIES =
       RenderCapabilities(

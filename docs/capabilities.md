@@ -177,10 +177,8 @@ it recognises, and declines the rest so the next resolver gets a look.
     An AVIF or HEIC keeps the alpha its file carries, a grid one included, and a limited range
     alpha is expanded to full range. Only ffmpeg straightens a picture whose file records its color
     as premultiplied with an `iref prem`. Apple and Android take the alpha their platform decoders give.
-    ffmpeg 6.1 lists no stream for an AVIF's alpha item, so there the overlay draws opaque and comes
-    back `Degraded` with a cause of `DegradationReason.AlphaDiscarded`. ffmpeg 6.1 opens no HEIC at all.
-    A grid AVIF or HEIC is put together from its tiles by filmstrip, which needs ffmpeg 7.0 or later to
-    list a stream for each tile. On 6.1 it is refused.
+    A grid AVIF or HEIC is put together from its tiles by filmstrip, from the stream ffmpeg lists for
+    each tile. The ffmpeg backend needs ffmpeg 8.0 or later, and refuses an older one by name.
 
 [^web-text]:
     Text is rasterised at resolve against the frame an export writes, as on Android and
@@ -389,9 +387,6 @@ by a few codes is listed here with its size and is not reported.
 | Apple   | A HEIF coded with H.264 goes through Core Image's own decode                                                                                                             | Unmeasured                                                                                                           |
 | Apple   | VideoToolbox's lossy encode rings into the middle of a small overlay                                                                                                     | Measured up to 4.8% of the chroma step between the overlay and the frame behind it                                   |
 | ffmpeg  | swscale converts YCbCr deeper than eight bits to sixteen-bit RGB at 255/256 of full scale at limited range and 1023/1024 at full                                          | Up to four ten-bit codes low. A picture filmstrip turns into color from its stored samples has no shortfall         |
-| ffmpeg  | ffmpeg 6.1 has no HEIF demuxer                                                                                                                                           | A HEIC is unsupported                                                                                                |
-| ffmpeg  | ffmpeg 6.1 lists no stream for an AVIF's alpha item                                                                                                                      | `Degraded`, `AlphaDiscarded`, drawn opaque                                                                           |
-| ffmpeg  | ffmpeg 6.1 lists no stream for a grid's tiles. ffmpeg 7.0 and later do, and filmstrip puts the grid together from them                                                   | A grid AVIF or HEIC is unsupported on 6.1                                                                            |
 | ffmpeg  | An AVIF or HEIC the build has no decoder for                                                                                                                             | Unsupported                                                                                                          |
 | Browser | Chrome decodes no HEIC                                                                                                                                                   | Unsupported at plan time                                                                                             |
 | Browser | The matrices Chrome reads, in the table above                                                                                                                            | `Degraded`, `ColorSpaceConverted`, through the nearest matrix, or unsupported past the bound                        |
@@ -400,8 +395,8 @@ by a few codes is listed here with its size and is not reported.
 | Browser | Safari                                                                                                                                                                   | Unmeasured                                                                                                           |
 | Browser | A PNG's inflated rows, its sixteen-bit samples and the eight-bit bitmap drawn from it must fit in 1 GiB, and its longest side in the page's WebGL `MAX_TEXTURE_SIZE`. A 48 megapixel PNG fits the 1 GiB at eight or sixteen bits, and draws only on a page whose texture holds its longest side | Unsupported past either, the reason naming the picture's size and the 1 GiB or the texture side |
 
-ffmpeg was measured on 6.1.1 and 9.0.2, and keeps a twelve-bit AVIF, and a twelve-bit HEIC where its
-build opens HEIF, deeper than eight bits. Chrome was measured headless.
+ffmpeg was measured on 8.0.1 and 9.0.2, and keeps a twelve-bit AVIF and a twelve-bit HEIC deeper than
+eight bits. Chrome was measured headless.
 
 Apple decodes a HEIC, HEIF, HEIF sequence or AVIF once, through ImageIO, when the overlay is read,
 and draws those samples on every frame, so it reads the same codes every time. The decode is held
@@ -458,15 +453,14 @@ No decoder is left to turn or crop the picture itself:
   primary item and its alpha items dropped, so each decodes the whole stored picture. Android API 30
   ignores every `clap`, API 36 applies a centred one and ignores one with an offset, and ImageIO
   crops an offset `clap` a column off libheif, so no platform's crop is used.
-- ffmpeg opens every overlay picture with `-noautorotate`. Without it ffmpeg 6.1.1 turns a JPEG and
-  a JPEG XL by their orientation, 8.0.1 a JPEG, an AVIF and a JPEG XL, and 9.0.2 a JPEG, a PNG, a
+- ffmpeg opens every overlay picture with `-noautorotate`. Without it ffmpeg 8.0.1 turns a JPEG, an
+  AVIF and a JPEG XL by their orientation, and 9.0.2 a JPEG, a PNG, a
   WebP and an AVIF. With it only a JPEG XL turns, since libjxl lays it out by its codestream's
   orientation whatever ffmpeg asks, so filmstrip turns a JPEG XL no further there.
 
 ffmpeg can open a URI no other part of filmstrip can, such as an `https` URL. filmstrip reads none of
 its bytes, so it draws unturned and cropped however that ffmpeg build crops it. ffmpeg 8.0.1 and
-9.0.2 crop an AVIF or HEIC by its `clap` as they decode it, and 6.1.1 opens no HEIF at all. This is
-ffmpeg's limit.
+9.0.2 crop an AVIF or HEIC by its `clap` as they decode it. This is ffmpeg's limit.
 
 Reading the orientation, size or crop walks only the container's headers and the block holding what
 it reads, never the pixels. One walk reads at most 65,536 ranges and 16 MiB in all, and no more than

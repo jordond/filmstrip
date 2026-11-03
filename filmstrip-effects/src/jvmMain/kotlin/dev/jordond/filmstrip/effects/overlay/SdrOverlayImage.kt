@@ -112,7 +112,7 @@ internal fun sdrOverlayImage(
   val decoded = decoder != null && (codestream || heif || (bytes == null && image.toolchainOnly))
   // ffmpeg's limit: a URI only ffmpeg opens, such as an https URL, has no bytes this process can read, so core reads
   // no orientation or clap for it. It is drawn unturned and cropped however that ffmpeg build crops it as it decodes
-  // with -noautorotate. 8.0.1 and 9.0.2 crop an AVIF or HEIC by its clap, and 6.1.1 opens no HEIF at all.
+  // with -noautorotate. 8.0.1 and 9.0.2 crop an AVIF or HEIC by its clap.
   val orientation = orientationLeftOf(bytes)
   if (described == null && !decoded) return SdrOverlayImage.Drawn(image, orientation = orientation)
 

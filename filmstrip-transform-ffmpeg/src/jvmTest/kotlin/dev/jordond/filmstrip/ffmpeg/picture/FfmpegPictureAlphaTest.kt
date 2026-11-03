@@ -5,18 +5,12 @@ import dev.jordond.filmstrip.effects.overlay.OverlayPictureRead
 import dev.jordond.filmstrip.effects.overlay.StoredSamples
 import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
 import dev.jordond.filmstrip.ffmpeg.internal.picture.PictureRoute
-import dev.jordond.filmstrip.ffmpeg.internal.picture.UNLISTED_ALPHA
 import dev.jordond.filmstrip.ffmpeg.internal.picture.alphaFrame
 import dev.jordond.filmstrip.ffmpeg.internal.picture.assembledGrid
 import dev.jordond.filmstrip.ffmpeg.internal.picture.fullRangeAlpha
 import dev.jordond.filmstrip.ffmpeg.internal.picture.pictureRoute
 import dev.jordond.filmstrip.ffmpeg.internal.picture.tiledAlpha
-import dev.jordond.filmstrip.ffmpeg.internal.picture.unlistedAlpha
 import dev.jordond.filmstrip.ffmpeg.support.alphaStill
-import dev.jordond.filmstrip.ffmpeg.support.assumeAlphaStreams
-import dev.jordond.filmstrip.ffmpeg.support.assumeHeif
-import dev.jordond.filmstrip.ffmpeg.support.assumeTiles
-import dev.jordond.filmstrip.ffmpeg.support.listsAlphaStreams
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.picture.heif.HeifAlpha
@@ -29,11 +23,9 @@ import dev.jordond.filmstrip.test.HeifAlphaPlane
 import dev.jordond.filmstrip.test.HeifStills
 import dev.jordond.filmstrip.test.HeifThumbnail
 import io.kotest.assertions.withClue
-import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import org.junit.Assume.assumeFalse
 import kotlin.math.roundToInt
 import kotlin.test.Test
 
@@ -42,37 +34,31 @@ import kotlin.test.Test
  *
  * Each still's alpha item is one of [AlphaPlanes], and every texel's alpha is checked against the code the plane
  * stores at its column and row, expanded through [fullRangeAlpha] for a limited range plane. Its color is checked
- * against the same still decoded without its alpha item. On a build that lists no stream for the item the still is
- * checked to draw opaque and name [UNLISTED_ALPHA], and the tests that read the alpha skip. The HEIC tests skip on a
- * build with no HEIF demuxer.
+ * against the same still decoded without its alpha item.
  */
 class FfmpegPictureAlphaTest {
   private val decoder = FfmpegPictureDecoder("ffmpeg")
 
   @Test
   fun `an AVIF alpha item lands as the alpha of every texel`() {
-    assumeAlphaStreams()
     val item = ColorPictures.NCLX_UNSPECIFIED.thumbnail()
     assertAlpha(item, AlphaPlanes.avif(), AlphaPlanes::avifAlpha)
   }
 
   @Test
   fun `a HEIC alpha item lands as the alpha of every texel`() {
-    assumeHeif()
     val item = ColorPictures.HEIC_NCLX_BT709_FULL.thumbnail()
     assertAlpha(item, AlphaPlanes.heic(), AlphaPlanes::heicAlpha)
   }
 
   @Test
   fun `a limited range AVIF alpha item lands expanded to full range`() {
-    assumeAlphaStreams()
     val item = ColorPictures.NCLX_UNSPECIFIED.thumbnail()
     assertAlpha(item, AlphaPlanes.avif(fullRange = false)) { x, y -> expanded(AlphaPlanes.avifAlpha(x, y)) }
   }
 
   @Test
   fun `a limited range HEIC alpha item lands expanded to full range`() {
-    assumeHeif()
     val item = ColorPictures.HEIC_NCLX_BT709_FULL.thumbnail()
     assertAlpha(item, AlphaPlanes.heic(fullRange = false)) { x, y -> expanded(AlphaPlanes.heicAlpha(x, y)) }
   }
@@ -92,7 +78,6 @@ class FfmpegPictureAlphaTest {
 
   @Test
   fun `an AVIF decoded from its planes takes its alpha item too`() {
-    assumeAlphaStreams()
     val item = ColorPictures.NCLX_DISPLAY_P3.thumbnail()
     val ycgco = { alpha: HeifAlphaPlane? ->
       HeifStills.still("avif", item.itemType, item.configuration, item.codestream, item.size, YCGCO, alpha = alpha)
@@ -103,7 +88,6 @@ class FfmpegPictureAlphaTest {
 
   @Test
   fun `a premultiplied AVIF comes back straight`() {
-    assumeAlphaStreams()
     val item = ColorPictures.NCLX_UNSPECIFIED.thumbnail()
     val plain = argb(decoded(alphaStill(item, null)))
     val straight = argb(decoded(alphaStill(item, AlphaPlanes.avif(premultiplied = true))))
@@ -121,8 +105,6 @@ class FfmpegPictureAlphaTest {
   @Test
   fun `an AVIF grid assembles its alpha tiles in rows and crops them to its size`() {
     val picture = ColorPictures.NCLX_UNSPECIFIED
-    assumeTiles(picture.gridBytes())
-    assumeAlphaStreams()
     val item = picture.thumbnail()
     val size = Size(20, 12)
     val grid = { alpha: List<HeifAlphaPlane>? ->
@@ -147,18 +129,6 @@ class FfmpegPictureAlphaTest {
   }
 
   @Test
-  fun `a build that lists no alpha stream draws the AVIF opaque and names its limit`() {
-    assumeFalse("this ffmpeg lists a stream for the alpha item", listsAlphaStreams())
-    val item = ColorPictures.NCLX_UNSPECIFIED.thumbnail()
-    val plain = decoded(alphaStill(item, null))
-    val opaque = decoded(alphaStill(item, AlphaPlanes.avif()))
-    opaque.limits shouldBe listOf(UNLISTED_ALPHA)
-    plain.limits.isEmpty().shouldBeTrue()
-    argb(opaque).toList() shouldBe argb(plain).toList()
-    withClue("an opaque decode carries alpha") { argb(opaque).all { it ushr ALPHA_SHIFT == BYTE }.shouldBeTrue() }
-  }
-
-  @Test
   fun `alpha tiles stack in rows by the grid's columns and crop to its size`() {
     val grid = HeifGrid((7L..12L).toList(), columns = 3, rows = 2, size = Size(20, 16))
     assembledGrid(HeifGrid(listOf(2L, 3L), 2, 1, Size(15, 8)), "null") shouldBe
@@ -170,14 +140,6 @@ class FfmpegPictureAlphaTest {
     alphaFrame(HeifAlpha(2L, grid = null, premultiplied = false, fullRange = false, bitDepth = 8)) shouldBe
       listOf("-map", "0:#2", "-vf", "setparams=range=pc,format=gray16le") +
       listOf("-frames:v", "1", "-c:v", "png", "-f", "image2pipe", "-")
-  }
-
-  @Test
-  fun `only a map that matches no stream reads as an unlisted alpha item`() {
-    unlistedAlpha(
-      "Stream map '0:#2' matches no streams.\nTo ignore this, add a trailing '?' to the map.",
-    ).shouldBeTrue()
-    unlistedAlpha("Invalid data found when processing input").shouldBeFalse()
   }
 
   private fun assertAlpha(

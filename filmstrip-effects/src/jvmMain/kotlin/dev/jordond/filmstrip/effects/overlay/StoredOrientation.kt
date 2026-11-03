@@ -16,8 +16,8 @@ import dev.jordond.filmstrip.picture.pictureOrientationOf
  * The turn ffmpeg's graph or core lays a picture of encoded [bytes] out by, after ffmpeg opens it with `-noautorotate`.
  *
  * It is the orientation [pictureOrientationOf] reads, so every backend draws the picture the same way up. A JPEG XL
- * leaves none, since libjxl lays it out by its codestream's orientation whatever ffmpeg asks, measured on ffmpeg 6.1
- * and 8.0. Bytes this process cannot read leave none either, so a URI only ffmpeg opens is drawn as stored.
+ * leaves none, since libjxl lays it out by its codestream's orientation whatever ffmpeg asks, measured on ffmpeg 8.0
+ * and 9.0. Bytes this process cannot read leave none either, so a URI only ffmpeg opens is drawn as stored.
  */
 internal fun orientationLeftOf(bytes: ByteArray?): PictureOrientation =
   if (bytes == null || isJpegXl(bytes)) PictureOrientation.Normal else pictureOrientationOf(bytes)

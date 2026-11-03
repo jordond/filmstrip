@@ -68,7 +68,7 @@ internal sealed interface InputSource {
  * Everything needed to run one export, resolved before anything is spawned.
  *
  * @property filterGraph The whole graph, inlined into one argument of the argument list, which every
- *   ffmpeg from 4.4 to 9.0 reads the same way.
+ *   ffmpeg from 8.0 to 9.0 reads the same way.
  * @property videoEncoder The libav encoder the device resolved for [OutputFormat.videoCodec], which
  *   is the one `-c:v` names. Null when there is no video track to write.
  * @property duration What the output runs to, which is what progress is a fraction of.

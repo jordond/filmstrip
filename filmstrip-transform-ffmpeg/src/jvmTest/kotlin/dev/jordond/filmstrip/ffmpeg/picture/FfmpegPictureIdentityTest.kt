@@ -15,8 +15,6 @@ import dev.jordond.filmstrip.ffmpeg.internal.picture.otherCodecDepthReason
 import dev.jordond.filmstrip.ffmpeg.internal.picture.pictureRoute
 import dev.jordond.filmstrip.ffmpeg.internal.picture.ycbcrScale
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
-import dev.jordond.filmstrip.ffmpeg.support.assumeHeif
-import dev.jordond.filmstrip.ffmpeg.support.assumeTiles
 import dev.jordond.filmstrip.ffmpeg.support.convertedFilter
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.CodecKind
@@ -44,10 +42,8 @@ import kotlin.test.Test
  * AVIF and HEIC stills coded with the identity matrix, whose luma, blue difference and red difference planes hold
  * green, blue and red, decoded by this ffmpeg.
  *
- * ffmpeg 6.1's dav1d wrapper hands back RGB for the identity matrix only beside BT.709 primaries and the sRGB transfer
- * and converts any other identity picture as BT.601 YCbCr, and its HEVC decoder hands back limited range identity
- * planes without stretching them, so the decoder takes the planes as they are and turns them into RGB through core's
- * evaluator. Each still is held at its middle against [landedRgb], which a BT.601 decode would miss, on BT.709 with
+ * The decoder takes an identity picture's planes as they are and turns them into RGB through core's evaluator, rather
+ * than leaving the matrix to ffmpeg's decoders and swscale. Each still is held at its middle against [landedRgb], which a BT.601 decode would miss, on BT.709 with
  * sRGB, unspecified, Display P3 and BT.2020 with PQ, at full and limited range, flat and tiled, and at ten and twelve
  * bits for AVIF and ten for HEIC within [IDENTITY_DRIFT]. An identity `nclx` on subsampled samples, which AV1 and HEVC
  * cannot code, is not drawn with core's reason, and so is an identity AVIF whose `av1C` does not say its layout and
@@ -72,11 +68,9 @@ class FfmpegPictureIdentityTest {
     }
   }
 
-  // ffmpeg 6.1 reads a grid item's data as a coded picture and fails on it. That is the build's own limit.
   @Test
   fun `a tiled identity AVIF decodes with the grid's nclx`() {
     if (!fixture.available()) return
-    assumeTiles(ColorPictures.NCLX_BT709_LIMITED.gridBytes())
     for (picture in AvifColorPictures.NCLX_IDENTITY_AVIFS) {
       assertLanded("tiled ${picture.name}", picture.gridBytes(), picture.ycbcr)
     }
@@ -105,11 +99,9 @@ class FfmpegPictureIdentityTest {
     assertWideLanded("$nclx", bytes, TWELVE_BIT_YCBCR, bitDepth = 12)
   }
 
-  // ffmpeg 6.1 has no HEIF demuxer. That is the build's own limit.
   @Test
   fun `a 4 4 4 identity HEIC decodes its planes as green, blue and red at full and limited range`() {
     if (!fixture.available()) return
-    assumeHeif()
     val (y, cb, cr) = HeicIdentityPictures.YCBCR
     for (nclx in HEIC_IDENTITIES) {
       val bytes = HeicIdentityPictures.bytes(nclx)
@@ -119,12 +111,10 @@ class FfmpegPictureIdentityTest {
     }
   }
 
-  // The grid goes through the complex graph, merge and stretch included. ffmpeg 6.1 has neither HEIF nor tile grids.
+  // The grid goes through the complex graph, merge and stretch included.
   @Test
   fun `a tiled identity HEIC decodes with the grid's nclx`() {
     if (!fixture.available()) return
-    assumeHeif()
-    assumeTiles(ColorPictures.HEIC_NCLX_BT709_LIMITED.gridBytes())
     val item = HeicIdentityPictures.ITEM
     for (nclx in HEIC_IDENTITIES) {
       val grid = HeifStills.grid("heic", item.itemType, item.configuration, item.codestream, item.size, nclx = nclx)
@@ -135,7 +125,6 @@ class FfmpegPictureIdentityTest {
   @Test
   fun `a ten bit identity HEIC keeps its depth through the merge`() {
     if (!fixture.available()) return
-    assumeHeif()
     for (nclx in HEIC_IDENTITIES) {
       val bytes = HeicIdentityPictures.tenBitBytes(nclx)
       pictureYcbcrCoding(bytes).shouldNotBeNull().bitDepth shouldBe 10
@@ -218,7 +207,7 @@ class FfmpegPictureIdentityTest {
   }
 
   // [bytes] decoded and held at its middle against where core's coding of it puts [ycbcr], after checking a BT.601
-  // decode, the one ffmpeg 6.1 falls back to, would land it elsewhere.
+  // decode, the one swscale falls back to, would land it elsewhere.
   private fun assertLanded(
     name: String,
     bytes: ByteArray,
@@ -290,7 +279,7 @@ class FfmpegPictureIdentityTest {
     const val BT2020 = 9
     const val PQ = 16
 
-    // Identity on primaries and transfers other than BT.709 with sRGB, which ffmpeg 6.1 decodes as BT.601, and on
+    // Identity on primaries and transfers other than BT.709 with sRGB, and on
     // BT.709 with sRGB at limited range, which AV1 cannot state, so the codestream stays silent.
     val NCLX_IDENTITIES =
       listOf(

@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.ffmpeg.internal.process.parseNameListing
 import dev.jordond.filmstrip.ffmpeg.internal.process.parseVersion
+import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 
@@ -18,38 +19,53 @@ class ToolchainReportTest {
 
   @Test
   fun `reads a distribution version`() {
-    val version = parseVersion("ffmpeg version 7.1.4-0+deb13u1 Copyright (c) 2000-2025")
+    val version = parseVersion("ffmpeg version 8.0.1-3ubuntu2 Copyright (c) 2000-2025")
 
-    version.major shouldBe 7
+    version.major shouldBe 8
+    version.minor shouldBe 0
+    version.printed shouldBe "8.0.1-3ubuntu2"
     version.isUsable shouldBe true
   }
 
   @Test
   fun `reads an n-prefixed tag`() {
-    parseVersion("ffmpeg version n7.1-42-gabcdef012 Copyright").major shouldBe 7
+    val version = parseVersion("ffmpeg version n8.0.1-42-gabcdef012 Copyright")
+
+    version.major shouldBe 8
+    version.minor shouldBe 0
+    version.isUsable shouldBe true
   }
 
   @Test
   fun `refuses a version below the floor`() {
-    val version = parseVersion("ffmpeg version 4.3.6 Copyright (c) 2000-2021")
+    for (banner in listOf("4.4.5", "6.1.1-3ubuntu5", "7.1", "n7.1.2", "7.1.4-0+deb13u1")) {
+      val version = parseVersion("ffmpeg version $banner Copyright (c) 2000-2025")
 
-    version.isUsable shouldBe false
-    version.printed shouldBe "4.3.6"
+      withClue(banner) {
+        version.isUsable shouldBe false
+        version.printed shouldBe banner
+      }
+    }
   }
 
   @Test
-  fun `accepts the floor itself`() {
-    parseVersion("ffmpeg version 4.4 Copyright").isUsable shouldBe true
+  fun `accepts the floor and every release after it`() {
+    for (banner in listOf("8.0", "8.0.1", "8.1", "9.0.2", "10.0")) {
+      withClue(banner) { parseVersion("ffmpeg version $banner Copyright").isUsable shouldBe true }
+    }
   }
 
-  // A git build names no release. Refusing it would refuse every nightly, and the filter lists are
-  // the real gate anyway.
+  // A git build names no release, so there is nothing to hold against the floor.
   @Test
   fun `accepts a build with no release number`() {
-    val version = parseVersion("ffmpeg version N-121284-g4c9e0eb0e6 Copyright")
+    for (banner in listOf("N-121284-g4c9e0eb0e6", "2025-09-01-git-1d33e7c3a5")) {
+      val version = parseVersion("ffmpeg version $banner Copyright")
 
-    version.major shouldBe null
-    version.isUsable shouldBe true
+      withClue(banner) {
+        version.major shouldBe null
+        version.isUsable shouldBe true
+      }
+    }
   }
 
   @Test

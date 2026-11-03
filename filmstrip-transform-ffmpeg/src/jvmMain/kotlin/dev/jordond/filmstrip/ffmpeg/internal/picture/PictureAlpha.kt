@@ -1,7 +1,5 @@
 package dev.jordond.filmstrip.ffmpeg.internal.picture
 
-import dev.jordond.filmstrip.effect.Degradation
-import dev.jordond.filmstrip.effect.DegradationReason
 import dev.jordond.filmstrip.effects.overlay.DecodedPicture
 import dev.jordond.filmstrip.effects.overlay.StoredSamples
 import dev.jordond.filmstrip.geometry.Size
@@ -159,22 +157,6 @@ private fun interruptible(row: Int) {
 private fun shiftOf(channel: Int): Int = RED_SHIFT - channel * BYTE_BITS
 
 /**
- * Whether ffmpeg's [reason] for failing an alpha decode is that it lists no stream for the item, which is how ffmpeg
- * 6.1 reads every AVIF alpha item.
- */
-internal fun unlistedAlpha(reason: String): Boolean = UNLISTED in reason
-
-/**
- * The cause an overlay resolves degraded by when this ffmpeg lists no stream for its picture's alpha item.
- */
-internal val UNLISTED_ALPHA: Degradation =
-  Degradation(
-    DegradationReason.AlphaDiscarded,
-    "This ffmpeg reads no stream for the overlay image's alpha item, as ffmpeg 6.1 does not, so the picture draws " +
-      "opaque whatever alpha its file carries. ffmpeg 9 reads it.",
-  )
-
-/**
  * Why a picture whose alpha plane is not the size of its color is not drawn.
  */
 internal fun alphaSizeReason(
@@ -185,7 +167,6 @@ internal fun alphaSizeReason(
     "${color.height}, so this overlay picture cannot be drawn."
 
 private const val ALPHA_FORMAT = "setparams=range=pc,format=gray16le"
-private const val UNLISTED = "matches no streams"
 private const val RGB = 3
 private const val CHANNELS = 4
 private const val BYTE = 0xFF

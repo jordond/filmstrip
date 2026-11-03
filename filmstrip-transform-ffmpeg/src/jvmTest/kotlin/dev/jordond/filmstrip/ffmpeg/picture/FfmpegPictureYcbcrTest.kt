@@ -19,9 +19,6 @@ import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.CAPABILITIES
 import dev.jordond.filmstrip.ffmpeg.support.assertSdrLandings
-import dev.jordond.filmstrip.ffmpeg.support.assumeHeif
-import dev.jordond.filmstrip.ffmpeg.support.assumeTiles
-import dev.jordond.filmstrip.ffmpeg.support.decodesHeif
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
@@ -53,14 +50,13 @@ import kotlin.time.Duration.Companion.seconds
  * AVIF and HEIC overlays, whose samples this ffmpeg turns from YCbCr into RGB with the matrix and range their `nclx`
  * box records.
  *
- * ffmpeg lets the codestream's color description win and 6.1 ignores the box, so the decoder converts an AVIF with the
+ * ffmpeg lets the codestream's color description win over the box, so the decoder converts an AVIF with the
  * box itself and hands ffmpeg a HEIC whose codestream core rewrote to state the box. Each [ColorPictures] still is
  * decoded and its stored texel held against the ITU-T H.273 conversion of its codes, then resolved on SDR, PQ and HLG
  * grades against [pictureSrgbCodes] and [pictureLight] of that texel, and exported on SDR so the graph's own render is
  * read. HEICs whose codestream disagrees with their box, and tiled AVIFs and HEICs, prove the box wins over the
  * codestream, and HEICs with no box prove the codestream is read when it is all there is. ffmpeg's limits are pinned by
- * name: a conversion to sixteen-bit RGB tops out at 255/256 at limited range and 1023/1024 at full, and 6.1 has no HEIF
- * demuxer and no tile grids, which skips those tests as an assumption.
+ * name: a conversion to sixteen-bit RGB tops out at 255/256 at limited range and 1023/1024 at full.
  */
 class FfmpegPictureYcbcrTest {
   private val fixture = FfmpegExportFixture()
@@ -71,23 +67,20 @@ class FfmpegPictureYcbcrTest {
     for (picture in AVIF_STILLS) assertStill(picture.name, picture.bytes(), picture.nclx, picture.ycbcr)
   }
 
-  // ffmpeg 6.1 has no HEIF demuxer, so a HEIC cannot be opened there at all. That is the build's own limit.
   @Test
   fun `every HEIC still decodes with its nclx matrix and range and lands where core puts it`() {
     if (!fixture.available()) return
-    assumeHeif()
     for (picture in HEIC_STILLS) {
       val vui = picture.vui
       assertStill(picture.name, picture.bytes(), picture.nclx, picture.ycbcr, vui.color?.matrix, vui.fullRange)
     }
   }
 
-  // ffmpeg 9.0 takes the matrix and range from the codestream's VUI and 6.1 cannot open a HEIC, so the codestream core
-  // rewrites to state the box is what lands each of these where the box says.
+  // ffmpeg takes the matrix and range from the codestream's VUI, so the codestream core rewrites to state the box is
+  // what lands each of these where the box says.
   @Test
   fun `a HEIC whose codestream disagrees with its nclx decodes with the box, tiled or not`() {
     if (!fixture.available()) return
-    assumeHeif()
     val disagreeing = ColorPictures.HEIC_SIGNAL_VARIANTS.filter { it.nclx != null }
     withClue("no HEIC carries both an nclx and a codestream of its own") { disagreeing.isNotEmpty().shouldBeTrue() }
     for (picture in disagreeing) {
@@ -111,7 +104,6 @@ class FfmpegPictureYcbcrTest {
       withClue("${picture.name} reads alike either way") { (apart || primariesOnly).shouldBeTrue() }
       assertStill(picture.name, picture.bytes(), nclx, picture.ycbcr)
     }
-    assumeTiles(ColorPictures.HEIC_NCLX_BT709_LIMITED.gridBytes())
     for (picture in disagreeing) assertStill("tiled ${picture.name}", picture.gridBytes(), picture.nclx, picture.ycbcr)
   }
 
@@ -119,7 +111,6 @@ class FfmpegPictureYcbcrTest {
   @Test
   fun `a HEIC with no nclx decodes with the matrix and range its codestream signals, tiled or not`() {
     if (!fixture.available()) return
-    assumeHeif()
     val signalling = listOf(ColorPictures.HEIC_NCLX_LIMITED_VUI_FULL, ColorPictures.HEIC_NCLX_BT601_VUI_BT709)
     val vuis = signalling.map { it.vui }
     vuis shouldBe listOf(HevcVui.FullRange, HevcVui.FullRangeBt709)
@@ -129,7 +120,6 @@ class FfmpegPictureYcbcrTest {
       val vui = picture.vui
       assertStill("no nclx $vui", flat, null, picture.ycbcr, vui.color?.matrix, vui.fullRange)
     }
-    assumeTiles(ColorPictures.HEIC_NCLX_BT709_LIMITED.gridBytes())
     for (picture in signalling) {
       val item = picture.thumbnail()
       val tiled = HeifStills.grid("heic", item.itemType, item.configuration, item.codestream, item.size)
@@ -143,7 +133,6 @@ class FfmpegPictureYcbcrTest {
   @Test
   fun `a HEIC with the BT709 matrix beside primaries 12 decodes with its nclx, tiled or not`() {
     if (!fixture.available()) return
-    assumeHeif()
     val item = ColorPictures.HEIC_NCLX_BT709_FULL.thumbnail()
     val ycbcr = ColorPictures.HEIC_NCLX_BT709_FULL.ycbcr
     val tags = listOf(true, false).map { CicpTag(DISPLAY_P3_PRIMARIES, SRGB_TRANSFER, BT709, it) }
@@ -151,7 +140,6 @@ class FfmpegPictureYcbcrTest {
       val flat = HeifStills.still("heic", item.itemType, item.configuration, item.codestream, item.size, nclx = nclx)
       assertStill("primaries 12 $nclx", flat, nclx, ycbcr)
     }
-    assumeTiles(ColorPictures.HEIC_NCLX_BT709_LIMITED.gridBytes())
     for (nclx in tags) {
       val tiled = HeifStills.grid("heic", item.itemType, item.configuration, item.codestream, item.size, nclx = nclx)
       assertStill("tiled primaries 12 $nclx", tiled, nclx, ycbcr)
@@ -163,10 +151,9 @@ class FfmpegPictureYcbcrTest {
   fun `a tiled AVIF and HEIC decode and measure at the grid's size with the grid's nclx`() {
     if (!fixture.available()) return
     val avif = ColorPictures.NCLX_BT709_LIMITED
-    assumeTiles(avif.gridBytes())
     val grids = mutableListOf(Grid(avif.name, avif.gridBytes(), AVIF_GRID, avif.nclx, avif.ycbcr))
     val heic = ColorPictures.HEIC_NCLX_BT709_LIMITED
-    if (decodesHeif()) grids += Grid(heic.name, heic.gridBytes(), HEIC_GRID, heic.nclx, heic.ycbcr)
+    grids += Grid(heic.name, heic.gridBytes(), HEIC_GRID, heic.nclx, heic.ycbcr)
     for (grid in grids) {
       withClue("tiled ${grid.name} decoded at a tile's size") { decoded(grid.bytes).size shouldBe grid.size }
       val measured = decoder.measure(ImageSource.ofBytes(grid.bytes))
@@ -179,7 +166,7 @@ class FfmpegPictureYcbcrTest {
   fun `every AVIF and HEIC still lands on an SDR export where core's codes put it`() =
     runTest(timeout = ExportConstants.TIMEOUT) {
       if (!fixture.available()) return@runTest
-      val heics = if (decodesHeif()) HEIC_STILLS else emptyList()
+      val heics = HEIC_STILLS
       val stills = AVIF_STILLS.map { it.name to it.bytes() } + heics.map { it.name to it.bytes() }
       val landings =
         stills.map { (name, bytes) ->
@@ -416,7 +403,7 @@ class FfmpegPictureYcbcrTest {
     const val BT709 = 1
     const val UNSPECIFIED = 2
 
-    // ffmpeg's limit, as read on 6.1 and 9.0: limited mid grey and white at ten bits, and what each reads at sixteen.
+    // ffmpeg's limit, as read on 9.0: limited mid grey and white at ten bits, and what each reads at sixteen.
     const val MID_LUMA = 502
     const val MID_READ = 32641
     const val WHITE_LUMA = 940

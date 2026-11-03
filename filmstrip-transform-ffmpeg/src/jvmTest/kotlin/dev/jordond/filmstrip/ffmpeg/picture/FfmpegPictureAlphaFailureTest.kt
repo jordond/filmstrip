@@ -4,7 +4,6 @@ import dev.jordond.filmstrip.effects.overlay.DecodedPicture
 import dev.jordond.filmstrip.effects.overlay.OverlayPictureRead
 import dev.jordond.filmstrip.effects.overlay.StoredSamples
 import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
-import dev.jordond.filmstrip.ffmpeg.internal.picture.UNLISTED_ALPHA
 import dev.jordond.filmstrip.ffmpeg.internal.picture.alphaSizeReason
 import dev.jordond.filmstrip.ffmpeg.internal.picture.pictureAlpha
 import dev.jordond.filmstrip.ffmpeg.support.alphaStill
@@ -56,16 +55,11 @@ class FfmpegPictureAlphaFailureTest {
   }
 
   @Test
-  fun `an alpha item no stream is listed for draws the picture opaque and names its limit`() {
+  fun `an alpha item no stream is listed for refuses the picture rather than drawing it opaque`() {
     val unlisted = "echo \"Stream map '0:#2' matches no streams.\" >&2; exit 1"
     val read = stubbed(unlisted).decode(ImageSource.ofBytes(STILL))
-    val drawn = withClue("$read") { read.shouldBeInstanceOf<OverlayPictureRead.Read<DecodedPicture>>() }.value
-    drawn.limits shouldBe listOf(UNLISTED_ALPHA)
-    drawn.samples
-      .shouldBeInstanceOf<StoredSamples.Argb>()
-      .argb
-      .all { it ushr ALPHA_SHIFT == BYTE }
-      .shouldBeTrue()
+    val refused = withClue("$read") { read.shouldBeInstanceOf<OverlayPictureRead.Refused>() }
+    withClue(refused.reason) { ("matches no streams" in refused.reason).shouldBeTrue() }
   }
 
   @Test
@@ -109,7 +103,5 @@ class FfmpegPictureAlphaFailureTest {
 
   private companion object {
     val STILL = alphaStill(ColorPictures.NCLX_UNSPECIFIED.thumbnail(), AlphaPlanes.avif())
-    const val ALPHA_SHIFT = 24
-    const val BYTE = 0xFF
   }
 }

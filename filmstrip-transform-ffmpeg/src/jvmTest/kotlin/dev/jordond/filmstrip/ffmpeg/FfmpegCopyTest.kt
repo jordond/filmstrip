@@ -333,7 +333,7 @@ class FfmpegCopyTest {
     val COPY_SLOP = 200.milliseconds
 
     // How far a remux may land from the source it copied. The mp4 muxer sizes its own padding, and
-    // ffmpeg 6 writes a byte more of it than later builds do. A re-encode of this fixture misses by
+    // builds differ by a byte or so in it. A re-encode of this fixture misses by
     // tens of kilobytes, so the band separates the two readings without pinning a muxer's spelling.
     const val CONTAINER_DRIFT_BYTES = 64L
   }

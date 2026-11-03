@@ -8,7 +8,7 @@ A Kotlin Multiplatform library for encoding, editing and previewing video. It ta
 macOS, the JVM and the browser, and uses whatever encoder the platform already has: Media3
 Transformer on Android, AVFoundation and VideoToolbox on Apple, WebCodecs in the browser. The
 published artifacts carry no native binaries. The JVM backend is the exception, and it shells out to
-an ffmpeg you installed yourself.
+an ffmpeg you installed yourself, 8.0 or later.
 
 > **Status: pre-alpha.** Things are subject to break or change.
 
@@ -23,7 +23,7 @@ an ffmpeg you installed yourself.
 | `filmstrip-transform-media3` | The Media3 backend, Android. Lowers an edit for media3-transformer export and for the player's preview. |
 | `filmstrip-transform-avfoundation` | The AVFoundation backend, iOS and macOS. Lowers an edit for export and for the player's preview. |
 | `filmstrip-transform-webcodecs` | The WebCodecs backend, browser. Lowers an edit for export and for the player's preview. |
-| `filmstrip-transform-ffmpeg` | The ffmpeg backend, JVM. Lowers an edit for export and for the player's preview, and shells out to an `ffmpeg` and `ffprobe` already on the machine. |
+| `filmstrip-transform-ffmpeg` | The ffmpeg backend, JVM. Lowers an edit for export and for the player's preview, and shells out to an `ffmpeg` and `ffprobe` 8.0 or later already on the machine. |
 | `filmstrip-player` | Preview playback over each target's backend. media3-exoplayer on Android, AVKit on Apple, an ffmpeg frame stream on the JVM, and WebCodecs with a canvas in the browser. |
 | `filmstrip-compose` | Compose Multiplatform bindings: player state, the frame strip's cache, and bare surfaces. |
 | `filmstrip-compose-ui` | The drawn timeline: scrolling strip, ruler, playhead, trim handles, scrub gestures. Foundation only, no Material. |

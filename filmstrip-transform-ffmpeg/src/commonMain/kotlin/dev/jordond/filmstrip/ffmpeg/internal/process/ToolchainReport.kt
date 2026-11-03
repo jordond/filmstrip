@@ -3,11 +3,10 @@ package dev.jordond.filmstrip.ffmpeg.internal.process
 // Pure parsing of what the binaries print. No spawning here, so every rule below is unit-testable
 // against captured output.
 
-// The lowest version this backend will use. What sets it is amix's `normalize` option, added in 4.4
-// as a rename of `sum`: without it every gain in a multi-track edit is silently divided by the
-// input count, which makes filmstrip's audio model wrong rather than approximate.
-internal const val MINIMUM_MAJOR: Int = 4
-internal const val MINIMUM_MINOR: Int = 4
+// The lowest version this backend will use. Below 8.0 the mov demuxer reads no HEIF at all, or reads one without its
+// tile and alpha streams, so an overlay picture would decode as something other than what its file holds.
+internal const val MINIMUM_MAJOR: Int = 8
+internal const val MINIMUM_MINOR: Int = 0
 
 /**
  * The version line as printed, and what could be made of it.
@@ -20,8 +19,8 @@ internal class FfmpegVersion(
   val major: Int?,
   val minor: Int?,
 ) {
-  // A build that does not name a release is a snapshot of something newer than the floor. Refusing
-  // it would refuse every nightly, and the feature lists are the real gate anyway.
+  // A build that does not name a release, such as an `N-` snapshot of master, is taken as one newer than the floor.
+  // Its banner carries nothing to compare, and refusing it would refuse every nightly.
   val isUsable: Boolean
     get() {
       val major = major ?: return true
@@ -33,8 +32,8 @@ internal class FfmpegVersion(
     get() = banner.removePrefix("ffmpeg version ").substringBefore(' ')
 }
 
-// Line one reads `ffmpeg version 9.0.1 Copyright ...`, or `n7.1-42-gabcdef`, or `N-121284-g4c9e0eb`,
-// or `7.1.4-0+deb13u1`. Only a leading `<digits>.<digits>` is a version. Everything else is a build
+// Line one reads `ffmpeg version 9.0.1 Copyright ...`, or `n8.0.1-42-gabcdef`, or `N-121284-g4c9e0eb`,
+// or `8.0.1-3ubuntu2`. Only a leading `<digits>.<digits>` is a version. Everything else is a build
 // identifier and is treated as unknown rather than as zero.
 internal fun parseVersion(output: String): FfmpegVersion {
   val banner =

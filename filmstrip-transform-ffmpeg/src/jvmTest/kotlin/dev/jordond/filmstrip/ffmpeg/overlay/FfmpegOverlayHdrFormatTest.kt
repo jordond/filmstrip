@@ -45,6 +45,7 @@ import dev.jordond.filmstrip.test.OverlayPixels.hdrSourceOver
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.toList
@@ -87,10 +88,8 @@ class FfmpegOverlayHdrFormatTest {
   fun `a JPEG XL still on a kept PQ grade lands where the shared light puts its color`() =
     runTest(timeout = TIMEOUT) { assertLands("jxl", listOf("-c:v", "libjxl")) }
 
-  // A HEIC is read by the mov demuxer only from ffmpeg 7.1 on, so this checks the grade refuses it exactly where the
-  // ffmpeg under test cannot decode it, and draws it where it can.
   @Test
-  fun `a HEIC still on a kept PQ grade is drawn exactly when this ffmpeg decodes it`() =
+  fun `a HEIC still on a kept PQ grade lands where the shared light puts its color`() =
     runTest(timeout = TIMEOUT) {
       if (!fixture.available()) return@runTest
       val heic = fixture.heicFixture()
@@ -99,17 +98,8 @@ class FfmpegOverlayHdrFormatTest {
         ImageIO.read(heic).shouldBeNull()
       }
       val overlay = ImageOverlay(ImageSource.of(heic.absolutePath), Corner.TopStart)
-      val drawn = decodedCentreOrNull(heic)
-      val resolution = resolve(overlay, HdrTransfer.Pq)
-      if (drawn == null) {
-        withClue("this ffmpeg cannot decode HEIC, so SDR fails on it too") {
-          resolution.shouldBeInstanceOf<EffectResolution.Unsupported>()
-        }
-        return@runTest
-      }
-      withClue("this ffmpeg decodes HEIC, so a grade draws it") {
-        resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
-      }
+      val drawn = withClue("ffmpeg decodes the HEIC") { decodedCentreOrNull(heic).shouldNotBeNull() }
+      resolve(overlay, HdrTransfer.Pq).shouldBeInstanceOf<EffectResolution.Resolved>()
       if (fixture.encodesHdr()) assertExportLands("heic", overlay, drawn)
     }
 

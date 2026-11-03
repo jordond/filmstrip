@@ -131,9 +131,8 @@ internal class ToolchainLocator(
             "so install ffmpeg $MINIMUM_MAJOR.$MINIMUM_MINOR or newer, or point " +
             "FfmpegConfig.executablePath at it, or set FILMSTRIP_FFMPEG."
         } else {
-          "`$tool` $found is too old. filmstrip needs $MINIMUM_MAJOR.$MINIMUM_MINOR or newer, " +
-            "because below it a multi-track mix silently divides every gain by the number of " +
-            "tracks."
+          "`$tool` $found is too old. filmstrip needs ffmpeg $MINIMUM_MAJOR.$MINIMUM_MINOR or newer, " +
+            "because below it HEIF and AVIF pictures are read without their tiles or alpha."
         },
     )
 

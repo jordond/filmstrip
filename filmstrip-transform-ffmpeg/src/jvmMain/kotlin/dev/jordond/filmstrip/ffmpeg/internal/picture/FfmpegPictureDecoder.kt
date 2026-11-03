@@ -46,10 +46,9 @@ internal actual fun decodingOverlayPictures(
  * comes back turned, since libjxl lays it out by its codestream's orientation and ffmpeg's decoder has no way to keep
  * it from doing so. Every read runs the first frame of the picture's primary image through a filter. An AVIF or HEIC
  * whose primary item is a `grid`, as [heifPrimaryGrid] reads it, goes through a complex filter graph that maps each
- * tile's stream by its id and puts them together with [assembledGrid], so a build that lists tile streams, as ffmpeg 7
- * and later do, reads the whole grid. One whose primary item is derived from tiles some other way, as
- * [heifPrimaryIsTiled] reads it, goes through a complex graph whose one input is left unlabelled, which ffmpeg 8.1 and
- * later bind to the assembled picture. Every other picture goes through a simple one, whose input is the stream ffmpeg
+ * tile's stream by its id and puts them together with [assembledGrid], so the whole grid is read. One whose primary
+ * item is derived from tiles some other way, as [heifPrimaryIsTiled] reads it, goes through a complex graph whose one
+ * input is left unlabelled, which ffmpeg 8.1 and later bind to the assembled picture. Every other picture goes through a simple one, whose input is the stream ffmpeg
  * picks for its output, and for a HEIF file that is the primary item rather than a thumbnail written ahead of it. A
  * picture this process cannot read the bytes of takes the simple one too, so a tiled one ffmpeg alone opens is refused
  * rather than read off a thumbnail.
@@ -66,9 +65,8 @@ internal actual fun decodingOverlayPictures(
  * ffmpeg reads an AVIF or HEIC's alpha item, when it reads one at all, as a stream of its own beside the color one.
  * So a picture whose file carries an alpha item, as [heifAlpha] reads it, runs a second child that decodes that
  * stream through [alphaFrame] as a sixteen-bit grey PNG, and its codes become the alpha of every texel either route
- * hands back. A file that records its color as premultiplied by the alpha comes back straight. A build that lists
- * no stream for the item, as ffmpeg 6.1 does not, hands the picture back opaque with [UNLISTED_ALPHA] among its
- * [DecodedPicture.limits]. An alpha plane of another size than the picture is refused.
+ * hands back. A file that records its color as premultiplied by the alpha comes back straight. An alpha plane that
+ * does not decode, or one of another size than the picture, is refused.
  *
  * An AVIF or HEIC is decoded from [heifWithExplicitCodestreamColor]'s bytes, whose codestream states the matrix and
  * range its `nclx` box records. Without an `nclx` it states its own signal, with a matrix it leaves out or leaves
@@ -168,8 +166,7 @@ internal class FfmpegPictureDecoder(
   }
 
   // [color] drawn with the plane of [alpha] read out of [input] by [deadline], or as it is when the file carries no
-  // alpha item. A build that lists no stream for the item draws it opaque and names its limit, and a plane of another
-  // [size] than the color's is refused.
+  // alpha item. A plane ffmpeg does not read, or one of another [size] than the color's, is refused.
   @Throws(InterruptedException::class)
   private fun <C> withAlpha(
     input: String,
@@ -182,12 +179,7 @@ internal class FfmpegPictureDecoder(
     if (alpha == null) return OverlayPictureRead.Read(draw(color, null))
     val command = opening(input) + alphaFrame(alpha)
     return when (val plane = ranToEnd(command, deadline, ::wholeStream, ::decodedPng)) {
-      is OverlayPictureRead.Refused -> {
-        if (!unlistedAlpha(plane.reason)) return plane
-        val opaque = draw(color, null)
-        val limited = DecodedPicture(opaque.size, opaque.samples, opaque.color, opaque.limits + UNLISTED_ALPHA)
-        OverlayPictureRead.Read(limited)
-      }
+      is OverlayPictureRead.Refused -> plane
       is OverlayPictureRead.Read -> {
         val read = pictureAlpha(plane.value, alpha)
         if (read.size != size) return OverlayPictureRead.Refused(alphaSizeReason(read.size, size))

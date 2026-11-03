@@ -3,7 +3,6 @@ package dev.jordond.filmstrip.ffmpeg.picture
 import dev.jordond.filmstrip.effects.overlay.OverlayPictureRead
 import dev.jordond.filmstrip.effects.overlay.StoredSamples
 import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
-import dev.jordond.filmstrip.ffmpeg.support.assumeHeif
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.picture.pictureYcbcrCoding
 import dev.jordond.filmstrip.test.AvifColorPictures
@@ -25,7 +24,6 @@ import kotlin.test.Test
  *
  * Each still is decoded and its centre texel held against [ycbcrToRgb] of its twelve-bit codes, through the matrix
  * and range core reads for it. The matrices checked are BT.709 at both ranges, BT.601, BT.2020, FCC and SMPTE 240M.
- * ffmpeg 6.1 has no HEIF demuxer, which skips the HEIC test as an assumption.
  */
 class FfmpegPictureTwelveBitTest {
   @Test
@@ -38,7 +36,6 @@ class FfmpegPictureTwelveBitTest {
 
   @Test
   fun `a twelve bit HEIC keeps its depth and lands through its nclx matrix and range`() {
-    assumeHeif()
     for (nclx in NCLXS) {
       val bytes = HeicColorPictures.twelveBit(nclx)
       assertWideLanded("HEIC $nclx", bytes, HeicColorPictures.TWELVE_BIT_YCBCR)
