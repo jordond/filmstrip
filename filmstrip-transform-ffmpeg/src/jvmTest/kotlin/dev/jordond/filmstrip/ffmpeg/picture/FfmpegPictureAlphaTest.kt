@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
 import dev.jordond.filmstrip.ffmpeg.internal.picture.PictureRoute
 import dev.jordond.filmstrip.ffmpeg.internal.picture.UNLISTED_ALPHA
 import dev.jordond.filmstrip.ffmpeg.internal.picture.alphaFrame
+import dev.jordond.filmstrip.ffmpeg.internal.picture.assembledGrid
 import dev.jordond.filmstrip.ffmpeg.internal.picture.fullRangeAlpha
 import dev.jordond.filmstrip.ffmpeg.internal.picture.pictureRoute
 import dev.jordond.filmstrip.ffmpeg.internal.picture.tiledAlpha
@@ -160,6 +161,8 @@ class FfmpegPictureAlphaTest {
   @Test
   fun `alpha tiles stack in rows by the grid's columns and crop to its size`() {
     val grid = HeifGrid((7L..12L).toList(), columns = 3, rows = 2, size = Size(20, 16))
+    assembledGrid(HeifGrid(listOf(2L, 3L), 2, 1, Size(15, 8)), "null") shouldBe
+      "[0:#2][0:#3]xstack=inputs=2:layout=0_0|w0_0,crop=15:8:0:0,null"
     tiledAlpha(grid) shouldBe
       "[0:#7][0:#8][0:#9][0:#10][0:#11][0:#12]xstack=inputs=6:layout=0_0|w0_0|w0+w0_0|0_h0|w0_h0|w0+w0_h0," +
       "crop=20:16:0:0,setparams=range=pc,format=gray16le"

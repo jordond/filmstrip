@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.media.filePathOf
 import dev.jordond.filmstrip.picture.heif.HeifAlpha
 import dev.jordond.filmstrip.picture.heif.UnturnedHeif
 import dev.jordond.filmstrip.picture.heif.heifAlpha
+import dev.jordond.filmstrip.picture.heif.heifPrimaryGrid
 import dev.jordond.filmstrip.picture.heif.heifWithExplicitCodestreamColor
 import dev.jordond.filmstrip.picture.heif.heifWithoutOrientation
 import dev.jordond.filmstrip.picture.heifPrimaryIsTiled
@@ -44,11 +45,14 @@ internal actual fun decodingOverlayPictures(
  * no orientation tag, and an AVIF or HEIC is opened with its `irot`, `imir` and `clap` dropped on top. A JPEG XL still
  * comes back turned, since libjxl lays it out by its codestream's orientation and ffmpeg's decoder has no way to keep
  * it from doing so. Every read runs the first frame of the picture's primary image through a filter. An AVIF or HEIC
- * whose primary item is derived from tiles, as [heifPrimaryIsTiled] reads it, goes through a complex filter graph whose
- * one input is left unlabelled, which ffmpeg binds to the assembled picture. Every other picture goes through a simple
- * one, whose input is the stream ffmpeg picks for its output, and for a HEIF file that is the primary item rather than
- * a thumbnail written ahead of it. A picture this process cannot read the bytes of takes the simple one too, so a tiled
- * one ffmpeg alone opens is refused rather than read off a thumbnail.
+ * whose primary item is a `grid`, as [heifPrimaryGrid] reads it, goes through a complex filter graph that maps each
+ * tile's stream by its id and puts them together with [assembledGrid], so a build that lists tile streams, as ffmpeg 7
+ * and later do, reads the whole grid. One whose primary item is derived from tiles some other way, as
+ * [heifPrimaryIsTiled] reads it, goes through a complex graph whose one input is left unlabelled, which ffmpeg 8.1 and
+ * later bind to the assembled picture. Every other picture goes through a simple one, whose input is the stream ffmpeg
+ * picks for its output, and for a HEIF file that is the primary item rather than a thumbnail written ahead of it. A
+ * picture this process cannot read the bytes of takes the simple one too, so a tiled one ffmpeg alone opens is refused
+ * rather than read off a thumbnail.
  *
  * A decode takes one of the routes [pictureRoute] picks for the picture's YCbCr coding. Most hand back the frame
  * through ffmpeg's own conversion to RGB, and it travels as a PNG of the depth and channels ffmpeg picks for the
@@ -212,16 +216,23 @@ internal class FfmpegPictureDecoder(
   private fun opening(input: String): List<String> =
     listOf(ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-noautorotate", "-i", input)
 
-  // The first frame of [input]'s primary image through [filter], written as [output]. A tiled primary item is only
-  // reachable as a complex graph's unlabelled input, and a simple graph is the one that passes over a thumbnail.
+  // The first frame of [input]'s primary image through [filter], written as [output]. A grid is put together from its
+  // tiles' streams, another tiled primary item is only reachable as a complex graph's unlabelled input, and a simple
+  // graph is the one that passes over a thumbnail.
   private fun firstFrame(
     input: String,
     bytes: ByteArray?,
     filter: String,
     output: List<String>,
   ): List<String> {
-    val graph = if (bytes != null && heifPrimaryIsTiled(bytes)) "-filter_complex" else "-vf"
-    return opening(input) + listOf("-frames:v", "1", graph, filter) + output
+    val grid = bytes?.let(::heifPrimaryGrid)
+    val graph =
+      when {
+        grid != null -> listOf("-filter_complex", assembledGrid(grid, filter))
+        bytes != null && heifPrimaryIsTiled(bytes) -> listOf("-filter_complex", filter)
+        else -> listOf("-vf", filter)
+      }
+    return opening(input) + listOf("-frames:v", "1") + graph + output
   }
 
   // Runs [read] on the file ffmpeg opens for [image], whose encoded [bytes] are null when this process cannot read

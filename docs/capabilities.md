@@ -179,6 +179,8 @@ it recognises, and declines the rest so the next resolver gets a look.
     as premultiplied with an `iref prem`. Apple and Android take the alpha their platform decoders give.
     ffmpeg 6.1 lists no stream for an AVIF's alpha item, so there the overlay draws opaque and comes
     back `Degraded` with a cause of `DegradationReason.AlphaDiscarded`. ffmpeg 6.1 opens no HEIC at all.
+    A grid AVIF or HEIC is put together from its tiles by filmstrip, which needs ffmpeg 7.0 or later to
+    list a stream for each tile. On 6.1 it is refused.
 
 [^web-text]:
     Text is rasterised at resolve against the frame an export writes, as on Android and
@@ -389,6 +391,7 @@ by a few codes is listed here with its size and is not reported.
 | ffmpeg  | swscale converts YCbCr deeper than eight bits to sixteen-bit RGB at 255/256 of full scale at limited range and 1023/1024 at full                                          | Up to four ten-bit codes low. A picture filmstrip turns into color from its stored samples has no shortfall         |
 | ffmpeg  | ffmpeg 6.1 has no HEIF demuxer                                                                                                                                           | A HEIC is unsupported                                                                                                |
 | ffmpeg  | ffmpeg 6.1 lists no stream for an AVIF's alpha item                                                                                                                      | `Degraded`, `AlphaDiscarded`, drawn opaque                                                                           |
+| ffmpeg  | ffmpeg 6.1 lists no stream for a grid's tiles. ffmpeg 7.0 and later do, and filmstrip puts the grid together from them                                                   | A grid AVIF or HEIC is unsupported on 6.1                                                                            |
 | ffmpeg  | An AVIF or HEIC the build has no decoder for                                                                                                                             | Unsupported                                                                                                          |
 | Browser | Chrome decodes no HEIC                                                                                                                                                   | Unsupported at plan time                                                                                             |
 | Browser | The matrices Chrome reads, in the table above                                                                                                                            | `Degraded`, `ColorSpaceConverted`, through the nearest matrix, or unsupported past the bound                        |

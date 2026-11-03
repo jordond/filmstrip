@@ -1,10 +1,14 @@
 package dev.jordond.filmstrip.test
 
+import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.picture.heif.heifPrimaryGrid
 import dev.jordond.filmstrip.picture.heif.heifWithExplicitCodestreamColor
 import dev.jordond.filmstrip.picture.heifPrimaryIsTiled
 import dev.jordond.filmstrip.picture.pictureColor
 import dev.jordond.filmstrip.picture.pictureYcbcrCoding
 import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 
@@ -28,6 +32,25 @@ class HeifThumbnailTest {
     for (still in stills) heifPrimaryIsTiled(still) shouldBe false
     withClue("a truncated grid") { heifPrimaryIsTiled(heic.gridBytes().copyOf(TRUNCATED)) shouldBe false }
     withClue("a PNG") { heifPrimaryIsTiled(PNG_SIGNATURE) shouldBe false }
+  }
+
+  @Test
+  fun aGridsTilesFollowAThumbnailWrittenAheadOfIt() {
+    for ((thumbnail, first) in listOf(null to 2L, avif.thumbnail() to 3L)) {
+      val grid = withClue("thumbnail $thumbnail") { heifPrimaryGrid(heic.gridBytes(thumbnail)).shouldNotBeNull() }
+      grid.tiles shouldBe (first until first + 4).toList()
+      grid.columns shouldBe 2
+      grid.rows shouldBe 2
+      grid.size shouldBe Size(128, 128)
+    }
+  }
+
+  @Test
+  fun aCodedPrimaryItemHasNoGrid() {
+    heifPrimaryGrid(heic.bytes(avif.thumbnail())).shouldBeNull()
+    heifPrimaryGrid(avif.bytes()).shouldBeNull()
+    withClue("a truncated grid") { heifPrimaryGrid(heic.gridBytes().copyOf(TRUNCATED)).shouldBeNull() }
+    withClue("a PNG") { heifPrimaryGrid(PNG_SIGNATURE).shouldBeNull() }
   }
 
   // A profile is compared by identity, so only the stills described by code points or by nothing are held equal.

@@ -145,18 +145,9 @@ internal fun alphaFrame(alpha: HeifAlpha): List<String> {
 /**
  * The filter graph that assembles [grid]'s tiles into one sixteen-bit grey plane of raw codes.
  *
- * Each tile is mapped by its id and stacked in rows by [HeifGrid.columns], then the whole is cropped to [HeifGrid.size]
- * and marked full range before it is converted.
+ * The tiles are put together by [assembledGrid], and the whole is marked full range before it is converted.
  */
-internal fun tiledAlpha(grid: HeifGrid): String {
-  val inputs = grid.tiles.joinToString("") { "[0:#$it]" }
-  val layout =
-    grid.tiles.indices.joinToString("|") { index ->
-      "${offset(index % grid.columns, "w0")}_${offset(index / grid.columns, "h0")}"
-    }
-  val stacked = if (grid.tiles.size == 1) "" else "xstack=inputs=${grid.tiles.size}:layout=$layout,"
-  return "$inputs${stacked}crop=${grid.size.width}:${grid.size.height}:0:0,$ALPHA_FORMAT"
-}
+internal fun tiledAlpha(grid: HeifGrid): String = assembledGrid(grid, ALPHA_FORMAT)
 
 // Throws when the calling thread is interrupted, clearing its interrupt, naming the [row] the plane stopped at.
 @Throws(InterruptedException::class)
@@ -166,12 +157,6 @@ private fun interruptible(row: Int) {
 
 // Where red, green or blue sits in a packed ARGB texel, by its [channel] index.
 private fun shiftOf(channel: Int): Int = RED_SHIFT - channel * BYTE_BITS
-
-// [count] tiles of [side] along one axis, as an xstack layout expression.
-private fun offset(
-  count: Int,
-  side: String,
-): String = if (count == 0) "0" else List(count) { side }.joinToString("+")
 
 /**
  * Whether ffmpeg's [reason] for failing an alpha decode is that it lists no stream for the item, which is how ffmpeg

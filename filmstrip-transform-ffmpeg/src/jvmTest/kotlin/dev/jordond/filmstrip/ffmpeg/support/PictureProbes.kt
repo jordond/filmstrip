@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.picture.UNLISTED_ALPHA
 import dev.jordond.filmstrip.ffmpeg.internal.picture.pictureRoute
 import dev.jordond.filmstrip.ffmpeg.internal.process.parseVersion
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.picture.heif.heifPrimaryGrid
 import dev.jordond.filmstrip.test.AlphaPlanes
 import dev.jordond.filmstrip.test.ColorPictures
 import dev.jordond.filmstrip.test.HeifAlphaPlane
@@ -16,6 +17,7 @@ import dev.jordond.filmstrip.test.HeifThumbnail
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import org.junit.Assume.assumeTrue
+import java.io.File
 
 // What this ffmpeg can open, for the picture tests that skip as an assumption on a build without it. ffmpeg 6.1 has no
 // HEIF demuxer, reads a grid item's data as a coded picture and fails on it, and lists no stream for an AVIF's alpha
@@ -65,9 +67,27 @@ internal fun assumeAlphaStreams() {
 }
 
 internal fun assumeTiles(grid: ByteArray) {
-  val tiles = decodes(grid)
-  withClue("ffmpeg $major reads tile grids and did not decode one") { (tiles || !verified).shouldBeTrue() }
-  assumeTrue("this ffmpeg has no tile grids, as 6.1 does not", tiles)
+  val tiles = listsTileStreams(grid)
+  withClue("ffmpeg $major lists no stream for a grid's tile") { (tiles || !verified).shouldBeTrue() }
+  assumeTrue("this ffmpeg lists no stream for a grid's tiles, as 6.1 does not", tiles)
+}
+
+// Whether this ffmpeg lists a stream for the first tile of [grid], a HEIF file whose primary item is a grid, by the
+// tile's item id. ffmpeg 7 and later do, and 6.1 lists none.
+private fun listsTileStreams(grid: ByteArray): Boolean {
+  val tile = checkNotNull(heifPrimaryGrid(grid)) { "the picture's primary item is not a grid" }.tiles.first()
+  val file = File.createTempFile("filmstrip-tile-probe", ".heic")
+  return try {
+    file.writeBytes(grid)
+    val command =
+      listOf(FFMPEG, "-nostdin", "-hide_banner", "-loglevel", "error", "-i", file.absolutePath, "-map", "0:#$tile") +
+        listOf("-frames:v", "1", "-f", "null", "-")
+    val process = ProcessBuilder(command).redirectErrorStream(true).start()
+    process.inputStream.readAllBytes()
+    process.waitFor() == 0
+  } finally {
+    file.delete()
+  }
 }
 
 // The still of [item] with [alpha] as its alpha item, branded for the item's codec.
