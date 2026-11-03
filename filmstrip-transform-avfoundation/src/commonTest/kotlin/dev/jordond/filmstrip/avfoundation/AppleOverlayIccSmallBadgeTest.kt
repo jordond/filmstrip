@@ -1,10 +1,12 @@
 package dev.jordond.filmstrip.avfoundation
 
+import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fill
@@ -58,7 +60,8 @@ class AppleOverlayIccSmallBadgeTest : AppleOverlayIccCase() {
               badges.forEach { add(it) }
             }
           }
-        val statuses = withContext(Dispatchers.Default) { filmstrip.export(composition, SDR, MediaSink.of(output)) }
+        val statuses =
+          withContext(Dispatchers.Default) { filmstrip.export(composition, SMALL_BADGE_SDR, MediaSink.of(output)) }
         val finished = statuses.toList().last()
         if (finished is ExportStatus.Failure) error("the small badge export failed: ${finished.error.message}")
         val size =
@@ -122,5 +125,11 @@ class AppleOverlayIccSmallBadgeTest : AppleOverlayIccCase() {
     return "the small ${picture.name} badge exported at $read, its blue and red differences off one of $colors by " +
       "${ringing.map { pairs -> pairs.map { it.first } }}, past $ENCODE_FLOOR and $RINGING_SHARE of their steps from " +
       "the fill ${ringing.map { pairs -> pairs.map { it.second } }}"
+  }
+
+  private companion object {
+    // The SDR export at a bitrate of its own. The output settings assistant's for a 180 pixel frame is low enough that
+    // how far the encode rings into a badge's centre moves with the machine it runs on.
+    val SMALL_BADGE_SDR = ExportSpec(heightPx = SDR.heightPx, bitrate = Bitrate.mbps(8))
   }
 }
