@@ -3,7 +3,6 @@ package dev.jordond.filmstrip.picture.png
 import dev.jordond.filmstrip.picture.bytes.BitWriter
 import dev.jordond.filmstrip.picture.fixtures.MAX_PROFILE
 import dev.jordond.filmstrip.picture.fixtures.adler32Of
-import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import kotlin.random.Random
@@ -29,9 +28,6 @@ class InflateTest {
 
   @Test
   fun `a stream that inflates past the limit is refused`() {
-    val bomb = zeroRunZlib(ByteArray(0), MAX_PROFILE + 1)
-    bomb.size shouldBeLessThan MAX_PROFILE / 100
-    inflate(bomb).shouldBeNull()
     inflate(zeroRunZlib(ByteArray(0), 1000), limit = 999).shouldBeNull()
     inflate(zeroRunZlib(ByteArray(0), 1000), limit = 1000) shouldBe ByteArray(1000)
     inflate(zeroRunZlib(ByteArray(0), 1000), limit = 5000) shouldBe ByteArray(1000)

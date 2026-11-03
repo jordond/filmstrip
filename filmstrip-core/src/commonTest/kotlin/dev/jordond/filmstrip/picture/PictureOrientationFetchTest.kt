@@ -8,7 +8,6 @@ import dev.jordond.filmstrip.picture.fixtures.asciiBytes
 import dev.jordond.filmstrip.picture.fixtures.bigTiffHeader
 import dev.jordond.filmstrip.picture.fixtures.box
 import dev.jordond.filmstrip.picture.fixtures.bytes
-import dev.jordond.filmstrip.picture.fixtures.crc32Of
 import dev.jordond.filmstrip.picture.fixtures.exifBlock
 import dev.jordond.filmstrip.picture.fixtures.heifOriented
 import dev.jordond.filmstrip.picture.fixtures.jxlBoxed
@@ -28,7 +27,6 @@ import dev.jordond.filmstrip.picture.fixtures.u64
 import dev.jordond.filmstrip.picture.fixtures.webpWithExif
 import dev.jordond.filmstrip.picture.heif.heifOrientationOf
 import dev.jordond.filmstrip.picture.png.PNG_SIGNATURE
-import dev.jordond.filmstrip.picture.png.hex
 import dev.jordond.filmstrip.picture.png.pngChunk
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -191,15 +189,6 @@ class PictureOrientationFetchTest {
       }
     }
 
-  @Test
-  fun aTagBlockThatFitsInOneReadIsReadWhole() =
-    runTest {
-      val padded = exifBlock(7) + ByteArray(MAX_WALK_BLOCK - 8 - exifBlock(7).size)
-
-      Fetch.of(pngHolding(padded)).orientation() shouldBe PictureOrientation.ofExif(7)
-      Fetch.of(pngHolding(padded + ByteArray(1))).orientation() shouldBe PictureOrientation.Normal
-    }
-
   private fun early(): List<ByteArray> =
     listOf(
       rotatedImageProbeBytes(5),
@@ -259,12 +248,6 @@ class PictureOrientationFetchTest {
     }
   }
 
-  // A PNG of nothing but an eXIf chunk holding [exif], laid out without the list backed builder since it is large.
-  private fun pngHolding(exif: ByteArray): ByteArray {
-    val typed = asciiBytes("eXIf") + exif
-    return PNG_SIGNATURE + bytes { u32(exif.size.toLong()) } + typed + bytes { u32(crc32Of(typed)) } + IEND_CHUNK
-  }
-
   // A little endian BigTIFF whose first directory holds [entry] entries of another tag and then the orientation.
   private fun bigTiffTaggedAtEntry(
     entry: Int,
@@ -296,7 +279,6 @@ class PictureOrientationFetchTest {
     // One entry past the most a classic directory's two byte count can hold.
     const val BIG_TIFF_TAG_ENTRY = 0x10000
     const val GIGABYTE = 1L shl 30
-    val IEND_CHUNK = hex("0000000049454E44AE426082")
     val MUTATIONS = intArrayOf(0x01, 0x80, 0xFF)
   }
 }

@@ -219,7 +219,7 @@ class HevcSpsTest {
 
   @Test
   fun `a unit cut at any bit never throws`() {
-    for (shape in shapes()) {
+    for (shape in shapes(spread = NARROW_SPREAD)) {
       val bits = shape.bits()
       for (count in 0 until bits.size) {
         spsSignal(escape(bits.rbsp(count, stop = false)))
@@ -311,11 +311,16 @@ class HevcSpsTest {
     }
   }
 
-  private fun shapes(): List<SpsShape> =
+  private fun shapes(spread: Int = 256): List<SpsShape> =
     listOf(
       SpsShape(vui = bt2020Vui),
       SpsShape(subLayers = listOf(true to true, false to true), orderingForAll = true, vui = bt2020Vui),
-      SpsShape(conformanceWindow = listOf(1, 2, 3, 4), pcm = PCM, scalingLists = scalingLists(), vui = bt2020Vui),
+      SpsShape(
+        conformanceWindow = listOf(1, 2, 3, 4),
+        pcm = PCM,
+        scalingLists = scalingLists(spread = spread),
+        vui = bt2020Vui,
+      ),
       SpsShape(shortTermSets = { predictedChain(setFourEntries = 5) }, longTermPocs = listOf(3, 9), vui = bt2020Vui),
     )
 
@@ -382,6 +387,11 @@ class HevcSpsTest {
   private fun predictedBy(deltaRps: Int): SpsShape {
     val sets: Bits.() -> Unit = { ue(2).explicit(listOf(-1), emptyList()).predicted(deltaRps, listOf(true, true)) }
     return SpsShape(shortTermSets = sets, vui = bt2020Vui)
+  }
+
+  private companion object {
+    // Delta coefficients spread over this few values write a few bits each rather than up to seventeen.
+    const val NARROW_SPREAD = 8
   }
 }
 

@@ -44,12 +44,12 @@ internal class Bits {
     count: Int = size,
     stop: Boolean = true,
   ): ByteArray {
-    val written = bits.subList(0, count) + if (stop) listOf(true) else emptyList()
-    return ByteArray((written.size + 7) / 8) { at ->
-      (0 until 8)
-        .fold(0) { byte, bit -> (byte shl 1) or if (written.getOrElse(at * 8 + bit) { false }) 1 else 0 }
-        .toByte()
+    val length = if (stop) count + 1 else count
+    val packed = ByteArray((length + 7) / 8)
+    for (at in 0 until length) {
+      if (at == count || bits[at]) packed[at / 8] = (packed[at / 8].toInt() or (0x80 ushr (at % 8))).toByte()
     }
+    return packed
   }
 }
 
@@ -171,13 +171,15 @@ internal val PCM = listOf(7, 7, 0, 1)
  * spread over their range, or only the flag that leaves the lists at their defaults when [present] is false.
  *
  * [dc] replaces the first DC coefficient, [coefficient] the first delta coefficient, and [reference] the reference
- * delta of the last 32 by 32 list, which may reach back only one list.
+ * delta of the last 32 by 32 list, which may reach back only one list. The delta coefficients spread over [spread]
+ * values centred on zero.
  */
 internal fun scalingLists(
   present: Boolean = true,
   dc: Int? = null,
   coefficient: Int? = null,
   reference: Int? = null,
+  spread: Int = 256,
 ): Bits.() -> Unit =
   {
     flag(present)
@@ -194,7 +196,7 @@ internal fun scalingLists(
           flag(true)
           if (sizeId > 1) se(dc?.takeIf { firstDc } ?: if (matrixId % 2 == 0) -7 else 247).also { firstDc = false }
           repeat(minOf(64, 1 shl (4 + sizeId * 2))) {
-            se(coefficient?.takeIf { firstCoefficient } ?: ((it * 37 + matrixId) % 256 - 128))
+            se(coefficient?.takeIf { firstCoefficient } ?: ((it * 37 + matrixId) % spread - spread / 2))
             firstCoefficient = false
           }
         }
