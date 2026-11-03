@@ -5,8 +5,13 @@ package dev.jordond.filmstrip.filekit
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import io.github.vinceglb.filekit.BrowserFile
+import io.github.vinceglb.filekit.ExperimentalFileKitApi
+import io.github.vinceglb.filekit.FileKit
 import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.WebFile
+import io.github.vinceglb.filekit.originPrivateDir
+import io.github.vinceglb.filekit.resolveFile
+import io.github.vinceglb.filekit.write
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldStartWith
@@ -19,6 +24,7 @@ import kotlin.js.Promise
 import kotlin.js.toJsArray
 import kotlin.js.toJsString
 import kotlin.test.Test
+import kotlin.test.assertFailsWith
 
 /**
  * The browser mapping, and what releasing one of its sources frees.
@@ -74,6 +80,18 @@ class PlatformFilesWebTest {
 
       withClue("the released pick should no longer be readable") { released.isReadable() shouldBe false }
       withClue("the other pick should still be readable") { kept.isReadable() shouldBe true }
+    }
+
+  @OptIn(ExperimentalFileKitApi::class)
+  @Test
+  fun anOriginPrivateFileIsRefused() =
+    runTest {
+      val file = FileKit.originPrivateDir.resolveFile("clip.mp4", create = true)
+      file.write(CONTENT.encodeToByteArray())
+      file.webFile.shouldBeInstanceOf<WebFile.OriginPrivateFile>()
+
+      assertFailsWith<IllegalArgumentException> { file.toMediaSource() }
+      assertFailsWith<IllegalArgumentException> { file.toImageSource() }
     }
 
   @Test

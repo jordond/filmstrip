@@ -5,6 +5,7 @@ package dev.jordond.filmstrip.filekit
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import io.github.vinceglb.filekit.ExperimentalFileKitApi
 import io.github.vinceglb.filekit.PlatformFile
 import io.github.vinceglb.filekit.WebFile
 import io.github.vinceglb.filekit.name
@@ -51,10 +52,20 @@ public actual fun ImageSource.release() {
   if (this is ImageSource.Uri) revokeObjectUrl(uri)
 }
 
+@OptIn(ExperimentalFileKitApi::class)
 private fun PlatformFile.objectUrl(): String =
   when (val file = webFile) {
-    is WebFile.FileWrapper -> URL.createObjectURL(file.file)
-    is WebFile.DirectoryWrapper -> throw IllegalArgumentException("A directory cannot be read as media.")
+    is WebFile.FileWrapper -> {
+      URL.createObjectURL(file.file)
+    }
+    is WebFile.DirectoryWrapper, is WebFile.OriginPrivateDirectory -> {
+      throw IllegalArgumentException("A directory cannot be read as media.")
+    }
+    // filekit keeps the origin private file handle internal. Its only public read copies the whole file into memory
+    // and an object URL can't be minted from that.
+    is WebFile.OriginPrivateFile -> {
+      throw IllegalArgumentException("A file in the origin private file system cannot be read as media.")
+    }
   }
 
 // Only an object URL is revoked. A uri on any other scheme reached this module from somewhere else
