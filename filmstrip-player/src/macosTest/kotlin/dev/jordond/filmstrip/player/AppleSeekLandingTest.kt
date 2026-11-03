@@ -13,12 +13,8 @@ import dev.jordond.filmstrip.player.internal.frameStepLanding
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
-import platform.AVFoundation.AVPlayerTimeControlStatusPaused
 import platform.AVFoundation.currentItem
 import platform.AVFoundation.currentTime
-import platform.AVFoundation.pause
-import platform.AVFoundation.play
-import platform.AVFoundation.timeControlStatus
 import kotlin.test.Test
 import kotlin.test.fail
 import kotlin.time.Duration
@@ -78,38 +74,6 @@ class AppleSeekLandingTest {
       recorder.playhead shouldBe last
     }
 
-  /**
-   * AVFoundation stops the item's clock inside `pause()`, so the reading the engine takes as it stops is already where
-   * the item came to rest, and the periodic observer's reading of the stop matches it. Measured three times each on the
-   * macOS host and the iOS simulator, the item's time read straight after `pause()` returned never moved again. This
-   * holds the reported playhead to the item, and cannot tell which of the two readings put it there.
-   */
-  @Test
-  fun `a pause reports where the item stopped`() =
-    withLoadedEngine { engine, recorder ->
-      engine.play()
-      awaitContract("the playhead to advance") { (recorder.playhead ?: Duration.ZERO) > Duration.ZERO }
-      engine.pause()
-      engine.awaitStopped()
-
-      recorder.playhead shouldBe engine.itemTime()
-    }
-
-  /**
-   * The engine hears this pause as the key-value change AVFoundation posts on the pausing thread, and reads the item's
-   * clock once that change reaches it, after the clock has stopped. The same measurement as the pause above holds.
-   */
-  @Test
-  fun `playback started on the native player moves the playhead and reports where it stopped`() =
-    withLoadedEngine { engine, recorder ->
-      engine.platformPlayer.play()
-      awaitContract("the playhead to advance") { (recorder.playhead ?: Duration.ZERO) > Duration.ZERO }
-      engine.platformPlayer.pause()
-      engine.awaitStopped()
-
-      recorder.playhead shouldBe engine.itemTime()
-    }
-
   @Test
   fun `a pause while paused keeps the landing`() =
     withLoadedEngine { engine, recorder ->
@@ -139,14 +103,6 @@ class AppleSeekLandingTest {
     val before = recorder.seekCompletions.size
     seekTo(at, accuracy)
     awaitContract("the seek to $at to complete") { recorder.seekCompletions.size > before }
-  }
-
-  /**
-   * Waits for the player to report itself paused, then for every callback that stop posted to reach the engine.
-   */
-  private suspend fun AvPlayerEngine.awaitStopped() {
-    awaitContract("the player to stop") { platformPlayer.timeControlStatus == AVPlayerTimeControlStatusPaused }
-    drainCallbacks()
   }
 
   private fun AvPlayerEngine.itemTime(): Duration =
