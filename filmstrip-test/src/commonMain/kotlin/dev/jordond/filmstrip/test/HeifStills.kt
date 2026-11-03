@@ -156,7 +156,7 @@ public object HeifStills {
 
   // A HEIF file of [items], the first of them its primary item, with [thumbnail] ahead of them as the item that takes
   // the first id. Each item's data sits in mdat in item order, and [derivations] join the thumbnail's thmb in iref.
-  private fun heif(
+  internal fun heif(
     brand: String,
     primaryProperties: List<ByteArray>,
     items: List<Item>,
@@ -262,12 +262,12 @@ public object HeifStills {
       box("prem", uInt16(color) + uInt16(1) + uInt16(alpha)).takeIf { premultiplied },
     )
 
-  private fun <T> List<T>.joined(bytes: (T) -> ByteArray): ByteArray =
+  internal fun <T> List<T>.joined(bytes: (T) -> ByteArray): ByteArray =
     fold(ByteArray(0)) { joined, element -> joined + bytes(element) }
 
   // One item of the file: its id, type and data, and the one-based ipco indices of its properties with the essential
   // ones flagged.
-  private class Item(
+  internal class Item(
     val id: Int,
     val type: String,
     val data: ByteArray,
@@ -279,7 +279,7 @@ public object HeifStills {
   private const val AVIF_ALPHA = "urn:mpeg:mpegB:cicp:systems:auxiliary:alpha"
   private const val HEVC_ALPHA = "urn:mpeg:hevc:2015:auxid:1"
   private const val FIRST_ID = 1
-  private const val CHANNELS = 3
+  internal const val CHANNELS = 3
   internal const val ESSENTIAL = 0x80
   private const val CONFIGURATION_INDEX = 2
   private const val MAX_GRID_SIDE = 256

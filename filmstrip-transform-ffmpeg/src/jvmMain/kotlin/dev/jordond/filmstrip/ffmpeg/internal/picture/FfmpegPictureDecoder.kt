@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.picture.heif.HeifAlpha
 import dev.jordond.filmstrip.picture.heif.UnturnedHeif
 import dev.jordond.filmstrip.picture.heif.heifAlpha
 import dev.jordond.filmstrip.picture.heif.heifPrimaryGrid
+import dev.jordond.filmstrip.picture.heif.heifPrimaryOverlay
 import dev.jordond.filmstrip.picture.heif.heifWithExplicitCodestreamColor
 import dev.jordond.filmstrip.picture.heif.heifWithoutOrientation
 import dev.jordond.filmstrip.picture.heifPrimaryIsTiled
@@ -45,13 +46,13 @@ internal actual fun decodingOverlayPictures(
  * no orientation tag, and an AVIF or HEIC is opened with its `irot`, `imir` and `clap` dropped on top. A JPEG XL still
  * comes back turned, since libjxl lays it out by its codestream's orientation and ffmpeg's decoder has no way to keep
  * it from doing so. Every read runs the first frame of the picture's primary image through a filter. An AVIF or HEIC
- * whose primary item is a `grid`, as [heifPrimaryGrid] reads it, goes through a complex filter graph that maps each
- * tile's stream by its id and puts them together with [assembledGrid], so the whole grid is read. One whose primary
- * item is derived from tiles some other way, as [heifPrimaryIsTiled] reads it, goes through a complex graph whose one
- * input is left unlabelled, which ffmpeg 8.1 and later bind to the assembled picture. Every other picture goes through a simple one, whose input is the stream ffmpeg
- * picks for its output, and for a HEIF file that is the primary item rather than a thumbnail written ahead of it. A
- * picture this process cannot read the bytes of takes the simple one too, so a tiled one ffmpeg alone opens is refused
- * rather than read off a thumbnail.
+ * whose primary item is a `grid`, as [heifPrimaryGrid] reads it, or an `iovl`, as [heifPrimaryOverlay] reads it, goes
+ * through a complex filter graph that maps each input's stream by its id and puts them together, as [primaryGraph]
+ * builds it. One whose primary item is derived from tiles some other way, as [heifPrimaryIsTiled] reads it, is
+ * refused. Every other picture goes through a simple one, whose input is the stream ffmpeg picks for its output, and
+ * for a HEIF file that is the primary item rather than a thumbnail written ahead of it. A picture this process cannot
+ * read the bytes of takes the simple one too, so a tiled one ffmpeg alone opens is refused rather than read off a
+ * thumbnail. An `iovl` whose canvas color shows is refused when [overlayFillReason] gives a reason.
  *
  * A decode takes one of the routes [pictureRoute] picks for the picture's YCbCr coding. Most hand back the frame
  * through ffmpeg's own conversion to RGB, and it travels as a PNG of the depth and channels ffmpeg picks for the
@@ -102,17 +103,22 @@ internal class FfmpegPictureDecoder(
     val deadline = deadlineFromNow()
     val bytes = encodedBytes(image)
     val alpha = bytes?.let(::heifAlpha)
-    return when (val route = pictureRoute(bytes?.let(::pictureYcbcrCoding))) {
+    val route = pictureRoute(bytes?.let(::pictureYcbcrCoding))
+    bytes
+      ?.let(::heifPrimaryOverlay)
+      ?.let { overlayFillReason(it, route is PictureRoute.Planes) }
+      ?.let { return OverlayPictureDecode.Undrawn(it) }
+    return when (route) {
       is PictureRoute.Refused -> {
         OverlayPictureDecode.Undrawn(route.reason)
       }
       is PictureRoute.Converted -> {
-        val read = FrameRead(route.filter, PNG_ON_STDOUT, ::wholeStream, ::decodedPng, DecodedPicture::size)
+        val read = FrameRead(route.filter, PNG_ON_STDOUT, true, ::wholeStream, ::decodedPng, DecodedPicture::size)
         decodedThrough(image, bytes, alpha, deadline, read) { picture, plane -> plane?.appliedTo(picture) ?: picture }
       }
       is PictureRoute.Planes -> {
         val planes: (InputStream) -> YuvPlanes? = { yuv4mpegPlanes(it, route.bitDepth) }
-        val read = FrameRead(route.filter, PLANES_ON_STDOUT, planes, { it }, YuvPlanes::size)
+        val read = FrameRead(route.filter, PLANES_ON_STDOUT, false, planes, { it }, YuvPlanes::size)
         decodedThrough(image, bytes, alpha, deadline, read) { planes, plane ->
           decodedPlanes(planes, route.evaluator, plane)
         }
@@ -130,18 +136,23 @@ internal class FfmpegPictureDecoder(
     draw: (C, PictureAlpha?) -> DecodedPicture,
   ): OverlayPictureDecode<DecodedPicture> =
     drawnThrough(image, bytes) { input ->
-      val command = firstFrame(input, bytes, read.filter, read.output)
+      val command =
+        when (val frame = firstFrame(input, bytes, read.filter, read.rgb, read.output)) {
+          is OverlayPictureRead.Refused -> return@drawnThrough frame
+          is OverlayPictureRead.Read -> frame.value
+        }
       when (val color = ranToEnd(command, deadline, read.collect, read.parse)) {
         is OverlayPictureRead.Refused -> color
         is OverlayPictureRead.Read -> withAlpha(input, alpha, deadline, color.value, read.sizeOf(color.value), draw)
       }
     }
 
-  // How one route reads its first frame: the filter it runs, where ffmpeg writes the frame, how stdout is gathered and
-  // parsed, and the size of what comes back.
+  // How one route reads its first frame: the filter it runs, where ffmpeg writes the frame and whether as RGB, how
+  // stdout is gathered and parsed, and the size of what comes back.
   private class FrameRead<R : Any, C>(
     val filter: String,
     val output: List<String>,
+    val rgb: Boolean,
     val collect: (InputStream) -> R?,
     val parse: (R) -> C?,
     val sizeOf: (C) -> Size,
@@ -179,7 +190,9 @@ internal class FfmpegPictureDecoder(
     if (alpha == null) return OverlayPictureRead.Read(draw(color, null))
     val command = opening(input) + alphaFrame(alpha)
     return when (val plane = ranToEnd(command, deadline, ::wholeStream, ::decodedPng)) {
-      is OverlayPictureRead.Refused -> plane
+      is OverlayPictureRead.Refused -> {
+        plane
+      }
       is OverlayPictureRead.Read -> {
         val read = pictureAlpha(plane.value, alpha)
         if (read.size != size) return OverlayPictureRead.Refused(alphaSizeReason(read.size, size))
@@ -198,8 +211,10 @@ internal class FfmpegPictureDecoder(
         }
       }
     return readThrough(image, bytes, handed) { input ->
-      val command = firstFrame(input, bytes, PASS_THROUGH, SIZE_ON_STDOUT)
-      ranToEnd(command, deadlineFromNow(), ::wholeStream, ::sizeOfFrameCrc)
+      when (val frame = firstFrame(input, bytes, PASS_THROUGH, false, SIZE_ON_STDOUT)) {
+        is OverlayPictureRead.Refused -> frame
+        is OverlayPictureRead.Read -> ranToEnd(frame.value, deadlineFromNow(), ::wholeStream, ::sizeOfFrameCrc)
+      }
     }
   }
 
@@ -208,24 +223,23 @@ internal class FfmpegPictureDecoder(
   private fun opening(input: String): List<String> =
     listOf(ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-noautorotate", "-i", input)
 
-  // The first frame of [input]'s primary image through [filter], written as [output]. A grid is put together from its
-  // tiles' streams, another tiled primary item is only reachable as a complex graph's unlabelled input, and a simple
-  // graph is the one that passes over a thumbnail.
+  // The first frame of [input]'s primary image through [filter], written as [output] and as RGB when [rgb] is set,
+  // with the graph [primaryGraph] picks for it, or refused with its reason.
   private fun firstFrame(
     input: String,
     bytes: ByteArray?,
     filter: String,
+    rgb: Boolean,
     output: List<String>,
-  ): List<String> {
-    val grid = bytes?.let(::heifPrimaryGrid)
-    val graph =
-      when {
-        grid != null -> listOf("-filter_complex", assembledGrid(grid, filter))
-        bytes != null && heifPrimaryIsTiled(bytes) -> listOf("-filter_complex", filter)
-        else -> listOf("-vf", filter)
+  ): OverlayPictureRead<List<String>> =
+    when (val graph = primaryGraph(bytes, filter, rgb)) {
+      is PrimaryGraph.Refused -> {
+        OverlayPictureRead.Refused(graph.reason)
       }
-    return opening(input) + listOf("-frames:v", "1") + graph + output
-  }
+      is PrimaryGraph.Graph -> {
+        OverlayPictureRead.Read(opening(input) + listOf("-frames:v", "1") + graph.arguments + output)
+      }
+    }
 
   // Runs [read] on the file ffmpeg opens for [image], whose encoded [bytes] are null when this process cannot read
   // them. [handed] are the bytes ffmpeg reads in their place, null when [bytes] are. Bytes handed over as bytes, and a

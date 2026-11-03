@@ -178,7 +178,9 @@ it recognises, and declines the rest so the next resolver gets a look.
     alpha is expanded to full range. Only ffmpeg straightens a picture whose file records its color
     as premultiplied with an `iref prem`. Apple and Android take the alpha their platform decoders give.
     A grid AVIF or HEIC is put together from its tiles by filmstrip, from the stream ffmpeg lists for
-    each tile. The ffmpeg backend needs ffmpeg 8.0 or later, and refuses an older one by name.
+    each tile, and an image overlay (`iovl`) from its inputs, each turned into color on its own and
+    drawn at its offset over the canvas color. The ffmpeg backend needs ffmpeg 8.0 or later, and
+    refuses an older one by name.
 
 [^web-text]:
     Text is rasterised at resolve against the frame an export writes, as on Android and
@@ -388,6 +390,8 @@ by a few codes is listed here with its size and is not reported.
 | Apple   | VideoToolbox's lossy encode rings into the middle of a small overlay                                                                                                     | Measured up to 4.8% of the chroma step between the overlay and the frame behind it                                   |
 | ffmpeg  | swscale converts YCbCr deeper than eight bits to sixteen-bit RGB at 255/256 of full scale at limited range and 1023/1024 at full                                          | Up to four ten-bit codes low. A picture filmstrip turns into color from its stored samples has no shortfall         |
 | ffmpeg  | An AVIF or HEIC the build has no decoder for                                                                                                                             | Unsupported                                                                                                          |
+| ffmpeg  | An image overlay whose canvas shows a color that is not opaque, since ffmpeg paints the canvas with no alpha                                                             | Unsupported                                                                                                          |
+| ffmpeg  | An image overlay whose canvas shows, on a matrix filmstrip turns into color from its stored samples                                                                      | Unsupported                                                                                                          |
 | Browser | Chrome decodes no HEIC                                                                                                                                                   | Unsupported at plan time                                                                                             |
 | Browser | The matrices Chrome reads, in the table above                                                                                                                            | `Degraded`, `ColorSpaceConverted`, through the nearest matrix, or unsupported past the bound                        |
 | Browser | Chrome turns a limited range BT.709 or BT.2020 AVIF into RGB up to six eight-bit codes from its H.273 reading, on colors inside the gamut. That holds for 12 on those primaries too | Drawn as Chrome decodes it                                                                                           |
