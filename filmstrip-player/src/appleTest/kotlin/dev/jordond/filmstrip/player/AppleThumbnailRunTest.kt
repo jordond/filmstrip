@@ -10,7 +10,6 @@ import kotlinx.coroutines.flow.toList
 import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.TimeSource
 
 /**
  * What a whole strip run gets back, over the path a host drives.
@@ -20,9 +19,6 @@ import kotlin.time.TimeSource
  * default batching, which walks the run one request at a time. That default is shared code and its
  * callbacks arrive here on AVFoundation's own queue rather than on the thread that asked, which is
  * the part no host test covers.
- *
- * The total it prints is what the strip's latency is judged on, for anyone measuring the path
- * again.
  */
 class AppleThumbnailRunTest {
   init {
@@ -35,9 +31,7 @@ class AppleThumbnailRunTest {
       val filmstrip = Filmstrip { playerBackend() }
       val composition = appleFixtureComposition()
 
-      val started = TimeSource.Monotonic.markNow()
       val received = filmstrip.frames(composition, RUN_POSITIONS, STRIP_HEIGHT).toList()
-      println("a run of ${received.size} tiles filled in ${started.elapsedNow().inWholeMilliseconds}ms")
 
       try {
         received.size shouldBe RUN_POSITIONS.size
