@@ -47,6 +47,7 @@ public class PlannedExportEngine(
       ladder = ladder,
       supportsCopy = supportsCopy,
       muxerAccepts = muxerAccepts,
+      toneCurve = backend.toneCurve,
     )
 
   private val reads = PlanningReads(prober, backend::capabilities, backend::syncSampleAtOrBefore)

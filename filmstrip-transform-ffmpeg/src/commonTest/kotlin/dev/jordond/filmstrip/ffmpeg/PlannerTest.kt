@@ -34,6 +34,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.FfmpegParity
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPlanner
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.EXPRESSION_SEGMENTS
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.TONE_MAP_FILTERS
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegEncoderNamed
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegEncoders
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.formatSeconds
@@ -56,6 +57,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.test.OrientedPictures
+import dev.jordond.filmstrip.transform.internal.hdr.TONE_MAP_BT2020_TO_BT709
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.resolve.curveOver
 import dev.jordond.filmstrip.transform.internal.resolve.stillUnsupportedMessage
@@ -73,8 +75,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
 
-private val TONE_MAPPING = setOf("overlay", "concat", "amix", "zscale")
-private val LIBPLACEBO_TONE_MAPPING = setOf("overlay", "concat", "amix", "libplacebo")
+private val TONE_MAPPING = setOf("overlay", "concat", "amix") + TONE_MAP_FILTERS
 
 // Enough pinned points that the curve they resolve to outruns what one volume node carries, laid
 // close enough together to stay inside the landscape fixture's own length.
@@ -241,20 +242,12 @@ class PlannerTest {
 
     val graph = capableGraph(composition, ExportSpec(), toolchain(TONE_MAPPING))
 
-    graph shouldContain "zscale=transfer=linear:npl=100,tonemap=tonemap=hable:desat=0"
-    Regex("zscale=transfer=linear").findAll(graph).count() shouldBe 1
-  }
-
-  // A build with libplacebo but no zscale takes the other route: one node instead of three, still
-  // landing on BT.709.
-  @Test
-  fun `tone-maps through libplacebo on a build with no zscale`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(graded), Clip(landscape)))))
-
-    val graph = capableGraph(composition, ExportSpec(), toolchain(LIBPLACEBO_TONE_MAPPING))
-
-    graph shouldContain
-      "libplacebo=tonemapping=bt.2390:colorspace=bt709:color_primaries=bt709:color_trc=bt709:range=tv"
+    val matrix = TONE_MAP_BT2020_TO_BT709.red
+    Regex("geq=").findAll(graph).count() shouldBe 1
+    Regex("colorchannelmixer=rr=${matrix.r}:rg=${matrix.g}:rb=${matrix.b}").findAll(graph).count() shouldBe 1
+    Regex("setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv").findAll(graph).count() shouldBe 1
+    graph shouldNotContain "zscale"
+    graph shouldNotContain "tonemap"
   }
 
   // A copy would already preserve this clip's grade untouched, so the rotation is what forces the
@@ -269,11 +262,11 @@ class PlannerTest {
       listOf(AdjustmentKind.HdrToneMapped)
   }
 
-  // Without zscale or libplacebo there is no route to run, and claiming the tone map anyway wrote
-  // the grade straight into an SDR file and called it done. The rotation rules out the copy that
+  // Without lut1d, geq and colorchannelmixer there is no curve to run, and claiming the tone map
+  // anyway would write the grade straight into an SDR file and call it done. The rotation rules out the copy that
   // would otherwise have preserved the grade with no tone map needed at all.
   @Test
-  fun `refuses a graded source on a build with no zscale or libplacebo`() {
+  fun `refuses a graded source on a build that cannot run the tone curve`() {
     val composition = EditComposition(listOf(Track(listOf(Clip(graded, effects = listOf(Rotate(90)))))))
 
     val verdict = planner().lower(composition, Ask(ExportSpec(), device(), infos)).verdict
@@ -297,10 +290,10 @@ class PlannerTest {
     verdict.shouldBeInstanceOf<Verdict.Capable>().plan.path shouldBe ExportPath.Transcode
   }
 
-  // The cheapest fix for HDR on a build with no zscale: an untouched clip needs no filter graph at
+  // The cheapest fix for HDR on a build with no tone curve: an untouched clip needs no filter graph at
   // all, so a copy keeps the grade exactly whatever the build can do.
   @Test
-  fun `an untouched graded source copies on a build with no zscale`() {
+  fun `an untouched graded source copies on a build that cannot tone map`() {
     val composition = EditComposition(listOf(Track(listOf(Clip(graded)))))
 
     val verdict = planner().lower(composition, Ask(ExportSpec(), device(), infos)).verdict
@@ -470,7 +463,9 @@ class PlannerTest {
     val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))), fill = Fill.Blurred(dim = 0.5f))
 
     val verdict =
-      planner(toolchain(TONE_MAPPING + "gblur")).lower(composition, Ask(ExportSpec(), device(), infos)).verdict
+      planner(toolchain(setOf("overlay", "concat", "amix", "gblur")))
+        .lower(composition, Ask(ExportSpec(), device(), infos))
+        .verdict
 
     val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
     reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldContain "colorchannelmixer"

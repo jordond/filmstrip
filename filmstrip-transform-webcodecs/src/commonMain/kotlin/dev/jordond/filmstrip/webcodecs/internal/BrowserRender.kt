@@ -30,6 +30,7 @@ import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.resolve.effectsOverFill
 import dev.jordond.filmstrip.transform.internal.resolve.effectsUnderFill
@@ -68,6 +69,8 @@ import kotlin.time.DurationUnit
  * last covered slot's time and written at its own.
  * @property overlays The rasters the clip's own chain composites over it, in chain order. Each one is placed on the
  * clip's frame, so it is drawn inside the clip's quad and cut at its edge.
+ * @property toneMapFrom The transfer the clip's source carries when the render tone maps it to SDR, which is the curve
+ * its frames are read through before the composite. Null for an SDR source and for a render that keeps the grade.
  */
 internal class RenderedClip(
   val source: MediaSource,
@@ -85,6 +88,7 @@ internal class RenderedClip(
   val frames: Long,
   val heldFrames: Long,
   val overlays: List<WebGlOverlay>,
+  val toneMapFrom: HdrTransfer?,
 )
 
 /**
@@ -155,6 +159,12 @@ internal class BrowserRender(
    * This is the timestamp a frame written on that slot carries.
    */
   fun slotUs(slot: Long): Double = outputSlotTime(slot, frameRate).toDouble(DurationUnit.MICROSECONDS)
+
+  /**
+   * Whether [clip]'s frames are read as ten-bit planes rather than uploaded as an image, which is every clip of a
+   * render that keeps the grade and every tone mapped HDR clip.
+   */
+  fun readsPlanes(clip: RenderedClip): Boolean = hdrTransfer != null || clip.toneMapFrom != null
 }
 
 /**
@@ -205,6 +215,7 @@ internal fun browserRenderOf(
         compositionChain = compositionChain,
         slots = slots[index],
         heldFrames = if (index == holder) heldFrames else 0L,
+        toneMaps = plan.hdr == ResolvedHdr.ToneMap,
       )
     }
 
@@ -246,7 +257,7 @@ internal fun browserRenderOf(
 
 // One resolved clip as the quad, matrices and slots the compositor draws it with. [track] is the edit's own track the
 // clip was laid from, whose geometry and then the composition's decide the size it is drawn at, since both run in the
-// one texture matrix the quad samples through.
+// one texture matrix the quad samples through. [toneMaps] says the render brings HDR sources down to SDR.
 private fun renderedClip(
   resolved: ResolvedClip,
   track: Track,
@@ -256,6 +267,7 @@ private fun renderedClip(
   compositionChain: List<ResolvedEffect>,
   slots: LongRange,
   heldFrames: Long,
+  toneMaps: Boolean,
 ): RenderedClip {
   val raw = track.clips[resolved.sourceIndex]
   val geometry = (raw.effects + track.effects).inCanonicalOrder() + compositionGeometry.inCanonicalOrder()
@@ -293,6 +305,7 @@ private fun renderedClip(
     frames = slots.size,
     heldFrames = heldFrames,
     overlays = resolved.effects.mapNotNull { it.effect.overlay },
+    toneMapFrom = if (toneMaps) resolved.info.video?.hdrTransfer else null,
   )
 }
 

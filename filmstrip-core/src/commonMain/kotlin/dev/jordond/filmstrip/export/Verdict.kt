@@ -109,13 +109,16 @@ public enum class AdjustmentKind {
    * A grade could not be kept, so it was brought down to SDR.
    *
    * Either the encoder cannot write HDR, or the sources carry transfers that disagree and no one
-   * grade describes the output. Asking for [HdrMode.ToneMapToSdr] reports nothing, since that got
-   * what it asked for.
+   * grade describes the output. Asking for [HdrMode.ToneMapToSdr] reports nothing here, since that
+   * got what it asked for. An engine whose tone curve departs from the one the other backends run
+   * reports [EffectApproximated] on every tone map instead, the asked-for one included, and a strict
+   * export refuses that like any other fallback.
    */
   HdrToneMapped,
 
   /**
-   * A resolver returned a degraded realisation of an effect.
+   * A resolver returned a degraded realisation of an effect, or the engine's tone map runs a curve of its own rather
+   * than the shared one. The tone curve case names the [HdrMode] that reached the tone map as what was requested.
    */
   EffectApproximated,
 

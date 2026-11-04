@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewInfo
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.webcodecs.webCodecsExportEngine
 
 /**
@@ -41,30 +42,58 @@ internal class BrowserPreviewPlanner(
     composition: EditComposition,
     policy: PreviewQualityPolicy,
   ): PlanResult<BrowserPreviewPlan, PlaybackError> =
-    when (val result = planPreview(composition, policy, BROWSER_FIDELITY, engine::resolve)) {
-      is PlanResult.Refused -> result
-      is PlanResult.Ready -> PlanResult.Ready(BrowserPreviewPlan(composition, result.plan.resolved, result.plan.info))
+    // What the preview says about the grade follows the grade the plan settles on, so the notes go on once it has.
+    when (val result = planPreview(composition, policy, emptyList(), engine::resolve)) {
+      is PlanResult.Refused -> {
+        result
+      }
+      is PlanResult.Ready -> {
+        val resolved = result.plan.resolved
+        val info = result.plan.info
+        val fidelity = browserFidelity(resolved.hdr)
+        PlanResult.Ready(
+          BrowserPreviewPlan(
+            composition,
+            resolved,
+            PreviewInfo(info.outputSize, info.renderScale, info.parity, info.parityNotes, fidelity),
+          ),
+        )
+      }
     }
 }
 
 /**
- * How much the browser preview says about each property of the exported file.
+ * How much the browser preview says about each property of a file exported under [hdr].
  *
  * The preview draws through the compositor the encoder takes its frames from, so everything that
  * pass decides is exact. What it cannot answer for is what happens after it: the encoder it never
- * runs, and a grade the canvas has no way to show.
+ * runs, and a kept grade the canvas has no way to show. A tone mapped export is SDR from the
+ * composite on, so the canvas shows what the file holds.
  */
-private val BROWSER_FIDELITY: List<FidelityNote> =
+internal fun browserFidelity(hdr: ResolvedHdr): List<FidelityNote> =
   listOf(
     NO_ENCODER_PREVIEW,
-    FidelityNote(
-      property = OutputProperty.HdrAppearance,
-      fidelity = PreviewFidelity.NotPreviewable,
-      message = "The canvas composites in standard range, so an HDR grade is not what the preview shows.",
-    ),
+    when (hdr) {
+      ResolvedHdr.Keep -> KEPT_GRADE
+      ResolvedHdr.ToneMap -> TONE_MAPPED
+    },
     FidelityNote(
       property = OutputProperty.Smoothness,
       fidelity = PreviewFidelity.Approximate,
       message = "A frame the decoder could not deliver in time is held. An exported one is not.",
     ),
+  )
+
+private val KEPT_GRADE =
+  FidelityNote(
+    property = OutputProperty.HdrAppearance,
+    fidelity = PreviewFidelity.NotPreviewable,
+    message = "The canvas composites in standard range, so an HDR grade is not what the preview shows.",
+  )
+
+private val TONE_MAPPED =
+  FidelityNote(
+    property = OutputProperty.HdrAppearance,
+    fidelity = PreviewFidelity.Exact,
+    message = "The preview runs the tone curve the export does, so the SDR frame it shows is the one the file holds.",
   )

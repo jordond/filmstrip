@@ -660,26 +660,66 @@ was measured to take. Asking for another codec as well reports a `CodecFallback`
 Main 10 support from the encoder list, Apple opens a probe session, ffmpeg encodes one frame at
 `main10`, and the browser asks `VideoEncoder.isConfigSupported` and also checks it can render float.
 
-Tone mapping down to SDR is always available on Android and Apple. ffmpeg needs `zscale`
-(`--enable-libzimg`) or `libplacebo` and says which is missing. The browser cannot tone map at all,
-because its single WebGL pass has no tone-map stage, so an HDR source whose grade it cannot keep is
-refused rather than written into an SDR file.
+Tone mapping down to SDR is available on every backend, and three of them run one tone curve, media3
+1.11.1's OpenGL curve, with its constants defined once in `filmstrip-transform`. PQ passes through up
+to 375 cd/m2 and then bends on two Hermite pieces so that 1000 cd/m2 lands on the SDR peak of 500,
+with the gain read off the green channel. HLG runs its opto-optical transfer at the gamma of a 500
+cd/m2 display, about 1.07. Both convert to BT.709 primaries and write the SDR signal through gamma 2.2.
+
+| Backend | Shared tone curve  |
+| ------- | ------------------ |
+| Android | ✅ [^media3-curve] |
+| Apple   | ⚠️ [^apple-curve]  |
+| Browser | ✅ [^web-curve]    |
+| ffmpeg  | ✅ [^ffmpeg-curve] |
+
+[^media3-curve]:
+    The shared curve is media3's own, so an Android tone map runs it by construction. No device run
+    has measured it against the shared function yet, because the emulator filmstrip tests on has no
+    ten-bit HEVC decoder.
+
+[^apple-curve]:
+    Core Image picks the curve once the composition and the writer name BT.709, and nothing filmstrip
+    can set moves it. A tone mapped Apple export reports it as an `EffectApproximated` adjustment, with
+    the `HdrMode` that asked for the tone map as what was requested,
+    `DegradationReason.ApproximateAlgorithm` as what it resolved to and a message naming Core Image's
+    curve. A strict spec refuses it, `ToneMapToSdr` included. Measured on macOS 26 against the shared
+    function, in eight-bit video range codes on the channel that misses most, Core Image lands well
+    outside the two code cell the other backends meet. PQ greys at 200, 500 and 800 cd/m2 read 17, 52
+    and 56 codes dark. A PQ colour at 300, 500 and 100 cd/m2 misses by 58, one with 2000 cd/m2 green by
+    37 and one with no green by 79. HLG greys at signals 0.5, 0.65 and 0.75 read 19, 19 and 18 codes
+    bright, an HLG colour at 0.7, 0.55 and 0.3 misses by 26 and one with no green by 33. Two runs read
+    the same codes.
+
+[^web-curve]:
+    Each HDR clip's planes run the shared curve in the clip's own transfer before the composite, so
+    PQ, HLG and SDR clips tone map together in one export, and from there the frame is an SDR frame
+    like any other. With no VP9 Profile 2 encoder, `Auto` tone maps and reports it. Exports read
+    within two eight-bit codes of the shared function on Chrome 156. A tone map reads the same ten-bit
+    planes a kept grade does, so an HEVC Main 10 source is refused by name on this path too, below.
+
+[^ffmpeg-curve]:
+    The curve runs on `lut1d`, `geq` and `colorchannelmixer`, which every build carries, so every
+    build tone maps, the Mac Homebrew one included. Neither `zscale` nor `libplacebo` is needed.
+    Exports read within two eight-bit video range codes of the shared function on ffmpeg 8.0.1.
 
 The browser's HDR encode is software only, so it runs on the CPU however capable the machine is, and
 so does the decode: the only decoder that hands out a readable ten-bit frame there is the software
-one. Whether a source's grade can be kept is therefore a question about the source rather than about
-the device, asked once per clip at plan time. An HEVC Main 10 source, which is what an iPhone
+one. Whether a source's grade can be read, to keep it or to tone map it, is therefore a question about
+the source rather than about the device, asked once per clip at plan time. An HEVC Main 10 source, which is what an iPhone
 writes, has no software decoder in any browser measured, so its grade survives only through a stream
-copy of an untouched clip. Anything that has to be re-encoded is refused by name. [^web-hdr]
+copy of an untouched clip. Anything that has to be re-encoded, a tone map included, is refused by
+name. [^web-hdr]
 
 [^web-hdr]:
     The browser reads a kept grade as linear display light with reference white at one, and
     it runs HLG's opto-optical transfer per channel on the way in, which is the reading media3 and
     ffmpeg apply and which puts the three of them on the same code value. It holds the frame at half
     float and packs the result straight into the bytes of a ten-bit frame, so nothing goes through an
-    eight-bit surface between the decoder and the encoder. A preview still draws an eight-bit picture:
-    the composited light is clipped at reference white and put through the SDR display curve, which is
-    what the browser's own upload of an HDR frame shows today.
+    eight-bit surface between the decoder and the encoder. A preview of a kept grade still draws an
+    eight-bit picture: the composited light is clipped at reference white and put through the SDR
+    display curve, which is what the browser's own upload of an HDR frame shows today. A preview of a
+    tone mapped export draws the frame the export writes.
 
 ## Compositions
 
@@ -943,8 +983,9 @@ stderr, rather than `Ended`.
 `PreviewFidelity` reports what a preview cannot show whatever the backend. `EncoderArtifacts` is
 `NotPreviewable` everywhere, because the preview never opens an encoder. `Smoothness` is
 `Approximate` everywhere, because a late frame is dropped. `HdrAppearance` is `NotPreviewable`
-everywhere: on Android and Apple the display decides it, the browser composites in standard range,
-and the ffmpeg pump converts a grade straight to RGB.
+everywhere a grade is kept: on Android and Apple the display decides it, the browser composites in
+standard range, and the ffmpeg pump converts a grade straight to RGB. A browser preview of a tone
+mapped export runs the curve the export does, so it reports `HdrAppearance` as `Exact`.
 
 A loop range wraps only while playback runs, on Android and Apple alike. A seek or a frame step
 past the range's end while paused stays where it lands. On Android the playhead reports where a

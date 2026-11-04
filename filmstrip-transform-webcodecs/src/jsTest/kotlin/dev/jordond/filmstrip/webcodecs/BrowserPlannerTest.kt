@@ -509,18 +509,53 @@ class BrowserPlannerTest {
     verdict.shouldBeInstanceOf<Verdict.Incapable>()
   }
 
-  // The single WebGL pass has no tone-map stage, so a source it can neither encode nor copy has
-  // nowhere to go. Refusing is the honest answer. Claiming a tone map it never runs is not.
+  // Every HDR clip runs the shared tone curve before the composite, so a source this backend can
+  // neither encode nor copy is brought down to SDR, and the verdict says so.
   @Test
-  fun hdrIsRefusedByDefaultWhenItCanNeitherEncodeNorCopy() {
+  fun hdrToneMapsByDefaultWhenItCanNeitherEncodeNorCopy() {
     val clip = Clip(source("a"))
-    val verdict = lower(compositionOf(listOf(clip)), infos = mapOf(clip.source to info(hdr = HdrTransfer.Hlg))).verdict
-    verdict.shouldBeInstanceOf<Verdict.Incapable>()
+    val lowering = lower(compositionOf(listOf(clip)), infos = mapOf(clip.source to info(hdr = HdrTransfer.Hlg)))
+
+    val adjustments = lowering.verdict.shouldBeInstanceOf<Verdict.Degraded>().adjustments
+    adjustments.map { it.kind } shouldBe listOf(AdjustmentKind.HdrToneMapped)
+    val render = lowering.graph.shouldNotBeNull()
+    render.hdrTransfer.shouldBeNull()
+    render.clips.single().toneMapFrom shouldBe HdrTransfer.Hlg
+  }
+
+  // A tone map reads each clip by its own transfer, so a PQ clip beside an SDR one runs the curve
+  // and the SDR clip is uploaded as it is.
+  @Test
+  fun aToneMappedRenderNamesEachClipsOwnTransfer() {
+    val hdr = Clip(source("a"))
+    val sdr = Clip(source("b"))
+    val infos = mapOf(hdr.source to info(hdr = HdrTransfer.Pq), sdr.source to info())
+
+    val render = lower(compositionOf(listOf(hdr, sdr)), infos = infos).graph.shouldNotBeNull()
+
+    render.clips.map { it.toneMapFrom } shouldBe listOf(HdrTransfer.Pq, null)
+  }
+
+  // A tone map reads the planes a kept grade does, so a clip whose frames come out opaque cannot be
+  // brought down to SDR either, and the refusal names the source on every mode that would.
+  @Test
+  fun aSourceWhoseGradeCannotBeReadIsRefusedByNameWhenToneMapped() {
+    val clip = Clip(source("a"))
+    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+    val infos = mapOf(clip.source to info(hdr = HdrTransfer.Hlg, codec = "mpeg2video"))
+
+    listOf(HdrMode.Auto, HdrMode.ToneMapToSdr).forEach { mode ->
+      val verdict = lower(composition, ExportSpec(hdr = mode), infos, opaque = setOf(clip.source)).verdict
+
+      val reasons = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons
+      withClue("$mode was refused with ${reasons.map { it.message }}, which does not name the source") {
+        reasons.any { it.message.contains("opaque frame") } shouldBe true
+      }
+    }
   }
 
   // An untouched clip needs no WebGL pass at all, so mediabunny's packet copy carries HDR through
-  // exactly whatever this backend's own encoder can do, which is the case the tone-map refusal above
-  // does not cover.
+  // whatever this backend's own encoder can do, and the grade is kept rather than tone mapped.
   @Test
   fun anUntouchedHdrClipCopiesRatherThanBeingRefused() {
     val clip = Clip(source("a"))

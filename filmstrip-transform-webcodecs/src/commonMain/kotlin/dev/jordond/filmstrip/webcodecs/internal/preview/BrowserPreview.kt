@@ -260,7 +260,9 @@ public class BrowserPreview internal constructor(
     next: ResolvedComposition,
     edit: EditComposition,
   ): Boolean {
-    if (next.output != resolved.output || next.hdrTransfer != resolved.hdrTransfer) return false
+    if (next.output != resolved.output || next.hdr != resolved.hdr || next.hdrTransfer != resolved.hdrTransfer) {
+      return false
+    }
 
     val incoming = browserRenderOf(next, edit)
     if (incoming.clips.size != render.clips.size) return false
@@ -401,7 +403,7 @@ public class BrowserPreview internal constructor(
   ): FrameSampler? {
     cache[slot.index]?.let { return it }
     val reader = sources.open(slot.clip.source) ?: return null
-    return reader.sampler(tenBit = render.hdrTransfer != null)?.also { cache[slot.index] = it }
+    return reader.sampler(tenBit = render.readsPlanes(slot.clip))?.also { cache[slot.index] = it }
   }
 
   /**

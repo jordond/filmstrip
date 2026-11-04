@@ -624,7 +624,7 @@ class GraphLoweringTest {
         encoderName = "libx264",
       )
 
-    return GraphLowering(negotiated, toneMapRoute = null, hdrPixelFormat = null).build()
+    return GraphLowering(negotiated, hdrPixelFormat = null).build()
   }
 
   /**
@@ -717,7 +717,7 @@ class GraphLoweringTest {
         encoderName = "libx264",
       )
 
-    return GraphLowering(negotiated, toneMapRoute = null, hdrPixelFormat = null).build()
+    return GraphLowering(negotiated, hdrPixelFormat = null).build()
   }
 
   // A chain's input labels link to its first filter, so an effect bringing both a chain and a merge
@@ -1085,7 +1085,7 @@ class GraphLoweringTest {
         encoderName = "libx264",
       )
 
-    return GraphLowering(negotiated, toneMapRoute = null, hdrPixelFormat = hdrTransfer?.let { "yuv420p10le" }).build()
+    return GraphLowering(negotiated, hdrPixelFormat = hdrTransfer?.let { "yuv420p10le" }).build()
   }
 
   /**
@@ -1163,7 +1163,7 @@ class GraphLoweringTest {
         encoderName = null,
       )
 
-    return GraphLowering(negotiated, toneMapRoute = null, hdrPixelFormat = null).build()
+    return GraphLowering(negotiated, hdrPixelFormat = null).build()
   }
 }
 

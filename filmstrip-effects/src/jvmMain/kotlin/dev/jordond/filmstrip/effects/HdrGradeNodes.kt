@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects
 
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.color.BT2020_CHROMA_SHIFT
 import dev.jordond.filmstrip.effect.FilterArgument
 import dev.jordond.filmstrip.effect.FilterFragment
@@ -17,7 +18,8 @@ import dev.jordond.filmstrip.media.HdrTransfer
  *
  * An expression built on these reads each channel at the pixel's own position.
  */
-internal val PIXEL: List<String> = listOf("r(X,Y)", "g(X,Y)", "b(X,Y)")
+@InternalFilmstripApi
+public val PIXEL: List<String> = listOf("r(X,Y)", "g(X,Y)", "b(X,Y)")
 
 // geq's default bilinear sampling on ffmpeg 6.1.1 reads the last column and row of a frame from the ones next to them.
 private val NEAREST_SAMPLE = "interpolation" to "nearest"
@@ -29,7 +31,8 @@ private val NEAREST_SAMPLE = "interpolation" to "nearest"
  * [PlaneLanes] node carries luma, Cb and Cr onto float planes one plane at a time. [signalFromGrade] reads the R'G'B'
  * signal off the planes they leave.
  */
-internal val GRADE_TO_FLOAT: List<FilterNode> =
+@InternalFilmstripApi
+public val GRADE_TO_FLOAT: List<FilterNode> =
   listOf(FilterNode("setrange", "range" to "limited"), PlaneLanes.node(listOf("y", "u", "v"), FLOAT_RGB))
 
 /**
@@ -40,7 +43,8 @@ internal val GRADE_TO_FLOAT: List<FilterNode> =
  * lut1d clamps whatever reads the signal next to the range zero to one, which is where a code outside video range
  * decodes past.
  */
-internal fun MutableList<Sidecar>.signalFromGrade(): List<FilterNode> =
+@InternalFilmstripApi
+public fun MutableList<Sidecar>.signalFromGrade(): List<FilterNode> =
   listOf(lut1d(HdrGradeTables.CODE_CENTRES, NEAREST), mixer(HdrGradeTables.DECODE_ROWS))
 
 /**
@@ -58,7 +62,8 @@ internal fun MutableList<Sidecar>.shiftedSignalToGrade(): List<FilterNode> =
  *
  * [interp] is [NEAREST] or [LINEAR].
  */
-internal fun MutableList<Sidecar>.lut1d(
+@InternalFilmstripApi
+public fun MutableList<Sidecar>.lut1d(
   table: LutTable,
   interp: String,
 ): FilterNode {
@@ -135,21 +140,24 @@ private val MIXER_KEYS = listOf(listOf("rr", "rg", "rb"), listOf("gr", "gg", "gb
  *
  * A table read this way picks out one entry per sample, so it suits a table with an entry for every sample.
  */
-internal const val NEAREST: String = "nearest"
+@InternalFilmstripApi
+public const val NEAREST: String = "nearest"
 
 /**
  * lut1d's sampling that reads the line between the entries either side of its input.
  *
  * A curve read this way is piecewise linear between its entries.
  */
-internal const val LINEAR: String = "linear"
+@InternalFilmstripApi
+public const val LINEAR: String = "linear"
 
 /**
  * A geq on planar float RGB that writes [rgb] to the red, green and blue planes, each pixel read at its own position.
  *
  * It samples the nearest pixel, so the last column and row read their own values.
  */
-internal fun geq(rgb: List<String>): FilterNode =
+@InternalFilmstripApi
+public fun geq(rgb: List<String>): FilterNode =
   FilterNode("geq", "r" to rgb[0], "g" to rgb[1], "b" to rgb[2], NEAREST_SAMPLE)
 
 /**

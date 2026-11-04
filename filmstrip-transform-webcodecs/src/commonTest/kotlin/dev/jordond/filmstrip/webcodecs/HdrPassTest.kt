@@ -57,11 +57,11 @@ class HdrPassTest {
   @Test
   fun theDecoderBufferIsReusedUntilAFrameNeedsMore() {
     withPass(HdrTransfer.Pq) { _, pass, _ ->
-      val first = pass.bufferFor(LARGE)
+      val first = pass.planes.bufferFor(LARGE)
 
-      pass.bufferFor(SMALL) shouldBeSameInstanceAs first
-      pass.bufferFor(LARGE) shouldBeSameInstanceAs first
-      val grown = pass.bufferFor(LARGE + 1)
+      pass.planes.bufferFor(SMALL) shouldBeSameInstanceAs first
+      pass.planes.bufferFor(LARGE) shouldBeSameInstanceAs first
+      val grown = pass.planes.bufferFor(LARGE + 1)
       grown shouldNotBeSameInstanceAs first
       (grown.byteLength >= LARGE + 1) shouldBe true
     }

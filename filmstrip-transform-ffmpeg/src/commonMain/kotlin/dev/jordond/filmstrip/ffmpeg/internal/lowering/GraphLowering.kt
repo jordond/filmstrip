@@ -38,7 +38,6 @@ import kotlin.time.DurationUnit
  */
 internal class GraphLowering(
   private val negotiated: ResolvedComposition,
-  private val toneMapRoute: ToneMapRoute?,
   hdrPixelFormat: String?,
 ) {
   private val tracks = negotiated.tracks
@@ -369,8 +368,11 @@ internal class GraphLowering(
     // Ahead of every effect, and only on the clips that carry a grade. A composition can mix an HDR
     // clip with an SDR one, and running the curve over the SDR clip would change a frame that was
     // already right.
-    if (negotiated.hdr == ResolvedHdr.ToneMap && clip.info.video?.hdrTransfer != null) {
-      pending += toneMapNodes(checkNotNull(toneMapRoute) { "ResolvedHdr.ToneMap with no tone-map route" })
+    val transfer = clip.info.video?.hdrTransfer
+    if (negotiated.hdr == ResolvedHdr.ToneMap && transfer != null) {
+      val toneMap = toneMapFragment(transfer)
+      sidecars += toneMap.sidecars
+      pending += toneMap.chain
     }
 
     clip.effects.forEach { resolved ->

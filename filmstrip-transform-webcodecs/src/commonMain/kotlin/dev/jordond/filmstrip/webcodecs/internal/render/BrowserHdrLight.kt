@@ -152,12 +152,24 @@ private val HLG_OOTF_GLSL =
   }
   """.trimIndent()
 
-private val HLG_EOTF_GLSL =
+/**
+ * GLSL for `vec3 hlgScene(vec3 signal)`, which decodes an HLG signal per channel to scene light normalised against
+ * [HLG_NOMINAL_PEAK_NITS], the way `sceneFromHlgSignal` does.
+ */
+internal val HLG_SCENE_GLSL =
   """
-  vec3 eotf(vec3 signal) {
+  vec3 hlgScene(vec3 signal) {
     vec3 low = signal * signal / 3.0;
     vec3 high = (exp((signal - ${HLG_C.glsl()}) / ${HLG_A.glsl()}) + ${HLG_B.glsl()}) / 12.0;
-    return hlgDisplayFromScene(mix(low, high, step(0.5, signal)));
+    return mix(low, high, step(0.5, signal));
+  }
+  """.trimIndent()
+
+private val HLG_EOTF_GLSL =
+  """
+  $HLG_SCENE_GLSL
+  vec3 eotf(vec3 signal) {
+    return hlgDisplayFromScene(hlgScene(signal));
   }
   """.trimIndent()
 

@@ -7,8 +7,10 @@ import dev.jordond.filmstrip.color.hlgDisplayNitsFromScene
 import dev.jordond.filmstrip.color.hlgNitsFromScene
 import dev.jordond.filmstrip.color.hlgSceneFromDisplayNits
 import dev.jordond.filmstrip.color.hlgSceneFromNits
+import dev.jordond.filmstrip.color.pqSignalFromNits
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.test.AuthoredColors
+import dev.jordond.filmstrip.transform.internal.hdr.toneMappedSdr
 import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
 import dev.jordond.filmstrip.webcodecs.internal.interop.OffscreenCanvas
 import dev.jordond.filmstrip.webcodecs.internal.interop.WebGl2
@@ -19,6 +21,8 @@ import dev.jordond.filmstrip.webcodecs.internal.render.FULLSCREEN_VERTEX_SHADER
 import dev.jordond.filmstrip.webcodecs.internal.render.eotfGlsl
 import dev.jordond.filmstrip.webcodecs.internal.render.linkedProgram
 import dev.jordond.filmstrip.webcodecs.internal.render.packShader
+import dev.jordond.filmstrip.webcodecs.internal.render.toneMapGlsl
+import dev.jordond.filmstrip.webcodecs.internal.render.toneMapShader
 import dev.jordond.filmstrip.webcodecs.internal.render.unpackShader
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
@@ -26,21 +30,28 @@ import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.math.abs
 import kotlin.test.Test
+import dev.jordond.filmstrip.transform.internal.hdr.Rgb as SignalRgb
 
 /**
- * The shaders a kept grade decodes and packs through, compiled and linked on a bare WebGL2 context, and the HLG
- * opto-optical transfer they share read back off the GPU against core's.
+ * The shaders a kept grade decodes and packs through and the one a tone map runs, compiled and linked on a bare WebGL2
+ * context, with the HLG opto-optical transfer and the shared tone curve read back off the GPU against their references.
  *
  * Every export test that reaches them first asks the browser for an HDR encoder, so a page without one would never
  * find out a shader had stopped building. This needs only the context, and skips only where WebGL2 itself is missing.
  */
 class BrowserHdrShaderTest {
   @Test
-  fun theUnpackAndPackShadersCompileAndLinkOnBothTransfers() {
+  fun theUnpackPackAndToneMapShadersCompileAndLinkOnBothTransfers() {
     val gl = OffscreenCanvas(1, 1).getContext("webgl2", JsOptions().build()) ?: return
     try {
       HdrTransfer.entries.forEach { transfer ->
-        mapOf("unpack" to unpackShader(transfer), "pack" to packShader(transfer)).forEach { (name, source) ->
+        val shaders =
+          mapOf(
+            "unpack" to unpackShader(transfer),
+            "pack" to packShader(transfer),
+            "tone map" to toneMapShader(transfer),
+          )
+        shaders.forEach { (name, source) ->
           val program =
             try {
               linkedProgram(gl, FULLSCREEN_VERTEX_SHADER, source)
@@ -60,7 +71,7 @@ class BrowserHdrShaderTest {
   @Test
   fun theShadersForwardHlgTransferIsCores() {
     val scene = hlgSceneFromNits(authoredHdrNits(AuthoredColors.MID_GREEN))
-    val read = hlgTransferOnTheGpu("hlgDisplayFromScene", scene) ?: return
+    val read = onTheGpu(eotfGlsl(HdrTransfer.Hlg), "hlgDisplayFromScene", scene) ?: return
 
     assertOnCore(hlgNitsFromScene(scene), read, FloatArray(3) { hlgDisplayNitsFromScene(scene[it]) }, "forward")
   }
@@ -68,22 +79,63 @@ class BrowserHdrShaderTest {
   @Test
   fun theShadersInverseHlgTransferIsCores() {
     val nits = authoredHdrNits(AuthoredColors.MID_GREEN)
-    val read = hlgTransferOnTheGpu("hlgSceneFromDisplay", nits) ?: return
+    val read = onTheGpu(eotfGlsl(HdrTransfer.Hlg), "hlgSceneFromDisplay", nits) ?: return
 
     assertOnCore(hlgSceneFromNits(nits), read, FloatArray(3) { hlgSceneFromDisplayNits(nits[it]) }, "inverse")
   }
 
+  // PQ at 200, 500 and 800 cd/m2 reads the straight part and each Hermite piece, a colour with 2000 cd/m2 green reads
+  // the clamp above the mastering peak, HLG reads mid signals, and on both an off-grey colour takes one gain on every
+  // channel and a colour with no green takes the black green gain. The GPU's pow is not bit exact, so each channel is
+  // held to a bound far inside one eight-bit code.
+  @Test
+  fun theToneMapShaderIsTheSharedCurveOnPq() {
+    val greys = listOf(200.0, 500.0, 800.0).map { nits -> List(CHANNELS) { pqSignalFromNits(nits) } }
+    val colours =
+      listOf(
+        listOf(300.0, 500.0, 100.0).map(::pqSignalFromNits),
+        listOf(1500.0, 2000.0, 1200.0).map(::pqSignalFromNits),
+        listOf(pqSignalFromNits(300.0), 0.0, pqSignalFromNits(100.0)),
+      )
+    assertToneMapped(HdrTransfer.Pq, greys + colours)
+  }
+
+  @Test
+  fun theToneMapShaderIsTheSharedCurveOnHlg() {
+    val greys = listOf(0.5, 0.65, 0.75).map { signal -> List(CHANNELS) { signal } }
+    assertToneMapped(HdrTransfer.Hlg, greys + listOf(listOf(0.7, 0.55, 0.3), listOf(0.6, 0.0, 0.4)))
+  }
+
+  private fun assertToneMapped(
+    transfer: HdrTransfer,
+    signals: List<List<Double>>,
+  ) {
+    signals.forEach { signal ->
+      val input = FloatArray(CHANNELS) { signal[it].toFloat() }
+      val read = onTheGpu(toneMapGlsl(transfer), "toneMappedSdr", input) ?: return
+      val expected =
+        toneMappedSdr(transfer, SignalRgb(input[0].toDouble(), input[1].toDouble(), input[2].toDouble()))
+          .let { floatArrayOf(it.r.toFloat(), it.g.toFloat(), it.b.toFloat()) }
+      withClue(
+        "$transfer ${signal.toList()} tone mapped to ${read.toList()} where the curve says ${expected.toList()}",
+      ) {
+        (0 until CHANNELS).all { abs(read[it] - expected[it]) <= TONE_MAP_TOLERANCE } shouldBe true
+      }
+    }
+  }
+
   /**
-   * Runs the HLG transfer [function] from the compositor's own GLSL on [input] and reads its three channels back
-   * exactly, as the bits of each float packed into an eight-bit texel. Null where the page has no WebGL2.
+   * Runs [function] from the compositor's own GLSL in [prelude] on [input] and reads its three channels back exactly,
+   * as the bits of each float packed into an eight-bit texel. Null where the page has no WebGL2.
    */
-  private fun hlgTransferOnTheGpu(
+  private fun onTheGpu(
+    prelude: String,
     function: String,
     input: FloatArray,
   ): FloatArray? {
     val gl = OffscreenCanvas(CHANNELS, 1).getContext("webgl2", JsOptions().build()) ?: return null
     try {
-      val program = linkedProgram(gl, FULLSCREEN_VERTEX_SHADER, probeShader(function))
+      val program = linkedProgram(gl, FULLSCREEN_VERTEX_SHADER, probeShader(prelude, function))
       gl.useProgram(program)
       draw(gl, program, input)
 
@@ -125,14 +177,17 @@ class BrowserHdrShaderTest {
   }
 
   // Each pixel of the three wide target carries one channel, written as its float's bytes with the low byte in red.
-  private fun probeShader(function: String): String =
+  private fun probeShader(
+    prelude: String,
+    function: String,
+  ): String =
     """
     #version 300 es
     precision highp float;
     precision highp int;
     uniform vec4 uInput;
     out vec4 outColor;
-    ${eotfGlsl(HdrTransfer.Hlg)}
+    $prelude
     void main() {
       vec3 result = $function(uInput.rgb);
       int channel = int(gl_FragCoord.x);
@@ -171,6 +226,9 @@ class BrowserHdrShaderTest {
 
     // Far inside the gap between the two transfers on a colored value, and far outside a GPU pow's own error.
     const val RELATIVE_TOLERANCE = 1e-4f
+
+    // A fortieth of an eight-bit code on the SDR signal.
+    const val TONE_MAP_TOLERANCE = 1e-4f
 
     val QUAD = floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f)
 

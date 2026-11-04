@@ -51,9 +51,9 @@ internal class BrowserPlanner(
       },
       ladder = BROWSER_LADDER,
       supportsCopy = true,
-      // The single WebGL pass has no tone-map stage of its own, so claiming one here would plan a
-      // tone map this backend never actually runs.
-      canToneMap = false,
+      // Every HDR clip runs the shared tone curve on its own planes before the composite, so a
+      // tone map is drawn whatever transfer each clip carries.
+      canToneMap = true,
       // A copy is only ever muxed into mp4. mediabunny's own writer carries two codecs on top of
       // what mp4 otherwise takes, and this backend adds them to the shared baseline here.
       muxerAccepts = { info -> Mp4Copy.accepts(info, alsoVideo = MEDIABUNNY_VIDEO, alsoAudio = MEDIABUNNY_AUDIO) },
@@ -82,6 +82,9 @@ internal class BrowserPlanner(
     val writesVideo = negotiated.audio != AudioSpec.AudioOnly
     if (writesVideo && negotiated.path == ExportPath.Transcode) {
       transcodeOnlyRefusal(composition, ask.infos)?.let { return it }
+      // A tone map reads the planes a kept grade does, so a source that hands out opaque frames
+      // cannot be brought down to SDR either.
+      opaqueRefusal(drawnSources(composition) intersect opaque)?.let { return it }
     }
     return LoweredExport(export, browserRenderOf(negotiated, composition))
   }
@@ -139,8 +142,16 @@ internal class BrowserPlanner(
     return null
   }
 
+  // The sources the pipeline decodes frames from, which are the clips of the primary track.
+  private fun drawnSources(composition: EditComposition): Set<MediaSource> =
+    composition.tracks
+      .firstOrNull()
+      ?.clips
+      ?.mapTo(mutableSetOf()) { it.source }
+      .orEmpty()
+
   /**
-   * Why a grade this backend was told it could encode still cannot be kept.
+   * Why a grade this backend was told it could encode still cannot be kept, or tone mapped.
    *
    * The device answered that it has no HDR encoder for this composition, but the reason is the
    * source rather than the device, and the shared negotiator has no way to say so. Naming the
@@ -153,8 +164,8 @@ internal class BrowserPlanner(
     return refusedLowering(
       FilmstripError.SourceNotExportable(
         "The source ${source.describe()} decodes to an opaque frame in this browser, so its " +
-          "grade cannot be read. Export to SDR, or leave the clip untouched so its packets can " +
-          "be copied across.",
+          "grade cannot be read to keep it or to tone map it. Leave the clip untouched so its " +
+          "packets can be copied across.",
       ),
     )
   }
@@ -209,8 +220,8 @@ internal fun renderCapabilities(encodesHdr: Boolean): RenderCapabilities =
     colorSpaces = setOf(ColorSpace.Bt709, ColorSpace.Bt601, ColorSpace.Bt2020),
     maxTextureSize = browserMaxTextureSide(),
     // Decoded VideoFrames are uploaded straight into the texture, which is what this advertises. Text is laid out and
-    // drawn on a 2D canvas at resolve.
-    features = setOf(RenderFeature.ExternalTexture, RenderFeature.TextRendering),
+    // drawn on a 2D canvas at resolve, and an HDR clip runs the shared tone curve before the composite.
+    features = setOf(RenderFeature.ExternalTexture, RenderFeature.TextRendering, RenderFeature.HdrToneMapping),
   )
 
 // What mediabunny's mp4 muxer, which every copy is pinned to, will take as-is, without an encoder.

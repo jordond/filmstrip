@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects
 
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.color.BT2020_CHROMA_SHIFT
 import dev.jordond.filmstrip.color.BT2020_DECODE_ROWS
 import dev.jordond.filmstrip.color.BT2020_ENCODE_ROWS
@@ -40,23 +41,27 @@ import kotlin.math.roundToInt
  * One more than the largest sixteen-bit sample, so a table this size has an entry for every sample the lanes put on a
  * float plane and a nearest lookup lands on the sample's own entry.
  */
-internal const val MAX_1D_LEVEL: Int = 65536
+@InternalFilmstripApi
+public const val MAX_1D_LEVEL: Int = 65536
 
 /**
  * A table for ffmpeg's lut1d, one column each for the red, green and blue planes.
  *
  * Entry `i` of a column is what an input of `i / (size - 1)` reads. lut1d clamps its input to the range zero to one
  * first, so a table also floors a negative input and caps one past the top.
+ *
+ * @property columns The red, green and blue columns, each with one entry per step of the table.
  */
-internal class LutTable(
-  val columns: List<DoubleArray>,
+@InternalFilmstripApi
+public class LutTable(
+  public val columns: List<DoubleArray>,
 ) {
   /**
    * The table as a `.cube` file, each entry printed to nine significant digits, which is all a float holds.
    *
    * Written once and kept, since the tables a grade shares are each read by every grade on the same transfer.
    */
-  val sidecar: Sidecar by lazy { Sidecar(cube1d(columns), CUBE_EXTENSION) }
+  public val sidecar: Sidecar by lazy { Sidecar(cube1d(columns), CUBE_EXTENSION) }
 }
 
 /**

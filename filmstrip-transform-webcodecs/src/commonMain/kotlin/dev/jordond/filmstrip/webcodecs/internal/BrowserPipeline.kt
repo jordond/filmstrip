@@ -118,7 +118,7 @@ internal class BrowserPipeline(
     val stream =
       sources
         .open(clip.source)
-        ?.frames(clip.trimStartUs, clip.trimEndUs, tenBit = render.hdrTransfer != null)
+        ?.frames(clip.trimStartUs, clip.trimEndUs, tenBit = render.readsPlanes(clip))
         ?: throw BrowserExportFailure(unreadableMessage(clip.source))
 
     compositor.clip(clip, render.compositionGeometryMatrix)

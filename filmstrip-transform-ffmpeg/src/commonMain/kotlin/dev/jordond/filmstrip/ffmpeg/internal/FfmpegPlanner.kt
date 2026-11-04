@@ -9,9 +9,8 @@ import dev.jordond.filmstrip.effect.RenderFeature
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.CODEC_LADDER
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.GraphLowering
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
-import dev.jordond.filmstrip.ffmpeg.internal.lowering.ToneMapRoute
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.canToneMap
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.hdrPixelFormatFor
-import dev.jordond.filmstrip.ffmpeg.internal.lowering.toneMapRoute
 import dev.jordond.filmstrip.ffmpeg.internal.picture.decodingOverlayPictures
 import dev.jordond.filmstrip.ffmpeg.internal.process.READS_FILES
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
@@ -46,15 +45,14 @@ internal class FfmpegPlanner(
   private val toolchain: Toolchain,
   resolvers: List<EffectResolver>,
 ) {
-  // Computed once and consumed everywhere this backend needs it: the negotiator's canToneMap, the
-  // capability it reports, and the graph GraphLowering writes all read this one answer.
-  private val toneMapRoute = toneMapRoute(toolchain)
+  // Computed once and consumed by the negotiator's canToneMap and the capability it reports.
+  private val canToneMap = canToneMap(toolchain)
 
   private val planner =
     ExportPlanner(
       resolvers = decodingOverlayPictures(resolvers, toolchain),
       renderCapabilities = { outputSize, encodesHdr ->
-        renderCapabilities(toolchain, toneMapRoute, outputSize, encodesHdr)
+        renderCapabilities(canToneMap, outputSize, encodesHdr)
       },
       parityOf = FfmpegParity::of,
       unclaimedMessage = { specId ->
@@ -66,10 +64,9 @@ internal class FfmpegPlanner(
       supportsCopy = true,
       // Every export here writes mp4, so a copy is allowed for exactly what mp4 carries.
       muxerAccepts = { info -> Mp4Copy.accepts(info) },
-      // A build needs zscale (--enable-libzimg) or libplacebo to bring a grade down to SDR.
-      // Neither ships in stock Homebrew ffmpeg, so an HDR source is refused there until one of
-      // them is installed.
-      canToneMap = toneMapRoute != null,
+      // The shared tone curve runs on lut1d, geq and colorchannelmixer, which every supported
+      // build carries.
+      canToneMap = canToneMap,
       // concat refuses inputs that differ in resolution, so every clip is pinned to the output
       // frame before the join and there is no composited frame left to run geometry on.
       compositionGeometryPerClip = true,
@@ -111,7 +108,6 @@ internal class FfmpegPlanner(
       export,
       GraphLowering(
         negotiated = negotiated,
-        toneMapRoute = toneMapRoute,
         hdrPixelFormat = hdrPixelFormatFor(negotiated.encoderName, negotiated.hdrTransfer),
       ).build(),
     )
@@ -131,8 +127,7 @@ internal fun missingBlurFilter(filter: String): String =
   "This ffmpeg build has no $filter filter, so it cannot lower Fill.Blurred. Use Fill.Solid instead."
 
 private fun renderCapabilities(
-  toolchain: Toolchain,
-  toneMapRoute: ToneMapRoute?,
+  canToneMap: Boolean,
   outputSize: Size,
   encodesHdr: Boolean,
 ): RenderCapabilities =
@@ -150,7 +145,7 @@ private fun renderCapabilities(
       buildSet {
         add(RenderFeature.MultipassRender)
         add(RenderFeature.TextRendering)
-        if (toneMapRoute != null) add(RenderFeature.HdrToneMapping)
+        if (canToneMap) add(RenderFeature.HdrToneMapping)
       },
   )
 

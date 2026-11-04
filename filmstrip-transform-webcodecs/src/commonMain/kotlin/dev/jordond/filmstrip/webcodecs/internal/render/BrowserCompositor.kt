@@ -31,6 +31,9 @@ import kotlin.time.Duration.Companion.microseconds
  * precision, and the result is packed straight into the bytes of an `I420P10` sample. The SDR path
  * is untouched by any of it.
  *
+ * On a tone mapped export the compositor is an SDR one, and an HDR clip's planes go through the shared tone curve of
+ * the clip's own transfer before the composite, so from there on its frame is an SDR frame like any other.
+ *
  * The context is created per export and handed back on [release]. A browser holds only about
  * sixteen live contexts and drops the oldest to make room, so an exporter that never releases
  * eventually loses the context another export is still drawing on.
@@ -54,6 +57,7 @@ internal class BrowserCompositor private constructor(
   private var current: RenderedClip? = null
   private var frameMatrix: TextureMatrix? = null
   private var overlayPass: BrowserOverlayPass? = null
+  private var toneMapPass: ToneMapPass? = null
 
   /**
    * Where the slot drawn last sits on the output timeline, in microseconds.
@@ -104,8 +108,8 @@ internal class BrowserCompositor private constructor(
    * The clip's overlays go on right after it, inside its quad, and the composition's go on last over the whole
    * frame.
    *
-   * Suspends only on a grade, where the frame's planes are copied out of the decoder before
-   * anything can be uploaded.
+   * Suspends only on a grade or a tone mapped clip, where the frame's planes are copied out of the
+   * decoder before anything can be uploaded.
    *
    * @param compositionUs Where this slot sits on the output timeline. Everything [clip] sets holds
    *   for the length of a clip, so this is where a pass that varies with time uploads its per-frame
@@ -123,7 +127,13 @@ internal class BrowserCompositor private constructor(
       gl.useProgram(program)
       gl.uniformMatrix3fv(texMatrix, false, clip.matrix.at(compositionUs.microseconds).toFloat32Array())
     }
-    val source = if (hdr != null) hdr.unpack(gl, frame, program) else uploadImage(frame)
+    val toneMapFrom = clip.toneMapFrom
+    val source =
+      when {
+        hdr != null -> hdr.unpack(gl, frame, program)
+        toneMapFrom != null -> toneMap().toneMap(gl, frame, toneMapFrom, program)
+        else -> uploadImage(frame)
+      }
     val target = hdr?.outputFbo
 
     // Either branch leaves the target bound for the sharp draw below.
@@ -208,6 +218,9 @@ internal class BrowserCompositor private constructor(
 
   private fun overlays(): BrowserOverlayPass =
     overlayPass ?: BrowserOverlayPass.create(gl, buffer, hdrTransfer).also { overlayPass = it }
+
+  private fun toneMap(): ToneMapPass =
+    toneMapPass ?: buildToneMapPass(gl, width, height, buffer).also { toneMapPass = it }
 
   /**
    * The SDR upload: the decoded frame straight into one RGBA texture.
@@ -335,6 +348,7 @@ internal class BrowserCompositor private constructor(
 
   fun release() {
     overlayPass?.release()
+    toneMapPass?.release(gl)
     hdr?.release(gl)
     blur?.release(gl)
     gl.deleteTexture(texture)

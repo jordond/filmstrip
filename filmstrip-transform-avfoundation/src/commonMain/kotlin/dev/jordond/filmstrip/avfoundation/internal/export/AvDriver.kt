@@ -12,6 +12,8 @@ import dev.jordond.filmstrip.avfoundation.internal.writer.WriterRun
 import dev.jordond.filmstrip.avfoundation.internal.writer.avEncoderCapabilities
 import dev.jordond.filmstrip.avfoundation.internal.writer.resolveDestination
 import dev.jordond.filmstrip.capability.DeviceCapabilities
+import dev.jordond.filmstrip.effect.Degradation
+import dev.jordond.filmstrip.effect.DegradationReason
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
@@ -49,6 +51,9 @@ internal class AvDriver(
     outputSize: Size,
     hdr: Boolean,
   ): RenderCapabilities = coreImageRenderCapabilities(outputSize, hdr)
+
+  // Naming BT.709 on the composition and the writer is the only control there is, so Core Image picks the curve.
+  override val toneCurve: Degradation = CORE_IMAGE_TONE_CURVE
 
   override suspend fun syncSampleAtOrBefore(
     source: MediaSource,
@@ -154,3 +159,15 @@ internal fun coreImageRenderCapabilities(
   )
 
 private const val MAX_TEXTURE_FLOOR = 8_192
+
+/**
+ * How a tone mapped Apple export departs from the shared tone curve. Core Image converts HDR to SDR on a curve of its
+ * own, which filmstrip cannot set and has not measured against the shared one.
+ */
+internal val CORE_IMAGE_TONE_CURVE: Degradation =
+  Degradation(
+    reason = DegradationReason.ApproximateAlgorithm,
+    message =
+      "Core Image brings HDR down to SDR on its own tone curve, which filmstrip cannot set, so it is not held to " +
+        "the shared curve the other backends run.",
+  )

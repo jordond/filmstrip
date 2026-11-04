@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.transform.internal
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.edit.Clip
+import dev.jordond.filmstrip.effect.Degradation
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.geometry.Size
@@ -52,6 +53,14 @@ public interface ExportDriver {
     source: MediaSource,
     cut: Duration,
   ): Duration? = null
+
+  /**
+   * How this platform's tone map departs from the shared tone curve, or null when it runs that curve.
+   *
+   * A tone mapped export reports it as an approximation, whichever HDR mode brought it there.
+   */
+  public val toneCurve: Degradation?
+    get() = null
 
   /**
    * Names the render backend an unclaimed effect would have needed a resolver for.

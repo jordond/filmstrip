@@ -77,10 +77,9 @@ public class BrowserExportEngine(
         is PlanningReadResult.Failed -> return refusedLowering(result.error)
         is PlanningReadResult.Read -> result
       }
-    // Only worth asking where the device would otherwise take the grade. Where it would not, the
-    // refusal is already about the device and probing would open a reader a plan-only caller never
-    // asked for.
-    val opaque = if (read.device.supportsHdrEncoding) opaqueGrades(read.infos) else emptySet()
+    // Keeping a grade and tone mapping it both read the planes, so every HDR source is asked
+    // whatever the device can encode.
+    val opaque = opaqueGrades(read.infos)
     val device = if (opaque.isEmpty()) read.device else read.device.withoutHdrEncoding()
     return planner.lower(composition, Ask(spec, device, read.infos, read.openings, layoutSize), opaque = opaque)
   }
@@ -222,7 +221,7 @@ public class BrowserExportEngine(
    * The HDR sources in this composition whose grade cannot be read here.
    *
    * A browser's default decoder keeps an HDR frame opaque above some size and HEVC has no software
-   * decoder at all, so whether a grade can be kept is a question about the source rather than about
+   * decoder at all, so whether a grade can be read is a question about the source rather than about
    * the device. Asked once per reader and cached there, so the plan and the export that follows it
    * get the same answer.
    */

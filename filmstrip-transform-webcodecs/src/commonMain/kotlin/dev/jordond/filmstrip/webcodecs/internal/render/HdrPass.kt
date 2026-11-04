@@ -3,21 +3,17 @@
 package dev.jordond.filmstrip.webcodecs.internal.render
 
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.webcodecs.internal.interop.ArrayBuffer
 import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
-import dev.jordond.filmstrip.webcodecs.internal.interop.Uint16Array
 import dev.jordond.filmstrip.webcodecs.internal.interop.Uint8Array
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import dev.jordond.filmstrip.webcodecs.internal.interop.WebGl2
 import dev.jordond.filmstrip.webcodecs.internal.interop.jsArrayOf
-import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
 import kotlin.js.JsArray
-import kotlin.js.get
 
 /**
- * Everything a kept grade adds: the three integer planes a decoded frame is uploaded into, the
+ * Everything a kept grade adds: the integer planes a decoded frame is uploaded into, the
  * float textures it composites through, the pack pass that writes the encoder's bytes, and the
  * layout and color tag those bytes are handed over with.
  *
@@ -34,7 +30,7 @@ import kotlin.js.get
 internal class HdrPass(
   val outputWidth: Int,
   val outputHeight: Int,
-  val planeTextures: List<JsAny>,
+  val planes: TenBitPlanes,
   val unpackProgram: JsAny,
   val linearTexture: JsAny,
   val linearFbo: JsAny,
@@ -50,16 +46,6 @@ internal class HdrPass(
   val layout: JsArray<JsAny>,
   val colorSpace: JsAny,
 ) {
-  private var planes: ArrayBuffer? = null
-
-  /**
-   * A buffer of at least [size] bytes for the decoder to copy into, kept between frames.
-   */
-  fun bufferFor(size: Int): ArrayBuffer {
-    planes?.takeIf { it.byteLength >= size }?.let { return it }
-    return ArrayBuffer(size).also { planes = it }
-  }
-
   /**
    * Resizes the linear source to match the frame being decoded. Every clip of the same size after
    * the first costs nothing.
@@ -78,13 +64,10 @@ internal class HdrPass(
   }
 
   /**
-   * Copies the frame's ten-bit planes out of the decoder, uploads them as three integer textures,
-   * and decodes them to linear display light.
+   * Uploads the frame's ten-bit planes and decodes them to linear display light.
    *
    * The rows arrive top-down, so the flip the SDR upload asks the driver for is done in the shader
-   * instead and the linear texture comes out +Y-up like every other texture here. The alignment and
-   * the row length both have to be spelled out: a plane's stride is the decoder's own and a
-   * chroma row of an odd width is not a multiple of four bytes.
+   * instead and the linear texture comes out +Y-up like every other texture here.
    *
    * @return The linear texture the frame was decoded into.
    */
@@ -93,41 +76,12 @@ internal class HdrPass(
     frame: VideoSample,
     composite: JsAny,
   ): JsAny {
-    val options = EMPTY_OPTIONS
-    val frameWidth = frame.codedWidth
-    val frameHeight = frame.codedHeight
-    val bytes = bufferFor(frame.allocationSize(options))
-    val layout = frame.copyTo(bytes, options).await()
-
-    resize(gl, frameWidth, frameHeight)
+    // The resize binds on unit zero, so it runs before the planes take that unit.
+    resize(gl, frame.codedWidth, frame.codedHeight)
+    planes.upload(gl, frame)
     gl.useProgram(unpackProgram)
-    gl.pixelStorei(GL_UNPACK_FLIP_Y_WEBGL, 0)
-    gl.pixelStorei(GL_UNPACK_ALIGNMENT, SAMPLE_BYTES)
-    for (index in 0 until PLANES) {
-      val plane = checkNotNull(layout[index]) { "a ten-bit frame reports three planes" }
-      val samplesPerRow = plane.stride / SAMPLE_BYTES
-      val planeWidth = if (index == 0) frameWidth else (frameWidth + 1) / 2
-      val planeHeight = if (index == 0) frameHeight else (frameHeight + 1) / 2
-      gl.activeTexture(GL_TEXTURE0 + index)
-      gl.bindTexture(GL_TEXTURE_2D, planeTextures[index])
-      gl.pixelStorei(GL_UNPACK_ROW_LENGTH, samplesPerRow)
-      gl.texImage2D(
-        GL_TEXTURE_2D,
-        0,
-        GL_R16UI,
-        planeWidth,
-        planeHeight,
-        0,
-        GL_RED_INTEGER,
-        GL_UNSIGNED_SHORT,
-        Uint16Array(bytes, plane.offset, samplesPerRow * planeHeight),
-      )
-    }
-    gl.pixelStorei(GL_UNPACK_ROW_LENGTH, 0)
-    gl.pixelStorei(GL_UNPACK_ALIGNMENT, DEFAULT_ALIGNMENT)
-
     gl.bindFramebuffer(GL_FRAMEBUFFER, linearFbo)
-    gl.viewport(0, 0, frameWidth, frameHeight)
+    gl.viewport(0, 0, frame.codedWidth, frame.codedHeight)
     gl.disable(GL_BLEND)
     gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
     gl.enable(GL_BLEND)
@@ -182,7 +136,7 @@ internal class HdrPass(
    * Deletes every program, texture and framebuffer this pass holds.
    */
   fun release(gl: WebGl2) {
-    planeTextures.forEach { gl.deleteTexture(it) }
+    planes.release(gl)
     gl.deleteProgram(unpackProgram)
     gl.deleteFramebuffer(linearFbo)
     gl.deleteTexture(linearTexture)
@@ -208,16 +162,7 @@ internal fun buildHdrPass(
   transfer: HdrTransfer,
   buffer: JsAny,
 ): HdrPass {
-  val unpackProgram = linkedProgram(gl, FULLSCREEN_VERTEX_SHADER, unpackShader(transfer))
-  gl.useProgram(unpackProgram)
-  gl.bindBuffer(GL_ARRAY_BUFFER, buffer)
-  bindQuad(gl, unpackProgram)
-  listOf("uY", "uU", "uV").forEachIndexed { index, name ->
-    gl.uniform1i(gl.getUniformLocation(unpackProgram, name), index)
-  }
-  // An integer texture cannot be filtered, and nearest is what the chroma planes want anyway:
-  // a sample here is a code value, not a color to interpolate.
-  val planeTextures = List(PLANES) { createTexture(gl, GL_NEAREST) }
+  val unpackProgram = planeProgram(gl, unpackShader(transfer), buffer)
 
   val linearTexture = createTexture(gl, GL_LINEAR)
   allocate(gl, linearTexture, width, height, hdr = true)
@@ -254,7 +199,7 @@ internal fun buildHdrPass(
   return HdrPass(
     outputWidth = width,
     outputHeight = height,
-    planeTextures = planeTextures,
+    planes = createTenBitPlanes(gl),
     unpackProgram = unpackProgram,
     linearTexture = linearTexture,
     linearFbo = linearFbo,
@@ -293,9 +238,3 @@ private fun planeLayout(
     .put("offset", offset)
     .put("stride", stride)
     .build()
-
-internal const val PLANES: Int = 3
-internal const val SAMPLE_BYTES: Int = 2
-private const val DEFAULT_ALIGNMENT = 4
-
-private val EMPTY_OPTIONS: JsAny = JsOptions().build()

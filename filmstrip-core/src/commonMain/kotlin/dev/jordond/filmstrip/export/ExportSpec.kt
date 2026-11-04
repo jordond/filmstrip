@@ -20,8 +20,10 @@ import dev.jordond.filmstrip.edit.EditComposition
  * @property frameRate Output frame rate, or null to keep the source's. A rate of zero or less is refused.
  * @property hdr What to do about high dynamic range.
  * @property strict Fail rather than accept a fallback. False by default: fall back, and report every adjustment. Set it
- * when a byte budget or a codec requirement is non-negotiable. Only what the plan can see is refused. Some adjustments
- * only show once the export runs, such as media3 picking an encoder that writes another color space. Those reach
+ * when a byte budget or a codec requirement is non-negotiable. A tone map on a curve that departs from the one the
+ * other backends run counts as a fallback too, so a strict tone mapped export on such an engine is refused, even with
+ * [HdrMode.ToneMapToSdr] asked for. Only what the plan can see is refused. Some adjustments only show once the export
+ * runs, such as media3 picking an encoder that writes another color space. Those reach
  * [ExportStatus.Success.adjustments] after a plan that said [Verdict.Capable], and strict cannot refuse them.
  */
 @Poko

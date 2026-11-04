@@ -106,8 +106,7 @@ internal fun compositeFragmentShader(transfer: HdrTransfer?): String =
  * Ten-bit limited-range BT.2020 NCL planes to linear display light, with one at
  * [HDR_REFERENCE_WHITE_NITS].
  *
- * The planes arrive top-down where every texture here is +Y-up, so the sample is flipped on the way
- * in. HLG's opto-optical transfer is driven by the color's luminance, the one `hlgSceneFromNits`
+ * HLG's opto-optical transfer is driven by the color's luminance, the one `hlgSceneFromNits`
  * inverts, so a blend in the buffer is a blend in display light for any color.
  */
 internal fun unpackShader(transfer: HdrTransfer): String =
@@ -115,6 +114,33 @@ internal fun unpackShader(transfer: HdrTransfer): String =
   #version 300 es
   precision highp float;
   precision highp usampler2D;
+  $PLANE_SIGNAL_GLSL
+  ${eotfGlsl(transfer)}
+  void main() {
+    vec3 nits = eotf(planeSignal());
+    outColor = vec4(nits / ${HDR_REFERENCE_WHITE_NITS.glsl()}, 1.0);
+  }
+  """.trimIndent()
+
+/**
+ * Ten-bit limited-range BT.2020 NCL planes of this transfer through the shared tone curve, to the eight-bit BT.709
+ * SDR signal an uploaded SDR frame carries.
+ */
+internal fun toneMapShader(transfer: HdrTransfer): String =
+  """
+  #version 300 es
+  precision highp float;
+  precision highp usampler2D;
+  $PLANE_SIGNAL_GLSL
+  ${toneMapGlsl(transfer)}
+  void main() {
+    outColor = vec4(toneMappedSdr(planeSignal()), 1.0);
+  }
+  """.trimIndent()
+
+// The planes arrive top-down where every texture here is +Y-up, so the sample is flipped on the way in.
+private val PLANE_SIGNAL_GLSL =
+  """
   uniform usampler2D uY;
   uniform usampler2D uU;
   uniform usampler2D uV;
@@ -123,16 +149,14 @@ internal fun unpackShader(transfer: HdrTransfer): String =
   float code(usampler2D plane) {
     return float(texture(plane, vec2(vTexCoord.x, 1.0 - vTexCoord.y)).r);
   }
-  ${eotfGlsl(transfer)}
-  void main() {
+  vec3 planeSignal() {
     float y = (code(uY) - ${TEN_BIT_LUMA_FLOOR.glsl()}) / ${TEN_BIT_LUMA_RANGE.glsl()};
     float cb = (code(uU) - ${TEN_BIT_CHROMA_MID.glsl()}) / ${TEN_BIT_CHROMA_RANGE.glsl()};
     float cr = (code(uV) - ${TEN_BIT_CHROMA_MID.glsl()}) / ${TEN_BIT_CHROMA_RANGE.glsl()};
     float r = y + ${BT2020_CR_SCALE.glsl()} * cr;
     float b = y + ${BT2020_CB_SCALE.glsl()} * cb;
     float g = (y - ${BT2020_LUMA_R.glsl()} * r - ${BT2020_LUMA_B.glsl()} * b) / ${BT2020_LUMA_G.glsl()};
-    vec3 nits = eotf(clamp(vec3(r, g, b), 0.0, 1.0));
-    outColor = vec4(nits / ${HDR_REFERENCE_WHITE_NITS.glsl()}, 1.0);
+    return clamp(vec3(r, g, b), 0.0, 1.0);
   }
   """.trimIndent()
 

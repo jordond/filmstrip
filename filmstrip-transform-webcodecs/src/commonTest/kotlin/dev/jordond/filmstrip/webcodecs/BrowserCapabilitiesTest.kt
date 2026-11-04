@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.webcodecs
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.effect.RenderFeature
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
@@ -94,6 +95,13 @@ class BrowserCapabilitiesTest {
 
     renderCapabilities(encodesHdr = false).maxTextureSize shouldBe reported
     renderCapabilities(encodesHdr = true).maxTextureSize shouldBe reported
+  }
+
+  // The tone curve runs on any page with WebGL2, whether or not the export keeps HDR.
+  @Test
+  fun theRenderCapabilitiesClaimAToneMapEitherWay() {
+    renderCapabilities(encodesHdr = false).features.contains(RenderFeature.HdrToneMapping) shouldBe true
+    renderCapabilities(encodesHdr = true).features.contains(RenderFeature.HdrToneMapping) shouldBe true
   }
 
   @Test

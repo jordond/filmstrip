@@ -132,7 +132,8 @@ class HdrPlanTest {
   fun `an asked-for tone map is not an adjustment`() {
     // Auto is the mode that can land somewhere else, so it is the one that reports. Asking for a
     // tone map and getting one is the request honoured, and calling that degraded costs a caller
-    // matching on Capable the plan it can run, and strict the export entirely.
+    // matching on Capable the plan it can run, and strict the export entirely. This engine runs the
+    // shared tone curve, one with a curve of its own reports that whatever the mode.
     val verdict =
       fixture.plan(
         composition(fixture.clip(hdr = HdrTransfer.Hlg)),
@@ -143,6 +144,7 @@ class HdrPlanTest {
     verdict.shouldBeInstanceOf<Verdict.Capable>()
   }
 
+  // On the shared tone curve. An engine with a curve of its own refuses here, which ConcessionsTest pins.
   @Test
   fun `a strict export survives the tone map it asked for`() {
     val verdict =

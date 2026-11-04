@@ -9,7 +9,7 @@ import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
-import dev.jordond.filmstrip.ffmpeg.internal.lowering.toneMapRoute
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.canToneMap
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessRunner
 import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainLocator
 import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainResult
@@ -34,12 +34,12 @@ class FfmpegHdrTest {
   private val fixture = FfmpegExportFixture()
 
   /**
-   * Whether this build can take either tone-map route, read off the same toolchain the backend
-   * gates on.
+   * Whether this build carries the filters the tone curve runs on, read off the same toolchain the
+   * backend gates on.
    */
   private suspend fun canToneMap(): Boolean {
     val result = ToolchainLocator(FfmpegConfig(), ProcessRunner()).toolchain()
-    return result is ToolchainResult.Available && toneMapRoute(result.toolchain) != null
+    return result is ToolchainResult.Available && canToneMap(result.toolchain)
   }
 
   // The grade is what an HDR export is for, and neither the plan nor a Success status says whether
@@ -76,9 +76,8 @@ class FfmpegHdrTest {
       output.delete()
     }
 
-  // Bringing a grade down correctly wants zscale (--enable-libzimg) or libplacebo, and neither is
-  // in the common prebuilt packages, so this asks the toolchain the same question the planner does
-  // rather than assuming either answer.
+  // The tone curve runs on lut1d, geq and colorchannelmixer, so this asks the toolchain the same
+  // question the planner does rather than assuming the answer.
   @Test
   fun `tone-maps an hdr grade down to rec709 when the build can`() =
     runTest(timeout = TIMEOUT) {
@@ -87,7 +86,7 @@ class FfmpegHdrTest {
       val verdict = fixture.filmstrip.plan(composition, ExportSpec(hdr = HdrMode.ToneMapToSdr))
 
       if (!canToneMap()) {
-        withClue("a build with no zscale or libplacebo has no honest tone map to offer") {
+        withClue("a build that cannot run the tone curve has no honest tone map to offer") {
           verdict.shouldBeInstanceOf<Verdict.Incapable>()
         }
         return@runTest

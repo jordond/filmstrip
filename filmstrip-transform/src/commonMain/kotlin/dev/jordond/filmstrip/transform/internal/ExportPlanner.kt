@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.capability.ParityNote
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.effect.Degradation
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.RenderCapabilities
@@ -59,7 +60,8 @@ public val DEFAULT_HDR_LADDER: List<VideoCodec> = listOf(VideoCodec.Hevc)
  * an export that keeps HDR, [noteOf] is what to tell a caller about an effect this engine only
  * approximates, `supportsCopy` says whether it can copy a stream across without an encoder at
  * all, `muxerAccepts` says whether the muxer will take a source's streams without re-encoding them,
- * [canToneMap] says whether it can bring an HDR grade down to SDR, and
+ * [canToneMap] says whether it can bring an HDR grade down to SDR, [toneCurve] says how its tone map departs from the
+ * shared tone curve, or null when it runs that curve, and
  * [compositionGeometryPerClip] says whether composition-level geometry has to run on each clip's own
  * frame.
  */
@@ -74,6 +76,7 @@ public class ExportPlanner(
   muxerAccepts: (MediaInfo) -> Boolean,
   private val noteOf: (String) -> String? = { null },
   private val canToneMap: Boolean = true,
+  private val toneCurve: Degradation? = null,
   private val compositionGeometryPerClip: Boolean = false,
   private val hdrLadder: List<VideoCodec> = DEFAULT_HDR_LADDER,
 ) {
@@ -170,7 +173,7 @@ public class ExportPlanner(
 
     val audio = resolveAudioCodec(ask.spec, ask.device, silent = !streams.keepAudio)
     val output = outputFormatOf(ask, framing, grade, encoding, audio, timeline.tracks)
-    val concessions = concessionsOf(ask.spec, framing, grade, encoding, audio, lowered, dropped)
+    val concessions = concessionsOf(ask.spec, framing, grade, encoding, audio, lowered, dropped, toneCurve)
     if (ask.spec.strict && concessions.isNotEmpty()) {
       val refusal = Verdict.Incapable(concessions.map { it.strictRefusal }, withoutUnsupported = null)
       return Settlement.Settled(NegotiatedExport(refusal, null))
