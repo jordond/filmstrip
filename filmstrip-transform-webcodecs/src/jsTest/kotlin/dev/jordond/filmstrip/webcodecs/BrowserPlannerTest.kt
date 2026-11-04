@@ -35,6 +35,7 @@ import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.Flip
 import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.effects.geometry.Rotate
+import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
@@ -58,6 +59,7 @@ import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.test.LoopingCases
 import dev.jordond.filmstrip.transform.internal.LoweredExport
+import dev.jordond.filmstrip.transform.internal.geometry.frameAfter
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.passesCovering
@@ -196,27 +198,40 @@ class BrowserPlannerTest {
     verdict.plan.output.size shouldBe Size(640, 360)
   }
 
-  // A pass here carries one texture matrix settled at resolve, and a pan moves the region on every
-  // frame, so it is refused by name rather than drawn standing still.
   @Test
-  fun panRefusesByName() {
+  fun panIsExactAndKeepsTheFrameSize() {
     val pan = KenBurns(NormalizedRect.Full, NormalizedRect(0.2f, 0.2f, 0.8f, 0.8f))
     val clip = Clip(source("a"), effects = listOf(pan))
 
     val verdict = lower(compositionOf(listOf(clip))).verdict
 
-    verdict.shouldBeInstanceOf<Verdict.Incapable>()
-    verdict.reasons.any { it is FilmstripError.UnsupportedEffect && it.specId == EffectIds.KEN_BURNS } shouldBe true
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
+    verdict.plan.parity shouldBe EffectParity.Exact
+    verdict.plan.output.size shouldBe frameAfter(pan, info().video.shouldNotBeNull().displaySize)
   }
 
+  // A turn off the quarter turns is outside what a rotation takes, and the browser refuses it rather than guess.
   @Test
   fun unsupportedEffectRefusesWithFallback() {
-    val composition = compositionOf(listOf(Clip(source("a"))), effects = listOf(Rotate(90)))
+    val composition = compositionOf(listOf(Clip(source("a"))), effects = listOf(Rotate(45)))
     val verdict = lower(composition).verdict
     verdict.shouldBeInstanceOf<Verdict.Incapable>()
     verdict.reasons.any { it is FilmstripError.UnsupportedEffect } shouldBe true
     val fallback = verdict.withoutUnsupported.shouldNotBeNull()
     fallback.plan.effectOrder shouldBe emptyList()
+  }
+
+  @Test
+  fun rotateAndScaleAreExactAndSizeTheOutput() {
+    val rotate = Rotate(90)
+    val scale = Scale(640, Fit.Crop)
+    val clip = Clip(source("a"), effects = listOf(rotate))
+    val verdict = lower(compositionOf(listOf(clip), effects = listOf(scale))).verdict
+
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
+    verdict.plan.parity shouldBe EffectParity.Exact
+    verdict.plan.effectOrder.size shouldBe 2
+    verdict.plan.output.size shouldBe frameAfter(scale, frameAfter(rotate, info().video.shouldNotBeNull().displaySize))
   }
 
   @Test
@@ -355,6 +370,7 @@ class BrowserPlannerTest {
       render.clips
         .single()
         .matrix
+        .at(Duration.ZERO)
         .contentEquals(IDENTITY_MATRIX)
     ) shouldBe false
   }
@@ -1042,7 +1058,10 @@ class BrowserPlannerTest {
     val engine = BrowserExportEngine(ComponentRegistry.Builder().build(), prober)
     engine.parityOf(EffectIds.CROP) shouldBe EffectParity.Exact
     COLOR_IDS.forEach { id -> withClue(id) { engine.parityOf(id) shouldBe EffectParity.Exact } }
-    engine.parityOf(EffectIds.ROTATE).shouldBeNull()
+    engine.parityOf(EffectIds.ROTATE) shouldBe EffectParity.Exact
+    engine.parityOf(EffectIds.SCALE) shouldBe EffectParity.Exact
+    engine.parityOf(EffectIds.KEN_BURNS) shouldBe EffectParity.Exact
+    engine.parityOf("acme.filmgrain").shouldBeNull()
   }
 
   private fun matrixOf(spec: EffectSpec): FloatArray = checkNotNull(colorMatrixOf(spec)).toColumnMajor4x4()

@@ -685,7 +685,7 @@ class BrowserPreviewTest {
 /**
  * The color at a point given as fractions of the frame, measured from the top left.
  */
-private fun PreviewFrame.at(
+internal fun PreviewFrame.at(
   x: Double,
   y: Double,
 ): Rgb {

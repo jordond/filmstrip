@@ -49,11 +49,34 @@ public actual class PlatformEffect private constructor(
  * @property programKey Which shader program draws this pass. The pipeline links one program per
  *   distinct key and reuses it.
  * @property uniforms Uniform name to value, in the layout the program declares.
+ * @property textureMatrixAt The texture matrix this pass samples through at a composition time, as the nine floats of a
+ * column-major `mat3`, or null when the pass is the same on every frame. The compositor evaluates it once per frame and
+ * multiplies it into the chain where the pass sits.
  */
-public class WebGlPass(
+public class WebGlPass private constructor(
   public val programKey: String,
   public val uniforms: Map<String, FloatArray>,
+  @property:InternalFilmstripApi
+  public val textureMatrixAt: ((compositionTime: Duration) -> FloatArray)?,
 ) {
+  /**
+   * A pass that samples through the same uniforms on every frame.
+   *
+   * Every built-in effect except a pan builds its pass this way.
+   */
+  public constructor(programKey: String, uniforms: Map<String, FloatArray>) : this(programKey, uniforms, null)
+
+  /**
+   * A pass whose texture matrix moves with composition time.
+   *
+   * It carries no uniforms, so a fold over the uniforms of a chain reads nothing from it.
+   */
+  @InternalFilmstripApi
+  public constructor(
+    programKey: String,
+    textureMatrixAt: (compositionTime: Duration) -> FloatArray,
+  ) : this(programKey, emptyMap(), textureMatrixAt)
+
   override fun toString(): String = "WebGlPass(programKey=$programKey, uniforms=${uniforms.keys})"
 }
 

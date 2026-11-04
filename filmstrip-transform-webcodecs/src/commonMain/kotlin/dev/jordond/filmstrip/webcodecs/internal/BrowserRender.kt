@@ -6,7 +6,10 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
+import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.WebGlOverlay
+import dev.jordond.filmstrip.effect.WebGlPass
 import dev.jordond.filmstrip.effect.inCanonicalOrder
 import dev.jordond.filmstrip.effects.color.ColorMatrix
 import dev.jordond.filmstrip.effects.color.colorMatrixOfColumnMajor4x4OrNull
@@ -16,6 +19,7 @@ import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
@@ -42,12 +46,15 @@ import kotlin.time.DurationUnit
  *
  * @property firstSlot The output slot the clip opens on, counted from the start of the composition,
  *   so the render's lead frames come before it. The source's trim start is drawn on this slot.
+ * @property quadHalfW Half the quad's width as a fraction of the output's, after the composition's fit. A contained
+ * clip is no wider than the output, a cropped one may be wider, and a stretched one is exactly as wide.
+ * @property quadHalfH The same, for height.
  * @property coverHalfW Half the quad's width when the clip is scaled to cover the output rather
  *   than fit inside it. This is what a blurred fill's background draws with.
  * @property coverHalfH The same, for height.
  * @property hasBars Whether this clip leaves any letterbox bars at all. A clip whose aspect already
- *   matches the output has none, and a blurred fill skips its background passes for one that does
- *   not need them.
+ *   matches the output has none, nor does one cropped or stretched to fill it, and a blurred fill skips its background
+ *   passes for one that does not need them.
  * @property colorMatrix The clip's own color chain as the sixteen floats a GL `mat4` uniform
  *   takes, column-major, applied to `vec4(rgb, 1)`. The identity when the chain grades nothing.
  * @property compositionColorMatrix The composition's color chain, in the same form. The planner
@@ -72,7 +79,7 @@ internal class RenderedClip(
   val coverHalfW: Float,
   val coverHalfH: Float,
   val hasBars: Boolean,
-  val matrix: FloatArray,
+  val matrix: TextureMatrix,
   val colorMatrix: FloatArray,
   val compositionColorMatrix: FloatArray,
   val frames: Long,
@@ -114,9 +121,9 @@ internal class VideoEncoding(
  * render that writes none.
  * @property compositionOverlays The rasters the composition composites over the whole output frame after the fill,
  * bars and gaps included, in chain order.
- * @property compositionGeometryMatrix The texture matrix the composition's own geometry lowers to, the same nine
- * floats a clip's [RenderedClip.matrix] folds in after the clip's own. A clip overlay is drawn through it, so a
- * composition crop or flip moves the overlay with the picture.
+ * @property compositionGeometryMatrix The texture matrix the composition's own geometry lowers to, the same factors a
+ * clip's [RenderedClip.matrix] folds in after the clip's own. A clip overlay is drawn through it, so a composition crop
+ * or flip moves the overlay with the picture.
  */
 internal class BrowserRender(
   val writesVideo: Boolean,
@@ -135,7 +142,7 @@ internal class BrowserRender(
   val fill: Fill,
   val hdrTransfer: HdrTransfer?,
   val compositionOverlays: List<WebGlOverlay>,
-  val compositionGeometryMatrix: FloatArray,
+  val compositionGeometryMatrix: TextureMatrix,
 ) {
   /**
    * How long one output slot runs in microseconds at [frameRate]. Every pass that walks the output frame by frame
@@ -186,12 +193,15 @@ internal fun browserRenderOf(
   // The composition's overlays run after the fill and are drawn on their own, so the passes folded into each clip stop
   // short of them.
   val compositionChain = plan.compositionGeometry + plan.effectsUnderFill
+  val compositionGeometry = composition.effects.filter { it.stage == EffectStage.Geometry }
   val clips =
     primary.clips.mapIndexed { index, resolved ->
       renderedClip(
         resolved = resolved,
         track = track,
         outputSize = outputSize,
+        fit = plan.fit,
+        compositionGeometry = compositionGeometry,
         compositionChain = compositionChain,
         slots = slots[index],
         heldFrames = if (index == holder) heldFrames else 0L,
@@ -230,24 +240,33 @@ internal fun browserRenderOf(
     fill = plan.fill,
     hdrTransfer = plan.hdrTransfer,
     compositionOverlays = plan.effectsOverFill.mapNotNull { it.effect.overlay },
-    compositionGeometryMatrix = compositionChain.matrix(),
+    compositionGeometryMatrix = compositionChain.textureMatrix(),
   )
 }
 
 // One resolved clip as the quad, matrices and slots the compositor draws it with. [track] is the edit's own track the
-// clip was laid from, whose geometry decides the size it is drawn at.
+// clip was laid from, whose geometry and then the composition's decide the size it is drawn at, since both run in the
+// one texture matrix the quad samples through.
 private fun renderedClip(
   resolved: ResolvedClip,
   track: Track,
   outputSize: Size,
+  fit: Fit,
+  compositionGeometry: List<EffectSpec>,
   compositionChain: List<ResolvedEffect>,
   slots: LongRange,
   heldFrames: Long,
 ): RenderedClip {
   val raw = track.clips[resolved.sourceIndex]
-  val ownGeometry = (raw.effects + track.effects).inCanonicalOrder()
+  val geometry = (raw.effects + track.effects).inCanonicalOrder() + compositionGeometry.inCanonicalOrder()
   val drawnSize =
-    ownGeometry.fold(resolved.info.video?.displaySize ?: outputSize) { size, spec -> frameAfter(spec, size) }
+    geometry.fold(resolved.info.video?.displaySize ?: outputSize) { size, spec -> frameAfter(spec, size) }
+  val drawnScale =
+    when (fit) {
+      Fit.Contain -> containScale(drawnSize, outputSize)
+      Fit.Crop -> coverScale(drawnSize, outputSize)
+      Fit.Stretch -> null
+    }
   val chain = resolved.effects + compositionChain
   return RenderedClip(
     source = resolved.source,
@@ -262,12 +281,13 @@ private fun renderedClip(
         resolved.end.microseconds()
       },
     firstSlot = slots.first,
-    quadHalfW = drawnSize.width * containScale(drawnSize, outputSize) / outputSize.width,
-    quadHalfH = drawnSize.height * containScale(drawnSize, outputSize) / outputSize.height,
+    // A stretch scales each axis on its own, to the output's side.
+    quadHalfW = drawnScale?.let { drawnSize.width * it / outputSize.width } ?: 1f,
+    quadHalfH = drawnScale?.let { drawnSize.height * it / outputSize.height } ?: 1f,
     coverHalfW = drawnSize.width * coverScale(drawnSize, outputSize) / outputSize.width,
     coverHalfH = drawnSize.height * coverScale(drawnSize, outputSize) / outputSize.height,
-    hasBars = !matchesOutputAspect(drawnSize, outputSize),
-    matrix = chain.matrix(),
+    hasBars = fit == Fit.Contain && !matchesOutputAspect(drawnSize, outputSize),
+    matrix = chain.textureMatrix(),
     colorMatrix = resolved.effects.colorMatrix(),
     compositionColorMatrix = compositionChain.colorMatrix(),
     frames = slots.size,
@@ -301,17 +321,62 @@ private fun audioOnlyRender(plan: ResolvedComposition): BrowserRender =
     fill = plan.fill,
     hdrTransfer = null,
     compositionOverlays = emptyList(),
-    compositionGeometryMatrix = IDENTITY.copyOf(),
+    compositionGeometryMatrix = TextureMatrix.of(emptyList()),
   )
 
-private fun List<ResolvedEffect>.matrix(): FloatArray =
-  fold(IDENTITY.copyOf()) { combined, resolved ->
-    multiply(
-      combined,
-      resolved.effect.pass.uniforms[TEX_MATRIX_UNIFORM]
-        ?.copyOf() ?: IDENTITY.copyOf(),
-    )
+/**
+ * The texture matrix one chain samples through, as the nine floats of a column-major GL `mat3`.
+ *
+ * A pass with a fixed matrix is multiplied into its neighbours once, at lowering. A pass whose matrix moves with time
+ * keeps its place between them and is evaluated on every frame, so the product [at] gives is the chain's in order
+ * whichever passes move. A chain with no moving pass answers the same array at every time.
+ *
+ * @property varies Whether any pass in the chain moves with time, so the matrix has to be uploaded per frame rather
+ * than once per clip.
+ */
+internal class TextureMatrix private constructor(
+  private val fixed: FloatArray?,
+  private val factors: List<(Duration) -> FloatArray>,
+) {
+  val varies: Boolean get() = fixed == null
+
+  /**
+   * The chain's matrix on the frame drawn at [compositionTime].
+   *
+   * A chain that does not vary hands back the same array every time, which the caller must not write to.
+   */
+  fun at(compositionTime: Duration): FloatArray =
+    fixed ?: factors.fold(IDENTITY.copyOf()) { combined, factor -> multiply(combined, factor(compositionTime)) }
+
+  companion object {
+    /**
+     * Folds [passes] in chain order with the first one outermost, so the last pass maps the output first.
+     *
+     * Each run of fixed passes is multiplied into one factor here, and a moving pass stays a factor of its own.
+     */
+    fun of(passes: List<WebGlPass>): TextureMatrix {
+      val factors = mutableListOf<(Duration) -> FloatArray>()
+      var run = IDENTITY.copyOf()
+      for (pass in passes) {
+        val timed = pass.textureMatrixAt
+        if (timed == null) {
+          run = multiply(run, pass.uniforms[TEX_MATRIX_UNIFORM] ?: IDENTITY)
+          continue
+        }
+        val before = run
+        factors += { before }
+        factors += timed
+        run = IDENTITY.copyOf()
+      }
+      if (factors.isEmpty()) return TextureMatrix(run, emptyList())
+      val after = run
+      factors += { after }
+      return TextureMatrix(null, factors)
+    }
   }
+}
+
+private fun List<ResolvedEffect>.textureMatrix(): TextureMatrix = TextureMatrix.of(map { it.effect.pass })
 
 // Composed through the shared fold, so what a stage's passes come to here is the matrix the planner
 // would have made had it folded them itself. A pass this backend did not write is free to spell a

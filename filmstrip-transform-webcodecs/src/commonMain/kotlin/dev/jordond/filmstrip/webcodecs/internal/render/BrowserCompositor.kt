@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.webcodecs.internal.BrowserRender
 import dev.jordond.filmstrip.webcodecs.internal.MICROS_PER_SECOND
 import dev.jordond.filmstrip.webcodecs.internal.RenderedClip
 import dev.jordond.filmstrip.webcodecs.internal.TEN_BIT_FORMAT
+import dev.jordond.filmstrip.webcodecs.internal.TextureMatrix
 import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
 import dev.jordond.filmstrip.webcodecs.internal.interop.OffscreenCanvas
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
@@ -18,10 +19,12 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.WebGl2
 import dev.jordond.filmstrip.webcodecs.internal.interop.toFloat32Array
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
 
 /**
  * One WebGL pass over a decoded frame: the texture matrix an effect resolved to, a color matrix,
- * and a quad sized to letterbox a clip whose aspect does not match the output.
+ * and a quad the composition's fit sizes to contain, cover or stretch a clip into the output.
  *
  * A compositor built with a transfer function keeps the clip's grade instead. The frame's ten-bit
  * planes are uploaded and decoded to linear display light, everything composites at half-float
@@ -49,7 +52,7 @@ internal class BrowserCompositor private constructor(
   private val hdrTransfer: HdrTransfer?,
 ) {
   private var current: RenderedClip? = null
-  private var frameMatrix: FloatArray = IDENTITY_3
+  private var frameMatrix: TextureMatrix? = null
   private var overlayPass: BrowserOverlayPass? = null
 
   /**
@@ -62,7 +65,8 @@ internal class BrowserCompositor private constructor(
     private set
 
   /**
-   * Sets the state one clip draws with. Everything here is constant for the length of a clip.
+   * Sets the state one clip draws with. Everything here is constant for the length of a clip, apart from a texture
+   * matrix that moves with time, which [draw] uploads on every frame instead.
    *
    * The clip itself is kept around, not just its uniforms, because [draw] needs its cover geometry
    * and whether it has bars at all once the fill is blurred.
@@ -72,12 +76,12 @@ internal class BrowserCompositor private constructor(
    */
   fun clip(
     clip: RenderedClip,
-    compositionGeometryMatrix: FloatArray,
+    compositionGeometryMatrix: TextureMatrix,
   ) {
     current = clip
     frameMatrix = compositionGeometryMatrix
     gl.useProgram(program)
-    gl.uniformMatrix3fv(texMatrix, false, clip.matrix.toFloat32Array())
+    if (!clip.matrix.varies) gl.uniformMatrix3fv(texMatrix, false, clip.matrix.at(Duration.ZERO).toFloat32Array())
     gl.uniform2f(quadScale, clip.quadHalfW, clip.quadHalfH)
     gl.uniformMatrix4fv(colorMatrix, false, clip.colorMatrix.toFloat32Array())
     gl.uniformMatrix4fv(compositionColorMatrix, false, clip.compositionColorMatrix.toFloat32Array())
@@ -115,6 +119,10 @@ internal class BrowserCompositor private constructor(
   ) {
     this.compositionUs = compositionUs
     val clip = checkNotNull(current) { "clip() must run before draw()" }
+    if (clip.matrix.varies) {
+      gl.useProgram(program)
+      gl.uniformMatrix3fv(texMatrix, false, clip.matrix.at(compositionUs.microseconds).toFloat32Array())
+    }
     val source = if (hdr != null) hdr.unpack(gl, frame, program) else uploadImage(frame)
     val target = hdr?.outputFbo
 
@@ -179,10 +187,11 @@ internal class BrowserCompositor private constructor(
     compositionUs: Double,
   ) {
     if (clip.overlays.isEmpty()) return
+    val geometry = checkNotNull(frameMatrix) { "clip() must run before draw()" }
     overlays().draw(
       clip.overlays,
       compositionUs,
-      frameMatrix,
+      geometry.at(compositionUs.microseconds),
       halfWidth,
       halfHeight,
       clip.compositionColorMatrix,

@@ -73,12 +73,12 @@ it recognises, and declines the rest so the next resolver gets a look.
 
 | Effect                                  | Android               | Apple             | Browser           | ffmpeg                 |
 | --------------------------------------- | --------------------- | ----------------- | ----------------- | ---------------------- |
-| `Rotate`                                | ✅                    | ✅                | ❌ [^web-resize]  | ✅                     |
+| `Rotate`                                | ✅                    | ✅                | ✅ [^web-rotate]  | ✅                     |
 | `Flip`                                  | ✅                    | ✅                | ✅                | ✅                     |
 | `Crop` (aspect)                         | ✅                    | ✅                | ✅                | ✅                     |
 | `CropRect`                              | ✅                    | ✅                | ✅                | ✅                     |
-| `Scale`                                 | ✅ [^android-fit]     | ✅                | ❌ [^web-resize]  | ✅ [^ffmpeg-scale]     |
-| `KenBurns`                              | ✅ [^clip-only]       | ✅ [^clip-only]   | ❌ [^pan-pending] | ❌ [^pan-pending]      |
+| `Scale`                                 | ✅ [^android-fit]     | ✅                | ✅ [^web-fit]     | ✅ [^ffmpeg-scale]     |
+| `KenBurns`                              | ✅ [^clip-only]       | ✅ [^clip-only]   | ✅ [^clip-only]   | ❌ [^pan-pending]      |
 | `Brightness` [^hdr-brightness]          | ✅                    | ✅                | ✅                | ✅                     |
 | Color matrices [^matrix] [^sdr-matrix] | ✅                    | ✅                | ✅                | ✅                     |
 | `ImageOverlay` [^hdr-overlay]           | ✅ [^android-overlay] | ✅                | ✅ [^web-image]   | ✅ [^ffmpeg-image]     |
@@ -100,9 +100,14 @@ it recognises, and declines the rest so the next resolver gets a look.
     whole plan, not once per scale: the plan pins one `Presentation` at the resolved output frame, which
     is also what puts clips of differing sizes on the same frame so they concatenate.
 
-[^web-resize]:
-    `Rotate` and `Scale` change the size of the render target rather than adding a pass,
-    which makes them pipeline setup. No browser pipeline has landed to set up.
+[^web-rotate]:
+    The browser turns a frame by whole quarter turns, 0, 90, 180 or 270 degrees, and refuses any
+    other angle by name.
+
+[^web-fit]:
+    The effect sets the output height and the plan sizes the frame from it before the compositor
+    is built. `Fit` applies to every clip the frame draws: `Contain` letterboxes, `Crop` covers and
+    cuts the overflow, and `Stretch` fills each axis on its own.
 
 [^ffmpeg-scale]:
     Claimed but contributes no filter node. The size stage is the tail the backend pins
@@ -110,9 +115,9 @@ it recognises, and declines the rest so the next resolver gets a look.
     Claimed rather than declined, because an unclaimed spec is refused by name at plan time.
 
 [^pan-pending]:
-    A pan moves the region it shows on every frame. The browser carries one texture
-    matrix settled at resolve, and ffmpeg resolves a crop to whole pixels once at plan time so that the
-    plan and the export cannot disagree about the frame. Neither has a per-frame form yet.
+    A pan moves the region it shows on every frame. ffmpeg resolves a crop to whole pixels
+    once at plan time so that the plan and the export cannot disagree about the frame, and has no
+    per-frame form yet.
 
 [^hdr-overlay]:
     On an export that keeps an HDR grade, an opaque overlay texel lands at the light a solid

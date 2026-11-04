@@ -30,6 +30,7 @@ import dev.jordond.filmstrip.effects.geometry.Flip
 import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.effects.geometry.regionAt
 import dev.jordond.filmstrip.effects.geometry.retainedRect
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayDecode
@@ -59,10 +60,10 @@ import kotlin.time.Duration
 /**
  * Lowers the built-in catalogue onto WebGL pass declarations.
  *
- * Only the effects that are a texture-space transform or a color matrix resolve here. Rotate and
- * Scale would resize the render target rather than adding a pass, and the browser pipeline sizes
- * its compositor once from the output spec when export starts, with no path for a resolved effect
- * to resize it afterward.
+ * Only the effects that are a texture-space transform or a color matrix resolve here. A rotation is a texture matrix
+ * about the frame's centre, and a scale resolves to a pass that samples the frame unchanged, since the output size it
+ * sets is negotiated before the compositor is built. A pan is a texture matrix the compositor asks for again on every
+ * frame, at the region [regionAt] gives for that frame's composition time.
  *
  * Overlays are rasterised here, text on the spot and images from the ones [prepare] decoded, and
  * resolve to a raster the compositor draws where the effect says. Text carries its straight sixteen-bit samples, and
@@ -102,8 +103,9 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       is Invert,
       is ColorMatrix,
       -> spec.toColorPass()
-      is KenBurns -> EffectResolution.Unsupported(spec.id, PAN_PENDING)
-      is Rotate, is Scale -> EffectResolution.Unsupported(spec.id, RESIZING_PENDING)
+      is KenBurns -> spec.toPass(attributes)
+      is Rotate -> spec.toPass()
+      is Scale -> textureMatrix(IDENTITY)
       is ImageOverlay -> spec.toOverlay(capabilities, attributes)
       is TextOverlay -> spec.toOverlay(capabilities, attributes)
       else -> null
@@ -183,17 +185,34 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   private fun textureMatrix(matrix: FloatArray): EffectResolution =
     resolved(WebGlPass(TEXTURE_PROGRAM, mapOf(TEXTURE_MATRIX to matrix)))
 
+  private fun textureMatrix(rect: NormalizedRect): EffectResolution = textureMatrix(rect.matrix())
+
+  private fun KenBurns.toPass(attributes: Attributes): EffectResolution {
+    val span = attributes.span
+    return resolved(WebGlPass(TEXTURE_PROGRAM) { time -> regionAt(time, span).matrix() })
+  }
+
   // filmstrip measures from the top-left with +Y down. A GL texture measures from the bottom-left
   // with +Y up, so the retained rect's bottom edge becomes the sampling origin.
-  private fun textureMatrix(rect: NormalizedRect): EffectResolution =
-    textureMatrix(
-      columnMajor(
-        scaleU = rect.width,
-        scaleV = rect.height,
-        offsetU = rect.left,
-        offsetV = 1f - rect.bottom,
-      ),
+  private fun NormalizedRect.matrix(): FloatArray =
+    columnMajor(
+      scaleU = width,
+      scaleV = height,
+      offsetU = left,
+      offsetV = 1f - bottom,
     )
+
+  // A quarter turn swaps the frame's sides, so the output's u runs along the source's v. Each turn is a permutation of
+  // the unit square, read back from the output to the source, which is the inverse of the counter-clockwise turn.
+  private fun Rotate.toPass(): EffectResolution {
+    if (degrees.mod(QUARTER_TURN) != 0) return EffectResolution.Unsupported(id, OFF_QUARTER_TURN)
+    return when (degrees.mod(FULL_TURN) / QUARTER_TURN) {
+      0 -> textureMatrix(IDENTITY)
+      1 -> textureMatrix(floatArrayOf(0f, -1f, 0f, 1f, 0f, 0f, 0f, 1f, 1f))
+      2 -> textureMatrix(floatArrayOf(-1f, 0f, 0f, 0f, -1f, 0f, 1f, 1f, 1f))
+      else -> textureMatrix(floatArrayOf(0f, 1f, 0f, -1f, 0f, 0f, 1f, 0f, 1f))
+    }
+  }
 
   private fun FlipAxis.matrix(): FloatArray =
     when (this) {
@@ -226,14 +245,13 @@ private const val COLOR_MATRIX_PROGRAM = "filmstrip.colorMatrix"
 private const val TEXTURE_MATRIX = "uTexMatrix"
 private const val COLOR_MATRIX = "uColorMatrix"
 
-private const val RESIZING_PENDING =
-  "Rotate and Scale change the size of the render target rather than adding a pass, so they " +
-    "are pipeline setup rather than a resolved effect. The browser pipeline sizes its compositor " +
-    "once from the output spec and has no path for a resolved effect to resize it afterward."
+private val IDENTITY = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f)
+private const val QUARTER_TURN = 90
+private const val FULL_TURN = 360
 
-private const val PAN_PENDING =
-  "A pan moves the region it shows on every frame, and a pass here carries one texture matrix " +
-    "settled at resolve. A pass that moves it per frame has not landed on this backend yet."
+private const val OFF_QUARTER_TURN =
+  "The browser turns a frame by whole quarter turns only, 0, 90, 180 or 270 degrees, which are the angles a rotation " +
+    "takes."
 
 private const val PATH_UNREADABLE =
   "was named by a file path, which a browser cannot read. Pass it as bytes or a URI instead."

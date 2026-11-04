@@ -10,7 +10,6 @@ import dev.jordond.filmstrip.webcodecs.internal.PacketStream
 import dev.jordond.filmstrip.webcodecs.internal.SourceReader
 import dev.jordond.filmstrip.webcodecs.internal.interop.ArrayBuffer
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioSample
-import dev.jordond.filmstrip.webcodecs.internal.interop.AudioSampleSink
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioSampleSource
 import dev.jordond.filmstrip.webcodecs.internal.interop.BufferTarget
 import dev.jordond.filmstrip.webcodecs.internal.interop.EncodedPacketSink
@@ -119,6 +118,19 @@ internal suspend fun makeClip(
   frameRate: Int = 30,
   keyFrameSeconds: Double = DEFAULT_KEY_FRAME_SECONDS,
   row: (frameIndex: Int, y: Int) -> Rgb,
+): ByteArray = makePixelClip(width, height, frames, frameRate, keyFrameSeconds) { index, _, y -> row(index, y) }
+
+/**
+ * Muxes [frames] frames of [width] by [height] into an MP4 the way [makeClip] does, painting one pixel at a time, for
+ * a fixture whose columns differ as well as its rows.
+ */
+internal suspend fun makePixelClip(
+  width: Int = 64,
+  height: Int = 64,
+  frames: Int = 12,
+  frameRate: Int = 30,
+  keyFrameSeconds: Double = DEFAULT_KEY_FRAME_SECONDS,
+  pixel: (frameIndex: Int, x: Int, y: Int) -> Rgb,
 ): ByteArray {
   val target = BufferTarget()
   val output =
@@ -143,8 +155,8 @@ internal suspend fun makeClip(
   val pixels = ByteArray(width * height * RGBA_CHANNELS)
   for (index in 0 until frames) {
     for (y in 0 until height) {
-      val color = row(index, y)
       for (x in 0 until width) {
+        val color = pixel(index, x, y)
         val offset = (y * width + x) * RGBA_CHANNELS
         pixels[offset] = color.red.toByte()
         pixels[offset + 1] = color.green.toByte()
@@ -345,55 +357,6 @@ internal suspend fun makeClipWithAudio(
 
   output.finalize().await()
   return (target.buffer ?: error("the fixture muxer produced no buffer")).toByteArray()
-}
-
-/**
- * What decoding [source]'s audio track back proved: real samples with a real duration and a peak
- * amplitude, or null when the source has no audio track at all.
- *
- * [startUs] and [durationUs] are where the track opens and where it ends, both on the file's own
- * timeline, which is what a test comparing the audio against the video reads.
- */
-internal class DecodedAudio(
-  val sampleCount: Int,
-  val startUs: Double,
-  val durationUs: Double,
-  val peakAmplitude: Float,
-)
-
-internal suspend fun decodeAudio(source: MediaSource): DecodedAudio? {
-  val reader = SourceReader.of(source) ?: error("the decoder could not open $source")
-  try {
-    val track = reader.audioTrack() ?: return null
-    val sink = AudioSampleSink(track)
-    val iterator = sink.samples(0.0, Double.POSITIVE_INFINITY)
-    var count = 0
-    var startUs = Double.POSITIVE_INFINITY
-    var durationUs = 0.0
-    var peak = 0f
-    while (true) {
-      val step = iterator.next().await()
-      if (step.done) break
-      val sample = step.value ?: continue
-      try {
-        count++
-        startUs = minOf(startUs, sample.microsecondTimestamp)
-        durationUs = maxOf(durationUs, sample.microsecondTimestamp + sample.microsecondDuration)
-        val buffer = sample.toAudioBuffer()
-        for (channel in 0 until buffer.numberOfChannels) {
-          val data = buffer.getChannelData(channel)
-          for (index in 0 until data.length) {
-            peak = maxOf(peak, abs(data.at(index)))
-          }
-        }
-      } finally {
-        sample.close()
-      }
-    }
-    return DecodedAudio(count, if (count == 0) 0.0 else startUs, durationUs, peak)
-  } finally {
-    reader.close()
-  }
 }
 
 /**

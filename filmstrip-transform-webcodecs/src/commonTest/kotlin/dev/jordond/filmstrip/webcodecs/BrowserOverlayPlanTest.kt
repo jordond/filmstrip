@@ -149,7 +149,7 @@ class BrowserOverlayPlanTest {
 
       with.colorMatrix shouldBe without.colorMatrix
       with.compositionColorMatrix shouldBe without.compositionColorMatrix
-      with.matrix shouldBe without.matrix
+      with.matrix.at(Duration.ZERO) shouldBe without.matrix.at(Duration.ZERO)
     }
 
   @Test
