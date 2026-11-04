@@ -89,6 +89,24 @@ class BrowserAudioPreviewTest {
       }
     }
 
+  // The stop lands inside the first of the start's two passes, the way a pause does while a decode
+  // is still in flight.
+  @Test
+  fun aStopDuringAStartSchedulesNoFurtherWindow() =
+    runTest {
+      lateinit var preview: BrowserAudioPreview
+      val reads = TrackReads(onRead = { preview.stop() })
+      preview = BrowserAudioPreview(reads::tracks, SourceCache())
+
+      try {
+        preview.start(FROM)
+
+        reads.count shouldBe 1
+      } finally {
+        preview.release()
+      }
+    }
+
   @Test
   fun aStartAnchorsThePlayheadWhereItWasAskedFor() =
     runTest {
@@ -123,12 +141,15 @@ class BrowserAudioPreviewTest {
       }
     }
 
-  private class TrackReads {
+  private class TrackReads(
+    private val onRead: () -> Unit = {},
+  ) {
     var count: Int = 0
       private set
 
     fun tracks(): List<ResolvedTrack> {
       count++
+      onRead()
       return emptyList()
     }
   }

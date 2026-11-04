@@ -93,11 +93,13 @@ public class BrowserAudioPreview internal constructor(
 
   /**
    * Schedules whatever has come inside the look-ahead since the last call.
+   *
+   * A pass can suspend on a decode, so a [stop] or [release] that lands mid-pump ends it before the
+   * next window is scheduled.
    */
   public suspend fun pump(position: Duration) {
-    if (released || !running) return
     val horizon = position + SCHEDULE_AHEAD
-    while (scheduledTo < horizon) {
+    while (!released && running && scheduledTo < horizon) {
       val to = minOf(scheduledTo + SCHEDULE_WINDOW, horizon)
       scheduleBetween(scheduledTo, to)
       scheduledTo = to
