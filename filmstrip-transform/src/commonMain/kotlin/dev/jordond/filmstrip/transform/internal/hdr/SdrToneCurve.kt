@@ -13,6 +13,10 @@ import kotlin.math.pow
 
 /**
  * Three linear or encoded channels, red, green and blue, in that order.
+ *
+ * @property r The red channel.
+ * @property g The green channel.
+ * @property b The blue channel.
  */
 @InternalFilmstripApi
 public data class Rgb(
@@ -38,6 +42,10 @@ public data class Rgb(
 
 /**
  * A three by three matrix on [Rgb], stored as its three rows.
+ *
+ * @property red The row that produces the red channel.
+ * @property green The row that produces the green channel.
+ * @property blue The row that produces the blue channel.
  */
 @InternalFilmstripApi
 public data class RgbMatrix(
@@ -107,8 +115,7 @@ public const val TONE_MAP_PQ_GAIN_SCALE: Double = PQ_PEAK_NITS / TONE_MAP_SDR_PE
 /**
  * The gamma of the OETF the tone curve encodes its SDR output with.
  *
- * media3 writes a BT.709 SDR export through a plain `pow(x, 1 / 2.2)` once the source is HDR, not the SMPTE 170M
- * curve the same transfer names on an SDR source.
+ * Tone mapped light, one at [TONE_MAP_SDR_PEAK_NITS], is written as `pow(x, 1 / 2.2)` and tagged BT.709.
  */
 @InternalFilmstripApi
 public const val TONE_MAP_OETF_GAMMA: Double = 2.2

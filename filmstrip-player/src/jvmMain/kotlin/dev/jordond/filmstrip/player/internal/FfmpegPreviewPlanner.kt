@@ -10,8 +10,10 @@ import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
 import dev.jordond.filmstrip.ffmpeg.internal.preview.openPreview
 import dev.jordond.filmstrip.ffmpeg.registeredFfmpegEngine
 import dev.jordond.filmstrip.player.PlaybackError
+import dev.jordond.filmstrip.player.PreviewInfo
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -33,11 +35,28 @@ internal open class FfmpegPreviewPlanner(
   final override suspend fun plan(
     composition: EditComposition,
     policy: PreviewQualityPolicy,
-  ): PlanResult<PreviewPlan, PlaybackError> =
-    when (val engine = engine) {
-      null -> PlanResult.Refused(MISSING_FFMPEG.toPlaybackError())
-      else -> planPreview(composition, policy, FFMPEG_FIDELITY, engine::resolve)
+  ): PlanResult<PreviewPlan, PlaybackError> {
+    val engine = engine ?: return PlanResult.Refused(MISSING_FFMPEG.toPlaybackError())
+    // What the preview says about the grade follows the grade the plan settles on, so the notes go on once it has.
+    return when (val result = planPreview(composition, policy, emptyList(), engine::resolve)) {
+      is PlanResult.Refused -> {
+        result
+      }
+      is PlanResult.Ready -> {
+        val plan = result.plan
+        val info = plan.info
+        val fidelity = ffmpegFidelity(plan.resolved.hdr)
+        PlanResult.Ready(
+          PreviewPlan(
+            plan.resolved,
+            PreviewInfo(info.outputSize, info.renderScale, info.parity, info.parityNotes, fidelity),
+            plan.spec,
+            plan.layoutSize,
+          ),
+        )
+      }
     }
+  }
 
   /**
    * Spawns a pump for [composition] against the frame [plan] settled on, starting at [at].
@@ -69,25 +88,40 @@ internal val MISSING_FFMPEG: FilmstripError.BackendMissing =
 private const val FFMPEG_ARTIFACT = "dev.jordond.filmstrip:filmstrip-transform-ffmpeg"
 
 /**
- * How much the ffmpeg preview says about each property of the exported file.
+ * How much the ffmpeg preview says about each property of a file exported under [hdr].
  *
  * The preview and the export run one `-filter_complex` over the same decoded frames, so everything
  * the chain decides is exact. What the preview cannot answer for is what happens after it: the
- * encoder it never runs, and a grade it converts straight to RGB rather than handing to a display.
+ * encoder it never runs, and a kept grade the pump converts straight to RGB rather than handing to a
+ * display. A tone mapped export runs the shared curve in that same chain, so the pump shows what the
+ * file holds.
  */
-private val FFMPEG_FIDELITY: List<FidelityNote> =
+internal fun ffmpegFidelity(hdr: ResolvedHdr): List<FidelityNote> =
   listOf(
     NO_ENCODER_PREVIEW,
-    FidelityNote(
-      property = OutputProperty.HdrAppearance,
-      fidelity = PreviewFidelity.NotPreviewable,
-      message = "The pump converts a grade straight to RGB, so an HDR export looks nothing like this.",
-    ),
+    when (hdr) {
+      ResolvedHdr.Keep -> KEPT_GRADE
+      ResolvedHdr.ToneMap -> TONE_MAPPED
+    },
     FidelityNote(
       property = OutputProperty.Smoothness,
       fidelity = PreviewFidelity.Approximate,
       message = "Frames are paced as the decoder delivers them, and one that arrives late is late here only.",
     ),
+  )
+
+private val KEPT_GRADE =
+  FidelityNote(
+    property = OutputProperty.HdrAppearance,
+    fidelity = PreviewFidelity.NotPreviewable,
+    message = "The pump converts a grade straight to RGB, so an HDR export looks nothing like this.",
+  )
+
+private val TONE_MAPPED =
+  FidelityNote(
+    property = OutputProperty.HdrAppearance,
+    fidelity = PreviewFidelity.Exact,
+    message = "The pump runs the tone curve the export does, so the SDR frame it shows is the one the file holds.",
   )
 
 internal val PreviewPlan.frameStep: Duration get() = resolved.frameStep

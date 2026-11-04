@@ -13,12 +13,20 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.geometry.CropRect
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.placedOn
+import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.geometry.Corner
+import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.AuthoredColors
+import dev.jordond.filmstrip.test.OverlayPixels
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.geometry.containScale
 import dev.jordond.filmstrip.transform.internal.geometry.coverScale
@@ -30,14 +38,16 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
+import kotlin.math.abs
 import kotlin.test.Test
 
 /**
  * Rotate and Scale drawn through a real browser export and read back out of the written file.
  *
- * Every frame size comes from `frameAfter` and every fitted edge from `containScale` or `coverScale`, so a case
- * measures the compositor against the shared geometry rather than against a number of its own. The fixtures carry a
- * different color in each quadrant or band, so a frame turned or fitted the wrong way reads a different color.
+ * Every frame size comes from `frameAfter`, every fitted edge from `containScale` or `coverScale` and every overlay
+ * rect from `placedOn` and `rectOn`, so a case measures the compositor against the shared geometry rather than against
+ * a number of its own. The fixtures carry a different color in each quadrant or band, so a frame turned or fitted the
+ * wrong way reads a different color.
  */
 class BrowserGeometryExportTest {
   @Test
@@ -114,7 +124,7 @@ class BrowserGeometryExportTest {
 
         withClue("$fit") {
           Size(frame.width, frame.height) shouldBe output
-          val (halfW, halfH) = halfExtents(fit, BANDED_SIZE, output)
+          val (halfW, halfH) = halfExtents(fit, frameAfter(scale, BANDED_SIZE), output)
           for ((x, y) in listOf(EDGE_PROBE to 0.5, 0.5 to BAR_PROBE, 0.5 to 0.5)) {
             assertReads(fittedAt(halfW, halfH, x, y), frame.at(x, y), "($x, $y)")
           }
@@ -148,6 +158,85 @@ class BrowserGeometryExportTest {
         for ((x, y) in QUADRANT_PROBES + listOf(EDGE_PROBE to 0.3)) {
           assertReads(written[slot].at(x, y), drawn.at(x, y), "the preview at ($x, $y)")
         }
+      } finally {
+        preview.release()
+      }
+    }
+
+  // A tall turned clip contained in a wide frame leaves bars either side, and the blurred background covers them with
+  // the turned frame. The source's edge rows land on the turned frame's sides, so a background scaled or turned from
+  // the unturned frame reads another band in the bar.
+  @Test
+  fun aBlurredFillBehindATurnedClipCoversTheBarsWithTheTurnedFrame() =
+    runTest {
+      val opener = makeClip(width = OPENER_SIZE.width, height = OPENER_SIZE.height, frames = OPENER_FRAMES)
+      val turn = Rotate(QUARTER_TURN)
+      val composition =
+        EditComposition(
+          tracks =
+            listOf(
+              Track(
+                listOf(
+                  Clip(MediaSource.Bytes(opener)),
+                  Clip(MediaSource.Bytes(rowBandedClip()), effects = listOf(turn)),
+                ),
+              ),
+            ),
+          audio = AudioSpec.Remove,
+          fill = Fill.Blurred(radius = FINE_BLUR),
+        )
+      val written = exported(composition)
+      val slot = written.lastIndex
+      val drawn = frameAfter(turn, ROW_BANDED_SIZE)
+      val (quadW, _) = halfExtents(Fit.Contain, drawn, OPENER_SIZE)
+      val (coverW, coverH) = halfExtents(Fit.Crop, drawn, OPENER_SIZE)
+      withClue("the turned clip at $quadW of the frame's width leaves no bar at $FILL_PROBES") {
+        FILL_PROBES.all { abs(it - 0.5) > quadW / 2 } shouldBe true
+      }
+
+      val preview = previewOf(composition)
+      try {
+        val previewed = preview.frameAt(outputSlotTime(slot.toLong(), FRAME_RATE)).shouldNotBeNull()
+        for (x in FILL_PROBES) {
+          val expected = bandAt(turned(1, 0.5 + (x - 0.5) / coverW, 0.5 + (FILL_ROW - 0.5) / coverH).second)
+          assertReads(expected, written[slot].at(x, FILL_ROW), "the bar at $x")
+          assertReads(written[slot].at(x, FILL_ROW), previewed.at(x, FILL_ROW), "the preview's bar at $x")
+        }
+      } finally {
+        preview.release()
+      }
+    }
+
+  // A clip overlay is placed on the clip's own frame, so a composition turn carries it to the turned corner.
+  @Test
+  fun aClipOverlayUnderACompositionRotationMovesToTheTurnedCorner() =
+    runTest {
+      val clip =
+        makeClip(width = BADGED_SIZE.width, height = BADGED_SIZE.height, frames = OPENER_FRAMES, color = Rgb.Blue)
+      val badge = ImageOverlay(BADGE_IMAGE, Corner.TopStart)
+      val turn = Rotate(QUARTER_TURN)
+      val composition =
+        EditComposition(
+          tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(clip), effects = listOf(badge))))),
+          effects = listOf(turn),
+          audio = AudioSpec.Remove,
+        )
+      val written = exported(composition)
+      val slot = written.lastIndex
+      val frame = written[slot]
+      val rect = badge.placedOn(BADGED_SIZE, BADGE_PNG).rectOn(BADGED_SIZE)
+      // One counter-clockwise quarter turn carries a source point (x, y) to (y, 1 - x).
+      val turnedX = rect.middleY
+      val turnedY = 1.0 - rect.middleX
+
+      Size(frame.width, frame.height) shouldBe frameAfter(turn, BADGED_SIZE)
+      assertReads(BADGE, frame.at(turnedX, turnedY), "the turned badge")
+      assertReads(Rgb.Blue, frame.at(rect.middleX, rect.middleY), "where it was authored")
+
+      val preview = previewOf(composition)
+      try {
+        val previewed = preview.frameAt(outputSlotTime(slot.toLong(), FRAME_RATE)).shouldNotBeNull()
+        assertReads(frame.at(turnedX, turnedY), previewed.at(turnedX, turnedY), "the preview's turned badge")
       } finally {
         preview.release()
       }
@@ -191,6 +280,11 @@ private suspend fun quadrantClip(): ByteArray =
 private suspend fun bandedClip(): ByteArray =
   makePixelClip(width = BANDED_SIZE.width, height = BANDED_SIZE.height, frameRate = FRAME_RATE) { _, x, _ ->
     bandAt((x + 0.5) / BANDED_SIZE.width)
+  }
+
+private suspend fun rowBandedClip(): ByteArray =
+  makePixelClip(width = ROW_BANDED_SIZE.width, height = ROW_BANDED_SIZE.height, frameRate = FRAME_RATE) { _, _, y ->
+    bandAt((y + 0.5) / ROW_BANDED_SIZE.height)
   }
 
 private fun quadrantAt(point: Pair<Double, Double>): Rgb {
@@ -262,3 +356,18 @@ private const val SCALED_HEIGHT = 96
 private const val EDGE_BAND = 0.1
 private const val EDGE_PROBE = 0.03
 private const val BAR_PROBE = 0.0625
+
+// Banded the way bandedClip is but down its rows, so a quarter turn lays the bands across the turned frame's width.
+private val ROW_BANDED_SIZE = Size(128, 64)
+
+// A sigma of one output pixel, the least sigmaFor gives, so a probe a few pixels inside a band reads that band.
+private const val FINE_BLUR = 0.01f
+
+// The middle of the left bar and a point inside each edge band the cover scale lays across the bars.
+private val FILL_PROBES = listOf(0.05, 0.2, 0.95)
+private const val FILL_ROW = 0.5
+
+private val BADGED_SIZE = Size(256, 128)
+private val BADGE_PNG = Size(8, 4)
+private val BADGE_IMAGE: ImageSource = ImageSource.ofBytes(OverlayPixels.pngOf(BADGE_PNG, AuthoredColors.MID_GREEN))
+private val BADGE = rgbOf(AuthoredColors.MID_GREEN)

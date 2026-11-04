@@ -1,7 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg.internal.lowering
 
 import dev.jordond.filmstrip.color.PQ_PEAK_NITS
-import dev.jordond.filmstrip.effect.FilterArgument
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.Sidecar
@@ -12,6 +11,7 @@ import dev.jordond.filmstrip.effects.MAX_1D_LEVEL
 import dev.jordond.filmstrip.effects.PIXEL
 import dev.jordond.filmstrip.effects.geq
 import dev.jordond.filmstrip.effects.lut1d
+import dev.jordond.filmstrip.effects.mixer
 import dev.jordond.filmstrip.effects.signalFromGrade
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -55,7 +55,7 @@ internal fun toneMapFragment(transfer: HdrTransfer): FilterFragment {
       addAll(sidecars.signalFromGrade())
       add(sidecars.lut1d(linearTable(transfer), LINEAR))
       add(geq(PIXEL.map { "($it)*(${gainExpression(transfer)})" }))
-      add(mixer(TONE_MAP_BT2020_TO_BT709))
+      add(mixer(TONE_MAP_BT2020_TO_BT709.rows))
       add(sidecars.lut1d(oetfTable, LINEAR))
       add(FilterNode("scale", "out_color_matrix" to SDR_TAG, "out_range" to "tv"))
       add(FilterNode("format", "pix_fmts" to "yuv420p"))
@@ -114,22 +114,13 @@ private val linearTables: Map<HdrTransfer, LutTable> by lazy {
   }
 }
 
+private val RgbMatrix.rows: List<DoubleArray>
+  get() = listOf(red, green, blue).map { doubleArrayOf(it.r, it.g, it.b) }
+
 // Linear BT.709 SDR light to its signal. lut1d clamps its input to zero to one first, which is the curve's clamp.
 private val oetfTable: LutTable by lazy {
   val column = DoubleArray(MAX_1D_LEVEL) { toneMapOetf(it.toDouble() / (MAX_1D_LEVEL - 1)) }
   LutTable(List(3) { column })
 }
-
-private fun mixer(matrix: RgbMatrix): FilterNode =
-  FilterNode(
-    "colorchannelmixer",
-    listOf(matrix.red, matrix.green, matrix.blue).zip(listOf("r", "g", "b")).flatMap { (row, out) ->
-      listOf(
-        FilterArgument("${out}r", row.r.toString()),
-        FilterArgument("${out}g", row.g.toString()),
-        FilterArgument("${out}b", row.b.toString()),
-      )
-    },
-  )
 
 private const val SDR_TAG = "bt709"

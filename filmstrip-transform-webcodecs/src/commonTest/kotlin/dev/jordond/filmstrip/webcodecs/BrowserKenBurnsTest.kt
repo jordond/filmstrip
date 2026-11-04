@@ -61,6 +61,20 @@ class BrowserKenBurnsTest {
       }
     }
 
+  // A zoom changes the region's width, which a probe at the centre cannot see, so it is read either side of it too.
+  @Test
+  fun aZoomSamplesTheRegionTheSharedCurveGivesMidTravel() =
+    runTest {
+      val zoom = KenBurns(NormalizedRect.Full, INNER, Easing.Linear)
+      val frames = exported(single(listOf(zoom)))
+      val slot = slotAt(MID_FRACTION)
+
+      val region = zoom.regionAt(outputSlotTime(slot.toLong(), FRAME_RATE), SPAN)
+      for (x in ZOOM_PROBES) {
+        assertLevel(region.inside(x), frames[slot].at(x, PROBE_Y), "slot $slot at x $x")
+      }
+    }
+
   // Listed out of order, the clip still crops, then pans inside the crop, then scales. A pan before the crop would
   // travel the whole source rather than its left half, and read another level.
   @Test
@@ -152,6 +166,7 @@ private fun NormalizedRect.inside(x: Double): Double = left + x * width
 private val FROM = NormalizedRect(0f, 0f, 0.2f, 1f)
 private val TO = NormalizedRect(0.8f, 0f, 1f, 1f)
 private val LEFT_HALF = NormalizedRect(0f, 0f, 0.5f, 1f)
+private val INNER = NormalizedRect(0.3f, 0f, 0.7f, 1f)
 private val RAMP_SIZE = Size(128, 64)
 private val SPAN = TimeRange(Duration.ZERO, FRAMES.seconds / FRAME_RATE)
 
@@ -165,6 +180,7 @@ private const val FRAME_RATE = 30
 private const val SCALED_HEIGHT = 48
 private const val MID_FRACTION = 0.4
 private const val PROBE_X = 0.5
+private val ZOOM_PROBES = listOf(0.2, 0.8)
 private const val PROBE_Y = 0.5
 private const val MAX_LEVEL = 255
 private const val LEVEL_TOLERANCE = 8

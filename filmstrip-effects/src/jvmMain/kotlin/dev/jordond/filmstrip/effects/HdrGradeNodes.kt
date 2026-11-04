@@ -124,8 +124,13 @@ internal fun gradedOnTables(
   return FilterFragment(chain = chain, sidecars = sidecars.distinct())
 }
 
-// A colorchannelmixer that writes each of red, green and blue as its row of red, green and blue in.
-private fun mixer(rows: List<DoubleArray>): FilterNode =
+/**
+ * A colorchannelmixer that writes each of red, green and blue as its row of [rows] applied to red, green and blue in.
+ *
+ * [rows] holds three rows of three weights, red first.
+ */
+@InternalFilmstripApi
+public fun mixer(rows: List<DoubleArray>): FilterNode =
   FilterNode(
     "colorchannelmixer",
     MIXER_KEYS.flatMapIndexed { out, keys ->

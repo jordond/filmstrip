@@ -702,6 +702,8 @@ cd/m2 display, about 1.07. Both convert to BT.709 primaries and write the SDR si
     The curve runs on `lut1d`, `geq` and `colorchannelmixer`, which every build carries, so every
     build tone maps, the Mac Homebrew one included. Neither `zscale` nor `libplacebo` is needed.
     Exports read within two eight-bit video range codes of the shared function on ffmpeg 8.0.1.
+    `geq` is slow, about 1.7 fps for 4K PQ (30 frames at 3840x2160 in 17.6 s, encode included), and
+    the desktop preview of a tone mapped edit pays the same cost.
 
 The browser's HDR encode is software only, so it runs on the CPU however capable the machine is, and
 so does the decode: the only decoder that hands out a readable ten-bit frame there is the software
@@ -984,8 +986,8 @@ stderr, rather than `Ended`.
 `NotPreviewable` everywhere, because the preview never opens an encoder. `Smoothness` is
 `Approximate` everywhere, because a late frame is dropped. `HdrAppearance` is `NotPreviewable`
 everywhere a grade is kept: on Android and Apple the display decides it, the browser composites in
-standard range, and the ffmpeg pump converts a grade straight to RGB. A browser preview of a tone
-mapped export runs the curve the export does, so it reports `HdrAppearance` as `Exact`.
+standard range, and the ffmpeg pump converts a grade straight to RGB. A browser or ffmpeg preview of
+a tone mapped export runs the curve the export does, so it reports `HdrAppearance` as `Exact`.
 
 A loop range wraps only while playback runs, on Android and Apple alike. A seek or a frame step
 past the range's end while paused stays where it lands. On Android the playhead reports where a

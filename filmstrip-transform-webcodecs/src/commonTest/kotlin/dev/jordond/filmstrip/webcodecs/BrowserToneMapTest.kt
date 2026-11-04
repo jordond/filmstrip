@@ -11,9 +11,11 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSink
@@ -21,6 +23,8 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.test.encodesHdr
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.hdr.toneMappedSdr
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
 import dev.jordond.filmstrip.webcodecs.internal.preview.toBrowserPreview
 import io.kotest.assertions.withClue
@@ -99,14 +103,7 @@ class BrowserToneMapTest {
       if (!webCodecsFilmstrip().encodesHdr()) return@runTest
 
       val composition = single(patchClip(HdrTransfer.Pq, PQ_PATCHES))
-      val resolved =
-        webCodecsExportEngine(
-          components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(),
-          prober = BrowserProber(),
-        ).resolve(composition, TONE_MAP)
-          .shouldBeInstanceOf<ResolveResult.Resolved>()
-          .composition
-      val preview = resolved.toBrowserPreview(composition)
+      val preview = resolve(composition, TONE_MAP).toBrowserPreview(composition)
       val exported = decodeFrames(outputOf(exportOf(composition, MediaSink.Uri(""), TONE_MAP)))[MIDDLE]
 
       try {
@@ -123,6 +120,82 @@ class BrowserToneMapTest {
             written.isNear(drawn, CELL) shouldBe true
           }
         }
+      } finally {
+        preview.release()
+      }
+    }
+
+  // The pass tone maps into a target the size of the frame it was handed, so a source larger than the output grows it
+  // before the composite scales it down.
+  @Test
+  fun aPqClipLargerThanTheOutputLandsOnTheSharedToneCurve() =
+    runTest {
+      if (!webCodecsFilmstrip().encodesHdr()) return@runTest
+
+      val clip = patchClip(HdrTransfer.Pq, PQ_PATCHES, scale = 2)
+      val composition =
+        EditComposition(
+          tracks = listOf(Track(listOf(Clip(clip)))),
+          effects = listOf(Scale(PATCH_ROWS * PQ_PATCHES.size)),
+          audio = AudioSpec.Remove,
+        )
+      val frame = decodeFrames(outputOf(exportOf(composition, MediaSink.Uri(""), TONE_MAP)))[MIDDLE]
+
+      Size(frame.width, frame.height) shouldBe Size(PATCH_WIDTH, PATCH_ROWS * PQ_PATCHES.size)
+      assertOnCurve(HdrTransfer.Pq, PQ_PATCHES, frame)
+    }
+
+  // The second clip is twice the first's size on both sides, so it fills the frame the first one set, and the pass
+  // moves its target to each clip's size in turn.
+  @Test
+  fun twoPqClipsOfDifferentSizesBothLandOnTheSharedToneCurve() =
+    runTest {
+      if (!webCodecsFilmstrip().encodesHdr()) return@runTest
+
+      val small = patchClip(HdrTransfer.Pq, PQ_PATCHES)
+      val large = patchClip(HdrTransfer.Pq, PQ_PATCHES, scale = 2)
+      val composition =
+        EditComposition(tracks = listOf(Track(listOf(Clip(small), Clip(large), Clip(small)))), audio = AudioSpec.Remove)
+      val frames = decodeFrames(outputOf(exportOf(composition, MediaSink.Uri(""), TONE_MAP)))
+
+      for (clip in 0 until 3) {
+        withClue("clip $clip") { assertOnCurve(HdrTransfer.Pq, PQ_PATCHES, frames[clip * CLIP_FRAMES + MIDDLE]) }
+      }
+    }
+
+  // The compositor is built for one grade, so a swap onto a plan that tone maps where the standing one kept the grade
+  // is refused and the caller rebuilds. The next plan copies every field of the standing one but the grade, so the
+  // grade alone is what the swap refuses on.
+  @Test
+  fun aPreviewRefusesASwapFromAKeptGradeToAToneMap() =
+    runTest {
+      if (!webCodecsFilmstrip().encodesHdr()) return@runTest
+
+      val composition = single(patchClip(HdrTransfer.Pq, PQ_PATCHES))
+      val kept = resolve(composition, KEEP)
+      kept.hdr shouldBe ResolvedHdr.Keep
+      val toneMapped =
+        ResolvedComposition(
+          tracks = kept.tracks,
+          compositionGeometry = kept.compositionGeometry,
+          compositionInputSize = kept.compositionInputSize,
+          compositionEffects = kept.compositionEffects,
+          output = kept.output,
+          layoutSize = kept.layoutSize,
+          fit = kept.fit,
+          fill = kept.fill,
+          duration = kept.duration,
+          hdr = ResolvedHdr.ToneMap,
+          hdrTransfer = kept.hdrTransfer,
+          path = kept.path,
+          audio = kept.audio,
+          adjustments = kept.adjustments,
+          encoderName = kept.encoderName,
+        )
+      val preview = kept.toBrowserPreview(composition)
+
+      try {
+        preview.updateParameters(toneMapped, composition) shouldBe false
       } finally {
         preview.release()
       }
@@ -146,16 +219,33 @@ class BrowserToneMapTest {
     }
   }
 
-  // One stripe of PATCH_ROWS rows per patch, each painted in the light that patch carries.
+  // One stripe of PATCH_ROWS rows per patch, each painted in the light that patch carries, with both sides times scale.
   private suspend fun patchClip(
     transfer: HdrTransfer,
     patches: List<FloatArray>,
+    scale: Int = 1,
   ): MediaSource =
     MediaSource.Bytes(
-      makeHdrClip(transfer, height = PATCH_ROWS * patches.size, frames = CLIP_FRAMES) { y ->
-        nitsOf(transfer, patches[y / PATCH_ROWS])
+      makeHdrClip(
+        transfer,
+        width = PATCH_WIDTH * scale,
+        height = PATCH_ROWS * scale * patches.size,
+        frames = CLIP_FRAMES,
+      ) { y ->
+        nitsOf(transfer, patches[y / (PATCH_ROWS * scale)])
       },
     )
+
+  private suspend fun resolve(
+    composition: EditComposition,
+    spec: ExportSpec,
+  ): ResolvedComposition =
+    webCodecsExportEngine(
+      components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(),
+      prober = BrowserProber(),
+    ).resolve(composition, spec)
+      .shouldBeInstanceOf<ResolveResult.Resolved>()
+      .composition
 
   private fun single(source: MediaSource): EditComposition =
     EditComposition(tracks = listOf(Track(listOf(Clip(source)))), audio = AudioSpec.Remove)
@@ -207,12 +297,14 @@ class BrowserToneMapTest {
 
   private companion object {
     const val PATCH_ROWS = 32
+    const val PATCH_WIDTH = 64
     const val CLIP_FRAMES = 12
     const val MIDDLE = CLIP_FRAMES / 2
     const val MILLIS_PER_FRAME = 1_000.0 / 30
     const val MAX_CODE = 255.0
 
     val TONE_MAP = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None, hdr = HdrMode.ToneMapToSdr)
+    val KEEP = ExportSpec(audioCodec = AudioCodec.None, hdr = HdrMode.KeepHdr)
     val AUTO = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None)
 
     val PQ_PATCHES =

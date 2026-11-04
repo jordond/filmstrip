@@ -105,7 +105,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
       -> spec.toColorPass()
       is KenBurns -> spec.toPass(attributes)
       is Rotate -> spec.toPass()
-      is Scale -> textureMatrix(IDENTITY)
+      is Scale -> textureMatrix(IDENTITY.copyOf())
       is ImageOverlay -> spec.toOverlay(capabilities, attributes)
       is TextOverlay -> spec.toOverlay(capabilities, attributes)
       else -> null
@@ -207,7 +207,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   private fun Rotate.toPass(): EffectResolution {
     if (degrees.mod(QUARTER_TURN) != 0) return EffectResolution.Unsupported(id, OFF_QUARTER_TURN)
     return when (degrees.mod(FULL_TURN) / QUARTER_TURN) {
-      0 -> textureMatrix(IDENTITY)
+      0 -> textureMatrix(IDENTITY.copyOf())
       1 -> textureMatrix(floatArrayOf(0f, -1f, 0f, 1f, 0f, 0f, 0f, 1f, 1f))
       2 -> textureMatrix(floatArrayOf(-1f, 0f, 0f, 0f, -1f, 0f, 1f, 1f, 1f))
       else -> textureMatrix(floatArrayOf(0f, 1f, 0f, -1f, 0f, 0f, 1f, 0f, 1f))
