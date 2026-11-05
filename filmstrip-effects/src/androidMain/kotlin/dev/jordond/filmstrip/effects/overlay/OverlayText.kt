@@ -89,7 +89,8 @@ internal fun rasterizeText(
 }
 
 /**
- * Lays [text] out in [style] on [frame], or gives null when it leaves nothing to draw.
+ * Lays [text] out in [style] on [frame], or gives null when it leaves nothing to draw or when
+ * [textSidesPastLayout] measures a side of its block past what an [Int] holds.
  *
  * Two passes: the first wraps at the authored maximum width, the second re-lays the wrapped text in a box tight to its
  * longest line, so an alignment is measured against the text rather than against an authored width the text never
@@ -101,11 +102,9 @@ internal fun textBlock(
   style: TextStyle,
   frame: Size,
 ): StaticLayout? {
-  if (text.isEmpty() || frame.width <= 0 || frame.height <= 0) return null
-  val paint = textPaint(style, frame)
-  val alignment = style.alignment.toLayout()
-  val wrapped = paint.layout(text, style.wrapWidthOn(frame), alignment)
-  val block = paint.layout(text, ceil(wrapped.widestLine()).toInt().coerceAtLeast(1), alignment)
+  val wrapped = wrappedText(text, style, frame) ?: return null
+  if (wrapped.isPastLayout) return null
+  val block = wrapped.paint.layout(text, wrapped.width.toInt().coerceAtLeast(1), wrapped.alignment)
   return block.takeIf { it.width > 0 && it.height > 0 }
 }
 
@@ -113,24 +112,41 @@ internal fun textBlock(
  * The width and height in pixels of the block [textBlock] lays [text] out in, when one of them passes what an [Int]
  * holds, or null when neither does.
  *
- * `StaticLayout` places its lines in [Int] pixels, which is Android's limit, so a face this large wraps its positions
- * and [textBlock] gives null as if nothing were drawn. Here the same lines are measured in [Long] instead, as wide as
- * the widest and each as tall as the face's ascent to its descent.
+ * `StaticLayout` places its lines in [Int] pixels, which is Android's limit, so a block this large would wrap its
+ * positions. The sides are measured in [Long] instead, as wide as the widest wrapped line and each line as tall as the
+ * face's ascent to its descent, and [textBlock] gives null for exactly the text this gives sides for.
  */
 internal fun textSidesPastLayout(
   text: String,
   style: TextStyle,
   frame: Size,
-): Pair<Long, Long>? {
+): Pair<Long, Long>? = wrappedText(text, style, frame)?.takeIf { it.isPastLayout }?.let { it.width to it.height }
+
+// Text wrapped at the authored width, with the sides of the block it lays out in measured in Long.
+private class WrappedText(
+  val paint: TextPaint,
+  val alignment: Layout.Alignment,
+  val width: Long,
+  val height: Long,
+) {
+  val isPastLayout: Boolean get() = width > Int.MAX_VALUE || height > Int.MAX_VALUE
+}
+
+private fun wrappedText(
+  text: String,
+  style: TextStyle,
+  frame: Size,
+): WrappedText? {
   if (text.isEmpty() || frame.width <= 0 || frame.height <= 0) return null
   val paint = textPaint(style, frame)
-  val wrapped = paint.layout(text, style.wrapWidthOn(frame), style.alignment.toLayout())
+  val alignment = style.alignment.toLayout()
+  val wrapped = paint.layout(text, style.wrapWidthOn(frame), alignment)
   val metrics = paint.fontMetrics
   val width = ceil(wrapped.widestLine().toDouble()).toLong()
   val lineHeight = ceil(metrics.descent.toDouble() - metrics.ascent).toLong()
   val lines = wrapped.lineCount.coerceAtLeast(1)
   val height = if (lineHeight > Long.MAX_VALUE / lines) Long.MAX_VALUE else lineHeight * lines
-  return (width to height).takeIf { width > Int.MAX_VALUE || height > Int.MAX_VALUE }
+  return WrappedText(paint, alignment, width, height)
 }
 
 // The paint text is laid out with, the text color at full alpha and sized so a capital stands the cap height.
