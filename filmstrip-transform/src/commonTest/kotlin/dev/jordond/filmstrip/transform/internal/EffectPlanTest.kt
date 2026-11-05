@@ -249,16 +249,18 @@ class EffectPlanTest {
   }
 
   @Test
-  fun `compositionInputSize is the frame before composition geometry runs and neither the source nor the output`() {
+  fun `composition geometry measures the frame clip geometry leaves and neither the source nor the output`() {
+    val recorder = RecordingResolver()
+    val crop = Crop(aspect = AspectRatio.Square, fit = Fit.Crop)
     val composition =
       EditComposition(
         tracks = listOf(Track(listOf(fixture.clip(effects = listOf(Rotate(90)))))),
-        effects = listOf(Crop(aspect = AspectRatio.Square, fit = Fit.Crop)),
+        effects = listOf(crop),
       )
 
-    val resolved = fixture.resolve(composition, ExportSpec(heightPx = 540))
+    val resolved = fixture.resolve(composition, ExportSpec(heightPx = 540), resolvers = listOf(recorder))
 
-    resolved.compositionInputSize shouldBe Size(1080, 1920)
+    recorder.inputSizes.getValue(crop.id) shouldBe Size(1080, 1920)
     resolved.output.size shouldBe Size(540, 540)
   }
 

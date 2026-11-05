@@ -13,7 +13,6 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.PlaybackError
@@ -209,8 +208,6 @@ class PreviewLoweringTest {
     fun resolvedAt(size: Size): ResolvedComposition =
       ResolvedComposition(
         tracks = emptyList(),
-        compositionGeometry = emptyList(),
-        compositionInputSize = NATURAL,
         compositionEffects = emptyList(),
         output =
           OutputFormat(
@@ -222,7 +219,6 @@ class PreviewLoweringTest {
             audioFormat = null,
           ),
         layoutSize = NATURAL,
-        fit = Fit.Contain,
         fill = Fill.Black,
         duration = 2.seconds,
         hdr = ResolvedHdr.Keep,

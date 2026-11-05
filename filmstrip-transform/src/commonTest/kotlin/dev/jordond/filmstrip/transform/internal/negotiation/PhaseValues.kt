@@ -48,7 +48,6 @@ internal fun framingOf(
   compositionInputSize = requestedSize,
   naturalSize = requestedSize,
   requestedSize = requestedSize,
-  fit = Fit.Contain,
 )
 
 internal fun gradeOf(

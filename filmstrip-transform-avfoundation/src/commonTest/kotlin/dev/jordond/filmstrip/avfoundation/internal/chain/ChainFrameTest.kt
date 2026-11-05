@@ -1,10 +1,16 @@
 package dev.jordond.filmstrip.avfoundation.internal.chain
 
 import dev.jordond.filmstrip.color.linearDimGain
+import dev.jordond.filmstrip.effects.geometry.Crop
+import dev.jordond.filmstrip.effects.geometry.KenBurns
+import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.transform.internal.geometry.coverScale
+import dev.jordond.filmstrip.transform.internal.geometry.placeIn
+import dev.jordond.filmstrip.transform.internal.geometry.placementOf
 import dev.jordond.filmstrip.transform.internal.geometry.sigmaFor
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -17,8 +23,8 @@ import kotlin.math.abs
 import kotlin.test.Test
 
 /**
- * The Core Image steps a chain lays every frame through: the baked rotation, the fit into the output rect, the fill
- * behind it and the blend that paints the fill in after a grade.
+ * The Core Image steps a chain lays every frame through: the baked rotation, the canvas a crop builds, the placement in
+ * the output rect, the fill behind it and the blend that paints the fill in after a grade.
  */
 @OptIn(ExperimentalForeignApi::class)
 class ChainFrameTest {
@@ -49,17 +55,23 @@ class ChainFrameTest {
 
   @Test
   fun `contain shrinks a wide frame to the output width and centres it`() {
-    val laid = split(width = 200.0, height = 100.0, redWidth = 50.0, x = 100.0, y = 50.0).laidInto(SQUARE, Fit.Contain)
+    val rect = placeIn(Size(200, 100), SQUARE, Fit.Contain)
+    val laid = split(width = 200.0, height = 100.0, redWidth = 50.0, x = 100.0, y = 50.0).laidAt(SQUARE, rect)
     val pixels = laid.linearPixels(100, 100)
 
-    assertNear(laid.rect(), listOf(0.0, 25.0, 100.0, 50.0))
+    assertNear(laid.rect(), rect.inCoreImage(SQUARE))
     assertPixel(pixels.at(10, 50), RED, "the frame's red quarter")
     assertPixel(pixels.at(40, 50), BLUE, "the frame's blue remainder")
   }
 
   @Test
   fun `crop covers the output and cuts the sides of a wide frame`() {
-    val laid = split(width = 200.0, height = 100.0, redWidth = 50.0).laidInto(SQUARE, Fit.Crop)
+    val laid =
+      split(
+        width = 200.0,
+        height = 100.0,
+        redWidth = 50.0,
+      ).laidAt(SQUARE, placeIn(Size(200, 100), SQUARE, Fit.Crop))
     val pixels = laid.linearPixels(100, 100)
 
     assertNear(laid.rect(), listOf(0.0, 0.0, 100.0, 100.0))
@@ -68,7 +80,12 @@ class ChainFrameTest {
 
   @Test
   fun `stretch fills the output on both axes`() {
-    val laid = split(width = 200.0, height = 100.0, redWidth = 50.0).laidInto(SQUARE, Fit.Stretch)
+    val laid =
+      split(
+        width = 200.0,
+        height = 100.0,
+        redWidth = 50.0,
+      ).laidAt(SQUARE, placeIn(Size(200, 100), SQUARE, Fit.Stretch))
     val pixels = laid.linearPixels(100, 100)
 
     assertNear(laid.rect(), listOf(0.0, 0.0, 100.0, 100.0))
@@ -76,15 +93,72 @@ class ChainFrameTest {
     assertPixel(pixels.at(40, 50), BLUE, "past the red quarter")
   }
 
+  // Four by five into 1366 by 768 lands its sides between whole pixels. Core Image reports the extent as the whole
+  // pixels the frame touches, so what is read is how much of a row the frame covers, which a rect rounded on its way
+  // in moves by at least 0.4 of a pixel.
+  @Test
+  fun `a frame is laid at the shared rect with no rounding`() {
+    val rect = placeIn(PORTRAIT, MID_RANGE, Fit.Contain)
+    val pixels =
+      solid(
+        GREEN,
+        0.0,
+        0.0,
+        40.0,
+        50.0,
+      ).laidAt(MID_RANGE, rect).linearPixels(MID_RANGE.width, MID_RANGE.height)
+
+    val covered = (0 until MID_RANGE.width).sumOf { pixels.at(it, MID_RANGE.height / 2)[1].toDouble() }
+    val expected = rect.width * MID_RANGE.width.toDouble()
+    withClue("the frame covered $covered pixels of a row, not $expected") {
+      (abs(covered - expected) < COVERAGE_SLACK).shouldBeTrue()
+    }
+  }
+
   @Test
   fun `a fitted frame covers the whole output with the fill in its bars`() {
-    val fitted = solid(GREEN, 0.0, 0.0, 50.0, 100.0).fittedTo(WIDE, Fit.Contain, Fill.Solid(RED_ARGB), transfer = null)
+    val fitted =
+      solid(GREEN, 0.0, 0.0, 50.0, 100.0)
+        .fittedTo(WIDE, placeIn(Size(50, 100), WIDE, Fit.Contain), Fill.Solid(RED_ARGB), transfer = null)
     val pixels = fitted.linearPixels(200, 100)
 
     assertNear(fitted.rect(), listOf(0.0, 0.0, 200.0, 100.0))
     assertPixel(pixels.at(30, 50), RED, "the left bar")
     assertPixel(pixels.at(100, 50), GREEN, "the frame")
     assertPixel(pixels.at(170, 50), RED, "the right bar")
+  }
+
+  @Test
+  fun `a canvas is as tall as the frame and holds it where the placement puts it`() {
+    val crop = Crop(AspectRatio(16, 9), Fit.Contain)
+    val placement =
+      placementOf(PORTRAIT, listOf(listOf(crop, KenBurns(from = KEN_BURNS_FROM, to = NormalizedRect.Full))), WIDE)
+        .canvases
+        .single()
+    val canvasWidth = PORTRAIT.height * placement.aspect.toDouble()
+    val content = placement.contentInCanvas
+
+    val canvas = solid(GREEN, 0.0, 0.0, 40.0, 50.0).inCanvas(placement, ciColor(RED))
+    val pixels = canvas.linearPixels(canvasWidth.toInt(), PORTRAIT.height)
+
+    assertNear(canvas.rect(), listOf(0.0, 0.0, canvasWidth, PORTRAIT.height.toDouble()), tolerance = FLOAT_SLACK)
+    assertPixel(pixels.at((canvasWidth * content.left / 2).toInt(), 25), RED, "the left bar")
+    assertPixel(pixels.at((canvasWidth * (content.left + content.right) / 2).toInt(), 25), GREEN, "the frame")
+    assertPixel(pixels.at((canvasWidth * (1 + content.right) / 2).toInt(), 25), RED, "the right bar")
+  }
+
+  @Test
+  fun `a clear canvas leaves its bars for the fill`() {
+    val crop = Crop(AspectRatio(16, 9), Fit.Contain)
+    val placement =
+      placementOf(PORTRAIT, listOf(listOf(crop, KenBurns(from = KEN_BURNS_FROM, to = NormalizedRect.Full))), WIDE)
+        .canvases
+        .single()
+    val canvasWidth = PORTRAIT.height * placement.aspect.toDouble()
+
+    val canvas = solid(GREEN, 0.0, 0.0, 40.0, 50.0).inCanvas(placement, CIColor.clearColor)
+
+    assertPixel(canvas.linearPixels(canvasWidth.toInt(), PORTRAIT.height).at(1, 25), listOf(0f, 0f, 0f, 0f), "a bar")
   }
 
   @Test
@@ -210,6 +284,15 @@ class ChainFrameTest {
     return after - 0.5 + (before - level) / (before - this[after])
   }
 
+  // This rect in a frame of size, as the x, y, width and height Core Image measures from the bottom left.
+  private fun NormalizedRect.inCoreImage(size: Size): List<Double> =
+    listOf(
+      left * size.width.toDouble(),
+      (1 - bottom) * size.height.toDouble(),
+      width * size.width.toDouble(),
+      height * size.height.toDouble(),
+    )
+
   private fun ciColor(color: List<Float>): CIColor =
     CIColor.colorWithRed(color[0].toDouble(), green = color[1].toDouble(), blue = color[2].toDouble(), alpha = 1.0)
 
@@ -222,6 +305,11 @@ class ChainFrameTest {
     const val RED_ARGB = 0xFFFF0000.toInt()
     val SQUARE = Size(100, 100)
     val WIDE = Size(200, 100)
+    val PORTRAIT = Size(40, 50)
+    val MID_RANGE = Size(1366, 768)
+    const val FLOAT_SLACK = 1e-3
+    const val COVERAGE_SLACK = 0.1
+    val KEN_BURNS_FROM = NormalizedRect(0f, 0f, 0.5f, 0.5f)
     const val EDGE = 24.0
     const val ONE_SIGMA_HIGH = 0.8413f
     const val ONE_SIGMA_LOW = 0.1587f

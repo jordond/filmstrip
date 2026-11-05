@@ -15,7 +15,6 @@ import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.MediaInfo
@@ -157,12 +156,15 @@ class Media3PreviewTest {
       false
   }
 
+  // The track opens on a gap, so the fill is painted and its pass is in the chain.
   @Test
   fun aFillColorIsRefusedSinceThePassThatPaintsItIsBuiltOnce() {
-    val preview = composition(fill = Fill.Solid(RED)).toMedia3Preview(Media3FrameBounds.None)
+    val preview = composition(fill = Fill.Solid(RED), trackStart = LEAD).toMedia3Preview(Media3FrameBounds.None)
 
-    preview.updateParameters(composition(fill = Fill.Solid(RED)), Media3FrameBounds.None) shouldBe true
-    preview.updateParameters(composition(fill = Fill.Solid(BLUE)), Media3FrameBounds.None) shouldBe false
+    preview.updateParameters(composition(fill = Fill.Solid(RED), trackStart = LEAD), Media3FrameBounds.None) shouldBe
+      true
+    preview.updateParameters(composition(fill = Fill.Solid(BLUE), trackStart = LEAD), Media3FrameBounds.None) shouldBe
+      false
   }
 
   @Test
@@ -201,7 +203,6 @@ class Media3PreviewTest {
 
   private fun composition(
     output: Size = FRAME,
-    fit: Fit = Fit.Contain,
     fill: Fill = Fill.Black,
     trackStart: Duration = Duration.ZERO,
     compositionEffects: List<ResolvedEffect> = emptyList(),
@@ -218,8 +219,6 @@ class Media3PreviewTest {
             clips = clips,
           ),
         ),
-      compositionGeometry = emptyList(),
-      compositionInputSize = output,
       compositionEffects = compositionEffects,
       output =
         OutputFormat(
@@ -231,7 +230,6 @@ class Media3PreviewTest {
           audioFormat = null,
         ),
       layoutSize = output,
-      fit = fit,
       fill = fill,
       duration = trackStart + clips.fold(Duration.ZERO) { total, clip -> total + clip.duration },
       hdr = ResolvedHdr.Keep,
@@ -290,6 +288,7 @@ class Media3PreviewTest {
 
   private companion object {
     val FRAME = Size(320, 180)
+    val LEAD = 500.milliseconds
 
     // Half a slot at OFF_GRID_RATE, which rounds up onto the first slot.
     val HALF_SLOT_IN = 20.milliseconds

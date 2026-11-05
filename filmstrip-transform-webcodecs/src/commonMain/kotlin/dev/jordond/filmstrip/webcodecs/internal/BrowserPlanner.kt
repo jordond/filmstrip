@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.refusedLowering
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.stillUnsupportedMessage
+import dev.jordond.filmstrip.webcodecs.internal.render.MAX_CANVASES
 
 /**
  * Turns a composition into a browser verdict.
@@ -80,6 +81,7 @@ internal class BrowserPlanner(
     val negotiated =
       export.composition ?: return opaqueRefusal(opaque) ?: LoweredExport(export, null)
     val writesVideo = negotiated.audio != AudioSpec.AudioOnly
+    if (writesVideo) canvasRefusal(negotiated)?.let { return it }
     if (writesVideo && negotiated.path == ExportPath.Transcode) {
       transcodeOnlyRefusal(composition, ask.infos)?.let { return it }
       // A tone map reads the planes a kept grade does, so a source that hands out opaque frames
@@ -227,3 +229,16 @@ internal fun renderCapabilities(encodesHdr: Boolean): RenderCapabilities =
 // What mediabunny's mp4 muxer, which every copy is pinned to, will take as-is, without an encoder.
 private val MEDIABUNNY_VIDEO = setOf(CodecKind.Vp8)
 private val MEDIABUNNY_AUDIO = setOf(CodecKind.Vorbis)
+
+// The composite pass builds every canvas a clip reads in one shader, which holds at most MAX_CANVASES of them. That is
+// this backend's own limit, so a clip that builds more is refused by name.
+private fun canvasRefusal(negotiated: ResolvedComposition): LoweredExport<Nothing>? {
+  val most = negotiated.tracks.flatMap { it.clips }.maxOfOrNull { it.placement.canvases.size } ?: 0
+  if (most <= MAX_CANVASES) return null
+  return refusedLowering(
+    FilmstripError.InvalidComposition(
+      "A clip builds $most canvases, and the browser draws at most $MAX_CANVASES. Each letterboxing or stretching " +
+        "crop with an effect after it that reads its bars builds one.",
+    ),
+  )
+}

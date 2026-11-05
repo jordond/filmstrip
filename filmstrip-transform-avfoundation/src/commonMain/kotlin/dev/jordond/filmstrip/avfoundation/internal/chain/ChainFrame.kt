@@ -1,10 +1,13 @@
 package dev.jordond.filmstrip.avfoundation.internal.chain
 
 import dev.jordond.filmstrip.color.linearDimGain
+import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.FrameInfo
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.transform.internal.geometry.CanvasPlacement
 import dev.jordond.filmstrip.transform.internal.geometry.coverScale
 import dev.jordond.filmstrip.transform.internal.geometry.sigmaFor
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -18,8 +21,6 @@ import platform.CoreImage.CIColor
 import platform.CoreImage.CIImage
 import platform.CoreImage.CIVector
 import kotlin.math.PI
-import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
@@ -36,66 +37,98 @@ internal fun CIImage.rotated(degrees: Int): CIImage {
 }
 
 /**
- * Lays the frame into the output rect and composites it over the fill.
+ * Lays the frame at [rect] in the output frame and composites it over the fill.
  *
- * The composite is not only for [Fit.Contain]'s bars. `finishWithImage` wants an image covering
- * the whole render rect, and a frame that lands a pixel short of one edge after rounding leaves
- * AVFoundation to fill the difference with whatever the buffer already held.
+ * The composite is not only for the bars a placement leaves. `finishWithImage` wants an image covering the whole
+ * render rect, and a frame that lands a pixel short of one edge leaves AVFoundation to fill the difference with
+ * whatever the buffer already held.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun CIImage.fittedTo(
   size: Size,
-  fit: Fit,
+  rect: NormalizedRect,
   fill: Fill,
   transfer: HdrTransfer?,
 ): CIImage {
-  val rect = CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble())
-  val background = fillImage(fill, size, transfer).imageByCroppingToRect(rect)
-  return laidInto(size, fit).imageByCompositingOverImage(background)
+  val frame = CGRectMake(0.0, 0.0, size.width.toDouble(), size.height.toDouble())
+  val background = fillImage(fill, size, transfer).imageByCroppingToRect(frame)
+  return laidAt(size, rect).imageByCompositingOverImage(background)
 }
 
 /**
- * Lays this frame into the output rect at [fit], with nothing composited behind it yet.
+ * Scales this frame onto [rect], a fraction of an output frame of [size] measured from its top left, and cuts away
+ * whatever lands outside that frame, with nothing composited behind it yet.
  *
- * Split out from [fittedTo] so a caller that has to grade the frame before the fill is drawn in
- * can run this step on its own, and paint the fill in only afterwards.
+ * Split out from [fittedTo] so a caller that has to grade the frame before the fill is drawn in can run this step on
+ * its own, and paint the fill in only afterwards. Core Image takes the rect as it is, with no rounding to whole
+ * pixels.
  */
 @OptIn(ExperimentalForeignApi::class)
-internal fun CIImage.laidInto(
+internal fun CIImage.laidAt(
   size: Size,
-  fit: Fit,
+  rect: NormalizedRect,
 ): CIImage {
   val width = size.width.toDouble()
   val height = size.height.toDouble()
-  val rect = CGRectMake(0.0, 0.0, width, height)
-
   val laid =
     extent
       .useContents {
         if (this.size.width <= 0.0 || this.size.height <= 0.0) return@useContents null
-
-        val scaleX = width / this.size.width
-        val scaleY = height / this.size.height
-        val (sx, sy) =
-          when (fit) {
-            Fit.Contain -> min(scaleX, scaleY).let { it to it }
-            Fit.Crop -> max(scaleX, scaleY).let { it to it }
-            Fit.Stretch -> scaleX to scaleY
-          }
-
-        val dx = (width - this.size.width * sx) / 2.0
-        val dy = (height - this.size.height * sy) / 2.0
-        CGAffineTransformConcat(
-          CGAffineTransformConcat(
-            CGAffineTransformMakeTranslation(-origin.x, -origin.y),
-            CGAffineTransformMakeScale(sx, sy),
-          ),
-          CGAffineTransformMakeTranslation(dx, dy),
-        )
+        placing(origin.x, origin.y, this.size.width, this.size.height, rect, width, height)
       }?.let(::imageByApplyingTransform) ?: this
-
-  return laid.imageByCroppingToRect(rect)
+  return laid.imageByCroppingToRect(CGRectMake(0.0, 0.0, width, height))
 }
+
+/**
+ * Builds [canvas] out of this frame, the one entering the crop that makes it, with [bars] wherever the frame does not
+ * reach.
+ *
+ * The canvas is as tall as this frame and as wide as [CanvasPlacement.aspect] makes it, the same frame the planner
+ * measures every later effect against, and the frame lands at [CanvasPlacement.contentInCanvas].
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun CIImage.inCanvas(
+  canvas: CanvasPlacement,
+  bars: CIColor,
+): CIImage =
+  extent.useContents {
+    if (this.size.width <= 0.0 || this.size.height <= 0.0) return@useContents this@inCanvas
+    val canvasHeight = this.size.height
+    val canvasWidth = canvasHeight * canvas.aspect
+    val transform =
+      placing(
+        origin.x,
+        origin.y,
+        this.size.width,
+        this.size.height,
+        canvas.contentInCanvas,
+        canvasWidth,
+        canvasHeight,
+      )
+    this@inCanvas
+      .imageByApplyingTransform(transform)
+      .imageByCompositingOverImage(CIImage(color = bars))
+      .imageByCroppingToRect(CGRectMake(0.0, 0.0, canvasWidth, canvasHeight))
+  }
+
+// Maps an extent at x, y of width by height onto rect, a top-left fraction of a frame of frameWidth by frameHeight
+// whose origin sits at the bottom left the way Core Image measures it.
+@OptIn(ExperimentalForeignApi::class)
+private fun placing(
+  x: Double,
+  y: Double,
+  width: Double,
+  height: Double,
+  rect: NormalizedRect,
+  frameWidth: Double,
+  frameHeight: Double,
+) = CGAffineTransformConcat(
+  CGAffineTransformConcat(
+    CGAffineTransformMakeTranslation(-x, -y),
+    CGAffineTransformMakeScale(frameWidth * rect.width / width, frameHeight * rect.height / height),
+  ),
+  CGAffineTransformMakeTranslation(frameWidth * rect.left, frameHeight * (1.0 - rect.bottom)),
+)
 
 /**
  * Blends this graded frame over [background], letting [mask]'s alpha decide where.
@@ -213,3 +246,42 @@ internal fun CIImage.atOrigin(): CIImage =
 
 private const val STRAIGHT_ANGLE = 180.0
 private const val FULL_TURN = 360
+
+/**
+ * This frame's info with the input measured off [image], the frame an effect is really handed, rather than off the
+ * clip's source in [attributes].
+ *
+ * The layout keeps its ratio to the input, so text laid out for the clip is drawn at the size it was laid out for. A
+ * frame the size of the source hands back this info as it is.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun FrameInfo.measuring(
+  image: CIImage,
+  attributes: Attributes,
+): FrameInfo {
+  val input =
+    image.extent.useContents {
+      if (size.width.isFinite() && size.height.isFinite() && size.width >= 1.0 && size.height >= 1.0) {
+        Size(size.width.roundToInt(), size.height.roundToInt())
+      } else {
+        null
+      }
+    }
+  if (input == null || input == attributes.inputSize) return this
+  val layoutScale = attributes.layoutSize.height.toDouble() / attributes.inputSize.height
+  val measured =
+    Attributes(
+      inputSize = input,
+      outputSize = attributes.outputSize,
+      layoutSize =
+        Size(
+          (input.width * layoutScale).roundToInt().coerceAtLeast(1),
+          (input.height * layoutScale).roundToInt().coerceAtLeast(1),
+        ),
+      colorSpace = attributes.colorSpace,
+      hdrTransfer = attributes.hdrTransfer,
+      frameRate = attributes.frameRate,
+      span = attributes.span,
+    )
+  return FrameInfo(measured, compositionTime)
+}

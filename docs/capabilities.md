@@ -96,9 +96,12 @@ it recognises, and declines the rest so the next resolver gets a look.
     is refused when the effect is built.
 
 [^android-fit]:
-    The effect itself only sets a height, and the pipeline applies `Fit` once for the
-    whole plan, not once per scale: the plan pins one `Presentation` at the resolved output frame, which
-    is also what puts clips of differing sizes on the same frame so they concatenate.
+    The effect itself only sets a height. Each clip is placed under its own fit, the last `Scale` across
+    its clip, track and composition effects, by a pass at the end of the clip's own chain that draws it
+    into the resolved output frame, which is also what puts clips of differing sizes on the same frame so
+    they concatenate. A `Crop` with `Fit.Contain` or `Fit.Stretch` places the clip in a canvas of its
+    aspect first. media3 draws whole pixels, so each edge of a placement lands on the nearest pixel edge,
+    never more than half a pixel off.
 
 [^web-rotate]:
     The browser turns a frame by whole quarter turns, 0, 90, 180 or 270 degrees, and refuses any
@@ -112,13 +115,22 @@ it recognises, and declines the rest so the next resolver gets a look.
 
 [^web-fit]:
     The effect sets the output height and the plan sizes the frame from it before the compositor
-    is built. `Fit` applies to every clip the frame draws: `Contain` letterboxes, `Crop` covers and
-    cuts the overflow, and `Stretch` fills each axis on its own.
+    is built. Each clip is placed under its own fit, the last `Scale` across its clip, track and
+    composition effects: `Contain` letterboxes, `Crop` covers and cuts the overflow, and `Stretch` fills
+    each axis on its own. A `Crop` with `Fit.Contain` letterboxes the clip inside a canvas of its aspect
+    and `Fit.Stretch` stretches it to that canvas. A geometry effect after the crop, like `KenBurns` or a
+    composition `Rotate`, reads that canvas with its bars. The quad takes the placement as it is, with no rounding.
 
 [^ffmpeg-scale]:
     Claimed but contributes no filter node. The size stage is the tail the backend pins
     to the resolved output frame, so the effect that decides that frame emits nothing of its own.
     Claimed rather than declined, because an unclaimed spec is refused by name at plan time.
+    Each clip is placed under its own fit, the last `Scale` across its clip, track and composition
+    effects, and a `Crop` with `Fit.Contain` or `Fit.Stretch` places the clip in a canvas of its aspect
+    first. `scale`, `crop` and `pad` take whole pixels, so each edge of a placement lands on the
+    nearest pixel edge, never more than half a pixel off. `pad` and `overlay` then land a frame's
+    offset, and `pad` its size, on the 4:2:0 chroma grid, so an odd offset or canvas side moves one
+    pixel down to the even one below it, where media3 draws it on the odd one.
 
 [^pan-pending]:
     A pan moves the region it shows on every frame. ffmpeg resolves a crop to whole pixels

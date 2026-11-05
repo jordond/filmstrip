@@ -11,42 +11,42 @@ import androidx.media3.transformer.EditedMediaItem
 import dev.jordond.filmstrip.effect.Media3Handle
 import dev.jordond.filmstrip.effects.overlay.MAX_OVERLAYS_PER_EFFECT
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media3.internal.fill.FillCoverBlur
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
-import dev.jordond.filmstrip.transform.internal.resolve.clipFillsFrame
+import dev.jordond.filmstrip.transform.internal.resolve.drawnRect
 
 /**
- * A clip's own video effect chain, with a cover-blur pass appended when its frame would otherwise
- * leave a letterbox bar for [Fill.Blurred] to fill.
+ * A clip's own video effect chain, ending on the pass that places the clip in an output frame of [outputSize].
+ *
+ * Each crop that makes a canvas a later effect reads has the canvas built right after it, with clear bars the flatten
+ * pass paints the fill into, or black ones under [Fill.Blurred], whose cover is drawn from the frame and so carries the
+ * bars the way it carries the picture. The clip is then drawn at its [drawnRect], over a blurred cover of itself when
+ * it leaves bars for [Fill.Blurred] to fill.
  */
 internal fun ResolvedClip.clipVideoEffects(
-  fit: Fit,
   fill: Fill,
   outputSize: Size,
-  naturalSize: Size,
   wrapper: EffectWrapper = UnwrappedEffects,
 ): List<Effect> {
-  val lowered = effects.toMedia3Effects()
-  val whole =
-    when {
-      fit != Fit.Contain || fill !is Fill.Blurred -> {
-        lowered
-      }
-      else -> {
-        val displaySize = info.video?.displaySize
-        when {
-          displaySize == null -> lowered
-          clipFillsFrame(displaySize, naturalSize) -> lowered
-          else -> lowered + FillCoverBlur(fill, outputSize, naturalSize)
-        }
-      }
+  val bars = if (fill is Fill.Blurred) PlacedFrame.Bars.Black else PlacedFrame.Bars.Clear
+  // Cut at each canvas, so a run of overlays on one side of it still blends in one pass.
+  val cuts = listOf(-1) + canvasEffectIndices
+  val chain =
+    cuts.indices.flatMap { segment ->
+      val until = canvasEffectIndices.getOrNull(segment)?.plus(1) ?: effects.size
+      effects.subList(cuts[segment] + 1, until).toMedia3Effects() +
+        listOfNotNull(placement.canvases.getOrNull(segment)?.let { PlacedFrame.canvasOf(it, bars) })
     }
-
-  return whole.map(wrapper::wrap)
+  val placed =
+    if (placement.leavesBars && fill is Fill.Blurred) {
+      FillCoverBlur(fill, outputSize, drawnRect)
+    } else {
+      PlacedFrame(drawnRect, outputSize, PlacedFrame.Bars.Clear)
+    }
+  return (chain + placed).map(wrapper::wrap)
 }
 
 /**

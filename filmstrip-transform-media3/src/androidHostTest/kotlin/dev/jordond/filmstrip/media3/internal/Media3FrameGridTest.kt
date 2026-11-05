@@ -19,7 +19,7 @@ import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
@@ -324,7 +324,8 @@ class Media3FrameGridTest {
     audio.editedMediaItems.first().gapUs() shouldBe start.inWholeMicroseconds
   }
 
-  // A still with nothing drawn on it, where media3's own gap is an opaque black picture.
+  // A still with nothing drawn on it, where media3's own gap is an opaque black picture, stretched over the output
+  // frame the way every clip is placed in it.
   @Test
   fun `a gap in the video grid is a transparent still held at the output rate`() {
     val start = 530.milliseconds
@@ -342,7 +343,8 @@ class Media3FrameGridTest {
     gap.durationUs shouldBe lead.inWholeMicroseconds
     gap.frameRate shouldBe 25
     gap.removeAudio shouldBe true
-    gap.effects.videoEffects shouldBe emptyList()
+    gap.effects.videoEffects shouldBe
+      listOf(PlacedFrame(NormalizedRect.Full, FRAME, PlacedFrame.Bars.Clear))
   }
 
   private fun ResolvedComposition.lower(vararg read: Pair<ResolvedClip, FrameBounds>): List<EditedMediaItemSequence> =
@@ -413,8 +415,6 @@ class Media3FrameGridTest {
   ): ResolvedComposition =
     ResolvedComposition(
       tracks = listOf(ResolvedTrack(content = content, looping = false, start = trackStart, clips = clips)),
-      compositionGeometry = emptyList(),
-      compositionInputSize = FRAME,
       compositionEffects = emptyList(),
       output =
         OutputFormat(
@@ -426,7 +426,6 @@ class Media3FrameGridTest {
           audioFormat = null,
         ),
       layoutSize = FRAME,
-      fit = Fit.Contain,
       fill = Fill.Black,
       duration = trackStart + clips.fold(Duration.ZERO) { total, clip -> total + clip.duration },
       hdr = ResolvedHdr.Keep,

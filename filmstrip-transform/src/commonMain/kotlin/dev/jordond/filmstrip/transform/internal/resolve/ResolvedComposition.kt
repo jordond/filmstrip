@@ -10,12 +10,12 @@ import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.transform.internal.geometry.containScale
+import dev.jordond.filmstrip.transform.internal.geometry.ClipPlacement
 import dev.jordond.filmstrip.transform.internal.geometry.derivesFromFrame
 import kotlin.time.Duration
 
@@ -26,16 +26,11 @@ import kotlin.time.Duration
  * per-clip effect chains. A platform lowering reads this and never re-decides any of it, which is
  * what keeps two engines from disagreeing about the same edit.
  *
- * @property compositionGeometry Composition-level geometry, applied to [compositionInputSize] before
- *   the frame is pinned to [OutputFormat.size].
- * @property compositionInputSize The frame [compositionGeometry] measures against: the source frame
- *   after every clip and track effect, before geometry pins it to [OutputFormat.size].
  * @property compositionEffects Composition-level effects that run after the frame is pinned, so a
  *   normalized measurement in one is a fraction of the real output frame.
  * @property layoutSize The output frame text is laid out against. [OutputFormat.size] for an
  *   export, and the frame an export would write for a graph lowered smaller than that, such as a
  *   preview under a quality cap. A backend hands this to a resolver as it is.
- * @property fit How a frame that does not match the output aspect is fitted to it.
  * @property fill What fills the frame where no clip's pixels land.
  * @property hdr What to do about high dynamic range, after the device has been asked.
  * @property hdrTransfer The transfer function the output is written in when the grade survives to
@@ -47,17 +42,14 @@ import kotlin.time.Duration
  *   what it runs is what `capabilities()` reported.
  * @property naturalSize The frame the composition writes with no height asked of it and before any encoder ceiling,
  *   which is [OutputFormat.size] for a composition built at its own size. It stays the same at every height the edit
- *   is lowered at, so a backend asks [clipFillsFrame] against it.
+ *   is lowered at, so every clip's [ResolvedClip.placement] is measured against it.
  */
 @InternalFilmstripApi
 public class ResolvedComposition(
   public val tracks: List<ResolvedTrack>,
-  public val compositionGeometry: List<ResolvedEffect>,
-  public val compositionInputSize: Size,
   public val compositionEffects: List<ResolvedEffect>,
   public val output: OutputFormat,
   public val layoutSize: Size,
-  public val fit: Fit,
   public val fill: Fill,
   public val duration: Duration,
   public val hdr: ResolvedHdr,
@@ -72,44 +64,40 @@ public class ResolvedComposition(
 /**
  * Whether the fill can reach the output frame at all.
  *
- * Only [Fit.Contain] leaves bars, and only a track that starts after the composition does leaves a
- * gap. Every other fit covers the frame, so nothing of the fill is ever seen and a backend can skip
- * lowering it.
+ * Only a clip whose placement leaves bars, or a gap in the video, lets the fill show. When neither happens nothing of
+ * the fill is ever seen and a backend can skip lowering it.
  */
 @InternalFilmstripApi
 public val ResolvedComposition.showsFill: Boolean
-  get() = fit == Fit.Contain || tracks.any { it.start > Duration.ZERO }
+  get() = anyClipLeavesBars || laysGaps
+
+// Whether the video has a gap anywhere: a track that starts after the composition does, or a clip with no picture of
+// its own on a track that carries video.
+private val ResolvedComposition.laysGaps: Boolean
+  get() =
+    tracks.any { track ->
+      track.start > Duration.ZERO || (track.content != TrackContent.Audio && track.clips.any { it.info.video == null })
+    }
 
 /**
- * Whether a clip whose frame is [clipFrame] covers [naturalFrame] once [Fit.Contain] fits it there, leaving no bar for
- * the fill to show through.
+ * Whether any clip on a track that draws video leaves bars for the fill to show through.
  *
- * The clip is scaled uniformly until it fits, so one side lands exactly and the other falls short by the bar. A bar
- * under one pixel of the natural frame is no bar. The bar is measured against the natural frame rather than the one a
- * backend renders, so an export asked for a smaller frame and a preview under a cap get the answer the full size export
- * does. This is the one test every backend and the planner use to decide whether a clip leaves bars.
+ * A clip on an audio track never draws its picture, so its placement leaves nothing for the fill.
  */
 @InternalFilmstripApi
-public fun clipFillsFrame(
-  clipFrame: Size,
-  naturalFrame: Size,
-): Boolean {
-  if (clipFrame.width <= 0 || clipFrame.height <= 0) return false
-  val scale = containScale(clipFrame, naturalFrame)
-  return naturalFrame.width - clipFrame.width * scale < 1f && naturalFrame.height - clipFrame.height * scale < 1f
-}
+public val ResolvedComposition.anyClipLeavesBars: Boolean
+  get() = tracks.any { track -> track.content != TrackContent.Audio && track.clips.any { it.placement.leavesBars } }
 
 /**
  * Whether the fill has to be painted after composition-level effects have run, rather than
  * underneath the frame before they do.
  *
- * Bars only exist under [Fit.Contain], and only a color fill is held back there, since a
- * frame-derived fill carries the same grade the frame does. A gap is always a color, so it is
- * always held back.
+ * Only a color fill is held back behind a clip's bars, since a frame-derived fill carries the same
+ * grade the frame does. A gap is always a color, so it is always held back.
  */
 @InternalFilmstripApi
 public val ResolvedComposition.paintsFillAfterEffects: Boolean
-  get() = (fit == Fit.Contain && !fill.derivesFromFrame) || tracks.any { it.start > Duration.ZERO }
+  get() = (anyClipLeavesBars && !fill.derivesFromFrame) || laysGaps
 
 /**
  * One track of a [ResolvedComposition].
@@ -142,6 +130,9 @@ public class ResolvedTrack(
  *   on all of them.
  * @property sourceIndex Which clip of the track this was laid from. A looping track lays the same
  *   clip down more than once, so several resolved clips can name one.
+ * @property placement Where this clip's pixels land in the output frame, under its own fit.
+ * @property canvasEffectIndices The index in [effects] of the crop that makes each of [ClipPlacement.canvases], in the
+ * same order. A backend builds each canvas right after its crop, before the effects after it run.
  */
 @InternalFilmstripApi
 public class ResolvedClip(
@@ -154,9 +145,26 @@ public class ResolvedClip(
   public val startsAtKeyFrame: Boolean,
   public val span: TimeRange,
   public val sourceIndex: Int,
+  public val placement: ClipPlacement = ClipPlacement.Filling,
+  public val canvasEffectIndices: List<Int> = emptyList(),
 ) {
+  init {
+    require(canvasEffectIndices.size == placement.canvases.size) {
+      "A clip builds ${placement.canvases.size} canvases but names a crop for ${canvasEffectIndices.size} of them."
+    }
+  }
+
   public val duration: Duration get() = end - start
 }
+
+/**
+ * Where the frame this clip's effects leave is drawn in the output frame, as a fraction of it.
+ *
+ * Every canvas the clip builds is already inside that frame, and a canvas nothing reads is folded into the rect.
+ */
+@InternalFilmstripApi
+public val ResolvedClip.drawnRect: NormalizedRect
+  get() = placement.drawnRect
 
 /**
  * One effect, lowered, still carrying the id it came from.

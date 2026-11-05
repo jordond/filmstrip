@@ -124,7 +124,7 @@ public class AvComposition internal constructor(
  * Builds the AVFoundation composition this plan runs as.
  *
  * The size stage is not a step in any clip's chain. Every clip is fitted to [OutputFormat.size]
- * inside the filter handler, after that clip's own effects and before the composition-level ones,
+ * inside the filter handler at its own placement, after that clip's own effects and before the composition-level ones,
  * which is what lets clips of differing sizes concatenate. See [CoreImageChain].
  *
  * @throws AvLoweringFailure when a source or a track cannot be opened.

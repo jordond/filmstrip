@@ -17,7 +17,6 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.hdrFillCodes
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.render
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.restateGrade
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -152,8 +151,6 @@ class FillLoweringTest {
     val size = Size(1280, 720)
     return ResolvedComposition(
       tracks = emptyList(),
-      compositionGeometry = emptyList(),
-      compositionInputSize = size,
       compositionEffects = emptyList(),
       output =
         OutputFormat(
@@ -165,7 +162,6 @@ class FillLoweringTest {
           audioFormat = null,
         ),
       layoutSize = size,
-      fit = Fit.Contain,
       fill = fill,
       duration = 2.seconds,
       hdr = if (hdrTransfer == null) ResolvedHdr.ToneMap else ResolvedHdr.Keep,

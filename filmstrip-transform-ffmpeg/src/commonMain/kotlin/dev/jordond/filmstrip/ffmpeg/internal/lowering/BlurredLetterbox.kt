@@ -8,23 +8,6 @@ import dev.jordond.filmstrip.transform.internal.geometry.sigmaFor
 import kotlin.math.roundToInt
 
 /**
- * The sharp half of a blurred letterbox: the frame scaled down to fit inside the output, with no
- * crop and no pad of its own.
- *
- * Centring it onto the output is left to the overlay that reads this alongside
- * [coverBlurNodes]'s background.
- */
-internal fun containNodes(outputSize: Size): List<FilterNode> =
-  listOf(
-    FilterNode(
-      "scale",
-      "w" to outputSize.width.toString(),
-      "h" to outputSize.height.toString(),
-      "force_original_aspect_ratio" to "decrease",
-    ),
-  )
-
-/**
  * The background half of a blurred letterbox.
  *
  * The frame is scaled up until it covers the output, centre-cropped to that size, then blurred at
@@ -54,9 +37,12 @@ private fun blurSigma(
 ): Int = fill.sigmaFor(outputSize).roundToInt().coerceIn(1, 1024)
 
 /**
- * Centres the sharp foreground over the blurred background.
+ * Lays the sharp foreground over the blurred background at [x], [y].
  *
  * ffmpeg's `overlay` reads its first input as the base and its second as what is drawn on top, so
  * the blurred pad has to be listed before the sharp one wherever this is chained.
  */
-internal fun overlayNodes(): List<FilterNode> = listOf(overlayNode("x" to "(W-w)/2", "y" to "(H-h)/2"))
+internal fun overlayNodes(
+  x: Int,
+  y: Int,
+): List<FilterNode> = listOf(overlayNode("x" to x.toString(), "y" to y.toString()))

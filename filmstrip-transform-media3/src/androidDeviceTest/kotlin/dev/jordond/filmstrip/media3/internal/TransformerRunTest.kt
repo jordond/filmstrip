@@ -18,7 +18,6 @@ import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.EXIF_ORIENTATION_NORMAL
 import dev.jordond.filmstrip.media.MediaProber
@@ -187,8 +186,6 @@ class TransformerRunTest {
   private fun resolved(duration: Duration): ResolvedComposition =
     ResolvedComposition(
       tracks = emptyList(),
-      compositionGeometry = emptyList(),
-      compositionInputSize = SIZE,
       compositionEffects = emptyList(),
       output =
         OutputFormat(
@@ -200,7 +197,6 @@ class TransformerRunTest {
           audioFormat = null,
         ),
       layoutSize = SIZE,
-      fit = Fit.Contain,
       fill = Fill.Black,
       duration = duration,
       hdr = ResolvedHdr.ToneMap,

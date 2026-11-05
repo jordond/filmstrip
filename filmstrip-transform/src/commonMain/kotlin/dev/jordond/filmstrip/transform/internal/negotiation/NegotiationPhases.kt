@@ -12,7 +12,6 @@ import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
@@ -83,7 +82,6 @@ internal class Framing(
   val compositionInputSize: Size,
   val naturalSize: Size,
   val requestedSize: Size,
-  val fit: Fit,
 )
 
 /**

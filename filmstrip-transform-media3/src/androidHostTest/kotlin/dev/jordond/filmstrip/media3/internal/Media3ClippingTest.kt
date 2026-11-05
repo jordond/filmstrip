@@ -13,7 +13,6 @@ import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
@@ -147,8 +146,6 @@ class Media3ClippingTest {
             clips = listOf(clip),
           ),
         ),
-      compositionGeometry = emptyList(),
-      compositionInputSize = Size(640, 360),
       compositionEffects = emptyList(),
       output =
         OutputFormat(
@@ -160,7 +157,6 @@ class Media3ClippingTest {
           audioFormat = null,
         ),
       layoutSize = Size(640, 360),
-      fit = Fit.Contain,
       fill = Fill.Black,
       duration = clip.duration,
       hdr = ResolvedHdr.Keep,

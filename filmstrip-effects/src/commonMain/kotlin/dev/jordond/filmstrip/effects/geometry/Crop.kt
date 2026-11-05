@@ -16,7 +16,9 @@ import dev.jordond.filmstrip.geometry.Size
  * Reframe to an aspect ratio, keeping the region around [anchor].
  *
  * @property aspect The target aspect ratio.
- * @property fit How the frame is fitted to [aspect].
+ * @property fit How the frame is fitted to [aspect]. [Fit.Crop] cuts the frame down to it. [Fit.Contain] and
+ * [Fit.Stretch] make a canvas of [aspect] and letterbox or stretch the frame into it, and every effect after this one
+ * runs on that canvas, bars included.
  * @property anchor Where the retained region sits when [fit] is [Fit.Crop]. Centred by default.
  */
 @Poko
@@ -42,7 +44,7 @@ public fun EffectsBuilder.crop(
 /**
  * Computes the region this crop keeps, as a fraction of the frame entering it.
  *
- * [Fit.Contain] and [Fit.Stretch] do not remove pixels, they letterbox or distort at the size stage
+ * [Fit.Contain] and [Fit.Stretch] do not remove pixels, they place the frame in a canvas of [Crop.aspect]
  * instead.
  *
  * @return The retained rectangle, or [NormalizedRect.Full] when nothing is cropped away.
@@ -69,7 +71,7 @@ public fun Crop.retainedRect(inputSize: Size): NormalizedRect {
 /**
  * Whether this crop keeps every pixel of a frame of [inputSize], because the frame already has [Crop.aspect].
  *
- * Only [Fit.Crop] is read this way. [Fit.Contain] and [Fit.Stretch] reframe at the size stage, which this does not
+ * Only [Fit.Crop] is read this way. [Fit.Contain] and [Fit.Stretch] place the frame in a canvas, which this does not
  * answer for.
  */
 @InternalFilmstripApi

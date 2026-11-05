@@ -3,7 +3,6 @@ package dev.jordond.filmstrip.media3.internal
 import androidx.media3.common.C
 import androidx.media3.common.Effect
 import androidx.media3.common.MimeTypes
-import androidx.media3.effect.Presentation
 import androidx.media3.effect.RgbMatrix
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.Effects
@@ -15,7 +14,6 @@ import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.Media3Handle
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.media3.internal.bounds.Media3FrameBounds
 import dev.jordond.filmstrip.media3.internal.failure.Media3LoweringFailure
 import dev.jordond.filmstrip.media3.internal.fill.FillFlatten
@@ -30,9 +28,9 @@ import dev.jordond.filmstrip.transform.internal.resolve.showsFill
 /**
  * Builds the media3 composition this plan runs as.
  *
- * The size stage is pinned here: one [Presentation] on the composition puts every clip on the
- * output frame, which is what lets clips of differing sizes concatenate. It sits after composition-level geometry and before everything else, so a
- * normalized measurement in a later effect is a fraction of the frame that will really be written.
+ * The size stage is pinned on each clip: its own chain, composition-level geometry included, ends on a pass that places
+ * it in the output frame at its own placement, which is what lets clips of differing sizes concatenate. A normalized
+ * measurement in a composition-level effect is then a fraction of the frame that will really be written.
  *
  * A track's video lands on the output frame grid and its audio lands exactly where the plan put it, so a track carrying
  * both lowers to a video sequence followed by an audio one. A copy lays each track as one sequence at the exact times
@@ -149,11 +147,7 @@ internal fun audioCodecName(mimeType: String): String =
  * placed. That ordering is a rule every backend honours, not a media3 detail.
  */
 internal fun ResolvedComposition.compositionVideoEffects(wrapper: EffectWrapper = UnwrappedEffects): List<Effect> {
-  val underFill =
-    boundaryBeforeComposition() +
-      compositionGeometry.toMedia3Effects() +
-      Presentation.createForWidthAndHeight(output.size.width, output.size.height, fit.toLayout()) +
-      effectsUnderFill.toMedia3Effects()
+  val underFill = boundaryBeforeComposition() + effectsUnderFill.toMedia3Effects()
   val flatten = if (showsFill) listOf(FillFlatten(fill.flattenColor(), hdrTransfer)) else emptyList()
 
   return (underFill + flatten + effectsOverFill.toMedia3Effects()).map(wrapper::wrap)
@@ -198,13 +192,6 @@ private fun ResolvedTrack.trackTypes(
   buildSet {
     if (keepVideo && content != TrackContent.Audio) add(C.TRACK_TYPE_VIDEO)
     if (keepAudio && content != TrackContent.Video) add(C.TRACK_TYPE_AUDIO)
-  }
-
-private fun Fit.toLayout(): Int =
-  when (this) {
-    Fit.Contain -> Presentation.LAYOUT_SCALE_TO_FIT
-    Fit.Crop -> Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP
-    Fit.Stretch -> Presentation.LAYOUT_STRETCH_TO_FIT
   }
 
 private const val BLACK = 0xFF000000.toInt()

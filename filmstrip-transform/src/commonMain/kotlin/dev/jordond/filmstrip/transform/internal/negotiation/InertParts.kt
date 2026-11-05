@@ -20,13 +20,13 @@ import dev.jordond.filmstrip.effects.overlay.drawsNothingWithin
 import dev.jordond.filmstrip.export.InertNotice
 import dev.jordond.filmstrip.export.InertReason
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.transform.internal.geometry.ClipPlacement
 import dev.jordond.filmstrip.transform.internal.geometry.frameAfter
 import dev.jordond.filmstrip.transform.internal.geometry.frameThrough
+import dev.jordond.filmstrip.transform.internal.geometry.placementOf
 import dev.jordond.filmstrip.transform.internal.passesCovering
-import dev.jordond.filmstrip.transform.internal.resolve.clipFillsFrame
 import dev.jordond.filmstrip.transform.internal.runLengthOf
 import kotlin.time.Duration
 
@@ -45,7 +45,7 @@ internal class InertElision(
  * the whole frame it is handed, or when it is an overlay that draws nothing over any run it is laid on. A clip's color
  * runs are folded with its track's, the way a backend lowers them, and a run is only taken out whole. A track or
  * composition effect has to be inert on every clip it reaches. A fill is inert when no track starts late and every
- * primary clip covers the frame under the composition's fit. A fade is inert when there is no audio under it.
+ * primary clip's own placement covers the frame. A fade is inert when there is no audio under it.
  *
  * Every run is measured from where each clip's trim was written, since only a transcode draws an effect and a copy
  * opening earlier on a sync sample draws none. An edit some track of which will be refused is handed back whole, so
@@ -74,11 +74,8 @@ internal fun withoutInert(
     }
 
   val notices = mutableListOf<InertNotice>()
-  val primaryFrames =
-    edit.tracks
-      .first()
-      .clips
-      .map { clip -> clipOutFrame(clip, edit.tracks.first(), ask) }
+  val primary = edit.tracks.first()
+  val primaryFrames = primary.clips.map { clip -> clipOutFrame(clip, primary, ask) }
   val tracks =
     laid.mapIndexed { trackIndex, (track, spans) ->
       val reaches =
@@ -126,7 +123,7 @@ internal fun withoutInert(
   val fillIsInert =
     edit.fill != Fill.Black &&
       edit.tracks.none { it.start > Duration.ZERO } &&
-      (framing.fit != Fit.Contain || primaryFrames.all { it != null && clipFillsFrame(it, framing.naturalSize) })
+      primary.clips.all { clip -> clipPlacement(clip, primary, framing, ask)?.leavesBars == false }
   val fill =
     if (fillIsInert) {
       notices += InertNotice(FILL, InertReason.NoChangeToFrame, FILL_COVERED)
@@ -244,6 +241,17 @@ private fun clipEntryFrame(
     .getValue(clip.source)
     .video
     ?.displaySize
+
+// Where a primary clip lands in the output frame, or null when it carries no video to place.
+private fun clipPlacement(
+  clip: Clip,
+  track: Track,
+  framing: Framing,
+  ask: Ask,
+): ClipPlacement? =
+  clipEntryFrame(clip, ask)?.let { entry ->
+    placementOf(entry, listOf(clip.effects + track.effects, framing.compositionGeometry), framing.naturalSize)
+  }
 
 // The frame a primary clip hands the composition, after its own and its track's geometry.
 private fun clipOutFrame(

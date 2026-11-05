@@ -2,8 +2,11 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.Rotate
+import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.player.contract.asTestFrame
 import dev.jordond.filmstrip.player.contract.awaitComposition
@@ -16,6 +19,7 @@ import dev.jordond.filmstrip.player.internal.Media3PreviewPlanner
 import dev.jordond.filmstrip.test.assertFramesDiffer
 import dev.jordond.filmstrip.test.assertFramesSimilar
 import dev.jordond.filmstrip.test.compareFrames
+import dev.jordond.filmstrip.transform.internal.geometry.placementOf
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CoroutineScope
@@ -64,12 +68,24 @@ class AndroidGeometrySwapTest {
       rebuilds = true,
     )
 
+  // A square canvas around a landscape clip, so the fill shows above and below it.
   @Test
   fun aFillChangedUnderALetterboxDrawsWhatAnExportOfItWould() =
     followingEdit(
+      first = androidFixtureComposition(LETTERBOXED, Fill.Solid(RED)),
+      second = androidFixtureComposition(LETTERBOXED, Fill.Solid(BLUE)),
+      rebuilds = true,
+      leavesBars = true,
+    )
+
+  // The quarter turn sets the output frame itself, so the clip covers it and the fill is never seen.
+  @Test
+  fun aFillChangedWhereTheClipCoversTheFrameDrawsWhatAnExportOfItWould() =
+    followingEdit(
       first = androidFixtureComposition(listOf(Rotate(QUARTER)), Fill.Solid(RED)),
       second = androidFixtureComposition(listOf(Rotate(QUARTER)), Fill.Solid(BLUE)),
-      rebuilds = true,
+      rebuilds = false,
+      leavesBars = false,
     )
 
   @Test
@@ -184,15 +200,23 @@ class AndroidGeometrySwapTest {
    * Both sides are previews, so the encoder is out of the comparison and the two frames have to be
    * the same graph's output twice. A change the standing graph took but could not honour is the
    * only thing that separates them.
+   *
+   * When [leavesBars] is given, the shared placement of the fixture under [second] has to agree, so a
+   * case about the fill is about a fill that is really seen, or really covered.
    */
   private fun followingEdit(
     first: EditComposition,
     second: EditComposition,
     rebuilds: Boolean,
+    leavesBars: Boolean? = null,
   ) = contractTest(timeout = BUDGET) { scope ->
     val before = readbackAfter(scope, first, null)
     val changed = readbackAfter(scope, first, second)
     val fresh = readbackAfter(scope, second, null)
+
+    if (leavesBars != null) {
+      placementOf(FIXTURE_FRAME, listOf(second.effects), fresh.size).leavesBars shouldBe leavesBars
+    }
 
     // Which path the change took, so a swap that quietly became a rebuild, or a rebuild that
     // quietly became a swap, fails here rather than only where the pixels happen to notice.
@@ -287,6 +311,7 @@ class AndroidGeometrySwapTest {
     const val QUARTER = 90
     const val HALF = 180
     const val THREE_QUARTERS = 270
+    val LETTERBOXED = listOf(Crop(AspectRatio.Square, Fit.Contain), Rotate(QUARTER))
 
     // Alternating, so each step has to differ from the one before it rather than only from the
     // first. Far enough apart that no rounding could account for the difference.

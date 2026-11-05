@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.Sidecar
+import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
@@ -24,6 +25,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.GraphLowering
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.arguments
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.drawnAt
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegTag
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.formatSeconds
 import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
@@ -39,7 +41,10 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
 import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
+import dev.jordond.filmstrip.transform.internal.geometry.inWholePixelsOf
+import dev.jordond.filmstrip.transform.internal.geometry.placementOf
 import dev.jordond.filmstrip.transform.internal.geometry.sigmaFor
 import dev.jordond.filmstrip.transform.internal.passesCovering
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
@@ -69,7 +74,7 @@ class GraphLoweringTest {
   fun `a solid fill renders as a hex color on the pad`() {
     val graph = graphFor(fill = Fill.Solid(0xFFFF0000.toInt()))
 
-    graph shouldContain "pad=w=1920:h=1080:x=(ow-iw)/2:y=(oh-ih)/2:color=0xff0000"
+    graph shouldContain containedTail("0xff0000")
   }
 
   @Test
@@ -89,13 +94,17 @@ class GraphLoweringTest {
   }
 
   @Test
-  fun `a blurred fill splits into a cropped blurred background and a contained foreground`() {
-    val graph = graphFor(fill = Fill.Blurred(radius = 0.5f, dim = 0f), output = Size(100, 200))
+  fun `a blurred fill splits into a cropped blurred background and a placed foreground`() {
+    val output = Size(100, 200)
+    val graph = graphFor(fill = Fill.Blurred(radius = 0.5f, dim = 0f), output = output)
+    val rect = containedRect(output)
 
     graph shouldContain "split=2"
     graph shouldContain "scale=w=100:h=200:force_original_aspect_ratio=increase,crop=w=100:h=200,gblur=sigma=50"
-    graph shouldContain "scale=w=100:h=200:force_original_aspect_ratio=decrease"
-    graph shouldContain "overlay=x=(W-w)/2:y=(H-h)/2"
+    val (x, y) = rect.drawnAt()
+
+    graph shouldContain "[v0fg]scale=w=${rect.width}:h=${rect.height}[v0sharp]"
+    graph shouldContain "overlay=x=$x:y=$y"
   }
 
   // The report scenario: a 1920x1080 source into a 1080x1920 output. Asserted against sigmaFor
@@ -184,7 +193,7 @@ class GraphLoweringTest {
   fun `with no composition effect the bars are painted straight in`() {
     val graph = graphFor(fill = Fill.Solid(0xFFFF0000.toInt()))
 
-    graph shouldContain "pad=w=1920:h=1080:x=(ow-iw)/2:y=(oh-ih)/2:color=0xff0000"
+    graph shouldContain containedTail("0xff0000")
     graph shouldNotContain "yuva420p"
     graph shouldNotContain "overlay=shortest=1"
   }
@@ -195,7 +204,7 @@ class GraphLoweringTest {
   fun `a composition effect defers a solid fill's bars to a final overlay`() {
     val graph = graphFor(fill = Fill.Solid(0xFFFF0000.toInt()), compositionEffects = listOf(compositionEffect()))
 
-    graph shouldContain "pad=w=1920:h=1080:x=(ow-iw)/2:y=(oh-ih)/2:color=black@0"
+    graph shouldContain containedTail("black@0")
     graph shouldContain "format=pix_fmts=yuva420p"
     graph shouldContain "color=c=0xff0000:s=1920x1080:r=30"
     graph shouldContain "overlay=shortest=1"
@@ -216,7 +225,7 @@ class GraphLoweringTest {
       val graph = graphFor(fill = Fill.Solid(color), trackStart = 500.milliseconds, hdrTransfer = transfer)
       val (luma, cb, cr) = tenBitCodesFromSignal(transfer.signalFromNits(authoredHdrNits(color)))
 
-      graph shouldContain "pad=w=1920:h=1080:x=(ow-iw)/2:y=(oh-ih)/2:color=black@0"
+      graph shouldContain containedTail("black@0")
       graph shouldContain "tpad=start=${outputSlotOf(500.milliseconds, 30)}:color=black@0"
       graph shouldContain "format=pix_fmts=yuv420p10le,lutyuv=y=$luma:u=$cb:v=$cr"
       graph shouldContain "overlay=shortest=1"
@@ -308,7 +317,7 @@ class GraphLoweringTest {
         compositionEffects = listOf(logoOverlay()),
       )
 
-    graph shouldContain "pad=w=1920:h=1080:x=(ow-iw)/2:y=(oh-ih)/2:color=0xff0000"
+    graph shouldContain containedTail("0xff0000")
     graph shouldContain "tpad=start=${outputSlotOf(500.milliseconds, 30)}:color=0xff0000"
     graph shouldContain "overlay=x=0:y=0"
     graph shouldNotContain "yuva420p"
@@ -570,7 +579,8 @@ class GraphLoweringTest {
     val graph = gridInvocationFor(laid, fill = Fill.Blurred()).filterGraph
 
     graph shouldContain
-      "overlay=x=(W-w)/2:y=(H-h)/2:format=auto,setsar=r=1,setpts=expr=PTS+eq(PTS\\,PREV_INPTS)/($GRID_RATE*TB)," +
+      "overlay=x=${blurredAt().first}:y=${blurredAt().second}:format=auto,setsar=r=1," +
+      "setpts=expr=PTS+eq(PTS\\,PREV_INPTS)/($GRID_RATE*TB)," +
       "fps=fps=$GRID_RATE,tpad=stop_mode=clone:stop=2,trim=end_frame=$slots,"
   }
 
@@ -600,8 +610,6 @@ class GraphLoweringTest {
     val negotiated =
       ResolvedComposition(
         tracks = listOf(track),
-        compositionGeometry = emptyList(),
-        compositionInputSize = output,
         compositionEffects = emptyList(),
         output =
           OutputFormat(
@@ -613,7 +621,6 @@ class GraphLoweringTest {
             audioFormat = AudioFormat(sampleRate = 48_000, channelCount = 2),
           ),
         layoutSize = output,
-        fit = Fit.Contain,
         fill = fill,
         duration = track.duration,
         hdr = ResolvedHdr.Keep,
@@ -665,8 +672,8 @@ class GraphLoweringTest {
           duration = SOURCE_LENGTH,
           video =
             VideoTrackInfo(
-              codedSize = Size(1920, 1080),
-              displaySize = Size(1920, 1080),
+              codedSize = NARROW,
+              displaySize = NARROW,
               rotationDegrees = 0,
               pixelAspectRatio = 1f,
               frameRate = 30f,
@@ -686,6 +693,7 @@ class GraphLoweringTest {
       startsAtKeyFrame = false,
       span = TimeRange.of(offset, offset + length),
       sourceIndex = sourceIndex,
+      placement = placementOf(NARROW, listOf(emptyList()), Size(1920, 1080)),
     )
 
   private fun loopingInvocationFor(vararg tracks: ResolvedTrack): Invocation {
@@ -693,8 +701,6 @@ class GraphLoweringTest {
     val negotiated =
       ResolvedComposition(
         tracks = tracks.toList(),
-        compositionGeometry = emptyList(),
-        compositionInputSize = output,
         compositionEffects = emptyList(),
         output =
           OutputFormat(
@@ -706,7 +712,6 @@ class GraphLoweringTest {
             audioFormat = AudioFormat(sampleRate = 48_000, channelCount = 2),
           ),
         layoutSize = output,
-        fit = Fit.Contain,
         fill = Fill.Black,
         duration = tracks.maxOf { it.duration },
         hdr = ResolvedHdr.Keep,
@@ -809,8 +814,7 @@ class GraphLoweringTest {
         "[0:v]trim=start=0.000000:end=2.000000,setpts=expr=PTS-STARTPTS,eq=brightness=0.1,eq=contrast=1.2[v0m0pre]",
         "[1:v]setpts=expr=PTS-STARTPTS[v0m0a0]",
         "[v0m0pre][v0m0a0]overlay=x=0:y=0[v0m0]",
-        "[v0m0]scale=w=1920:h=1080:force_original_aspect_ratio=decrease," +
-          "pad=w=1920:h=1080:x=(ow-iw)/2:y=(oh-ih)/2:color=black@0,setsar=r=1," +
+        "[v0m0]" + containedTail("black@0") + ",setsar=r=1," +
           "setpts=expr=PTS+eq(PTS\\,PREV_INPTS)/(30*TB),fps=fps=30,tpad=stop_mode=clone:stop=2," +
           "trim=end_frame=60,setpts=expr=PTS-STARTPTS,format=pix_fmts=yuva420p[v0]",
         "[v0]eq=brightness=0.1[vfx0]",
@@ -1000,6 +1004,27 @@ class GraphLoweringTest {
       stage = EffectStage.Color,
     )
 
+  // The plain tail a NARROW clip contained in [output] ends on, read off the shared placement.
+  private fun containedTail(
+    color: String,
+    output: Size = Size(1920, 1080),
+  ): String {
+    val rect = containedRect(output)
+    return "scale=w=${rect.width}:h=${rect.height}," +
+      "pad=w=${output.width}:h=${output.height}:x=${rect.left}:y=${rect.top}:color=$color"
+  }
+
+  // Where the sharp half of a NARROW clip's blurred tail is laid in a sixteen by nine frame.
+  private fun blurredAt(): Pair<Int, Int> = containedRect(Size(1920, 1080)).drawnAt()
+
+  // Where a NARROW clip the helpers below lay is drawn in [output], in ffmpeg's whole pixels.
+  private fun containedRect(output: Size): PixelRect =
+    placementOf(
+      NARROW,
+      listOf(listOf(Scale(output.height, Fit.Contain))),
+      output,
+    ).drawnRect.inWholePixelsOf(output)
+
   private fun graphFor(
     fill: Fill,
     fit: Fit = Fit.Contain,
@@ -1008,9 +1033,18 @@ class GraphLoweringTest {
     compositionEffects: List<ResolvedEffect> = emptyList(),
     hdrTransfer: HdrTransfer? = null,
     passes: Int = 1,
+    sourceSize: Size = NARROW,
   ): String =
-    invocationFor(fill, fit, output, trackStart, compositionEffects, hdrTransfer = hdrTransfer, passes = passes)
-      .filterGraph
+    invocationFor(
+      fill,
+      fit,
+      output,
+      trackStart,
+      compositionEffects,
+      hdrTransfer = hdrTransfer,
+      passes = passes,
+      sourceSize = sourceSize,
+    ).filterGraph
 
   private fun invocationFor(
     fill: Fill,
@@ -1021,15 +1055,17 @@ class GraphLoweringTest {
     clipEffects: List<ResolvedEffect> = emptyList(),
     hdrTransfer: HdrTransfer? = null,
     passes: Int = 1,
+    sourceSize: Size = NARROW,
   ): Invocation {
     val duration = 2.seconds
+    val placement = placementOf(sourceSize, listOf(listOf(Scale(output.height, fit))), output)
     val info =
       MediaInfo(
         duration = duration,
         video =
           VideoTrackInfo(
-            codedSize = Size(1920, 1080),
-            displaySize = Size(1920, 1080),
+            codedSize = sourceSize,
+            displaySize = sourceSize,
             rotationDegrees = 0,
             pixelAspectRatio = 1f,
             frameRate = 30f,
@@ -1055,14 +1091,13 @@ class GraphLoweringTest {
           startsAtKeyFrame = false,
           span = TimeRange.of(opens, opens + duration),
           sourceIndex = pass,
+          placement = placement,
         )
       }
     val track = ResolvedTrack(content = TrackContent.Video, looping = false, start = trackStart, clips = clips)
     val negotiated =
       ResolvedComposition(
         tracks = listOf(track),
-        compositionGeometry = emptyList(),
-        compositionInputSize = output,
         compositionEffects = compositionEffects,
         output =
           OutputFormat(
@@ -1074,7 +1109,6 @@ class GraphLoweringTest {
             audioFormat = null,
           ),
         layoutSize = output,
-        fit = fit,
         fill = fill,
         duration = track.duration,
         hdr = ResolvedHdr.Keep,
@@ -1139,8 +1173,6 @@ class GraphLoweringTest {
               clips = listOf(clip),
             ),
           ),
-        compositionGeometry = emptyList(),
-        compositionInputSize = output,
         compositionEffects = emptyList(),
         output =
           OutputFormat(
@@ -1152,7 +1184,6 @@ class GraphLoweringTest {
             audioFormat = null,
           ),
         layoutSize = output,
-        fit = Fit.Contain,
         fill = Fill.Black,
         duration = clip.duration,
         hdr = ResolvedHdr.Keep,
@@ -1209,3 +1240,6 @@ private const val GBLUR_SIGMA_CEILING = 1024
 
 // The header of the smallest table this backend writes, standing in for the file an effect brings.
 private const val CUBE = "LUT_3D_SIZE 2"
+
+// A four by three source, which leaves bars in the sixteen by nine frame most of these graphs write.
+private val NARROW = Size(1440, 1080)

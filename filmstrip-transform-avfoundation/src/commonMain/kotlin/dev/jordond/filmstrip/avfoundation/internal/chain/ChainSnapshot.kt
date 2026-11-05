@@ -41,25 +41,8 @@ internal class ChainSnapshot(
   val encodedTransfer: HdrTransfer? = transfer.takeIf { encodesHdr }
 
   /**
-   * What composition-level geometry measures against.
-   *
-   * The frame after every clip and track effect, since geometry is what pins it to [output]'s size
-   * rather than something that already runs inside it.
-   */
-  val geometryAttributes: Attributes =
-    Attributes(
-      inputSize = resolved.compositionInputSize,
-      outputSize = output.size,
-      layoutSize = resolved.compositionInputSize,
-      colorSpace = if (encodesHdr) ColorSpace.Bt2020 else ColorSpace.Bt709,
-      hdrTransfer = encodedTransfer,
-      frameRate = output.frameRate.toFloat(),
-      span = compositionSpan,
-    )
-
-  /**
-   * What a composition-level effect that runs after geometry measures against. The output frame on
-   * either side, since by the time one runs the frame has been pinned to it.
+   * What a composition-level effect measures against. The output frame on either side, since by the time one runs
+   * the frame has been placed in it.
    */
   val compositionAttributes: Attributes =
     Attributes(

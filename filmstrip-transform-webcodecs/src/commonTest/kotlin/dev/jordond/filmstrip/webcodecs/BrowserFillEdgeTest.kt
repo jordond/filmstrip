@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.transform.internal.resolve.clipFillsFrame
+import dev.jordond.filmstrip.transform.internal.geometry.placementOf
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -38,7 +38,7 @@ class BrowserFillEdgeTest {
             fill = Fill.Blurred(),
           )
 
-        renderOf(composition).clips.last().hasBars shouldBe !clipFillsFrame(second, OUTPUT)
+        renderOf(composition).clips.last().hasBars shouldBe placementOf(second, emptyList(), OUTPUT).leavesBars
       }
     }
 

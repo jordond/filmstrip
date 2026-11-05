@@ -3,9 +3,6 @@ package dev.jordond.filmstrip.transform.internal.negotiation
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.effect.EffectStage
-import dev.jordond.filmstrip.effect.inCanonicalOrder
-import dev.jordond.filmstrip.effects.geometry.Scale
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
@@ -39,11 +36,6 @@ internal fun framingOf(
   val compositionGeometry = edit.effects.filter { it.stage == EffectStage.Geometry }
   val compositionInputSize = frameThrough(firstVideo.displaySize, listOf(clipStage))
   val naturalSize = frameThrough(compositionInputSize, listOf(compositionGeometry))
-  val fit =
-    (clipStage.inCanonicalOrder() + compositionGeometry.inCanonicalOrder())
-      .filterIsInstance<Scale>()
-      .lastOrNull()
-      ?.fit ?: Fit.Contain
 
   return Phase.Next(
     Framing(
@@ -54,7 +46,6 @@ internal fun framingOf(
       compositionInputSize = compositionInputSize,
       naturalSize = naturalSize,
       requestedSize = atHeight(naturalSize, ask.spec.heightPx),
-      fit = fit,
     ),
   )
 }

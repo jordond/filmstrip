@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.export.ExportPath
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.resolve.flatGain
 import dev.jordond.filmstrip.transform.internal.resolve.isValid
@@ -25,7 +26,7 @@ internal fun timelineOf(
   encoding: Encoding,
   streams: Streams,
   lowering: StageLowering,
-  compositionGeometryPerClip: Boolean,
+  naturalSize: Size,
 ): Phase<Timeline> {
   val windows =
     edit.tracks.map { track ->
@@ -39,14 +40,15 @@ internal fun timelineOf(
   val duration = compositionDurationOf(edit, windows)
 
   if (!edit.audio.isValid) return Phase.Refused(invalid(COMPOSITION_LEVEL))
+  val compositionGeometry = edit.effects.filter { it.stage == EffectStage.Geometry }
   val layer =
     TrackLayer(
       lowering = lowering,
       infos = ask.infos,
       target = encoding.target,
       layoutFrame = encoding.layoutFrame,
-      fannedGeometry =
-        if (compositionGeometryPerClip) edit.effects.filter { it.stage == EffectStage.Geometry } else emptyList(),
+      compositionGeometry = compositionGeometry,
+      naturalSize = naturalSize,
       compositionGain = edit.audio.flatGain(),
       startsAtKeyFrame = grade.path == ExportPath.Copy,
     )

@@ -11,7 +11,6 @@ import dev.jordond.filmstrip.webcodecs.internal.BrowserRender
 import dev.jordond.filmstrip.webcodecs.internal.MICROS_PER_SECOND
 import dev.jordond.filmstrip.webcodecs.internal.RenderedClip
 import dev.jordond.filmstrip.webcodecs.internal.TEN_BIT_FORMAT
-import dev.jordond.filmstrip.webcodecs.internal.TextureMatrix
 import dev.jordond.filmstrip.webcodecs.internal.interop.JsOptions
 import dev.jordond.filmstrip.webcodecs.internal.interop.OffscreenCanvas
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
@@ -24,7 +23,7 @@ import kotlin.time.Duration.Companion.microseconds
 
 /**
  * One WebGL pass over a decoded frame: the texture matrix an effect resolved to, a color matrix,
- * and a quad the composition's fit sizes to contain, cover or stretch a clip into the output.
+ * and a quad the clip's own placement sizes to contain, cover or stretch it into the output.
  *
  * A compositor built with a transfer function keeps the clip's grade instead. The frame's ten-bit
  * planes are uploaded and decoded to linear display light, everything composites at half-float
@@ -50,12 +49,12 @@ internal class BrowserCompositor private constructor(
   private val quadScale: JsAny?,
   private val colorMatrix: JsAny?,
   private val compositionColorMatrix: JsAny?,
+  private val canvasUniforms: ClipCanvasUniforms,
   private val blur: BlurPass?,
   private val hdr: HdrPass?,
   private val hdrTransfer: HdrTransfer?,
 ) {
   private var current: RenderedClip? = null
-  private var frameMatrix: TextureMatrix? = null
   private var overlayPass: BrowserOverlayPass? = null
   private var toneMapPass: ToneMapPass? = null
 
@@ -74,21 +73,15 @@ internal class BrowserCompositor private constructor(
    *
    * The clip itself is kept around, not just its uniforms, because [draw] needs its cover geometry
    * and whether it has bars at all once the fill is blurred.
-   *
-   * @param compositionGeometryMatrix The render's [BrowserRender.compositionGeometryMatrix], which the clip's overlays
-   * are drawn through so a composition crop or flip moves them with the picture.
    */
-  fun clip(
-    clip: RenderedClip,
-    compositionGeometryMatrix: TextureMatrix,
-  ) {
+  fun clip(clip: RenderedClip) {
     current = clip
-    frameMatrix = compositionGeometryMatrix
     gl.useProgram(program)
     if (!clip.matrix.varies) gl.uniformMatrix3fv(texMatrix, false, clip.matrix.at(Duration.ZERO).toFloat32Array())
     gl.uniform2f(quadScale, clip.quadHalfW, clip.quadHalfH)
     gl.uniformMatrix4fv(colorMatrix, false, clip.colorMatrix.toFloat32Array())
     gl.uniformMatrix4fv(compositionColorMatrix, false, clip.compositionColorMatrix.toFloat32Array())
+    canvasUniforms.upload(gl, clip.canvases)
   }
 
   /**
@@ -126,6 +119,10 @@ internal class BrowserCompositor private constructor(
     if (clip.matrix.varies) {
       gl.useProgram(program)
       gl.uniformMatrix3fv(texMatrix, false, clip.matrix.at(compositionUs.microseconds).toFloat32Array())
+    }
+    if (clip.canvases.any { it.contentMatrix.varies }) {
+      gl.useProgram(program)
+      canvasUniforms.uploadAt(gl, clip.canvases, compositionUs.microseconds)
     }
     val toneMapFrom = clip.toneMapFrom
     val source =
@@ -197,11 +194,10 @@ internal class BrowserCompositor private constructor(
     compositionUs: Double,
   ) {
     if (clip.overlays.isEmpty()) return
-    val geometry = checkNotNull(frameMatrix) { "clip() must run before draw()" }
     overlays().draw(
       clip.overlays,
       compositionUs,
-      geometry.at(compositionUs.microseconds),
+      clip.overlayMatrix.at(compositionUs.microseconds),
       halfWidth,
       halfHeight,
       clip.compositionColorMatrix,
@@ -424,6 +420,7 @@ internal class BrowserCompositor private constructor(
           quadScale = gl.getUniformLocation(program, "uQuadScale"),
           colorMatrix = gl.getUniformLocation(program, "uColorMatrix"),
           compositionColorMatrix = gl.getUniformLocation(program, "uCompositionColorMatrix"),
+          canvasUniforms = ClipCanvasUniforms.of(gl, program),
           blur = blur,
           hdr = hdr,
           hdrTransfer = hdrTransfer,

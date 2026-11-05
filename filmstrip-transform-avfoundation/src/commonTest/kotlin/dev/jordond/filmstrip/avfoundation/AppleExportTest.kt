@@ -428,9 +428,9 @@ class AppleExportTest {
       remove(halfDimmed)
     }
 
-  // Crop covers the frame itself, so the bars a Contain fit would need never open up. Sampling both
-  // edges with a loud fill chosen is what proves it costs nothing when there is nowhere for it to
-  // show.
+  // The crop cuts the frame down to the output's aspect, so the clip's placement covers the frame under its default
+  // fit and no bar opens up. Sampling both edges with a loud fill chosen is what proves it costs nothing when there is
+  // nowhere for it to show.
   @Test
   fun `writes no bars when the fill cannot be seen`() =
     runTest(timeout = TIMEOUT) {
@@ -441,12 +441,7 @@ class AppleExportTest {
         compositionOf {
           clip(MediaSource.of(landscape)) { trim(0.seconds, 1.seconds) }
           fill(Fill.Solid(magenta.toArgb()))
-          // resolved.fit, which the final pin to the output frame reads, only ever comes from a
-          // Scale effect's own fit. The crop alone would leave it defaulted to Contain.
-          effects {
-            crop(AspectRatio.Square, Fit.Crop)
-            scale(300, Fit.Crop)
-          }
+          effects { crop(AspectRatio.Square, Fit.Crop) }
         }
 
       val output = temporaryPath("crop-fill")

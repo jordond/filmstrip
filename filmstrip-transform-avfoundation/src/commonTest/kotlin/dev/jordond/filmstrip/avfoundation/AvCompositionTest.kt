@@ -13,10 +13,14 @@ import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
+import dev.jordond.filmstrip.effects.geometry.Crop
+import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
+import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.EXIF_ORIENTATION_NORMAL
@@ -27,6 +31,8 @@ import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.imageMediaInfoOf
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.test.LoopingCases
+import dev.jordond.filmstrip.transform.internal.geometry.ClipPlacement
+import dev.jordond.filmstrip.transform.internal.geometry.placementOf
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.passesCovering
 import dev.jordond.filmstrip.transform.internal.resolve.GainSegment
@@ -39,6 +45,7 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.FloatVar
 import kotlinx.cinterop.alloc
@@ -600,52 +607,6 @@ class AvCompositionTest {
     afterStep.end shouldBe 0f
   }
 
-  // Handing the composition-geometry step a frame already pinned to the output leaves a
-  // composition-level Crop measuring against the wrong aspect. COMPOSITION_INPUT is deliberately
-  // not OUTPUT, so swapping one for the other still fails this.
-  @Test
-  fun `composition geometry is measured against the frame clip effects left behind rather than the output`() {
-    val first = fixture("apple_export_a.mp4")
-
-    val composition =
-      ResolvedComposition(
-        tracks =
-          listOf(
-            ResolvedTrack(
-              content = TrackContent.AudioAndVideo,
-              looping = false,
-              start = Duration.ZERO,
-              clips = listOf(clip(first, Size(640, 360), Duration.ZERO, 1.seconds)),
-            ),
-          ),
-        compositionGeometry = emptyList(),
-        compositionInputSize = COMPOSITION_INPUT,
-        compositionEffects = emptyList(),
-        output =
-          OutputFormat(
-            size = OUTPUT,
-            videoCodec = VideoCodec.H264,
-            audioCodec = AudioCodec.Aac,
-            bitrate = null,
-            frameRate = 30,
-            audioFormat = null,
-          ),
-        layoutSize = OUTPUT,
-        fit = Fit.Contain,
-        fill = Fill.Black,
-        duration = 1.seconds,
-        hdr = ResolvedHdr.Keep,
-        hdrTransfer = null,
-        audio = AudioSpec.Keep,
-        adjustments = emptyList(),
-        path = ExportPath.Transcode,
-      ).toAvComposition()
-
-    val inputSize = composition.chain?.geometryAttributes?.inputSize
-    inputSize shouldBe COMPOSITION_INPUT
-    inputSize shouldNotBe OUTPUT
-  }
-
   // A still holds no track of any type, so an empty range would leave an image-only composition
   // with no duration at all and nothing able to open it.
   @Test
@@ -701,6 +662,29 @@ class AvCompositionTest {
     composition.spans.single().still shouldBe PHOTO_IMAGE
   }
 
+  // A crop or a scale changing a clip's fit moves nothing on the timeline, so a swap has to carry the clip's new
+  // placement across rather than keep drawing at the old one.
+  @Test
+  fun `takes each clip's new placement across a parameter swap`() {
+    val first = fixture("apple_export_a.mp4")
+    val crop = Crop(AspectRatio(4, 5), Fit.Contain)
+    val placement = placementOf(Size(640, 360), listOf(listOf(crop, KenBurns(PAN_FROM, NormalizedRect.Full))), OUTPUT)
+    val composition = resolved(listOf(clip(first, Size(640, 360), Duration.ZERO, 1.seconds)), 1.seconds)
+
+    composition.chain?.updateParameters(
+      resolvedComposition(
+        listOf(
+          clip(first, Size(640, 360), Duration.ZERO, 1.seconds, placement = placement, canvasEffectIndices = listOf(0)),
+        ),
+        1.seconds,
+      ),
+    )
+
+    val span = composition.spans.single()
+    span.placement shouldBeSameInstanceAs placement
+    span.drawnRect shouldBe placement.drawnRect
+  }
+
   private fun resolved(
     clips: List<ResolvedClip>,
     duration: Duration,
@@ -725,12 +709,9 @@ class AvCompositionTest {
       )
     return ResolvedComposition(
       tracks = single.tracks + audio,
-      compositionGeometry = single.compositionGeometry,
-      compositionInputSize = single.compositionInputSize,
       compositionEffects = single.compositionEffects,
       output = single.output,
       layoutSize = single.layoutSize,
-      fit = single.fit,
       fill = single.fill,
       duration = run,
       hdr = single.hdr,
@@ -786,6 +767,8 @@ class AvCompositionTest {
       startsAtKeyFrame = startsAtKeyFrame,
       span = TimeRange.of(at, at + duration),
       sourceIndex = sourceIndex,
+      placement = placement,
+      canvasEffectIndices = canvasEffectIndices,
     )
 
   /**
@@ -814,8 +797,6 @@ class AvCompositionTest {
             clips = clips,
           ),
         ),
-      compositionGeometry = emptyList(),
-      compositionInputSize = OUTPUT,
       compositionEffects = emptyList(),
       output =
         OutputFormat(
@@ -827,7 +808,6 @@ class AvCompositionTest {
           audioFormat = null,
         ),
       layoutSize = OUTPUT,
-      fit = Fit.Contain,
       fill = Fill.Black,
       duration = duration,
       hdr = ResolvedHdr.Keep,
@@ -852,8 +832,6 @@ class AvCompositionTest {
             clips = laidFrom(Duration.ZERO, clips),
           ),
         ),
-      compositionGeometry = emptyList(),
-      compositionInputSize = OUTPUT,
       compositionEffects = emptyList(),
       output =
         OutputFormat(
@@ -865,7 +843,6 @@ class AvCompositionTest {
           audioFormat = null,
         ),
       layoutSize = OUTPUT,
-      fit = Fit.Contain,
       fill = Fill.Black,
       duration = duration,
       hdr = ResolvedHdr.Keep,
@@ -909,8 +886,6 @@ class AvCompositionTest {
               ),
           ),
         ),
-      compositionGeometry = emptyList(),
-      compositionInputSize = OUTPUT,
       compositionEffects = emptyList(),
       output =
         OutputFormat(
@@ -922,7 +897,6 @@ class AvCompositionTest {
           audioFormat = null,
         ),
       layoutSize = OUTPUT,
-      fit = Fit.Contain,
       fill = Fill.Black,
       duration = 2_583.milliseconds,
       hdr = ResolvedHdr.Keep,
@@ -941,6 +915,8 @@ class AvCompositionTest {
     gain: ResolvedGain = ResolvedGain.constant(1f, Duration.ZERO, end - start),
     sourceIndex: Int = 0,
     mediaDuration: Duration = 2.seconds,
+    placement: ClipPlacement = ClipPlacement.Filling,
+    canvasEffectIndices: List<Int> = emptyList(),
   ): ResolvedClip =
     ResolvedClip(
       source = MediaSource.of(path),
@@ -970,6 +946,8 @@ class AvCompositionTest {
       startsAtKeyFrame = false,
       span = TimeRange.of(Duration.ZERO, end - start),
       sourceIndex = sourceIndex,
+      placement = placement,
+      canvasEffectIndices = canvasEffectIndices,
     )
 
   /**
@@ -989,8 +967,8 @@ class AvCompositionTest {
 
     // Never opened. The lowering only asks whether the clip is a still, not what the still holds.
     val PHOTO_IMAGE = ImageSource.of("/filmstrip/does-not-exist.png")
-    val COMPOSITION_INPUT = Size(640, 360)
     val PROBE_STEP = 37.milliseconds
+    val PAN_FROM = NormalizedRect(0f, 0f, 0.5f, 0.5f)
 
     // A track offset that divides neither the pass length nor the run, so a span counted from the
     // wrong place lands somewhere the tiling assertion can see.

@@ -177,12 +177,9 @@ class BrowserToneMapTest {
       val toneMapped =
         ResolvedComposition(
           tracks = kept.tracks,
-          compositionGeometry = kept.compositionGeometry,
-          compositionInputSize = kept.compositionInputSize,
           compositionEffects = kept.compositionEffects,
           output = kept.output,
           layoutSize = kept.layoutSize,
-          fit = kept.fit,
           fill = kept.fill,
           duration = kept.duration,
           hdr = ResolvedHdr.ToneMap,

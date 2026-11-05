@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.effects.color.ColorMatrix
 import dev.jordond.filmstrip.effects.color.HueRotate
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.Rotate
+import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.export.ExportPath
@@ -24,6 +25,7 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.style.TextStyle
@@ -187,6 +189,24 @@ class InertPlanTest {
   fun `a fill behind a four by three clip is kept`() {
     val edit =
       EditComposition(listOf(Track(listOf(fixture.clip(), fixture.clip(size = Size(1440, 1080))))), fill = BLUR)
+
+    reasonsOf(edit).shouldBeEmpty()
+    fixture.resolve(edit).fill shouldBe BLUR
+  }
+
+  @Test
+  fun `a fill behind a clip whose own scale crops is left out`() {
+    val cropped = fixture.clip(size = Size(1440, 1080), effects = listOf(Scale(1080, Fit.Crop)))
+    val edit = EditComposition(listOf(Track(listOf(fixture.clip(), cropped))), fill = BLUR)
+
+    reasonsOf(edit) shouldContainExactly listOf("fill" to InertReason.NoChangeToFrame)
+    fixture.resolve(edit).fill shouldBe Fill.Black
+  }
+
+  @Test
+  fun `a fill inside the canvas of a letterboxing crop is kept`() {
+    val boxed = fixture.clip(effects = listOf(Crop(AspectRatio(1, 1), Fit.Contain)))
+    val edit = EditComposition(listOf(Track(listOf(boxed))), fill = BLUR)
 
     reasonsOf(edit).shouldBeEmpty()
     fixture.resolve(edit).fill shouldBe BLUR

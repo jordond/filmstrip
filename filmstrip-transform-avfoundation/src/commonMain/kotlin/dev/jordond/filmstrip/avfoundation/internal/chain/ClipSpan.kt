@@ -5,15 +5,18 @@ import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.export.ExportPath
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.geometry.ClipPlacement
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
+import dev.jordond.filmstrip.transform.internal.resolve.drawnRect
 import kotlin.time.Duration
 
 /**
@@ -33,6 +36,10 @@ import kotlin.time.Duration
  * @property heldFrom The time every frame from here to the span's end is drawn at, or null when each
  * frame is drawn at its own. Set on the primary's last span when an audio track outlasts it, to the
  * last slot the primary covers, so the held tail repeats that slot's frame, effects included.
+ * @property placement Where the clip's pixels land in the output frame, under its own fit.
+ * @property canvasEffectIndices The index in [effects] after which each of the placement's canvases is built, in the
+ * same order.
+ * @property drawnRect Where the frame [effects] leave is drawn in the output frame, as a fraction of it.
  */
 internal class ClipSpan(
   val start: Duration,
@@ -42,6 +49,9 @@ internal class ClipSpan(
   val effects: List<ResolvedEffect>,
   val still: ImageSource? = null,
   val heldFrom: Duration? = null,
+  val placement: ClipPlacement,
+  val canvasEffectIndices: List<Int>,
+  val drawnRect: NormalizedRect,
 ) {
   fun covers(time: Duration): Boolean = time in start..<end
 }
@@ -51,7 +61,8 @@ internal class ClipSpan(
  *
  * The slot a span covers and the rotation baked into it both come from where the clip was laid onto
  * the `AVMutableComposition`, and a parameters-only edit moves neither, so they are carried across
- * from these spans and nothing is laid down again.
+ * from these spans and nothing is laid down again. A clip's placement is taken from [resolved], since a crop or a
+ * scale changing its fit is a parameters-only edit too.
  *
  * The plan holds one clip per pass and `layOnto` lays one placement per clip, leaving out a clip
  * that covers no output slot when it lays on the grid. A span and the clip behind it line up by
@@ -121,6 +132,9 @@ internal fun ResolvedClip.spanning(
     effects = effects,
     still = (source as? MediaSource.Image)?.image,
     heldFrom = heldFrom,
+    placement = placement,
+    canvasEffectIndices = canvasEffectIndices,
+    drawnRect = drawnRect,
   )
 }
 

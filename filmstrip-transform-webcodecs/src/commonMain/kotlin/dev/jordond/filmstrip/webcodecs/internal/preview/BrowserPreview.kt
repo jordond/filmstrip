@@ -359,7 +359,7 @@ public class BrowserPreview internal constructor(
     sample: VideoSample,
   ): PreviewFrame {
     val pass = compositor()
-    pass.clip(slot.clip, render.compositionGeometryMatrix)
+    pass.clip(slot.clip)
     pass.draw(sample, slot.outputUs, render.compositionOverlays)
     return readBack(pass, slot.writtenUs)
   }

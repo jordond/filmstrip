@@ -52,7 +52,7 @@ class CropGeometryTest {
     val contained = Crop(AspectRatio.Portrait, fit = Fit.Contain).retainedRect(Size(1920, 1080))
     val stretched = Crop(AspectRatio.Portrait, fit = Fit.Stretch).retainedRect(Size(1920, 1080))
 
-    // Neither removes pixels: one writes bars at the size stage and the other distorts.
+    // Neither removes pixels: one letterboxes into its canvas and the other stretches.
     contained.width shouldBe 1f
     contained.height shouldBe 1f
     stretched.width shouldBe 1f

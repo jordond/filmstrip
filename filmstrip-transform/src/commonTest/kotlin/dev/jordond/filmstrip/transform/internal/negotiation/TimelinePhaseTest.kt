@@ -121,7 +121,7 @@ class TimelinePhaseTest {
       encoding = encodingOf(OUTPUT),
       streams = Streams(keepVideo = keepVideo, keepAudio = true),
       lowering = StageLowering(listOf(FakeResolver()), { "nothing claimed $it" }),
-      compositionGeometryPerClip = false,
+      naturalSize = OUTPUT,
     )
 
   private fun ask(edit: EditComposition): Ask =

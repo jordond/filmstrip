@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPlanner
@@ -25,7 +26,9 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewFrames
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewLanding
 import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
+import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
+import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
@@ -104,7 +107,9 @@ class HeldTailLoweringTest {
   // on it.
   @Test
   fun `holds the frame after the composition effects and the fill they defer`() {
-    val lowering = lowered(underBed(effects = listOf(Brightness(0.5f), logo())))
+    // The square canvas leaves bars, so the black fill is held back behind the brightness.
+    val boxed = listOf(Crop(AspectRatio.Square, Fit.Contain))
+    val lowering = lowered(underBed(clipEffects = boxed, effects = listOf(Brightness(0.5f), logo())))
     val negotiated = negotiatedOf(lowering)
     val graph = invocationOf(lowering).filterGraph
     val held = graph.indexOf("tpad=stop_mode=clone:stop=${negotiated.heldTail.count()}")

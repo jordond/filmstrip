@@ -8,6 +8,7 @@ import androidx.media3.transformer.Effects
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
@@ -91,7 +92,8 @@ internal class Lowering(
   }
 
   /**
-   * A fully transparent still held for [length], which the flatten pass paints the fill across edge to edge.
+   * A fully transparent still held for [length] and stretched over the output frame, which the flatten pass paints the
+   * fill across edge to edge.
    *
    * An overlay after that pass draws over the fill. The item carries [GAP_MEDIA_ID] so a preview can tell it from a
    * clip.
@@ -114,8 +116,14 @@ internal class Lowering(
       .setRemoveAudio(true)
       .setDurationUs(length.inWholeMicroseconds)
       .setFrameRate(rate)
+      .setEffects(Effects(emptyList(), listOf(wrapper.wrap(gapPlacement))))
       .build()
   }
+
+  // Every clip reaches the composition's chain already placed in the output frame, so the gap's still is stretched
+  // over the whole of it the same way.
+  private val gapPlacement =
+    PlacedFrame(NormalizedRect.Full, plan.output.size, PlacedFrame.Bars.Clear)
 
   /**
    * A clip's video, decoded for exactly [length].
@@ -153,9 +161,8 @@ internal class Lowering(
       }
       // A maximum rather than a target: a higher-rate source has frames dropped, a lower-rate one is left alone.
       .setFrameRate(rate)
-      .setEffects(
-        Effects(emptyList(), clipVideoEffects(plan.fit, plan.fill, plan.output.size, plan.naturalSize, wrapper)),
-      ).build()
+      .setEffects(Effects(emptyList(), clipVideoEffects(plan.fill, plan.output.size, wrapper)))
+      .build()
   }
 
   /**
@@ -176,17 +183,8 @@ internal class Lowering(
       }.setEffects(
         Effects(
           if (removeAudio) emptyList() else audioProcessors(gain, mixesAudio),
-          if (removeVideo) {
-            emptyList()
-          } else {
-            clipVideoEffects(
-              plan.fit,
-              plan.fill,
-              plan.output.size,
-              plan.naturalSize,
-              wrapper,
-            )
-          },
+          // A copy writes the source's own samples, so a clip carrying video here has no frame to place.
+          if (removeVideo) emptyList() else effects.toMedia3Effects().map(wrapper::wrap),
         ),
       ).build()
 
@@ -262,17 +260,7 @@ internal class Lowering(
       .setEffects(
         Effects(
           emptyList(),
-          if (removeVideo) {
-            emptyList()
-          } else {
-            clipVideoEffects(
-              plan.fit,
-              plan.fill,
-              plan.output.size,
-              plan.naturalSize,
-              wrapper,
-            )
-          },
+          if (removeVideo) emptyList() else clipVideoEffects(plan.fill, plan.output.size, wrapper),
         ),
       ).build()
   }

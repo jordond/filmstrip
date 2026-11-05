@@ -1,3 +1,5 @@
+@file:OptIn(InternalFilmstripApi::class)
+
 package dev.jordond.filmstrip.sample.ui.screen
 
 import androidx.compose.foundation.Canvas
@@ -51,6 +53,7 @@ import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayPlacement
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.effects.overlay.placedOn
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.player.PlaybackError
@@ -68,6 +71,7 @@ import kotlin.math.roundToInt
 import androidx.compose.ui.text.TextStyle as ComposeTextStyle
 import androidx.compose.ui.text.font.FontWeight as ComposeFontWeight
 import dev.jordond.filmstrip.geometry.Size as FrameSize
+import dev.jordond.filmstrip.transform.internal.geometry.placeIn
 
 /**
  * The editor's viewport.
@@ -314,19 +318,19 @@ private fun FrameContent(
       offsetY = -contentHeight * rect.top - (frameHeight - contentHeight) / 2f
     }
 
-    edit.cropMode == CropMode.Aspect && edit.cropFit == Fit.Stretch -> {
-      contentWidth = frameWidth
-      contentHeight = frameHeight
-    }
-
-    edit.cropMode == CropMode.Aspect && edit.cropFit == Fit.Contain -> {
-      if (frameWidth / frameHeight > rotated) {
-        contentHeight = frameHeight
-        contentWidth = frameHeight * rotated
-      } else {
-        contentWidth = frameWidth
-        contentHeight = frameWidth / rotated
-      }
+    // The stage is the crop's canvas, so the frame sits where the library's own placement puts it in there.
+    edit.cropMode == CropMode.Aspect && edit.cropFit != Fit.Crop -> {
+      val placed =
+        placeIn(
+          FrameSize(PLACEMENT_SCALE, (PLACEMENT_SCALE / rotated).roundToInt()),
+          FrameSize(
+            (frameWidth.value * PLACEMENT_SCALE).roundToInt(),
+            (frameHeight.value * PLACEMENT_SCALE).roundToInt(),
+          ),
+          edit.cropFit,
+        )
+      contentWidth = frameWidth * placed.width
+      contentHeight = frameHeight * placed.height
     }
 
     else -> {
@@ -583,6 +587,9 @@ private fun PlaybackStatus.pillLabel(): String =
 private const val BLUR_GAIN = 6f
 private const val CAP_HEIGHT_RATIO = 0.7f
 private const val WATERMARK_ASPECT = 0.6f
+
+// What a stage dimension is multiplied by before it is handed to the placement, which measures whole pixels.
+private const val PLACEMENT_SCALE = 1_000
 
 /**
  * The stand-in watermark's own pixel size, whose aspect is what the handle's box follows.

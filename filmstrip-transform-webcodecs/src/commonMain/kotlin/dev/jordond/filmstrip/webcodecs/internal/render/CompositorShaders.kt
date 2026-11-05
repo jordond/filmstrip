@@ -67,10 +67,11 @@ internal fun compositeFragmentShader(transfer: HdrTransfer?): String =
     uniform sampler2D uTexSampler;
     uniform highp mat4 uColorMatrix;
     uniform highp mat4 uCompositionColorMatrix;
-    in vec2 vTexCoord;
+    in highp vec2 vTexCoord;
     out vec4 outColor;
+    $CLIP_TEXEL_GLSL
     void main() {
-      vec4 c = texture(uTexSampler, vTexCoord);
+      vec4 c = clipTexel(vTexCoord);
       highp vec3 graded = clamp((uColorMatrix * vec4(c.rgb, 1.0)).rgb, 0.0, 1.0);
       graded = clamp((uCompositionColorMatrix * vec4(graded, 1.0)).rgb, 0.0, 1.0);
       outColor = vec4(graded, c.a);
@@ -91,8 +92,9 @@ internal fun compositeFragmentShader(transfer: HdrTransfer?): String =
     out vec4 outColor;
     $HDR_COLOR_MATRIX_GLSL
     ${gradeLightGlsl(transfer)}
+    $CLIP_TEXEL_GLSL
     void main() {
-      vec4 c = texture(uTexSampler, vTexCoord);
+      vec4 c = clipTexel(vTexCoord);
       vec3 graded =
         filmstripGradeHdr(toGradeLight(c.rgb), uColorMatrix, uWhite, uDisplayGamma, uOotfGamma, uCeiling);
       graded =
@@ -101,6 +103,28 @@ internal fun compositeFragmentShader(transfer: HdrTransfer?): String =
     }
     """.trimIndent()
   }
+
+// What the composite reads at a point of the quad. A clip with a canvas lands that point on the canvas, where it either
+// falls inside the content, read through the matrix that takes it to the source, or on a bar. A clip without one reads
+// its source straight through the identity.
+private val CLIP_TEXEL_GLSL =
+  """
+  uniform highp mat3 uContentMatrix[$MAX_CANVASES];
+  uniform highp vec4 uContent[$MAX_CANVASES];
+  uniform highp vec4 uBars;
+  uniform int uCanvasCount;
+  vec4 clipTexel(highp vec2 at) {
+    highp vec2 point = at;
+    bool onBar = false;
+    for (int i = $MAX_CANVASES - 1; i >= 0; --i) {
+      if (i >= uCanvasCount) continue;
+      onBar = onBar || any(lessThan(point, uContent[i].xy)) || any(greaterThan(point, uContent[i].zw));
+      point = (uContentMatrix[i] * vec3(point, 1.0)).xy;
+    }
+    vec4 texel = texture(uTexSampler, point);
+    return onBar ? uBars : texel;
+  }
+  """.trimIndent()
 
 /**
  * Ten-bit limited-range BT.2020 NCL planes to linear display light, with one at

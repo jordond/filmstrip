@@ -17,7 +17,7 @@ import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -32,6 +32,8 @@ import dev.jordond.filmstrip.media3.internal.fill.MAX_TAP_RADIUS
 import dev.jordond.filmstrip.media3.internal.fill.TAP_STANDARD_DEVIATIONS
 import dev.jordond.filmstrip.media3.internal.fill.downscaleFor
 import dev.jordond.filmstrip.media3.internal.fill.tapRadiusFor
+import dev.jordond.filmstrip.transform.internal.geometry.ClipPlacement
+import dev.jordond.filmstrip.transform.internal.geometry.placementOf
 import dev.jordond.filmstrip.transform.internal.geometry.sigmaFor
 import dev.jordond.filmstrip.transform.internal.resolve.GainSegment
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
@@ -40,7 +42,6 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
-import dev.jordond.filmstrip.transform.internal.resolve.clipFillsFrame
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
@@ -66,9 +67,9 @@ import kotlin.time.Duration.Companion.seconds
  */
 class Media3CompositionTest {
   @Test
-  fun `flattens for Fit Contain and leaves Fit Crop alone`() {
-    composition(fit = Fit.Contain).compositionVideoEffects().any { it is FillFlatten } shouldBe true
-    composition(fit = Fit.Crop).compositionVideoEffects().any { it is FillFlatten } shouldBe false
+  fun `flattens when a clip leaves bars and not when every clip fills the frame`() {
+    composition(clips = listOf(barred())).compositionVideoEffects().any { it is FillFlatten } shouldBe true
+    composition().compositionVideoEffects().any { it is FillFlatten } shouldBe false
   }
 
   @Test
@@ -76,7 +77,7 @@ class Media3CompositionTest {
     val first = AlphaScale(0.5f)
     val second = AlphaScale(0.25f)
     val effects =
-      composition(fit = Fit.Contain, compositionEffects = listOf(resolvedEffect(first), resolvedEffect(second)))
+      composition(clips = listOf(barred()), compositionEffects = listOf(resolvedEffect(first), resolvedEffect(second)))
         .compositionVideoEffects()
 
     effects.last().shouldBeInstanceOf<FillFlatten>()
@@ -93,7 +94,7 @@ class Media3CompositionTest {
     val overlay = AlphaScale(0.5f)
     val effects =
       composition(
-        fit = Fit.Contain,
+        clips = listOf(barred()),
         compositionEffects = listOf(resolvedEffect(grade), resolvedEffect(overlay, EffectStage.Composite)),
       ).compositionVideoEffects()
 
@@ -109,7 +110,6 @@ class Media3CompositionTest {
   fun `a clip grade and a composition grade are separated by a boundary`() {
     val graded =
       composition(
-        fit = Fit.Crop,
         compositionEffects = listOf(resolvedEffect(matrix())),
         clips = listOf(clip(effects = listOf(resolvedEffect(matrix())))),
       )
@@ -119,8 +119,8 @@ class Media3CompositionTest {
 
   @Test
   fun `one stage grading on its own needs no boundary`() {
-    val clipOnly = composition(fit = Fit.Crop, clips = listOf(clip(effects = listOf(resolvedEffect(matrix())))))
-    val compositionOnly = composition(fit = Fit.Crop, compositionEffects = listOf(resolvedEffect(matrix())))
+    val clipOnly = composition(clips = listOf(clip(effects = listOf(resolvedEffect(matrix())))))
+    val compositionOnly = composition(compositionEffects = listOf(resolvedEffect(matrix())))
 
     clipOnly.compositionVideoEffects().any { it is ColorStageBoundary } shouldBe false
     compositionOnly.compositionVideoEffects().any { it is ColorStageBoundary } shouldBe false
@@ -132,7 +132,6 @@ class Media3CompositionTest {
   fun `a kept grade needs no boundary either`() {
     val graded =
       composition(
-        fit = Fit.Crop,
         compositionEffects = listOf(resolvedEffect(matrix())),
         clips = listOf(clip(effects = listOf(resolvedEffect(matrix())))),
         hdrTransfer = HdrTransfer.Pq,
@@ -143,31 +142,22 @@ class Media3CompositionTest {
 
   @Test
   fun `blurs a clip for Fill Blurred and leaves it alone for Fill Solid`() {
-    val landscape = clip(size = Size(640, 360))
-    val squareOutput = Size(360, 360)
-
-    landscape
-      .clipVideoEffects(Fit.Contain, Fill.Blurred(), squareOutput, squareOutput)
-      .any { it is FillCoverBlur } shouldBe true
-    landscape
-      .clipVideoEffects(Fit.Contain, Fill.Solid(0xFFFF0000.toInt()), squareOutput, squareOutput)
-      .any { it is FillCoverBlur } shouldBe false
+    barred().clipVideoEffects(Fill.Blurred(), OUTPUT).any { it is FillCoverBlur } shouldBe true
+    barred().clipVideoEffects(Fill.Solid(0xFFFF0000.toInt()), OUTPUT).any { it is FillCoverBlur } shouldBe false
   }
 
-  // Either side of the one-pixel bar the shared test draws its line at, both where the blur is lowered and where it
-  // runs, so neither can skip a bar the other paints. A frame lowered under the natural one is asked against the
-  // natural one, so it blurs exactly where the full size export does.
+  // Either side of the one-pixel bar the shared placement draws its line at, at the natural frame and at a smaller one
+  // the clip is lowered into, so the blur is lowered exactly where the placement says the clip leaves bars.
   @Test
-  fun `blurs a clip exactly where the shared test says it leaves bars`() {
+  fun `blurs a clip exactly where its placement leaves bars`() {
     val natural = Size(1920, 1080)
 
     listOf(natural, Size(480, 270)).forEach { output ->
       listOf(Size(19200, 10805), Size(19200, 10806), Size(1918, 1080), Size(1440, 1080)).forEach { size ->
-        val fills = clipFillsFrame(size, natural)
-        clip(size = size)
-          .clipVideoEffects(Fit.Contain, Fill.Blurred(), output, natural)
-          .any { it is FillCoverBlur } shouldBe !fills
-        FillCoverBlur(Fill.Blurred(), output, natural).isNoOp(size.width, size.height) shouldBe fills
+        val placement = placementOf(size, listOf(emptyList()), natural)
+        clip(size = size, placement = placement)
+          .clipVideoEffects(Fill.Blurred(), output)
+          .any { it is FillCoverBlur } shouldBe placement.leavesBars
       }
     }
   }
@@ -329,7 +319,6 @@ class Media3CompositionTest {
       val laid = List(4) { clip() }
       val sequence =
         composition(
-          fit = Fit.Contain,
           clips = laid,
           looping = true,
           trackStart = 700.milliseconds,
@@ -345,6 +334,11 @@ class Media3CompositionTest {
       sequence.editedMediaItems
         .first()
         .isGap shouldBe true
+      // A gap reaches the composition's chain at the output frame's size, the same as every clip.
+      sequence.editedMediaItems
+        .first()
+        .effects.videoEffects shouldBe
+        listOf(PlacedFrame(NormalizedRect.Full, OUTPUT, PlacedFrame.Bars.Clear))
       sequence.editedMediaItems.drop(1).forEach { it.isGap shouldBe false }
     } finally {
       unmockkAll()
@@ -363,7 +357,6 @@ class Media3CompositionTest {
       val laid = List(4) { clip() }
       val sequence =
         composition(
-          fit = Fit.Contain,
           clips = laid,
           looping = true,
           trackStart = Duration.ZERO,
@@ -384,7 +377,6 @@ class Media3CompositionTest {
     RgbMatrix { _, _ -> floatArrayOf(1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f) }
 
   private fun composition(
-    fit: Fit,
     fill: Fill = Fill.Black,
     compositionEffects: List<ResolvedEffect> = emptyList(),
     clips: List<ResolvedClip> = listOf(clip()),
@@ -403,8 +395,6 @@ class Media3CompositionTest {
             clips = clips,
           ),
         ),
-      compositionGeometry = emptyList(),
-      compositionInputSize = Size(320, 180),
       compositionEffects = compositionEffects,
       output =
         OutputFormat(
@@ -416,7 +406,6 @@ class Media3CompositionTest {
           audioFormat = null,
         ),
       layoutSize = Size(320, 180),
-      fit = fit,
       fill = fill,
       duration = 1.seconds,
       hdr = ResolvedHdr.Keep,
@@ -426,9 +415,15 @@ class Media3CompositionTest {
       path = ExportPath.Transcode,
     )
 
+  // A portrait clip in the landscape output, pillarboxed under the default fit.
+  private fun barred(): ResolvedClip =
+    clip(size = PORTRAIT, placement = placementOf(PORTRAIT, listOf(emptyList()), OUTPUT))
+
   private fun clip(
     size: Size = Size(640, 360),
     effects: List<ResolvedEffect> = emptyList(),
+    placement: ClipPlacement = ClipPlacement.Filling,
+    canvasEffectIndices: List<Int> = emptyList(),
   ): ResolvedClip =
     ResolvedClip(
       source = MediaSource.of("clip.mp4"),
@@ -458,6 +453,8 @@ class Media3CompositionTest {
       startsAtKeyFrame = false,
       span = TimeRange.of(Duration.ZERO, 1.seconds),
       sourceIndex = 0,
+      placement = placement,
+      canvasEffectIndices = canvasEffectIndices,
     )
 
   private fun resolvedEffect(
@@ -465,6 +462,9 @@ class Media3CompositionTest {
     stage: EffectStage = EffectStage.Color,
   ): ResolvedEffect = ResolvedEffect("test", PlatformEffect(effect), stage)
 }
+
+private val OUTPUT = Size(320, 180)
+private val PORTRAIT = Size(360, 640)
 
 // Eight frames a second, so a frame position lands on a round time and a test can name the time it
 // expects without repeating the conversion the provider does.

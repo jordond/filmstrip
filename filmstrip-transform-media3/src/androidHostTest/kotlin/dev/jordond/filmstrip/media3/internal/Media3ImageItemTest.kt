@@ -13,7 +13,6 @@ import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.EXIF_ORIENTATION_NORMAL
@@ -226,8 +225,6 @@ class Media3ImageItemTest {
             clips = clips.toList(),
           ),
         ),
-      compositionGeometry = emptyList(),
-      compositionInputSize = Size(320, 180),
       compositionEffects = emptyList(),
       output =
         OutputFormat(
@@ -239,7 +236,6 @@ class Media3ImageItemTest {
           audioFormat = null,
         ),
       layoutSize = Size(320, 180),
-      fit = Fit.Contain,
       fill = Fill.Black,
       duration = clips.fold(trackStart) { total, clip -> total + clip.duration },
       hdr = ResolvedHdr.Keep,

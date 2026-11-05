@@ -27,7 +27,7 @@ import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.refusedLowering
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
-import dev.jordond.filmstrip.transform.internal.resolve.showsFill
+import dev.jordond.filmstrip.transform.internal.resolve.anyClipLeavesBars
 import dev.jordond.filmstrip.transform.internal.resolve.stillUnsupportedMessage
 
 /**
@@ -67,9 +67,6 @@ internal class FfmpegPlanner(
       // The shared tone curve runs on lut1d, geq and colorchannelmixer, which every supported
       // build carries.
       canToneMap = canToneMap,
-      // concat refuses inputs that differ in resolution, so every clip is pinned to the output
-      // frame before the join and there is no composited frame left to run geometry on.
-      compositionGeometryPerClip = true,
     )
 
   /**
@@ -94,7 +91,7 @@ internal class FfmpegPlanner(
     val export = planner.negotiate(composition, ask, dropped)
     val negotiated = export.composition ?: return LoweredExport(export, null)
     val fill = negotiated.fill
-    if (fill is Fill.Blurred && negotiated.showsFill) {
+    if (fill is Fill.Blurred && negotiated.anyClipLeavesBars) {
       if (!toolchain.hasFilter("gblur")) return unsupportedBlur("gblur")
       // colorchannelmixer is only reached when dim actually darkens the background, so a build
       // missing it is refused only for the fills that would need it.

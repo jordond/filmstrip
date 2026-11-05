@@ -20,7 +20,7 @@ internal class FullFramePass(
 ) : BaseGlShaderProgram(useHdr, 1) {
   private val glProgram =
     try {
-      GlProgram(VERTEX_SHADER, fragmentShader)
+      GlProgram(FRAME_VERTEX_SHADER, fragmentShader)
     } catch (e: GlUtil.GlException) {
       throw VideoFrameProcessingException(e)
     }
@@ -63,7 +63,8 @@ internal class FullFramePass(
   }
 }
 
-private val VERTEX_SHADER =
+// Covers the frame and hands the fragment stage where it is in it, from the bottom left.
+internal val FRAME_VERTEX_SHADER =
   """
   #version 100
   attribute vec4 aFramePosition;

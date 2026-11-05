@@ -121,7 +121,7 @@ internal class BrowserPipeline(
         ?.frames(clip.trimStartUs, clip.trimEndUs, tenBit = render.readsPlanes(clip))
         ?: throw BrowserExportFailure(unreadableMessage(clip.source))
 
-    compositor.clip(clip, render.compositionGeometryMatrix)
+    compositor.clip(clip)
 
     var emitted = encodedSoFar
     var current: VideoSample? = null

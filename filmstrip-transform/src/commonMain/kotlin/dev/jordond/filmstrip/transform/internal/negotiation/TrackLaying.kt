@@ -10,9 +10,11 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.LaidPass
 import dev.jordond.filmstrip.transform.internal.MAX_LAID_PASSES
+import dev.jordond.filmstrip.transform.internal.geometry.placementOf
 import dev.jordond.filmstrip.transform.internal.passCountCovering
 import dev.jordond.filmstrip.transform.internal.passesCovering
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.resolve.curveOver
@@ -31,8 +33,10 @@ internal class LaidTrack(
 /**
  * Lays a track's passes onto the composition timeline and folds every scope's gain into each one.
  *
- * @param fannedGeometry Composition-level geometry this engine runs on each clip's own frame, or
- *   empty when it runs once on the composited frame.
+ * @param compositionGeometry Composition-level geometry, which runs on each clip's own frame after its clip and track
+ * effects, and which every clip's placement is folded through.
+ * @param naturalSize The frame the composition writes with no height asked of it, which each placement is measured
+ *   against.
  * @param compositionGain The composition's own level, multiplied into every pass.
  * @param startsAtKeyFrame Whether every pass opens on a sync sample, which is true only on a copy.
  */
@@ -41,7 +45,8 @@ internal class TrackLayer(
   private val infos: Map<MediaSource, MediaInfo>,
   private val target: LoweringTarget,
   private val layoutFrame: Size,
-  private val fannedGeometry: List<EffectSpec>,
+  private val compositionGeometry: List<EffectSpec>,
+  private val naturalSize: Size,
   private val compositionGain: Float,
   private val startsAtKeyFrame: Boolean,
 ) {
@@ -73,13 +78,16 @@ internal class TrackLayer(
         val span = pass.spanFrom(track.start)
         val effects =
           lowering.lowerStages(
-            stages = listOf(clip.effects + track.effects, fannedGeometry),
+            stages = listOf(clip.effects + track.effects, compositionGeometry),
             inputSize = info.video?.displaySize ?: target.outputSize,
             layoutSize = info.video?.displaySize ?: layoutFrame,
             span = span,
             target = target,
           )
         lowered += effects
+        val sourceSize = info.video?.displaySize ?: target.outputSize
+        val placement = placementOf(sourceSize, listOf(clip.effects + track.effects, compositionGeometry), naturalSize)
+        val resolved = effects.mapNotNull { it.resolvedEffect }
         // The clip's own curve over its whole trim, cut only where the run stopped this pass short
         // of it, so a pass that plays the trim out reaches exactly the curve it would have without
         // the loop.
@@ -91,7 +99,7 @@ internal class TrackLayer(
           info = info,
           start = from,
           end = from + pass.length,
-          effects = effects.mapNotNull { it.resolvedEffect },
+          effects = resolved,
           // The one place the scopes multiply. A backend reads this curve and never asks an
           // AudioLevel what it meant again.
           gain =
@@ -101,6 +109,8 @@ internal class TrackLayer(
           startsAtKeyFrame = startsAtKeyFrame,
           span = span,
           sourceIndex = pass.index,
+          placement = placement,
+          canvasEffectIndices = placement.canvases.map { canvasEffectIndexOf(it.chainIndex, effects, resolved) },
         )
       }
 
@@ -193,3 +203,20 @@ private const val TRACK_FADE =
 private const val CLIP_FADE =
   "A clip's fade is negative, longer than the clip's trim, or its fade in and fade out " +
     "together run longer than the trim, so the two ramps would cross."
+
+// Where the crop at [chainIndex] of a clip's flattened chain sits in its resolved effects. The lowering keeps the
+// chain's order, folding a run into one effect that names every spec it was folded from, so counting sources finds the
+// crop.
+// A crop no resolver ran is refused before the clip reaches a backend, so it answers an index no effect has.
+private fun canvasEffectIndexOf(
+  chainIndex: Int,
+  lowered: List<LoweredEffect>,
+  resolved: List<ResolvedEffect>,
+): Int {
+  var seen = 0
+  val crop =
+    checkNotNull(lowered.firstOrNull { (seen + it.sources.size > chainIndex).also { _ -> seen += it.sources.size } }) {
+      "A clip's canvas is made by effect $chainIndex of its chain, which lowered only $seen effects."
+    }
+  return crop.resolvedEffect?.let { effect -> resolved.indexOfFirst { it === effect } } ?: -1
+}

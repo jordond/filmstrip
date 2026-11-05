@@ -1,11 +1,11 @@
 package dev.jordond.filmstrip.ffmpeg.internal.lowering
 
 import dev.jordond.filmstrip.effect.FilterNode
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
 
 /**
- * The size stage, pinned to the resolved output frame.
+ * The size stage, which places the clip at [rect] in the resolved output frame.
  *
  * Not an effect and not in `ExportPlan.effectOrder`: it is what every clip carries so `concat` sees
  * uniform inputs, and it is why the scale effect emits nothing of its own.
@@ -16,39 +16,12 @@ import dev.jordond.filmstrip.geometry.Size
  */
 internal fun tailNodes(
   outputSize: Size,
-  fit: Fit,
+  rect: PixelRect,
   padColor: String,
   frameRate: Int,
   pixelFormat: String,
   slots: Long,
-): List<FilterNode> =
-  buildList {
-    val width = outputSize.width.toString()
-    val height = outputSize.height.toString()
-    when (fit) {
-      Fit.Contain -> {
-        add(FilterNode("scale", "w" to width, "h" to height, "force_original_aspect_ratio" to "decrease"))
-        add(
-          FilterNode(
-            "pad",
-            "w" to width,
-            "h" to height,
-            "x" to "(ow-iw)/2",
-            "y" to "(oh-ih)/2",
-            "color" to padColor,
-          ),
-        )
-      }
-      Fit.Crop -> {
-        add(FilterNode("scale", "w" to width, "h" to height, "force_original_aspect_ratio" to "increase"))
-        add(FilterNode("crop", "w" to width, "h" to height))
-      }
-      Fit.Stretch -> {
-        add(FilterNode("scale", "w" to width, "h" to height))
-      }
-    }
-    addAll(trailingNodes(frameRate, pixelFormat, slots))
-  }
+): List<FilterNode> = placedNodes(rect, outputSize, padColor) + trailingNodes(frameRate, pixelFormat, slots)
 
 /**
  * An `overlay` that keeps whatever bit depth its inputs arrived at.

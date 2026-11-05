@@ -94,7 +94,7 @@ public actual class BuiltInEffectResolver : EffectResolver {
       is Flip -> {
         fragment(listOf(FilterNode(if (spec.axis == FlipAxis.Horizontal) "hflip" else "vflip")))
       }
-      // Contain and Stretch remove no pixels, they reframe at the size stage the backend pins to the output frame.
+      // Contain and Stretch remove no pixels. The backend places the frame in the canvas from the clip's placement.
       is Crop -> {
         fragment(
           if (spec.fit ==

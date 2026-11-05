@@ -14,7 +14,6 @@ import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -188,8 +187,6 @@ class AppleParameterSwapTest {
             clips = clips,
           ),
         ),
-      compositionGeometry = emptyList(),
-      compositionInputSize = SOURCE,
       compositionEffects = emptyList(),
       output =
         OutputFormat(
@@ -201,7 +198,6 @@ class AppleParameterSwapTest {
           audioFormat = null,
         ),
       layoutSize = OUTPUT,
-      fit = Fit.Contain,
       fill = Fill.Black,
       duration = clips.fold(Duration.ZERO) { total, clip -> total + clip.duration },
       hdr = ResolvedHdr.Keep,
@@ -231,8 +227,6 @@ class AppleParameterSwapTest {
             clips = listOf(clip(source, clipEnd, listOf(scaling(scale)))),
           ),
         ),
-      compositionGeometry = emptyList(),
-      compositionInputSize = SOURCE,
       compositionEffects = emptyList(),
       output =
         OutputFormat(
@@ -244,7 +238,6 @@ class AppleParameterSwapTest {
           audioFormat = null,
         ),
       layoutSize = output,
-      fit = Fit.Contain,
       fill = Fill.Black,
       duration = clipEnd,
       hdr = ResolvedHdr.Keep,

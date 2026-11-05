@@ -195,7 +195,8 @@ class TrackLayingTest {
         fixture.infos(composition(clip)),
         loweringTarget(),
         Size(1920, 1080),
-        fannedGeometry = listOf(Rotate(90)),
+        compositionGeometry = listOf(Rotate(90)),
+        naturalSize = Size(1920, 1080),
         compositionGain = 1f,
         startsAtKeyFrame = false,
       )
@@ -223,7 +224,8 @@ class TrackLayingTest {
     infos = fixture.infos(composition(*clips.toTypedArray())),
     target = loweringTarget(),
     layoutFrame = Size(1920, 1080),
-    fannedGeometry = emptyList(),
+    compositionGeometry = emptyList(),
+    naturalSize = Size(1920, 1080),
     compositionGain = compositionGain,
     startsAtKeyFrame = startsAtKeyFrame,
   )

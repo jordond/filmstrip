@@ -6,11 +6,8 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
-import dev.jordond.filmstrip.effect.EffectSpec
-import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.WebGlOverlay
 import dev.jordond.filmstrip.effect.WebGlPass
-import dev.jordond.filmstrip.effect.inCanonicalOrder
 import dev.jordond.filmstrip.effects.color.ColorMatrix
 import dev.jordond.filmstrip.effects.color.colorMatrixOfColumnMajor4x4OrNull
 import dev.jordond.filmstrip.effects.color.then
@@ -19,20 +16,17 @@ import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.transform.internal.geometry.containScale
 import dev.jordond.filmstrip.transform.internal.geometry.coverScale
-import dev.jordond.filmstrip.transform.internal.geometry.frameAfter
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
-import dev.jordond.filmstrip.transform.internal.resolve.clipFillsFrame
+import dev.jordond.filmstrip.transform.internal.resolve.drawnRect
 import dev.jordond.filmstrip.transform.internal.resolve.effectsOverFill
 import dev.jordond.filmstrip.transform.internal.resolve.effectsUnderFill
 import dev.jordond.filmstrip.webcodecs.internal.audio.BrowserAudioMix
@@ -48,15 +42,21 @@ import kotlin.time.DurationUnit
  *
  * @property firstSlot The output slot the clip opens on, counted from the start of the composition,
  *   so the render's lead frames come before it. The source's trim start is drawn on this slot.
- * @property quadHalfW Half the quad's width as a fraction of the output's, after the composition's fit. A contained
+ * @property quadHalfW Half the quad's width as a fraction of the output's, under the clip's own placement. A contained
  * clip is no wider than the output, a cropped one may be wider, and a stretched one is exactly as wide.
  * @property quadHalfH The same, for height.
- * @property coverHalfW Half the quad's width when the clip is scaled to cover the output rather
- *   than fit inside it. This is what a blurred fill's background draws with.
+ * @property coverHalfW Half the quad's width when the frame the clip's chain leaves is scaled to cover the output by
+ * the shared cover scale. This is what a blurred fill's background draws with.
  * @property coverHalfH The same, for height.
  * @property hasBars Whether this clip leaves any letterbox bars at all. A clip whose aspect already
  *   matches the output has none, nor does one cropped or stretched to fill it, and a blurred fill skips its background
  *   passes for one that does not need them.
+ * @property matrix What the quad samples through. That is the clip's source, or its last canvas when it builds any, in
+ * which case only the effects after the crop that builds that canvas are folded in, along with the composition's.
+ * @property canvases Every canvas a letterboxing or stretching crop builds for the effects after it to read, bars
+ * included, in chain order. Empty when nothing after such a crop reads it.
+ * @property overlayMatrix What the clip's overlays are drawn through, the geometry that runs after them, so a
+ * composition crop or flip moves them with the picture.
  * @property colorMatrix The clip's own color chain as the sixteen floats a GL `mat4` uniform
  *   takes, column-major, applied to `vec4(rgb, 1)`. The identity when the chain grades nothing.
  * @property compositionColorMatrix The composition's color chain, in the same form. The planner
@@ -84,6 +84,8 @@ internal class RenderedClip(
   val coverHalfH: Float,
   val hasBars: Boolean,
   val matrix: TextureMatrix,
+  val canvases: List<ClipCanvas>,
+  val overlayMatrix: TextureMatrix,
   val colorMatrix: FloatArray,
   val compositionColorMatrix: FloatArray,
   val frames: Long,
@@ -126,9 +128,6 @@ internal class VideoEncoding(
  * render that writes none.
  * @property compositionOverlays The rasters the composition composites over the whole output frame after the fill,
  * bars and gaps included, in chain order.
- * @property compositionGeometryMatrix The texture matrix the composition's own geometry lowers to, the same factors a
- * clip's [RenderedClip.matrix] folds in after the clip's own. A clip overlay is drawn through it, so a composition crop
- * or flip moves the overlay with the picture.
  */
 internal class BrowserRender(
   val writesVideo: Boolean,
@@ -147,7 +146,6 @@ internal class BrowserRender(
   val fill: Fill,
   val hdrTransfer: HdrTransfer?,
   val compositionOverlays: List<WebGlOverlay>,
-  val compositionGeometryMatrix: TextureMatrix,
 ) {
   /**
    * How long one output slot runs in microseconds at [frameRate]. Every pass that walks the output frame by frame
@@ -203,21 +201,18 @@ internal fun browserRenderOf(
   val heldFrames = plan.heldTail.size
   // The composition's overlays run after the fill and are drawn on their own, so the passes folded into each clip stop
   // short of them.
-  val compositionChain = plan.compositionGeometry + plan.effectsUnderFill
-  val compositionGeometry = composition.effects.filter { it.stage == EffectStage.Geometry }
+  val compositionChain = plan.effectsUnderFill
   val clips =
     primary.clips.mapIndexed { index, resolved ->
       renderedClip(
         resolved = resolved,
         track = track,
         outputSize = outputSize,
-        naturalSize = plan.naturalSize,
-        fit = plan.fit,
-        compositionGeometry = compositionGeometry,
         compositionChain = compositionChain,
         slots = slots[index],
         heldFrames = if (index == holder) heldFrames else 0L,
         toneMaps = plan.hdr == ResolvedHdr.ToneMap,
+        fill = plan.fill,
       )
     }
 
@@ -253,36 +248,32 @@ internal fun browserRenderOf(
     fill = plan.fill,
     hdrTransfer = plan.hdrTransfer,
     compositionOverlays = plan.effectsOverFill.mapNotNull { it.effect.overlay },
-    compositionGeometryMatrix = compositionChain.textureMatrix(),
   )
 }
 
 // One resolved clip as the quad, matrices and slots the compositor draws it with. [track] is the edit's own track the
-// clip was laid from, whose geometry and then the composition's decide the size it is drawn at, since both run in the
-// one texture matrix the quad samples through. [toneMaps] says the render brings HDR sources down to SDR.
+// clip was laid from. The quad is the clip's drawn rect, which every placement centres in the frame, and the texture
+// matrix its geometry runs in samples the clip's content over it, or the clip's canvas when an effect after the crop
+// reads it. [toneMaps] says the render brings HDR sources down to SDR, and [fill] decides what the canvas bars hold.
 private fun renderedClip(
   resolved: ResolvedClip,
   track: Track,
   outputSize: Size,
-  naturalSize: Size,
-  fit: Fit,
-  compositionGeometry: List<EffectSpec>,
   compositionChain: List<ResolvedEffect>,
   slots: LongRange,
   heldFrames: Long,
   toneMaps: Boolean,
+  fill: Fill,
 ): RenderedClip {
   val raw = track.clips[resolved.sourceIndex]
-  val geometry = (raw.effects + track.effects).inCanonicalOrder() + compositionGeometry.inCanonicalOrder()
-  val drawnSize =
-    geometry.fold(resolved.info.video?.displaySize ?: outputSize) { size, spec -> frameAfter(spec, size) }
-  val drawnScale =
-    when (fit) {
-      Fit.Contain -> containScale(drawnSize, outputSize)
-      Fit.Crop -> coverScale(drawnSize, outputSize)
-      Fit.Stretch -> null
-    }
-  val chain = resolved.effects + compositionChain
+  val drawn = resolved.drawnRect
+  // The blurred cover is the frame the chain leaves, scaled by the shared cover scale until it covers the output.
+  val leaves = resolved.placement.drawnSize
+  val cover = coverScale(leaves, outputSize)
+  val cuts = listOf(-1) + resolved.canvasEffectIndices
+  val onCanvas = resolved.effects.drop(cuts.last() + 1)
+  val chain = onCanvas + compositionChain
+  val lastOverlay = resolved.effects.indexOfLast { it.effect.overlay != null }
   return RenderedClip(
     source = resolved.source,
     trimStartUs = resolved.start.microseconds(),
@@ -296,13 +287,17 @@ private fun renderedClip(
         resolved.end.microseconds()
       },
     firstSlot = slots.first,
-    // A stretch scales each axis on its own, to the output's side.
-    quadHalfW = drawnScale?.let { drawnSize.width * it / outputSize.width } ?: 1f,
-    quadHalfH = drawnScale?.let { drawnSize.height * it / outputSize.height } ?: 1f,
-    coverHalfW = drawnSize.width * coverScale(drawnSize, outputSize) / outputSize.width,
-    coverHalfH = drawnSize.height * coverScale(drawnSize, outputSize) / outputSize.height,
-    hasBars = fit == Fit.Contain && !clipFillsFrame(drawnSize, naturalSize),
+    quadHalfW = drawn.width,
+    quadHalfH = drawn.height,
+    coverHalfW = leaves.width * cover / outputSize.width,
+    coverHalfH = leaves.height * cover / outputSize.height,
+    hasBars = resolved.placement.leavesBars,
     matrix = chain.textureMatrix(),
+    canvases =
+      resolved.placement.canvases.mapIndexed { index, canvas ->
+        ClipCanvas.of(resolved.effects.subList(cuts[index] + 1, cuts[index + 1] + 1).textureMatrix(), canvas, fill)
+      },
+    overlayMatrix = (resolved.effects.drop(lastOverlay + 1) + compositionChain).textureMatrix(),
     colorMatrix = resolved.effects.colorMatrix(),
     compositionColorMatrix = compositionChain.colorMatrix(),
     frames = slots.size,
@@ -337,7 +332,6 @@ private fun audioOnlyRender(plan: ResolvedComposition): BrowserRender =
     fill = plan.fill,
     hdrTransfer = null,
     compositionOverlays = emptyList(),
-    compositionGeometryMatrix = TextureMatrix.of(emptyList()),
   )
 
 /**
@@ -355,6 +349,18 @@ internal class TextureMatrix private constructor(
   private val factors: List<(Duration) -> FloatArray>,
 ) {
   val varies: Boolean get() = fixed == null
+
+  /**
+   * This chain with [matrix] in front of it, so a point goes through [matrix] first and then through the chain.
+   */
+  fun then(matrix: FloatArray): TextureMatrix =
+    if (fixed !=
+      null
+    ) {
+      TextureMatrix(multiply(fixed, matrix), emptyList())
+    } else {
+      TextureMatrix(null, factors + { matrix })
+    }
 
   /**
    * The chain's matrix on the frame drawn at [compositionTime].

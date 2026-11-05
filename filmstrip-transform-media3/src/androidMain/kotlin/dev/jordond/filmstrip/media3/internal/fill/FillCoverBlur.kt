@@ -11,43 +11,38 @@ import androidx.media3.effect.GlEffect
 import androidx.media3.effect.GlShaderProgram
 import dev.jordond.filmstrip.color.linearDimGain
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media3.internal.PlacedFrame
+import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
 import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
-import dev.jordond.filmstrip.transform.internal.geometry.containScale
 import dev.jordond.filmstrip.transform.internal.geometry.coverScale
+import dev.jordond.filmstrip.transform.internal.geometry.inWholePixelsOf
 import dev.jordond.filmstrip.transform.internal.geometry.sigmaFor
-import dev.jordond.filmstrip.transform.internal.resolve.clipFillsFrame
 import java.util.concurrent.Executor
 import kotlin.math.ceil
 import kotlin.math.exp
 
 /**
- * Scales a clip's frame onto the output frame, filling the margin with a blurred, dimmed copy of
- * the same frame scaled to cover it.
+ * Places a clip's frame in the output frame at [rect], filling the rest with a blurred, dimmed copy of the same frame
+ * scaled to cover it.
  *
- * The frame is drawn twice: once scaled up and centre-cropped to cover the whole output, blurred
- * and dimmed, and once more scaled to fit inside it, sharp, on top of that. Presentation then
- * receives a frame already at the output size, with nothing left to letterbox.
+ * The frame is drawn twice: once scaled up and centre-cropped to cover the whole output, blurred and dimmed, and once
+ * more at [rect], sharp, on top of that. The rect lands on whole pixels the way a [PlacedFrame] does.
  *
  * @property fill The radius and the dim the background is drawn at.
  * @property outputSize The composition's output frame, in pixels.
- * @property naturalSize The frame the composition writes with no height asked of it, which [clipFillsFrame] measures a
- * bar against.
+ * @property rect Where the sharp frame lands, as a fraction of the output frame.
  */
 internal class FillCoverBlur(
   private val fill: Fill.Blurred,
   private val outputSize: Size,
-  private val naturalSize: Size,
+  private val rect: NormalizedRect,
 ) : GlEffect {
   override fun toGlShaderProgram(
     context: Context,
     useHdr: Boolean,
-  ): GlShaderProgram = FillCoverBlurShaderProgram(useHdr, fill, outputSize)
-
-  override fun isNoOp(
-    inputWidth: Int,
-    inputHeight: Int,
-  ): Boolean = clipFillsFrame(Size(inputWidth, inputHeight), naturalSize)
+  ): GlShaderProgram = FillCoverBlurShaderProgram(useHdr, fill, outputSize, rect.inWholePixelsOf(outputSize))
 
   // Compared by value so a preview can tell a re-lowering that changed this pass from one that
   // produced the same pass again.
@@ -56,10 +51,10 @@ internal class FillCoverBlur(
       other is FillCoverBlur &&
         fill == other.fill &&
         outputSize == other.outputSize &&
-        naturalSize == other.naturalSize
+        rect == other.rect
     )
 
-  override fun hashCode(): Int = HASH * (HASH * fill.hashCode() + outputSize.hashCode()) + naturalSize.hashCode()
+  override fun hashCode(): Int = HASH * (HASH * fill.hashCode() + outputSize.hashCode()) + rect.hashCode()
 
   private companion object {
     const val HASH = 31
@@ -79,6 +74,7 @@ private class FillCoverBlurShaderProgram(
   private val useHdr: Boolean,
   fill: Fill.Blurred,
   private val outputSize: Size,
+  sharp: PixelRect,
 ) : GlShaderProgram {
   private var inputListener: GlShaderProgram.InputListener = object : GlShaderProgram.InputListener {}
   private var outputListener: GlShaderProgram.OutputListener = object : GlShaderProgram.OutputListener {}
@@ -121,8 +117,12 @@ private class FillCoverBlurShaderProgram(
   private var lastInputSize: Size? = null
   private var coverScaleUniform = floatArrayOf(1f, 1f)
   private var coverOffsetUniform = floatArrayOf(0f, 0f)
-  private var sharpMinUniform = floatArrayOf(0f, 0f)
-  private var sharpMaxUniform = floatArrayOf(1f, 1f)
+
+  // Texture coordinates run from the bottom left, so the rect's top and bottom swap over on the way in.
+  private val sharpMinUniform =
+    floatArrayOf(sharp.left / outputSize.width.toFloat(), 1f - sharp.bottom / outputSize.height.toFloat())
+  private val sharpMaxUniform =
+    floatArrayOf(sharp.right / outputSize.width.toFloat(), 1f - sharp.top / outputSize.height.toFloat())
   private var outputTextureInUse = false
 
   override fun setInputListener(inputListener: GlShaderProgram.InputListener) {
@@ -194,8 +194,8 @@ private class FillCoverBlurShaderProgram(
   }
 
   /**
-   * Allocates the three textures the first time a frame arrives, and updates the cover and sharp
-   * geometry whenever the source clip's own frame size changes.
+   * Allocates the three textures the first time a frame arrives, and updates the cover geometry whenever the source
+   * clip's own frame size changes.
    */
   private fun ensureConfigured(
     glObjectsProvider: GlObjectsProvider,
@@ -217,14 +217,6 @@ private class FillCoverBlurShaderProgram(
     val coverHeightFraction = outputSize.height / (cover * inputSize.height)
     coverScaleUniform = floatArrayOf(coverWidthFraction, coverHeightFraction)
     coverOffsetUniform = floatArrayOf((1f - coverWidthFraction) / 2f, (1f - coverHeightFraction) / 2f)
-
-    val contain = containScale(inputSize, outputSize)
-    val sharpWidthFraction = (inputSize.width * contain) / outputSize.width
-    val sharpHeightFraction = (inputSize.height * contain) / outputSize.height
-    val sharpMinX = (1f - sharpWidthFraction) / 2f
-    val sharpMinY = (1f - sharpHeightFraction) / 2f
-    sharpMinUniform = floatArrayOf(sharpMinX, sharpMinY)
-    sharpMaxUniform = floatArrayOf(sharpMinX + sharpWidthFraction, sharpMinY + sharpHeightFraction)
   }
 
   private fun drawCover(inputTexture: GlTextureInfo) {
@@ -375,8 +367,8 @@ private fun compositeFragmentShader(
     varying vec2 vTexSamplingCoord;
     void main() {
       vec4 background = ${terms.joinToString(" +\n        ")};
-      if (vTexSamplingCoord.x >= uSharpMin.x && vTexSamplingCoord.x <= uSharpMax.x &&
-          vTexSamplingCoord.y >= uSharpMin.y && vTexSamplingCoord.y <= uSharpMax.y) {
+      if (vTexSamplingCoord.x >= uSharpMin.x && vTexSamplingCoord.x < uSharpMax.x &&
+          vTexSamplingCoord.y >= uSharpMin.y && vTexSamplingCoord.y < uSharpMax.y) {
         vec2 sharpUv = (vTexSamplingCoord - uSharpMin) / (uSharpMax - uSharpMin);
         gl_FragColor = texture2D(uSharpSampler, sharpUv);
       } else {

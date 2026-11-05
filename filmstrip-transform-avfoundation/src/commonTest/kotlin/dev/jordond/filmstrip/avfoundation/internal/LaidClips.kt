@@ -8,7 +8,6 @@ import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
@@ -93,8 +92,6 @@ internal fun laidPlan(
   val output = Size(320, 180)
   return ResolvedComposition(
     tracks = tracks,
-    compositionGeometry = emptyList(),
-    compositionInputSize = output,
     compositionEffects = emptyList(),
     output =
       OutputFormat(
@@ -106,7 +103,6 @@ internal fun laidPlan(
         audioFormat = null,
       ),
     layoutSize = output,
-    fit = Fit.Contain,
     fill = Fill.Black,
     duration = duration,
     hdr = ResolvedHdr.Keep,

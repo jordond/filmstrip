@@ -69,12 +69,9 @@ class FillOrderTest {
     val outOfOrder =
       ResolvedComposition(
         tracks = resolved.tracks,
-        compositionGeometry = resolved.compositionGeometry,
-        compositionInputSize = resolved.compositionInputSize,
         compositionEffects = resolved.compositionEffects.reversed(),
         output = resolved.output,
         layoutSize = resolved.layoutSize,
-        fit = resolved.fit,
         fill = resolved.fill,
         duration = resolved.duration,
         hdr = resolved.hdr,

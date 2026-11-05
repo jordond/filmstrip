@@ -8,7 +8,6 @@ import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
@@ -112,8 +111,6 @@ class SeekLandingTest {
     ): ResolvedComposition =
       ResolvedComposition(
         tracks = emptyList(),
-        compositionGeometry = emptyList(),
-        compositionInputSize = FRAME,
         compositionEffects = emptyList(),
         output =
           OutputFormat(
@@ -125,7 +122,6 @@ class SeekLandingTest {
             audioFormat = null,
           ),
         layoutSize = FRAME,
-        fit = Fit.Contain,
         fill = Fill.Solid(),
         duration = duration,
         hdr = ResolvedHdr.ToneMap,

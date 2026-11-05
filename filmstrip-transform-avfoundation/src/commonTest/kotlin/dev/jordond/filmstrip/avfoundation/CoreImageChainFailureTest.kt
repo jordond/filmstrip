@@ -14,7 +14,6 @@ import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.EXIF_ORIENTATION_NORMAL
 import dev.jordond.filmstrip.media.ImageSource
@@ -128,8 +127,6 @@ class CoreImageChainFailureTest {
             clips = listOf(still()),
           ),
         ),
-      compositionGeometry = emptyList(),
-      compositionInputSize = OUTPUT,
       compositionEffects = listOf(effect),
       output =
         OutputFormat(
@@ -141,7 +138,6 @@ class CoreImageChainFailureTest {
           audioFormat = null,
         ),
       layoutSize = OUTPUT,
-      fit = Fit.Contain,
       fill = Fill.Black,
       duration = CLIP,
       hdr = ResolvedHdr.Keep,

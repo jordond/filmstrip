@@ -17,7 +17,6 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.formatSeconds
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.render
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.volumeExpressions
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.MediaInfo
@@ -242,8 +241,6 @@ class AudioLoweringTest {
   ): ResolvedComposition =
     ResolvedComposition(
       tracks = tracks,
-      compositionGeometry = emptyList(),
-      compositionInputSize = OUTPUT,
       compositionEffects = emptyList(),
       output =
         OutputFormat(
@@ -255,7 +252,6 @@ class AudioLoweringTest {
           audioFormat = format,
         ),
       layoutSize = OUTPUT,
-      fit = Fit.Contain,
       fill = Fill.Black,
       duration = duration,
       hdr = ResolvedHdr.Keep,

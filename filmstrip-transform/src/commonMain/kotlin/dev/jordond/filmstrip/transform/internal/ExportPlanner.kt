@@ -61,10 +61,8 @@ public val DEFAULT_HDR_LADDER: List<VideoCodec> = listOf(VideoCodec.Hevc)
  * an export that keeps HDR, [noteOf] is what to tell a caller about an effect this engine only
  * approximates, `supportsCopy` says whether it can copy a stream across without an encoder at
  * all, `muxerAccepts` says whether the muxer will take a source's streams without re-encoding them,
- * [canToneMap] says whether it can bring an HDR grade down to SDR, [toneCurve] says how its tone map departs from the
- * shared tone curve, or null when it runs that curve, and
- * [compositionGeometryPerClip] says whether composition-level geometry has to run on each clip's own
- * frame.
+ * [canToneMap] says whether it can bring an HDR grade down to SDR, and [toneCurve] says how its tone map departs from
+ * the shared tone curve, or null when it runs that curve.
  */
 @InternalFilmstripApi
 public class ExportPlanner(
@@ -78,7 +76,6 @@ public class ExportPlanner(
   private val noteOf: (String) -> String? = { null },
   private val canToneMap: Boolean = true,
   private val toneCurve: Degradation? = null,
-  private val compositionGeometryPerClip: Boolean = false,
   private val hdrLadder: List<VideoCodec> = DEFAULT_HDR_LADDER,
 ) {
   private val lowering = StageLowering(resolvers, unclaimedMessage)
@@ -145,21 +142,9 @@ public class ExportPlanner(
         encoding,
         streams,
         lowering,
-        compositionGeometryPerClip,
+        framing.naturalSize,
       ).orElse { return refused(it) }
 
-    val geometry =
-      if (compositionGeometryPerClip) {
-        emptyList()
-      } else {
-        lowering.lowerStages(
-          stages = listOf(framing.compositionGeometry),
-          inputSize = framing.compositionInputSize,
-          layoutSize = framing.compositionInputSize,
-          span = timeline.span,
-          target = encoding.target,
-        )
-      }
     val rest =
       lowering.lowerStages(
         stages = listOf(edit.effects.filterNot { it.stage == EffectStage.Geometry }),
@@ -168,7 +153,7 @@ public class ExportPlanner(
         span = timeline.span,
         target = encoding.target,
       )
-    val lowered = timeline.lowered + geometry + rest
+    val lowered = timeline.lowered + rest
 
     val unsupported = linkedMapOf<String, String>()
     // A refused run is reported against every effect the caller wrote into it, so the retry that
@@ -205,13 +190,10 @@ public class ExportPlanner(
     val resolved =
       ResolvedComposition(
         tracks = timeline.tracks,
-        compositionGeometry = geometry.mapNotNull { it.resolvedEffect },
-        compositionInputSize = framing.compositionInputSize,
         compositionEffects = rest.mapNotNull { it.resolvedEffect },
         output = output,
         layoutSize = encoding.layoutFrame,
         naturalSize = framing.naturalSize,
-        fit = framing.fit,
         fill = edit.fill,
         duration = timeline.duration,
         hdr = grade.hdr,

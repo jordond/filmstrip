@@ -7,7 +7,6 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -36,17 +35,7 @@ class ChainSnapshotTest {
   }
 
   @Test
-  fun `geometry measures the frame every clip and track effect left`() {
-    val attributes = snapshot(encodesHdr = false).geometryAttributes
-
-    attributes.inputSize shouldBe INPUT
-    attributes.outputSize shouldBe OUTPUT
-    attributes.layoutSize shouldBe INPUT
-    attributes.span shouldBe TimeRange.of(Duration.ZERO, DURATION)
-  }
-
-  @Test
-  fun `an effect after geometry measures the output frame on both sides`() {
+  fun `a composition effect measures the output frame on both sides`() {
     val attributes = snapshot(encodesHdr = false).compositionAttributes
 
     attributes.inputSize shouldBe OUTPUT
@@ -56,23 +45,18 @@ class ChainSnapshotTest {
   }
 
   @Test
-  fun `both attributes follow the grade reaching the encoder`() {
+  fun `the attributes follow the grade reaching the encoder`() {
     val kept = snapshot(encodesHdr = true)
     val mapped = snapshot(encodesHdr = false)
 
-    listOf(kept.geometryAttributes, kept.compositionAttributes).forEach {
-      it.colorSpace shouldBe ColorSpace.Bt2020
-      it.hdrTransfer shouldBe HdrTransfer.Pq
-    }
-    listOf(mapped.geometryAttributes, mapped.compositionAttributes).forEach {
-      it.colorSpace shouldBe ColorSpace.Bt709
-      it.hdrTransfer shouldBe null
-    }
+    kept.compositionAttributes.colorSpace shouldBe ColorSpace.Bt2020
+    kept.compositionAttributes.hdrTransfer shouldBe HdrTransfer.Pq
+    mapped.compositionAttributes.colorSpace shouldBe ColorSpace.Bt709
+    mapped.compositionAttributes.hdrTransfer shouldBe null
   }
 
   @Test
   fun `the frame rate is the output's own`() {
-    snapshot(encodesHdr = false, frameRate = 24).geometryAttributes.frameRate shouldBe 24f
     snapshot(encodesHdr = false, frameRate = 24).compositionAttributes.frameRate shouldBe 24f
   }
 
@@ -84,8 +68,6 @@ class ChainSnapshotTest {
   private fun resolved(frameRate: Int): ResolvedComposition =
     ResolvedComposition(
       tracks = emptyList(),
-      compositionGeometry = emptyList(),
-      compositionInputSize = INPUT,
       compositionEffects = emptyList(),
       output =
         OutputFormat(
@@ -97,7 +79,6 @@ class ChainSnapshotTest {
           audioFormat = null,
         ),
       layoutSize = LAYOUT,
-      fit = Fit.Contain,
       fill = Fill.Black,
       duration = DURATION,
       hdr = ResolvedHdr.Keep,

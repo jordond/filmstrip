@@ -2,11 +2,11 @@ package dev.jordond.filmstrip.avfoundation.internal.chain
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
-import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.FrameInfo
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.geometry.derivesFromFrame
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -17,6 +17,7 @@ import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.autoreleasepool
 import platform.AVFoundation.AVAsynchronousCIImageFilteringRequest
+import platform.CoreImage.CIColor
 import platform.CoreImage.CIContext
 import platform.CoreImage.CIImage
 import kotlin.concurrent.Volatile
@@ -30,7 +31,8 @@ import kotlin.time.Duration
  * The handler is given a composition time and nothing else, so the clip a frame came from is found
  * by range lookup over [ClipSpan]. A span drawing a still puts that photo in first, in place of the
  * segment its slot was cut from. The clip's container rotation is baked in next, then its own
- * effects run, then composition-level geometry, then the frame is pinned to [OutputFormat.size].
+ * effects run, composition-level geometry included, then the frame is placed in [OutputFormat.size] at the clip's own
+ * placement.
  * Composition-level effects run next, over the picture that frame produced. A named fill color is
  * painted into whatever the picture does not cover once every effect but the overlays has run, so a
  * grade never reaches a bar or a gap it was not given a color for, and the overlays then draw over
@@ -92,8 +94,6 @@ internal class CoreImageChain(
    * already opened instead of reading them again on the next frame.
    */
   private val stills = CoreImageStills()
-
-  internal val geometryAttributes: Attributes get() = snapshot.geometryAttributes
 
   /**
    * What a resolver's step threw, or null while nothing has.
@@ -236,34 +236,58 @@ internal class CoreImageChain(
       // clip already runs.
       span.still?.let { image = stills.of(it) }
       image = image.rotated(span.rotationDegrees)
-      image = image.stepped(span.effects, FrameInfo(span.attributes, drawnAt))
+      image = image.throughChain(span, FrameInfo(span.attributes, drawnAt), resolved.fill)
     } else {
       // A gap has no picture. The placeholder AVFoundation hands back is opaque black, and laid in as
       // the picture it would cover the fill across the whole frame, so it goes in as clear instead.
       image = image.cleared()
     }
 
-    image = image.stepped(resolved.compositionGeometry, FrameInfo(state.geometryAttributes, drawnAt))
-
     // A gap has no real clip frame to blur, only whatever placeholder AVFoundation handed back,
     // so a blurred fill falls back to black there the same way it always has.
     val fill = if (span == null && resolved.fill is Fill.Blurred) Fill.Black else resolved.fill
+    val rect = span?.drawnRect ?: NormalizedRect.Full
     val frame = FrameInfo(state.compositionAttributes, drawnAt)
 
     if (fill.derivesFromFrame) {
       // Picture, not furniture: the fill is composited in first and the composition's own effects
       // grade it along with the rest of the frame.
-      image = image.fittedTo(size, resolved.fit, fill, state.encodedTransfer)
+      image = image.fittedTo(size, rect, fill, state.encodedTransfer)
       return image.stepped(resolved.effectsUnderFill, frame).stepped(resolved.effectsOverFill, frame)
     }
 
     // A named color is furniture. The picture is laid in without the fill and graded, then blended
     // against the fill so no grade reaches it, and only then do the overlays draw, over bars and
     // gaps as well as the picture.
-    val laid = image.laidInto(size, resolved.fit)
+    val laid = image.laidAt(size, rect)
     val graded = laid.stepped(resolved.effectsUnderFill, frame)
     val flattened = graded.over(image.fillImage(fill, size, state.encodedTransfer), mask = laid, size = size)
     return flattened.stepped(resolved.effectsOverFill, frame)
+  }
+
+  /**
+   * Runs [span]'s effects, building each of the clip's canvases right after the crop that makes it.
+   *
+   * The canvas bars are clear under a named fill color, so the fill shows through them when it is painted in. A fill
+   * drawn from the frame is composited in before the effects run, so the bars are black under it, the way they are on
+   * every backend.
+   *
+   * Each effect is handed the frame it really runs on, so one after a rotate or a canvas measures the rotated frame or
+   * the canvas rather than the clip's source.
+   */
+  private fun CIImage.throughChain(
+    span: ClipSpan,
+    frame: FrameInfo,
+    fill: Fill,
+  ): CIImage {
+    val bars = if (fill.derivesFromFrame) CIColor.blackColor else CIColor.clearColor
+    var image = this
+    span.effects.forEachIndexed { index, resolved ->
+      image = image.stepped(listOf(resolved), frame.measuring(image, span.attributes))
+      val canvas = span.canvasEffectIndices.indexOf(index)
+      if (canvas >= 0) image = image.inCanvas(span.placement.canvases[canvas], bars)
+    }
+    return image
   }
 
   /**

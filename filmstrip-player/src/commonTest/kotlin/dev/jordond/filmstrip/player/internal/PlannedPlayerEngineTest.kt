@@ -14,7 +14,6 @@ import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.PlaybackError
@@ -164,8 +163,6 @@ class PlannedPlayerEngineTest {
         resolved =
           ResolvedComposition(
             tracks = emptyList(),
-            compositionGeometry = emptyList(),
-            compositionInputSize = FRAME,
             compositionEffects = emptyList(),
             output =
               OutputFormat(
@@ -177,7 +174,6 @@ class PlannedPlayerEngineTest {
                 audioFormat = null,
               ),
             layoutSize = FRAME,
-            fit = Fit.Contain,
             fill = Fill.Solid(),
             duration = PLAN_LENGTH,
             hdr = ResolvedHdr.ToneMap,

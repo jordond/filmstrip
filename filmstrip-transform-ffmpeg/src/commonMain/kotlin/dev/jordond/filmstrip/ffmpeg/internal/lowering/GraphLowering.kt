@@ -9,8 +9,8 @@ import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.ffmpeg.internal.process.readablePath
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -82,13 +82,14 @@ internal class GraphLowering(
   private val effectsUnderFill = negotiated.effectsUnderFill
   private val effectsOverFill = negotiated.effectsOverFill
 
-  // Held back when an effect under the fill could actually see it, or on a kept grade, where the
-  // fill has to land on codes a pad color cannot name and only the flatten writes them. Otherwise
-  // the graph this writes is pixel-identical to the undeferred one, so keeping that simpler graph
-  // then is a cost optimisation, not a divergence. An SDR composition carrying only overlays paints
-  // the fill straight in and never goes through an alpha format.
+  // Held back when an effect under the fill could actually see it, or a clip effect after a canvas could grade that
+  // canvas's bars, or on a kept grade, where the fill has to land on codes a pad color cannot name and only the
+  // flatten writes them. Otherwise the graph this writes is pixel-identical to the undeferred one, so keeping that
+  // simpler graph then is a cost optimisation, not a divergence. An SDR composition carrying only overlays paints the
+  // fill straight in and never goes through an alpha format.
   private val deferFill: Boolean =
-    negotiated.paintsFillAfterEffects && (effectsUnderFill.isNotEmpty() || negotiated.hdrTransfer != null)
+    negotiated.paintsFillAfterEffects &&
+      (effectsUnderFill.isNotEmpty() || negotiated.hdrTransfer != null || negotiated.buildsCanvas)
 
   // The format a clip's tail actually ends on. Alpha is what marks a pixel the fill has not painted
   // yet, so every clip carries it through concat and the effects under the fill while the fill is
@@ -104,13 +105,6 @@ internal class GraphLowering(
 
   fun build(): Invocation {
     if (negotiated.path == ExportPath.Copy) return copyInvocation()
-
-    // The planner asks the negotiator to fan composition geometry onto each clip, because concat
-    // leaves no composited frame to run it on. Nothing here reads the composited list, so an engine
-    // that stopped asking would drop those effects rather than misplace them.
-    check(negotiated.compositionGeometry.isEmpty()) {
-      "Composition geometry reached the graph, which lowers it per clip and has nowhere to put it."
-    }
 
     // One input per clip the caller wrote, not per pass the plan laid. A looping track names the
     // same clip once for every pass, and a second decoder on the same file would decode it again.
@@ -375,7 +369,7 @@ internal class GraphLowering(
       pending += toneMap.chain
     }
 
-    clip.effects.forEach { resolved ->
+    clip.effects.forEachIndexed { effectIndex, resolved ->
       val fragment = resolved.effect.fragment
       sidecars += fragment.sidecars
       val crop = fragment.crop
@@ -386,13 +380,16 @@ internal class GraphLowering(
         pending.clear()
         pad = graph.cropped(read, fragment, crop, label, ::auxPads)
         merged++
-        return@forEach
+        return@forEachIndexed
       }
       pending += fragment.chain
       val merge = fragment.merge
       if (merge == null) {
         pending += fragment.post
-        return@forEach
+        // The canvas crop removes no pixels, so its canvas is built here for the effects after it that read it.
+        val canvas = clip.canvasEffectIndices.indexOf(effectIndex)
+        if (canvas >= 0) pending += canvasNodes(clip.placement.canvases[canvas], padColor, tailPixelFormat)
+        return@forEachIndexed
       }
       // A chain's input labels are linked to its first filter, so the nodes waiting here cannot sit
       // between the labels and the merge that reads them: ffmpeg refuses the graph with "More input
@@ -408,27 +405,28 @@ internal class GraphLowering(
       merged++
     }
 
+    val rect = clip.drawnIn(output.size)
     val fill = negotiated.fill
-    if (negotiated.fit == Fit.Contain && fill is Fill.Blurred) {
-      return buildBlurredTail(pad, pending, fill, index, slots)
+    if (clip.placement.leavesBars && fill is Fill.Blurred) {
+      return buildBlurredTail(pad, pending, fill, rect, index, slots)
     }
 
-    pending += tailNodes(output.size, negotiated.fit, padColor, frameRate, tailPixelFormat, slots)
+    pending += tailNodes(output.size, rect, padColor, frameRate, tailPixelFormat, slots)
     return "v$index".also { graph.chain(listOf(pad), pending, it) }
   }
 
   /**
-   * The blurred-contain tail: a sharp, contained copy of the frame laid over a blurred copy that
-   * covers the whole output.
+   * The blurred tail of a clip that leaves bars: a sharp copy of the frame placed at [rect], laid over a blurred copy
+   * that covers the whole output.
    *
-   * `tailNodes` writes a single chain, but this needs the frame twice, once for each copy, so
-   * [pending] is flushed onto a pad of its own and fanned out with [FilterGraphBuilder.split]
-   * instead.
+   * `tailNodes` writes a single chain, but this needs the frame twice, once for each copy, so [pending] is flushed
+   * onto a pad of its own and fanned out with [FilterGraphBuilder.split] instead.
    */
   private fun buildBlurredTail(
     pad: String,
     pending: List<FilterNode>,
     fill: Fill.Blurred,
+    rect: PixelRect,
     index: Int,
     slots: Long,
   ): String {
@@ -443,10 +441,11 @@ internal class GraphLowering(
     graph.chain(listOf(background), coverBlurNodes(output.size, fill), blurred)
 
     val sharp = "v${index}sharp"
-    graph.chain(listOf(foreground), containNodes(output.size), sharp)
+    graph.chain(listOf(foreground), scaledInto(rect, output.size), sharp)
 
+    val (x, y) = rect.drawnAt()
     return "v$index".also {
-      graph.chain(listOf(blurred, sharp), overlayNodes() + trailingNodes(frameRate, tailPixelFormat, slots), it)
+      graph.chain(listOf(blurred, sharp), overlayNodes(x, y) + trailingNodes(frameRate, tailPixelFormat, slots), it)
     }
   }
 
@@ -494,3 +493,7 @@ internal class GraphLowering(
     val NULL_VIDEO = FilterNode("null")
   }
 }
+
+// Whether any clip builds a canvas, whose bars stay clear until the fill is painted in so no clip effect grades them.
+private val ResolvedComposition.buildsCanvas: Boolean
+  get() = tracks.any { track -> track.clips.any { it.placement.readsCanvas } }
