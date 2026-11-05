@@ -93,7 +93,7 @@ internal class Media3ExportProbe {
   fun writtenBy(finished: ExportStatus.Success): Written {
     val file = File(finished.output.shouldBeInstanceOf<MediaSink.Path>().path)
     val (matrix, fullRange) = colorTagOf(file)
-    return Written(firstEightBitFrame(file), matrix, fullRange)
+    return Written(firstEightBitFrame(file), matrix, fullRange, rotationOf(file))
   }
 
   /**

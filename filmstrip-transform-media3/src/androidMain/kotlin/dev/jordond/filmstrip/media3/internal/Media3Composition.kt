@@ -3,7 +3,6 @@ package dev.jordond.filmstrip.media3.internal
 import androidx.media3.common.C
 import androidx.media3.common.Effect
 import androidx.media3.common.MimeTypes
-import androidx.media3.effect.RgbMatrix
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.Effects
 import dev.jordond.filmstrip.InternalFilmstripApi
@@ -11,14 +10,12 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TrackContent
-import dev.jordond.filmstrip.effect.Media3Handle
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media3.internal.bounds.Media3FrameBounds
 import dev.jordond.filmstrip.media3.internal.failure.Media3LoweringFailure
 import dev.jordond.filmstrip.media3.internal.fill.FillFlatten
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
-import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.resolve.effectsOverFill
@@ -147,36 +144,10 @@ internal fun audioCodecName(mimeType: String): String =
  * placed. That ordering is a rule every backend honours, not a media3 detail.
  */
 internal fun ResolvedComposition.compositionVideoEffects(wrapper: EffectWrapper = UnwrappedEffects): List<Effect> {
-  val underFill = boundaryBeforeComposition() + effectsUnderFill.toMedia3Effects()
   val flatten = if (showsFill) listOf(FillFlatten(fill.flattenColor(), hdrTransfer)) else emptyList()
 
-  return (underFill + flatten + effectsOverFill.toMedia3Effects()).map(wrapper::wrap)
+  return (effectsUnderFill.toMedia3Effects() + flatten + effectsOverFill.toMedia3Effects()).map(wrapper::wrap)
 }
-
-/**
- * The pass that ends the clip's color program, when a clip and the composition both grade in SDR.
- *
- * media3 merges the two chains into one program with nothing clamping between them, which is not
- * where the planner stopped the fold. A kept grade needs no pass of this kind: its color lowers to
- * a program of its own that clamps at the transfer's ceiling.
- */
-private fun ResolvedComposition.boundaryBeforeComposition(): List<Effect> {
-  if (hdrTransfer != null) return emptyList()
-  val grades = compositionEffects.any(ResolvedEffect::isGrade)
-  val clipGrades =
-    tracks.any { track ->
-      track.clips.any { clip -> clip.effects.any(ResolvedEffect::isGrade) }
-    }
-
-  return if (grades && clipGrades) listOf(ColorStageBoundary()) else emptyList()
-}
-
-private val ResolvedEffect.isGrade: Boolean
-  get() =
-    when (val handle = effect.handle) {
-      is Media3Handle.Video -> handle.effect is RgbMatrix
-      is Media3Handle.Overlay -> false
-    }
 
 // Only Fill.Solid names a color of its own. A gap has no frame to blur, so Fill.Blurred flattens to black.
 private fun Fill.flattenColor(): Int =

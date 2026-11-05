@@ -273,7 +273,7 @@ internal class GraphLowering(
     // A terminal chain, so the mapped pad has a name of its own and the composition's duration is
     // enforced in the graph rather than trusted from the inputs.
     val out = "vout"
-    graph.chain(listOf(current), heldTailNodes() + listOf(trimTo(duration), SETPTS), out)
+    graph.chain(listOf(current), negotiated.heldTailNodes() + listOf(trimTo(duration), SETPTS), out)
     return out
   }
 
@@ -289,6 +289,8 @@ internal class GraphLowering(
     firstIndex: Int,
   ): String {
     var current = read
+    // Every clip's tail ends on the subsampled tail format, so the joined frame does too.
+    var grid = ChromaGrid.Subsampled
     effects.forEachIndexed { offset, resolved ->
       val fragment = resolved.effect.fragment
       sidecars += fragment.sidecars
@@ -296,7 +298,7 @@ internal class GraphLowering(
       val merge = fragment.merge
       val crop = fragment.crop
       if (crop != null) {
-        graph.cropped(current, fragment, crop, label, ::auxPads)
+        graph.cropped(current, fragment, crop, label, grid, ::auxPads)
       } else if (merge == null) {
         graph.chain(listOf(current), (fragment.chain + fragment.post).ifEmpty { listOf(NULL_VIDEO) }, label)
       } else {
@@ -312,26 +314,10 @@ internal class GraphLowering(
           }
         graph.chain(listOf(input) + auxPads(fragment.auxInputs, label), listOf(merge) + fragment.post, label)
       }
+      if (crop == null) grid = grid.after(fragment.chain + fragment.post)
       current = label
     }
     return current
-  }
-
-  /**
-   * Clones the frame on the primary's last covered slot over the held tail, then cuts the video to one frame per slot
-   * the composition covers.
-   *
-   * Sits after the composition effects and the deferred fill, so the frame held is the finished one with every effect
-   * frozen where it was on that slot. Nothing when no audio track outlasts the primary.
-   */
-  private fun heldTailNodes(): List<FilterNode> {
-    val tail = negotiated.heldTail
-    if (tail.isEmpty()) return emptyList()
-
-    return listOf(
-      FilterNode("tpad", "stop_mode" to "clone", "stop" to (tail.last - tail.first + 1).toString()),
-      FilterNode("trim", "end_frame" to negotiated.videoSlots.toString()),
-    )
   }
 
   /**
@@ -368,6 +354,8 @@ internal class GraphLowering(
       sidecars += toneMap.sidecars
       pending += toneMap.chain
     }
+    // A source decodes to 4:2:0 as far as the graph can tell, so every figure is snapped until a format says otherwise.
+    var grid = ChromaGrid.Subsampled.after(pending)
 
     clip.effects.forEachIndexed { effectIndex, resolved ->
       val fragment = resolved.effect.fragment
@@ -378,17 +366,22 @@ internal class GraphLowering(
         val label = "v${index}m$merged"
         val read = if (pending.isEmpty()) pad else "${label}in".also { graph.chain(listOf(pad), pending, it) }
         pending.clear()
-        pad = graph.cropped(read, fragment, crop, label, ::auxPads)
+        pad = graph.cropped(read, fragment, crop, label, grid, ::auxPads)
         merged++
         return@forEachIndexed
       }
       pending += fragment.chain
+      grid = grid.after(fragment.chain + fragment.post)
       val merge = fragment.merge
       if (merge == null) {
         pending += fragment.post
         // The canvas crop removes no pixels, so its canvas is built here for the effects after it that read it.
         val canvas = clip.canvasEffectIndices.indexOf(effectIndex)
-        if (canvas >= 0) pending += canvasNodes(clip.placement.canvases[canvas], padColor, tailPixelFormat)
+        if (canvas >= 0) {
+          val built = canvasNodes(clip.placement.canvases[canvas], padColor, tailPixelFormat)
+          pending += built
+          grid = grid.after(built)
+        }
         return@forEachIndexed
       }
       // A chain's input labels are linked to its first filter, so the nodes waiting here cannot sit
@@ -408,10 +401,10 @@ internal class GraphLowering(
     val rect = clip.drawnIn(output.size)
     val fill = negotiated.fill
     if (clip.placement.leavesBars && fill is Fill.Blurred) {
-      return buildBlurredTail(pad, pending, fill, rect, index, slots)
+      return buildBlurredTail(pad, pending, fill, rect, index, slots, grid)
     }
 
-    pending += tailNodes(output.size, rect, padColor, frameRate, tailPixelFormat, slots)
+    pending += tailNodes(output.size, rect, padColor, frameRate, tailPixelFormat, slots, grid)
     return "v$index".also { graph.chain(listOf(pad), pending, it) }
   }
 
@@ -420,7 +413,8 @@ internal class GraphLowering(
    * that covers the whole output.
    *
    * `tailNodes` writes a single chain, but this needs the frame twice, once for each copy, so [pending] is flushed
-   * onto a pad of its own and fanned out with [FilterGraphBuilder.split] instead.
+   * onto a pad of its own and fanned out with [FilterGraphBuilder.split] instead. The sharp copy lands on [grid], the
+   * chroma grid of the chain both copies come from.
    */
   private fun buildBlurredTail(
     pad: String,
@@ -429,6 +423,7 @@ internal class GraphLowering(
     rect: PixelRect,
     index: Int,
     slots: Long,
+    grid: ChromaGrid,
   ): String {
     val pre = "v${index}pre"
     graph.chain(listOf(pad), pending, pre)
@@ -443,7 +438,7 @@ internal class GraphLowering(
     val sharp = "v${index}sharp"
     graph.chain(listOf(foreground), scaledInto(rect, output.size), sharp)
 
-    val (x, y) = rect.drawnAt()
+    val (x, y) = rect.drawnAt(grid)
     return "v$index".also {
       graph.chain(listOf(blurred, sharp), overlayNodes(x, y) + trailingNodes(frameRate, tailPixelFormat, slots), it)
     }

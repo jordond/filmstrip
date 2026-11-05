@@ -128,9 +128,11 @@ it recognises, and declines the rest so the next resolver gets a look.
     Each clip is placed under its own fit, the last `Scale` across its clip, track and composition
     effects, and a `Crop` with `Fit.Contain` or `Fit.Stretch` places the clip in a canvas of its aspect
     first. `scale`, `crop` and `pad` take whole pixels, so each edge of a placement lands on the
-    nearest pixel edge, never more than half a pixel off. `pad` and `overlay` then land a frame's
-    offset, and `pad` its size, on the 4:2:0 chroma grid, so an odd offset or canvas side moves one
-    pixel down to the even one below it, where media3 draws it on the odd one.
+    nearest pixel edge, never more than half a pixel off. A canvas with an odd side or offset is built
+    in 4:4:4, so it keeps them as they are, and the clip stays in 4:4:4 until something writes it in
+    4:2:0. Wherever the frame is in 4:2:0, `pad` and `overlay` land a frame's offset, and `pad` its
+    size, on the chroma grid, so an odd one there moves one pixel down to the even one below it, where
+    media3 draws it on the odd one.
 
 [^pan-pending]:
     A pan moves the region it shows on every frame. ffmpeg resolves a crop to whole pixels

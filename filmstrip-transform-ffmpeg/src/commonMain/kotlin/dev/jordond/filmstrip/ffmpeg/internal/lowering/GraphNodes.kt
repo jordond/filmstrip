@@ -3,6 +3,9 @@ package dev.jordond.filmstrip.ffmpeg.internal.lowering
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
+import dev.jordond.filmstrip.transform.internal.heldTail
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.videoSlots
 
 /**
  * The size stage, which places the clip at [rect] in the resolved output frame.
@@ -12,7 +15,7 @@ import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
  *
  * [padColor] is the fill's own color, or transparent while that color is waiting for composition
  * effects to run before it is painted in. The caller decides which. [slots] is how many frames the
- * clip is cut to, as [trailingNodes] takes it.
+ * clip is cut to, as [trailingNodes] takes it. [grid] is the chroma grid of the chain the clip is placed from.
  */
 internal fun tailNodes(
   outputSize: Size,
@@ -21,7 +24,8 @@ internal fun tailNodes(
   frameRate: Int,
   pixelFormat: String,
   slots: Long,
-): List<FilterNode> = placedNodes(rect, outputSize, padColor) + trailingNodes(frameRate, pixelFormat, slots)
+  grid: ChromaGrid,
+): List<FilterNode> = placedNodes(rect, outputSize, padColor, grid) + trailingNodes(frameRate, pixelFormat, slots)
 
 /**
  * An `overlay` that keeps whatever bit depth its inputs arrived at.
@@ -87,3 +91,20 @@ internal fun alphaPixelFormat(pixelFormat: String): String =
     "yuv420p10le", "p010le" -> "yuva420p10le"
     else -> error("No alpha pixel format known for $pixelFormat.")
   }
+
+/**
+ * Clones the frame on the primary's last covered slot over the held tail, then cuts the video to one frame per slot
+ * the composition covers.
+ *
+ * Sits after the composition effects and the deferred fill, so the frame held is the finished one with every effect
+ * frozen where it was on that slot. Nothing when no audio track outlasts the primary.
+ */
+internal fun ResolvedComposition.heldTailNodes(): List<FilterNode> {
+  val tail = heldTail
+  if (tail.isEmpty()) return emptyList()
+
+  return listOf(
+    FilterNode("tpad", "stop_mode" to "clone", "stop" to (tail.last - tail.first + 1).toString()),
+    FilterNode("trim", "end_frame" to videoSlots.toString()),
+  )
+}

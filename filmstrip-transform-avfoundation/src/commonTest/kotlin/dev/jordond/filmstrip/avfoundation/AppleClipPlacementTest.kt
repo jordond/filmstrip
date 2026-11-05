@@ -5,21 +5,28 @@ import dev.jordond.filmstrip.edit.CompositionBuilder
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.geometry.Crop
+import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.geometry.retainedRect
 import dev.jordond.filmstrip.effects.geometry.turnedFrame
+import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.placedOn
+import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.AspectRatio
+import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.OverlayPixels
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -67,6 +74,41 @@ class AppleClipPlacementTest {
       remove(path)
     }
 
+  // A preview lowers the same edit at a smaller height, and the placement is measured against the natural frame, so
+  // the content lands on the same fraction of the frame at both heights.
+  @Test
+  fun `a letterboxing crop places its content on the same rect at a preview height`() =
+    runTest(timeout = TIMEOUT) {
+      val crop = Crop(AspectRatio.Portrait, Fit.Contain)
+      val composition =
+        compositionOf {
+          clip(MediaSource.of(fixture(LANDSCAPE))) {
+            trim(0.seconds, 1.seconds)
+            effects { add(crop) }
+          }
+          fill(Fill.Solid(SLATE.toArgb()))
+        }
+      val (exportPath, exportPlan) = exported(composition, temporaryPath("letterbox-export"))
+      val content = placementOf(Size(640, 360), listOf(listOf(crop)), exportPlan.output.size).drawnRect
+      val (previewPath, previewPlan) =
+        exported(composition, temporaryPath("letterbox-preview"), ExportSpec(heightPx = PREVIEW_HEIGHT))
+      withClue("the preview has to be lowered smaller than the export for this to tell") {
+        (previewPlan.output.size.height < exportPlan.output.size.height).shouldBeTrue()
+      }
+
+      listOf(exportPath to exportPlan.output.size, previewPath to previewPlan.output.size).forEach { (path, size) ->
+        val frame = frameOf(path)
+        val x = BAR_CENTRES[1]
+        withClue("${size.height} rows, the bar above") { isSlate(frame.at(x, content.top - EDGE)).shouldBeTrue() }
+        withClue("${size.height} rows, the content's top") { isSlate(frame.at(x, content.top + EDGE)).shouldBeFalse() }
+        withClue("${size.height} rows, the content's bottom") {
+          isSlate(frame.at(x, content.bottom - EDGE)).shouldBeFalse()
+        }
+        withClue("${size.height} rows, the bar below") { isSlate(frame.at(x, content.bottom + EDGE)).shouldBeTrue() }
+        remove(path)
+      }
+    }
+
   @Test
   fun `a stretching crop fills the frame and leaves no bar`() =
     runTest(timeout = TIMEOUT) {
@@ -103,6 +145,34 @@ class AppleClipPlacementTest {
       withClue("the top of the canvas read $top") { isSlate(top).shouldBeTrue() }
       isSlate(samplePixel(path, 0.5f, 0.5f)).shouldBeFalse()
       remove(path)
+    }
+
+  // An overlay reads the canvas, so one in the corner is drawn on the square canvas, up in its top bar, rather than on
+  // the content below it. A pan between the crop and the overlay moves the canvas under it but not the overlay.
+  @Test
+  fun `a clip overlay after a letterboxing crop lands on the canvas with or without a pan`() =
+    runTest(timeout = TIMEOUT) {
+      listOf(listOf(SQUARE, MARK), listOf(SQUARE, PAN, MARK)).forEachIndexed { index, chain ->
+        val (path, plan) =
+          exported("overlay-$index") {
+            clip(MediaSource.of(fixture(LANDSCAPE))) {
+              trim(0.seconds, 1.seconds)
+              effects { chain.forEach { add(it) } }
+            }
+            fill(Fill.Solid(SLATE.toArgb()))
+          }
+        val size = plan.output.size
+        val marked = MARK.placedOn(size, MARK_PICTURE).rectOn(size)
+        val content = placementOf(Size(640, 360), listOf(listOf(SQUARE)), size).drawnRect
+        withClue("the overlay has to sit in the canvas's top bar for this to tell") {
+          (marked.bottom < content.top).shouldBeTrue()
+        }
+        val x = (marked.left + marked.right) / 2
+        val y = (marked.top + marked.bottom) / 2
+
+        assertClose(frameOf(path).average(x, y), MARK_RGB, "the overlay at ($x, $y) after ${chain.size - 1} effects")
+        remove(path)
+      }
     }
 
   // The composition's square crop is measured on the frame the clip's turn leaves, which is portrait. Measured on the
@@ -259,10 +329,11 @@ class AppleClipPlacementTest {
   private suspend fun exported(
     composition: EditComposition,
     output: String,
+    spec: ExportSpec = SPEC,
   ): Pair<String, ExportPlan> =
     withContext(Dispatchers.Default) {
       val plan =
-        when (val verdict = filmstrip.plan(composition, SPEC)) {
+        when (val verdict = filmstrip.plan(composition, spec)) {
           is Verdict.Capable -> verdict.plan
           is Verdict.Degraded -> verdict.plan
           is Verdict.Incapable -> error(verdict.reasons.joinToString { it.message })
@@ -285,12 +356,28 @@ class AppleClipPlacementTest {
     const val LANDSCAPE = "apple_export_a.mp4"
     val TIMEOUT = 2.seconds * 60
     val SPEC = ExportSpec(heightPx = 360)
+
+    // A height a preview lowers the edit at, under the export's own.
+    const val PREVIEW_HEIGHT = 180
     val SLATE = Triple(0x20, 0x40, 0x60)
 
     // Read two percent in from an edge, clear of the encoder's own edge blocks.
     const val EDGE = 0.02f
     const val QUARTER_TURN = 90
     val SQUARE = Crop(AspectRatio.Square, Fit.Contain)
+    val PAN = KenBurns(NormalizedRect(0.05f, 0.1f, 0.85f, 0.9f), NormalizedRect(0.05f, 0.1f, 0.85f, 0.9f))
+
+    // A small flat overlay in a color neither the fixture's bars nor the fill carry, set in so it sits wholly inside a
+    // square canvas's top bar.
+    val MARK_RGB = Triple(0xE6, 0x78, 0x14)
+    val MARK_PICTURE = Size(16, 16)
+    val MARK =
+      ImageOverlay(
+        ImageSource.ofBytes(OverlayPixels.pngOf(MARK_PICTURE, MARK_RGB.toArgb())),
+        Corner.TopStart,
+        margin = 0.02f,
+        scale = 0.15f,
+      )
 
     // A grid off the middle of every axis, so a placement right only at the centre or the edges still misses.
     val GRID =

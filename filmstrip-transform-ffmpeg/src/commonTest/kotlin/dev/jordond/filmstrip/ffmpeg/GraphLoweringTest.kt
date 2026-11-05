@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.ChromaGrid
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.GraphLowering
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
@@ -101,7 +102,7 @@ class GraphLoweringTest {
 
     graph shouldContain "split=2"
     graph shouldContain "scale=w=100:h=200:force_original_aspect_ratio=increase,crop=w=100:h=200,gblur=sigma=50"
-    val (x, y) = rect.drawnAt()
+    val (x, y) = rect.drawnAt(ChromaGrid.Subsampled)
 
     graph shouldContain "[v0fg]scale=w=${rect.width}:h=${rect.height}[v0sharp]"
     graph shouldContain "overlay=x=$x:y=$y"
@@ -1015,7 +1016,7 @@ class GraphLoweringTest {
   }
 
   // Where the sharp half of a NARROW clip's blurred tail is laid in a sixteen by nine frame.
-  private fun blurredAt(): Pair<Int, Int> = containedRect(Size(1920, 1080)).drawnAt()
+  private fun blurredAt(): Pair<Int, Int> = containedRect(Size(1920, 1080)).drawnAt(ChromaGrid.Subsampled)
 
   // Where a NARROW clip the helpers below lay is drawn in [output], in ffmpeg's whole pixels.
   private fun containedRect(output: Size): PixelRect =

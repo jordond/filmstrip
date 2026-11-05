@@ -104,40 +104,21 @@ class Media3CompositionTest {
   }
 
   // media3 merges consecutive matrices into one shader program with nothing clamping between them,
-  // and the planner folds a run of color effects per stage. The boundary pass writes the clip's
-  // stage out before the composition's runs, which is what the other backends do by writing a frame.
+  // and the planner folds a run of color effects per stage. Every clip's chain ends on the pass that
+  // places it, so the clip's grade is written out before the composition's runs, the way the other
+  // backends write a frame between the two.
   @Test
-  fun `a clip grade and a composition grade are separated by a boundary`() {
-    val graded =
-      composition(
-        compositionEffects = listOf(resolvedEffect(matrix())),
-        clips = listOf(clip(effects = listOf(resolvedEffect(matrix())))),
-      )
+  fun `a clip grade ends its program before the composition grade runs`() {
+    val grade = resolvedEffect(matrix())
+    val graded = composition(compositionEffects = listOf(grade), clips = listOf(clip(effects = listOf(grade))))
+    val clip =
+      graded.tracks
+        .single()
+        .clips
+        .single()
 
-    graded.compositionVideoEffects().first().shouldBeInstanceOf<ColorStageBoundary>()
-  }
-
-  @Test
-  fun `one stage grading on its own needs no boundary`() {
-    val clipOnly = composition(clips = listOf(clip(effects = listOf(resolvedEffect(matrix())))))
-    val compositionOnly = composition(compositionEffects = listOf(resolvedEffect(matrix())))
-
-    clipOnly.compositionVideoEffects().any { it is ColorStageBoundary } shouldBe false
-    compositionOnly.compositionVideoEffects().any { it is ColorStageBoundary } shouldBe false
-  }
-
-  // A kept grade lowers its color to a pass of its own, which ends the program and clamps at the
-  // transfer's ceiling without help.
-  @Test
-  fun `a kept grade needs no boundary either`() {
-    val graded =
-      composition(
-        compositionEffects = listOf(resolvedEffect(matrix())),
-        clips = listOf(clip(effects = listOf(resolvedEffect(matrix())))),
-        hdrTransfer = HdrTransfer.Pq,
-      )
-
-    graded.compositionVideoEffects().any { it is ColorStageBoundary } shouldBe false
+    clip.clipVideoEffects(Fill.Solid(0xFF000000.toInt()), OUTPUT).last().shouldBeInstanceOf<PlacedFrame>()
+    graded.compositionVideoEffects().first().shouldBeInstanceOf<RgbMatrix>()
   }
 
   @Test

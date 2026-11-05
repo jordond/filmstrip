@@ -15,18 +15,19 @@ import dev.jordond.filmstrip.effect.FilterNode
  * by default. Those positions are handed to `overlay` as written, so they have to read the same to both filters.
  * [auxPads] prepares the extra inputs the merge reads, the same way an uncropped fragment's are.
  *
- * `overlay` places its input on the chroma grid of the format it runs in, so on a 4:2:0 base an odd `x` or `y`
- * lands a pixel up and to the left of where it was asked for. `crop` without `exact` rounds the same way, but by
- * the grid of its own input, and the two grids differ whenever `overlay` negotiates a format the base did not
- * arrive in. So the crop is cut exact unless [FilterCrop.exact] is off, and both positions are moved down onto an
- * even pixel first, which is on the grid of every 4:2:0, 4:2:2 and 4:4:4 format. That snap is `overlay`'s limit,
- * and it means a region asked for at an odd position sits one pixel off from where the other backends put it.
+ * `overlay` places its input on the chroma grid of the format it runs in, which follows the base, so on a 4:2:0 base
+ * an odd `x` or `y` lands a pixel up and to the left of where it was asked for. `crop` without `exact` rounds the
+ * same way, but by the grid of its own input. So the crop is cut exact unless [FilterCrop.exact] is off, and on a
+ * [ChromaGrid.Subsampled] [grid] both positions are moved down onto an even pixel first, which is on the grid of
+ * every 4:2:0 and 4:2:2 format. That snap is `overlay`'s limit, and it means a region asked for at an odd position
+ * there sits one pixel off from where the other backends put it. A [ChromaGrid.Full] base takes both as written.
  */
 internal fun FilterGraphBuilder.cropped(
   read: String,
   fragment: FilterFragment,
   crop: FilterCrop,
   label: String,
+  grid: ChromaGrid,
   auxPads: (auxInputs: List<AuxInput>, label: String) -> List<String>,
 ): String {
   val base = "${label}base"
@@ -38,8 +39,8 @@ internal fun FilterGraphBuilder.cropped(
       "crop",
       "w" to crop.width,
       "h" to crop.height,
-      "x" to onChromaGrid(crop.x ?: "(in_w-out_w)/2"),
-      "y" to onChromaGrid(crop.y ?: "(in_h-out_h)/2"),
+      "x" to grid.snap(crop.x ?: "(in_w-out_w)/2"),
+      "y" to grid.snap(crop.y ?: "(in_h-out_h)/2"),
       "exact" to if (crop.exact) "1" else "0",
     )
 
@@ -54,14 +55,18 @@ internal fun FilterGraphBuilder.cropped(
 
   val recombine =
     overlayNode(
-      "x" to onChromaGrid(crop.x ?: "(W-w)/2"),
-      "y" to onChromaGrid(crop.y ?: "(H-h)/2"),
+      "x" to grid.snap(crop.x ?: "(W-w)/2"),
+      "y" to grid.snap(crop.y ?: "(H-h)/2"),
     )
   chain(listOf(base, worked), listOf(recombine), label)
   return label
 }
 
-// Moves a position down onto the even pixel at or before it. A whole number is snapped here, anything
-// else is wrapped so the filter snaps it once it has evaluated the expression.
-private fun onChromaGrid(position: String): String =
-  position.toIntOrNull()?.let { (it - it.mod(2)).toString() } ?: "2*floor(($position)/2)"
+// A position on this grid. On a subsampled one a whole number is snapped here, anything else is wrapped so
+// the filter snaps it once it has evaluated the expression.
+private fun ChromaGrid.snap(position: String): String =
+  if (this == ChromaGrid.Full) {
+    position
+  } else {
+    position.toIntOrNull()?.let { (it - it.mod(2)).toString() } ?: "2*floor(($position)/2)"
+  }

@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.effect.AuxInput
 import dev.jordond.filmstrip.effect.FilterCrop
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.ChromaGrid
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.FilterGraphBuilder
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.cropped
 import dev.jordond.filmstrip.media.ImageSource
@@ -68,7 +69,8 @@ class FragmentCropTest {
     val asked = mutableListOf<Pair<List<AuxInput>, String>>()
     val graph = FilterGraphBuilder()
 
-    graph.cropped("0:v", fragment, FilterCrop(width = "320", height = "180", x = "0", y = "0"), "r") {
+    val crop = FilterCrop(width = "320", height = "180", x = "0", y = "0")
+    graph.cropped("0:v", fragment, crop, "r", ChromaGrid.Subsampled) {
       inputs,
       label,
       ->
@@ -85,10 +87,27 @@ class FragmentCropTest {
       "[rbase][rfx]overlay=x=0:y=0:format=auto[r]"
   }
 
-  private fun croppedGraph(crop: FilterCrop): String {
+  // A base in 4:4:4, the way an odd canvas leaves its chain, has a chroma sample on every pixel, so overlay lands an
+  // odd position where it was asked for and neither filter is handed a snapped one.
+  // position where it was asked for and neither filter is handed a snapped one.
+  @Test
+  fun `a position on a full chroma base reaches both filters as written`() {
+    val odd = croppedGraph(FilterCrop(width = "320", height = "180", x = "5", y = "7"), ChromaGrid.Full)
+    val centred = croppedGraph(FilterCrop(width = "320", height = "180"), ChromaGrid.Full)
+
+    odd shouldContain "crop=w=320:h=180:x=5:y=7:exact=1"
+    odd shouldContain "overlay=x=5:y=7:format=auto"
+    centred shouldContain "crop=w=320:h=180:x=(in_w-out_w)/2:y=(in_h-out_h)/2:exact=1"
+    centred shouldContain "overlay=x=(W-w)/2:y=(H-h)/2:format=auto"
+  }
+
+  private fun croppedGraph(
+    crop: FilterCrop,
+    grid: ChromaGrid = ChromaGrid.Subsampled,
+  ): String {
     val graph = FilterGraphBuilder()
     val fragment = FilterFragment(chain = listOf(FilterNode("hue", "s" to "0")))
-    val out = graph.cropped("0:v", fragment, crop, "r") { _, _ -> emptyList() }
+    val out = graph.cropped("0:v", fragment, crop, "r", grid) { _, _ -> emptyList() }
     return graph.build(out)
   }
 }
