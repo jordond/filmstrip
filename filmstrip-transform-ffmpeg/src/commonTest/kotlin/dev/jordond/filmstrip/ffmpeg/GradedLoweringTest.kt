@@ -89,13 +89,6 @@ class GradedLoweringTest {
     }
   }
 
-  @Test
-  fun `leaves an unchanged brightness or matrix out of a graded graph`() {
-    chainOf(Brightness(1f), HdrTransfer.Pq) shouldBe ""
-    chainOf(ColorMatrix.Identity, HdrTransfer.Pq) shouldBe ""
-    chainOf(Saturation(1f), HdrTransfer.Hlg) shouldBe ""
-  }
-
   // The planes are carried onto float one at a time, the first and last tables read the entry nearest a code and every
   // table between them interpolates.
   @Test

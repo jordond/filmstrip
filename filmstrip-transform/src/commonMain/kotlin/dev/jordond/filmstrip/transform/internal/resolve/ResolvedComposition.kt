@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.geometry.containScale
 import dev.jordond.filmstrip.transform.internal.geometry.derivesFromFrame
 import kotlin.time.Duration
 
@@ -44,6 +45,9 @@ import kotlin.time.Duration
  * @property encoderName The encoder the device resolved for [OutputFormat.videoCodec], or null when
  *   the backend does not name encoders. An engine that spells an encoder out invokes this one, so
  *   what it runs is what `capabilities()` reported.
+ * @property naturalSize The frame the composition writes with no height asked of it and before any encoder ceiling,
+ *   which is [OutputFormat.size] for a composition built at its own size. It stays the same at every height the edit
+ *   is lowered at, so a backend asks [clipFillsFrame] against it.
  */
 @InternalFilmstripApi
 public class ResolvedComposition(
@@ -62,6 +66,7 @@ public class ResolvedComposition(
   public val audio: AudioSpec,
   public val adjustments: List<Adjustment>,
   public val encoderName: String? = null,
+  public val naturalSize: Size = output.size,
 )
 
 /**
@@ -74,6 +79,25 @@ public class ResolvedComposition(
 @InternalFilmstripApi
 public val ResolvedComposition.showsFill: Boolean
   get() = fit == Fit.Contain || tracks.any { it.start > Duration.ZERO }
+
+/**
+ * Whether a clip whose frame is [clipFrame] covers [naturalFrame] once [Fit.Contain] fits it there, leaving no bar for
+ * the fill to show through.
+ *
+ * The clip is scaled uniformly until it fits, so one side lands exactly and the other falls short by the bar. A bar
+ * under one pixel of the natural frame is no bar. The bar is measured against the natural frame rather than the one a
+ * backend renders, so an export asked for a smaller frame and a preview under a cap get the answer the full size export
+ * does. This is the one test every backend and the planner use to decide whether a clip leaves bars.
+ */
+@InternalFilmstripApi
+public fun clipFillsFrame(
+  clipFrame: Size,
+  naturalFrame: Size,
+): Boolean {
+  if (clipFrame.width <= 0 || clipFrame.height <= 0) return false
+  val scale = containScale(clipFrame, naturalFrame)
+  return naturalFrame.width - clipFrame.width * scale < 1f && naturalFrame.height - clipFrame.height * scale < 1f
+}
 
 /**
  * Whether the fill has to be painted after composition-level effects have run, rather than

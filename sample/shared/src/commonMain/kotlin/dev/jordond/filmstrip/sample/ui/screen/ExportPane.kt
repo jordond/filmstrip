@@ -271,6 +271,9 @@ private fun PlanSummary(
     if (plan.copyBlockedBy.isNotEmpty()) {
       StatRow("No copy because", plan.copyBlockedBy.joinToString { it.name })
     }
+    if (plan.inertNotices.isNotEmpty()) {
+      StatRow("Left out, renders nothing", plan.inertNotices.joinToString { it.subject })
+    }
     StatRow("Parity", plan.parity.name.lowercase())
     if (minBytes != null && maxBytes != null) {
       StatRow("Estimated size", "${formatBytes(minBytes)} to ${formatBytes(maxBytes)}")

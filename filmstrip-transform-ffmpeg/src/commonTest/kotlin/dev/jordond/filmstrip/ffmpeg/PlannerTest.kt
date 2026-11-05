@@ -17,6 +17,8 @@ import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.color.HueRotate
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.CropRect
 import dev.jordond.filmstrip.effects.geometry.Rotate
@@ -123,6 +125,32 @@ class PlannerTest {
     plan.output.size shouldBe Size(404, 720)
     plan.output.frameRate shouldBe 30
     plan.effectOrder.map { it.spec.id } shouldBe listOf(EffectIds.CROP)
+  }
+
+  // The planner takes every effect that renders nothing out before this backend lowers anything, so the graph is the
+  // one the same clip with no effects at all builds.
+  @Test
+  fun `is handed no effect that renders nothing`() {
+    val inert = listOf(Brightness(1f), HueRotate(360f), Crop(AspectRatio(16, 9)), Rotate(360))
+    val composition = EditComposition(listOf(Track(listOf(Clip(landscape, effects = inert)))))
+    val plain = EditComposition(listOf(Track(listOf(Clip(landscape)))))
+
+    capableGraph(composition, ExportSpec(heightPx = 360)) shouldBe capableGraph(plain, ExportSpec(heightPx = 360))
+    capablePlan(composition, ExportSpec(heightPx = 360)).inertNotices.size shouldBe inert.size
+  }
+
+  // A clip's effects and its track's fold as one run here, so a track brightness that undoes the clip's leaves the
+  // run with nothing to lower.
+  @Test
+  fun `is handed no brightness its track undoes`() {
+    val composition =
+      EditComposition(
+        listOf(Track(listOf(Clip(landscape, effects = listOf(Brightness(2f)))), effects = listOf(Brightness(0.5f)))),
+      )
+    val plain = EditComposition(listOf(Track(listOf(Clip(landscape)))))
+
+    capableGraph(composition, ExportSpec(heightPx = 360)) shouldBe capableGraph(plain, ExportSpec(heightPx = 360))
+    capablePlan(composition, ExportSpec(heightPx = 360)).inertNotices.size shouldBe 2
   }
 
   // concat refuses inputs that differ in resolution or sample aspect, so every clip carries the
@@ -437,7 +465,7 @@ class PlannerTest {
   // would hand ffmpeg a filter it does not have.
   @Test
   fun `refuses a blurred fill on a build with no gblur`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))), fill = Fill.Blurred())
+    val composition = EditComposition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))), fill = Fill.Blurred())
 
     val verdict = planner().lower(composition, Ask(ExportSpec(), device(), infos)).verdict
 
@@ -449,7 +477,7 @@ class PlannerTest {
   // since a copy never reaches the filter graph at all.
   @Test
   fun `lowers a blurred fill once the build has gblur`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))), fill = Fill.Blurred())
+    val composition = EditComposition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))), fill = Fill.Blurred())
 
     val graph = capableGraph(composition, ExportSpec(heightPx = 720), toolchain(TONE_MAPPING + "gblur"))
 
@@ -460,7 +488,8 @@ class PlannerTest {
   // gblur but not it is refused only for the fill that would need it, not every blurred one.
   @Test
   fun `refuses a dimmed blurred fill on a build with no colorchannelmixer`() {
-    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))), fill = Fill.Blurred(dim = 0.5f))
+    val composition =
+      EditComposition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))), fill = Fill.Blurred(dim = 0.5f))
 
     val verdict =
       planner(toolchain(setOf("overlay", "concat", "amix", "gblur")))

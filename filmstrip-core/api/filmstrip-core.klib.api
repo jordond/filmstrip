@@ -259,6 +259,18 @@ final enum class dev.jordond.filmstrip.export/HdrMode : kotlin/Enum<dev.jordond.
     final fun values(): kotlin/Array<dev.jordond.filmstrip.export/HdrMode> // dev.jordond.filmstrip.export/HdrMode.values|values#static(){}[0]
 }
 
+final enum class dev.jordond.filmstrip.export/InertReason : kotlin/Enum<dev.jordond.filmstrip.export/InertReason> { // dev.jordond.filmstrip.export/InertReason|null[0]
+    enum entry NeverVisible // dev.jordond.filmstrip.export/InertReason.NeverVisible|null[0]
+    enum entry NoChangeToFrame // dev.jordond.filmstrip.export/InertReason.NoChangeToFrame|null[0]
+    enum entry NoStreamToApplyTo // dev.jordond.filmstrip.export/InertReason.NoStreamToApplyTo|null[0]
+
+    final val entries // dev.jordond.filmstrip.export/InertReason.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.export/InertReason> // dev.jordond.filmstrip.export/InertReason.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.jordond.filmstrip.export/InertReason // dev.jordond.filmstrip.export/InertReason.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.jordond.filmstrip.export/InertReason> // dev.jordond.filmstrip.export/InertReason.values|values#static(){}[0]
+}
+
 final enum class dev.jordond.filmstrip.geometry/Corner : kotlin/Enum<dev.jordond.filmstrip.geometry/Corner> { // dev.jordond.filmstrip.geometry/Corner|null[0]
     enum entry BottomEnd // dev.jordond.filmstrip.geometry/Corner.BottomEnd|null[0]
     enum entry BottomStart // dev.jordond.filmstrip.geometry/Corner.BottomStart|null[0]
@@ -2092,6 +2104,8 @@ final class dev.jordond.filmstrip.export/ExportPlan { // dev.jordond.filmstrip.e
         final fun <get-effectOrder>(): kotlin.collections/List<dev.jordond.filmstrip.export/PlannedEffect> // dev.jordond.filmstrip.export/ExportPlan.effectOrder.<get-effectOrder>|<get-effectOrder>(){}[0]
     final val estimate // dev.jordond.filmstrip.export/ExportPlan.estimate|{}estimate[0]
         final fun <get-estimate>(): dev.jordond.filmstrip.export/ExportEstimate // dev.jordond.filmstrip.export/ExportPlan.estimate.<get-estimate>|<get-estimate>(){}[0]
+    final val inertNotices // dev.jordond.filmstrip.export/ExportPlan.inertNotices|{}inertNotices[0]
+        final fun <get-inertNotices>(): kotlin.collections/List<dev.jordond.filmstrip.export/InertNotice> // dev.jordond.filmstrip.export/ExportPlan.inertNotices.<get-inertNotices>|<get-inertNotices>(){}[0]
     final val output // dev.jordond.filmstrip.export/ExportPlan.output|{}output[0]
         final fun <get-output>(): dev.jordond.filmstrip.export/OutputFormat // dev.jordond.filmstrip.export/ExportPlan.output.<get-output>|<get-output>(){}[0]
     final val parity // dev.jordond.filmstrip.export/ExportPlan.parity|{}parity[0]
@@ -2128,6 +2142,21 @@ final class dev.jordond.filmstrip.export/ExportSpec { // dev.jordond.filmstrip.e
         final val Upload // dev.jordond.filmstrip.export/ExportSpec.Companion.Upload|{}Upload[0]
             final fun <get-Upload>(): dev.jordond.filmstrip.export/ExportSpec // dev.jordond.filmstrip.export/ExportSpec.Companion.Upload.<get-Upload>|<get-Upload>(){}[0]
     }
+}
+
+final class dev.jordond.filmstrip.export/InertNotice { // dev.jordond.filmstrip.export/InertNotice|null[0]
+    constructor <init>(kotlin/String, dev.jordond.filmstrip.export/InertReason, kotlin/String) // dev.jordond.filmstrip.export/InertNotice.<init>|<init>(kotlin.String;dev.jordond.filmstrip.export.InertReason;kotlin.String){}[0]
+
+    final val message // dev.jordond.filmstrip.export/InertNotice.message|{}message[0]
+        final fun <get-message>(): kotlin/String // dev.jordond.filmstrip.export/InertNotice.message.<get-message>|<get-message>(){}[0]
+    final val reason // dev.jordond.filmstrip.export/InertNotice.reason|{}reason[0]
+        final fun <get-reason>(): dev.jordond.filmstrip.export/InertReason // dev.jordond.filmstrip.export/InertNotice.reason.<get-reason>|<get-reason>(){}[0]
+    final val subject // dev.jordond.filmstrip.export/InertNotice.subject|{}subject[0]
+        final fun <get-subject>(): kotlin/String // dev.jordond.filmstrip.export/InertNotice.subject.<get-subject>|<get-subject>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.jordond.filmstrip.export/InertNotice.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.jordond.filmstrip.export/InertNotice.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.jordond.filmstrip.export/InertNotice.toString|toString(){}[0]
 }
 
 final class dev.jordond.filmstrip.export/OutputFormat { // dev.jordond.filmstrip.export/OutputFormat|null[0]
@@ -2413,10 +2442,12 @@ final class dev.jordond.filmstrip.player/PlayerState { // dev.jordond.filmstrip.
 }
 
 final class dev.jordond.filmstrip.player/PreviewInfo { // dev.jordond.filmstrip.player/PreviewInfo|null[0]
-    constructor <init>(dev.jordond.filmstrip.geometry/Size, kotlin/Float, dev.jordond.filmstrip.capability/EffectParity, kotlin.collections/List<dev.jordond.filmstrip.capability/ParityNote>, kotlin.collections/List<dev.jordond.filmstrip.capability/FidelityNote>) // dev.jordond.filmstrip.player/PreviewInfo.<init>|<init>(dev.jordond.filmstrip.geometry.Size;kotlin.Float;dev.jordond.filmstrip.capability.EffectParity;kotlin.collections.List<dev.jordond.filmstrip.capability.ParityNote>;kotlin.collections.List<dev.jordond.filmstrip.capability.FidelityNote>){}[0]
+    constructor <init>(dev.jordond.filmstrip.geometry/Size, kotlin/Float, dev.jordond.filmstrip.capability/EffectParity, kotlin.collections/List<dev.jordond.filmstrip.capability/ParityNote>, kotlin.collections/List<dev.jordond.filmstrip.capability/FidelityNote>, kotlin.collections/List<dev.jordond.filmstrip.export/InertNotice> = ...) // dev.jordond.filmstrip.player/PreviewInfo.<init>|<init>(dev.jordond.filmstrip.geometry.Size;kotlin.Float;dev.jordond.filmstrip.capability.EffectParity;kotlin.collections.List<dev.jordond.filmstrip.capability.ParityNote>;kotlin.collections.List<dev.jordond.filmstrip.capability.FidelityNote>;kotlin.collections.List<dev.jordond.filmstrip.export.InertNotice>){}[0]
 
     final val fidelity // dev.jordond.filmstrip.player/PreviewInfo.fidelity|{}fidelity[0]
         final fun <get-fidelity>(): kotlin.collections/List<dev.jordond.filmstrip.capability/FidelityNote> // dev.jordond.filmstrip.player/PreviewInfo.fidelity.<get-fidelity>|<get-fidelity>(){}[0]
+    final val inertNotices // dev.jordond.filmstrip.player/PreviewInfo.inertNotices|{}inertNotices[0]
+        final fun <get-inertNotices>(): kotlin.collections/List<dev.jordond.filmstrip.export/InertNotice> // dev.jordond.filmstrip.player/PreviewInfo.inertNotices.<get-inertNotices>|<get-inertNotices>(){}[0]
     final val outputSize // dev.jordond.filmstrip.player/PreviewInfo.outputSize|{}outputSize[0]
         final fun <get-outputSize>(): dev.jordond.filmstrip.geometry/Size // dev.jordond.filmstrip.player/PreviewInfo.outputSize.<get-outputSize>|<get-outputSize>(){}[0]
     final val parity // dev.jordond.filmstrip.player/PreviewInfo.parity|{}parity[0]

@@ -49,7 +49,7 @@ internal open class FfmpegPreviewPlanner(
         PlanResult.Ready(
           PreviewPlan(
             plan.resolved,
-            PreviewInfo(info.outputSize, info.renderScale, info.parity, info.parityNotes, fidelity),
+            PreviewInfo(info.outputSize, info.renderScale, info.parity, info.parityNotes, fidelity, info.inertNotices),
             plan.spec,
             plan.layoutSize,
           ),

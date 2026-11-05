@@ -29,7 +29,10 @@ internal sealed interface TextRaster<out T> {
   ) : Made<T>
 
   /**
-   * The text and its style leave nothing to draw, or the platform could not lay them out.
+   * The platform laid the text and its style out to nothing, or could not lay them out at all.
+   *
+   * Empty text does not reach a backend through a plan, since the planner leaves it out as never drawn, so this is
+   * text the platform was handed and could not draw.
    */
   data object Empty : TextRaster<Nothing>
 

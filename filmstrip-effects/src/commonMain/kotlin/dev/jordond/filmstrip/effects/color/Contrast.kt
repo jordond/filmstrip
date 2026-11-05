@@ -19,13 +19,17 @@ import dev.jordond.filmstrip.effect.EffectStage
  * to white.
  *
  * @property factor The gain about mid grey, where `1f` leaves the frame unchanged and `0f` paints
- * the whole frame mid grey. Negative values are read as `0f`, and anything that is not a finite
- * number as `1f`.
+ * the whole frame mid grey. Negative values are read as `0f`.
+ * @throws IllegalArgumentException when [factor] is not a finite number.
  */
 @Poko
 public class Contrast(
   public val factor: Float,
 ) : EffectSpec {
+  init {
+    require(factor.isFinite()) { "A contrast factor has to be a finite number, not $factor." }
+  }
+
   override val id: String get() = EffectIds.CONTRAST
 
   override val stage: EffectStage get() = EffectStage.Color
@@ -39,7 +43,7 @@ public fun EffectsBuilder.contrast(factor: Float): EffectsBuilder = add(Contrast
 /**
  * The gain a backend actually applies, computed here so all four apply the same number.
  */
-internal val Contrast.gain: Float get() = if (factor.isFinite()) factor.coerceAtLeast(0f) else 1f
+internal val Contrast.gain: Float get() = factor.coerceAtLeast(0f)
 
 /**
  * The matrix behind a contrast: each channel scaled by the gain, with the bias that keeps mid grey

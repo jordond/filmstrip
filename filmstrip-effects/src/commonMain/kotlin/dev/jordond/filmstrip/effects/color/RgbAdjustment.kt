@@ -14,9 +14,10 @@ import dev.jordond.filmstrip.effect.EffectStage
  * so scaling red down and blue up cools it.
  *
  * @property red The red multiplier, where `1f` leaves it unchanged. Negative values are read as
- * `0f`, and anything that is not a finite number as `1f`.
+ * `0f`.
  * @property green The green multiplier, read the same way.
  * @property blue The blue multiplier, read the same way.
+ * @throws IllegalArgumentException when any of the three is not a finite number.
  */
 @Poko
 public class RgbAdjustment(
@@ -24,6 +25,12 @@ public class RgbAdjustment(
   public val green: Float = 1f,
   public val blue: Float = 1f,
 ) : EffectSpec {
+  init {
+    require(red.isFinite() && green.isFinite() && blue.isFinite()) {
+      "Every channel factor has to be a finite number, not ($red, $green, $blue)."
+    }
+  }
+
   override val id: String get() = EffectIds.RGB_ADJUSTMENT
 
   override val stage: EffectStage get() = EffectStage.Color
@@ -45,4 +52,4 @@ public fun EffectsBuilder.rgbAdjustment(
 internal val RgbAdjustment.matrix: ColorMatrix
   get() = scaleMatrix(red.asChannelScale(), green.asChannelScale(), blue.asChannelScale())
 
-private fun Float.asChannelScale(): Float = if (isFinite()) coerceAtLeast(0f) else 1f
+private fun Float.asChannelScale(): Float = coerceAtLeast(0f)

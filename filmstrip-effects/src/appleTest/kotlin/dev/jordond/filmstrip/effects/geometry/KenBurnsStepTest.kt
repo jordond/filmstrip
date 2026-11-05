@@ -91,20 +91,6 @@ class KenBurnsStepTest {
     }
   }
 
-  @Test
-  fun `refuses a region that leaves the frame`() {
-    val outside = KenBurns(NormalizedRect.Full, NormalizedRect(0.5f, 0f, 1.5f, 1f))
-
-    resolver.resolve(outside, CAPABILITIES, ATTRIBUTES).shouldBeInstanceOf<EffectResolution.Unsupported>()
-  }
-
-  @Test
-  fun `refuses a region with no area`() {
-    val empty = KenBurns(NormalizedRect.Full, NormalizedRect(0.5f, 0.5f, 0.5f, 0.5f))
-
-    resolver.resolve(empty, CAPABILITIES, ATTRIBUTES).shouldBeInstanceOf<EffectResolution.Unsupported>()
-  }
-
   private fun assertRegion(
     pan: KenBurns,
     fraction: Double,

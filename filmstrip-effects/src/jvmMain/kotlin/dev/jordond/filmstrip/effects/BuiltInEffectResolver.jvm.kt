@@ -21,7 +21,6 @@ import dev.jordond.filmstrip.effects.color.Saturation
 import dev.jordond.filmstrip.effects.color.Sepia
 import dev.jordond.filmstrip.effects.color.colorMatrixOf
 import dev.jordond.filmstrip.effects.color.isDiagonal
-import dev.jordond.filmstrip.effects.color.isIdentity
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.CropRect
 import dev.jordond.filmstrip.effects.geometry.Flip
@@ -29,16 +28,19 @@ import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.geometry.retainedRect
+import dev.jordond.filmstrip.effects.geometry.turnedFrame
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayPictureDecoder
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.effects.overlay.filterGraphOverlay
 import dev.jordond.filmstrip.effects.overlay.filterGraphText
+import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import java.util.Locale
+import kotlin.math.PI
 
 /**
  * Lowers the built-in catalogue onto a filter graph.
@@ -86,15 +88,36 @@ public actual class BuiltInEffectResolver : EffectResolver {
     if (capabilities.api != RenderApi.FilterGraph) return null
 
     return when (spec) {
-      is Rotate -> fragment(rotate(spec.degrees))
-      is Flip -> fragment(listOf(FilterNode(if (spec.axis == FlipAxis.Horizontal) "hflip" else "vflip")))
-      is Crop -> fragment(crop(spec.retainedRect(attributes.inputSize), attributes.inputSize))
-      is CropRect -> fragment(crop(spec.rect, attributes.inputSize))
-      is KenBurns -> EffectResolution.Unsupported(spec.id, PAN_PENDING)
+      is Rotate -> {
+        fragment(rotate(spec, attributes.inputSize))
+      }
+      is Flip -> {
+        fragment(listOf(FilterNode(if (spec.axis == FlipAxis.Horizontal) "hflip" else "vflip")))
+      }
+      // Contain and Stretch remove no pixels, they reframe at the size stage the backend pins to the output frame.
+      is Crop -> {
+        fragment(
+          if (spec.fit ==
+            Fit.Crop
+          ) {
+            crop(spec.retainedRect(attributes.inputSize), attributes.inputSize)
+          } else {
+            emptyList()
+          },
+        )
+      }
+      is CropRect -> {
+        fragment(crop(spec.rect, attributes.inputSize))
+      }
+      is KenBurns -> {
+        EffectResolution.Unsupported(spec.id, PAN_PENDING)
+      }
       // The size stage is the tail the backend pins to the resolved output frame, so the effect
       // that decides that frame contributes no node of its own. Claimed rather than declined,
       // because an unclaimed spec is refused by name at plan time.
-      is Scale -> fragment(emptyList())
+      is Scale -> {
+        fragment(emptyList())
+      }
       is Brightness,
       is RgbAdjustment,
       is Contrast,
@@ -103,10 +126,18 @@ public actual class BuiltInEffectResolver : EffectResolver {
       is Sepia,
       is Invert,
       is ColorMatrix,
-      -> colorMatrix(spec, attributes.hdrTransfer)
-      is ImageOverlay -> filterGraphOverlay(spec, attributes, pictureDecoder)
-      is TextOverlay -> filterGraphText(spec, capabilities, attributes)
-      else -> null
+      -> {
+        colorMatrix(spec, attributes.hdrTransfer)
+      }
+      is ImageOverlay -> {
+        filterGraphOverlay(spec, attributes, pictureDecoder)
+      }
+      is TextOverlay -> {
+        filterGraphText(spec, capabilities, attributes)
+      }
+      else -> {
+        null
+      }
     }
   }
 
@@ -115,12 +146,36 @@ public actual class BuiltInEffectResolver : EffectResolver {
 
   // transpose=dir=cclock turns a frame red-on-the-left into red-on-the-bottom, which is what
   // Rotate documents. Both flips are memory operations, so they are the cheaper half turn.
-  private fun rotate(degrees: Int): List<FilterNode> =
-    when (((degrees % FULL_TURN) + FULL_TURN) % FULL_TURN) {
-      QUARTER_TURN -> listOf(FilterNode("transpose", "dir" to "cclock"))
-      HALF_TURN -> listOf(FilterNode("hflip"), FilterNode("vflip"))
-      THREE_QUARTER_TURN -> listOf(FilterNode("transpose", "dir" to "clock"))
-      else -> emptyList()
+  //
+  // Any other angle turns the picture about its centre onto the frame the planner sized for it, so the frame this
+  // draws is the one plan() reported. rotate turns clockwise for a positive angle, so the angle is negated, and the
+  // corners the picture leaves are drawn black.
+  private fun rotate(
+    spec: Rotate,
+    inputSize: Size,
+  ): List<FilterNode> =
+    when (((spec.degrees % FULL_TURN) + FULL_TURN) % FULL_TURN) {
+      QUARTER_TURN -> {
+        listOf(FilterNode("transpose", "dir" to "cclock"))
+      }
+      HALF_TURN -> {
+        listOf(FilterNode("hflip"), FilterNode("vflip"))
+      }
+      THREE_QUARTER_TURN -> {
+        listOf(FilterNode("transpose", "dir" to "clock"))
+      }
+      else -> {
+        val frame = spec.turnedFrame(inputSize)
+        listOf(
+          FilterNode(
+            "rotate",
+            "a" to (-spec.degrees * PI / HALF_TURN).toString(),
+            "ow" to frame.width.toString(),
+            "oh" to frame.height.toString(),
+            "c" to "black",
+          ),
+        )
+      }
     }
 
   // Every color effect in the catalogue is one affine map of the encoded signal, and it reaches
@@ -137,9 +192,6 @@ public actual class BuiltInEffectResolver : EffectResolver {
   ): EffectResolution {
     val matrix = checkNotNull(colorMatrixOf(spec)) { "${spec.id} has no matrix to lower." }
     return when {
-      // Claimed rather than declined, the way Scale is, because an unclaimed spec is refused by
-      // name at plan time.
-      matrix.isIdentity -> fragment(emptyList())
       transfer != null -> EffectResolution.Resolved(PlatformEffect(gradedOnTables(matrix, transfer)))
       !matrix.isDiagonal -> cubeLut(matrix)
       else -> fragment(listOf(diagonalLut(matrix)))
@@ -183,26 +235,42 @@ public actual class BuiltInEffectResolver : EffectResolver {
   }
 
   // The eight corners of the unit cube, red varying fastest and blue slowest, which is the order a
-  // .cube file is read in. Entries are left unclamped so that a corner the matrix pushes past white
-  // still lands on the line the interpolation between it and its neighbour needs.
+  // .cube file is read in. Entries are left unclamped to the unit range so that a corner the matrix
+  // pushes past white still lands on the line the interpolation between it and its neighbour needs.
+  //
+  // Each corner sums three entries and a bias in Double, so entries near the largest float cannot
+  // overflow into an infinity on the way. The sum is then held inside the 32-bit float range, the
+  // shared matrix's own limit, since every backend's matrix holds its entries there.
   private fun cube(matrix: ColorMatrix): String =
     buildString {
       appendLine("LUT_3D_SIZE $CUBE_SIZE")
       for (blue in 0..1) {
         for (green in 0..1) {
           for (red in 0..1) {
-            val r = matrix.rr * red + matrix.rg * green + matrix.rb * blue + matrix.rBias
-            val g = matrix.gr * red + matrix.gg * green + matrix.gb * blue + matrix.gBias
-            val b = matrix.br * red + matrix.bg * green + matrix.bb * blue + matrix.bBias
+            val r = corner(matrix.rr, matrix.rg, matrix.rb, matrix.rBias, red, green, blue)
+            val g = corner(matrix.gr, matrix.gg, matrix.gb, matrix.gBias, red, green, blue)
+            val b = corner(matrix.br, matrix.bg, matrix.bb, matrix.bBias, red, green, blue)
             appendLine("${entry(r)} ${entry(g)} ${entry(b)}")
           }
         }
       }
     }
 
+  private fun corner(
+    fromRed: Float,
+    fromGreen: Float,
+    fromBlue: Float,
+    bias: Float,
+    red: Int,
+    green: Int,
+    blue: Int,
+  ): Double =
+    (fromRed.toDouble() * red + fromGreen.toDouble() * green + fromBlue.toDouble() * blue + bias)
+      .coerceIn(-Float.MAX_VALUE.toDouble(), Float.MAX_VALUE.toDouble())
+
   // Fixed decimals in the root locale. A comma for the decimal point, or an exponent on a small
   // enough entry, is a file ffmpeg reads as something else.
-  private fun entry(value: Float): String = String.format(Locale.ROOT, CUBE_ENTRY_FORMAT, value)
+  private fun entry(value: Double): String = String.format(Locale.ROOT, CUBE_ENTRY_FORMAT, value)
 
   // Pixels are multiplied out here with the planner's own arithmetic, so plan() and the export
   // agree about the output frame.
@@ -210,8 +278,6 @@ public actual class BuiltInEffectResolver : EffectResolver {
     rect: NormalizedRect,
     inputSize: Size,
   ): List<FilterNode> {
-    if (rect == NormalizedRect.Full) return emptyList()
-
     val width = (inputSize.width * rect.width).toInt().coerceAtLeast(1)
     val height = (inputSize.height * rect.height).toInt().coerceAtLeast(1)
     return listOf(

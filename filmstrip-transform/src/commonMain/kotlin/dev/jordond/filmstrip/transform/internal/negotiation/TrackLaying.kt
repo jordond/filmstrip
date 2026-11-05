@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.LaidPass
 import dev.jordond.filmstrip.transform.internal.MAX_LAID_PASSES
 import dev.jordond.filmstrip.transform.internal.passCountCovering
 import dev.jordond.filmstrip.transform.internal.passesCovering
@@ -69,7 +70,7 @@ internal class TrackLayer(
         // The clip's own trimmed length, which its curve and its fades are written over whichever
         // part of it this pass reaches.
         val full = lengths[pass.index]
-        val span = TimeRange.of(track.start + pass.offset, track.start + pass.offset + pass.length)
+        val span = pass.spanFrom(track.start)
         val effects =
           lowering.lowerStages(
             stages = listOf(clip.effects + track.effects, fannedGeometry),
@@ -109,6 +110,12 @@ internal class TrackLayer(
     )
   }
 }
+
+/**
+ * This pass's slot on the composition timeline, for a track that starts at [trackStart].
+ */
+internal fun LaidPass.spanFrom(trackStart: Duration): TimeRange =
+  TimeRange.of(trackStart + offset, trackStart + offset + length)
 
 /**
  * Why the track at [trackIndex] cannot be laid over [runLength], or null when it can.

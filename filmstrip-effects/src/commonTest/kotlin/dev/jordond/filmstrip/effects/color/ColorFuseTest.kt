@@ -39,21 +39,27 @@ class ColorFuseTest {
 
   @Test
   fun theFactorIsNormalisedBeforeItIsMultiplied() {
-    // Multiplying the authored factors would carry the NaN through and turn the negative into a
-    // darkening. Both are read as the no-op and as black first.
-    val fromNaN = listOf(Brightness(Float.NaN), Brightness(0.5f)).fusedColorMatrices()
+    // Multiplying the authored factors would turn the negative into a darkening. It is read as black first.
     val fromNegative = listOf(Brightness(-2f), Brightness(0.5f)).fusedColorMatrices()
 
-    fromNaN
-      .single()
-      .spec
-      .shouldBeInstanceOf<Brightness>()
-      .factor shouldBe 0.5f
     fromNegative
       .single()
       .spec
       .shouldBeInstanceOf<Brightness>()
       .factor shouldBe 0f
+  }
+
+  // Every factor is valid, and their product leaves what a float holds. The fold has to keep the planner from building
+  // a brightness that refuses its own factor.
+  @Test
+  fun aLongRunOfLargeBrightnessFactorsFoldsToTheLargestFloat() {
+    val fused = List(LONG_RUN) { Brightness(LARGE_FACTOR) }.fusedColorMatrices()
+
+    fused
+      .single()
+      .spec
+      .shouldBeInstanceOf<Brightness>()
+      .factor shouldBe Float.MAX_VALUE
   }
 
   // Brightness then saturation is the run where clamping in between shows: a channel pushed past
@@ -139,5 +145,7 @@ class ColorFuseTest {
 
   private companion object {
     const val TOLERANCE = 0.002f
+    const val LARGE_FACTOR = 1e30f
+    const val LONG_RUN = 64
   }
 }

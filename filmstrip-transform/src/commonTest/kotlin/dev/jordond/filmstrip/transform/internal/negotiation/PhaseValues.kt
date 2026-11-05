@@ -46,6 +46,7 @@ internal fun framingOf(
   framedByStill = false,
   compositionGeometry = emptyList(),
   compositionInputSize = requestedSize,
+  naturalSize = requestedSize,
   requestedSize = requestedSize,
   fit = Fit.Contain,
 )

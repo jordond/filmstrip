@@ -81,12 +81,8 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     }
   }
 
-  // A region outside the frame samples nothing, and one with no area collapses the frame to a
-  // point, so both are refused by name rather than drawn as whatever the reciprocal comes out as.
-  private fun KenBurns.toStep(): EffectResolution {
-    if (!from.isValid || !to.isValid) return EffectResolution.Unsupported(id, REGION_OUTSIDE_FRAME)
-    return step { image, frame -> image.panned(regionAt(frame.compositionTime, frame.attributes.span)) }
-  }
+  private fun KenBurns.toStep(): EffectResolution =
+    step { image, frame -> image.panned(regionAt(frame.compositionTime, frame.attributes.span)) }
 
   // Rasterised at resolve and placed at apply. Where an overlay lands depends on the frame entering
   // it, and the preview and the export hand different frames to the same resolved effect, so a
@@ -225,6 +221,3 @@ internal const val UNREADABLE_IMAGE =
 internal fun unreadSamples(reason: String): String =
   "The overlay image could not be read. ImageIO decoded the picture, and this backend draws the samples it decodes " +
     "to, which it could not read. $reason"
-
-private const val REGION_OUTSIDE_FRAME =
-  "A pan travels between two regions of the frame, so both have to have area and lie inside it."

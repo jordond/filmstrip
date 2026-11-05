@@ -40,6 +40,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
+import dev.jordond.filmstrip.transform.internal.resolve.clipFillsFrame
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
@@ -146,11 +147,29 @@ class Media3CompositionTest {
     val squareOutput = Size(360, 360)
 
     landscape
-      .clipVideoEffects(Fit.Contain, Fill.Blurred(), squareOutput)
+      .clipVideoEffects(Fit.Contain, Fill.Blurred(), squareOutput, squareOutput)
       .any { it is FillCoverBlur } shouldBe true
     landscape
-      .clipVideoEffects(Fit.Contain, Fill.Solid(0xFFFF0000.toInt()), squareOutput)
+      .clipVideoEffects(Fit.Contain, Fill.Solid(0xFFFF0000.toInt()), squareOutput, squareOutput)
       .any { it is FillCoverBlur } shouldBe false
+  }
+
+  // Either side of the one-pixel bar the shared test draws its line at, both where the blur is lowered and where it
+  // runs, so neither can skip a bar the other paints. A frame lowered under the natural one is asked against the
+  // natural one, so it blurs exactly where the full size export does.
+  @Test
+  fun `blurs a clip exactly where the shared test says it leaves bars`() {
+    val natural = Size(1920, 1080)
+
+    listOf(natural, Size(480, 270)).forEach { output ->
+      listOf(Size(19200, 10805), Size(19200, 10806), Size(1918, 1080), Size(1440, 1080)).forEach { size ->
+        val fills = clipFillsFrame(size, natural)
+        clip(size = size)
+          .clipVideoEffects(Fit.Contain, Fill.Blurred(), output, natural)
+          .any { it is FillCoverBlur } shouldBe !fills
+        FillCoverBlur(Fill.Blurred(), output, natural).isNoOp(size.width, size.height) shouldBe fills
+      }
+    }
   }
 
   // The default radius against a 1080-pixel shorter side, pinned so a later change to the tap

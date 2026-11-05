@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.ParityNote
+import dev.jordond.filmstrip.export.InertNotice
 import dev.jordond.filmstrip.geometry.Size
 
 /**
@@ -19,6 +20,8 @@ import dev.jordond.filmstrip.geometry.Size
  * @property parity The weakest [EffectParity] across the composition's effects.
  * @property parityNotes The per-effect detail behind [parity].
  * @property fidelity Per-property trust. Mostly static, though smoothness moves with load.
+ * @property inertNotices Every part of the composition that renders nothing and so was left out, the same list the
+ * export plan for this composition carries.
  */
 @Poko
 public class PreviewInfo(
@@ -27,6 +30,7 @@ public class PreviewInfo(
   public val parity: EffectParity,
   public val parityNotes: List<ParityNote>,
   public val fidelity: List<FidelityNote>,
+  public val inertNotices: List<InertNotice> = emptyList(),
 )
 
 /**

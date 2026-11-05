@@ -15,12 +15,17 @@ import dev.jordond.filmstrip.effect.EffectStage
  * stays exactly where it was.
  *
  * @property factor How saturated the frame comes out, where `1f` leaves it unchanged and `0f` is
- * grey. Negative values are read as `0f`, and anything that is not a finite number as `1f`.
+ * grey. Negative values are read as `0f`.
+ * @throws IllegalArgumentException when [factor] is not a finite number.
  */
 @Poko
 public class Saturation(
   public val factor: Float,
 ) : EffectSpec {
+  init {
+    require(factor.isFinite()) { "A saturation factor has to be a finite number, not $factor." }
+  }
+
   override val id: String get() = EffectIds.SATURATION
 
   override val stage: EffectStage get() = EffectStage.Color
@@ -40,7 +45,7 @@ public fun EffectsBuilder.grayscale(): EffectsBuilder = add(Saturation(0f))
 /**
  * The amount a backend actually applies, computed here so all four apply the same number.
  */
-internal val Saturation.amount: Float get() = if (factor.isFinite()) factor.coerceAtLeast(0f) else 1f
+internal val Saturation.amount: Float get() = factor.coerceAtLeast(0f)
 
 /**
  * The matrix behind a saturation: each channel is the luma plus its own distance from the luma

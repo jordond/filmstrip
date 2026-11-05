@@ -86,8 +86,15 @@ private fun SampleAppState.diagnosticsMarkdown(): String = buildString {
     line("Adjustments:")
     adjustments.forEach { line("* ${it.summary()}") }
   }
-  (verdict as? Verdict.Capable)?.plan?.summary()?.let { line(it) }
-  (verdict as? Verdict.Degraded)?.plan?.summary()?.let { line(it) }
+  val plan = (verdict as? Verdict.Capable)?.plan ?: (verdict as? Verdict.Degraded)?.plan
+  plan?.summary()?.let { line(it) }
+
+  section("Left out")
+  when {
+    plan == null -> line("No plan to read.")
+    plan.inertNotices.isEmpty() -> line("None.")
+    else -> plan.inertNotices.forEach { line("* ${it.subject} (${it.reason}): ${it.message}") }
+  }
 
   section("Device capabilities")
   line(capabilitiesSummary())

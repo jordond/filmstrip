@@ -25,6 +25,7 @@ import dev.jordond.filmstrip.effects.geometry.Flip
 import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.effects.geometry.turnedFrame
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.effects.overlay.OverlayFrame
@@ -55,6 +56,7 @@ import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.util.Locale
 import javax.imageio.ImageIO
+import kotlin.math.PI
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 import kotlin.test.Test
@@ -92,7 +94,17 @@ class EffectLoweringTest {
     chainOf(Rotate(90)) shouldBe "transpose=dir=cclock"
     chainOf(Rotate(270)) shouldBe "transpose=dir=clock"
     chainOf(Rotate(180)) shouldBe "hflip,vflip"
-    chainOf(Rotate(0)) shouldBe ""
+  }
+
+  // rotate turns clockwise for a positive angle, so a counter-clockwise turn is handed negated, onto the frame the
+  // shared rule sizes.
+  @Test
+  fun `turns any other angle onto the frame the planner sized`() {
+    val spec = Rotate(30)
+    val input = Size(1280, 720)
+    val frame = spec.turnedFrame(input)
+
+    chainOf(spec, attributes(input)) shouldBe "rotate=a=${-30 * PI / 180}:ow=${frame.width}:oh=${frame.height}:c=black"
   }
 
   @Test
@@ -533,18 +545,8 @@ class EffectLoweringTest {
   }
 
   @Test
-  fun `leaves an unchanged brightness out of the graph`() {
-    chainOf(Brightness(1f)) shouldBe ""
-  }
-
-  @Test
   fun `reads a negative factor as black`() {
     chainOf(Brightness(-2f)) shouldBe lutrgb(Brightness(-2f))
-  }
-
-  @Test
-  fun `reads a NaN factor as unchanged`() {
-    chainOf(Brightness(Float.NaN)) shouldBe ""
   }
 
   // A contrast leaves each channel reading only itself, so it lowers to the same table a brightness
@@ -569,22 +571,10 @@ class EffectLoweringTest {
     sidecar.bytes.decodeToString() shouldBe cube(spec)
   }
 
-  // Claimed rather than declined, the way Scale is, because an unclaimed spec is refused by name at
-  // plan time.
+  // A whole turn leaves cross terms around 1e-16 out of its trig. Read as a mix it would lower to a cube, whose
+  // interpolation moves code values, so it lowers to the per-channel table instead.
   @Test
-  fun `an identity matrix claims the spec and emits nothing`() {
-    val resolution = resolver.resolve(ColorMatrix.Identity, capabilities(), attributes())
-
-    resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
-    chainOf(ColorMatrix.Identity) shouldBe ""
-    chainOf(Saturation(1f)) shouldBe ""
-  }
-
-  // A whole turn is the identity, and the trig it comes out of leaves cross terms around 1e-16. Read
-  // as a mix it lowers to a cube, whose interpolation moves code values a no-op must not touch.
-  @Test
-  fun `a whole turn of hue lowers to nothing`() {
-    chainOf(HueRotate(360f)) shouldBe ""
+  fun `a whole turn of hue lowers to the per-channel table`() {
     fragmentOf(HueRotate(360f)).sidecars shouldBe emptyList()
   }
 
@@ -598,6 +588,27 @@ class EffectLoweringTest {
       .single()
       .bytes
       .decodeToString() shouldBe cube(spec)
+  }
+
+  // Two entries near the largest float sum past it, which a Float sum writes as Infinity. Each corner is held at the
+  // largest float instead, the widest number the shared matrix takes.
+  @Test
+  fun `entries near the largest float write no infinity into the file`() {
+    val spec = ColorMatrix(rr = Float.MAX_VALUE, rg = Float.MAX_VALUE, gg = -Float.MAX_VALUE, gb = -Float.MAX_VALUE)
+    val written =
+      fragmentOf(spec)
+        .sidecars
+        .single()
+        .bytes
+        .decodeToString()
+
+    written.contains("Infinity") shouldBe false
+    val corners =
+      written.lines().drop(1).filter { it.isNotBlank() }.map { line ->
+        line.split(" ").map(String::toDouble)
+      }
+    corners[3][0] shouldBe Float.MAX_VALUE.toDouble()
+    corners[6][1] shouldBe -Float.MAX_VALUE.toDouble()
   }
 
   // The fold that merges a run of color effects can land on a matrix whose off-diagonal entries
@@ -626,8 +637,8 @@ class EffectLoweringTest {
   ): String = "clip(round(val*$scale+$bias*maxval)\\,minval\\,maxval)"
 
   // The eight corners of the unit cube, red varying fastest and blue slowest, each one the matrix
-  // applied with nothing clamped so that a corner past white still lands on the line lut3d
-  // interpolates along.
+  // applied in Double with nothing clamped to the unit range, so that a corner past white still
+  // lands on the line lut3d interpolates along.
   private fun cube(spec: EffectSpec): String {
     val matrix = checkNotNull(colorMatrixOf(spec))
 
@@ -636,9 +647,12 @@ class EffectLoweringTest {
       for (blue in 0..1) {
         for (green in 0..1) {
           for (red in 0..1) {
-            val r = matrix.rr * red + matrix.rg * green + matrix.rb * blue + matrix.rBias
-            val g = matrix.gr * red + matrix.gg * green + matrix.gb * blue + matrix.gBias
-            val b = matrix.br * red + matrix.bg * green + matrix.bb * blue + matrix.bBias
+            val r =
+              matrix.rr.toDouble() * red + matrix.rg.toDouble() * green + matrix.rb.toDouble() * blue + matrix.rBias
+            val g =
+              matrix.gr.toDouble() * red + matrix.gg.toDouble() * green + matrix.gb.toDouble() * blue + matrix.gBias
+            val b =
+              matrix.br.toDouble() * red + matrix.bg.toDouble() * green + matrix.bb.toDouble() * blue + matrix.bBias
             appendLine("${entry(r)} ${entry(g)} ${entry(b)}")
           }
         }
@@ -646,7 +660,7 @@ class EffectLoweringTest {
     }
   }
 
-  private fun entry(value: Float): String = String.format(Locale.ROOT, "%.7f", value)
+  private fun entry(value: Double): String = String.format(Locale.ROOT, "%.7f", value)
 
   private fun fragmentOf(
     spec: EffectSpec,

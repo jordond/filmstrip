@@ -17,12 +17,17 @@ import dev.jordond.filmstrip.effect.EffectStage
  * brighter than reference white inverts to black.
  *
  * @property amount How far to invert, where `0f` leaves the frame unchanged and `1f` is the full
- * negative. Values outside that range are clamped to it, and a NaN is read as `0f`.
+ * negative. Values outside that range are clamped to it.
+ * @throws IllegalArgumentException when [amount] is not a finite number.
  */
 @Poko
 public class Invert(
   public val amount: Float = 1f,
 ) : EffectSpec {
+  init {
+    require(amount.isFinite()) { "An invert amount has to be a finite number, not $amount." }
+  }
+
   override val id: String get() = EffectIds.INVERT
 
   override val stage: EffectStage get() = EffectStage.Color
@@ -36,7 +41,7 @@ public fun EffectsBuilder.invert(amount: Float = 1f): EffectsBuilder = add(Inver
 /**
  * The blend a backend actually applies, computed here so all four apply the same number.
  */
-internal val Invert.mix: Float get() = if (amount.isNaN()) 0f else amount.coerceIn(0f, 1f)
+internal val Invert.mix: Float get() = amount.coerceIn(0f, 1f)
 
 /**
  * The matrix behind an inversion: each channel scaled by `1 - 2 * amount` and lifted by `amount`,

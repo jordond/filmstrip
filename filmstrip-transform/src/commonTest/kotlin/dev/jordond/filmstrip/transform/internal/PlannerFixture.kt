@@ -88,8 +88,9 @@ internal class PlannerFixture {
     canToneMap: Boolean = true,
     muxerAccepts: (MediaInfo) -> Boolean = { true },
     openings: Map<MediaSource, Duration> = emptyMap(),
+    layoutSize: Size? = null,
   ) = planner(resolvers, canToneMap = canToneMap, muxerAccepts = muxerAccepts)
-    .negotiate(composition, Ask(spec, device, infos(composition), openings))
+    .negotiate(composition, Ask(spec, device, infos(composition), openings, layoutSize))
     .verdict
 
   /**

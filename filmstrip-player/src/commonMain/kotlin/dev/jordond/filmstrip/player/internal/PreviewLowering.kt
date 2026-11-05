@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.capability.ParityNote
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.InertNotice
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.player.PlaybackError
@@ -155,6 +156,7 @@ internal suspend fun planPreview(
           parity = lowering.verdict.parity(),
           parityNotes = lowering.verdict.parityNotes(),
           fidelity = fidelity,
+          inertNotices = lowering.verdict.inertNotices(),
         ),
       spec = lowering.spec,
       layoutSize = lowering.layoutSize,
@@ -175,6 +177,13 @@ internal fun Verdict.parity(): EffectParity = plan()?.parity ?: EffectParity.Exa
  * Empty when the verdict carries no plan or no effect left a note.
  */
 internal fun Verdict.parityNotes(): List<ParityNote> = plan()?.effectOrder?.mapNotNull { it.note }.orEmpty()
+
+/**
+ * Every part of the plan's composition that renders nothing and was left out of it.
+ *
+ * Empty when the verdict carries no plan or the plan left nothing out.
+ */
+internal fun Verdict.inertNotices(): List<InertNotice> = plan()?.inertNotices.orEmpty()
 
 private fun Verdict.plan(): ExportPlan? =
   when (this) {

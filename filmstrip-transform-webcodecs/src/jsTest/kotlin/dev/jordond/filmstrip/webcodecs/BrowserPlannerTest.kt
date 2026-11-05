@@ -236,8 +236,9 @@ class BrowserPlannerTest {
 
   @Test
   fun supportedEffectsAreExact() {
+    // A crop to the aspect the source already has keeps every pixel and is left out of the plan, so this one cuts.
     val effects: List<EffectSpec> =
-      listOf(Crop(AspectRatio(16, 9), Fit.Crop), Flip(FlipAxis.Horizontal), Brightness(0.5f))
+      listOf(Crop(AspectRatio(4, 3), Fit.Crop), Flip(FlipAxis.Horizontal), Brightness(0.5f))
     val verdict = lower(compositionOf(listOf(Clip(source("a"))), effects = effects)).verdict
     verdict.shouldBeInstanceOf<Verdict.Capable>()
     verdict.plan.parity shouldBe EffectParity.Exact

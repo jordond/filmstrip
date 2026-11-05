@@ -30,6 +30,7 @@ import kotlin.time.Duration
  * @property from The region visible at the start of the clip.
  * @property to The region visible at the end.
  * @property easing How the motion is paced between them.
+ * @throws IllegalArgumentException when [from] or [to] has no area or reaches outside the frame.
  */
 @Poko
 @ExperimentalFilmstripApi
@@ -38,6 +39,12 @@ public class KenBurns(
   public val to: NormalizedRect,
   public val easing: Easing = Easing.EaseInOut,
 ) : EffectSpec {
+  init {
+    require(from.isValid && to.isValid) {
+      "A pan travels between two regions of the frame, so $from and $to both have to have area and lie inside it."
+    }
+  }
+
   override val id: String get() = EffectIds.KEN_BURNS
 
   override val stage: EffectStage get() = EffectStage.Geometry

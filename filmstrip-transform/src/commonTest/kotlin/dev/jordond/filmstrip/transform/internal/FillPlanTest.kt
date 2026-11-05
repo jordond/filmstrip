@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.geometry.derivesFromFrame
 import dev.jordond.filmstrip.transform.internal.resolve.paintsFillAfterEffects
@@ -28,7 +29,8 @@ class FillPlanTest {
   @Test
   fun `a non-default fill lands on the negotiated composition`() {
     val fill = Fill.Blurred(radius = 0.1f, dim = 0.5f)
-    val resolved = fixture.resolve(composition(fixture.clip()).withFill(fill))
+    // The second clip is four by three, so it leaves bars for the fill to show in.
+    val resolved = fixture.resolve(composition(fixture.clip(), fixture.clip(size = NARROW)).withFill(fill))
 
     resolved.fill shouldBe fill
   }
@@ -90,7 +92,7 @@ class FillPlanTest {
   }
 
   private fun containComposition(fit: Fit): EditComposition =
-    composition(fixture.clip(effects = listOf(Scale(480, fit))))
+    composition(fixture.clip(effects = listOf(Scale(480, fit))), fixture.clip(size = NARROW))
 
   @Test
   fun `an hdr source kept as hdr accepts a fill other than black`() {
@@ -108,10 +110,17 @@ class FillPlanTest {
     val fill = Fill.Solid(0xFFFF00FFL.toInt())
     val resolved =
       fixture.resolve(
-        composition(fixture.clip(hdr = HdrTransfer.Pq)).withFill(fill),
+        composition(
+          fixture.clip(hdr = HdrTransfer.Pq),
+          fixture.clip(size = NARROW, hdr = HdrTransfer.Pq),
+        ).withFill(fill),
         device = fixture.device(hdr = true),
       )
 
     resolved.fill shouldBe fill
+  }
+
+  private companion object {
+    val NARROW = Size(1440, 1080)
   }
 }

@@ -34,6 +34,7 @@ import dev.jordond.filmstrip.transform.internal.negotiation.resolveAudioCodec
 import dev.jordond.filmstrip.transform.internal.negotiation.streamsOf
 import dev.jordond.filmstrip.transform.internal.negotiation.structuralRefusal
 import dev.jordond.filmstrip.transform.internal.negotiation.timelineOf
+import dev.jordond.filmstrip.transform.internal.negotiation.withoutInert
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import kotlin.time.Duration
 import kotlin.time.DurationUnit
@@ -118,15 +119,21 @@ public class ExportPlanner(
   }
 
   /**
-   * Runs every phase over [edit] in order, stopping at the first that refuses.
+   * Runs every phase over [authored] in order, stopping at the first that refuses.
+   *
+   * The shape of the edit is checked as written. Every part that renders nothing is then taken out, and the rest of
+   * the phases negotiate what is left, so no backend is handed one and a clip whose only effects did nothing can
+   * still copy.
    */
   private fun settle(
-    edit: EditComposition,
+    authored: EditComposition,
     dropped: Set<String>,
     ask: Ask,
   ): Settlement {
-    val streams = streamsOf(edit, ask.spec, ask.infos)
-    structuralRefusal(edit, ask.spec, ask.infos, streams)?.let { return refused(it) }
+    val streams = streamsOf(authored, ask.spec, ask.infos)
+    structuralRefusal(authored, ask.spec, ask.infos, streams)?.let { return refused(it) }
+    val inert = withoutInert(authored, ask, framingOf(authored, ask).orElse { return refused(it) }, streams)
+    val edit = inert.edit
     val framing = framingOf(edit, ask).orElse { return refused(it) }
     val grade = gradeOf(edit, ask, framing, copySupport, canToneMap).orElse { return refused(it) }
     val encoding = encodingOf(ask, framing, grade, ladder, hdrLadder, renderCapabilities).orElse { return refused(it) }
@@ -190,7 +197,8 @@ public class ExportPlanner(
         parity = planned.maxByOrNull { it.parity.ordinal }?.parity ?: EffectParity.Exact,
         duration = timeline.duration,
         copyBlockedBy = grade.copyBlockedBy,
-        composition = edit,
+        inertNotices = inert.notices,
+        composition = authored,
         spec = ask.spec,
         droppedEffects = adjustments.filter { it.kind == AdjustmentKind.EffectDropped },
       )
@@ -202,6 +210,7 @@ public class ExportPlanner(
         compositionEffects = rest.mapNotNull { it.resolvedEffect },
         output = output,
         layoutSize = encoding.layoutFrame,
+        naturalSize = framing.naturalSize,
         fit = framing.fit,
         fill = edit.fill,
         duration = timeline.duration,

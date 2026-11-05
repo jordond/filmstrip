@@ -13,12 +13,17 @@ import dev.jordond.filmstrip.effect.EffectStage
  * [amount].
  *
  * @property amount How much of the tone to apply, where `0f` leaves the frame unchanged and `1f`
- * is fully toned. Values outside that range are clamped to it, and a NaN is read as `0f`.
+ * is fully toned. Values outside that range are clamped to it.
+ * @throws IllegalArgumentException when [amount] is not a finite number.
  */
 @Poko
 public class Sepia(
   public val amount: Float = 1f,
 ) : EffectSpec {
+  init {
+    require(amount.isFinite()) { "A sepia amount has to be a finite number, not $amount." }
+  }
+
   override val id: String get() = EffectIds.SEPIA
 
   override val stage: EffectStage get() = EffectStage.Color
@@ -32,7 +37,7 @@ public fun EffectsBuilder.sepia(amount: Float = 1f): EffectsBuilder = add(Sepia(
 /**
  * The blend a backend actually applies, computed here so all four apply the same number.
  */
-internal val Sepia.mix: Float get() = if (amount.isNaN()) 0f else amount.coerceIn(0f, 1f)
+internal val Sepia.mix: Float get() = amount.coerceIn(0f, 1f)
 
 /**
  * The matrix behind a sepia tone: the identity blended towards the specification's `sepia` table.

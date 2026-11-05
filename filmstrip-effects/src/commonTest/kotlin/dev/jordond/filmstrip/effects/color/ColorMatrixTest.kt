@@ -5,12 +5,16 @@ import dev.jordond.filmstrip.color.HLG_NOMINAL_PEAK_NITS
 import dev.jordond.filmstrip.color.PQ_PEAK_NITS
 import dev.jordond.filmstrip.color.brightnessDisplayGain
 import dev.jordond.filmstrip.color.nitsFromSdrSignal
+import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.media.HdrTransfer
 import io.kotest.assertions.withClue
 import io.kotest.matchers.floats.plusOrMinus
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
+import kotlin.test.assertFailsWith
 
 /**
  * The numbers every backend lowers, checked against pixels worked out by hand.
@@ -90,7 +94,7 @@ class ColorMatrixTest {
   @Test
   fun anRgbAdjustmentScalesEachChannelOnItsOwn() {
     assertPixel(RgbAdjustment(0.5f, 1f, 2f).matrix.transform(RED, GREEN, BLUE), RED / 2, GREEN, BLUE * 2)
-    assertPixel(RgbAdjustment(-1f, Float.NaN, 1f).matrix.transform(RED, GREEN, BLUE), 0f, GREEN, BLUE)
+    assertPixel(RgbAdjustment(-1f, 1f, 1f).matrix.transform(RED, GREEN, BLUE), 0f, GREEN, BLUE)
   }
 
   // Nothing leaves the range at this gain, so applying the two in turn and applying their product
@@ -150,49 +154,46 @@ class ColorMatrixTest {
   }
 
   @Test
-  fun aNaNEntryReadsAsTheIdentity() {
-    val sanitised = ColorMatrix(rr = Float.NaN, gb = Float.NaN, bBias = Float.NaN).sanitised
-
-    sanitised shouldBe ColorMatrix.Identity
-  }
-
-  // An infinity is worse than a NaN downstream: ffmpeg's lut3d parses one, writes whatever the
-  // conversion to an integer comes to, and exits zero, so the frame is wrong with nothing said.
-  @Test
-  fun anInfiniteEntryReadsAsTheIdentity() {
-    val sanitised =
-      ColorMatrix(rr = Float.POSITIVE_INFINITY, gb = Float.NEGATIVE_INFINITY, bBias = Float.POSITIVE_INFINITY)
-        .sanitised
-
-    sanitised shouldBe ColorMatrix.Identity
-  }
-
-  // Every effect guards its own input, and the shared lowering sanitises whatever comes back, so an
-  // infinity cannot reach a backend through the trig a hue rotation runs or the arithmetic the
-  // others do.
-  @Test
-  fun noCatalogueEffectLowersANonFiniteMatrix() {
-    val broken =
+  fun everyColorEffectRefusesANumberThatIsNotFinite() {
+    val builds: List<(Float) -> EffectSpec> =
       listOf(
-        Brightness(Float.POSITIVE_INFINITY),
-        Contrast(Float.POSITIVE_INFINITY),
-        Saturation(Float.POSITIVE_INFINITY),
-        RgbAdjustment(red = Float.POSITIVE_INFINITY),
-        HueRotate(Float.POSITIVE_INFINITY),
-        HueRotate(Float.NaN),
-        Sepia(Float.POSITIVE_INFINITY),
-        Invert(Float.NEGATIVE_INFINITY),
-        ColorMatrix(rg = Float.POSITIVE_INFINITY),
+        ::Brightness,
+        ::Contrast,
+        ::Saturation,
+        ::HueRotate,
+        ::Sepia,
+        ::Invert,
+        { RgbAdjustment(green = it) },
+        { ColorMatrix(gb = it) },
+        { ColorMatrix(bBias = it) },
       )
 
-    broken.forEach { spec ->
-      val matrix = checkNotNull(colorMatrixOf(spec)) { "${spec.id} lowered to no matrix" }
-      val pixel = matrix.transform(RED, GREEN, BLUE)
-
-      pixel.forEachIndexed { channel, value ->
-        withClue("${spec.id} wrote $value into channel $channel") { value.isFinite() shouldBe true }
+    builds.forEach { build ->
+      listOf(Float.NaN, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY).forEach { value ->
+        assertFailsWith<IllegalArgumentException> { build(value) }
       }
+      build(MID_VALUE).shouldBeInstanceOf<EffectSpec>()
     }
+  }
+
+  // Each factor is valid on its own, and the product of the run leaves what a float holds. The fold holds every entry
+  // at the largest float rather than letting it become an infinity, and a NaN from an infinity less an infinity.
+  @Test
+  fun aLongRunOfLargeFactorsFoldsToAFiniteMatrix() {
+    val run = List(LONG_RUN) { Contrast(LARGE_FACTOR) }
+    val folded = run.fold(ColorMatrix.Identity) { combined, next -> combined.then(next.matrix) }
+
+    folded.toColumnMajor4x4().forEach { entry -> entry.isFinite() shouldBe true }
+    folded.rr shouldBe Float.MAX_VALUE
+    folded.rBias shouldBe -Float.MAX_VALUE
+  }
+
+  @Test
+  fun aForeignMat4WithANumberThatIsNotFiniteReadsAsNoMatrix() {
+    val columns = ColorMatrix(rr = MID_VALUE).toColumnMajor4x4()
+
+    colorMatrixOfColumnMajor4x4OrNull(columns) shouldBe ColorMatrix(rr = MID_VALUE)
+    colorMatrixOfColumnMajor4x4OrNull(columns.copyOf().also { it[5] = Float.NaN }).shouldBeNull()
   }
 
   // A whole turn is the identity, and the trig table it comes out of leaves cross terms around 1e-16
@@ -323,5 +324,8 @@ class ColorMatrixTest {
     const val GREY = 0.37f
     const val TOLERANCE = 0.0015f
     const val NITS_TOLERANCE = 0.1f
+    const val MID_VALUE = 0.5f
+    const val LARGE_FACTOR = 1e30f
+    const val LONG_RUN = 64
   }
 }

@@ -22,6 +22,7 @@ import dev.jordond.filmstrip.effects.geometry.CropRect
 import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
+import dev.jordond.filmstrip.effects.geometry.turnedFrame
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
@@ -132,6 +133,16 @@ class EffectPlanTest {
       .plan.output.size shouldBe Size(1080, 1920)
   }
 
+  @Test
+  fun `a free angle sizes the output frame to the bounding box`() {
+    val rotate = Rotate(30)
+    val verdict = fixture.plan(composition(fixture.clip(effects = listOf(rotate))))
+
+    verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.output.size shouldBe rotate.turnedFrame(Size(1920, 1080))
+  }
+
   // 1920x1080 at 480 high is 853.3 wide, and an encoder that wants even sides cannot have 853.
   @Test
   fun `a scale sets the output height and the alignment rounding is reported`() {
@@ -166,11 +177,11 @@ class EffectPlanTest {
   @Test
   fun `stacked brightnesses reach a resolver as one`() {
     val recorder = RecordingResolver()
-    val composition = composition(fixture.clip(effects = listOf(Brightness(4f), Brightness(0.25f))))
+    val composition = composition(fixture.clip(effects = listOf(Brightness(4f), Brightness(0.125f))))
 
     fixture.resolve(composition, resolvers = listOf(recorder))
 
-    recorder.specs.filterIsInstance<Brightness>().map { it.factor } shouldBe listOf(1f)
+    recorder.specs.filterIsInstance<Brightness>().map { it.factor } shouldBe listOf(0.5f)
   }
 
   // A resolver registered after the catalogue outranks it for the effects the caller wrote, and the

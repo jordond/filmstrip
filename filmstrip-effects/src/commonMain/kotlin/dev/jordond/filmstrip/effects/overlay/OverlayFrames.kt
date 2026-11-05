@@ -37,6 +37,20 @@ public fun OverlayEffect.drawnRangeWithin(span: TimeRange): TimeRange {
 }
 
 /**
+ * Whether this overlay draws nothing over [span], the composition time range the frames entering it fall in.
+ *
+ * True for an [ImageOverlay] whose opacity is zero or below, which no animation can raise, for a [TextOverlay] whose
+ * text is empty, and for any overlay whose [drawnRangeWithin] [span] has no length. A NaN opacity is drawn at full
+ * strength, the way [frameWithin] reads it, so it is not answered here. Text of only whitespace still lays out a line,
+ * and a background plate draws behind it, so it is not answered here either.
+ */
+@InternalFilmstripApi
+public fun OverlayEffect.drawsNothingWithin(span: TimeRange): Boolean =
+  ((this as? ImageOverlay)?.opacity ?: 1f) <= 0f ||
+    (this as? TextOverlay)?.text?.isEmpty() == true ||
+    drawnRangeWithin(span).duration == Duration.ZERO
+
+/**
  * Samples this overlay at one output frame of a drawn range already derived by [drawnRangeWithin].
  *
  * Allocates nothing beyond what it answers, so a backend may call it on its render thread for every

@@ -14,11 +14,16 @@ import dev.jordond.filmstrip.geometry.NormalizedRect
  * frame.
  *
  * @property rect The region to keep, as fractions of the frame entering the crop.
+ * @throws IllegalArgumentException when [rect] has no area or reaches outside the frame.
  */
 @Poko
 public class CropRect(
   public val rect: NormalizedRect,
 ) : EffectSpec {
+  init {
+    require(rect.isValid) { "A crop keeps a region of the frame, so $rect has to have area and lie inside it." }
+  }
+
   override val id: String get() = EffectIds.CROP_RECT
 
   override val stage: EffectStage get() = EffectStage.Geometry

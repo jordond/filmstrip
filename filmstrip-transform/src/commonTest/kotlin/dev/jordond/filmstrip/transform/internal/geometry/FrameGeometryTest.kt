@@ -12,7 +12,13 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.roundToInt
+import kotlin.math.sin
 import kotlin.test.Test
 
 class FrameGeometryTest {
@@ -22,6 +28,27 @@ class FrameGeometryTest {
     frameAfter(Rotate(270), LANDSCAPE) shouldBe Size(1080, 1920)
     frameAfter(Rotate(180), LANDSCAPE) shouldBe LANDSCAPE
     frameAfter(Rotate(0), LANDSCAPE) shouldBe LANDSCAPE
+    frameAfter(Rotate(90), Size(1081, 721)) shouldBe Size(721, 1081)
+  }
+
+  // The bounding box of the turned picture, worked out here from the angle rather than copied, at three angles
+  // whose two sides each take a different share of the width and the height.
+  @Test
+  fun `a free angle grows the frame to the bounding box of the turned picture`() {
+    listOf(30, 45, 60).forEach { degrees ->
+      val radians = degrees * PI / 180
+      val width = LANDSCAPE.width * abs(cos(radians)) + LANDSCAPE.height * abs(sin(radians))
+      val height = LANDSCAPE.width * abs(sin(radians)) + LANDSCAPE.height * abs(cos(radians))
+      withClue("$degrees degrees") {
+        frameAfter(Rotate(degrees), LANDSCAPE) shouldBe Size(even(width), even(height))
+      }
+    }
+  }
+
+  @Test
+  fun `a free angle the other way lands on the same frame`() {
+    frameAfter(Rotate(-30), LANDSCAPE) shouldBe frameAfter(Rotate(30), LANDSCAPE)
+    frameAfter(Rotate(390), LANDSCAPE) shouldBe frameAfter(Rotate(30), LANDSCAPE)
   }
 
   @Test
@@ -99,3 +126,6 @@ private val PORTRAIT = Size(1080, 1920)
 
 // Two to one, so every crop fraction measured against it is exact in a float.
 private val WIDE = Size(1600, 800)
+
+// The nearest pixel, then down to an even one the way the encoder's alignment rounds.
+private fun even(side: Double): Int = side.roundToInt().let { it - it % 2 }

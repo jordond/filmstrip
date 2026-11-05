@@ -14,6 +14,9 @@ import kotlin.math.pow
  * `Brightness` is a multiply on an encoded SDR signal, and a display raises that signal by
  * [SDR_DISPLAY_GAMMA] on its way to light. Reading the factor as a bare linear multiply lands
  * roughly twice as bright.
+ *
+ * A gain past the largest 32-bit float is held at it, the way a folded run of brightness is, so a
+ * backend is never handed an infinite one.
  */
 @InternalFilmstripApi
 public fun brightnessDisplayGain(factor: Float): Float =
@@ -21,6 +24,7 @@ public fun brightnessDisplayGain(factor: Float): Float =
     .coerceAtLeast(0f)
     .toDouble()
     .pow(SDR_DISPLAY_GAMMA)
+    .coerceAtMost(Float.MAX_VALUE.toDouble())
     .toFloat()
 
 /**

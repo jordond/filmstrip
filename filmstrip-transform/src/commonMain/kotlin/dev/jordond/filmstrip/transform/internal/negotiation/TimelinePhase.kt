@@ -36,11 +36,7 @@ internal fun timelineOf(
     }
   // The structural refusals already turned away an edit where every track loops, so at least one
   // track bounds the composition.
-  val duration =
-    edit.tracks
-      .withIndex()
-      .filterNot { (_, track) -> track.looping }
-      .maxOf { (index, track) -> windows[index].fold(track.start) { total, (from, to) -> total + (to - from) } }
+  val duration = compositionDurationOf(edit, windows)
 
   if (!edit.audio.isValid) return Phase.Refused(invalid(COMPOSITION_LEVEL))
   val layer =
@@ -82,6 +78,19 @@ internal fun timelineOf(
 
   return Phase.Next(Timeline(duration, laid.map { it.track }, laid.flatMap { it.lowered }))
 }
+
+/**
+ * How long the composition runs once every clip opens and closes on its window in [windows]: the longest track that
+ * does not loop.
+ */
+internal fun compositionDurationOf(
+  edit: EditComposition,
+  windows: List<List<Pair<Duration, Duration>>>,
+): Duration =
+  edit.tracks
+    .withIndex()
+    .filterNot { (_, track) -> track.looping }
+    .maxOf { (index, track) -> windows[index].fold(track.start) { total, (from, to) -> total + (to - from) } }
 
 private const val PRIMARY_LAYS_NOTHING = "The primary track starts at or after the composition ends."
 

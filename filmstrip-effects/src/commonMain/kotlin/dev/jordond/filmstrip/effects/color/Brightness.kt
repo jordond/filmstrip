@@ -23,12 +23,17 @@ import dev.jordond.filmstrip.effect.EffectStage
  * its reciprocal returns the frame unchanged rather than a saturated frame the second factor darkens.
  *
  * @property factor The multiplier, where `1f` leaves the frame unchanged and `0f` writes black.
- * Negative values are read as `0f`, and anything that is not a finite number as `1f`.
+ * Negative values are read as `0f`.
+ * @throws IllegalArgumentException when [factor] is not a finite number.
  */
 @Poko
 public class Brightness(
   public val factor: Float,
 ) : EffectSpec {
+  init {
+    require(factor.isFinite()) { "A brightness factor has to be a finite number, not $factor." }
+  }
+
   override val id: String get() = EffectIds.BRIGHTNESS
 
   override val stage: EffectStage get() = EffectStage.Color
@@ -41,12 +46,8 @@ public fun EffectsBuilder.brightness(factor: Float): EffectsBuilder = add(Bright
 
 /**
  * The multiplier a backend actually applies, computed here so all four apply the same number.
- *
- * Finiteness is checked before the floor because `coerceAtLeast` passes a NaN straight through and
- * leaves an infinity where it was. Either one reaches a backend as a shader uniform, a filter
- * argument and a matrix element, which fail three different ways, so both become the no-op here.
  */
-internal val Brightness.scale: Float get() = if (factor.isFinite()) factor.coerceAtLeast(0f) else 1f
+internal val Brightness.scale: Float get() = factor.coerceAtLeast(0f)
 
 /**
  * The matrix behind a brightness: the scale on every channel and nothing else.

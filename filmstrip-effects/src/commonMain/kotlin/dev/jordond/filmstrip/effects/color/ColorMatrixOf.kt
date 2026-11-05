@@ -23,4 +23,4 @@ public fun colorMatrixOf(spec: EffectSpec): ColorMatrix? =
     is Invert -> spec.matrix
     is ColorMatrix -> spec
     else -> null
-  }?.sanitised
+  }

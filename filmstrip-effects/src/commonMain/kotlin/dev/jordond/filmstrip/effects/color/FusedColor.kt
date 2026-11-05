@@ -29,6 +29,10 @@ public class FoldedSpec(
  * [Brightness] folds to one carrying the product of the factors, and any other run folds to one
  * [ColorMatrix] carrying the product of the matrices.
  *
+ * A product past the largest 32-bit float is held at it, the way [then] holds a matrix entry, since that is the
+ * widest number any backend takes. A brightness that large already pushes every channel that is not black past white,
+ * so the frame comes out the same.
+ *
  * An export that keeps an HDR grade folds the same way, since a backend applies the folded matrix
  * in the same encoded domain there, with the format's peak as the ceiling instead of white.
  *
@@ -51,7 +55,7 @@ public fun List<EffectSpec>.fusedColorMatrices(): List<FoldedSpec> {
           sources.single()
         }
         sources.all { it is Brightness } -> {
-          Brightness(sources.fold(1f) { scale, spec -> scale * (spec as Brightness).scale })
+          Brightness(sources.fold(1f) { scale, spec -> scale heldTimes (spec as Brightness).scale })
         }
         else -> {
           pending.fold(ColorMatrix.Identity) { combined, (_, matrix) -> combined.then(matrix) }

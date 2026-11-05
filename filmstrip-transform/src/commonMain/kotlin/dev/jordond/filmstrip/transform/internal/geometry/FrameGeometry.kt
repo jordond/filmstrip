@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.geometry.applyTo
 import dev.jordond.filmstrip.effects.geometry.retainedRect
+import dev.jordond.filmstrip.effects.geometry.turnedFrame
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import kotlin.math.roundToInt
@@ -21,8 +22,8 @@ import kotlin.math.roundToInt
 /**
  * The frame [spec] produces out of a frame of [size].
  *
- * A rotate that turns the frame on its side swaps its two sides, a crop keeps only the region
- * [retainedRect] or its own rect describes, and a scale sets the height and follows the frame's own
+ * A rotate lands on the frame [turnedFrame] answers, a crop keeps only the region [retainedRect] or its
+ * own rect describes, and a scale sets the height and follows the frame's own
  * aspect for the width. Every other spec, including one this pipeline does not know, leaves the
  * frame alone.
  */
@@ -33,7 +34,7 @@ public fun frameAfter(
 ): Size =
   when (spec) {
     is Rotate -> {
-      if (spec.degrees % HALF_TURN_DEGREES == 0) size else Size(size.height, size.width)
+      spec.turnedFrame(size)
     }
     is Flip -> {
       size
@@ -67,5 +68,3 @@ internal fun frameThrough(
   sourceSize: Size,
   stages: List<List<EffectSpec>>,
 ): Size = stages.flatMap { it.inCanonicalOrder() }.fold(sourceSize) { size, spec -> frameAfter(spec, size) }
-
-private const val HALF_TURN_DEGREES = 180

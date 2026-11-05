@@ -73,7 +73,7 @@ it recognises, and declines the rest so the next resolver gets a look.
 
 | Effect                                  | Android               | Apple             | Browser           | ffmpeg                 |
 | --------------------------------------- | --------------------- | ----------------- | ----------------- | ---------------------- |
-| `Rotate`                                | ✅                    | ✅                | ✅ [^web-rotate]  | ✅                     |
+| `Rotate`                                | ✅                    | ✅                | ✅ [^web-rotate]  | ✅ [^ffmpeg-rotate]    |
 | `Flip`                                  | ✅                    | ✅                | ✅                | ✅                     |
 | `Crop` (aspect)                         | ✅                    | ✅                | ✅                | ✅                     |
 | `CropRect`                              | ✅                    | ✅                | ✅                | ✅                     |
@@ -93,7 +93,7 @@ it recognises, and declines the rest so the next resolver gets a look.
     `KenBurns` is `EffectScope.ClipOnly` and `@ExperimentalFilmstripApi`. The region it
     shows depends on where a frame sits in the clip's span, so a plan refuses it on a track, on the
     composition, and on a clip of a looping track. A `from` or `to` outside the frame, or with no area,
-    is refused by name.
+    is refused when the effect is built.
 
 [^android-fit]:
     The effect itself only sets a height, and the pipeline applies `Fit` once for the
@@ -103,6 +103,12 @@ it recognises, and declines the rest so the next resolver gets a look.
 [^web-rotate]:
     The browser turns a frame by whole quarter turns, 0, 90, 180 or 270 degrees, and refuses any
     other angle by name.
+
+[^ffmpeg-rotate]:
+    ffmpeg turns a frame by any angle. A quarter turn swaps the frame's two sides, and any other angle
+    grows the frame to the bounding box of the turned picture, each side rounded to an even pixel. That
+    is the same frame the plan sizes the output from, and the picture turns about its centre with black
+    in the corners it leaves.
 
 [^web-fit]:
     The effect sets the output height and the plan sizes the frame from it before the compositor
@@ -564,6 +570,31 @@ one output frame of where the shared sampler puts them. The browser samples the 
 frame it draws, at the composition time its draw call already carries, and draws it as one textured
 quad at the rect and opacity that sample answers.
 
+### Malformed input
+
+Every color effect refuses a factor, an amount, an angle or a matrix entry that is not a finite
+number, and `CropRect` and `KenBurns` refuse a region outside the frame or with no area. Each throws
+an `IllegalArgumentException` when it is built, so no backend is ever handed one. A run of color
+effects folds to one matrix before any backend sees it, and an entry whose product runs past the
+largest 32-bit float is held there, since that is the widest number any backend's matrix takes.
+
+### Inert effects
+
+An effect that leaves the output exactly as it was is left out of the plan rather than run, and
+`ExportPlan.inertNotices` names each one with an `InertReason`:
+
+| Reason              | What it covers                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------- |
+| `NoChangeToFrame`   | A color run that folds to the identity, a clip's run counted together with its track's, a whole turn, a crop to the aspect the frame already has, a `CropRect` of the whole frame, a fill no frame shows |
+| `NeverVisible`      | An overlay at zero opacity, a `TextOverlay` with empty text, or an overlay whose window falls outside the run it is drawn over |
+| `NoStreamToApplyTo` | A fade on audio the output does not keep                                                          |
+
+The output is what the edit asked for, so a notice is not an `Adjustment`, the verdict does not
+change and `ExportSpec.strict` does not refuse. No backend sees an inert effect, so a clip whose
+only effects are inert can still copy its streams across. `plan.composition` keeps every one as
+written. A preview lowers through the same plan, so `PreviewInfo.inertNotices` is the list the export
+plan for that composition carries.
+
 ### Parity
 
 `parityOf(specId)` says how closely a preview matches its export, and every backend keeps its own
@@ -740,6 +771,12 @@ What each export backend accepts. Extra tracks, looping and gain are covered und
 | `AudioSpec.Remove`, `AudioCodec.None` | ✅               | ✅               | ✅               | ✅                |
 | `AudioSpec.AudioOnly`                 | ✅ [^audio-only] | ✅ [^audio-only] | ✅ [^audio-only] | ✅ [^audio-only]  |
 
+A fill is left out, with an `InertNotice`, when no frame shows it: no track starts late and every
+primary clip covers the output frame under its fit, short of it by less than a pixel on each side.
+The pixel is one of the frame the composition writes at its natural size, so the answer is the same
+under `ExportSpec.heightPx` and under a preview cap. Every backend decides whether a clip leaves bars
+by that same test, so a clip a pixel short of the frame shows the fill on all four.
+
 On every backend, thumbnails and frames read back inside a gap included, a `Fill.Solid` is painted
 after every composition effect and before every composition overlay, so it keeps its own color
 wherever no overlay covers it and an overlay placed in a bar or a gap draws there.
@@ -749,7 +786,7 @@ when the whole thing can be stream-copied and `Transcode` otherwise, and a snapp
 `Copy` like any other copy.
 
 A copy needs more than a reachable cut. `ExportSpec.heightPx`, `bitrate`, a named codec, any
-effect, a second clip, a non-unity gain and a fade each take an export off the copy path on their
+effect that is not inert, a second clip, a non-unity gain and a fade each take an export off the copy path on their
 own, and `ExportSpec.Upload` trips three of them at once. `ExportPlan.copyBlockedBy` lists every term that
 applied, so a caller can see which field to drop rather than guess why a three second export took
 forty.

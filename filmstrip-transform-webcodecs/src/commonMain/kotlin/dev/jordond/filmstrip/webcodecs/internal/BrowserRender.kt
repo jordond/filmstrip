@@ -32,6 +32,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
+import dev.jordond.filmstrip.transform.internal.resolve.clipFillsFrame
 import dev.jordond.filmstrip.transform.internal.resolve.effectsOverFill
 import dev.jordond.filmstrip.transform.internal.resolve.effectsUnderFill
 import dev.jordond.filmstrip.webcodecs.internal.audio.BrowserAudioMix
@@ -210,6 +211,7 @@ internal fun browserRenderOf(
         resolved = resolved,
         track = track,
         outputSize = outputSize,
+        naturalSize = plan.naturalSize,
         fit = plan.fit,
         compositionGeometry = compositionGeometry,
         compositionChain = compositionChain,
@@ -262,6 +264,7 @@ private fun renderedClip(
   resolved: ResolvedClip,
   track: Track,
   outputSize: Size,
+  naturalSize: Size,
   fit: Fit,
   compositionGeometry: List<EffectSpec>,
   compositionChain: List<ResolvedEffect>,
@@ -298,7 +301,7 @@ private fun renderedClip(
     quadHalfH = drawnScale?.let { drawnSize.height * it / outputSize.height } ?: 1f,
     coverHalfW = drawnSize.width * coverScale(drawnSize, outputSize) / outputSize.width,
     coverHalfH = drawnSize.height * coverScale(drawnSize, outputSize) / outputSize.height,
-    hasBars = fit == Fit.Contain && !matchesOutputAspect(drawnSize, outputSize),
+    hasBars = fit == Fit.Contain && !clipFillsFrame(drawnSize, naturalSize),
     matrix = chain.textureMatrix(),
     colorMatrix = resolved.effects.colorMatrix(),
     compositionColorMatrix = compositionChain.colorMatrix(),
@@ -415,15 +418,6 @@ private fun multiply(
   }
   return out
 }
-
-/**
- * Whether [drawnSize] and [outputSize] share an aspect ratio exactly, checked as a cross
- * multiplication so no rounding in [containScale] or [coverScale] can flip the answer.
- */
-private fun matchesOutputAspect(
-  drawnSize: Size,
-  outputSize: Size,
-): Boolean = drawnSize.width.toLong() * outputSize.height == drawnSize.height.toLong() * outputSize.width
 
 private const val DEFAULT_BITRATE = 8_000_000L
 

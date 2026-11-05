@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effects.geometry
 
 import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -64,6 +65,16 @@ public fun Crop.retainedRect(inputSize: Size): NormalizedRect {
     NormalizedRect(left = 0f, top = top, right = 1f, bottom = top + height)
   }
 }
+
+/**
+ * Whether this crop keeps every pixel of a frame of [inputSize], because the frame already has [Crop.aspect].
+ *
+ * Only [Fit.Crop] is read this way. [Fit.Contain] and [Fit.Stretch] reframe at the size stage, which this does not
+ * answer for.
+ */
+@InternalFilmstripApi
+public fun Crop.keepsWholeFrame(inputSize: Size): Boolean =
+  fit == Fit.Crop && retainedRect(inputSize) == NormalizedRect.Full
 
 /**
  * Applies this rectangle to [inputSize].

@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.edit.EffectsBuilder
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
+import dev.jordond.filmstrip.effect.inCanonicalOrder
 import dev.jordond.filmstrip.media.HdrTransfer
 import kotlin.math.abs
 
@@ -30,8 +31,7 @@ import kotlin.math.abs
  * so a channel pushed past `1f` keeps going where an SDR export saturates, and a channel pulled
  * below zero is black on both. Only a bias depends on where white sits.
  *
- * The defaults are the identity, so a caller names only the entries that change. An entry that is
- * not a finite number is read as its identity value.
+ * The defaults are the identity, so a caller names only the entries that change.
  *
  * @property rr How much input red contributes to output red.
  * @property rg How much input green contributes to output red.
@@ -45,6 +45,7 @@ import kotlin.math.abs
  * @property bg How much input green contributes to output blue.
  * @property bb How much input blue contributes to output blue.
  * @property bBias What is added to output blue.
+ * @throws IllegalArgumentException when any entry is not a finite number.
  */
 @Poko
 public class ColorMatrix(
@@ -61,6 +62,10 @@ public class ColorMatrix(
   public val bb: Float = 1f,
   public val bBias: Float = 0f,
 ) : EffectSpec {
+  init {
+    require(entries().all { it.isFinite() }) { "Every color matrix entry has to be a finite number." }
+  }
+
   override val id: String get() = EffectIds.COLOR_MATRIX
 
   override val stage: EffectStage get() = EffectStage.Color
@@ -78,38 +83,16 @@ public class ColorMatrix(
  */
 public fun EffectsBuilder.colorMatrix(matrix: ColorMatrix): EffectsBuilder = add(matrix)
 
-/**
- * The matrix a backend applies, with every entry that is not a finite number replaced by the
- * identity's value there.
- *
- * A NaN or an infinity reaches a backend as a shader uniform, a filter table entry or a Core Image
- * vector, and each fails a different way. An infinity is the worse of the two: ffmpeg's lut3d parses
- * one and writes a frame of whatever the conversion to an integer comes to, at exit code zero. Both
- * are turned into the no-op here.
- */
-internal val ColorMatrix.sanitised: ColorMatrix
-  get() =
-    ColorMatrix(
-      rr = rr.orIdentity(1f),
-      rg = rg.orIdentity(0f),
-      rb = rb.orIdentity(0f),
-      rBias = rBias.orIdentity(0f),
-      gr = gr.orIdentity(0f),
-      gg = gg.orIdentity(1f),
-      gb = gb.orIdentity(0f),
-      gBias = gBias.orIdentity(0f),
-      br = br.orIdentity(0f),
-      bg = bg.orIdentity(0f),
-      bb = bb.orIdentity(1f),
-      bBias = bBias.orIdentity(0f),
-    )
-
-private fun Float.orIdentity(identity: Float): Float = if (isFinite()) this else identity
+private fun ColorMatrix.entries(): List<Float> = listOf(rr, rg, rb, rBias, gr, gg, gb, gBias, br, bg, bb, bBias)
 
 /**
  * Whether this matrix changes nothing.
+ *
+ * Each entry is compared to the identity's within a tolerance, since a matrix built from trig, like a whole turn of
+ * hue, carries cross terms around `1e-16` where it means zero.
  */
-internal val ColorMatrix.isIdentity: Boolean
+@InternalFilmstripApi
+public val ColorMatrix.isIdentity: Boolean
   get() =
     isDiagonal &&
       rr.isNear(1f) &&
@@ -118,6 +101,22 @@ internal val ColorMatrix.isIdentity: Boolean
       rBias.isNear(0f) &&
       gBias.isNear(0f) &&
       bBias.isNear(0f)
+
+/**
+ * The color effects in this chain that change nothing, in chain order.
+ *
+ * The chain is sorted into canonical order and folded the way a backend lowers it, so a run whose matrices multiply
+ * out to the identity counts as a whole, like a brightness of two followed by one of a half. An effect that is not a
+ * color matrix is never in the answer.
+ *
+ * @return every authored effect whose folded run leaves the frame as it was.
+ */
+@InternalFilmstripApi
+public fun List<EffectSpec>.identityColorRuns(): List<EffectSpec> =
+  inCanonicalOrder()
+    .fusedColorMatrices()
+    .filter { colorMatrixOf(it.spec)?.isIdentity == true }
+    .flatMap { it.sources }
 
 /**
  * Whether every output channel reads from its own input channel alone, so the matrix is three
@@ -159,23 +158,46 @@ private const val ENTRY_EPSILON = 1e-6f
  * Running `next` on the output of `this` is `next.M * (this.M * v + this.b) + next.b`, so the
  * combined matrix is the product and the combined bias is `this.b` carried through `next.M` with
  * `next.b` added.
+ *
+ * Every backend holds a matrix as 32-bit floats, so an entry whose product runs past the largest one is held at it
+ * rather than becoming an infinity. Each multiply and each sum is held that way, so a long run of large factors
+ * folds to a matrix every backend can take and never to a NaN.
  */
 @InternalFilmstripApi
 public fun ColorMatrix.then(next: ColorMatrix): ColorMatrix =
   ColorMatrix(
-    rr = next.rr * rr + next.rg * gr + next.rb * br,
-    rg = next.rr * rg + next.rg * gg + next.rb * bg,
-    rb = next.rr * rb + next.rg * gb + next.rb * bb,
-    rBias = next.rr * rBias + next.rg * gBias + next.rb * bBias + next.rBias,
-    gr = next.gr * rr + next.gg * gr + next.gb * br,
-    gg = next.gr * rg + next.gg * gg + next.gb * bg,
-    gb = next.gr * rb + next.gg * gb + next.gb * bb,
-    gBias = next.gr * rBias + next.gg * gBias + next.gb * bBias + next.gBias,
-    br = next.br * rr + next.bg * gr + next.bb * br,
-    bg = next.br * rg + next.bg * gg + next.bb * bg,
-    bb = next.br * rb + next.bg * gb + next.bb * bb,
-    bBias = next.br * rBias + next.bg * gBias + next.bb * bBias + next.bBias,
+    rr = dot(next.rr, rr, next.rg, gr, next.rb, br),
+    rg = dot(next.rr, rg, next.rg, gg, next.rb, bg),
+    rb = dot(next.rr, rb, next.rg, gb, next.rb, bb),
+    rBias = dot(next.rr, rBias, next.rg, gBias, next.rb, bBias) heldPlus next.rBias,
+    gr = dot(next.gr, rr, next.gg, gr, next.gb, br),
+    gg = dot(next.gr, rg, next.gg, gg, next.gb, bg),
+    gb = dot(next.gr, rb, next.gg, gb, next.gb, bb),
+    gBias = dot(next.gr, rBias, next.gg, gBias, next.gb, bBias) heldPlus next.gBias,
+    br = dot(next.br, rr, next.bg, gr, next.bb, br),
+    bg = dot(next.br, rg, next.bg, gg, next.bb, bg),
+    bb = dot(next.br, rb, next.bg, gb, next.bb, bb),
+    bBias = dot(next.br, rBias, next.bg, gBias, next.bb, bBias) heldPlus next.bBias,
   )
+
+private fun dot(
+  a1: Float,
+  b1: Float,
+  a2: Float,
+  b2: Float,
+  a3: Float,
+  b3: Float,
+): Float = (a1 heldTimes b1) heldPlus (a2 heldTimes b2) heldPlus (a3 heldTimes b3)
+
+/**
+ * The product of two finite floats, held at the largest finite float either side of zero.
+ *
+ * Both operands are finite, so the product is finite or an infinity and never a NaN, and the hold keeps it finite.
+ */
+internal infix fun Float.heldTimes(other: Float): Float = (this * other).coerceIn(-Float.MAX_VALUE, Float.MAX_VALUE)
+
+// Both operands are finite, so the sum is finite or an infinity of one sign and never a NaN.
+private infix fun Float.heldPlus(other: Float): Float = (this + other).coerceIn(-Float.MAX_VALUE, Float.MAX_VALUE)
 
 /**
  * What this matrix writes for an encoded pixel, clamped to the range a frame can hold.
@@ -247,13 +269,14 @@ public fun ColorMatrix.toColumnMajor4x4(): FloatArray =
  * `mat4`.
  *
  * A backend folding the uniforms of a chain it did not write reaches for this rather than the
- * throwing form, since a foreign pass is free to spell a uniform of that name any way it likes.
+ * throwing form, since a foreign pass is free to spell a uniform of that name any way it likes, an entry that is not
+ * a finite number included.
  *
  * @param columns Sixteen floats, column-major, as [toColumnMajor4x4] lays them out.
  */
 @InternalFilmstripApi
 public fun colorMatrixOfColumnMajor4x4OrNull(columns: FloatArray): ColorMatrix? =
-  if (columns.size == MAT4_SIZE) colorMatrixOfColumnMajor4x4(columns) else null
+  if (columns.size == MAT4_SIZE && columns.all { it.isFinite() }) colorMatrixOfColumnMajor4x4(columns) else null
 
 /**
  * The matrix the sixteen floats of [toColumnMajor4x4] spell.

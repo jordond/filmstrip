@@ -110,12 +110,8 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     )
   }
 
-  // A region outside the frame samples nothing, and one with no area collapses the frame to a
-  // point, so both are refused by name rather than drawn as whatever the reciprocal comes out as.
-  private fun KenBurns.toTransformation(attributes: Attributes): EffectResolution {
-    if (!from.isValid || !to.isValid) return unsupported(id, REGION_OUTSIDE_FRAME)
-    return resolved(KenBurnsTransformation(this, attributes.span))
-  }
+  private fun KenBurns.toTransformation(attributes: Attributes): EffectResolution =
+    resolved(KenBurnsTransformation(this, attributes.span))
 
   // The frame an overlay measures against is the one entering it, not the composition's output.
   // They are the same for a composition-scoped overlay. A clip-scoped one runs in that item's own
@@ -276,6 +272,3 @@ private const val UNREADABLE_IMAGE =
 internal const val UNKNOWN_HALF_FLOAT_SPACE =
   "Android decoded the overlay image into a color space other than extended sRGB, so its samples cannot be read " +
     "back as the file stores them."
-
-private const val REGION_OUTSIDE_FRAME =
-  "A pan travels between two regions of the frame, so both have to have area and lie inside it."

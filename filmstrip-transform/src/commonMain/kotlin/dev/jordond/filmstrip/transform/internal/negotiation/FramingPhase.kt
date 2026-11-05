@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.transform.internal.negotiation
 
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
-import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.inCanonicalOrder
 import dev.jordond.filmstrip.effects.geometry.Scale
@@ -39,6 +38,7 @@ internal fun framingOf(
   val clipStage = frameClip.effects + primary.effects
   val compositionGeometry = edit.effects.filter { it.stage == EffectStage.Geometry }
   val compositionInputSize = frameThrough(firstVideo.displaySize, listOf(clipStage))
+  val naturalSize = frameThrough(compositionInputSize, listOf(compositionGeometry))
   val fit =
     (clipStage.inCanonicalOrder() + compositionGeometry.inCanonicalOrder())
       .filterIsInstance<Scale>()
@@ -52,23 +52,22 @@ internal fun framingOf(
       framedByStill = frameClip.source is MediaSource.Image,
       compositionGeometry = compositionGeometry,
       compositionInputSize = compositionInputSize,
-      requestedSize = requestedFrame(compositionInputSize, compositionGeometry, ask.spec.heightPx),
+      naturalSize = naturalSize,
+      requestedSize = atHeight(naturalSize, ask.spec.heightPx),
       fit = fit,
     ),
   )
 }
 
-private fun requestedFrame(
-  sourceSize: Size,
-  geometry: List<EffectSpec>,
+private fun atHeight(
+  size: Size,
   heightPx: Int?,
-): Size {
-  var size = frameThrough(sourceSize, listOf(geometry))
+): Size =
   if (heightPx != null && size.height > 0) {
-    size = Size((heightPx * size.aspect).roundToInt().coerceAtLeast(1), heightPx)
+    Size((heightPx * size.aspect).roundToInt().coerceAtLeast(1), heightPx)
+  } else {
+    size
   }
-  return size
-}
 
 /**
  * Whether this clip decodes video of its own, rather than holding a still for a span.

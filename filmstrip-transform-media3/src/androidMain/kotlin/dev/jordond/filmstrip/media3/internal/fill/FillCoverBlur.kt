@@ -16,8 +16,8 @@ import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
 import dev.jordond.filmstrip.transform.internal.geometry.containScale
 import dev.jordond.filmstrip.transform.internal.geometry.coverScale
 import dev.jordond.filmstrip.transform.internal.geometry.sigmaFor
+import dev.jordond.filmstrip.transform.internal.resolve.clipFillsFrame
 import java.util.concurrent.Executor
-import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.exp
 
@@ -31,10 +31,13 @@ import kotlin.math.exp
  *
  * @property fill The radius and the dim the background is drawn at.
  * @property outputSize The composition's output frame, in pixels.
+ * @property naturalSize The frame the composition writes with no height asked of it, which [clipFillsFrame] measures a
+ * bar against.
  */
 internal class FillCoverBlur(
   private val fill: Fill.Blurred,
   private val outputSize: Size,
+  private val naturalSize: Size,
 ) : GlEffect {
   override fun toGlShaderProgram(
     context: Context,
@@ -44,14 +47,19 @@ internal class FillCoverBlur(
   override fun isNoOp(
     inputWidth: Int,
     inputHeight: Int,
-  ): Boolean = abs(inputWidth.toFloat() / inputHeight.toFloat() - outputSize.aspect) < ASPECT_EPSILON
+  ): Boolean = clipFillsFrame(Size(inputWidth, inputHeight), naturalSize)
 
   // Compared by value so a preview can tell a re-lowering that changed this pass from one that
   // produced the same pass again.
   override fun equals(other: Any?): Boolean =
-    this === other || (other is FillCoverBlur && fill == other.fill && outputSize == other.outputSize)
+    this === other || (
+      other is FillCoverBlur &&
+        fill == other.fill &&
+        outputSize == other.outputSize &&
+        naturalSize == other.naturalSize
+    )
 
-  override fun hashCode(): Int = HASH * fill.hashCode() + outputSize.hashCode()
+  override fun hashCode(): Int = HASH * (HASH * fill.hashCode() + outputSize.hashCode()) + naturalSize.hashCode()
 
   private companion object {
     const val HASH = 31
@@ -430,5 +438,3 @@ internal const val TAP_STANDARD_DEVIATIONS = 3f
  * source as its own term, so the tap count is the length of the program a driver has to compile.
  */
 internal const val MAX_TAP_RADIUS = 32
-
-private const val ASPECT_EPSILON = 0.001f

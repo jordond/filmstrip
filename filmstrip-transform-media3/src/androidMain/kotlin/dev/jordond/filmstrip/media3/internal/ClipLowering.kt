@@ -17,7 +17,7 @@ import dev.jordond.filmstrip.media3.internal.fill.FillCoverBlur
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
-import kotlin.math.abs
+import dev.jordond.filmstrip.transform.internal.resolve.clipFillsFrame
 
 /**
  * A clip's own video effect chain, with a cover-blur pass appended when its frame would otherwise
@@ -27,6 +27,7 @@ internal fun ResolvedClip.clipVideoEffects(
   fit: Fit,
   fill: Fill,
   outputSize: Size,
+  naturalSize: Size,
   wrapper: EffectWrapper = UnwrappedEffects,
 ): List<Effect> {
   val lowered = effects.toMedia3Effects()
@@ -39,8 +40,8 @@ internal fun ResolvedClip.clipVideoEffects(
         val displaySize = info.video?.displaySize
         when {
           displaySize == null -> lowered
-          abs(displaySize.aspect - outputSize.aspect) < ASPECT_EPSILON -> lowered
-          else -> lowered + FillCoverBlur(fill, outputSize)
+          clipFillsFrame(displaySize, naturalSize) -> lowered
+          else -> lowered + FillCoverBlur(fill, outputSize, naturalSize)
         }
       }
     }
@@ -114,7 +115,3 @@ internal fun List<ResolvedEffect>.toMedia3Effects(): List<Effect> {
 
 private const val CHANNEL_COUNT = 2
 private val INPUT_CHANNEL_COUNTS = listOf(1, 2)
-
-// Aspect ratios closer than this are treated as the same shape, so a clip that already fills the
-// output frame is never sent through a blur pass it would draw nothing observable with.
-private const val ASPECT_EPSILON = 0.001f

@@ -17,12 +17,17 @@ import kotlin.math.sin
  * identity, so `degrees` is read modulo 360.
  *
  * @property degrees How far to turn, where `0f` leaves the frame unchanged and `180f` swaps every
- * hue for the one opposite it. Anything that is not a finite number is read as `0f`.
+ * hue for the one opposite it.
+ * @throws IllegalArgumentException when [degrees] is not a finite number.
  */
 @Poko
 public class HueRotate(
   public val degrees: Float,
 ) : EffectSpec {
+  init {
+    require(degrees.isFinite()) { "A hue rotation has to be a finite number of degrees, not $degrees." }
+  }
+
   override val id: String get() = EffectIds.HUE_ROTATE
 
   override val stage: EffectStage get() = EffectStage.Color
@@ -34,19 +39,11 @@ public class HueRotate(
 public fun EffectsBuilder.hueRotate(degrees: Float): EffectsBuilder = add(HueRotate(degrees))
 
 /**
- * The angle a backend actually applies, in degrees.
- *
- * A NaN or an infinite angle applies as zero, since the trig would turn either into a NaN in all
- * nine entries of the matrix.
- */
-internal val HueRotate.angle: Float get() = if (degrees.isFinite()) degrees else 0f
-
-/**
  * The matrix behind a hue rotation, from the Filter Effects specification's `hueRotate` table.
  */
 internal val HueRotate.matrix: ColorMatrix
   get() {
-    val radians = angle * PI / HALF_TURN
+    val radians = degrees * PI / HALF_TURN
     val c = cos(radians).toFloat()
     val s = sin(radians).toFloat()
     return ColorMatrix(

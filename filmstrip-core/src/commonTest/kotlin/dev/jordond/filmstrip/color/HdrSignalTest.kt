@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.color
 import dev.jordond.filmstrip.media.HdrTransfer
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.shouldBe
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.test.Test
@@ -47,6 +48,17 @@ class HdrSignalTest {
     withClue("the scene gain was not lifted by the system gamma") {
       (brightnessSceneGain(0.5f) > brightnessDisplayGain(0.5f)).shouldBeTrue()
     }
+  }
+
+  @Test
+  fun `a brightness past where the gain overflows is held at the largest float`() {
+    listOf(1e18f, Float.MAX_VALUE).forEach { factor ->
+      withClue("factor $factor") {
+        brightnessDisplayGain(factor) shouldBe Float.MAX_VALUE
+        brightnessSceneGain(factor).isFinite().shouldBeTrue()
+      }
+    }
+    brightnessDisplayGain(2f) shouldBe 2.0.pow(SDR_DISPLAY_GAMMA).toFloat()
   }
 
   @Test

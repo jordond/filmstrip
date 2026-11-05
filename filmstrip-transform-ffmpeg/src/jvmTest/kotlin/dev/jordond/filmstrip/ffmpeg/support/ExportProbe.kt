@@ -348,7 +348,9 @@ internal fun regionOf(
           "-i",
           path,
           "-vf",
-          "crop=$side:$side:$x:$y",
+          // Crop rounds an odd x or y down to even on a subsampled format, so the frame is
+          // turned into RGB before the region is cut.
+          "format=rgb24,crop=$side:$side:$x:$y",
           "-vframes",
           "1",
           "-f",

@@ -926,11 +926,12 @@ public final class dev/jordond/filmstrip/export/ExportPath : java/lang/Enum {
 }
 
 public final class dev/jordond/filmstrip/export/ExportPlan {
-	public synthetic fun <init> (Ldev/jordond/filmstrip/export/ExportPath;Ldev/jordond/filmstrip/export/OutputFormat;Ljava/util/List;Ldev/jordond/filmstrip/export/ExportEstimate;Ldev/jordond/filmstrip/capability/EffectParity;JLjava/util/List;Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/export/ExportSpec;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/export/ExportPath;Ldev/jordond/filmstrip/export/OutputFormat;Ljava/util/List;Ldev/jordond/filmstrip/export/ExportEstimate;Ldev/jordond/filmstrip/capability/EffectParity;JLjava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/edit/EditComposition;Ldev/jordond/filmstrip/export/ExportSpec;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getCopyBlockedBy ()Ljava/util/List;
 	public final fun getDuration-UwyO8pc ()J
 	public final fun getEffectOrder ()Ljava/util/List;
 	public final fun getEstimate ()Ldev/jordond/filmstrip/export/ExportEstimate;
+	public final fun getInertNotices ()Ljava/util/List;
 	public final fun getOutput ()Ldev/jordond/filmstrip/export/OutputFormat;
 	public final fun getParity ()Ldev/jordond/filmstrip/capability/EffectParity;
 	public final fun getPath ()Ldev/jordond/filmstrip/export/ExportPath;
@@ -1016,6 +1017,25 @@ public final class dev/jordond/filmstrip/export/HdrMode : java/lang/Enum {
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/export/HdrMode;
 	public static fun values ()[Ldev/jordond/filmstrip/export/HdrMode;
+}
+
+public final class dev/jordond/filmstrip/export/InertNotice {
+	public fun <init> (Ljava/lang/String;Ldev/jordond/filmstrip/export/InertReason;Ljava/lang/String;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMessage ()Ljava/lang/String;
+	public final fun getReason ()Ldev/jordond/filmstrip/export/InertReason;
+	public final fun getSubject ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/export/InertReason : java/lang/Enum {
+	public static final field NeverVisible Ldev/jordond/filmstrip/export/InertReason;
+	public static final field NoChangeToFrame Ldev/jordond/filmstrip/export/InertReason;
+	public static final field NoStreamToApplyTo Ldev/jordond/filmstrip/export/InertReason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/export/InertReason;
+	public static fun values ()[Ldev/jordond/filmstrip/export/InertReason;
 }
 
 public final class dev/jordond/filmstrip/export/OutputFormat {
@@ -1761,9 +1781,11 @@ public final class dev/jordond/filmstrip/player/PreviewFrameReadbackKt {
 }
 
 public final class dev/jordond/filmstrip/player/PreviewInfo {
-	public fun <init> (Ldev/jordond/filmstrip/geometry/Size;FLdev/jordond/filmstrip/capability/EffectParity;Ljava/util/List;Ljava/util/List;)V
+	public fun <init> (Ldev/jordond/filmstrip/geometry/Size;FLdev/jordond/filmstrip/capability/EffectParity;Ljava/util/List;Ljava/util/List;Ljava/util/List;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/geometry/Size;FLdev/jordond/filmstrip/capability/EffectParity;Ljava/util/List;Ljava/util/List;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getFidelity ()Ljava/util/List;
+	public final fun getInertNotices ()Ljava/util/List;
 	public final fun getOutputSize ()Ldev/jordond/filmstrip/geometry/Size;
 	public final fun getParity ()Ldev/jordond/filmstrip/capability/EffectParity;
 	public final fun getParityNotes ()Ljava/util/List;

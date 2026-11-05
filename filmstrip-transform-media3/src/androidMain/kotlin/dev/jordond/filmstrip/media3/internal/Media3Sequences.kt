@@ -153,8 +153,9 @@ internal class Lowering(
       }
       // A maximum rather than a target: a higher-rate source has frames dropped, a lower-rate one is left alone.
       .setFrameRate(rate)
-      .setEffects(Effects(emptyList(), clipVideoEffects(plan.fit, plan.fill, plan.output.size, wrapper)))
-      .build()
+      .setEffects(
+        Effects(emptyList(), clipVideoEffects(plan.fit, plan.fill, plan.output.size, plan.naturalSize, wrapper)),
+      ).build()
   }
 
   /**
@@ -175,7 +176,17 @@ internal class Lowering(
       }.setEffects(
         Effects(
           if (removeAudio) emptyList() else audioProcessors(gain, mixesAudio),
-          if (removeVideo) emptyList() else clipVideoEffects(plan.fit, plan.fill, plan.output.size, wrapper),
+          if (removeVideo) {
+            emptyList()
+          } else {
+            clipVideoEffects(
+              plan.fit,
+              plan.fill,
+              plan.output.size,
+              plan.naturalSize,
+              wrapper,
+            )
+          },
         ),
       ).build()
 
@@ -251,7 +262,17 @@ internal class Lowering(
       .setEffects(
         Effects(
           emptyList(),
-          if (removeVideo) emptyList() else clipVideoEffects(plan.fit, plan.fill, plan.output.size, wrapper),
+          if (removeVideo) {
+            emptyList()
+          } else {
+            clipVideoEffects(
+              plan.fit,
+              plan.fill,
+              plan.output.size,
+              plan.naturalSize,
+              wrapper,
+            )
+          },
         ),
       ).build()
   }

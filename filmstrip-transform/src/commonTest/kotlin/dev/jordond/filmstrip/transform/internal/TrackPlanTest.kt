@@ -28,8 +28,8 @@ class TrackPlanTest {
 
   @Test
   fun `a second video track is refused by name`() {
-    val second = Track(listOf(fixture.clip()), content = TrackContent.AudioAndVideo)
-    val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip())), second)))
+    val second = Track(listOf(fixture.clip(audioRate = AUDIO_RATE)), content = TrackContent.AudioAndVideo)
+    val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE))), second)))
 
     val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
     error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
@@ -45,7 +45,7 @@ class TrackPlanTest {
         content = TrackContent.Audio,
         looping = true,
       )
-    val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip())), bed)))
+    val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE))), bed)))
 
     val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
     plan.output.audioCodec shouldBe AudioCodec.Aac
@@ -53,7 +53,10 @@ class TrackPlanTest {
 
   @Test
   fun `a composition where every track loops is refused by name`() {
-    val verdict = fixture.plan(EditComposition(listOf(Track(listOf(fixture.clip()), looping = true))))
+    val verdict =
+      fixture.plan(
+        EditComposition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)), looping = true))),
+      )
 
     val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
     error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
@@ -217,8 +220,9 @@ class TrackPlanTest {
   // write a file with no picture in it, neither of them saying why.
   @Test
   fun `a looping primary that starts at the composition's end is refused`() {
-    val bed = Track(listOf(fixture.clip(duration = 4_000.milliseconds)), content = TrackContent.Audio)
-    val primary = Track(listOf(fixture.clip()), start = 4_000.milliseconds, looping = true)
+    val bed =
+      Track(listOf(fixture.clip(audioRate = AUDIO_RATE, duration = 4_000.milliseconds)), content = TrackContent.Audio)
+    val primary = Track(listOf(fixture.clip(audioRate = AUDIO_RATE)), start = 4_000.milliseconds, looping = true)
 
     fixture.plan(EditComposition(listOf(primary, bed))).shouldBeInstanceOf<Verdict.Incapable>()
   }
@@ -235,6 +239,7 @@ class TrackPlanTest {
   ): EditComposition {
     val bedClip =
       fixture.clip(
+        audioRate = AUDIO_RATE,
         duration = 3_000.milliseconds,
         trim = LoopingCases.BED_TRIM,
         fadeIn = clipFadeIn,
@@ -242,7 +247,7 @@ class TrackPlanTest {
       )
     return EditComposition(
       listOf(
-        Track(listOf(fixture.clip(duration = PRIMARY_LENGTH))),
+        Track(listOf(fixture.clip(audioRate = AUDIO_RATE, duration = PRIMARY_LENGTH))),
         Track(
           clips = listOf(bedClip),
           content = TrackContent.Audio,
@@ -264,7 +269,7 @@ class TrackPlanTest {
       fixture.clip(duration = 3_000.milliseconds, trim = TimeRange.of(Duration.ZERO, LOOP_PASS), audioRate = 44_100)
     return EditComposition(
       listOf(
-        Track(listOf(fixture.clip(duration = LOOP_PASS * passes))),
+        Track(listOf(fixture.clip(audioRate = AUDIO_RATE, duration = LOOP_PASS * passes))),
         Track(clips = listOf(bedClip), content = TrackContent.Audio, looping = true),
       ),
     )
@@ -282,7 +287,8 @@ class TrackPlanTest {
 
   @Test
   fun `a primary track that starts before the composition is refused by name`() {
-    val composition = EditComposition(listOf(Track(listOf(fixture.clip()), start = (-500).milliseconds)))
+    val composition =
+      EditComposition(listOf(Track(listOf(fixture.clip(audioRate = AUDIO_RATE)), start = (-500).milliseconds)))
 
     val error =
       fixture
@@ -302,7 +308,7 @@ class TrackPlanTest {
     val composition =
       EditComposition(
         listOf(
-          Track(listOf(fixture.clip())),
+          Track(listOf(fixture.clip(audioRate = AUDIO_RATE))),
           Track(listOf(fixture.clip(audioRate = 48_000)), content = TrackContent.Audio, start = (-500).milliseconds),
         ),
       )
@@ -319,6 +325,9 @@ class TrackPlanTest {
   }
 
   private companion object {
+    // Every clip carries audio, since a fade over a clip that has none is left out of the plan.
+    const val AUDIO_RATE = 48_000
+
     // Case one of the looping suite every backend measures, so the schedule the looping tests spell
     // out is the one the four export suites build their edit from. No two of these divide evenly, so
     // a pass counted from the wrong place lands somewhere the readings can see, and the run always
