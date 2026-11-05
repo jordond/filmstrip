@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.player.SetCompositionCallback
 import dev.jordond.filmstrip.player.SetCompositionRequest
 import dev.jordond.filmstrip.player.SetCompositionResult
 import dev.jordond.filmstrip.player.internal.BasePlayerEngine
+import dev.jordond.filmstrip.player.internal.heldPosition
 import dev.jordond.filmstrip.player.internal.loopWrapOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -86,6 +87,10 @@ internal class ContractFakeEngine(
     request.startAt?.let { playhead = it }
 
     if (change != CompositionDiff.Equal) {
+      if (request.startAt == null && change == CompositionDiff.Structural) {
+        playhead = heldPosition(playhead, duration, FAKE_FRAME_RATE, loopRange, isPlayWanted)
+      }
+      emitPosition(playhead)
       setDuration(duration)
       emitPreviewInfo(PREVIEW_INFO)
       setStatus(PlaybackStatus.Ready)

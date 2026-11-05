@@ -44,7 +44,12 @@ internal class Media3LoopRangeController(
   private val pause: () -> Unit,
   private val onLooped: (range: TimeRange, landing: Duration) -> Unit,
 ) {
-  private var loopRange: TimeRange? = null
+  /**
+   * The range playback loops over, or null when it does not loop.
+   */
+  var loopRange: TimeRange? = null
+    private set
+
   private var playbackRange: TimeRange? = null
 
   private var mirroring = false

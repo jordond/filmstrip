@@ -19,10 +19,19 @@ internal val ResolvedComposition.frameRate: Int
  * The slot is clamped to the ones this composition covers, which run from zero up to, and not including, the slot its
  * duration lands on. A time before the start lands on the first frame and one at or past the end lands on the last.
  */
-internal fun ResolvedComposition.seekLandingOf(at: Duration): Duration {
-  val rate = frameRate
-  val last = (outputSlotOf(duration, rate) - 1).coerceAtLeast(0)
-  return outputSlotTime(outputSlotOf(at, rate).coerceIn(0, last), rate)
+internal fun ResolvedComposition.seekLandingOf(at: Duration): Duration = seekLandingOf(at, duration, frameRate)
+
+/**
+ * Where an exact seek to [at] lands in a composition [duration] long at [frameRate], which is the time of the output
+ * slot [at] rounds to, clamped the way [ResolvedComposition.seekLandingOf] clamps it.
+ */
+internal fun seekLandingOf(
+  at: Duration,
+  duration: Duration,
+  frameRate: Int,
+): Duration {
+  val last = (outputSlotOf(duration, frameRate) - 1).coerceAtLeast(0)
+  return outputSlotTime(outputSlotOf(at, frameRate).coerceIn(0, last), frameRate)
 }
 
 /**

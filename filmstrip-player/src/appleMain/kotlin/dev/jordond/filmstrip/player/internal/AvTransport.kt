@@ -85,6 +85,9 @@ internal class AvTransport(
 
   /**
    * Starts the periodic observer that reads where the item came to rest once playback stops.
+   *
+   * The item can run on for a moment after a pause, past the reading [stop] took. The observer also fires once it has
+   * settled, and that reading moves the playhead onto where playback really stopped.
    */
   fun observeStops() {
     stopToken =

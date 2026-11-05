@@ -45,6 +45,8 @@ import kotlin.time.Duration.Companion.milliseconds
  * @param config How the player was built.
  * @param startAudio Starts the audio graph, when there is one, from a position. Every transport start runs it before
  *   the clock starts, and a test swaps in one it can hold open.
+ * @param drawFirstFrame Draws the frame a new graph owes at a position, answering whether it drew one. A test swaps in
+ *   one it can hold open.
  */
 internal class BrowserPlayerEngine(
   parent: CoroutineScope,
@@ -52,6 +54,9 @@ internal class BrowserPlayerEngine(
   config: PlayerConfig,
   private val startAudio: suspend (graph: BrowserAudioPreview?, from: Duration) -> Unit = { graph, from ->
     graph?.start(from)
+  },
+  private val drawFirstFrame: suspend (preview: BrowserPreview, at: Duration) -> Boolean = { preview, at ->
+    preview.frameAt(at) != null
   },
 ) : PlannedPlayerEngine<BrowserPreviewPlan>(parent, config.qualityPolicy, planner) {
   private var preview: BrowserPreview? = null
@@ -69,6 +74,7 @@ internal class BrowserPlayerEngine(
   private var wantsPlayback = false
   private var reachedEnd = false
   private var startedAt: Duration? = null
+  private var firstFrameOwed = false
 
   private val onVisibilityChanged: () -> Unit = { if (document.hidden) onPageHidden() }
 
@@ -106,6 +112,13 @@ internal class BrowserPlayerEngine(
    * The audio branch reads false while the browser holds the graph suspended, even after the transport started it.
    */
   val clockRunning: Boolean get() = clock.isRunning
+
+  /**
+   * Whether a transport start has reached the clock and nothing has stopped it since.
+   *
+   * True while the browser holds the audio graph suspended, which is what separates it from [clockRunning].
+   */
+  val transportStarted: Boolean get() = startedAt != null
 
   override val id: String = "filmstrip.webcodecs"
 
@@ -145,7 +158,8 @@ internal class BrowserPlayerEngine(
     document.addEventListener(VISIBILITY_CHANGE, onVisibilityChanged)
   }
 
-  override val isGraphStanding: Boolean get() = preview != null
+  // A graph that still owes its first frame is not presentable yet, so an equal edit builds it again.
+  override val isGraphStanding: Boolean get() = preview != null && !firstFrameOwed
 
   override fun readPosition(): Duration {
     val duration = plan?.resolved?.duration ?: return Duration.ZERO
@@ -308,6 +322,7 @@ internal class BrowserPlayerEngine(
     next: BrowserPreviewPlan,
     request: SetCompositionRequest,
   ): PlaybackError? {
+    val current = readPosition()
     guard.reset()
     val standing = preview
     val swapped =
@@ -320,11 +335,22 @@ internal class BrowserPlayerEngine(
     plan = next
     setDuration(next.resolved.duration)
     emitPreviewInfo(next.info)
-    request.startAt?.let { clock.moveTo(next.resolved.seekLandingOf(it)) }
+    // A swap leaves the clock running where it was. A rebuild starts a fresh one, which holds the old playhead.
+    val landing =
+      request.startAt?.let(next.resolved::seekLandingOf)
+        ?: built?.let { next.resolved.heldPosition(current, loopRange, isPlayWanted) }
+    landing?.let { at ->
+      clock.moveTo(at)
+      emitPosition(at)
+    }
 
-    built?.let { firstFrameRefusal(it) }?.let { return it }
+    // A rebuild this one replaced mid draw leaves its frame owed, and its stopped transport, to whichever edit is next.
+    preview?.takeIf { firstFrameOwed }?.let { firstFrameRefusal(it) }?.let { return it }
     setStatus(PlaybackStatus.Ready)
-    if (request.playWhenReady) play()
+    when {
+      request.playWhenReady -> play()
+      wantsPlayback && !transportStarted && starting?.isActive != true -> launchStart { readPosition() }
+    }
     return null
   }
 
@@ -335,17 +361,20 @@ internal class BrowserPlayerEngine(
    */
   private fun rebuild(next: BrowserPreviewPlan): BrowserPreview {
     platformLoads++
-    // A start in flight would otherwise go on to start the clock built below.
-    cancelStart()
+    // Nothing of the old transport runs on over the new graph, and a start in flight would go on to start its clock.
+    // The transport stays stopped until the load has its first frame.
+    stopTransport()
     setStatus(PlaybackStatus.Preparing)
     preview?.release()
 
     val built = next.resolved.toBrowserPreview(next.edit)
     preview = built
+    firstFrameOwed = true
     audio =
       built.audio()?.also { graph ->
         graph.setVolume(volume)
-        graph.onStateChanged { scope.launch { onAudioStateChanged() } }
+        // Closing the graph this replaces reports a change too, which says nothing about this one.
+        graph.onStateChanged { scope.launch { if (audio === graph) onAudioStateChanged() } }
       }
     clock = audio?.let { AudioClock(it) } ?: MonotonicClock()
     reachedEnd = false
@@ -367,7 +396,7 @@ internal class BrowserPlayerEngine(
   private suspend fun firstFrameRefusal(target: BrowserPreview): PlaybackError? {
     val drawn =
       try {
-        target.frameAt(readPosition()) != null
+        drawFirstFrame(target, readPosition())
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (
@@ -380,6 +409,7 @@ internal class BrowserPlayerEngine(
       }
 
     if (!drawn) return PlaybackError.SourceUnreadable("The browser could not decode a frame of this composition.")
+    firstFrameOwed = false
     emitEvent(PlaybackEvent.FirstFrameRendered)
     return null
   }
@@ -497,13 +527,13 @@ internal class BrowserPlayerEngine(
 
   private companion object {
     const val VISIBILITY_CHANGE = "visibilitychange"
-
-    /**
-     * How long the audio graph gets to start before the refusal is reported.
-     *
-     * Long enough that a context resuming across a task boundary is never called a refusal, short
-     * enough that a play button does not sit stuck for a noticeable moment.
-     */
-    val AUTOPLAY_GRACE = 250.milliseconds
   }
 }
+
+/**
+ * How long the audio graph gets to start before the refusal is reported.
+ *
+ * Long enough that a context resuming across a task boundary is never called a refusal, short enough that a play button
+ * does not sit stuck for a noticeable moment.
+ */
+internal val AUTOPLAY_GRACE: Duration = 250.milliseconds

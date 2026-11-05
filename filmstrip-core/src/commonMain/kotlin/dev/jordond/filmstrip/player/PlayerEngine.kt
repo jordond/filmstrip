@@ -105,7 +105,8 @@ public class PlayerConfig(
  * @property startAt Where to start, or null to hold the current position. Holding it is
  *   almost always right, since a structural edit rebuilds the pipeline and dropping the playhead
  *   back to zero on every clip reorder reads as a bug.
- * @property playWhenReady Whether playback should start once the composition is presentable.
+ * @property playWhenReady Whether playback should start once the composition is presentable. False leaves a playing
+ *   preview playing, and only [PlayerEngine.pause] stops one.
  */
 @Poko
 public class SetCompositionRequest(

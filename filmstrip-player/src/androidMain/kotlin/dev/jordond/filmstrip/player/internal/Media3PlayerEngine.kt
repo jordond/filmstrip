@@ -61,6 +61,7 @@ internal class Media3PlayerEngine(
   private val handler = Handler(thread.looper)
 
   private var preview: Media3Preview? = null
+  private var volume = 1f
 
   private val guard = WrapGuard()
 
@@ -310,6 +311,7 @@ internal class Media3PlayerEngine(
 
   override fun setVolume(volume: Float) {
     val level = volume.coerceIn(0f, 1f)
+    this.volume = level
     handler.post { player?.volume = level }
   }
 
@@ -378,14 +380,23 @@ internal class Media3PlayerEngine(
     preview = lowered
     setStatus(PlaybackStatus.Preparing)
 
-    val start = next.resolved.seekLandingOf(startAt ?: readPosition())
+    val start =
+      startAt?.let(next.resolved::seekLandingOf)
+        ?: next.resolved.heldPosition(readPosition(), loops.loopRange, isPlayWanted)
     val startMs = start.toMediaMs()
     seeks.landing = start
     guard.reset()
+    emitPosition(start)
     val multipleInputs = lowered.videoSequences > 1
+    val level = volume
     handler.post {
+      // A player built for a different video graph starts paused at full volume, so it takes the transport from the one
+      // it replaces and the volume the engine holds.
+      val wanted = host.player?.playWhenReady == true
       val target = host.playerFor(multipleInputs)
+      target.volume = level
       target.setComposition(lowered.composition, startMs)
+      target.playWhenReady = wanted
       target.prepare()
     }
     return null

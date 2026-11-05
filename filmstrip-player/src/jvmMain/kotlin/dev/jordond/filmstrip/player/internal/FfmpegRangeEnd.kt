@@ -35,7 +35,12 @@ internal class FfmpegRangeEnd(
 ) {
   private val guard = WrapGuard()
 
-  private var loopRange: TimeRange? = null
+  /**
+   * The range playback loops over, or null when it does not loop.
+   */
+  var loopRange: TimeRange? = null
+    private set
+
   private var landing: ((Duration) -> Unit)? = null
 
   // The latest seek's completion, until the guard has heard where it landed.

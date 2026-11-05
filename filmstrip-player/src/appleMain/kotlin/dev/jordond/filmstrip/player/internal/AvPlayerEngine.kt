@@ -301,6 +301,7 @@ internal class AvPlayerEngine(
     next: PreviewPlan,
     request: SetCompositionRequest,
   ): PlaybackError? {
+    val current = transport.playhead
     wrapGuard.reset()
     drawFailure.clear()
     val swappable = change == CompositionDiff.ParametersOnly && lowered?.swapsParameters == true
@@ -318,14 +319,15 @@ internal class AvPlayerEngine(
     loop.arm()
     setDuration(next.resolved.duration)
     emitPreviewInfo(next.info)
-    val start = request.startAt?.let(next.resolved::seekLandingOf)
+    val held = if (swappable) null else next.resolved.heldPosition(current, loop.range, isPlayWanted)
+    val start = request.startAt?.let(next.resolved::seekLandingOf) ?: held
     val target = item
     if (start != null && target != null) {
       seeks.start(target, next.resolved, start, SeekAccuracy.Exact, wrap = false) { }
     }
-    // The load's seek reports nothing when it lands and nothing reports a fresh item's start, so the jump is reported
-    // here.
-    if (start != null || !swappable) transport.jumpTo(start ?: Duration.ZERO)
+    // A swapped item plays on where it was. A fresh one starts at zero and is sent to the held playhead, and neither
+    // that start nor the load's seek landing reports itself, so the jump is reported here.
+    start?.let(transport::jumpTo)
     onPlatformChanged()
     if (request.playWhenReady) play()
     return null

@@ -239,8 +239,9 @@ internal class FfmpegPlayerEngine(
    * Applies one lowered plan and puts a pump on it.
    *
    * A parameter change is a new graph, so it costs a respawn either way. What it does not cost is
-   * the timeline: the playhead stays where it was and nothing goes back through
-   * [PlaybackStatus.Preparing], so the preview redraws where it stood rather than restarting.
+   * the timeline: nothing goes back through [PlaybackStatus.Preparing], so the preview redraws where it stood rather
+   * than restarting, on the slot the playhead lands on past the range or not. A structural edit holds the playhead
+   * where [heldPosition] places it. Either way playback that was wanted stays wanted on the new pump.
    */
   override suspend fun apply(
     change: CompositionDiff,
@@ -259,7 +260,13 @@ internal class FfmpegPlayerEngine(
       setStatus(PlaybackStatus.Preparing)
     }
 
-    position = snap(request.startAt ?: if (parametersOnly) position else Duration.ZERO)
+    val start = request.startAt
+    position =
+      when {
+        start != null -> snap(start)
+        parametersOnly -> snap(position)
+        else -> next.resolved.heldPosition(position, ends.loopRange, isPlayWanted)
+      }
     ends.reset()
     startPump(position, null)
     if (request.playWhenReady) play()

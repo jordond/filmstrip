@@ -84,7 +84,8 @@ public interface VideoPlayer :
    *
    * @param composition The composition to present, the same value that goes to `export`.
    * @param startAt Where to start, or null to hold the current position.
-   * @param playWhenReady Whether playback should start once the composition is presentable.
+   * @param playWhenReady Whether playback should start once the composition is presentable. False leaves a playing
+   *   preview playing, and only [pause] stops one.
    * @return whether the composition loaded, failed, or was superseded by a later call.
    */
   public suspend fun setComposition(

@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.diff
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.SeekAccuracy
@@ -22,17 +23,16 @@ import kotlinx.coroutines.test.TestResult
 import kotlin.test.Test
 import kotlin.test.fail
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * The contracts every player backend must honour that need nothing but an engine and a
  * composition.
  *
- * A backend inherits this, supplies [createEngine], [fixture] and [fixtureFrameRate], and gets the seven behaviours
+ * A backend inherits this, supplies [createEngine], [fixture] and [fixtureFrameRate], and gets the eight behaviours
  * that drift silently between backends: the duration a snapshot reports, what the preview reports it is delivering, one
- * completion per issued seek, the slot a seek reports it landed on, an equal composition doing no platform work, how
- * an interruption from outside filmstrip reaches a listener, and a loop range the composition ends inside wrapping at
- * that end rather than ending there.
+ * completion per issued seek, the slot a seek reports it landed on, an equal composition doing no platform work, a
+ * rebuild leaving the transport and the playhead where they were, how an interruption from outside filmstrip reaches a
+ * listener, and a loop range the composition ends inside wrapping at that end rather than ending there.
  *
  * Pixel work is in [PlayerPixelContractTest] instead, so a backend with no export to compare
  * against is not made to stub out half of one class.
@@ -223,6 +223,29 @@ abstract class PlayerEngineContractTest {
     }
 
   @Test
+  fun aRebuildWhilePlayingKeepsPlayingFromWhereThePlayheadWas() = rebuilds.keepsPlaying()
+
+  @Test
+  fun aRebuildWhilePausedStaysPausedAndHoldsThePlayhead() = rebuilds.staysPaused()
+
+  @Test
+  fun aPausedRebuildShorterThanThePlayheadLandsWhereTheHeldPositionSays() =
+    rebuilds.pausedLandsOnLastFrame(loop = false)
+
+  @Test
+  fun aPausedRebuildShorterThanThePlayheadLandsOnItsLastFrameUnderALoopRange() =
+    rebuilds.pausedLandsOnLastFrame(loop = true)
+
+  @Test
+  fun aPlayingRebuildShorterThanThePlayheadWrapsIntoTheLoopRange() = rebuilds.playingWrapsIntoLoopRange()
+
+  @Test
+  fun aPausedRebuildPastTheLoopRangeStaysWhereItLanded() = rebuilds.pausedStaysPastLoopRange(fixtureRebuilt)
+
+  @Test
+  fun aPausedParameterEditPastTheLoopRangeStaysWhereItLanded() = rebuilds.pausedStaysPastLoopRange(fixtureParameters)
+
+  @Test
   fun eachStagedInterruptionReportsOneExternalChangeAndLeavesPlaybackUnwanted() =
     contractTest { scope ->
       for (occasion in stageableInterruptions) {
@@ -345,6 +368,12 @@ abstract class PlayerEngineContractTest {
     awaitStep("the engine to go quiet") { awaitQuiet() }
   }
 
+  private val rebuilds: RebuildContract get() = RebuildContract(::createEngine, fixture, fixtureFrameRate)
+
+  private val fixtureRebuilt: EditComposition get() = fixture.cutInTwo(fixtureFrameRate)
+
+  private val fixtureParameters: EditComposition get() = fixture.withEffects(listOf(Brightness(RETUNED_BRIGHTNESS)))
+
   private companion object {
     val BURST_SIZES = listOf(1, 2, 5, 9)
 
@@ -373,26 +402,11 @@ abstract class PlayerEngineContractTest {
     const val ROUNDS_UP_AT = 0.6
     const val RELAXED_AT = 0.45
 
+    // Any brightness a fixture does not already carry, which changes a parameter and nothing on the timeline.
+    const val RETUNED_BRIGHTNESS = 0.7f
+
     // Where across the composition the loop range starts, and where playback into its end begins.
     const val LOOP_FROM = 0.7
     const val APPROACH_AT = 0.9
-
-    /**
-     * A time [thirds] thirds of a slot away from the output slot nearest [fraction] of [duration], at [rate].
-     *
-     * A third either side of a slot still rounds to it. Fails when that slot is the first or the last, since a seek
-     * near either end lands there under any reading.
-     */
-    fun offGrid(
-      duration: Duration,
-      fraction: Double,
-      rate: Int,
-      thirds: Int,
-    ): Duration {
-      val slot = outputSlotOf(duration * fraction, rate)
-      val last = outputSlotOf(duration, rate) - 1
-      check(slot in 1 until last) { "Slot $slot is not strictly inside $duration at $rate fps." }
-      return outputSlotTime(slot, rate) + (1.seconds / rate / 3) * thirds
-    }
   }
 }

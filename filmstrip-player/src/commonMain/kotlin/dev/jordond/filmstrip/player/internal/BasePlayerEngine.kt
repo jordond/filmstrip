@@ -38,6 +38,11 @@ internal abstract class BasePlayerEngine(
   positionTick: Duration = DEFAULT_POSITION_TICK,
 ) : PlayerEngine {
   /**
+   * Whether playback is wanted right now, which is [PlayerState.playWhenReady] on the snapshot.
+   */
+  protected val isPlayWanted: Boolean get() = playWhenReady
+
+  /**
    * Where this engine launches, and what [dispose] takes down.
    *
    * A child of the scope handed in. Everything an engine launches outlives the call that started

@@ -92,7 +92,10 @@ internal abstract class PlannedPlayerEngine<P : PlannedPreview>(
   /**
    * Applies one lowered plan, rebuilding only what [change] actually costs, and records [loaded] and [plan].
    *
-   * Never handed an equal edit while a graph is standing, since [setComposition] answers that itself.
+   * Never handed an equal edit while a graph is standing, since [setComposition] answers that itself. The transport is
+   * left as it was, so playback that was wanted keeps playing on the new graph and a paused one stays paused. A
+   * rebuild with no start puts the playhead where [heldPosition] places it in [next] and reports that reading. A
+   * parameters-only edit with no start leaves the playhead where it stands.
    *
    * @return null when the plan is loaded, or why it could not be.
    */

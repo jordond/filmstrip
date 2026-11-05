@@ -84,18 +84,20 @@ class WebTransportStartTest {
       engine.clockRunning shouldBe true
     }
 
-  // The rebuild replaces the clock, and nothing starts the replacement once the start it superseded is gone.
+  // The rebuild replaces the clock and starts the replacement from the held playhead, and only that start runs on.
   @Test
-  fun `a rebuild cancels the start in flight`() =
+  fun `a rebuild cancels the start in flight and starts its own`() =
     heldStart { engine, gate ->
       engine.play()
       awaitContract("the start to reach the audio graph") { gate.entered == 1 }
       engine.awaitComposition(webFixtureTrimmed(REBUILT_LENGTH)).shouldBeInstanceOf<SetCompositionResult.Success>()
+      awaitContract("the rebuild's start to reach the audio graph") { gate.entered == 2 }
       gate.releaseAll()
       engine.awaitQuietDone()
 
-      gate.resumed.shouldBeEmpty()
-      engine.clockRunning shouldBe false
+      gate.resumed shouldBe listOf(1)
+      gate.starts shouldBe listOf(Duration.ZERO, Duration.ZERO)
+      engine.clockRunning shouldBe true
     }
 
   private fun heldStart(body: suspend (BrowserPlayerEngine, AudioStartGate) -> Unit) =
