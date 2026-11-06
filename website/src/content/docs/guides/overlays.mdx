@@ -1,0 +1,99 @@
+---
+title: Overlays
+description: Draw images and text over the video and animate them.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+import Snippet from '../../../components/Snippet.astro'
+
+Overlays are effects, so they go in an `effects { }` block. They run after geometry has settled, which is what makes
+their measurements fractions of the final frame. An overlay on a clip is measured against the clip's frame, and one on
+the composition against the output frame.
+
+## Image
+
+`imageOverlay` draws a picture into a corner.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Overlays.kt" region="image" />
+
+- `scale` is the picture's width as a fraction of the frame's width, a fifth by default. The height follows the picture's
+  own aspect.
+- `margin` is the inset from the corner as a fraction of the frame's shorter side, 4% by default.
+- `opacity` runs from `0f` to `1f`.
+
+The image comes from an `ImageSource`, which is a path, a URI or encoded bytes. The picture is drawn in the color its
+file describes, and an untagged picture is read as sRGB. SDR output clips a tagged picture's colors to BT.709, and an
+HDR grade keeps them inside BT.2020. When a platform's decoder can't land the picture that way, the effect resolves as
+degraded or unsupported and says why.
+
+## Text
+
+`textOverlay` burns text into the frame. A preview and its export break lines on the same words.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Overlays.kt" region="text" />
+
+Every size in a `TextStyle` is a fraction of the frame. `fontSize` is the cap height against the frame's height, 6% by
+default, and `maxWidth` is where lines wrap, 90% of the width by default. Colors are packed ARGB, as `0xAARRGGBB`, and
+`backgroundColor` draws a plate behind the text.
+
+Text has no margin of its own. The `anchor` names the same point on the text and on the frame, so `Anchor.BottomCenter`,
+the default, puts the bottom edge of the text on the bottom edge of the frame.
+
+## When it shows
+
+Without a window an overlay draws for its whole scope. Both calls take `at`, a range of composition time where the end is
+exclusive, or a `visibleDuring` `TimeRange` if you already have one.
+
+## Animation
+
+Every overlay takes an `animation`, asked once per output frame how to draw. `fade` ramps the opacity.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Overlays.kt" region="fade" />
+
+`fade` takes either side alone, and a side you leave out has no ramp. So `fade(inDuration = 500.milliseconds)` only
+fades in. Each ramp is linear, and a range shorter than the two ramps takes the lower of the two opacities.
+
+<Aside type="caution">
+A clip's `fadeIn` and `fadeOut` ramp its audio, not its picture, and they aren't available inside `effects { }`. To fade
+an overlay, pass `fade` as its `animation`. See [Audio](/guides/audio/#fades).
+</Aside>
+
+`slideIn` and `slideOut` move the overlay between its authored position and an offset. `+` runs two animations together.
+Opacities and scales multiply, and offsets add.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Overlays.kt" region="slide" />
+
+An offset is a fraction of the frame, with positive `x` towards the end edge and positive `y` down. An offset can carry
+the overlay off the frame, and the part that leaves isn't drawn.
+
+Anything else is a lambda, since `OverlayAnimation` is a `fun interface`. It reads an `OverlayTime`, where `elapsed` and
+`remaining` count across the range the overlay is drawn over and `composition` is the frame's place on the timeline. It
+answers an `OverlayFrame` with an opacity, an offset and a scale.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Overlays.kt" region="custom-animation" />
+
+The scale grows the overlay away from the point it's anchored by. On text it resamples the raster, and never lays the
+glyphs out again.
+
+A range with no end reads `remaining` as infinite, so the out side of a `fade` holds full opacity and `slideOut` holds the
+authored position.
+
+Animations are compared, since two overlays that draw differently can't share a cached frame. The built-in helpers
+compare by value. A lambda compares by identity, so hold one instance and reuse it, or every rebuilt composition misses
+the thumbnail cache.
+
+An overlay at zero opacity, empty text or a window outside its scope draws nothing. The plan leaves it out and lists it
+on its [inert notices](/guides/export/#inert-notices).
+
+<Aside type="note" title="Limits">
+- A browser page can't read a file path, so an `ImageSource.Path` overlay is refused by name there. Pass bytes or a URI.
+- media3 uploads each overlay as one texture, so a picture or text longer on a side than the device's
+  `GL_MAX_TEXTURE_SIZE` is refused by name. The browser does the same with WebGL's `MAX_TEXTURE_SIZE`.
+- media3 holds an overlay's position inside the frame, so one animated off the frame stops at the edge there.
+- On an HLG grade, media3 blends an overlay in scene light, so the plan reports it as an approximated effect.
+- The browser breaks lines at spaces and at each `\n`, and splits a word wider than a whole line. Android and Apple follow
+  the platform's line breaking and the JVM uses its `LineBreakMeasurer`, so a caption can wrap on different words between
+  them.
+- The ffmpeg backend draws text with the fonts the JVM finds on the machine, and refuses text holding a character those
+  fonts can't draw.
+</Aside>

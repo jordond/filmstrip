@@ -15,8 +15,8 @@ public interface PreviewFactory {
    * Opens a player over the same composition value that an export takes.
    *
    * Returns immediately. The composition loads asynchronously and progress is observable on the
-   * player's own state. When no preview backend is registered, the returned player reports
-   * [PlaybackError.BackendMissing] rather than throwing.
+   * player's own state. When no preview backend is registered, or a browser preview has no `webCodecsBackend()` to read
+   * its source with, the returned player reports [PlaybackError.BackendMissing] rather than throwing.
    *
    * @param composition The edit to play.
    * @param config How the player should behave.

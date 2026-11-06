@@ -70,9 +70,11 @@ public class AvComposition internal constructor(
   public val renderSize: Size? get() = chain?.output?.size
 
   /**
-   * Whether [updateParameters] reaches any frame, which takes a video track to draw through.
+   * Whether [updateParameters] can take [resolved] on the graph as it stands. False when there is no video track or
+   * [resolved] moves something the graph was laid out against, such as whether audio was laid, which is the case for
+   * [toAvComposition].
    */
-  public val swapsParameters: Boolean get() = chain != null
+  public fun takesParametersOf(resolved: ResolvedComposition): Boolean = chain?.takesParametersOf(resolved) == true
 
   /**
    * Called on AVFoundation's render queue the moment a step first throws while drawing a frame, so a preview can
@@ -95,8 +97,8 @@ public class AvComposition internal constructor(
    * [composition] again. Does nothing when there is no video track.
    *
    * @param resolved The same timeline, planned again with different effect parameters.
-   * @throws IllegalArgumentException When [resolved] moves something the graph was laid out against, which needs
-   *   the whole graph built again through [toAvComposition] instead.
+   * @throws IllegalArgumentException When [takesParametersOf] says no, which needs the whole graph built again through
+   *   [toAvComposition] instead.
    */
   public fun updateParameters(resolved: ResolvedComposition) {
     chain?.updateParameters(resolved)

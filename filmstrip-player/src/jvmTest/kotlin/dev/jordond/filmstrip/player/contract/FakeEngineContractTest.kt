@@ -27,6 +27,9 @@ class FakeEngineContractTest : PlayerEngineContractTest() {
 
   override val fixtureFrameRate: Int = FAKE_FRAME_RATE
 
+  // The fake reports one preview info whatever it loads.
+  override val reportsOutputFrame: Boolean = false
+
   // Nothing is out of reach for a fake, so it takes everything short of the two occasions no
   // platform exposes at all.
   override val stageableInterruptions: Set<Interruption> =

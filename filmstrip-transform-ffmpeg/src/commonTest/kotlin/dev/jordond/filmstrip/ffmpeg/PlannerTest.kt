@@ -32,11 +32,13 @@ import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.export.VideoQuality
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegParity
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPlanner
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.EXPRESSION_SEGMENTS
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.TONE_MAP_FILTERS
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.arguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegEncoderNamed
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegEncoders
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.formatSeconds
@@ -59,6 +61,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.test.OrientedPictures
+import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
 import dev.jordond.filmstrip.transform.internal.hdr.TONE_MAP_BT2020_TO_BT709
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.resolve.curveOver
@@ -831,6 +834,25 @@ class PlannerTest {
       .reasons
       .single()
       .shouldBeInstanceOf<FilmstripError.NoEncoder>()
+  }
+
+  // The rate reaching the command line is the one the planner settled on, which is the shared bitrate for the default
+  // tier at the size and rate the export writes.
+  @Test
+  fun `encodes at the bitrate the planner settled on`() {
+    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))))
+    val lowered = planner().lower(composition, Ask(ExportSpec(heightPx = 720), device(), infos))
+    val plan = lowered.verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    val arguments =
+      lowered.graph
+        .shouldNotBeNull()
+        .arguments(toolchain(), FfmpegConfig(), listOf("/clips/landscape.mp4"), emptyList(), "/out.mp4")
+
+    plan.output.bitrate shouldBe resolveVideoBitrate(VideoQuality.High, VideoCodec.H264, Size(1280, 720), 30)
+    arguments[arguments.indexOf("-b:v") + 1] shouldBe
+      plan.output.bitrate
+        ?.bitsPerSecond
+        .toString()
   }
 
   private fun planner(toolchain: Toolchain = toolchain()) = FfmpegPlanner(toolchain, listOf(BuiltInEffectResolver()))

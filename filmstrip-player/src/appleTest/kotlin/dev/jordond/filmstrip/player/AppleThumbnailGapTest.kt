@@ -32,6 +32,7 @@ import dev.jordond.filmstrip.player.internal.AvPreviewPlanner
 import dev.jordond.filmstrip.test.AuthoredColors
 import dev.jordond.filmstrip.test.AuthoredColors.MID_GREEN
 import dev.jordond.filmstrip.test.AuthoredColors.MID_GREY
+import dev.jordond.filmstrip.test.PREVIEW_PARITY_EXPORT_BITRATE
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.test.assertFramesSimilar
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
@@ -261,7 +262,8 @@ class AppleThumbnailGapTest {
     output: String,
   ) {
     NSFileManager.defaultManager.removeItemAtPath(output, error = null)
-    val statuses = Filmstrip { avFoundationBackend() }.export(composition, ExportSpec(), MediaSink.of(output)).toList()
+    val spec = ExportSpec(bitrate = PREVIEW_PARITY_EXPORT_BITRATE)
+    val statuses = Filmstrip { avFoundationBackend() }.export(composition, spec, MediaSink.of(output)).toList()
     when (val finished = statuses.last()) {
       is ExportStatus.Failure -> fail(finished.error.message)
       else -> finished.shouldBeInstanceOf<ExportStatus.Success>()

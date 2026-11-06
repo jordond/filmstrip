@@ -1,0 +1,46 @@
+---
+title: Edits
+description: Describe a composition of clips, trims and tracks.
+---
+
+import Snippet from '../../../components/Snippet.astro'
+
+An edit is an `EditComposition`, built with `compositionOf { }`. It's data, so you can build it without an instance,
+keep it in state, and hand the same value to `plan`, `export` and the player.
+
+## Clips
+
+`clip` appends to the primary track, which is the only track most edits need.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Edits.kt" region="single-clip" />
+
+## Trims
+
+A trim keeps part of a source. The end is always exclusive, whether you pass two durations or a range. Clips play
+one after another in the order you add them.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Edits.kt" region="trimmed-clips" />
+
+A trimmed export normally re-encodes at least the start of the clip. `snapWithin` lets the cut move back to the
+nearest sync sample, up to the duration you give it, so the export can copy the streams instead.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Edits.kt" region="snap-within" />
+
+The default of zero keeps the cut exactly where the trim put it.
+
+## Tracks
+
+`track` adds a layer that plays alongside the primary track. An audio-only track is mixed in with the rest, which is
+how a music bed works.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Edits.kt" region="music-bed" />
+
+Levels multiply down the scopes, composition then track then clip, and a fade multiplies whatever level it's on.
+A track that carries video is refused at plan time unless it's the primary one.
+
+## Composition audio
+
+`audio(AudioSpec)` sets what happens to the mixed audio. `Mute` keeps a silent track, `Remove` writes no audio
+track at all, `AudioOnly` drops the video, and `Volume` scales the mix.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Edits.kt" region="remove-audio" />

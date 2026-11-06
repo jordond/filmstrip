@@ -14,6 +14,13 @@ public enum class VideoCodec {
   Auto,
 
   /**
+   * Encode with the first clip's own codec when the device can, otherwise fall back through the same order as [Auto]
+   * and report the fallback. A composition with no source codec to name, such as one of only stills, takes that order
+   * with nothing reported. Unlike any other named codec it does not block a stream copy.
+   */
+  MatchSource,
+
+  /**
    * H.264, also known as AVC.
    */
   H264,

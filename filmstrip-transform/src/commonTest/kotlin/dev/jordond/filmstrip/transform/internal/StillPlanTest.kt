@@ -245,6 +245,17 @@ class StillPlanTest {
       .plan.output.size shouldBe Size(4032, 3024)
   }
 
+  // A photo's pixel count says nothing about the size the output should be, so a still-framed edit is the one place a
+  // height above the natural frame still scales up.
+  @Test
+  fun `a height above a still's own size upscales it`() {
+    val verdict = fixture.plan(composition(fixture.imageClip(size = Size(1280, 720))), ExportSpec(heightPx = 1080))
+
+    verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+      .plan.output.size shouldBe Size(1920, 1080)
+  }
+
   // The counter-test to the still ceiling: a video frame is one an encoder already produced, so it
   // is held to the encoder's limit and to nothing else. Widening the ceiling to every source would
   // fail here.

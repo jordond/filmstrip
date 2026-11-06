@@ -271,11 +271,11 @@ class AndroidPixelContractTest : PlayerPixelContractTest() {
     const val PAN_MIN_PSNR_DB = 34.0
 
     // A pan magnifies its window, so both sides encode enlarged grain and an unbroken pair scores
-    // below what a whole frame of the same clip does: 34.0 dB and 0.981 at the readings below,
+    // below what a whole frame of the same clip does: 34.2 dB and 0.991 at the readings below,
     // against 40 dB for a frame nothing magnified. The floor comes down for a pan over a clip and
     // no other reading, and it stays a long way above what a divergence costs. Two exports of this
     // pan a tenth of a frame of travel apart score 25.3 dB and 0.941, and a whole frame apart
-    // 13.2 dB and 0.877.
+    // 13.2 dB and 0.877. Those two were read at the default rate before the suite pinned one.
     const val CLIP_PAN_MIN_PSNR_DB = 32.0
     const val CLIP_PAN_MIN_SSIM = 0.975
 

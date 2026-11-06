@@ -393,7 +393,7 @@ class BrowserHdrTest {
     transfer: HdrTransfer,
   ): ExportStatus.Success {
     val filmstrip = filmstrip()
-    val spec = ExportSpec(audioCodec = AudioCodec.None, hdr = HdrMode.KeepHdr)
+    val spec = ExportSpec(bitrate = MEASURING_BITRATE, audioCodec = AudioCodec.None, hdr = HdrMode.KeepHdr)
     val statuses = filmstrip.export(planOf(filmstrip, composition, spec), MediaSink.Uri("")).toList()
     val failure = statuses.filterIsInstance<ExportStatus.Failure>().firstOrNull()
     if (failure != null) throw AssertionError("the $transfer export failed: ${failure.error.message}")

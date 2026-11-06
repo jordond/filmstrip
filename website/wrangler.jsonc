@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "filmstrip-docs",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page",
+  },
+  "workers_dev": false,
+  "preview_urls": true,
+  "observability": { "enabled": true },
+  "routes": [{ "pattern": "filmstrip.jordond.dev", "custom_domain": true }],
+}

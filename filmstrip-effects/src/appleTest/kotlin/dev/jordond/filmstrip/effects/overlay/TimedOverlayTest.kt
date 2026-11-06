@@ -124,7 +124,7 @@ class TimedOverlayTest {
   @Test
   fun `fades a watermark in across the middle of its ramp`() {
     val context = renderingContext()
-    val overlay = ImageOverlay(RED, Corner.TopStart, animation = fadeIn(RAMP))
+    val overlay = ImageOverlay(RED, Corner.TopStart, animation = fade(inDuration = RAMP))
     val faded = stepFor(overlay)
     val plain = pixels(background(), context)
     val whole = movedBy(stepFor(ImageOverlay(RED, Corner.TopStart)), BASELINE, context, plain)
@@ -154,7 +154,7 @@ class TimedOverlayTest {
   @Test
   fun `fades text in across the middle of its ramp`() {
     val context = renderingContext()
-    val overlay = TextOverlay(CAPTION, PLATED, animation = fadeIn(RAMP))
+    val overlay = TextOverlay(CAPTION, PLATED, animation = fade(inDuration = RAMP))
     val faded = stepFor(overlay)
     val plain = pixels(background(), context)
     val whole = movedBy(stepFor(TextOverlay(CAPTION, PLATED)), BASELINE, context, plain)
@@ -205,7 +205,7 @@ class TimedOverlayTest {
 
   @Test
   fun `draws nothing outside the window an animation ramps over`() {
-    val overlay = ImageOverlay(RED, Corner.TopStart, visibleDuring = WINDOW, animation = fadeIn(RAMP))
+    val overlay = ImageOverlay(RED, Corner.TopStart, visibleDuring = WINDOW, animation = fade(inDuration = RAMP))
     val step = stepFor(overlay)
     val frame = background()
 
@@ -222,7 +222,7 @@ class TimedOverlayTest {
   @Test
   fun `ramps from the window's own start`() {
     val context = renderingContext()
-    val overlay = ImageOverlay(RED, Corner.TopStart, visibleDuring = WINDOW, animation = fadeIn(WINDOW_RAMP))
+    val overlay = ImageOverlay(RED, Corner.TopStart, visibleDuring = WINDOW, animation = fade(inDuration = WINDOW_RAMP))
     val step = stepFor(overlay)
     val plain = pixels(background(), context)
     val whole = movedBy(stepFor(ImageOverlay(RED, Corner.TopStart)), BASELINE, context, plain)

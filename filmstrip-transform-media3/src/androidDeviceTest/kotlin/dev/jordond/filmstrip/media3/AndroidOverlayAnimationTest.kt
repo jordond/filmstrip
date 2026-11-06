@@ -6,8 +6,7 @@ import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.effects.overlay.OverlayFrame
 import dev.jordond.filmstrip.effects.overlay.OverlayOffset
 import dev.jordond.filmstrip.effects.overlay.animatedBy
-import dev.jordond.filmstrip.effects.overlay.fadeIn
-import dev.jordond.filmstrip.effects.overlay.fadeOut
+import dev.jordond.filmstrip.effects.overlay.fade
 import dev.jordond.filmstrip.effects.overlay.frameAt
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
@@ -43,7 +42,7 @@ class AndroidOverlayAnimationTest {
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture()
       val still = probe.watermark(Corner.BottomEnd)
-      val faded = probe.watermark(Corner.BottomEnd, animation = fadeIn(RAMP))
+      val faded = probe.watermark(Corner.BottomEnd, animation = fade(inDuration = RAMP))
 
       val plain = probe.export(source, emptyList())
       val opaque = probe.export(source, listOf(still))
@@ -71,7 +70,7 @@ class AndroidOverlayAnimationTest {
     runTest(timeout = TIMEOUT) {
       val source = probe.fixture()
       val still = probe.watermark(Corner.BottomEnd)
-      val leaving = probe.watermark(Corner.BottomEnd, animation = fadeOut(RAMP))
+      val leaving = probe.watermark(Corner.BottomEnd, animation = fade(outDuration = RAMP))
 
       val plain = probe.export(source, emptyList())
       val opaque = probe.export(source, listOf(still))

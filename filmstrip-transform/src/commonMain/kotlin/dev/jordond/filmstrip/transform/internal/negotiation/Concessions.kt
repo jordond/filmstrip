@@ -30,6 +30,7 @@ internal fun concessionsOf(
     encoding.video.fallback?.let(::add)
     audio.fallback?.let(::add)
     resolutionClamp(framing, encoding)?.let(::add)
+    encoding.bitrateClamp?.let(::add)
     val frameRate = encoding.target.frameRate
     val requestedRate = spec.frameRate
     if (requestedRate != null && requestedRate != frameRate) {

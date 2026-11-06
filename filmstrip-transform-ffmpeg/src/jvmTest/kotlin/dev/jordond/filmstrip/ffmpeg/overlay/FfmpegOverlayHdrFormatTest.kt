@@ -10,12 +10,11 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
-import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
-import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.ffmpeg.internal.picture.FfmpegPictureDecoder
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.CODE_TOLERANCE
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.COLOR_READ_HDR_SPEC
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.ExportedOverlay
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
@@ -235,7 +234,7 @@ class FfmpegOverlayHdrFormatTest {
         fill(Fill.Solid(fill))
       }
     val plan =
-      when (val verdict = fixture.filmstrip.plan(composition, ExportSpec(hdr = HdrMode.KeepHdr))) {
+      when (val verdict = fixture.filmstrip.plan(composition, COLOR_READ_HDR_SPEC)) {
         is Verdict.Capable -> verdict.plan
         is Verdict.Degraded -> verdict.plan
         is Verdict.Incapable -> error(verdict.reasons.joinToString { it.message })

@@ -153,8 +153,8 @@ internal fun webCodecString(
     VideoCodec.Vp9 -> {
       if (hdr) HDR_VP9_CODEC else "vp09.00.10.08"
     }
-    VideoCodec.Auto -> {
-      error("Auto is resolved by the planner before this is called")
+    VideoCodec.Auto, VideoCodec.MatchSource -> {
+      error("$codec is resolved by the planner before this is called")
     }
     VideoCodec.Vp8, VideoCodec.Av1 -> {
       error("$codec is never the ladder's encode pick, only ever copied across")
@@ -169,7 +169,7 @@ internal fun muxCodecKey(codec: VideoCodec): String =
     VideoCodec.H264 -> "avc"
     VideoCodec.Hevc -> "hevc"
     VideoCodec.Vp9 -> "vp9"
-    VideoCodec.Auto -> error("Auto is resolved by the planner before this is called")
+    VideoCodec.Auto, VideoCodec.MatchSource -> error("$codec is resolved by the planner before this is called")
     VideoCodec.Vp8, VideoCodec.Av1 -> error("$codec is never the ladder's encode pick, only ever copied across")
   }
 

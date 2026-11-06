@@ -11,7 +11,7 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
-import dev.jordond.filmstrip.effects.overlay.fadeIn
+import dev.jordond.filmstrip.effects.overlay.fade
 import dev.jordond.filmstrip.effects.overlay.frameAt
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
@@ -25,6 +25,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.preview.FfmpegPreviewStream
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
 import dev.jordond.filmstrip.ffmpeg.internal.preview.openPreview
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.CODE_TOLERANCE
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.COLOR_READ_BITRATE
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.encodesHdr
@@ -214,9 +215,9 @@ class FfmpegTextOverlayTest {
 
     val LENGTH = 2.seconds
     val WINDOW = TimeRange.of(500.milliseconds, 1_500.milliseconds)
-    val FADE: OverlayAnimation = fadeIn(1.seconds)
+    val FADE: OverlayAnimation = fade(inDuration = 1.seconds)
     val SDR_SPEC = ExportSpec(heightPx = 480)
-    val HDR_SPEC = ExportSpec(heightPx = 480, hdr = HdrMode.KeepHdr)
+    val HDR_SPEC = ExportSpec(heightPx = 480, hdr = HdrMode.KeepHdr, bitrate = COLOR_READ_BITRATE)
 
     // A square inside the plate's padding, clear of every glyph.
     const val PROBE_AT = 4

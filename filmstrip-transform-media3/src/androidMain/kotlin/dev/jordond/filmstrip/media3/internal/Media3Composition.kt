@@ -91,12 +91,20 @@ internal fun ResolvedComposition.toMedia3(
  */
 internal fun VideoCodec.toMimeType(): String =
   when (this) {
-    VideoCodec.H264 -> MimeTypes.VIDEO_H264
-    VideoCodec.Hevc -> MimeTypes.VIDEO_H265
-    // The planner resolves Auto against the device's real encoder list before a plan exists, and
+    VideoCodec.H264 -> {
+      MimeTypes.VIDEO_H264
+    }
+    VideoCodec.Hevc -> {
+      MimeTypes.VIDEO_H265
+    }
+    // The planner resolves Auto and MatchSource against the device's real encoder list before a plan exists, and
     // media3's ladder never offers Vp9, Vp8 or Av1, so none of them should reach here. They error,
     // so a ladder change that forgets this function fails loudly.
-    VideoCodec.Auto, VideoCodec.Vp9, VideoCodec.Vp8, VideoCodec.Av1 -> error("media3 has no encoder for $this.")
+    VideoCodec.Auto, VideoCodec.MatchSource, VideoCodec.Vp9, VideoCodec.Vp8, VideoCodec.Av1 -> {
+      error(
+        "media3 has no encoder for $this.",
+      )
+    }
   }
 
 /**

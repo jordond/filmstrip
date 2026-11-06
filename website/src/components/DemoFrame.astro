@@ -1,0 +1,321 @@
+---
+// A big CRT showing colour bars until the reader presses LOAD, then the wasm sample in an iframe. Nothing downloads
+// before the click. The screen layers stay on top of the iframe and let every pointer event through. On narrow widths
+// LOAD also grows the screen and slims the bezel, so the sample has room to be used.
+import { DEMO_SIZE, DEMO_SRC } from '../lib/demo'
+import TvChin from './landing/TvChin.astro'
+
+interface Props {
+  /** Where the sample's index.html is served from. */
+  src?: string
+  /** The download size shown under LOAD. */
+  size?: string
+}
+
+const { src = DEMO_SRC, size = DEMO_SIZE } = Astro.props
+
+const top = ['grey', 'yellow', 'cyan', 'green', 'magenta', 'red', 'blue'].map((bar) => `var(--bar-${bar})`)
+const middle = ['blue', 'black', 'magenta', 'black', 'cyan', 'black', 'grey'].map((bar) => `var(--bar-${bar})`)
+const bottom = [
+  { colour: 'var(--bar-navy)', flex: 5 },
+  { colour: 'var(--white)', flex: 5 },
+  { colour: 'var(--bar-violet)', flex: 5 },
+  { colour: 'var(--bar-black)', flex: 13 },
+]
+---
+
+<div class="tv not-content" data-demo data-src={src}>
+  <div id="demo-screen" class="screen scan flicker">
+    <div class="roll"></div>
+    <div class="vignette"></div>
+    <div class="glass"></div>
+    <div class="bars" aria-hidden="true" data-demo-idle>
+      <div class="row top">{top.map((colour) => <div style={`background: ${colour}`}></div>)}</div>
+      <div class="row middle">{middle.map((colour) => <div style={`background: ${colour}`}></div>)}</div>
+      <div class="row bottom">
+        {bottom.map((it) => <div style={`background: ${it.colour}; flex: ${it.flex}`}></div>)}
+      </div>
+    </div>
+    <div class="osd overlay" data-demo-idle>
+      <div class="channel" aria-hidden="true">
+        <span class="rgb-sm">CH 03</span>
+        <span class="rgb-sm">AUX</span>
+      </div>
+      <div class="centre" aria-live="polite">
+        <div class="idle" data-demo-panel="idle">
+          <button type="button" class="osd load" data-demo-load>
+            <svg width="22" height="24" viewBox="0 0 18 20" aria-hidden="true">
+              <path d="M2 2 L16 10 L2 18 Z" fill="currentColor"></path>
+            </svg>LOAD
+          </button>
+          <span class="rgb-sm note">{size.toUpperCase()} DOWNLOAD · STARTS WHEN YOU PRESS LOAD</span>
+        </div>
+        <div class="loading" data-demo-panel="loading" tabindex="-1" hidden>
+          <span class="rgb-sm loading-title">LOADING TAPE <span class="blink" aria-hidden="true">▮</span></span>
+          <div class="cells" aria-hidden="true">
+            {Array.from({ length: 16 }, (_, index) => <div class="cell" style={`--index: ${index}`}></div>)}
+          </div>
+          <span class="loading-size">{size.toUpperCase()}</span>
+        </div>
+      </div>
+      <div class="spacer"></div>
+    </div>
+  </div>
+  <TvChin led="demo" size="lg" />
+</div>
+
+<script>
+  import { DEMO_SRC, demoIframe } from '../lib/demo'
+
+  for (const tv of document.querySelectorAll<HTMLElement>('[data-demo]')) {
+    const screen = tv.querySelector<HTMLElement>('#demo-screen')!
+    const led = tv.querySelector<HTMLElement>('[data-demo-led]')!
+    const panel = (name: string) => tv.querySelector<HTMLElement>(`[data-demo-panel="${name}"]`)!
+
+    tv.querySelector('[data-demo-load]')?.addEventListener(
+      'click',
+      () => {
+        tv.dataset.demoLoaded = ''
+        panel('idle').hidden = true
+        panel('loading').hidden = false
+        panel('loading').focus()
+        led.dataset.state = 'loading'
+        const iframe = demoIframe(tv.dataset.src ?? DEMO_SRC, () => {
+          iframe.classList.add('ready')
+          led.dataset.state = 'ready'
+          // Before the loading panel goes, so focus never falls back to body.
+          iframe.focus()
+          for (const idle of tv.querySelectorAll('[data-demo-idle]')) idle.remove()
+        })
+        screen.append(iframe)
+      },
+      { once: true },
+    )
+  }
+</script>
+
+<style>
+  .tv {
+    max-width: 1040px;
+    margin: 0 auto;
+    background: var(--bezel);
+    border-radius: clamp(20px, 3vw, 44px);
+    padding: clamp(14px, 2.4vw, 36px) clamp(14px, 2.4vw, 36px) clamp(12px, 1.6vw, 20px);
+    box-shadow:
+      0 50px 100px rgba(0, 0, 0, 0.6),
+      inset 0 2px 0 rgba(255, 255, 255, 0.08),
+      inset 0 -6px 0 rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--line);
+  }
+
+  .screen {
+    aspect-ratio: 16 / 10;
+    background: var(--screen);
+    border-radius: clamp(18px, 3vw, 44px) / clamp(22px, 4vw, 56px);
+    overflow: hidden;
+    border: 10px solid var(--ground-deep);
+  }
+
+  .screen :global(iframe) {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    opacity: 0;
+  }
+
+  .screen :global(iframe.ready) {
+    opacity: 1;
+  }
+
+  .bars {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    filter: saturate(0.85) brightness(0.8);
+  }
+
+  .row {
+    display: flex;
+  }
+
+  .row > div {
+    flex: 1;
+  }
+
+  .row.top {
+    flex: 67;
+  }
+
+  .row.middle {
+    flex: 8;
+  }
+
+  .row.bottom {
+    flex: 25;
+  }
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 5% 6%;
+  }
+
+  .channel {
+    display: flex;
+    justify-content: space-between;
+    font-size: clamp(20px, 2.4vw, 34px);
+    color: var(--text);
+  }
+
+  .centre {
+    align-self: center;
+  }
+
+  .idle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .idle[hidden],
+  .loading[hidden] {
+    display: none;
+  }
+
+  .load {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 64px;
+    padding: 0 clamp(24px, 4vw, 48px);
+    background: var(--amber);
+    color: var(--ground);
+    border: 3px solid var(--ground);
+    box-shadow:
+      0 0 0 3px var(--amber),
+      8px 8px 0 3px var(--red);
+    font-size: clamp(30px, 4vw, 52px);
+    letter-spacing: 0.08em;
+  }
+
+  .load:active {
+    transform: translate(4px, 4px);
+    box-shadow:
+      0 0 0 3px var(--amber),
+      4px 4px 0 3px var(--red);
+  }
+
+  .note {
+    background: rgba(7, 6, 10, 0.85);
+    padding: 2px 12px;
+    font-size: clamp(18px, 1.8vw, 24px);
+    color: var(--text);
+    text-align: center;
+  }
+
+  .loading {
+    background: rgba(7, 6, 10, 0.9);
+    border: 2px solid var(--text);
+    padding: clamp(14px, 2vw, 26px) clamp(20px, 3vw, 40px);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: min(70vw, 420px);
+  }
+
+  .loading:focus {
+    outline: none;
+  }
+
+  .loading-title {
+    font-size: clamp(24px, 3vw, 40px);
+    line-height: 1;
+    color: var(--amber);
+  }
+
+  .loading-size {
+    font-size: clamp(18px, 2vw, 26px);
+    color: var(--text);
+  }
+
+  .cells {
+    display: flex;
+    gap: 4px;
+  }
+
+  .cell {
+    flex: 1;
+    height: 18px;
+    border: 2px solid var(--line-strong);
+    animation: seek 1.6s steps(1) infinite;
+    animation-delay: calc(var(--index) * 0.1s);
+  }
+
+  @keyframes seek {
+    0%,
+    25% {
+      background: var(--amber);
+      border-color: var(--amber);
+    }
+    26%,
+    100% {
+      background: transparent;
+      border-color: var(--line-strong);
+    }
+  }
+
+  .spacer {
+    height: 1em;
+  }
+
+  @media (max-width: 48rem) {
+    .tv[data-demo-loaded] {
+      padding: 6px 6px 8px;
+      border-radius: 16px;
+    }
+
+    .tv[data-demo-loaded] .screen {
+      width: 100%;
+      min-height: min(75svh, 48rem);
+      border-width: 4px;
+      border-radius: 12px;
+    }
+
+    .tv[data-demo-loaded] .vignette {
+      box-shadow: inset 0 0 32px 4px rgba(0, 0, 0, 0.6);
+    }
+
+    .tv[data-demo-loaded] :global(.chin.lg) {
+      --knob-size: 24px;
+      padding-top: 8px;
+    }
+
+    .tv[data-demo-loaded] :global(.chin.lg .tick) {
+      top: 3px;
+      height: 8px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cell {
+      animation: none;
+    }
+
+    .cell:nth-child(-n + 4) {
+      background: var(--amber);
+      border-color: var(--amber);
+    }
+  }
+</style>

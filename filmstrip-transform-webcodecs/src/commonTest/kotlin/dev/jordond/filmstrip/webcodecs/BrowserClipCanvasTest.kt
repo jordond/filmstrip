@@ -180,7 +180,7 @@ class BrowserClipCanvasTest {
               audio = AudioSpec.Remove,
               fill = Fill.Solid(SLATE_ARGB),
             )
-          val spec = ExportSpec(audioCodec = AudioCodec.None, hdr = HdrMode.KeepHdr)
+          val spec = ExportSpec(bitrate = MEASURING_BITRATE, audioCodec = AudioCodec.None, hdr = HdrMode.KeepHdr)
           val frame =
             decodeTenBitFrames(outputOf(exportOf(composition, MediaSink.Uri(""), spec)), transfer)
               .lastOrNull()

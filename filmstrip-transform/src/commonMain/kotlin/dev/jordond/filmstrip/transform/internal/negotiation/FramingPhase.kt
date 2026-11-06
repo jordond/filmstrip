@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.geometry.effectiveHeight
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.geometry.frameThrough
@@ -36,16 +37,19 @@ internal fun framingOf(
   val compositionGeometry = edit.effects.filter { it.stage == EffectStage.Geometry }
   val compositionInputSize = frameThrough(firstVideo.displaySize, listOf(clipStage))
   val naturalSize = frameThrough(compositionInputSize, listOf(compositionGeometry))
+  val framedByStill = frameClip.source is MediaSource.Image
+  val heightPx = effectiveHeight(ask.spec.heightPx, naturalSize.height, framedByStill)
 
   return Phase.Next(
     Framing(
       firstClip = firstClip,
       firstVideo = firstVideo,
-      framedByStill = frameClip.source is MediaSource.Image,
+      framedByStill = framedByStill,
       compositionGeometry = compositionGeometry,
       compositionInputSize = compositionInputSize,
       naturalSize = naturalSize,
-      requestedSize = atHeight(naturalSize, ask.spec.heightPx),
+      heightPx = heightPx,
+      requestedSize = atHeight(naturalSize, heightPx),
     ),
   )
 }

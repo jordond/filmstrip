@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.transform.internal.resolve
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
@@ -60,6 +61,24 @@ public class ResolvedComposition(
   public val encoderName: String? = null,
   public val naturalSize: Size = output.size,
 )
+
+/**
+ * Whether a graph standing for this plan draws what [other] asks of it and keeps the audio [other] keeps.
+ *
+ * Reads the frame size, the frame rate, what the plan settled on for high dynamic range and whether any audio survives.
+ * The bitrate, the codecs and the audio format are left out, so a copy and a transcode of one frame compare as equal.
+ * A backend's parameter swap calls this first and adds only the limits of its own graph.
+ */
+@InternalFilmstripApi
+public fun ResolvedComposition.drawsSameFormatAs(other: ResolvedComposition): Boolean =
+  output.size == other.output.size &&
+    output.frameRate == other.output.frameRate &&
+    hdr == other.hdr &&
+    hdrTransfer == other.hdrTransfer &&
+    keepsAudio == other.keepsAudio
+
+private val ResolvedComposition.keepsAudio: Boolean
+  get() = output.audioCodec != AudioCodec.None
 
 /**
  * Whether the fill can reach the output frame at all.

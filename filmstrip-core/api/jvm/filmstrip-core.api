@@ -359,6 +359,7 @@ public final class dev/jordond/filmstrip/codec/VideoCodec : java/lang/Enum {
 	public static final field Av1 Ldev/jordond/filmstrip/codec/VideoCodec;
 	public static final field H264 Ldev/jordond/filmstrip/codec/VideoCodec;
 	public static final field Hevc Ldev/jordond/filmstrip/codec/VideoCodec;
+	public static final field MatchSource Ldev/jordond/filmstrip/codec/VideoCodec;
 	public static final field Vp8 Ldev/jordond/filmstrip/codec/VideoCodec;
 	public static final field Vp9 Ldev/jordond/filmstrip/codec/VideoCodec;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
@@ -1009,14 +1010,15 @@ public final class dev/jordond/filmstrip/export/ExportPlan {
 public final class dev/jordond/filmstrip/export/ExportSpec {
 	public static final field Companion Ldev/jordond/filmstrip/export/ExportSpec$Companion;
 	public fun <init> ()V
-	public fun <init> (Ljava/lang/Integer;Ldev/jordond/filmstrip/codec/Bitrate;Ldev/jordond/filmstrip/codec/VideoCodec;Ldev/jordond/filmstrip/codec/AudioCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/export/HdrMode;Z)V
-	public synthetic fun <init> (Ljava/lang/Integer;Ldev/jordond/filmstrip/codec/Bitrate;Ldev/jordond/filmstrip/codec/VideoCodec;Ldev/jordond/filmstrip/codec/AudioCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/export/HdrMode;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/Integer;Ldev/jordond/filmstrip/codec/Bitrate;Ldev/jordond/filmstrip/export/VideoQuality;Ldev/jordond/filmstrip/codec/VideoCodec;Ldev/jordond/filmstrip/codec/AudioCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/export/HdrMode;Z)V
+	public synthetic fun <init> (Ljava/lang/Integer;Ldev/jordond/filmstrip/codec/Bitrate;Ldev/jordond/filmstrip/export/VideoQuality;Ldev/jordond/filmstrip/codec/VideoCodec;Ldev/jordond/filmstrip/codec/AudioCodec;Ljava/lang/Integer;Ldev/jordond/filmstrip/export/HdrMode;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAudioCodec ()Ldev/jordond/filmstrip/codec/AudioCodec;
 	public final fun getBitrate ()Ldev/jordond/filmstrip/codec/Bitrate;
 	public final fun getFrameRate ()Ljava/lang/Integer;
 	public final fun getHdr ()Ldev/jordond/filmstrip/export/HdrMode;
 	public final fun getHeightPx ()Ljava/lang/Integer;
+	public final fun getQuality ()Ldev/jordond/filmstrip/export/VideoQuality;
 	public final fun getStrict ()Z
 	public final fun getVideoCodec ()Ldev/jordond/filmstrip/codec/VideoCodec;
 	public fun hashCode ()I
@@ -1024,6 +1026,9 @@ public final class dev/jordond/filmstrip/export/ExportSpec {
 }
 
 public final class dev/jordond/filmstrip/export/ExportSpec$Companion {
+	public final fun getArchive ()Ldev/jordond/filmstrip/export/ExportSpec;
+	public final fun getOriginal ()Ldev/jordond/filmstrip/export/ExportSpec;
+	public final fun getShare ()Ldev/jordond/filmstrip/export/ExportSpec;
 	public final fun getUpload ()Ldev/jordond/filmstrip/export/ExportSpec;
 }
 
@@ -1157,6 +1162,17 @@ public final class dev/jordond/filmstrip/export/Verdict$Incapable : dev/jordond/
 	public final fun getWithoutUnsupported ()Ldev/jordond/filmstrip/export/Verdict$Degraded;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/export/VideoQuality : java/lang/Enum {
+	public static final field High Ldev/jordond/filmstrip/export/VideoQuality;
+	public static final field Low Ldev/jordond/filmstrip/export/VideoQuality;
+	public static final field Medium Ldev/jordond/filmstrip/export/VideoQuality;
+	public static final field VeryHigh Ldev/jordond/filmstrip/export/VideoQuality;
+	public static final field VeryLow Ldev/jordond/filmstrip/export/VideoQuality;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/export/VideoQuality;
+	public static fun values ()[Ldev/jordond/filmstrip/export/VideoQuality;
 }
 
 public final class dev/jordond/filmstrip/geometry/Anchor {

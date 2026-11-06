@@ -41,7 +41,7 @@ internal suspend fun Filmstrip.exportedFrame(
       fill(Fill.Solid(color))
       effects { crop(AspectRatio.Square, Fit.Contain) }
     }
-  val spec = ExportSpec(heightPx = 720, hdr = HdrMode.KeepHdr)
+  val spec = ExportSpec(heightPx = 720, hdr = HdrMode.KeepHdr, bitrate = COLOR_READ_BITRATE)
   val plan =
     when (val verdict = plan(composition, spec)) {
       is Verdict.Capable -> verdict.plan

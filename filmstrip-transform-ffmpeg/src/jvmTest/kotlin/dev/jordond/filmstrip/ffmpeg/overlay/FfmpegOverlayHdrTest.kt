@@ -18,15 +18,14 @@ import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.effects.overlay.OverlayOffset
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
-import dev.jordond.filmstrip.effects.overlay.fadeIn
+import dev.jordond.filmstrip.effects.overlay.fade
 import dev.jordond.filmstrip.effects.overlay.frameAt
 import dev.jordond.filmstrip.effects.overlay.slideIn
 import dev.jordond.filmstrip.export.ExportPlan
-import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
-import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.CODE_TOLERANCE
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.COLOR_READ_HDR_SPEC
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.ExportedOverlay
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
@@ -235,7 +234,7 @@ class FfmpegOverlayHdrTest {
   @Test
   fun `a fading or translucent overlay on a kept grade resolves exactly`() {
     for (transfer in HdrTransfer.entries) {
-      for (spec in listOf(overlay(WHITE, animation = fadeIn(RAMP)), overlay(WHITE, HALF))) {
+      for (spec in listOf(overlay(WHITE, animation = fade(inDuration = RAMP)), overlay(WHITE, HALF))) {
         withClue("$transfer: partial alpha blends in linear light") {
           resolve(spec, transfer).shouldBeInstanceOf<EffectResolution.Resolved>()
         }
@@ -317,7 +316,7 @@ class FfmpegOverlayHdrTest {
 
       val fading =
         resolve(
-          overlay(WHITE, animation = fadeIn(RAMP)),
+          overlay(WHITE, animation = fade(inDuration = RAMP)),
           transfer,
         ).shouldBeInstanceOf<EffectResolution.Resolved>()
       val branches = fading.effect.fragment.auxInputs
@@ -390,7 +389,7 @@ class FfmpegOverlayHdrTest {
   // sampler answers is neither end of the ramp. Each read opens just ahead of its frame, so it lands on that frame.
   private suspend fun assertFadeLandings(transfer: HdrTransfer) {
     if (!fixture.encodesHdr()) return
-    val fading = overlay(WHITE, animation = fadeIn(RAMP))
+    val fading = overlay(WHITE, animation = fade(inDuration = RAMP))
     val exported = exportedOverFill(transfer, BLACK, fading, under = overlay(MID_GREY))
     val span = TimeRange.of(Duration.ZERO, exported.plan.duration)
 
@@ -459,7 +458,7 @@ class FfmpegOverlayHdrTest {
         fill(Fill.Solid(fill))
       }
     val plan =
-      when (val verdict = fixture.filmstrip.plan(composition, ExportSpec(hdr = HdrMode.KeepHdr))) {
+      when (val verdict = fixture.filmstrip.plan(composition, COLOR_READ_HDR_SPEC)) {
         is Verdict.Capable -> verdict.plan
         is Verdict.Degraded -> verdict.plan
         is Verdict.Incapable -> error(verdict.reasons.joinToString { it.message })

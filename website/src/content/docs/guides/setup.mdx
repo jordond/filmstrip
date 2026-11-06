@@ -1,0 +1,69 @@
+---
+title: Setup
+description: Create a Filmstrip instance and register its backends.
+---
+
+import { Aside, TabItem, Tabs } from '@astrojs/starlight/components'
+import Snippet from '../../../components/Snippet.astro'
+
+Everything in filmstrip goes through one `Filmstrip` instance. Create it once, keep it for as long as your app or
+your DI graph lives, and pass it to whatever needs to probe, plan, export or preview.
+
+## Register everything
+
+With the `filmstrip` artifact, `allBackends()` registers this target's export backend, the player and the built-in
+effects.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.kt" region="setup-all" />
+
+An instance built with an empty block can only probe, and only on Android and Apple. The same probe returns
+`FilmstripError.BackendMissing` on the JVM and in a browser. Anything else reports `BackendMissing` too, naming the
+artifact to add.
+
+## Register only what you need
+
+`transformBackend()` registers the export backend and the built-in effects without the player.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.kt" region="setup-export-only" />
+
+`playerBackend()` alone gives you preview, with no export.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.kt" region="setup-player" />
+
+Without the `filmstrip` bundle, depend on `filmstrip-player` and the engine artifact for each target, then register
+the engine by name.
+
+<Tabs syncKey="platform">
+  <TabItem label="Android">
+    <Snippet file="androidMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.android.kt" region="setup-media3" />
+  </TabItem>
+  <TabItem label="iOS">
+    <Snippet file="iosMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.ios.kt" region="setup-avfoundation" />
+  </TabItem>
+  <TabItem label="Desktop (JVM)">
+    <Snippet file="jvmMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.jvm.kt" region="setup-ffmpeg" />
+    `FfmpegConfig` is optional. Without it filmstrip reads `FILMSTRIP_FFMPEG` and `FILMSTRIP_FFPROBE`, then searches
+    `PATH`.
+  </TabItem>
+  <TabItem label="Web">
+    <Snippet file="wasmJsMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.wasmJs.kt" region="setup-webcodecs" />
+  </TabItem>
+</Tabs>
+
+Each registration goes in at the front, so a backend registered later in the block wins over one registered
+before it.
+
+## Android context
+
+filmstrip picks up the application context through App Startup. If your app turns App Startup off, or a test runs
+outside it, pass a context yourself.
+
+<Snippet
+  file="androidMain/kotlin/dev/jordond/filmstrip/docs/guides/Setup.android.kt"
+  region="setup-android-context"
+/>
+
+<Aside>
+Any context works. filmstrip keeps its application context for the whole process, so every instance built
+afterwards sees it too.
+</Aside>

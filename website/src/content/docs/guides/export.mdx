@@ -1,0 +1,104 @@
+---
+title: Export
+description: Plan an export, run it and read its status.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+import Snippet from '../../../components/Snippet.astro'
+
+An export is two steps. `plan` decides what this device will do with an edit, without decoding or writing
+anything, and `export` runs that plan.
+
+## The spec
+
+`ExportSpec` describes the output, separately from the edit, so one composition can be exported several ways.
+A plain `ExportSpec()` keeps the source's size and frame rate and lets filmstrip pick the codecs. Anything left null
+keeps what the composition already has.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Export.kt" region="spec" />
+
+By default filmstrip falls back when it has to and reports every change. Set `strict = true` when a codec, a size or
+a bitrate can't move, and the plan refuses instead.
+
+### Presets
+
+Each preset is a plain `ExportSpec` you opt into, so you can copy one and change what you need.
+
+| Preset     | Height      | Video                        | Audio | HDR           |
+| ---------- | ----------- | ---------------------------- | ----- | ------------- |
+| `Upload`   | up to 1080p | H.264 at 4 Mbps              | Auto  | Tone mapped   |
+| `Share`    | up to 720p  | H.264 at 2 Mbps              | AAC   | Tone mapped   |
+| `Archive`  | source      | HEVC at `High` quality       | AAC   | Kept          |
+| `Original` | source      | the first clip's own codec   | Auto  | Auto          |
+
+`Original` asks for `VideoCodec.MatchSource`, which picks a codec the way `Auto` does when filmstrip has no name for
+the source's codec. When the device has no encoder for the source's codec it falls back and reports a
+`CodecFallback`. It never blocks a stream copy, so an edit that could be copied still is.
+
+### Height
+
+`heightPx` is a maximum. A height below the composition's own scales it down, and one at or above it keeps the
+composition's size, so a 720p clip exported with `Upload` stays 720p. A composition with no video clip, framed by a
+photo, takes the height as asked. To scale a video up to an exact size, use the `Scale` effect.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Export.kt" region="exact-height" />
+
+### Quality
+
+Leave `bitrate` unset and filmstrip picks one from a quality tier, the same number on every platform. The tiers are
+`VeryLow`, `Low`, `Medium`, `High` and `VeryHigh`. The rate scales with the frame's size and with the codec, so HEVC
+gets less than H.264 for the same look, and with the frame rate above 30 fps. A transcode that names neither runs at
+`High`.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Export.kt" region="quality" />
+
+Set `bitrate` or `quality`, not both, since a spec that names both is refused. Either one rules out a stream copy.
+When an encoder publishes a ceiling, a rate above it is held there and reported as a `BitrateClamped` adjustment.
+The plan's `output.bitrate` is the rate the encoder is handed.
+
+## Plan
+
+`plan` returns a `Verdict`. It's cheap, has no side effects and never throws.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Export.kt" region="plan" />
+
+- `Capable` runs the edit exactly as written.
+- `Degraded` runs it with changes, each listed as an `Adjustment`. Show the ones that change how the output looks,
+  like a tone map or a dropped effect, before the user commits.
+- `Incapable` can't run it and lists why. When the only problem is effects this device can't render,
+  `withoutUnsupported` carries a plan with those effects left out.
+
+## Inert notices
+
+Some parts of an edit render nothing, like a brightness of one or an overlay with zero opacity. filmstrip leaves
+them out of the export and lists each on the plan, so you can tell the user why a control had no effect.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Export.kt" region="inert-notices" />
+
+## Run
+
+`export` returns a flow of `ExportStatus`. It ends in `Success` or `Failure`, both of which are
+`ExportStatus.Finished`.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Export.kt" region="run" />
+
+- `Started` arrives when the work actually begins. Exports run one at a time across the process, so a second one
+  waits for the first.
+- `Adjusted` only comes from the `export(composition, spec, sink)` overload, which plans for you. Running a plan you
+  already have doesn't repeat it.
+- `Progress.fraction` only ever goes up.
+- `Success` carries where the file went, what it turned out to be, and every adjustment again.
+
+There's no cancelled status. Cancel the collecting scope and the export stops.
+
+## Failures
+
+Every failure is a `FilmstripError` value. Nothing in filmstrip's public API throws one, so branch on the type
+instead of catching.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Export.kt" region="failure" />
+
+<Aside type="caution">
+New error types arrive in minor versions, so always keep an `else` branch. Each `message` is safe to log but isn't
+meant to be parsed.
+</Aside>

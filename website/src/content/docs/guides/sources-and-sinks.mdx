@@ -1,0 +1,53 @@
+---
+title: Sources and sinks
+description: Where filmstrip reads media from and writes it to.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+import Snippet from '../../../components/Snippet.astro'
+
+A `MediaSource` is something to read media from, and a `MediaSink` is somewhere to write an export. Both are plain
+values, built through their companion factories.
+
+## Sources
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/SourcesAndSinks.kt" region="sources" />
+
+- `of` reads a file path the process can read.
+- `ofUri` reads a platform reference, an `android.net.Uri` string on Android or an `NSURL` string on Apple.
+- `ofBytes` reads media already in memory. It's meant for tests and small assets. The hint skips sniffing the
+  container.
+
+## Sinks
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/SourcesAndSinks.kt" region="sinks" />
+
+A path sink needs its parent directory to exist and be writable. A temporary sink lets filmstrip pick the file, and
+the export reports where it went.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/SourcesAndSinks.kt" region="temporary-output" />
+
+<Aside>
+The temporary file is yours once the export finishes. filmstrip never deletes it.
+</Aside>
+
+## Okio and kotlinx-io
+
+`filmstrip-io-okio` and `filmstrip-io-kotlinx` turn their `Path` types into sources and sinks.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/SourcesOkio.kt" region="okio" />
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/SourcesKotlinx.kt" region="kotlinx-io" />
+
+Both also read a `BufferedSource` or `Source` into a bytes source with `readMediaSource()`.
+
+## FileKit
+
+`filmstrip-io-filekit` turns a picked `PlatformFile` into a source or a sink. Each target maps it to the kind of
+source its backend reads, a content uri on Android, a file url on Apple and an object url in the browser.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/SourcesFileKit.kt" region="filekit" />
+
+In a browser a sink becomes a download named after the file. `release()` frees the object url a browser source
+holds. Calling it is optional, and does nothing on the other targets, but only call it once nothing reads the
+source any more.

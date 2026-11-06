@@ -22,7 +22,7 @@ import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Sepia
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
-import dev.jordond.filmstrip.effects.overlay.fadeIn
+import dev.jordond.filmstrip.effects.overlay.fade
 import dev.jordond.filmstrip.effects.overlay.frameAt
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
@@ -108,7 +108,7 @@ class BrowserOverlayPlanTest {
   @Test
   fun anOverlayDrawsAtTheOpacityTheSharedSamplerAnswersMidRamp() =
     runTest {
-      val fading = ImageOverlay(IMAGE, Corner.TopEnd, animation = fadeIn(RAMP))
+      val fading = ImageOverlay(IMAGE, Corner.TopEnd, animation = fade(inDuration = RAMP))
       val composition = compositionOf(effects = listOf(fading))
 
       val overlay =

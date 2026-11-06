@@ -42,6 +42,7 @@ import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.export.VideoQuality
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.FlipAxis
@@ -59,6 +60,7 @@ import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.test.LoopingCases
 import dev.jordond.filmstrip.transform.internal.LoweredExport
+import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
 import dev.jordond.filmstrip.transform.internal.geometry.frameAfter
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
@@ -196,6 +198,21 @@ class BrowserPlannerTest {
     val verdict = lower(compositionOf(listOf(Clip(source("a")))), spec = videoSpec(heightPx = 360)).verdict
     verdict.shouldBeInstanceOf<Verdict.Capable>()
     verdict.plan.output.size shouldBe Size(640, 360)
+  }
+
+  // mediabunny is handed a number off the plan, never a Quality, which it would run as a quantizer instead.
+  @Test
+  fun encoderRunsAtThePlannedBitrate() {
+    val lowering = lower(compositionOf(listOf(Clip(source("a")))), spec = videoSpec(heightPx = 720))
+    val plan = lowering.verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+
+    plan.output.bitrate shouldBe resolveVideoBitrate(VideoQuality.High, VideoCodec.H264, Size(1280, 720), 30)
+    lowering.graph
+      .shouldNotBeNull()
+      .bitrate
+      .toLong() shouldBe
+      plan.output.bitrate
+        ?.bitsPerSecond
   }
 
   @Test

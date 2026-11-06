@@ -1,0 +1,451 @@
+/* The landing page's look on the Dokka output. Served with tokens.css and fonts.css beside it under /api/styles. */
+
+:root,
+:root.theme-dark,
+.theme-dark,
+.theme-dark_mobile {
+  --background-color: var(--ground);
+  --color-background: var(--ground);
+  --color-background-page-dt: var(--ground);
+  --color-background-nav: var(--ground-deep);
+  --color-background-nav-dt: var(--ground-deep);
+  --color-background-footer: var(--ground-deep);
+  --color-background-footer-dt: var(--ground-deep);
+  --color-background-code-block: var(--panel);
+  --color-background-inline-code: var(--panel-raised);
+  --color-background-hover: var(--panel-raised);
+  --blockquote-background: var(--panel);
+  --default-font-color: var(--text);
+  --header-font-color: var(--title-cream);
+  --color-text: var(--text);
+  --color-text-dt: var(--text);
+  --color-text-light: var(--muted);
+  --color-text-light-dt: var(--muted);
+  --border-color: var(--line);
+  --color-dark: var(--panel-raised);
+  --navigation-highlight-color: var(--panel-raised);
+  --hover-link-color: var(--amber-hover);
+  --color-key-blue: var(--amber);
+  --color-key-blue-hover: var(--amber-hover);
+  --active-tab-border-color: var(--amber);
+  --inactive-tab-border-color: var(--line);
+  --active-section-color: var(--amber);
+  --inactive-section-color: var(--muted);
+  --sidemenu-section-active-color: var(--amber);
+  --color-scrollbar: var(--line-strong);
+  --color-scrollbar-track: var(--ground);
+  --copy-icon-color: var(--muted);
+  --copy-icon-hover-color: var(--text);
+  --color-text-nav-dt: var(--text);
+  --color-key-blue-50: var(--cyan);
+  --focus-outline: 3px solid var(--cyan);
+
+  --color-cd-keyword: var(--amber);
+  --color-cd-keyword-alternative: var(--amber);
+  --color-cd-builtin: var(--cyan);
+  --color-cd-builtin-alternative: var(--cyan);
+  --color-cd-function: var(--text);
+  --color-cd-function-alternative: var(--text);
+  --color-cd-number: var(--coral);
+  --color-cd-number-alternative: var(--coral);
+  --color-cd-operator: var(--text);
+  --color-cd-operator-alternative: var(--text);
+  --color-cd-punctuation: var(--text);
+
+  --default-font-family: var(--font-body);
+  --default-monospace-font-family: var(--font-body);
+  --font-family-default: var(--font-body);
+  --font-family-mono: var(--font-body);
+  --dokka-logo-image-url: none;
+  --dokka-logo-height: 0;
+  --dokka-logo-width: 0;
+}
+
+* {
+  border-radius: 0 !important;
+}
+
+body {
+  background: var(--ground);
+  color: var(--text);
+}
+
+:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+.osd-mark {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--font-osd);
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--amber);
+}
+
+.osd-speed {
+  color: var(--muted);
+}
+
+.osd-nav {
+  display: flex;
+  gap: 24px;
+  font-family: var(--font-osd);
+  font-size: 24px;
+  letter-spacing: 0.04em;
+}
+
+.osd-nav a {
+  color: var(--amber);
+  text-decoration: none;
+  border: 0;
+}
+
+.osd-nav a:hover {
+  color: var(--amber-hover);
+}
+
+#navigation-wrapper {
+  background-color: var(--ground-deep);
+  background-image: var(--scanlines-faint);
+  border-bottom: 1px solid var(--line);
+}
+
+#theme-toggle-button {
+  display: none;
+}
+
+.navigation-controls,
+.library-version {
+  background-color: transparent;
+  color: var(--muted);
+}
+
+/* Headings */
+
+h1,
+h1.cover {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 6.2vw, 40px);
+  font-weight: 400;
+  line-height: 1.2;
+  color: var(--title-cream);
+  overflow-wrap: anywhere;
+  text-shadow: var(--fringe-small);
+}
+
+h2,
+h2.tableheader {
+  background: transparent;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--title-cream);
+}
+
+h3,
+h4 {
+  font-family: var(--font-osd);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+h3 {
+  font-size: 26px;
+  color: var(--amber);
+}
+
+h4 {
+  font-size: 22px;
+  color: var(--muted-strong);
+}
+
+/* Links and body text */
+
+#main,
+.brief,
+.paragraph {
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+#main a {
+  color: var(--amber);
+  border-bottom-color: var(--line-strong);
+}
+
+#main a:hover {
+  color: var(--amber-hover);
+  border-bottom-color: var(--amber-hover);
+}
+
+#main .brief,
+#main .brief .paragraph {
+  color: var(--muted-strong);
+}
+
+.breadcrumbs .delimiter {
+  color: var(--muted);
+}
+
+/* Sidebar, the VCR menu */
+
+#leftColumn {
+  background: var(--ground-deep);
+  border-inline-end: 1px solid var(--line);
+}
+
+.toc--link {
+  font-size: 14px;
+  color: var(--muted-strong);
+}
+
+.toc--part[data-nesting-level='0'] > .toc--row > .toc--link {
+  font-family: var(--font-osd);
+  font-size: 22px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+
+.toc--part[data-active] > .toc--row,
+.toc--part[data-active] > .toc--row .toc--button,
+.toc--part[data-active] > .toc--row .toc--link,
+.toc--part[data-active] > .toc--row .toc--link:hover,
+.toc--part[data-active] > .toc--row .toc--button:hover {
+  background: transparent;
+  color: var(--amber);
+}
+
+.toc--part[data-active] > .toc--row .toc--button:after,
+.toc--part[data-active] > .toc--row .toc--link:after {
+  background: transparent;
+}
+
+/* Source set filter */
+
+.platform-tag,
+.filter-section .platform-tag.platform-selector,
+.filter-section .platform-tag.platform-selector[data-active] {
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+  color: var(--amber);
+  font-family: var(--font-osd);
+  font-size: 18px;
+  letter-spacing: 0.04em;
+}
+
+.filter-section .platform-tag.platform-selector[data-active] {
+  border-color: var(--amber);
+}
+
+.filter-section .platform-tag.platform-selector:not([data-active]) {
+  background: var(--ground);
+  color: var(--muted);
+}
+
+.platform-tags .platform-tag {
+  font-family: var(--font-osd);
+  font-size: 18px;
+  letter-spacing: 0.04em;
+}
+
+/* Source set dropdown, Dokka's list when the filter tags don't fit */
+
+.filter-section--dropdown .dropdown--list {
+  border: 1px solid var(--line-strong);
+  background: var(--panel);
+}
+
+.filter-section--dropdown .dropdown--header {
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--amber);
+  font-family: var(--font-osd);
+  font-size: 22px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.filter-section--dropdown .dropdown--option {
+  background: var(--panel);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+
+.filter-section--dropdown .dropdown--option:hover {
+  background: var(--panel-raised);
+  color: var(--amber);
+}
+
+/* Tabs, the landing page's export and preview strip */
+
+.section-tab,
+.platform-hinted > .platform-bookmarks-row > .platform-bookmark {
+  border: 0;
+  border-inline-end: 1px solid var(--line);
+  background: var(--ground);
+  color: var(--muted);
+  font-family: var(--font-osd);
+  font-size: 24px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.section-tab:hover {
+  color: var(--text);
+}
+
+.section-tab[data-active=''],
+.platform-hinted > .platform-bookmarks-row > .platform-bookmark[data-active=''] {
+  box-shadow: inset 0 -3px 0 var(--amber);
+  background: var(--panel);
+  color: var(--amber);
+}
+
+/* Tables and code */
+
+.table,
+.table-row,
+.table-row_content {
+  border-color: var(--line);
+  background: var(--panel);
+}
+
+.symbol,
+pre,
+pre code {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.symbol code,
+pre code {
+  border: 0;
+}
+
+code {
+  background: var(--panel-raised);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
+.symbol code {
+  background: transparent;
+}
+
+/* Footer */
+
+.footer {
+  border-top: 1px solid var(--line);
+  background: var(--ground-deep);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.footer a {
+  color: var(--amber);
+}
+
+/* Search popup. Dokka's search is a ring-ui select that renders into a portal on body. */
+
+.popup-wrapper {
+  --ring-text-color: var(--text);
+  --ring-secondary-color: var(--muted);
+  --ring-main-color: var(--amber);
+  --ring-hover-background-color: var(--panel-raised);
+  --ring-font-family: var(--font-body);
+  border: 1px solid var(--line-strong) !important;
+  background-color: var(--panel) !important;
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
+.popup-wrapper [class*='hover'] {
+  background-color: var(--panel-raised) !important;
+}
+
+.popup-wrapper input {
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+}
+
+.popup-wrapper [data-test~='ring-select-popup-filter'] {
+  border-bottom-color: var(--line);
+}
+
+.popup-wrapper span[data-test-custom='ring-select-popup-filter-icon'] {
+  color: var(--amber);
+}
+
+.popup-wrapper button[data-test='ring-input-clear'] {
+  color: var(--amber) !important;
+  font-family: var(--font-osd);
+  font-size: 20px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.popup-wrapper button[data-test='ring-input-clear']:hover {
+  background-color: var(--panel-raised);
+}
+
+.popup-wrapper .search--close-button {
+  background-color: transparent !important;
+}
+
+.popup-wrapper .search--close-button:hover,
+.popup-wrapper .search--close-button:active {
+  background-color: var(--panel-raised) !important;
+}
+
+.popup-wrapper .template-title {
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.popup-wrapper .template-description {
+  color: var(--muted-strong);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.popup-wrapper .template-wrapper strong {
+  background: transparent;
+  color: var(--amber);
+  font-weight: 700;
+}
+
+/* Dokka pins the popup a pixel past both edges on narrow widths, which scrolls the page sideways. */
+@media (width < 900px) {
+  .popup-wrapper {
+    box-sizing: border-box;
+    right: 0 !important;
+    left: 0 !important;
+  }
+
+  /* Dokka gives the version a fixed height row of its own, which stays empty when the docs carry no version. */
+  .library-version {
+    height: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}

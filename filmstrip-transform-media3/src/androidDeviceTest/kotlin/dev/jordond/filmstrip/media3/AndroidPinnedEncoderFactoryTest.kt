@@ -37,7 +37,7 @@ class AndroidPinnedEncoderFactoryTest {
     assumeTrue("this device lists no H.264 or H.265 encoder", names.isNotEmpty())
 
     names.forEach { (name, mimeType) ->
-      val codec = pinnedEncoderFactory(context, name).createForVideoEncoding(format(mimeType), null)
+      val codec = pinnedEncoderFactory(context, name, bitrate = null).createForVideoEncoding(format(mimeType), null)
       try {
         withClue("the factory pinned to $name") { codec.name shouldBe name }
       } finally {
@@ -50,7 +50,11 @@ class AndroidPinnedEncoderFactoryTest {
   fun aPinnedFactoryFailsForAnEncoderTheDeviceDoesNotList() {
     val failure =
       assertFailsWith<ExportException> {
-        pinnedEncoderFactory(context, UNLISTED).createForVideoEncoding(format(MimeTypes.VIDEO_H264), null)
+        pinnedEncoderFactory(
+          context,
+          UNLISTED,
+          bitrate = null,
+        ).createForVideoEncoding(format(MimeTypes.VIDEO_H264), null)
       }
 
     withClue(failure.toString()) { failure.errorCode shouldBe ExportException.ERROR_CODE_ENCODING_FORMAT_UNSUPPORTED }

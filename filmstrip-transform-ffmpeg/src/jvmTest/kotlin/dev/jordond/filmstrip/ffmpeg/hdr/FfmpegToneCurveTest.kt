@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegTag
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessRunner
 import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainLocator
 import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainResult
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.COLOR_READ_BITRATE
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -84,7 +85,11 @@ class FfmpegToneCurveTest {
 
     val output = File.createTempFile("filmstrip-tone-curve", ".mp4").also { it.delete() }
     val composition = compositionOf { clip(MediaSource.of(source.absolutePath)) }
-    val verdict = fixture.filmstrip.plan(composition, ExportSpec(hdr = HdrMode.ToneMapToSdr))
+    val verdict =
+      fixture.filmstrip.plan(
+        composition,
+        ExportSpec(hdr = HdrMode.ToneMapToSdr, bitrate = COLOR_READ_BITRATE),
+      )
     fixture.exported(verdict.shouldBeInstanceOf<Verdict.Capable>().plan, output)
 
     codes.forEachIndexed { index, patch ->

@@ -1,0 +1,17 @@
+---
+// Renders one `// region` block of a compiled Kotlin file from internal/docs-samples/src as a Starlight code block.
+// A missing file or region fails the build.
+import { Code } from '@astrojs/starlight/components'
+import { readSnippet } from '../lib/snippets'
+
+interface Props {
+  /** Path under internal/docs-samples/src, such as `commonMain/kotlin/dev/jordond/filmstrip/docs/start/QuickStart.kt`. */
+  file: string
+  region: string
+  title?: string
+}
+
+const { file, region, title } = Astro.props
+---
+
+<Code code={readSnippet(file, region)} lang="kotlin" title={title} />

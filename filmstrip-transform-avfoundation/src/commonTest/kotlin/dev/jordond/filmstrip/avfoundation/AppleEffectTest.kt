@@ -353,7 +353,7 @@ class AppleEffectTest {
   private companion object {
     const val SOURCE = "apple_export_a.mp4"
     val TIMEOUT = 2.seconds * 60
-    val SPEC = ExportSpec(heightPx = 180)
+    val SPEC = ExportSpec(heightPx = 180, bitrate = COLOR_READ_BITRATE)
 
     const val QUARTER_TURN = 90
     const val HALF = 0.5f

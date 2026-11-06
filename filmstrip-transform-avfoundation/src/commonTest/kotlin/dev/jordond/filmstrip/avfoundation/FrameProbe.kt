@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.avfoundation.FrameProbe.Companion.PATCH
 import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TIMESCALE
 import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
+import dev.jordond.filmstrip.codec.Bitrate
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -282,6 +283,9 @@ internal fun assertClose(
 }
 
 internal const val COLOR_TOLERANCE = 24
+
+// The rate an export read back against a color bound asks for, well above what a quality tier plans for a small frame.
+internal val COLOR_READ_BITRATE = Bitrate.mbps(20)
 
 /**
  * Fractions across a fixture's width that land in the middle of one of its color bars.

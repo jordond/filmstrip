@@ -23,7 +23,7 @@ import dev.jordond.filmstrip.effects.color.contrast
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.geometry.scale
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
-import dev.jordond.filmstrip.effects.overlay.fadeIn
+import dev.jordond.filmstrip.effects.overlay.fade
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
@@ -1027,7 +1027,12 @@ class AppleExportTest {
       val offGrid = NSTemporaryDirectory() + "filmstrip-apple-held-tail.mov"
       withContext(Dispatchers.Default) { writeOffGridClip(offGrid, OFF_GRID_RATE, OFF_GRID_FRAMES, OFF_GRID_END) }
       val badge =
-        ImageOverlay(ImageSource.of(photoFile()), Corner.TopStart, scale = BADGE_SCALE, animation = fadeIn(BADGE_FADE))
+        ImageOverlay(
+          ImageSource.of(photoFile()),
+          Corner.TopStart,
+          scale = BADGE_SCALE,
+          animation = fade(inDuration = BADGE_FADE),
+        )
 
       listOf(HELD_RUN, HELD_RUN_PAST_SLOT).forEach { run ->
         val composition =

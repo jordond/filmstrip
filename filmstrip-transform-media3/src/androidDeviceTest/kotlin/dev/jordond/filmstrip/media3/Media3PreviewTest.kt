@@ -4,6 +4,7 @@ import androidx.media3.common.Effect
 import androidx.media3.effect.RgbAdjustment
 import androidx.media3.effect.RgbMatrix
 import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
@@ -174,6 +175,28 @@ class Media3PreviewTest {
     preview.updateParameters(composition(output = Size(160, 90)), Media3FrameBounds.None) shouldBe false
   }
 
+  @Test
+  fun aPlannedBitrateIsNoReasonToRebuild() {
+    val preview = composition().toMedia3Preview(Media3FrameBounds.None)
+
+    preview.updateParameters(composition(bitrate = PLANNED_BITRATE), Media3FrameBounds.None) shouldBe true
+  }
+
+  @Test
+  fun droppingTheAudioIsRefused() {
+    val preview = composition().toMedia3Preview(Media3FrameBounds.None)
+
+    preview.updateParameters(composition(audioCodec = AudioCodec.None), Media3FrameBounds.None) shouldBe false
+  }
+
+  // A copy lowers to other sequences than a transcode does, so the edge is refused however few slots either side has.
+  @Test
+  fun leavingTheCopyPathIsRefusedWithNoSlotOnEitherSide() {
+    val preview = composition(path = ExportPath.Copy).toMedia3Preview(Media3FrameBounds.None)
+
+    preview.updateParameters(composition(path = ExportPath.Transcode), Media3FrameBounds.None) shouldBe false
+  }
+
   // An overlay is the one that matters in practice: it owns a texture media3 uploads and frees on
   // its own render thread, so there is no swap of one on offer and an edit carrying one rebuilds.
   @Test
@@ -208,6 +231,9 @@ class Media3PreviewTest {
     compositionEffects: List<ResolvedEffect> = emptyList(),
     clips: List<ResolvedClip> = laid(Duration.ZERO, "a.mp4" to 1.seconds),
     frameRate: Int = 30,
+    bitrate: Bitrate? = null,
+    audioCodec: AudioCodec = AudioCodec.Aac,
+    path: ExportPath = ExportPath.Transcode,
   ): ResolvedComposition =
     ResolvedComposition(
       tracks =
@@ -224,8 +250,8 @@ class Media3PreviewTest {
         OutputFormat(
           size = output,
           videoCodec = VideoCodec.H264,
-          audioCodec = AudioCodec.Aac,
-          bitrate = null,
+          audioCodec = audioCodec,
+          bitrate = bitrate,
           frameRate = frameRate,
           audioFormat = null,
         ),
@@ -236,7 +262,7 @@ class Media3PreviewTest {
       hdrTransfer = null,
       audio = AudioSpec.Keep,
       adjustments = emptyList(),
-      path = ExportPath.Transcode,
+      path = path,
     )
 
   /**
@@ -293,6 +319,7 @@ class Media3PreviewTest {
     // Half a slot at OFF_GRID_RATE, which rounds up onto the first slot.
     val HALF_SLOT_IN = 20.milliseconds
     const val OFF_GRID_RATE = 25
+    val PLANNED_BITRATE = Bitrate.kbps(750)
     const val DIM = 0.4f
     const val BRIGHT = 1.4f
     const val TOLERANCE = 0.0001f

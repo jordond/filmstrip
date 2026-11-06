@@ -1,0 +1,62 @@
+---
+title: Stills
+description: Put a photo on the timeline and write a frame out as an image.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+import Snippet from '../../../components/Snippet.astro'
+
+Stills go both ways in filmstrip. A photo can sit on the timeline as a clip, and a frame of an edit can be written out as
+an image.
+
+## A photo on the timeline
+
+`image` adds a still held for a duration. It's on a composition and on a track, and is marked
+`@ExperimentalFilmstripApi`.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Stills.kt" region="timeline" />
+
+A still has no frame rate of its own. The output uses `spec.frameRate`, then the rate of the first clip on the primary
+track that decodes video, then 30, so an all-photo edit with no rate comes out at 30.
+
+Where the primary track holds no clip that decodes video and the spec names no height, the output is held to 3840x2160,
+since a photo's bounds are a sensor's and not a frame an encoder is built for. Set both when the edit is all photos.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Stills.kt" region="timeline-spec" />
+
+Android and Apple put a still on the timeline. The JVM and browser backends decode their picture from a video track, so
+they refuse a still by name wherever it appears, an audio track included.
+
+## Write a frame to a file
+
+`still` renders a frame of a composition, encodes it and writes it to a sink. It decodes at the size it writes, so it
+doesn't render at full resolution and shrink.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Stills.kt" region="still" />
+
+`StillSpec` is all optional.
+
+- `format` is `Jpeg` by default. `Png` and `Jpeg` write on every target.
+- `quality` runs from 0 to 100, 90 by default. A value outside that is clamped, and `Png` ignores it.
+- `heightPx` is the height to encode at, and the width follows from the aspect. Null keeps the frame's own height. Zero or
+  less fails with `InvalidComposition`.
+
+For one source with no edit, pass the source directly. `MediaSink.Temporary` picks a file for you, and
+`StillResult.Success.output` says where it went.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Stills.kt" region="still-source" />
+
+## Encode to bytes
+
+To keep the bytes, encode a frame you already rendered with `encodeStill`. The frame stays open, so closing it is still
+your job.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Stills.kt" region="encode" />
+
+<Aside type="note" title="Limits">
+- `StillFormat.Webp` is only written on Android and in a browser. The JVM refuses it with `UnsupportedStillFormat`, and
+  Apple refuses it where ImageIO won't write it. Use `Png` or `Jpeg` in code that has to run everywhere.
+- A browser has no file system. A `MediaSink.Uri` gives you a `blob:` URL that you own and have to revoke, and a
+  `MediaSink.Path` or `MediaSink.Temporary` starts a download under that name.
+- A height that would scale a frame past the largest still filmstrip encodes, 3840x2160, is held to that size.
+</Aside>

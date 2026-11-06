@@ -1,0 +1,85 @@
+---
+import { DOCS_ENTRY, MAVEN_CENTRAL_URL, REPO_URL } from '../../lib/site'
+
+interface Props {
+  /** The smaller sign-off under a docs page. */
+  compact?: boolean
+}
+
+const { compact = false } = Astro.props
+---
+
+<footer class:list={['footer', { compact }]}>
+  <div class="inner">
+    <p class="disp rgb sign-off">Be kind, rewind</p>
+    <nav aria-label="Footer" class="osd links">
+      <a href={DOCS_ENTRY}>DOCS</a>
+      <a href="/api/">API REFERENCE</a>
+      <a href={REPO_URL}>GITHUB</a>
+      <a href={MAVEN_CENTRAL_URL}>MAVEN CENTRAL</a>
+    </nav>
+    <p class="licence">MIT licensed. Pre-alpha, so expect things to change.</p>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    border-top: 1px solid var(--line);
+    background: var(--ground-deep);
+  }
+
+  .inner {
+    max-width: var(--page-width);
+    margin: 0 auto;
+    padding: 64px var(--gutter) 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    text-align: center;
+  }
+
+  .sign-off {
+    margin: 0;
+    font-size: clamp(28px, 5vw, 60px);
+    line-height: 1;
+  }
+
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 28px;
+    font-size: 24px;
+  }
+
+  .links a {
+    color: var(--amber);
+    text-decoration: none;
+  }
+
+  .links a:hover {
+    color: var(--amber-hover);
+  }
+
+  .licence {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .compact .inner {
+    padding: 32px 16px 24px;
+    gap: 16px;
+  }
+
+  .compact .sign-off {
+    font-size: clamp(20px, 3vw, 28px);
+    line-height: 1.2;
+  }
+
+  .compact .links {
+    gap: 4px 20px;
+    font-size: 20px;
+  }
+</style>

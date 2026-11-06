@@ -20,3 +20,23 @@ public fun outputHeightRefusal(heightPx: Int?): FilmstripError.InvalidCompositio
   } else {
     null
   }
+
+/**
+ * The height an export or preview scales its frame to, or null when it keeps [naturalHeight].
+ *
+ * A `heightPx` is a maximum. One at or above [naturalHeight] keeps the natural frame, so a 720p source asked for
+ * 1080 stays at 720. A composition framed by a still, one whose primary track holds no video clip, takes [heightPx] as
+ * it is. The export planner, its copy check and the player's preview all read the height from here.
+ */
+@InternalFilmstripApi
+public fun effectiveHeight(
+  heightPx: Int?,
+  naturalHeight: Int,
+  framedByStill: Boolean,
+): Int? =
+  when {
+    heightPx == null -> null
+    framedByStill -> heightPx
+    heightPx >= naturalHeight -> null
+    else -> heightPx
+  }

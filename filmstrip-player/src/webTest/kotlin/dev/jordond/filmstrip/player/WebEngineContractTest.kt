@@ -48,6 +48,8 @@ class WebEngineContractTest : PlayerEngineContractTest() {
 
   override val fixtureFrameRate: Int = FIXTURE_FRAME_RATE
 
+  override val plainFixture: EditComposition = webFixtureComposition(audio = AudioSpec.Keep)
+
   override val stageableInterruptions: Set<Interruption> =
     setOf(Interruption.AutoplayBlocked, Interruption.AppBackgrounded)
 

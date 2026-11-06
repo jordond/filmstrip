@@ -22,7 +22,7 @@ import kotlin.time.Duration.Companion.seconds
 class OverlayAnimationTest {
   @Test
   fun `a fade in ramps linearly from the first drawn frame`() {
-    val overlay = overlay(fadeIn(2.seconds))
+    val overlay = overlay(fade(inDuration = 2.seconds))
 
     assertClose(0f, overlay.opacityAt(Duration.ZERO))
     assertClose(0.25f, overlay.opacityAt(0.5.seconds))
@@ -32,7 +32,7 @@ class OverlayAnimationTest {
 
   @Test
   fun `a fade out ramps linearly back from the last drawn frame`() {
-    val overlay = overlay(fadeOut(2.seconds))
+    val overlay = overlay(fade(outDuration = 2.seconds))
 
     assertClose(1f, overlay.opacityAt(4.seconds))
     assertClose(0.75f, overlay.opacityAt(8.5.seconds))
@@ -50,7 +50,7 @@ class OverlayAnimationTest {
 
   @Test
   fun `a fade out over a drawn range with no end holds full opacity`() {
-    val overlay = overlay(fadeOut(2.seconds))
+    val overlay = overlay(fade(outDuration = 2.seconds))
     val open = TimeRange.from(Duration.ZERO)
 
     assertClose(1f, overlay.frameAt(5.seconds, open)!!.opacity)
@@ -83,7 +83,7 @@ class OverlayAnimationTest {
 
   @Test
   fun `combining multiplies opacity and scale and adds offset`() {
-    val overlay = overlay(fadeIn(2.seconds) + slideIn(OverlayOffset(-0.4f, 0f), 2.seconds))
+    val overlay = overlay(fade(inDuration = 2.seconds) + slideIn(OverlayOffset(-0.4f, 0f), 2.seconds))
 
     val frame = overlay.frameAt(0.5.seconds, SPAN)!!
 
@@ -104,7 +104,7 @@ class OverlayAnimationTest {
 
   @Test
   fun `the drawn range comes from the visibility window when one is named`() {
-    val overlay = overlay(fadeIn(2.seconds), visibleDuring = TimeRange.of(4.seconds, 8.seconds))
+    val overlay = overlay(fade(inDuration = 2.seconds), visibleDuring = TimeRange.of(4.seconds, 8.seconds))
 
     overlay.frameAt(3.seconds, SPAN).shouldBeNull()
     assertClose(0.25f, overlay.opacityAt(4.5.seconds))
@@ -114,7 +114,7 @@ class OverlayAnimationTest {
 
   @Test
   fun `the drawn range comes from the span when no visibility window is named`() {
-    val overlay = overlay(fadeIn(2.seconds))
+    val overlay = overlay(fade(inDuration = 2.seconds))
     val span = TimeRange.of(4.seconds, 8.seconds)
 
     assertClose(0.25f, overlay.frameAt(4.5.seconds, span)!!.opacity)
@@ -125,7 +125,7 @@ class OverlayAnimationTest {
   fun `an overlay with no visibility window is drawn on a frame that drifts off the span`() {
     val span = TimeRange.of(4.seconds, 8.seconds)
     val still = overlay(animation = null)
-    val fading = overlay(fadeIn(2.seconds))
+    val fading = overlay(fade(inDuration = 2.seconds))
 
     // The span is the planner's half-open slot and each backend counts its own timestamps, so a
     // frame landing on either bound is drawn rather than dropped.
@@ -138,7 +138,7 @@ class OverlayAnimationTest {
 
   @Test
   fun `frameWithin samples the drawn range it is handed`() {
-    val overlay = overlay(fadeIn(2.seconds), opacity = 0.5f)
+    val overlay = overlay(fade(inDuration = 2.seconds), opacity = 0.5f)
     val drawnRange = overlay.drawnRangeWithin(SPAN)
 
     assertClose(0.125f, overlay.frameWithin(drawnRange, 0.5.seconds)!!.opacity)
@@ -149,7 +149,7 @@ class OverlayAnimationTest {
   @Test
   fun `frameWithin gates a windowed overlay on the drawn range it is handed`() {
     val window = TimeRange.of(4.seconds, 8.seconds)
-    val windowed = overlay(fadeIn(2.seconds), visibleDuring = window)
+    val windowed = overlay(fade(inDuration = 2.seconds), visibleDuring = window)
     val drawnRange = windowed.drawnRangeWithin(SPAN)
 
     windowed.frameWithin(drawnRange, 3.seconds).shouldBeNull()
@@ -173,7 +173,7 @@ class OverlayAnimationTest {
 
   @Test
   fun `an open ended visibility window takes the span's end`() {
-    val overlay = overlay(fadeOut(2.seconds), visibleDuring = TimeRange.from(2.seconds))
+    val overlay = overlay(fade(outDuration = 2.seconds), visibleDuring = TimeRange.from(2.seconds))
 
     assertClose(0.75f, overlay.opacityAt(8.5.seconds))
     assertClose(0.25f, overlay.opacityAt(9.5.seconds))
@@ -191,7 +191,7 @@ class OverlayAnimationTest {
 
   @Test
   fun `the authored opacity is folded into what the sampler answers`() {
-    val overlay = overlay(fadeIn(2.seconds), opacity = 0.5f)
+    val overlay = overlay(fade(inDuration = 2.seconds), opacity = 0.5f)
 
     assertClose(0.125f, overlay.opacityAt(0.5.seconds))
     assertClose(0.375f, overlay.opacityAt(1.5.seconds))
@@ -206,7 +206,7 @@ class OverlayAnimationTest {
 
   @Test
   fun `text carries no authored opacity of its own`() {
-    val caption = TextOverlay("caption", animation = fadeIn(2.seconds))
+    val caption = TextOverlay("caption", animation = fade(inDuration = 2.seconds))
 
     assertClose(0.25f, caption.frameAt(0.5.seconds, SPAN)!!.opacity)
     assertClose(1f, caption.frameAt(5.seconds, SPAN)!!.opacity)
@@ -251,7 +251,7 @@ class OverlayAnimationTest {
 
   @Test
   fun `an endless fade out reads as full opacity over an endless drawn range and as none over a closed one`() {
-    val overlay = overlay(fadeOut(Duration.INFINITE))
+    val overlay = overlay(fade(outDuration = Duration.INFINITE))
 
     assertClose(1f, overlay.frameAt(5.seconds, TimeRange.from(Duration.ZERO))!!.opacity)
     // A ramp longer than the drawn range it is measured over has barely begun by the drawn range's last frame.
@@ -318,31 +318,32 @@ class OverlayAnimationTest {
   fun `the built-in animations compare by value`() {
     val offset = OverlayOffset(-0.2f, 0.1f)
 
-    fadeIn(1.seconds) shouldBe fadeIn(1.seconds)
-    fadeIn(1.seconds).hashCode() shouldBe fadeIn(1.seconds).hashCode()
-    fadeOut(1.seconds) shouldBe fadeOut(1.seconds)
+    fade(inDuration = 1.seconds) shouldBe fade(inDuration = 1.seconds)
+    fade(inDuration = 1.seconds).hashCode() shouldBe fade(inDuration = 1.seconds).hashCode()
+    fade(outDuration = 1.seconds) shouldBe fade(outDuration = 1.seconds)
     fade(1.seconds, 2.seconds) shouldBe fade(1.seconds, 2.seconds)
     slideIn(offset, 1.seconds) shouldBe slideIn(offset, 1.seconds)
     slideOut(offset, 1.seconds) shouldBe slideOut(offset, 1.seconds)
-    fadeIn(1.seconds) + slideIn(offset, 1.seconds) shouldBe fadeIn(1.seconds) + slideIn(offset, 1.seconds)
+    fade(inDuration = 1.seconds) + slideIn(offset, 1.seconds) shouldBe
+      fade(inDuration = 1.seconds) + slideIn(offset, 1.seconds)
   }
 
   @Test
   fun `animations that draw a different picture do not compare equal`() {
     val offset = OverlayOffset(-0.2f, 0.1f)
 
-    fadeIn(2.seconds) shouldNotBe fadeIn(1.seconds)
-    fadeOut(1.seconds) shouldNotBe fadeIn(1.seconds)
-    fade(1.seconds, 1.seconds) shouldNotBe fadeIn(1.seconds)
+    fade(inDuration = 2.seconds) shouldNotBe fade(inDuration = 1.seconds)
+    fade(outDuration = 1.seconds) shouldNotBe fade(inDuration = 1.seconds)
+    fade(1.seconds, 1.seconds) shouldNotBe fade(inDuration = 1.seconds)
     slideOut(offset, 1.seconds) shouldNotBe slideIn(offset, 1.seconds)
-    fadeIn(1.seconds) + fadeOut(1.seconds) shouldNotBe fadeIn(1.seconds)
+    fade(inDuration = 1.seconds) + fade(outDuration = 1.seconds) shouldNotBe fade(inDuration = 1.seconds)
   }
 
   @Test
   fun `two overlays built from the same helper compare equal`() {
-    overlay(fadeIn(1.seconds)) shouldBe overlay(fadeIn(1.seconds))
-    overlay(fadeIn(2.seconds)) shouldNotBe overlay(fadeIn(1.seconds))
-    overlay(animation = null) shouldNotBe overlay(fadeIn(1.seconds))
+    overlay(fade(inDuration = 1.seconds)) shouldBe overlay(fade(inDuration = 1.seconds))
+    overlay(fade(inDuration = 2.seconds)) shouldNotBe overlay(fade(inDuration = 1.seconds))
+    overlay(animation = null) shouldNotBe overlay(fade(inDuration = 1.seconds))
   }
 
   @Test

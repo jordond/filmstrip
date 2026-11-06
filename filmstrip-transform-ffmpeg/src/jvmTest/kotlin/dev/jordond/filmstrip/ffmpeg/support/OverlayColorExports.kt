@@ -9,9 +9,10 @@ import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
-import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.CODE_TOLERANCE
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.COLOR_READ_BITRATE
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.COLOR_READ_HDR_SPEC
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.BAR_FILL
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.PROBE_SIDE
 import dev.jordond.filmstrip.geometry.AspectRatio
@@ -62,7 +63,8 @@ internal suspend fun FfmpegExportFixture.assertSdrLandings(
 ) {
   landings.chunked(CORNERS.size).forEachIndexed { batch, pictures ->
     val overlays = overlaysOf(pictures)
-    val exported = exportedOverFill(landscape, overlays, BAR_FILL, ExportSpec(), "$name-sdr-$batch")
+    val exported =
+      exportedOverFill(landscape, overlays, BAR_FILL, ExportSpec(bitrate = COLOR_READ_BITRATE), "$name-sdr-$batch")
     pictures.zip(overlays).forEach { (picture, overlay) ->
       val (x, y) = probeOf(overlay, exported)
       val read =
@@ -89,7 +91,7 @@ internal suspend fun FfmpegExportFixture.assertHdrLandings(
     (CODE_TOLERANCE <= HdrOverlayCells.MAX_BLEND_TOLERANCE).shouldBeTrue()
   }
   val source = if (transfer == HdrTransfer.Pq) hdr else hdrHlg
-  val spec = ExportSpec(hdr = HdrMode.KeepHdr)
+  val spec = COLOR_READ_HDR_SPEC
   landings.chunked(CORNERS.size).forEachIndexed { batch, pictures ->
     val overlays = overlaysOf(pictures)
     val exported = exportedOverFill(source, overlays, MID_GREY, spec, "$name-$transfer-$batch")

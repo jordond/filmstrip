@@ -10,11 +10,13 @@ import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.geometry.rotate
+import dev.jordond.filmstrip.effects.geometry.scale
 import dev.jordond.filmstrip.effects.overlay.textOverlay
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.export.VideoQuality
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.FFMPEG_ENCODERS
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegEncoders
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.ENCODE_DEADLINE
@@ -27,8 +29,10 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.transform.internal.DEFAULT_HDR_LADDER
+import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -44,6 +48,9 @@ import java.io.File
 import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.milliseconds
+
+// How far a measured stream may sit from the planned bitrate, as a fraction of it.
+private const val TOLERANCE = 0.15
 
 /**
  * The end-to-end pass: real clips, a real ffmpeg, a real file, verified with ffprobe.
@@ -183,7 +190,7 @@ class FfmpegExportTest {
           effects { crop(AspectRatio.Portrait) }
         }
 
-      val spec = ExportSpec(heightPx = 480)
+      val spec = ExportSpec(heightPx = 240)
       val verdict = fixture.filmstrip.plan(composition, spec)
       val plan =
         when (verdict) {
@@ -192,8 +199,8 @@ class FfmpegExportTest {
           is Verdict.Incapable -> error(verdict.reasons.joinToString { it.message })
         }
 
-      plan.output.size.height shouldBe 480
-      plan.output.size.width shouldBe 268
+      plan.output.size.height shouldBe 240
+      plan.output.size.width shouldBe 134
 
       val statuses = fixture.filmstrip.export(plan, MediaSink.of(output.absolutePath)).toList()
       val finished = statuses.last()
@@ -212,7 +219,7 @@ class FfmpegExportTest {
 
       // Verified independently of the code under test.
       val probe = ffprobe(output.absolutePath)
-      probe shouldBe "268x480 30/1 h264 aac"
+      probe shouldBe "134x240 30/1 h264 aac"
 
       output.delete()
     }
@@ -291,6 +298,35 @@ class FfmpegExportTest {
       output.delete()
     }
 
+  // The long fixture is scaled up to 1080p by an effect, since a spec height never upscales. x264 runs average bitrate
+  // under the -maxrate and -bufsize the plan's rate sets, so the stream lands near the rate rather than on it.
+  @Test
+  fun `writes a 1080p H264 stream near the bitrate the plan settled on`() =
+    runTest(timeout = TIMEOUT) {
+      if (!fixture.available() || !fixture.long.isFile) return@runTest
+
+      val output = File.createTempFile("filmstrip-bitrate", ".mp4").also { it.delete() }
+      val composition =
+        compositionOf {
+          clip(MediaSource.of(fixture.long.absolutePath)) {
+            trim(TimeRange.of(0.milliseconds, 6_000.milliseconds))
+            effects { scale(1080) }
+          }
+        }
+      val plan = fixture.plannedRun(composition, ExportSpec(videoCodec = VideoCodec.H264))
+      plan.output.size shouldBe Size(1920, 1080)
+      val planned = plan.output.bitrate.shouldNotBeNull()
+      planned shouldBe resolveVideoBitrate(VideoQuality.High, VideoCodec.H264, plan.output.size, plan.output.frameRate)
+
+      fixture.exported(plan, output)
+      val measured = probeField(output.absolutePath, "bit_rate").toLong()
+
+      withClue("measured $measured bps against a planned ${planned.bitsPerSecond}") {
+        measured.toDouble() shouldBe (planned.bitsPerSecond.toDouble() plusOrMinus planned.bitsPerSecond * TOLERANCE)
+      }
+      output.delete()
+    }
+
   @Test
   fun `streams progress while the encode runs`() =
     runTest(timeout = TIMEOUT) {
@@ -300,7 +336,7 @@ class FfmpegExportTest {
       val composition = compositionOf { clip(MediaSource.of(fixture.long.absolutePath)) }
       val statuses =
         fixture.filmstrip
-          .export(composition, ExportSpec(heightPx = 720), MediaSink.of(output.absolutePath))
+          .export(composition, ExportSpec(videoCodec = VideoCodec.H264), MediaSink.of(output.absolutePath))
           .toList()
 
       val progress = statuses.filterIsInstance<ExportStatus.Progress>()
@@ -326,7 +362,11 @@ class FfmpegExportTest {
 
       withContext(Dispatchers.Default) {
         val flow =
-          fixture.filmstrip.export(composition, ExportSpec(heightPx = 720), MediaSink.of(output.absolutePath))
+          fixture.filmstrip.export(
+            composition,
+            ExportSpec(videoCodec = VideoCodec.H264),
+            MediaSink.of(output.absolutePath),
+          )
         val encoding = CompletableDeferred<Unit>()
         // Cancelled once a report carries encoded output rather than after a fixed wait. A runner
         // slow enough to still be starting ffmpeg at the deadline leaves a graceful stop nothing to

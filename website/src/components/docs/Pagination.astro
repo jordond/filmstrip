@@ -1,0 +1,82 @@
+---
+// Previous and next as chunky VCR keys, marked with rewind and fast forward.
+const { pagination } = Astro.locals.starlightRoute
+const { prev, next } = pagination
+const skip = 'M2 2 L14 10 L2 18 Z M16 2 L28 10 L16 18 Z'
+---
+
+<div class="keys print:hidden">
+  {
+    prev && (
+      <a href={prev.href} rel="prev" class="cta osd key">
+        <span class="label">
+          <svg class="rewind" width="24" height="16" viewBox="0 0 30 20" aria-hidden="true">
+            <path d={skip} fill="currentColor" />
+          </svg>
+          {Astro.locals.t('page.previousLink')}
+        </span>
+        <span class="title">{prev.label}</span>
+      </a>
+    )
+  }
+  {
+    next && (
+      <a href={next.href} rel="next" class="cta osd key">
+        <span class="label">
+          {Astro.locals.t('page.nextLink')}
+          <svg width="24" height="16" viewBox="0 0 30 20" aria-hidden="true">
+            <path d={skip} fill="currentColor" />
+          </svg>
+        </span>
+        <span class="title">{next.label}</span>
+      </a>
+    )
+  }
+</div>
+
+<style>
+  .keys {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+    gap: 1rem;
+  }
+
+  .key {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 2px;
+    padding: 10px 18px;
+    color: var(--amber);
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+  }
+
+  .key:hover {
+    color: var(--amber);
+  }
+
+  [rel='next'] {
+    grid-column-end: -1;
+    align-items: flex-end;
+    text-align: end;
+  }
+
+  .label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 20px;
+    color: var(--muted-strong);
+  }
+
+  .rewind {
+    transform: scaleX(-1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .key:hover {
+      transform: none;
+    }
+  }
+</style>

@@ -121,7 +121,8 @@ class AndroidHdrTest {
 
   private fun composition(source: MediaSource) = EditComposition(listOf(Track(listOf(Clip(source)))))
 
-  private fun spec(hdr: HdrMode) = ExportSpec(heightPx = 720, hdr = hdr)
+  // Below the fixture's own 720, since a height at or above it keeps the frame and would let a kept grade copy across.
+  private fun spec(hdr: HdrMode) = ExportSpec(heightPx = 360, hdr = hdr)
 
   private suspend fun export(
     source: MediaSource,

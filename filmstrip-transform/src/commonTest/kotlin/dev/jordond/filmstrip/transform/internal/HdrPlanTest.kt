@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.export.AdjustmentKind
+import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
@@ -12,6 +13,7 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
@@ -300,5 +302,34 @@ class HdrPlanTest {
 
     resolved.hdr shouldBe ResolvedHdr.Keep
     resolved.hdrTransfer shouldBe HdrTransfer.Hlg
+  }
+
+  @Test
+  fun `match source under strict re-encodes an unnamed hdr codec with nothing to report`() {
+    val verdict =
+      fixture.plan(
+        composition(fixture.clip(hdr = HdrTransfer.Hlg, codec = "apcn")),
+        ExportSpec(videoCodec = VideoCodec.MatchSource, strict = true),
+        device = fixture.device(hdr = true),
+      )
+
+    val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.output.videoCodec shouldBe VideoCodec.Hevc
+    plan.path shouldBe ExportPath.Transcode
+    plan.copyBlockedBy shouldContain CopyBlocker.SourceCodecUnnameable
+  }
+
+  @Test
+  fun `match source under strict copies a named hdr codec`() {
+    val verdict =
+      fixture.plan(
+        composition(fixture.clip(hdr = HdrTransfer.Hlg, codec = "hvc1")),
+        ExportSpec(videoCodec = VideoCodec.MatchSource, strict = true),
+        device = fixture.device(hdr = true),
+      )
+
+    val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.output.videoCodec shouldBe VideoCodec.Hevc
+    plan.path shouldBe ExportPath.Copy
   }
 }

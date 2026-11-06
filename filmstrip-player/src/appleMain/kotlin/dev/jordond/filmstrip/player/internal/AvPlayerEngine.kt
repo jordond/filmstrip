@@ -304,11 +304,11 @@ internal class AvPlayerEngine(
     val current = transport.playhead
     wrapGuard.reset()
     drawFailure.clear()
-    val swappable = change == CompositionDiff.ParametersOnly && lowered?.swapsParameters == true
+    val swappable = change == CompositionDiff.ParametersOnly && lowered?.takesParametersOf(next.resolved) == true
     if (swappable) {
       // Reassigning videoComposition on a playing item stalls the render, so the parameters reach
-      // the frames through the chain the item already holds. The require() calls inside stand as
-      // the assertion that a parameters-only diff really did move nothing structural.
+      // the frames through the chain the item already holds. An edit leaving the copy path can still
+      // move the frame, since a transcode holds it to the encoder's size, and that takes a rebuild.
       lowered?.updateParameters(next.resolved)
     } else {
       rebuild(next)?.let { return it }

@@ -1,0 +1,19 @@
+---
+title: Demo
+description: The filmstrip sample app, running live in the browser.
+tableOfContents: false
+---
+
+import DemoFrame from '../../components/DemoFrame.astro'
+import { versions, TESTED_BROWSERS } from '../../lib/versions'
+
+This is the filmstrip sample app, built for the browser with Kotlin/Wasm and Compose Multiplatform
+{versions.composeMultiplatform}. It plays, edits and exports the sample clips with the WebCodecs backend, all inside
+this page. Nothing is uploaded anywhere.
+
+<DemoFrame />
+
+:::note
+The demo needs WebCodecs and WebAssembly garbage collection. It's tested on {TESTED_BROWSERS}. Other browsers may
+work but aren't tested.
+:::

@@ -9,8 +9,6 @@ import dev.jordond.filmstrip.media.HdrTransfer
  * @property name What `-c:v` names and what `ffmpeg -encoders` lists.
  * @property isHardwareAccelerated Whether the encode runs on dedicated silicon rather than the CPU.
  * @property preset The `-preset` to encode at, or null for an encoder that has no such option.
- * @property constantQualityArguments What this encoder needs to run at constant quality, used when
- *   the plan carries no bitrate.
  * @property probeArguments What the capability probe adds to keep its single frame cheap.
  * @property hdrPixelFormat The 10-bit pixel format this encoder writes HDR in, or null when it has
  *   no HDR profile to reach.
@@ -21,7 +19,6 @@ internal class FfmpegEncoder(
   val name: String,
   val isHardwareAccelerated: Boolean,
   val preset: String? = null,
-  val constantQualityArguments: List<String> = emptyList(),
   val probeArguments: List<String> = emptyList(),
   val hdrPixelFormat: String? = null,
   val hdrProfile: String? = null,
@@ -83,9 +80,6 @@ internal val FFMPEG_ENCODERS: Map<VideoCodec, List<FfmpegEncoder>> =
         FfmpegEncoder(
           name = "libvpx-vp9",
           isHardwareAccelerated = false,
-          // Without these libvpx picks CRF 32 itself and prints a line saying so, so filmstrip
-          // asks for the same thing out loud. The bitrate has to be zeroed to reach that mode.
-          constantQualityArguments = listOf("-crf", "32", "-b:v", "0"),
           probeArguments = listOf("-deadline", "realtime", "-cpu-used", "8"),
         ),
       ),

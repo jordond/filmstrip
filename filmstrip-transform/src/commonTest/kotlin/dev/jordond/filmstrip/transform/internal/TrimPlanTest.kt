@@ -151,8 +151,9 @@ class TrimPlanTest {
 
     verdict.shouldBeInstanceOf<Verdict.Capable>()
     verdict.plan.path shouldBe ExportPath.Transcode
+    // The fixture is already 1080 tall, so the preset's height keeps the frame and costs nothing.
     verdict.plan.copyBlockedBy shouldContainExactlyInAnyOrder
-      listOf(CopyBlocker.VideoCodecNamed, CopyBlocker.HeightSet, CopyBlocker.BitrateSet)
+      listOf(CopyBlocker.VideoCodecNamed, CopyBlocker.BitrateSet)
   }
 
   /**

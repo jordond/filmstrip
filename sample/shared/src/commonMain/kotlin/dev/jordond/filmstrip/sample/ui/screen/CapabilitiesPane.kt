@@ -132,7 +132,7 @@ internal fun CapabilitiesContent(
             StatRow("Max frame", "${video.maxSize.width} x ${video.maxSize.height}")
             StatRow("Alignment", "${video.sizeAlignment} px")
             video.maxFrameRate?.let { StatRow("Max frame rate", "$it fps") }
-            video.maxBitrate?.let { StatRow("Max bitrate", "${it.bitsPerSecond / 1_000_000} Mbps") }
+            video.maxBitrate?.let { StatRow("Max bitrate", it.toString()) }
           }
         }
 

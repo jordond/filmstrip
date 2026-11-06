@@ -1,0 +1,97 @@
+---
+title: Installation
+description: Add filmstrip to a Kotlin Multiplatform project.
+---
+
+import { Aside, Code, TabItem, Tabs } from '@astrojs/starlight/components'
+import { MIN_IOS, MIN_MACOS, TESTED_BROWSERS, versions } from '../../../lib/versions'
+
+export const catalog = `[versions]
+filmstrip = "${versions.library}"
+
+[libraries]
+filmstrip = { module = "${versions.group}:filmstrip", version.ref = "filmstrip" }
+filmstrip-compose = { module = "${versions.group}:filmstrip-compose", version.ref = "filmstrip" }
+filmstrip-compose-ui = { module = "${versions.group}:filmstrip-compose-ui", version.ref = "filmstrip" }`
+
+export const build = `kotlin {
+  sourceSets {
+    commonMain.dependencies {
+      implementation(libs.filmstrip)
+    }
+  }
+}`
+
+export const repositories = `dependencyResolutionManagement {
+  repositories {
+    mavenCentral()
+    maven("https://central.sonatype.com/repository/maven-snapshots/")
+  }
+}`
+
+<Aside type="caution" title="Not released yet">
+filmstrip has no release on Maven Central. The coordinates below are the {versions.library} snapshot the build
+produces, and they'll change once a first version ships.
+</Aside>
+
+## Add the dependency
+
+Snapshots live in the Maven Central snapshot repository, so add it next to `mavenCentral()` in
+`settings.gradle.kts`.
+
+<Code code={repositories} lang="kotlin" title="settings.gradle.kts" />
+
+Then add filmstrip to the version catalog and to `commonMain`.
+
+<Code code={catalog} lang="toml" title="gradle/libs.versions.toml" />
+
+<Code code={build} lang="kotlin" title="build.gradle.kts" />
+
+`filmstrip` is the bundle. It brings core, the effect catalogue, the player and the right export backend for each
+target. Call `allBackends()` once in [setup](/guides/setup/) and every target is ready.
+
+## Per platform
+
+<Tabs syncKey="platform">
+  <TabItem label="Android">
+    The Android backend runs on Media3 Transformer and previews through media3-exoplayer. filmstrip's minSdk is
+    {versions.minSdk}. The application context comes from App Startup, so there's nothing else to wire up unless
+    your app turns App Startup off.
+  </TabItem>
+  <TabItem label="iOS">
+    iOS {MIN_IOS} or later, and macOS {MIN_MACOS} or later for the macOS target. Export runs on AVFoundation and
+    VideoToolbox, and the player on AVPlayer. Link the Kotlin framework the way you already do, filmstrip adds no
+    CocoaPods or Swift packages.
+  </TabItem>
+  <TabItem label="Desktop (JVM)">
+    The JVM backend runs the `ffmpeg` and `ffprobe` already on the machine, version {versions.ffmpeg} or later.
+    filmstrip ships neither. Install them with your package manager, such as `brew install ffmpeg` or
+    `apt install ffmpeg`, and filmstrip finds them on `PATH`.
+  </TabItem>
+  <TabItem label="Web">
+    The browser backend runs on WebCodecs for both `wasmJs` and `js`. It's tested on {TESTED_BROWSERS}.
+  </TabItem>
+</Tabs>
+
+## Modules
+
+Pick single artifacts instead of the bundle when you want less on the classpath.
+
+| Artifact | What's in it |
+| --- | --- |
+| `filmstrip` | The bundle: core, effects, player, and the right backend for each target, plus `allBackends()` to register them. Not Compose. |
+| `filmstrip-core` | Model, `MediaSource`/`MediaSink`, `probe()`, `ThumbnailSource`, the `VideoPlayer` API and `PlayerEngine` SPI, and the effect SPI. No runtime, no effect catalogue. |
+| `filmstrip-effects` | The built-in effect catalogue. GL effects on Android, Core Image on Apple, ffmpeg filter graphs on the JVM, and canvas drawing in the browser. |
+| `filmstrip-transform` | The export planner, shared by every backend. Add a backend artifact alongside it to actually export. |
+| `filmstrip-transform-media3` | The Media3 backend, Android. |
+| `filmstrip-transform-avfoundation` | The AVFoundation backend, iOS and macOS. |
+| `filmstrip-transform-webcodecs` | The WebCodecs backend, browser. |
+| `filmstrip-transform-ffmpeg` | The ffmpeg backend, JVM. Runs an `ffmpeg` and `ffprobe` already on the machine. |
+| `filmstrip-player` | Preview playback over each target's backend. |
+| `filmstrip-compose` | Compose Multiplatform bindings: player state, the frame strip's cache, and bare surfaces. |
+| `filmstrip-compose-ui` | The drawn timeline: scrolling strip, ruler, playhead, trim handles, scrub gestures. Foundation only, no Material. |
+| `filmstrip-test` | Test fixtures and the frame-similarity harness. |
+| `filmstrip-io-filekit` | FileKit bindings: a picked `PlatformFile` as a source or sink, and an export result back as one. |
+| `filmstrip-io-filekit-compose` | FileKit dialog launchers that hand back a `MediaSource`, `ImageSource` or `MediaSink`. |
+| `filmstrip-io-okio` | Okio bindings: `Path`, `BufferedSource` and `ByteString` as sources, `Path` as a sink. |
+| `filmstrip-io-kotlinx` | kotlinx-io bindings: `Path` and `Source` as sources, `Path` as a sink. |

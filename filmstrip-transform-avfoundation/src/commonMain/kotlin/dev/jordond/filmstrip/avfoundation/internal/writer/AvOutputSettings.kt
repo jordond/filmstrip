@@ -52,9 +52,9 @@ import platform.CoreVideo.kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
 /**
  * The settings the video writer input is opened with.
  *
- * Seeded from [AVOutputSettingsAssistant], which is where Apple publishes a sane bitrate and
- * profile level for a given frame. Everything the plan settles then overwrites the seed, so what is
- * left of it is only ever the parts filmstrip has no opinion about.
+ * Seeded from [AVOutputSettingsAssistant], which is where Apple publishes a sane profile level for
+ * a given frame. Everything the plan settles then overwrites the seed, the average bitrate included,
+ * so what is left of it is only ever the parts filmstrip has no opinion about.
  *
  * @param sourceFormat The first clip's video format, when there is one. It lets the assistant seed
  *   against the real source, not the preset's nominal one.
@@ -73,7 +73,10 @@ internal fun videoWriterSettings(
   val compression =
     (seed[AVVideoCompressionPropertiesKey] as? Map<*, *>).orEmptyMap() +
       buildMap {
-        output.bitrate?.let { put(AVVideoAverageBitRateKey, it.bitsPerSecond) }
+        put(
+          AVVideoAverageBitRateKey,
+          checkNotNull(output.bitrate) { "The planner settles a bitrate on every transcode." }.bitsPerSecond,
+        )
         put(AVVideoExpectedSourceFrameRateKey, output.frameRate)
         // Ten-bit needs a profile that can carry it, and VideoToolbox's constants are CFStringRef,
         // which does not bridge into a Kotlin dictionary. The literal is the documented value of
@@ -144,12 +147,20 @@ internal fun videoReaderSettings(encodesHdr: Boolean): Map<Any?, Any?> {
  */
 internal fun VideoCodec.toAvCodecType(): String =
   when (this) {
-    VideoCodec.H264 -> checkNotNull(AVVideoCodecTypeH264)
-    VideoCodec.Hevc -> checkNotNull(AVVideoCodecTypeHEVC)
-    // The planner resolves Auto against the device's real encoder list before a plan exists, and
+    VideoCodec.H264 -> {
+      checkNotNull(AVVideoCodecTypeH264)
+    }
+    VideoCodec.Hevc -> {
+      checkNotNull(AVVideoCodecTypeHEVC)
+    }
+    // The planner resolves Auto and MatchSource against the device's real encoder list before a plan exists, and
     // AVFoundation's ladder never offers Vp9, Vp8 or Av1, so none of them should reach here.
     // The error is what makes a ladder change that forgets this function fail loudly.
-    VideoCodec.Auto, VideoCodec.Vp9, VideoCodec.Vp8, VideoCodec.Av1 -> error("AVFoundation has no encoder for $this.")
+    VideoCodec.Auto, VideoCodec.MatchSource, VideoCodec.Vp9, VideoCodec.Vp8, VideoCodec.Av1 -> {
+      error(
+        "AVFoundation has no encoder for $this.",
+      )
+    }
   }
 
 @OptIn(ExperimentalForeignApi::class)
@@ -168,8 +179,8 @@ private fun assistantSettings(
 /**
  * The preset whose frame is closest to the output's without being smaller than it.
  *
- * Only the seed depends on this. Width and height are overwritten from the plan either way, so a
- * frame that sits between two presets takes the larger one's bitrate.
+ * Only the seed depends on this. Width, height and bitrate are overwritten from the plan either way,
+ * so a frame that sits between two presets takes the larger one's profile level.
  */
 private fun OutputFormat.preset(): String? {
   val side = maxOf(size.width, size.height)

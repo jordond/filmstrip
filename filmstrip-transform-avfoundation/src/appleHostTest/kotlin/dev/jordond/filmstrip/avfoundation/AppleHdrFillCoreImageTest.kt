@@ -34,9 +34,9 @@ class AppleHdrFillCoreImageTest {
     val TIMEOUT = 5.minutes
 
     // Core Image's own limit. Its HLG decode reads a saturated bar bright on every channel, and a white bar reads true.
-    // The bar's codes are held to the shared signal on macOS, by AppleHdrFillTest. Measured 7.47% to 7.65% on macOS
-    // and 6.58% to 7.25% on the iOS simulator. Pinned from both ends, so a change to the decode shows up whichever way
-    // it moves.
+    // The bar's codes are held to the shared signal on macOS, by AppleHdrFillTest. Measured at COLOR_READ_BITRATE,
+    // 7.47% to 7.65% on macOS and 6.58% to 7.25% on the iOS simulator. Pinned from both ends, so a change to the decode
+    // shows up whichever way it moves.
     val MACOS_CORE_IMAGE_HLG_DRIFT = 0.073f..0.078f
     val IOS_SIMULATOR_CORE_IMAGE_HLG_DRIFT = 0.064f..0.074f
   }

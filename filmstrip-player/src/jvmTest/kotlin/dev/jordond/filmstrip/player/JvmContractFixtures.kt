@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.ffmpeg.ffmpegExportEngine
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.PREVIEW_PARITY_EXPORT_BITRATE
 import dev.jordond.filmstrip.test.TestFrame
 import kotlinx.coroutines.flow.toList
 import java.io.File
@@ -96,7 +97,7 @@ internal suspend fun jvmExportFrame(
 private suspend fun exportOf(composition: EditComposition): String {
   val engine = ffmpegExportEngine(CONTRACT_COMPONENTS)
   val plan =
-    when (val verdict = engine.plan(composition, ExportSpec())) {
+    when (val verdict = engine.plan(composition, ExportSpec(bitrate = PREVIEW_PARITY_EXPORT_BITRATE))) {
       is Verdict.Capable -> verdict.plan
       is Verdict.Degraded -> verdict.plan
       is Verdict.Incapable -> fail("the export refused the fixture: ${verdict.reasons.first().message}")
@@ -176,16 +177,16 @@ internal val PROBE_POSITIONS: List<Duration> = listOf(300.milliseconds, 900.mill
  * The PSNR a frame rendered from the fixture holds to against the same frame read out of an export of it.
  *
  * The export side has been through libx264 and back and the rendered side has not, so this sits below what two
- * renderings of one graph score. The pair measures 46.6 dB at 300ms and 45.5 dB at 900ms, and this leaves a few dB
- * for a slower machine's encoder settling somewhere else.
+ * renderings of one graph score. At [PREVIEW_PARITY_EXPORT_BITRATE] the pair measures 49.4 dB at 300ms and 48.6 dB at
+ * 900ms, and this leaves a few dB for a slower machine's encoder settling somewhere else.
  */
 internal const val ENCODED_MIN_PSNR_DB: Double = 42.0
 
 /**
  * The SSIM a frame rendered from the fixture holds to against the same frame read out of an export of it.
  *
- * Loosened for the libx264 encode on the export side and for nothing else. The pair measures 0.992 at 300ms and
- * 0.991 at 900ms.
+ * Loosened for the libx264 encode on the export side and for nothing else. At [PREVIEW_PARITY_EXPORT_BITRATE] the pair
+ * measures 0.996.
  */
 internal const val ENCODED_MIN_SSIM: Double = 0.985
 

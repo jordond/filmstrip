@@ -1,0 +1,84 @@
+---
+title: Custom effects
+description: Write your own effect and teach each platform how to render it.
+---
+
+import { Aside, TabItem, Tabs } from '@astrojs/starlight/components'
+import Snippet from '../../../components/Snippet.astro'
+
+A custom effect has two halves. An `EffectSpec` is data that describes it, shared across platforms. An `EffectResolver` turns
+that data into something the current platform can render.
+
+## The spec
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/extending/CustomEffects.kt" region="spec" />
+
+- `id` has to be stable. Namespace it like a package, so two libraries can't collide, and never derive it from the class
+  name.
+- `stage` defaults to `EffectStage.Color`. Your effect lands at the end of whichever stage it names.
+- `scope` defaults to `EffectScope.Everywhere`. An effect whose result depends on where a frame sits in its run overrides it
+  with `ClipOnly`, and a plan refuses it anywhere else.
+
+A spec has to compare by value, which a `data class` gives you. filmstrip compares specs to decide if a composition changed
+and if a cached thumbnail is still good, so one left on identity equality rebuilds the graph and misses the cache every
+time.
+
+Use your extension like any other effect.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/extending/CustomEffects.kt" region="use" />
+
+## The resolver
+
+A resolver answers one spec at a time. Return `null` to decline it, and the next resolver gets a look.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/extending/CustomEffects.kt" region="resolver" />
+
+A non-null answer claims the spec, which ends the chain.
+
+- `EffectResolution.Resolved` renders it as declared.
+- `EffectResolution.Degraded` renders it with named `causes`, which `plan` reports before any work starts.
+- `EffectResolution.Unsupported` refuses it by name, and no later resolver can substitute another rendering.
+
+Each platform's answer is a `PlatformEffect`, in that platform's own terms. Gate on `capabilities.api` and decline what you
+didn't write for. `attributes` holds what the pipeline already worked out, so multiply a fraction by `inputSize` to get
+pixels, the frame size entering this effect. Return a fresh `PlatformEffect` each time, since one is never shared between
+pipelines.
+
+The resolver's `softFocusOn` is an `expect` function you declare yourself, whose `actual` on each platform calls that
+platform's function below.
+
+<Tabs syncKey="platform">
+  <TabItem label="Android">
+    A media3 `Effect` that runs as its own pass, or a `TextureOverlay`.
+    <Snippet file="androidMain/kotlin/dev/jordond/filmstrip/docs/extending/CustomEffects.android.kt" region="android" />
+  </TabItem>
+  <TabItem label="iOS">
+    A step in a Core Image chain, or a single `CIFilter`. A step is told about the frame, and everything scale-dependent has
+    to be read from there.
+    <Snippet file="iosMain/kotlin/dev/jordond/filmstrip/docs/extending/CustomEffects.ios.kt" region="ios" />
+  </TabItem>
+  <TabItem label="Desktop (JVM)">
+    A fragment of an ffmpeg filter graph. It's plain data, so a test can assert on it with no toolchain installed.
+    <Snippet file="jvmMain/kotlin/dev/jordond/filmstrip/docs/extending/CustomEffects.jvm.kt" region="jvm" />
+  </TabItem>
+  <TabItem label="Web">
+    The browser has no way to run your own shader yet, so refuse by name.
+    <Snippet file="wasmJsMain/kotlin/dev/jordond/filmstrip/docs/extending/CustomEffects.wasmJs.kt" region="web" />
+  </TabItem>
+</Tabs>
+
+An effect that has to do async work first, like decoding an image in a browser, overrides `prepare`, which runs before each
+negotiation of a composition.
+
+## Register it
+
+Resolvers are asked newest registration first, so add yours after the backends.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/extending/CustomEffects.kt" region="register" />
+
+A spec no resolver claims is refused by name at plan time.
+
+<Aside type="note" title="Limits">
+A `PlatformEffect` in the browser is a `WebGlPass`, and the browser's compositor only reads the texture matrix and color
+matrix uniforms off a pass. It ignores the `programKey`, so a pass can't bring its own shader.
+</Aside>

@@ -1,0 +1,381 @@
+/* The landing page's look on Starlight. Tokens map onto --sl-* first, selectors cover what no variable reaches. */
+
+:root,
+::backdrop {
+  --sl-font: var(--font-body);
+  --sl-font-mono: var(--font-body);
+
+  --sl-color-white: var(--text);
+  --sl-color-gray-1: var(--text);
+  --sl-color-gray-2: var(--muted-strong);
+  --sl-color-gray-3: var(--muted);
+  --sl-color-gray-4: var(--line-strong);
+  --sl-color-gray-5: var(--line);
+  --sl-color-gray-6: var(--panel);
+  --sl-color-gray-7: var(--panel);
+  --sl-color-black: var(--ground);
+
+  --sl-color-accent-low: var(--panel-raised);
+  --sl-color-accent: var(--amber);
+  --sl-color-accent-high: var(--amber);
+  --sl-color-orange-low: var(--panel);
+  --sl-color-orange: var(--coral);
+  --sl-color-orange-high: var(--coral);
+  --sl-color-green-low: var(--panel);
+  --sl-color-green: var(--cyan);
+  --sl-color-green-high: var(--cyan);
+  --sl-color-blue-low: var(--panel);
+  --sl-color-blue: var(--cyan);
+  --sl-color-blue-high: var(--cyan);
+  --sl-color-purple-low: var(--panel);
+  --sl-color-purple: var(--amber);
+  --sl-color-purple-high: var(--amber);
+  --sl-color-red-low: var(--panel);
+  --sl-color-red: var(--red);
+  --sl-color-red-high: var(--red);
+
+  --sl-color-text: var(--text);
+  --sl-color-text-accent: var(--amber);
+  --sl-color-text-invert: var(--ground);
+  --sl-color-bg: var(--ground);
+  --sl-color-bg-nav: var(--ground-deep);
+  --sl-color-bg-sidebar: var(--ground-deep);
+  --sl-color-bg-inline-code: var(--panel-raised);
+  --sl-color-bg-accent: var(--amber);
+  --sl-color-hairline-light: var(--line);
+  --sl-color-hairline: var(--line);
+  --sl-color-hairline-shade: var(--line);
+  --sl-color-backdrop-overlay: var(--backdrop);
+
+  --sl-shadow-sm: none;
+  --sl-shadow-md: none;
+  --sl-shadow-lg: none;
+
+  --sl-line-height: 1.7;
+  --sl-text-code: 14px;
+  --sl-text-code-sm: 13px;
+  --sl-text-h1: clamp(24px, 6.2vw, 40px);
+  --sl-text-h2: 22px;
+  --sl-text-h3: 26px;
+  --sl-text-h4: 22px;
+  --sl-text-h5: 20px;
+  --sl-text-h6: 18px;
+}
+
+/* A page without a table of contents only holds a wide CRT, so it can use the room. */
+html:not([data-has-toc]) {
+  --sl-content-width: 67.5rem;
+}
+
+* {
+  border-radius: 0;
+}
+
+body {
+  font-size: 15px;
+}
+
+:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+/* Page furniture */
+
+header.header {
+  background-image: var(--scanlines-faint);
+  border-bottom-color: var(--line);
+}
+
+.social-icons::after {
+  content: none;
+}
+
+.sl-menu-button,
+.sl-menu-button:has(~ :popover-open) {
+  border: 2px solid var(--amber);
+  background-color: var(--ground);
+  color: var(--amber);
+}
+
+.meta {
+  font-family: var(--font-osd);
+  font-size: 20px;
+}
+
+/* Headings */
+
+h1#_top {
+  font-family: var(--font-display);
+  font-weight: 400;
+  color: var(--title-cream);
+  overflow-wrap: anywhere;
+  text-shadow: var(--fringe-small);
+}
+
+.hero h1#_top {
+  font-size: var(--sl-text-h1);
+}
+
+.sl-markdown-content h2:not(:where(.not-content *)) {
+  font-family: var(--font-display);
+  font-weight: 400;
+  color: var(--title-cream);
+}
+
+.sl-markdown-content :is(h3, h4, h5, h6):not(:where(.not-content *)) {
+  font-family: var(--font-osd);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-strong);
+}
+
+.sl-markdown-content h3:not(:where(.not-content *)) {
+  color: var(--amber);
+}
+
+/* The demo CRT */
+
+.sl-markdown-content > .tv.not-content {
+  margin-block: 2rem;
+}
+
+/* Links */
+
+.sl-markdown-content a:hover:not(:where(.not-content *)) {
+  color: var(--amber-hover);
+}
+
+/* Sidebar, the VCR menu */
+
+.sidebar-pane {
+  border-inline-end-color: var(--line);
+}
+
+.sidebar-content .large {
+  font-family: var(--font-osd);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+
+.sidebar-content summary {
+  color: var(--amber);
+}
+
+.sidebar-content ul ul li {
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.sidebar-content ul a {
+  position: relative;
+  padding-inline-start: 1.25rem;
+  font-size: 14px;
+  color: var(--muted-strong);
+}
+
+.sidebar-content ul a.large {
+  padding-inline-start: 0.5rem;
+  font-size: 22px;
+  color: var(--amber);
+}
+
+.sidebar-content ul a:hover {
+  color: var(--text);
+}
+
+.sidebar-content ul a.large:hover {
+  color: var(--amber-hover);
+}
+
+.sidebar-content ul a:focus-visible {
+  outline-offset: -3px;
+}
+
+.sidebar-content [aria-current='page'],
+.sidebar-content [aria-current='page']:hover,
+.sidebar-content [aria-current='page']:focus {
+  font-weight: 400;
+  background-color: transparent;
+  color: var(--amber);
+}
+
+.sidebar-content ul a[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0.375rem;
+  top: 0.65em;
+  width: 0.55em;
+  height: 0.7em;
+  background: currentColor;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+.sidebar-content ul a.large[aria-current='page'] {
+  padding-inline-start: 1.25rem;
+}
+
+/* Table of contents */
+
+starlight-toc h2,
+mobile-starlight-toc .toggle {
+  font-family: var(--font-osd);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+starlight-toc h2 {
+  font-size: 22px;
+  color: var(--muted-strong);
+}
+
+mobile-starlight-toc .toggle {
+  font-size: 18px;
+  color: var(--muted-strong);
+}
+
+mobile-starlight-toc .display-current {
+  color: var(--text);
+}
+
+:is(starlight-toc, mobile-starlight-toc) a {
+  color: var(--muted-strong);
+}
+
+:is(starlight-toc, mobile-starlight-toc) a:hover {
+  color: var(--text);
+}
+
+:is(starlight-toc, mobile-starlight-toc) a[aria-current='true'],
+:is(starlight-toc, mobile-starlight-toc) a[aria-current='true']:hover,
+:is(starlight-toc, mobile-starlight-toc) a[aria-current='true']:focus {
+  color: var(--amber);
+}
+
+/* Asides */
+
+.starlight-aside {
+  border-inline-start-width: 3px;
+  background-color: var(--panel);
+  color: var(--text);
+}
+
+.starlight-aside__title {
+  font-family: var(--font-osd);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Tables, the VCR setup menu */
+
+.sl-markdown-content table:not(:where(.not-content *)) {
+  width: max-content;
+  max-width: 100%;
+  border: 1px solid var(--vcr-border);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.sl-markdown-content :is(th, td):not(:where(.not-content *)) {
+  padding: 0.5rem 1rem;
+}
+
+.sl-markdown-content th:not(:where(.not-content *)) {
+  border-bottom-color: var(--vcr-border);
+  background-color: var(--vcr-blue);
+  color: var(--vcr-header);
+  font-family: var(--font-osd);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sl-markdown-content td:not(:where(.not-content *)) {
+  border-bottom-color: var(--line);
+  background-color: var(--panel);
+}
+
+/* Tabs, the landing page's export and preview strip */
+
+starlight-tabs [role='tablist'] {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--ground);
+}
+
+starlight-tabs .tab > [role='tab'] {
+  min-height: 44px;
+  padding: 0 1.75rem;
+  border-inline-end: 1px solid var(--line);
+  box-shadow: none;
+  background: var(--ground);
+  color: var(--muted);
+  font-family: var(--font-osd);
+  font-size: 24px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+starlight-tabs .tab > [role='tab'][aria-selected='true'] {
+  box-shadow: inset 0 -3px 0 var(--amber);
+  background: var(--panel);
+  color: var(--amber);
+  font-weight: 400;
+}
+
+/* Code blocks */
+
+.expressive-code .title {
+  font-weight: 400;
+}
+
+/* Search */
+
+button[data-open-modal] {
+  font-family: var(--font-body);
+}
+
+button[data-open-modal] > kbd {
+  background-color: var(--panel-raised);
+}
+
+#starlight__search {
+  --pagefind-ui-border-radius: 0;
+  --pagefind-ui-tag: var(--panel-raised);
+}
+
+#starlight__search mark {
+  color: var(--amber);
+}
+
+#starlight__search .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)):hover,
+#starlight__search .pagefind-ui__result-nested:hover {
+  outline-color: var(--line-strong);
+}
+
+#starlight__search input:focus-visible {
+  outline-offset: 0;
+}
+
+button[data-close-modal] {
+  font-family: var(--font-osd);
+  font-size: 22px;
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none;
+  }
+}

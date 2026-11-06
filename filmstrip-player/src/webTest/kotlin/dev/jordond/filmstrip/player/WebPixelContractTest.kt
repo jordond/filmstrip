@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
-import dev.jordond.filmstrip.effects.overlay.fadeIn
+import dev.jordond.filmstrip.effects.overlay.fade
 import dev.jordond.filmstrip.effects.overlay.frameAt
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
@@ -81,7 +81,7 @@ class WebPixelContractTest : PlayerPixelContractTest() {
   fun aCaptionAndAFadingBadgePreviewTheWayTheyExport() =
     contractTest { scope ->
       val caption = TextOverlay(CAPTION)
-      val badge = ImageOverlay(BADGE, Corner.TopEnd, animation = fadeIn(RAMP))
+      val badge = ImageOverlay(BADGE, Corner.TopEnd, animation = fade(inDuration = RAMP))
       val composition = webFixtureComposition(listOf(caption, badge))
       val span = TimeRange(Duration.ZERO, CLIP_LENGTH)
       val positions =

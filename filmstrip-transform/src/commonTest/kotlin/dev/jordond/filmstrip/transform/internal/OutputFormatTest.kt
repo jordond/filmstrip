@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.transform.internal
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.export.AdjustmentKind
+import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.Verdict
@@ -29,6 +30,25 @@ class OutputFormatTest {
     val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
     plan.output.size shouldBe Size(1280, 720)
     plan.path shouldBe ExportPath.Transcode
+  }
+
+  @Test
+  fun `a height above the source's own never upscales and keeps the copy`() {
+    val verdict = fixture.plan(composition(fixture.clip(size = Size(1280, 720))), ExportSpec(heightPx = 1080))
+
+    val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.output.size shouldBe Size(1280, 720)
+    plan.path shouldBe ExportPath.Copy
+    plan.copyBlockedBy shouldBe emptyList()
+  }
+
+  @Test
+  fun `a height below the source's own blocks the copy`() {
+    val verdict = fixture.plan(composition(fixture.clip(size = Size(1280, 720))), ExportSpec(heightPx = 360))
+
+    val plan = verdict.shouldBeInstanceOf<Verdict.Capable>().plan
+    plan.output.size shouldBe Size(640, 360)
+    plan.copyBlockedBy shouldBe listOf(CopyBlocker.HeightSet, CopyBlocker.FrameResized)
   }
 
   @Test

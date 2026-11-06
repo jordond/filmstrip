@@ -14,7 +14,7 @@ reports, so a review round finds what the builder could not see, not what it ski
   dumps, so a change there passes checkKotlinAbi and needs your eyes.
 - No @Serializable in the edit model. A Kotlin Map handed to an AVFoundation or VideoToolbox API is 🔴 unless
   built as a real dictionary.
-- A caller-visible behaviour change without a docs/capabilities.md edit is 🟡.
+- A caller-visible behaviour change without an edit to the matching page under `website/src/content/docs/guides/` is 🟡.
 - Hostile input: every parser and reader of caller bytes has a named, tested bound on reads, bytes, counts and
   allocation. A length field is never trusted for a read or an allocation. A loop over caller data is cancellable.
 - Concurrency and cache keys: races, waiters, what the key leaves out. A timeout on every wait.

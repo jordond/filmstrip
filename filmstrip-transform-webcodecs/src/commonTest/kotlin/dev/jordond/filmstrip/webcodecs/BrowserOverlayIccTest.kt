@@ -472,8 +472,14 @@ class BrowserOverlayIccTest {
     const val CELL_HEIGHT = 0.24f
     const val HALF = 0.5f
 
-    val SDR_SPEC = ExportSpec(audioCodec = AudioCodec.None, frameRate = FRAME_RATE)
-    val HDR_SPEC = ExportSpec(audioCodec = AudioCodec.None, frameRate = FRAME_RATE, hdr = HdrMode.KeepHdr)
+    val SDR_SPEC = ExportSpec(bitrate = MEASURING_BITRATE, audioCodec = AudioCodec.None, frameRate = FRAME_RATE)
+    val HDR_SPEC =
+      ExportSpec(
+        bitrate = MEASURING_BITRATE,
+        audioCodec = AudioCodec.None,
+        frameRate = FRAME_RATE,
+        hdr = HdrMode.KeepHdr,
+      )
 
     // How far a kept grade's preview reading may sit from what the rule shows once every half-float buffer on the way
     // is modelled, in eight-bit codes per channel. Measured at 0 on SwiftShader, the renderer CI runs, and on Metal.

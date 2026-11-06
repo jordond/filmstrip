@@ -17,12 +17,11 @@ import dev.jordond.filmstrip.effects.color.Saturation
 import dev.jordond.filmstrip.effects.color.colorMatrixOf
 import dev.jordond.filmstrip.effects.color.transformNits
 import dev.jordond.filmstrip.export.ExportPath
-import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
-import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.BRIGHTER
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.CODE_TOLERANCE
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.COLOR_READ_HDR_SPEC
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.HALF
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FLATTENING
@@ -204,7 +203,7 @@ class FfmpegHdrEffectTest {
       fixture.filmstrip
         .plan(
           composition,
-          ExportSpec(hdr = HdrMode.KeepHdr),
+          COLOR_READ_HDR_SPEC,
         ).shouldBeInstanceOf<Verdict.Capable>()
         .plan
     plan.path shouldBe ExportPath.Transcode

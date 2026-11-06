@@ -1,0 +1,75 @@
+---
+title: Bindings
+description: Draw a player, follow its playhead and hold rendered frames from Compose.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+import Snippet from '../../../components/Snippet.astro'
+
+`filmstrip-compose` holds the Compose Multiplatform bindings: player state, a cache for frame strips and a bare video
+surface. It draws no controls.
+
+## Player and surface
+
+`rememberFilmstripPlayer` builds a player and closes it when it leaves composition. A new composition is loaded for you,
+so ordinary editing needs no debounce. `VideoSurface` renders the player and nothing else, and anything you draw after it
+composites on top of the video.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Bindings.kt" region="player" />
+
+Size the surface to the composition's output aspect, not the source's. `videoAspect` does that from
+`rememberVideoSurfaceState`, and stays inert until the engine reports a size.
+
+`contentScale` is a fit in the view. `VideoContentScale.Fit` shows bars in the view that never reach the file, unlike
+letterboxing in the composition, which writes real pixels.
+
+<Aside type="caution">
+`remember` survives recomposition but not a configuration change, so a rotation tears the player down and builds a new
+one. For anything longer-lived than a throwaway preview, hoist the player somewhere that outlives the screen and pass it to
+`VideoSurface`, which never owns it.
+</Aside>
+
+## Playhead
+
+`rememberPlayheadState` follows the playhead and the composition's length. It has `position`, `duration` and `progress`,
+read at `PlayheadDefaults.Tick` unless you ask for another `tick`.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Bindings.kt" region="playhead" />
+
+## Scrubbing
+
+`rememberScrubState` holds the three calls a drag makes. Call `onScrubStart` on touch down, `onScrubTo` on every delta and
+`onScrubEnd` on touch up, which settles on the exact frame. `onScrubTo` is ignored outside a gesture. A second form takes
+your own `onSeek`, for a preview you run on your own clock. The [timeline](/compose/timeline/) wires this up for you.
+
+## Events
+
+`PlaybackEventEffect` collects a player's events for as long as it stays in composition. Use it instead of your own
+`LaunchedEffect`, since `events` replays nothing and a hand-rolled collector can race the command that produced an event.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Bindings.kt" region="events" />
+
+## Frames
+
+`rememberFilmstripFrame` holds one exact frame, for a poster or a clip card. It fetches again when the position, the height
+or anything that changes a rendered frame moves. The last frame stays in place while the next renders, and a failed render
+clears it.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Bindings.kt" region="poster" />
+
+`rememberFilmstripFrames` holds a whole strip. Tell it which items are showing with `onVisibleRange`, since nothing is
+fetched until you do. It fetches the visible items plus an overscan either side and closes everything outside that window.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Bindings.kt" region="strip" />
+
+Requests are served one at a time, since extraction next to a preview contends for the device's decoders. `maxBytes` caps
+how much decoded pixel data it holds. An edit that doesn't change a rendered frame, like a clip's gain, keeps every frame.
+
+<Aside type="caution">
+A frame read from a strip is only valid while its index is inside the reported window. Some platforms hand out the decoded
+frame itself, so drawing a bitmap you kept after scrolling away draws released pixels.
+</Aside>
+
+<Aside type="note" title="Limits">
+The Compose artifacts target Android, iOS, the JVM and the browser. They have no macOS target.
+</Aside>

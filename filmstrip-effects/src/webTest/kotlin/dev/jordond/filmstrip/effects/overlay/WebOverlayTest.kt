@@ -449,7 +449,7 @@ class WebOverlayTest {
     val PNG = Size(5, 3)
     val SPAN = TimeRange.of(Duration.ZERO, 10.seconds)
     val FADE_LENGTH = 2.seconds
-    val FADE = fadeIn(FADE_LENGTH) + slideIn(OverlayOffset(-0.4f, 0f), FADE_LENGTH)
+    val FADE = fade(inDuration = FADE_LENGTH) + slideIn(OverlayOffset(-0.4f, 0f), FADE_LENGTH)
     val WIDE = TextStyle(maxWidth = 1f)
 
     const val HELLO_WORLD = "Hello world"

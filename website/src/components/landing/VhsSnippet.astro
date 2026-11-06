@@ -1,0 +1,17 @@
+---
+// Renders one `// region` block of a compiled Kotlin file as a bare highlighted `<pre>`, styled by the card around it.
+// It stays away from Starlight's components, since importing them links Starlight's stylesheet into the landing page.
+import { Code } from 'astro:components'
+import { readSnippet } from '../../lib/snippets'
+import { vhsTheme } from '../../lib/vhsTheme'
+
+interface Props {
+  /** Path under internal/docs-samples/src, such as `commonMain/kotlin/dev/jordond/filmstrip/docs/start/QuickStart.kt`. */
+  file: string
+  region: string
+}
+
+const { file, region } = Astro.props
+---
+
+<Code code={readSnippet(file, region)} lang="kotlin" theme={vhsTheme} class="snippet-vhs" />

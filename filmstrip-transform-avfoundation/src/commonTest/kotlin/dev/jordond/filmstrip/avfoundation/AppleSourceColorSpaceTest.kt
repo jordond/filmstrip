@@ -266,7 +266,7 @@ class AppleSourceColorSpaceTest {
 
   private companion object {
     val TIMEOUT = 2.seconds * 60
-    val SPEC = ExportSpec(heightPx = 180)
+    val SPEC = ExportSpec(heightPx = 180, bitrate = COLOR_READ_BITRATE)
     val CLIP = 1.seconds
     const val FRAMES = 30
     const val WIDTH = 320

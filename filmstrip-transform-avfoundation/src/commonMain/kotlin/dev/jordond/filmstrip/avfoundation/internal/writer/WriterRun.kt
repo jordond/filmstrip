@@ -384,7 +384,7 @@ internal class WriterRun(
   /**
    * Refuses before opening anything when the plan's own size estimate does not fit.
    *
-   * Only reachable when the plan named a bitrate, since without one there is no number to check
+   * Every transcode carries the plan's bitrate. A copy carries none, so there is no number to check
    * against. The headroom matches the one the planner puts on [ExportEstimate.outputSizeBytesMax],
    * so a caller who checked that number sees the same answer here.
    */

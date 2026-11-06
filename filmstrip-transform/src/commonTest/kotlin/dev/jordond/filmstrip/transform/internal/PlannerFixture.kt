@@ -186,12 +186,13 @@ internal class PlannerFixture {
     codec: VideoCodec,
     maxSize: Size = Size(3840, 2160),
     maxFrameRate: Int? = null,
+    maxBitrate: Bitrate? = null,
   ) = VideoEncoderCapability(
     codec = codec,
     encoderName = null,
     maxSize = maxSize,
     maxFrameRate = maxFrameRate,
-    maxBitrate = null,
+    maxBitrate = maxBitrate,
     isHardwareAccelerated = true,
     sizeAlignment = 2,
   )

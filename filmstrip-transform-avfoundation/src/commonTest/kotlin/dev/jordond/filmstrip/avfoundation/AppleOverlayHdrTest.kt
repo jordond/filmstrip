@@ -10,7 +10,7 @@ import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.effects.overlay.OverlayEffect
 import dev.jordond.filmstrip.effects.overlay.OverlayFrame
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
-import dev.jordond.filmstrip.effects.overlay.fadeIn
+import dev.jordond.filmstrip.effects.overlay.fade
 import dev.jordond.filmstrip.effects.overlay.frameAt
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
@@ -141,7 +141,7 @@ class AppleOverlayHdrTest {
       val transfer = HdrTransfer.Pq
       val white = HdrOverlayCells.WHITE
       val badge = ImageOverlay(ImageSource.ofBytes(OverlayPixels.pngOf(RASTER, white)), Corner.TopStart)
-      val faded = ImageOverlay(badge.image, badge.corner, animation = fadeIn(RAMP))
+      val faded = ImageOverlay(badge.image, badge.corner, animation = fade(inDuration = RAMP))
 
       exported(transfer, "fade", BAR, listOf(faded)) { path, size ->
         val rect = faded.placedOn(size, RASTER).rectOn(size)
@@ -224,7 +224,7 @@ class AppleOverlayHdrTest {
           overlays.forEach { add(it) }
         }
       }
-    val spec = ExportSpec(heightPx = 720, hdr = HdrMode.KeepHdr)
+    val spec = ExportSpec(heightPx = 720, hdr = HdrMode.KeepHdr, bitrate = COLOR_READ_BITRATE)
     val plan =
       when (val verdict = filmstrip.plan(composition, spec)) {
         is Verdict.Capable -> verdict.plan

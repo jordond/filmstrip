@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.geometry.derivesFromFrame
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
+import dev.jordond.filmstrip.transform.internal.resolve.drawsSameFormatAs
 import dev.jordond.filmstrip.transform.internal.resolve.effectsOverFill
 import dev.jordond.filmstrip.transform.internal.resolve.effectsUnderFill
 import kotlinx.cinterop.BetaInteropApi
@@ -120,27 +121,50 @@ internal class CoreImageChain(
    * stays the object it was handed. A frame already in flight finishes against the parameters it
    * started on.
    *
+   * The plan's bitrate, codecs and audio format can move, since no frame is drawn from them. Whether audio is kept
+   * cannot, since nothing a swap touches lays or removes an audio track.
+   *
    * @param resolved The same timeline, planned again with different effect parameters.
-   * @throws IllegalArgumentException When [resolved] moves something a caller has already read off
-   *   this chain or something the spans were laid out against, which needs the whole graph built
-   *   again from scratch instead.
+   * @throws IllegalArgumentException When [takesParametersOf] says no, which needs the whole graph built again from
+   *   scratch instead.
    */
   public fun updateParameters(resolved: ResolvedComposition) {
     val current = snapshot
-    require(resolved.output == current.output) {
-      "A swap cannot change the output format. It was ${current.output}, and ${resolved.output} was given."
-    }
-    require(resolved.hdrTransfer == current.transfer) {
-      "A swap cannot change the transfer function. It was ${current.transfer}, and " +
-        "${resolved.hdrTransfer} was given."
-    }
-    require(resolved.videoClipDurations == current.resolved.videoClipDurations) {
-      "A swap keeps the spans it already has, so it cannot change the timeline they cover. It was " +
-        "${current.resolved.videoClipDurations}, and ${resolved.videoClipDurations} was given."
-    }
+    val refusal = swapRefusalOf(resolved, current)
+    require(refusal == null) { refusal.orEmpty() }
 
     latch.store(Latched(ChainSnapshot(resolved, current.spans.respannedOnto(resolved), current.encodesHdr), null))
   }
+
+  /**
+   * Whether [updateParameters] can take [resolved], which holds while it draws the format this chain was built for,
+   * over the clip durations its spans were laid out against and the frames the video track already holds.
+   */
+  public fun takesParametersOf(resolved: ResolvedComposition): Boolean = swapRefusalOf(resolved, snapshot) == null
+
+  private fun swapRefusalOf(
+    resolved: ResolvedComposition,
+    current: ChainSnapshot,
+  ): String? =
+    when {
+      !current.resolved.drawsSameFormatAs(resolved) -> {
+        "A swap cannot change the format it draws. It was ${current.resolved.drawnFormat}, and " +
+          "${resolved.drawnFormat} was given."
+      }
+      resolved.videoClipDurations != current.resolved.videoClipDurations -> {
+        "A swap keeps the spans it already has, so it cannot change the timeline they cover. It was " +
+          "${current.resolved.videoClipDurations}, and ${resolved.videoClipDurations} was given."
+      }
+      !current.resolved.laysSameFramesAs(resolved) -> {
+        "A swap keeps the video track it already has, and a copy of this clip lays a frame a transcode leaves out."
+      }
+      else -> {
+        null
+      }
+    }
+
+  private val ResolvedComposition.drawnFormat: String
+    get() = "${output.size} at ${output.frameRate} fps, $hdr, transfer $hdrTransfer, audio ${output.audioCodec}"
 
   /**
    * Renders one frame and hands it back to AVFoundation.

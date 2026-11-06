@@ -7,6 +7,8 @@ import dev.jordond.filmstrip.edit.diff
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.effects.geometry.Crop
+import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.SeekAccuracy
@@ -68,6 +70,24 @@ abstract class PlayerEngineContractTest {
    * The output frame rate [fixture] plays at, which is the grid every seek into it lands on.
    */
   protected abstract val fixtureFrameRate: Int
+
+  /**
+   * One clip with no effect on it that keeps its audio, which is the plan that leaves the copy path on its first
+   * effect.
+   */
+  protected open val plainFixture: EditComposition get() = fixture
+
+  /**
+   * Whether this backend goes back through [PlaybackStatus.Preparing] when [plainFixture] takes its first effect.
+   *
+   * True only for a backend whose own graph cannot take that edge, which its override names.
+   */
+  protected open val plainClipEditPrepares: Boolean get() = false
+
+  /**
+   * Whether this backend's preview info carries the output frame an edit settled on.
+   */
+  protected open val reportsOutputFrame: Boolean get() = true
 
   @Test
   fun theReportedDurationMatchesTheResolvedCompositionAndThePlatform() =
@@ -244,6 +264,21 @@ abstract class PlayerEngineContractTest {
 
   @Test
   fun aPausedParameterEditPastTheLoopRangeStaysWhereItLanded() = rebuilds.pausedStaysPastLoopRange(fixtureParameters)
+
+  @Test
+  fun aPlainClipTakingItsFirstEffectHoldsTheTransport() =
+    rebuilds.plainClipEditHoldsTheTransport(
+      plain = plainFixture,
+      edited = plainFixture.withEffects(listOf(Brightness(RETUNED_BRIGHTNESS))),
+      prepares = plainClipEditPrepares,
+    )
+
+  @Test
+  fun aParameterEditThatMovesTheFrameHoldsTheTransport() =
+    rebuilds.frameMovingEditHoldsTheTransport(
+      moved = fixture.withEffects(listOf(Crop(AspectRatio.Square))),
+      reportsFrame = reportsOutputFrame,
+    )
 
   @Test
   fun eachStagedInterruptionReportsOneExternalChangeAndLeavesPlaybackUnwanted() =

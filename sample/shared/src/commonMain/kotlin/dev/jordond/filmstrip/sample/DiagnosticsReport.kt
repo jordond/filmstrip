@@ -224,7 +224,8 @@ private fun MediaInfo.summary(): String {
 private fun ExportSpec.summary(): String =
   listOfNotNull(
     heightPx?.let { "height $it" },
-    bitrate?.let { "${it.bitsPerSecond / 1_000_000} Mbps" },
+    bitrate?.toString(),
+    quality?.let { "quality $it" },
     "video $videoCodec",
     "audio $audioCodec",
     frameRate?.let { "$it fps" },
@@ -257,6 +258,7 @@ private fun EditComposition.effectIds(): List<String> =
 private fun ExportSpec.asJson(): JsonObject = buildJsonObject {
   put("heightPx", heightPx)
   put("bitrate", bitrate?.bitsPerSecond)
+  put("quality", quality?.name)
   put("videoCodec", videoCodec.name)
   put("audioCodec", audioCodec.name)
   put("frameRate", frameRate)

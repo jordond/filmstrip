@@ -1,0 +1,55 @@
+---
+title: Pickers
+description: Pick clips and images, choose where to save and share a finished export.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+import Snippet from '../../../components/Snippet.astro'
+
+`filmstrip-io-filekit-compose` wraps FileKit's dialogs so they hand back filmstrip's own types. It's a separate artifact,
+so it isn't in the `filmstrip` bundle. For the non-Compose FileKit bindings, see
+[Sources and sinks](/guides/sources-and-sinks/).
+
+## Pick a clip
+
+`rememberMediaPickerLauncher` opens a video picker by default. `onResult` gets a `PickedMedia`, or null when the dialog was
+dismissed. A dismissal isn't an error, and `onError` only hears about a pick that started and can't finish.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Pickers.kt" region="media-picker" />
+
+`PickedMedia` has the `source` to hand to a composition and the `file` the dialog returned. Reading a file's name goes
+through the content resolver on Android, so read it once in the callback and hold on to it.
+
+In a browser the `source` is an object URL that lives until the page unloads. `MediaSource.release` frees it earlier, once
+nothing reads the source any more.
+
+## Pick an image
+
+`rememberImagePickerLauncher` works the same way and gives you a `PickedImage`, whose `source` is an `ImageSource` for an
+[overlay](/guides/overlays/) or a [still](/guides/stills/).
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Pickers.kt" region="image-picker" />
+
+## Choose where to save
+
+`rememberExportSaverLauncher` asks for a destination and hands it back as a `MediaSink`.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Pickers.kt" region="saver" />
+
+Android, Apple and the JVM open the platform's save dialog. A browser opens nothing and reports a sink right away, named
+after the launch arguments, which is the name the export downloads under. Leave the extension off `suggestedName`, since a
+name already ending in it gets it a second time.
+
+<Aside type="caution">
+An iOS dialog can hand back a security-scoped URL, so hold `withScopedAccess` open for the life of the export.
+</Aside>
+
+## Share
+
+`rememberShareLauncher` opens the platform's share sheet. It's null on the JVM and in a browser, where FileKit has no share
+sheet, so hide the control there.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Pickers.kt" region="share" />
+
+`launch` takes the sink an export reported. `MediaSink.Temporary` is a request and not a location, so it throws
+`IllegalStateException`. Read the resolved path off `ExportStatus.Success.output` instead.

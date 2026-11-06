@@ -187,7 +187,8 @@ public enum class CopyBlocker {
   FrameRateSet,
 
   /**
-   * [ExportSpec.videoCodec] names a codec rather than leaving it to the source's own.
+   * [ExportSpec.videoCodec] names a codec rather than leaving it to the source's own. Neither
+   * [VideoCodec.Auto] nor [VideoCodec.MatchSource] blocks a copy.
    */
   VideoCodecNamed,
 
@@ -197,12 +198,14 @@ public enum class CopyBlocker {
   AudioCodecNamed,
 
   /**
-   * [ExportSpec.heightPx] names a height, which only an encoder can deliver.
+   * [ExportSpec.heightPx] names a height below the source's own, which only an encoder can deliver.
+   * A height at or above it keeps the source's frame and blocks nothing.
    */
   HeightSet,
 
   /**
-   * [ExportSpec.bitrate] names a rate, which only an encoder can deliver.
+   * [ExportSpec.bitrate] names a rate or [ExportSpec.quality] names a tier, which only an encoder can
+   * deliver.
    */
   BitrateSet,
 
@@ -372,7 +375,8 @@ public class ExportPlan
  * @property size The output frame size, in pixels.
  * @property videoCodec The codec the video is encoded with.
  * @property audioCodec The codec the audio is encoded with.
- * @property bitrate The video bitrate, or null when the encoder chooses it.
+ * @property bitrate The video bitrate the encoder is handed. Null on a copy, which writes the source's own, and on an
+ * audio-only export, which writes no video.
  * @property frameRate The frame rate the export writes, in frames per second. The planner resolves it from the spec,
  * the source or a default, so it is always above zero.
  * @property audioFormat The audio format the whole composition is normalised to, or null when there

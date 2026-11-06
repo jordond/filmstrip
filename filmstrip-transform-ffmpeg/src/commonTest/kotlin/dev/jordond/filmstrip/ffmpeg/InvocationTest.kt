@@ -1,10 +1,12 @@
 package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.OutputFormat
+import dev.jordond.filmstrip.export.VideoQuality
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSpec
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
@@ -14,6 +16,8 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
+import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeLessThan
@@ -112,6 +116,40 @@ class InvocationTest {
     argumentsFor(VideoCodec.Hevc, "hevc_videotoolbox", HdrTransfer.Pq).shouldNotContain("-x265-params")
   }
 
+  // libx265 4.1 aborts on these widths with cutree on, so the literals pin that encoder's own limit.
+  @Test
+  fun `turns cutree off for libx265 across the widths it crashes on`() {
+    listOf(34, 42, 48).forEach { width ->
+      withClue("$width wide") {
+        argumentsFor(VideoCodec.Hevc, "libx265", size = Size(width, 720)).after("-x265-params") shouldBe "cutree=0"
+      }
+    }
+  }
+
+  @Test
+  fun `leaves cutree on for libx265 either side of the widths it crashes on`() {
+    listOf(32, 50).forEach { width ->
+      withClue("$width wide") {
+        argumentsFor(VideoCodec.Hevc, "libx265", size = Size(width, 720)).shouldNotContain("-x265-params")
+      }
+    }
+  }
+
+  @Test
+  fun `merges cutree into the one x265-params an HDR encode writes`() {
+    val arguments = argumentsFor(VideoCodec.Hevc, "libx265", HdrTransfer.Pq, size = Size(42, 42))
+
+    arguments.count { it == "-x265-params" } shouldBe 1
+    arguments.after("-x265-params") shouldBe
+      "colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:hdr10=1:repeat-headers=1:cutree=0"
+  }
+
+  @Test
+  fun `gives other encoders no x265 params at a width libx265 crashes on`() {
+    argumentsFor(VideoCodec.Hevc, "hevc_videotoolbox", size = Size(42, 42)).shouldNotContain("-x265-params")
+    argumentsFor(VideoCodec.H264, "libx264", size = Size(42, 42)).shouldNotContain("-x265-params")
+  }
+
   // AudioSpec.AudioOnly lowers to a plan with no videoLabel, which is what audioArgumentsFor
   // already builds. This is the shape that reaches the command line: -vn instead of a video map,
   // and no -c:v at all since there is no encoder to name for a track that is not written.
@@ -144,14 +182,25 @@ class InvocationTest {
     arguments.after("-map") shouldBe "[a]"
   }
 
-  // libvpx picks CRF 32 on its own when no bitrate is set and prints a line saying so. Asking for
-  // it spells out what the export is doing, and the zeroed bitrate is what reaches that mode.
+  // Every encoder, VP9 included, runs at the rate the plan settled on, with the peak and buffer scaled off it.
   @Test
-  fun `asks VP9 for constant quality when the plan carries no bitrate`() {
-    val arguments = argumentsFor(VideoCodec.Vp9, "libvpx-vp9")
+  fun `rate controls every encoder from the plan's bitrate`() {
+    for ((codec, encoder) in listOf(VideoCodec.H264 to "libx264", VideoCodec.Vp9 to "libvpx-vp9")) {
+      val arguments = argumentsFor(codec, encoder)
+      val bits = PLANNED_BITRATE.bitsPerSecond
 
-    arguments.after("-crf") shouldBe "32"
-    arguments.after("-b:v") shouldBe "0"
+      withClue(encoder) {
+        arguments.after("-b:v") shouldBe bits.toString()
+        arguments.after("-maxrate") shouldBe (bits * 3 / 2).toString()
+        arguments.after("-bufsize") shouldBe (bits * 2).toString()
+        arguments.shouldNotContain("-crf")
+      }
+    }
+  }
+
+  @Test
+  fun `a transcode with no bitrate is refused rather than left to the encoder's default`() {
+    assertFailsWith<IllegalStateException> { argumentsFor(VideoCodec.H264, "libx264", bitrate = null) }
   }
 
   // The maps are optional because ffmpeg refuses one that matches no stream, and a source with no
@@ -194,7 +243,7 @@ class InvocationTest {
             size = Size(1280, 720),
             videoCodec = VideoCodec.H264,
             audioCodec = AudioCodec.None,
-            bitrate = null,
+            bitrate = PLANNED_BITRATE,
             frameRate = 30,
             audioFormat = null,
           ),
@@ -293,6 +342,8 @@ class InvocationTest {
     encoder: String?,
     hdrTransfer: HdrTransfer? = null,
     toneMapped: Boolean = false,
+    bitrate: Bitrate? = PLANNED_BITRATE,
+    size: Size = Size(1280, 720),
   ): List<String> =
     Invocation(
       inputs = listOf(InputSpec(InputSource.OfPath("/fixtures/a.mp4"))),
@@ -301,10 +352,10 @@ class InvocationTest {
       audioLabel = null,
       output =
         OutputFormat(
-          size = Size(1280, 720),
+          size = size,
           videoCodec = codec,
           audioCodec = AudioCodec.None,
-          bitrate = null,
+          bitrate = bitrate,
           frameRate = 30,
           audioFormat = null,
         ),
@@ -316,6 +367,8 @@ class InvocationTest {
 
   private companion object {
     const val CUBE = "LUT_3D_SIZE 2"
+
+    val PLANNED_BITRATE = resolveVideoBitrate(VideoQuality.High, VideoCodec.H264, Size(1280, 720), 30)
 
     // A colon in the directory, because that is the character a filter graph reads as the end of an
     // argument.

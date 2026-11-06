@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
 import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
@@ -117,9 +118,65 @@ class AppleParameterSwapTest {
     val source = fixture(CLIP_NAME)
     val chain = graded(source, DIM).toAvComposition().chain.shouldNotBeNull()
 
-    assertFailsWith<IllegalArgumentException> {
-      chain.updateParameters(graded(source, BRIGHT, output = Size(160, 90)))
-    }
+    val moved = graded(source, BRIGHT, output = Size(160, 90))
+
+    chain.takesParametersOf(moved) shouldBe false
+    assertFailsWith<IllegalArgumentException> { chain.updateParameters(moved) }
+  }
+
+  @Test
+  fun `a swap that moves the frame rate is refused`() {
+    val source = fixture(CLIP_NAME)
+    val chain = graded(source, DIM).toAvComposition().chain.shouldNotBeNull()
+    val moved = graded(source, BRIGHT, frameRate = 24)
+
+    chain.takesParametersOf(moved) shouldBe false
+    assertFailsWith<IllegalArgumentException> { chain.updateParameters(moved) }
+  }
+
+  @Test
+  fun `a swap from a copy plan to a transcode plan reaches the frames`() {
+    val source = fixture(CLIP_NAME)
+
+    val av = plainCopy(source, CLIP).toAvComposition()
+    val chain = withClue("a composition with a video track has a chain") { av.chain.shouldNotBeNull() }
+    val generator = generatorFor(av)
+    val transcode = graded(source, BRIGHT, bitrate = PLANNED_BITRATE)
+
+    val copied = generator.frameAt(PROBE)
+    chain.takesParametersOf(transcode) shouldBe true
+    chain.updateParameters(transcode)
+
+    assertFramesDiffer(copied, generator.frameAt(PROBE), message = "the swapped parameter never reached the render")
+    chain.output.bitrate shouldBe PLANNED_BITRATE
+  }
+
+  @Test
+  fun `a swap keeps a copy lay ending inside its last slot`() {
+    val source = fixture(CLIP_NAME)
+    val chain = plainCopy(source, ROUNDS_UP).toAvComposition().chain.shouldNotBeNull()
+
+    chain.takesParametersOf(graded(source, BRIGHT, clipEnd = ROUNDS_UP)) shouldBe true
+  }
+
+  @Test
+  fun `a swap refuses a copy lay running past its last slot in either direction`() {
+    val source = fixture(CLIP_NAME)
+
+    val copied = plainCopy(source, ROUNDS_DOWN).toAvComposition().chain.shouldNotBeNull()
+    copied.takesParametersOf(graded(source, BRIGHT, clipEnd = ROUNDS_DOWN)) shouldBe false
+
+    val transcoded = graded(source, BRIGHT, clipEnd = ROUNDS_DOWN).toAvComposition().chain.shouldNotBeNull()
+    transcoded.takesParametersOf(plainCopy(source, ROUNDS_DOWN)) shouldBe false
+  }
+
+  @Test
+  fun `a swap refuses a plan that removes the audio the graph laid`() {
+    val source = fixture(CLIP_NAME)
+    val av = graded(source, DIM).toAvComposition()
+
+    av.takesParametersOf(graded(source, BRIGHT)) shouldBe true
+    av.takesParametersOf(graded(source, BRIGHT, audio = AudioSpec.Remove, audioCodec = AudioCodec.None)) shouldBe false
   }
 
   @Test
@@ -216,6 +273,52 @@ class AppleParameterSwapTest {
     output: Size = OUTPUT,
     transfer: HdrTransfer? = null,
     clipEnd: Duration = CLIP,
+    bitrate: Bitrate? = null,
+    frameRate: Int = 30,
+    audio: AudioSpec = AudioSpec.Keep,
+    audioCodec: AudioCodec = AudioCodec.Aac,
+  ): ResolvedComposition =
+    planned(
+      source = source,
+      effects = listOf(scaling(scale)),
+      output = output,
+      transfer = transfer,
+      clipEnd = clipEnd,
+      videoCodec = VideoCodec.H264,
+      bitrate = bitrate,
+      frameRate = frameRate,
+      audio = audio,
+      audioCodec = audioCodec,
+      path = ExportPath.Transcode,
+    )
+
+  /**
+   * One clip with no effect on it, as the planner settles a copy of it, in the source's own codec and at no bitrate.
+   */
+  private fun plainCopy(
+    source: String,
+    clipEnd: Duration,
+  ): ResolvedComposition =
+    planned(
+      source = source,
+      effects = emptyList(),
+      clipEnd = clipEnd,
+      videoCodec = VideoCodec.Hevc,
+      path = ExportPath.Copy,
+    )
+
+  private fun planned(
+    source: String,
+    effects: List<ResolvedEffect>,
+    clipEnd: Duration,
+    videoCodec: VideoCodec,
+    path: ExportPath,
+    output: Size = OUTPUT,
+    transfer: HdrTransfer? = null,
+    bitrate: Bitrate? = null,
+    frameRate: Int = 30,
+    audio: AudioSpec = AudioSpec.Keep,
+    audioCodec: AudioCodec = AudioCodec.Aac,
   ): ResolvedComposition =
     ResolvedComposition(
       tracks =
@@ -224,17 +327,17 @@ class AppleParameterSwapTest {
             content = TrackContent.AudioAndVideo,
             looping = false,
             start = Duration.ZERO,
-            clips = listOf(clip(source, clipEnd, listOf(scaling(scale)))),
+            clips = listOf(clip(source, clipEnd, effects)),
           ),
         ),
       compositionEffects = emptyList(),
       output =
         OutputFormat(
           size = output,
-          videoCodec = VideoCodec.H264,
-          audioCodec = AudioCodec.Aac,
-          bitrate = null,
-          frameRate = 30,
+          videoCodec = videoCodec,
+          audioCodec = audioCodec,
+          bitrate = bitrate,
+          frameRate = frameRate,
           audioFormat = null,
         ),
       layoutSize = output,
@@ -242,9 +345,9 @@ class AppleParameterSwapTest {
       duration = clipEnd,
       hdr = ResolvedHdr.Keep,
       hdrTransfer = transfer,
-      audio = AudioSpec.Keep,
+      audio = audio,
       adjustments = emptyList(),
-      path = ExportPath.Transcode,
+      path = path,
     )
 
   private fun clip(
@@ -375,6 +478,12 @@ class AppleParameterSwapTest {
 
     // What the run has left for its last pass, which does not divide the clip evenly.
     val LOOP_CUT = 400.milliseconds
+
+    val PLANNED_BITRATE = Bitrate.kbps(750)
+
+    // Lengths at 30 fps. 30.3 slots round to 30, leaving a stretch past the last slot, and 30.6 round to 31.
+    val ROUNDS_DOWN = 1010.milliseconds
+    val ROUNDS_UP = 1020.milliseconds
 
     // Far enough apart that no encoder rounding could account for the difference.
     const val DIM = 0.2

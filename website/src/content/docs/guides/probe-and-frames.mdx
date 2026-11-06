@@ -1,0 +1,59 @@
+---
+title: Probe and frames
+description: Read what a source is, ask what the device can do and render single frames.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+import Snippet from '../../../components/Snippet.astro'
+
+## Probe
+
+`probe` reads a source's metadata without decoding it. An unreadable file comes back as a `Failure`, so there's nothing
+to catch.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/ProbeAndFrames.kt" region="probe" />
+
+`MediaInfo` has the `duration`, a `video` and an `audio` track, either of which is null when the source has none, and
+`isExportable`, which is false for DRM-protected files. Those can't be exported or previewed, so check it first.
+
+On a video track, size a target from `displaySize`, which has rotation and pixel aspect applied, rather than `codedSize`.
+`bitDepth` is often null, since only HEVC carries it somewhere every backend can read. `hdrTransfer` is null for SDR.
+
+Android and Apple read a container with core alone. The JVM and the browser need a registered backend. Without one, both
+fail with `BackendMissing`, naming the artifact to add. A still needs no backend on any target.
+
+## Capabilities
+
+`capabilities` asks what this device's encoders can do. The answer is cached per process.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/ProbeAndFrames.kt" region="capabilities" />
+
+`encoderFor` answers one codec's limits, such as `maxSize`, `maxFrameRate` and `maxBitrate`, or null when there's no
+encoder for it. To find out what will happen to one particular edit, use [`plan`](/guides/export/#plan), which already
+takes all of this into account.
+
+## One frame
+
+`frame` renders the frame covering an instant of a composition, with its effects applied. You own the image and have to
+close it.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/ProbeAndFrames.kt" region="frame" />
+
+Leave `heightPx` null to render at the composition's own output height. A height at or above that height renders at that
+height too, since a frame is never scaled up. Zero or less fails with `InvalidComposition`.
+
+For one source with no edit, pass the source directly.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/ProbeAndFrames.kt" region="frame-source" />
+
+## Many frames
+
+`frames` emits one result per position, each as it's ready. It's made for a timeline strip, so a frame may come from the
+nearest sync sample rather than the one covering its position. `presentationTime` says where each one actually landed.
+Use `frame` when a position has to be exact.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/ProbeAndFrames.kt" region="frames" />
+
+<Aside type="tip">
+In Compose, `rememberFilmstripFrames` handles the fetching, caching and closing. See [Bindings](/compose/bindings/#frames).
+</Aside>

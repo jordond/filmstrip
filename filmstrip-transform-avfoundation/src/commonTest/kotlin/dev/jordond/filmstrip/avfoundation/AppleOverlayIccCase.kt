@@ -141,8 +141,8 @@ abstract class AppleOverlayIccCase {
     const val PORTRAIT = "apple_export_portrait.mp4"
 
     val CLIP = 1.seconds
-    val SDR = ExportSpec(heightPx = 180)
-    val HDR = ExportSpec(heightPx = 720, hdr = HdrMode.KeepHdr)
+    val SDR = ExportSpec(heightPx = 180, bitrate = COLOR_READ_BITRATE)
+    val HDR = ExportSpec(heightPx = 720, hdr = HdrMode.KeepHdr, bitrate = COLOR_READ_BITRATE)
 
     // What a real encode, a 4:2:0 round trip and the probe's color match leave on one channel of a flat color, as
     // AppleEffectTest holds its overlays to.

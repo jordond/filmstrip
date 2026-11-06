@@ -37,6 +37,10 @@ internal class CopySupport(
  * HDR is left out because whether a copy can carry the grade is itself one of the
  * things that decides HDR, so this has to be answerable before that decision is made.
  *
+ * [heightPx] is the height the spec moves the frame to, null when it asks for none or for one the frame already
+ * reaches, so a height at or above the source's own keeps the copy. A [VideoCodec.MatchSource] request names the
+ * codec a copy already writes, so it keeps the copy too.
+ *
  * [copyOpening] is where the copy would open, and null is a cut no copy can reach. [requestedSize]
  * is the frame the composition asks for, before any encoder ceiling is applied, since a copy runs
  * no encoder and so has no ceiling to be held to. Comparing it against [sourceSize] is what says
@@ -50,6 +54,7 @@ internal fun copyBlockers(
   support: CopySupport,
   edit: EditComposition,
   spec: ExportSpec,
+  heightPx: Int?,
   sourceSize: Size,
   requestedSize: Size,
   copyOpening: Duration?,
@@ -60,10 +65,12 @@ internal fun copyBlockers(
     if (!support.muxerAccepts(info)) add(CopyBlocker.MuxerRefusesSource)
     if (!codecsAreNameable(info)) add(CopyBlocker.SourceCodecUnnameable)
     if (spec.frameRate != null) add(CopyBlocker.FrameRateSet)
-    if (spec.videoCodec != VideoCodec.Auto) add(CopyBlocker.VideoCodecNamed)
+    if (spec.videoCodec != VideoCodec.Auto && spec.videoCodec != VideoCodec.MatchSource) {
+      add(CopyBlocker.VideoCodecNamed)
+    }
     if (spec.audioCodec != AudioCodec.Auto) add(CopyBlocker.AudioCodecNamed)
-    if (spec.heightPx != null) add(CopyBlocker.HeightSet)
-    if (spec.bitrate != null) add(CopyBlocker.BitrateSet)
+    if (heightPx != null) add(CopyBlocker.HeightSet)
+    if (spec.bitrate != null || spec.quality != null) add(CopyBlocker.BitrateSet)
     if (sourceSize != requestedSize) add(CopyBlocker.FrameResized)
     if (edit.effects.isNotEmpty()) add(CopyBlocker.CompositionHasEffects)
     if (edit.audio.dropsAStream) add(CopyBlocker.AudioSpecChanged)

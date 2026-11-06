@@ -22,9 +22,9 @@ import dev.jordond.filmstrip.ffmpeg.support.assertOnTheGrid
 import dev.jordond.filmstrip.ffmpeg.support.assertReads
 import dev.jordond.filmstrip.ffmpeg.support.centreOf
 import dev.jordond.filmstrip.ffmpeg.support.channelsOf
-import dev.jordond.filmstrip.ffmpeg.support.luminance
 import dev.jordond.filmstrip.ffmpeg.support.pixelAt
 import dev.jordond.filmstrip.ffmpeg.support.pointIn
+import dev.jordond.filmstrip.ffmpeg.support.regionAverage
 import dev.jordond.filmstrip.ffmpeg.support.writtenFrames
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fill
@@ -42,6 +42,7 @@ import kotlinx.coroutines.test.runTest
 import java.io.File
 import kotlin.math.roundToInt
 import kotlin.test.Test
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -112,7 +113,7 @@ class FfmpegFillTest {
         (dimmed.bottom.first > HALVED_RED_CEILING).shouldBeTrue()
       }
 
-      val ratio = luminance(dimmed.centre).toFloat() / luminance(plain.centre).toFloat()
+      val ratio = (dimmed.centre.sum() / plain.centre.sum()).toFloat()
       withClue("the centre read ${dimmed.centre} against ${plain.centre} undimmed, a ratio of $ratio") {
         (ratio in HALF - SIGNAL_DRIFT..HALF + SIGNAL_DRIFT).shouldBeTrue()
       }
@@ -193,12 +194,15 @@ class FfmpegFillTest {
     }
 
   // The three points this test reads back: two bars far enough from the clip's own pixels to read
-  // the fill cleanly, and the centre the clip itself draws.
+  // the fill cleanly, and the centre the clip itself draws. The centre is a square's mean, since the
+  // fixture's seeded noise moves any one pixel further than the drift the ratio is held to.
   private class FillSample(
     val top: Triple<Int, Int, Int>,
     val bottom: Triple<Int, Int, Int>,
-    val centre: Triple<Int, Int, Int>,
+    val centre: Triple<Double, Double, Double>,
   )
+
+  private fun Triple<Double, Double, Double>.sum(): Double = first + second + third
 
   private suspend fun exportedFillWithBrightness(factor: Float): FillSample? {
     if (!fixture.available()) return null
@@ -234,7 +238,14 @@ class FfmpegFillTest {
     return FillSample(
       top = pixelAt(output.absolutePath, size.width / 2, 2),
       bottom = pixelAt(output.absolutePath, size.width / 2, size.height - 2),
-      centre = pixelAt(output.absolutePath, size.width / 2, size.height / 2),
+      centre =
+        regionAverage(
+          output.absolutePath,
+          size.width / 2 - PROBE_SIDE / 2,
+          size.height / 2 - PROBE_SIDE / 2,
+          PROBE_SIDE,
+          Duration.ZERO,
+        ),
     ).also { output.delete() }
   }
 

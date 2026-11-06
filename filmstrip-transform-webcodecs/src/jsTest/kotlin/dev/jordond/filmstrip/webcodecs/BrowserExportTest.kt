@@ -671,7 +671,7 @@ class BrowserExportTest {
       withClue("the cut moved with no tolerance to move it") { resolved.start shouldBe TRIM_START }
       withClue("the cut was reported as opening on a sync sample") { resolved.startsAtKeyFrame shouldBe false }
 
-      val plan = planWith(engine, composition)
+      val plan = planWith(engine, composition, ExportSpec(bitrate = MEASURING_BITRATE))
       withClue("a cut off a sync sample is not copyable") { plan.path shouldBe ExportPath.Transcode }
       withClue("the plan blamed ${plan.copyBlockedBy} for re-encoding") {
         (CopyBlocker.TrimNotOnSyncSample in plan.copyBlockedBy) shouldBe true
@@ -1109,7 +1109,8 @@ class BrowserExportTest {
     engine: BrowserExportEngine,
     bytes: ByteArray,
   ): Ramp {
-    val plan = planWith(engine, compositionOf(MediaSource.Bytes(bytes)), ExportSpec(frameRate = SNAPPED_FRAME_RATE))
+    val spec = ExportSpec(bitrate = MEASURING_BITRATE, frameRate = SNAPPED_FRAME_RATE)
+    val plan = planWith(engine, compositionOf(MediaSource.Bytes(bytes)), spec)
     withClue("the reference ramp was meant to be re-encoded") { plan.path shouldBe ExportPath.Transcode }
     return rampOf(outputOf(exportWith(engine, plan)))
   }

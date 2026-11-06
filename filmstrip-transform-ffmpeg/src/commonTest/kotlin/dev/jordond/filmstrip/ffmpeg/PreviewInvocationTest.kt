@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.OutputFormat
+import dev.jordond.filmstrip.export.VideoQuality
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSpec
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
@@ -19,6 +20,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
@@ -356,7 +358,7 @@ class PreviewInvocationTest {
         size = Size(1280, 720),
         videoCodec = VideoCodec.H264,
         audioCodec = AudioCodec.Aac,
-        bitrate = null,
+        bitrate = resolveVideoBitrate(VideoQuality.High, VideoCodec.H264, Size(1280, 720), 30),
         frameRate = 30,
         audioFormat = AudioFormat(sampleRate = 48_000, channelCount = 2),
       )

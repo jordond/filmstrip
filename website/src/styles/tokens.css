@@ -1,0 +1,75 @@
+/* Every colour and font on the site. The landing page, the docs and the Dokka output all read this file. */
+
+:root {
+  --ground: #0e0c12;
+  --ground-deep: #0a090c;
+  --screen: #07060a;
+  --panel: #121016;
+  --panel-raised: #17141c;
+  --bezel: #1d1a22;
+  --knob: #2a2630;
+  --line: #2c2833;
+  --line-strong: #3a3542;
+  --text: #f2ede4;
+  --muted: #a39cae;
+  --muted-strong: #c9c2d3;
+  --amber: #ffb627;
+  --amber-hover: #ffd27a;
+  --red: #ff4f3f;
+  --cyan: #38e1ff;
+  --pink: #ff7ba0;
+  --coral: #ff9a8a;
+  --title-cream: #fff6e0;
+  --vcr-blue: #1c2bb8;
+  --vcr-border: #0a1170;
+  --vcr-header: #ffe14d;
+  --white: #ffffff;
+  --backdrop: rgba(7, 6, 10, 0.8);
+  --fringe-pink: rgba(255, 42, 109, 0.85);
+  --fringe-cyan: rgba(56, 225, 255, 0.85);
+
+  /* The small chromatic fringe on OSD text and page titles. */
+  --fringe-small:
+    -1.5px 0 rgba(255, 42, 109, 0.8),
+    1.5px 0 rgba(56, 225, 255, 0.8);
+
+  /* The faint scanlines on a header strip. */
+  --scanlines-faint: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.028) 0,
+    rgba(255, 255, 255, 0.028) 1px,
+    rgba(0, 0, 0, 0) 1px,
+    rgba(0, 0, 0, 0) 3px
+  );
+
+  /* The hero TV's drawn beach scene and its timeline. */
+  --scene-sky-top: #2b1a5c;
+  --scene-sky-middle: #8a2f6b;
+  --scene-sky-low: #ff7b4a;
+  --scene-sky-horizon: #ffc46b;
+  --scene-sun: #ffb24a;
+  --scene-sun-stripe: #ffe27a;
+  --scene-sea: #3a1d5e;
+  --scene-palm: #14081f;
+  --track-tick: #6d6577;
+  --track-ground: #1a1720;
+  --track-hatch: #221e29;
+
+  /* The colour bars on an idle CRT. */
+  --bar-grey: #c0c0c0;
+  --bar-yellow: #c0c000;
+  --bar-cyan: #00c0c0;
+  --bar-green: #00c000;
+  --bar-magenta: #c000c0;
+  --bar-red: #c00000;
+  --bar-blue: #0000c0;
+  --bar-black: #131313;
+  --bar-navy: #00214c;
+  --bar-violet: #32006a;
+
+  --font-display: 'Rubik Mono One', sans-serif;
+  --font-osd: 'VT323', monospace;
+  --font-body: 'Space Mono', monospace;
+
+  color-scheme: dark;
+}

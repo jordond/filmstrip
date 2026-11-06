@@ -121,7 +121,7 @@ public fun ResultScreen(
           result.info.video?.let { video ->
             StatRow("Frame", "${video.displaySize.width} x ${video.displaySize.height}")
             StatRow("Video", video.codec.name)
-            video.bitrate?.let { StatRow("Bitrate", "${it.bitsPerSecond / 1_000_000} Mbps") }
+            video.bitrate?.let { StatRow("Bitrate", it.toString()) }
           }
           result.info.audio?.let { audio ->
             StatRow("Audio", "${audio.codec.name} · ${audio.sampleRate} Hz · ${audio.channelCount} ch")

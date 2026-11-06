@@ -13,8 +13,9 @@ import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
-import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.COLOR_READ_BITRATE
+import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.COLOR_READ_HDR_SPEC
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.RED
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
@@ -90,9 +91,10 @@ class FfmpegClipPlacementTest {
           clip(MediaSource.of(fixture.landscape.absolutePath)) { effects { add(crop) } }
           fill(Fill.Solid(SLATE))
         }
-      val (exportPath, exportPlan) = exported(composition)
+      val (exportPath, exportPlan) = exported(composition, ExportSpec(bitrate = COLOR_READ_BITRATE))
       val content = placementOf(landscapeSize(), listOf(listOf(crop)), exportPlan.output.size).drawnRect
-      val (previewPath, previewPlan) = exported(composition, ExportSpec(heightPx = exportPlan.output.size.height / 2))
+      val (previewPath, previewPlan) =
+        exported(composition, ExportSpec(heightPx = exportPlan.output.size.height / 2, bitrate = COLOR_READ_BITRATE))
       withClue("the preview has to be lowered smaller than the export for this to tell") {
         (previewPlan.output.size.height < exportPlan.output.size.height).shouldBeTrue()
       }
@@ -155,13 +157,13 @@ class FfmpegClipPlacementTest {
     }
 
   // The canvas a 1366 by 767 frame makes under a 4:5 crop is 767 rows tall. Built on the 4:2:0 grid it would be a row
-  // short and its content a row high. The band cut out of it straddles the content's top edge and is scaled up twenty
-  // times, so a row off moves the edge twenty rows in the written frame.
+  // short and its content a row high. The band cut out of it straddles the content's top edge and is written at its own
+  // 42 rows, so a row off moves the edge a row in the written frame.
   @Test
   fun `a canvas of odd height places its content on the row the planner measured`() =
     runTest(timeout = TIMEOUT) {
       if (!fixture.available()) return@runTest
-      assertOddCanvasEdge(ExportSpec(heightPx = BAND_ROWS * BAND_ZOOM), hdr = false)
+      assertOddCanvasEdge(ExportSpec(bitrate = COLOR_READ_BITRATE), hdr = false)
     }
 
   // The same canvas on a kept PQ grade is built in ten bit 4:4:4 and written back out in ten bits.
@@ -169,7 +171,7 @@ class FfmpegClipPlacementTest {
   fun `a canvas of odd height on a kept HDR grade places its content on the row the planner measured`() =
     runTest(timeout = TIMEOUT) {
       if (!fixture.encodesHdr()) return@runTest
-      assertOddCanvasEdge(ExportSpec(heightPx = BAND_ROWS * BAND_ZOOM, hdr = HdrMode.KeepHdr), hdr = true)
+      assertOddCanvasEdge(COLOR_READ_HDR_SPEC, hdr = true)
     }
 
   private suspend fun assertOddCanvasEdge(
@@ -213,8 +215,9 @@ class FfmpegClipPlacementTest {
         (green.last() - green.first() > DRIFT).shouldBeTrue()
       }
       val crossing = green.indexOfFirst { it >= midpoint }
+      // Under a whole row, so an edge a row off fails. Every encoder here crosses on the row itself.
       withClue("the content's top edge crossed at row $crossing, expected $expected") {
-        (abs(crossing - expected) < BAND_ZOOM / 2f).shouldBeTrue()
+        (abs(crossing - expected) < 1f).shouldBeTrue()
       }
     } finally {
       source.delete()
@@ -427,7 +430,6 @@ class FfmpegClipPlacementTest {
     // The rect runs half a pixel past whole rows and columns, so the crop's own rounding down lands on these.
     const val BAND_TOP = 190
     const val BAND_ROWS = 42
-    const val BAND_ZOOM = 20
     val EDGE_BAND =
       CropRect(NormalizedRect(0.25f, 190.5f / 767f, 0.25f + 42.5f / 614f, 233f / 767f))
 

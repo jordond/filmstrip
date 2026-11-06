@@ -17,6 +17,7 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.PREVIEW_PARITY_EXPORT_BITRATE
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.webcodecs.internal.preview.toBrowserPreview
@@ -106,7 +107,7 @@ internal suspend fun webExportFrame(
 }
 
 private suspend fun exportPlanOf(composition: EditComposition): ExportPlan =
-  when (val verdict = CONTRACT_FILMSTRIP.plan(composition, ExportSpec())) {
+  when (val verdict = CONTRACT_FILMSTRIP.plan(composition, ExportSpec(bitrate = PREVIEW_PARITY_EXPORT_BITRATE))) {
     is Verdict.Capable -> verdict.plan
     is Verdict.Degraded -> verdict.plan
     is Verdict.Incapable -> fail("the export refused the fixture: ${verdict.reasons.map { it.message }}")

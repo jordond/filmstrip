@@ -1,0 +1,157 @@
+/* Layout and page effects for the landing page. Only src/pages/index.astro imports this. */
+
+:root {
+  --gutter: clamp(16px, 4vw, 40px);
+  --section-gap: 140px;
+  --page-width: 1320px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+}
+
+a {
+  color: var(--amber);
+}
+
+a:hover {
+  color: var(--amber-hover);
+}
+
+:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 3px;
+}
+
+.section {
+  max-width: var(--page-width);
+  margin: 0 auto;
+  padding: 0 var(--gutter) var(--section-gap);
+}
+
+.section-title {
+  margin: 0;
+  font-size: clamp(28px, 4.2vw, 52px);
+  line-height: 1;
+}
+
+.lede {
+  margin: 0;
+  color: var(--muted-strong);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.tabin {
+  animation: tabin 0.45s steps(6, end) both;
+}
+
+@keyframes tabin {
+  0% {
+    opacity: 0;
+    transform: translateX(-14px) skewX(-6deg);
+    filter: blur(1px);
+    text-shadow:
+      -6px 0 rgba(255, 42, 109, 0.9),
+      6px 0 rgba(56, 225, 255, 0.9);
+  }
+  40% {
+    opacity: 1;
+    transform: translateX(8px) skewX(3deg);
+  }
+  70% {
+    transform: translateX(-3px);
+    text-shadow:
+      -2px 0 rgba(255, 42, 109, 0.6),
+      2px 0 rgba(56, 225, 255, 0.6);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    text-shadow: none;
+  }
+}
+
+/* The whole page reads like a CRT */
+
+.crt-page {
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.crt-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  background:
+    var(--scanlines-faint),
+    radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.45) 100%);
+}
+
+.crt-page::after {
+  content: '';
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 140px;
+  pointer-events: none;
+  z-index: 51;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.025) 50%, rgba(255, 255, 255, 0));
+  animation: pageroll 11s linear infinite;
+}
+
+@keyframes pageroll {
+  0% {
+    transform: translateY(-160px);
+  }
+  100% {
+    transform: translateY(110vh);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .tabin {
+    animation: none;
+  }
+
+  .crt-page::after {
+    display: none;
+  }
+}

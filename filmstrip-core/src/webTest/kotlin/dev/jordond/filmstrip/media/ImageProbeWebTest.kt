@@ -2,16 +2,18 @@
 
 package dev.jordond.filmstrip.media
 
+import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.internal.PlatformProber
+import dev.jordond.filmstrip.internal.WEB_CODECS_ARTIFACT
 import dev.jordond.filmstrip.media.probe.IMAGE_PROBE_DURATION
 import dev.jordond.filmstrip.media.probe.MIRRORED_IMAGE_PROBE_ORIENTATION
 import dev.jordond.filmstrip.media.probe.expectedImageInfo
 import dev.jordond.filmstrip.media.probe.expectedRotatedImageInfo
 import dev.jordond.filmstrip.media.probe.imageProbeBytes
 import dev.jordond.filmstrip.media.probe.rotatedImageProbeBytes
-import io.kotest.assertions.withClue
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.js.ExperimentalWasmJsInterop
@@ -119,18 +121,29 @@ class ImageProbeWebTest {
       PlatformProber().probe(source).shouldBeInstanceOf<ProbeResult.Failure>()
     }
 
-  // Everything that is not a still still declines by name here, because reading a container in a
-  // browser needs the demuxer the webcodecs module carries.
+  // Everything that is not a still needs the demuxer the webcodecs module carries, so an instance
+  // with nothing registered names that artifact and the call that registers it.
   @Test
-  fun aVideoSourceStillDeclinesAndSaysWhy() =
+  fun aContainerOnAnEmptyBuilderNamesTheArtifactToAdd() =
     runTest {
-      val result = PlatformProber().probe(MediaSource.ofUri("https://example.test/clip.mp4"))
+      val sources =
+        listOf(
+          MediaSource.of("/clips/a.mp4"),
+          MediaSource.ofUri("https://example.test/clip.mp4"),
+          MediaSource.ofBytes(byteArrayOf(1, 2, 3, 4)),
+        )
 
-      val failure = result.shouldBeInstanceOf<ProbeResult.Failure>()
-      withClue(failure.error.message) {
-        failure.error.message
-          .contains("demuxer")
-          .shouldBeTrue()
+      for (source in sources) {
+        val result = Filmstrip {}.probe(source)
+
+        val error =
+          result
+            .shouldBeInstanceOf<ProbeResult.Failure>()
+            .error
+            .shouldBeInstanceOf<FilmstripError.BackendMissing>()
+        error.artifact shouldBe WEB_CODECS_ARTIFACT
+        error.message shouldContain WEB_CODECS_ARTIFACT
+        error.message shouldContain "webCodecsBackend()"
       }
     }
 

@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.effect.RenderFeature
 import dev.jordond.filmstrip.geometry.Size
@@ -111,6 +112,33 @@ class BrowserCapabilitiesTest {
       withClue("the browser prober claimed to have read a blob that does not exist") {
         result.shouldBeInstanceOf<ProbeResult.Failure>()
       }
+    }
+
+  @Test
+  fun aPathIsStillUnreadableOnceTheBackendIsRegistered() =
+    runTest {
+      filmstrip()
+        .probe(MediaSource.Path("/tmp/clip.mp4"))
+        .shouldBeInstanceOf<ProbeResult.Failure>()
+        .error
+        .shouldBeInstanceOf<FilmstripError.SourceUnreadable>()
+    }
+
+  @Test
+  fun anEmptyBuilderNamesTheArtifactThisBackendRegistersAs() =
+    runTest {
+      val missing =
+        Filmstrip {}
+          .probe(MediaSource.Uri("blob:nothing"))
+          .shouldBeInstanceOf<ProbeResult.Failure>()
+          .error
+          .shouldBeInstanceOf<FilmstripError.BackendMissing>()
+
+      missing.artifact shouldBe
+        filmstrip()
+          .components.backends
+          .single()
+          .artifact
     }
 
   private fun filmstrip(): Filmstrip = Filmstrip { webCodecsBackend() }

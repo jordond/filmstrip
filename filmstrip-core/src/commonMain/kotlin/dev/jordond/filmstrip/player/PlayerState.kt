@@ -151,9 +151,12 @@ public sealed interface PlaybackError {
   ) : PlaybackError
 
   /**
-   * No preview backend was registered.
+   * A backend the preview needs was not registered.
    *
-   * @property artifact The Maven coordinate that supplies one.
+   * With no preview backend this names `filmstrip-player`. A browser also reports it when `webCodecsBackend()` is not
+   * registered, naming `filmstrip-transform-webcodecs`.
+   *
+   * @property artifact The Maven coordinate that supplies the backend.
    */
   @Poko
   public class BackendMissing(

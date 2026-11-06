@@ -38,7 +38,7 @@ class RasterOverlayTest {
 
   @Test
   fun anAnimatedOverlayReusesOneSettingsObject() {
-    val overlay = overlayFor(watermark(animation = fadeIn(RAMP)))
+    val overlay = overlayFor(watermark(animation = fade(inDuration = RAMP)))
 
     // media3 reads the object inside drawFrame and keeps no reference to it, so one instance
     // rewritten each frame is the whole per-frame cost of animating an overlay.
@@ -82,7 +82,7 @@ class RasterOverlayTest {
 
   @Test
   fun aFadeReachesTheAlphaScaleTheSamplerAnswers() {
-    val spec = watermark(animation = fadeIn(RAMP))
+    val spec = watermark(animation = fade(inDuration = RAMP))
     val overlay = overlayFor(spec)
 
     // A quarter and three quarters of the way up the ramp. Its ends agree under both an additive

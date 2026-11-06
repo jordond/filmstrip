@@ -1,0 +1,27 @@
+{
+  "name": "filmstrip-website",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "assemble": "bash scripts/assemble.sh",
+    "deploy": "bash scripts/assemble.sh && bun x wrangler deploy"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.42.9",
+    "astro": "^7.4.6",
+    "sharp": "^0.35.5",
+    "starlight-image-zoom": "^0.16.2",
+    "starlight-links-validator": "^0.27.0",
+    "starlight-llms-txt": "^0.12.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.12",
+    "@types/bun": "^1.4.4",
+    "typescript": "^6.0.3"
+  }
+}

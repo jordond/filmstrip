@@ -19,7 +19,7 @@ import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.effects.overlay.OverlayFrame
 import dev.jordond.filmstrip.effects.overlay.OverlayOffset
 import dev.jordond.filmstrip.effects.overlay.animatedBy
-import dev.jordond.filmstrip.effects.overlay.fadeIn
+import dev.jordond.filmstrip.effects.overlay.fade
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
 import dev.jordond.filmstrip.export.ExportPath
@@ -154,7 +154,7 @@ class FfmpegPreviewTest {
   @Test
   fun `a seek into an overlay animation draws what the export draws`() =
     runTest(timeout = TIMEOUT) {
-      val faded = overlaid(watermark(animation = fadeIn(FIXTURE_LENGTH)))
+      val faded = overlaid(watermark(animation = fade(inDuration = FIXTURE_LENGTH)))
 
       val read = open(faded, Duration.ZERO)
       val forward =
@@ -190,7 +190,7 @@ class FfmpegPreviewTest {
   @Test
   fun `a seek past the end of a ramp draws the value it settled on`() =
     runTest(timeout = TIMEOUT) {
-      val settled = overlaid(watermark(opacity = SETTLED_OPACITY, animation = fadeIn(SHORT_FADE)))
+      val settled = overlaid(watermark(opacity = SETTLED_OPACITY, animation = fade(inDuration = SHORT_FADE)))
 
       val read = open(settled, Duration.ZERO)
       val forward =
@@ -222,7 +222,7 @@ class FfmpegPreviewTest {
   @Test
   fun `a seek inside a frame period carries the branch onto the frame it lands on`() =
     runTest(timeout = TIMEOUT) {
-      val faded = overlaid(watermark(animation = fadeIn(OFF_GRID_FADE)))
+      val faded = overlaid(watermark(animation = fade(inDuration = OFF_GRID_FADE)))
       val slot = outputSlotOf(OFF_GRID_POSITION, FIXTURE_RATE)
 
       val read = open(faded, Duration.ZERO)
@@ -344,7 +344,7 @@ class FfmpegPreviewTest {
   @Test
   fun `playing from a scrub into the held tail freezes the last covered frame`() =
     runTest(timeout = TIMEOUT) {
-      val faded = underBed(watermark(animation = fadeIn(FIXTURE_LENGTH)))
+      val faded = underBed(watermark(animation = fade(inDuration = FIXTURE_LENGTH)))
       val resolved = resolved(faded)
       val rate = resolved.output.frameRate
       val tail = resolved.heldTail

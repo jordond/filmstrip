@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.effects.overlay.OverlayFrame
 import dev.jordond.filmstrip.effects.overlay.OverlayOffset
-import dev.jordond.filmstrip.effects.overlay.fadeIn
+import dev.jordond.filmstrip.effects.overlay.fade
 import dev.jordond.filmstrip.effects.overlay.frameAt
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
@@ -48,7 +48,7 @@ class FfmpegOverlayAnimationTest {
       if (!fixture.available()) return@runTest
 
       val solid = fixture.watermark(corner = Corner.BottomEnd)
-      val fading = fixture.watermark(corner = Corner.BottomEnd, animation = fadeIn(RAMP))
+      val fading = fixture.watermark(corner = Corner.BottomEnd, animation = fade(inDuration = RAMP))
       val bare = fixture.exportedWatermark("filmstrip-overlay-fade-bare", null)
       val opaque = fixture.exportedWatermark("filmstrip-overlay-fade-solid", solid)
       val faded = fixture.exportedWatermark("filmstrip-overlay-fade", fading)
@@ -162,7 +162,7 @@ class FfmpegOverlayAnimationTest {
     runTest(timeout = TIMEOUT) {
       if (!fixture.available()) return@runTest
 
-      val fading = fixture.watermark(animation = fadeIn(RAMP))
+      val fading = fixture.watermark(animation = fade(inDuration = RAMP))
       val bare = fixture.exportedWatermark("filmstrip-overlay-clipfade-bare", null, clips = 2, onClip = true)
       val opaque =
         fixture.exportedWatermark("filmstrip-overlay-clipfade-solid", fixture.watermark(), clips = 2, onClip = true)

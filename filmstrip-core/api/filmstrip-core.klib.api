@@ -84,6 +84,7 @@ final enum class dev.jordond.filmstrip.codec/VideoCodec : kotlin/Enum<dev.jordon
     enum entry Av1 // dev.jordond.filmstrip.codec/VideoCodec.Av1|null[0]
     enum entry H264 // dev.jordond.filmstrip.codec/VideoCodec.H264|null[0]
     enum entry Hevc // dev.jordond.filmstrip.codec/VideoCodec.Hevc|null[0]
+    enum entry MatchSource // dev.jordond.filmstrip.codec/VideoCodec.MatchSource|null[0]
     enum entry Vp8 // dev.jordond.filmstrip.codec/VideoCodec.Vp8|null[0]
     enum entry Vp9 // dev.jordond.filmstrip.codec/VideoCodec.Vp9|null[0]
 
@@ -269,6 +270,20 @@ final enum class dev.jordond.filmstrip.export/InertReason : kotlin/Enum<dev.jord
 
     final fun valueOf(kotlin/String): dev.jordond.filmstrip.export/InertReason // dev.jordond.filmstrip.export/InertReason.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.jordond.filmstrip.export/InertReason> // dev.jordond.filmstrip.export/InertReason.values|values#static(){}[0]
+}
+
+final enum class dev.jordond.filmstrip.export/VideoQuality : kotlin/Enum<dev.jordond.filmstrip.export/VideoQuality> { // dev.jordond.filmstrip.export/VideoQuality|null[0]
+    enum entry High // dev.jordond.filmstrip.export/VideoQuality.High|null[0]
+    enum entry Low // dev.jordond.filmstrip.export/VideoQuality.Low|null[0]
+    enum entry Medium // dev.jordond.filmstrip.export/VideoQuality.Medium|null[0]
+    enum entry VeryHigh // dev.jordond.filmstrip.export/VideoQuality.VeryHigh|null[0]
+    enum entry VeryLow // dev.jordond.filmstrip.export/VideoQuality.VeryLow|null[0]
+
+    final val entries // dev.jordond.filmstrip.export/VideoQuality.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.jordond.filmstrip.export/VideoQuality> // dev.jordond.filmstrip.export/VideoQuality.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.jordond.filmstrip.export/VideoQuality // dev.jordond.filmstrip.export/VideoQuality.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.jordond.filmstrip.export/VideoQuality> // dev.jordond.filmstrip.export/VideoQuality.values|values#static(){}[0]
 }
 
 final enum class dev.jordond.filmstrip.geometry/Corner : kotlin/Enum<dev.jordond.filmstrip.geometry/Corner> { // dev.jordond.filmstrip.geometry/Corner|null[0]
@@ -2117,7 +2132,7 @@ final class dev.jordond.filmstrip.export/ExportPlan { // dev.jordond.filmstrip.e
 }
 
 final class dev.jordond.filmstrip.export/ExportSpec { // dev.jordond.filmstrip.export/ExportSpec|null[0]
-    constructor <init>(kotlin/Int? = ..., dev.jordond.filmstrip.codec/Bitrate? = ..., dev.jordond.filmstrip.codec/VideoCodec = ..., dev.jordond.filmstrip.codec/AudioCodec = ..., kotlin/Int? = ..., dev.jordond.filmstrip.export/HdrMode = ..., kotlin/Boolean = ...) // dev.jordond.filmstrip.export/ExportSpec.<init>|<init>(kotlin.Int?;dev.jordond.filmstrip.codec.Bitrate?;dev.jordond.filmstrip.codec.VideoCodec;dev.jordond.filmstrip.codec.AudioCodec;kotlin.Int?;dev.jordond.filmstrip.export.HdrMode;kotlin.Boolean){}[0]
+    constructor <init>(kotlin/Int? = ..., dev.jordond.filmstrip.codec/Bitrate? = ..., dev.jordond.filmstrip.export/VideoQuality? = ..., dev.jordond.filmstrip.codec/VideoCodec = ..., dev.jordond.filmstrip.codec/AudioCodec = ..., kotlin/Int? = ..., dev.jordond.filmstrip.export/HdrMode = ..., kotlin/Boolean = ...) // dev.jordond.filmstrip.export/ExportSpec.<init>|<init>(kotlin.Int?;dev.jordond.filmstrip.codec.Bitrate?;dev.jordond.filmstrip.export.VideoQuality?;dev.jordond.filmstrip.codec.VideoCodec;dev.jordond.filmstrip.codec.AudioCodec;kotlin.Int?;dev.jordond.filmstrip.export.HdrMode;kotlin.Boolean){}[0]
 
     final val audioCodec // dev.jordond.filmstrip.export/ExportSpec.audioCodec|{}audioCodec[0]
         final fun <get-audioCodec>(): dev.jordond.filmstrip.codec/AudioCodec // dev.jordond.filmstrip.export/ExportSpec.audioCodec.<get-audioCodec>|<get-audioCodec>(){}[0]
@@ -2129,6 +2144,8 @@ final class dev.jordond.filmstrip.export/ExportSpec { // dev.jordond.filmstrip.e
         final fun <get-hdr>(): dev.jordond.filmstrip.export/HdrMode // dev.jordond.filmstrip.export/ExportSpec.hdr.<get-hdr>|<get-hdr>(){}[0]
     final val heightPx // dev.jordond.filmstrip.export/ExportSpec.heightPx|{}heightPx[0]
         final fun <get-heightPx>(): kotlin/Int? // dev.jordond.filmstrip.export/ExportSpec.heightPx.<get-heightPx>|<get-heightPx>(){}[0]
+    final val quality // dev.jordond.filmstrip.export/ExportSpec.quality|{}quality[0]
+        final fun <get-quality>(): dev.jordond.filmstrip.export/VideoQuality? // dev.jordond.filmstrip.export/ExportSpec.quality.<get-quality>|<get-quality>(){}[0]
     final val strict // dev.jordond.filmstrip.export/ExportSpec.strict|{}strict[0]
         final fun <get-strict>(): kotlin/Boolean // dev.jordond.filmstrip.export/ExportSpec.strict.<get-strict>|<get-strict>(){}[0]
     final val videoCodec // dev.jordond.filmstrip.export/ExportSpec.videoCodec|{}videoCodec[0]
@@ -2139,6 +2156,12 @@ final class dev.jordond.filmstrip.export/ExportSpec { // dev.jordond.filmstrip.e
     final fun toString(): kotlin/String // dev.jordond.filmstrip.export/ExportSpec.toString|toString(){}[0]
 
     final object Companion { // dev.jordond.filmstrip.export/ExportSpec.Companion|null[0]
+        final val Archive // dev.jordond.filmstrip.export/ExportSpec.Companion.Archive|{}Archive[0]
+            final fun <get-Archive>(): dev.jordond.filmstrip.export/ExportSpec // dev.jordond.filmstrip.export/ExportSpec.Companion.Archive.<get-Archive>|<get-Archive>(){}[0]
+        final val Original // dev.jordond.filmstrip.export/ExportSpec.Companion.Original|{}Original[0]
+            final fun <get-Original>(): dev.jordond.filmstrip.export/ExportSpec // dev.jordond.filmstrip.export/ExportSpec.Companion.Original.<get-Original>|<get-Original>(){}[0]
+        final val Share // dev.jordond.filmstrip.export/ExportSpec.Companion.Share|{}Share[0]
+            final fun <get-Share>(): dev.jordond.filmstrip.export/ExportSpec // dev.jordond.filmstrip.export/ExportSpec.Companion.Share.<get-Share>|<get-Share>(){}[0]
         final val Upload // dev.jordond.filmstrip.export/ExportSpec.Companion.Upload|{}Upload[0]
             final fun <get-Upload>(): dev.jordond.filmstrip.export/ExportSpec // dev.jordond.filmstrip.export/ExportSpec.Companion.Upload.<get-Upload>|<get-Upload>(){}[0]
     }

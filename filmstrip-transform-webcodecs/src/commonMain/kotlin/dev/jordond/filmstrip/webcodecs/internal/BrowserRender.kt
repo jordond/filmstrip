@@ -113,6 +113,7 @@ internal class VideoEncoding(
  * @property writesVideo Whether the output carries a video track. False for an [AudioSpec.AudioOnly]
  * export, where [clips] is empty, [videoEncoding] is null, and the frame geometry, the bitrate and
  * [estimatedFrames] all read zero because nothing is drawn.
+ * @property bitrate The video bitrate the plan settled on, or zero when no encoder is opened.
  * @property videoEncoding The video encoder [BrowserEncoder] opens, or null on an audio-only render and on a
  * [dev.jordond.filmstrip.export.ExportPath.Copy] render, which never opens one. [BrowserStreamCopy] always writes mp4
  * regardless of what a copy's source codec would map to.
@@ -233,11 +234,16 @@ internal fun browserRenderOf(
       } else {
         null
       },
+    // Handed to mediabunny as an Int, since a Kotlin Long is no JS number. No encoder takes a rate near the cap.
     bitrate =
-      (plan.output.bitrate?.bitsPerSecond ?: DEFAULT_BITRATE)
-        .coerceAtMost(
-          Int.MAX_VALUE.toLong(),
-        ).toInt(),
+      if (encodes) {
+        checkNotNull(plan.output.bitrate) { "The planner settles a bitrate on every transcode." }
+          .bitsPerSecond
+          .coerceAtMost(Int.MAX_VALUE.toLong())
+          .toInt()
+      } else {
+        0
+      },
     leadFrames = leadFrames,
     // Summed from the gap and the clips, not the duration, so what progress measures against is
     // exactly what the pipeline walks.
@@ -424,8 +430,6 @@ private fun multiply(
   }
   return out
 }
-
-private const val DEFAULT_BITRATE = 8_000_000L
 
 // The pipeline reads this as "to the end of the track", never as a timestamp.
 private val OPEN_END = Double.POSITIVE_INFINITY

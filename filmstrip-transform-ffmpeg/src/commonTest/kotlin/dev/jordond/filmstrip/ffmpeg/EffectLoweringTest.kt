@@ -31,7 +31,7 @@ import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.effects.overlay.OverlayFrame
 import dev.jordond.filmstrip.effects.overlay.OverlayOffset
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
-import dev.jordond.filmstrip.effects.overlay.fadeIn
+import dev.jordond.filmstrip.effects.overlay.fade
 import dev.jordond.filmstrip.effects.overlay.frameAt
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
@@ -232,7 +232,7 @@ class EffectLoweringTest {
         image = overlayImage(SQUARE),
         corner = Corner.TopStart,
         visibleDuring = TimeRange.of(200.milliseconds, 800.milliseconds),
-        animation = fadeIn(200.milliseconds),
+        animation = fade(inDuration = 200.milliseconds),
       )
 
     val fragment = fragmentOf(spec, attributes(Size(640, 360)))
@@ -251,7 +251,7 @@ class EffectLoweringTest {
   // only where its own value moves, so a fade writes the alpha per frame and the size once.
   @Test
   fun `samples an animated overlay onto the output frame grid`() {
-    val spec = ImageOverlay(overlayImage(SQUARE), Corner.TopStart, animation = fadeIn(1.seconds))
+    val spec = ImageOverlay(overlayImage(SQUARE), Corner.TopStart, animation = fade(inDuration = 1.seconds))
     val attributes = attributes(Size(640, 360))
 
     val lines = commandsOf(spec, attributes)
@@ -272,7 +272,12 @@ class EffectLoweringTest {
   fun `counts a clip's frames from the slot its span opens on`() {
     val window = TimeRange.of(30.milliseconds, 530.milliseconds)
     val spec =
-      ImageOverlay(overlayImage(SQUARE), Corner.TopStart, visibleDuring = window, animation = fadeIn(200.milliseconds))
+      ImageOverlay(
+        overlayImage(SQUARE),
+        Corner.TopStart,
+        visibleDuring = window,
+        animation = fade(inDuration = 200.milliseconds),
+      )
     val span = TimeRange.of(20.milliseconds, 1_020.milliseconds)
     val opens = outputSlotTime(outputSlotOf(span.start, GRID_RATE), GRID_RATE)
     withClue("the span's first slot at $opens is ahead of the window") { (opens >= window.start) shouldBe true }
@@ -292,7 +297,12 @@ class EffectLoweringTest {
   fun `opens a window on the same frame either way where both edges round alike`() {
     val window = TimeRange.of(500.milliseconds, 900.milliseconds)
     val spec =
-      ImageOverlay(overlayImage(SQUARE), Corner.TopStart, visibleDuring = window, animation = fadeIn(200.milliseconds))
+      ImageOverlay(
+        overlayImage(SQUARE),
+        Corner.TopStart,
+        visibleDuring = window,
+        animation = fade(inDuration = 200.milliseconds),
+      )
     val span = TimeRange.of(30.milliseconds, 1_030.milliseconds)
     val landed = outputSlotOf(window.start, GRID_RATE)
     withClue("the window's slot sits ahead of it") { (outputSlotTime(landed, GRID_RATE) >= window.start) shouldBe true }
@@ -310,7 +320,7 @@ class EffectLoweringTest {
   // middle of the fade: at either end the value a restarted branch would read agrees anyway.
   @Test
   fun `says what every option holds part way through a run`() {
-    val spec = ImageOverlay(overlayImage(SQUARE), Corner.TopStart, animation = fadeIn(1.seconds))
+    val spec = ImageOverlay(overlayImage(SQUARE), Corner.TopStart, animation = fade(inDuration = 1.seconds))
     val attributes = attributes(Size(640, 360))
 
     val held = heldAt(commandsOf(spec, attributes), MIDWAY)
@@ -324,7 +334,7 @@ class EffectLoweringTest {
   // so the node the commands drive opens at one rather than at what was authored.
   @Test
   fun `writes the alpha the shared sampler answers`() {
-    val fade = fadeIn(1.seconds)
+    val fade = fade(inDuration = 1.seconds)
     val spec = ImageOverlay(overlayImage(SQUARE), Corner.TopStart, opacity = 0.5f, animation = fade)
     val attributes = attributes(Size(640, 360))
 
@@ -355,7 +365,7 @@ class EffectLoweringTest {
   // reach them.
   @Test
   fun `names the filters an animated overlay's commands drive`() {
-    val spec = ImageOverlay(overlayImage(SQUARE), Corner.TopStart, animation = fadeIn(1.seconds))
+    val spec = ImageOverlay(overlayImage(SQUARE), Corner.TopStart, animation = fade(inDuration = 1.seconds))
 
     val fragment = fragmentOf(spec, attributes(Size(640, 360)))
 
@@ -423,7 +433,8 @@ class EffectLoweringTest {
   // rather than lowered against a size that was never read.
   @Test
   fun `refuses an animated overlay it cannot measure`() {
-    val spec = ImageOverlay(ImageSource.of("/no/such/logo.png"), Corner.TopStart, animation = fadeIn(1.seconds))
+    val spec =
+      ImageOverlay(ImageSource.of("/no/such/logo.png"), Corner.TopStart, animation = fade(inDuration = 1.seconds))
 
     val resolution = resolver.resolve(spec, capabilities(), attributes(Size(640, 360)))
 
@@ -446,7 +457,7 @@ class EffectLoweringTest {
   // nothing to sample it onto and says so rather than drawing the overlay still.
   @Test
   fun `refuses an animated overlay with no frame rate`() {
-    val spec = ImageOverlay(overlayImage(SQUARE), Corner.TopStart, animation = fadeIn(1.seconds))
+    val spec = ImageOverlay(overlayImage(SQUARE), Corner.TopStart, animation = fade(inDuration = 1.seconds))
 
     val resolution = resolver.resolve(spec, capabilities(), attributes(Size(640, 360), frameRate = null))
 
@@ -478,7 +489,7 @@ class EffectLoweringTest {
         image = overlayImage(SQUARE),
         corner = Corner.TopStart,
         visibleDuring = TimeRange.of(10.seconds, 12.seconds),
-        animation = fadeIn(1.seconds),
+        animation = fade(inDuration = 1.seconds),
       )
 
     val fragment = fragmentOf(spec, attributes(Size(640, 360), span = TimeRange.of(Duration.ZERO, 6.seconds)))

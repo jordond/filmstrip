@@ -91,7 +91,11 @@ class AppleClipPlacementTest {
       val (exportPath, exportPlan) = exported(composition, temporaryPath("letterbox-export"))
       val content = placementOf(Size(640, 360), listOf(listOf(crop)), exportPlan.output.size).drawnRect
       val (previewPath, previewPlan) =
-        exported(composition, temporaryPath("letterbox-preview"), ExportSpec(heightPx = PREVIEW_HEIGHT))
+        exported(
+          composition,
+          temporaryPath("letterbox-preview"),
+          ExportSpec(heightPx = PREVIEW_HEIGHT, bitrate = COLOR_READ_BITRATE),
+        )
       withClue("the preview has to be lowered smaller than the export for this to tell") {
         (previewPlan.output.size.height < exportPlan.output.size.height).shouldBeTrue()
       }
@@ -355,7 +359,7 @@ class AppleClipPlacementTest {
   private companion object {
     const val LANDSCAPE = "apple_export_a.mp4"
     val TIMEOUT = 2.seconds * 60
-    val SPEC = ExportSpec(heightPx = 360)
+    val SPEC = ExportSpec(heightPx = 360, bitrate = COLOR_READ_BITRATE)
 
     // A height a preview lowers the edit at, under the export's own.
     const val PREVIEW_HEIGHT = 180

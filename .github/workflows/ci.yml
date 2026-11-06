@@ -42,6 +42,13 @@ jobs:
       - name: Formatting, ABI, architecture guards and lint
         run: ./gradlew --continue spotlessCheck checkKotlinAbi checkForbiddenImports checkLayering lint --scan
 
+      - name: Compile the docs snippets
+        run: |
+          ./gradlew :internal:docs-samples:compileKotlinJvm
+          ./gradlew :internal:docs-samples:compileKotlinWasmJs
+          ./gradlew :internal:docs-samples:compileAndroidMain
+          ./gradlew :internal:docs-samples:compileKotlinIosArm64
+
   test:
     strategy:
       fail-fast: false

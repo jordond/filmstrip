@@ -1,0 +1,38 @@
+---
+title: Requirements
+description: The platforms, toolchains and versions filmstrip needs.
+---
+
+import { MIN_IOS, MIN_MACOS, TESTED_BROWSERS, versions } from '../../../lib/versions'
+
+These are read from the build that produced this page, so they match the code.
+
+## Build
+
+| | |
+| --- | --- |
+| Kotlin | {versions.kotlin} |
+| Compose Multiplatform, for the Compose modules | {versions.composeMultiplatform} |
+| JDK | {versions.jdk} or later |
+
+## Platforms
+
+| Platform | Minimum | Export and preview run on |
+| --- | --- | --- |
+| Android | API {versions.minSdk} | Media3 Transformer and media3-exoplayer |
+| iOS | {MIN_IOS} | AVFoundation, VideoToolbox and AVPlayer |
+| macOS | {MIN_MACOS} | AVFoundation, VideoToolbox and AVPlayer |
+| Desktop (JVM) | ffmpeg {versions.ffmpeg} | The `ffmpeg` and `ffprobe` on the machine |
+| Browser | WebCodecs | WebCodecs, drawn to a canvas |
+
+## Browsers
+
+filmstrip is tested on {TESTED_BROWSERS}. Firefox and Safari have WebCodecs too, but nobody has tested filmstrip
+on them yet. They may work.
+
+## ffmpeg
+
+The JVM backend links no ffmpeg and bundles none. It runs `ffmpeg` and `ffprobe` as separate programs, found
+through `FfmpegConfig`, then the `FILMSTRIP_FFMPEG` and `FILMSTRIP_FFPROBE` environment variables, then `PATH`. An
+older build, or a git build with no release number, is reported as `FilmstripError.ToolchainMissing` when you plan
+or export, never as a crash.

@@ -32,8 +32,8 @@ public fun interface OverlayAnimation {
  *
  * @property elapsed How long the overlay has been drawn for, never negative.
  * @property remaining How much of the drawn range is left, never negative, or [Duration.INFINITE] while the
- *   drawn range has no end. A ramp measured off an infinite remainder never begins, so [fadeOut] holds full
- *   opacity and [slideOut] holds the authored position.
+ *   drawn range has no end. A ramp measured off an infinite remainder never begins, so the out side of [fade] holds
+ *   full opacity and [slideOut] holds the authored position.
  * @property composition Where the frame sits on the composition's own timeline.
  */
 @Poko
@@ -95,40 +95,20 @@ public class OverlayOffset(
 }
 
 /**
- * Ramps the overlay's opacity up from nothing over [duration], counted from its first drawn frame.
- *
- * The ramp is linear. A duration of zero or less draws the overlay at full opacity from the start.
- *
- * @param duration How long the overlay takes to reach full opacity.
- * @return An animation fading the overlay in.
- */
-public fun fadeIn(duration: Duration): OverlayAnimation = FadeAnimation(duration, Duration.ZERO)
-
-/**
- * Ramps the overlay's opacity down to nothing over [duration], counted back from its last drawn
- * frame.
- *
- * The ramp is linear. A drawn range with no end never reaches it, so the overlay holds full opacity.
- *
- * @param duration How long the overlay takes to fade away.
- * @return An animation fading the overlay out.
- */
-public fun fadeOut(duration: Duration): OverlayAnimation = FadeAnimation(Duration.ZERO, duration)
-
-/**
  * Fades the overlay in over [inDuration] and back out over [outDuration].
  *
- * The two ramps are measured from opposite ends of the drawn range, so a drawn range shorter than the pair takes
- * the lower of the two opacities rather than the product. A duration of zero or less on either side
- * skips that side's ramp.
+ * Each ramp is linear. The in ramp counts from the first drawn frame and the out ramp counts back from the last, so a
+ * drawn range shorter than the pair takes the lower of the two opacities rather than the product. A drawn range with
+ * no end never reaches the out ramp, so the overlay holds full opacity. A duration of zero or less on either side
+ * skips that side's ramp, and a side left out has no ramp.
  *
  * @param inDuration How long the overlay takes to reach full opacity.
  * @param outDuration How long the overlay takes to fade away.
- * @return An animation fading the overlay in and out.
+ * @return An animation fading the overlay in, out or both.
  */
 public fun fade(
-  inDuration: Duration,
-  outDuration: Duration,
+  inDuration: Duration = Duration.ZERO,
+  outDuration: Duration = Duration.ZERO,
 ): OverlayAnimation = FadeAnimation(inDuration, outDuration)
 
 /**

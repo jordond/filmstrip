@@ -5,7 +5,6 @@ import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.EnvelopePoint
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
-import dev.jordond.filmstrip.effects.overlay.fadeIn
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.BED_GAIN

@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.InertNotice
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.geometry.effectiveHeight
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewInfo
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
@@ -28,13 +29,14 @@ internal typealias CompositionResolve = suspend (EditComposition, ExportSpec, Si
  * The height a frame [naturalHeight] pixels tall renders at when [heightPx] is asked for, or null when it renders at
  * its own height.
  *
- * Only a height from one up to just below [naturalHeight] moves the frame. Null, zero and anything at or above the
- * natural height all leave it alone, so a frame is never scaled up.
+ * It reads the height the way an export does, through [effectiveHeight], so a height at or above [naturalHeight]
+ * leaves the frame alone and a frame is never scaled up. A preview cap of zero or less is not refused like an export's
+ * and moves nothing either.
  */
 internal fun cappedHeight(
   heightPx: Int?,
   naturalHeight: Int,
-): Int? = heightPx?.takeIf { it in 1..<naturalHeight }
+): Int? = effectiveHeight(heightPx?.takeIf { it > 0 }, naturalHeight, framedByStill = false)
 
 /**
  * The height this policy renders a frame [naturalHeight] pixels tall at, or null when it renders at its own height.

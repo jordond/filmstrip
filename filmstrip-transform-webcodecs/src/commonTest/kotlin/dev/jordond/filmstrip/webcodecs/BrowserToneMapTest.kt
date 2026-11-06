@@ -300,9 +300,15 @@ class BrowserToneMapTest {
     const val MILLIS_PER_FRAME = 1_000.0 / 30
     const val MAX_CODE = 255.0
 
-    val TONE_MAP = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None, hdr = HdrMode.ToneMapToSdr)
-    val KEEP = ExportSpec(audioCodec = AudioCodec.None, hdr = HdrMode.KeepHdr)
-    val AUTO = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None)
+    val TONE_MAP =
+      ExportSpec(
+        bitrate = MEASURING_BITRATE,
+        videoCodec = VideoCodec.H264,
+        audioCodec = AudioCodec.None,
+        hdr = HdrMode.ToneMapToSdr,
+      )
+    val KEEP = ExportSpec(bitrate = MEASURING_BITRATE, audioCodec = AudioCodec.None, hdr = HdrMode.KeepHdr)
+    val AUTO = ExportSpec(bitrate = MEASURING_BITRATE, videoCodec = VideoCodec.H264, audioCodec = AudioCodec.None)
 
     val PQ_PATCHES =
       listOf(

@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.media3.internal.isGap
 import dev.jordond.filmstrip.media3.internal.liveSlotFor
 import dev.jordond.filmstrip.media3.internal.toMedia3
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.drawsSameFormatAs
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
@@ -201,7 +202,10 @@ public class Media3Preview internal constructor(
     next: ResolvedComposition,
     bounds: Media3FrameBounds,
   ): Boolean {
-    if (next.output != resolved.output || next.hdrTransfer != resolved.hdrTransfer) return false
+    if (!resolved.drawsSameFormatAs(next)) return false
+    // media3's own limit: a copy lowers to one exact sequence and a transcode to a grid sequence and an audio one, and
+    // a standing graph keeps the sequences it was built with.
+    if (next.path != resolved.path) return false
 
     val incoming = mutableListOf<Effect>()
     try {

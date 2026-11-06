@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.VideoEncoderCapability
+import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.TimeRange
@@ -72,6 +73,8 @@ public class Ask(
  * @property compositionInputSize The frame composition geometry measures against, after every clip
  *   and track effect of the clip framing the output.
  * @property naturalSize The frame the composition writes with no height asked of it and before any encoder ceiling.
+ * @property heightPx The height the spec moves [naturalSize] to, or null when it keeps it, as
+ *   [dev.jordond.filmstrip.geometry.effectiveHeight] reads it.
  * @property requestedSize The frame the composition asks for, before any encoder ceiling.
  */
 internal class Framing(
@@ -81,6 +84,7 @@ internal class Framing(
   val compositionGeometry: List<EffectSpec>,
   val compositionInputSize: Size,
   val naturalSize: Size,
+  val heightPx: Int?,
   val requestedSize: Size,
 )
 
@@ -107,6 +111,8 @@ internal class Grade(
  * @property ceiling The largest frame the encoder takes, with a still's bound folded in.
  * @property overCeiling Whether the requested frame sat above [ceiling] rather than only off the
  *   encoder's alignment.
+ * @property bitrate The video bitrate the encoder is handed, or null on a copy.
+ * @property bitrateClamp The concession made when the bitrate sat above the encoder's ceiling.
  */
 internal class Encoding(
   val video: CodecChoice<VideoCodec>,
@@ -116,6 +122,8 @@ internal class Encoding(
   val outputSize: Size,
   val layoutFrame: Size,
   val target: LoweringTarget,
+  val bitrate: Bitrate?,
+  val bitrateClamp: Concession?,
 )
 
 /**

@@ -1,0 +1,23 @@
+---
+title: Quick start
+description: Export a first clip with filmstrip.
+---
+
+import Snippet from '../../../components/Snippet.astro'
+
+This exports one clip with the `Upload` preset (1080p at 4 Mbps in H.264, tone mapped to SDR) to a temporary file. It
+assumes the `filmstrip` artifact from [Installation](/start/installation/).
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/start/QuickStart.kt" region="quick-start" />
+
+What each step does:
+
+1. `Filmstrip { allBackends() }` builds one instance with this target's export backend, the player and the built-in
+   effects registered. Keep it for the life of your app or your DI graph.
+2. `compositionOf { }` describes the edit. It's plain data, so it can be built anywhere and handed to any call.
+3. `plan` asks what this device will do with the edit before anything is decoded. `Capable` runs it as written,
+   `Degraded` runs it with changes it lists, and `Incapable` says why it can't.
+4. `export` runs the plan and reports progress as a flow. Cancel the collecting scope to cancel the export.
+
+Next, [Setup](/guides/setup/) covers registering backends one by one, and [Export](/guides/export/) covers
+everything a plan and a status can tell you.

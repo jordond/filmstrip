@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.test
 
+import dev.jordond.filmstrip.codec.Bitrate
 import kotlin.test.fail
 
 /**
@@ -68,3 +69,11 @@ public const val DEFAULT_MIN_PSNR_DB: Double = 40.0
  * SSIM at or above which two frames are treated as the same.
  */
 public const val DEFAULT_MIN_SSIM: Double = 0.995
+
+/**
+ * The video bitrate a preview parity suite exports at when it compares a preview frame against the written file.
+ *
+ * The suites' similarity bars count the encode as noise, so each export names this rate instead of taking the one a
+ * quality tier picks for the frame.
+ */
+public val PREVIEW_PARITY_EXPORT_BITRATE: Bitrate = Bitrate.mbps(8)

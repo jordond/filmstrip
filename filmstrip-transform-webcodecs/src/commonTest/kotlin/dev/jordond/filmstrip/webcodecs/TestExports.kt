@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.webcodecs
 
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.export.ExportPlan
@@ -14,6 +15,15 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.toList
+
+/**
+ * A bitrate high enough that the encoder's own loss stays well under the colour and ramp tolerances the pixel tests
+ * read.
+ *
+ * Those tests measure the pipeline rather than rate control, and their fixtures are small enough that the shared
+ * quality tier would hand them a few hundred kilobits.
+ */
+internal val MEASURING_BITRATE: Bitrate = Bitrate.mbps(8)
 
 /**
  * A facade with only the WebCodecs backend registered, so every plan and export in a test goes

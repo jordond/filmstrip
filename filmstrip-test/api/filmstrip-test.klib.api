@@ -42,6 +42,9 @@ final const val dev.jordond.filmstrip.test/DEFAULT_MIN_PSNR_DB // dev.jordond.fi
 final const val dev.jordond.filmstrip.test/DEFAULT_MIN_SSIM // dev.jordond.filmstrip.test/DEFAULT_MIN_SSIM|{}DEFAULT_MIN_SSIM[0]
     final fun <get-DEFAULT_MIN_SSIM>(): kotlin/Double // dev.jordond.filmstrip.test/DEFAULT_MIN_SSIM.<get-DEFAULT_MIN_SSIM>|<get-DEFAULT_MIN_SSIM>(){}[0]
 
+final val dev.jordond.filmstrip.test/PREVIEW_PARITY_EXPORT_BITRATE // dev.jordond.filmstrip.test/PREVIEW_PARITY_EXPORT_BITRATE|{}PREVIEW_PARITY_EXPORT_BITRATE[0]
+    final fun <get-PREVIEW_PARITY_EXPORT_BITRATE>(): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.test/PREVIEW_PARITY_EXPORT_BITRATE.<get-PREVIEW_PARITY_EXPORT_BITRATE>|<get-PREVIEW_PARITY_EXPORT_BITRATE>(){}[0]
+
 final fun dev.jordond.filmstrip.test/assertFramesDiffer(dev.jordond.filmstrip.test/TestFrame, dev.jordond.filmstrip.test/TestFrame, kotlin/Double = ..., kotlin/Double = ..., kotlin/String? = ...) // dev.jordond.filmstrip.test/assertFramesDiffer|assertFramesDiffer(dev.jordond.filmstrip.test.TestFrame;dev.jordond.filmstrip.test.TestFrame;kotlin.Double;kotlin.Double;kotlin.String?){}[0]
 final fun dev.jordond.filmstrip.test/assertFramesSimilar(dev.jordond.filmstrip.test/TestFrame, dev.jordond.filmstrip.test/TestFrame, kotlin/Double = ..., kotlin/Double = ..., kotlin/String? = ...) // dev.jordond.filmstrip.test/assertFramesSimilar|assertFramesSimilar(dev.jordond.filmstrip.test.TestFrame;dev.jordond.filmstrip.test.TestFrame;kotlin.Double;kotlin.Double;kotlin.String?){}[0]
 final fun dev.jordond.filmstrip.test/compareFrames(dev.jordond.filmstrip.test/TestFrame, dev.jordond.filmstrip.test/TestFrame): dev.jordond.filmstrip.test/FrameComparison // dev.jordond.filmstrip.test/compareFrames|compareFrames(dev.jordond.filmstrip.test.TestFrame;dev.jordond.filmstrip.test.TestFrame){}[0]

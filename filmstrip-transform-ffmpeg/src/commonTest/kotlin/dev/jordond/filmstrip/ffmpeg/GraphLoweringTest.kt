@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
+import dev.jordond.filmstrip.export.VideoQuality
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ChromaGrid
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.GraphLowering
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
@@ -42,6 +43,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
 import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
 import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
 import dev.jordond.filmstrip.transform.internal.geometry.inWholePixelsOf
@@ -708,7 +710,7 @@ class GraphLoweringTest {
             size = output,
             videoCodec = VideoCodec.H264,
             audioCodec = AudioCodec.Aac,
-            bitrate = null,
+            bitrate = resolveVideoBitrate(VideoQuality.High, VideoCodec.H264, output, 30),
             frameRate = 30,
             audioFormat = AudioFormat(sampleRate = 48_000, channelCount = 2),
           ),

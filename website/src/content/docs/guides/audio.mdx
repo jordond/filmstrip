@@ -1,0 +1,86 @@
+---
+title: Audio
+description: Set levels and fades, write gain envelopes and mix in extra audio tracks.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+import Snippet from '../../../components/Snippet.astro'
+
+filmstrip folds every level in an edit into one gain curve per clip before a backend sees it, so all four backends land
+on the same gain.
+
+## Levels
+
+A clip or a track takes an `AudioLevel`, and the composition takes an `AudioSpec`.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Audio.kt" region="levels" />
+
+- `Inherit` is the default and leaves the enclosing scope alone.
+- `Volume` scales by a constant. `1f` is unchanged and anything above it boosts.
+- `Mute` contributes silence without changing timing or the output's track count.
+
+Levels multiply down the scopes and aren't capped. A mute at any scope silences everything below it. The composition's
+`AudioSpec` also has `Keep`, `Mute`, `Remove` and `AudioOnly`, covered in [Edits](/guides/edits/#composition-audio).
+
+A negative or non-finite gain is refused with `InvalidComposition` at plan time.
+
+## Fades
+
+`fadeIn` and `fadeOut` sit on a clip or a track.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Audio.kt" region="fades" />
+
+A fade multiplies whatever `audio` set, so this clip rises from silence to half, not to full. Fading a mute leaves it
+muted. A clip's fades are measured against its trim, so retrimming moves them too. A track's fade in starts where the
+track does, and its fade out ends where the track does. Fades on different scopes multiply.
+
+A fade that's negative or longer than its scope is refused with `InvalidComposition`, and so is a pair that runs longer
+than the scope, since the two ramps would cross.
+
+These fades only touch audio. To fade an overlay's picture, see [Overlays](/guides/overlays/#animation).
+
+## Envelopes
+
+`AudioLevel.Envelope` is a gain curve you pin at points. The gain ramps linearly between neighbouring points and holds
+flat before the first and after the last. Nothing is smoothed, so a curve is written as more points.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Audio.kt" region="envelope" />
+
+A point anchored at `EnvelopeAnchor.End` is measured back from the end of its scope, and placed once the plan knows how
+long the scope runs. That lets you write a fade out before you know the clip's length. A clip's envelope reads against its
+trimmed length, and a track's against its whole run.
+
+A point outside its scope, a negative gain, or points that fall out of time order once the end-anchored ones are placed
+are refused with `InvalidComposition`.
+
+## Extra tracks
+
+A track added with `TrackContent.Audio` plays alongside the primary track and is mixed in. The default content for `track`
+carries video too, so name it, or the plan refuses it.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Audio.kt" region="bed" />
+
+- `startAt` holds a track off until that far into the composition. A negative start is refused.
+- `looping` repeats the track from the top until the longest non-looping track ends, and cuts the last pass where it runs
+  past.
+
+The composition runs as long as its longest non-looping track, offset included, so a bed longer than the picture sets the
+length. The picture holds the primary track's last frame until the end.
+
+A looping track's scope is its whole run. Its `fadeIn` plays once at the start, and its `fadeOut` and any end-anchored
+point land where the composition ends. A clip's own fade or envelope is read against the clip, so it replays on every
+pass.
+
+A composition where every track loops has nothing to bound it, and is refused with `InvalidComposition`. So is a track
+laying more than 2000 passes.
+
+<Aside type="note" title="Limits">
+- media3 is given no held tail, so its video track ends with the primary one and only the audio runs on through a longer
+  bed.
+- A media3 file can run slightly past the plan's duration. A clip opening part way through an AAC access unit opens on the
+  unit before it, and the encoder's flush rounds up what's left. On an emulator, a bed trimmed from 200ms wrote 7.348s
+  against a 7.300s plan, with silence in the tail.
+- The browser preview samples a clip's gain where each slice opens and holds it flat across, so a fade can't be auditioned
+  there yet. The browser's export follows the curve.
+- The ffmpeg preview opens no audio device, so `setVolume` does nothing and it reports no `AudioMonitoring`.
+</Aside>

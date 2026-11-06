@@ -45,6 +45,7 @@ internal fun gradeOf(
       support = copySupport,
       edit = edit,
       spec = ask.spec,
+      heightPx = framing.heightPx,
       sourceSize = framing.firstVideo.displaySize,
       requestedSize = framing.requestedSize,
       copyOpening = copyOpening,

@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.drawsSameFormatAs
 import dev.jordond.filmstrip.webcodecs.internal.BrowserRender
 import dev.jordond.filmstrip.webcodecs.internal.FrameSampler
 import dev.jordond.filmstrip.webcodecs.internal.FrameWindow
@@ -260,9 +261,7 @@ public class BrowserPreview internal constructor(
     next: ResolvedComposition,
     edit: EditComposition,
   ): Boolean {
-    if (next.output != resolved.output || next.hdr != resolved.hdr || next.hdrTransfer != resolved.hdrTransfer) {
-      return false
-    }
+    if (!resolved.drawsSameFormatAs(next)) return false
 
     val incoming = browserRenderOf(next, edit)
     if (incoming.clips.size != render.clips.size) return false

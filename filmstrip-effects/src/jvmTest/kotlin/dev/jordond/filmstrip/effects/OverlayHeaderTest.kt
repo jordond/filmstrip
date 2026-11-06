@@ -7,7 +7,7 @@ import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
-import dev.jordond.filmstrip.effects.overlay.fadeIn
+import dev.jordond.filmstrip.effects.overlay.fade
 import dev.jordond.filmstrip.effects.overlay.measureOverlay
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.unreadableImageFile
@@ -170,7 +170,7 @@ class OverlayHeaderTest {
   }
 
   private fun resolve(image: ImageSource): EffectResolution? {
-    val spec = ImageOverlay(image, Corner.TopStart, animation = fadeIn(1.seconds))
+    val spec = ImageOverlay(image, Corner.TopStart, animation = fade(inDuration = 1.seconds))
 
     return BuiltInEffectResolver().resolve(spec, capabilities(), attributes())
   }

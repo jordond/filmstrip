@@ -219,8 +219,8 @@ class AndroidThumbnailContractTest {
    * the run as [subject].
    *
    * The reference is a precise tile rendered on an extractor of its own, so nothing is encoded between the two and a
-   * tile that landed where it says is the same picture. The export is checked too, where the platform encoder keeps
-   * enough of a sync sample for [RELAXED_MIN_SSIM] to tell a landing from a miss.
+   * tile that landed where it says is the same picture. The export is checked too, where [RELAXED_MIN_SSIM] tells a
+   * landing from a miss.
    */
   private suspend fun assertRelaxedTilesMatch(
     scope: CoroutineScope,
@@ -247,8 +247,9 @@ class AndroidThumbnailContractTest {
         reference.image.close()
       }
 
-      // The API 30 system AVC encoder keeps less of the fixture's sync samples than this floor allows. They read 0.978
-      // and 0.980 against the export there, and 0.985 and 0.984 on API 36, which the floor was set on.
+      // On API 30 the frame a step from each sync sample reads 0.986 and 0.984 against the export, which clears this
+      // floor as well as the samples' own 0.987 and 0.990 do. On API 36, which the floor was set on, those are 0.980
+      // and 0.981 against 0.986 and 0.989.
       if (Build.VERSION.SDK_INT > Build.VERSION_CODES.R) {
         assertFramesSimilar(
           expected = androidExportFrame(composition, at),
@@ -423,14 +424,13 @@ class AndroidThumbnailContractTest {
     const val DIM = 0.4f
 
     // A relaxed request lands on a sync sample and nowhere else, and the fixture spends 28,612
-    // bytes on the one at 966ms against 9,181 and 6,311 on the frames either side of it. The
-    // export's encoder gives that same frame 8,233, so a strip drawn off a sync sample carries
-    // grain the exported file no longer does and the pair reads lower than any other reading of
-    // this clip: 0.984 and 0.985 at the fixture's two sync samples, against 0.987 to 0.995 at the
-    // frames between them. The floor comes down for a relaxed reading of a clip and no other, and
-    // it stays above what a divergence costs. A strip reporting the position it was asked for
-    // rather than the sample it landed on reads 0.973 and 0.974, and the export a frame step
-    // either side of the one reported reads 0.980 and 0.981.
+    // bytes on the one at 966ms against 9,181 and 6,311 on the frames beside it. The export's
+    // encoder gives that frame 23,150 at `PREVIEW_PARITY_EXPORT_BITRATE`, so the strip tile
+    // carries grain the export keeps less of. On API 36 the two sync samples read 0.986 and 0.989,
+    // and the frames around them 0.986 to 0.995. The floor sits below `ENCODED_MIN_SSIM` for a
+    // relaxed reading only. On API 36 a strip reporting the asked position rather than the landed
+    // sample reads 0.967 to 0.977, and the export a frame step from the reported one reads 0.981
+    // at best, so the floor clears that miss by 0.001.
     const val RELAXED_MIN_SSIM = 0.982
 
     // A relaxed tile against a precise one drawn at the time it reports. Nothing is encoded between them, so a tile

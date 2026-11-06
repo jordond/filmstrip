@@ -23,7 +23,7 @@ Pods/
 !kotlin-js-store/yarn.lock
 !kotlin-js-store/wasm/yarn.lock
 CLAUDE.md
-dokka
+/dokka/
 
 .playwright-mcp/
 

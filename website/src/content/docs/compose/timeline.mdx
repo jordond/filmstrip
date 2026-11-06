@@ -1,0 +1,71 @@
+---
+title: Timeline
+description: Add the drawn timeline, a trim window and a crop overlay to an editor.
+---
+
+import Snippet from '../../../components/Snippet.astro'
+
+`filmstrip-compose-ui` holds the drawn pieces of an editor, built on Compose foundation with no Material. It sits on top
+of [`filmstrip-compose`](/compose/bindings/).
+
+## FilmstripTimeline
+
+`FilmstripTimeline` assembles a ruler, a scrolling strip, a playhead and an optional trim window.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Timeline.kt" region="timeline" />
+
+A drag on the ruler moves the playhead and a drag on the strip moves the view. The strip follows the playhead during
+playback, and stops as soon as the user scrolls it.
+
+It doesn't need a player. `position` comes from whatever clock you run, and a timeline with no `scrub` is one where a drag
+on the ruler doesn't seek.
+
+One track is drawn. A composition with several shows the timeline they lay out on, with no clip edges marked.
+
+## Trim
+
+The trim window draws when you pass both `trim` and `onTrimChange`. The handles only move where `trim` next puts them, so
+the range lives in your state.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Timeline.kt" region="trim" />
+
+`setPlaybackRange` confines playback to the window while the strip keeps covering the whole source, so a drag doesn't
+rebuild the composition the player is running. The trim reaches the edit when you build the one you export.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Timeline.kt" region="trim-export" />
+
+The window keeps to `FilmstripTimelineDefaults.Trim`, a minimum of 200 milliseconds, unless you set another
+`TrimConstraint`. `MinDuration`, `MinMaxDuration` and `FixedDuration` are the options.
+
+## Options
+
+`zoom` sets how far in the timeline is drawn, and null fits the whole composition on screen. `TimelineZoom.of` takes a step
+from 0 to 10. `TimelineOptions` holds the rest, such as sizes, `followPlayhead` and the `pinchZoom` and `wheelZoom`
+switches.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Timeline.kt" region="options" />
+
+Keyboard control doesn't go through here, since it needs focus and a component that took focus on composition would steal
+it from your screen. Apply `Modifier.timelineKeys` yourself, such as on an element in the `overlay` slot, where
+`TimelineState` is at hand.
+
+The `overlay` slot draws over the tiles and under the trim window and the playhead. Anything `FilmstripTimeline` doesn't lay
+out the way you want, you can build from the same public parts: `FilmstripStrip`, `TimelineRuler`, `Playhead` and
+`TrimOverlay`.
+
+## VideoStage and crop
+
+`VideoStage` is a box the shape of the output frame, holding the video and whatever you draw over it. It takes the largest
+rectangle of that shape that fits, so give it room to fit into, like a `padding` inside a centred box, and not a
+`fillMaxSize`.
+
+`CropOverlay` inside a stage draws a draggable rectangle over the frame.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Timeline.kt" region="stage" />
+
+A live player's frame wins over `outputAspect`, so the stage and the picture change shape together. Passing a null player
+draws the `fallback` slot at the same size instead.
+
+The rectangle addresses the frame under it, so the preview stays uncropped and the crop joins the edit when you export.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Timeline.kt" region="stage-export" />

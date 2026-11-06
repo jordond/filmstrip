@@ -31,6 +31,9 @@ import kotlin.math.roundToInt
  * @param ladder The order this engine tries codecs in when the request is [VideoCodec.Auto], or
  *   when the requested codec is unsupported and something has to be tried next.
  * @param hdrLadder The same, for an export that keeps HDR.
+ * @param sourceCodec The codec of the video the output is framed from, which [VideoCodec.MatchSource] tries first.
+ *   Null when the source's codec has no name here, which leaves only the ladder and reports no fallback. That holds
+ *   for an HDR source too, the way it does for [VideoCodec.Auto], since there is no named codec to report a swap from.
  */
 internal fun resolveVideoCodec(
   spec: ExportSpec,
@@ -38,19 +41,24 @@ internal fun resolveVideoCodec(
   encodesHdr: Boolean,
   ladder: List<VideoCodec>,
   hdrLadder: List<VideoCodec>,
+  sourceCodec: VideoCodec? = null,
 ): CodecChoice<VideoCodec>? {
   val requested = spec.videoCodec
+  val wanted = if (requested == VideoCodec.MatchSource) sourceCodec else requested
   val tried =
     when {
       encodesHdr -> hdrLadder
-      requested == VideoCodec.Auto -> ladder
-      else -> listOf(requested) + ladder.filterNot { it == requested }
+      requested == VideoCodec.Auto || wanted == null -> ladder
+      else -> listOf(wanted) + ladder.filterNot { it == wanted }
     }
   val supported = tried.firstOrNull { codec -> device.video.any { it.codec == codec } } ?: return null
-  if (supported == requested || requested == VideoCodec.Auto) return CodecChoice(supported, null)
+  if (supported == wanted || requested == VideoCodec.Auto || wanted == null) return CodecChoice(supported, null)
 
   val reason =
-    if (encodesHdr) "Keeping the HDR grade needs a 10-bit encoder" else "This device has no encoder for $requested"
+    when {
+      encodesHdr -> "Keeping the HDR grade needs a 10-bit encoder"
+      else -> "This device has no encoder for $wanted"
+    }
   val message = "$reason, so $supported is used instead."
   return CodecChoice(
     codec = supported,
@@ -130,7 +138,7 @@ internal fun outputFormatOf(
             audioCodecOf(it.codec.kind),
           ) { COPY_UNNAMEABLE }
         } ?: AudioCodec.None,
-      bitrate = ask.spec.bitrate,
+      bitrate = null,
       frameRate = encoding.target.frameRate,
       audioFormat = sourceAudio?.let { AudioFormat(sampleRate = it.sampleRate, channelCount = it.channelCount) },
     )
@@ -140,7 +148,7 @@ internal fun outputFormatOf(
     size = encoding.outputSize,
     videoCodec = encoding.video.codec,
     audioCodec = audio.codec,
-    bitrate = ask.spec.bitrate,
+    bitrate = encoding.bitrate,
     frameRate = encoding.target.frameRate,
     audioFormat = if (audio.codec == AudioCodec.None) null else audioFormat(tracks, audioEncoder),
   )

@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.SetCompositionResult
@@ -12,6 +13,7 @@ import dev.jordond.filmstrip.player.internal.seekLandingOf
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.TestResult
@@ -198,6 +200,64 @@ internal class RebuildContract(
 
         recorder.statesSince(mark).forEach { it.playWhenReady shouldBe false }
         recorder.playhead shouldBe landed
+      }
+    }
+
+  /**
+   * Seeks into the middle of [plain] while paused, adds an effect to it, and checks the edit answers with the duration
+   * it had and the transport stays paused on where [heldPosition] lands.
+   *
+   * @param edited [plain] with an effect on it, which changes a parameter and nothing on the timeline.
+   * @param prepares Whether this backend goes back through [PlaybackStatus.Preparing] for that edit.
+   */
+  fun plainClipEditHoldsTheTransport(
+    plain: EditComposition,
+    edited: EditComposition,
+    prepares: Boolean,
+  ): TestResult =
+    pausedParameterEdit(plain, edited) { recorder, mark, _ ->
+      recorder.statesSince(mark).any { it.status == PlaybackStatus.Preparing } shouldBe prepares
+    }
+
+  /**
+   * Seeks into the middle of [fixture] while paused, loads [moved], and checks the edit answers with the duration it
+   * had and the transport stays paused on where [heldPosition] lands, whichever way the backend reached the new frame.
+   *
+   * @param moved [fixture] with an effect that changes the output frame and nothing on the timeline.
+   * @param reportsFrame Whether this backend's preview info carries the output frame the edit settled on.
+   */
+  fun frameMovingEditHoldsTheTransport(
+    moved: EditComposition,
+    reportsFrame: Boolean,
+  ): TestResult =
+    pausedParameterEdit(fixture, moved) { recorder, _, before ->
+      if (reportsFrame) recorder.previewInfo.last().outputSize shouldNotBe before
+    }
+
+  private fun pausedParameterEdit(
+    from: EditComposition,
+    to: EditComposition,
+    check: (recorder: ContractRecorder, mark: ContractMark, frameBefore: Size) -> Unit,
+  ): TestResult =
+    contractTest { scope ->
+      val subject = createEngine(scope)
+      withEngine(subject.engine) { recorder ->
+        val duration = subject.engine.loadSeekable(recorder, from)
+
+        val middle = offGrid(duration, HOLD_AT, rate, thirds = 0)
+        subject.engine.seekAndWait(recorder, middle)
+        subject.quiet()
+
+        val frameBefore = recorder.previewInfo.last().outputSize
+        val mark = recorder.mark()
+        val loaded = subject.engine.awaitComposition(to)
+        loaded.shouldBeInstanceOf<SetCompositionResult.Success>().duration shouldBe duration
+        awaitContract("the edit to finish") { recorder.lastState.status == PlaybackStatus.Ready }
+        subject.quiet()
+
+        recorder.statesSince(mark).forEach { it.playWhenReady shouldBe false }
+        recorder.playhead shouldBe heldPosition(middle, duration, rate, null, playing = false)
+        check(recorder, mark, frameBefore)
       }
     }
 

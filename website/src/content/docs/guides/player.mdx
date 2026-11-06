@@ -1,0 +1,93 @@
+---
+title: Player
+description: Preview an edit, drive its transport and read what it can do on this device.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+import Snippet from '../../../components/Snippet.astro'
+
+`preview` opens a `VideoPlayer` over the same composition value an export takes. Each engine lowers it through the same
+backend its exports use, so the compositing isn't a second implementation.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="open" />
+
+`preview` returns right away and loads in the background. You own the player and have to `close` it. Without
+`filmstrip-player` registered, the player reports `PlaybackError.BackendMissing` instead of throwing. A browser reports
+the same error, naming `filmstrip-transform-webcodecs`, when `webCodecsBackend()` isn't registered.
+
+`config` sets how hard a preview works. `CapHeight` limits its height without changing what an export writes.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="quality" />
+
+## State and events
+
+`state` is a `StateFlow` of consistent snapshots.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="state" />
+
+`events` carries the things that happen once, like a seek landing or a loop wrapping. It replays nothing, so subscribe
+before you issue commands.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="events" />
+
+`positionFlow` follows the playhead, snapped to the tick you ask for. `currentPosition` reads it once. Both report a
+seek's target as soon as it's issued, so a scrubber thumb doesn't snap back.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="playhead" />
+
+Each of these has a listener form too, `addStateListener`, `addEventListener` and `addPositionListener`, for callers
+without coroutines.
+
+## Transport
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="transport" />
+
+- `seekTo` always yields one `SeekCompleted`, carrying the frame it landed on. `SeekAccuracy.Nearest` asks for the nearest
+  sync sample, which suits a moving finger.
+- `beginScrub` and `endScrub` wrap a drag. Between them the engine relaxes seek accuracy, and `endScrub` settles on the
+  exact frame.
+- `setLoopRange` wraps playback at the end of the range and reports `RangeLooped`. A range the composition ends inside wraps
+  there and reports no `Ended`. A range that starts at or past the end has nothing to loop, so playback runs to the end. A
+  wrap only happens during playback, so a paused seek past the range stays where it lands.
+- `setPlaybackRange` confines playback without changing the composition, which is how a trim drag previews without a
+  rebuild.
+- `setVolume` sets monitor volume, which only the player hears. To change the export's level, see [Audio](/guides/audio/).
+
+## Features
+
+`features` says what this backend can do on this device. Ask it before you draw a control, since a control for a missing
+feature looks frozen.
+
+| Feature               | Android           | Apple | Browser        | JVM |
+| --------------------- | ----------------- | ----- | -------------- | --- |
+| `FrameReadback`       | Yes               | Yes   | Needs WebGL2   | Yes |
+| `FrameStepping`       | Yes               | Yes   | Needs WebGL2   | Yes |
+| `LiveParameterRedraw` | Yes               | Yes   | Needs WebGL2   | No  |
+| `AudioMonitoring`     | When media3 can   | No    | Needs Web Audio | No  |
+| `HdrPreview`          | When the display can | No | No             | No  |
+| `PlaybackSpeed`       | No                | No    | No             | No  |
+
+`readback` hands you a rendered preview frame, after effects and before encoding.
+
+## Changing the composition
+
+`setComposition` loads a new value. It's cheap to call often. An equal composition does nothing, a change to effect
+parameters updates the live pipeline and redraws, and only a structural change rebuilds, like adding a clip or a trim that
+changes the duration. Debounce structural edits, so a drag-reorder issues one rebuild and not thirty.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="swap" />
+
+A load with no `startAt` holds the playhead. The transport stays where it was, so a playing preview keeps playing and a
+paused one stays paused.
+
+`previewInfo` says what's being delivered, including its `outputSize`, its `parity` with the export and its `inertNotices`,
+which match what the export's plan carries.
+
+<Aside type="note" title="Limits">
+- media3's player takes no seek tolerance, so a `Nearest` seek costs what an exact one does on Android.
+- The ffmpeg preview waits for a scrub to settle instead of landing on a nearby frame.
+- On ffmpeg a changed effect parameter is a new filter graph and a new process, which is why it reports no
+  `LiveParameterRedraw`.
+- A preview never opens an encoder, so it can't show encoder artifacts. A late frame is dropped, so smoothness is
+  approximate.
+</Aside>

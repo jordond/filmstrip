@@ -389,7 +389,13 @@ class BrowserOverlayHdrTest {
     const val FONT_SIZE = 0.1f
     const val HALF = 0.5f
 
-    val SPEC = ExportSpec(audioCodec = AudioCodec.None, frameRate = FRAME_RATE, hdr = HdrMode.KeepHdr)
+    val SPEC =
+      ExportSpec(
+        bitrate = MEASURING_BITRATE,
+        audioCodec = AudioCodec.None,
+        frameRate = FRAME_RATE,
+        hdr = HdrMode.KeepHdr,
+      )
 
     // How far a preview reading may sit from what the rule shows, in eight-bit codes per channel. The preview runs no
     // codec and composites in RGBA16F buffers, so its reading is the rule's own. Measured at 0 on SwiftShader, the

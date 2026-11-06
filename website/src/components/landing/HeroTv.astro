@@ -1,0 +1,445 @@
+---
+// A CRT playing an 18 second loop of a beach clip being imported, trimmed, graded, titled, exported and played.
+// The frame at each tick comes from heroFrame. The loop stops for reduced motion and while the TV is off screen.
+import { heroFrame, type Span } from '../../lib/heroTimeline'
+import TvChin from './TvChin.astro'
+
+const frame = heroFrame(0)
+const span = (it: Span | null) => (it ? `--left: ${it.left}%; --width: ${it.width}%` : '--left: 0%; --width: 0%')
+---
+
+<div class="tv">
+  <div
+    class="screen scan flicker"
+    role="img"
+    aria-label="A CRT screen editing a beach clip: it is trimmed, colour graded, given a title overlay, then exported and played back."
+    data-hero-tv
+  >
+    <div class="roll"></div>
+    <div class="vignette"></div>
+    <div class="glass"></div>
+    <div class="osd picture">
+      <div class="status">
+        <span class="rgb-sm mode" data-hero="mode">{frame.mode}</span>
+        <span class="rgb-sm step" data-hero="step">{frame.step}</span>
+        <span class="rgb-sm timecode" data-hero="timecode">{frame.timecode}</span>
+      </div>
+      <div class:list={['scene', { graded: frame.graded }]} data-hero="scene">
+        <div class="sky"></div>
+        <div class="sun"></div>
+        <div class="sea"></div>
+        <svg class="palm-tree" viewBox="0 0 100 120">
+          <path
+            class="palm"
+            d="M52 120 C50 95 49 75 54 52 L57 52 C53 75 55 95 58 120 Z M55 52 C40 40 22 42 8 52 C24 40 40 38 55 50 Z M55 52 C66 36 84 34 96 42 C82 36 66 40 56 50 Z M55 50 C50 34 38 24 24 22 C40 28 50 38 56 49 Z M56 50 C64 32 76 24 90 24 C76 30 66 38 57 50 Z M55 52 C58 62 70 70 82 72 C70 66 62 60 57 51 Z"
+          ></path>
+        </svg>
+        <span class="raw">RAW</span>
+        <span class:list={['disp rgb-sm title', { shown: frame.showTitle }]} data-hero="title">SUMMER '96</span>
+      </div>
+      <div class="timeline">
+        <div class="ruler"></div>
+        <div class="lane cut">
+          <div class="block clip" data-hero="clip" style={span(frame.clip)}>
+            <span>beach.mp4</span>
+          </div>
+        </div>
+        <div class="lane">
+          <div class="block grade" data-hero="grade" style={span(frame.grade)}><span>GRADE</span></div>
+        </div>
+        <div class="lane">
+          <div class="block text" data-hero="text" style={span(frame.text)}><span>TEXT</span></div>
+        </div>
+        <div class="lane render">
+          <div class="block export" data-hero="export" style={span(frame.export)}></div>
+        </div>
+        <div class="playhead" data-hero="playhead" style={`--at: ${frame.playhead}%`}></div>
+      </div>
+    </div>
+  </div>
+  <TvChin led="rec" />
+</div>
+
+<script>
+  import { HERO_STILL_TICK, HERO_TICK_MS, HERO_TICKS, heroFrame, type Span } from '../../lib/heroTimeline'
+
+  const tv = document.querySelector<HTMLElement>('[data-hero-tv]')
+  if (tv) {
+    const part = (name: string) => tv.querySelector<HTMLElement>(`[data-hero="${name}"]`)!
+    const mode = part('mode')
+    const step = part('step')
+    const timecode = part('timecode')
+    const scene = part('scene')
+    const title = part('title')
+    const blocks = { clip: part('clip'), grade: part('grade'), text: part('text'), export: part('export') }
+    const playhead = part('playhead')
+
+    const place = (element: HTMLElement, span: Span | null) => {
+      element.style.setProperty('--left', `${span?.left ?? 0}%`)
+      element.style.setProperty('--width', `${span?.width ?? 0}%`)
+    }
+
+    const draw = (t: number) => {
+      const frame = heroFrame(t)
+      mode.textContent = frame.mode
+      step.textContent = frame.step
+      timecode.textContent = frame.timecode
+      scene.classList.toggle('graded', frame.graded)
+      title.classList.toggle('shown', frame.showTitle)
+      place(blocks.clip, frame.clip)
+      place(blocks.grade, frame.grade)
+      place(blocks.text, frame.text)
+      place(blocks.export, frame.export)
+      playhead.style.setProperty('--at', `${frame.playhead}%`)
+    }
+
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)')
+    let t = 0
+    let timer: ReturnType<typeof setInterval> | undefined
+    let onScreen = true
+
+    const stop = () => {
+      clearInterval(timer)
+      timer = undefined
+    }
+
+    const update = () => {
+      if (reduced.matches) {
+        stop()
+        draw(HERO_STILL_TICK)
+        return
+      }
+      if (!onScreen || document.hidden) {
+        stop()
+        return
+      }
+      if (timer !== undefined) return
+      draw(t)
+      timer = setInterval(() => {
+        t = (t + 1) % HERO_TICKS
+        draw(t)
+      }, HERO_TICK_MS)
+    }
+
+    new IntersectionObserver(([entry]) => {
+      onScreen = entry.isIntersecting
+      update()
+    }).observe(tv)
+    reduced.addEventListener('change', update)
+    document.addEventListener('visibilitychange', update)
+    update()
+  }
+</script>
+
+<style>
+  .tv {
+    background: var(--bezel);
+    border-radius: clamp(20px, 3vw, 36px);
+    padding: clamp(14px, 2.4vw, 30px) clamp(14px, 2.4vw, 30px) clamp(12px, 1.6vw, 18px);
+    box-shadow:
+      0 40px 80px rgba(0, 0, 0, 0.6),
+      inset 0 2px 0 rgba(255, 255, 255, 0.08),
+      inset 0 -6px 0 rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--line);
+  }
+
+  .screen {
+    aspect-ratio: 4 / 3;
+    background: var(--screen);
+    border-radius: clamp(18px, 3vw, 40px) / clamp(22px, 4vw, 50px);
+    overflow: hidden;
+    border: 8px solid var(--ground-deep);
+  }
+
+  .picture {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    padding: 6% 6.5% 5.5%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: clamp(16px, 1.6vw, 22px);
+    line-height: 1.1;
+  }
+
+  .status {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--amber);
+  }
+
+  .mode,
+  .timecode {
+    min-width: 5.5em;
+  }
+
+  .timecode {
+    text-align: right;
+  }
+
+  .step {
+    flex: 1;
+    color: var(--text);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .scene {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    border: 2px solid var(--line);
+    transition: filter 0.8s;
+    filter: saturate(0.25) contrast(0.85) brightness(1.08);
+  }
+
+  .scene.graded {
+    filter: saturate(1.35) contrast(1.12) hue-rotate(-12deg);
+  }
+
+  .sky {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, var(--scene-sky-top) 0%, var(--scene-sky-middle) 38%, var(--scene-sky-low) 58%, var(--scene-sky-horizon) 62%);
+  }
+
+  .sun {
+    position: absolute;
+    left: 50%;
+    bottom: 36%;
+    width: 34%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        var(--scene-sun-stripe) 0,
+        var(--scene-sun-stripe) 9px,
+        rgba(255, 226, 122, 0) 9px,
+        rgba(255, 226, 122, 0) 12px
+      ),
+      var(--scene-sun);
+    transform: translateX(-50%);
+    animation: sunbob 6s ease-in-out infinite;
+  }
+
+  @keyframes sunbob {
+    0%,
+    100% {
+      transform: translate(-50%, 0);
+    }
+    50% {
+      transform: translate(-50%, 6%);
+    }
+  }
+
+  .sea {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 40%;
+    background-color: var(--scene-sea);
+    background-image:
+      repeating-linear-gradient(
+        to bottom,
+        rgba(255, 170, 90, 0.55) 0,
+        rgba(255, 170, 90, 0.55) 2px,
+        rgba(255, 170, 90, 0) 2px,
+        rgba(255, 170, 90, 0) 9px
+      ),
+      repeating-linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0,
+        rgba(255, 255, 255, 0.12) 22px,
+        rgba(255, 255, 255, 0) 44px
+      );
+    animation: sea 2.4s linear infinite;
+  }
+
+  @keyframes sea {
+    0% {
+      background-position:
+        0 0,
+        0 0;
+    }
+    100% {
+      background-position:
+        0 9px,
+        44px 0;
+    }
+  }
+
+  .palm-tree {
+    position: absolute;
+    right: 6%;
+    bottom: 18%;
+    width: 22%;
+    height: auto;
+  }
+
+  .palm {
+    fill: var(--scene-palm);
+    transform-origin: 55px 120px;
+    animation: sway 5s ease-in-out infinite;
+  }
+
+  @keyframes sway {
+    0%,
+    100% {
+      transform: rotate(0);
+    }
+    50% {
+      transform: rotate(2deg);
+    }
+  }
+
+  .raw {
+    position: absolute;
+    top: 8px;
+    left: 10px;
+    padding: 0 6px;
+    background: rgba(0, 0, 0, 0.55);
+    color: var(--text);
+    font-size: 0.85em;
+  }
+
+  .graded .raw {
+    display: none;
+  }
+
+  .title {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 18%;
+    text-align: center;
+    color: var(--title-cream);
+    font-size: clamp(16px, 2.4vw, 32px);
+    letter-spacing: 0.04em;
+    visibility: hidden;
+  }
+
+  .title.shown {
+    visibility: visible;
+  }
+
+  .timeline {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding-top: 14px;
+  }
+
+  .ruler {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 8px;
+    background: repeating-linear-gradient(90deg, var(--track-tick) 0, var(--track-tick) 1px, rgba(0, 0, 0, 0) 1px, rgba(0, 0, 0, 0) 10%);
+  }
+
+  .lane {
+    position: relative;
+    height: 14px;
+  }
+
+  .lane.cut {
+    height: 22px;
+    background: repeating-linear-gradient(135deg, var(--track-ground) 0, var(--track-ground) 4px, var(--track-hatch) 4px, var(--track-hatch) 8px);
+  }
+
+  .lane.render {
+    height: 6px;
+    background: var(--track-ground);
+  }
+
+  .block {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--left);
+    width: var(--width);
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+  }
+
+  .block span {
+    padding: 0 5px;
+    font-size: 0.7em;
+    color: var(--ground);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .clip {
+    background: var(--amber);
+    overflow: visible;
+  }
+
+  .clip span {
+    padding: 0 6px;
+    font-size: 0.8em;
+  }
+
+  .clip::before,
+  .clip::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 4px;
+    background: var(--text);
+  }
+
+  .clip::before {
+    left: 0;
+  }
+
+  .clip::after {
+    right: 0;
+  }
+
+  .grade {
+    background: var(--cyan);
+  }
+
+  .text {
+    background: var(--pink);
+  }
+
+  .export {
+    background: var(--red);
+  }
+
+  .playhead {
+    position: absolute;
+    top: 4px;
+    bottom: -4px;
+    left: var(--at);
+    width: 2px;
+    margin-left: -1px;
+    background: var(--text);
+    box-shadow: 0 0 6px var(--text);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sun,
+    .sea,
+    .palm {
+      animation: none;
+    }
+
+    .scene {
+      transition: none;
+    }
+  }
+</style>

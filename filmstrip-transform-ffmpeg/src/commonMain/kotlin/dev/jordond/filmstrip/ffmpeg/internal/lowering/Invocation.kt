@@ -266,16 +266,6 @@ private fun Invocation.videoArguments(): List<String> =
       add(HDR_MATRIX)
       add("-color_trc")
       add(transfer)
-      // The -color_* flags above tag the container. libx265 does not pick them up on its own, so
-      // HDR10 signalling has to be repeated in its own params or a player reading the elementary
-      // stream sees SDR.
-      if (name == "libx265") {
-        add("-x265-params")
-        add(
-          "colorprim=$HDR_PRIMARIES:transfer=$transfer:colormatrix=$HDR_MATRIX:" +
-            "hdr10=1:repeat-headers=1",
-        )
-      }
     } else if (toneMapped) {
       // The tone-map nodes deliver BT.709 and say so on the frames they hand on, but only ffmpeg 7
       // and newer carries that onto the written stream. Tagging it here leaves the same file on
@@ -287,16 +277,35 @@ private fun Invocation.videoArguments(): List<String> =
       add("-color_trc")
       add("bt709")
     }
-    output.bitrate?.let {
-      add("-b:v")
-      add(it.bitsPerSecond.toString())
-      add("-maxrate")
-      add((it.bitsPerSecond * MAXRATE_NUMERATOR / MAXRATE_DENOMINATOR).toString())
-      add("-bufsize")
-      add((it.bitsPerSecond * BUFSIZE_FACTOR).toString())
-    } ?: addAll(encoder?.constantQualityArguments.orEmpty())
+    if (name == "libx265") {
+      x265Params().takeIf { it.isNotEmpty() }?.let {
+        add("-x265-params")
+        add(it.joinToString(":"))
+      }
+    }
+    val bitrate = checkNotNull(output.bitrate) { "The planner settles a bitrate on every transcode." }.bitsPerSecond
+    add("-b:v")
+    add(bitrate.toString())
+    add("-maxrate")
+    add((bitrate * MAXRATE_NUMERATOR / MAXRATE_DENOMINATOR).toString())
+    add("-bufsize")
+    add((bitrate * BUFSIZE_FACTOR).toString())
     // No -r and no rotation metadata: the graph's own fps filter already pins the rate, and
     // filmstrip bakes rotation into the pixels rather than asking a player to apply it.
+  }
+
+private fun Invocation.x265Params(): List<String> =
+  buildList {
+    // The -color_* flags tag the container. libx265 does not pick them up on its own, so HDR10 signalling has to be
+    // repeated in its own params or a player reading the elementary stream sees SDR.
+    hdrTransfer?.let {
+      add("colorprim=$HDR_PRIMARIES")
+      add("transfer=${it.ffmpegTag}")
+      add("colormatrix=$HDR_MATRIX")
+      add("hdr10=1")
+      add("repeat-headers=1")
+    }
+    if (output.size.width in X265_CUTREE_CRASH_WIDTHS) add("cutree=0")
   }
 
 private fun Invocation.audioArguments(): List<String> =
@@ -326,6 +335,10 @@ internal fun formatSeconds(value: Double): String {
   val fraction = micros % MICROS_PER_SECOND.toLong()
   return "$whole." + fraction.toString().padStart(MICRO_DIGITS, '0')
 }
+
+// A limit of libx265 itself. Version 4.1 corrupts its heap and aborts on a frame this wide, at any height, rate or bit
+// depth, unless cutree is off. 4.3 encodes these widths either way.
+private val X265_CUTREE_CRASH_WIDTHS = 34..48
 
 private const val MICROS_PER_SECOND = 1_000_000.0
 private const val MICRO_DIGITS = 6

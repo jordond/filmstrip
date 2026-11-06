@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.avfoundation.internal.chain
 
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.export.ExportPath
@@ -146,6 +147,25 @@ internal fun ResolvedClip.spanning(
  */
 internal val ResolvedComposition.laysVideoOnGrid: Boolean
   get() = path != ExportPath.Copy
+
+/**
+ * Whether the video track laid for this plan holds the frames [other] would have laid, so a swap between the two shows
+ * what a fresh graph would.
+ *
+ * Two plans on the same side of [laysVideoOnGrid] always do. Across it, the one clip a copy holds opens at zero and
+ * reads the source on the same clock either way, so only the end can differ. A lay that stops short of the end of its
+ * last slot holds that slot's frame, the frame a grid lay holds over the rest of the slot. One that runs past it, or
+ * that covers no slot at all, can show a frame the grid leaves out.
+ */
+internal fun ResolvedComposition.laysSameFramesAs(other: ResolvedComposition): Boolean {
+  if (laysVideoOnGrid == other.laysVideoOnGrid) return true
+  val copied = if (laysVideoOnGrid) other else this
+  val frameRate = copied.output.frameRate
+  return copied.videoTrack?.clips.orEmpty().all { clip ->
+    val slots = outputSlotsOf(clip.span, frameRate)
+    !slots.isEmpty() && clip.span.start + clip.duration <= outputSlotTime(slots.last + 1, frameRate)
+  }
+}
 
 /**
  * The track whose frames reach the video composition, or null when the output carries no video.

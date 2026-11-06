@@ -1,5 +1,8 @@
 package dev.jordond.filmstrip.ffmpeg.support
 
+import dev.jordond.filmstrip.codec.Bitrate
+import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.geometry.Size
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -32,10 +35,17 @@ internal object ExportConstants {
   const val HALF = 0.5f
   const val BRIGHTER = 1.5f
 
-  // ffmpeg's own measured noise on a ten-bit read of an HDR export, per channel. The graph lands every
-  // fill, kept grade, opaque overlay and blended overlay on its exact code, and libx265 and
-  // hevc_videotoolbox then move a flat block by up to this much. A kept grade is read plane by plane
-  // in Y'CbCr codes and drifts by at most 1. Apple and media3 hold their HDR fills to the same 2.
+  // The rate an export read back against a tight color bound asks for, well above the default tier, where a hardware
+  // encoder holds a flat block near its code.
+  val COLOR_READ_BITRATE = Bitrate.mbps(20)
+
+  // A kept HDR grade at that rate.
+  val COLOR_READ_HDR_SPEC = ExportSpec(hdr = HdrMode.KeepHdr, bitrate = COLOR_READ_BITRATE)
+
+  // ffmpeg's own measured noise on a ten-bit read of an HDR export, per channel, at COLOR_READ_BITRATE. The graph lands
+  // every fill, kept grade, opaque overlay and blended overlay on its exact code, and libx265 and hevc_videotoolbox
+  // then move a flat block by up to this much at that rate. A kept grade is read plane by plane in Y'CbCr codes and
+  // drifts by at most 1. Apple and media3 hold their HDR fills to the same 2.
   const val CODE_TOLERANCE = 2
 
   // The rate the readback decodes to, which is also the rate every fixture carries.

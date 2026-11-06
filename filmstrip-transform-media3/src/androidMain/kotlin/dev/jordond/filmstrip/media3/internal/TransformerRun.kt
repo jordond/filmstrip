@@ -66,8 +66,8 @@ internal class TransformerRun(
 
   private val encoders =
     EncoderColor(
-      encoderFactory(context),
-      { encoder -> pinnedEncoderFactory(context, encoder) },
+      encoderFactory(context, resolved.output.bitrate),
+      { encoder -> pinnedEncoderFactory(context, encoder, resolved.output.bitrate) },
       MeasuredEncoderColor.Device,
     )
 

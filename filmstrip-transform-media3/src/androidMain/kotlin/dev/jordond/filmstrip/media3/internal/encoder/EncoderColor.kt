@@ -12,7 +12,9 @@ import androidx.media3.transformer.Codec
 import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EncoderSelector
 import androidx.media3.transformer.ExportException
+import androidx.media3.transformer.VideoEncoderSettings
 import com.google.common.collect.ImmutableList
+import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportPath
@@ -113,11 +115,17 @@ internal class EncoderColor(
 }
 
 /**
- * The [DefaultEncoderFactory] an export on [context] picks its encoders with.
+ * The [DefaultEncoderFactory] an export on [context] picks its encoders with, asking the video encoder for [bitrate].
  *
+ * [bitrate] is the plan's own. The planner holds it at or under the encoder's ceiling, and media3 still clamps it to
+ * the encoder's range, which can raise a rate below the encoder's floor. A copy carries none and leaves media3's
+ * settings alone.
  * [pinnedEncoderFactory] builds from the same settings, so an encoder made again by name is set up as the first was.
  */
-internal fun encoderFactory(context: Context): Codec.EncoderFactory = encoderFactoryBuilder(context).build()
+internal fun encoderFactory(
+  context: Context,
+  bitrate: Bitrate?,
+): Codec.EncoderFactory = encoderFactoryBuilder(context, bitrate).build()
 
 /**
  * A [DefaultEncoderFactory] for [context] whose video encoder selector offers only the encoder named [encoder], built
@@ -128,14 +136,36 @@ internal fun encoderFactory(context: Context): Codec.EncoderFactory = encoderFac
 internal fun pinnedEncoderFactory(
   context: Context,
   encoder: String,
+  bitrate: Bitrate?,
 ): Codec.EncoderFactory =
-  encoderFactoryBuilder(context)
+  encoderFactoryBuilder(context, bitrate)
     .setVideoEncoderSelector { mimeType ->
       ImmutableList.copyOf(EncoderSelector.DEFAULT.selectEncoderInfos(mimeType).filter { it.name == encoder })
     }.build()
 
-private fun encoderFactoryBuilder(context: Context): DefaultEncoderFactory.Builder =
-  DefaultEncoderFactory.Builder(context)
+/**
+ * The video encoder settings that ask for [bitrate], or media3's defaults when there is none.
+ *
+ * media3's [VideoEncoderSettings.Builder.setBitrate] takes the rate as an Int, so a rate past [Int.MAX_VALUE] is held
+ * there. That is media3's limit, not the plan's.
+ */
+internal fun videoEncoderSettings(bitrate: Bitrate?): VideoEncoderSettings =
+  if (bitrate == null) {
+    VideoEncoderSettings.DEFAULT
+  } else {
+    VideoEncoderSettings
+      .Builder()
+      .setBitrate(bitrate.bitsPerSecond.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+      .build()
+  }
+
+private fun encoderFactoryBuilder(
+  context: Context,
+  bitrate: Bitrate?,
+): DefaultEncoderFactory.Builder =
+  DefaultEncoderFactory
+    .Builder(context)
+    .setRequestedVideoEncoderSettings(videoEncoderSettings(bitrate))
 
 /**
  * An encoder [EncoderColor] tagged with the color it writes in place of the one media3 asked for.

@@ -16,7 +16,7 @@ import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportEstimate
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportPlan
-import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.export.PlannedEffect
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Size
@@ -133,7 +133,8 @@ public class ExportPlanner(
     val edit = inert.edit
     val framing = framingOf(edit, ask).orElse { return refused(it) }
     val grade = gradeOf(edit, ask, framing, copySupport, canToneMap).orElse { return refused(it) }
-    val encoding = encodingOf(ask, framing, grade, ladder, hdrLadder, renderCapabilities).orElse { return refused(it) }
+    val encoding =
+      encodingOf(ask, framing, grade, streams, ladder, hdrLadder, renderCapabilities).orElse { return refused(it) }
     val timeline =
       timelineOf(
         edit,
@@ -178,7 +179,7 @@ public class ExportPlanner(
         path = grade.path,
         output = output,
         effectOrder = planned,
-        estimate = estimate(ask.spec, timeline.duration, grade.path),
+        estimate = estimate(output, timeline.duration, grade.path),
         parity = planned.maxByOrNull { it.parity.ordinal }?.parity ?: EffectParity.Exact,
         duration = timeline.duration,
         copyBlockedBy = grade.copyBlockedBy,
@@ -227,11 +228,11 @@ public class ExportPlanner(
       }
 
   private fun estimate(
-    spec: ExportSpec,
+    output: OutputFormat,
     duration: Duration,
     path: ExportPath,
   ): ExportEstimate {
-    val bits = spec.bitrate?.bitsPerSecond?.let { (it * duration.toDouble(DurationUnit.SECONDS)).toLong() }
+    val bits = output.bitrate?.bitsPerSecond?.let { (it * duration.toDouble(DurationUnit.SECONDS)).toLong() }
     return ExportEstimate(
       outputSizeBytesMin = bits?.let { it / BITS_PER_BYTE },
       outputSizeBytesMax = bits?.let { it * HEADROOM_NUMERATOR / HEADROOM_DENOMINATOR / BITS_PER_BYTE },

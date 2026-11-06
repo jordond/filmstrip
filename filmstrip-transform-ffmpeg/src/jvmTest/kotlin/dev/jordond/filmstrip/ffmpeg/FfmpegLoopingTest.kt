@@ -4,7 +4,6 @@ import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
-import dev.jordond.filmstrip.effects.overlay.fadeIn
 import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus

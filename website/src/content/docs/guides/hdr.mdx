@@ -1,0 +1,55 @@
+---
+title: HDR
+description: Keep an HDR grade through an export or tone map it down to SDR.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+import Snippet from '../../../components/Snippet.astro'
+
+`ExportSpec.hdr` says what to do with a high dynamic range source. Probing tells you if a source is HDR at all, through
+`hdrTransfer` on its [video track](/guides/probe-and-frames/#probe).
+
+## Modes
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Hdr.kt" region="modes" />
+
+| Mode           | What happens                                                         |
+| -------------- | -------------------------------------------------------------------- |
+| `Auto`         | Keeps HDR if the device can encode it, otherwise tone maps and says so |
+| `KeepHdr`      | Keeps HDR, and refuses the export if the device can't                |
+| `ToneMapToSdr` | Always tone maps down to SDR                                         |
+
+An SDR source resolves to keep whatever you asked for, since there's no grade to map. The `Upload` and `Share`
+[presets](/guides/export/#presets) tone map, and `Archive` keeps.
+
+## Keeping a grade
+
+A kept grade needs a 10-bit profile, so a re-encode is pinned to one whatever codec the spec asks for. Android, Apple and
+ffmpeg write HEVC, and the browser writes VP9 Profile 2. Asking for another codec as well reports a `CodecFallback`.
+
+A stream copy keeps its grade without an encoder, so an untouched clip keeps HDR even on a device that can't encode it.
+
+Sources that don't share one transfer, an HDR clip beside an SDR one included, have no single grade to keep. `Auto` tone
+maps them together, and `KeepHdr` refuses.
+
+## Tone mapping
+
+Tone mapping is available on every backend. When `Auto` tone maps, the plan comes back `Degraded`, carrying an adjustment
+of kind `HdrToneMapped` that you can show before the user commits.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Hdr.kt" region="adjustment" />
+
+The browser and ffmpeg run one shared tone curve. Android runs media3's curve, which the shared one is copied from. Apple
+goes through Core Image, which picks its own.
+
+<Aside type="note" title="Limits">
+- Core Image's tone curve can't be set, so a tone mapped Apple export reports an `EffectApproximated` adjustment, and a
+  `strict` spec refuses it.
+- The browser reads ten-bit frames through its software decoder, and HEVC has none there. An HEVC Main 10 source, which is
+  what an iPhone writes, keeps its grade only through a stream copy of an untouched clip. Anything that has to be
+  re-encoded, a tone map included, is refused by name.
+- On ffmpeg the curve is built on the `geq` filter, which evaluates per pixel on the CPU. A desktop preview of a tone
+  mapped edit runs the same filter.
+- A preview doesn't show a kept grade the way the file will. `HdrPreview` is only reported on Android, when the display can
+  show HDR. A browser preview composites in standard range, and an ffmpeg preview converts the grade straight to RGB.
+</Aside>

@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.media3ExportEngine
 import dev.jordond.filmstrip.motion.Easing
+import dev.jordond.filmstrip.test.PREVIEW_PARITY_EXPORT_BITRATE
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.test.eightBitFrameAt
 import dev.jordond.filmstrip.test.writeAtomically
@@ -89,7 +90,7 @@ internal suspend fun androidExportFrame(
 private suspend fun export(composition: EditComposition): File {
   val engine = media3ExportEngine(CONTRACT_COMPONENTS)
   val plan =
-    when (val verdict = engine.plan(composition, ExportSpec())) {
+    when (val verdict = engine.plan(composition, ExportSpec(bitrate = PREVIEW_PARITY_EXPORT_BITRATE))) {
       is Verdict.Capable -> verdict.plan
       is Verdict.Degraded -> verdict.plan
       is Verdict.Incapable -> fail("the export refused the fixture: ${verdict.reasons.map { it.message }}")

@@ -47,6 +47,7 @@ internal fun framingOf(
   compositionGeometry = emptyList(),
   compositionInputSize = requestedSize,
   naturalSize = requestedSize,
+  heightPx = null,
   requestedSize = requestedSize,
 )
 
@@ -80,4 +81,6 @@ internal fun encodingOf(
   outputSize = outputSize,
   layoutFrame = outputSize,
   target = loweringTarget(outputSize, frameRate),
+  bitrate = null,
+  bitrateClamp = null,
 )

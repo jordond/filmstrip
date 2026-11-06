@@ -83,7 +83,7 @@ class AvDrawFailureTest {
     }
 
   private suspend fun fixtureChain(): AvComposition =
-    appleExportLowering(appleFixtureComposition()).toAvComposition().also { it.swapsParameters shouldBe true }
+    appleExportLowering(appleFixtureComposition()).toAvComposition().also { it.renderSize.shouldNotBeNull() }
 
   private companion object {
     const val SOURCE = "apple_export_a.mp4"

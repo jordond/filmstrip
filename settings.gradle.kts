@@ -77,4 +77,6 @@ include(
 
 include(
   ":internal:ios-harness",
+  ":internal:docs-samples",
+  ":internal:dokka-plugin",
 )

@@ -12,7 +12,7 @@ Run the rows the diff hits, compare, route a fix.
 | a new sealed or enum variant | handled at every exhaustive `when` | `grep -rn '<Variant>'` across modules |
 | a module dependency or import | the layer guards | `./gradlew checkForbiddenImports checkLayering` |
 | a public declaration | KDoc per `CLAUDE.md`, never one line, wrapped at 120 | read it |
-| a caller-visible behaviour | a `docs/capabilities.md` edit | read the matching section |
+| a caller-visible behaviour | an edit to the matching page under `website/src/content/docs/guides/` | read the matching section |
 | a Kotlin `Map` into AVFoundation or VideoToolbox | a real dictionary, and an iOS run, not only macOS | `AvSettingsKeyTest`, then iOS simulator or device |
 | the edit model | no `@Serializable` | `grep -rn '@Serializable' filmstrip-core filmstrip-effects` |
 | a file past 500 lines | a nits line in the branch's `upnext.md` section | `wc -l` |

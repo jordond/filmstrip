@@ -1,0 +1,112 @@
+---
+// The strip under a CRT screen: the brand plate, a status LED and two knobs. All decoration.
+interface Props {
+  /** `rec` blinks red. `demo` follows the Try it screen's state through `data-state` on the LED. */
+  led: 'rec' | 'demo'
+  /** `lg` is the bigger chin under the Try it TV. */
+  size?: 'sm' | 'lg'
+}
+
+const { led, size = 'sm' } = Astro.props
+---
+
+<div class:list={['chin', size]} aria-hidden="true">
+  <span class="disp brand">FILMSTRIP-VISION</span>
+  <div class="controls">
+    {led === 'rec' ? <span class="led rec blink" /> : <span class="led demo" data-demo-led data-state="idle" />}
+    <div class="knob"><div class="tick amber"></div></div>
+    <div class="knob turned"><div class="tick"></div></div>
+  </div>
+</div>
+
+<style>
+  .chin {
+    --knob-size: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-top: 14px;
+  }
+
+  .chin.lg {
+    --knob-size: 34px;
+    padding-top: 16px;
+  }
+
+  .brand {
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .lg .brand {
+    font-size: 13px;
+  }
+
+  .controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .lg .controls {
+    gap: 14px;
+  }
+
+  .led {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .led.rec {
+    background: var(--red);
+  }
+
+  .led.demo {
+    background: var(--line-strong);
+  }
+
+  .led.demo[data-state='loading'] {
+    background: var(--amber);
+    box-shadow: 0 0 8px var(--amber);
+  }
+
+  .led.demo[data-state='ready'] {
+    background: var(--cyan);
+    box-shadow: 0 0 8px var(--cyan);
+  }
+
+  .knob {
+    position: relative;
+    width: var(--knob-size);
+    height: var(--knob-size);
+    border-radius: 50%;
+    background: var(--knob);
+    box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.5);
+  }
+
+  .knob.turned {
+    transform: rotate(120deg);
+  }
+
+  .tick {
+    position: absolute;
+    left: calc(50% - 2px);
+    top: 4px;
+    width: 4px;
+    height: 10px;
+    border-radius: 2px;
+    background: var(--text);
+  }
+
+  .lg .tick {
+    height: 11px;
+  }
+
+  .tick.amber {
+    background: var(--amber);
+  }
+</style>

@@ -19,7 +19,7 @@ import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.effects.overlay.OverlayFrame
 import dev.jordond.filmstrip.effects.overlay.OverlayOffset
 import dev.jordond.filmstrip.effects.overlay.animatedBy
-import dev.jordond.filmstrip.effects.overlay.fadeIn
+import dev.jordond.filmstrip.effects.overlay.fade
 import dev.jordond.filmstrip.effects.overlay.frameAt
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rectOn
@@ -83,7 +83,7 @@ class BrowserOverlayExportTest {
   @Test
   fun aFadeInLandsAtTheSharedOpacityInsideItsRamp() =
     runTest {
-      val badge = ImageOverlay(IMAGE, Corner.TopEnd, animation = fadeIn(RAMP))
+      val badge = ImageOverlay(IMAGE, Corner.TopEnd, animation = fade(inDuration = RAMP))
       val frames = exported(single(effects = listOf(badge), frames = LONG_FRAMES))
       val size = frames.first().size
       val rect = badge.placedOn(size, PNG).rectOn(size)
@@ -224,7 +224,7 @@ class BrowserOverlayExportTest {
   @Test
   fun anOverlayOverAHeldTailHoldsWithTheLastCoveredSlot() =
     runTest {
-      val badge = ImageOverlay(IMAGE, Corner.TopEnd, animation = fadeIn(BED_LENGTH))
+      val badge = ImageOverlay(IMAGE, Corner.TopEnd, animation = fade(inDuration = BED_LENGTH))
       val primary =
         makeClip(width = WIDTH, height = HEIGHT, frames = FRAME_RATE, frameRate = FRAME_RATE, color = Rgb.Blue)
       val bed = makeClip(width = WIDTH, height = HEIGHT, frames = BED_FRAMES, frameRate = FRAME_RATE)
@@ -261,7 +261,7 @@ class BrowserOverlayExportTest {
   @Test
   fun aPreviewFrameMidFadeMatchesTheExportsPixel() =
     runTest {
-      val badge = ImageOverlay(IMAGE, Corner.TopEnd, animation = fadeIn(RAMP))
+      val badge = ImageOverlay(IMAGE, Corner.TopEnd, animation = fade(inDuration = RAMP))
       val composition = single(effects = listOf(badge), frames = LONG_FRAMES)
       val frames = exported(composition)
       val rect = badge.placedOn(frames.first().size, PNG).rectOn(frames.first().size)

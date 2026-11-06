@@ -1,0 +1,130 @@
+---
+import { versions } from '../../lib/versions'
+
+const rows = [
+  {
+    target: 'ANDROID',
+    artifact: 'filmstrip-transform-media3',
+    exporter: 'Media3 Transformer',
+    preview: 'media3-exoplayer',
+  },
+  {
+    target: 'IOS · MACOS',
+    artifact: 'filmstrip-transform-avfoundation',
+    exporter: 'AVFoundation, VideoToolbox',
+    preview: 'AVPlayer',
+  },
+  {
+    target: 'BROWSER',
+    artifact: 'filmstrip-transform-webcodecs',
+    exporter: 'WebCodecs',
+    preview: 'WebCodecs on a canvas',
+  },
+  {
+    target: 'JVM',
+    artifact: 'filmstrip-transform-ffmpeg',
+    exporter: `your ffmpeg ${versions.ffmpeg}+`,
+    preview: 'ffmpeg frame stream',
+  },
+]
+---
+
+<section class="section platforms" aria-labelledby="backends-title">
+  <h2 id="backends-title" class="disp section-title">Platforms</h2>
+  <p class="lede intro">
+    Every platform gets a backend built on its own video APIs. The same composition previews and exports on each of
+    them.
+  </p>
+  <div class="menu scan">
+    <div class="osd menu-bar">
+      <span>SETUP <span aria-hidden="true">▸</span> BACKENDS</span>
+      <span aria-hidden="true">MENU ▸ EXIT</span>
+    </div>
+    <div class="scroller">
+      <table class="osd">
+        <thead>
+          <tr>
+            <th scope="col">TARGET</th>
+            <th scope="col">ARTIFACT</th>
+            <th scope="col">EXPORT</th>
+            <th scope="col">PREVIEW</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            rows.map((row) => (
+              <tr>
+                <th scope="row">{row.target}</th>
+                <td>{row.artifact}</td>
+                <td>{row.exporter}</td>
+                <td>{row.preview}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<style>
+  .platforms {
+    padding-bottom: 120px;
+  }
+
+  .platforms .section-title {
+    margin-bottom: 12px;
+  }
+
+  .intro {
+    margin-bottom: 40px;
+    max-width: 680px;
+  }
+
+  .menu {
+    background: var(--vcr-blue);
+    border: 4px solid var(--vcr-border);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    color: var(--white);
+  }
+
+  .menu-bar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 18px 22px 6px;
+    font-size: 28px;
+  }
+
+  .scroller {
+    overflow-x: auto;
+    padding: 0 4px 12px;
+  }
+
+  table {
+    width: 100%;
+    min-width: 640px;
+    border-collapse: collapse;
+    font-size: 24px;
+    line-height: 1.2;
+  }
+
+  th,
+  td {
+    padding: 14px 18px;
+    text-align: left;
+    vertical-align: top;
+    font-weight: 400;
+    white-space: nowrap;
+  }
+
+  thead tr {
+    color: var(--vcr-header);
+  }
+
+  tbody tr {
+    border-top: 2px solid rgba(255, 255, 255, 0.18);
+  }
+</style>

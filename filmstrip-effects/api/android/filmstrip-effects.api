@@ -313,8 +313,7 @@ public abstract interface class dev/jordond/filmstrip/effects/overlay/OverlayAni
 
 public final class dev/jordond/filmstrip/effects/overlay/OverlayAnimationKt {
 	public static final fun fade-QTBD994 (JJ)Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
-	public static final fun fadeIn-LRDsOJo (J)Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
-	public static final fun fadeOut-LRDsOJo (J)Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
+	public static synthetic fun fade-QTBD994$default (JJILjava/lang/Object;)Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
 	public static final fun plus (Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;)Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
 	public static final fun slideIn-HG0u8IE (Ldev/jordond/filmstrip/effects/overlay/OverlayOffset;J)Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;
 	public static final fun slideOut-HG0u8IE (Ldev/jordond/filmstrip/effects/overlay/OverlayOffset;J)Ldev/jordond/filmstrip/effects/overlay/OverlayAnimation;

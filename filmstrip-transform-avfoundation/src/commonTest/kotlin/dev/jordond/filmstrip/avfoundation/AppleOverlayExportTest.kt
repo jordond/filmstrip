@@ -13,7 +13,7 @@ import dev.jordond.filmstrip.effects.overlay.OverlayAnimation
 import dev.jordond.filmstrip.effects.overlay.OverlayFrame
 import dev.jordond.filmstrip.effects.overlay.OverlayOffset
 import dev.jordond.filmstrip.effects.overlay.animatedBy
-import dev.jordond.filmstrip.effects.overlay.fadeIn
+import dev.jordond.filmstrip.effects.overlay.fade
 import dev.jordond.filmstrip.effects.overlay.frameAt
 import dev.jordond.filmstrip.effects.overlay.imageOverlay
 import dev.jordond.filmstrip.effects.overlay.placedOn
@@ -159,7 +159,7 @@ class AppleOverlayExportTest {
     runTest(timeout = TIMEOUT) {
       val landscape = fixture(LANDSCAPE)
 
-      val faded = watermark(fadeIn(RAMP))
+      val faded = watermark(fade(inDuration = RAMP))
       val bare = exportOf(landscape, null, "fade-bare")
       val opaque = exportOf(landscape, watermark(null), "fade-opaque")
       val ramped = exportOf(landscape, faded, "fade-ramp")

@@ -1,0 +1,99 @@
+---
+title: Effects
+description: Apply the built-in geometry and color effects to a clip, a track or the whole edit.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+import Snippet from '../../../components/Snippet.astro'
+
+Effects are declared inside an `effects { }` block. The calls live in `filmstrip-effects`, which comes with the
+`filmstrip` bundle.
+
+## Where an effect applies
+
+An `effects` block can sit on a clip, a track or the composition. A clip's effects run first, then its track's, then
+the composition's.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Effects.kt" region="scopes" />
+
+The order you write effects in doesn't matter. The plan sorts them into stages, so a watermark added before a crop is
+still drawn after it.
+
+| Stage       | What runs there                                                 |
+| ----------- | --------------------------------------------------------------- |
+| `Geometry`  | Rotate, flip, crop and scale. This stage decides the frame size |
+| `Color`     | Per-pixel color effects                                         |
+| `Spatial`   | Effects that sample neighbouring pixels                         |
+| `Composite` | Overlays                                                        |
+
+## Geometry
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Effects.kt" region="geometry" />
+
+- `rotate` turns the frame counter-clockwise and bakes the turn into the pixels. A source's own orientation is already
+  corrected, so this is a turn on top of that. A multiple of 90 turns the frame exactly. Any other angle grows the frame
+  to the bounding box of the turned picture, with black in the corners.
+- `flip` mirrors across `FlipAxis.Horizontal` or `FlipAxis.Vertical`.
+- `crop(aspect)` reframes to an aspect ratio, keeping the region around its anchor.
+- `scale` sets the output height. The width follows from the aspect, and the height is rounded up to the encoder's
+  alignment, which the plan reports.
+
+`crop` also takes a rectangle in fractions of the frame, measured after whatever geometry ran before it. A rectangle
+with no area or reaching outside the frame throws `IllegalArgumentException` when you build it.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Effects.kt" region="crop-rect" />
+
+### Fit
+
+`Fit` says how a frame lands in a shape it doesn't match. `Contain` letterboxes, writing real bars into the file. `Crop`
+fills and cuts the overflow. `Stretch` fills each axis on its own.
+
+`scale` defaults to `Contain` and `crop(aspect)` defaults to `Crop`. Each clip gets its own fit, from the last `scale`
+across its clip, track and composition effects. A `crop` with `Fit.Contain` or `Fit.Stretch` makes a canvas of that
+aspect instead of cutting, and every effect after it runs on that canvas, bars included.
+
+Whatever a clip leaves uncovered shows the composition's `fill`, which defaults to black. `Fill.Solid` takes a color and
+`Fill.Blur` draws a blurred copy of the clip behind it.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Effects.kt" region="fit" />
+
+A gap where no clip plays has no frame to blur, so a blurred fill shows black there.
+
+## Color
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Effects.kt" region="color" />
+
+| Call            | What it does                                                 |
+| --------------- | ------------------------------------------------------------ |
+| `brightness`    | Multiplies every channel. `1f` leaves the frame unchanged    |
+| `contrast`      | Scales channels about mid grey. `1f` is unchanged            |
+| `saturation`    | Scales color. `0f` is grey and `grayscale()` is that shortcut |
+| `hueRotate`     | Turns the hue by a number of degrees                         |
+| `sepia`         | Blends toward a sepia tone. `1f` is the full effect          |
+| `invert`        | Blends toward the negative. `1f` is the full effect          |
+| `rgbAdjustment` | Scales red, green and blue on their own                      |
+| `colorMatrix`   | A hand-written `ColorMatrix`                                 |
+
+A run of color effects multiplies out before anything clamps, so a factor above one followed by its reciprocal gives
+back the frame you started with. A clip's run includes its track's effects, and the composition's effects run separately.
+A value that isn't a finite number throws `IllegalArgumentException` when you build the effect.
+
+An effect that changes nothing, like a brightness of one, is left out of the plan and listed on its
+[inert notices](/guides/export/#inert-notices).
+
+## Pan and zoom
+
+`kenBurns` travels between two regions of the frame over the clip's length. It's marked `@ExperimentalFilmstripApi`.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Effects.kt" region="ken-burns" />
+
+A region whose shape differs from the frame's stretches to fill it. Its result depends on where a frame sits in the clip,
+so the effect is only valid on a clip. A plan refuses it on a track, on the composition and on a clip of a looping track.
+
+<Aside type="note" title="Limits">
+- The ffmpeg backend refuses `kenBurns`, since it has no per-frame crop yet.
+- The browser only turns a frame by whole quarter turns, and refuses any other `rotate` angle by name.
+- A blurred fill on the ffmpeg backend needs a build that carries the `gblur` filter, and is refused by name without it.
+- On a kept HDR grade, `brightness` and the color matrices read the frame the way an SDR display at reference white
+  would. Highlights keep going where an SDR export would clip. See [HDR](/guides/hdr/).
+</Aside>

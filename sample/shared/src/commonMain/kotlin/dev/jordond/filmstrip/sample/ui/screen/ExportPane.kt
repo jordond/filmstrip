@@ -265,7 +265,7 @@ private fun PlanSummary(
       output.audioFormat?.let { "${output.audioCodec.name} · ${it.sampleRate} Hz · ${it.channelCount} ch" }
         ?: output.audioCodec.name,
     )
-    output.bitrate?.let { StatRow("Bitrate", "${it.bitsPerSecond / 1_000_000} Mbps") }
+    output.bitrate?.let { StatRow("Bitrate", it.toString()) }
     StatRow("Frame rate", "${output.frameRate} fps")
     StatRow("Path", plan.path.name.lowercase())
     if (plan.copyBlockedBy.isNotEmpty()) {

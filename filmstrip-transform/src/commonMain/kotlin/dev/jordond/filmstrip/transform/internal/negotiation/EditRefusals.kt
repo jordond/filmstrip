@@ -57,6 +57,7 @@ internal fun structuralRefusal(
   if (edit.tracks.any { it.start < Duration.ZERO }) return invalid(TRACK_STARTS_EARLY)
   spec.frameRate?.let { if (it <= 0) return invalid(frameRateNotPositive(it)) }
   outputHeightRefusal(spec.heightPx)?.let { return it }
+  if (spec.bitrate != null && spec.quality != null) return invalid(BITRATE_AND_QUALITY)
   if (edit.tracks.none { it.contributes(streams.keepAudio, streams.keepVideo) }) return invalid(NOTHING_TO_ENCODE)
 
   edit.tracks.flatMap { it.clips }.forEach { clip ->
@@ -102,6 +103,9 @@ private fun Track.contributes(
 
 private fun frameRateNotPositive(rate: Int): String =
   "The export asks for $rate fps, and a frame rate has to be positive. Leave it unset to keep the source's rate."
+
+private const val BITRATE_AND_QUALITY =
+  "The export names both a bitrate and a quality, and only one of them can set the rate. Leave the other unset."
 
 private const val NO_TRACKS = "A composition needs at least one track."
 

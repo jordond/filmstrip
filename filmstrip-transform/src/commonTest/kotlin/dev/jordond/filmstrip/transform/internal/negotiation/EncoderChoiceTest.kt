@@ -3,7 +3,6 @@ package dev.jordond.filmstrip.transform.internal.negotiation
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.codec.AudioCodec
-import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.export.Adjustment
@@ -258,8 +257,7 @@ class EncoderChoiceTest {
     val clip = fixture.clip(codec = "hvc1", audioRate = 37_800)
     val edit = composition(clip)
     val infos = fixture.infos(edit)
-    val spec = ExportSpec(bitrate = Bitrate.mbps(8))
-    val ask = Ask(spec, fixture.device(), infos, emptyMap(), null)
+    val ask = Ask(ExportSpec(), fixture.device(), infos, emptyMap(), null)
 
     val format =
       outputFormatOf(
@@ -271,7 +269,7 @@ class EncoderChoiceTest {
         fixture.resolve(edit).tracks,
       )
 
-    format shouldBe OutputFormat(SIZE, VideoCodec.Hevc, AudioCodec.Aac, Bitrate.mbps(8), 30, AudioFormat(37_800, 2))
+    format shouldBe OutputFormat(SIZE, VideoCodec.Hevc, AudioCodec.Aac, null, 30, AudioFormat(37_800, 2))
   }
 
   @Test

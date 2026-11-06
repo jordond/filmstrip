@@ -1,0 +1,350 @@
+---
+// Steps on a dashed rail beside a viewfinder card. The card shows the composition, then an EXPORT / PREVIEW
+// tablist that swaps both the code under it and steps 02 and 03.
+import VhsSnippet from './VhsSnippet.astro'
+
+const file = 'commonMain/kotlin/dev/jordond/filmstrip/docs/landing/Landing.kt'
+
+const tabs = [
+  {
+    id: 'export',
+    label: 'EXPORT',
+    glyph: '● ',
+    mode: 'REC',
+    file: 'Export.kt',
+    steps: [
+      { title: 'ASK BEFORE YOU DECODE', body: 'Find out what this device can do before anything decodes.' },
+      { title: 'EXPORT AS A FLOW', body: 'Progress and results arrive as a flow. Cancel the scope to cancel.' },
+    ],
+  },
+  {
+    id: 'preview',
+    label: 'PREVIEW',
+    glyph: '▸ ',
+    mode: 'PLAY',
+    file: 'Preview.kt',
+    steps: [
+      {
+        title: 'REMEMBER A PLAYER',
+        body: 'Reloads whenever the composition changes, without rebuilding the pipeline.',
+      },
+      { title: 'DRAW IT', body: 'VideoSurface draws it on every target. Control playback on the player.' },
+    ],
+  },
+] as const
+---
+
+<section class="section" aria-labelledby="code-title">
+  <div class="layout" data-quick-start>
+    <div class="steps-column">
+      <div class="intro">
+        <h2 id="code-title" class="disp section-title">Quick start</h2>
+        <p class="lede">One composition. Export it or play it.</p>
+      </div>
+      <ol class="rail">
+        <li class="step">
+          <span class="osd rgb-sm number">01</span>
+          <div>
+            <h3 class="osd">DESCRIBE THE EDIT</h3>
+            <p>Trim a clip and stack effects on it. It's plain data, so the player and export take the same one.</p>
+          </div>
+        </li>
+        {
+          tabs.map((tab, index) => (
+            <li class="swap" data-tab-steps={tab.id} hidden={index !== 0}>
+              <ol class="rail-steps" start="2">
+                {tab.steps.map((step, offset) => (
+                  <li class:list={['step', tab.id]}>
+                    <span class="osd rgb-sm number">{`0${offset + 2}`}</span>
+                    <div>
+                      <h3 class="osd">{step.title}</h3>
+                      <p>{step.body}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+
+    <div class="card">
+      <div class="corner tl" aria-hidden="true"></div>
+      <div class="corner tr" aria-hidden="true"></div>
+      <div class="corner bl" aria-hidden="true"></div>
+      <div class="corner br" aria-hidden="true"></div>
+      <div class="osd viewfinder" aria-hidden="true">
+        <span><span class="blink rec">●</span> <span data-card-mode>{tabs[0].mode}</span></span>
+        <span class="file" data-card-file>{tabs[0].file}</span>
+      </div>
+      <VhsSnippet file={file} region="composition" />
+      <div role="tablist" aria-label="Example" class="osd tabs">
+        {
+          tabs.map((tab, index) => (
+            <button
+              type="button"
+              role="tab"
+              id={`tab-${tab.id}`}
+              class:list={['tab', tab.id]}
+              aria-controls="panel-code"
+              aria-selected={index === 0 ? 'true' : 'false'}
+              tabindex={index === 0 ? 0 : -1}
+              data-tab={tab.id}
+              data-mode={tab.mode}
+              data-file={tab.file}
+            >
+              <span aria-hidden="true">{tab.glyph}</span>
+              {tab.label}
+            </button>
+          ))
+        }
+      </div>
+      <div id="panel-code" role="tabpanel" aria-labelledby="tab-export">
+        {
+          tabs.map((tab, index) => (
+            <div data-tab-code={tab.id} hidden={index !== 0}>
+              <VhsSnippet file={file} region={tab.id} />
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  for (const root of document.querySelectorAll<HTMLElement>('[data-quick-start]')) {
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+    const panel = root.querySelector<HTMLElement>('[role="tabpanel"]')!
+    const mode = root.querySelector<HTMLElement>('[data-card-mode]')!
+    const file = root.querySelector<HTMLElement>('[data-card-file]')!
+
+    const glitch = (element: HTMLElement) => {
+      element.classList.remove('tabin')
+      void element.offsetWidth
+      element.classList.add('tabin')
+    }
+
+    const select = (chosen: HTMLButtonElement) => {
+      if (chosen.getAttribute('aria-selected') === 'true') return
+      const id = chosen.dataset.tab!
+      for (const tab of tabs) {
+        const on = tab === chosen
+        tab.setAttribute('aria-selected', String(on))
+        tab.tabIndex = on ? 0 : -1
+      }
+      panel.setAttribute('aria-labelledby', chosen.id)
+      mode.textContent = chosen.dataset.mode!
+      file.textContent = chosen.dataset.file!
+      for (const group of root.querySelectorAll<HTMLElement>('[data-tab-steps], [data-tab-code]')) {
+        const shown = (group.dataset.tabSteps ?? group.dataset.tabCode) === id
+        group.hidden = !shown
+        if (shown) glitch(group.dataset.tabCode ? (group.querySelector('code') ?? group) : group)
+      }
+    }
+
+    tabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => select(tab))
+      tab.addEventListener('keydown', (event) => {
+        const last = tabs.length - 1
+        const next =
+          event.key === 'ArrowRight'
+            ? (index + 1) % tabs.length
+            : event.key === 'ArrowLeft'
+              ? (index - 1 + tabs.length) % tabs.length
+              : event.key === 'Home'
+                ? 0
+                : event.key === 'End'
+                  ? last
+                  : -1
+        if (next < 0) return
+        event.preventDefault()
+        tabs[next].focus()
+        select(tabs[next])
+      })
+    })
+  }
+</script>
+
+<style>
+  .layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: clamp(40px, 6vw, 88px);
+    align-items: flex-start;
+  }
+
+  .steps-column {
+    flex: 1 1 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 36px;
+    max-width: 440px;
+  }
+
+  .intro {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .rail,
+  .rail-steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .rail {
+    border-left: 2px dashed var(--line-strong);
+    padding-left: 24px;
+  }
+
+  .step {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .number {
+    font-size: 40px;
+    line-height: 1;
+    color: var(--amber);
+  }
+
+  .step.preview .number {
+    color: var(--cyan);
+  }
+
+  .step h3 {
+    margin: 0 0 4px;
+    font-size: 30px;
+    line-height: 1;
+    font-weight: 400;
+  }
+
+  .step p {
+    margin: 0;
+    color: var(--muted-strong);
+  }
+
+  .card {
+    flex: 999 1 600px;
+    position: relative;
+    min-width: 0;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 64px 0 56px;
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.45);
+  }
+
+  .corner {
+    position: absolute;
+    width: 36px;
+    height: 36px;
+    border: 0 solid var(--text);
+  }
+
+  .corner.tl {
+    top: 14px;
+    left: 14px;
+    border-top-width: 3px;
+    border-left-width: 3px;
+  }
+
+  .corner.tr {
+    top: 14px;
+    right: 14px;
+    border-top-width: 3px;
+    border-right-width: 3px;
+  }
+
+  .corner.bl {
+    bottom: 14px;
+    left: 14px;
+    border-bottom-width: 3px;
+    border-left-width: 3px;
+  }
+
+  .corner.br {
+    bottom: 14px;
+    right: 14px;
+    border-bottom-width: 3px;
+    border-right-width: 3px;
+  }
+
+  .viewfinder {
+    position: absolute;
+    top: 18px;
+    left: 64px;
+    right: 64px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 24px;
+  }
+
+  .rec {
+    color: var(--red);
+  }
+
+  .file {
+    color: var(--muted);
+  }
+
+  .card :global(.snippet-vhs) {
+    margin: 0;
+    overflow-x: auto;
+    font-family: var(--font-body);
+    font-size: clamp(12px, 1.1vw, 14px);
+    line-height: 1.7;
+    padding: 0 clamp(20px, 3vw, 44px);
+  }
+
+  .card :global(.snippet-vhs code) {
+    display: block;
+    font-family: inherit;
+  }
+
+  .tabs {
+    display: flex;
+    align-items: stretch;
+    margin: 28px 0 24px;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: var(--ground);
+    font-size: 26px;
+  }
+
+  .tab {
+    cursor: pointer;
+    min-height: 48px;
+    padding: 0 clamp(20px, 3vw, 44px);
+    font: inherit;
+    letter-spacing: inherit;
+    border: none;
+    border-right: 1px solid var(--line);
+    background: var(--ground);
+    color: var(--muted);
+  }
+
+  .tab[aria-selected='true'] {
+    background: var(--panel);
+    color: var(--text);
+  }
+
+  .tab.export[aria-selected='true'] {
+    box-shadow: inset 0 -3px 0 var(--red);
+  }
+
+  .tab.preview[aria-selected='true'] {
+    box-shadow: inset 0 -3px 0 var(--cyan);
+  }
+
+  .card :global(.snippet-vhs:focus-visible) {
+    outline-offset: -3px;
+  }
+</style>
