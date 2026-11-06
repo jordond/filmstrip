@@ -36,8 +36,10 @@ internal class RebuildContract(
   private val rate: Int,
 ) {
   /**
-   * Plays from the start of the composition, rebuilds it, and checks each reading from the last one before the rebuild
-   * on is at or past where [heldPosition] places the reading ahead of it, with no more progress than wall time allows.
+   * Plays from the start of the composition, rebuilds it, and checks the playhead never steps back and makes no more
+   * progress than wall time allows. The first reading off the new graph is at or past where [heldPosition] places the
+   * last one off the old graph, and the new graph has to move the playhead on from there. Across the rebuild the two
+   * are compared in whole microseconds, since a slot time carries no more and a platform's reading of that slot can.
    */
   fun keepsPlaying(): TestResult =
     contractTest { scope ->
@@ -50,14 +52,16 @@ internal class RebuildContract(
         subject.engine.play()
         awaitContract("playback to move the playhead") { recorder.playheads.last() > from }
 
-        val before = recorder.playheads
+        val before = recorder.playheads.size
+        val mark = recorder.mark()
         val since = TimeSource.Monotonic.markNow()
         val eventsMark = recorder.events.size
         subject.engine.awaitComposition(fixture.cutInTwo(rate)).shouldBeInstanceOf<SetCompositionResult.Success>()
         recorder.lastState.playWhenReady shouldBe true
+        val boundary = recorder.playheadsBeforeRebuild(mark)
         awaitContract("the playhead to advance after the rebuild") {
-          val after = recorder.playheads.drop(before.size)
-          after.size >= 2 && after.last() > after.first()
+          val rebuilt = recorder.playheads.drop(boundary)
+          rebuilt.size >= 2 && rebuilt.last() > rebuilt.first()
         }
 
         recorder.lastState.playWhenReady shouldBe true
@@ -67,11 +71,13 @@ internal class RebuildContract(
 
         val elapsed = since.elapsedNow()
         recorder.events.drop(eventsMark).filterIsInstance<PlaybackEvent.Ended>() shouldBe emptyList()
-        val readings = recorder.playheads.drop(before.size - 1)
-        readings.zipWithNext { earlier, later ->
-          later shouldBeGreaterThanOrEqualTo heldPosition(earlier, duration, rate, null, playing = true)
-        }
-        readings.last() shouldBeLessThanOrEqualTo readings.first() + elapsed + READING_SLACK
+        val left = recorder.playheads.subList(before - 1, boundary)
+        val rebuilt = recorder.playheads.drop(boundary)
+        left.shouldNotStepBack()
+        rebuilt.shouldNotStepBack()
+        rebuilt.first().inWholeMicroseconds shouldBeGreaterThanOrEqualTo left.last().inWholeMicroseconds
+        rebuilt.first() shouldBeGreaterThanOrEqualTo heldPosition(left.last(), duration, rate, null, playing = true)
+        rebuilt.last() shouldBeLessThanOrEqualTo left.first() + elapsed + READING_SLACK
       }
     }
 
@@ -194,6 +200,10 @@ internal class RebuildContract(
         recorder.playhead shouldBe landed
       }
     }
+
+  private fun List<Duration>.shouldNotStepBack() {
+    zipWithNext { earlier, later -> later shouldBeGreaterThanOrEqualTo earlier }
+  }
 
   private suspend fun EngineUnderTest.quiet() {
     awaitStep("the engine to go quiet") { awaitQuiet() }

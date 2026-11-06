@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.PlayerEngine
 import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.SetCompositionResult
@@ -43,6 +44,18 @@ internal fun EditComposition.shortenedTo(length: Duration): EditComposition {
  */
 internal fun ContractRecorder.reportedSince(from: Int): Duration =
   playheads.drop(from).lastOrNull() ?: fail("The engine reported no playhead after the rebuild.")
+
+/**
+ * How many playheads had been delivered when the engine first went to [PlaybackStatus.Preparing] after [mark], failing
+ * when it never did.
+ *
+ * A reading at or past this index comes from the rebuilt graph and any reading before it from the graph it replaced.
+ */
+internal fun ContractRecorder.playheadsBeforeRebuild(mark: ContractMark): Int {
+  val preparing = statesSince(mark).indexOfFirst { it.status == PlaybackStatus.Preparing }
+  if (preparing < 0) fail("The engine did not go back through Preparing for the rebuild.")
+  return playheadsAtStates[mark.states + preparing]
+}
 
 /**
  * Seeks exactly to [to] and suspends until [recorder] has heard the seek complete.

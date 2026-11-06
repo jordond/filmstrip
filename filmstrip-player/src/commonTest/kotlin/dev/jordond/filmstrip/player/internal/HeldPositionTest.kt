@@ -6,6 +6,8 @@ import dev.jordond.filmstrip.edit.outputSlotTime
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
+import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 
 class HeldPositionTest {
@@ -13,6 +15,44 @@ class HeldPositionTest {
   fun `a playhead inside the new composition holds on the slot it rounds to`() {
     heldPosition(slot(45) + THIRD, LENGTH, RATE, null, playing = false) shouldBe slot(45)
     heldPosition(slot(45) - THIRD, LENGTH, RATE, null, playing = true) shouldBe slot(45)
+  }
+
+  @Test
+  fun `a playing playhead rounding down lands on the slot after it rather than behind itself`() {
+    heldPosition(slot(45) + THIRD, LENGTH, RATE, null, playing = true) shouldBe slot(46)
+    heldPosition(slot(45), LENGTH, RATE, null, playing = true) shouldBe slot(45)
+  }
+
+  @Test
+  fun `a playing reading with sub microsecond precision on a slot stays on that slot`() {
+    heldPosition(slot(1) + 333.nanoseconds, LENGTH, RATE, null, playing = true) shouldBe slot(1)
+    heldPosition(slot(45) + 333.nanoseconds, LENGTH, RATE, null, playing = true) shouldBe slot(45)
+  }
+
+  @Test
+  fun `a playing playhead inside the last slot of the loop range lands on its first slot`() {
+    val range = TimeRange.of(slot(40), slot(60))
+
+    heldPosition(slot(59), LENGTH, RATE, range, playing = true) shouldBe slot(59)
+    heldPosition(slot(59) + THIRD, LENGTH, RATE, range, playing = true) shouldBe slot(40)
+  }
+
+  @Test
+  fun `a playing playhead inside the last slot holds there`() {
+    val last = outputSlotOf(LENGTH, RATE) - 1
+
+    heldPosition(slot(last) + THIRD, LENGTH, RATE, null, playing = true) shouldBe slot(last)
+    heldPosition(LENGTH - 1.microseconds, LENGTH, RATE, null, playing = true) shouldBe slot(last)
+  }
+
+  @Test
+  fun `a playing playhead inside the last slot of a duration off the grid holds there`() {
+    val offGrid = slot(45) + THIRD
+    val last = outputSlotOf(offGrid, RATE) - 1
+
+    heldPosition(slot(last) + THIRD, offGrid, RATE, null, playing = true) shouldBe slot(last)
+    heldPosition(offGrid - 1.microseconds, offGrid, RATE, null, playing = true) shouldBe slot(last)
+    heldPosition(slot(last - 1) + THIRD, offGrid, RATE, null, playing = true) shouldBe slot(last)
   }
 
   @Test

@@ -1,8 +1,8 @@
 package dev.jordond.filmstrip.player.internal
 
 import android.os.Handler
+import androidx.media3.common.Player
 import androidx.media3.common.util.ExperimentalApi
-import androidx.media3.transformer.CompositionPlayer
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -32,7 +32,7 @@ import kotlin.time.Duration.Companion.milliseconds
 internal class Media3SeekCoordinator(
   private val scope: CoroutineScope,
   private val handler: Handler,
-  private val player: () -> CompositionPlayer?,
+  private val player: () -> Player?,
   private val resolved: () -> ResolvedComposition?,
   private val guard: WrapGuard,
   private val platformPositionMs: () -> Long,

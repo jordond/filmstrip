@@ -64,6 +64,9 @@ class ContractRecorder : EngineListener {
   @Volatile
   private var recordedPlayheads: List<Duration> = emptyList()
 
+  @Volatile
+  private var recordedPlayheadsAtStates: List<Int> = emptyList()
+
   /**
    * Every snapshot delivered, in order, duplicates included.
    */
@@ -90,6 +93,11 @@ class ContractRecorder : EngineListener {
   val playheads: List<Duration> get() = recordedPlayheads
 
   /**
+   * How many entries [playheads] held as each entry of [states] was delivered, index for index.
+   */
+  val playheadsAtStates: List<Int> get() = recordedPlayheadsAtStates
+
+  /**
    * The current snapshot, which registering a listener delivers straight away.
    */
   val lastState: PlayerState
@@ -102,6 +110,7 @@ class ContractRecorder : EngineListener {
     get() = recordedEvents.filterIsInstance<PlaybackEvent.ExternalPlayWhenReadyChanged>()
 
   override fun onStateChanged(state: PlayerState) {
+    recordedPlayheadsAtStates = recordedPlayheadsAtStates + recordedPlayheads.size
     recordedStates = recordedStates + state
   }
 

@@ -87,6 +87,7 @@ class Media3PlayerHostTest {
     val thread = HandlerThread("filmstrip-host-test").apply { start() }
     private val handler = Handler(thread.looper)
     private val guard = WrapGuard()
+    private val loads = Media3GraphLoads(scope)
     val built = mutableListOf<CompositionPlayer>()
     val released = mutableListOf<CompositionPlayer>()
 
@@ -110,6 +111,7 @@ class Media3PlayerHostTest {
         context = contractContext(),
         scope = scope,
         thread = thread,
+        loads = loads,
         status = status,
         seeks =
           Media3SeekCoordinator(
@@ -124,7 +126,7 @@ class Media3PlayerHostTest {
           ),
         loops =
           Media3LoopRangeController(
-            scope = scope,
+            loads = loads,
             handler = handler,
             player = { host.player },
             resolved = { null },

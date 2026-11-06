@@ -1,13 +1,11 @@
 package dev.jordond.filmstrip.player.internal
 
 import android.os.Handler
+import androidx.media3.common.Player
 import androidx.media3.common.util.ExperimentalApi
-import androidx.media3.transformer.CompositionPlayer
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -18,7 +16,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * onto the engine's dispatcher. A reading past where the loop range wraps takes playback back to its start, and one
  * past where the playback range stops pauses there.
  *
- * @param scope The engine's scope, on the dispatcher everything a listener sees is confined to.
+ * @param loads Hops each reading onto the engine's dispatcher, and drops one a rebuild has since replaced.
  * @param handler Posts onto the player's thread.
  * @param player The player standing now, read on the player's thread.
  * @param resolved The composition loaded now, or null before one is.
@@ -32,9 +30,9 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 @ExperimentalApi
 internal class Media3LoopRangeController(
-  private val scope: CoroutineScope,
+  private val loads: Media3GraphLoads,
   private val handler: Handler,
-  private val player: () -> CompositionPlayer?,
+  private val player: () -> Player?,
   private val resolved: () -> ResolvedComposition?,
   private val guard: WrapGuard,
   private val playhead: () -> Duration,
@@ -101,7 +99,7 @@ internal class Media3LoopRangeController(
     val running = standing.playWhenReady
     // Recorded beside the loop check rather than here, so the playhead never reads a position past the wrap before the
     // wrap has been issued.
-    scope.launch {
+    loads.report {
       recordPosition(reading)
       onPlayhead(reading.milliseconds, running)
     }

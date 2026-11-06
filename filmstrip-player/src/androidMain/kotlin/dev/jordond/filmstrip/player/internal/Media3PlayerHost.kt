@@ -8,13 +8,10 @@ import android.os.HandlerThread
 import android.view.Display
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
 import androidx.media3.common.util.ExperimentalApi
 import androidx.media3.effect.MultipleInputVideoGraph
 import androidx.media3.transformer.CompositionPlayer
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import java.util.concurrent.CountDownLatch
 import kotlin.concurrent.Volatile
 
@@ -28,6 +25,7 @@ import kotlin.concurrent.Volatile
  * @param context The application context media3 decodes and renders against.
  * @param scope The engine's scope, on the dispatcher everything a listener sees is confined to.
  * @param thread The thread the player is built on and confined to. Quit on [release].
+ * @param loads Drops what a graph reports once a rebuild has replaced it.
  * @param status Hears the player's state, first frames and failures.
  * @param seeks Hears where each seek landed.
  * @param loops Mirrors the playhead while the player moves pixels.
@@ -40,6 +38,7 @@ internal class Media3PlayerHost(
   private val context: Context,
   private val scope: CoroutineScope,
   private val thread: HandlerThread,
+  private val loads: Media3GraphLoads,
   private val status: Media3StatusTracker,
   private val seeks: Media3SeekCoordinator,
   private val loops: Media3LoopRangeController,
@@ -75,7 +74,7 @@ internal class Media3PlayerHost(
       outcome =
         runCatching {
           val built = buildPlayer(multipleInputs = false)
-          built.addListener(PlayerListener(epoch))
+          built.addListener(listenerFor(epoch))
           player = built
           onBuilt(built)
           describe(built)
@@ -105,7 +104,7 @@ internal class Media3PlayerHost(
     epoch++
     takesMultipleInputs = multipleInputs
     return buildPlayer(multipleInputs).also {
-      it.addListener(PlayerListener(epoch))
+      it.addListener(listenerFor(epoch))
       surfaces.attached?.let(it::setVideoSurfaceView)
       player = it
       onBuilt(it)
@@ -136,65 +135,17 @@ internal class Media3PlayerHost(
       .apply { if (multipleInputs) setVideoGraphFactory(MultipleInputVideoGraph.Factory()) }
       .build()
 
-  /**
-   * Everything media3 pushes, marshalled from the player's thread onto the engine's.
-   *
-   * A player released and rebuilt for a different video graph leaves its own callbacks queued
-   * behind it, so each listener carries the generation it was registered for and a stale one is
-   * dropped rather than moving the snapshot of a graph that is gone.
-   */
-  private inner class PlayerListener(
-    private val generation: Int,
-  ) : Player.Listener {
-    override fun onPlaybackStateChanged(playbackState: Int) {
-      val position = player?.currentPosition ?: 0
-      val duration = player?.duration ?: C.TIME_UNSET
-      val running = player?.playWhenReady == true
-      dispatch { status.onPlatformState(playbackState, position, duration, running) }
-    }
-
-    override fun onPlayWhenReadyChanged(
-      playWhenReady: Boolean,
-      reason: Int,
-    ) {
-      dispatch { status.onPlayWhenReadyChanged(playWhenReady, reason) }
-    }
-
-    override fun onIsPlayingChanged(isPlaying: Boolean) {
-      if (generation != epoch) return
-      if (isPlaying) loops.startMirror() else loops.stopMirror()
-    }
-
-    override fun onPositionDiscontinuity(
-      oldPosition: Player.PositionInfo,
-      newPosition: Player.PositionInfo,
-      reason: Int,
-    ) {
-      if (reason != Player.DISCONTINUITY_REASON_SEEK && reason != Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT) {
-        return
-      }
-      val landed = newPosition.positionMs
-      val serial = seeks.playerSerial
-      dispatch {
-        status.platformPositionMs = landed
-        seeks.complete(serial)
-      }
-    }
-
-    override fun onRenderedFirstFrame() {
-      dispatch { status.onRenderedFirstFrame() }
-    }
-
-    override fun onPlayerError(error: PlaybackException) {
-      val reported = error.toPlaybackError()
-      dispatch { status.fail(reported) }
-    }
-
-    private fun dispatch(block: () -> Unit) {
-      if (generation != epoch) return
-      scope.launch { if (generation == epoch) block() }
-    }
-  }
+  private fun listenerFor(generation: Int): Media3PlayerListener =
+    Media3PlayerListener(
+      generation = generation,
+      standingGeneration = { epoch },
+      player = { player },
+      scope = scope,
+      loads = loads,
+      status = status,
+      seeks = seeks,
+      loops = loops,
+    )
 
   private companion object {
     val MONITOR_AUDIO: AudioAttributes =

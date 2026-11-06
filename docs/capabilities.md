@@ -1046,9 +1046,10 @@ seek is going for as long as it is in flight, rather than the frame media3 last 
 
 A new composition leaves the transport where it was on every engine. A preview that was playing
 keeps playing on the new composition and a paused one stays paused. A load with no `startAt` holds
-the playhead on the frame it rounds to in the new composition, the last frame when that composition
-is shorter. A preview that is playing lands on the loop range's first frame when the range wraps
-before that frame, and a paused one stays where it lands, past the range or not.
+the playhead in the new composition, a paused preview on the frame it rounds to and a playing one on
+the first frame at or after it, and either on the last frame when that composition is shorter. A
+preview that is playing lands on the loop range's first frame when the range wraps before that
+frame, and a paused one stays where it lands, past the range or not.
 
 Thumbnails go through `FrameRenderer.frame` and `frames`, or `ThumbnailRequest` directly.
 `ThumbnailRequest.precise` chooses an exact seek over the nearest sync sample. Android honours it

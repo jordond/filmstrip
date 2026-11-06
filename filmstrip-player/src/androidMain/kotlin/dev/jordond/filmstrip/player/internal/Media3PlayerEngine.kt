@@ -67,6 +67,8 @@ internal class Media3PlayerEngine(
 
   private val shutter = PreviewShutter(scope)
 
+  private val loads = Media3GraphLoads(scope)
+
   private val status: Media3StatusTracker =
     Media3StatusTracker(
       shutter = shutter,
@@ -106,7 +108,7 @@ internal class Media3PlayerEngine(
 
   private val loops: Media3LoopRangeController =
     Media3LoopRangeController(
-      scope = scope,
+      loads = loads,
       handler = handler,
       player = { player },
       resolved = { plan?.resolved },
@@ -127,6 +129,7 @@ internal class Media3PlayerEngine(
       context = context,
       scope = scope,
       thread = thread,
+      loads = loads,
       status = status,
       seeks = seeks,
       loops = loops,
@@ -376,6 +379,7 @@ internal class Media3PlayerEngine(
     // Under the cover the shutter just closed, and after it has read the surface, since fixing the
     // buffer reallocates it.
     shutter.close(surfaces.previewView) { surfaces.fixBuffer(surfaces.previewView, next.resolved.output.size) }
+    val load = loads.issue()
     status.reset()
     preview = lowered
     setStatus(PlaybackStatus.Preparing)
@@ -385,6 +389,7 @@ internal class Media3PlayerEngine(
         ?: next.resolved.heldPosition(readPosition(), loops.loopRange, isPlayWanted)
     val startMs = start.toMediaMs()
     seeks.landing = start
+    status.platformPositionMs = startMs
     guard.reset()
     emitPosition(start)
     val multipleInputs = lowered.videoSequences > 1
@@ -395,6 +400,7 @@ internal class Media3PlayerEngine(
       val wanted = host.player?.playWhenReady == true
       val target = host.playerFor(multipleInputs)
       target.volume = level
+      loads.handOver(load)
       target.setComposition(lowered.composition, startMs)
       target.playWhenReady = wanted
       target.prepare()
