@@ -24,7 +24,7 @@ class BrowserInertNoticeTest {
 
       val preview =
         BrowserPreviewPlanner(CONTRACT_COMPONENTS)
-          .plan(composition, PreviewQualityPolicy.Full)
+          .plan(composition, PreviewQualityPolicy.Full, ExportSpec())
           .shouldBeInstanceOf<PlanResult.Ready<BrowserPreviewPlan>>()
           .plan
       val export =

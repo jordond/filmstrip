@@ -371,6 +371,7 @@ internal class Media3ThumbnailSource(
     fun ThumbnailRequest.lowersWith(other: ThumbnailRequest): Boolean =
       heightPx == other.heightPx &&
         effectsRevision == other.effectsRevision &&
+        exportSpec == other.exportSpec &&
         composition == other.composition
   }
 }

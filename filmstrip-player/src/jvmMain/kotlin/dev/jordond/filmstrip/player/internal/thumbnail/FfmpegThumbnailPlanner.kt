@@ -31,8 +31,18 @@ internal class FfmpegThumbnailPlanner(
    */
   suspend fun lower(request: ThumbnailRequest): PlanResult<HeightLowering, FilmstripError> =
     when (val engine = engine) {
-      null -> PlanResult.Refused(MISSING_FFMPEG)
-      else -> lowerAtHeight(request.composition, request.heightPx, engine::resolve)
+      null -> {
+        PlanResult.Refused(MISSING_FFMPEG)
+      }
+      else -> {
+        lowerAtHeight(
+          request.composition,
+          request.heightPx,
+          request.exportSpec,
+          engine::exportGrade,
+          engine::resolve,
+        )
+      }
     }
 
   /**
@@ -43,5 +53,6 @@ internal class FfmpegThumbnailPlanner(
     composition: EditComposition,
     at: Duration,
   ): PreviewStreamResult =
-    engine?.openPreview(composition, plan.spec, plan.layoutSize, at) ?: PreviewStreamResult.Refused(MISSING_FFMPEG)
+    engine?.openPreview(composition, plan.spec, plan.layoutSize, at, plan.resolved.hdr)
+      ?: PreviewStreamResult.Refused(MISSING_FFMPEG)
 }

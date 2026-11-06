@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.player.contract.ContractRecorder
 import dev.jordond.filmstrip.player.contract.awaitComposition
 import dev.jordond.filmstrip.player.contract.awaitContract
@@ -126,6 +127,69 @@ class FfmpegPreviewFailureTest {
       }
     }
 
+  // The new pump is held short of a frame, so only the load itself can have moved the status.
+  @Test
+  fun `a parameter change clears a failure after a shown frame before its pump shows one`() =
+    contractTest { scope ->
+      val gate = StreamGate()
+      val planner = failingOnce(gate, frames = FRAMES)
+      val engine = FfmpegPlayerEngine(parent = scope, planner = planner, config = PlayerConfig())
+
+      withEngine(engine) { recorder ->
+        try {
+          engine.awaitComposition(DIMMED).shouldBeInstanceOf<SetCompositionResult.Success>()
+          awaitContract("the first frame to land") { recorder.playhead != null }
+          engine.play()
+          awaitContract("playback to fail", timeout = PLAY_BUDGET) { recorder.failures.isNotEmpty() }
+          engine.awaitPumpsDone()
+
+          engine.awaitComposition(BRIGHTENED).shouldBeInstanceOf<SetCompositionResult.Success>()
+          recorder.lastState.status shouldBe PlaybackStatus.Ready
+
+          engine.awaitComposition(BRIGHTENED).shouldBeInstanceOf<SetCompositionResult.Success>()
+          recorder.lastState.status shouldBe PlaybackStatus.Ready
+          recorder.failures.size shouldBe 1
+        } finally {
+          gate.open()
+        }
+      }
+    }
+
+  @Test
+  fun `a parameter change clears a failure with no shown frame to preparing`() =
+    contractTest { scope ->
+      val gate = StreamGate()
+      val planner = failingOnce(gate, frames = 0)
+      val engine = FfmpegPlayerEngine(parent = scope, planner = planner, config = PlayerConfig())
+
+      withEngine(engine) { recorder ->
+        try {
+          engine.awaitComposition(DIMMED).shouldBeInstanceOf<SetCompositionResult.Success>()
+          awaitContract("the pump to fail") { recorder.failures.isNotEmpty() }
+          engine.awaitPumpsDone()
+
+          engine.awaitComposition(BRIGHTENED).shouldBeInstanceOf<SetCompositionResult.Success>()
+          recorder.lastState.status shouldBe PlaybackStatus.Preparing
+        } finally {
+          gate.open()
+        }
+      }
+    }
+
+  private fun failingOnce(
+    gate: StreamGate,
+    frames: Long,
+  ): ScriptedPlanner {
+    var opens = 0
+    return ScriptedPlanner { at ->
+      if (opens++ == 0) {
+        ScriptedStream(at, frames = frames, status = FAILED, stderr = STDERR)
+      } else {
+        ScriptedStream(at, frames = 0, status = 0, readGate = gate)
+      }
+    }
+  }
+
   private suspend fun withPlaying(
     scope: CoroutineScope,
     planner: ScriptedPlanner,
@@ -161,5 +225,9 @@ class FfmpegPreviewFailureTest {
     const val STDERR = "scripted.mp4: No such file or directory"
 
     val PLAY_BUDGET = 10.seconds
+
+    // Two brightness amounts, so moving from one to the other is a parameter change.
+    val DIMMED = jvmFixtureComposition(listOf(Brightness(0.4f)))
+    val BRIGHTENED = jvmFixtureComposition(listOf(Brightness(1.4f)))
   }
 }

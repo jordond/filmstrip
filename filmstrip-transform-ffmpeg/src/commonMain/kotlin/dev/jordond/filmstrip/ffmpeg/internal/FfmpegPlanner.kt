@@ -26,12 +26,14 @@ import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.transform.internal.ExportGrade
 import dev.jordond.filmstrip.transform.internal.ExportPlanner
 import dev.jordond.filmstrip.transform.internal.LoweredExport
 import dev.jordond.filmstrip.transform.internal.copy.Mp4Copy
 import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.negotiation.effectsThatRequireSdr
+import dev.jordond.filmstrip.transform.internal.refusal
 import dev.jordond.filmstrip.transform.internal.refusedLowering
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.anyClipLeavesBars
@@ -78,6 +80,23 @@ internal class FfmpegPlanner(
     )
 
   /**
+   * The grade an export of [composition] at [ask] resolves to.
+   *
+   * A source this backend cannot read is refused the way [lower] refuses it.
+   */
+  fun exportGradeOf(
+    composition: EditComposition,
+    ask: Ask,
+  ): ExportGrade {
+    try {
+      sourceRefusal(composition)?.let { return ExportGrade.Refused(it.export.refusal()) }
+    } catch (failure: MediaBytesFileFailure) {
+      return ExportGrade.Refused(FilmstripError.SourceUnreadable(failure.source, failure.message))
+    }
+    return planner.exportGradeOf(composition, ask)
+  }
+
+  /**
    * Negotiates [composition] against [ask] and lowers what it settles on onto a filter graph.
    *
    * The engine reads the openings in [ask] with [FfmpegRuntime.syncSampleAtOrBefore], and the negotiator decides from
@@ -102,13 +121,7 @@ internal class FfmpegPlanner(
     dropped: Set<String>,
     sdColors: Map<MediaSource, SdColor>,
   ): LoweredExport<Invocation> {
-    composition.tracks.flatMap { it.clips }.forEach { clip ->
-      // A still is refused by kind, not by asking readablePath and guessing why it came back
-      // null: it names a real file, and the actual reason is that this backend has no stills
-      // support, not that the source is unreadable.
-      if (clip.source is MediaSource.Image) return stillUnsupported()
-      readablePath(clip.source, bytesRoot) ?: return unreadable(clip.source)
-    }
+    sourceRefusal(composition)?.let { return it }
 
     val export = planner.negotiate(composition, ask, dropped)
     val negotiated = export.composition ?: return LoweredExport(export, null)
@@ -152,6 +165,17 @@ internal class FfmpegPlanner(
 
   private fun stillUnsupported(): LoweredExport<Nothing> =
     refusedLowering(FilmstripError.SourceNotExportable(stillUnsupportedMessage("ffmpeg")))
+
+  private fun sourceRefusal(composition: EditComposition): LoweredExport<Nothing>? {
+    composition.tracks.flatMap { it.clips }.forEach { clip ->
+      // A still is refused by kind, not by asking readablePath and guessing why it came back
+      // null: it names a real file, and the actual reason is that this backend has no stills
+      // support, not that the source is unreadable.
+      if (clip.source is MediaSource.Image) return stillUnsupported()
+      readablePath(clip.source, bytesRoot) ?: return unreadable(clip.source)
+    }
+    return null
+  }
 
   private fun unsupportedBlur(filter: String): LoweredExport<Nothing> =
     refusedLowering(FilmstripError.InvalidComposition(missingBlurFilter(filter)))

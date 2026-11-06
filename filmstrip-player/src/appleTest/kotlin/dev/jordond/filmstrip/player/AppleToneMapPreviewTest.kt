@@ -6,6 +6,8 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
@@ -18,6 +20,7 @@ import dev.jordond.filmstrip.player.contract.contractTest
 import dev.jordond.filmstrip.player.contract.withEngine
 import dev.jordond.filmstrip.player.internal.AvPlayerEngine
 import dev.jordond.filmstrip.player.internal.AvPreviewPlanner
+import dev.jordond.filmstrip.player.internal.DISPLAY_DECIDES_HDR
 import dev.jordond.filmstrip.player.internal.PlanResult
 import dev.jordond.filmstrip.player.internal.PreviewPlan
 import dev.jordond.filmstrip.test.TestFrame
@@ -26,8 +29,10 @@ import dev.jordond.filmstrip.thumbnail.ThumbnailResult
 import dev.jordond.filmstrip.thumbnail.ThumbnailSource
 import dev.jordond.filmstrip.transform.internal.hdr.Rgb
 import dev.jordond.filmstrip.transform.internal.hdr.toneMappedSdr
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.BetaInteropApi
@@ -143,7 +148,7 @@ class AppleToneMapPreviewTest {
       val edit = toneMappedEdit()
       val plan =
         AvPreviewPlanner(CONTRACT_COMPONENTS)
-          .plan(edit, PreviewQualityPolicy.Full)
+          .plan(edit, PreviewQualityPolicy.Full, ExportSpec())
           .shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
           .plan
       val laid = plan.resolved.toAvComposition()
@@ -178,6 +183,66 @@ class AppleToneMapPreviewTest {
         }
       }
       player.pause()
+    }
+
+  @Test
+  fun `a thumbnail of a lone hdr clip under a tone map spec reads the curve`() =
+    contractTest(timeout = TIMEOUT) {
+      val edit =
+        EditComposition(listOf(Track(listOf(Clip(MediaSource.of(hdrClip()), TimeRange.of(Duration.ZERO, CLIP))))))
+      val request =
+        ThumbnailRequest(
+          edit,
+          LATER,
+          THUMBNAIL_HEIGHT,
+          REVISION,
+          precise = true,
+          exportSpec = ExportSpec(hdr = HdrMode.ToneMapToSdr),
+        )
+      val source = createThumbnailSource(request, CONTRACT_COMPONENTS) ?: fail("no thumbnail source claimed the edit")
+      val thumbnail = source.thumbnailOf(request)
+      try {
+        val frame = TestFrame(thumbnail.image.toRgba8888(), Size(thumbnail.image.widthPx, thumbnail.image.heightPx))
+        assertOnTheCurve(frame, toneMappedEdit(), LATER, "the thumbnail under a tone map spec")
+      } finally {
+        thumbnail.image.close()
+      }
+    }
+
+  @Test
+  fun `a spec that asks for the tone map brings a live preview onto the curve`() =
+    contractTest(timeout = TIMEOUT) { scope ->
+      val edit =
+        EditComposition(listOf(Track(listOf(Clip(MediaSource.of(hdrClip()), TimeRange.of(Duration.ZERO, CLIP))))))
+      val planner = AvPreviewPlanner(CONTRACT_COMPONENTS)
+      // Only macOS keeps a lone HDR clip, and a simulator already tone maps it, so only one has a compositor to swap
+      // in.
+      val autoKeeps =
+        planner
+          .plan(edit, PreviewQualityPolicy.Full, ExportSpec())
+          .shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
+          .plan.resolved.hdr == ResolvedHdr.Keep
+      planner
+        .plan(edit, PreviewQualityPolicy.Full, ExportSpec(hdr = HdrMode.ToneMapToSdr))
+        .shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
+        .plan.info.fidelity shouldNotContain DISPLAY_DECIDES_HDR
+      val engine = AvPlayerEngine(scope, planner, PlayerConfig(), muted = true)
+      withEngine(engine) { recorder ->
+        engine.awaitComposition(edit).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the preview to be presentable") { recorder.lastState.hasComposition }
+        engine.seekTo(LATER, SeekAccuracy.Exact)
+        awaitContract("the seek to land") { recorder.playheads.lastOrNull() == LATER }
+        val loads = engine.platformLoads
+
+        engine.setExportSpec(ExportSpec(hdr = HdrMode.ToneMapToSdr))
+        if (autoKeeps) awaitContract("the grade to rebuild") { engine.platformLoads > loads }
+        awaitContract("the rebuilt preview to be presentable") { recorder.lastState.hasComposition }
+
+        recorder.playheads.last() shouldBe LATER
+        val read = engine.readback.awaitFrame(LATER)
+        // The same clip at the same time, so the export of the mixed edit writes the same patch.
+        assertOnTheCurve(read.asTestFrame(), toneMappedEdit(), LATER, "the frame read after the flip")
+      }
     }
 
   private fun runsOnSimulator(): Boolean = NSProcessInfo.processInfo.environment[SIMULATOR_KEY] != null

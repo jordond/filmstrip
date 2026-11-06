@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.OutputProperty
 import dev.jordond.filmstrip.capability.PreviewFidelity
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewInfo
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
@@ -33,7 +34,7 @@ internal class BrowserPreviewPlan(
  *
  * @param components The components the owning `Filmstrip` was built with.
  */
-internal class BrowserPreviewPlanner(
+internal open class BrowserPreviewPlanner(
   components: FilmstripComponents,
 ) : PreviewPlanner<BrowserPreviewPlan> {
   private val engine = webCodecsExportEngine(components)
@@ -41,9 +42,20 @@ internal class BrowserPreviewPlanner(
   override suspend fun plan(
     composition: EditComposition,
     policy: PreviewQualityPolicy,
+    exportSpec: ExportSpec,
   ): PlanResult<BrowserPreviewPlan, PlaybackError> =
     // What the preview says about the grade follows the grade the plan settles on, so the notes go on once it has.
-    when (val result = planPreview(composition, policy, emptyList(), engine::resolve)) {
+    when (
+      val result =
+        planPreview(
+          composition,
+          policy,
+          exportSpec,
+          emptyList(),
+          engine::exportGrade,
+          engine::resolve,
+        )
+    ) {
       is PlanResult.Refused -> {
         result
       }

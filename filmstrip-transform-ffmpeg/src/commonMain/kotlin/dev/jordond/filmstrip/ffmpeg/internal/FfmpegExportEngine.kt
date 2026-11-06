@@ -41,6 +41,7 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.sinkParentRefusal
 import dev.jordond.filmstrip.transform.internal.EngineLowering
+import dev.jordond.filmstrip.transform.internal.ExportGrade
 import dev.jordond.filmstrip.transform.internal.LoweredExport
 import dev.jordond.filmstrip.transform.internal.LoweringExportEngine
 import dev.jordond.filmstrip.transform.internal.ResolveResult
@@ -49,6 +50,7 @@ import dev.jordond.filmstrip.transform.internal.probe.PlanningReadResult
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReads
 import dev.jordond.filmstrip.transform.internal.refusal
 import dev.jordond.filmstrip.transform.internal.refusedLowering
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ProducerScope
@@ -80,7 +82,7 @@ public class FfmpegExportEngine internal constructor(
   private val reportLock = Mutex()
 
   // Held at its own graph type as well, since a preview opens the graph an export would run.
-  internal val runs = EngineLowering(components.effectResolvers, ::lower, ::run)
+  internal val runs = EngineLowering(components.effectResolvers, ::grade, ::lower, ::run)
   override val lowering: EngineLowering<*> get() = runs
 
   // Registered probers answer first, the way they do on every other engine, and ffprobe answers last. A copy opening
@@ -174,6 +176,7 @@ public class FfmpegExportEngine internal constructor(
     composition: EditComposition,
     spec: ExportSpec,
     layoutSize: Size?,
+    grade: ResolvedHdr?,
   ): LoweredExport<FfmpegRun> {
     val toolchain =
       when (val result = toolchain()) {
@@ -189,8 +192,11 @@ public class FfmpegExportEngine internal constructor(
     val sdColors = sdColorsOf(toolchain, composition)
     val lowered =
       interruptibly {
-        FfmpegPlanner(toolchain, components.effectResolvers, runtime.bytesRoot)
-          .lower(composition, Ask(spec, read.device, read.infos, read.openings, layoutSize), sdColors = sdColors)
+        FfmpegPlanner(toolchain, components.effectResolvers, runtime.bytesRoot).lower(
+          composition,
+          Ask(spec, read.device, read.infos, read.openings, layoutSize, grade),
+          sdColors = sdColors,
+        )
       }
     val graph = lowered.graph
     val negotiated = lowered.export.composition
@@ -219,6 +225,28 @@ public class FfmpegExportEngine internal constructor(
       // The planner resolves the same path next and refuses with the reason.
       null
     }
+
+  private suspend fun grade(
+    composition: EditComposition,
+    spec: ExportSpec,
+  ): ExportGrade {
+    val toolchain =
+      when (val result = toolchain()) {
+        is ToolchainResult.Unavailable -> return ExportGrade.Refused(result.error)
+        is ToolchainResult.Available -> result.toolchain
+      }
+    return when (val read = reads.read(composition)) {
+      is PlanningReadResult.Failed -> {
+        ExportGrade.Refused(read.error)
+      }
+      is PlanningReadResult.Read -> {
+        interruptibly {
+          FfmpegPlanner(toolchain, components.effectResolvers, runtime.bytesRoot)
+            .exportGradeOf(composition, Ask(spec, read.device, read.infos, read.openings))
+        }
+      }
+    }
+  }
 
   // The reads only run once lower has found a toolchain, and the locator holds on to one it found.
   private suspend fun foundToolchain(): Toolchain =

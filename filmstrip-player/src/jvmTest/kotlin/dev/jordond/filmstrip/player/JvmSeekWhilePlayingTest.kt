@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.contract.awaitComposition
 import dev.jordond.filmstrip.player.contract.awaitContract
@@ -193,7 +194,12 @@ private fun jvmVideoCompositionOf(file: File): EditComposition =
  * Fails the test when the preview refuses the composition.
  */
 private suspend fun heldTailIn(composition: EditComposition): LongRange =
-  when (val result = FfmpegPreviewPlanner(CONTRACT_COMPONENTS).plan(composition, PlayerConfig().qualityPolicy)) {
+  when (
+    val result =
+      FfmpegPreviewPlanner(
+        CONTRACT_COMPONENTS,
+      ).plan(composition, PlayerConfig().qualityPolicy, ExportSpec())
+  ) {
     is PlanResult.Ready -> result.plan.resolved.heldTail
     is PlanResult.Refused -> fail("the preview refused the composition: ${result.error}")
   }

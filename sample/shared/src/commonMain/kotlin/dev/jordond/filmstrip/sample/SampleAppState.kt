@@ -4,6 +4,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.navigation3.runtime.NavBackStack
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.Filmstrip
@@ -386,7 +387,7 @@ public class SampleAppState(
     val composition = previewComposition() ?: return
     stopPreview()
 
-    val opened = filmstrip.preview(composition, PlayerConfig())
+    val opened = filmstrip.preview(composition, PlayerConfig(exportSpec = spec()))
     player = opened
     recorder.record("player.opened", "duration" to editedDuration.toString())
     observe(opened)
@@ -572,6 +573,7 @@ public class SampleAppState(
     previewJobs = listOf(
       scope.launch { open.events.collect(::onPlaybackEvent) },
       scope.launch { open.state.collect(::onPlayerState) },
+      scope.launch { snapshotFlow { spec() }.collect(open::setExportSpec) },
       scope.launch {
         open.positionFlow(POSITION_TICK).collect { position ->
           // The player's own duration once it has loaded, so the clamp agrees with what it is

@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.OutputProperty
 import dev.jordond.filmstrip.capability.PreviewFidelity
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
 import dev.jordond.filmstrip.ffmpeg.internal.preview.openPreview
 import dev.jordond.filmstrip.ffmpeg.registeredFfmpegEngine
@@ -35,10 +36,21 @@ internal open class FfmpegPreviewPlanner(
   final override suspend fun plan(
     composition: EditComposition,
     policy: PreviewQualityPolicy,
+    exportSpec: ExportSpec,
   ): PlanResult<PreviewPlan, PlaybackError> {
     val engine = engine ?: return PlanResult.Refused(MISSING_FFMPEG.toPlaybackError())
     // What the preview says about the grade follows the grade the plan settles on, so the notes go on once it has.
-    return when (val result = planPreview(composition, policy, emptyList(), engine::resolve)) {
+    return when (
+      val result =
+        planPreview(
+          composition,
+          policy,
+          exportSpec,
+          emptyList(),
+          engine::exportGrade,
+          engine::resolve,
+        )
+    ) {
       is PlanResult.Refused -> {
         result
       }
@@ -61,7 +73,7 @@ internal open class FfmpegPreviewPlanner(
   /**
    * Spawns a pump for [composition] against the frame [plan] settled on, starting at [at].
    *
-   * The spec and the layout frame come off the plan, so the process runs the graph the plan
+   * The spec, the layout frame and the grade come off the plan, so the process runs the graph the plan
    * reported.
    */
   open suspend fun open(
@@ -69,7 +81,8 @@ internal open class FfmpegPreviewPlanner(
     composition: EditComposition,
     at: Duration,
   ): PreviewStreamResult =
-    engine?.openPreview(composition, plan.spec, plan.layoutSize, at) ?: PreviewStreamResult.Refused(MISSING_FFMPEG)
+    engine?.openPreview(composition, plan.spec, plan.layoutSize, at, plan.resolved.hdr)
+      ?: PreviewStreamResult.Refused(MISSING_FFMPEG)
 }
 
 /**

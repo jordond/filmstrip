@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.AudioCodec
+import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
@@ -10,6 +11,7 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Fill
@@ -18,9 +20,11 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
 import dev.jordond.filmstrip.still.StillFormat
+import dev.jordond.filmstrip.transform.internal.ExportGrade
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -67,6 +71,8 @@ class PreviewLoweringTest {
         lowerAtHeight(
           EDIT,
           0,
+          ExportSpec(),
+          resolver.grade,
           resolver.resolve,
         ).shouldBeInstanceOf<PlanResult.Ready<HeightLowering>>().plan
 
@@ -83,7 +89,9 @@ class PreviewLoweringTest {
       val resolver = RecordingResolve()
 
       val lowering =
-        lowerAtHeight(EDIT, MID_HEIGHT, resolver.resolve).shouldBeInstanceOf<PlanResult.Ready<HeightLowering>>().plan
+        lowerAtHeight(EDIT, MID_HEIGHT, ExportSpec(), resolver.grade, resolver.resolve)
+          .shouldBeInstanceOf<PlanResult.Ready<HeightLowering>>()
+          .plan
 
       val capped = ExportSpec(heightPx = MID_HEIGHT)
       resolver.calls shouldBe listOf(ExportSpec() to null, capped to NATURAL)
@@ -94,14 +102,42 @@ class PreviewLoweringTest {
     }
 
   @Test
+  fun `every lowering takes the grade of the export and a frame spec without its settings`() =
+    runTest {
+      val resolver = RecordingResolve(answer = ExportGrade.Settled(ResolvedHdr.ToneMap))
+      val export = ExportSpec(hdr = HdrMode.ToneMapToSdr, bitrate = Bitrate.mbps(8))
+
+      lowerAtHeight(EDIT, MID_HEIGHT, export, resolver.grade, resolver.resolve)
+        .shouldBeInstanceOf<PlanResult.Ready<HeightLowering>>()
+
+      resolver.graded shouldBe listOf(export)
+      resolver.grades shouldBe listOf(ResolvedHdr.ToneMap, ResolvedHdr.ToneMap)
+      resolver.calls shouldBe listOf(ExportSpec() to null, ExportSpec(heightPx = MID_HEIGHT) to NATURAL)
+    }
+
+  @Test
+  fun `a refused grade lowers nothing and reads as an unsupported format with the planner's message`() =
+    runTest {
+      val resolver = RecordingResolve(answer = ExportGrade.Refused(FilmstripError.InvalidComposition(MESSAGE)))
+
+      planPreview(EDIT, PreviewQualityPolicy.Full, ExportSpec(), emptyList(), resolver.grade, resolver.resolve)
+        .shouldBeInstanceOf<PlanResult.Refused<PlaybackError>>()
+        .error shouldBe PlaybackError.UnsupportedFormat(MESSAGE)
+
+      resolver.calls.shouldBeEmpty()
+    }
+
+  @Test
   fun `a refusal at either step is the lowering's answer`() =
     runTest {
       val refusal = FilmstripError.SourceUnreadable("a.mp4", "unreadable")
 
-      lowerAtHeight(EDIT, MID_HEIGHT, RecordingResolve(refuseAt = 0).resolve)
+      RecordingResolve(refuseAt = 0)
+        .let { lowerAtHeight(EDIT, MID_HEIGHT, ExportSpec(), it.grade, it.resolve) }
         .shouldBeInstanceOf<PlanResult.Refused<FilmstripError>>()
         .error shouldBe refusal
-      lowerAtHeight(EDIT, MID_HEIGHT, RecordingResolve(refuseAt = 1).resolve)
+      RecordingResolve(refuseAt = 1)
+        .let { lowerAtHeight(EDIT, MID_HEIGHT, ExportSpec(), it.grade, it.resolve) }
         .shouldBeInstanceOf<PlanResult.Refused<FilmstripError>>()
         .error shouldBe refusal
     }
@@ -110,8 +146,17 @@ class PreviewLoweringTest {
   fun `a capped preview reports the share of the natural frame it renders`() =
     runTest {
       val plan =
-        planPreview(EDIT, PreviewQualityPolicy.CapHeight(MID_HEIGHT), emptyList(), RecordingResolve().resolve)
-          .shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
+        RecordingResolve()
+          .let {
+            planPreview(
+              EDIT,
+              PreviewQualityPolicy.CapHeight(MID_HEIGHT),
+              ExportSpec(),
+              emptyList(),
+              it.grade,
+              it.resolve,
+            )
+          }.shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
           .plan
 
       plan.info.outputSize shouldBe NATURAL
@@ -126,7 +171,8 @@ class PreviewLoweringTest {
   fun `a full preview renders at scale one`() =
     runTest {
       val plan =
-        planPreview(EDIT, PreviewQualityPolicy.Full, emptyList(), RecordingResolve().resolve)
+        RecordingResolve()
+          .let { planPreview(EDIT, PreviewQualityPolicy.Full, ExportSpec(), emptyList(), it.grade, it.resolve) }
           .shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
           .plan
 
@@ -135,9 +181,25 @@ class PreviewLoweringTest {
     }
 
   @Test
+  fun `only a kept grade leaves the display to decide`() =
+    runTest {
+      val fidelity = listOf(NO_ENCODER_PREVIEW, DISPLAY_DECIDES_HDR)
+      val kept = RecordingResolve()
+      val mapped = RecordingResolve(resolvedHdr = ResolvedHdr.ToneMap)
+
+      planPreview(EDIT, PreviewQualityPolicy.Full, ExportSpec(), fidelity, kept.grade, kept.resolve)
+        .shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
+        .plan.info.fidelity shouldBe fidelity
+      planPreview(EDIT, PreviewQualityPolicy.Full, ExportSpec(), fidelity, mapped.grade, mapped.resolve)
+        .shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
+        .plan.info.fidelity shouldBe listOf(NO_ENCODER_PREVIEW)
+    }
+
+  @Test
   fun `a refused preview reads the refusal as a playback error`() =
     runTest {
-      planPreview(EDIT, PreviewQualityPolicy.Full, emptyList(), RecordingResolve(refuseAt = 0).resolve)
+      RecordingResolve(refuseAt = 0)
+        .let { planPreview(EDIT, PreviewQualityPolicy.Full, ExportSpec(), emptyList(), it.grade, it.resolve) }
         .shouldBeInstanceOf<PlanResult.Refused<PlaybackError>>()
         .error shouldBe PlaybackError.SourceUnreadable("unreadable")
     }
@@ -176,18 +238,28 @@ class PreviewLoweringTest {
   // [refuseAt] when there is one.
   private class RecordingResolve(
     private val refuseAt: Int? = null,
+    private val answer: ExportGrade = ExportGrade.Settled(ResolvedHdr.Keep),
+    private val resolvedHdr: ResolvedHdr = ResolvedHdr.Keep,
   ) {
     val calls = mutableListOf<Pair<ExportSpec, Size?>>()
+    val grades = mutableListOf<ResolvedHdr?>()
+    val graded = mutableListOf<ExportSpec>()
 
-    val resolve: CompositionResolve = { _, spec, layoutSize ->
+    val grade: CompositionGrade = { _, spec ->
+      graded += spec
+      answer
+    }
+
+    val resolve: CompositionResolve = { _, spec, layoutSize, hdr ->
       val index = calls.size
       calls += spec to layoutSize
+      grades += hdr
       if (index == refuseAt) {
         ResolveResult.Refused(FilmstripError.SourceUnreadable("a.mp4", "unreadable"))
       } else {
         val height = spec.heightPx ?: NATURAL.height
         ResolveResult.Resolved(
-          resolvedAt(Size(NATURAL.width * height / NATURAL.height, height)),
+          resolvedAt(Size(NATURAL.width * height / NATURAL.height, height), resolvedHdr),
           Verdict.Incapable(emptyList(), null),
         )
       }
@@ -205,7 +277,10 @@ class PreviewLoweringTest {
         tracks = listOf(Track(listOf(Clip(MediaSource.of("a.mp4"), TimeRange.of(Duration.ZERO, 2.seconds))))),
       )
 
-    fun resolvedAt(size: Size): ResolvedComposition =
+    fun resolvedAt(
+      size: Size,
+      hdr: ResolvedHdr,
+    ): ResolvedComposition =
       ResolvedComposition(
         tracks = emptyList(),
         compositionEffects = emptyList(),
@@ -221,7 +296,7 @@ class PreviewLoweringTest {
         layoutSize = NATURAL,
         fill = Fill.Black,
         duration = 2.seconds,
-        hdr = ResolvedHdr.Keep,
+        hdr = hdr,
         hdrTransfer = null,
         path = ExportPath.Transcode,
         audio = AudioSpec.Keep,

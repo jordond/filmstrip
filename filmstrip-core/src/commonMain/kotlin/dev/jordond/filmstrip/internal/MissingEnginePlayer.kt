@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
@@ -100,6 +101,8 @@ internal class MissingEnginePlayer(
   override fun setPlaybackRange(range: TimeRange?): Unit = Unit
 
   override fun setQualityPolicy(policy: PreviewQualityPolicy): Unit = Unit
+
+  override fun setExportSpec(spec: ExportSpec): Unit = Unit
 
   override fun addStateListener(listener: PlayerStateListener): Cancellable {
     listener.onStateChanged(_state.value)

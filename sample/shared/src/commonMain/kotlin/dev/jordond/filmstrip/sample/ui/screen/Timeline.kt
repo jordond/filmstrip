@@ -91,6 +91,7 @@ public fun Timeline(
     isPlaying = state.playing,
     modifier = modifier,
     scrub = scrub,
+    exportSpec = state.spec(),
     trim = if (edit.trimEnabled) TimeRange(
       start = edit.trimStartSeconds.toDuration(),
       endExclusive = edit.trimEndSeconds.toDuration(),

@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReadResult
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReads
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 
 /**
  * Drives an export from a platform's [ExportDriver], owning probing, caching and lowering so the
@@ -47,7 +48,7 @@ public class PlannedExportEngine(
 
   private val reads = PlanningReads(prober, backend::capabilities, backend::syncSampleAtOrBefore)
   override val lowering: EngineLowering<*> =
-    EngineLowering(resolvers, ::lower) { resolved, _, to -> backend.export(resolved, to) }
+    EngineLowering(resolvers, ::grade, ::lower) { resolved, _, to -> backend.export(resolved, to) }
 
   override suspend fun capabilities(): CapabilitiesResult = CapabilitiesResult.Success(reads.device())
 
@@ -57,14 +58,29 @@ public class PlannedExportEngine(
     composition: EditComposition,
     spec: ExportSpec,
     layoutSize: Size?,
+    grade: ResolvedHdr?,
   ): LoweredExport<ResolvedComposition> =
     when (val read = reads.read(composition)) {
       is PlanningReadResult.Failed -> {
         refusedLowering(read.error)
       }
       is PlanningReadResult.Read -> {
-        val export = planner.negotiate(composition, Ask(spec, read.device, read.infos, read.openings, layoutSize))
+        val export =
+          planner.negotiate(composition, Ask(spec, read.device, read.infos, read.openings, layoutSize, grade))
         LoweredExport(export, export.composition)
+      }
+    }
+
+  private suspend fun grade(
+    composition: EditComposition,
+    spec: ExportSpec,
+  ): ExportGrade =
+    when (val read = reads.read(composition)) {
+      is PlanningReadResult.Failed -> {
+        ExportGrade.Refused(read.error)
+      }
+      is PlanningReadResult.Read -> {
+        planner.exportGradeOf(composition, Ask(spec, read.device, read.infos, read.openings))
       }
     }
 }

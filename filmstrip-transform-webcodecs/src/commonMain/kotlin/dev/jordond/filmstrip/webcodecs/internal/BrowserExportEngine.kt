@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.transform.internal.EngineLowering
+import dev.jordond.filmstrip.transform.internal.ExportGrade
 import dev.jordond.filmstrip.transform.internal.LoweredExport
 import dev.jordond.filmstrip.transform.internal.LoweringExportEngine
 import dev.jordond.filmstrip.transform.internal.ResolveResult
@@ -30,6 +31,7 @@ import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReadResult
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReads
 import dev.jordond.filmstrip.transform.internal.refusedLowering
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.webcodecs.internal.interop.Date
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -61,7 +63,7 @@ public class BrowserExportEngine(
   private val reads =
     PlanningReads(prober, backend::capabilities) { source, cut -> sources.open(source)?.syncSampleAtOrBefore(cut) }
   override val lowering: EngineLowering<*> =
-    EngineLowering(components.effectResolvers, ::lower) { render, plan, to -> run(render, plan.path, to) }
+    EngineLowering(components.effectResolvers, ::grade, ::lower) { render, plan, to -> run(render, plan.path, to) }
 
   override suspend fun capabilities(): CapabilitiesResult = CapabilitiesResult.Success(reads.device())
 
@@ -71,6 +73,7 @@ public class BrowserExportEngine(
     composition: EditComposition,
     spec: ExportSpec,
     layoutSize: Size?,
+    grade: ResolvedHdr?,
   ): LoweredExport<BrowserRender> {
     val read =
       when (val result = reads.read(composition)) {
@@ -81,7 +84,21 @@ public class BrowserExportEngine(
     // whatever the device can encode.
     val opaque = opaqueGrades(read.infos)
     val device = if (opaque.isEmpty()) read.device else read.device.withoutHdrEncoding()
-    return planner.lower(composition, Ask(spec, device, read.infos, read.openings, layoutSize), opaque = opaque)
+    return planner.lower(composition, Ask(spec, device, read.infos, read.openings, layoutSize, grade), opaque = opaque)
+  }
+
+  private suspend fun grade(
+    composition: EditComposition,
+    spec: ExportSpec,
+  ): ExportGrade {
+    val read =
+      when (val result = reads.read(composition)) {
+        is PlanningReadResult.Failed -> return ExportGrade.Refused(result.error)
+        is PlanningReadResult.Read -> result
+      }
+    val opaque = opaqueGrades(read.infos)
+    val device = if (opaque.isEmpty()) read.device else read.device.withoutHdrEncoding()
+    return planner.exportGradeOf(composition, Ask(spec, device, read.infos, read.openings), opaque)
   }
 
   private fun run(

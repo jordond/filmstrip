@@ -2,6 +2,10 @@ package dev.jordond.filmstrip.player
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.media.MediaCodec
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import android.media.MediaMuxer
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.edit.Clip
@@ -25,9 +29,11 @@ import dev.jordond.filmstrip.test.PREVIEW_PARITY_EXPORT_BITRATE
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.test.eightBitFrameAt
 import dev.jordond.filmstrip.test.writeAtomically
+import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.toList
 import java.io.File
+import java.nio.ByteBuffer
 import kotlin.test.fail
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -54,6 +60,60 @@ internal fun androidFixtureClip(): MediaSource {
   }
   return MediaSource.of(file.path)
 }
+
+/**
+ * The fixture's own samples remuxed under a container tag naming SMPTE 170M, so the clip reads as SD.
+ *
+ * A tag the muxer dropped would leave nothing for a test of SD colour to read, so that fails here.
+ */
+internal fun androidSdTaggedClip(): MediaSource {
+  androidFixtureClip()
+  val cache = contractContext().cacheDir
+  val tagged = File(cache, "sd-tagged-$CLIP_NAME")
+  val extractor = MediaExtractor().apply { setDataSource(File(cache, CLIP_NAME).path) }
+  val muxer = MediaMuxer(tagged.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+  try {
+    val video =
+      (0 until extractor.trackCount).first {
+        extractor
+          .getTrackFormat(it)
+          .getString(MediaFormat.KEY_MIME)
+          .orEmpty()
+          .startsWith("video/")
+      }
+    extractor.selectTrack(video)
+    val format =
+      extractor.getTrackFormat(video).apply {
+        setInteger(MediaFormat.KEY_COLOR_STANDARD, MediaFormat.COLOR_STANDARD_BT601_NTSC)
+        setInteger(MediaFormat.KEY_COLOR_TRANSFER, MediaFormat.COLOR_TRANSFER_SDR_VIDEO)
+        setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED)
+      }
+    val track = muxer.addTrack(format)
+    muxer.start()
+    val buffer = ByteBuffer.allocate(SAMPLE_BUFFER_BYTES)
+    val info = MediaCodec.BufferInfo()
+    while (true) {
+      val size = extractor.readSampleData(buffer, 0)
+      if (size < 0) break
+      info.set(0, size, extractor.sampleTime, extractor.sampleFlags)
+      muxer.writeSampleData(track, buffer, info)
+      extractor.advance()
+    }
+    muxer.stop()
+  } finally {
+    muxer.release()
+    extractor.release()
+  }
+  val written = MediaExtractor().apply { setDataSource(tagged.path) }
+  try {
+    written.getTrackFormat(0).getInteger(MediaFormat.KEY_COLOR_STANDARD) shouldBe MediaFormat.COLOR_STANDARD_BT601_NTSC
+  } finally {
+    written.release()
+  }
+  return MediaSource.of(tagged.path)
+}
+
+private const val SAMPLE_BUFFER_BYTES = 1 shl 20
 
 /**
  * One trimmed clip of the fixture, with [effects] over the whole composition.

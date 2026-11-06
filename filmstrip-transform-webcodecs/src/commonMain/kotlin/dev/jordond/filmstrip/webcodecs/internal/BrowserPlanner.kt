@@ -16,10 +16,12 @@ import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.transform.internal.ExportGrade
 import dev.jordond.filmstrip.transform.internal.ExportPlanner
 import dev.jordond.filmstrip.transform.internal.LoweredExport
 import dev.jordond.filmstrip.transform.internal.copy.Mp4Copy
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
+import dev.jordond.filmstrip.transform.internal.refusal
 import dev.jordond.filmstrip.transform.internal.refusedLowering
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.stillUnsupportedMessage
@@ -62,6 +64,21 @@ internal class BrowserPlanner(
       // Chromium was measured to encode.
       hdrLadder = listOf(VideoCodec.Vp9),
     )
+
+  /**
+   * The grade an export of [composition] at [ask] resolves to, refused the way [lower] refuses that export.
+   */
+  internal fun exportGradeOf(
+    composition: EditComposition,
+    ask: Ask,
+    opaque: Set<MediaSource>,
+  ): ExportGrade {
+    unconditionalRefusal(composition, ask.infos)?.let { return ExportGrade.Refused(it.export.refusal()) }
+    return when (val grade = planner.exportGradeOf(composition, ask)) {
+      is ExportGrade.Refused -> opaqueRefusal(opaque)?.let { ExportGrade.Refused(it.export.refusal()) } ?: grade
+      is ExportGrade.Settled -> grade
+    }
+  }
 
   /**
    * Negotiates [composition] against [ask] and lowers what it settles on onto a render.

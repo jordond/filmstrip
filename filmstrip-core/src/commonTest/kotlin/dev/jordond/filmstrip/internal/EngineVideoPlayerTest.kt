@@ -4,6 +4,8 @@ import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.PlaybackEvent
@@ -220,8 +222,19 @@ class EngineVideoPlayerTest {
     player.setLoopRange(range)
     player.setPlaybackRange(null)
     player.setQualityPolicy(PreviewQualityPolicy.Full)
+    player.setExportSpec(ExportSpec(hdr = HdrMode.ToneMapToSdr))
 
-    engine.calls shouldBe listOf("play", "pause", "step -2", "volume 0.25", "loop $range", "range null", "quality Full")
+    engine.calls shouldBe
+      listOf(
+        "play",
+        "pause",
+        "step -2",
+        "volume 0.25",
+        "loop $range",
+        "range null",
+        "quality Full",
+        "export ToneMapToSdr",
+      )
   }
 
   private companion object {

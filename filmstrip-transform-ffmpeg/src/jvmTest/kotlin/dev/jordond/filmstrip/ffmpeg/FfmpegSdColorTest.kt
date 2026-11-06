@@ -187,6 +187,18 @@ internal class FfmpegSdColorTest : SdColorTestCase() {
     }
 
   @Test
+  fun `a preview of an SD clip reads the same under every hdr mode`() =
+    runTest(timeout = TIMEOUT) {
+      val source = clip("preview-modes.mp4", TAGS_170M)
+      val copied = compositionOf { clip(MediaSource.of(source.absolutePath)) }
+      for (mode in HdrMode.entries) {
+        val spec = ExportSpec(hdr = mode)
+        assertPreviewDisplayed(twoInverts(source), source, SMPTE_C_PRIMARIES, "$mode drawn", spec)
+        assertPreviewDisplayed(copied, source, SMPTE_C_PRIMARIES, "$mode copied", spec)
+      }
+    }
+
+  @Test
   fun `a preview of an SD clip beside a BT709 clip shows what the file displays`() =
     runTest(timeout = TIMEOUT) {
       val sd = clip("preview-first-sd.mp4", TAGS_170M)
@@ -323,8 +335,9 @@ internal class FfmpegSdColorTest : SdColorTestCase() {
     source: File,
     primaries: Int,
     label: String,
+    spec: ExportSpec = ExportSpec(),
   ) {
-    val frame = previewFrame(composition)
+    val frame = previewFrame(composition, spec)
     BAR_CENTRES.forEach { x ->
       val shown = sdSourceDisplayed(readOf(source, x), primaries)
       assertWithin(frame.readAt(x), shown, "$label at bar $x")

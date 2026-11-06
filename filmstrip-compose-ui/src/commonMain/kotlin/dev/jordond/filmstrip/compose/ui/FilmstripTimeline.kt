@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.compose.ui.interaction.wheelZoomTimeline
 import dev.jordond.filmstrip.compose.ui.interaction.zoomTimeline
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.still.FrameRenderer
 import kotlin.time.Duration
 
@@ -92,6 +93,8 @@ import kotlin.time.Duration
  * @param sourceOffset Where the player's zero sits on the timeline's clock, so
  * `timelineTime == playerTime + sourceOffset()` . The default suits a player that runs over the whole composition the
  * strip draws.
+ * @param exportSpec The export the strip stands in for, which renders its tiles at the HDR grade that export resolves
+ * to.
  * @param placeholder What fills a tile whose frame has not arrived.
  * @param overlay Drawn over the tiles and under the trim window and the playhead, for decoration and for chrome that
  * reads the timeline's own state.
@@ -111,6 +114,7 @@ public fun FilmstripTimeline(
   options: TimelineOptions = TimelineOptions.Default,
   colors: TimelineColors = FilmstripTimelineDefaults.Palette,
   sourceOffset: () -> Duration = { Duration.ZERO },
+  exportSpec: ExportSpec = ExportSpec(),
   placeholder: @Composable (index: Int) -> Unit = { },
   overlay: @Composable TimelineOverlayScope.() -> Unit = { },
 ) {
@@ -140,6 +144,7 @@ public fun FilmstripTimeline(
         heightPx = heightPx,
         maxBytes = options.maxBytes,
         overscan = options.overscan,
+        exportSpec = exportSpec,
       )
 
     val follow =

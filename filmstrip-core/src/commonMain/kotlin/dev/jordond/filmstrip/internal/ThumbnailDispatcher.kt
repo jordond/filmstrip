@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.effectsRevision
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.FrameResult
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
@@ -27,6 +28,7 @@ internal class ThumbnailDispatcher(
     composition: EditComposition,
     at: List<Duration>,
     heightPx: Int?,
+    exportSpec: ExportSpec,
   ): Flow<FrameResult> =
     flow {
       if (at.isEmpty()) return@flow
@@ -38,7 +40,17 @@ internal class ThumbnailDispatcher(
       // A strip reads as a run of frames rather than as one exact instant, and a sync sample decodes
       // fast enough to fill one while the caller is still scrolling. presentationTime is what says
       // where each tile actually landed.
-      val requests = at.map { ThumbnailRequest(composition, it, heightPx, effectsRevision, precise = false) }
+      val requests =
+        at.map {
+          ThumbnailRequest(
+            composition,
+            it,
+            heightPx,
+            effectsRevision,
+            precise = false,
+            exportSpec,
+          )
+        }
       val source =
         components.thumbnailSourceFactories.firstNotNullOfOrNull { it.create(requests.first(), components) }
       if (source == null) {

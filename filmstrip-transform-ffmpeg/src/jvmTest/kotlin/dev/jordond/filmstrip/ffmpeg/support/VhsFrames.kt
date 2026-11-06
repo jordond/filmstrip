@@ -28,6 +28,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.resolve
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -75,10 +76,11 @@ internal class VhsFrames {
     at: Duration,
     count: Int,
     spec: ExportSpec = ExportSpec(),
+    grade: ResolvedHdr? = null,
   ): List<ByteArray> {
     val opened =
       engine
-        .openPreview(composition, spec, at = at)
+        .openPreview(composition, spec, at = at, grade = grade)
         .shouldBeInstanceOf<PreviewStreamResult.Opened>()
         .stream
         .shouldBeInstanceOf<FfmpegPreviewStream>()

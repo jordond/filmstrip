@@ -26,6 +26,7 @@ import dev.jordond.filmstrip.compose.ui.VideoStageDefaults
 import dev.jordond.filmstrip.compose.ui.VideoStageScope
 import dev.jordond.filmstrip.compose.ui.testComposition
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.player.EngineListener
@@ -344,6 +345,8 @@ private class StageEngine(
   override fun setPlaybackRange(range: TimeRange?): Unit = Unit
 
   override fun setQualityPolicy(policy: PreviewQualityPolicy): Unit = Unit
+
+  override fun setExportSpec(spec: ExportSpec): Unit = Unit
 
   override fun dispose(): Unit = Unit
 

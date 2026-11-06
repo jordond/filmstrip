@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.still
 
 import androidx.compose.runtime.Stable
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.FrameResult
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Duration
@@ -24,12 +25,14 @@ public interface FrameRenderer {
    * @param heightPx The height to render at, in pixels. Null renders at the composition's own output
    *   height, and so does a height at or above it. Zero or less fails with
    *   [dev.jordond.filmstrip.FilmstripError.InvalidComposition].
+   * @param exportSpec The export this frame stands in for, which renders it at the HDR grade that export resolves to.
    * @return The frame, which the caller owns and must close, or why it could not be produced.
    */
   public suspend fun frame(
     composition: EditComposition,
     at: Duration,
     heightPx: Int? = null,
+    exportSpec: ExportSpec = ExportSpec(),
   ): FrameResult
 
   /**
@@ -45,11 +48,13 @@ public interface FrameRenderer {
    * @param heightPx The height to render at, in pixels. Null renders at the composition's own output
    *   height, and so does a height at or above it. Zero or less fails with
    *   [dev.jordond.filmstrip.FilmstripError.InvalidComposition].
+   * @param exportSpec The export this frame stands in for, which renders it at the HDR grade that export resolves to.
    * @return A flow of frames, one per entry in [at]. The caller owns each and must close it.
    */
   public fun frames(
     composition: EditComposition,
     at: List<Duration>,
     heightPx: Int? = null,
+    exportSpec: ExportSpec = ExportSpec(),
   ): Flow<FrameResult>
 }

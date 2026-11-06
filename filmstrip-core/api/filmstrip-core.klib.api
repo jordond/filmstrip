@@ -556,6 +556,7 @@ abstract interface dev.jordond.filmstrip.player/PlayerTransport { // dev.jordond
     abstract fun pause() // dev.jordond.filmstrip.player/PlayerTransport.pause|pause(){}[0]
     abstract fun play() // dev.jordond.filmstrip.player/PlayerTransport.play|play(){}[0]
     abstract fun seekTo(kotlin.time/Duration, dev.jordond.filmstrip.player/SeekAccuracy = ...) // dev.jordond.filmstrip.player/PlayerTransport.seekTo|seekTo(kotlin.time.Duration;dev.jordond.filmstrip.player.SeekAccuracy){}[0]
+    abstract fun setExportSpec(dev.jordond.filmstrip.export/ExportSpec) // dev.jordond.filmstrip.player/PlayerTransport.setExportSpec|setExportSpec(dev.jordond.filmstrip.export.ExportSpec){}[0]
     abstract fun setLoopRange(dev.jordond.filmstrip.edit/TimeRange?) // dev.jordond.filmstrip.player/PlayerTransport.setLoopRange|setLoopRange(dev.jordond.filmstrip.edit.TimeRange?){}[0]
     abstract fun setPlaybackRange(dev.jordond.filmstrip.edit/TimeRange?) // dev.jordond.filmstrip.player/PlayerTransport.setPlaybackRange|setPlaybackRange(dev.jordond.filmstrip.edit.TimeRange?){}[0]
     abstract fun setQualityPolicy(dev.jordond.filmstrip.player/PreviewQualityPolicy) // dev.jordond.filmstrip.player/PlayerTransport.setQualityPolicy|setQualityPolicy(dev.jordond.filmstrip.player.PreviewQualityPolicy){}[0]
@@ -592,8 +593,8 @@ abstract interface dev.jordond.filmstrip.player/VideoPlayer : dev.jordond.filmst
 }
 
 abstract interface dev.jordond.filmstrip.still/FrameRenderer { // dev.jordond.filmstrip.still/FrameRenderer|null[0]
-    abstract fun frames(dev.jordond.filmstrip.edit/EditComposition, kotlin.collections/List<kotlin.time/Duration>, kotlin/Int? = ...): kotlinx.coroutines.flow/Flow<dev.jordond.filmstrip.media/FrameResult> // dev.jordond.filmstrip.still/FrameRenderer.frames|frames(dev.jordond.filmstrip.edit.EditComposition;kotlin.collections.List<kotlin.time.Duration>;kotlin.Int?){}[0]
-    abstract suspend fun frame(dev.jordond.filmstrip.edit/EditComposition, kotlin.time/Duration, kotlin/Int? = ...): dev.jordond.filmstrip.media/FrameResult // dev.jordond.filmstrip.still/FrameRenderer.frame|frame(dev.jordond.filmstrip.edit.EditComposition;kotlin.time.Duration;kotlin.Int?){}[0]
+    abstract fun frames(dev.jordond.filmstrip.edit/EditComposition, kotlin.collections/List<kotlin.time/Duration>, kotlin/Int? = ..., dev.jordond.filmstrip.export/ExportSpec = ...): kotlinx.coroutines.flow/Flow<dev.jordond.filmstrip.media/FrameResult> // dev.jordond.filmstrip.still/FrameRenderer.frames|frames(dev.jordond.filmstrip.edit.EditComposition;kotlin.collections.List<kotlin.time.Duration>;kotlin.Int?;dev.jordond.filmstrip.export.ExportSpec){}[0]
+    abstract suspend fun frame(dev.jordond.filmstrip.edit/EditComposition, kotlin.time/Duration, kotlin/Int? = ..., dev.jordond.filmstrip.export/ExportSpec = ...): dev.jordond.filmstrip.media/FrameResult // dev.jordond.filmstrip.still/FrameRenderer.frame|frame(dev.jordond.filmstrip.edit.EditComposition;kotlin.time.Duration;kotlin.Int?;dev.jordond.filmstrip.export.ExportSpec){}[0]
 }
 
 abstract interface dev.jordond.filmstrip/Filmstrip : dev.jordond.filmstrip.player/PreviewFactory, dev.jordond.filmstrip.still/FrameRenderer { // dev.jordond.filmstrip/Filmstrip|null[0]
@@ -2426,8 +2427,10 @@ final class dev.jordond.filmstrip.media/VideoTrackInfo { // dev.jordond.filmstri
 }
 
 final class dev.jordond.filmstrip.player/PlayerConfig { // dev.jordond.filmstrip.player/PlayerConfig|null[0]
-    constructor <init>(dev.jordond.filmstrip.player/PreviewQualityPolicy = ...) // dev.jordond.filmstrip.player/PlayerConfig.<init>|<init>(dev.jordond.filmstrip.player.PreviewQualityPolicy){}[0]
+    constructor <init>(dev.jordond.filmstrip.player/PreviewQualityPolicy = ..., dev.jordond.filmstrip.export/ExportSpec = ...) // dev.jordond.filmstrip.player/PlayerConfig.<init>|<init>(dev.jordond.filmstrip.player.PreviewQualityPolicy;dev.jordond.filmstrip.export.ExportSpec){}[0]
 
+    final val exportSpec // dev.jordond.filmstrip.player/PlayerConfig.exportSpec|{}exportSpec[0]
+        final fun <get-exportSpec>(): dev.jordond.filmstrip.export/ExportSpec // dev.jordond.filmstrip.player/PlayerConfig.exportSpec.<get-exportSpec>|<get-exportSpec>(){}[0]
     final val qualityPolicy // dev.jordond.filmstrip.player/PlayerConfig.qualityPolicy|{}qualityPolicy[0]
         final fun <get-qualityPolicy>(): dev.jordond.filmstrip.player/PreviewQualityPolicy // dev.jordond.filmstrip.player/PlayerConfig.qualityPolicy.<get-qualityPolicy>|<get-qualityPolicy>(){}[0]
 
@@ -2565,12 +2568,14 @@ final class dev.jordond.filmstrip.style/TextStyle { // dev.jordond.filmstrip.sty
 }
 
 final class dev.jordond.filmstrip.thumbnail/ThumbnailRequest { // dev.jordond.filmstrip.thumbnail/ThumbnailRequest|null[0]
-    constructor <init>(dev.jordond.filmstrip.edit/EditComposition, kotlin.time/Duration, kotlin/Int?, kotlin/Long, kotlin/Boolean) // dev.jordond.filmstrip.thumbnail/ThumbnailRequest.<init>|<init>(dev.jordond.filmstrip.edit.EditComposition;kotlin.time.Duration;kotlin.Int?;kotlin.Long;kotlin.Boolean){}[0]
+    constructor <init>(dev.jordond.filmstrip.edit/EditComposition, kotlin.time/Duration, kotlin/Int?, kotlin/Long, kotlin/Boolean, dev.jordond.filmstrip.export/ExportSpec = ...) // dev.jordond.filmstrip.thumbnail/ThumbnailRequest.<init>|<init>(dev.jordond.filmstrip.edit.EditComposition;kotlin.time.Duration;kotlin.Int?;kotlin.Long;kotlin.Boolean;dev.jordond.filmstrip.export.ExportSpec){}[0]
 
     final val composition // dev.jordond.filmstrip.thumbnail/ThumbnailRequest.composition|{}composition[0]
         final fun <get-composition>(): dev.jordond.filmstrip.edit/EditComposition // dev.jordond.filmstrip.thumbnail/ThumbnailRequest.composition.<get-composition>|<get-composition>(){}[0]
     final val effectsRevision // dev.jordond.filmstrip.thumbnail/ThumbnailRequest.effectsRevision|{}effectsRevision[0]
         final fun <get-effectsRevision>(): kotlin/Long // dev.jordond.filmstrip.thumbnail/ThumbnailRequest.effectsRevision.<get-effectsRevision>|<get-effectsRevision>(){}[0]
+    final val exportSpec // dev.jordond.filmstrip.thumbnail/ThumbnailRequest.exportSpec|{}exportSpec[0]
+        final fun <get-exportSpec>(): dev.jordond.filmstrip.export/ExportSpec // dev.jordond.filmstrip.thumbnail/ThumbnailRequest.exportSpec.<get-exportSpec>|<get-exportSpec>(){}[0]
     final val heightPx // dev.jordond.filmstrip.thumbnail/ThumbnailRequest.heightPx|{}heightPx[0]
         final fun <get-heightPx>(): kotlin/Int? // dev.jordond.filmstrip.thumbnail/ThumbnailRequest.heightPx.<get-heightPx>|<get-heightPx>(){}[0]
     final val position // dev.jordond.filmstrip.thumbnail/ThumbnailRequest.position|{}position[0]

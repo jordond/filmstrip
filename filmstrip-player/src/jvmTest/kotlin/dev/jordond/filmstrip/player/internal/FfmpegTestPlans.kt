@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStream
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
 import dev.jordond.filmstrip.geometry.Size
@@ -23,7 +24,7 @@ internal fun fixturePlan(): PreviewPlan = FIXTURE_PLAN
 private val FIXTURE_PLAN: PreviewPlan by lazy {
   val planner = FfmpegPreviewPlanner(CONTRACT_COMPONENTS)
   runBlocking {
-    when (val result = planner.plan(jvmFixtureComposition(), PreviewQualityPolicy.Full)) {
+    when (val result = planner.plan(jvmFixtureComposition(), PreviewQualityPolicy.Full, ExportSpec())) {
       is PlanResult.Ready -> result.plan
       is PlanResult.Refused -> fail("the preview refused the fixture: ${result.error.message}")
     }

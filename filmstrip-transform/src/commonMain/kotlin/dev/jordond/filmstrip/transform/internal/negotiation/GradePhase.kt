@@ -59,15 +59,16 @@ internal fun gradeOf(
   val copyKeepsHdr = blockers.isEmpty()
   val sdrForcedBy = if (sourceIsHdr) edit.effectsThatRequireSdr() else emptyList()
   val hdr =
-    resolveHdr(
-      ask.spec.hdr,
-      sourceIsHdr,
-      gradesAgree,
-      ask.device.supportsHdrEncoding,
-      canToneMap,
-      copyKeepsHdr,
-      needsSdr = sdrForcedBy.isNotEmpty(),
-    )
+    ask.grade
+      ?: resolveHdr(
+        ask.spec.hdr,
+        sourceIsHdr,
+        gradesAgree,
+        ask.device.supportsHdrEncoding,
+        canToneMap,
+        copyKeepsHdr,
+        needsSdr = sdrForcedBy.isNotEmpty(),
+      )
       ?: return Phase.Refused(
         invalid(
           when {

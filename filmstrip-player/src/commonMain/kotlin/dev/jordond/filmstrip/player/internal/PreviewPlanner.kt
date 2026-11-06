@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.OutputProperty
 import dev.jordond.filmstrip.capability.PreviewFidelity
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewInfo
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
@@ -38,11 +39,13 @@ internal interface PreviewPlanner<out P : PlannedPreview> {
   /**
    * Lowers [composition] through [planPreview], capping the rendered frame to whatever [policy] allows.
    *
+   * @param exportSpec The export this preview stands in for, whose grade the preview renders at.
    * @return The plan, or why the edit cannot be previewed here.
    */
   suspend fun plan(
     composition: EditComposition,
     policy: PreviewQualityPolicy,
+    exportSpec: ExportSpec,
   ): PlanResult<P, PlaybackError>
 }
 

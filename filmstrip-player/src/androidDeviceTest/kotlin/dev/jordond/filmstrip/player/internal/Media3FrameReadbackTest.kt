@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.player.internal
 
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media3.internal.preview.Media3Preview
 import dev.jordond.filmstrip.media3.internal.preview.toMedia3Preview
@@ -87,7 +88,7 @@ class Media3FrameReadbackTest {
   private suspend fun fixturePreview(): Media3Preview {
     val planner = Media3PreviewPlanner(CONTRACT_COMPONENTS)
     val plan =
-      when (val result = planner.plan(androidFixtureComposition(), PreviewQualityPolicy.Full)) {
+      when (val result = planner.plan(androidFixtureComposition(), PreviewQualityPolicy.Full, ExportSpec())) {
         is PlanResult.Ready -> result.plan
         is PlanResult.Refused -> fail("the preview refused the fixture: ${result.error.message}")
       }

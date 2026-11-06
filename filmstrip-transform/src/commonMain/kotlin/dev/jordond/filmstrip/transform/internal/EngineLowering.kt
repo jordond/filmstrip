@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -35,13 +36,55 @@ public interface ExportResolver : ExportEngine {
    * @param layoutSize The output frame text is laid out against, for a caller lowering a frame
    *   smaller than the one an export writes. Null lays text out against the frame [spec] settles
    *   on, which is what an export does.
+   * @param grade The grade to lower at, for a caller rendering the grade of an export it is not lowering, as
+   *   [exportGrade] answers it. Null settles the grade from [spec], which is what an export does.
    * @return The lowered composition and the verdict it came with, or why it cannot run here.
    */
   public suspend fun resolve(
     composition: EditComposition,
     spec: ExportSpec,
     layoutSize: Size? = null,
+    grade: ResolvedHdr? = null,
   ): ResolveResult
+
+  /**
+   * The grade an export of [composition] at [spec] resolves to on this device, or that export's refusal.
+   *
+   * @param composition The edit the export would write.
+   * @param spec What the export would be asked for.
+   * @return The settled grade, or why the export has none.
+   */
+  public suspend fun exportGrade(
+    composition: EditComposition,
+    spec: ExportSpec,
+  ): ExportGrade
+}
+
+/**
+ * The grade an export resolves to, which a preview, a thumbnail and a frame of the same edit all render at.
+ */
+@InternalFilmstripApi
+public sealed interface ExportGrade {
+  /**
+   * The export has a grade.
+   *
+   * @property hdr What the export does with high dynamic range. An SDR edit reads [ResolvedHdr.Keep], since there is
+   *   no grade to map.
+   */
+  @InternalFilmstripApi
+  public data class Settled(
+    public val hdr: ResolvedHdr,
+  ) : ExportGrade
+
+  /**
+   * The export is refused before it reaches a grade, or at it.
+   *
+   * @property error Why it is refused, in the planner's words.
+   */
+  @InternalFilmstripApi
+  public data class Refused(
+    public val error: FilmstripError,
+  ) : ExportGrade
 }
 
 /**
@@ -71,7 +114,13 @@ public abstract class LoweringExportEngine : ExportResolver {
     composition: EditComposition,
     spec: ExportSpec,
     layoutSize: Size?,
-  ): ResolveResult = lowering.resolve(composition, spec, layoutSize)
+    grade: ResolvedHdr?,
+  ): ResolveResult = lowering.resolve(composition, spec, layoutSize, grade)
+
+  final override suspend fun exportGrade(
+    composition: EditComposition,
+    spec: ExportSpec,
+  ): ExportGrade = lowering.exportGrade(composition, spec)
 }
 
 /**
@@ -114,14 +163,17 @@ public fun refusedLowering(error: FilmstripError): LoweredExport<Nothing> =
  * cancelled lowering lets the next one in. A lowering holds no lock while its graph runs, and neither
  * [EffectResolver.prepare] nor [lower] may start another lowering of this engine.
  *
- * @param lower Lowers an edit, with the frame text is laid out against when it is not the output's.
+ * @param grade Reads the grade an export of an edit at a spec resolves to, which runs no effect resolver.
+ * @param lower Lowers an edit, with the frame text is laid out against when it is not the output's, and the grade to
+ * take as settled when it is not the spec's own.
  * @param run Runs a graph [lower] produced into a sink, with the plan it settled on. The adjustments that plan made
  * are the ones the [ResolvedComposition] behind the graph carries.
  */
 @InternalFilmstripApi
 public class EngineLowering<G : Any>(
   private val resolvers: List<EffectResolver>,
-  private val lower: suspend (EditComposition, ExportSpec, Size?) -> LoweredExport<G>,
+  private val grade: suspend (EditComposition, ExportSpec) -> ExportGrade,
+  private val lower: suspend (EditComposition, ExportSpec, Size?, ResolvedHdr?) -> LoweredExport<G>,
   private val run: (G, ExportPlan, MediaSink) -> Flow<ExportStatus>,
 ) {
   private val oneAtATime = Mutex()
@@ -133,11 +185,20 @@ public class EngineLowering<G : Any>(
     composition: EditComposition,
     spec: ExportSpec,
     layoutSize: Size? = null,
+    grade: ResolvedHdr? = null,
   ): LoweredExport<G> =
     oneAtATime.withLock {
       resolvers.forEach { it.prepare(composition) }
-      lower(composition, spec, layoutSize)
+      lower(composition, spec, layoutSize, grade)
     }
+
+  /**
+   * What [ExportResolver.exportGrade] answers.
+   */
+  public suspend fun exportGrade(
+    composition: EditComposition,
+    spec: ExportSpec,
+  ): ExportGrade = oneAtATime.withLock { grade(composition, spec) }
 
   /**
    * What [ExportEngine.plan] answers.
@@ -154,7 +215,8 @@ public class EngineLowering<G : Any>(
     composition: EditComposition,
     spec: ExportSpec,
     layoutSize: Size?,
-  ): ResolveResult = lowered(composition, spec, layoutSize).export.toResolveResult()
+    grade: ResolvedHdr?,
+  ): ResolveResult = lowered(composition, spec, layoutSize, grade).export.toResolveResult()
 
   /**
    * What [ExportEngine.export] answers, failing with the first refusal when the plan no longer

@@ -92,7 +92,8 @@ public class ExportSpec(
  * What to do about high dynamic range.
  *
  * Resolved once, up front, and the resolved mode is used by both the preview and the export, so the
- * grade a user looks at is the grade they get.
+ * grade a user looks at is the grade they get. A preview reads it off
+ * [dev.jordond.filmstrip.player.PlayerConfig.exportSpec].
  */
 public enum class HdrMode {
   /**

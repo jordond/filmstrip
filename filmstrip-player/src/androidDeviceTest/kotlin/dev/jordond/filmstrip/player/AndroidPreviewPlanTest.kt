@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media3.internal.bounds.readClips
 import dev.jordond.filmstrip.media3.internal.preview.Media3Span
 import dev.jordond.filmstrip.media3.internal.preview.toMedia3Preview
@@ -40,7 +41,10 @@ class AndroidPreviewPlanTest {
   fun aClipOpeningInsideASourceFrameIsLaidTheWayTheExportLaysIt() =
     runTest(timeout = TIMEOUT) {
       withContext(Dispatchers.Default) {
-        val planned = Media3PreviewPlanner(CONTRACT_COMPONENTS).plan(openingInsideAFrame(), PreviewQualityPolicy.Full)
+        val planned =
+          Media3PreviewPlanner(
+            CONTRACT_COMPONENTS,
+          ).plan(openingInsideAFrame(), PreviewQualityPolicy.Full, ExportSpec())
         val plan = planned.shouldBeInstanceOf<PlanResult.Ready<Media3PreviewPlan>>().plan
 
         val preview = plan.resolved.toMedia3Preview(plan.bounds)

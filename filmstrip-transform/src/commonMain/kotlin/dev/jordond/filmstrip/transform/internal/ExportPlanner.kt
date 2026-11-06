@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportEstimate
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.ExportPlan
+import dev.jordond.filmstrip.export.InertNotice
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.export.PlannedEffect
 import dev.jordond.filmstrip.export.Verdict
@@ -23,7 +24,11 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.copy.CopySupport
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
+import dev.jordond.filmstrip.transform.internal.negotiation.Framing
+import dev.jordond.filmstrip.transform.internal.negotiation.Grade
+import dev.jordond.filmstrip.transform.internal.negotiation.Phase
 import dev.jordond.filmstrip.transform.internal.negotiation.StageLowering
+import dev.jordond.filmstrip.transform.internal.negotiation.Streams
 import dev.jordond.filmstrip.transform.internal.negotiation.concessionsOf
 import dev.jordond.filmstrip.transform.internal.negotiation.encodingOf
 import dev.jordond.filmstrip.transform.internal.negotiation.framingOf
@@ -115,6 +120,36 @@ public class ExportPlanner(
   }
 
   /**
+   * The grade an export of [composition] at [ask] resolves to, or that export's refusal.
+   *
+   * It runs the phases an export runs up to and including the grade, so a preview that takes the answer through
+   * [Ask.grade] shows what the export writes. Nothing past the grade is read, so a concession a strict spec would
+   * refuse never reaches this answer.
+   */
+  public fun exportGradeOf(
+    composition: EditComposition,
+    ask: Ask,
+  ): ExportGrade =
+    when (val graded = graded(composition, ask)) {
+      is Phase.Refused -> ExportGrade.Refused(graded.error)
+      is Phase.Next -> ExportGrade.Settled(graded.value.grade.hdr)
+    }
+
+  // The phases up to the grade, which an export goes on from and a preview reads its grade off.
+  private fun graded(
+    authored: EditComposition,
+    ask: Ask,
+  ): Phase<Graded> {
+    val streams = streamsOf(authored, ask.spec, ask.infos)
+    structuralRefusal(authored, ask.spec, ask.infos, streams)?.let { return Phase.Refused(it) }
+    val inert = withoutInert(authored, ask, framingOf(authored, ask).orElse { return Phase.Refused(it) }, streams)
+    val framing = framingOf(inert.edit, ask).orElse { return Phase.Refused(it) }
+    val grade =
+      gradeOf(inert.edit, ask, framing, copySupport, canToneMap, toneMapLimit).orElse { return Phase.Refused(it) }
+    return Phase.Next(Graded(streams, inert.edit, inert.notices, framing, grade))
+  }
+
+  /**
    * Runs every phase over [authored] in order, stopping at the first that refuses.
    *
    * The shape of the edit is checked as written. Every part that renders nothing is then taken out, and the rest of
@@ -126,12 +161,11 @@ public class ExportPlanner(
     dropped: Set<String>,
     ask: Ask,
   ): Settlement {
-    val streams = streamsOf(authored, ask.spec, ask.infos)
-    structuralRefusal(authored, ask.spec, ask.infos, streams)?.let { return refused(it) }
-    val inert = withoutInert(authored, ask, framingOf(authored, ask).orElse { return refused(it) }, streams)
-    val edit = inert.edit
-    val framing = framingOf(edit, ask).orElse { return refused(it) }
-    val grade = gradeOf(edit, ask, framing, copySupport, canToneMap, toneMapLimit).orElse { return refused(it) }
+    val graded = graded(authored, ask).orElse { return refused(it) }
+    val streams = graded.streams
+    val edit = graded.edit
+    val framing = graded.framing
+    val grade = graded.grade
     val encoding =
       encodingOf(ask, framing, grade, streams, ladder, hdrLadder, renderCapabilities).orElse { return refused(it) }
     val timeline =
@@ -182,7 +216,7 @@ public class ExportPlanner(
         parity = planned.maxByOrNull { it.parity.ordinal }?.parity ?: EffectParity.Exact,
         duration = timeline.duration,
         copyBlockedBy = grade.copyBlockedBy,
-        inertNotices = inert.notices,
+        inertNotices = graded.inertNotices,
         composition = authored,
         spec = ask.spec,
         droppedEffects = adjustments.filter { it.kind == AdjustmentKind.EffectDropped },
@@ -242,6 +276,14 @@ public class ExportPlanner(
 
   private fun refused(error: FilmstripError): Settlement =
     Settlement.Settled(NegotiatedExport(Verdict.Incapable(listOf(error), null), null))
+
+  private class Graded(
+    val streams: Streams,
+    val edit: EditComposition,
+    val inertNotices: List<InertNotice>,
+    val framing: Framing,
+    val grade: Grade,
+  )
 
   // How one pass over the edit ended: settled on a verdict, or stopped on effects this device
   // cannot run, which the caller may retry without.

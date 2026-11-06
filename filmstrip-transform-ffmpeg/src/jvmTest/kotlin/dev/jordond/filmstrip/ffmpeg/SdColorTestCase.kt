@@ -42,10 +42,13 @@ internal abstract class SdColorTestCase {
     folder.deleteRecursively()
   }
 
-  protected suspend fun previewFrame(composition: EditComposition): ByteArray {
+  protected suspend fun previewFrame(
+    composition: EditComposition,
+    spec: ExportSpec = ExportSpec(),
+  ): ByteArray {
     val stream =
       engine
-        .openPreview(composition, ExportSpec())
+        .openPreview(composition, spec)
         .shouldBeInstanceOf<PreviewStreamResult.Opened>()
         .stream
     return try {

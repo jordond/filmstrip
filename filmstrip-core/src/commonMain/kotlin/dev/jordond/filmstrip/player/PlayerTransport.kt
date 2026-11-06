@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.export.ExportSpec
 import kotlin.time.Duration
 
 /**
@@ -81,4 +82,14 @@ public interface PlayerTransport {
    * Sets how hard the preview may work.
    */
   public fun setQualityPolicy(policy: PreviewQualityPolicy)
+
+  /**
+   * Sets the export this preview stands in for, so it renders at the HDR grade [spec] resolves to.
+   *
+   * A spec that moves the grade rebuilds the pipeline and keeps the transport and the playhead. One that leaves the
+   * grade alone rebuilds nothing. A spec its export refuses reaches the listeners as [PlaybackError.UnsupportedFormat]
+   * in the planner's words, and the frame on screen stays. That is a refused grade, and also a refused setting such as
+   * a height of zero or a bitrate named beside a quality.
+   */
+  public fun setExportSpec(spec: ExportSpec)
 }

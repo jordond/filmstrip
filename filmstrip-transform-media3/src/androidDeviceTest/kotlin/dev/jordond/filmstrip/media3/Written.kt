@@ -2,6 +2,10 @@ package dev.jordond.filmstrip.media3
 
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import dev.jordond.filmstrip.color.EBU_PRIMARIES
+import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
+import dev.jordond.filmstrip.export.AdjustmentKind
+import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.test.ycbcrToRgb
 import java.io.File
 
@@ -61,6 +65,18 @@ internal fun colorTagOf(video: File): Pair<Int, Boolean> {
 }
 
 /**
+ * The color primaries code point this frame's colors sit on, given the export [finished] that wrote it.
+ *
+ * An encoder that writes BT.601 for BT.709 gets its file retagged and the export reports it. Android names the
+ * primaries with the matrix, so that file records primaries it was never drawn on, and its colors sit on BT.709. Any
+ * other file sits on the primaries its matrix names.
+ */
+internal fun Written.primariesFrom(finished: ExportStatus.Success): Int {
+  val retagged = finished.adjustments.any { it.kind == AdjustmentKind.ColorSpaceChanged }
+  return if (retagged) BT709_CODE_POINT else PRIMARIES_OF_MATRIX.getValue(matrix)
+}
+
+/**
  * How far clockwise [video]'s container turns its stored frames to show them.
  */
 internal fun rotationOf(video: File): Int {
@@ -91,6 +107,13 @@ internal val MATRIX_OF_STANDARD =
     MediaFormat.COLOR_STANDARD_BT2020 to 9,
   )
 
+private const val BT709_CODE_POINT = 1
+private val PRIMARIES_OF_MATRIX =
+  mapOf(
+    BT709_CODE_POINT to BT709_CODE_POINT,
+    EBU_PRIMARIES to EBU_PRIMARIES,
+    SMPTE_C_PRIMARIES to SMPTE_C_PRIMARIES,
+  )
 private const val UNSPECIFIED = 2
 private const val QUARTER_TURN = 90
 private const val HALF_TURN = 180

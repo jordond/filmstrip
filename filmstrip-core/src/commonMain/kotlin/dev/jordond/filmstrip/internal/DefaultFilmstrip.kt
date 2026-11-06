@@ -101,6 +101,7 @@ internal class DefaultFilmstrip(
     composition: EditComposition,
     at: Duration,
     heightPx: Int?,
+    exportSpec: ExportSpec,
   ): FrameResult {
     outputHeightRefusal(heightPx)?.let { return FrameResult.Failure(it) }
     return thumbnails.frame(
@@ -110,6 +111,7 @@ internal class DefaultFilmstrip(
         heightPx = heightPx,
         effectsRevision = composition.effectsRevision(),
         precise = true,
+        exportSpec = exportSpec,
       ),
     )
   }
@@ -118,8 +120,9 @@ internal class DefaultFilmstrip(
     composition: EditComposition,
     at: List<Duration>,
     heightPx: Int?,
+    exportSpec: ExportSpec,
   ): Flow<FrameResult> {
-    val refusal = outputHeightRefusal(heightPx) ?: return thumbnails.frames(composition, at, heightPx)
+    val refusal = outputHeightRefusal(heightPx) ?: return thumbnails.frames(composition, at, heightPx, exportSpec)
     return at.map { FrameResult.Failure(refusal) }.asFlow()
   }
 

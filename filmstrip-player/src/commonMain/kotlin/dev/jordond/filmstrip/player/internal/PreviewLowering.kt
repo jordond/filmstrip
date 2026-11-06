@@ -14,16 +14,23 @@ import dev.jordond.filmstrip.geometry.effectiveHeight
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewInfo
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
+import dev.jordond.filmstrip.transform.internal.ExportGrade
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 
 /**
  * Lowers an edit into the graph an export of it runs, the way each backend's export engine does.
  *
- * Takes the edit, the spec to lower against and the frame text lays out against, where null lays text out against the
- * frame the spec settles on. Every backend hands over its engine's own `resolve`.
+ * Takes the edit, the spec to lower against, the frame text lays out against, where null lays text out against the
+ * frame the spec settles on, and the grade to take as settled. Every backend hands over its engine's own `resolve`.
  */
-internal typealias CompositionResolve = suspend (EditComposition, ExportSpec, Size?) -> ResolveResult
+internal typealias CompositionResolve = suspend (EditComposition, ExportSpec, Size?, ResolvedHdr?) -> ResolveResult
+
+/**
+ * Reads the grade an export of an edit at a spec resolves to. Every backend hands over its engine's own `exportGrade`.
+ */
+internal typealias CompositionGrade = suspend (EditComposition, ExportSpec) -> ExportGrade
 
 /**
  * The height a frame [naturalHeight] pixels tall renders at when [heightPx] is asked for, or null when it renders at
@@ -59,7 +66,8 @@ private val PreviewQualityPolicy.heightCap: Int?
  * @property resolved The graph to render, which is the graph an export at [spec] would run.
  * @property verdict What the export engine said about the edit, which carries its parity.
  * @property naturalSize The frame an export of the edit writes.
- * @property spec What [resolved] was lowered against, carrying the cap when there is one.
+ * @property spec The frame [resolved] was lowered against, carrying the cap when there is one. Its grade came from the
+ * export the lowering stands in for, not from this spec, and [resolved] carries it.
  * @property layoutSize The frame text lays out against. [naturalSize] under a cap, so a caption wraps on the same words
  * at either size, and null without one.
  */
@@ -74,18 +82,31 @@ internal class HeightLowering(
 /**
  * Lowers [composition] through [resolve], rendering no taller than [heightPx] allows.
  *
+ * The grade is read off an export of [composition] at [exportSpec] through [grade], and every lowering takes that
+ * answer
+ * as settled, so nothing the frame asks for can move it. Only the grade is mirrored, since height, frame rate, codec
+ * and
+ * bitrate never reach the frame. A refused grade is the lowering's refusal.
+ *
  * The natural frame is settled first and the height applied against it under [cappedHeight]. A height that moves
  * nothing lowers once, and one that does lowers again against the natural frame as the one text lays out against.
  *
- * @return The lowering, or the first refusal [resolve] answered with.
+ * @return The lowering, or the first refusal [grade] or [resolve] answered with.
  */
 internal suspend fun lowerAtHeight(
   composition: EditComposition,
   heightPx: Int?,
+  exportSpec: ExportSpec,
+  grade: CompositionGrade,
   resolve: CompositionResolve,
 ): PlanResult<HeightLowering, FilmstripError> {
+  val hdr =
+    when (val settled = grade(composition, exportSpec)) {
+      is ExportGrade.Refused -> return PlanResult.Refused(settled.error)
+      is ExportGrade.Settled -> settled.hdr
+    }
   val natural =
-    when (val result = resolve(composition, ExportSpec(), null)) {
+    when (val result = resolve(composition, ExportSpec(), null, hdr)) {
       is ResolveResult.Refused -> return PlanResult.Refused(result.error)
       is ResolveResult.Resolved -> result
     }
@@ -96,7 +117,7 @@ internal suspend fun lowerAtHeight(
       ?: return PlanResult.Ready(HeightLowering(natural.composition, natural.verdict, naturalSize, ExportSpec(), null))
 
   val spec = ExportSpec(heightPx = cap)
-  return when (val result = resolve(composition, spec, naturalSize)) {
+  return when (val result = resolve(composition, spec, naturalSize, hdr)) {
     is ResolveResult.Refused -> {
       PlanResult.Refused(result.error)
     }
@@ -130,18 +151,23 @@ internal class PreviewPlan(
  *
  * The natural frame is settled first and the cap applied against it, so [PreviewInfo.renderScale] is a fraction of the
  * frame the export writes rather than of the frame the cap already produced. [fidelity] is the backend's own account of
- * how far its preview speaks for the exported file.
+ * how far its preview speaks for the exported file, less [DISPLAY_DECIDES_HDR] on a tone mapped plan, where no HDR
+ * grade reaches the display.
+ *
+ * The grade is the one an export of [composition] at [exportSpec] resolves to, as [lowerAtHeight] reads it.
  *
  * @return The plan, or why the edit cannot be previewed.
  */
 internal suspend fun planPreview(
   composition: EditComposition,
   policy: PreviewQualityPolicy,
+  exportSpec: ExportSpec,
   fidelity: List<FidelityNote>,
+  grade: CompositionGrade,
   resolve: CompositionResolve,
 ): PlanResult<PreviewPlan, PlaybackError> {
   val lowering =
-    when (val result = lowerAtHeight(composition, policy.heightCap, resolve)) {
+    when (val result = lowerAtHeight(composition, policy.heightCap, exportSpec, grade, resolve)) {
       is PlanResult.Refused -> return PlanResult.Refused(result.error.toPlaybackError())
       is PlanResult.Ready -> result.plan
     }
@@ -157,7 +183,7 @@ internal suspend fun planPreview(
               .toFloat() / lowering.naturalSize.height,
           parity = lowering.verdict.parity(),
           parityNotes = lowering.verdict.parityNotes(),
-          fidelity = fidelity,
+          fidelity = if (lowering.resolved.hdr == ResolvedHdr.ToneMap) fidelity - DISPLAY_DECIDES_HDR else fidelity,
           inertNotices = lowering.verdict.inertNotices(),
         ),
       spec = lowering.spec,

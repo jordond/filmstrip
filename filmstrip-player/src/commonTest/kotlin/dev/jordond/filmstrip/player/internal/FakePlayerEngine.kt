@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.EngineListener
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
@@ -101,6 +102,8 @@ internal class FakePlayerEngine(
   override fun setPlaybackRange(range: TimeRange?): Unit = Unit
 
   override fun setQualityPolicy(policy: PreviewQualityPolicy): Unit = Unit
+
+  override fun setExportSpec(spec: ExportSpec): Unit = Unit
 
   fun becomeReady(duration: Duration) {
     setDuration(duration)

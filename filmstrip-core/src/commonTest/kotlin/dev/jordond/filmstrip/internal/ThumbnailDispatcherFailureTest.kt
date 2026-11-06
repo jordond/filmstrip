@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.edit.effectsRevision
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.FrameResult
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
@@ -50,7 +51,7 @@ class ThumbnailDispatcherFailureTest {
     runTest {
       val dispatcher = ThumbnailDispatcher(registryOf())
 
-      val results = dispatcher.frames(COMPOSITION, POSITIONS, 90).toList()
+      val results = dispatcher.frames(COMPOSITION, POSITIONS, 90, ExportSpec()).toList()
 
       results.size shouldBe POSITIONS.size
       for (result in results) {
@@ -75,7 +76,7 @@ class ThumbnailDispatcherFailureTest {
           ),
         )
 
-      val results = dispatcher.frames(COMPOSITION, emptyList(), 90).toList()
+      val results = dispatcher.frames(COMPOSITION, emptyList(), 90, ExportSpec()).toList()
 
       results shouldBe emptyList()
       asked shouldBe 0
@@ -97,7 +98,7 @@ class ThumbnailDispatcherFailureTest {
           ),
         )
 
-      dispatcher.frames(COMPOSITION, POSITIONS, 90).toList()
+      dispatcher.frames(COMPOSITION, POSITIONS, 90, ExportSpec()).toList()
 
       claimedWith.map { it.position } shouldBe listOf(POSITIONS.first())
       asked.map { it.position } shouldBe POSITIONS
@@ -111,7 +112,7 @@ class ThumbnailDispatcherFailureTest {
       val dispatcher = ThumbnailDispatcher(registryOf(ThumbnailSourceFactory { _, _ -> source }))
 
       val single = dispatcher.frame(requestAt(1.seconds))
-      val strip = dispatcher.frames(COMPOSITION, POSITIONS, 90).toList()
+      val strip = dispatcher.frames(COMPOSITION, POSITIONS, 90, ExportSpec()).toList()
 
       single.shouldBeInstanceOf<FrameResult.Failure>().error shouldBeSameInstanceAs SOURCE_FAILURE
       for (result in strip) result.shouldBeInstanceOf<FrameResult.Failure>().error shouldBeSameInstanceAs SOURCE_FAILURE

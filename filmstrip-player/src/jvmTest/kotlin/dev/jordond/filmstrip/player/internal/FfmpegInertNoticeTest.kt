@@ -24,7 +24,7 @@ class FfmpegInertNoticeTest {
 
       val preview =
         FfmpegPreviewPlanner(CONTRACT_COMPONENTS)
-          .plan(composition, PreviewQualityPolicy.Full)
+          .plan(composition, PreviewQualityPolicy.Full, ExportSpec())
           .shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
           .plan
       val export =

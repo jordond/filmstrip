@@ -78,7 +78,7 @@ internal class AvPlayerEngine(
   config: PlayerConfig,
   muted: Boolean = false,
   private val bytesRoot: String = AppleScratch.defaultRoot,
-) : PlannedPlayerEngine<PreviewPlan>(parent, config.qualityPolicy, planner) {
+) : PlannedPlayerEngine<PreviewPlan>(parent, config.qualityPolicy, config.exportSpec, planner) {
   private val player = AVPlayer().apply { setMuted(muted) }
 
   /**

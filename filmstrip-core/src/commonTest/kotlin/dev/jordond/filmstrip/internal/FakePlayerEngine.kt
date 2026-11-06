@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.internal
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.EngineListener
 import dev.jordond.filmstrip.player.PlayerEngine
 import dev.jordond.filmstrip.player.PlayerFeatures
@@ -101,6 +102,10 @@ internal class FakePlayerEngine : PlayerEngine {
 
   override fun setQualityPolicy(policy: PreviewQualityPolicy) {
     calls += "quality $policy"
+  }
+
+  override fun setExportSpec(spec: ExportSpec) {
+    calls += "export ${spec.hdr}"
   }
 
   override fun dispose() {

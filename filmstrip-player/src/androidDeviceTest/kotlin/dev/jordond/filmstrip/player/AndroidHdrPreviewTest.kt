@@ -15,6 +15,8 @@ import dev.jordond.filmstrip.effect.Media3Handle
 import dev.jordond.filmstrip.effects.media3WorkingLight
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.export.AdjustmentKind
+import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -23,6 +25,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media3.internal.preview.toMedia3Preview
 import dev.jordond.filmstrip.media3.media3Backend
+import dev.jordond.filmstrip.player.internal.DISPLAY_DECIDES_HDR
 import dev.jordond.filmstrip.player.internal.Media3PreviewPlan
 import dev.jordond.filmstrip.player.internal.Media3PreviewPlanner
 import dev.jordond.filmstrip.player.internal.PlanResult
@@ -33,6 +36,7 @@ import dev.jordond.filmstrip.test.writeAtomically
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -70,7 +74,10 @@ class AndroidHdrPreviewTest {
         val probed = filmstrip.probe(hdrClip()).shouldBeInstanceOf<ProbeResult.Success>()
         withClue("the fixture is not PQ") { probed.info.video?.hdrTransfer shouldBe HdrTransfer.Pq }
 
-        val planned = Media3PreviewPlanner(CONTRACT_COMPONENTS).plan(hdrComposition(), PreviewQualityPolicy.Full)
+        val planned =
+          Media3PreviewPlanner(
+            CONTRACT_COMPONENTS,
+          ).plan(hdrComposition(), PreviewQualityPolicy.Full, ExportSpec())
         val plan = planned.shouldBeInstanceOf<PlanResult.Ready<Media3PreviewPlan>>().plan
 
         withClue("the preview lowering tone mapped an HDR source") { plan.resolved.hdr shouldBe ResolvedHdr.Keep }
@@ -79,6 +86,29 @@ class AndroidHdrPreviewTest {
             .toMedia3Preview(plan.bounds)
             .composition.hdrMode shouldBe Composition.HDR_MODE_KEEP_HDR
         }
+      }
+    }
+
+  // A tone mapped frame cannot be read on the emulator, which has no ten-bit decoder, so this reads the lowering and
+  // the
+  // owner's HDR phone reads the pixels.
+  @Test
+  fun aToneMapSpecLowersThePreviewToTheOpenGlToneMap() =
+    runTest(timeout = TIMEOUT) {
+      realTime {
+        val planned =
+          Media3PreviewPlanner(CONTRACT_COMPONENTS).plan(
+            hdrComposition(),
+            PreviewQualityPolicy.Full,
+            ExportSpec(hdr = HdrMode.ToneMapToSdr),
+          )
+        val plan = planned.shouldBeInstanceOf<PlanResult.Ready<Media3PreviewPlan>>().plan
+
+        plan.resolved.hdr shouldBe ResolvedHdr.ToneMap
+        plan.info.fidelity shouldNotContain DISPLAY_DECIDES_HDR
+        plan.resolved
+          .toMedia3Preview(plan.bounds)
+          .composition.hdrMode shouldBe Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL
       }
     }
 
@@ -98,7 +128,10 @@ class AndroidHdrPreviewTest {
         val mark = ImageOverlay(ImageSource.Bytes(pngOf(Size(MARK_PX, MARK_PX), WHITE)), Corner.BottomEnd)
         val composition = EditComposition(listOf(Track(listOf(Clip(hdrClip())))), listOf(mark))
 
-        val planned = Media3PreviewPlanner(CONTRACT_COMPONENTS).plan(composition, PreviewQualityPolicy.Full)
+        val planned =
+          Media3PreviewPlanner(
+            CONTRACT_COMPONENTS,
+          ).plan(composition, PreviewQualityPolicy.Full, ExportSpec())
         val resolved = planned.shouldBeInstanceOf<PlanResult.Ready<Media3PreviewPlan>>().plan.resolved
 
         withClue("the preview lowering tone mapped an HDR source") { resolved.hdr shouldBe ResolvedHdr.Keep }

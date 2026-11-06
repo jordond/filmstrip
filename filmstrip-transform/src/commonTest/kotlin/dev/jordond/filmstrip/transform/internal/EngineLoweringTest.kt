@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
@@ -20,6 +21,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+
+private val NO_GRADE: suspend (
+  EditComposition,
+  ExportSpec,
+) -> ExportGrade = { _, _ -> ExportGrade.Settled(ResolvedHdr.Keep) }
 
 /**
  * Lowerings of one engine run one at a time, so a resolver's prepared reads belong to the lowering drawing them.
@@ -36,7 +42,7 @@ class EngineLoweringTest {
       val resolver = PreparingResolver { steps += "prepare" }
       var lowerings = 0
       val lowering =
-        EngineLowering<Any>(listOf(resolver), { _, _, _ ->
+        EngineLowering<Any>(listOf(resolver), NO_GRADE, { _, _, _, _ ->
           val index = lowerings++
           steps += "lower $index"
           if (index == 0) gate.await()
@@ -62,7 +68,7 @@ class EngineLoweringTest {
       val never = CompletableDeferred<Unit>()
       var lowerings = 0
       val lowering =
-        EngineLowering<Any>(emptyList(), { _, _, _ ->
+        EngineLowering<Any>(emptyList(), NO_GRADE, { _, _, _, _ ->
           if (lowerings++ == 0) never.await()
           refused()
         }, { _, _, _ -> emptyFlow<ExportStatus>() })
@@ -80,7 +86,7 @@ class EngineLoweringTest {
       val gate = CompletableDeferred<Unit>()
       var lowerings = 0
       val lowering =
-        EngineLowering<Any>(emptyList(), { _, _, _ ->
+        EngineLowering<Any>(emptyList(), NO_GRADE, { _, _, _, _ ->
           lowerings++
           gate.await()
           refused()
@@ -112,7 +118,7 @@ class EngineLoweringTest {
           }
         }
       val lowering =
-        EngineLowering<Any>(listOf(resolver), { _, _, _ ->
+        EngineLowering<Any>(listOf(resolver), NO_GRADE, { _, _, _, _ ->
           steps += "lower"
           refused()
         }, { _, _, _ -> emptyFlow<ExportStatus>() })
@@ -143,7 +149,7 @@ class EngineLoweringTest {
           if (refusals.size == 1) gate.await()
         }
       val lowering =
-        EngineLowering<Any>(listOf(resolver), { _, _, _ ->
+        EngineLowering<Any>(listOf(resolver), NO_GRADE, { _, _, _, _ ->
           steps += "lower"
           refusedLowering(FilmstripError.InvalidComposition(refusal))
         }, { _, _, _ -> emptyFlow<ExportStatus>() })

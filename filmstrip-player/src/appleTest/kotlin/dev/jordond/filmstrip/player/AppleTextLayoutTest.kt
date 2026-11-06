@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.contract.contractTest
 import dev.jordond.filmstrip.player.internal.AvPreviewPlanner
 import dev.jordond.filmstrip.player.internal.PlanResult
@@ -33,9 +34,10 @@ class AppleTextLayoutTest {
     contractTest {
       val composition = appleFixtureComposition(listOf(TextOverlay(CAPTION, CAPTION_STYLE)))
       val uncapped =
-        AvPreviewPlanner(
-          CONTRACT_COMPONENTS,
-        ).plan(composition, PreviewQualityPolicy.Full).shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>().plan
+        AvPreviewPlanner(CONTRACT_COMPONENTS)
+          .plan(composition, PreviewQualityPolicy.Full, ExportSpec())
+          .shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
+          .plan
       val exportFrame = uncapped.info.outputSize
       exportFrame shouldBe FIXTURE_FRAME
 
@@ -45,6 +47,7 @@ class AppleTextLayoutTest {
           .plan(
             composition,
             PreviewQualityPolicy.CapHeight(CAP_HEIGHT),
+            ExportSpec(),
           ).shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
           .plan
       val previewFrame = capped.resolved.output.size

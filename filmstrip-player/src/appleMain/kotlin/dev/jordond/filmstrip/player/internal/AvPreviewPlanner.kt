@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.OutputProperty
 import dev.jordond.filmstrip.capability.PreviewFidelity
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
 
@@ -25,7 +26,9 @@ internal class AvPreviewPlanner(
   override suspend fun plan(
     composition: EditComposition,
     policy: PreviewQualityPolicy,
-  ): PlanResult<PreviewPlan, PlaybackError> = planPreview(composition, policy, AV_FIDELITY, engine::resolve)
+    exportSpec: ExportSpec,
+  ): PlanResult<PreviewPlan, PlaybackError> =
+    planPreview(composition, policy, exportSpec, AV_FIDELITY, engine::exportGrade, engine::resolve)
 }
 
 /**

@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.OutputProperty
 import dev.jordond.filmstrip.capability.PreviewFidelity
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.media3.internal.bounds.readClips
 import dev.jordond.filmstrip.media3.media3ExportEngine
@@ -46,8 +47,19 @@ internal open class Media3PreviewPlanner(
   override suspend fun plan(
     composition: EditComposition,
     policy: PreviewQualityPolicy,
+    exportSpec: ExportSpec,
   ): PlanResult<Media3PreviewPlan, PlaybackError> =
-    when (val result = planPreview(composition, policy, MEDIA3_FIDELITY, engine::resolve)) {
+    when (
+      val result =
+        planPreview(
+          composition,
+          policy,
+          exportSpec,
+          MEDIA3_FIDELITY,
+          engine::exportGrade,
+          engine::resolve,
+        )
+    ) {
       is PlanResult.Refused -> {
         result
       }

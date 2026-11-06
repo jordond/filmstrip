@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
@@ -83,6 +84,8 @@ internal class MissingContextPlayerEngine(
   override fun setPlaybackRange(range: TimeRange?): Unit = Unit
 
   override fun setQualityPolicy(policy: PreviewQualityPolicy): Unit = Unit
+
+  override fun setExportSpec(spec: ExportSpec): Unit = Unit
 }
 
 /**

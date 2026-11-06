@@ -37,7 +37,10 @@ internal class AvThumbnailPlanner(
    */
   suspend fun lower(request: ThumbnailRequest): PlanResult<AvComposition, FilmstripError> {
     val lowering =
-      when (val result = lowerAtHeight(request.composition, request.heightPx, engine::resolve)) {
+      when (
+        val result =
+          lowerAtHeight(request.composition, request.heightPx, request.exportSpec, engine::exportGrade, engine::resolve)
+      ) {
         is PlanResult.Refused -> return result
         is PlanResult.Ready -> result.plan
       }

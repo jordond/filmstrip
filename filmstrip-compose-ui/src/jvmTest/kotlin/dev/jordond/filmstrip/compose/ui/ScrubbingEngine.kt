@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.PlatformImage
 import dev.jordond.filmstrip.player.EngineListener
@@ -97,6 +98,8 @@ internal class ScrubbingEngine : PlayerEngine {
   override fun setPlaybackRange(range: TimeRange?): Unit = Unit
 
   override fun setQualityPolicy(policy: PreviewQualityPolicy): Unit = Unit
+
+  override fun setExportSpec(spec: ExportSpec): Unit = Unit
 
   override fun dispose() {
     listeners = emptyList()

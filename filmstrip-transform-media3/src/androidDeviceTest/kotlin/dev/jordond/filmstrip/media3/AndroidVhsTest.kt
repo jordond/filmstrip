@@ -141,11 +141,19 @@ class AndroidVhsTest {
         "composition" to EditComposition(listOf(Track(listOf(clip))), listOf(vhs)),
       ).forEach { (scope, edit) ->
         val plan = probe.plan(edit, ExportSpec())
-        val written = probe.writtenBy(probe.finish(plan))
+        val finished = probe.finish(plan)
+        val written = probe.writtenBy(finished)
         val size = plan.output.size
-        withClue("$scope scope writes true BT.709") { written.matrix shouldBe BT709 }
+        val primaries = written.primariesFrom(finished)
+        withClue("$scope scope writes BT.709 or reports the retag, file matrix ${written.matrix}") {
+          primaries shouldBe BT709
+        }
         val points = SD_GRID.flatMap { fx -> SD_GRID.map { fy -> fx to fy } }
-        val read = points.map { (fx, fy) -> written.rgbAt(fx, fy).signal() }.meanOfChannels()
+        val read =
+          points
+            .map { (fx, fy) ->
+              sdSourceDisplayed(written.rgbAt(fx, fy).signal(), primaries)
+            }.meanOfChannels()
         val wanted =
           points
             .map { (fx, fy) ->

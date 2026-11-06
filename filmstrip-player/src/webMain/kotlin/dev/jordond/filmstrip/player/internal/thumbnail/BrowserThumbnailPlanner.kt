@@ -25,5 +25,5 @@ internal class BrowserThumbnailPlanner(
    * Lowers [request] at its own height, or answers with the first refusal the engine gave.
    */
   suspend fun lower(request: ThumbnailRequest): PlanResult<HeightLowering, FilmstripError> =
-    lowerAtHeight(request.composition, request.heightPx, engine::resolve)
+    lowerAtHeight(request.composition, request.heightPx, request.exportSpec, engine::exportGrade, engine::resolve)
 }

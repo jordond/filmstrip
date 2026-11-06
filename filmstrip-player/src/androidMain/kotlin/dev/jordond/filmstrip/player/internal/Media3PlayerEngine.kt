@@ -56,7 +56,7 @@ internal class Media3PlayerEngine(
   private val context: Context,
   planner: Media3PreviewPlanner,
   config: PlayerConfig,
-) : PlannedPlayerEngine<Media3PreviewPlan>(parent, config.qualityPolicy, planner) {
+) : PlannedPlayerEngine<Media3PreviewPlan>(parent, config.qualityPolicy, config.exportSpec, planner) {
   private val thread = HandlerThread(THREAD_NAME).apply { start() }
   private val handler = Handler(thread.looper)
 
@@ -398,7 +398,7 @@ internal class Media3PlayerEngine(
       // A player built for a different video graph starts paused at full volume, so it takes the transport from the one
       // it replaces and the volume the engine holds.
       val wanted = host.player?.playWhenReady == true
-      val target = host.playerFor(multipleInputs)
+      val target = host.playerFor(multipleInputs, lowered.composition.hdrMode)
       target.volume = level
       loads.handOver(load)
       target.setComposition(lowered.composition, startMs)

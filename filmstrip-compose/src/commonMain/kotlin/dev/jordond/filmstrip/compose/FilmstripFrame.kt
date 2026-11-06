@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.effectsRevision
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.FrameResult
 import dev.jordond.filmstrip.media.PlatformImage
 import dev.jordond.filmstrip.still.FrameRenderer
@@ -23,7 +24,7 @@ import kotlin.time.Duration
  * instant rather than the run of nearest sync samples a strip reads. Each fetch goes through
  * [FrameRenderer.frame], so nothing here is shared with [rememberFilmstripFrames].
  *
- * The frame is fetched again whenever [at], [heightPx] or anything that would change a rendered
+ * The frame is fetched again whenever [at], [heightPx], [exportSpec] or anything that would change a rendered
  * frame changes. An edit that changes nothing a frame is rendered from, such as the audio, keeps
  * the frame already held. The last frame produced stays in place while the next one renders, and a
  * render that fails clears it.
@@ -33,6 +34,7 @@ import kotlin.time.Duration
  * @param at Where in the composition to render.
  * @param heightPx The height to render at, in pixels. Null renders at the composition's own output
  *   height, and a height of zero or less renders nothing.
+ * @param exportSpec The export this frame stands in for, which renders it at the HDR grade that export resolves to.
  * @return The frame, or null while none has arrived.
  */
 @Composable
@@ -41,6 +43,7 @@ public fun rememberFilmstripFrame(
   composition: EditComposition,
   at: Duration,
   heightPx: Int?,
+  exportSpec: ExportSpec = ExportSpec(),
 ): ImageBitmap? {
   val holder = remember(renderer) { FrameHolder() }
   val revision = remember(composition) { composition.effectsRevision() }
@@ -49,8 +52,8 @@ public fun rememberFilmstripFrame(
     onDispose { holder.close() }
   }
 
-  LaunchedEffect(holder, revision, at, heightPx) {
-    val result = renderer.frame(composition, at, heightPx)
+  LaunchedEffect(holder, revision, at, heightPx, exportSpec) {
+    val result = renderer.frame(composition, at, heightPx, exportSpec)
     holder.replace((result as? FrameResult.Success)?.image)
   }
 

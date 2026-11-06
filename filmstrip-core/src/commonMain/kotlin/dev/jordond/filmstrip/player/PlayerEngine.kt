@@ -5,6 +5,7 @@ import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.FilmstripComponents
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.export.ExportSpec
 import kotlin.time.Duration
 
 /**
@@ -91,11 +92,16 @@ public fun interface PlayerEngineFactory {
  * How a player should be built.
  *
  * @property qualityPolicy How hard the preview may work.
+ * @property exportSpec The export this preview stands in for. The preview renders at the HDR grade that export resolves
+ * to, read from the whole spec since [dev.jordond.filmstrip.export.HdrMode.Auto] depends on the rest of it. Only the
+ * grade is mirrored. Height, frame rate, codec and bitrate do not reach the preview's frame, and `strict` refuses no
+ * preview, so a strict spec previews the grade it would have conceded to.
  */
 @Immutable
 @Poko
 public class PlayerConfig(
   public val qualityPolicy: PreviewQualityPolicy = PreviewQualityPolicy.Full,
+  public val exportSpec: ExportSpec = ExportSpec(),
 )
 
 /**

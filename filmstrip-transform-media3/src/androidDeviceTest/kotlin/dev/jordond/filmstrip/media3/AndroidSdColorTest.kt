@@ -147,7 +147,7 @@ class AndroidSdColorTest {
     val finished = probe.finish(probe.plan(composition, ExportSpec(heightPx = SMALLER_HEIGHT)))
     val written = probe.writtenBy(finished)
     val retagged = finished.adjustments.any { it.kind == AdjustmentKind.ColorSpaceChanged }
-    val primaries = if (retagged) BT709 else PRIMARIES_OF_MATRIX.getValue(written.matrix)
+    val primaries = written.primariesFrom(finished)
 
     BAR_CENTRES.forEachIndexed { bar, fx ->
       val expected = shown(fx)
@@ -181,7 +181,6 @@ class AndroidSdColorTest {
   private fun DoubleArray.inCodes(): List<Double> = map { it * MAX_CODE }
 
   private companion object {
-    const val BT709 = 1
     const val CLIP_WIDTH = 640
     const val CLIP_HEIGHT = 360
     const val SMALLER_HEIGHT = 240
@@ -204,11 +203,5 @@ class AndroidSdColorTest {
         floatArrayOf(0.2f, 0.8f, 0.5f),
       )
     val BAR_CENTRES = BARS.indices.map { (it + 0.5f) / BARS.size }
-    val PRIMARIES_OF_MATRIX =
-      mapOf(
-        BT709 to BT709,
-        EBU_PRIMARIES to EBU_PRIMARIES,
-        SMPTE_C_PRIMARIES to SMPTE_C_PRIMARIES,
-      )
   }
 }

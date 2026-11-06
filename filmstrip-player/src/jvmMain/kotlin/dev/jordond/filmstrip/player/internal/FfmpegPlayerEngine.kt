@@ -46,7 +46,7 @@ internal class FfmpegPlayerEngine(
   parent: CoroutineScope,
   private val planner: FfmpegPreviewPlanner,
   config: PlayerConfig,
-) : PlannedPlayerEngine<PreviewPlan>(parent, config.qualityPolicy, planner) {
+) : PlannedPlayerEngine<PreviewPlan>(parent, config.qualityPolicy, config.exportSpec, planner) {
   private var position: Duration = Duration.ZERO
   private var presented: PreviewFrame? = null
   private var firstFrameEmitted = false
@@ -240,8 +240,9 @@ internal class FfmpegPlayerEngine(
    *
    * A parameter change is a new graph, so it costs a respawn either way. What it does not cost is
    * the timeline: nothing goes back through [PlaybackStatus.Preparing], so the preview redraws where it stood rather
-   * than restarting, on the slot the playhead lands on past the range or not. A structural edit holds the playhead
-   * where [heldPosition] places it. Either way playback that was wanted stays wanted on the new pump.
+   * than restarting, on the slot the playhead lands on past the range or not. It clears a failure as it applies, back
+   * to Ready over a frame already shown and to Preparing over none. A structural edit holds the playhead where
+   * [heldPosition] places it. Either way playback that was wanted stays wanted on the new pump.
    */
   override suspend fun apply(
     change: CompositionDiff,
@@ -258,6 +259,8 @@ internal class FfmpegPlayerEngine(
     if (!parametersOnly) {
       firstFrameEmitted = false
       setStatus(PlaybackStatus.Preparing)
+    } else if (isFailed) {
+      setStatus(if (presented != null) PlaybackStatus.Ready else PlaybackStatus.Preparing)
     }
 
     val start = request.startAt

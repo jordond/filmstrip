@@ -12,11 +12,12 @@ import dev.jordond.filmstrip.player.VideoPlayer
 /**
  * Remembers a player over [composition] and closes it when this leaves composition.
  *
- * The player is built once per [previews] and [config], with the [composition] it was first given.
- * Every later value is loaded a frame after the composition that changed it, which is what leaves a
+ * The player is built once per [previews], with the [composition] and [config] it was first given.
+ * Every later composition is loaded a frame after the composition that changed it, which is what leaves a
  * [PlaybackEventEffect] beside this one already collecting when the load starts emitting. An equal
  * composition costs nothing and a parameter-only edit does not rebuild the pipeline, so ordinary
- * editing needs no debounce here.
+ * editing needs no debounce here. A later [config] goes to the same player through its setters, so the transport and
+ * the playhead stay.
  *
  * `remember` survives recomposition but not a configuration change. Hoist the player into something
  * that outlives the screen for anything longer-lived than a throwaway preview.
@@ -33,9 +34,12 @@ public fun rememberFilmstripPlayer(
   config: PlayerConfig = PlayerConfig(),
 ): VideoPlayer {
   val player =
-    remember(previews, config) {
+    remember(previews) {
       ClosingPlayerHolder(previews.preview(composition, config))
     }.player
+
+  LaunchedEffect(player, config.qualityPolicy) { player.setQualityPolicy(config.qualityPolicy) }
+  LaunchedEffect(player, config.exportSpec) { player.setExportSpec(config.exportSpec) }
 
   LaunchedEffect(player, composition) {
     withFrameNanos { }

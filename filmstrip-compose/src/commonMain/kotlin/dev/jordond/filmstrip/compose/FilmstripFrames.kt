@@ -13,6 +13,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.graphics.ImageBitmap
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.effectsRevision
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.FrameResult
 import dev.jordond.filmstrip.media.PlatformImage
 import dev.jordond.filmstrip.still.FrameRenderer
@@ -102,7 +103,7 @@ public class FilmstripFrames internal constructor(
 
       val spec = strip ?: return@collectLatest
       renderer
-        .frames(spec.composition, missing.map { spec.positions[it] }, spec.heightPx)
+        .frames(spec.composition, missing.map { spec.positions[it] }, spec.heightPx, spec.exportSpec)
         .withIndex()
         .collect { (offset, result) -> store(spec, missing[offset], result) }
     }
@@ -268,6 +269,7 @@ public object FilmstripFramesDefaults {
  *   height, and a height of zero or less renders nothing.
  * @param maxBytes How many bytes of decoded frames to hold.
  * @param overscan How many items either side of the visible ones to keep ready.
+ * @param exportSpec The export these frames stand in for, which renders them at the HDR grade that export resolves to.
  * @return State keyed to [renderer], the same instance across recompositions.
  */
 @Composable
@@ -278,6 +280,7 @@ public fun rememberFilmstripFrames(
   heightPx: Int?,
   maxBytes: Long = FilmstripFramesDefaults.MaxBytes,
   overscan: Int = FilmstripFramesDefaults.Overscan,
+  exportSpec: ExportSpec = ExportSpec(),
 ): FilmstripFrames {
   val frames = remember(renderer) { FilmstripFrames(renderer) }
   val revision = remember(composition) { composition.effectsRevision() }
@@ -286,8 +289,8 @@ public fun rememberFilmstripFrames(
     onDispose { frames.clear() }
   }
 
-  LaunchedEffect(frames, composition, revision, positions, heightPx, maxBytes, overscan) {
-    frames.fill(StripSpec(composition, revision, positions, heightPx, maxBytes, overscan))
+  LaunchedEffect(frames, composition, revision, positions, heightPx, maxBytes, overscan, exportSpec) {
+    frames.fill(StripSpec(composition, revision, positions, heightPx, maxBytes, overscan, exportSpec))
   }
 
   return frames
@@ -303,18 +306,20 @@ internal class StripSpec(
   val heightPx: Int?,
   val maxBytes: Long,
   val overscan: Int,
+  val exportSpec: ExportSpec,
 ) {
   /**
    * Whether a strip already filled against [previous] holds frames this one cannot reuse.
    *
-   * Positions are not part of this. A frame is rendered from the edit and the height alone, so one
-   * decoded for a position both strips ask for is still the right picture at whatever index it has
-   * moved to.
+   * Positions are not part of this. A frame is rendered from the edit, the height and the export spec alone, so one
+   * decoded for a position both strips ask for is still the right picture at whatever index it has moved to. Only the
+   * engine can say whether a new spec moves the grade, so every new spec counts.
    */
   fun invalidates(previous: StripSpec?): Boolean =
     previous == null ||
       revision != previous.revision ||
-      heightPx != previous.heightPx
+      heightPx != previous.heightPx ||
+      exportSpec != previous.exportSpec
 }
 
 /**

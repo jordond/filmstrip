@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.compose.rememberFilmstripFrame
 import dev.jordond.filmstrip.compose.ui.FilmstripTimelineDefaults
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.still.FrameRenderer
 import kotlin.time.Duration
 
@@ -46,6 +47,7 @@ import kotlin.time.Duration
  * @param modifier Modifier for the image, and what gives it its size.
  * @param contentScale How the frame is fitted into the image.
  * @param contentDescription What the frame shows, for accessibility.
+ * @param exportSpec The export this frame stands in for, which renders it at the HDR grade that export resolves to.
  * @param placeholder What fills the image while the frame has not arrived.
  */
 @Composable
@@ -56,10 +58,11 @@ public fun FilmstripImage(
   modifier: Modifier = Modifier,
   contentScale: ContentScale = ContentScale.Fit,
   contentDescription: String? = null,
+  exportSpec: ExportSpec = ExportSpec(),
   placeholder: @Composable () -> Unit = { },
 ) {
   var heightPx by remember { mutableIntStateOf(0) }
-  val bitmap = if (heightPx > 0) rememberFilmstripFrame(renderer, composition, at, heightPx) else null
+  val bitmap = if (heightPx > 0) rememberFilmstripFrame(renderer, composition, at, heightPx, exportSpec) else null
 
   Box(modifier.onSizeChanged { heightPx = it.height }) {
     if (bitmap == null) {

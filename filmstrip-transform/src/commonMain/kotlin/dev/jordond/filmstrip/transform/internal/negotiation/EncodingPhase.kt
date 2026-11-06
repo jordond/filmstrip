@@ -38,15 +38,11 @@ internal fun encodingOf(
   renderCapabilities: (Size, Boolean) -> RenderCapabilities,
 ): Phase<Encoding> {
   val spec = ask.spec
+  val sourceCodec = videoCodecOf(framing.firstVideo.codec.kind)
+  // A negotiation handed its grade writes no file, so having no encoder for a kept grade refuses nothing.
   val video =
-    resolveVideoCodec(
-      spec,
-      ask.device,
-      grade.encodesHdr,
-      ladder,
-      hdrLadder,
-      sourceCodec = videoCodecOf(framing.firstVideo.codec.kind),
-    )
+    resolveVideoCodec(spec, ask.device, grade.encodesHdr, ladder, hdrLadder, sourceCodec)
+      ?: ask.grade?.let { resolveVideoCodec(spec, ask.device, encodesHdr = false, ladder, hdrLadder, sourceCodec) }
       ?: return Phase.Refused(FilmstripError.NoEncoder(spec.videoCodec, NO_ENCODER))
   val encoder = ask.device.encoderFor(video.codec)
   val copies = grade.path == ExportPath.Copy

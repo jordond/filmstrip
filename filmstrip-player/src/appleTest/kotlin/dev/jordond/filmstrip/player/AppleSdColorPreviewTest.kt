@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.contract.asTestFrame
@@ -153,7 +154,7 @@ class AppleSdColorPreviewTest {
       withClip("player") { path, shown ->
         val plan =
           AvPreviewPlanner(CONTRACT_COMPONENTS)
-            .plan(editOf(path), PreviewQualityPolicy.Full)
+            .plan(editOf(path), PreviewQualityPolicy.Full, ExportSpec())
             .shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
             .plan
         val laid = plan.resolved.toAvComposition()

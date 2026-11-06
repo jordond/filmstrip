@@ -125,6 +125,27 @@ class BrowserToneMapTest {
       }
     }
 
+  // A player's frame spec asks for nothing, so the grade reaches the lowering on its own.
+  @Test
+  fun aPreviewHandedTheGradeOfItsExportDrawsTheCurveOnAPlainFrameSpec() =
+    runTest {
+      val composition = single(patchClip(HdrTransfer.Pq, PQ_PATCHES))
+      val preview = resolve(composition, ExportSpec(), ResolvedHdr.ToneMap).toBrowserPreview(composition)
+
+      try {
+        val frame = preview.frameAt((MIDDLE * MILLIS_PER_FRAME).milliseconds).shouldNotBeNull()
+        PQ_PATCHES.indices.forEach { index ->
+          val expected = curveCodes(HdrTransfer.Pq, PQ_PATCHES[index])
+          val drawn = frame.at(x = 0.5, y = (index + 0.5) / PQ_PATCHES.size)
+          withClue("patch $index previewed as $drawn where the curve puts $expected") {
+            drawn.isNear(expected, PREVIEW_CELL) shouldBe true
+          }
+        }
+      } finally {
+        preview.release()
+      }
+    }
+
   // The pass tone maps into a target the size of the frame it was handed, so a source larger than the output grows it
   // before the composite scales it down.
   @Test
@@ -236,11 +257,12 @@ class BrowserToneMapTest {
   private suspend fun resolve(
     composition: EditComposition,
     spec: ExportSpec,
+    grade: ResolvedHdr? = null,
   ): ResolvedComposition =
     webCodecsExportEngine(
       components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(),
       prober = BrowserProber(),
-    ).resolve(composition, spec)
+    ).resolve(composition, spec, grade = grade)
       .shouldBeInstanceOf<ResolveResult.Resolved>()
       .composition
 

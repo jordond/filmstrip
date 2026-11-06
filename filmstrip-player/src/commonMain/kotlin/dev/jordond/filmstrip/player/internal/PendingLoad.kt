@@ -15,6 +15,11 @@ internal class PendingLoad {
   private var pending: Load? = null
 
   /**
+   * Whether a load is still running towards an answer for its caller.
+   */
+  val isOutstanding: Boolean get() = pending?.settled == false
+
+  /**
    * Records [job] as the load outstanding now, answered through [callback].
    *
    * @return a handle that cancels the load without answering its caller.

@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.player.internal
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
+import androidx.media3.transformer.Composition
 import androidx.media3.transformer.CompositionPlayer
 import dev.jordond.filmstrip.player.contract.awaitContract
 import dev.jordond.filmstrip.player.contract.contractTest
@@ -40,7 +41,7 @@ class Media3PlayerHostTest {
       rig.host.start { }
       val standing = rig.host.player
 
-      val kept = rig.onThread { rig.host.playerFor(multipleInputs = false) }
+      val kept = rig.onThread { rig.host.playerFor(false, Composition.HDR_MODE_KEEP_HDR) }
 
       kept shouldBeSameInstanceAs standing
       rig.built.size shouldBe 1
@@ -55,12 +56,33 @@ class Media3PlayerHostTest {
       rig.host.start { }
       val standing = rig.host.player
 
-      val rebuilt = rig.onThread { rig.host.playerFor(multipleInputs = true) }
+      val rebuilt = rig.onThread { rig.host.playerFor(true, Composition.HDR_MODE_KEEP_HDR) }
 
       rig.released.single() shouldBeSameInstanceAs standing
       rig.built.last() shouldBeSameInstanceAs rebuilt
       rig.host.player shouldBeSameInstanceAs rebuilt
-      rig.onThread { rig.host.playerFor(multipleInputs = true) } shouldBeSameInstanceAs rebuilt
+      rig.onThread { rig.host.playerFor(true, Composition.HDR_MODE_KEEP_HDR) } shouldBeSameInstanceAs rebuilt
+      rig.onThread { rig.host.release() }
+    }
+
+  @Test
+  fun aPlayerAtAnotherHdrModeIsReleasedAndRebuiltAndAFreshOneTakesAnyMode() =
+    contractTest { scope ->
+      val rig = Rig(scope)
+      rig.host.start { }
+      val standing = rig.host.player
+
+      val first =
+        rig.onThread { rig.host.playerFor(false, Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL) }
+      first shouldBeSameInstanceAs standing
+
+      val kept =
+        rig.onThread { rig.host.playerFor(false, Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL) }
+      kept shouldBeSameInstanceAs standing
+
+      val rebuilt = rig.onThread { rig.host.playerFor(false, Composition.HDR_MODE_KEEP_HDR) }
+      rig.released.single() shouldBeSameInstanceAs standing
+      rig.host.player shouldBeSameInstanceAs rebuilt
       rig.onThread { rig.host.release() }
     }
 

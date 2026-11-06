@@ -55,6 +55,9 @@ internal class CodecChoice<C>(
  * cut. A source with no entry names none, and a trim over it blocks the copy.
  * @property layoutSize The output frame text is laid out against, for a caller planning a frame smaller than the one an
  * export writes. Null lays text out against the frame the negotiation settles on, which is what an export does.
+ * @property grade The grade this negotiation takes as settled, which a preview reads off the export it stands in for
+ * through [dev.jordond.filmstrip.transform.internal.ExportPlanner.exportGradeOf]. Null settles it from [spec], which is
+ * what an export does.
  */
 @InternalFilmstripApi
 public class Ask(
@@ -63,6 +66,7 @@ public class Ask(
   public val infos: Map<MediaSource, MediaInfo>,
   public val openings: Map<MediaSource, Duration> = emptyMap(),
   public val layoutSize: Size? = null,
+  public val grade: ResolvedHdr? = null,
 )
 
 /**

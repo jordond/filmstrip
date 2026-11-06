@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.EngineListener
@@ -43,6 +44,8 @@ internal class RecordingEngine(
 
   val loads: MutableList<EditComposition> = mutableListOf()
   val seeks: MutableList<Duration> = mutableListOf()
+  val policies: MutableList<PreviewQualityPolicy> = mutableListOf()
+  val exportSpecs: MutableList<ExportSpec> = mutableListOf()
 
   var isScrubbing: Boolean = false
     private set
@@ -109,7 +112,13 @@ internal class RecordingEngine(
 
   override fun setPlaybackRange(range: TimeRange?): Unit = Unit
 
-  override fun setQualityPolicy(policy: PreviewQualityPolicy): Unit = Unit
+  override fun setQualityPolicy(policy: PreviewQualityPolicy) {
+    policies += policy
+  }
+
+  override fun setExportSpec(spec: ExportSpec) {
+    exportSpecs += spec
+  }
 
   override fun dispose() {
     listeners = emptyList()

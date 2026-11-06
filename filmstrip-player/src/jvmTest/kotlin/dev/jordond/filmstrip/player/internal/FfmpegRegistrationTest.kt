@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
 import dev.jordond.filmstrip.ffmpeg.ffmpegBackend
 import dev.jordond.filmstrip.player.PlaybackError
@@ -22,7 +23,7 @@ class FfmpegRegistrationTest {
       val planner = FfmpegPreviewPlanner(ComponentRegistry.Builder().build())
 
       planner
-        .plan(jvmFixtureComposition(), PreviewQualityPolicy.Full)
+        .plan(jvmFixtureComposition(), PreviewQualityPolicy.Full, ExportSpec())
         .shouldBeInstanceOf<PlanResult.Refused<PlaybackError>>()
         .error shouldBe MISSING_FFMPEG.toPlaybackError()
     }
@@ -42,7 +43,7 @@ class FfmpegRegistrationTest {
       val components = Filmstrip { ffmpegBackend(FfmpegConfig(executablePath = "/nonexistent/ffmpeg")) }.components
 
       FfmpegPreviewPlanner(components)
-        .plan(jvmFixtureComposition(), PreviewQualityPolicy.Full)
+        .plan(jvmFixtureComposition(), PreviewQualityPolicy.Full, ExportSpec())
         .shouldBeInstanceOf<PlanResult.Refused<PlaybackError>>()
         .error
         .shouldBeInstanceOf<PlaybackError.DecoderUnavailable>()

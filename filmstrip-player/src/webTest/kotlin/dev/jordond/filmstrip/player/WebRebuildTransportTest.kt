@@ -1,10 +1,13 @@
 package dev.jordond.filmstrip.player
 
+import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.CompositionDiff
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.diff
 import dev.jordond.filmstrip.effects.color.Brightness
+import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.player.contract.ContractRecorder
 import dev.jordond.filmstrip.player.contract.awaitComposition
 import dev.jordond.filmstrip.player.contract.awaitContract
@@ -12,7 +15,11 @@ import dev.jordond.filmstrip.player.contract.contractTest
 import dev.jordond.filmstrip.player.contract.withEngine
 import dev.jordond.filmstrip.player.internal.AUTOPLAY_GRACE
 import dev.jordond.filmstrip.player.internal.BrowserPlayerEngine
+import dev.jordond.filmstrip.player.internal.BrowserPreviewPlan
 import dev.jordond.filmstrip.player.internal.BrowserPreviewPlanner
+import dev.jordond.filmstrip.player.internal.PlanResult
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CompletableDeferred
@@ -108,6 +115,38 @@ class WebRebuildTransportTest {
       recorder.lastState.playWhenReady shouldBe (refusedAhead == 0)
     }
 
+  // The fixture is SDR, so the planner stubs the grade, which is enough to pin the rebuild and the playhead it keeps.
+  @Test
+  fun `a spec that flips the grade rebuilds and keeps the playhead`() =
+    held(webFixtureComposition(), StubbedGradePlanner()) { engine, recorder, _ ->
+      engine.seekTo(LATER, SeekAccuracy.Exact)
+      awaitContract("the seek to land") { recorder.playheads.lastOrNull() == LATER }
+      val loads = engine.platformLoads
+
+      engine.setExportSpec(ExportSpec(hdr = HdrMode.ToneMapToSdr))
+      awaitContract("the grade to rebuild") { engine.platformLoads > loads }
+      awaitContract("the rebuilt preview to be presentable") { recorder.lastState.status == PlaybackStatus.Ready }
+
+      engine.platformLoads shouldBe loads + 1
+      recorder.playheads.last() shouldBe LATER
+    }
+
+  @Test
+  fun `a bitrate change rebuilds nothing`() {
+    val planner = StubbedGradePlanner()
+    held(webFixtureComposition(), planner) { engine, recorder, _ ->
+      val loads = engine.platformLoads
+      val spec = ExportSpec(bitrate = Bitrate.mbps(8))
+
+      engine.setExportSpec(spec)
+      awaitContract("the new spec to be planned") { planner.specs.last() == spec }
+      engine.awaitComposition(webFixtureComposition()).shouldBeInstanceOf<SetCompositionResult.Success>()
+
+      engine.platformLoads shouldBe loads
+      recorder.lastState.hasComposition shouldBe true
+    }
+  }
+
   private fun playing(body: suspend (BrowserPlayerEngine, ContractRecorder, HeldDraws) -> Unit) =
     held(webFixtureComposition(listOf(Brightness(BRIGHT)))) { engine, recorder, draws ->
       engine.play()
@@ -117,13 +156,14 @@ class WebRebuildTransportTest {
 
   private fun held(
     composition: EditComposition,
+    planner: BrowserPreviewPlanner = BrowserPreviewPlanner(CONTRACT_COMPONENTS),
     body: suspend (BrowserPlayerEngine, ContractRecorder, HeldDraws) -> Unit,
   ) = contractTest { scope ->
     val draws = HeldDraws()
     val engine =
       BrowserPlayerEngine(
         parent = scope,
-        planner = BrowserPreviewPlanner(CONTRACT_COMPONENTS),
+        planner = planner,
         config = PlayerConfig(),
         startAudio = { graph, from ->
           draws.starts++
@@ -159,6 +199,42 @@ class WebRebuildTransportTest {
     audio: AudioSpec = AudioSpec.Remove,
   ): EditComposition =
     webFixtureComposition(listOf(Brightness(brightness)), audio).withClips(webFixtureTrimmed(REBUILT_LENGTH).clips)
+
+  /**
+   * Plans every edit as usual, records each spec, and reports the tone mapped grade whenever a spec asks for it.
+   */
+  private class StubbedGradePlanner : BrowserPreviewPlanner(CONTRACT_COMPONENTS) {
+    val specs = mutableListOf<ExportSpec>()
+
+    override suspend fun plan(
+      composition: EditComposition,
+      policy: PreviewQualityPolicy,
+      exportSpec: ExportSpec,
+    ): PlanResult<BrowserPreviewPlan, PlaybackError> {
+      specs += exportSpec
+      val result = super.plan(composition, policy, exportSpec)
+      if (exportSpec.hdr != HdrMode.ToneMapToSdr || result !is PlanResult.Ready) return result
+      val plan = result.plan
+      return PlanResult.Ready(BrowserPreviewPlan(plan.edit, plan.resolved.toneMapped(), plan.info))
+    }
+
+    private fun ResolvedComposition.toneMapped(): ResolvedComposition =
+      ResolvedComposition(
+        tracks = tracks,
+        compositionEffects = compositionEffects,
+        output = output,
+        layoutSize = layoutSize,
+        fill = fill,
+        duration = duration,
+        hdr = ResolvedHdr.ToneMap,
+        hdrTransfer = null,
+        path = path,
+        audio = audio,
+        adjustments = adjustments,
+        encoderName = encoderName,
+        naturalSize = naturalSize,
+      )
+  }
 
   /**
    * Stands in for drawing a new graph's first frame, holding only the draw it was told to.
@@ -205,5 +281,6 @@ class WebRebuildTransportTest {
     const val BRIGHT = 1.4f
     const val DIM = 0.4f
     val REBUILT_LENGTH: Duration = 1400.milliseconds
+    val LATER: Duration = 700.milliseconds
   }
 }

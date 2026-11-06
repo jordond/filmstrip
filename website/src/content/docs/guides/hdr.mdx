@@ -58,5 +58,34 @@ The browser, ffmpeg and Apple run one shared tone curve. Android runs media3's c
 - On ffmpeg the curve is built on the `geq` filter, which evaluates per pixel on the CPU. A desktop preview of a tone
   mapped edit runs the same filter.
 - A preview doesn't show a kept grade the way the file will. `HdrPreview` is only reported on Android, when the display can
-  show HDR. A browser preview composites in standard range, and an ffmpeg preview converts the grade straight to RGB.
+  show HDR. A browser preview composites in standard range, and an ffmpeg preview converts the grade straight to RGB, and
+  each says so in its fidelity notes. On media3 and Apple, a kept grade on an SDR panel is the platform's mapping, the same
+  as the file played back there.
+- media3 can tone map after planning, when the encoder it chose can't write HDR. A preview runs no encoder, so it keeps and
+  the export reports the tone map.
 </Aside>
+
+## Previewing a grade
+
+A preview shows the grade its export will write. Pass the export's spec as `PlayerConfig.exportSpec`, the whole spec, since
+`Auto` depends on the rest of it. A spec that names a bitrate can turn a stream copy into a transcode, and on a device with
+no HDR encoder that tone maps.
+
+```kotlin
+val spec = ExportSpec(hdr = HdrMode.ToneMapToSdr)
+val player = filmstrip.preview(composition, PlayerConfig(exportSpec = spec))
+
+// Later, on the same player.
+player.setExportSpec(ExportSpec(hdr = HdrMode.KeepHdr))
+```
+
+- Only the grade is mirrored. Height, frame rate, codec and bitrate don't reach the preview's frame.
+- A spec that moves the grade rebuilds the pipeline and keeps the transport and the playhead. One that leaves it alone
+  rebuilds nothing. `rememberFilmstripPlayer` calls the setters for you when its config changes.
+- A refused export is a refused preview. `KeepHdr` with no way to keep, an effect that needs SDR under `KeepHdr`, or a
+  setting the export refuses, like a height of zero or a bitrate named beside a quality, reaches your listeners as
+  `PlaybackError.UnsupportedFormat` in the planner's words, and the frame on screen stays.
+- `strict` isn't mirrored. A strict spec previews the `Auto` grade, and `plan` is what reports the refusal.
+- Frames and thumbnails take the same `exportSpec`, on `FrameRenderer.frame`, `FrameRenderer.frames`, `ThumbnailRequest`,
+  `rememberFilmstripFrame`, `rememberFilmstripFrames`, `FilmstripImage` and `FilmstripTimeline`. A new spec fetches the strip
+  again.

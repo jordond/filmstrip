@@ -58,7 +58,7 @@ internal class BrowserPlayerEngine(
   private val drawFirstFrame: suspend (preview: BrowserPreview, at: Duration) -> Boolean = { preview, at ->
     preview.frameAt(at) != null
   },
-) : PlannedPlayerEngine<BrowserPreviewPlan>(parent, config.qualityPolicy, planner) {
+) : PlannedPlayerEngine<BrowserPreviewPlan>(parent, config.qualityPolicy, config.exportSpec, planner) {
   private var preview: BrowserPreview? = null
   private var audio: BrowserAudioPreview? = null
   private var clock: PreviewClock = MonotonicClock()

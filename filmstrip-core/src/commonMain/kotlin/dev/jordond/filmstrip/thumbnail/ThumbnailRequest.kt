@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.thumbnail
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.PlatformImage
 import kotlin.time.Duration
 
@@ -46,6 +47,7 @@ public fun interface ThumbnailCallback {
  *   answer from the nearest sync sample instead, taking the faster read where it has one, which is
  *   what a strip wants. [ThumbnailResult.Success.presentationTime] says which frame came back
  *   either way.
+ * @property exportSpec The export this frame stands in for, which renders it at the HDR grade that export resolves to.
  * @throws IllegalArgumentException when [heightPx] is zero or less.
  */
 @Poko
@@ -55,6 +57,7 @@ public class ThumbnailRequest(
   public val heightPx: Int?,
   public val effectsRevision: Long,
   public val precise: Boolean,
+  public val exportSpec: ExportSpec = ExportSpec(),
 ) {
   init {
     require(heightPx == null || heightPx > 0) { "A thumbnail height has to be positive or null, got $heightPx." }

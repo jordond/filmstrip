@@ -10,6 +10,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.util.ExperimentalApi
 import androidx.media3.effect.MultipleInputVideoGraph
+import androidx.media3.transformer.Composition
 import androidx.media3.transformer.CompositionPlayer
 import kotlinx.coroutines.CoroutineScope
 import java.util.concurrent.CountDownLatch
@@ -62,6 +63,9 @@ internal class Media3PlayerHost(
 
   private var takesMultipleInputs = false
 
+  // The HDR mode the standing player's video graph was built for, or null before a first composition sets one.
+  private var graphHdrMode: Int? = null
+
   /**
    * Builds the first player on the player's thread and waits for [describe] to answer from there.
    *
@@ -86,16 +90,25 @@ internal class Media3PlayerHost(
   }
 
   /**
-   * The player that can draw a composition with this many video inputs, building a fresh one when
-   * the standing player cannot. Player thread only.
+   * The player that can draw a composition with this many video inputs at this HDR mode, building a
+   * fresh one when the standing player cannot. Player thread only.
    *
    * A video graph that takes one input is the default and the cheaper one. Handed a composition
    * with more than one video sequence it logs a warning and draws the wrong picture, so the choice
    * is made from the lowering.
+   *
+   * A `CompositionPlayer` settles its video graph's output colour on the first input it sees and keeps that graph
+   * across
+   * later compositions, so a composition at another [hdrMode] only takes effect on a fresh player.
    */
-  fun playerFor(multipleInputs: Boolean): CompositionPlayer {
+  fun playerFor(
+    multipleInputs: Boolean,
+    hdrMode: Int,
+  ): CompositionPlayer {
     val standing = player
-    if (standing != null && takesMultipleInputs == multipleInputs) return standing
+    val sameGraph = takesMultipleInputs == multipleInputs && (graphHdrMode ?: hdrMode) == hdrMode
+    graphHdrMode = hdrMode
+    if (standing != null && sameGraph) return standing
 
     standing?.let {
       onReleased(it)

@@ -26,11 +26,13 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainResult
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.COLOR_READ_BITRATE
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
+import dev.jordond.filmstrip.ffmpeg.support.VhsFrames
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.hdr.Rgb
 import dev.jordond.filmstrip.transform.internal.hdr.TONE_MAP_BT2020_TO_BT709
 import dev.jordond.filmstrip.transform.internal.hdr.toneMappedSdr
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.doubles.shouldBeLessThan
@@ -42,6 +44,7 @@ import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.test.Test
+import kotlin.time.Duration
 
 /**
  * Flat patches of a PQ and an HLG clip tone mapped to SDR and read back against the shared tone curve.
@@ -91,6 +94,8 @@ class FfmpegToneCurveTest {
         ExportSpec(hdr = HdrMode.ToneMapToSdr, bitrate = COLOR_READ_BITRATE),
       )
     fixture.exported(verdict.shouldBeInstanceOf<Verdict.Capable>().plan, output)
+    // The preview takes the grade off the export it stands in for, so its own frame spec asks for nothing.
+    val previewed = VhsFrames().frames(composition, Duration.ZERO, 1, grade = ResolvedHdr.ToneMap).single()
 
     codes.forEachIndexed { index, patch ->
       val decoded = signalFromTenBitCodes(patch[0], patch[1], patch[2])
@@ -102,6 +107,13 @@ class FfmpegToneCurveTest {
       CHANNELS.forEachIndexed { channel, (name, of) ->
         withClue("patch $index $name wrote ${written[channel]} where the curve puts ${of(expected)}") {
           abs(written[channel] - of(expected)) shouldBeLessThan TONE_CURVE_CELL
+        }
+      }
+      val rgba = 4 * (PATCH_SIDE / 2 * PATCH_SIDE * codes.size + PATCH_SIDE * index + PATCH_SIDE / 2)
+      CHANNELS.forEachIndexed { channel, (name, of) ->
+        val shown = (previewed[rgba + channel].toInt() and 0xFF) / 255.0
+        withClue("patch $index $name previewed $shown where the curve puts ${of(expected)}") {
+          abs(shown - of(expected)) shouldBeLessThan TONE_CURVE_CELL
         }
       }
       withClue("patch $index Hable lands inside the cell on every channel, so the cell cannot see the curve") {

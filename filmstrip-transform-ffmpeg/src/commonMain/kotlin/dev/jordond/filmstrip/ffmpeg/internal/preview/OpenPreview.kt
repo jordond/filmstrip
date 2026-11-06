@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.scratchFailure
 import dev.jordond.filmstrip.ffmpeg.internal.process.unspawnablePump
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.transform.internal.refusal
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import kotlinx.io.IOException
 import kotlin.time.Duration
 
@@ -37,6 +38,8 @@ import kotlin.time.Duration
  * @param at Where in the composition the first frame comes from, which the pump opens on the output slot it lands on.
  * A composition whose timeline an input seek cannot window opens at zero instead. Either way
  * [PreviewStream.startPosition] reports where it opened.
+ * @param grade The grade to lower at, for a preview rendering the grade of an export it is not lowering. Null settles
+ * it from [spec].
  * @return The running stream, or why the edit cannot be previewed here.
  */
 @InternalFilmstripApi
@@ -45,8 +48,9 @@ public suspend fun FfmpegExportEngine.openPreview(
   spec: ExportSpec,
   layoutSize: Size? = null,
   at: Duration = Duration.ZERO,
+  grade: ResolvedHdr? = null,
 ): PreviewStreamResult {
-  val lowered = runs.lowered(composition, spec, layoutSize)
+  val lowered = runs.lowered(composition, spec, layoutSize, grade)
   val (toolchain, invocation) = lowered.graph ?: return PreviewStreamResult.Refused(lowered.export.refusal())
 
   val scratch =
