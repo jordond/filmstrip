@@ -91,6 +91,35 @@ them out of the export and lists each on the plan, so you can tell the user why 
 
 There's no cancelled status. Cancel the collecting scope and the export stops.
 
+## Colour
+
+An SD source displays the same colour after an export on Apple as it did before. A source tagged with SMPTE C or EBU
+primaries or a BT.601 matrix, or one VideoToolbox reads that way when it carries no tags, is written as true BT.709 on
+macOS and iOS alike. Preview, frames read and thumbnails draw the same colour as the export. It can sit beside an HDR
+clip in a tone mapped export on any iOS version a tone map runs on. Below iOS 16, an SDR clip on wider primaries than
+BT.709 beside an SD clip is refused, the same as beside an HDR clip.
+
+Moving SMPTE C or EBU primaries on Apple runs a Core Image Metal kernel, which takes iOS 15 or macOS 12 on an Apple6
+GPU. A device that can't compile one refuses a clip on those primaries, tagged or read that way, the same way it
+refuses a tone map.
+
+The browser backend moves SMPTE C and EBU primaries the same way, in an export and in a preview.
+
+The FFmpeg backend keeps an SD source's codes and tags when every clip shares one SD colour, which displays the same
+colour, and its preview and thumbnails draw that colour too. Beside anything else, a BT.709 clip or a tone mapped HDR
+clip or another SD colour, it writes the file as true BT.709, moving each SD clip's primaries. An effect that draws on
+the picture, a grade or an overlay or `Vhs`, does the same on its own, so it reads the clip's colour as BT.709 on every
+backend. A trim, a rotate, a crop or a scale keeps the codes and tags, and so does an effect that renders nothing. A
+build with no `colorspace` filter refuses a clip on SD primaries. A source with no tags stays that way with its codes
+unmoved, so a player that guesses its colour by frame size, the way VideoToolbox does, can guess differently once it is
+scaled up.
+
+The media3 backend writes SMPTE C and EBU primaries as true BT.709 too, in an export and in a preview. A source with no
+tags exports as Android draws it.
+
+On every backend an SD source beside an HDR one has no grade to keep, so `HdrMode.Keep` refuses the two and
+`HdrMode.Auto` tone maps them to SDR together, where the SD source's primaries move as above.
+
 ## Failures
 
 Every failure is a `FilmstripError` value. Nothing in filmstrip's public API throws one, so branch on the type

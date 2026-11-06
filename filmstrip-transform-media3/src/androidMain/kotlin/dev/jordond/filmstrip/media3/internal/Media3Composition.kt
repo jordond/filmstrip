@@ -12,7 +12,7 @@ import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.geometry.Fill
-import dev.jordond.filmstrip.media3.internal.bounds.Media3FrameBounds
+import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.media3.internal.failure.Media3LoweringFailure
 import dev.jordond.filmstrip.media3.internal.fill.FillFlatten
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -36,15 +36,15 @@ import dev.jordond.filmstrip.transform.internal.resolve.showsFill
  * Every clip's chain is lowered before the composition's, in track and clip order, which is the order [wrapper] sees
  * them in. A clip that covers no slot of the grid lays no video, so its chain is never lowered.
  *
- * @param bounds The samples each clip decodes, read off its container by `readFrameBounds`.
+ * @param bounds The samples each clip decodes, read off its container by `readClips`.
  * @throws Media3LoweringFailure when a source cannot be lowered.
  */
 @InternalFilmstripApi
-public fun ResolvedComposition.toMedia3(bounds: Media3FrameBounds): Composition = toMedia3(UnwrappedEffects, bounds)
+public fun ResolvedComposition.toMedia3(bounds: Media3ClipReads): Composition = toMedia3(UnwrappedEffects, bounds)
 
 internal fun ResolvedComposition.toMedia3(
   wrapper: EffectWrapper,
-  bounds: Media3FrameBounds,
+  bounds: Media3ClipReads,
 ): Composition {
   val keepAudio = output.audioCodec != AudioCodec.None
   val keepVideo = audio != AudioSpec.AudioOnly

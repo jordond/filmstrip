@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.avfoundation.internal.composition
 
 import dev.jordond.filmstrip.avfoundation.internal.chain.ChainSnapshot
 import dev.jordond.filmstrip.avfoundation.internal.chain.CoreImageChain
+import dev.jordond.filmstrip.avfoundation.internal.chain.sdPrimariesMoved
 import dev.jordond.filmstrip.avfoundation.internal.chain.toneMapped
 import dev.jordond.filmstrip.avfoundation.internal.interop.PIXEL_FORMAT_KEY
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
@@ -27,7 +28,6 @@ import platform.AVFoundation.AVVideoCompositionRenderContext
 import platform.AVFoundation.AVVideoTransferFunction_ITU_R_2100_HLG
 import platform.AVFoundation.AVVideoTransferFunction_ITU_R_709_2
 import platform.AVFoundation.AVVideoTransferFunction_SMPTE_ST_2084_PQ
-import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_601_4
 import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_709_2
 import platform.CoreFoundation.CFRelease
 import platform.CoreFoundation.CFStringRef
@@ -39,7 +39,6 @@ import platform.CoreImage.kCIImageColorSpace
 import platform.CoreMedia.CMTimeRange
 import platform.CoreMedia.kCMPersistentTrackID_Invalid
 import platform.CoreVideo.CVBufferCopyAttachment
-import platform.CoreVideo.CVBufferRemoveAttachment
 import platform.CoreVideo.CVBufferSetAttachment
 import platform.CoreVideo.CVPixelBufferCreate
 import platform.CoreVideo.CVPixelBufferGetHeight
@@ -48,7 +47,6 @@ import platform.CoreVideo.CVPixelBufferRef
 import platform.CoreVideo.CVPixelBufferRefVar
 import platform.CoreVideo.CVPixelBufferRelease
 import platform.CoreVideo.kCVAttachmentMode_ShouldPropagate
-import platform.CoreVideo.kCVImageBufferCGColorSpaceKey
 import platform.CoreVideo.kCVImageBufferColorPrimariesKey
 import platform.CoreVideo.kCVImageBufferColorPrimaries_ITU_R_709_2
 import platform.CoreVideo.kCVImageBufferTransferFunctionKey
@@ -84,13 +82,13 @@ import platform.darwin.NSObjectMeta
 import kotlin.time.Duration
 
 /**
- * What every frame of a tone mapped plan is drawn from.
+ * What every frame of a plan drawn by [AvCompositor] is drawn from.
  *
  * AVFoundation builds the compositor itself and hands it nothing of ours, so the instruction carries the chain and
  * reaches each request as this same object.
  */
 @OptIn(ExperimentalForeignApi::class)
-internal class AvToneMapInstruction(
+internal class AvCompositorInstruction(
   private val range: CValue<CMTimeRange>,
   private val track: Int,
   val chain: CoreImageChain,
@@ -109,13 +107,13 @@ internal class AvToneMapInstruction(
 }
 
 /**
- * Renders a tone mapped plan: the shared tone curve as the head of each source frame, then the chain.
+ * Renders a tone mapped plan and any plan holding an SD clip: the head of each source frame, then the chain.
  *
  * This compositor takes HDR frames and conforms colour itself, and the composition names no colour, so AVFoundation
  * hands over each clip's frames with the codes and tags its own file carries. An HDR clip's codes go through the tone
- * map kernel and then count as BT.709 SDR codes, and an SDR clip's end up as BT.709 codes too, so the chain sees the
- * same kind of image either way. The result is written in BT.709 codes and tagged BT.709, without which the
- * writer colour matches the frame out of what it thinks the frame is.
+ * map kernel and then count as BT.709 SDR codes, and an SDR clip's end up as BT.709 codes too, an SD clip's through
+ * the shared SD matrices, so the chain sees the same kind of image either way. The result is written in BT.709 codes
+ * and tagged BT.709, without which the writer colour matches the frame out of what it thinks the frame is.
  *
  * A request with no source is a timeline gap, and it goes through the chain as a black frame.
  *
@@ -123,14 +121,14 @@ internal class AvToneMapInstruction(
  * [CoreImageChain.drawn], and anything else fails the request.
  */
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-internal class AvToneMapCompositor
+internal class AvCompositor
   @OverrideInit
   constructor() :
   NSObject(),
     AVVideoCompositingProtocol {
-    override fun sourcePixelBufferAttributes(): Map<Any?, *> = toneMapSourceAttributes()
+    override fun sourcePixelBufferAttributes(): Map<Any?, *> = compositorSourceAttributes()
 
-    override fun requiredPixelBufferAttributesForRenderContext(): Map<Any?, *> = toneMapOutputAttributes()
+    override fun requiredPixelBufferAttributesForRenderContext(): Map<Any?, *> = compositorOutputAttributes()
 
     override fun supportsHDRSourceFrames(): Boolean = true
 
@@ -156,7 +154,7 @@ internal class AvToneMapCompositor
     }
 
     private fun render(request: AVAsynchronousVideoCompositionRequest) {
-      val instruction = request.videoCompositionInstruction() as AvToneMapInstruction
+      val instruction = request.videoCompositionInstruction() as AvCompositorInstruction
       val chain = instruction.chain
       val state = chain.current
       val track = (request.sourceTrackIDs().firstOrNull() as? NSNumber)?.intValue
@@ -183,20 +181,20 @@ internal class AvToneMapCompositor
  * The setter takes a `Class`, which cinterop types as an instance of the protocol.
  */
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-internal fun toneMapCompositorClass(): AVVideoCompositingProtocol = interpretObjCPointer(AvToneMapCompositor.objcPtr())
+internal fun compositorClass(): AVVideoCompositingProtocol = interpretObjCPointer(AvCompositor.objcPtr())
 
 /**
  * The buffers a compositor asks for its sources in, ten-bit for a graded signal and eight-bit for an SDR one.
  *
  * A source decoded to one of these reaches the compositor untouched.
  */
-internal fun toneMapSourceAttributes(): Map<Any?, *> =
+internal fun compositorSourceAttributes(): Map<Any?, *> =
   pixelFormats(kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange, kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange)
 
 /**
  * The buffers a compositor renders into, the same format the SDR route reads from its handler.
  */
-internal fun toneMapOutputAttributes(): Map<Any?, *> = pixelFormats(kCVPixelFormatType_32BGRA)
+internal fun compositorOutputAttributes(): Map<Any?, *> = pixelFormats(kCVPixelFormatType_32BGRA)
 
 // A real dictionary, since a bridged Kotlin map is not one once it crosses into Apple's media APIs.
 @OptIn(BetaInteropApi::class)
@@ -231,10 +229,14 @@ private fun ChainSnapshot.head(
 ): CIImage {
   if (frame == null) return blackFrame()
   val carried = frame.hdrTransfer()
-  spans.firstOrNull { it.covers(time) }?.let { span ->
-    check(span.sourceTransfer == carried) { transferMismatch(time, span.sourceTransfer, carried) }
+  val span = spans.firstOrNull { it.covers(time) }
+  span?.let { check(it.sourceTransfer == carried) { transferMismatch(time, it.sourceTransfer, carried) } }
+  return when {
+    carried != null -> frame.toneMappedHead(carried)
+    // The chain swaps the photo in for a still's seed, so the seed's own colour goes nowhere.
+    span?.still != null -> frame.rawCodes().asBt709Codes()
+    else -> frame.sdrHead(span?.sdColor)
   }
-  return if (carried == null) frame.sdrHead() else frame.toneMappedHead(carried)
 }
 
 @OptIn(ExperimentalForeignApi::class)
@@ -261,20 +263,26 @@ private fun ChainSnapshot.blackFrame(): CIImage =
     .imageByCroppingToRect(CGRectMake(0.0, 0.0, output.size.width.toDouble(), output.size.height.toDouble()))
 
 /**
- * An SDR clip's frame, reading what the same clip reads under a composition naming BT.709.
+ * An SDR clip's frame as BT.709 codes.
  *
- * AVFoundation does that with a pixel transfer to BT.709, so a frame tagged anything else goes through one here. The
- * exception is [relabelsBt601AsBt709].
+ * This composition names no colour, so the frame carries its own tags and Core Image decodes it with its real matrix. A
+ * frame of [color] then moves onto BT.709's primaries with the shared matrices. Any other frame not tagged BT.709 goes
+ * through VideoToolbox's pixel transfer.
+ *
+ * @param color The SD colour read off the clip when it was planned, or null when it has none.
+ * @param transferExists Whether this OS has the pixel transfer.
+ * @throws IllegalStateException When a frame needs the pixel transfer and it cannot run, which [sdrTransferLimit]
+ * refused at plan time.
  */
 @OptIn(ExperimentalForeignApi::class)
-private fun CVPixelBufferRef.sdrHead(): CIImage {
-  if (relabelsBt601AsBt709 && tag(kCVImageBufferYCbCrMatrixKey) == AVVideoYCbCrMatrix_ITU_R_601_4) {
-    CVBufferRemoveAttachment(this, kCVImageBufferCGColorSpaceKey)
-    tagBt709()
-  }
+internal fun CVPixelBufferRef.sdrHead(
+  color: SdSourceColor?,
+  transferExists: Boolean = hasPixelTransferSession,
+): CIImage {
+  if (color != null) return rawCodes().sdPrimariesMoved(color).asBt709Codes()
   if (carriesBt709()) return rawCodes().asBt709Codes()
 
-  val converted = convertedToBt709()
+  val converted = convertedToBt709(transferExists)
   try {
     return converted.rawCodes().asBt709Codes()
   } finally {
@@ -306,8 +314,8 @@ private fun CVPixelBufferRef.carriesBt709(): Boolean =
  * plan time.
  */
 @OptIn(ExperimentalForeignApi::class)
-private fun CVPixelBufferRef.convertedToBt709(): CVPixelBufferRef {
-  sdrTransferLimit()?.let(::error)
+private fun CVPixelBufferRef.convertedToBt709(transferExists: Boolean): CVPixelBufferRef {
+  sdrTransferLimit(transferExists)?.let(::error)
   return memScoped {
     val session = alloc<VTPixelTransferSessionRefVar>()
     check(VTPixelTransferSessionCreate(null, session.ptr) == 0) { NO_TRANSFER }
@@ -372,8 +380,6 @@ private fun CIContext.renderCodes(
   )
 }
 
-// A held tail hands the same buffer to several requests, which sdrHead can relabel at once. The matrix goes last and
-// sdrHead reads it first, so a frame that reads BT.709 there has the other two tags set already.
 @OptIn(ExperimentalForeignApi::class)
 private fun CVPixelBufferRef.tagBt709() {
   CVBufferSetAttachment(
@@ -400,8 +406,8 @@ private fun CVPixelBufferRef.tagBt709() {
 @OptIn(ExperimentalForeignApi::class)
 private val BT709_CODE_SPACE by lazy { ColorSpace.Bt709.createCodeSpace() }
 
-private const val ERROR_DOMAIN = "dev.jordond.filmstrip.avfoundation.tonemap"
-private const val NO_OUTPUT_BUFFER = "AVFoundation handed the tone map compositor no buffer to render into."
+private const val ERROR_DOMAIN = "dev.jordond.filmstrip.avfoundation.compositor"
+private const val NO_OUTPUT_BUFFER = "AVFoundation handed the compositor no buffer to render into."
 private const val NO_TRANSFER = "VideoToolbox would not convert an SDR frame to BT.709."
-private const val NO_RENDERER = "This process has no Core Image context to render a tone mapped frame through."
+private const val NO_RENDERER = "This process has no Core Image context to render a frame through."
 private const val NO_CODE_SPACE = "Core Image would not read a tone mapped frame as BT.709 codes."

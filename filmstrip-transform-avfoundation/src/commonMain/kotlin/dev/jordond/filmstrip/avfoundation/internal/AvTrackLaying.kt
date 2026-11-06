@@ -2,7 +2,10 @@ package dev.jordond.filmstrip.avfoundation.internal
 
 import dev.jordond.filmstrip.avfoundation.internal.chain.ClipSpan
 import dev.jordond.filmstrip.avfoundation.internal.chain.laysVideoOnGrid
+import dev.jordond.filmstrip.avfoundation.internal.chain.sdPrimariesKernelLimit
 import dev.jordond.filmstrip.avfoundation.internal.chain.spanning
+import dev.jordond.filmstrip.avfoundation.internal.composition.SdSourceColor
+import dev.jordond.filmstrip.avfoundation.internal.composition.sdSourceColor
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
 import dev.jordond.filmstrip.avfoundation.internal.still.stillSeed
 import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TIMESCALE
@@ -50,19 +53,50 @@ internal class Placement(
   val start: Duration,
   val end: Duration,
   val heldFrom: Duration? = null,
+  val sdColor: SdSourceColor? = null,
 )
 
 /**
  * Opens each source once, however many clips read from it and however many tracks each is laid
  * onto.
+ *
+ * @param drawsSd Whether the plan draws an SD clip's colour at all, which it does not when it encodes a grade. Every
+ * clip reads as having no SD colour then, and nothing decodes a frame or needs the kernel.
  */
 internal class AssetCache(
   private val bytesRoot: String = AppleScratch.defaultRoot,
+  private val drawsSd: Boolean = true,
+  private val kernelLimit: () -> String? = { sdPrimariesKernelLimit() },
+  private val readSdColor: (AVURLAsset, Int) -> SdSourceColor? = { asset, longestSide ->
+    asset.sdSourceColor(longestSide)
+  },
 ) {
   private val assets = mutableMapOf<MediaSource, AVURLAsset>()
+  private val sdColors = mutableMapOf<MediaSource, SdSourceColor?>()
 
   fun of(source: MediaSource): AVURLAsset =
     assets.getOrPut(source) { AVURLAsset(uRL = source.toNSURL(bytesRoot), options = null) }
+
+  /**
+   * The SD colour [clip]'s frames decode with, read once per source, or null for a still, a clip with no video, an HDR
+   * clip and every clip of a plan that does not draw SD colour.
+   *
+   * @throws AvLoweringFailure When the clip has SD primaries and this device cannot run the kernel that moves them.
+   */
+  fun sdColorOf(clip: ResolvedClip): SdSourceColor? {
+    val video = clip.info.video
+    if (!drawsSd || clip.source is MediaSource.Image || video == null || video.hdrTransfer != null) return null
+    // Null is an answer here too, and a read of it can decode a frame, so it is cached the same as a colour.
+    val color =
+      if (clip.source in sdColors) {
+        sdColors[clip.source]
+      } else {
+        readSdColor(of(clip.source), maxOf(video.displaySize.width, video.displaySize.height))
+          .also { sdColors[clip.source] = it }
+      }
+    if (color?.primariesToBt709 != null) kernelLimit()?.let { throw AvLoweringFailure(it) }
+    return color
+  }
 }
 
 /**
@@ -128,7 +162,8 @@ internal fun ResolvedTrack.layOnto(
       end = outputSlotTime(closing, grid).toCMTime().toDuration()
       if (index == holding) heldFrom = outputSlotTime(tail.first - 1, grid)
     }
-    Placement(clip = clip, start = at, end = end, heldFrom = heldFrom).also {
+    val sdColor = if (video) assets.sdColorOf(clip) else null
+    Placement(clip = clip, start = at, end = end, heldFrom = heldFrom, sdColor = sdColor).also {
       media.insertClip(it, mediaType, assets, frameRate, grid)
     }
   }
@@ -289,6 +324,7 @@ internal fun List<Placement>.toSpans(
       layoutSize = layoutSize,
       hdrTransfer = hdrTransfer,
       heldFrom = placement.heldFrom,
+      sdColor = placement.sdColor,
     )
   }
 

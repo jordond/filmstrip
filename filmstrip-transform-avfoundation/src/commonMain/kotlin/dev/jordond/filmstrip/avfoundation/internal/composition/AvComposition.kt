@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.avfoundation.internal.AssetCache
 import dev.jordond.filmstrip.avfoundation.internal.chain.ClipSpan
 import dev.jordond.filmstrip.avfoundation.internal.chain.CoreImageChain
 import dev.jordond.filmstrip.avfoundation.internal.chain.laysVideoOnGrid
+import dev.jordond.filmstrip.avfoundation.internal.chain.sdPrimariesKernelLimit
 import dev.jordond.filmstrip.avfoundation.internal.chain.videoTrack
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
 import dev.jordond.filmstrip.avfoundation.internal.layOnto
@@ -60,6 +61,7 @@ import platform.CoreMedia.kCMTimeZero
  * @property audioMix Null when nothing scales a gain, so the reader passes samples through.
  * @property encodesHdr Whether an HDR grade reaches the encoder, which is not always what was
  *   asked for.
+ * @property drawnByCompositor Whether [AvCompositor] draws the frames, on the clock rather than per sample.
  */
 @InternalFilmstripApi
 public class AvComposition internal constructor(
@@ -70,6 +72,7 @@ public class AvComposition internal constructor(
   public val transfer: HdrTransfer?,
   private val laidSpans: List<ClipSpan>,
   internal val chain: CoreImageChain?,
+  internal val drawnByCompositor: Boolean,
 ) {
   /**
    * The size every frame is drawn at, or null when the output carries no video track.
@@ -141,12 +144,28 @@ public class AvComposition internal constructor(
  * @throws MediaBytesFileFailure when an in-memory source could not be written to a file.
  */
 @InternalFilmstripApi
+public fun ResolvedComposition.toAvComposition(bytesRoot: String = AppleScratch.defaultRoot): AvComposition =
+  toAvComposition(sdKernelLimit = { sdPrimariesKernelLimit() }, bytesRoot = bytesRoot)
+
+/**
+ * Builds the AVFoundation composition this plan runs as, with [sdKernelLimit] saying why this device cannot draw an SD
+ * clip's primaries.
+ *
+ * @param bytesRoot The directory an in-memory source lands under.
+ * @throws AvLoweringFailure when a source or a track cannot be opened, or when the plan draws an SD clip's primaries
+ * and [sdKernelLimit] names a limit.
+ * @throws MediaBytesFileFailure when an in-memory source could not be written to a file.
+ */
 @OptIn(ExperimentalForeignApi::class)
-public fun ResolvedComposition.toAvComposition(bytesRoot: String = AppleScratch.defaultRoot): AvComposition {
+internal fun ResolvedComposition.toAvComposition(
+  sdKernelLimit: () -> String?,
+  bytesRoot: String = AppleScratch.defaultRoot,
+): AvComposition {
   val keepAudio = output.audioCodec != AudioCodec.None
   val keepVideo = audio != AudioSpec.AudioOnly
+  val encodesHdr = hdrTransfer != null
   val composition = AVMutableComposition()
-  val assets = AssetCache(bytesRoot)
+  val assets = AssetCache(bytesRoot = bytesRoot, drawsSd = !encodesHdr, kernelLimit = sdKernelLimit)
   val tail = videoTrack?.let { tailHeldBy(it) } ?: LongRange.EMPTY
 
   val placements =
@@ -176,16 +195,18 @@ public fun ResolvedComposition.toAvComposition(bytesRoot: String = AppleScratch.
     throw AvLoweringFailure(NOTHING_INSERTED)
   }
 
-  val encodesHdr = hdrTransfer != null
   val spans = placements.toSpans(composition.duration.toDuration(), output.size, layoutSize, hdrTransfer)
   val chain = if (keepVideo) CoreImageChain(this, spans, encodesHdr) else null
   val holdsTail = !tail.isEmpty()
   // An audio-only clip can bring a grade into the plan that no laid video carries, which leaves nothing to tone map.
   val toneMaps = hdr == ResolvedHdr.ToneMap && spans.any { it.sourceTransfer != null }
+  val holdsSd = spans.any { it.sdColor != null }
+  if (holdsSd && !toneMaps) sdRouteTransferLimit(placements, bytesRoot)?.let { throw AvLoweringFailure(it) }
+  val drawnByCompositor = chain != null && (toneMaps || holdsSd)
   val videoComposition =
     chain?.let {
-      if (toneMaps) {
-        composition.toneMapComposition(it)
+      if (drawnByCompositor) {
+        composition.compositorComposition(it)
       } else {
         composition.videoComposition(it, encodesHdr, holdsTail)
       }
@@ -199,11 +220,13 @@ public fun ResolvedComposition.toAvComposition(bytesRoot: String = AppleScratch.
     transfer = hdrTransfer,
     laidSpans = spans,
     chain = chain,
+    drawnByCompositor = drawnByCompositor,
   )
 }
 
 /**
- * The video composition of a plan that keeps its grade or has none, with the filter handler already attached.
+ * The video composition of a plan with neither a graded clip to tone map nor an SD clip to draw, with the filter
+ * handler already attached.
  *
  * That composition renders a frame for each sample the video track holds, so a tick stretched over
  * a held tail would be rendered once however many slots it covers. When [holdsTail] is set it
@@ -246,21 +269,21 @@ private fun AVMutableComposition.videoComposition(
 }
 
 /**
- * The video composition of a tone mapped plan, drawn by [AvToneMapCompositor].
+ * The video composition of a tone mapped plan or one holding an SD clip, drawn by [AvCompositor].
  *
  * It names no colour of its own, since a clip's frame reaches the compositor as its own file carries it and each clip
  * can carry a different one. The one instruction covers the whole composition, gaps included, so a gap asks for a
  * frame with no source.
  */
 @OptIn(ExperimentalForeignApi::class)
-private fun AVMutableComposition.toneMapComposition(chain: CoreImageChain): AVMutableVideoComposition {
+private fun AVMutableComposition.compositorComposition(chain: CoreImageChain): AVMutableVideoComposition {
   val output = chain.output
   val track = tracksWithMediaType(AVMediaTypeVideo).first() as AVAssetTrack
   val composition = AVMutableVideoComposition.videoComposition()
 
-  composition.setCustomVideoCompositorClass(toneMapCompositorClass())
+  composition.setCustomVideoCompositorClass(compositorClass())
   composition.setInstructions(
-    listOf(AvToneMapInstruction(CMTimeRangeMake(kCMTimeZero.readValue(), duration), track.trackID, chain)),
+    listOf(AvCompositorInstruction(CMTimeRangeMake(kCMTimeZero.readValue(), duration), track.trackID, chain)),
   )
   composition.setRenderSize(CGSizeMake(output.size.width.toDouble(), output.size.height.toDouble()))
   composition.setFrameDuration(CMTimeMake(value = 1, timescale = output.frameRate))

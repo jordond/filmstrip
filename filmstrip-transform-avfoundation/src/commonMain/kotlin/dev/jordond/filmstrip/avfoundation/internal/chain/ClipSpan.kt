@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.avfoundation.internal.chain
 
+import dev.jordond.filmstrip.avfoundation.internal.composition.SdSourceColor
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.outputSlotTime
@@ -39,6 +40,7 @@ import kotlin.time.Duration
  * last slot the primary covers, so the held tail repeats that slot's frame, effects included.
  * @property placement Where the clip's pixels land in the output frame, under its own fit.
  * @property sourceTransfer The HDR transfer this clip's source carries, or null when it is SDR.
+ * @property sdColor The SD colour this clip's frames decode with, or null when they decode with none.
  * @property canvasEffectIndices The index in [effects] after which each of the placement's canvases is built, in the
  * same order.
  * @property drawnRect Where the frame [effects] leave is drawn in the output frame, as a fraction of it.
@@ -54,6 +56,7 @@ internal class ClipSpan(
   val placement: ClipPlacement,
   val canvasEffectIndices: List<Int>,
   val sourceTransfer: HdrTransfer? = null,
+  val sdColor: SdSourceColor? = null,
   val drawnRect: NormalizedRect,
 ) {
   fun covers(time: Duration): Boolean = time in start..<end
@@ -62,8 +65,8 @@ internal class ClipSpan(
 /**
  * Rebuilds these spans against [resolved]'s clips, over the slots they already hold.
  *
- * The slot a span covers and the rotation baked into it both come from where the clip was laid onto
- * the `AVMutableComposition`, and a parameters-only edit moves neither, so they are carried across
+ * The slot a span covers, the rotation baked into it and the SD colour read off its source all come from where the clip
+ * was laid onto the `AVMutableComposition`, and a parameters-only edit moves none of them, so they are carried across
  * from these spans and nothing is laid down again. A clip's placement is taken from [resolved], since a crop or a
  * scale changing its fit is a parameters-only edit too.
  *
@@ -96,6 +99,7 @@ internal fun List<ClipSpan>.respannedOnto(resolved: ResolvedComposition): List<C
       layoutSize = resolved.layoutSize,
       hdrTransfer = resolved.hdrTransfer,
       heldFrom = span.heldFrom,
+      sdColor = span.sdColor,
     )
   }
 }
@@ -114,6 +118,7 @@ internal fun ResolvedClip.spanning(
   layoutSize: Size,
   hdrTransfer: HdrTransfer?,
   heldFrom: Duration?,
+  sdColor: SdSourceColor?,
 ): ClipSpan {
   val video = info.video
   return ClipSpan(
@@ -138,6 +143,7 @@ internal fun ResolvedClip.spanning(
     placement = placement,
     canvasEffectIndices = canvasEffectIndices,
     sourceTransfer = video?.hdrTransfer,
+    sdColor = sdColor,
     drawnRect = drawnRect,
   )
 }

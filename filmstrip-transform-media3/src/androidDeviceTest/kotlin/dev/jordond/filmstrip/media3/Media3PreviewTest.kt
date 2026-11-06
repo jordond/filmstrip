@@ -22,7 +22,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
-import dev.jordond.filmstrip.media3.internal.bounds.Media3FrameBounds
+import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.media3.internal.preview.toMedia3Preview
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -57,7 +57,7 @@ class Media3PreviewTest {
       composition(
         trackStart = 500.milliseconds,
         clips = laid(500.milliseconds, "a.mp4" to 1.seconds, "b.mp4" to 2.seconds),
-      ).toMedia3Preview(Media3FrameBounds.None)
+      ).toMedia3Preview(Media3ClipReads.None)
 
     preview.spans.map { it.start } shouldBe listOf(500.milliseconds, 1_500.milliseconds)
     preview.spans.map { it.end } shouldBe listOf(1_500.milliseconds, 3_500.milliseconds)
@@ -71,7 +71,7 @@ class Media3PreviewTest {
       composition(
         trackStart = 500.milliseconds,
         clips = laid(500.milliseconds, "a.mp4" to 1.seconds, "b.mp4" to 2.seconds),
-      ).toMedia3Preview(Media3FrameBounds.None)
+      ).toMedia3Preview(Media3ClipReads.None)
 
     val first = checkNotNull(preview.spanAt(900.milliseconds))
     first.positionIn(900.milliseconds) shouldBe 400.milliseconds
@@ -87,7 +87,7 @@ class Media3PreviewTest {
     val clips = laid(HALF_SLOT_IN, "a.mp4" to 1.seconds, "b.mp4" to 2.seconds)
     val preview =
       composition(trackStart = HALF_SLOT_IN, clips = clips, frameRate = OFF_GRID_RATE)
-        .toMedia3Preview(Media3FrameBounds.None)
+        .toMedia3Preview(Media3ClipReads.None)
 
     preview.spans.map { it.start } shouldBe
       clips.map { outputSlotTime(outputSlotsOf(it.span, OFF_GRID_RATE).first, OFF_GRID_RATE) }
@@ -100,7 +100,7 @@ class Media3PreviewTest {
     val clips = laid(HALF_SLOT_IN, "a.mp4" to 1.seconds, "b.mp4" to 2.seconds)
     val preview =
       composition(trackStart = HALF_SLOT_IN, clips = clips, frameRate = OFF_GRID_RATE)
-        .toMedia3Preview(Media3FrameBounds.None)
+        .toMedia3Preview(Media3ClipReads.None)
 
     val first = checkNotNull(preview.spanAt(900.milliseconds))
     first.positionIn(900.milliseconds) shouldBe 900.milliseconds - outputSlotTime(1, OFF_GRID_RATE)
@@ -114,20 +114,20 @@ class Media3PreviewTest {
   fun theGapTheTrackStartsWithCoversNoClipAtAll() {
     val preview =
       composition(trackStart = 500.milliseconds, clips = laid(500.milliseconds, "a.mp4" to 1.seconds))
-        .toMedia3Preview(Media3FrameBounds.None)
+        .toMedia3Preview(Media3ClipReads.None)
 
     preview.spanAt(200.milliseconds) shouldBe null
   }
 
   @Test
   fun aColorParameterReachesTheStandingChainWithoutItBeingRebuilt() {
-    val preview = composition(compositionEffects = listOf(brightness(DIM))).toMedia3Preview(Media3FrameBounds.None)
+    val preview = composition(compositionEffects = listOf(brightness(DIM))).toMedia3Preview(Media3ClipReads.None)
     val live = preview.compositionEffects.filterIsInstance<RgbMatrix>().single()
     live.gain() shouldBe (DIM plusOrMinus TOLERANCE)
 
     preview.updateParameters(
       composition(compositionEffects = listOf(brightness(BRIGHT))),
-      Media3FrameBounds.None,
+      Media3ClipReads.None,
     ) shouldBe
       true
 
@@ -138,7 +138,7 @@ class Media3PreviewTest {
 
   @Test
   fun aMatrixThatWouldStillBeANoOpKeepsItsPositionInTheChain() {
-    val preview = composition(compositionEffects = listOf(brightness(1f))).toMedia3Preview(Media3FrameBounds.None)
+    val preview = composition(compositionEffects = listOf(brightness(1f))).toMedia3Preview(Media3ClipReads.None)
     val live = preview.compositionEffects.filterIsInstance<RgbMatrix>().single()
 
     // media3 drops a no-op while it builds the chain, and a dropped position cannot take a later
@@ -148,11 +148,11 @@ class Media3PreviewTest {
 
   @Test
   fun anEffectAddedToTheChainIsRefusedSinceTheShapeMoved() {
-    val preview = composition(compositionEffects = listOf(brightness(DIM))).toMedia3Preview(Media3FrameBounds.None)
+    val preview = composition(compositionEffects = listOf(brightness(DIM))).toMedia3Preview(Media3ClipReads.None)
 
     preview.updateParameters(
       composition(compositionEffects = listOf(brightness(DIM), brightness(BRIGHT))),
-      Media3FrameBounds.None,
+      Media3ClipReads.None,
     ) shouldBe
       false
   }
@@ -160,50 +160,50 @@ class Media3PreviewTest {
   // The track opens on a gap, so the fill is painted and its pass is in the chain.
   @Test
   fun aFillColorIsRefusedSinceThePassThatPaintsItIsBuiltOnce() {
-    val preview = composition(fill = Fill.Solid(RED), trackStart = LEAD).toMedia3Preview(Media3FrameBounds.None)
+    val preview = composition(fill = Fill.Solid(RED), trackStart = LEAD).toMedia3Preview(Media3ClipReads.None)
 
-    preview.updateParameters(composition(fill = Fill.Solid(RED), trackStart = LEAD), Media3FrameBounds.None) shouldBe
+    preview.updateParameters(composition(fill = Fill.Solid(RED), trackStart = LEAD), Media3ClipReads.None) shouldBe
       true
-    preview.updateParameters(composition(fill = Fill.Solid(BLUE), trackStart = LEAD), Media3FrameBounds.None) shouldBe
+    preview.updateParameters(composition(fill = Fill.Solid(BLUE), trackStart = LEAD), Media3ClipReads.None) shouldBe
       false
   }
 
   @Test
   fun anOutputFrameThatMovedIsRefusedWhateverTheChainLooksLike() {
-    val preview = composition().toMedia3Preview(Media3FrameBounds.None)
+    val preview = composition().toMedia3Preview(Media3ClipReads.None)
 
-    preview.updateParameters(composition(output = Size(160, 90)), Media3FrameBounds.None) shouldBe false
+    preview.updateParameters(composition(output = Size(160, 90)), Media3ClipReads.None) shouldBe false
   }
 
   @Test
   fun aPlannedBitrateIsNoReasonToRebuild() {
-    val preview = composition().toMedia3Preview(Media3FrameBounds.None)
+    val preview = composition().toMedia3Preview(Media3ClipReads.None)
 
-    preview.updateParameters(composition(bitrate = PLANNED_BITRATE), Media3FrameBounds.None) shouldBe true
+    preview.updateParameters(composition(bitrate = PLANNED_BITRATE), Media3ClipReads.None) shouldBe true
   }
 
   @Test
   fun droppingTheAudioIsRefused() {
-    val preview = composition().toMedia3Preview(Media3FrameBounds.None)
+    val preview = composition().toMedia3Preview(Media3ClipReads.None)
 
-    preview.updateParameters(composition(audioCodec = AudioCodec.None), Media3FrameBounds.None) shouldBe false
+    preview.updateParameters(composition(audioCodec = AudioCodec.None), Media3ClipReads.None) shouldBe false
   }
 
   // A copy lowers to other sequences than a transcode does, so the edge is refused however few slots either side has.
   @Test
   fun leavingTheCopyPathIsRefusedWithNoSlotOnEitherSide() {
-    val preview = composition(path = ExportPath.Copy).toMedia3Preview(Media3FrameBounds.None)
+    val preview = composition(path = ExportPath.Copy).toMedia3Preview(Media3ClipReads.None)
 
-    preview.updateParameters(composition(path = ExportPath.Transcode), Media3FrameBounds.None) shouldBe false
+    preview.updateParameters(composition(path = ExportPath.Transcode), Media3ClipReads.None) shouldBe false
   }
 
   // An overlay is the one that matters in practice: it owns a texture media3 uploads and frees on
   // its own render thread, so there is no swap of one on offer and an edit carrying one rebuilds.
   @Test
   fun anEffectThatIsNeitherAColorNorAGeometryMatrixIsRefused() {
-    val preview = composition(compositionEffects = listOf(opaque())).toMedia3Preview(Media3FrameBounds.None)
+    val preview = composition(compositionEffects = listOf(opaque())).toMedia3Preview(Media3ClipReads.None)
 
-    preview.updateParameters(composition(compositionEffects = listOf(opaque())), Media3FrameBounds.None) shouldBe false
+    preview.updateParameters(composition(compositionEffects = listOf(opaque())), Media3ClipReads.None) shouldBe false
   }
 
   private fun RgbMatrix.gain(): Float = getMatrix(0L, false)[0]

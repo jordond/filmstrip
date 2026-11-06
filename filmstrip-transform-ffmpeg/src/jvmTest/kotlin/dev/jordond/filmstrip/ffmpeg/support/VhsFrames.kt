@@ -160,7 +160,8 @@ internal class VhsFrames {
 
   /**
    * A lossless clip of a [width] by [height] picture, each column drawn by [source] from its centre's fraction of the
-   * width, so a read holds the picture and not an encoder's idea of it. It is stored in [pixelFormat] and [range].
+   * width, so a read holds the picture and not an encoder's idea of it. It is stored in [pixelFormat] and [range], and
+   * on BT.601's matrix tagged with SMPTE C primaries when [onSmpteC] is set.
    */
   fun clipOf(
     width: Int,
@@ -169,6 +170,7 @@ internal class VhsFrames {
     effects: List<EffectSpec> = emptyList(),
     pixelFormat: String = PLANES_FORMAT,
     range: String = "tv",
+    onSmpteC: Boolean = false,
   ): Clip {
     val image = BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
     for (x in 0 until width) {
@@ -178,6 +180,13 @@ internal class VhsFrames {
     val still = File.createTempFile("vhs-still", ".png").apply { deleteOnExit() }
     ImageIO.write(image, "png", still)
     val video = File.createTempFile("vhs-still", ".mkv").apply { deleteOnExit() }
+    val convert =
+      if (onSmpteC) {
+        "scale=out_color_matrix=bt601:out_range=$range," +
+          "setparams=color_primaries=smpte170m:color_trc=smpte170m:colorspace=smpte170m"
+      } else {
+        "scale=out_color_matrix=bt709:out_range=$range"
+      }
     val encode =
       ProcessBuilder(
         "ffmpeg",
@@ -194,9 +203,9 @@ internal class VhsFrames {
         "-r",
         "$VHS_RATE",
         "-vf",
-        "scale=out_color_matrix=bt709:out_range=$range",
+        convert,
         "-colorspace",
-        "bt709",
+        if (onSmpteC) "smpte170m" else "bt709",
         "-color_range",
         range,
         "-c:v",

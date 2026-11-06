@@ -12,9 +12,9 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
-import dev.jordond.filmstrip.media3.internal.bounds.Media3FrameBounds
+import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.media3.internal.bounds.open
-import dev.jordond.filmstrip.media3.internal.bounds.readFrameBounds
+import dev.jordond.filmstrip.media3.internal.bounds.readClips
 import dev.jordond.filmstrip.media3.internal.bounds.videoTrackIndex
 import dev.jordond.filmstrip.media3.internal.failure.Media3LoweringFailure
 import dev.jordond.filmstrip.transform.internal.ExportDriver
@@ -93,7 +93,7 @@ internal class Media3Driver(
   ): Flow<ExportStatus> =
     flow {
       val run =
-        when (val prepared = prepare(resolved, resolved.readFrameBounds(), to)) {
+        when (val prepared = prepare(resolved, resolved.readClips(), to)) {
           is Preparation.Failed -> {
             flowOf(ExportStatus.Failure(prepared.error))
           }
@@ -115,7 +115,7 @@ internal class Media3Driver(
    */
   private fun prepare(
     resolved: ResolvedComposition,
-    bounds: Media3FrameBounds,
+    bounds: Media3ClipReads,
     to: MediaSink,
   ): Preparation {
     // Not a platform failure with a code of its own, and every other arm is about a source, a sink

@@ -1,10 +1,14 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.Cancellable
+import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
+import dev.jordond.filmstrip.color.sdSourceDisplayed
+import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.PlatformImage
 import dev.jordond.filmstrip.player.contract.awaitContract
 import dev.jordond.filmstrip.player.contract.contractTest
@@ -18,8 +22,10 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.suspendCancellableCoroutine
+import java.io.File
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.resume
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.fail
 import kotlin.time.Duration
@@ -104,6 +110,49 @@ class JvmThumbnailContractTest {
     }
 
   @Test
+  fun `a thumbnail of an SD clip shows what its kept file displays`() =
+    contractTest {
+      val clip = File.createTempFile("filmstrip-sd-thumbnail", ".mp4")
+      val filter =
+        "color=c=$SD_BAR:s=${SD_SIDE}x$SD_SIDE:r=30:d=0.4,scale=out_color_matrix=bt601,format=yuv420p," +
+          "setparams=colorspace=smpte170m:color_primaries=smpte170m:color_trc=smpte170m"
+      runFfmpeg("-f", "lavfi", "-i", filter, "-c:v", "libx264", "-crf", "10", clip.path)
+      try {
+        val stored = runFfmpeg("-i", clip.path, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-")
+        val shown =
+          sdSourceDisplayed(
+            DoubleArray(RGB) { (stored[it].toInt() and BYTE_MASK) / MAX_CODE },
+            SMPTE_C_PRIMARIES,
+          )
+        val composition = compositionOf { clip(MediaSource.of(clip.path)) }
+        val request = ThumbnailRequest(composition, Duration.ZERO, SD_SIDE, REVISION, precise = true)
+        val thumbnail = source(request).awaitThumbnail(request)
+        try {
+          val pixels = thumbnail.frame().pixels
+          DoubleArray(RGB) { (pixels[it].toInt() and BYTE_MASK) / MAX_CODE }.forEachIndexed { channel, read ->
+            withClue("channel $channel read ${read * MAX_CODE} against ${shown[channel] * MAX_CODE}") {
+              abs(read - shown[channel]) * MAX_CODE shouldBeLessThanOrEqualTo SD_CODES
+            }
+          }
+        } finally {
+          thumbnail.image.close()
+        }
+      } finally {
+        clip.delete()
+      }
+    }
+
+  private fun runFfmpeg(vararg arguments: String): ByteArray {
+    val process =
+      ProcessBuilder(listOf("ffmpeg", "-y", "-hide_banner", "-loglevel", "error") + arguments)
+        .redirectError(ProcessBuilder.Redirect.DISCARD)
+        .start()
+    val output = process.inputStream.readBytes()
+    process.waitFor() shouldBe 0
+    return output
+  }
+
+  @Test
   fun `a served thumbnail leaves no pump running`() =
     contractTest {
       val baseline = runningPumps()
@@ -180,6 +229,17 @@ private suspend fun ThumbnailSource.awaitThumbnail(request: ThumbnailRequest): T
 /**
  * How far the frame that came back sits from the time [asked] for, in either direction.
  */
+private const val RGB = 3
+private const val BYTE_MASK = 0xFF
+private const val MAX_CODE = 255.0
+private const val SD_SIDE = 64
+
+// Its primaries move further than the tolerance. A bar in the middle of the range moves by little more than it.
+private const val SD_BAR = "0x33CC80"
+
+// One encode of one frame moves a colour by a few codes on its own.
+private const val SD_CODES = 4.0
+
 private fun ThumbnailResult.Success.driftFrom(asked: Duration): Duration = (presentationTime - asked).absoluteValue
 
 /**

@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.diagnostics.DiagnosticEvent
 import dev.jordond.filmstrip.diagnostics.DiagnosticEvent.Detail
 import dev.jordond.filmstrip.diagnostics.report
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.EngineComponents
 import dev.jordond.filmstrip.export.ExportPlan
@@ -17,6 +18,7 @@ import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.SdColor
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.arguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.readingGraphFrom
 import dev.jordond.filmstrip.ffmpeg.internal.probe.drift
@@ -184,16 +186,39 @@ public class FfmpegExportEngine internal constructor(
         is PlanningReadResult.Failed -> return refusedLowering(result.error)
         is PlanningReadResult.Read -> result
       }
+    val sdColors = sdColorsOf(toolchain, composition)
     val lowered =
       interruptibly {
         FfmpegPlanner(toolchain, components.effectResolvers, runtime.bytesRoot)
-          .lower(composition, Ask(spec, read.device, read.infos, read.openings, layoutSize))
+          .lower(composition, Ask(spec, read.device, read.infos, read.openings, layoutSize), sdColors = sdColors)
       }
     val graph = lowered.graph
     val negotiated = lowered.export.composition
     if (graph == null || negotiated == null) return LoweredExport(lowered.export, null)
     return LoweredExport(lowered.export, FfmpegRun(toolchain, graph, negotiated.adjustments))
   }
+
+  // Audio has no colour to read, and a source a clip cannot read from is refused before these are looked at.
+  private suspend fun sdColorsOf(
+    toolchain: Toolchain,
+    composition: EditComposition,
+  ): Map<MediaSource, SdColor> =
+    composition.tracks
+      .filter { it.content != TrackContent.Audio }
+      .flatMap { it.clips }
+      .map { it.source }
+      .distinct()
+      .mapNotNull { source ->
+        sdColorPath(source)?.let { runtime.sdColor(toolchain, it) }?.let { source to it }
+      }.toMap()
+
+  private suspend fun sdColorPath(source: MediaSource): String? =
+    try {
+      withContext(Dispatchers.IO) { readablePath(source, runtime.bytesRoot) }
+    } catch (_: MediaBytesFileFailure) {
+      // The planner resolves the same path next and refuses with the reason.
+      null
+    }
 
   // The reads only run once lower has found a toolchain, and the locator holds on to one it found.
   private suspend fun foundToolchain(): Toolchain =

@@ -7,6 +7,7 @@ import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.capability.VideoEncoderCapability
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
@@ -16,6 +17,7 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.effect.EffectIds
+import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.FilterBranch
 import dev.jordond.filmstrip.effect.FilterCrop
 import dev.jordond.filmstrip.effect.FilterFragment
@@ -24,10 +26,12 @@ import dev.jordond.filmstrip.effect.PlaneLanes
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.HueRotate
+import dev.jordond.filmstrip.effects.color.Invert
 import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.CropRect
+import dev.jordond.filmstrip.effects.geometry.Flip
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
@@ -44,6 +48,9 @@ import dev.jordond.filmstrip.ffmpeg.internal.FfmpegParity
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegPlanner
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.EXPRESSION_SEGMENTS
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.SD_COLOR_FILTER
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.SdColor
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.TONE_MAP_FILTERS
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.arguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegEncoderNamed
@@ -58,6 +65,7 @@ import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
@@ -89,6 +97,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
 
 private val TONE_MAPPING = CATALOGUE_FILTERS + TONE_MAP_FILTERS
+private val SD_FILTERS = setOf("overlay", "concat", "amix", "pad", SD_COLOR_FILTER, "crop", "setparams")
 
 // Enough pinned points that the curve they resolve to outruns what one volume node carries, laid
 // close enough together to stay inside the landscape fixture's own length.
@@ -285,7 +294,8 @@ class PlannerTest {
     val matrix = TONE_MAP_BT2020_TO_BT709.red
     Regex("geq=").findAll(graph).count() shouldBe 1
     Regex("colorchannelmixer=rr=${matrix.r}:rg=${matrix.g}:rb=${matrix.b}").findAll(graph).count() shouldBe 1
-    Regex("setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv").findAll(graph).count() shouldBe 1
+    // The tone-mapped clip's frames, and every frame the graph hands the encoder.
+    Regex("setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv").findAll(graph).count() shouldBe 2
     graph shouldNotContain "zscale"
     graph shouldNotContain "tonemap"
   }
@@ -547,6 +557,93 @@ class PlannerTest {
 
     val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
     reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldContain "colorchannelmixer"
+  }
+
+  @Test
+  fun `refuses a clip on SD primaries on a build missing any filter it lowers to`() {
+    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))))
+    val color = SdColor(SMPTE_C_PRIMARIES, "smpte170m")
+
+    color.filterNames() shouldBe setOf("pad", SD_COLOR_FILTER, "crop", "setparams")
+    color.filterNames().forEach { filter ->
+      val verdict =
+        planner(toolchain(SD_FILTERS - filter))
+          .lower(composition, Ask(ExportSpec(), device(), infos), sdColors = mapOf(landscape to color))
+          .verdict
+
+      val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+      reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldContain "no $filter filter"
+    }
+  }
+
+  @Test
+  fun `one SD colour keeps its tags while anything beside it writes BT709`() {
+    fun lowered(
+      vararg clips: Clip,
+      sdColors: Map<MediaSource, SdColor>,
+    ): Invocation =
+      checkNotNull(
+        planner(toolchain(SD_FILTERS))
+          .lower(
+            EditComposition(listOf(Track(clips.toList()))),
+            Ask(ExportSpec(), device(), infos),
+            sdColors = sdColors,
+          ).graph,
+      )
+    val sd = mapOf<MediaSource, SdColor>(landscape to SdColor(SMPTE_C_PRIMARIES, "smpte170m"))
+
+    val kept = lowered(Clip(landscape), Clip(landscape), sdColors = sd)
+    kept.writesBt709 shouldBe false
+    kept.previewColor.single().name shouldBe SD_COLOR_FILTER
+    kept.filterGraph shouldNotContain SD_COLOR_FILTER
+
+    val beside = lowered(Clip(landscape), Clip(portrait), sdColors = sd)
+    beside.writesBt709 shouldBe true
+    beside.previewColor shouldBe emptyList()
+    beside.filterGraph shouldContain "colorspace=ispace=smpte170m:iprimaries=smpte170m"
+    Regex("colorspace=ispace").findAll(beside.filterGraph).count() shouldBe 1
+  }
+
+  @Test
+  fun `one SD colour writes BT709 only under an effect that draws`() {
+    val sd = mapOf<MediaSource, SdColor>(landscape to SdColor(SMPTE_C_PRIMARIES, "smpte170m"))
+
+    fun lowered(composition: EditComposition): Invocation =
+      checkNotNull(
+        planner(toolchain(CATALOGUE_FILTERS + SD_FILTERS))
+          .lower(composition, Ask(ExportSpec(), device(), infos), sdColors = sd)
+          .graph,
+      )
+
+    fun onClip(vararg effects: EffectSpec) =
+      EditComposition(listOf(Track(listOf(Clip(landscape, effects = effects.toList())))))
+
+    listOf(
+      onClip(Brightness(1f)),
+      onClip(Brightness(2f), Brightness(0.5f)),
+      onClip(Invert(), Invert()),
+      onClip(Flip(FlipAxis.Horizontal)),
+      onClip(Rotate(90)),
+      onClip(Scale(360)),
+    ).forEach { composition ->
+      val kept = lowered(composition)
+      kept.writesBt709 shouldBe false
+      kept.filterGraph shouldNotContain SD_COLOR_FILTER
+    }
+
+    listOf(
+      onClip(Invert()),
+      onClip(Brightness(1.5f)),
+      onClip(TextOverlay("hi")),
+      onClip(Flip(FlipAxis.Horizontal), Invert()),
+      EditComposition(listOf(Track(listOf(Clip(landscape)), effects = listOf(Invert())))),
+      EditComposition(listOf(Track(listOf(Clip(landscape)))), effects = listOf(Invert())),
+    ).forEach { composition ->
+      val moved = lowered(composition)
+      moved.writesBt709 shouldBe true
+      moved.previewColor shouldBe emptyList()
+      moved.filterGraph shouldContain "colorspace=ispace=smpte170m:iprimaries=smpte170m"
+    }
   }
 
   // Crop leaves no bars for a blurred fill to show through, so the missing filter never matters

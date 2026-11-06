@@ -1,6 +1,8 @@
 package dev.jordond.filmstrip.ffmpeg.internal.probe
 
 import dev.jordond.filmstrip.codec.Bitrate
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.SdColor
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.sdColorOf
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
@@ -57,6 +59,14 @@ internal fun parseProbeSections(output: String): List<ProbeSection> {
   }
 
   return roots
+}
+
+/**
+ * The [SdColor] the first video stream of `ffprobe` output [output] reports, or null when it reports none.
+ */
+internal fun parseSdColor(output: String): SdColor? {
+  val video = parseProbeSections(output).firstOrNull { it.name == "STREAM" && it["codec_type"] == "video" }
+  return video?.let { sdColorOf(it["color_primaries"], it["color_space"], it["color_transfer"]) }
 }
 
 /**

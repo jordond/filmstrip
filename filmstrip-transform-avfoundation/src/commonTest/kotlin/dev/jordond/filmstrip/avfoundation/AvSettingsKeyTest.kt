@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.avfoundation
 
-import dev.jordond.filmstrip.avfoundation.internal.composition.toneMapOutputAttributes
-import dev.jordond.filmstrip.avfoundation.internal.composition.toneMapSourceAttributes
+import dev.jordond.filmstrip.avfoundation.internal.composition.compositorOutputAttributes
+import dev.jordond.filmstrip.avfoundation.internal.composition.compositorSourceAttributes
 import dev.jordond.filmstrip.avfoundation.internal.still.stillSeedBufferAttributes
 import dev.jordond.filmstrip.avfoundation.internal.writer.audioWriterSettings
 import dev.jordond.filmstrip.avfoundation.internal.writer.pcmReaderSettings
@@ -31,9 +31,9 @@ class AvSettingsKeyTest {
   }
 
   @Test
-  fun `the tone map compositor's buffer attributes are keyed by strings`() {
-    toneMapSourceAttributes().assertStringKeyed()
-    toneMapOutputAttributes().assertStringKeyed()
+  fun `the compositor's buffer attributes are keyed by strings`() {
+    compositorSourceAttributes().assertStringKeyed()
+    compositorOutputAttributes().assertStringKeyed()
   }
 
   @Test

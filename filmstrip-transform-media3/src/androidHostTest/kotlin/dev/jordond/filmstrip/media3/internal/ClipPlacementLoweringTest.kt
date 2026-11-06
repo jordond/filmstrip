@@ -4,6 +4,9 @@ import androidx.media3.common.Effect
 import androidx.media3.effect.AlphaScale
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.color.EBU_PRIMARIES
+import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
+import dev.jordond.filmstrip.color.sdPrimariesToBt709
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.effect.EffectStage
@@ -50,6 +53,30 @@ class ClipPlacementLoweringTest {
     clip.clipVideoEffects(Fill.Black, OUTPUT).last() shouldBe
       PlacedFrame(clip.drawnRect, OUTPUT)
     clip.clipVideoEffects(Fill.Blurred(), OUTPUT).last() shouldBe FillCoverBlur(Fill.Blurred(), OUTPUT, clip.drawnRect)
+  }
+
+  @Test
+  fun `an sd clip opens on its primaries head ahead of what the wrapper sees`() {
+    val seen = mutableListOf<Effect>()
+    val lowered =
+      barred.clipVideoEffects(
+        Fill.Black,
+        OUTPUT,
+        { effect -> effect.also { seen += it } },
+        SMPTE_C_PRIMARIES,
+      )
+
+    lowered.first() shouldBe SdPrimariesHead(SMPTE_C_PRIMARIES)
+    seen shouldBe lowered.drop(1)
+    barred.clipVideoEffects(Fill.Black, OUTPUT) shouldBe seen
+  }
+
+  @Test
+  fun `the head's shader carries the shared matrix for its primaries`() {
+    val shader = sdPrimariesShader(SMPTE_C_PRIMARIES)
+
+    sdPrimariesToBt709(SMPTE_C_PRIMARIES).forEach { figure -> shader.contains(figure.toString()) shouldBe true }
+    sdPrimariesToBt709(EBU_PRIMARIES).any { figure -> !shader.contains(figure.toString()) } shouldBe true
   }
 
   // The crop lowers to nothing that removes pixels, so the canvas is built right behind it and the pan after it reads

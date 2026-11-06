@@ -3,6 +3,9 @@ package dev.jordond.filmstrip.media3
 import android.graphics.Bitmap
 import android.media.MediaCodecList
 import android.media.MediaFormat
+import android.os.Build
+import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
+import dev.jordond.filmstrip.color.sdSourceDisplayed
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
@@ -21,6 +24,7 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
@@ -117,6 +121,52 @@ class AndroidVhsTest {
 
       finished.adjustments.any { it.kind == AdjustmentKind.HdrToneMapped } shouldBe true
     }
+
+  // The SD head runs ahead of the clip's chain, so the tape reads the clip's corrected colour at either scope. Reads
+  // average a grid across the middle of the frame, which an encoder moves less than it does one patch.
+  @Test
+  fun aVhsOnAnSdClipReadsTheSignalOverTheClipsCorrectedColourAtBothScopes() =
+    runTest(timeout = TIMEOUT) {
+      val source = File(probe.context.cacheDir, "vhs-sd.mp4")
+      probe.writeBarsClip(source, SOURCE.width, SOURCE.height, SD_FLAT, MediaFormat.COLOR_STANDARD_BT601_NTSC)
+      val stored = Written(firstEightBitFrame(source), SMPTE_C_PRIMARIES, fullRange = false).rgbAt(0.5f, 0.5f).signal()
+      val shown = sdSourceDisplayed(stored, SMPTE_C_PRIMARIES)
+      withClue("the correction has to be wider than the tolerance, ${stored.toList()} to ${shown.toList()}") {
+        abs(shown[0] - stored[0]) * MAX_CODE shouldBeGreaterThan SD_CODES
+      }
+      val vhs = Vhs(intensity = 0.5f)
+      val clip = Clip(MediaSource.of(source.path))
+      mapOf(
+        "clip" to EditComposition(listOf(Track(listOf(Clip(MediaSource.of(source.path), effects = listOf(vhs)))))),
+        "composition" to EditComposition(listOf(Track(listOf(clip))), listOf(vhs)),
+      ).forEach { (scope, edit) ->
+        val plan = probe.plan(edit, ExportSpec())
+        val written = probe.writtenBy(probe.finish(plan))
+        val size = plan.output.size
+        withClue("$scope scope writes true BT.709") { written.matrix shouldBe BT709 }
+        val points = SD_GRID.flatMap { fx -> SD_GRID.map { fy -> fx to fy } }
+        val read = points.map { (fx, fy) -> written.rgbAt(fx, fy).signal() }.meanOfChannels()
+        val wanted =
+          points
+            .map { (fx, fy) ->
+              val row = VhsSignal.virtualRow((size.height * fy).toInt(), size.height)
+              val x = ((size.width * fx).toInt() + 0.5) / size.width
+              val tick = VhsSignal.tickAt(0.0)
+              VhsSignal.pixelAt(x, row, tick, vhs.seed, size.width, VhsParams.of(vhs)) { shown }
+            }.meanOfChannels()
+        read.indices.forEach { channel ->
+          withClue("API ${Build.VERSION.SDK_INT} $scope scope read ${read.toList()} against ${wanted.toList()}") {
+            abs(read[channel] - wanted[channel]) * MAX_CODE shouldBeLessThan SD_CODES
+          }
+        }
+      }
+    }
+
+  private fun Triple<Int, Int, Int>.signal(): DoubleArray =
+    doubleArrayOf(first / MAX_CODE, second / MAX_CODE, third / MAX_CODE)
+
+  private fun List<DoubleArray>.meanOfChannels(): DoubleArray =
+    DoubleArray(first().size) { c -> map { it[c] }.average() }
 
   private fun barsEdit(
     clip: Clip,
@@ -219,6 +269,14 @@ class AndroidVhsTest {
     val SOURCE = Size(640, 360)
 
     const val MAX_CODE = 255.0
+    const val BT709 = 1
+
+    // Two H.264 encodes of one frame move a colour by a few codes on their own.
+    const val SD_CODES = 4.0
+    val SD_GRID = listOf(0.4f, 0.45f, 0.5f, 0.55f, 0.6f)
+
+    // Mid-range, with green holding the frame up, which is where SMPTE C and BT.709 are furthest apart.
+    val SD_FLAT = listOf(floatArrayOf(0.2f, 0.65f, 0.25f))
 
     // Picture moved over a flat bar, which is far past what the encoder does to the bar on its own.
     const val PICTURE_APART = 16

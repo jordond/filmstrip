@@ -69,8 +69,8 @@ internal sealed interface WriterOutcome {
  * append the writer rejected fails the run whatever the writer's status says, so a rejected sample never ends as a
  * finished file.
  *
- * @param heldFrameRate The output rate a held tail renders at, or null when nothing is held. The video pump stops
- * on the first frame at or past [videoSlots] when it is set.
+ * @param clockFrameRate The output rate a composition drawing on the clock renders at, or null when it draws a frame
+ * for each sample. The video pump stops on the first frame at or past [videoSlots] when it is set.
  * @param failure Maps what AVFoundation reported onto the error the run ends with.
  */
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
@@ -81,7 +81,7 @@ internal class WriterSession(
   private val outcome: CompletableDeferred<WriterOutcome>,
   private val queue: dispatch_queue_t,
   private val composition: AvComposition,
-  private val heldFrameRate: Int?,
+  private val clockFrameRate: Int?,
   private val videoSlots: Long,
   private val failure: (NSError?, FailingSide) -> FilmstripError,
 ) {
@@ -98,7 +98,7 @@ internal class WriterSession(
 
   private var drained = 0
 
-  // Set once the video pump stops on the held-tail slot cutoff rather than the output's own end,
+  // Set once the video pump stops on the slot cutoff rather than the output's own end,
   // which leaves samples the reader never read, so finish() cancels the reader for them.
   private var stoppedEarly = false
 
@@ -194,8 +194,8 @@ internal class WriterSession(
       readerFailure = reader.error.takeIf { reader.status == AVAssetReaderStatusFailed }
       return Step.Drained
     }
-    if (heldFrameRate != null && pump.input.mediaType == AVMediaTypeVideo) {
-      val slot = outputSlotOf(CMSampleBufferGetPresentationTimeStamp(buffer).toDuration(), heldFrameRate)
+    if (clockFrameRate != null && pump.input.mediaType == AVMediaTypeVideo) {
+      val slot = outputSlotOf(CMSampleBufferGetPresentationTimeStamp(buffer).toDuration(), clockFrameRate)
       if (slot >= videoSlots) {
         CFRelease(buffer)
         stoppedEarly = true
@@ -235,7 +235,7 @@ internal class WriterSession(
       return
     }
 
-    // The video pump stopping on the held-tail cutoff leaves this output's samples unread, and a
+    // The video pump stopping on the slot cutoff leaves this output's samples unread, and a
     // hardware decode session is a small shared pool, so the reader is cancelled here. Every pump
     // is drained by this point, so cancelling stops nothing still running, and only happens once
     // the export is going on to finish normally.

@@ -20,7 +20,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
-import dev.jordond.filmstrip.media3.internal.bounds.Media3FrameBounds
+import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
@@ -88,7 +88,7 @@ class Media3ClippingTest {
     val plan = composition(clip, ExportPath.Transcode)
 
     val (video, audio) =
-      plan.toMedia3(Media3FrameBounds.None).sequences.map {
+      plan.toMedia3(Media3ClipReads.None).sequences.map {
         (
           it.editedMediaItems
             .single()
@@ -126,7 +126,7 @@ class Media3ClippingTest {
   }
 
   private fun ResolvedComposition.firstItem(): EditedMediaItem =
-    toMedia3(Media3FrameBounds.None)
+    toMedia3(Media3ClipReads.None)
       .sequences
       .first()
       .editedMediaItems

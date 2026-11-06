@@ -2,9 +2,9 @@ package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
+import dev.jordond.filmstrip.avfoundation.internal.composition.compositorOutputAttributes
+import dev.jordond.filmstrip.avfoundation.internal.composition.compositorSourceAttributes
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
-import dev.jordond.filmstrip.avfoundation.internal.composition.toneMapOutputAttributes
-import dev.jordond.filmstrip.avfoundation.internal.composition.toneMapSourceAttributes
 import dev.jordond.filmstrip.avfoundation.internal.interop.PIXEL_FORMAT_KEY
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
 import dev.jordond.filmstrip.avfoundation.internal.writer.AvDestination
@@ -247,6 +247,7 @@ class AvCompositorRouteTest {
         transfer = null,
         laidSpans = emptyList(),
         chain = null,
+        drawnByCompositor = false,
       )
     val path = NSTemporaryDirectory() + "filmstrip-route-$name.mp4"
     val destination = AvDestination(NSURL.fileURLWithPath(path), path, MediaSink.Path(path))
@@ -387,9 +388,9 @@ private class RouteCompositor
       RouteLog.initialised.incrementAndFetch()
     }
 
-    override fun sourcePixelBufferAttributes(): Map<Any?, *> = toneMapSourceAttributes()
+    override fun sourcePixelBufferAttributes(): Map<Any?, *> = compositorSourceAttributes()
 
-    override fun requiredPixelBufferAttributesForRenderContext(): Map<Any?, *> = toneMapOutputAttributes()
+    override fun requiredPixelBufferAttributesForRenderContext(): Map<Any?, *> = compositorOutputAttributes()
 
     override fun supportsHDRSourceFrames(): Boolean = true
 

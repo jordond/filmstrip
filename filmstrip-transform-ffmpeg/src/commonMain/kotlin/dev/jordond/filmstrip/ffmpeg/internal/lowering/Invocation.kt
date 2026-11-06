@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.ffmpeg.internal.lowering
 
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
@@ -76,8 +77,10 @@ internal sealed interface InputSource {
  * @property copy Whether this invocation remuxes the source streams rather than running a filter
  *   graph. True skips [filterGraph] and asks ffmpeg for `-c copy` instead of an encoder.
  * @property hdrTransfer The transfer function to tag the output with, or null to write SDR.
- * @property toneMapped Whether the graph brought an HDR grade down to BT.709. The tone-map nodes
- *   leave the frames in BT.709, so the output carries the tags that say so.
+ * @property writesBt709 Whether every frame the graph hands on is BT.709, so the file is tagged that way. The graph's
+ *   own last node says so on its frames, and those are what the encoder writes.
+ * @property previewColor The nodes a preview's pump ends on, moving the one SD colour every clip of this plan keeps. A
+ *   file displays that colour through its tags, and RGBA frames carry none. Empty for a plan keeping no SD colour.
  * @property seekBase The source time composition time zero maps to, for a caller windowing this
  *   graph with an input seek. Null for a graph whose timeline an input seek cannot window, which is
  *   read forward from the start instead. Unused by an export, which renders the whole timeline.
@@ -99,7 +102,8 @@ internal class Invocation(
   val duration: Duration,
   val copy: Boolean = false,
   val hdrTransfer: HdrTransfer? = null,
-  val toneMapped: Boolean = false,
+  val writesBt709: Boolean = false,
+  val previewColor: List<FilterNode> = emptyList(),
   val seekBase: Duration? = null,
   val videoSlots: Long? = null,
   val heldTail: LongRange = LongRange.EMPTY,
@@ -292,10 +296,9 @@ private fun Invocation.videoArguments(): List<String> =
       add(HDR_MATRIX)
       add("-color_trc")
       add(transfer)
-    } else if (toneMapped) {
-      // The tone-map nodes deliver BT.709 and say so on the frames they hand on, but only ffmpeg 7
-      // and newer carries that onto the written stream. Tagging it here leaves the same file on
-      // every build rather than one whose matrix reads `unknown` below that.
+    } else if (writesBt709) {
+      // The graph's last node says this on its frames, which an encoder prefers, so this only reaches
+      // an encoder that does not read a frame's tags.
       add("-color_primaries")
       add("bt709")
       add("-colorspace")

@@ -4,6 +4,8 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
 import dev.jordond.filmstrip.FilmstripContext
+import dev.jordond.filmstrip.color.EBU_PRIMARIES
+import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.internal.AndroidScratch
 import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaSource
@@ -48,6 +50,36 @@ internal suspend fun frameBoundsOf(
     } catch (unopened: RuntimeException) {
       // setDataSource and seekTo both throw a bare RuntimeException for a container or a track
       // the extractor cannot make sense of.
+      null
+    } finally {
+      extractor.release()
+    }
+  }
+
+/**
+ * The H.273 color primaries code point of the SD color standard [source]'s video track names, or null when it names
+ * another standard or none, or its container cannot be read.
+ */
+internal suspend fun sdPrimariesNamedBy(source: MediaSource): Int? =
+  withContext(Dispatchers.IO) {
+    val extractor = MediaExtractor()
+    try {
+      if (!extractor.open(source)) return@withContext null
+      val track = extractor.videoTrackIndex() ?: return@withContext null
+      val format = extractor.getTrackFormat(track)
+      if (!format.containsKey(MediaFormat.KEY_COLOR_STANDARD)) return@withContext null
+      when (format.getInteger(MediaFormat.KEY_COLOR_STANDARD)) {
+        MediaFormat.COLOR_STANDARD_BT601_NTSC -> SMPTE_C_PRIMARIES
+        MediaFormat.COLOR_STANDARD_BT601_PAL -> EBU_PRIMARIES
+        else -> null
+      }
+    } catch (unreadable: IOException) {
+      // Thrown when a source handed over as bytes could not be written to the cache.
+      null
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (unopened: RuntimeException) {
+      // setDataSource throws a bare RuntimeException for a container the extractor cannot make sense of.
       null
     } finally {
       extractor.release()

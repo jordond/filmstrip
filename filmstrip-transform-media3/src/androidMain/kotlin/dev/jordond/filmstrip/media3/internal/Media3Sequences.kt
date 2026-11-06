@@ -12,7 +12,7 @@ import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
-import dev.jordond.filmstrip.media3.internal.bounds.Media3FrameBounds
+import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
@@ -24,7 +24,7 @@ import kotlin.time.Duration
 internal class Lowering(
   private val plan: ResolvedComposition,
   private val wrapper: EffectWrapper,
-  private val bounds: Media3FrameBounds,
+  private val bounds: Media3ClipReads,
 ) {
   /**
    * The video of [track] on the output frame grid, or null when none of its clips covers a slot.
@@ -160,8 +160,9 @@ internal class Lowering(
       }
       // A maximum rather than a target: a higher-rate source has frames dropped, a lower-rate one is left alone.
       .setFrameRate(rate)
-      .setEffects(Effects(emptyList(), clipVideoEffects(plan.fill, plan.output.size, wrapper)))
-      .build()
+      .setEffects(
+        Effects(emptyList(), clipVideoEffects(plan.fill, plan.output.size, wrapper, bounds.sdPrimariesOf(this))),
+      ).build()
   }
 
   /**

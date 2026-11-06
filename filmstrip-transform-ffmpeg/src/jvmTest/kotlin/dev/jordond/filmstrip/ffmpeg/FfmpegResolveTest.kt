@@ -121,7 +121,7 @@ class FfmpegResolveTest {
     }
 
   // A host prober answers ahead of ffprobe here the way it does on every other engine, so what it says the source is
-  // is what the plan is built on, and ffprobe is never asked.
+  // is what the plan is built on, and ffprobe is only asked for the primaries a MediaInfo does not hold.
   @Test
   fun `a registered prober answers ahead of ffprobe`() =
     runTest(timeout = TIMEOUT) {
@@ -140,6 +140,7 @@ class FfmpegResolveTest {
 
       resolved.composition.output.size shouldBe HOST_SIZE
       runtime.probeSpawns shouldBe 0
+      runtime.sdColorSpawns shouldBe 1
     }
 
   // One edit is negotiated to plan it, to resolve it for a preview and again to export it. A sync

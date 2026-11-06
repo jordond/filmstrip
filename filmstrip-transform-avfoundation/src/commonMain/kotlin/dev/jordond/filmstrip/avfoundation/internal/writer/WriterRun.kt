@@ -73,10 +73,12 @@ internal class WriterRun(
 ) {
   private val queue = dispatch_queue_create(QUEUE_LABEL, attr = null)
 
-  // A held tail renders a frame every frame duration until the audio ends, which can be up to half a
-  // slot past the last slot, so the video pump stops once it reaches a frame past that slot.
-  private val heldFrameRate: Int? =
-    resolved.output.frameRate.takeIf { resolved.path != ExportPath.Copy && !resolved.heldTail.isEmpty() }
+  // A held tail and the compositor both render a frame every frame duration until the audio ends, which can be up to
+  // half a slot past the last slot, so the video pump stops once it reaches a frame past that slot.
+  private val clockFrameRate: Int? =
+    resolved.output.frameRate.takeIf {
+      resolved.path != ExportPath.Copy && (!resolved.heldTail.isEmpty() || composition.drawnByCompositor)
+    }
 
   fun run(): Flow<ExportStatus> = flow { collect() }
 
@@ -178,7 +180,7 @@ internal class WriterRun(
         outcome = outcome,
         queue = queue,
         composition = composition,
-        heldFrameRate = heldFrameRate,
+        clockFrameRate = clockFrameRate,
         videoSlots = resolved.videoSlots,
         failure = { error, side -> error.toFilmstripError(side) },
       )

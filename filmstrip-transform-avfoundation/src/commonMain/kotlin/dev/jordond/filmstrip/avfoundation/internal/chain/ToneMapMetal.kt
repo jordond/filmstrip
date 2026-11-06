@@ -117,4 +117,7 @@ private fun KneePiece.metal(): String =
 
 private fun Rgb.metal(): String = "float3(${r.metal()}, ${g.metal()}, ${b.metal()})"
 
-private fun Number.metal(): String = "${this}f"
+/**
+ * This figure as a Metal float literal.
+ */
+internal fun Number.metal(): String = "${this}f"

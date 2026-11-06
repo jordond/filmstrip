@@ -12,7 +12,7 @@ import dev.jordond.filmstrip.media3.internal.HeldLastFrame
 import dev.jordond.filmstrip.media3.internal.LiveSlot
 import dev.jordond.filmstrip.media3.internal.SlotSwap
 import dev.jordond.filmstrip.media3.internal.UnwrappedEffects
-import dev.jordond.filmstrip.media3.internal.bounds.Media3FrameBounds
+import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.media3.internal.failure.Media3LoweringFailure
 import dev.jordond.filmstrip.media3.internal.isGap
 import dev.jordond.filmstrip.media3.internal.liveSlotFor
@@ -79,7 +79,7 @@ public class Media3Preview internal constructor(
   public val spans: List<Media3Span>,
   private val slots: List<LiveSlot>,
   resolved: ResolvedComposition,
-  private var bounds: Media3FrameBounds,
+  private var bounds: Media3ClipReads,
 ) {
   /**
    * The plan the standing graph draws, which a swap replaces.
@@ -200,7 +200,7 @@ public class Media3Preview internal constructor(
   @Suppress("SwallowedException")
   public fun updateParameters(
     next: ResolvedComposition,
-    bounds: Media3FrameBounds,
+    bounds: Media3ClipReads,
   ): Boolean {
     if (!resolved.drawsSameFormatAs(next)) return false
     // media3's own limit: a copy lowers to one exact sequence and a transcode to a grid sequence and an audio one, and
@@ -262,12 +262,12 @@ private fun Media3Span.readbackChain(compositionEffects: List<Effect>): List<Eff
 /**
  * Lowers this plan for a preview, keeping hold of every position a parameter change can reach.
  *
- * @param bounds The samples each clip decodes, read off its container by `readFrameBounds`, the same ones an export of
+ * @param bounds The samples each clip decodes, read off its container by `readClips`, the same ones an export of
  * this plan lays its items by.
  * @throws Media3LoweringFailure when a source cannot be lowered.
  */
 @InternalFilmstripApi
-public fun ResolvedComposition.toMedia3Preview(bounds: Media3FrameBounds): Media3Preview {
+public fun ResolvedComposition.toMedia3Preview(bounds: Media3ClipReads): Media3Preview {
   val slots = mutableListOf<LiveSlot>()
   val composition = toMedia3(EffectWrapper { effect -> liveSlotFor(effect).also(slots::add).effect }, bounds)
   return Media3Preview(composition, composition.videoSpans(), slots, this, bounds)

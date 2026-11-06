@@ -4,8 +4,10 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime.Companion.of
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.SdColor
 import dev.jordond.filmstrip.ffmpeg.internal.probe.PROBE_ARGUMENTS
 import dev.jordond.filmstrip.ffmpeg.internal.probe.parseMediaInfo
+import dev.jordond.filmstrip.ffmpeg.internal.probe.parseSdColor
 import dev.jordond.filmstrip.ffmpeg.internal.probe.parseSyncSample
 import dev.jordond.filmstrip.ffmpeg.internal.probe.syncSampleArguments
 import dev.jordond.filmstrip.ffmpeg.internal.process.BytesRoot
@@ -38,6 +40,9 @@ internal class FfmpegRuntime private constructor(
   private val locator = ToolchainLocator(config, runner)
   private val probeLock = Mutex()
   private val probes = mutableMapOf<String, MediaInfo>()
+
+  // Written beside probes by the one read that fills it, and held under the same lock.
+  private val sdColors = mutableMapOf<String, SdColor?>()
   private val syncSampleLock = Mutex()
   private val syncSamples = mutableMapOf<Pair<String, Duration>, Duration?>()
   private val capabilityLock = Mutex()
@@ -46,6 +51,10 @@ internal class FfmpegRuntime private constructor(
   // How many times ffprobe was actually spawned. The cache is what holds this to one per path
   // however often the same edit is lowered.
   var probeSpawns: Int = 0
+    private set
+
+  // How many times the SD colour read spawned ffprobe on its own, counted the same way.
+  var sdColorSpawns: Int = 0
     private set
 
   // How many times the sync-sample probe was actually spawned, counted the same way.
@@ -114,6 +123,25 @@ internal class FfmpegRuntime private constructor(
     }
 
   /**
+   * The [SdColor] of [path]'s video stream, or null when it has none or [path] could not be read.
+   *
+   * A file [probe] read already answers from that spawn. One a registered prober answered for spawns once for this,
+   * since a [MediaInfo] holds no primaries, and is cached the same way.
+   */
+  suspend fun sdColor(
+    toolchain: Toolchain,
+    path: String,
+  ): SdColor? =
+    probeLock.withLock {
+      if (!sdColors.containsKey(path)) {
+        sdColorSpawns++
+        val output = capture(listOf(toolchain.ffprobe) + PROBE_ARGUMENTS + path)
+        if (output.started && output.exitCode == 0) sdColors[path] = parseSdColor(output.stdout)
+      }
+      sdColors[path]
+    }
+
+  /**
    * The sync sample at or before [at] in [path]'s video stream, or null when there is none.
    *
    * Cached by path and cut, negatives included, so the plan, the resolve behind a preview and the
@@ -141,7 +169,14 @@ internal class FfmpegRuntime private constructor(
     path: String,
   ): MediaInfo? =
     probeLock.withLock {
-      read(toolchain, path).also { if (it == null) probes.remove(path) else probes[path] = it }
+      read(toolchain, path).also {
+        if (it == null) {
+          probes.remove(path)
+          sdColors.remove(path)
+        } else {
+          probes[path] = it
+        }
+      }
     }
 
   private suspend fun read(
@@ -150,7 +185,9 @@ internal class FfmpegRuntime private constructor(
   ): MediaInfo? {
     probeSpawns++
     val output = capture(listOf(toolchain.ffprobe) + PROBE_ARGUMENTS + path)
-    return if (output.started && output.exitCode == 0) parseMediaInfo(output.stdout) else null
+    if (!output.started || output.exitCode != 0) return null
+    sdColors[path] = parseSdColor(output.stdout)
+    return parseMediaInfo(output.stdout)
   }
 
   private suspend fun readSyncSample(

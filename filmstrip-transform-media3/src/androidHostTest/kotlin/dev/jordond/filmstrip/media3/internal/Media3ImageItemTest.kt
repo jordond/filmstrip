@@ -5,6 +5,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.transformer.EditedMediaItem
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
@@ -16,13 +17,14 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.EXIF_ORIENTATION_NORMAL
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.imageMediaInfoOf
 import dev.jordond.filmstrip.media.trackCodecOf
-import dev.jordond.filmstrip.media3.internal.bounds.Media3FrameBounds
+import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.media3.internal.preview.toMedia3Preview
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -125,6 +127,36 @@ class Media3ImageItemTest {
       .imageDurationMs shouldBe 1
   }
 
+  @Test
+  fun `a clip with an hdr transfer gets no sd head whatever its source names`() {
+    val video = videoClip(hdrTransfer = HdrTransfer.Pq)
+
+    Media3ClipReads(emptyMap(), mapOf(video.source to SMPTE_C_PRIMARIES)).sdPrimariesOf(video) shouldBe null
+  }
+
+  @Test
+  fun `a video source's sd primaries open its item in an export and a preview alike`() {
+    val video = videoClip()
+    val composition = composition(video, content = TrackContent.Video)
+    val bounds = Media3ClipReads(emptyMap(), mapOf(video.source to SMPTE_C_PRIMARIES))
+
+    val item =
+      composition
+        .toMedia3(bounds)
+        .sequences
+        .single()
+        .editedMediaItems
+        .single()
+
+    item.effects.videoEffects.first() shouldBe SdPrimariesHead(SMPTE_C_PRIMARIES)
+    composition
+      .toMedia3Preview(bounds)
+      .spans
+      .single()
+      .effects
+      .first() shouldBe SdPrimariesHead(SMPTE_C_PRIMARIES)
+  }
+
   // The rounded field never moves what comes after the still. A clip after one opens on its own
   // first slot, read in the middle of the timeline where the error would have piled up.
   @Test
@@ -133,7 +165,7 @@ class Media3ImageItemTest {
     val after = videoClip(at = still.span.endExclusive!!)
     val composition = composition(still, after, content = TrackContent.Video)
 
-    val spans = composition.toMedia3Preview(Media3FrameBounds.None).spans
+    val spans = composition.toMedia3Preview(Media3ClipReads.None).spans
 
     spans[1].start shouldBe outputSlotTime(outputSlotsOf(after.span, 30).first, 30)
   }
@@ -166,7 +198,7 @@ class Media3ImageItemTest {
   fun `only the photo in a run of clips is marked a still`() {
     val composition = composition(videoClip(), clip(span = 3.seconds), videoClip(), content = TrackContent.Video)
 
-    val spans = composition.toMedia3Preview(Media3FrameBounds.None).spans
+    val spans = composition.toMedia3Preview(Media3ClipReads.None).spans
 
     spans.map { it.still } shouldBe listOf(false, true, false)
   }
@@ -175,7 +207,7 @@ class Media3ImageItemTest {
   fun `a still span covers the length the plan resolved for it`() {
     val composition = composition(videoClip(), clip(span = 3.seconds), videoClip(), content = TrackContent.Video)
 
-    val photo = composition.toMedia3Preview(Media3FrameBounds.None).spans[1]
+    val photo = composition.toMedia3Preview(Media3ClipReads.None).spans[1]
 
     photo.start shouldBe 1.seconds
     photo.end shouldBe 4.seconds
@@ -186,7 +218,7 @@ class Media3ImageItemTest {
   @Test
   fun `a readback inside a leading gap draws the gap's still rather than the clip after it`() {
     val composition = composition(videoClip(at = 1.seconds), content = TrackContent.Video, trackStart = 1.seconds)
-    val preview = composition.toMedia3Preview(Media3FrameBounds.None)
+    val preview = composition.toMedia3Preview(Media3ClipReads.None)
     val clip = preview.spans.single()
 
     val (inGap, inClip) = preview.readbacksAt(listOf(IN_GAP, clip.start + IN_GAP), revision = 1).shouldNotBeNull()
@@ -203,7 +235,7 @@ class Media3ImageItemTest {
   }
 
   private fun ResolvedComposition.firstItem(): EditedMediaItem =
-    toMedia3(Media3FrameBounds.None)
+    toMedia3(Media3ClipReads.None)
       .sequences
       .first()
       .editedMediaItems
@@ -268,7 +300,10 @@ class Media3ImageItemTest {
   /**
    * A one second video clip, for the runs a still has to be told apart from.
    */
-  private fun videoClip(at: Duration = Duration.ZERO): ResolvedClip =
+  private fun videoClip(
+    at: Duration = Duration.ZERO,
+    hdrTransfer: HdrTransfer? = null,
+  ): ResolvedClip =
     ResolvedClip(
       source = MediaSource.of("clip.mp4"),
       info =
@@ -284,7 +319,7 @@ class Media3ImageItemTest {
               codec = trackCodecOf("avc1"),
               bitDepth = 8,
               colorSpace = ColorSpace.Bt709,
-              hdrTransfer = null,
+              hdrTransfer = hdrTransfer,
               bitrate = null,
             ),
           audio = null,

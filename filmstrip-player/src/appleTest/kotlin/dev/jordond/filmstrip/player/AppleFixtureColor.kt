@@ -74,13 +74,12 @@ private suspend fun fixtureColorSplits(): Boolean {
       actual = asset.generateFrame(untouched, position),
     )
 
-  // AVFoundation's limit, not filmstrip's. The fixture carries no color tags, so VideoToolbox
-  // guesses SMPTE-C primaries and a BT.601 matrix for it, and AVFoundation converts every frame to
-  // Rec.709 before a filter handler sees it. Apple silicon does that on its hardware color
-  // converter, and both paths agree exactly. The macOS 26 VM behind GitHub's runners has no such
-  // converter, and there the reader converts the gamut while the generator only swaps the matrix.
-  // This untouched composition measured 23.0 dB and SSIM 0.924 apart on it, and filmstrip's own lowering with
-  // no effects 23.0 dB and 0.923.
+  // AVFoundation's limit, not filmstrip's. The fixture carries no color tags, so VideoToolbox guesses SMPTE-C primaries
+  // and a BT.601 matrix for it. Under a composition naming Rec.709, macOS relabels that frame and iOS converts it, and
+  // filmstrip's own lowering draws such a clip through its compositor. This composition runs none of that. Apple
+  // silicon draws it the same on both paths. The macOS 26 VM behind GitHub's runners has no hardware color converter,
+  // and there the reader converts the gamut while the generator only swaps the matrix. This untouched composition
+  // measured 23.0 dB and SSIM 0.924 apart on it.
   val splits = comparison.psnrDb < DEFAULT_MIN_PSNR_DB || comparison.ssim < DEFAULT_MIN_SSIM
   if (splits) {
     println(

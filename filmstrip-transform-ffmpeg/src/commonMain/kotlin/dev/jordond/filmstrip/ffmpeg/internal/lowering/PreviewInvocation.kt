@@ -30,6 +30,9 @@ internal const val PREVIEW_CHANNELS: Int = 4
  * `-itsoffset` instead: its timestamps move to the composition times the clip opens on, and the
  * `setpts` that branch ends on takes the move back off before the merge lines the frames up.
  *
+ * A file keeping an SD colour displays it through its tags, and RGBA frames carry none, so the pump moves that colour
+ * onto BT.709's last thing, which is what the file displays as. See [Invocation.previewColor].
+ *
  * [FfmpegConfig.extraArgs] does not reach here. It is documented as going to every encode, and this
  * runs none.
  *
@@ -135,11 +138,20 @@ private fun Invocation.previewMapArguments(
       // size where a container's display aspect makes it differ.
       add("-map")
       add("0:v:0")
+      if (previewColor.isNotEmpty()) {
+        add("-vf")
+        add(previewColor.render())
+      }
       add("-s")
       add("${output.size.width}x${output.size.height}")
     } else {
+      val out = checkNotNull(videoLabel) { NO_VIDEO_TO_PREVIEW }
+      val shown = if (previewColor.isEmpty()) out else PREVIEW_SHOWN
       add(GRAPH_FLAG)
-      add(resolvedGraph(resolvedSidecars, windowOpensAt))
+      add(
+        resolvedGraph(resolvedSidecars, windowOpensAt) +
+          if (previewColor.isEmpty()) "" else ";[$out]${previewColor.render()}[$shown]",
+      )
 
       // ffmpeg refuses a graph with an output nothing reads, so the audio branch this backend does
       // not monitor is still mapped, into a muxer that writes nothing.
@@ -152,7 +164,7 @@ private fun Invocation.previewMapArguments(
       }
 
       add("-map")
-      add("[${checkNotNull(videoLabel) { NO_VIDEO_TO_PREVIEW }}]")
+      add("[$shown]")
     }
   }
 
@@ -186,6 +198,8 @@ internal val Invocation.previewFrameBytes: Int
 // Seconds, or null where there is nothing to move. A seek to zero costs a seek that lands where the
 // demuxer already is, and an offset of zero moves no timestamp anywhere.
 private fun Duration.positiveSeconds(): Double? = toDouble(DurationUnit.SECONDS).takeIf { it > 0.0 }
+
+private const val PREVIEW_SHOWN = "vshown"
 
 private const val NO_VIDEO_TO_PREVIEW =
   "The plan writes no video track, so there is nothing for a preview to pump."

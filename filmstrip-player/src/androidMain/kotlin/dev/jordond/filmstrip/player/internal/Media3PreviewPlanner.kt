@@ -5,8 +5,8 @@ import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.OutputProperty
 import dev.jordond.filmstrip.capability.PreviewFidelity
 import dev.jordond.filmstrip.edit.EditComposition
-import dev.jordond.filmstrip.media3.internal.bounds.Media3FrameBounds
-import dev.jordond.filmstrip.media3.internal.bounds.readFrameBounds
+import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
+import dev.jordond.filmstrip.media3.internal.bounds.readClips
 import dev.jordond.filmstrip.media3.media3ExportEngine
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewInfo
@@ -26,7 +26,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 internal class Media3PreviewPlan(
   override val resolved: ResolvedComposition,
   override val info: PreviewInfo,
-  val bounds: Media3FrameBounds,
+  val bounds: Media3ClipReads,
 ) : PlannedPreview
 
 /**
@@ -53,7 +53,7 @@ internal open class Media3PreviewPlanner(
       }
       is PlanResult.Ready -> {
         val plan = result.plan
-        PlanResult.Ready(Media3PreviewPlan(plan.resolved, plan.info, plan.resolved.readFrameBounds()))
+        PlanResult.Ready(Media3PreviewPlan(plan.resolved, plan.info, plan.resolved.readClips()))
       }
     }
 }

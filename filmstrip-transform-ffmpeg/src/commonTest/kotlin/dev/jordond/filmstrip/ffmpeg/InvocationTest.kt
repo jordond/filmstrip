@@ -157,7 +157,7 @@ class InvocationTest {
   // stream, so the flags are what make the file read the same on every build.
   @Test
   fun `tags a tone-mapped output as BT709 rather than leaving the matrix unwritten`() {
-    val arguments = argumentsFor(VideoCodec.H264, "libx264", toneMapped = true)
+    val arguments = argumentsFor(VideoCodec.H264, "libx264", writesBt709 = true)
 
     arguments.after("-color_primaries") shouldBe "bt709"
     arguments.after("-colorspace") shouldBe "bt709"
@@ -169,7 +169,7 @@ class InvocationTest {
   @Test
   fun `leaves color tags alone when nothing was tone-mapped`() {
     argumentsFor(VideoCodec.H264, "libx264").shouldNotContain("-color_primaries")
-    argumentsFor(VideoCodec.Hevc, "libx265", HdrTransfer.Pq, toneMapped = true)
+    argumentsFor(VideoCodec.Hevc, "libx265", HdrTransfer.Pq, writesBt709 = true)
       .after("-color_primaries") shouldBe "bt2020"
   }
 
@@ -341,7 +341,7 @@ class InvocationTest {
     codec: VideoCodec,
     encoder: String?,
     hdrTransfer: HdrTransfer? = null,
-    toneMapped: Boolean = false,
+    writesBt709: Boolean = false,
     bitrate: Bitrate? = PLANNED_BITRATE,
     size: Size = Size(1280, 720),
   ): List<String> =
@@ -362,7 +362,7 @@ class InvocationTest {
       videoEncoder = encoder,
       duration = 2.seconds,
       hdrTransfer = hdrTransfer,
-      toneMapped = toneMapped,
+      writesBt709 = writesBt709,
     ).arguments(TOOLCHAIN, FfmpegConfig(), listOf("/fixtures/a.mp4"), emptyList(), "/out.mp4")
 
   private companion object {

@@ -60,6 +60,7 @@ import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
@@ -67,6 +68,8 @@ import platform.AVFoundation.AVAssetTrack
 import platform.AVFoundation.AVMediaTypeAudio
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.AVURLAsset
+import platform.AVFoundation.AVVideoColorPrimaries_SMPTE_C
+import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_601_4
 import platform.AVFoundation.timeRange
 import platform.AVFoundation.tracksWithMediaType
 import platform.CoreFoundation.CFRelease
@@ -1086,6 +1089,84 @@ class AppleExportTest {
     }
 
   /**
+   * An SD clip draws on the clock, and that clock runs on while the audio does. Audio ending under half a slot past the
+   * last one gets no frame of its own, so the file holds one frame a slot and all of the audio.
+   */
+  @Test
+  fun `stops on the last slot when sound outlasts an sd clip by under half a slot`() =
+    runTest(timeout = TIMEOUT) {
+      val sd = temporaryPath("sd-under-half-slot-source")
+      withContext(Dispatchers.Default) {
+        writeTaggedBars(
+          sd,
+          SD_CLIP_FRAMES,
+          AVVideoColorPrimaries_SMPTE_C.orEmpty(),
+          AVVideoYCbCrMatrix_ITU_R_601_4.orEmpty(),
+        )
+      }
+      val composition =
+        compositionOf {
+          clip(MediaSource.of(sd))
+          track(TrackContent.Audio) {
+            clip(MediaSource.of(fixture("apple_export_long.mp4"))) { trim(TimeRange.of(Duration.ZERO, SD_BED_RUN)) }
+          }
+        }
+      val spec = ExportSpec(frameRate = SD_RATE)
+      val resolved = resolved(composition, spec)
+      withContext(Dispatchers.Default) { resolved.toAvComposition() }.drawnByCompositor.shouldBeTrue()
+      withClue("the audio has to outlast the last slot for this to tell") {
+        (resolved.duration > outputSlotTime(resolved.videoSlots, SD_RATE)).shouldBeTrue()
+      }
+
+      val output = temporaryPath("sd-under-half-slot")
+      exported(composition, spec, output)
+
+      sampleTimesOf(output).size.toLong() shouldBe resolved.videoSlots
+      assertTrackEndsAt(output, AVMediaTypeVideo, outputSlotTime(resolved.videoSlots, SD_RATE))
+      assertTrackEndsAt(output, AVMediaTypeAudio, resolved.duration)
+
+      remove(output)
+      remove(sd)
+    }
+
+  /**
+   * Stopping an export part way cancels the reader with the compositor's requests still in flight. Nothing is left on
+   * disk, and the next export through the compositor runs to the end.
+   */
+  @Test
+  fun `leaves nothing behind when an export through the compositor is cancelled part way`() =
+    runTest(timeout = TIMEOUT) {
+      val sd = temporaryPath("sd-cancelled-source")
+      withContext(Dispatchers.Default) {
+        writeTaggedBars(
+          sd,
+          SD_CLIP_FRAMES,
+          AVVideoColorPrimaries_SMPTE_C.orEmpty(),
+          AVVideoYCbCrMatrix_ITU_R_601_4.orEmpty(),
+        )
+      }
+      // Runs long enough that it is still drawing when the first progress arrives.
+      val long = compositionOf { repeat(SD_LONG_RUN_CLIPS) { clip(MediaSource.of(sd)) } }
+      val spec = ExportSpec(frameRate = SD_RATE)
+      withContext(Dispatchers.Default) { resolved(long, spec).toAvComposition() }.drawnByCompositor.shouldBeTrue()
+
+      val output = temporaryPath("sd-cancelled")
+      withContext(Dispatchers.Default) {
+        filmstrip.export(long, spec, MediaSink.of(output)).first { it is ExportStatus.Progress }
+      }
+      withClue("a cancelled export left a file behind") {
+        NSFileManager.defaultManager.fileExistsAtPath(output) shouldBe false
+      }
+
+      val next = compositionOf { clip(MediaSource.of(sd)) }
+      exported(next, spec, output)
+      sampleTimesOf(output).size.toLong() shouldBe resolved(next, spec).videoSlots
+
+      remove(output)
+      remove(sd)
+    }
+
+  /**
    * Asserts the [mediaType] track of the file at [path] ends at [end], to within one tick of the backend's timescale.
    */
   private fun assertTrackEndsAt(
@@ -1721,6 +1802,13 @@ class AppleExportTest {
 
     // How long the bed under a held primary runs, seconds past the primary's own picture. The second ends 0.3 of a slot
     // past a slot at OFF_GRID_RATE, so the audio outlasts the last slot the video writes.
+    const val SD_RATE = 30
+    const val SD_CLIP_FRAMES = 30
+    const val SD_LONG_RUN_CLIPS = 20
+
+    // A third of a slot past the clip at 30 fps.
+    val SD_BED_RUN = 1_011.milliseconds
+
     val HELD_RUN = 5.seconds
     val HELD_RUN_PAST_SLOT = 5_012.milliseconds
 

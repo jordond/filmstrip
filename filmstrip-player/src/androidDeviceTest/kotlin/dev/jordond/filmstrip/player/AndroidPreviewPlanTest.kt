@@ -4,7 +4,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
-import dev.jordond.filmstrip.media3.internal.bounds.readFrameBounds
+import dev.jordond.filmstrip.media3.internal.bounds.readClips
 import dev.jordond.filmstrip.media3.internal.preview.Media3Span
 import dev.jordond.filmstrip.media3.internal.preview.toMedia3Preview
 import dev.jordond.filmstrip.player.internal.Media3PreviewPlan
@@ -44,7 +44,7 @@ class AndroidPreviewPlanTest {
         val plan = planned.shouldBeInstanceOf<PlanResult.Ready<Media3PreviewPlan>>().plan
 
         val preview = plan.resolved.toMedia3Preview(plan.bounds)
-        val exported = plan.resolved.toMedia3Preview(plan.resolved.readFrameBounds())
+        val exported = plan.resolved.toMedia3Preview(plan.resolved.readClips())
 
         // A clip that holds nothing is laid the same whether or not its container was read.
         withClue("the export holds no frame, so the case proves nothing") {

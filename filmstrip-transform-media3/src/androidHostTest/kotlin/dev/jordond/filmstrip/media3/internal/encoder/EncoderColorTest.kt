@@ -160,7 +160,7 @@ class EncoderColorTest {
   fun `only an sdr bt709 limited range request is measured`() {
     val asked = mutableListOf<ColorInfo>()
     val color =
-      color(FakeFactory(names = List(3) { SOFTWARE })) { request ->
+      color(FakeFactory(names = List(2) { SOFTWARE })) { request ->
         asked += request.requested
         WrittenColor.Measured(BT601_LIMITED)
       }
@@ -171,10 +171,26 @@ class EncoderColorTest {
         .build()
 
     color.createForVideoEncoding(sdrFormat(fullRange), null)
-    color.createForVideoEncoding(sdrFormat(BT601_LIMITED), null)
     color.createForVideoEncoding(sdrFormat(null), null)
 
     asked shouldBe emptyList()
+    color.retag.shouldBeNull()
+  }
+
+  @Test
+  fun `an sdr bt601 request is made and measured as sdr bt709 at limited range`() {
+    val factory = FakeFactory(names = listOf(SOFTWARE))
+    val asked = mutableListOf<ColorInfo>()
+    val color =
+      color(factory) { request ->
+        asked += request.requested
+        WrittenColor.Measured(ColorInfo.SDR_BT709_LIMITED)
+      }
+
+    color.createForVideoEncoding(sdrFormat(BT601_LIMITED), null)
+
+    factory.formats.single().colorInfo shouldBe ColorInfo.SDR_BT709_LIMITED
+    asked shouldBe listOf(ColorInfo.SDR_BT709_LIMITED)
     color.retag.shouldBeNull()
   }
 

@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.player.internal.thumbnail
 
 import dev.jordond.filmstrip.FilmstripComponents
 import dev.jordond.filmstrip.FilmstripError
-import dev.jordond.filmstrip.media3.internal.bounds.readFrameBounds
+import dev.jordond.filmstrip.media3.internal.bounds.readClips
 import dev.jordond.filmstrip.media3.internal.failure.Media3LoweringFailure
 import dev.jordond.filmstrip.media3.internal.preview.Media3Preview
 import dev.jordond.filmstrip.media3.internal.preview.toMedia3Preview
@@ -38,7 +38,7 @@ internal class Media3ThumbnailPlanner(
 
     val resolved = lowering.resolved
     return try {
-      PlanResult.Ready(resolved.toMedia3Preview(resolved.readFrameBounds()))
+      PlanResult.Ready(resolved.toMedia3Preview(resolved.readClips()))
     } catch (refused: Media3LoweringFailure) {
       PlanResult.Refused(FilmstripError.InvalidComposition(refused.reason))
     }

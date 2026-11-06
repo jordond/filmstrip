@@ -41,21 +41,31 @@ internal fun CIImage.toneMapped(transfer: HdrTransfer): CIImage {
  * @param kernelsExist Whether this OS has the call that compiles a Metal kernel from source.
  * @param compiles Whether the kernels really compile, only asked when [kernelsExist].
  */
-@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 internal fun toneMapKernelLimit(
-  kernelsExist: Boolean =
-    interpretObjCPointer<NSObjectProtocol>(
-      CIKernel.objcPtr(),
-    ).respondsToSelector(NSSelectorFromString(KERNELS_FROM_SOURCE)),
+  kernelsExist: Boolean = metalKernelsExist(),
   compiles: () -> Boolean = { PQ_KERNEL != null && HLG_KERNEL != null },
 ): String? = TONE_MAP_KERNEL_LIMIT.takeUnless { kernelsExist && compiles() }
+
+/**
+ * Whether this OS has the call that compiles a Metal kernel from source.
+ */
+@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
+internal fun metalKernelsExist(): Boolean =
+  interpretObjCPointer<NSObjectProtocol>(
+    CIKernel.objcPtr(),
+  ).respondsToSelector(NSSelectorFromString(KERNELS_FROM_SOURCE))
+
+/**
+ * What any Core Image Metal kernel takes, the end of a sentence saying what runs one.
+ */
+internal const val METAL_KERNEL_NEED: String =
+  "a Core Image Metal kernel, which takes iOS 15 or macOS 12 on an Apple6 GPU, and this device cannot compile one."
 
 /**
  * What a plan is refused with on a device that cannot run the tone map kernel.
  */
 internal const val TONE_MAP_KERNEL_LIMIT: String =
-  "Tone mapping HDR to SDR on Apple runs a Core Image Metal kernel, which takes iOS 15 or macOS 12 on an Apple6 GPU, " +
-    "and this device cannot compile one. Use HdrMode.KeepHdr to keep the grade instead."
+  "Tone mapping HDR to SDR on Apple runs $METAL_KERNEL_NEED Use HdrMode.KeepHdr to keep the grade instead."
 
 @OptIn(ExperimentalForeignApi::class)
 private fun compiledToneMapKernel(transfer: HdrTransfer): CIColorKernel? =

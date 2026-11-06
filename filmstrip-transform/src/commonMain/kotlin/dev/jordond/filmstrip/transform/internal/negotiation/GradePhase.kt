@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.transform.internal.negotiation
 
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.export.CopyBlocker
@@ -114,12 +115,19 @@ private fun drawnSdrSources(
     .flatMap { it.clips }
     .map { it.source }
     .distinct()
-    .filter { source -> ask.infos[source]?.video?.let { it.hdrTransfer == null } == true }
+    .filter { source ->
+      source !is MediaSource.Image && ask.infos[source]?.video?.let { it.hdrTransfer == null } == true
+    }
 
-// The id of every effect anywhere in the edit that needs SDR frames, once each, in the order they are written.
-private fun EditComposition.effectsThatRequireSdr(): List<String> =
+/**
+ * The id of every effect anywhere in this edit that needs SDR frames, once each, in the order they are written.
+ *
+ * An inert effect is taken out of the edit before it draws, so it needs nothing.
+ */
+@InternalFilmstripApi
+public fun EditComposition.effectsThatRequireSdr(): List<String> =
   (effects + tracks.flatMap { track -> track.effects + track.clips.flatMap { it.effects } })
-    .filter { it.requiresSdr }
+    .filter { it.requiresSdr && !it.isInert }
     .map { it.id }
     .distinct()
 

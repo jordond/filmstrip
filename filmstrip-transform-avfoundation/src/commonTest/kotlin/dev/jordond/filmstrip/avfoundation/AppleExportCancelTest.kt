@@ -2,7 +2,7 @@ package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
-import dev.jordond.filmstrip.avfoundation.internal.composition.AvToneMapInstruction
+import dev.jordond.filmstrip.avfoundation.internal.composition.AvCompositorInstruction
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TrackContent
@@ -164,7 +164,7 @@ class AppleExportCancelTest {
       .videoComposition
       .shouldNotBeNull()
       .instructions
-      .any { it is AvToneMapInstruction }
+      .any { it is AvCompositorInstruction }
 
   private suspend fun resolved(
     composition: EditComposition,

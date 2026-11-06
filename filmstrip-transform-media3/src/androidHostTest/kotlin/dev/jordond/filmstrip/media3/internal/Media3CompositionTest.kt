@@ -29,7 +29,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
-import dev.jordond.filmstrip.media3.internal.bounds.Media3FrameBounds
+import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.media3.internal.fill.FillCoverBlur
 import dev.jordond.filmstrip.media3.internal.fill.FillFlatten
 import dev.jordond.filmstrip.media3.internal.fill.MAX_TAP_RADIUS
@@ -321,7 +321,7 @@ class Media3CompositionTest {
           looping = true,
           trackStart = 700.milliseconds,
           content = TrackContent.Video,
-        ).toMedia3(Media3FrameBounds.None)
+        ).toMedia3(Media3ClipReads.None)
           .sequences
           .single()
 
@@ -359,7 +359,7 @@ class Media3CompositionTest {
           looping = true,
           trackStart = Duration.ZERO,
           content = TrackContent.Video,
-        ).toMedia3(Media3FrameBounds.None)
+        ).toMedia3(Media3ClipReads.None)
           .sequences
           .single()
 

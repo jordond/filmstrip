@@ -3,8 +3,10 @@ package dev.jordond.filmstrip.avfoundation
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
-import dev.jordond.filmstrip.avfoundation.internal.composition.relabelsBt601AsBt709
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
+import dev.jordond.filmstrip.color.EBU_PRIMARIES
+import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
+import dev.jordond.filmstrip.color.sdSourceDisplayed
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.compositionOf
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
@@ -18,6 +20,7 @@ import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.ResolveResult
+import dev.jordond.filmstrip.transform.internal.hdr.Rgb
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +28,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import platform.AVFoundation.AVVideoColorPrimaries_ITU_R_2020
+import platform.AVFoundation.AVVideoColorPrimaries_ITU_R_709_2
 import platform.AVFoundation.AVVideoColorPrimaries_P3_D65
 import platform.AVFoundation.AVVideoColorPrimaries_SMPTE_C
 import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_2020
@@ -32,6 +36,9 @@ import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_601_4
 import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_709_2
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
+import kotlin.experimental.ExperimentalNativeApi
+import kotlin.native.OsFamily
+import kotlin.native.Platform
 import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -43,7 +50,7 @@ import kotlin.time.Duration.Companion.minutes
  * Each is held to the same clip with no HDR in the edit, every bar, rendered before the encoder. Two H.264 encodes of
  * the same frame move a bar by a few codes on their own, more than the routes differ by.
  */
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class, ExperimentalNativeApi::class)
 class AppleToneMapSdrClipTest {
   private val filmstrip = Filmstrip { avFoundationBackend() }
 
@@ -53,9 +60,10 @@ class AppleToneMapSdrClipTest {
       // The fixtures carry no colour tags and what filmstrip writes carries BT.709's, and each reads its own way.
       val untagged = fixture(SDR_FIXTURE)
       val tagged = exported(reencoded(untagged), "sdr-tagged")
+      assertReadsAsItDoesAlone(untagged, TONE_MAP_TOLERANCE_CODES)
       // macOS keeps these codes, where iOS runs them through one conversion.
-      val floor = if (relabelsBt601AsBt709) 0.0 else TONE_MAP_TOLERANCE_CODES
-      listOf(untagged, fixture(HD_SDR_FIXTURE), tagged).forEach { assertReadsAsItDoesAlone(it, floor) }
+      val floor = if (MACOS) 0.0 else TONE_MAP_TOLERANCE_CODES
+      listOf(fixture(HD_SDR_FIXTURE), tagged).forEach { assertReadsAsItDoesAlone(it, floor) }
       remove(tagged)
     }
 
@@ -70,7 +78,7 @@ class AppleToneMapSdrClipTest {
         }
       val alone = renderedFrameOf(graphOf(sdrAlone(sdr)), 0)
       val opening = renderedFrameOf(graphOf(mixed), 0)
-      val floor = if (relabelsBt601AsBt709) 0.0 else TONE_MAP_TOLERANCE_CODES
+      val floor = if (MACOS) 0.0 else TONE_MAP_TOLERANCE_CODES
       EVERY_BAR.forEach { x -> assertCodes(opening.at(x, QUARTER), alone.at(x, QUARTER), "the SDR bar at $x", floor) }
 
       val path = exported(mixed, "sdr-first")
@@ -121,6 +129,48 @@ class AppleToneMapSdrClipTest {
         assertReadsAsItDoesAlone(path, TONE_MAP_TOLERANCE_CODES)
         remove(path)
       }
+      val ebu = temporaryPath("bars-ebu")
+      withContext(Dispatchers.Default) { writeEbuBars(ebu, CLIP_FRAMES) }
+      assertReadsAsItDoesAlone(ebu, TONE_MAP_TOLERANCE_CODES)
+      remove(ebu)
+    }
+
+  @Test
+  fun `an sd clip beside an hdr clip reads the colour it displays as`() =
+    runTest(timeout = TIMEOUT) {
+      val smpteC = temporaryPath("shown-smpte-c")
+      val ebu = temporaryPath("shown-ebu")
+      val m601 = temporaryPath("shown-m601")
+      withContext(Dispatchers.Default) {
+        writeTaggedBars(
+          smpteC,
+          CLIP_FRAMES,
+          AVVideoColorPrimaries_SMPTE_C.orEmpty(),
+          AVVideoYCbCrMatrix_ITU_R_601_4.orEmpty(),
+        )
+        writeEbuBars(ebu, CLIP_FRAMES)
+        writeTaggedBars(
+          m601,
+          CLIP_FRAMES,
+          AVVideoColorPrimaries_ITU_R_709_2.orEmpty(),
+          AVVideoYCbCrMatrix_ITU_R_601_4.orEmpty(),
+        )
+      }
+      listOf(smpteC to SMPTE_C_PRIMARIES, ebu to EBU_PRIMARIES, m601 to BT709_PRIMARIES).forEach { (path, primaries) ->
+        val beside =
+          compositionOf {
+            clip(MediaSource.of(hdrFixture(HdrTransfer.Hlg))) { trim(Duration.ZERO, CLIP) }
+            clip(MediaSource.of(path)) { trim(Duration.ZERO, CLIP) }
+          }
+        val drawn = renderedFrameOf(graphOf(beside), CLIP_FRAMES)
+        val honest = codeFramesOf(path, 1).first()
+        EVERY_BAR.forEach { x ->
+          val source = honest.at(x, QUARTER)
+          val shown = sdSourceDisplayed(doubleArrayOf(source.r, source.g, source.b), primaries)
+          assertCodes(drawn.at(x, QUARTER), Rgb(shown[0], shown[1], shown[2]), "$path at $x", SD_SHOWN_CODES)
+        }
+        remove(path)
+      }
     }
 
   // macOS's limit. Its AVFoundation pulls a BT.2020 colour outside BT.709 in under a composition naming BT.709, where
@@ -131,7 +181,7 @@ class AppleToneMapSdrClipTest {
       val floors =
         mapOf(
           "p3" to TONE_MAP_TOLERANCE_CODES,
-          "bt2020" to if (relabelsBt601AsBt709) MACOS_OUT_OF_GAMUT_CODES else TONE_MAP_TOLERANCE_CODES,
+          "bt2020" to if (MACOS) MACOS_OUT_OF_GAMUT_CODES else TONE_MAP_TOLERANCE_CODES,
         )
       taggedSources().filter { it.first in floors }.forEach { (name, primaries, matrix) ->
         val path = temporaryPath("far-$name")
@@ -168,13 +218,11 @@ class AppleToneMapSdrClipTest {
       }
     }
 
-  // The writer takes EBU primaries on macOS only, and SMPTE C everywhere.
   private fun taggedSources(): List<Triple<String, String, String>> =
-    listOfNotNull(
+    listOf(
       Triple("p3", AVVideoColorPrimaries_P3_D65.orEmpty(), AVVideoYCbCrMatrix_ITU_R_709_2.orEmpty()),
       Triple("bt2020", AVVideoColorPrimaries_ITU_R_2020.orEmpty(), AVVideoYCbCrMatrix_ITU_R_2020.orEmpty()),
       Triple("smpte-c", AVVideoColorPrimaries_SMPTE_C.orEmpty(), AVVideoYCbCrMatrix_ITU_R_601_4.orEmpty()),
-      Triple("ebu", EBU_PRIMARIES, AVVideoYCbCrMatrix_ITU_R_601_4.orEmpty()).takeIf { relabelsBt601AsBt709 },
     )
 
   private fun sdrOnly(path: String): EditComposition =
@@ -220,7 +268,11 @@ class AppleToneMapSdrClipTest {
     const val CENTRE = 0.5f
     const val QUARTER = 0.25f
     const val BARS = 8
-    const val EBU_PRIMARIES = "EBU_3213"
+    val MACOS = Platform.osFamily == OsFamily.MACOSX
+    const val BT709_PRIMARIES = 1
+
+    // One 8-bit chroma step of the clip's H.264, measured at 1.1 codes against the same frame's honest read.
+    const val SD_SHOWN_CODES = 2.0
 
     // Measured at 20 codes on the worst bar of OUT_OF_GAMUT_BARS.
     const val MACOS_OUT_OF_GAMUT_CODES = 20.0

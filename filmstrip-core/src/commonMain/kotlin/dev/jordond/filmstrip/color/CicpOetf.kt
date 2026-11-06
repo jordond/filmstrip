@@ -45,7 +45,7 @@ public data class CicpOetf internal constructor(
         LOG_316 -> if (l >= sqrt(10.0) / 1000.0) 1.0 + log10(l) / 2.5 else 0.0
         SRGB -> if (l > SRGB_LINEAR_KNEE) (1 + SRGB_OFFSET) * l.pow(1 / SRGB_GAMMA) - SRGB_OFFSET else SRGB_SLOPE * l
         ST_428 -> (l / ST_428_PEAK).pow(1 / ST_428_EXPONENT)
-        else -> if (l >= BT709_BETA) poweredSegment(l, BT709_ALPHA) else 4.5 * l
+        else -> if (l >= BT709_BETA) poweredSegment(l, BT709_ALPHA) else BT709_SLOPE * l
       }
     return signal.coerceIn(0.0, 1.0)
   }
@@ -83,7 +83,7 @@ public data class CicpOetf internal constructor(
           ST_428_PEAK * v.pow(ST_428_EXPONENT)
         }
         else -> {
-          if (v >= 4.5 * BT709_BETA) poweredLight(v, BT709_ALPHA) else v / 4.5
+          if (v >= BT709_SLOPE * BT709_BETA) poweredLight(v, BT709_ALPHA) else v / BT709_SLOPE
         }
       }
     return light.coerceIn(0.0, if (transfer == ST_428) ST_428_PEAK else 1.0)
@@ -111,17 +111,38 @@ private fun poweredLight(
   alpha: Double,
 ): Double = ((signal + alpha - 1) / alpha).pow(1 / POWER_SEGMENT_EXPONENT)
 
+/**
+ * The exponent of the power segment of BT.709's curve, which SMPTE 240M's shares. It takes linear light to signal.
+ */
+@InternalFilmstripApi
+public const val POWER_SEGMENT_EXPONENT: Double = 0.45
+
+/**
+ * The alpha of BT.709's curve, which scales its power segment and offsets it by `alpha - 1`.
+ */
+@InternalFilmstripApi
+public const val BT709_ALPHA: Double = 1.09929682680944
+
+/**
+ * The beta of BT.709's curve, the linear light where its straight segment hands over to its power segment.
+ */
+@InternalFilmstripApi
+public const val BT709_BETA: Double = 0.018053968510807
+
+/**
+ * The slope of the straight segment of BT.709's curve, from linear light to signal.
+ */
+@InternalFilmstripApi
+public const val BT709_SLOPE: Double = 4.5
+
 internal const val GAMMA_22_EXPONENT = 2.2
 internal const val GAMMA_28_EXPONENT = 2.8
 internal const val SMPTE_240M_ALPHA = 1.1115
 internal const val SMPTE_240M_BETA = 0.0228
 internal const val SMPTE_240M_SLOPE = 4.0
-internal const val POWER_SEGMENT_EXPONENT = 0.45
 internal const val ST_428_PEAK = 52.37 / 48.0
 internal const val ST_428_EXPONENT = 2.6
 
-private const val BT709_ALPHA = 1.09929682680944
-private const val BT709_BETA = 0.018053968510807
 private const val BT709 = 1
 private const val GAMMA_22 = 4
 private const val GAMMA_28 = 5

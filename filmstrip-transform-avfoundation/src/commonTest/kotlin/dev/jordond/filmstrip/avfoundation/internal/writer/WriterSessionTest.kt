@@ -63,7 +63,7 @@ class WriterSessionTest {
     runTest {
       val rig = WriterSessionRig(written)
 
-      rig.session(heldFrameRate = null).drive()
+      rig.session(clockFrameRate = null).drive()
 
       rig.outcome.await() shouldBe WriterOutcome.Completed
       withClue("no file was written at $written") {
@@ -81,7 +81,7 @@ class WriterSessionTest {
     runTest {
       val rig = WriterSessionRig(written)
 
-      rig.session(heldFrameRate = RATE, videoSlots = SLOTS).drive()
+      rig.session(clockFrameRate = RATE, videoSlots = SLOTS).drive()
 
       rig.outcome.await() shouldBe WriterOutcome.Completed
       withClue("wrote to ${rig.writtenMicros} us, past slot $SLOTS") {
@@ -96,7 +96,7 @@ class WriterSessionTest {
     runTest {
       val rig = WriterSessionRig(written)
       val gate = StepGate { read, _ -> read == MID_RUN_READ }
-      val session = rig.session(heldFrameRate = null, gate = gate)
+      val session = rig.session(clockFrameRate = null, gate = gate)
 
       withContext(Dispatchers.Default) {
         session.drive()
@@ -127,7 +127,7 @@ class WriterSessionTest {
     runTest {
       val rig = WriterSessionRig(written)
       val gate = StepGate { _, buffer -> buffer == null }
-      val session = rig.session(heldFrameRate = null, gate = gate)
+      val session = rig.session(clockFrameRate = null, gate = gate)
 
       withContext(Dispatchers.Default) {
         session.drive()
@@ -146,7 +146,7 @@ class WriterSessionTest {
   fun `stop before any sample moved and twice does not raise`() =
     runTest {
       val rig = WriterSessionRig(written)
-      val session = rig.session(heldFrameRate = null)
+      val session = rig.session(clockFrameRate = null)
 
       withContext(Dispatchers.Default) {
         session.stop()
@@ -163,7 +163,7 @@ class WriterSessionTest {
   fun `a ready callback behind a stop moves no sample`() =
     runTest {
       val rig = WriterSessionRig(written)
-      val session = rig.session(heldFrameRate = null)
+      val session = rig.session(clockFrameRate = null)
       val released = dispatch_semaphore_create(0)
       dispatch_async(rig.queue) {
         dispatch_semaphore_wait(released, dispatch_time(DISPATCH_TIME_NOW, GATE_LIMIT.inWholeNanoseconds))
@@ -188,7 +188,7 @@ class WriterSessionTest {
     runTest {
       val rig = WriterSessionRig(written)
       val gate = StepGate { read, _ -> read == MID_RUN_READ }
-      val session = rig.session(heldFrameRate = null, gate = gate)
+      val session = rig.session(clockFrameRate = null, gate = gate)
 
       withContext(Dispatchers.Default) {
         session.drive()
@@ -211,7 +211,7 @@ class WriterSessionTest {
   fun `a stop after the run finished leaves the finished file alone`() =
     runTest {
       val rig = WriterSessionRig(written)
-      val session = rig.session(heldFrameRate = null)
+      val session = rig.session(clockFrameRate = null)
 
       session.drive()
       rig.outcome.await() shouldBe WriterOutcome.Completed
@@ -272,7 +272,7 @@ class WriterSessionTest {
     runTest {
       val rig = WriterSessionRig(written)
       val gate = StepGate { _, buffer -> buffer == null }
-      val session = rig.session(heldFrameRate = null, gate = gate, sessionReader = FailedReader(rig.asset))
+      val session = rig.session(clockFrameRate = null, gate = gate, sessionReader = FailedReader(rig.asset))
 
       withContext(Dispatchers.Default) {
         session.drive()
@@ -293,7 +293,7 @@ class WriterSessionTest {
     runTest {
       val rig = WriterSessionRig(written, LONG_CLIP)
       val rejecting = RejectedRead(at = MID_RUN_READ)
-      val session = rig.session(heldFrameRate = null, read = rejecting::read)
+      val session = rig.session(clockFrameRate = null, read = rejecting::read)
 
       session.drive()
       val failed = rig.awaitFailure()
@@ -318,7 +318,7 @@ class WriterSessionTest {
       var otherReads = 0
       val session =
         rig.session(
-          heldFrameRate = null,
+          clockFrameRate = null,
           read = rejecting::read,
           otherPump = { output ->
             otherReads++
@@ -349,7 +349,7 @@ class WriterSessionTest {
       val failedReader = FailedReader(rig.asset)
       val session =
         rig.session(
-          heldFrameRate = null,
+          clockFrameRate = null,
           sessionReader = failedReader,
           read = { output ->
             failWriter(rig, output)
@@ -371,7 +371,7 @@ class WriterSessionTest {
     runTest {
       val rig = WriterSessionRig(written)
       val rejecting = RejectedRead(at = MID_RUN_READ)
-      val session = rig.session(heldFrameRate = null, sessionReader = FailedReader(rig.asset), read = rejecting::read)
+      val session = rig.session(clockFrameRate = null, sessionReader = FailedReader(rig.asset), read = rejecting::read)
 
       session.drive()
       rig.awaitFailure()
@@ -389,7 +389,7 @@ class WriterSessionTest {
       var writerFailed = false
       val session =
         rig.session(
-          heldFrameRate = null,
+          clockFrameRate = null,
           read = { output ->
             if (!writerFailed) failWriter(rig, output)
             writerFailed = true
@@ -418,7 +418,7 @@ class WriterSessionTest {
   fun `a rejected append with the writer still writing fails the run with a named error`() =
     runTest {
       val rig = WriterSessionRig(written, LONG_CLIP)
-      val session = rig.session(heldFrameRate = null, append = rejectingAt(MID_RUN_READ, rig))
+      val session = rig.session(clockFrameRate = null, append = rejectingAt(MID_RUN_READ, rig))
 
       session.drive()
       val failed = rig.awaitFailure()
@@ -437,7 +437,7 @@ class WriterSessionTest {
     runTest {
       val rig = WriterSessionRig(written, LONG_CLIP)
       val gate = StepGate { read, _ -> read == MID_RUN_READ }
-      val session = rig.session(heldFrameRate = null, gate = gate, append = rejectingAt(MID_RUN_READ, rig))
+      val session = rig.session(clockFrameRate = null, gate = gate, append = rejectingAt(MID_RUN_READ, rig))
 
       withContext(Dispatchers.Default) {
         session.drive()
@@ -472,7 +472,7 @@ class WriterSessionTest {
     lateinit var session: WriterSession
     session =
       session(
-        heldFrameRate = null,
+        clockFrameRate = null,
         read = { output ->
           output.copyNextSampleBuffer().also { buffer ->
             if (buffer == null) {

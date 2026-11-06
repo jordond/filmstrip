@@ -70,7 +70,20 @@ internal external class Float32Array(
  * which forwards to the frame underneath it.
  */
 internal external interface VideoFrame : JsAny {
+  val colorSpace: VideoColorSpace
+
   fun close()
+}
+
+/**
+ * What a decoded frame says of its colour.
+ *
+ * @property primaries The name of its color primaries, or null when it names none.
+ * @property fullRange Whether its codes run the full range, or null when it does not say.
+ */
+internal external interface VideoColorSpace : JsAny {
+  val primaries: JsString?
+  val fullRange: JsAny?
 }
 
 /**

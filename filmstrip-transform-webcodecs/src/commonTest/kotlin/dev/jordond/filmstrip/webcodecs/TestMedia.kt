@@ -435,7 +435,7 @@ internal suspend fun decodeFrames(source: MediaSource): List<OutputFrame> {
   }
 }
 
-private fun ArrayBuffer.toByteArray(): ByteArray {
+internal fun ArrayBuffer.toByteArray(): ByteArray {
   val view = Uint8Array(this)
   return ByteArray(view.length) { view.at(it).toByte() }
 }

@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -279,6 +280,24 @@ class HdrPlanTest {
     val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
     reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe TONE_MAP_LIMIT
     asked shouldBe 1
+  }
+
+  @Test
+  fun `a still is not one of the sdr sources the limit is asked about`() {
+    var asked: List<MediaSource>? = null
+    val video = fixture.clip()
+    val composition = composition(fixture.clip(hdr = HdrTransfer.Pq), video, fixture.imageClip())
+    val planner =
+      fixture.planner(
+        toneMapLimit = {
+          asked = it
+          null
+        },
+      )
+
+    planner.negotiate(composition, Ask(ExportSpec(), fixture.device(), fixture.infos(composition)))
+
+    asked shouldBe listOf(video.source)
   }
 
   // A device with no kernel can still keep a grade, so the limit is not the reason a kept grade fails.

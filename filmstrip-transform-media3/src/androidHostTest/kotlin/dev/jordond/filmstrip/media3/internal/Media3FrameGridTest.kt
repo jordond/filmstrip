@@ -29,7 +29,7 @@ import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.media3.internal.bounds.ClipWindow
 import dev.jordond.filmstrip.media3.internal.bounds.FrameBounds
-import dev.jordond.filmstrip.media3.internal.bounds.Media3FrameBounds
+import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.media3.internal.preview.toMedia3Preview
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -357,9 +357,9 @@ class Media3FrameGridTest {
   private fun boundsOf(
     composition: ResolvedComposition,
     vararg read: Pair<ResolvedClip, FrameBounds>,
-  ): Media3FrameBounds {
+  ): Media3ClipReads {
     val named = read.toMap()
-    return Media3FrameBounds(
+    return Media3ClipReads(
       composition.tracks.flatMap { it.clips }.associate { clip ->
         ClipWindow(clip.source, clip.start, clip.end) to
           (named[clip] ?: FrameBounds(sampleAtOrAfter(clip.start), sampleBefore(clip.end), clip.end))

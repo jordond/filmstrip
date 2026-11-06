@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
@@ -88,6 +89,7 @@ internal fun laidPlan(
   duration: Duration,
   frameRate: Int = 30,
   path: ExportPath = ExportPath.Transcode,
+  hdrTransfer: HdrTransfer? = null,
 ): ResolvedComposition {
   val output = Size(320, 180)
   return ResolvedComposition(
@@ -106,7 +108,7 @@ internal fun laidPlan(
     fill = Fill.Black,
     duration = duration,
     hdr = ResolvedHdr.Keep,
-    hdrTransfer = null,
+    hdrTransfer = hdrTransfer,
     path = path,
     audio = AudioSpec.Keep,
     adjustments = emptyList(),

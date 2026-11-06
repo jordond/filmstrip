@@ -14,12 +14,14 @@ import kotlinx.cinterop.get
 import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.useContents
 import kotlinx.cinterop.usePinned
+import platform.AVFoundation.AVAsset
 import platform.AVFoundation.AVAssetReader
 import platform.AVFoundation.AVAssetReaderTrackOutput
 import platform.AVFoundation.AVAssetReaderVideoCompositionOutput
 import platform.AVFoundation.AVAssetTrack
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.AVURLAsset
+import platform.AVFoundation.AVVideoComposition
 import platform.AVFoundation.tracksWithMediaType
 import platform.CoreFoundation.CFRelease
 import platform.CoreGraphics.CGRectMake
@@ -38,6 +40,7 @@ import platform.CoreVideo.CVPixelBufferUnlockBaseAddress
 import platform.CoreVideo.kCVPixelBufferLock_ReadOnly
 import platform.CoreVideo.kCVPixelFormatType_32BGRA
 import platform.CoreVideo.kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
+import platform.CoreVideo.kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
 import platform.Foundation.NSNull
 import platform.Foundation.NSURL
 import kotlin.math.abs
@@ -141,14 +144,24 @@ private fun CVPixelBufferRef.toCodeFrame(): CodeFrame {
 internal fun renderedFrameOf(
   graph: AvComposition,
   index: Int,
+): CodeFrame = renderedFrameOf(graph.composition, graph.videoComposition, index)
+
+/**
+ * Frame [index] of [asset] as [composition] renders it, before any encoder has touched it.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun renderedFrameOf(
+  asset: AVAsset,
+  composition: AVVideoComposition?,
+  index: Int,
 ): CodeFrame {
   val output =
     AVAssetReaderVideoCompositionOutput.assetReaderVideoCompositionOutputWithVideoTracks(
-      graph.composition.tracksWithMediaType(AVMediaTypeVideo),
+      asset.tracksWithMediaType(AVMediaTypeVideo),
       videoSettings = mapOf(PIXEL_FORMAT_KEY to kCVPixelFormatType_32BGRA.toInt()),
     )
-  output.videoComposition = graph.videoComposition
-  val reader = AVAssetReader.assetReaderWithAsset(graph.composition, error = null) ?: error("no reader for the graph")
+  output.videoComposition = composition
+  val reader = AVAssetReader.assetReaderWithAsset(asset, error = null) ?: error("no reader for the graph")
   reader.addOutput(output)
   reader.startReading().shouldBeTrue()
   try {
@@ -160,6 +173,24 @@ internal fun renderedFrameOf(
       CFRelease(sample)
     }
   } finally {
+    reader.cancelReading()
+  }
+}
+
+/**
+ * What [read] makes of the first frame of the SDR file at [path], decoded to the buffers a tone mapped plan reads.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun <T> firstFrameOf(
+  path: String,
+  read: (CVPixelBufferRef) -> T,
+): T {
+  val (reader, output) = readerOf(path, kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange.toInt())
+  val sample = output.copyNextSampleBuffer() ?: error("no sample in $path")
+  try {
+    return read(CMSampleBufferGetImageBuffer(sample) ?: error("no image buffer in $path"))
+  } finally {
+    CFRelease(sample)
     reader.cancelReading()
   }
 }

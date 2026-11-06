@@ -59,15 +59,7 @@ internal fun toneMapFragment(transfer: HdrTransfer): FilterFragment {
       add(sidecars.lut1d(oetfTable, LINEAR))
       add(FilterNode("scale", "out_color_matrix" to SDR_TAG, "out_range" to "tv"))
       add(FilterNode("format", "pix_fmts" to "yuv420p"))
-      add(
-        FilterNode(
-          "setparams",
-          "color_primaries" to SDR_TAG,
-          "color_trc" to SDR_TAG,
-          "colorspace" to SDR_TAG,
-          "range" to "tv",
-        ),
-      )
+      add(bt709Tags())
     }
   return FilterFragment(chain = chain, sidecars = sidecars.distinct())
 }
@@ -122,5 +114,17 @@ private val oetfTable: LutTable by lazy {
   val column = DoubleArray(MAX_1D_LEVEL) { toneMapOetf(it.toDouble() / (MAX_1D_LEVEL - 1)) }
   LutTable(List(3) { column })
 }
+
+/**
+ * The node labelling a frame BT.709 at video range, which is what an encoder then writes on the stream.
+ */
+internal fun bt709Tags(): FilterNode =
+  FilterNode(
+    "setparams",
+    "color_primaries" to SDR_TAG,
+    "color_trc" to SDR_TAG,
+    "colorspace" to SDR_TAG,
+    "range" to "tv",
+  )
 
 private const val SDR_TAG = "bt709"

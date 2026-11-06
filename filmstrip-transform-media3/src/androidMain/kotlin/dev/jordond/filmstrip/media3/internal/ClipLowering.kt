@@ -26,12 +26,14 @@ import dev.jordond.filmstrip.transform.internal.resolve.drawnRect
  * Each crop that makes a canvas a later effect reads has the canvas built right after it, with clear bars the flatten
  * pass paints the fill into. Under [Fill.Blurred] they turn black once the clip's effects have run, since the cover is
  * drawn from the frame and carries the bars the way it carries the picture. The clip is then drawn at its [drawnRect],
- * over a blurred cover of itself when [showsBlurredFill] says the cover can be seen.
+ * over a blurred cover of itself when [showsBlurredFill] says the cover can be seen. An SD clip on [sdPrimaries] opens
+ * on [SdPrimariesHead], ahead of everything [wrapper] sees, so its effects read the clip's colour as BT.709.
  */
 internal fun ResolvedClip.clipVideoEffects(
   fill: Fill,
   outputSize: Size,
   wrapper: EffectWrapper = UnwrappedEffects,
+  sdPrimaries: Int? = null,
 ): List<Effect> {
   // Cut at each canvas, so a run of overlays on one side of it still blends in one pass.
   val cuts = listOf(-1) + canvasEffectIndices
@@ -49,7 +51,7 @@ internal fun ResolvedClip.clipVideoEffects(
     } else {
       PlacedFrame(drawnRect, outputSize)
     }
-  return (chain + blackBars + placed).map(wrapper::wrap)
+  return listOfNotNull(sdPrimaries?.let(::SdPrimariesHead)) + (chain + blackBars + placed).map(wrapper::wrap)
 }
 
 /**

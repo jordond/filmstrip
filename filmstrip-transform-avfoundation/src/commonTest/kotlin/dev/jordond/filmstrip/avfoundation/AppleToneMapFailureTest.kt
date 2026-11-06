@@ -31,7 +31,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 
 /**
- * A tone map compositor request that throws, read off the export it fails.
+ * A compositor request that throws, read off the export it fails.
  *
  * Every failure in a request takes the same way out, so a plan that misreads a clip's transfer stands in for the ones a
  * test cannot force, like a missing renderer or a kernel that will not run.

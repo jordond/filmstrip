@@ -314,7 +314,7 @@ private fun signalAtCentreOf(path: String): Rgb {
 }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun CVPixelBufferRef.bgraToTestFrame(): TestFrame {
+internal fun CVPixelBufferRef.bgraToTestFrame(): TestFrame {
   CVPixelBufferLockBaseAddress(this, kCVPixelBufferLock_ReadOnly)
   try {
     val width = CVPixelBufferGetWidth(this).toInt()

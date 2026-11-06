@@ -61,6 +61,7 @@ internal class BrowserCompositor(
   private val shaderPass = ShaderPass(gl, buffer, width, height)
   private val clipFrames = PassFrames(gl, hdrTransfer != null)
   private val compositionFrames = PassFrames(gl, hdrTransfer != null)
+  private var sdPrimariesPass: SdPrimariesPass? = null
 
   /**
    * Where the slot drawn last sits on the output timeline, in microseconds.
@@ -290,6 +291,9 @@ internal class BrowserCompositor(
    * `UNPACK_FLIP_Y_WEBGL` is what makes the upload match the +Y-up texture convention every
    * resolver already lowers to. Without it the source's top row lands at `t = 0`, which the shader
    * maps to the bottom of the frame, and every export comes out upside down.
+   *
+   * An SD frame uploads with the browser's colour conversion off, which still decodes its real matrix, and goes through
+   * [SdPrimariesPass] from there. Left on, Chrome moves EBU primaries itself and leaves SMPTE C's where they are.
    */
   private fun uploadImage(frame: VideoSample): JsAny {
     val target = checkNotNull(texture) { "an SDR compositor always has an upload texture" }
@@ -297,13 +301,20 @@ internal class BrowserCompositor(
     gl.bindTexture(GL_TEXTURE_2D, target)
     gl.pixelStorei(GL_UNPACK_FLIP_Y_WEBGL, 1)
     val image = frame.toVideoFrame()
+    val primaries = sdPrimariesCodePoint(image.colorSpace.primaries?.toString())
+    if (primaries != null) gl.pixelStorei(GL_UNPACK_COLORSPACE_CONVERSION_WEBGL, GL_NONE)
     try {
       gl.texImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, image)
     } finally {
+      gl.pixelStorei(GL_UNPACK_COLORSPACE_CONVERSION_WEBGL, GL_BROWSER_DEFAULT_WEBGL)
       image.close()
     }
-    return target
+    return primaries?.let { sdPrimaries().moved(gl, target, frame.codedWidth, frame.codedHeight, it, program) }
+      ?: target
   }
+
+  private fun sdPrimaries(): SdPrimariesPass =
+    sdPrimariesPass ?: buildSdPrimariesPass(gl, width, height, buffer).also { sdPrimariesPass = it }
 
   /**
    * The letterboxed clip's background: the frame scaled to cover the output, blurred across two
@@ -414,6 +425,7 @@ internal class BrowserCompositor(
     shaderPass.release()
     clipFrames.release()
     compositionFrames.release()
+    sdPrimariesPass?.release(gl)
     hdr?.release(gl)
     blur?.release(gl)
     gl.deleteTexture(texture)

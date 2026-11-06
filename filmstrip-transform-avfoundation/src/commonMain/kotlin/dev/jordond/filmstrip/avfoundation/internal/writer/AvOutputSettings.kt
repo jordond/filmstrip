@@ -200,7 +200,7 @@ private fun OutputFormat.preset(): String? {
 /**
  * The color target the encoder is pinned to.
  *
- * A tone mapped frame already holds BT.709 codes when it gets here, drawn by the tone map compositor and tagged as
+ * A tone mapped frame already holds BT.709 codes when it gets here, drawn by the compositor and tagged as
  * BT.709, so naming Rec.709 here leaves it alone.
  */
 private fun colorProperties(

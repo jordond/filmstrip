@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.BytesRoot
 import dev.jordond.filmstrip.ffmpeg.internal.process.DEFAULT_BYTES_ROOT
 import dev.jordond.filmstrip.ffmpeg.internal.process.readablePath
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
 import dev.jordond.filmstrip.transform.internal.geometry.showsBlurredFill
@@ -24,7 +25,6 @@ import dev.jordond.filmstrip.transform.internal.resolve.effectsUnderFill
 import dev.jordond.filmstrip.transform.internal.resolve.paintsFillAfterEffects
 import dev.jordond.filmstrip.transform.internal.videoSlots
 import kotlin.time.Duration
-import kotlin.time.DurationUnit
 
 /**
  * Writes the graph.
@@ -38,11 +38,15 @@ import kotlin.time.DurationUnit
  *
  * @param hdrPixelFormat The format a kept grade is written in, from [hdrPixelFormatFor], or null
  *   for an output that carries none.
+ * @param sdColors The sources on SD primaries, and the colour each decodes with.
+ * @param keepsSdColor Whether a plan of one SD colour can keep it, so no effect in it reads the frame's colour.
  */
 internal class GraphLowering(
   private val negotiated: ResolvedComposition,
   hdrPixelFormat: String?,
   private val bytesRoot: BytesRoot = DEFAULT_BYTES_ROOT,
+  private val sdColors: Map<MediaSource, SdColor> = emptyMap(),
+  private val keepsSdColor: Boolean = true,
 ) {
   private val tracks = negotiated.tracks
   private val output = negotiated.output
@@ -68,6 +72,25 @@ internal class GraphLowering(
   // The pixel format every clip's tail is pinned to, so concat sees uniform inputs. Falls back to
   // yuv420p whenever there is no grade to carry or the resolved encoder has no HDR profile.
   private val pixelFormat: String = hdrPixelFormat ?: "yuv420p"
+
+  // What each laid clip decodes with. A plan of one SD colour keeps it, codes and tags, unless an effect left in it
+  // draws on the frame's colour, which it reads as BT.709 on every backend. Anything else ends up on one tag for every
+  // clip, and BT.709 is the one both a tone map and a clip on no SD colour already read as.
+  private val laidColors: List<SdColor?> by lazy {
+    tracks
+      .firstOrNull()
+      ?.clips
+      .orEmpty()
+      .filter { slotsOf(it) > 0 }
+      .map { sdColors[it.source] }
+      .distinct()
+  }
+  private val keptSdColor: SdColor? by lazy {
+    laidColors.singleOrNull().takeIf { keepsSdColor && negotiated.hdr != ResolvedHdr.ToneMap }
+  }
+  private val writesBt709: Boolean by lazy {
+    negotiated.hdr == ResolvedHdr.ToneMap || (keptSdColor == null && laidColors.any { it != null })
+  }
 
   // The source time composition time zero maps to, for a caller windowing this graph with an input
   // seek. Only a single clip on a track that opens with the composition can be windowed: a concat's
@@ -108,7 +131,7 @@ internal class GraphLowering(
   private val padColor: String = if (deferFill) transparentColor() else fillColor(negotiated.fill)
 
   fun build(): Invocation {
-    if (negotiated.path == ExportPath.Copy) return copyInvocation()
+    if (negotiated.path == ExportPath.Copy) return negotiated.copyInvocation(seekBase, sdColors, bytesRoot)
 
     // One input per clip the caller wrote, not per pass the plan laid. A looping track names the
     // same clip once for every pass, and a second decoder on the same file would decode it again.
@@ -144,47 +167,14 @@ internal class GraphLowering(
       videoEncoder = negotiated.encoderName,
       duration = duration,
       hdrTransfer = negotiated.hdrTransfer,
-      toneMapped = negotiated.hdr == ResolvedHdr.ToneMap,
+      writesBt709 = writesBt709,
+      previewColor = keptSdColor?.toBt709Nodes(output.size).orEmpty(),
       seekBase = seekBase,
       videoSlots = videoLabel?.let { negotiated.videoSlots },
       heldTail = if (videoLabel == null) LongRange.EMPTY else negotiated.heldTail,
       // Two clips carrying the same grade lower to the same file, and a placeholder names its
       // contents, so the one path serves both references.
       sidecars = sidecars.distinct(),
-    )
-  }
-
-  // A copy reads the first clip's source across whole or windowed, and runs no graph at all.
-  private fun copyInvocation(): Invocation {
-    val clip = tracks.first().clips.first()
-    val source =
-      InputSource.OfPath(
-        checkNotNull(readablePath(clip.source, bytesRoot)) { UNREADABLE_SOURCE },
-        clip.source.describe(),
-      )
-    return Invocation(
-      inputs =
-        listOf(
-          InputSpec(
-            source = source,
-            // Bounds only where the clip actually windows the source. A clip that runs to the
-            // source's own end reads to it rather than asking for a length, and an untrimmed one
-            // copies the container across whole, which is what leaves its bytes untouched.
-            durationSeconds =
-              clip.duration.toDouble(DurationUnit.SECONDS).takeIf { clip.end < clip.info.duration },
-            startSeconds = clip.start.takeIf { it > Duration.ZERO }?.toDouble(DurationUnit.SECONDS),
-          ),
-        ),
-      filterGraph = "",
-      videoLabel = null,
-      audioLabel = null,
-      output = output,
-      videoEncoder = null,
-      duration = duration,
-      copy = true,
-      hdrTransfer = negotiated.hdrTransfer,
-      seekBase = seekBase,
-      videoSlots = negotiated.videoSlots,
     )
   }
 
@@ -280,7 +270,8 @@ internal class GraphLowering(
     // A terminal chain, so the mapped pad has a name of its own and the composition's duration is
     // enforced in the graph rather than trusted from the inputs.
     val out = "vout"
-    graph.chain(listOf(current), negotiated.heldTailNodes() + listOf(trimTo(duration), SETPTS), out)
+    val tags = if (writesBt709) listOf(bt709Tags()) else emptyList()
+    graph.chain(listOf(current), negotiated.heldTailNodes() + listOf(trimTo(duration), SETPTS) + tags, out)
     return out
   }
 
@@ -363,6 +354,8 @@ internal class GraphLowering(
       sidecars += toneMap.sidecars
       pending += toneMap.chain
     }
+    // Ahead of every effect too, so an effect reads the same signal on every clip of a plan written BT.709.
+    if (writesBt709) sdColors[clip.source]?.let { pending += it.toBt709Nodes(clip.decodedFrame) }
     // A source decodes to 4:2:0 as far as the graph can tell, so every figure is snapped until a format says otherwise.
     var grid = ChromaGrid.Subsampled.after(pending)
 
@@ -472,9 +465,6 @@ internal class GraphLowering(
   private fun frameGridBase(): FilterNode = FilterNode("settb", "expr" to "1/$frameRate")
 
   private companion object {
-    const val UNREADABLE_SOURCE =
-      "A source with no file reached the graph. FfmpegPlanner refuses those before it lowers."
-
     val SETPTS = FilterNode("setpts", "expr" to "PTS-STARTPTS")
     val NULL_VIDEO = FilterNode("null")
   }

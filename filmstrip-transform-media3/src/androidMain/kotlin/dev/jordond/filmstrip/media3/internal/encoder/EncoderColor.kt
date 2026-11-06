@@ -31,6 +31,10 @@ import dev.jordond.filmstrip.media.ColorSpace
  * tagged with what was measured, so the file records the matrix and range its codes were written through. [retag]
  * holds that once it has happened, for the export to report through [retagReport].
  *
+ * media3 asks for SDR BT.601 when the first clip names it. Every SD clip's frame already reaches the encoder as BT.709
+ * through [dev.jordond.filmstrip.media3.internal.SdPrimariesHead], so that request is made as SDR BT.709 at limited
+ * range.
+ *
  * An encoder the probe cannot tell about, or a probe that throws, keeps the request and [log] says why. A recreate
  * that throws is passed on with the first encoder released. One that comes back as another encoder than the one
  * measured is released too, and fails as an [ExportException] for an encoder that could not be set up, so media3 fails
@@ -65,9 +69,15 @@ internal class EncoderColor(
     format: Format,
     logSessionId: LogSessionId?,
   ): Codec {
-    val encoder = delegate.createForVideoEncoding(format, logSessionId)
-    val requested = format.colorInfo?.takeIf { it.isSdrBt709Limited() } ?: return encoder
-    val mimeType = format.sampleMimeType ?: return encoder
+    val made =
+      if (format.colorInfo?.isSdrBt601() == true) {
+        format.buildUpon().setColorInfo(ColorInfo.SDR_BT709_LIMITED).build()
+      } else {
+        format
+      }
+    val encoder = delegate.createForVideoEncoding(made, logSessionId)
+    val requested = made.colorInfo?.takeIf { it.isSdrBt709Limited() } ?: return encoder
+    val mimeType = made.sampleMimeType ?: return encoder
     val name = encoder.name
     val configured = encoder.configurationFormat
     val request = EncoderColorRequest(name, mimeType, SizeTier.of(configured.width, configured.height), requested)
@@ -83,7 +93,7 @@ internal class EncoderColor(
       }
     if (written == requested) return encoder
     encoder.release()
-    val retaggedFormat = format.buildUpon().setColorInfo(written).build()
+    val retaggedFormat = made.buildUpon().setColorInfo(written).build()
     val retagged = pinned(name).createForVideoEncoding(retaggedFormat, logSessionId)
     val retaggedName = retagged.name
     if (retaggedName != name) {
@@ -219,5 +229,7 @@ private fun ColorInfo.described(): String {
 
 private fun ColorInfo.isSdrBt709Limited(): Boolean =
   colorSpace == C.COLOR_SPACE_BT709 && colorRange == C.COLOR_RANGE_LIMITED && colorTransfer == C.COLOR_TRANSFER_SDR
+
+private fun ColorInfo.isSdrBt601(): Boolean = colorSpace == C.COLOR_SPACE_BT601 && colorTransfer == C.COLOR_TRANSFER_SDR
 
 private const val TAG = "filmstrip-media3"

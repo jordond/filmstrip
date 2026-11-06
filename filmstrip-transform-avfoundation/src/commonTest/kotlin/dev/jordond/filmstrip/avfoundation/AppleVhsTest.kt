@@ -1,10 +1,18 @@
 package dev.jordond.filmstrip.avfoundation
 
+import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
+import dev.jordond.filmstrip.avfoundation.internal.composition.compositorClass
+import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
+import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
+import dev.jordond.filmstrip.color.sdSourceDisplayed
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
 import dev.jordond.filmstrip.effects.filters.filters
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.effects.filters.vhs.VhsParams
@@ -25,6 +33,7 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
 import dev.jordond.filmstrip.transform.internal.hdr.Rgb
 import io.kotest.assertions.withClue
@@ -38,14 +47,19 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.ObjCObject
+import kotlinx.cinterop.objcPtr
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import platform.AVFoundation.AVVideoColorPrimaries_SMPTE_C
+import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_601_4
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
 import kotlin.math.abs
 import kotlin.test.Test
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 
 /**
@@ -57,6 +71,12 @@ import kotlin.time.Duration.Companion.minutes
  */
 @OptIn(ExperimentalForeignApi::class)
 class AppleVhsTest {
+  private val components =
+    ComponentRegistry
+      .Builder()
+      .addEffectResolver(BuiltInEffectResolver())
+      .addEffectResolver(FilterEffectResolver())
+      .build()
   private val filmstrip =
     Filmstrip {
       avFoundationBackend()
@@ -88,6 +108,50 @@ class AppleVhsTest {
         remove(plainPath)
         remove(vhsPath)
       }
+    }
+
+  // The correction shows in one channel where a mean of the three hardly moves, so each channel is held to the signal
+  // ahead of the encoder, which moves one channel by more than the tolerance on its own. The file reads its mean.
+  @Test
+  fun `a vhs on an sd clip reads the signal over the clip's corrected colour at both scopes`() =
+    runTest(timeout = TIMEOUT) {
+      val source = NSTemporaryDirectory() + "filmstrip-vhs-sd-source.mp4"
+      val primaries = AVVideoColorPrimaries_SMPTE_C.orEmpty()
+      val matrix = AVVideoYCbCrMatrix_ITU_R_601_4.orEmpty()
+      withContext(Dispatchers.Default) { writeTaggedBars(source, SD_FRAMES, primaries, matrix, SD_FLAT) }
+      val stored = codeFramesOf(source, 1).single().at(CENTRE, CENTRE)
+      val shown = sdSourceDisplayed(doubleArrayOf(stored.r, stored.g, stored.b), SMPTE_C_PRIMARIES)
+      val corrected = Rgb(shown[0], shown[1], shown[2])
+      withClue("the correction has to be wider than the tolerance, $stored to $corrected") {
+        abs(corrected.r - stored.r) * MAX_CODE shouldBeGreaterThan TONE_MAP_TOLERANCE_CODES
+      }
+      val vhs = Vhs(intensity = 0.5f)
+      mapOf(
+        "clip" to
+          EditComposition(listOf(Track(listOf(Clip(MediaSource.of(source), effects = listOf(vhs)))))),
+        "composition" to EditComposition(listOf(Track(listOf(Clip(MediaSource.of(source))))), listOf(vhs)),
+      ).forEach { (scope, edit) ->
+        val graph = graphOf(edit)
+        withClue("$scope scope draws through the compositor") { graph.drawsThroughCompositor() shouldBe true }
+        listOf(0, 1, LATER_FRAME).forEach { index ->
+          val frame = withContext(Dispatchers.Default) { renderedFrameOf(graph, index) }
+          val read = frame.at(CENTRE, CENTRE)
+          val wanted = signalOverPatch(vhs, index, frame.width, frame.height, corrected)
+          withClue("$scope scope frame $index read $read against the signal's $wanted") {
+            abs(read.r - wanted.r) * MAX_CODE shouldBeLessThan TONE_MAP_TOLERANCE_CODES
+            abs(read.g - wanted.g) * MAX_CODE shouldBeLessThan TONE_MAP_TOLERANCE_CODES
+            abs(read.b - wanted.b) * MAX_CODE shouldBeLessThan TONE_MAP_TOLERANCE_CODES
+          }
+        }
+        val path = exported(edit, ExportSpec(), "sd-$scope")
+        val written = codeFramesOf(path, 1).single()
+        val wanted = signalOverPatch(vhs, 0, written.width, written.height, corrected).mean()
+        withClue("$scope scope wrote ${written.at(CENTRE, CENTRE)} against the signal's mean $wanted") {
+          abs(written.at(CENTRE, CENTRE).mean() - wanted) * MAX_CODE shouldBeLessThan TONE_MAP_TOLERANCE_CODES
+        }
+        remove(path)
+      }
+      remove(source)
     }
 
   @Test
@@ -152,14 +216,14 @@ class AppleVhsTest {
   @Test
   fun `a clip vhs moves the picture into a canvas bar and leaves the fill alone`() =
     runTest(timeout = TIMEOUT) {
-      assertCanvasRead(Fill.Solid(BAR_FILL), Fill.Solid(BAR_FILL), "canvas-solid")
+      assertCanvasRead(Fill.Solid(BAR_FILL), Fill.Solid(BAR_FILL))
     }
 
   // A blurred fill turns a canvas's bars black, so the same crop over a black fill is what they should read.
   @Test
   fun `a clip vhs leaves a blurred fill's canvas bars black and moves the picture over them`() =
     runTest(timeout = TIMEOUT) {
-      assertCanvasRead(Fill.Blurred(), Fill.Solid(BLACK), "canvas-blurred")
+      assertCanvasRead(Fill.Blurred(), Fill.Solid(BLACK))
     }
 
   @Test
@@ -190,24 +254,19 @@ class AppleVhsTest {
     effects: List<EffectSpec>,
   ) = EditComposition(listOf(Track(listOf(clip))), effects, fill = Fill.Solid(BLACK))
 
-  // Reads the canvas [fill] leaves under a clip Vhs against the same crop over [plainFill] with no Vhs.
+  // Reads the canvas [fill] leaves under a clip Vhs against the same crop over [plainFill] with no Vhs. Both are read
+  // ahead of the encoder, whose chroma rings by more than the lift this tells apart beside a picture's edge.
   private suspend fun assertCanvasRead(
     fill: Fill,
     plainFill: Fill,
-    name: String,
   ) {
     val vhs = Vhs(intensity = 0.5f)
     val crop = Crop(WIDE_CANVAS, fit = Fit.Contain)
     val edit = { effects: List<EffectSpec>, over: Fill ->
       EditComposition(listOf(Track(listOf(Clip(MediaSource.of(fixture(CLIP)), effects = effects)))), fill = over)
     }
-    val spec = ExportSpec()
-    val tapedPath = exported(edit(listOf(crop, vhs), fill), spec, name)
-    val plainPath = exported(edit(listOf(crop), plainFill), spec, "$name-plain")
-    val taped = frameOf(tapedPath)
-    val plain = frameOf(plainPath)
-    remove(tapedPath)
-    remove(plainPath)
+    val taped = drawnFrameOf(edit(listOf(crop, vhs), fill))
+    val plain = drawnFrameOf(edit(listOf(crop), plainFill))
     val content = placementOf(SOURCE, listOf(listOf(crop)), Size(taped.width, taped.height)).drawnRect
     val height = taped.height
     // A read averages a small patch at the foot of the frame, and the head band's shift grows down it, so a column is
@@ -296,6 +355,22 @@ class AppleVhsTest {
       scale = SWATCH_SCALE,
     )
 
+  private suspend fun graphOf(edit: EditComposition): AvComposition {
+    val resolved = avFoundationExportEngine(components).resolve(edit, ExportSpec())
+    return withContext(Dispatchers.Default) {
+      resolved.shouldBeInstanceOf<ResolveResult.Resolved>().composition.toAvComposition()
+    }
+  }
+
+  private suspend fun drawnFrameOf(edit: EditComposition): FrameProbe {
+    val graph = graphOf(edit)
+    return withContext(Dispatchers.Default) { frameOf(graph.composition, graph.videoComposition, Duration.ZERO) }
+  }
+
+  private fun AvComposition.drawsThroughCompositor(): Boolean =
+    (videoComposition?.customVideoCompositorClass as? ObjCObject)?.objcPtr() ==
+      (compositorClass() as ObjCObject).objcPtr()
+
   private suspend fun exported(
     edit: EditComposition,
     spec: ExportSpec,
@@ -329,6 +404,10 @@ class AppleVhsTest {
   private companion object {
     val TIMEOUT = 3.minutes
     const val CLIP = "apple_export_a.mp4"
+    const val SD_FRAMES = 15
+
+    // Mid-range, with green holding the frame up, which is where SMPTE C and BT.709 are furthest apart.
+    val SD_FLAT = listOf(Triple(51, 166, 64))
     val SOURCE = Size(640, 360)
     const val HDR_HEIGHT = 720
     val HDR_SPEC = ExportSpec(heightPx = HDR_HEIGHT, hdr = HdrMode.ToneMapToSdr)

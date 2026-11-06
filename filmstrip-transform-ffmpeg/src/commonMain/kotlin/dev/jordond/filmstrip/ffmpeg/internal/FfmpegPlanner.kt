@@ -3,12 +3,14 @@ package dev.jordond.filmstrip.ffmpeg.internal
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.effect.EffectResolver
+import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.CODEC_LADDER
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.GraphLowering
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.SdColor
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.canToneMap
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.filterNames
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.hdrPixelFormatFor
@@ -29,6 +31,7 @@ import dev.jordond.filmstrip.transform.internal.LoweredExport
 import dev.jordond.filmstrip.transform.internal.copy.Mp4Copy
 import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
+import dev.jordond.filmstrip.transform.internal.negotiation.effectsThatRequireSdr
 import dev.jordond.filmstrip.transform.internal.refusedLowering
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.anyClipLeavesBars
@@ -78,15 +81,17 @@ internal class FfmpegPlanner(
    * Negotiates [composition] against [ask] and lowers what it settles on onto a filter graph.
    *
    * The engine reads the openings in [ask] with [FfmpegRuntime.syncSampleAtOrBefore], and the negotiator decides from
-   * them whether the copy is reachable and where the window then opens.
+   * them whether the copy is reachable and where the window then opens. Each source in [sdColors] sits on SD primaries,
+   * which takes this build's `colorspace` filter, since an export or a preview of it can draw the clip through one.
    */
   fun lower(
     composition: EditComposition,
     ask: Ask,
     dropped: Set<String> = emptySet(),
+    sdColors: Map<MediaSource, SdColor> = emptyMap(),
   ): LoweredExport<Invocation> =
     try {
-      lowerReadable(composition, ask, dropped)
+      lowerReadable(composition, ask, dropped, sdColors)
     } catch (failure: MediaBytesFileFailure) {
       refusedLowering(FilmstripError.SourceUnreadable(failure.source, failure.message))
     }
@@ -95,6 +100,7 @@ internal class FfmpegPlanner(
     composition: EditComposition,
     ask: Ask,
     dropped: Set<String>,
+    sdColors: Map<MediaSource, SdColor>,
   ): LoweredExport<Invocation> {
     composition.tracks.flatMap { it.clips }.forEach { clip ->
       // A still is refused by kind, not by asking readablePath and guessing why it came back
@@ -117,18 +123,26 @@ internal class FfmpegPlanner(
         return unsupportedBlur("colorchannelmixer")
       }
     }
-    (negotiated.tracks.flatMap { track -> track.clips.flatMap { it.effects } } + negotiated.compositionEffects)
-      .forEach { resolved ->
-        resolved.effect.fragment.filterNames().firstOrNull { !toolchain.hasFilter(it) }?.let { filter ->
-          return refusedLowering(FilmstripError.InvalidComposition(missingEffectFilter(filter, resolved.specId)))
-        }
+    val effects =
+      negotiated.tracks.flatMap { track -> track.clips.flatMap { it.effects } } + negotiated.compositionEffects
+    // Geometry moves a clip's pixels and leaves their colour, so only what the planner left in any other stage counts.
+    val drawsOnColor = effects.any { it.stage != EffectStage.Geometry }
+    val demands =
+      effects.map { it.effect.fragment.filterNames() to it.specId } +
+        sdColors.values.map { it.filterNames() to SD_CLIP }
+    demands.forEach { (filters, what) ->
+      filters.firstOrNull { !toolchain.hasFilter(it) }?.let { filter ->
+        return refusedLowering(FilmstripError.InvalidComposition(missingFilter(filter, what)))
       }
+    }
     return LoweredExport(
       export,
       GraphLowering(
         negotiated = negotiated,
         hdrPixelFormat = hdrPixelFormatFor(negotiated.encoderName, negotiated.hdrTransfer),
         bytesRoot = bytesRoot,
+        sdColors = sdColors,
+        keepsSdColor = !drawsOnColor && composition.effectsThatRequireSdr().isEmpty(),
       ).build(),
     )
   }
@@ -143,13 +157,15 @@ internal class FfmpegPlanner(
     refusedLowering(FilmstripError.InvalidComposition(missingBlurFilter(filter)))
 }
 
+private const val SD_CLIP = "a clip on SMPTE C or EBU primaries"
+
 internal fun missingBlurFilter(filter: String): String =
   "This ffmpeg build has no $filter filter, so it cannot lower Fill.Blurred. Use Fill.Solid instead."
 
-internal fun missingEffectFilter(
+internal fun missingFilter(
   filter: String,
-  specId: String,
-): String = "This ffmpeg build has no $filter filter, so it cannot lower $specId."
+  what: String,
+): String = "This ffmpeg build has no $filter filter, so it cannot lower $what."
 
 private fun renderCapabilities(
   canToneMap: Boolean,

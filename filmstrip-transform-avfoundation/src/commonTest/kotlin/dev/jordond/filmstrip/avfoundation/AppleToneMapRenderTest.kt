@@ -2,8 +2,7 @@ package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
-import dev.jordond.filmstrip.avfoundation.internal.composition.AvToneMapCompositor
-import dev.jordond.filmstrip.avfoundation.internal.composition.relabelsBt601AsBt709
+import dev.jordond.filmstrip.avfoundation.internal.composition.AvCompositor
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
 import dev.jordond.filmstrip.edit.EditComposition
@@ -44,17 +43,17 @@ import kotlin.time.Duration.Companion.seconds
 @OptIn(ExperimentalForeignApi::class)
 class AppleToneMapRenderTest {
   @Test
-  fun `a generator renders through the tone map compositor`() =
+  fun `a generator renders through the compositor`() =
     runTest(timeout = TIMEOUT) {
       val graph = graphOf(clipOf(hdrFixture(HdrTransfer.Hlg)))
-      (generatorFor(graph).customVideoCompositor is AvToneMapCompositor).shouldBeTrue()
+      (generatorFor(graph).customVideoCompositor is AvCompositor).shouldBeTrue()
     }
 
   @Test
   fun `a plan on the handler has no compositor`() =
     runTest(timeout = TIMEOUT) {
-      val graph = graphOf(clipOf(fixture(SDR_FIXTURE)))
-      (generatorFor(graph).customVideoCompositor is AvToneMapCompositor).shouldBeFalse()
+      val graph = graphOf(clipOf(fixture(HD_SDR_FIXTURE)))
+      (generatorFor(graph).customVideoCompositor is AvCompositor).shouldBeFalse()
     }
 
   @Test
@@ -100,7 +99,7 @@ class AppleToneMapRenderTest {
       val after = generator.codesAt(LATER)
       withClue("the swap read $after against $before") { before.movedFrom(after).shouldBeTrue() }
       assertCodes(after, freshBright, "the swapped render against a fresh build of the same edit")
-      (generator.customVideoCompositor is AvToneMapCompositor).shouldBeTrue()
+      (generator.customVideoCompositor is AvCompositor).shouldBeTrue()
     }
 
   @Test
@@ -131,11 +130,10 @@ class AppleToneMapRenderTest {
           ),
           LAST_CLIP_FRAME,
         )
-      val floor = if (relabelsBt601AsBt709) 0.0 else TONE_MAP_TOLERANCE_CODES
       EVERY_BAR.forEach { x ->
         assertCodes(lastHeld.at(x, QUARTER), firstHeld.at(x, QUARTER), "the last held frame at $x", tolerance = 0.0)
         assertCodes(again.at(x, QUARTER), lastHeld.at(x, QUARTER), "a second read of it at $x", tolerance = 0.0)
-        assertCodes(firstHeld.at(x, QUARTER), alone.at(x, QUARTER), "the tail against the clip alone at $x", floor)
+        assertCodes(firstHeld.at(x, QUARTER), alone.at(x, QUARTER), "the tail against the clip alone at $x", 0.0)
       }
     }
 

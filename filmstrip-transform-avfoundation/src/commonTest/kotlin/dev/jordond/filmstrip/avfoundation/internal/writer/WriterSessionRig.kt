@@ -174,7 +174,7 @@ internal class WriterSessionRig(
   }
 
   fun session(
-    heldFrameRate: Int?,
+    clockFrameRate: Int?,
     videoSlots: Long = 0,
     gate: StepGate? = null,
     read: ((AVAssetReaderTrackOutput) -> CMSampleBufferRef?)? = null,
@@ -217,7 +217,7 @@ internal class WriterSessionRig(
       outcome = outcome,
       queue = queue,
       composition = composition(),
-      heldFrameRate = heldFrameRate,
+      clockFrameRate = clockFrameRate,
       videoSlots = videoSlots,
       failure = { error, side ->
         FilmstripError.InvalidComposition("$side failed: $error").also {
