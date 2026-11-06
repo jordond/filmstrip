@@ -7,53 +7,37 @@ import org.gradle.api.provider.ListProperty
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
-import org.gradle.process.ExecOperations
 import java.io.File
-import javax.inject.Inject
 
 /**
  * Fails when any declared fixture has no file in the fixture directory.
  *
  * The publish task depends on this one and runs the same check itself, so nothing is uploaded and the manifest is not
- * rewritten while a clip or still is missing. The task has no outputs, so it runs every time and can be run on its own
- * without touching the bucket.
+ * rewritten while a clip is missing. The task has no outputs, so it runs every time and can be run on its own without
+ * touching the bucket.
  */
-abstract class CheckTestMediaTask
-  @Inject
-  constructor(
-    private val exec: ExecOperations,
-  ) : DefaultTask() {
-    @get:Input
-    abstract val specs: ListProperty<Fixture>
+abstract class CheckTestMediaTask : DefaultTask() {
+  @get:Input
+  abstract val specs: ListProperty<FixtureSpec>
 
-    @get:Internal
-    abstract val fixtures: DirectoryProperty
+  @get:Internal
+  abstract val fixtures: DirectoryProperty
 
-    @TaskAction
-    fun check() {
-      requireEveryFixture(specs.get(), fixtures.get().asFile, StillWriter(exec)::missingTool)
-      logger.lifecycle("all ${specs.get().size} fixtures present in ${fixtures.get().asFile}")
-    }
+  @TaskAction
+  fun check() {
+    requireEveryFixture(specs.get(), fixtures.get().asFile)
+    logger.lifecycle("all ${specs.get().size} fixtures present in ${fixtures.get().asFile}")
   }
+}
 
 /**
  * Throws naming every fixture in [specs] whose file is not in [directory].
- *
- * A missing still whose container needs a tool this host lacks, as reported by [missingTool], also names that tool,
- * since the generate task skips such a still rather than failing.
  */
 internal fun requireEveryFixture(
-  specs: List<Fixture>,
+  specs: List<FixtureSpec>,
   directory: File,
-  missingTool: (FixtureStill) -> String?,
 ) {
-  val missing =
-    specs
-      .filterNot { directory.resolve(it.fileName).isFile }
-      .map { fixture ->
-        val tool = (fixture as? FixtureStill)?.let(missingTool)
-        if (tool == null) fixture.fileName else "${fixture.fileName} (skipped by generate, this host has no $tool)"
-      }
+  val missing = specs.filterNot { directory.resolve(it.fileName).isFile }.map { it.fileName }
   if (missing.isEmpty()) return
 
   throw GradleException(
@@ -66,13 +50,11 @@ internal fun requireEveryFixture(
  * Throws naming every fixture in [specs] whose file in [directory] holds bytes nothing has verified.
  *
  * A file passes when its SHA-256 matches its row in [pinned], the manifest from the last publish, or its row in
- * [generated], the list a generate task writes with the digest of each file it verified. A still counts as verified
- * only through one of those two, since [StillWriter] checks it while writing it and deletes it when that check fails.
- * Anything else, such as a truncated download or a copy edited by hand, fails here before the manifest is rewritten or
- * anything is uploaded.
+ * [generated], the list a generate task writes with the digest of each file it verified. Anything else, such as a
+ * truncated download or a copy edited by hand, fails here before the manifest is rewritten or anything is uploaded.
  */
 internal fun requireVerifiedFixtures(
-  specs: List<Fixture>,
+  specs: List<FixtureSpec>,
   directory: File,
   pinned: File,
   generated: File?,
@@ -83,11 +65,12 @@ internal fun requireVerifiedFixtures(
   val unverified =
     specs.mapNotNull { fixture ->
       val digest = TestMediaManifest.digestOf(directory.resolve(fixture.fileName))
-      val known = listOfNotNull(pins[fixture.fileName], fresh[fixture.name])
+      val pin = pins[fixture.fileName]
+      val generate = fresh[fixture.name]
       when {
-        digest in known -> null
-        known.isEmpty() -> "${fixture.fileName} (not pinned and not generated)"
-        else -> "${fixture.fileName} (sha256 $digest matches neither its pin nor a fresh generate)"
+        digest == pin || digest == generate -> null
+        pin == null && generate == null -> "${fixture.fileName} (not pinned and not generated)"
+        else -> "${fixture.fileName} (sha256 $digest, pinned ${pin ?: "none"}, generated ${generate ?: "none"})"
       }
     }
   if (unverified.isEmpty()) return

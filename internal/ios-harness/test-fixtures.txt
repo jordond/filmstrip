@@ -1,6 +1,7 @@
 # filmstrip test fixtures, served from https://filmstrip-media.jordond.dev/test-fixtures
 # Written by the module's publish task. Commit it with the clips it names.
+# ffmpeg 9.0.2 libx264 core 165 r3222 b35605a libx265 4.3+1-e9b8812:[Mac OS X][clang 21.0.0][64 bit] 10bit arch aarch64
 # name sha256 bytes
-concat_a.mp4 505450d0503b7d5f07425235a28369ed47c4386fd2168aa23b0f7481de796e49 4512510
-concat_b.mp4 2f0e529139594a834e7702e507e70afdbb7d5634c48145cc2ef5292eaec64c5f 2413284
-p1080_30.mp4 4afad9d27e3150a892c07029d5ea9a0a14cd2431f58ca089edead62ed0d18d5d 9255669
+concat_a.mp4 4ee8fb154cd026156bf6049ddcd7e9dd4d8125a9eebdc615a716c811657ad0a8 5148915
+concat_b.mp4 df0a3f211b4a92dfb04da380cbb1aee475f266acfd04084a3114708458717de5 2571050
+p1080_30.mp4 830f7cc88f8590e49c096055eda1d089d4ccdaeea06a1f3842083e1dd65414c7 9712777

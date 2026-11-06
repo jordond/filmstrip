@@ -24,6 +24,14 @@ spotless {
 
 dependencies {
   compileOnly(libs.bundles.logic.plugins)
+
+  testImplementation(kotlin("test-junit"))
+  testImplementation(libs.junit)
+  testImplementation(libs.kotest.assertions)
+}
+
+tasks.test {
+  useJUnit()
 }
 
 gradlePlugin {

@@ -7,7 +7,6 @@ import dev.jordond.filmstrip.ffmpeg.support.FLATTENING
 import dev.jordond.filmstrip.ffmpeg.support.FLATTENING_ALIKE
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.authoredSignal
-import dev.jordond.filmstrip.ffmpeg.support.encodesHdr
 import dev.jordond.filmstrip.ffmpeg.support.flatteningWrongs
 import dev.jordond.filmstrip.ffmpeg.support.pqGraded
 import io.kotest.assertions.withClue
@@ -29,8 +28,6 @@ class FfmpegHdrEffectMeasureTest {
   @Test
   fun `each wrong answer named alike lands its planes alongside the prediction`() =
     runTest(timeout = TIMEOUT) {
-      if (!fixture.encodesHdr()) return@runTest
-
       val lit = fixture.authoredSignal()
       val expected = tenBitCodesFromSignal(pqGraded(lit, FLATTENING))
       val wrongs = flatteningWrongs(lit)

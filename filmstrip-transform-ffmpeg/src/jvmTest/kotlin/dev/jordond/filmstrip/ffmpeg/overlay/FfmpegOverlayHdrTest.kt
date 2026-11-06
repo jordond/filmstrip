@@ -39,7 +39,6 @@ import dev.jordond.filmstrip.ffmpeg.support.channelsOf
 import dev.jordond.filmstrip.ffmpeg.support.containedRect
 import dev.jordond.filmstrip.ffmpeg.support.drawnProbe
 import dev.jordond.filmstrip.ffmpeg.support.drawnRect
-import dev.jordond.filmstrip.ffmpeg.support.encodesHdr
 import dev.jordond.filmstrip.ffmpeg.support.frameTime
 import dev.jordond.filmstrip.ffmpeg.support.opensOn
 import dev.jordond.filmstrip.ffmpeg.support.pngOf
@@ -153,7 +152,6 @@ class FfmpegOverlayHdrTest {
   @Test
   fun `an animated overlay on a kept grade is drawn where the sampler puts it`() =
     runTest(timeout = TIMEOUT) {
-      if (!fixture.encodesHdr()) return@runTest
       val transfer = HdrTransfer.Pq
       val sliding = overlay(MID_GREEN, animation = slideIn(OverlayOffset(SLIDE_FRACTION, 0f), RAMP))
       val exported = exportedOverFill(transfer, MID_GREY, sliding)
@@ -354,7 +352,6 @@ class FfmpegOverlayHdrTest {
 
   // The opaque cells of the shared grid, each drawn straight over its fill and held to the fill's bound.
   private suspend fun assertOpaqueLandings(transfer: HdrTransfer) {
-    if (!fixture.encodesHdr()) return
     for (cell in HdrOverlayCells.CELLS.filter { it.opacity == 1f }) {
       val exported = exportedOverFill(transfer, cell.background, overlay(cell.overlay))
       val read = tenBitCodesAt(exported.file, probeOf(exported.plan))
@@ -367,7 +364,6 @@ class FfmpegOverlayHdrTest {
   // its own, which lands on the shared light. Every cell is held to the fill's bound, which the guard above keeps
   // inside the widest one a blend cell still tells a wrong blend apart at.
   private suspend fun assertLinearBlends(transfer: HdrTransfer) {
-    if (!fixture.encodesHdr()) return
     for (cell in HdrOverlayCells.CELLS.filter { it.opacity < 1f }) {
       val (color, background, opacity) = cell
       val exported = exportedOverFill(transfer, BLACK, overlay(color, opacity), under = overlay(background))
@@ -388,7 +384,6 @@ class FfmpegOverlayHdrTest {
   // The fade is read on the output frames a quarter and three quarters of the way up, where the opacity the shared
   // sampler answers is neither end of the ramp. Each read opens just ahead of its frame, so it lands on that frame.
   private suspend fun assertFadeLandings(transfer: HdrTransfer) {
-    if (!fixture.encodesHdr()) return
     val fading = overlay(WHITE, animation = fade(inDuration = RAMP))
     val exported = exportedOverFill(transfer, BLACK, fading, under = overlay(MID_GREY))
     val span = TimeRange.of(Duration.ZERO, exported.plan.duration)

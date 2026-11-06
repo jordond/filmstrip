@@ -25,14 +25,15 @@ class TestMedia(
  *
  * Tests read [TestMedia.directory] and depend on [TestMedia.download], so a runner needs no ffmpeg
  * to run them. Changing a clip means editing [specs], running the generate task, then the publish
- * one, and committing the manifest it writes.
+ * one, and committing the manifest it writes. Publishing fixtures that changed on another build than the pinned
+ * one needs `-PrepinFixtures`.
  *
  * @param name What the tasks are named after, so a build spanning several modules reads clearly.
- * @param specs The clips and stills, which [GenerateTestMediaTask] both encodes and verifies.
+ * @param specs The clips, which [GenerateTestMediaTask] both encodes and verifies.
  */
 fun Project.testMedia(
   name: String,
-  specs: List<Fixture>,
+  specs: List<FixtureSpec>,
 ): TestMedia {
   val directory =
     layout.buildDirectory
@@ -47,6 +48,7 @@ fun Project.testMedia(
       group = TASK_GROUP
       description = "Encodes the $name fixtures with host ffmpeg. Only needed to change one."
       this.specs.set(specs)
+      build.set(providers.of(FixtureBuildSource::class.java) {})
       outputDirectory.set(directory)
       manifest.set(layout.buildDirectory.file("test-fixtures/fixtures.txt"))
     }
@@ -81,7 +83,18 @@ fun Project.testMedia(
       fixtures.set(directory)
       manifest.set(manifestFile)
       generated.set(generate.flatMap { it.manifest })
+      repin.set(providers.gradleProperty("repinFixtures").map { it != "false" }.orElse(false))
     }
+
+  val checkWrangler =
+    tasks.register("check${capitalised}Wrangler", CheckWranglerTask::class.java) {
+      group = TASK_GROUP
+      description = "Fails when publishing $name fixtures could not reach wrangler."
+      noUpload.set(publish.flatMap { it.noUpload })
+      searchPath.set(providers.environmentVariable("PATH").orElse(""))
+    }
+  publish.configure { dependsOn(checkWrangler) }
+  generate.configure { mustRunAfter(checkWrangler) }
 
   return TestMedia(download, generate, publish, directory)
 }

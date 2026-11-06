@@ -80,8 +80,8 @@ internal fun jvmTrimmedComposition(length: Duration): EditComposition =
  * The frame the export writes at [position], decoded back out of the written file.
  *
  * This is the export path in full, encoder included, rather than a second run of the preview's own
- * graph: the edit is negotiated again, encoded to a real mp4, and the frame at [position] decoded
- * out of it. That is one encode further than the preview goes, which is why
+ * graph: the edit is negotiated again, encoded at [PREVIEW_PARITY_EXPORT_BITRATE] to a real mp4, and the frame at
+ * [position] decoded out of it. That is one encode further than the preview goes, which is why
  * [JvmPixelContractTest] loosens its thresholds and says by how much.
  *
  * The file is kept per composition, since the suite asks for several frames of each.
@@ -177,16 +177,16 @@ internal val PROBE_POSITIONS: List<Duration> = listOf(300.milliseconds, 900.mill
  * The PSNR a frame rendered from the fixture holds to against the same frame read out of an export of it.
  *
  * The export side has been through libx264 and back and the rendered side has not, so this sits below what two
- * renderings of one graph score. At [PREVIEW_PARITY_EXPORT_BITRATE] the pair measures 49.4 dB at 300ms and 48.6 dB at
- * 900ms, and this leaves a few dB for a slower machine's encoder settling somewhere else.
+ * renderings of one graph score. [ENCODED_MIN_SSIM] is the one that tells a frame from its neighbours.
  */
 internal const val ENCODED_MIN_PSNR_DB: Double = 42.0
 
 /**
  * The SSIM a frame rendered from the fixture holds to against the same frame read out of an export of it.
  *
- * Loosened for the libx264 encode on the export side and for nothing else. At [PREVIEW_PARITY_EXPORT_BITRATE] the pair
- * measures 0.996.
+ * Sits between that frame and its neighbours, which differ from it by grain, once the export is at
+ * [PREVIEW_PARITY_EXPORT_BITRATE]. A filter that dims the picture dims the grain too, so a neighbour of a dimmed frame
+ * reads above this, and only an undimmed composition holds a thumbnail to its own frame.
  */
 internal const val ENCODED_MIN_SSIM: Double = 0.985
 

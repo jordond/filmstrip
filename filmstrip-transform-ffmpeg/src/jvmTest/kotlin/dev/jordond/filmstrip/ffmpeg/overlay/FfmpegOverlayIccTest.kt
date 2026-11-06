@@ -33,7 +33,6 @@ import dev.jordond.filmstrip.ffmpeg.support.ColorLanding
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.CODE_TOLERANCE
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
-import dev.jordond.filmstrip.ffmpeg.support.HEIC_FIXTURE
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.CHANNEL_DRIFT
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_SIZE
 import dev.jordond.filmstrip.ffmpeg.support.assertHdrLandings
@@ -42,8 +41,8 @@ import dev.jordond.filmstrip.ffmpeg.support.assertSdrLandings
 import dev.jordond.filmstrip.ffmpeg.support.centreOf
 import dev.jordond.filmstrip.ffmpeg.support.channelsOf
 import dev.jordond.filmstrip.ffmpeg.support.drawnRect
-import dev.jordond.filmstrip.ffmpeg.support.heicFixture
 import dev.jordond.filmstrip.ffmpeg.support.isNear
+import dev.jordond.filmstrip.ffmpeg.support.midGreenHeic
 import dev.jordond.filmstrip.ffmpeg.support.pngOf
 import dev.jordond.filmstrip.ffmpeg.support.taggedHeif
 import dev.jordond.filmstrip.ffmpeg.support.taggedJpeg
@@ -182,8 +181,7 @@ class FfmpegOverlayIccTest {
   @Test
   fun `a tagged HEIC only ffmpeg reads is drawn from the profile its container carries`() {
     if (!fixture.available()) return
-    val heic = fixture.heicFixture()
-    withClue("no $HEIC_FIXTURE among the downloaded fixtures") { heic.isFile.shouldBeTrue() }
+    val heic = midGreenHeic()
     val untagged = heic.readBytes()
     assumeTrue(
       "this ffmpeg cannot decode a HEIC",

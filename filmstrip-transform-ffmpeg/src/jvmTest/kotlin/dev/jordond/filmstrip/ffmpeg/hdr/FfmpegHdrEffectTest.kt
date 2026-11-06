@@ -29,7 +29,6 @@ import dev.jordond.filmstrip.ffmpeg.support.FLATTENING_ALIKE
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.Plane
 import dev.jordond.filmstrip.ffmpeg.support.authoredSignal
-import dev.jordond.filmstrip.ffmpeg.support.encodesHdr
 import dev.jordond.filmstrip.ffmpeg.support.flatteningWrongs
 import dev.jordond.filmstrip.ffmpeg.support.mapChannels
 import dev.jordond.filmstrip.ffmpeg.support.pqGraded
@@ -69,8 +68,6 @@ class FfmpegHdrEffectTest {
   @Test
   fun `halving brightness on a kept grade halves the light an SDR display would have shown`() =
     runTest(timeout = TIMEOUT) {
-      if (!fixture.encodesHdr()) return@runTest
-
       val lit = fixture.authoredSignal()
       val dimmed = exportedHdrGrade(Brightness(HALF))
 
@@ -87,8 +84,6 @@ class FfmpegHdrEffectTest {
   @Test
   fun `a factor above one adds light on a kept grade until the format runs out`() =
     runTest(timeout = TIMEOUT) {
-      if (!fixture.encodesHdr()) return@runTest
-
       val lit = fixture.authoredSignal()
       val brightened = exportedHdrGrade(Brightness(BRIGHTER))
 
@@ -103,8 +98,6 @@ class FfmpegHdrEffectTest {
   @Test
   fun `halving brightness on a kept HLG grade halves the light an SDR display would have shown`() =
     runTest(timeout = TIMEOUT) {
-      if (!fixture.encodesHdr()) return@runTest
-
       val lit = fixture.authoredSignal(fixture.hdrHlg)
       val dimmed = exportedHdrGrade(Brightness(HALF), fixture.hdrHlg)
 
@@ -126,8 +119,6 @@ class FfmpegHdrEffectTest {
   @Test
   fun `a contrast on a kept grade pivots on the light mid grey makes`() =
     runTest(timeout = TIMEOUT) {
-      if (!fixture.encodesHdr()) return@runTest
-
       val lit = fixture.authoredSignal()
       val flattened = exportedHdrGrade(FLATTENING)
 
@@ -142,8 +133,6 @@ class FfmpegHdrEffectTest {
   @Test
   fun `a contrast above one on a kept grade stretches until the format runs out`() =
     runTest(timeout = TIMEOUT) {
-      if (!fixture.encodesHdr()) return@runTest
-
       val lit = fixture.authoredSignal()
       val stretched = exportedHdrGrade(Contrast(BRIGHTER))
 
@@ -160,8 +149,6 @@ class FfmpegHdrEffectTest {
   @Test
   fun `a saturation on a kept grade mixes the SDR signal through the table`() =
     runTest(timeout = TIMEOUT) {
-      if (!fixture.encodesHdr()) return@runTest
-
       val lit = fixture.authoredSignal()
       val desaturated = exportedHdrGrade(Saturation(HALF))
 
@@ -176,8 +163,6 @@ class FfmpegHdrEffectTest {
   @Test
   fun `a contrast on a kept HLG grade pivots on the light mid grey makes`() =
     runTest(timeout = TIMEOUT) {
-      if (!fixture.encodesHdr()) return@runTest
-
       val lit = fixture.authoredSignal(fixture.hdrHlg)
       val flattened = exportedHdrGrade(Contrast(HALF), fixture.hdrHlg)
 

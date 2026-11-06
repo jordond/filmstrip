@@ -137,19 +137,20 @@ internal class Media3ExportProbe {
   ): Bitmap = eightBitFrameAt(video, at)
 
   /**
-   * The test resource [name] copied into the cache. Skips the calling test when the fixtures were
-   * not bundled.
+   * The test resource [name] copied into the cache. Skips the calling test when the fixture is not
+   * among the test APK's resources.
    */
   fun fixture(name: String = CLIP): MediaSource = MediaSource.of(fixtureFile(name).path)
 
   /**
    * The same fixture as [fixture] gives, as the file it was copied to, for a test that reads the
-   * file itself rather than editing it. Skips the calling test when the fixtures were not bundled.
+   * file itself rather than editing it. Skips the calling test when the fixture is not among the
+   * test APK's resources.
    */
   fun fixtureFile(name: String = CLIP): File {
     val stream =
       javaClass.classLoader?.getResourceAsStream(name)
-        ?: throw AssumptionViolatedException("the fixture $name was not bundled, since the build host had no ffmpeg")
+        ?: throw AssumptionViolatedException("the fixture $name is not among the test APK's resources")
     val file = File(context.cacheDir, name)
     stream.use { input -> file.writeAtomically { input.copyTo(it) } }
     return file

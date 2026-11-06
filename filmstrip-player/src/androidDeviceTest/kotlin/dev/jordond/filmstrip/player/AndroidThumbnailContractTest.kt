@@ -1,9 +1,10 @@
 package dev.jordond.filmstrip.player
 
-import android.os.Build
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.FrameResult
@@ -22,6 +23,7 @@ import dev.jordond.filmstrip.thumbnail.ThumbnailSource
 import dev.jordond.filmstrip.transform.internal.seekTolerance
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CoroutineScope
@@ -219,8 +221,8 @@ class AndroidThumbnailContractTest {
    * the run as [subject].
    *
    * The reference is a precise tile rendered on an extractor of its own, so nothing is encoded between the two and a
-   * tile that landed where it says is the same picture. The export is checked too, where [RELAXED_MIN_SSIM] tells a
-   * landing from a miss.
+   * tile that landed where it says is the same picture. The export is checked too, against the same bar as every
+   * other drawn frame.
    */
   private suspend fun assertRelaxedTilesMatch(
     scope: CoroutineScope,
@@ -247,19 +249,45 @@ class AndroidThumbnailContractTest {
         reference.image.close()
       }
 
-      // On API 30 the frame a step from each sync sample reads 0.986 and 0.984 against the export, which clears this
-      // floor as well as the samples' own 0.987 and 0.990 do. On API 36, which the floor was set on, those are 0.980
-      // and 0.981 against 0.986 and 0.989.
-      if (Build.VERSION.SDK_INT > Build.VERSION_CODES.R) {
-        assertFramesSimilar(
-          expected = androidExportFrame(composition, at),
-          actual = tile.frame(),
-          minSsim = RELAXED_MIN_SSIM,
-          message = "$subject and the export disagree at $at",
-        )
-      }
+      assertFramesSimilar(
+        expected = androidExportFrame(composition, at),
+        actual = tile.frame(),
+        minSsim = ENCODED_MIN_SSIM,
+        message = "$subject and the export disagree at $at",
+      )
     }
   }
+
+  /**
+   * A relaxed tile lands on a sync sample, where the fixture's grain sets it apart from the frames either side even
+   * under a dimming filter, so the bar that holds a run to the export also turns away a run a frame out.
+   */
+  @Test
+  fun aRelaxedTileFailsTheEncodedBarAgainstTheFramesEitherSideOfItsLanding() =
+    contractTest { scope ->
+      val composition = androidFixtureComposition(listOf(Brightness(DIM)))
+      val request = ThumbnailRequest(composition, RUN_POSITIONS[2], FIXTURE_FRAME.height, REVISION, precise = false)
+      val tile = source(scope).awaitThumbnail(request)
+
+      try {
+        val slot = outputSlotOf(tile.presentationTime, FIXTURE_FRAME_RATE)
+        assertFramesSimilar(
+          expected = androidExportFrame(composition, tile.presentationTime),
+          actual = tile.frame(),
+          minSsim = ENCODED_MIN_SSIM,
+          message = "the tile and the export disagree at ${tile.presentationTime}",
+        )
+        for (neighbour in listOf(slot - 1, slot + 1)) {
+          val read =
+            compareFrames(androidExportFrame(composition, outputSlotTime(neighbour, FIXTURE_FRAME_RATE)), tile.frame())
+          withClue("the export's slot $neighbour against the tile of slot $slot read $read") {
+            read.ssim shouldBeLessThan ENCODED_MIN_SSIM
+          }
+        }
+      } finally {
+        tile.image.close()
+      }
+    }
 
   private fun source(scope: CoroutineScope): ThumbnailSource =
     Media3ThumbnailSource(
@@ -423,19 +451,8 @@ class AndroidThumbnailContractTest {
     // the comparison went the same way.
     const val DIM = 0.4f
 
-    // A relaxed request lands on a sync sample and nowhere else, and the fixture spends 28,612
-    // bytes on the one at 966ms against 9,181 and 6,311 on the frames beside it. The export's
-    // encoder gives that frame 23,150 at `PREVIEW_PARITY_EXPORT_BITRATE`, so the strip tile
-    // carries grain the export keeps less of. On API 36 the two sync samples read 0.986 and 0.989,
-    // and the frames around them 0.986 to 0.995. The floor sits below `ENCODED_MIN_SSIM` for a
-    // relaxed reading only. On API 36 a strip reporting the asked position rather than the landed
-    // sample reads 0.967 to 0.977, and the export a frame step from the reported one reads 0.981
-    // at best, so the floor clears that miss by 0.001.
-    const val RELAXED_MIN_SSIM = 0.982
-
     // A relaxed tile against a precise one drawn at the time it reports. Nothing is encoded between them, so a tile
-    // that landed where it says matches exactly, and the nearest miss, a frame step to either side, reads 44.0 dB and
-    // 0.984.
+    // that landed where it says matches exactly and a frame step to either side reads well below both.
     const val RENDERED_MIN_PSNR_DB = 50.0
     const val RENDERED_MIN_SSIM = 0.999
 

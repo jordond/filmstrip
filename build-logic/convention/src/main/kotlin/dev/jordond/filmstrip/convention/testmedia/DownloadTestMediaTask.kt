@@ -51,6 +51,17 @@ abstract class DownloadTestMediaTask : DefaultTask() {
   @get:Internal
   abstract val baseUrl: Property<String>
 
+  /**
+   * How long to wait before the second attempt at a fetch, in milliseconds. Each attempt after that waits twice as long
+   * as the one before.
+   */
+  @get:Internal
+  abstract val retryBackoffMillis: Property<Long>
+
+  init {
+    retryBackoffMillis.convention(RETRY_BACKOFF_MILLIS)
+  }
+
   @TaskAction
   fun download() {
     val entries = TestMediaManifest.read(manifest.get().asFile)
@@ -119,7 +130,7 @@ abstract class DownloadTestMediaTask : DefaultTask() {
       if (attempt == FETCH_ATTEMPTS) {
         throw GradleException("could not fetch $fileName from $url after $FETCH_ATTEMPTS attempts", failure)
       }
-      val backoff = RETRY_BACKOFF_MILLIS shl (attempt - 1)
+      val backoff = retryBackoffMillis.get() shl (attempt - 1)
       logger.lifecycle(
         "fetching $fileName failed on attempt $attempt of $FETCH_ATTEMPTS (${failure.message}), retrying in ${backoff}ms",
       )

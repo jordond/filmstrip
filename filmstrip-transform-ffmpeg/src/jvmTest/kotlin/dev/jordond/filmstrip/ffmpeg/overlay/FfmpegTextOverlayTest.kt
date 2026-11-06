@@ -28,7 +28,6 @@ import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.CODE_TOLERANCE
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.COLOR_READ_BITRATE
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
-import dev.jordond.filmstrip.ffmpeg.support.encodesHdr
 import dev.jordond.filmstrip.ffmpeg.support.frameTime
 import dev.jordond.filmstrip.ffmpeg.support.regionAverage
 import dev.jordond.filmstrip.ffmpeg.support.tenBitCodesAt
@@ -105,7 +104,7 @@ class FfmpegTextOverlayTest {
   @Test
   fun `a plate on a kept PQ grade lands on the signal of the shared linear blend`() =
     runTest(timeout = TIMEOUT) {
-      if (!fixture.available() || !fixture.encodesHdr()) return@runTest
+      if (!fixture.available()) return@runTest
       val (file, _) = exported(composition(TextOverlay(TEXT, STYLE, Anchor.TopStart), fixture.hdr), HDR_SPEC)
 
       val read = tenBitCodesAt(file, PROBE_CENTRE to PROBE_CENTRE)

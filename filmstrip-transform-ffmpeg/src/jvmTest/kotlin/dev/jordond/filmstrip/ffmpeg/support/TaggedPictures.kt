@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg.support
 
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_SIZE
+import dev.jordond.filmstrip.test.MidGreenStill
 import java.io.ByteArrayOutputStream
 import java.io.File
 
@@ -63,8 +64,8 @@ internal fun orientedJpeg(
  * primary item.
  *
  * Every box around the new one grows by what was added, and every item extent stored after the `meta` box moves by the
- * same. This reads the single-item AVIF ffmpeg writes and the single-item HEIC `sips` writes, with `iloc` versions zero
- * to two and offsets of four or eight bytes.
+ * same. This reads the single-item AVIF ffmpeg writes and the single-item HEIC [MidGreenStill] builds, with `iloc`
+ * versions zero to two and offsets of four or eight bytes.
  */
 internal fun taggedHeif(
   heif: ByteArray,
@@ -201,15 +202,13 @@ private fun shiftExtents(
 }
 
 /**
- * The HEIC `sips` wrote of [dev.jordond.filmstrip.test.AuthoredColors.MID_GREEN], with no profile in it, among the
- * fixtures [FfmpegExportFixture] downloads.
+ * [MidGreenStill]'s HEIC, with no profile in it, written to a temporary file that is deleted when the JVM exits.
  */
-internal fun FfmpegExportFixture.heicFixture(): File = File(fixtures, HEIC_FIXTURE)
-
-/**
- * The file name of [heicFixture].
- */
-internal const val HEIC_FIXTURE = "overlay_mid_green.heic"
+internal fun midGreenHeic(): File =
+  File.createTempFile("overlay_mid_green", ".heic").apply {
+    deleteOnExit()
+    writeBytes(MidGreenStill.heic())
+  }
 
 private fun ByteArray.withSegment(
   marker: Int,

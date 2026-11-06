@@ -23,7 +23,6 @@ import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_COLOR
 import dev.jordond.filmstrip.ffmpeg.support.assertReads
 import dev.jordond.filmstrip.ffmpeg.support.centreOf
 import dev.jordond.filmstrip.ffmpeg.support.channelsOf
-import dev.jordond.filmstrip.ffmpeg.support.encodesHdr
 import dev.jordond.filmstrip.ffmpeg.support.pixelAt
 import dev.jordond.filmstrip.ffmpeg.support.writtenFrames
 import dev.jordond.filmstrip.geometry.AspectRatio
@@ -170,7 +169,6 @@ class FfmpegClipPlacementTest {
   @Test
   fun `a canvas of odd height on a kept HDR grade places its content on the row the planner measured`() =
     runTest(timeout = TIMEOUT) {
-      if (!fixture.encodesHdr()) return@runTest
       assertOddCanvasEdge(COLOR_READ_HDR_SPEC, hdr = true)
     }
 

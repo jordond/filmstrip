@@ -72,8 +72,8 @@ internal fun androidFixtureComposition(
  *
  * This is the export path and not a second preview: the edit is negotiated again through
  * [media3ExportEngine], lowered again by `toMedia3`, and run through `Transformer` onto a real file
- * with a real encoder. Only the encoder separates it from the preview's own frame, which is the one
- * thing a preview is documented not to carry, and it is what the thresholds in
+ * with a real encoder at [PREVIEW_PARITY_EXPORT_BITRATE]. Only the encoder separates it from the preview's own
+ * frame, which is the one thing a preview is documented not to carry, and it is what the thresholds in
  * [AndroidPixelContractTest] are set against.
  *
  * Each composition is exported once and its file kept, since the suite compares several frames of
@@ -205,7 +205,10 @@ internal val PROBE_POSITIONS: List<Duration> = listOf(300.milliseconds, 900.mill
  * same frame read out of an export of it.
  *
  * The export has been through the encoder once and the drawn frame has not, so this sits below
- * [TWO_PREVIEW_MIN_SSIM], what two renderings of one graph score.
+ * [TWO_PREVIEW_MIN_SSIM], what two renderings of one graph score. It sits above the frames either side, which differ
+ * from it by grain, once the export is at [PREVIEW_PARITY_EXPORT_BITRATE]. A filter that dims the picture dims the
+ * grain too, so between sync samples a neighbour of a dimmed frame reads above this, and only an undimmed composition
+ * holds a tile to its own frame there.
  */
 internal const val ENCODED_MIN_SSIM: Double = 0.985
 

@@ -18,14 +18,12 @@ import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.COLOR_READ_HDR_SPEC
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.ExportedOverlay
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
-import dev.jordond.filmstrip.ffmpeg.support.HEIC_FIXTURE
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.CAPABILITIES
 import dev.jordond.filmstrip.ffmpeg.support.HdrRender.attributes
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_SIZE
 import dev.jordond.filmstrip.ffmpeg.support.centreOf
 import dev.jordond.filmstrip.ffmpeg.support.drawnRect
-import dev.jordond.filmstrip.ffmpeg.support.encodesHdr
-import dev.jordond.filmstrip.ffmpeg.support.heicFixture
+import dev.jordond.filmstrip.ffmpeg.support.midGreenHeic
 import dev.jordond.filmstrip.ffmpeg.support.pngOf
 import dev.jordond.filmstrip.ffmpeg.support.tenBitCodesAt
 import dev.jordond.filmstrip.geometry.AspectRatio
@@ -37,6 +35,7 @@ import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.AuthoredColors
 import dev.jordond.filmstrip.test.AuthoredColors.MID_GREEN
 import dev.jordond.filmstrip.test.AuthoredColors.MID_GREY
 import dev.jordond.filmstrip.test.HdrOverlayCells.WHITE
@@ -91,15 +90,22 @@ class FfmpegOverlayHdrFormatTest {
   fun `a HEIC still on a kept PQ grade lands where the shared light puts its color`() =
     runTest(timeout = TIMEOUT) {
       if (!fixture.available()) return@runTest
-      val heic = fixture.heicFixture()
-      withClue("no $HEIC_FIXTURE among the downloaded fixtures") { heic.isFile.shouldBeTrue() }
+      val heic = midGreenHeic()
       withClue("the JDK decodes HEIC here, so this does not reach ffmpeg's decode") {
         ImageIO.read(heic).shouldBeNull()
       }
       val overlay = ImageOverlay(ImageSource.of(heic.absolutePath), Corner.TopStart)
       val drawn = withClue("ffmpeg decodes the HEIC") { decodedCentreOrNull(heic).shouldNotBeNull() }
+      val authored = AuthoredColors.channelsOf(MID_GREEN)
+      withClue("ffmpeg decodes the HEIC to ${AuthoredColors.channelsOf(drawn)}, not $authored") {
+        AuthoredColors
+          .channelsOf(drawn)
+          .zip(authored)
+          .all { (read, want) -> abs(read - want) <= AuthoredColors.TOLERANCE }
+          .shouldBeTrue()
+      }
       resolve(overlay, HdrTransfer.Pq).shouldBeInstanceOf<EffectResolution.Resolved>()
-      if (fixture.encodesHdr()) assertExportLands("heic", overlay, drawn)
+      assertExportLands("heic", overlay, drawn)
     }
 
   // The same texels through both decodes, one in the JDK and one in ffmpeg, so neither route color manages what the
@@ -145,7 +151,6 @@ class FfmpegOverlayHdrFormatTest {
     extension: String,
     encode: List<String>,
   ) {
-    if (!fixture.encodesHdr()) return
     val picture = encoded(pngOf(MID_GREEN, OVERLAY_SIZE), extension, encode) ?: return
     withClue("the JDK decodes $extension here, so this does not reach ffmpeg's decode") {
       ImageIO.read(picture).shouldBeNull()

@@ -86,7 +86,6 @@ internal suspend fun FfmpegExportFixture.assertHdrLandings(
   transfer: HdrTransfer,
   name: String,
 ) {
-  if (!encodesHdr()) return
   withClue("a bound of $CODE_TOLERANCE passes a wrong blend") {
     (CODE_TOLERANCE <= HdrOverlayCells.MAX_BLEND_TOLERANCE).shouldBeTrue()
   }

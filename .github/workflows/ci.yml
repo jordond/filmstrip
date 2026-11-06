@@ -49,6 +49,9 @@ jobs:
           ./gradlew :internal:docs-samples:compileAndroidMain
           ./gradlew :internal:docs-samples:compileKotlinIosArm64
 
+      - name: Build logic tests
+        run: ./gradlew -p build-logic :convention:test
+
   test:
     strategy:
       fail-fast: false

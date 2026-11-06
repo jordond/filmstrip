@@ -54,7 +54,8 @@ and a few leaf packages hold what the backend's export reads as well. Nothing el
 ./gradlew updateKotlinAbi  # regenerate the ABI dumps after a public API change
 ```
 
-JDK 17 or newer, and macOS for the Apple targets.
+JDK 17 or newer, and macOS for the Apple targets. [CONTRIBUTING.md](CONTRIBUTING.md) lists what each test suite
+needs and how the test fixtures are made and published.
 
 ## Releasing
 

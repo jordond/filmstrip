@@ -7,6 +7,8 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.placedOn
@@ -24,11 +26,14 @@ import dev.jordond.filmstrip.test.ColorPictures
 import dev.jordond.filmstrip.test.IccPictures
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.test.assertFramesSimilar
+import dev.jordond.filmstrip.test.compareFrames
 import dev.jordond.filmstrip.test.writeAtomically
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
 import dev.jordond.filmstrip.thumbnail.ThumbnailResult
 import dev.jordond.filmstrip.thumbnail.ThumbnailSource
+import io.kotest.assertions.withClue
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -138,6 +143,37 @@ class AndroidThumbnailGapTest {
           minSsim = ENCODED_MIN_SSIM,
           message = "the thumbnail and the export disagree inside the clip at ${thumbnail.presentationTime}",
         )
+      } finally {
+        thumbnail.image.close()
+      }
+    }
+
+  /**
+   * The bar that holds a thumbnail to the export has to turn away the frames either side of it, or a thumbnail one
+   * frame out would pass. Nothing here dims the picture, since the grain is what tells two frames of the fixture apart.
+   */
+  @Test
+  fun aThumbnailInsideTheClipFailsTheEncodedBarAgainstTheFramesEitherSideOfIt() =
+    contractTest { scope ->
+      val composition = lateComposition()
+      val position = GAP_LENGTH + MID_GOP_POSITION
+      val thumbnail = source(scope).awaitThumbnail(request(composition, position, REVISION + 5))
+
+      try {
+        val slot = outputSlotOf(thumbnail.presentationTime, FIXTURE_FRAME_RATE)
+        assertFramesSimilar(
+          expected = androidExportFrame(composition, thumbnail.presentationTime),
+          actual = thumbnail.frame(),
+          minSsim = ENCODED_MIN_SSIM,
+          message = "the thumbnail and the export disagree inside the clip at ${thumbnail.presentationTime}",
+        )
+        for (neighbour in listOf(slot - 1, slot + 1)) {
+          val neighbourFrame = androidExportFrame(composition, outputSlotTime(neighbour, FIXTURE_FRAME_RATE))
+          val read = compareFrames(neighbourFrame, thumbnail.frame())
+          withClue("the export's slot $neighbour against the thumbnail of slot $slot read $read") {
+            read.ssim shouldBeLessThan ENCODED_MIN_SSIM
+          }
+        }
       } finally {
         thumbnail.image.close()
       }

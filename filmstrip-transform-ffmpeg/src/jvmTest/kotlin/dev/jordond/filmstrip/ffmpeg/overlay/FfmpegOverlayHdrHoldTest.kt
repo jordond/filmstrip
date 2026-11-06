@@ -21,7 +21,6 @@ import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_SIZE
 import dev.jordond.filmstrip.ffmpeg.support.centreOf
 import dev.jordond.filmstrip.ffmpeg.support.containedRect
 import dev.jordond.filmstrip.ffmpeg.support.drawnRect
-import dev.jordond.filmstrip.ffmpeg.support.encodesHdr
 import dev.jordond.filmstrip.ffmpeg.support.frameTime
 import dev.jordond.filmstrip.ffmpeg.support.opensOn
 import dev.jordond.filmstrip.ffmpeg.support.pngOf
@@ -89,7 +88,6 @@ class FfmpegOverlayHdrHoldTest {
   // replaces outright. The first clip is read against the same export without the clip's overlay, which is what the
   // picture there lands on, once that picture is shown to sit far enough from the overlay to tell the two apart.
   private suspend fun assertHeld(transfer: HdrTransfer) {
-    if (!fixture.encodesHdr()) return
     val onClip = overlay(MID_GREEN)
     val onBar = listOf(overlay(MID_GREY), overlay(WHITE, HALF))
     val exported = exported(transfer, onBar, clips = 2, onLastClip = onClip)
@@ -127,7 +125,6 @@ class FfmpegOverlayHdrHoldTest {
   // A translucent overlay shown for a window, over an opaque one that is always drawn, so both sides of each edge land
   // on the rule. Which frames the window covers comes off the shared sampler.
   private suspend fun assertWindowed(transfer: HdrTransfer) {
-    if (!fixture.encodesHdr()) return
     val windowed =
       ImageOverlay(
         image = ImageSource.ofBytes(pngOf(WHITE, OVERLAY_SIZE)),

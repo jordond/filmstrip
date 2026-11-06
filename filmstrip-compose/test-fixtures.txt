@@ -1,4 +1,5 @@
 # filmstrip test fixtures, served from https://filmstrip-media.jordond.dev/test-fixtures
 # Written by the module's publish task. Commit it with the clips it names.
+# ffmpeg 9.0.2 libx264 core 165 r3222 b35605a libx265 4.3+1-e9b8812:[Mac OS X][clang 21.0.0][64 bit] 10bit arch aarch64
 # name sha256 bytes
-android_export_a.mp4 1c2f1df93c0294d2f361826555084c1ed777ad75b043e053f57a2bf3f3e716b5 452239
+android_export_a.mp4 0c2cfde8ca88cb7015b1b8ab0d4105127762e3fc29a379d19fc4c1fd554bb99f 460500

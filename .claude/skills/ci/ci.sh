@@ -36,6 +36,7 @@ mkdir -p "$logs"
 # name|gradle tasks|mac or any
 steps=(
   "spotless|spotlessCheck|any"
+  "build-logic|-p build-logic :convention:test|any"
   "abi|checkKotlinAbi|mac"
   "guards|checkForbiddenImports checkLayering|any"
   "lint|lint|any"
@@ -50,10 +51,15 @@ steps=(
 )
 [ "$device" = 1 ] && steps+=("device|connectedAndroidDeviceTest|any")
 
+# True when a step's Gradle tasks name a test task, in either case, since :convention:test is lowercase.
+runs_tests() {
+  [[ $(printf '%s' "$1" | tr '[:upper:]' '[:lower:]') == *test* ]]
+}
+
 # Gradle only restores or skips a test task that passed, so the XML it left from that run is this step's result.
 # Prints the result dir of every test task the log marks UP-TO-DATE or FROM-CACHE.
 cached_dirs() {
-  sed -nE 's/^> Task (:[^ ]+):([A-Za-z0-9]*Test) (UP-TO-DATE|FROM-CACHE)$/\1 \2/p' "$1" | while read -r project task; do
+  sed -nE 's/^> Task (:[^ ]+):([A-Za-z0-9]*[Tt]est) (UP-TO-DATE|FROM-CACHE)$/\1 \2/p' "$1" | while read -r project task; do
     dir="$checkout$(printf '%s' "$project" | tr ':' '/')/build/test-results/$task"
     [ -d "$dir" ] && printf '%s\n' "$dir"
   done
@@ -97,7 +103,7 @@ for step in "${steps[@]}"; do
   IFS='|' read -r name tasks where <<<"$step"
   if [ -n "$only" ] && [[ ",$only," != *",$name,"* ]]; then continue; fi
   log="$logs/$name.log"
-  [ "$rerun" = 1 ] && [[ $tasks == *Test* ]] && tasks="$tasks --rerun"
+  [ "$rerun" = 1 ] && runs_tests "$tasks" && tasks="$tasks --rerun"
   start=$SECONDS
   if [ "$remote" = 1 ] && [ "$where" = any ]; then
     # shellcheck disable=SC2086
@@ -114,10 +120,10 @@ for step in "${steps[@]}"; do
   secs=$((SECONDS - start))
   counts=$(grep '^RESULT ' "$log" | grep -v 'none written' | sed -E 's/.*tests=([0-9]+) failed=([0-9]+) skipped=([0-9]+)/\1 \2 \3/' \
     | awk '{t+=$1; f+=$2; s+=$3} END {if (NR) printf "tests=%d failed=%d skipped=%d", t, f, s}')
-  cached=$(grep -cE '^> Task :[^ ]+:[A-Za-z0-9]*Test (UP-TO-DATE|FROM-CACHE)$' "$log")
+  cached=$(grep -cE '^> Task :[^ ]+:[A-Za-z0-9]*[Tt]est (UP-TO-DATE|FROM-CACHE)$' "$log")
   [ "$cached" -gt 0 ] && counts="$counts cached=$cached"
   # A test step that passes with no result XML, written or cached, ran no test, so it is not reported green.
-  if [ "$status" = 0 ] && [ -z "$counts" ] && [[ $tasks == *Test* ]]; then
+  if [ "$status" = 0 ] && [ -z "$counts" ] && runs_tests "$tasks"; then
     red=$((red + 1))
     digest+=("unknown $name ${secs}s no result XML written or cached  log: $log")
   elif [ "$status" = 0 ]; then

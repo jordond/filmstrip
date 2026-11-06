@@ -35,17 +35,8 @@ internal suspend fun FfmpegRuntime.measureCapabilities(toolchain: Toolchain): De
         .awaitAll()
         .filterNotNull()
 
-    // Answered for the encoder an HDR export actually opens, not for any encoder the build
-    // carries. The planner pins a kept grade to DEFAULT_HDR_LADDER and then takes the first
-    // ranked encoder for it, so probing a different one would claim a grade this backend goes on
-    // to hand to an encoder that cannot write it.
-    //
     // Probed at HDR_PROBE_SIZE, the one rung every backend asks this at.
-    val hdrEncoder =
-      DEFAULT_HDR_LADDER
-        .firstNotNullOfOrNull { codec -> video.firstOrNull { it.codec == codec } }
-        ?.encoderName
-        ?.let { name -> FFMPEG_ENCODERS.values.flatten().firstOrNull { it.name == name } }
+    val hdrEncoder = video.hdrEncoder()
     val supportsHdrEncoding =
       hdrEncoder?.hdrPixelFormat?.let { pixelFormat ->
         canEncode(toolchain, hdrEncoder, HDR_PROBE_SIZE, pixelFormat, hdrEncoder.hdrProfile)
@@ -63,6 +54,18 @@ internal suspend fun FfmpegRuntime.measureCapabilities(toolchain: Toolchain): De
       concurrentSessionBudget = null,
     )
   }
+
+/**
+ * The encoder an HDR export opens out of these measured encoders, or null when none of them is on DEFAULT_HDR_LADDER.
+ *
+ * The planner pins a kept grade to DEFAULT_HDR_LADDER and then takes the first ranked encoder for it, so this is the
+ * one whose ten-bit probe answers `supportsHdrEncoding`, not any encoder the build carries.
+ */
+internal fun List<VideoEncoderCapability>.hdrEncoder(): FfmpegEncoder? =
+  DEFAULT_HDR_LADDER
+    .firstNotNullOfOrNull { codec -> firstOrNull { it.codec == codec } }
+    ?.encoderName
+    ?.let { name -> FFMPEG_ENCODERS.values.flatten().firstOrNull { it.name == name } }
 
 private suspend fun FfmpegRuntime.videoCapability(
   toolchain: Toolchain,

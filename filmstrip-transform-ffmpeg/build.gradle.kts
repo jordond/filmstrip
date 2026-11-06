@@ -1,8 +1,6 @@
 import dev.jordond.filmstrip.convention.testmedia.FixturePatch
 import dev.jordond.filmstrip.convention.testmedia.FixtureSpec
-import dev.jordond.filmstrip.convention.testmedia.FixtureStill
 import dev.jordond.filmstrip.convention.testmedia.FixtureTransfer
-import dev.jordond.filmstrip.convention.testmedia.StillContainer
 import dev.jordond.filmstrip.convention.testmedia.testMedia
 
 plugins {
@@ -59,13 +57,22 @@ val exportFixtures =
           transfer = FixtureTransfer.Hlg,
           patch = FixturePatch.Graded,
         ),
-        // AuthoredColors.MID_GREEN as a HEIC, a picture the JDK cannot read, so only ffmpeg's decode can
-        // put it on a grade.
-        FixtureStill("overlay_mid_green", 64, 64, color = 0x308020, container = StillContainer.Heic),
       ),
   )
 
+// Fails the build, naming why, before any test runs when this host's ffmpeg is missing, below the floor or has no
+// ten-bit encoder. It runs the same toolchain lookup the backend does.
+val checkFfmpegTestToolchain =
+  tasks.register<JavaExec>("checkFfmpegTestToolchain") {
+    description = "Fails when this host's ffmpeg cannot run the ffmpeg tests, naming why."
+    val test = kotlin.jvm().compilations.getByName("test")
+    classpath = files(test.output.allOutputs, test.runtimeDependencyFiles)
+    mainClass.set("dev.jordond.filmstrip.ffmpeg.support.ToolchainGateKt")
+    javaLauncher.set(tasks.named<Test>("jvmTest").flatMap { it.javaLauncher })
+  }
+
 tasks.named<Test>("jvmTest") {
+  dependsOn(checkFfmpegTestToolchain)
   systemProperty("filmstrip.fixtures", exportFixtures.directory.absolutePath)
   // ffmpeg-text-overlay: text overlays are drawn by the JVM the way a server draws them, with no display to reach.
   systemProperty("java.awt.headless", "true")

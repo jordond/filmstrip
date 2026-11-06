@@ -99,6 +99,7 @@ tasks.withType<KotlinNativeTest>().configureEach {
 bootIosSimulatorForTests()
 
 tasks.named<Test>("jvmTest") {
+  dependsOn(":filmstrip-transform-ffmpeg:checkFfmpegTestToolchain")
   systemProperty("filmstrip.fixtures", playerFixtures.directory.absolutePath)
   dependsOn(playerFixtures.download)
 }

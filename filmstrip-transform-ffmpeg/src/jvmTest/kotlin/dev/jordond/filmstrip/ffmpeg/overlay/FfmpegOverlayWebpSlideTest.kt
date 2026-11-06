@@ -22,7 +22,6 @@ import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_COLOR
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_SIZE
 import dev.jordond.filmstrip.ffmpeg.support.drawnAt
 import dev.jordond.filmstrip.ffmpeg.support.drawnProbe
-import dev.jordond.filmstrip.ffmpeg.support.encodesHdr
 import dev.jordond.filmstrip.ffmpeg.support.pngOf
 import dev.jordond.filmstrip.ffmpeg.support.tenBitCodesAt
 import dev.jordond.filmstrip.geometry.AspectRatio
@@ -89,7 +88,6 @@ class FfmpegOverlayWebpSlideTest {
   @Test
   fun `a WebP picture slides on a kept PQ grade to where the shared placement puts it`() =
     runTest(timeout = TIMEOUT) {
-      if (!fixture.encodesHdr()) return@runTest
       val sliding = slidingWebp(MID_GREEN) ?: return@runTest
       val exported = exportedOverFill(sliding)
       val size = exported.plan.output.size

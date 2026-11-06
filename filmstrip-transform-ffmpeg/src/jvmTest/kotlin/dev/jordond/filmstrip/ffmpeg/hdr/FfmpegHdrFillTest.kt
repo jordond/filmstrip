@@ -17,7 +17,6 @@ import dev.jordond.filmstrip.ffmpeg.support.ExportedOverlay
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.PROBE_SIDE
 import dev.jordond.filmstrip.ffmpeg.support.assertOnTheGrid
-import dev.jordond.filmstrip.ffmpeg.support.encodesHdr
 import dev.jordond.filmstrip.ffmpeg.support.opensOn
 import dev.jordond.filmstrip.ffmpeg.support.pointIn
 import dev.jordond.filmstrip.ffmpeg.support.tenBitCodesAt
@@ -78,7 +77,6 @@ class FfmpegHdrFillTest {
     transfer: HdrTransfer,
     passes: Int,
   ) {
-    if (!fixture.encodesHdr()) return
     val exported = exportedWithGap(transfer, MID_GREY, passes)
     val plan = exported.plan
     val rate = plan.output.frameRate
@@ -104,7 +102,6 @@ class FfmpegHdrFillTest {
   }
 
   private suspend fun assertFillLandings(transfer: HdrTransfer) {
-    if (!fixture.encodesHdr()) return
     val misses =
       listOf(MID_GREY, MID_GREEN).flatMap { color ->
         val exported = exportedWithGap(transfer, color)

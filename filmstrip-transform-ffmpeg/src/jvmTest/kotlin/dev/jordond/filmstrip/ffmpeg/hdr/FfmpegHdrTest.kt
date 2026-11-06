@@ -15,7 +15,6 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainLocator
 import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainResult
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
-import dev.jordond.filmstrip.ffmpeg.support.encodesHdr
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.assertions.withClue
@@ -47,8 +46,6 @@ class FfmpegHdrTest {
   @Test
   fun `keeps an hdr grade through a re-encode`() =
     runTest(timeout = TIMEOUT) {
-      if (!fixture.encodesHdr()) return@runTest
-
       val output = File.createTempFile("filmstrip-hdr", ".mp4").also { it.delete() }
       // A rotate takes the clip off the copy path, so this is the encoder writing the grade rather
       // than the muxer carrying the source's bytes across.
