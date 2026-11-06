@@ -556,6 +556,57 @@ private fun AdjustPanel(state: SampleAppState) {
     }
   }
 
+  ControlGroup("Film") {
+    SwitchRow(
+      label = "Film",
+      checked = edit.filmEnabled,
+      onCheckedChange = {
+        edit.filmEnabled = it
+        state.onEditChanged()
+      },
+    )
+    if (edit.filmEnabled) {
+      GradeSlider(state, "Grain", edit.filmGrain, formatPercent(edit.filmGrain), 0f..1f, 0.5f) {
+        edit.filmGrain = it
+      }
+      GradeSlider(state, "Halation", edit.filmHalation, formatPercent(edit.filmHalation), 0f..1f, 0.5f) {
+        edit.filmHalation = it
+      }
+    }
+  }
+
+  ControlGroup("CRT") {
+    SwitchRow(
+      label = "CRT",
+      checked = edit.crtEnabled,
+      onCheckedChange = {
+        edit.crtEnabled = it
+        state.onEditChanged()
+      },
+    )
+    if (edit.crtEnabled) {
+      GradeSlider(state, "Intensity", edit.crtIntensity, formatPercent(edit.crtIntensity), 0f..1f, 1f) {
+        edit.crtIntensity = it
+      }
+    }
+  }
+
+  ControlGroup("LUT") {
+    SwitchRow(
+      label = "Teal and orange",
+      checked = edit.lutEnabled,
+      onCheckedChange = {
+        edit.lutEnabled = it
+        state.onEditChanged()
+      },
+    )
+    if (edit.lutEnabled) {
+      GradeSlider(state, "Intensity", edit.lutIntensity, formatPercent(edit.lutIntensity), 0f..1f, 1f) {
+        edit.lutIntensity = it
+      }
+    }
+  }
+
   ControlGroup("Channels") {
     GradeSlider(state, "Red", edit.channelRed, formatPercent(edit.channelRed), 0f..2f, 1f) {
       edit.channelRed = it

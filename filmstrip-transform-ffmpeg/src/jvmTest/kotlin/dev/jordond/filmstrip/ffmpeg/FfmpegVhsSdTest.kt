@@ -3,12 +3,12 @@ package dev.jordond.filmstrip.ffmpeg
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
 import dev.jordond.filmstrip.color.sdSourceDisplayed
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
+import dev.jordond.filmstrip.ffmpeg.support.FILTER_RATE
 import dev.jordond.filmstrip.ffmpeg.support.FULL
+import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
 import dev.jordond.filmstrip.ffmpeg.support.VHS_CHROMA_CODES
 import dev.jordond.filmstrip.ffmpeg.support.VHS_HEIGHT
-import dev.jordond.filmstrip.ffmpeg.support.VHS_RATE
 import dev.jordond.filmstrip.ffmpeg.support.VHS_WIDTH
-import dev.jordond.filmstrip.ffmpeg.support.VhsFrames
 import dev.jordond.filmstrip.ffmpeg.support.assertReadsSignal
 import dev.jordond.filmstrip.ffmpeg.support.rampAt
 import dev.jordond.filmstrip.ffmpeg.support.yccOf
@@ -29,7 +29,7 @@ import kotlin.time.Duration
  * The tape's figures are all BT.709's, so an SD clip's head has to run first, whatever else the plan holds.
  */
 class FfmpegVhsSdTest {
-  private val draw = VhsFrames()
+  private val draw = FilterFrames()
 
   @Test
   fun `the sd ramp sits further from its displayed colour than a read can tell`() {
@@ -113,7 +113,7 @@ class FfmpegVhsSdTest {
     const val BLUE = 0.2
     const val READ_SLOT = 3
     const val CLIP_SECONDS = 2
-    const val SECOND_CLIP_SLOT = CLIP_SECONDS * VHS_RATE + READ_SLOT
+    const val SECOND_CLIP_SLOT = CLIP_SECONDS * FILTER_RATE + READ_SLOT
     const val SD_HEAD = "colorspace=ispace"
     const val TAPE = "gblur"
     const val BT709_TAGS = "setparams=color_primaries=bt709"

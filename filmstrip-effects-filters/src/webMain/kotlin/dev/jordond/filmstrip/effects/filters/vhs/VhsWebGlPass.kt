@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.effects.filters.vhs
 
 import dev.jordond.filmstrip.effect.WebGlPass
-import dev.jordond.filmstrip.effect.WebGlShader
+import dev.jordond.filmstrip.effect.WebGlStep
 import kotlin.time.DurationUnit
 
 /**
@@ -13,13 +13,19 @@ import kotlin.time.DurationUnit
 internal fun vhsPass(vhs: Vhs): WebGlPass =
   WebGlPass(
     Vhs.ID,
-    WebGlShader(VhsShader.FRAGMENT, VhsShader.TEXTURE) { time, width, height ->
-      buildMap {
-        VhsShader.uniforms(vhs, time.toDouble(DurationUnit.SECONDS)).forEach { (name, value) ->
-          put(name, floatArrayOf(value))
+    listOf(
+      WebGlStep(
+        name = "tape",
+        fragmentSource = VhsShader.FRAGMENT,
+        reads = mapOf(VhsShader.TEXTURE to WebGlStep.INPUT),
+      ) { time, width, height ->
+        buildMap {
+          VhsShader.uniforms(vhs, time.toDouble(DurationUnit.SECONDS)).forEach { (name, value) ->
+            put(name, floatArrayOf(value))
+          }
+          put(VhsShader.RESOLUTION, floatArrayOf(width.toFloat(), height.toFloat()))
+          put(VhsShader.FLIP_V, floatArrayOf(1f))
         }
-        put(VhsShader.RESOLUTION, floatArrayOf(width.toFloat(), height.toFloat()))
-        put(VhsShader.FLIP_V, floatArrayOf(1f))
-      }
-    },
+      },
+    ),
   )

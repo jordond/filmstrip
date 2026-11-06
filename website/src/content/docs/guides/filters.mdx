@@ -45,3 +45,60 @@ An HDR source tone maps to SDR first. `HdrMode.Auto` reports that as an `HdrTone
 - The ffmpeg backend refuses `vhs` by name on a build with none of the filters it runs on, like `geq` or `gblur`.
 - See [Limits](/reference/limits/#filters) for how close each backend lands.
 </Aside>
+
+## CRT
+
+`crt` makes a frame look like it is showing on a curved tube. The picture bows out with black past its edge, scanlines and
+a phosphor mask run over it, and the corners fall off. The scanlines and the mask are the average over each pixel, so a
+smaller preview draws the larger frame's picture at its own size. Nothing reads the clock, so a seek changes nothing.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="crt" />
+
+| Argument    | What it does                                                                         |
+| ----------- | ------------------------------------------------------------------------------------ |
+| `intensity` | How strong the look is. `0f` leaves the frame alone and is listed as an inert notice |
+
+A `crt` on the composition covers the whole frame, bars included. One on a clip or a track doesn't grade the bars, and the
+picture's curve ends in black while a clear bar stays clear. It runs under any overlay at its own scope, so a caption next
+to it stays clean. A clip overlay under a composition `crt` is part of the clip's frame by then, and is burned in with it.
+
+An HDR source tone maps to SDR first. `HdrMode.Auto` reports that as an `HdrToneMapped` adjustment naming the effect, and
+`HdrMode.KeepHdr` is refused. See [HDR](/guides/hdr/).
+
+<Aside type="note" title="Limits">
+- An Apple device that can't compile a Core Image Metal kernel refuses `crt` by name, the same as `vhs`.
+- On ffmpeg the look runs well under real time and holds a lot of memory per clip. See [Limits](/reference/limits/#filters)
+  for the numbers, and how close each backend lands.
+</Aside>
+
+## LUT
+
+`lut` maps a frame's colours through a colour table from a `.cube` file. Every backend reads the table trilinearly, and
+`intensity` mixes the table with one that changes nothing. A table is a function of each pixel's colour alone, so a seek or
+a smaller preview draws the same colours.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="lut" />
+
+| Argument    | What it does                                                                                              |
+| ----------- | --------------------------------------------------------------------------------------------------------- |
+| `table`     | A `CubeLut` from `CubeLut.parse`, which takes the text of the file. Reading the file is yours             |
+| `intensity` | How strong the table is. `0f` leaves the frame alone, and so does an identity table. Both are inert notices |
+
+`CubeLut.parse` holds a grid of 2 to 129 points, applies `DOMAIN_MIN` and `DOMAIN_MAX`, and holds an entry past `0` or `1` at
+the end it passed, since an SDR code stops there. It throws an `IllegalArgumentException` naming the line for a 1D table, a
+size outside that range, a line it can't read, the wrong number of rows, or a file over 137 million characters.
+
+A `lut` on the composition covers the whole frame, bars included. One on a clip or a track doesn't grade the bars, and a
+clear bar stays clear. Colour effects at the same scope run before it, and filters at the same scope run in the order you
+added them. It runs under any overlay at its own scope, so a caption next to it stays clean.
+
+The table maps SDR codes, so an HDR source tone maps to SDR first. `HdrMode.Auto` reports that as an `HdrToneMapped`
+adjustment naming the effect, and `HdrMode.KeepHdr` is refused. See [HDR](/guides/hdr/). A table authored for HDR isn't
+supported.
+
+<Aside type="note" title="Limits">
+- An Apple device that can't compile a Core Image Metal kernel refuses `lut` by name, the same as `vhs`.
+- media3 and the browser fail by name on a table too large for the GL context's `MAX_TEXTURE_SIZE`. See
+  [Limits](/reference/limits/#filters).
+- See [Limits](/reference/limits/#filters) for how close each backend lands.
+</Aside>

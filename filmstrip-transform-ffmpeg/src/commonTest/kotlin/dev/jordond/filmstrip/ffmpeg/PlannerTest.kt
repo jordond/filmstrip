@@ -28,6 +28,10 @@ import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.HueRotate
 import dev.jordond.filmstrip.effects.color.Invert
 import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
+import dev.jordond.filmstrip.effects.filters.crt.Crt
+import dev.jordond.filmstrip.effects.filters.film.Film
+import dev.jordond.filmstrip.effects.filters.lut.CubeLut
+import dev.jordond.filmstrip.effects.filters.lut.Lut
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.CropRect
@@ -496,6 +500,70 @@ class PlannerTest {
   }
 
   // Each of these is a filter Vhs lowers, read one at a time so a name missing from the check fails on its own.
+  @Test
+  fun `refuses a film by name on a build missing any filter it lowers`() {
+    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))), listOf(Film()))
+    val named = FILM_FILTERS + TONE_MAPPING
+    val spec = ExportSpec(heightPx = 720)
+    val resolvers = listOf(BuiltInEffectResolver(), FilterEffectResolver())
+
+    FfmpegPlanner(toolchain(named), resolvers).lower(composition, Ask(spec, device(), infos)).graph.shouldNotBeNull()
+
+    FILM_FILTERS.forEach { filter ->
+      val verdict =
+        FfmpegPlanner(toolchain(named - filter), resolvers).lower(composition, Ask(spec, device(), infos)).verdict
+      withClue(filter) {
+        val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+        val message = reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message
+        message shouldContain filter
+        message shouldContain Film.ID
+      }
+    }
+  }
+
+  @Test
+  fun `refuses a crt by name on a build missing any filter it lowers`() {
+    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))), listOf(Crt()))
+    val named = CRT_FILTERS + TONE_MAPPING
+    val spec = ExportSpec(heightPx = 720)
+    val resolvers = listOf(BuiltInEffectResolver(), FilterEffectResolver())
+
+    FfmpegPlanner(toolchain(named), resolvers).lower(composition, Ask(spec, device(), infos)).graph.shouldNotBeNull()
+
+    CRT_FILTERS.forEach { filter ->
+      val verdict =
+        FfmpegPlanner(toolchain(named - filter), resolvers).lower(composition, Ask(spec, device(), infos)).verdict
+      withClue(filter) {
+        val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+        val message = reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message
+        message shouldContain filter
+        message shouldContain Crt.ID
+      }
+    }
+  }
+
+  @Test
+  fun refusesALutByNameOnABuildMissingAnyFilterItLowers() {
+    val table = CubeLut.parse("LUT_3D_SIZE 2\n" + "0.5 0.25 0.75\n".repeat(8))
+    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))), listOf(Lut(table)))
+    val named = LUT_FILTERS + TONE_MAPPING
+    val spec = ExportSpec(heightPx = 720)
+    val resolvers = listOf(BuiltInEffectResolver(), FilterEffectResolver())
+
+    FfmpegPlanner(toolchain(named), resolvers).lower(composition, Ask(spec, device(), infos)).graph.shouldNotBeNull()
+
+    LUT_FILTERS.forEach { filter ->
+      val verdict =
+        FfmpegPlanner(toolchain(named - filter), resolvers).lower(composition, Ask(spec, device(), infos)).verdict
+      withClue(filter) {
+        val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+        val message = reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message
+        message shouldContain filter
+        message shouldContain Lut.ID
+      }
+    }
+  }
+
   @Test
   fun `refuses a vhs by name on a build missing any filter it lowers`() {
     val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))), listOf(Vhs()))

@@ -1,7 +1,7 @@
 package dev.jordond.filmstrip.webcodecs.internal
 
 import dev.jordond.filmstrip.effect.WebGlPass
-import dev.jordond.filmstrip.effect.WebGlShader
+import dev.jordond.filmstrip.effect.WebGlStep
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.transform.internal.geometry.CanvasPlacement
 
@@ -101,18 +101,22 @@ internal class ClipPassStage(
 internal val BARS_OVER_BLACK: WebGlPass =
   WebGlPass(
     "filmstrip.barsOverBlack",
-    WebGlShader(
-      """
-      #version 300 es
-      precision highp float;
-      uniform sampler2D uFrame;
-      in vec2 vUv;
-      out vec4 fragColor;
-      void main() {
-        vec4 texel = texture(uFrame, vUv);
-        fragColor = vec4(texel.rgb * texel.a, 1.0);
-      }
-      """.trimIndent(),
-      "uFrame",
-    ) { _, _, _ -> emptyMap() },
+    listOf(
+      WebGlStep(
+        name = "bars",
+        fragmentSource =
+          """
+          #version 300 es
+          precision highp float;
+          uniform sampler2D uFrame;
+          in vec2 vUv;
+          out vec4 fragColor;
+          void main() {
+            vec4 texel = texture(uFrame, vUv);
+            fragColor = vec4(texel.rgb * texel.a, 1.0);
+          }
+          """.trimIndent(),
+        reads = mapOf("uFrame" to WebGlStep.INPUT),
+      ) { _, _, _ -> emptyMap() },
+    ),
   )

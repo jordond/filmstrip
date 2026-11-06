@@ -144,7 +144,7 @@ internal suspend fun makePixelClip(
     VideoSampleSource(
       JsOptions()
         .put("codec", "avc")
-        .put("fullCodecString", "avc1.42001F")
+        .put("fullCodecString", "avc1.420028")
         .put("quality", Quality(JsOptions().put("bitrate", FIXTURE_BITRATE).build()))
         .put("keyFrameInterval", keyFrameSeconds)
         .build(),

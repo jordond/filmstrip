@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.effects.filters.vhs.VhsParams
 import dev.jordond.filmstrip.effects.filters.vhs.VhsSignal
 import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
 import dev.jordond.filmstrip.ffmpeg.support.VHS_CHROMA_SPAN
 import dev.jordond.filmstrip.ffmpeg.support.VHS_CHROMA_ZERO
 import dev.jordond.filmstrip.ffmpeg.support.VHS_HEIGHT
@@ -13,7 +14,6 @@ import dev.jordond.filmstrip.ffmpeg.support.VHS_KR
 import dev.jordond.filmstrip.ffmpeg.support.VHS_LUMA_BLACK
 import dev.jordond.filmstrip.ffmpeg.support.VHS_LUMA_SPAN
 import dev.jordond.filmstrip.ffmpeg.support.VHS_WIDTH
-import dev.jordond.filmstrip.ffmpeg.support.VhsFrames
 import dev.jordond.filmstrip.ffmpeg.support.assertReadsSignal
 import dev.jordond.filmstrip.ffmpeg.support.chromaPlanesOf
 import dev.jordond.filmstrip.ffmpeg.support.lumaPlaneOf
@@ -40,7 +40,7 @@ import io.kotest.matchers.doubles.shouldBeLessThan as shouldBeBelow
  * sample it comes from, and its luma against its own.
  */
 class FfmpegVhsSignalTest {
-  private val draw = VhsFrames()
+  private val draw = FilterFrames()
 
   @Test
   fun `every row lands on the signal at a mid intensity`() =

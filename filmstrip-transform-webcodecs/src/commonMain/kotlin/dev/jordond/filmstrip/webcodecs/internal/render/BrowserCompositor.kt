@@ -58,7 +58,7 @@ internal class BrowserCompositor(
   private var current: RenderedClip? = null
   private var overlayPass: BrowserOverlayPass? = null
   private var toneMapPass: ToneMapPass? = null
-  private val shaderPass = ShaderPass(gl, buffer, width, height)
+  private val shaderPass = ShaderPass(gl, buffer, width, height, hdrTransfer != null)
   private val clipFrames = PassFrames(gl, hdrTransfer != null)
   private val compositionFrames = PassFrames(gl, hdrTransfer != null)
   private var sdPrimariesPass: SdPrimariesPass? = null
@@ -246,10 +246,16 @@ internal class BrowserCompositor(
   }
 
   /**
-   * Drops every overlay texture uploaded so far, for a preview whose plan was replaced underneath it.
+   * The texture of every table held right now.
    */
-  fun forgetOverlays() {
+  val tableTextures: List<JsAny> get() = shaderPass.tableTextures
+
+  /**
+   * Drops every overlay and table texture uploaded so far, for a preview whose plan was replaced underneath it.
+   */
+  fun forgetUploads() {
     overlayPass?.forget()
+    shaderPass.forgetTables()
   }
 
   // A clip overlay takes the composition's grade and not the clip's, since it composites after the clip's own color

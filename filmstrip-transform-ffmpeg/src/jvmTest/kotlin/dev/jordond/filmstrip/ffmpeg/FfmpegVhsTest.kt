@@ -17,10 +17,10 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.clearCanvasNodes
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.render
 import dev.jordond.filmstrip.ffmpeg.support.BYTE
+import dev.jordond.filmstrip.ffmpeg.support.FILTER_RATE
 import dev.jordond.filmstrip.ffmpeg.support.FULL
+import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
 import dev.jordond.filmstrip.ffmpeg.support.RGBA
-import dev.jordond.filmstrip.ffmpeg.support.VHS_RATE
-import dev.jordond.filmstrip.ffmpeg.support.VhsFrames
 import dev.jordond.filmstrip.ffmpeg.support.channelAt
 import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Corner
@@ -53,7 +53,7 @@ import io.kotest.matchers.doubles.shouldBeLessThan as shouldBeBelow
 class FfmpegVhsTest {
   private val fixtures = File(System.getProperty("filmstrip.fixtures").orEmpty())
   private val landscape = File(fixtures, "export_landscape.mp4")
-  private val draw = VhsFrames()
+  private val draw = FilterFrames()
 
   @Test
   fun `a frame from a windowed preview equals the same frame on export`() =
@@ -151,7 +151,7 @@ class FfmpegVhsTest {
           Size(WIDE_WIDTH, RAMP_HEIGHT),
         ).drawnRect
       val params = VhsParams.of(vhs)
-      val tick = VhsSignal.tickAt(outputSlotTime(READ_SLOT.toLong(), VHS_RATE).toDouble(DurationUnit.SECONDS))
+      val tick = VhsSignal.tickAt(outputSlotTime(READ_SLOT.toLong(), FILTER_RATE).toDouble(DurationUnit.SECONDS))
       val y = RAMP_HEIGHT - 1
       val row = VhsSignal.virtualRow(y, RAMP_HEIGHT)
       val shift = VhsSignal.rowShift(vhs.seed, tick, row, params)
@@ -216,7 +216,7 @@ class FfmpegVhsTest {
           Size(WIDE_WIDTH, RAMP_HEIGHT),
         ).drawnRect
       val params = VhsParams.of(vhs)
-      val tick = VhsSignal.tickAt(outputSlotTime(READ_SLOT.toLong(), VHS_RATE).toDouble(DurationUnit.SECONDS))
+      val tick = VhsSignal.tickAt(outputSlotTime(READ_SLOT.toLong(), FILTER_RATE).toDouble(DurationUnit.SECONDS))
       val y = RAMP_HEIGHT - 1
       val row = VhsSignal.virtualRow(y, RAMP_HEIGHT)
       val shift = VhsSignal.rowShift(vhs.seed, tick, row, params)
@@ -266,10 +266,15 @@ class FfmpegVhsTest {
       val overlay = swatch(TimeRange(2_500.milliseconds, 3_000.milliseconds))
       val plain = draw.clipOf(RAMP_WIDTH, RAMP_HEIGHT, ::rampAt)
       val taped = draw.clipOf(RAMP_WIDTH, RAMP_HEIGHT, ::rampAt, listOf(Vhs(intensity = 0.5f), overlay))
-      val frames = draw.frames(draw.composition(listOf(plain, taped)), Duration.ZERO, 2 * VHS_RATE + LATE_IN_CLIP + 1)
+      val frames =
+        draw.frames(
+          draw.composition(listOf(plain, taped)),
+          Duration.ZERO,
+          2 * FILTER_RATE + LATE_IN_CLIP + 1,
+        )
 
-      val inWindow = red(frames[2 * VHS_RATE + IN_WINDOW], RAMP_WIDTH, SWATCH_X, SWATCH_Y)
-      val pastWindow = red(frames[2 * VHS_RATE + LATE_IN_CLIP], RAMP_WIDTH, SWATCH_X, SWATCH_Y)
+      val inWindow = red(frames[2 * FILTER_RATE + IN_WINDOW], RAMP_WIDTH, SWATCH_X, SWATCH_Y)
+      val pastWindow = red(frames[2 * FILTER_RATE + LATE_IN_CLIP], RAMP_WIDTH, SWATCH_X, SWATCH_Y)
 
       abs(inWindow - SWATCH_CODE) shouldBeLessThan CLEAN_CODES
       abs(pastWindow - SWATCH_CODE) shouldBeGreaterThan CLEAN_CODES
@@ -302,7 +307,7 @@ class FfmpegVhsTest {
         draw.graphOf(composition).length shouldBeGreaterThan LINUX_ARGUMENT_CHARACTERS
       }
 
-      listOf(READ_SLOT, 2 * VHS_RATE + READ_SLOT).forEach { slot ->
+      listOf(READ_SLOT, 2 * FILTER_RATE + READ_SLOT).forEach { slot ->
         val frame = draw.exportedFrame(composition, slot, ENCODED)
         withClue("mean luma error against the signal at slot $slot") {
           meanLumaOffSignal(frame, vhs, slot) shouldBeBelow ENCODED_SIGNAL_CODES
@@ -316,7 +321,7 @@ class FfmpegVhsTest {
     slot: Int,
   ): Double {
     val params = VhsParams.of(vhs)
-    val tick = VhsSignal.tickAt(outputSlotTime(slot.toLong(), VHS_RATE).toDouble(DurationUnit.SECONDS))
+    val tick = VhsSignal.tickAt(outputSlotTime(slot.toLong(), FILTER_RATE).toDouble(DurationUnit.SECONDS))
     val errors =
       (0 until RAMP_HEIGHT step SIGNAL_STEP).flatMap { y ->
         val row = VhsSignal.virtualRow(y, RAMP_HEIGHT)
@@ -332,7 +337,7 @@ class FfmpegVhsTest {
   private suspend fun assertSameFrameOnExport(composition: EditComposition) {
     val at = 1_000.milliseconds
     val windowed = draw.frames(composition, at, 1, ENCODED).single()
-    val exported = draw.exportedFrame(composition, outputSlotOf(at, VHS_RATE).toInt(), ENCODED)
+    val exported = draw.exportedFrame(composition, outputSlotOf(at, FILTER_RATE).toInt(), ENCODED)
 
     exported.size shouldBe windowed.size
     val error = meanCodes(windowed, exported)

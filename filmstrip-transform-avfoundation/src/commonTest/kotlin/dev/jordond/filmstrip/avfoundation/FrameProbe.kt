@@ -27,9 +27,11 @@ import platform.CoreFoundation.CFRelease
 import platform.CoreGraphics.CGBitmapContextCreate
 import platform.CoreGraphics.CGColorSpaceCreateDeviceRGB
 import platform.CoreGraphics.CGColorSpaceRelease
+import platform.CoreGraphics.CGColorSpaceRetain
 import platform.CoreGraphics.CGContextDrawImage
 import platform.CoreGraphics.CGContextRelease
 import platform.CoreGraphics.CGImageAlphaInfo
+import platform.CoreGraphics.CGImageGetColorSpace
 import platform.CoreGraphics.CGImageGetHeight
 import platform.CoreGraphics.CGImageGetWidth
 import platform.CoreGraphics.CGImageRelease
@@ -125,6 +127,15 @@ internal fun frameOf(
 ): FrameProbe = frameOf(AVURLAsset(uRL = NSURL.fileURLWithPath(path), options = null), null, at)
 
 /**
+ * Decodes the first video frame of the file at [path] in the codes it holds.
+ *
+ * [frameOf] draws into the device's colour space, which moves a BT.709 code by a different amount at each level. This
+ * draws into the frame's own colour space, which moves nothing.
+ */
+internal fun codesOf(path: String): FrameProbe =
+  frameOf(AVURLAsset(uRL = NSURL.fileURLWithPath(path), options = null), null, Duration.ZERO, inFileCodes = true)
+
+/**
  * Renders the frame of [asset] covering [at] through [videoComposition], the way the thumbnail source asks for one.
  */
 @OptIn(ExperimentalForeignApi::class)
@@ -133,6 +144,7 @@ internal fun frameOf(
   asset: AVAsset,
   videoComposition: AVVideoComposition?,
   at: Duration,
+  inFileCodes: Boolean = false,
 ): FrameProbe {
   val generator = AVAssetImageGenerator(asset = asset)
   generator.videoComposition = videoComposition
@@ -148,7 +160,8 @@ internal fun frameOf(
     val height = CGImageGetHeight(frame).toInt()
     val pixels = ByteArray(width * height * BYTES_PER_PIXEL)
 
-    val colorSpace = CGColorSpaceCreateDeviceRGB()
+    val colorSpace =
+      if (inFileCodes) CGColorSpaceRetain(CGImageGetColorSpace(frame)) else CGColorSpaceCreateDeviceRGB()
     try {
       pixels.usePinned { pinned ->
         val context =

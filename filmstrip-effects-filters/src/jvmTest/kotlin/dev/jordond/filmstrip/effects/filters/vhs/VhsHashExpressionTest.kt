@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects.filters.vhs
 
+import dev.jordond.filmstrip.effects.filters.internal.FilterNoise
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import org.junit.Assume.assumeTrue
@@ -7,7 +8,8 @@ import java.io.ByteArrayOutputStream
 import kotlin.test.Test
 
 /**
- * Runs [VhsExpressions.hash] through ffmpeg's own `geq` and reads it back a byte at a time, against [VhsSignal.hash24].
+ * Runs [VhsExpressions.hash] through ffmpeg's own `geq` and reads it back a byte at a time, against
+ * [FilterNoise.hash24].
  *
  * Skipped when the host has no ffmpeg, since nothing here could run the expression.
  */
@@ -23,7 +25,7 @@ class VhsHashExpressionTest {
 
       for (y in 0 until SIDE) {
         for (x in 0 until SIDE) {
-          val expected = VhsSignal.hash24(SEED, PASS_LUMA_NOISE, TICK, CELL_BASE + y * 16 + x)
+          val expected = FilterNoise.hash24(SEED, PASS_LUMA_NOISE, TICK, CELL_BASE + y * 16 + x)
           withClue("x $x y $y shift $shift") {
             plane[y * SIDE + x].toInt() and 0xFF shouldBe ((expected / shift) and 0xFF)
           }

@@ -117,8 +117,30 @@ scaled up.
 The media3 backend writes SMPTE C and EBU primaries as true BT.709 too, in an export and in a preview. A source with no
 tags exports as Android draws it.
 
-On every backend an SD source beside an HDR one has no grade to keep, so `HdrMode.Keep` refuses the two and
+On every backend an SD source beside an HDR one has no grade to keep, so `HdrMode.KeepHdr` refuses the two and
 `HdrMode.Auto` tone maps them to SDR together, where the SD source's primaries move as above.
+
+## Film
+
+`Film` from `filmstrip-effects-filters` makes the frame look like it was shot on film. Register the renderer with
+`filters()` on the builder. `grain` and `halation` run from `0f` to `1f`, on a clip, a track or the composition, and
+either at `0f` skips its part. Halation glows warm around the brightest parts of the picture, and grain lands over the
+result, heaviest in the midtones.
+
+Grain comes from the frame's composition time and its place on a fixed raster, and the glow's width is a fraction of
+the frame width, so a seek or a smaller preview shows the same frame. It runs over the fill and under any overlay at
+the same scope. On a clip with a contain crop, its bars stay clear and the fill shows through unchanged. A clip overlay
+under a composition `Film` is part of the clip's frame by then, and takes the look with it. An HDR source tone maps to
+SDR first, reported as a concession under `HdrMode.Auto`, and `HdrMode.KeepHdr` refuses it.
+
+Every backend draws the same frame, within a limit of its own. Apple draws the glow with Core Image's Gaussian, within
+a couple of codes of the shared blur. ffmpeg draws it with `gblur` and rounds through RGB and back, which lands the
+whole look within 2.5 codes of an 8 bit limited range source, and within about 5 of a full range or SD one. Apple
+refuses a `Film` on a device that can't compile its Core Image Metal kernel, the same way it refuses a tone map.
+
+ffmpeg works out the grain with `geq`, on the CPU, once per cell of the raster where a cell spans whole pixels and once
+per pixel on any other frame. It's the slowest part of the look. An export with H.264 on an Intel i5-12400 ran at 2.23
+frames a second at 1080p and 1.95 at 4K, against 26.93 and 34.90 with no effect.
 
 ## Failures
 

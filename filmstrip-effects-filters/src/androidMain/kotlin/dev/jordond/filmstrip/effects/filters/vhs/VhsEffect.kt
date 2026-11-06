@@ -9,6 +9,8 @@ import androidx.media3.common.util.Size
 import androidx.media3.effect.BaseGlShaderProgram
 import androidx.media3.effect.GlEffect
 import androidx.media3.effect.GlShaderProgram
+import dev.jordond.filmstrip.effects.filters.internal.FULL_FRAME_VERTEX_SHADER
+import dev.jordond.filmstrip.effects.filters.internal.requireGles3
 
 /**
  * Draws a [Vhs] as one media3 pass running [VhsShader].
@@ -26,7 +28,7 @@ internal class VhsEffect(
   ): GlShaderProgram {
     if (useHdr) throw VideoFrameProcessingException("Vhs requires SDR, and this frame processor runs in HDR.")
     try {
-      requireGles3(GlUtil.getContextMajorVersion())
+      requireGles3("Vhs", GlUtil.getContextMajorVersion())
     } catch (e: GlUtil.GlException) {
       throw VideoFrameProcessingException(e)
     }
@@ -37,17 +39,6 @@ internal class VhsEffect(
   override fun equals(other: Any?): Boolean = this === other || (other is VhsEffect && vhs == other.vhs)
 
   override fun hashCode(): Int = vhs.hashCode()
-}
-
-/**
- * Refuses a [Vhs] by name on a GL context below the OpenGL ES 3 that [VhsShader] is written for.
- */
-internal fun requireGles3(contextMajorVersion: Long) {
-  if (contextMajorVersion < MIN_GLES_MAJOR) {
-    throw VideoFrameProcessingException(
-      "Vhs needs OpenGL ES $MIN_GLES_MAJOR, and this device's context is OpenGL ES $contextMajorVersion.",
-    )
-  }
 }
 
 /**
@@ -63,7 +54,7 @@ internal class VhsShaderProgram(
 
   private val program =
     try {
-      GlProgram(VERTEX_SHADER, VhsShader.FRAGMENT).apply {
+      GlProgram(FULL_FRAME_VERTEX_SHADER, VhsShader.FRAGMENT).apply {
         setBufferAttribute(
           "aFramePosition",
           GlUtil.getNormalizedCoordinateBounds(),
@@ -118,16 +109,3 @@ internal class VhsShaderProgram(
     const val MICROS_PER_SECOND = 1_000_000.0
   }
 }
-
-private const val MIN_GLES_MAJOR = 3L
-
-private val VERTEX_SHADER =
-  """
-  #version 300 es
-  in vec4 aFramePosition;
-  out vec2 vUv;
-  void main() {
-    gl_Position = aFramePosition;
-    vUv = aFramePosition.xy * 0.5 + 0.5;
-  }
-  """.trimIndent()

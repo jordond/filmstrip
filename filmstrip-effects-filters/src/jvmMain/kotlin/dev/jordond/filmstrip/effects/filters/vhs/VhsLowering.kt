@@ -3,6 +3,9 @@ package dev.jordond.filmstrip.effects.filters.vhs
 import dev.jordond.filmstrip.effect.FilterBranch
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effects.filters.internal.FilterNoise
+import dev.jordond.filmstrip.effects.filters.internal.HASH_RANGE
+import dev.jordond.filmstrip.effects.filters.internal.HashExpression
 import dev.jordond.filmstrip.geometry.Size
 import kotlin.math.ceil
 import kotlin.math.max
@@ -196,57 +199,21 @@ internal class VhsExpressions(
   }
 
   /**
-   * [VhsSignal.hash24] of [pass], the tick in [tick] and the cell in [cell], leaving it in register 0.
+   * [FilterNoise.hash24] of [pass], the tick in [tick] and the cell in [cell], leaving it in register 0.
    */
   fun hash(
     pass: Int,
     tick: String,
     cell: String,
-  ): String =
-    listOf(
-      "st(0,$seedBits)",
-      absorb("$pass"),
-      absorb(tick),
-      absorb(cell),
-      "st(0,${xorShift("ld(0)", HASH_END_SHIFT)})",
-      "st(0,${multiply("ld(0)", HASH_M3)})",
-      "st(0,${xorShift("ld(0)", HASH_ABSORB_SHIFT)})",
-      "st(0,${multiply("ld(0)", HASH_M4)})",
-      "st(0,${xorShift("ld(0)", HASH_END_SHIFT)})",
-      "ld(0)",
-    ).joinToString(";")
+  ): String = hasher.hash(pass, tick, cell)
 
-  private val seedBits = seed and HASH_MASK
+  private val hasher = HashExpression(seed)
 
   // Map codes to a plane's code, so the most noise a plane takes reaches GRAIN_REACH either side of mid scale.
   private val lumaGrainScale = grainScale(LUMA_CODES * (params.lumaNoise + params.trackingNoise))
   private val chromaGrainScale = grainScale(CHROMA_CODES * params.chromaNoise)
 
   private fun grainScale(mostCodes: Double) = GRAIN_REACH / max(mostCodes, MIN_GRAIN_CODES)
-
-  private fun absorb(input: String): String =
-    listOf(
-      "st(1,${multiply("mod($input,$HASH_RANGE_INT)", HASH_M1)})",
-      "st(1,${xorShift("ld(1)", HASH_ABSORB_SHIFT)})",
-      "st(1,${multiply("ld(1)", HASH_M2)})",
-      "st(0,mod(${xor("ld(0)", "ld(1)")}*$HASH_FIVE+$HASH_ADD,$HASH_RANGE_INT))",
-      "st(0,${xorShift("ld(0)", HASH_MIX_SHIFT)})",
-    ).joinToString(";")
-
-  private fun multiply(
-    value: String,
-    by: Int,
-  ) = "mod($value*$by,$HASH_RANGE_INT)"
-
-  private fun xorShift(
-    value: String,
-    bits: Int,
-  ) = xor(value, "floor($value/${1 shl bits})")
-
-  private fun xor(
-    a: String,
-    b: String,
-  ) = "(bitor($a,$b)-bitand($a,$b))"
 
   private fun unit(hashExpression: String) = "(($hashExpression)/$HASH_RANGE)"
 
@@ -290,7 +257,7 @@ internal class VhsExpressions(
   }
 
   private fun rowShift(): String {
-    val phase = VhsSignal.unorm(VhsSignal.hash24(seed, PASS_WAVE, 0, 0))
+    val phase = FilterNoise.unorm(FilterNoise.hash24(seed, PASS_WAVE, 0, 0))
     val seconds = "(ld(2)/$TICK_RATE)"
     val y = "((ld(3)+0.5)/$VIRTUAL_ROWS)"
     val wave =
@@ -407,7 +374,6 @@ internal class VhsExpressions(
 
   private companion object {
     const val TAU = 6.283185307179586
-    const val HASH_RANGE_INT = 16777216
     const val STREAK_CELL = 6
     const val NO_CELL = -1
   }

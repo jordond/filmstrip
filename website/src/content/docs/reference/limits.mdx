@@ -73,6 +73,23 @@ refuses.
   it's within a few codes.
 - Below about 0.005 pixels `gblur`'s own filter darkens the frame, so a blur smaller than 0.01 pixels runs at 0.01, which
   changes no pixel.
+- An Apple device that can't compile a Core Image Metal kernel refuses `crt` by name too.
+- ffmpeg carries a frame in 4:2:0, which can't hold the stripes of colour in `crt`'s phosphor mask. Luma keeps them, within
+  3 codes of the other backends, and chroma holds their mean over each sample, within 3 codes. An encoded 4:2:0 file
+  is the same on every backend.
+- ffmpeg builds `crt`'s map once, as eight frames read from scratch files, and draws from them in sixteen-bit red, green
+  and blue. With an x264 encode that ran at about 10 fps at 1080p and 2.6 fps at 4K on an x86 server, where `film` ran at
+  about 2 fps at both. It peaks near 1.5 GB at 1080p and 5.4 GB at 4K, and a `crt` on a clip or a track adds about 550 MB
+  per 1080p clip, since ffmpeg holds each clip's working frames until the export ends. Clips of one size share the eight
+  frames.
+- An Apple device that can't compile a Core Image Metal kernel refuses `lut` by name too.
+- `lut` on media3 and the browser reads its table from a texture 2 times `ceil(sqrt(N))` tiles wide, so a grid of 65 points
+  takes 1170x520 and a grid of 129 takes 3096x1419. A GL context whose `MAX_TEXTURE_SIZE` is smaller fails by name, and media3
+  and the browser need OpenGL ES 3.
+- `lut` on ffmpeg passes through RGB and 4:2:0 on its way back to the encoder. Measured on ffmpeg 8.0.1 x86_64, luma lands
+  within 1.72 codes of `CubeLut.at`, chroma within 1.17, and a channel read back as RGB within 2.59.
+- ffmpeg draws `lut` through `lut3d` on `gbrap`. With an x264 veryfast encode and a 65 point table that ran at about 70 fps
+  at 1080p and 21 fps at 4K on a 12 thread x86 server, against 300 and 85 fps with no table.
 - A build missing a filter a look runs on refuses it by name, like any other effect.
 
 ## Sinks

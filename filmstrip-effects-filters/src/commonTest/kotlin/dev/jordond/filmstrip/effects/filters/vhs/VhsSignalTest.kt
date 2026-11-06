@@ -1,5 +1,8 @@
 package dev.jordond.filmstrip.effects.filters.vhs
 
+import dev.jordond.filmstrip.effects.filters.internal.FilterNoise
+import dev.jordond.filmstrip.effects.filters.internal.HASH_M1
+import dev.jordond.filmstrip.effects.filters.internal.HASH_M4
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.ints.shouldBeLessThan
@@ -13,11 +16,11 @@ import kotlin.test.Test
 class VhsSignalTest {
   @Test
   fun `hash24 matches its golden table`() {
-    VhsSignal.hash24(1984, 1, 3000, 240) shouldBe 0xEBA0F3
-    VhsSignal.hash24(1984, 6, 3600, 13553) shouldBe 0x9AEE56
-    VhsSignal.hash24(7, 2, 0, 0) shouldBe 0x7840A1
-    VhsSignal.hash24(123456, 12, 215784, 479) shouldBe 0x0BF85C
-    VhsSignal.hash24(1984, 9, 59, 300) shouldBe 0x9BE378
+    FilterNoise.hash24(1984, 1, 3000, 240) shouldBe 0xEBA0F3
+    FilterNoise.hash24(1984, 6, 3600, 13553) shouldBe 0x9AEE56
+    FilterNoise.hash24(7, 2, 0, 0) shouldBe 0x7840A1
+    FilterNoise.hash24(123456, 12, 215784, 479) shouldBe 0x0BF85C
+    FilterNoise.hash24(1984, 9, 59, 300) shouldBe 0x9BE378
   }
 
   @Test
@@ -25,9 +28,9 @@ class VhsSignalTest {
     val buckets = IntArray(BUCKETS)
     for (tick in 3000 until 3100) {
       for (row in 0 until 480) {
-        val hash = VhsSignal.hash24(Vhs.DEFAULT_SEED, 6, tick, row)
+        val hash = FilterNoise.hash24(Vhs.DEFAULT_SEED, 6, tick, row)
         hash shouldBeInRange 0..0xFFFFFF
-        buckets[(VhsSignal.unorm(hash) * BUCKETS).toInt()]++
+        buckets[(FilterNoise.unorm(hash) * BUCKETS).toInt()]++
       }
     }
 
@@ -73,7 +76,7 @@ class VhsSignalTest {
     // A window with no tracking band at any intensity, so every term left in the shift is a linear strength.
     val tick =
       (0 until 100).first { window ->
-        VhsSignal.unorm(VhsSignal.hash24(Vhs.DEFAULT_SEED, PASS_TRACK_EVENT, window, 0)) >= TRACK_CHANCE_AT_ONE
+        FilterNoise.unorm(FilterNoise.hash24(Vhs.DEFAULT_SEED, PASS_TRACK_EVENT, window, 0)) >= TRACK_CHANCE_AT_ONE
       } * VhsSignal.trackWindowTicks + 30
     val row = VIRTUAL_ROWS - VhsSignal.headRows / 2
     val shiftAt = { intensity: Double ->

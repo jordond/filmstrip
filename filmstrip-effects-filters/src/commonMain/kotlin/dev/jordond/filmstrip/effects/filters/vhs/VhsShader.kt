@@ -1,6 +1,11 @@
 package dev.jordond.filmstrip.effects.filters.vhs
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.effects.filters.internal.HASH_GLSL
+import dev.jordond.filmstrip.effects.filters.internal.HASH_MASK
+import dev.jordond.filmstrip.effects.filters.internal.KB
+import dev.jordond.filmstrip.effects.filters.internal.KR
+import dev.jordond.filmstrip.effects.filters.internal.glslFloat
 
 /**
  * The one GLSL ES 3.00 fragment source that draws a [Vhs], read by media3 and the browser.
@@ -84,37 +89,21 @@ private fun fragmentSource(): String =
   uniform float uTrackChance, uTrackShift, uTrackNoise;
   uniform float uDesaturation, uLift;
 
-  const float KR = ${float(KR)};
-  const float KB = ${float(KB)};
+  const float KR = ${glslFloat(KR)};
+  const float KB = ${glslFloat(KB)};
   const float KG = 1.0 - KR - KB;
-  const float TICK_RATE = ${float(TICK_RATE)};
-  const float ROWS = ${float(VIRTUAL_ROWS.toDouble())};
+  const float TICK_RATE = ${glslFloat(TICK_RATE)};
+  const float ROWS = ${glslFloat(VIRTUAL_ROWS.toDouble())};
   const float PI = 3.14159265358979;
   const float TAU = 2.0 * PI;
-  const float WINDOW_TICKS = ${float(trackWindowTicksValue())};
-  const float HEAD_ROWS = ${float(headRowsValue())};
-  const float LUMA_STEP = ${float(LUMA_TAP_STEP)};
-  const float CHROMA_STEP = ${float(CHROMA_TAP_STEP)};
+  const float WINDOW_TICKS = ${glslFloat(trackWindowTicksValue())};
+  const float HEAD_ROWS = ${glslFloat(headRowsValue())};
+  const float LUMA_STEP = ${glslFloat(LUMA_TAP_STEP)};
+  const float CHROMA_STEP = ${glslFloat(CHROMA_TAP_STEP)};
   const float LUMA_W[${LUMA_TAPS + 1}] = float[${LUMA_TAPS + 1}](${tapTable(LUMA_TAPS, LUMA_TAP_STEP)});
   const float CHROMA_W[${CHROMA_TAPS + 1}] = float[${CHROMA_TAPS + 1}](${tapTable(CHROMA_TAPS, CHROMA_TAP_STEP)});
 
-  uint absorb(uint h, uint k) {
-    k = (k * ${HASH_M1}u) & ${HASH_MASK}u;
-    k ^= k >> ${HASH_ABSORB_SHIFT}u;
-    k = (k * ${HASH_M2}u) & ${HASH_MASK}u;
-    h = ((h ^ k) * ${HASH_FIVE}u + ${HASH_ADD}u) & ${HASH_MASK}u;
-    return h ^ (h >> ${HASH_MIX_SHIFT}u);
-  }
-
-  float draw(uint pass, uint tick, uint cell) {
-    uint h = absorb(absorb(absorb(uint(uSeed + 0.5), pass), tick & ${HASH_MASK}u), cell & ${HASH_MASK}u);
-    h ^= h >> ${HASH_END_SHIFT}u;
-    h = (h * ${HASH_M3}u) & ${HASH_MASK}u;
-    h ^= h >> ${HASH_ABSORB_SHIFT}u;
-    h = (h * ${HASH_M4}u) & ${HASH_MASK}u;
-    h ^= h >> ${HASH_END_SHIFT}u;
-    return float(h) / ${float(HASH_RANGE)};
-  }
+$HASH_GLSL
 
   float signedDraw(uint pass, uint tick, uint cell) { return draw(pass, tick, cell) * 2.0 - 1.0; }
 
@@ -124,25 +113,25 @@ private fun fragmentSource(): String =
     if (draw(${PASS_TRACK_EVENT}u, window, 0u) >= uTrackChance) return 0.0;
     float phase = float(tick % windowTicks) / WINDOW_TICKS;
     float start = draw(${PASS_TRACK_EVENT}u, window, 1u);
-    float centre = fract(start + ${float(TRACK_DRIFT * TRACK_WINDOW_SECONDS)} * phase);
+    float centre = fract(start + ${glslFloat(TRACK_DRIFT * TRACK_WINDOW_SECONDS)} * phase);
     float d = abs((float(row) + 0.5) / ROWS - centre);
     d = min(d, 1.0 - d);
-    return sin(PI * phase) * (1.0 - smoothstep(0.0, ${float(0.5 * TRACK_BAND)}, d));
+    return sin(PI * phase) * (1.0 - smoothstep(0.0, ${glslFloat(0.5 * TRACK_BAND)}, d));
   }
 
   float rowShift(uint tick, uint row) {
     float seconds = float(tick) / TICK_RATE;
     float y = (float(row) + 0.5) / ROWS;
     float phase = draw(${PASS_WAVE}u, 0u, 0u);
-    float first = sin(TAU * (${float(WAVE_CYCLES)} * y + ${float(WAVE_HZ)} * seconds + phase));
-    float second = sin(TAU * (${float(WAVE_SECOND_CYCLES * WAVE_CYCLES)} * y +
-      ${float(WAVE_SECOND_HZ * WAVE_HZ)} * seconds + 2.0 * phase));
+    float first = sin(TAU * (${glslFloat(WAVE_CYCLES)} * y + ${glslFloat(WAVE_HZ)} * seconds + phase));
+    float second = sin(TAU * (${glslFloat(WAVE_SECOND_CYCLES * WAVE_CYCLES)} * y +
+      ${glslFloat(WAVE_SECOND_HZ * WAVE_HZ)} * seconds + 2.0 * phase));
     float shift = uJitter * signedDraw(${PASS_JITTER}u, tick, row);
-    shift += uWave * (${float(WAVE_FIRST)} * first + ${float(1.0 - WAVE_FIRST)} * second);
+    shift += uWave * (${glslFloat(WAVE_FIRST)} * first + ${glslFloat(1.0 - WAVE_FIRST)} * second);
     float intoBand = float(row) - (ROWS - HEAD_ROWS);
     if (intoBand >= 0.0) {
-      float wobble = 1.0 + ${float(HEAD_WOBBLE)} * signedDraw(${PASS_HEAD}u, tick, 0u);
-      shift += uHeadShift * wobble * pow((intoBand + ${float(HEAD_OFFSET)}) / HEAD_ROWS, ${float(HEAD_POWER)});
+      float wobble = 1.0 + ${glslFloat(HEAD_WOBBLE)} * signedDraw(${PASS_HEAD}u, tick, 0u);
+      shift += uHeadShift * wobble * pow((intoBand + ${glslFloat(HEAD_OFFSET)}) / HEAD_ROWS, ${glslFloat(HEAD_POWER)});
     }
     return shift + uTrackShift * tracking(tick, row) * signedDraw(${PASS_TRACK_SHIFT}u, tick, row);
   }
@@ -159,12 +148,12 @@ private fun fragmentSource(): String =
   float dropout(uint tick, uint row, float x) {
     if (draw(${PASS_DROP_EVENT}u, tick, row) >= uDropoutChance) return 0.0;
     float start = draw(${PASS_DROP_POS}u, tick, row);
-    float len = ${float(DROPOUT_LENGTH)} *
-      (${float(DROPOUT_LENGTH_MIN)} + ${float(DROPOUT_LENGTH_SPREAD)} * draw(${PASS_DROP_LEN}u, tick, row));
+    float len = ${glslFloat(DROPOUT_LENGTH)} *
+      (${glslFloat(DROPOUT_LENGTH_MIN)} + ${glslFloat(DROPOUT_LENGTH_SPREAD)} * draw(${PASS_DROP_LEN}u, tick, row));
     float d = x - start;
     if (d < 0.0 || d > len) return 0.0;
-    return smoothstep(0.0, ${float(DROPOUT_RISE)} * len, d) *
-      (1.0 - smoothstep(${float(DROPOUT_FALL)} * len, len, d));
+    return smoothstep(0.0, ${glslFloat(DROPOUT_RISE)} * len, d) *
+      (1.0 - smoothstep(${glslFloat(DROPOUT_FALL)} * len, len, d));
   }
 
   vec3 rgbToYcc(vec3 c) {
@@ -226,12 +215,12 @@ private fun fragmentSource(): String =
     float band = tracking(tick, row);
     float drop = dropout(tick, row, x);
     uint chromaRow = row / ${CHROMA_NOISE_ROWS}u;
-    float chromaCell = ${float(STREAK * CHROMA_COARSENESS)};
-    float chromaGain = (1.0 - ${float(TRACK_CHROMA_LOSS)} * band) * (1.0 - drop) * (1.0 - uDesaturation);
+    float chromaCell = ${glslFloat(STREAK * CHROMA_COARSENESS)};
+    float chromaGain = (1.0 - ${glslFloat(TRACK_CHROMA_LOSS)} * band) * (1.0 - drop) * (1.0 - uDesaturation);
 
     float luma = sharp + uHaloGain * (sharp - wide);
-    luma += uLumaNoise * streak(${PASS_LUMA_NOISE}u, tick, row, x, ${float(STREAK)});
-    luma += uTrackNoise * band * streak(${PASS_TRACK_NOISE}u, tick, row, x, ${float(TRACK_NOISE_CELL)});
+    luma += uLumaNoise * streak(${PASS_LUMA_NOISE}u, tick, row, x, ${glslFloat(STREAK)});
+    luma += uTrackNoise * band * streak(${PASS_TRACK_NOISE}u, tick, row, x, ${glslFloat(TRACK_NOISE_CELL)});
     luma += (1.0 - luma) * drop;
     luma = uLift + luma * (1.0 - uLift);
     float cb = (chroma.x + uChromaNoise * streak(${PASS_CB_NOISE}u, tick, chromaRow, x, chromaCell)) * chromaGain;
@@ -246,14 +235,8 @@ private fun fragmentSource(): String =
 private fun tapTable(
   taps: Int,
   step: Double,
-): String = (0..taps).joinToString { float(VhsSignal.tapWeight(it, step)) }
+): String = (0..taps).joinToString { glslFloat(VhsSignal.tapWeight(it, step)) }
 
 private fun trackWindowTicksValue(): Double = VhsSignal.trackWindowTicks.toDouble()
 
 private fun headRowsValue(): Double = VhsSignal.headRows.toDouble()
-
-// A double as a GLSL float literal. A browser prints a whole double with no point, which GLSL reads as an int.
-private fun float(value: Double): String {
-  val text = value.toString()
-  return if (text.contains('.') || text.contains('e') || text.contains('E')) text else "$text.0"
-}

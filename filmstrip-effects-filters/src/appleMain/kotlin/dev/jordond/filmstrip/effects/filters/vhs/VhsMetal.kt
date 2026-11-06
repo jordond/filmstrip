@@ -1,5 +1,9 @@
 package dev.jordond.filmstrip.effects.filters.vhs
 
+import dev.jordond.filmstrip.effects.filters.internal.HASH_MSL
+import dev.jordond.filmstrip.effects.filters.internal.KB
+import dev.jordond.filmstrip.effects.filters.internal.KR
+
 /**
  * The name of the Core Image kernel in [vhsMetal].
  */
@@ -55,25 +59,11 @@ internal fun vhsMetal(): String =
     float lift;
   };
 
-  uint vhsAbsorb(uint h, uint k) {
-    k = (k * ${HASH_M1}u) & ${HASH_MASK}u;
-    k ^= k >> ${HASH_ABSORB_SHIFT}u;
-    k = (k * ${HASH_M2}u) & ${HASH_MASK}u;
-    h = ((h ^ k) * ${HASH_FIVE}u + ${HASH_ADD}u) & ${HASH_MASK}u;
-    return h ^ (h >> ${HASH_MIX_SHIFT}u);
-  }
+$HASH_MSL
 
-  float vhsDraw(uint seed, uint pass, uint tick, uint cell) {
-    uint h = vhsAbsorb(vhsAbsorb(vhsAbsorb(seed, pass), tick & ${HASH_MASK}u), cell & ${HASH_MASK}u);
-    h ^= h >> ${HASH_END_SHIFT}u;
-    h = (h * ${HASH_M3}u) & ${HASH_MASK}u;
-    h ^= h >> ${HASH_ABSORB_SHIFT}u;
-    h = (h * ${HASH_M4}u) & ${HASH_MASK}u;
-    h ^= h >> ${HASH_END_SHIFT}u;
-    return float(h) / ${metal(HASH_RANGE)};
+  float vhsSigned(uint seed, uint pass, uint tick, uint cell) {
+    return filterDraw(seed, pass, tick, cell) * 2.0f - 1.0f;
   }
-
-  float vhsSigned(uint seed, uint pass, uint tick, uint cell) { return vhsDraw(seed, pass, tick, cell) * 2.0f - 1.0f; }
 
   float vhsSmooth(float from, float to, float value) {
     float t = clamp((value - from) / (to - from), 0.0f, 1.0f);
@@ -83,9 +73,9 @@ internal fun vhsMetal(): String =
   float vhsTracking(VhsTape tape, uint row) {
     uint windowTicks = uint(VHS_WINDOW_TICKS);
     uint window = tape.tick / windowTicks;
-    if (vhsDraw(tape.seed, ${PASS_TRACK_EVENT}u, window, 0u) >= tape.trackChance) return 0.0f;
+    if (filterDraw(tape.seed, ${PASS_TRACK_EVENT}u, window, 0u) >= tape.trackChance) return 0.0f;
     float phase = float(tape.tick % windowTicks) / VHS_WINDOW_TICKS;
-    float start = vhsDraw(tape.seed, ${PASS_TRACK_EVENT}u, window, 1u);
+    float start = filterDraw(tape.seed, ${PASS_TRACK_EVENT}u, window, 1u);
     float centre = fract(start + ${metal(TRACK_DRIFT * TRACK_WINDOW_SECONDS)} * phase);
     float d = abs((float(row) + 0.5f) / VHS_ROWS - centre);
     d = min(d, 1.0f - d);
@@ -95,7 +85,7 @@ internal fun vhsMetal(): String =
   float vhsRowShift(VhsTape tape, uint row) {
     float seconds = float(tape.tick) / VHS_TICK_RATE;
     float y = (float(row) + 0.5f) / VHS_ROWS;
-    float phase = vhsDraw(tape.seed, ${PASS_WAVE}u, 0u, 0u);
+    float phase = filterDraw(tape.seed, ${PASS_WAVE}u, 0u, 0u);
     float first = sin(VHS_TAU * (${metal(WAVE_CYCLES)} * y + ${metal(WAVE_HZ)} * seconds + phase));
     float second = sin(VHS_TAU * (${metal(WAVE_SECOND_CYCLES * WAVE_CYCLES)} * y +
       ${metal(WAVE_SECOND_HZ * WAVE_HZ)} * seconds + 2.0f * phase));
@@ -111,7 +101,7 @@ internal fun vhsMetal(): String =
   }
 
   float vhsStreak(VhsTape tape, uint pass, uint row, float x, float cellLength) {
-    float u = x / cellLength + vhsDraw(tape.seed, pass, tape.tick, row);
+    float u = x / cellLength + filterDraw(tape.seed, pass, tape.tick, row);
     float f = fract(u);
     uint cell = uint(floor(u));
     float a = vhsSigned(tape.seed, pass, tape.tick, row + (cell + 1u) * ${ROW_CELL_STRIDE}u);
@@ -120,10 +110,10 @@ internal fun vhsMetal(): String =
   }
 
   float vhsDropout(VhsTape tape, uint row, float x) {
-    if (vhsDraw(tape.seed, ${PASS_DROP_EVENT}u, tape.tick, row) >= tape.dropoutChance) return 0.0f;
-    float start = vhsDraw(tape.seed, ${PASS_DROP_POS}u, tape.tick, row);
+    if (filterDraw(tape.seed, ${PASS_DROP_EVENT}u, tape.tick, row) >= tape.dropoutChance) return 0.0f;
+    float start = filterDraw(tape.seed, ${PASS_DROP_POS}u, tape.tick, row);
     float len = ${metal(DROPOUT_LENGTH)} * (${metal(DROPOUT_LENGTH_MIN)} +
-      ${metal(DROPOUT_LENGTH_SPREAD)} * vhsDraw(tape.seed, ${PASS_DROP_LEN}u, tape.tick, row));
+      ${metal(DROPOUT_LENGTH_SPREAD)} * filterDraw(tape.seed, ${PASS_DROP_LEN}u, tape.tick, row));
     float d = x - start;
     if (d < 0.0f || d > len) return 0.0f;
     return vhsSmooth(0.0f, ${metal(DROPOUT_RISE)} * len, d) * (1.0f - vhsSmooth(${metal(DROPOUT_FALL)} * len, len, d));

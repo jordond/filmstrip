@@ -1,6 +1,13 @@
 package dev.jordond.filmstrip.effects.filters.vhs
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.effects.filters.internal.FilterNoise
+import dev.jordond.filmstrip.effects.filters.internal.FilterNoise.hash24
+import dev.jordond.filmstrip.effects.filters.internal.FilterNoise.snorm
+import dev.jordond.filmstrip.effects.filters.internal.FilterNoise.unorm
+import dev.jordond.filmstrip.effects.filters.internal.KB
+import dev.jordond.filmstrip.effects.filters.internal.KR
+import dev.jordond.filmstrip.effects.filters.internal.smoothstep
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -17,23 +24,6 @@ internal const val VIRTUAL_ROWS = 480
 // The two figures sigmaFor is made of: cycles of picture width per MHz, and sigma times frequency at -3 dB.
 private const val CYCLES_PER_MHZ = 52.0
 private const val SIGMA_AT_CUTOFF = 0.1325
-
-// BT.709 luma weights.
-internal const val KR = 0.2126
-internal const val KB = 0.0722
-
-// hash24's constants. A multiplier below 2^24 keeps its product inside a double's 53 bits.
-internal const val HASH_M1 = 0x9E2D51
-internal const val HASH_M2 = 0x873593
-internal const val HASH_M3 = 0xEBCA6B
-internal const val HASH_M4 = 0xB2AE35
-internal const val HASH_FIVE = 5
-internal const val HASH_ADD = 0x546B64
-internal const val HASH_MASK = 0xFFFFFF
-internal const val HASH_RANGE = 16_777_216.0
-internal const val HASH_ABSORB_SHIFT = 11
-internal const val HASH_MIX_SHIFT = 13
-internal const val HASH_END_SHIFT = 12
 
 // One random stream per thing that gets drawn.
 internal const val PASS_JITTER = 1
@@ -89,43 +79,10 @@ private const val TAU = 2.0 * PI
  *
  * Positions are `x` in fractions of the frame width and `row` on the 480 line virtual raster, and time is a [tickAt] of
  * the frame's composition time, so the pattern does not move with a seek or a render size. Every random draw is one
- * [hash24], whose steps stay inside what GLSL, MSL, Kotlin and an ffmpeg expression can all compute exactly.
+ * [FilterNoise.hash24].
  */
 @InternalFilmstripApi
 public object VhsSignal {
-  /**
-   * Draws 24 random bits from [seed], the stream [passId], [tick] and [cell].
-   *
-   * A product keeps its low 24 bits, which a wrapping 32 bit multiply and a double's 53 bits both get exactly. Xor and
-   * shift can be written as `bitor(a,b)-bitand(a,b)` and `floor` where an expression has neither.
-   */
-  public fun hash24(
-    seed: Int,
-    passId: Int,
-    tick: Int,
-    cell: Int,
-  ): Int {
-    var h = seed and HASH_MASK
-    h = absorb(h, passId)
-    h = absorb(h, tick)
-    h = absorb(h, cell)
-    h = h xor (h ushr HASH_END_SHIFT)
-    h = multiply(h, HASH_M3)
-    h = h xor (h ushr HASH_ABSORB_SHIFT)
-    h = multiply(h, HASH_M4)
-    return h xor (h ushr HASH_END_SHIFT)
-  }
-
-  /**
-   * A [hash24] as a value from `0.0` up to but not including `1.0`.
-   */
-  public fun unorm(hash: Int): Double = hash / HASH_RANGE
-
-  /**
-   * A [hash24] as a value from `-1.0` up to but not including `1.0`.
-   */
-  public fun snorm(hash: Int): Double = unorm(hash) * 2.0 - 1.0
-
   /**
    * The tick a frame at [seconds] of composition time sits on, rounded to the nearest.
    */
@@ -363,30 +320,5 @@ public object VhsSignal {
     cell: Int,
   ): Int = row + cell * ROW_CELL_STRIDE
 
-  private fun absorb(
-    h: Int,
-    input: Int,
-  ): Int {
-    var k = multiply(input and HASH_MASK, HASH_M1)
-    k = k xor (k ushr HASH_ABSORB_SHIFT)
-    k = multiply(k, HASH_M2)
-    val mixed = (((h xor k).toLong() * HASH_FIVE + HASH_ADD) and HASH_MASK.toLong()).toInt()
-    return mixed xor (mixed ushr HASH_MIX_SHIFT)
-  }
-
-  private fun multiply(
-    a: Int,
-    b: Int,
-  ): Int = ((a.toLong() * b.toLong()) and HASH_MASK.toLong()).toInt()
-
   private fun fract(value: Double): Double = value - floor(value)
-
-  private fun smoothstep(
-    from: Double,
-    to: Double,
-    value: Double,
-  ): Double {
-    val t = ((value - from) / (to - from)).coerceIn(0.0, 1.0)
-    return t * t * (3.0 - 2.0 * t)
-  }
 }

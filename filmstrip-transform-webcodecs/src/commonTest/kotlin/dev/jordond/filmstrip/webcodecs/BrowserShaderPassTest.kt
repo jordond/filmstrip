@@ -14,7 +14,7 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.WebGlPass
-import dev.jordond.filmstrip.effect.WebGlShader
+import dev.jordond.filmstrip.effect.WebGlStep
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
@@ -310,7 +310,7 @@ class BrowserShaderPassTest {
 }
 
 private class ShaderEffect(
-  val shader: WebGlShader,
+  val shader: WebGlStep,
   override val stage: EffectStage = EffectStage.Composite,
   beneath: Boolean = true,
   val key: String = shader.fragmentSource,
@@ -333,7 +333,7 @@ private val ShaderResolver =
   EffectResolver { spec, _, _ ->
     when (spec) {
       is ShaderEffect -> {
-        EffectResolution.Resolved(PlatformEffect(WebGlPass(spec.key, spec.shader)))
+        EffectResolution.Resolved(PlatformEffect(WebGlPass(spec.key, listOf(spec.shader))))
       }
       is Grade -> {
         val half = floatArrayOf(0.5f, 0f, 0f, 0f, 0f, 0.5f, 0f, 0f, 0f, 0f, 0.5f, 0f, 0f, 0f, 0f, 1f)
@@ -367,7 +367,7 @@ private fun fragment(body: String): String =
 private fun shader(
   body: String,
   uniforms: (Duration, Int, Int) -> Map<String, FloatArray> = { _, _, _ -> emptyMap() },
-) = WebGlShader(fragment(body), "uFrame", uniforms)
+) = WebGlStep("draw", fragment(body), mapOf("uFrame" to WebGlStep.INPUT), uniformsAt = uniforms)
 
 private val INVERT = shader("fragColor = vec4(1.0 - c.rgb, c.a);")
 private val HALVE =

@@ -54,6 +54,22 @@ internal class FilterGraphBuilder {
   private val chains = mutableListOf<String>()
   private val produced = mutableSetOf<String>()
   private val consumed = mutableListOf<String>()
+  private val sources = linkedMapOf<List<FilterNode>, MutableList<String>>()
+
+  /**
+   * A chain that reads no pad, such as a still a filter reads from a file, writing [output].
+   *
+   * Sources with the same [nodes] share one run of them, fanned out when the graph is built, so what a filter holds on
+   * to for the whole run is held once however many clips read it.
+   */
+  fun source(
+    nodes: List<FilterNode>,
+    output: String,
+  ) {
+    require(nodes.isNotEmpty()) { "A source needs at least one filter" }
+    require(produced.add(output)) { "Pad [$output] is written twice" }
+    sources.getOrPut(nodes) { mutableListOf() } += output
+  }
 
   fun chain(
     inputs: List<String>,
@@ -159,6 +175,10 @@ internal class FilterGraphBuilder {
   }
 
   fun build(vararg terminals: String): String {
+    sources.forEach { (nodes, outputs) ->
+      val fanned = if (outputs.size > 1) ",split=${outputs.size}" else ""
+      chains += nodes.render() + fanned + outputs.joinToString("") { "[$it]" }
+    }
     val readTwice =
       consumed
         .groupingBy { it }

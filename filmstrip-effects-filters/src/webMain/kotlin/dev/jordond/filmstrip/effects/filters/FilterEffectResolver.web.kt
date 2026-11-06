@@ -6,6 +6,12 @@ import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effect.RenderCapabilities
+import dev.jordond.filmstrip.effects.filters.crt.Crt
+import dev.jordond.filmstrip.effects.filters.crt.crtPass
+import dev.jordond.filmstrip.effects.filters.film.Film
+import dev.jordond.filmstrip.effects.filters.film.filmPass
+import dev.jordond.filmstrip.effects.filters.lut.Lut
+import dev.jordond.filmstrip.effects.filters.lut.lutPass
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.effects.filters.vhs.vhsPass
 
@@ -20,6 +26,9 @@ public actual class FilterEffectResolver actual constructor() : EffectResolver {
   ): EffectResolution? =
     when (spec) {
       is Vhs -> EffectResolution.Resolved(PlatformEffect(vhsPass(spec)))
+      is Film -> EffectResolution.Resolved(PlatformEffect(filmPass(spec)))
+      is Crt -> EffectResolution.Resolved(PlatformEffect(crtPass(spec)))
+      is Lut -> EffectResolution.Resolved(PlatformEffect(lutPass(spec)))
       else -> null
     }
 }

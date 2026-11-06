@@ -26,7 +26,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainResult
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.COLOR_READ_BITRATE
 import dev.jordond.filmstrip.ffmpeg.support.ExportConstants.TIMEOUT
 import dev.jordond.filmstrip.ffmpeg.support.FfmpegExportFixture
-import dev.jordond.filmstrip.ffmpeg.support.VhsFrames
+import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.hdr.Rgb
@@ -95,7 +95,7 @@ class FfmpegToneCurveTest {
       )
     fixture.exported(verdict.shouldBeInstanceOf<Verdict.Capable>().plan, output)
     // The preview takes the grade off the export it stands in for, so its own frame spec asks for nothing.
-    val previewed = VhsFrames().frames(composition, Duration.ZERO, 1, grade = ResolvedHdr.ToneMap).single()
+    val previewed = FilterFrames().frames(composition, Duration.ZERO, 1, grade = ResolvedHdr.ToneMap).single()
 
     codes.forEachIndexed { index, patch ->
       val decoded = signalFromTenBitCodes(patch[0], patch[1], patch[2])

@@ -160,8 +160,9 @@ class ReadbackSurfaceTest {
   fun `a readback still in flight is cancelled once the playhead moves past it`() =
     runComposeUiTest {
       val readback = ScriptedReadback { null }
-      val engine = RecordingEngine(readback)
+      val engine = RecordingEngine(readback, initialState = RecordingEngine.PREPARING)
       showSurface(engine, VideoContentScale.Fit)
+      engine.reportState(RecordingEngine.READY)
       waitForIdle()
 
       engine.reportPosition(ON_TICK)

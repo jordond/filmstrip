@@ -143,6 +143,8 @@ internal external interface WebGl2 : JsAny {
 
   fun deleteTexture(texture: JsAny?)
 
+  fun isTexture(texture: JsAny?): Boolean
+
   fun createFramebuffer(): JsAny?
 
   fun bindFramebuffer(

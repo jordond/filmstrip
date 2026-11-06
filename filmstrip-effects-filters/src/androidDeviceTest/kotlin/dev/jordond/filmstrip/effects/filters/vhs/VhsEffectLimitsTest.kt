@@ -5,6 +5,7 @@ import android.opengl.EGLConfig
 import androidx.media3.common.VideoFrameProcessingException
 import androidx.media3.common.util.GlUtil
 import androidx.test.platform.app.InstrumentationRegistry
+import dev.jordond.filmstrip.effects.filters.internal.requireGles3
 import io.kotest.matchers.string.shouldContain
 import org.junit.Assume.assumeTrue
 import kotlin.test.Test
@@ -19,7 +20,7 @@ class VhsEffectLimitsTest {
 
   @Test
   fun aContextBelowGles3IsRefusedByName() {
-    val refused = assertFailsWith<VideoFrameProcessingException> { requireGles3(2) }
+    val refused = assertFailsWith<VideoFrameProcessingException> { requireGles3("Vhs", 2) }
 
     refused.message.orEmpty() shouldContain "Vhs needs OpenGL ES 3"
     refused.message.orEmpty() shouldContain "OpenGL ES 2"
@@ -27,7 +28,7 @@ class VhsEffectLimitsTest {
 
   @Test
   fun aGles3ContextIsLetThrough() {
-    requireGles3(3)
+    requireGles3("Vhs", 3)
   }
 
   @Test

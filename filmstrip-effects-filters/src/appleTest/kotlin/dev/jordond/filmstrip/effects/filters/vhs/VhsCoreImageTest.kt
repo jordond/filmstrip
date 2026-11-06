@@ -5,6 +5,8 @@ import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.FrameInfo
 import dev.jordond.filmstrip.effects.color.createCodeSpace
+import dev.jordond.filmstrip.effects.filters.internal.KB
+import dev.jordond.filmstrip.effects.filters.internal.KR
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
 import io.kotest.assertions.withClue

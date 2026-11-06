@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.effect.CoreImageEffect
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.effects.color.inCodesOf
+import dev.jordond.filmstrip.effects.filters.internal.HASH_MASK
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.interpretObjCPointer

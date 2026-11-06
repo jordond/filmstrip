@@ -11,6 +11,8 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
+import dev.jordond.filmstrip.effects.filters.crt.Crt
+import dev.jordond.filmstrip.effects.filters.film.Film
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
@@ -97,6 +99,36 @@ class CanvasChromaGridTest {
     graph shouldContain "pad=w=${output.width}:h=${output.height}:x=$x:y=$y:color="
   }
 
+  // A Film ends in 4:2:0 on either of its paths, so the tail after it lands on the even row above too.
+  @Test
+  fun `a clip tail after a film pads on the even row at or above the shared one`() {
+    listOf(Film(), Film(grain = 0.5f, halation = 0f), Film(grain = 0f, halation = 0.5f)).forEach { film ->
+      val effects = listOf(WIDE_CANVAS, logo(), film)
+      val (graph, output) = lowered(effects)
+      val rect = placementOf(ODD_SOURCE, listOf(effects), output).drawnRect.inWholePixelsOf(output)
+      withClue("the shared rect has to start on an odd row for this to tell, it starts on ${rect.top}") {
+        (rect.top % 2) shouldBe 1
+      }
+
+      val (x, y) = rect.drawnAt(ChromaGrid.Subsampled)
+      graph shouldContain "pad=w=${output.width}:h=${output.height}:x=$x:y=$y:color="
+    }
+  }
+
+  // A Crt ends in 4:2:0 too, off its gbrap round trip.
+  @Test
+  fun `a clip tail after a crt pads on the even row at or above the shared one`() {
+    val effects = listOf(WIDE_CANVAS, logo(), Crt())
+    val (graph, output) = lowered(effects)
+    val rect = placementOf(ODD_SOURCE, listOf(effects), output).drawnRect.inWholePixelsOf(output)
+    withClue("the shared rect has to start on an odd row for this to tell, it starts on ${rect.top}") {
+      (rect.top % 2) shouldBe 1
+    }
+
+    val (x, y) = rect.drawnAt(ChromaGrid.Subsampled)
+    graph shouldContain "pad=w=${output.width}:h=${output.height}:x=$x:y=$y:color="
+  }
+
   private fun lowered(effects: List<EffectSpec>): Pair<String, Size> {
     val composition = EditComposition(listOf(Track(listOf(Clip(landscape), Clip(odd, effects = effects)))))
     val lowering =
@@ -157,7 +189,7 @@ class CanvasChromaGridTest {
         ffmpeg = "ffmpeg",
         ffprobe = "ffprobe",
         version = FfmpegVersion("ffmpeg version 9.0.1", 9, 0),
-        filters = CATALOGUE_FILTERS + VHS_FILTERS,
+        filters = CATALOGUE_FILTERS + VHS_FILTERS + FILM_FILTERS + CRT_FILTERS,
         encoders = setOf("libx264", "aac"),
       )
   }

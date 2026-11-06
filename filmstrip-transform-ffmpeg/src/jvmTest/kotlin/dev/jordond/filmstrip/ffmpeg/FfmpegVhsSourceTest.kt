@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.ffmpeg
 import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.effects.filters.vhs.VhsParams
 import dev.jordond.filmstrip.effects.filters.vhs.VhsSignal
+import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
 import dev.jordond.filmstrip.ffmpeg.support.VHS_CHROMA_CODES
 import dev.jordond.filmstrip.ffmpeg.support.VHS_CHROMA_SPAN
 import dev.jordond.filmstrip.ffmpeg.support.VHS_CHROMA_ZERO
@@ -14,7 +15,6 @@ import dev.jordond.filmstrip.ffmpeg.support.VHS_LUMA_BLACK
 import dev.jordond.filmstrip.ffmpeg.support.VHS_LUMA_CODES
 import dev.jordond.filmstrip.ffmpeg.support.VHS_LUMA_SPAN
 import dev.jordond.filmstrip.ffmpeg.support.VHS_WIDTH
-import dev.jordond.filmstrip.ffmpeg.support.VhsFrames
 import dev.jordond.filmstrip.ffmpeg.support.assertReadsSignal
 import dev.jordond.filmstrip.ffmpeg.support.chromaPlanesOf
 import dev.jordond.filmstrip.ffmpeg.support.lumaPlaneOf
@@ -35,7 +35,7 @@ import io.kotest.matchers.doubles.shouldBeLessThan as shouldBeBelow
  * Reads a [Vhs] against [VhsSignal] where a source's format, the frame's edges or a tiny blur could take it off.
  */
 class FfmpegVhsSourceTest {
-  private val draw = VhsFrames()
+  private val draw = FilterFrames()
 
   // A clip's chain runs on the source's own format, and the tape's expressions are written in 8 bit limited codes.
   @Test

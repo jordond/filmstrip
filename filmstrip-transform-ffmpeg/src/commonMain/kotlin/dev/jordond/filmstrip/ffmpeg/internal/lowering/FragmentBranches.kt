@@ -52,6 +52,8 @@ internal fun FilterGraphBuilder.branches(
   fragment.branches.forEach { branch ->
     if (branch.writes.size > 1) {
       split(pad(branch.reads.single()), branch.writes.map(pad))
+    } else if (branch.reads.isEmpty()) {
+      source(branch.nodes, pad(branch.writes.single()))
     } else {
       chain(branch.reads.map(pad), branch.nodes, pad(branch.writes.single()))
     }

@@ -41,11 +41,12 @@ import kotlin.time.Duration
 import kotlin.time.DurationUnit
 
 /**
- * Draws a composition with a Vhs in it and hands back the RGBA frames, read off the preview pump or off a written file.
+ * Draws a composition with a filter in it and hands back the RGBA frames, read off the preview pump or off a written
+ * file.
  *
  * The preview runs the export's own graph, so a pump frame is what an export encodes before the encoder touches it.
  */
-internal class VhsFrames {
+internal class FilterFrames {
   private val components =
     ComponentRegistry
       .Builder()
@@ -107,7 +108,8 @@ internal class VhsFrames {
   }
 
   /**
-   * Frame [slot] of the graph [frames] runs, as the planes it writes, with no conversion to RGBA after it.
+   * Frame [slot] of the graph [frames] runs, as 8 bit limited range BT.709 planes with no conversion to RGBA after it.
+   * A graph that already writes those codes hands them over as they are.
    */
   suspend fun planesAt(
     composition: EditComposition,
@@ -129,7 +131,7 @@ internal class VhsFrames {
             invocation.inputs.map { scratch.resolve(it.source).path },
             invocation.sidecars.map { scratch.write(it) },
             Duration.ZERO,
-          ).map { if (it == PREVIEW_PIXEL_FORMAT) PLANES_FORMAT else it }
+          ).flatMap { if (it == PREVIEW_PIXEL_FORMAT) PLANES_ARGUMENTS else listOf(it) }
           .readingGraphFrom(scratch)
       val size = invocation.output.size
       val bytes = size.width * size.height * PLANES_BYTES_PER_TWO_PIXELS / 2
@@ -151,7 +153,7 @@ internal class VhsFrames {
     slot: Int,
     spec: ExportSpec,
   ): ByteArray {
-    val output = File.createTempFile("vhs-export", ".mp4").apply { deleteOnExit() }
+    val output = File.createTempFile("filter-export", ".mp4").apply { deleteOnExit() }
     output.delete()
     val plan = planOf(composition, spec)
     val finished = filmstrip.export(plan, MediaSink.of(output.absolutePath)).toList().last()
@@ -179,9 +181,9 @@ internal class VhsFrames {
       val rgb = source((x + 0.5) / width).map { (it * FULL).roundToInt() }
       for (y in 0 until height) image.setRGB(x, y, (rgb[0] shl 16) or (rgb[1] shl 8) or rgb[2])
     }
-    val still = File.createTempFile("vhs-still", ".png").apply { deleteOnExit() }
+    val still = File.createTempFile("filter-still", ".png").apply { deleteOnExit() }
     ImageIO.write(image, "png", still)
-    val video = File.createTempFile("vhs-still", ".mkv").apply { deleteOnExit() }
+    val video = File.createTempFile("filter-still", ".mkv").apply { deleteOnExit() }
     val convert =
       if (onSmpteC) {
         "scale=out_color_matrix=bt601:out_range=$range," +
@@ -203,7 +205,7 @@ internal class VhsFrames {
         "-t",
         "2",
         "-r",
-        "$VHS_RATE",
+        "$FILTER_RATE",
         "-vf",
         convert,
         "-colorspace",
@@ -242,9 +244,9 @@ internal class VhsFrames {
           else -> cr((i - cbEnd) % chromaWidth)
         }.toByte()
       }
-    val frame = File.createTempFile("vhs-planes", ".yuv").apply { deleteOnExit() }
+    val frame = File.createTempFile("filter-planes", ".yuv").apply { deleteOnExit() }
     frame.writeBytes(raw)
-    val video = File.createTempFile("vhs-planes", ".mkv").apply { deleteOnExit() }
+    val video = File.createTempFile("filter-planes", ".mkv").apply { deleteOnExit() }
     val encode =
       ProcessBuilder(
         "ffmpeg",
@@ -259,7 +261,7 @@ internal class VhsFrames {
         "-s",
         "${width}x$height",
         "-r",
-        "$VHS_RATE",
+        "$FILTER_RATE",
         // Named on the input as well, or ffmpeg converts to reach the output's range and floors a super-black code.
         "-colorspace",
         "bt709",
@@ -324,7 +326,7 @@ internal class VhsFrames {
 }
 
 /**
- * One frame's planes as a graph wrote them, 8 bit limited range 4:2:0.
+ * One frame's planes, 8 bit limited range 4:2:0.
  */
 internal class Yuv420Frame(
   val width: Int,
@@ -358,8 +360,9 @@ internal class Yuv420Frame(
 
 private const val PLANES_FORMAT = "yuv420p"
 private const val PLANES_BYTES_PER_TWO_PIXELS = 3
+private val PLANES_ARGUMENTS = listOf(PLANES_FORMAT, "-color_range", "tv", "-colorspace", "bt709")
 
-internal const val VHS_RATE = 30
+internal const val FILTER_RATE = 30
 internal const val RGBA = 4
 internal const val BYTE = 0xFF
 internal const val FULL = 255.0

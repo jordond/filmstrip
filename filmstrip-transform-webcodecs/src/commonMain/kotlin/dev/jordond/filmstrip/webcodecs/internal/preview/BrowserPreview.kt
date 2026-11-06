@@ -134,6 +134,11 @@ public class BrowserPreview internal constructor(
   internal val drawnAtUs: Double? get() = compositor?.compositionUs
 
   /**
+   * The texture of every table the compositor holds right now, and nothing when this preview holds no compositor.
+   */
+  internal val tableTextures: List<JsAny> get() = compositor?.tableTextures.orEmpty()
+
+  /**
    * Draws the frame at [position] and reads it back, or null when the composition has none there.
    *
    * The position is snapped to the output frame grid first, so the decoded frame chosen is the one
@@ -273,7 +278,7 @@ public class BrowserPreview internal constructor(
       compositor = null
     }
     // The swap resolved every overlay again, so what the old plan uploaded is never drawn.
-    compositor?.forgetOverlays()
+    compositor?.forgetUploads()
     render = incoming
     resolved = next
     return true

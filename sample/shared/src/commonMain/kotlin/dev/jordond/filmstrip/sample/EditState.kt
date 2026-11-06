@@ -21,6 +21,10 @@ import dev.jordond.filmstrip.effects.color.invert
 import dev.jordond.filmstrip.effects.color.rgbAdjustment
 import dev.jordond.filmstrip.effects.color.saturation
 import dev.jordond.filmstrip.effects.color.sepia
+import dev.jordond.filmstrip.effects.filters.crt.crt
+import dev.jordond.filmstrip.effects.filters.lut.CubeLut
+import dev.jordond.filmstrip.effects.filters.lut.lut
+import dev.jordond.filmstrip.effects.filters.film.film
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.vhs
 import dev.jordond.filmstrip.effects.geometry.crop
@@ -123,6 +127,13 @@ public class EditState {
   var vhsEnabled: Boolean by mutableStateOf(false)
   var vhsIntensity: Float by mutableStateOf(1f)
   var vhsTape: TapeSpeed by mutableStateOf(TapeSpeed.EP)
+  var filmEnabled: Boolean by mutableStateOf(false)
+  var filmGrain: Float by mutableStateOf(0.5f)
+  var filmHalation: Float by mutableStateOf(0.5f)
+  var crtEnabled: Boolean by mutableStateOf(false)
+  var crtIntensity: Float by mutableStateOf(1f)
+  var lutEnabled: Boolean by mutableStateOf(false)
+  var lutIntensity: Float by mutableStateOf(1f)
 
   var textEnabled: Boolean by mutableStateOf(false)
   var text: String by mutableStateOf("")
@@ -324,6 +335,9 @@ public class EditState {
         if (scaleEnabled) scale(scaleHeight, scaleFit)
         addAll(colorEffects)
         if (vhsEnabled) vhs(vhsIntensity, vhsTape)
+        if (filmEnabled) film(filmGrain, filmHalation)
+        if (crtEnabled) crt(crtIntensity)
+        if (lutEnabled) lut(SAMPLE_LUT, lutIntensity)
 
         if (textEnabled && text.isNotBlank()) {
           textOverlay(
@@ -385,6 +399,13 @@ public class EditState {
     vhsEnabled = false
     vhsIntensity = 1f
     vhsTape = TapeSpeed.EP
+    filmEnabled = false
+    filmGrain = 0.5f
+    filmHalation = 0.5f
+    crtEnabled = false
+    crtIntensity = 1f
+    lutEnabled = false
+    lutIntensity = 1f
     invert = 0f
     customMatrix = ColorMatrix.Identity
     textEnabled = false
@@ -429,3 +450,5 @@ public class EditState {
     public const val BLACK: Int = 0xFF000000.toInt()
   }
 }
+
+private val SAMPLE_LUT: CubeLut by lazy { CubeLut.parse(TEAL_AND_ORANGE_CUBE) }

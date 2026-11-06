@@ -67,7 +67,7 @@ internal fun assertReadsSignal(
 }
 
 internal fun tickOf(slot: Int): Int =
-  VhsSignal.tickAt(outputSlotTime(slot.toLong(), VHS_RATE).toDouble(DurationUnit.SECONDS))
+  VhsSignal.tickAt(outputSlotTime(slot.toLong(), FILTER_RATE).toDouble(DurationUnit.SECONDS))
 
 internal fun readRgb(
   frame: ByteArray,

@@ -396,7 +396,10 @@ internal fun ResolvedClip.stageFrameOn(outputSize: Size): Size =
     (drawnRect.height * outputSize.height).roundToInt().coerceAtLeast(1),
   )
 
-private fun List<ResolvedEffect>.shaderPasses(): List<WebGlPass> = map { it.effect.pass }.filter { it.shader != null }
+private fun List<ResolvedEffect>.shaderPasses(): List<WebGlPass> =
+  map {
+    it.effect.pass
+  }.filter { it.steps.isNotEmpty() }
 
 // A pass the compositor has no way to draw would otherwise vanish from the frame. Each scope runs its shader passes
 // over its picture and lays its overlays after them, so a shader pass has to sit in the composite stage ahead of them.
@@ -408,7 +411,7 @@ private fun List<ResolvedEffect>.requireDrawable() {
       resolved.effect.overlay != null -> {
         overlaySeen = true
       }
-      pass.shader != null -> {
+      pass.steps.isNotEmpty() -> {
         if (resolved.stage != EffectStage.Composite) {
           throw BrowserExportFailure(
             "Effect ${resolved.specId} draws through its own shader at the ${resolved.stage} stage, and the browser " +
