@@ -98,8 +98,7 @@ internal class WriterRun(
     } finally {
       withContext(NonCancellable) {
         if (!outcome.isCompleted) {
-          session?.writer?.cancelWriting()
-          session?.reader?.cancelReading()
+          session?.stop()
           destination.discard()
         }
       }
