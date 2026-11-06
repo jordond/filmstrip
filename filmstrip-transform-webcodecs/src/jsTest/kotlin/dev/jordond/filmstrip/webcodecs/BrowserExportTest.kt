@@ -26,8 +26,10 @@ import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.NormalizedRect
+import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
@@ -980,6 +982,32 @@ class BrowserExportTest {
         }
       withClue("the reported track ran at ${audio.sampleRate} hertz") { (audio.sampleRate > 0) shouldBe true }
       withClue("the reported track carried ${audio.channelCount} channels") { (audio.channelCount > 0) shouldBe true }
+    }
+
+  // A trim from the middle of the clip, cut so its audio runs on past the last video sample.
+  @Test
+  fun anExportWithAudioOutlastingItsVideoReportsTheDurationAProbeOfTheFileReads() =
+    runTest {
+      if (!browserEncodesAac()) return@runTest
+      val bytes = makeClipWithAudio(frames = 60, frameRate = 30)
+      val composition =
+        EditComposition(
+          tracks =
+            listOf(
+              Track(listOf(Clip(MediaSource.Bytes(bytes), TimeRange(500.milliseconds, 1500.milliseconds)))),
+            ),
+          audio = AudioSpec.Keep,
+        )
+      val success = exportOf(composition, MediaSink.Uri(""), aacSpec())
+      val output = outputOf(success)
+      val lastFrame = decodeFrames(output).last()
+
+      val probed = BrowserProber().probe(output).shouldBeInstanceOf<ProbeResult.Success>().info
+      (probed.duration.toDouble(DurationUnit.MICROSECONDS) > lastFrame.timestampUs + lastFrame.durationUs) shouldBe true
+      success.info.duration shouldBe probed.duration
+      success.info.video
+        .shouldNotBeNull()
+        .colorSpace shouldBe ColorSpace.Bt709
     }
 
   @Test

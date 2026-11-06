@@ -54,6 +54,7 @@ import dev.jordond.filmstrip.sample.SampleAppState
 import dev.jordond.filmstrip.sample.ui.AnchorGrid
 import dev.jordond.filmstrip.sample.ui.Chip
 import dev.jordond.filmstrip.sample.ui.ChipGroup
+import dev.jordond.filmstrip.sample.ui.excludeBackGesture
 import dev.jordond.filmstrip.sample.ui.ControlGroup
 import dev.jordond.filmstrip.sample.ui.SampleIcons
 import dev.jordond.filmstrip.sample.ui.SliderRow
@@ -243,6 +244,7 @@ private fun TrimPanel(state: SampleAppState) {
           state.onEditChanged()
         },
         valueRange = 0f..duration,
+        modifier = Modifier.excludeBackGesture(),
       )
       Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(

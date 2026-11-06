@@ -111,6 +111,52 @@ class ReadbackSurfaceTest {
     }
 
   @Test
+  fun `a surface shown before the load finishes draws the first frame once it does`() =
+    runComposeUiTest {
+      var loaded = false
+      val readback =
+        ScriptedReadback {
+          if (loaded) {
+            ReadbackResult.Success(solidFrame(Size(4, 2), Color.Red))
+          } else {
+            ReadbackResult.Failure(PlaybackError.SourceUnreadable("nothing loaded yet"))
+          }
+        }
+      val engine = RecordingEngine(readback, initialState = RecordingEngine.PREPARING)
+      showSurface(engine, VideoContentScale.Fit)
+      engine.reportPreviewInfo(previewInfo(WIDE))
+      waitForIdle()
+      capture()[50, 50] shouldBe Color.Black
+
+      loaded = true
+      engine.reportState(RecordingEngine.READY)
+      waitForIdle()
+
+      capture()[50, 50] shouldBe Color.Red
+    }
+
+  @Test
+  fun `a rebuild holding the playhead keeps the last frame until it can draw its own`() =
+    runComposeUiTest {
+      var color = Color.Red
+      val readback = ScriptedReadback { ReadbackResult.Success(solidFrame(Size(4, 2), color)) }
+      val engine = RecordingEngine(readback)
+      showSurface(engine, VideoContentScale.Fit)
+      engine.reportPreviewInfo(previewInfo(WIDE))
+      waitForIdle()
+      capture()[50, 50] shouldBe Color.Red
+
+      color = Color.Blue
+      engine.reportState(RecordingEngine.PREPARING)
+      waitForIdle()
+      capture()[50, 50] shouldBe Color.Red
+
+      engine.reportState(RecordingEngine.READY)
+      waitForIdle()
+      capture()[50, 50] shouldBe Color.Blue
+    }
+
+  @Test
   fun `a readback still in flight is cancelled once the playhead moves past it`() =
     runComposeUiTest {
       val readback = ScriptedReadback { null }

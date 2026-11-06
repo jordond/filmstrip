@@ -184,10 +184,19 @@ public class BrowserExportEngine(
       return
     }
 
+    // The re-probe every backend hands back, so a caller reading this file later gets the same answer.
+    val info = BrowserProber().probe(result.file)
+    if (info == null) {
+      emit(
+        ExportStatus.Failure(FilmstripError.InvalidComposition(if (render.writesVideo) MUX_VERIFY else MUX_NO_AUDIO)),
+      )
+      return
+    }
+
     emit(
       ExportStatus.Progress(
         fraction = 1f,
-        position = verified.durationUs.microseconds,
+        position = info.duration,
         estimatedRemaining = Duration.ZERO,
       ),
     )
@@ -197,7 +206,7 @@ public class BrowserExportEngine(
     emit(
       ExportStatus.Success(
         output = deliver(result.file, to, extension),
-        info = infoOf(verified, result.file, render),
+        info = info,
         adjustments = render.adjustments,
       ),
     )
@@ -264,70 +273,8 @@ public class BrowserExportEngine(
       concurrentSessionBudget = concurrentSessionBudget,
     )
 
-  private fun infoOf(
-    verified: VerifiedFile,
-    file: EncodedFile,
-    render: BrowserRender,
-  ): MediaInfo {
-    val durationUs = verified.durationUs
-    val bitrate =
-      if (durationUs > 0) {
-        Bitrate((file.byteLength.toLong() * BITS_PER_BYTE * MICROS_PER_SECOND / durationUs).toLong())
-      } else {
-        null
-      }
-    // The bitrate is the whole file's, so it describes a track only while that track is the only
-    // one. A file carrying both gives it to the video, which is the larger part of it by far, and
-    // leaves the audio's null rather than counting the same bytes twice.
-    return MediaInfo(
-      duration = durationUs.microseconds,
-      video = verified.video?.let { videoTrackOf(it, render, bitrate) },
-      audio = verified.audio?.let { audioTrackOf(it, if (verified.video == null) bitrate else null) },
-      isExportable = true,
-    )
-  }
-
-  private fun videoTrackOf(
-    video: VerifiedVideo,
-    render: BrowserRender,
-    bitrate: Bitrate?,
-  ): VideoTrackInfo =
-    VideoTrackInfo(
-      codedSize = Size(render.width, render.height),
-      displaySize = Size(render.width, render.height),
-      rotationDegrees = 0,
-      pixelAspectRatio = 1f,
-      frameRate = render.frameRate.toFloat(),
-      codec = trackCodecOf(fourCc(video.codec)),
-      bitDepth = null,
-      colorSpace = if (render.hdrTransfer == null) ColorSpace.Bt709 else ColorSpace.Bt2020,
-      hdrTransfer = render.hdrTransfer,
-      bitrate = bitrate,
-    )
-
-  private fun audioTrackOf(
-    audio: VerifiedAudio,
-    bitrate: Bitrate?,
-  ): AudioTrackInfo =
-    AudioTrackInfo(
-      codec = trackCodecOf(audio.codec),
-      sampleRate = audio.sampleRate,
-      channelCount = audio.channelCount,
-      bitrate = bitrate,
-    )
-
-  private fun fourCc(codec: String): String =
-    when (codec) {
-      "avc" -> "avc1"
-      "hevc" -> "hvc1"
-      "vp9" -> "vp09"
-      else -> codec
-    }
-
   private companion object {
     const val PROGRESS_STEP = 0.05f
-    const val BITS_PER_BYTE = 8L
-    const val MICROS_PER_SECOND = 1_000_000.0
     const val MP4_EXTENSION = "mp4"
     const val M4A_EXTENSION = "m4a"
 

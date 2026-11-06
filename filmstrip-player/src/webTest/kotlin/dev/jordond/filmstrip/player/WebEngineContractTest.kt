@@ -49,6 +49,8 @@ class WebEngineContractTest : PlayerEngineContractTest() {
   // A page has no file to name, so the fixture is already a buffer.
   override val bytesFixture: EditComposition = fixture
 
+  override val claimsLiveParameterRedraw: Boolean = true
+
   override val fixtureFrameRate: Int = FIXTURE_FRAME_RATE
 
   override val plainFixture: EditComposition = webFixtureComposition(audio = AudioSpec.Keep)

@@ -1,16 +1,32 @@
+@file:OptIn(ExperimentalForeignApi::class)
+
 package dev.jordond.filmstrip.sample
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.viewinterop.UIKitViewController
+import kotlinx.cinterop.ExperimentalForeignApi
+import platform.AVFoundation.AVPlayer
+import platform.AVFoundation.pause
+import platform.AVKit.AVPlayerViewController
+import platform.Foundation.NSURL
 
-// Same story as the picker: no iOS app harness yet, so the exported file is not played back here.
 @Composable
 actual fun ResultVideoPlayer(
   path: String,
   modifier: Modifier,
 ) {
-  PlaybackUnavailable(
-    message = "iOS playback of the exported file is not wired up yet.",
+  val player = remember(path) { AVPlayer(uRL = NSURL.fileURLWithPath(path)) }
+
+  DisposableEffect(player) {
+    onDispose { player.pause() }
+  }
+
+  UIKitViewController(
+    factory = { AVPlayerViewController().apply { this.player = player } },
     modifier = modifier,
+    update = { it.player = player },
   )
 }

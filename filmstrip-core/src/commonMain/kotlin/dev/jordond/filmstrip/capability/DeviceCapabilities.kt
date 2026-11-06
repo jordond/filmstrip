@@ -49,8 +49,8 @@ public class DeviceCapabilities
  *
  * @property codec The codec this encoder writes.
  * @property encoderName What the backend calls this encoder, or null when the backend does not name
- *   one: media3 and AVFoundation hand a codec to the platform and let it choose, so there is no name
- *   filmstrip could report that it also invokes.
+ *   one: media3, AVFoundation and the browser hand a codec to the platform and let it choose, so there is
+ *   no name filmstrip could report that it also invokes.
  * @property maxSize The largest frame it accepts.
  * @property maxFrameRate The highest frame rate it accepts, or null when it does not say.
  * @property maxBitrate The highest bitrate it accepts, or null when it does not say.

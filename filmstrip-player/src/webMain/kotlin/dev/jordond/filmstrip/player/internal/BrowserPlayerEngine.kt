@@ -343,6 +343,7 @@ internal class BrowserPlayerEngine(
       clock.moveTo(at)
       emitPosition(at)
     }
+    if (swapped) emitFrameRedrawn()
 
     // A rebuild this one replaced mid draw leaves its frame owed, and its stopped transport, to whichever edit is next.
     preview?.takeIf { firstFrameOwed }?.let { firstFrameRefusal(it) }?.let { return it }

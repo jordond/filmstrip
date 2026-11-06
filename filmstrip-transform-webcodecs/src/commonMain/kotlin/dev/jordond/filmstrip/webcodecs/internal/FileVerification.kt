@@ -46,8 +46,8 @@ internal class VerifiedAudio(
  * Demuxes and decodes the file through a reader that never saw the encoder.
  *
  * Counting bytes proves nothing, because a muxer that writes a broken index writes bytes too. The
- * duration comes from the walked samples rather than from the container, which reports zero for a
- * buffer the muxer only just finalized.
+ * duration is how far the walked samples reach, which on a file with a longer audio track stops short of the
+ * container's own.
  */
 internal suspend fun EncodedFile.verify(): VerifiedFile? = verified { readBack() }
 

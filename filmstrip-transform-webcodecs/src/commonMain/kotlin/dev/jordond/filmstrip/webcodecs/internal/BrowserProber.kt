@@ -2,6 +2,7 @@
 
 package dev.jordond.filmstrip.webcodecs.internal
 
+import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.awaitCatching
 import dev.jordond.filmstrip.media.AudioTrackInfo
@@ -34,31 +35,54 @@ internal class BrowserProber : MediaProber {
   override suspend fun probe(source: MediaSource): ProbeResult {
     val reader = SourceReader.of(source) ?: return ProbeResult.Failure(unreadableSource(source))
     return try {
-      awaitCatching { readInfo(reader, source) }.getOrElse { ProbeResult.Failure(unreadableSource(source)) }
+      val info = awaitCatching { readInfo(reader, fileBytes = null) }.getOrNull()
+      if (info == null) ProbeResult.Failure(unreadableSource(source)) else ProbeResult.Success(info)
     } finally {
       reader.close()
     }
   }
 
+  /**
+   * Reads what [file] carries, which is the same answer probing that file later gives.
+   *
+   * @return What the file carries, or null when it reads as neither video nor audio.
+   */
+  suspend fun probe(file: EncodedFile): MediaInfo? {
+    val reader = file.reader()
+    return try {
+      awaitCatching { readInfo(reader, file.byteLength.toLong()) }.getOrNull()
+    } finally {
+      reader.close()
+    }
+  }
+
+  // The bitrate is the whole file's, so it describes a track only while that track is the only one. A file carrying
+  // both gives it to the video, which is the larger part of it by far, and leaves the audio's null rather than counting
+  // the same bytes twice. A source read through a stream has no byte count to work from.
   private suspend fun readInfo(
     reader: SourceReader,
-    source: MediaSource,
-  ): ProbeResult {
-    val video = reader.videoTrack()?.toTrackInfo()
-    val audio = reader.audioTrack()?.toTrackInfo()
-    if (video == null && audio == null) return ProbeResult.Failure(unreadableSource(source))
+    fileBytes: Long?,
+  ): MediaInfo? {
+    val durationUs = reader.durationUs()
+    val bitrate =
+      fileBytes?.takeIf { durationUs > 0 }?.let {
+        Bitrate(
+          (it * BITS_PER_BYTE * MICROS_PER_SECOND / durationUs).toLong(),
+        )
+      }
+    val video = reader.videoTrack()?.toTrackInfo(bitrate)
+    val audio = reader.audioTrack()?.toTrackInfo(if (video == null) bitrate else null)
+    if (video == null && audio == null) return null
 
-    return ProbeResult.Success(
-      MediaInfo(
-        duration = reader.durationUs().microseconds,
-        video = video,
-        audio = audio,
-        isExportable = true,
-      ),
+    return MediaInfo(
+      duration = durationUs.microseconds,
+      video = video,
+      audio = audio,
+      isExportable = true,
     )
   }
 
-  private suspend fun InputVideoTrack.toTrackInfo(): VideoTrackInfo? {
+  private suspend fun InputVideoTrack.toTrackInfo(bitrate: Bitrate?): VideoTrackInfo? {
     val codec = getCodec().await()?.toString() ?: return null
     val trackCodec = trackCodecOf(codec)
     val coded = Size(getCodedWidth().await().toDouble().toInt(), getCodedHeight().await().toDouble().toInt())
@@ -80,20 +104,22 @@ internal class BrowserProber : MediaProber {
       bitDepth = bitDepth,
       colorSpace = space.primaries?.toString().toColorSpace(),
       hdrTransfer = space.transfer?.toString().toHdrTransfer(),
-      bitrate = null,
+      bitrate = bitrate,
     )
   }
 
-  private suspend fun InputAudioTrack.toTrackInfo(): AudioTrackInfo? {
+  private suspend fun InputAudioTrack.toTrackInfo(bitrate: Bitrate?): AudioTrackInfo? {
     val codec = getCodec().await()?.toString() ?: return null
     return AudioTrackInfo(
       codec = trackCodecOf(codec),
       sampleRate = getSampleRate().await().toDouble().toInt(),
       channelCount = getNumberOfChannels().await().toDouble().toInt(),
-      bitrate = null,
+      bitrate = bitrate,
     )
   }
 }
+
+private const val BITS_PER_BYTE = 8L
 
 /**
  * Bit depth for HEVC, read from the profile digit in the codecs parameter string: 1 and 3 are

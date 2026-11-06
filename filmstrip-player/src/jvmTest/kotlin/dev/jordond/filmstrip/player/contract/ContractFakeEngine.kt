@@ -10,6 +10,8 @@ import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.PlayerFeature
@@ -17,6 +19,8 @@ import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PreviewFrameReadback
 import dev.jordond.filmstrip.player.PreviewInfo
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
+import dev.jordond.filmstrip.player.ReadbackFrame
+import dev.jordond.filmstrip.player.ReadbackResult
 import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.SetCompositionCallback
 import dev.jordond.filmstrip.player.SetCompositionRequest
@@ -65,9 +69,17 @@ internal class ContractFakeEngine(
 
   override val id: String = "filmstrip.contract-fake"
 
-  override val features: PlayerFeatures = PlayerFeatures(setOf(PlayerFeature.FrameReadback))
+  override val features: PlayerFeatures =
+    PlayerFeatures(setOf(PlayerFeature.FrameReadback, PlayerFeature.LiveParameterRedraw))
 
-  override val readback: PreviewFrameReadback = PreviewFrameReadback { _, _ -> Cancellable { } }
+  override val readback: PreviewFrameReadback =
+    PreviewFrameReadback { position, callback ->
+      callback.onReadback(
+        loaded?.let { ReadbackResult.Success(frameOf(it, position)) }
+          ?: ReadbackResult.Failure(PlaybackError.SourceUnreadable("No composition is loaded.")),
+      )
+      Cancellable { }
+    }
 
   override val nativePlayer: Any? = null
 
@@ -95,7 +107,7 @@ internal class ContractFakeEngine(
       setDuration(duration)
       emitPreviewInfo(PREVIEW_INFO)
       setStatus(PlaybackStatus.Ready)
-      emitEvent(PlaybackEvent.FirstFrameRendered)
+      if (change == CompositionDiff.ParametersOnly) emitFrameRedrawn() else emitEvent(PlaybackEvent.FirstFrameRendered)
     }
 
     if (request.playWhenReady) play()
@@ -238,7 +250,19 @@ internal class ContractFakeEngine(
       } ?: UNTRIMMED_DURATION
   }
 
+  private fun frameOf(
+    composition: EditComposition,
+    position: Duration,
+  ): ReadbackFrame {
+    val channel = if (composition.effects.isEmpty()) LIT_CHANNEL else DARK_CHANNEL
+    return ReadbackFrame(byteArrayOf(channel, channel, channel, -1), Size(1, 1), position, ColorSpace.Bt709, 1f)
+  }
+
   private companion object {
+    // What a frame reads with no effect on it and with one, so a parameter edit moves the pixels a surface reads.
+    const val LIT_CHANNEL: Byte = 100
+    const val DARK_CHANNEL: Byte = 20
+
     // Long enough that a burst of seeks is genuinely outstanding when the next one arrives, and
     // short enough that a suite of them finishes in a moment.
     val SEEK_LATENCY = 5.milliseconds

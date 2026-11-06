@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.export.Verdict
+import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
@@ -37,8 +38,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
@@ -71,6 +73,8 @@ public class SampleAppState(
   internal val filmstrip: Filmstrip,
   public val recorder: DiagnosticsRecorder = DiagnosticsRecorder(),
   private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+  private val release: (MediaSink) -> Unit = ::releaseExport,
+  private val download: suspend (SamplePreset) -> MediaSource = ::loadPreset,
 ) {
   public val edit: EditState = EditState()
 
@@ -85,7 +89,7 @@ public class SampleAppState(
    * It lives on the state rather than in composition because the state outlives the activity, so a
    * rotation mid-export lands back on the screen the export was started from.
    */
-  public val backStack: NavBackStack<SampleRoute> = NavBackStack(SampleRoute.Editor)
+  public val backStack: NavBackStack<SampleRoute> = NavBackStack(SampleRoute.Start)
 
   var source: MediaSource? by mutableStateOf(null)
     private set
@@ -142,6 +146,12 @@ public class SampleAppState(
     private set
 
   /**
+   * The frame the composition outputs, as the preview reports it, or null until it has.
+   */
+  var previewOutput: Size? by mutableStateOf(null)
+    private set
+
+  /**
    * True where the player reported no preview backend rather than a failure while playing. Every
    * platform ships one, so a build reaching this is one that never registered it.
    */
@@ -184,7 +194,7 @@ public class SampleAppState(
   var exportAdjustments: List<Adjustment> by mutableStateOf(emptyList())
     private set
   var exported: ExportStatus.Success? by mutableStateOf(null)
-    private set
+    internal set
   var exportedInfo: ProbeResult? by mutableStateOf(null)
     private set
   var exportFailure: FilmstripError? by mutableStateOf(null)
@@ -200,12 +210,26 @@ public class SampleAppState(
   private var clockJob: Job? = null
   private var previewJobs: List<Job> = emptyList()
   private var reloadJob: Job? = null
+  private var probeJob: Job? = null
+  private var presetJob: Job? = null
 
   val info: MediaInfo?
     get() = (probe as? ProbeResult.Success)?.info
 
   val sourceDuration: Duration?
     get() = info?.duration
+
+  /**
+   * Why the picked clip cannot load, or null while it can or while nothing is picked.
+   */
+  val sourceFailure: String?
+    get() = (probe as? ProbeResult.Failure)?.error?.message
+
+  /**
+   * True while the transport has something to run, which a clip that cannot load or a stopped preview does not.
+   */
+  val canPlay: Boolean
+    get() = source != null && !probing && sourceFailure == null && (previewError == null || previewUnavailable)
 
   val sourceAspect: Float
     get() = info?.video?.displaySize?.aspect?.takeIf { it > 0f } ?: DEFAULT_ASPECT
@@ -222,6 +246,12 @@ public class SampleAppState(
   fun onPicked(source: MediaSource?, label: String, preset: SamplePreset? = null) {
     if (source == null) return
 
+    presetJob?.cancel()
+    loadingPreset = null
+    openSource(source, label, preset)
+  }
+
+  private fun openSource(source: MediaSource, label: String, preset: SamplePreset?) {
     this.source = source
     sourceLabel = label
     sourcePreset = preset
@@ -232,11 +262,14 @@ public class SampleAppState(
     // The label is the user's own file name, so the log gets the same redaction the report does.
     recorder.record("source.picked", "source" to (preset?.fileName ?: source.redactedName()))
 
+    probeJob?.cancel()
     probing = true
     probe = null
-    scope.launch {
+    navigateTo(SampleRoute.Editor)
+    probeJob = scope.launch {
       try {
         val result = filmstrip.probe(source)
+        ensureActive()
         probe = result
         when (result) {
           is ProbeResult.Success -> recorder.record("source.probed", "info" to result.info.toString())
@@ -245,31 +278,36 @@ public class SampleAppState(
         edit.reset((result as? ProbeResult.Success)?.info?.duration)
         activeTool = EditorTool.Trim
       } finally {
-        probing = false
+        // A cancelled probe has already handed probing over to whoever cancelled it.
+        if (isActive) probing = false
       }
     }
   }
 
   /**
    * Downloads [preset] and opens the editor on it, reporting through [pickFailure] if the download
-   * fails.
+   * fails. Closing the project or picking another clip drops the download.
    */
   fun pickPreset(preset: SamplePreset) {
     if (loadingPreset != null) return
 
     loadingPreset = preset
     pickFailure = null
-    scope.launch {
+    presetJob = scope.launch {
       try {
         recorder.record("preset.download", "clip" to preset.fileName)
-        onPicked(loadPreset(preset), preset.name, preset)
+        val source = download(preset)
+        ensureActive()
+        openSource(source, preset.name, preset)
       } catch (cancellation: CancellationException) {
         throw cancellation
       } catch (failure: Throwable) {
+        ensureActive()
         pickFailure = failure.message ?: "The download gave no reason."
         recorder.record("preset.failed", "clip" to preset.fileName, "reason" to pickFailure.orEmpty())
       } finally {
-        loadingPreset = null
+        // A cancelled download has already handed loadingPreset over to whoever cancelled it.
+        if (isActive) loadingPreset = null
       }
     }
   }
@@ -287,8 +325,7 @@ public class SampleAppState(
    */
   fun onEditChanged() {
     verdict = null
-    exported = null
-    exportedInfo = null
+    clearExported()
     exportFailure = null
     exportProgress = null
     exportAdjustments = emptyList()
@@ -304,9 +341,13 @@ public class SampleAppState(
   }
 
   /**
-   * Pops one route. The editor is the root, so back from it is left to the platform.
+   * Pops one route. Back from the editor closes the clip, and back from the root is left to the platform.
    */
   fun navigateBack() {
+    if (backStack.lastOrNull() == SampleRoute.Editor) {
+      closeProject()
+      return
+    }
     if (backStack.size <= 1) return
     backStack.removeLastOrNull()
   }
@@ -325,11 +366,15 @@ public class SampleAppState(
   }
 
   /**
-   * Drops the clip and everything derived from it, leaving the root on its picker.
+   * Drops the clip and everything derived from it, landing back on the picker.
    */
   fun closeProject() {
     stopPreview()
     exportJob?.cancel()
+    probeJob?.cancel()
+    probing = false
+    presetJob?.cancel()
+    loadingPreset = null
     source = null
     sourceLabel = ""
     sourcePreset = null
@@ -337,7 +382,7 @@ public class SampleAppState(
     pickFailure = null
     resetRun()
     backStack.clear()
-    backStack.add(SampleRoute.Editor)
+    backStack.add(SampleRoute.Start)
   }
 
   fun composition(): EditComposition? {
@@ -384,6 +429,7 @@ public class SampleAppState(
    * lives exactly as long as the surface it draws into.
    */
   fun startPreview() {
+    if (sourceFailure != null) return
     val composition = previewComposition() ?: return
     stopPreview()
 
@@ -410,6 +456,7 @@ public class SampleAppState(
     player = null
     playerStatus = PlaybackStatus.Idle
     previewError = null
+    previewOutput = null
     playing = false
     stopClock()
   }
@@ -483,8 +530,7 @@ public class SampleAppState(
 
   fun export(plan: ExportPlan) {
     exportJob?.cancel()
-    exported = null
-    exportedInfo = null
+    clearExported()
     exportFailure = null
     exportProgress = null
     // Running a plan emits no ExportStatus.Adjusted, since the verdict this plan came from already
@@ -500,7 +546,7 @@ public class SampleAppState(
     exporting = true
     exportJob = scope.launch {
       try {
-        filmstrip.export(plan, MediaSink.temporary()).collect { status ->
+        filmstrip.export(plan, exportSink()).collect { status ->
           when (status) {
             is ExportStatus.Started -> recorder.record("export.started", "path" to plan.path.name)
             is ExportStatus.Adjusted -> {
@@ -516,6 +562,7 @@ public class SampleAppState(
               // What the backend gave up on once it had the real encoders is only on Success, so
               // this is the list rather than an addition to it.
               exportAdjustments = status.adjustments
+              saveExport(status.output)
               exportedInfo = filmstrip.probe(status.output.asSource())
               recorder.record("export.succeeded", "output" to status.info.toString())
               backStack.remove(SampleRoute.Export)
@@ -574,6 +621,11 @@ public class SampleAppState(
       scope.launch { open.events.collect(::onPlaybackEvent) },
       scope.launch { open.state.collect(::onPlayerState) },
       scope.launch { snapshotFlow { spec() }.collect(open::setExportSpec) },
+      scope.launch {
+        open.previewInfo.collect { info ->
+          previewOutput = info.outputSize.takeIf { it.width > 0 && it.height > 0 }
+        }
+      },
       scope.launch {
         open.positionFlow(POSITION_TICK).collect { position ->
           // The player's own duration once it has loaded, so the clamp agrees with what it is
@@ -656,10 +708,15 @@ public class SampleAppState(
     playing = false
   }
 
-  private fun resetRun() {
-    verdict = null
+  private fun clearExported() {
+    exported?.let { release(it.output) }
     exported = null
     exportedInfo = null
+  }
+
+  private fun resetRun() {
+    verdict = null
+    clearExported()
     exportFailure = null
     exportProgress = null
     exportAdjustments = emptyList()

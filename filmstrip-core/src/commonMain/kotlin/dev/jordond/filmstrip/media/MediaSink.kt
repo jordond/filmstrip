@@ -19,7 +19,9 @@ public sealed interface MediaSink {
   /**
    * A platform-native destination.
    *
-   * @property uri An `android.net.Uri` string on Android, or an `NSURL` absolute string on Apple platforms.
+   * @property uri An `android.net.Uri` string on Android, or an `NSURL` absolute string on Apple platforms. The browser
+   * ignores the one asked for and reports a `blob:` URL on the finished export, which the caller passes to
+   * `URL.revokeObjectURL` once done with it.
    */
   @Poko
   public class Uri(

@@ -43,12 +43,12 @@ fun App(state: SampleAppState) {
         onBack = state::navigateBack,
         sceneStrategies = listOf(sheetStrategy, dialogStrategy, SinglePaneSceneStrategy()),
         entryProvider = entryProvider {
+          entry<SampleRoute.Start> {
+            StartScreen(state, onImport = picker::launch)
+          }
+
           entry<SampleRoute.Editor> {
-            if (state.source == null) {
-              StartScreen(state, onImport = picker::launch)
-            } else {
-              EditorScreen(state)
-            }
+            EditorScreen(state)
           }
 
           entry<SampleRoute.Export>(

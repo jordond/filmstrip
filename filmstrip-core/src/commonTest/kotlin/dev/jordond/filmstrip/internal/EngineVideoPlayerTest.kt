@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.player.PreviewInfo
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
 import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.SetCompositionResult
+import dev.jordond.filmstrip.player.readbackPositions
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -72,6 +73,56 @@ class EngineVideoPlayerTest {
       engine.push { onEvent(PlaybackEvent.FirstFrameRendered) }
 
       heard shouldBe listOf<PlaybackEvent>(PlaybackEvent.FirstFrameRendered)
+    }
+
+  @Test
+  fun aSurfaceReadsTheStandingPlayheadAgainWhenTheFrameUnderItIsRedrawn() =
+    runTest {
+      val engine = FakePlayerEngine()
+      val player = EngineVideoPlayer(engine, FIRST)
+      val reads = mutableListOf<Duration>()
+      backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+        player.readbackPositions(33.milliseconds).collect { reads += it }
+      }
+      engine.push { onStateChanged(PlayerState(PlaybackStatus.Ready, false, false, false, 4.seconds)) }
+      reads shouldBe listOf(Duration.ZERO)
+
+      engine.push { onFrameRedrawn() }
+
+      reads shouldBe listOf(Duration.ZERO, Duration.ZERO)
+    }
+
+  // Preparing and Ready inside one dispatch reach a state collector as nothing at all.
+  @Test
+  fun aSurfaceReadsTheStandingPlayheadAgainWhenAReloadConflatesItsStatusMoves() =
+    runTest {
+      val engine = FakePlayerEngine()
+      val player = EngineVideoPlayer(engine, FIRST)
+      val reads = mutableListOf<Duration>()
+      backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+        player.readbackPositions(33.milliseconds).collect { reads += it }
+      }
+      engine.push { onStateChanged(PlayerState(PlaybackStatus.Ready, false, false, false, 4.seconds)) }
+      reads shouldBe listOf(Duration.ZERO)
+
+      engine.push { onEvent(PlaybackEvent.FirstFrameRendered) }
+
+      reads shouldBe listOf(Duration.ZERO, Duration.ZERO)
+    }
+
+  @Test
+  fun aSurfaceReadsNothingWhileNoCompositionIsPresentable() =
+    runTest {
+      val engine = FakePlayerEngine()
+      val player = EngineVideoPlayer(engine, FIRST)
+      val reads = mutableListOf<Duration>()
+      backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+        player.readbackPositions(33.milliseconds).collect { reads += it }
+      }
+
+      engine.push { onFrameRedrawn() }
+
+      reads shouldBe emptyList()
     }
 
   // A scrubber reads the position straight after it seeks, before the engine has caught up.

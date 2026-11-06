@@ -5,6 +5,11 @@ import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.time.Duration
@@ -49,6 +54,27 @@ public suspend fun PreviewFrameReadback.frameAt(position: Duration): ReadbackRes
     val request = requestFrame(position) { result -> continuation.resume(result) }
     continuation.invokeOnCancellation { request.cancel() }
   }
+
+/**
+ * The playhead positions a surface drawing through [VideoPlayer.readback] owes a frame for.
+ *
+ * Follows [VideoPlayer.positionFlow] while a composition is presentable and emits nothing before that, since there is
+ * no graph to read yet. Every move into a presentable status and every move of [VideoPlayer.frameRevision] emits the
+ * playhead again, because a load or a parameter edit has a new frame to show at a position the playhead alone would not
+ * report as changed.
+ *
+ * @param tick The grid to snap the playhead to.
+ * @return A cold flow of the positions to read a frame at.
+ */
+@InternalFilmstripApi
+public fun VideoPlayer.readbackPositions(tick: Duration): Flow<Duration> =
+  combine(
+    positionFlow(tick),
+    state.map { it.hasComposition }.distinctUntilChanged(),
+    frameRevision(),
+  ) { position, presentable, _ ->
+    position.takeIf { presentable }
+  }.filterNotNull()
 
 /**
  * Receives the outcome of one [PreviewFrameReadback.requestFrame].

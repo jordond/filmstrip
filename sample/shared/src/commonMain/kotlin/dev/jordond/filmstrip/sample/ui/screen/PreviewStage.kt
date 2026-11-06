@@ -56,12 +56,13 @@ import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fit
-import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.sample.CropMode
 import dev.jordond.filmstrip.sample.EditState
 import dev.jordond.filmstrip.sample.FillMode
 import dev.jordond.filmstrip.sample.SampleAppState
+import dev.jordond.filmstrip.sample.compositionFrameLabel
+import dev.jordond.filmstrip.sample.stageSentence
 import dev.jordond.filmstrip.sample.ui.Pill
 import dev.jordond.filmstrip.style.FontWeight
 import dev.jordond.filmstrip.style.TextAlignment
@@ -530,22 +531,22 @@ private fun StageChrome(
   state: SampleAppState,
   modifier: Modifier = Modifier,
 ) {
-  val scaled = state.edit.scaleHeight.takeIf { state.edit.scaleEnabled }
-  val height = state.targetHeight ?: scaled ?: state.info?.video?.displaySize?.height
-  val aspect = state.edit.outputAspect(state.sourceAspect)
   val live = state.player != null && !state.previewUnavailable
+  val frame = state.compositionFrameLabel()
 
   Box(modifier) {
     Column(Modifier.align(Alignment.TopStart)) {
       if (live) {
         Pill(state.playerStatus.pillLabel(), MaterialTheme.colorScheme.primary)
+      } else if (state.sourceFailure != null) {
+        Pill("UNREADABLE", MaterialTheme.colorScheme.error)
       } else {
         Pill("SCHEMATIC", MaterialTheme.colorScheme.secondary)
       }
     }
     Row(Modifier.align(Alignment.TopEnd)) {
-      if (height != null) {
-        Pill("${(height * aspect).toInt()} x $height", MaterialTheme.colorScheme.onSurfaceVariant)
+      if (frame != null) {
+        Pill(frame, MaterialTheme.colorScheme.onSurfaceVariant)
       }
     }
 
@@ -568,11 +569,7 @@ private fun StageChrome(
  * What the stage says about a preview that is not playing, or null while it is.
  */
 private fun SampleAppState.previewNote(): String? =
-  when (val error = previewError) {
-    null -> null
-    is PlaybackError.BackendMissing -> "No preview backend here. The schematic stands in for it."
-    else -> "Preview stopped: ${error.message}"
-  }
+  sourceFailure ?: previewError?.stageSentence()
 
 private fun PlaybackStatus.pillLabel(): String =
   when (this) {

@@ -20,6 +20,17 @@ single test, and before the player's JVM suite does too, `checkFfmpegTestToolcha
 backend does and fails the build naming what it found when ffmpeg or ffprobe is missing, below 8.0, or its HDR encoder
 cannot write ten-bit HEVC.
 
+## Running the sample
+
+`sample/` exercises every backend through the public API, which makes it the quickest way to see a change for real.
+
+| Target | Command | Needs |
+|---|---|---|
+| Android | `./gradlew :sample:androidApp:installDebug` | A running emulator or a connected device |
+| Desktop | `./gradlew :sample:desktopApp:run` | ffmpeg and ffprobe 8.0 or newer on the `PATH` |
+| Browser | `./gradlew :sample:webApp:wasmJsBrowserDevelopmentRun`, then <http://localhost:8080> | Chrome |
+| iOS | `open sample/iosApp/iosApp.xcodeproj`, pick a simulator and press Run | A Mac with Xcode, and your own team for a physical iPhone |
+
 ## Test fixtures
 
 The clips the export and player suites read are not in the repository. Each module that reads them has a

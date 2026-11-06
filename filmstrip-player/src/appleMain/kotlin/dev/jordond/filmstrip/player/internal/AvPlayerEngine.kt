@@ -334,6 +334,7 @@ internal class AvPlayerEngine(
     // that start nor the load's seek landing reports itself, so the jump is reported here.
     start?.let(transport::jumpTo)
     onPlatformChanged()
+    if (swappable) emitFrameRedrawn()
     if (request.playWhenReady) play()
     return null
   }

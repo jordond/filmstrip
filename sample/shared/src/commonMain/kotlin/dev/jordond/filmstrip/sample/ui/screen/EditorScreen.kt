@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.sample.SampleAppState
 import dev.jordond.filmstrip.sample.ui.EditorLayout
 import dev.jordond.filmstrip.sample.ui.SampleIcons
+import dev.jordond.filmstrip.sample.ui.excludeBackGesture
 import dev.jordond.filmstrip.sample.ui.asClock
 import dev.jordond.filmstrip.sample.ui.currentEditorLayout
 import kotlin.time.Duration.Companion.seconds
@@ -218,7 +219,7 @@ private fun PlaybackControls(
   Surface(color = MaterialTheme.colorScheme.surface, modifier = modifier.fillMaxWidth()) {
     Column {
       Transport(state)
-      Timeline(state, Modifier.padding(horizontal = 12.dp))
+      Timeline(state, Modifier.excludeBackGesture().padding(horizontal = 12.dp))
       Spacer(Modifier.height(10.dp))
     }
   }
@@ -236,16 +237,17 @@ private fun Transport(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(4.dp),
   ) {
-    IconButton(onClick = { state.stepFrames(-1) }) {
+    IconButton(onClick = { state.stepFrames(-1) }, enabled = state.canPlay) {
       Icon(SampleIcons.StepBack, contentDescription = "Previous frame")
     }
-    FilledIconButton(onClick = state::togglePlay) {
+    FilledIconButton(onClick = state::togglePlay, enabled = state.canPlay) {
+      val running = state.playing && state.canPlay
       Icon(
-        imageVector = if (state.playing) SampleIcons.Pause else SampleIcons.Play,
-        contentDescription = if (state.playing) "Pause" else "Play",
+        imageVector = if (running) SampleIcons.Pause else SampleIcons.Play,
+        contentDescription = if (running) "Pause" else "Play",
       )
     }
-    IconButton(onClick = { state.stepFrames(1) }) {
+    IconButton(onClick = { state.stepFrames(1) }, enabled = state.canPlay) {
       Icon(SampleIcons.StepForward, contentDescription = "Next frame")
     }
 
@@ -276,6 +278,8 @@ private fun Transport(
 }
 
 private fun SampleAppState.sourceSummary(): String {
+  if (source == null) return ""
+  if (sourceFailure != null) return "Can't read this file"
   val video = info?.video ?: return if (probing) "Reading the file" else "No video track"
   val size = "${video.displaySize.width} x ${video.displaySize.height}"
   val fps = video.frameRate?.let { "${it.toInt()} fps" }

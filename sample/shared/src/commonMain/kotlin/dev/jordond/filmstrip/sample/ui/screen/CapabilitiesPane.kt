@@ -128,7 +128,7 @@ internal fun CapabilitiesContent(
                 null -> Unit
               }
             }
-            StatRow("Encoder", video.encoderName ?: "unknown")
+            video.encoderName?.let { StatRow("Encoder", it) }
             StatRow("Max frame", "${video.maxSize.width} x ${video.maxSize.height}")
             StatRow("Alignment", "${video.sizeAlignment} px")
             video.maxFrameRate?.let { StatRow("Max frame rate", "$it fps") }

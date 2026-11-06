@@ -10,7 +10,12 @@ import androidx.navigation3.runtime.NavKey
  */
 public sealed interface SampleRoute : NavKey {
   /**
-   * The root. It holds the clip picker until a clip is imported, then the editor over it.
+   * The root, which is the clip picker.
+   */
+  public data object Start : SampleRoute
+
+  /**
+   * The editor over the imported clip. Leaving it closes the clip and lands back on [Start].
    */
   public data object Editor : SampleRoute
 

@@ -1,10 +1,12 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.Cancellable
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.EditComposition
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlin.time.Duration
 
 /**
@@ -73,6 +75,15 @@ public interface VideoPlayer :
    * @return a cold flow of playhead positions.
    */
   public fun positionFlow(tick: Duration): Flow<Duration>
+
+  /**
+   * Counts the frames that changed with the playhead standing still, which a playhead reading alone can't report.
+   *
+   * Moves on a parameter edit reaching a frame and on a load presenting its first one. A player with nothing behind it
+   * never moves.
+   */
+  @InternalFilmstripApi
+  public fun frameRevision(): Flow<Int> = flowOf(0)
 
   /**
    * Loads a composition, or replaces the current one, suspending until it is presentable.

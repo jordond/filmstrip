@@ -329,6 +329,17 @@ internal abstract class BasePlayerEngine(
   }
 
   /**
+   * Reports that the frame at the playhead changed with the playhead standing still.
+   *
+   * Call it once [PlayerEngine.readback] answers with the changed frame, since that is what the listener goes on to
+   * read.
+   */
+  protected fun emitFrameRedrawn() {
+    if (isReleased) return
+    listeners.forEach { it.onFrameRedrawn() }
+  }
+
+  /**
    * Dispatches a seek that was waiting on [isSeekReady].
    */
   protected fun onSeekReady() {

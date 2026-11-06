@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.time.Duration
@@ -48,6 +49,7 @@ internal class EngineVideoPlayer(
       extraBufferCapacity = EVENT_BUFFER,
     )
   private val positionState = MutableStateFlow(Duration.ZERO)
+  private val frameRevisionState = MutableStateFlow(0)
 
   // Swapped whole on every change, so a listener cancelled from inside a callback does not
   // disturb the walk that called it.
@@ -61,7 +63,13 @@ internal class EngineVideoPlayer(
         }
 
         override fun onEvent(event: PlaybackEvent) {
+          // A load can leave and reach a presentable status inside one dispatch, which state alone conflates away.
+          if (event == PlaybackEvent.FirstFrameRendered) onFrameRedrawn()
           _events.tryEmit(event)
+        }
+
+        override fun onFrameRedrawn() {
+          frameRevisionState.update { it + 1 }
         }
 
         override fun onPosition(position: Duration) {
@@ -85,6 +93,8 @@ internal class EngineVideoPlayer(
   override val events: SharedFlow<PlaybackEvent> get() = _events.asSharedFlow()
 
   override val previewInfo: StateFlow<PreviewInfo> get() = _previewInfo.asStateFlow()
+
+  override fun frameRevision(): Flow<Int> = frameRevisionState
 
   override val features: PlayerFeatures get() = engine.features
 

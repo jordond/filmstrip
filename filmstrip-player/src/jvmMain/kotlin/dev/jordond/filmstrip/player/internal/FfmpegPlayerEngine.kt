@@ -50,6 +50,7 @@ internal class FfmpegPlayerEngine(
   private var position: Duration = Duration.ZERO
   private var presented: PreviewFrame? = null
   private var firstFrameEmitted = false
+  private var redrawOwed = false
 
   // Seeks handed over that have not opened their pump yet.
   private val seekStarts = mutableListOf<Job>()
@@ -256,6 +257,7 @@ internal class FfmpegPlayerEngine(
     setDuration(next.resolved.duration)
     emitPreviewInfo(next.info)
 
+    redrawOwed = parametersOnly
     if (!parametersOnly) {
       firstFrameEmitted = false
       setStatus(PlaybackStatus.Preparing)
@@ -295,6 +297,11 @@ internal class FfmpegPlayerEngine(
     position = frame.position
     setStatus(PlaybackStatus.Ready)
     emitPosition(frame.position)
+    // Not from apply, where the readback would still serve the frame this one replaces.
+    if (redrawOwed) {
+      redrawOwed = false
+      emitFrameRedrawn()
+    }
     if (firstFrameEmitted) return
     firstFrameEmitted = true
     emitEvent(PlaybackEvent.FirstFrameRendered)

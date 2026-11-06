@@ -35,12 +35,15 @@ import kotlin.time.Duration.Companion.seconds
  *
  * @param readback What answers a frame request, which by default never answers at all.
  * @param nativePlayer What the engine hands a platform surface, which by default is nothing.
+ * @param initialState What the engine reports before anything moves it, which by default is a loaded composition.
  */
 internal class RecordingEngine(
   override val readback: PreviewFrameReadback = PreviewFrameReadback { _, _ -> Cancellable { } },
   override val nativePlayer: Any? = null,
+  initialState: PlayerState = READY,
 ) : PlayerEngine {
   private var listeners: List<EngineListener> = emptyList()
+  private var state = initialState
 
   val loads: MutableList<EditComposition> = mutableListOf()
   val seeks: MutableList<Duration> = mutableListOf()
@@ -59,7 +62,7 @@ internal class RecordingEngine(
     callback: SetCompositionCallback,
   ): Cancellable {
     loads += request.composition
-    listeners.forEach { it.onStateChanged(READY) }
+    listeners.forEach { it.onStateChanged(state) }
     listeners.forEach { it.onEvent(PlaybackEvent.FirstFrameRendered) }
     callback.onResult(SetCompositionResult.Success(CLIP_LENGTH))
     return Cancellable { }
@@ -67,7 +70,7 @@ internal class RecordingEngine(
 
   override fun addListener(listener: EngineListener): Cancellable {
     listeners = listeners + listener
-    listener.onStateChanged(READY)
+    listener.onStateChanged(state)
     return Cancellable { listeners = listeners - listener }
   }
 
@@ -76,6 +79,14 @@ internal class RecordingEngine(
    */
   fun reportPosition(position: Duration) {
     listeners.forEach { it.onPosition(position) }
+  }
+
+  /**
+   * Moves the engine to [next] and reports it, the way a load finishing or starting does.
+   */
+  fun reportState(next: PlayerState) {
+    state = next
+    listeners.forEach { it.onStateChanged(next) }
   }
 
   /**
@@ -124,8 +135,9 @@ internal class RecordingEngine(
     listeners = emptyList()
   }
 
-  private companion object {
-    val READY = PlayerState(PlaybackStatus.Ready, false, false, false, CLIP_LENGTH)
+  companion object {
+    val READY: PlayerState = PlayerState(PlaybackStatus.Ready, false, false, false, CLIP_LENGTH)
+    val PREPARING: PlayerState = PlayerState(PlaybackStatus.Preparing, false, false, false, null)
   }
 }
 

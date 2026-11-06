@@ -178,17 +178,18 @@ public fun ResultScreen(
         ) {
           Text("Keep editing")
         }
-        Button(
-          onClick = { sharer?.launch(result.output) },
-          enabled = sharer != null && shareable,
-          shape = RoundedCornerShape(12.dp),
-          colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-          ),
-          modifier = Modifier.weight(1f).height(50.dp),
-        ) {
-          Text("Share")
+        if (sharer != null && shareable) {
+          Button(
+            onClick = { sharer.launch(result.output) },
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+              containerColor = MaterialTheme.colorScheme.primary,
+              contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+            modifier = Modifier.weight(1f).height(50.dp),
+          ) {
+            Text("Share")
+          }
         }
       }
     }

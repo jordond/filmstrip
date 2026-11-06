@@ -30,6 +30,8 @@ class FakeEngineContractTest : PlayerEngineContractTest() {
       tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(ByteArray(1)), TimeRange.of(Duration.ZERO, 8.seconds))))),
     )
 
+  override val claimsLiveParameterRedraw: Boolean = true
+
   override val fixtureFrameRate: Int = FAKE_FRAME_RATE
 
   // The fake reports one preview info whatever it loads.

@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.player.ReadbackResult
 import dev.jordond.filmstrip.player.VideoPlayer
 import dev.jordond.filmstrip.player.frameAt
+import dev.jordond.filmstrip.player.readbackPositions
 import kotlinx.coroutines.flow.collectLatest
 import kotlin.math.roundToInt
 import kotlin.time.Duration
@@ -46,7 +47,7 @@ internal fun ReadbackSurface(
 
   LaunchedEffect(player) {
     // collectLatest, so a readback still in flight is cancelled when the playhead moves past it.
-    player.positionFlow(FRAME_TICK).collectLatest { position ->
+    player.readbackPositions(FRAME_TICK).collectLatest { position ->
       val next = player.frameAt(position)
       // Each frame is its own Skia bitmap rather than a shared one, so the tick it is replaced on
       // is also the tick nothing else can still be drawing from it.

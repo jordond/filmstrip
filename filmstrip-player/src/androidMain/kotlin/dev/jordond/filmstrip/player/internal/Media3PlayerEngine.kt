@@ -331,7 +331,8 @@ internal class Media3PlayerEngine(
     next: Media3PreviewPlan,
     request: SetCompositionRequest,
   ): PlaybackError? {
-    when (loadCostFor(change, preview != null) { preview?.updateParameters(next.resolved, next.bounds) == true }) {
+    val cost = loadCostFor(change, preview != null) { preview?.updateParameters(next.resolved, next.bounds) == true }
+    when (cost) {
       LoadCost.Parameters -> {
         // The replayable cache is what lets a paused frame take the new parameters. A playing one
         // takes them on the next frame the graph draws either way.
@@ -353,6 +354,7 @@ internal class Media3PlayerEngine(
     plan = next
     setDuration(next.resolved.duration)
     emitPreviewInfo(next.info)
+    if (cost == LoadCost.Parameters) emitFrameRedrawn()
     if (request.playWhenReady) play()
     return null
   }

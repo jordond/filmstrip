@@ -30,11 +30,12 @@ import kotlin.time.Duration
  * The contracts every player backend must honour that need nothing but an engine and a
  * composition.
  *
- * A backend inherits this, supplies [createEngine], [fixture] and [fixtureFrameRate], and gets the eight behaviours
+ * A backend inherits this, supplies [createEngine], [fixture] and [fixtureFrameRate], and gets the nine behaviours
  * that drift silently between backends: the duration a snapshot reports, what the preview reports it is delivering, one
  * completion per issued seek, the slot a seek reports it landed on, an equal composition doing no platform work, a
  * rebuild leaving the transport and the playhead where they were, how an interruption from outside filmstrip reaches a
- * listener, and a loop range the composition ends inside wrapping at that end rather than ending there.
+ * listener, a loop range the composition ends inside wrapping at that end rather than ending there, and a surface
+ * reading a paused player getting the first frame and then a parameter edit.
  *
  * Pixel work is in [PlayerPixelContractTest] instead, so a backend with no export to compare
  * against is not made to stub out half of one class.
@@ -72,6 +73,13 @@ abstract class PlayerEngineContractTest {
    * route changes need a real audio session. Nothing in [UNSTAGEABLE_INTERRUPTIONS] may appear.
    */
   protected open val stageableInterruptions: Set<Interruption> get() = emptySet()
+
+  /**
+   * Whether this backend claims [dev.jordond.filmstrip.player.PlayerFeature.LiveParameterRedraw].
+   *
+   * Read against what the engine reports, so a backend losing the claim on a machine goes red instead of skipping.
+   */
+  protected abstract val claimsLiveParameterRedraw: Boolean
 
   /**
    * The output frame rate [fixture] plays at, which is the grid every seek into it lands on.
@@ -172,6 +180,14 @@ abstract class PlayerEngineContractTest {
           registration.cancel()
         }
       }
+    }
+
+  @Test
+  fun aSurfaceReadingAPausedPlayerGetsTheFirstFrameThenAParameterEdit() =
+    contractTest { scope ->
+      createEngine(
+        scope,
+      ).surfaceReadStaysCurrentWhilePaused(scope, fixture, fixtureFrameRate, claimsLiveParameterRedraw)
     }
 
   @Test

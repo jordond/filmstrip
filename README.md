@@ -58,6 +58,17 @@ and a few leaf packages hold what the backend's export reads as well. Nothing el
 JDK 17 or newer, and macOS for the Apple targets. [CONTRIBUTING.md](CONTRIBUTING.md) lists what each test suite
 needs and how the test fixtures are made and published.
 
+## Running the sample
+
+`sample/` is a small editor over the library: pick a clip or one of the sample clips, edit it while it plays, export it.
+
+| Target | Command |
+|---|---|
+| Android | `./gradlew :sample:androidApp:installDebug`, with an emulator running or a device connected. Then open filmstrip from the launcher. |
+| Desktop | `./gradlew :sample:desktopApp:run`, with `ffmpeg` and `ffprobe` 8.0 or newer on the `PATH`. |
+| Browser | `./gradlew :sample:webApp:wasmJsBrowserDevelopmentRun`, then open <http://localhost:8080> in Chrome. |
+| iOS | `open sample/iosApp/iosApp.xcodeproj`, pick a simulator and press Run. A physical iPhone also needs your own team under Signing & Capabilities. |
+
 ## Releasing
 
 Tag the commit and publish a GitHub release. The tag is the version: the publish workflow passes it

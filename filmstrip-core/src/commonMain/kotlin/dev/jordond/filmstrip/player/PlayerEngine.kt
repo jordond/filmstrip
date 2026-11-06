@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import dev.drewhamilton.poko.Poko
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.FilmstripComponents
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.export.ExportSpec
 import kotlin.time.Duration
@@ -184,4 +185,12 @@ public interface EngineListener {
    * What the preview is delivering changed.
    */
   public fun onPreviewInfo(info: PreviewInfo)
+
+  /**
+   * The frame at the playhead changed while the playhead stayed where it was.
+   *
+   * Delivered once the changed frame can be read back, which is what sends a surface drawing the readback to read it.
+   */
+  @InternalFilmstripApi
+  public fun onFrameRedrawn(): Unit = Unit
 }
