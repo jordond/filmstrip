@@ -89,6 +89,11 @@ internal class CoreImageChain(
   private val context: CIContext? = renderingContext()
 
   /**
+   * The context a compositor renders this chain's frames through, or null when this process cannot build one.
+   */
+  internal val renderer: CIContext? get() = context
+
+  /**
    * The photos this chain draws, opened once each.
    *
    * Kept outside the snapshot, so a parameters-only edit rebuilding the spans keeps the images it

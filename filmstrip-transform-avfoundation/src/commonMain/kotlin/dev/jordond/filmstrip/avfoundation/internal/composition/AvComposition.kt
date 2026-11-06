@@ -19,8 +19,10 @@ import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.readValue
+import platform.AVFoundation.AVAssetTrack
 import platform.AVFoundation.AVMediaTypeAudio
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.AVMutableAudioMix
@@ -39,11 +41,14 @@ import platform.AVFoundation.setColorPrimaries
 import platform.AVFoundation.setColorTransferFunction
 import platform.AVFoundation.setColorYCbCrMatrix
 import platform.AVFoundation.setPerFrameHDRDisplayMetadataPolicy
+import platform.AVFoundation.tracksWithMediaType
 import platform.AVFoundation.videoCompositionWithAsset
 import platform.CoreGraphics.CGAffineTransformIdentity
 import platform.CoreGraphics.CGSizeMake
 import platform.CoreMedia.CMTimeMake
+import platform.CoreMedia.CMTimeRangeMake
 import platform.CoreMedia.kCMPersistentTrackID_Invalid
+import platform.CoreMedia.kCMTimeZero
 
 /**
  * The AVFoundation graph a plan runs as.
@@ -170,10 +175,21 @@ public fun ResolvedComposition.toAvComposition(): AvComposition {
   val encodesHdr = hdrTransfer != null
   val spans = placements.toSpans(composition.duration.toDuration(), output.size, layoutSize, hdrTransfer)
   val chain = if (keepVideo) CoreImageChain(this, spans, encodesHdr) else null
+  val holdsTail = !tail.isEmpty()
+  // An audio-only clip can bring a grade into the plan that no laid video carries, which leaves nothing to tone map.
+  val toneMaps = hdr == ResolvedHdr.ToneMap && spans.any { it.sourceTransfer != null }
+  val videoComposition =
+    chain?.let {
+      if (toneMaps) {
+        composition.toneMapComposition(it)
+      } else {
+        composition.videoComposition(it, encodesHdr, holdsTail)
+      }
+    }
 
   return AvComposition(
     composition = composition,
-    videoComposition = chain?.let { composition.videoComposition(it, encodesHdr, holdsTail = !tail.isEmpty()) },
+    videoComposition = videoComposition,
     audioMix = mixed.toAudioMix(),
     encodesHdr = encodesHdr,
     transfer = hdrTransfer,
@@ -183,11 +199,7 @@ public fun ResolvedComposition.toAvComposition(): AvComposition {
 }
 
 /**
- * The video composition, with the filter handler already attached.
- *
- * Built through `videoCompositionWithAsset:applyingCIFiltersWithHandler:`, whose block bridges to a
- * Kotlin lambda. A custom `AVVideoCompositing` is an Objective-C class handed to AVFoundation,
- * which Kotlin/Native cannot register.
+ * The video composition of a plan that keeps its grade or has none, with the filter handler already attached.
  *
  * That composition renders a frame for each sample the video track holds, so a tick stretched over
  * a held tail would be rendered once however many slots it covers. When [holdsTail] is set it
@@ -215,20 +227,12 @@ private fun AVMutableComposition.videoComposition(
 
   if (encodesHdr) {
     composition.setColorPrimaries(AVVideoColorPrimaries_ITU_R_2020)
-    composition.setColorTransferFunction(
-      if (chain.transfer == HdrTransfer.Pq) {
-        AVVideoTransferFunction_SMPTE_ST_2084_PQ
-      } else {
-        AVVideoTransferFunction_ITU_R_2100_HLG
-      },
-    )
+    composition.setColorTransferFunction((chain.transfer ?: HdrTransfer.Hlg).avTransferFunction())
     composition.setColorYCbCrMatrix(AVVideoYCbCrMatrix_ITU_R_2020)
     // The source's mastering and content-light metadata is carried through, since nothing in the
     // chain changes what the grade was mastered for.
     composition.setPerFrameHDRDisplayMetadataPolicy(AVVideoCompositionPerFrameHDRDisplayMetadataPolicyPropagate)
   } else {
-    // Naming the target is what tone-maps. Core Image renders into it, so a BT.2020 source lands
-    // inside Rec.709 without a mode that says so.
     composition.setColorPrimaries(AVVideoColorPrimaries_ITU_R_709_2)
     composition.setColorTransferFunction(AVVideoTransferFunction_ITU_R_709_2)
     composition.setColorYCbCrMatrix(AVVideoYCbCrMatrix_ITU_R_709_2)
@@ -236,6 +240,35 @@ private fun AVMutableComposition.videoComposition(
 
   return composition
 }
+
+/**
+ * The video composition of a tone mapped plan, drawn by [AvToneMapCompositor].
+ *
+ * It names no colour of its own, since a clip's frame reaches the compositor as its own file carries it and each clip
+ * can carry a different one. The one instruction covers the whole composition, gaps included, so a gap asks for a
+ * frame with no source.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private fun AVMutableComposition.toneMapComposition(chain: CoreImageChain): AVMutableVideoComposition {
+  val output = chain.output
+  val track = tracksWithMediaType(AVMediaTypeVideo).first() as AVAssetTrack
+  val composition = AVMutableVideoComposition.videoComposition()
+
+  composition.setCustomVideoCompositorClass(toneMapCompositorClass())
+  composition.setInstructions(
+    listOf(AvToneMapInstruction(CMTimeRangeMake(kCMTimeZero.readValue(), duration), track.trackID, chain)),
+  )
+  composition.setRenderSize(CGSizeMake(output.size.width.toDouble(), output.size.height.toDouble()))
+  composition.setFrameDuration(CMTimeMake(value = 1, timescale = output.frameRate))
+
+  return composition
+}
+
+private fun HdrTransfer.avTransferFunction(): String? =
+  when (this) {
+    HdrTransfer.Pq -> AVVideoTransferFunction_SMPTE_ST_2084_PQ
+    HdrTransfer.Hlg -> AVVideoTransferFunction_ITU_R_2100_HLG
+  }
 
 private const val NO_VIDEO_TRACK = "AVFoundation refused a video track on the composition."
 

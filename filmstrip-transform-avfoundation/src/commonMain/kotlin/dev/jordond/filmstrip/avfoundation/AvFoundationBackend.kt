@@ -42,9 +42,18 @@ public fun FilmstripBuilder.avFoundationBackend(): FilmstripBuilder =
 public fun avFoundationExportEngine(
   components: EngineComponents,
   prober: MediaProber = chainedProber(components),
+): PlannedExportEngine = avFoundationExportEngine(components, prober, AvDriver(prober))
+
+/**
+ * Builds the engine around the [backend] given, so a test can stand in a device of another shape.
+ */
+internal fun avFoundationExportEngine(
+  components: EngineComponents,
+  prober: MediaProber,
+  backend: AvDriver,
 ): PlannedExportEngine =
   PlannedExportEngine(
-    backend = AvDriver(prober),
+    backend = backend,
     prober = prober,
     resolvers = components.effectResolvers,
     parity = AV_PARITY,

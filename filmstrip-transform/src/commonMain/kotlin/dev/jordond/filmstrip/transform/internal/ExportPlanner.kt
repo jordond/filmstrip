@@ -7,7 +7,6 @@ import dev.jordond.filmstrip.capability.ParityNote
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
-import dev.jordond.filmstrip.effect.Degradation
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.RenderCapabilities
@@ -21,6 +20,7 @@ import dev.jordond.filmstrip.export.PlannedEffect
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaInfo
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.copy.CopySupport
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.negotiation.StageLowering
@@ -61,8 +61,7 @@ public val DEFAULT_HDR_LADDER: List<VideoCodec> = listOf(VideoCodec.Hevc)
  * an export that keeps HDR, [noteOf] is what to tell a caller about an effect this engine only
  * approximates, `supportsCopy` says whether it can copy a stream across without an encoder at
  * all, `muxerAccepts` says whether the muxer will take a source's streams without re-encoding them,
- * [canToneMap] says whether it can bring an HDR grade down to SDR, and [toneCurve] says how its tone map departs from
- * the shared tone curve, or null when it runs that curve.
+ * and [canToneMap] says whether it can bring an HDR grade down to SDR.
  */
 @InternalFilmstripApi
 public class ExportPlanner(
@@ -75,7 +74,7 @@ public class ExportPlanner(
   muxerAccepts: (MediaInfo) -> Boolean,
   private val noteOf: (String) -> String? = { null },
   private val canToneMap: Boolean = true,
-  private val toneCurve: Degradation? = null,
+  private val toneMapLimit: (List<MediaSource>) -> String? = { null },
   private val hdrLadder: List<VideoCodec> = DEFAULT_HDR_LADDER,
 ) {
   private val lowering = StageLowering(resolvers, unclaimedMessage)
@@ -132,7 +131,7 @@ public class ExportPlanner(
     val inert = withoutInert(authored, ask, framingOf(authored, ask).orElse { return refused(it) }, streams)
     val edit = inert.edit
     val framing = framingOf(edit, ask).orElse { return refused(it) }
-    val grade = gradeOf(edit, ask, framing, copySupport, canToneMap).orElse { return refused(it) }
+    val grade = gradeOf(edit, ask, framing, copySupport, canToneMap, toneMapLimit).orElse { return refused(it) }
     val encoding =
       encodingOf(ask, framing, grade, streams, ladder, hdrLadder, renderCapabilities).orElse { return refused(it) }
     val timeline =
@@ -166,7 +165,7 @@ public class ExportPlanner(
 
     val audio = resolveAudioCodec(ask.spec, ask.device, silent = !streams.keepAudio)
     val output = outputFormatOf(ask, framing, grade, encoding, audio, timeline.tracks)
-    val concessions = concessionsOf(ask.spec, framing, grade, encoding, audio, lowered, dropped, toneCurve)
+    val concessions = concessionsOf(ask.spec, framing, grade, encoding, audio, lowered, dropped)
     if (ask.spec.strict && concessions.isNotEmpty()) {
       val refusal = Verdict.Incapable(concessions.map { it.strictRefusal }, withoutUnsupported = null)
       return Settlement.Settled(NegotiatedExport(refusal, null))

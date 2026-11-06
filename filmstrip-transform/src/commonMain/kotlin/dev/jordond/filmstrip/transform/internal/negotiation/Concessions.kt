@@ -2,7 +2,6 @@ package dev.jordond.filmstrip.transform.internal.negotiation
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.AudioCodec
-import dev.jordond.filmstrip.effect.Degradation
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportSpec
@@ -14,7 +13,6 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
  * Everything an export gave up against what [spec] asked for, in the order a caller reads it.
  *
  * @param dropped The effect ids the negotiation left out because the device cannot run them.
- * @param toneCurve How the engine's tone map departs from the shared tone curve, or null when it runs that curve.
  */
 internal fun concessionsOf(
   spec: ExportSpec,
@@ -24,7 +22,6 @@ internal fun concessionsOf(
   audio: CodecChoice<AudioCodec>,
   lowered: List<LoweredEffect>,
   dropped: Set<String>,
-  toneCurve: Degradation? = null,
 ): List<Concession> =
   buildList {
     encoding.video.fallback?.let(::add)
@@ -55,18 +52,6 @@ internal fun concessionsOf(
           // Auto reaches a tone map two ways, and a device that encodes HDR fine still gets here on
           // a mix, so the message follows whether the grades agree.
           message = if (grade.gradesAgree) TONE_MAPPED else TONE_MAPPED_MIXED,
-        ),
-      )
-    }
-    // Any tone map runs the engine's own curve, the one asked for by name included, so every mode reports it, under
-    // the mode that brought it there.
-    if (grade.sourceIsHdr && grade.hdr == ResolvedHdr.ToneMap && toneCurve != null) {
-      add(
-        concession(
-          kind = AdjustmentKind.EffectApproximated,
-          requested = spec.hdr.name,
-          resolved = toneCurve.reason.name,
-          message = toneCurve.message,
         ),
       )
     }

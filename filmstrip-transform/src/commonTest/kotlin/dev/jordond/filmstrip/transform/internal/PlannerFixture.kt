@@ -50,6 +50,7 @@ internal class PlannerFixture {
     muxerAccepts: (MediaInfo) -> Boolean = { true },
     renderApi: RenderApi = RenderApi.OpenGlEs,
     ladder: List<VideoCodec> = listOf(VideoCodec.H264, VideoCodec.Hevc),
+    toneMapLimit: (List<MediaSource>) -> String? = { null },
   ) = ExportPlanner(
     resolvers = resolvers,
     renderCapabilities = { size, hdr ->
@@ -69,6 +70,7 @@ internal class PlannerFixture {
     supportsCopy = true,
     canToneMap = canToneMap,
     muxerAccepts = muxerAccepts,
+    toneMapLimit = toneMapLimit,
   )
 
   // Every fabricated clip carries its own source, so the map is keyed the way the planner reads it.

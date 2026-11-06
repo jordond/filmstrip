@@ -1,8 +1,10 @@
 package dev.jordond.filmstrip.transform.internal.negotiation
 
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.copy.CopySupport
 import dev.jordond.filmstrip.transform.internal.copy.copyBlockers
 import dev.jordond.filmstrip.transform.internal.copy.copyOpening
@@ -19,6 +21,7 @@ internal fun gradeOf(
   framing: Framing,
   copySupport: CopySupport,
   canToneMap: Boolean,
+  toneMapLimit: (List<MediaSource>) -> String?,
 ): Phase<Grade> {
   val sourceTransfers =
     edit.tracks
@@ -63,6 +66,9 @@ internal fun gradeOf(
           },
         ),
       )
+  if (hdr == ResolvedHdr.ToneMap) {
+    toneMapLimit(drawnSdrSources(edit, ask))?.let { return Phase.Refused(invalid(it)) }
+  }
   val path = exportPath(copyKeepsHdr, hdr)
 
   return Phase.Next(
@@ -86,6 +92,17 @@ internal fun gradeOf(
     ),
   )
 }
+
+private fun drawnSdrSources(
+  edit: EditComposition,
+  ask: Ask,
+): List<MediaSource> =
+  edit.tracks
+    .filter { it.content != TrackContent.Audio }
+    .flatMap { it.clips }
+    .map { it.source }
+    .distinct()
+    .filter { source -> ask.infos[source]?.video?.let { it.hdrTransfer == null } == true }
 
 private const val NO_HDR_ENCODER =
   "HDR was required and this device cannot encode it. Use HdrMode.Auto to tone-map instead."

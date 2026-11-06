@@ -1,0 +1,236 @@
+package dev.jordond.filmstrip.avfoundation
+
+import dev.jordond.filmstrip.ComponentRegistry
+import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
+import dev.jordond.filmstrip.avfoundation.internal.composition.relabelsBt601AsBt709
+import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
+import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.effects.color.Invert
+import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.export.ExportStatus
+import dev.jordond.filmstrip.export.HdrMode
+import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.media.MediaSink
+import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.ResolveResult
+import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import platform.AVFoundation.AVVideoColorPrimaries_ITU_R_2020
+import platform.AVFoundation.AVVideoColorPrimaries_P3_D65
+import platform.AVFoundation.AVVideoColorPrimaries_SMPTE_C
+import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_2020
+import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_601_4
+import platform.AVFoundation.AVVideoYCbCrMatrix_ITU_R_709_2
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSTemporaryDirectory
+import kotlin.test.Test
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
+
+/**
+ * SDR clips and stills drawn beside an HDR clip in a tone mapped export.
+ *
+ * Each is held to the same clip with no HDR in the edit, every bar, rendered before the encoder. Two H.264 encodes of
+ * the same frame move a bar by a few codes on their own, more than the routes differ by.
+ */
+@OptIn(ExperimentalForeignApi::class)
+class AppleToneMapSdrClipTest {
+  private val filmstrip = Filmstrip { avFoundationBackend() }
+
+  @Test
+  fun `an sdr clip beside an hdr clip reads what it reads on its own`() =
+    runTest(timeout = TIMEOUT) {
+      // The fixtures carry no colour tags and what filmstrip writes carries BT.709's, and each reads its own way.
+      val untagged = fixture(SDR_FIXTURE)
+      val tagged = exported(reencoded(untagged), "sdr-tagged")
+      // macOS keeps these codes, where iOS runs them through one conversion.
+      val floor = if (relabelsBt601AsBt709) 0.0 else TONE_MAP_TOLERANCE_CODES
+      listOf(untagged, fixture(HD_SDR_FIXTURE), tagged).forEach { assertReadsAsItDoesAlone(it, floor) }
+      remove(tagged)
+    }
+
+  @Test
+  fun `an hdr clip after an sdr clip lands on the curve`() =
+    runTest(timeout = TIMEOUT) {
+      val sdr = fixture(HD_SDR_FIXTURE)
+      val mixed =
+        compositionOf {
+          clip(MediaSource.of(sdr)) { trim(Duration.ZERO, CLIP) }
+          clip(MediaSource.of(hdrFixture(HdrTransfer.Hlg))) { trim(Duration.ZERO, CLIP) }
+        }
+      val alone = renderedFrameOf(graphOf(sdrAlone(sdr)), 0)
+      val opening = renderedFrameOf(graphOf(mixed), 0)
+      val floor = if (relabelsBt601AsBt709) 0.0 else TONE_MAP_TOLERANCE_CODES
+      EVERY_BAR.forEach { x -> assertCodes(opening.at(x, QUARTER), alone.at(x, QUARTER), "the SDR bar at $x", floor) }
+
+      val path = exported(mixed, "sdr-first")
+      val frames = codeFramesOf(path, CLIP_FRAMES + 2)
+      assertCodes(frames[CLIP_FRAMES].at(CENTRE, CENTRE), curveOfFixture(HdrTransfer.Hlg), "the HLG clip")
+      remove(path)
+    }
+
+  // The seed under a still goes through the head like any SDR frame before the chain swaps the photo in for it.
+  @Test
+  fun `a still beside an hdr clip reads what it reads on its own`() =
+    runTest(timeout = TIMEOUT) {
+      val photo = ImageSource.of(photoFixture("filmstrip-tone-map-still", Size(640, 360), STILL_COLOR))
+      val hlg = MediaSource.of(hdrFixture(HdrTransfer.Hlg))
+      val alone = renderedFrameOf(graphOf(compositionOf { image(photo, CLIP) }), 0).at(CENTRE, CENTRE)
+      val stillFirst =
+        compositionOf {
+          image(photo, CLIP)
+          clip(hlg) { trim(Duration.ZERO, CLIP) }
+        }
+      val stillSecond =
+        compositionOf {
+          clip(hlg) { trim(Duration.ZERO, CLIP) }
+          image(photo, CLIP)
+        }
+      assertCodes(renderedFrameOf(graphOf(stillFirst), 0).at(CENTRE, CENTRE), alone, "a still opening the edit")
+      assertCodes(
+        renderedFrameOf(graphOf(stillSecond), CLIP_FRAMES).at(CENTRE, CENTRE),
+        alone,
+        "a still after the clip",
+      )
+
+      val expected = curveOfFixture(HdrTransfer.Hlg)
+      assertCodes(
+        renderedFrameOf(graphOf(stillFirst), CLIP_FRAMES).at(CENTRE, CENTRE),
+        expected,
+        "the clip after a still",
+      )
+      assertCodes(renderedFrameOf(graphOf(stillSecond), 0).at(CENTRE, CENTRE), expected, "the clip before a still")
+    }
+
+  @Test
+  fun `a clip that is not bt709 beside an hdr clip reads what it reads on its own`() =
+    runTest(timeout = TIMEOUT) {
+      taggedSources().forEach { (name, primaries, matrix) ->
+        val path = temporaryPath("bars-$name")
+        withContext(Dispatchers.Default) { writeTaggedBars(path, CLIP_FRAMES, primaries, matrix) }
+        assertReadsAsItDoesAlone(path, TONE_MAP_TOLERANCE_CODES)
+        remove(path)
+      }
+    }
+
+  // macOS's limit. Its AVFoundation pulls a BT.2020 colour outside BT.709 in under a composition naming BT.709, where
+  // VideoToolbox's transfer clips it, and no compositor can reach that conversion. The simulator clips both ways.
+  @Test
+  fun `a colour far outside bt709 beside an hdr clip stays inside its pin`() =
+    runTest(timeout = TIMEOUT) {
+      val floors =
+        mapOf(
+          "p3" to TONE_MAP_TOLERANCE_CODES,
+          "bt2020" to if (relabelsBt601AsBt709) MACOS_OUT_OF_GAMUT_CODES else TONE_MAP_TOLERANCE_CODES,
+        )
+      taggedSources().filter { it.first in floors }.forEach { (name, primaries, matrix) ->
+        val path = temporaryPath("far-$name")
+        withContext(Dispatchers.Default) { writeTaggedBars(path, CLIP_FRAMES, primaries, matrix, OUT_OF_GAMUT_BARS) }
+        assertReadsAsItDoesAlone(path, floors.getValue(name))
+        remove(path)
+      }
+    }
+
+  /**
+   * Holds every bar of [source], rendered at the join after an HDR clip, to the same bar rendered with no HDR clip in
+   * the edit, within [floor] codes. An HD clip sits ahead of it both ways, so both frames scale it to one output size.
+   */
+  private suspend fun assertReadsAsItDoesAlone(
+    source: String,
+    floor: Double,
+  ) {
+    val mixed =
+      compositionOf {
+        clip(MediaSource.of(hdrFixture(HdrTransfer.Hlg))) { trim(Duration.ZERO, CLIP) }
+        clip(MediaSource.of(source)) { trim(Duration.ZERO, CLIP) }
+      }
+    val beside = renderedFrameOf(graphOf(mixed), CLIP_FRAMES)
+    val alone = renderedFrameOf(graphOf(sdrOnly(source)), CLIP_FRAMES)
+    EVERY_BAR.forEach { x -> assertCodes(beside.at(x, QUARTER), alone.at(x, QUARTER), "$source at $x", floor) }
+  }
+
+  private suspend fun graphOf(composition: EditComposition): AvComposition =
+    withContext(Dispatchers.Default) {
+      val components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()
+      when (val result = avFoundationExportEngine(components).resolve(composition, SPEC)) {
+        is ResolveResult.Refused -> error(result.error.message)
+        is ResolveResult.Resolved -> result.composition.toAvComposition()
+      }
+    }
+
+  // The writer takes EBU primaries on macOS only, and SMPTE C everywhere.
+  private fun taggedSources(): List<Triple<String, String, String>> =
+    listOfNotNull(
+      Triple("p3", AVVideoColorPrimaries_P3_D65.orEmpty(), AVVideoYCbCrMatrix_ITU_R_709_2.orEmpty()),
+      Triple("bt2020", AVVideoColorPrimaries_ITU_R_2020.orEmpty(), AVVideoYCbCrMatrix_ITU_R_2020.orEmpty()),
+      Triple("smpte-c", AVVideoColorPrimaries_SMPTE_C.orEmpty(), AVVideoYCbCrMatrix_ITU_R_601_4.orEmpty()),
+      Triple("ebu", EBU_PRIMARIES, AVVideoYCbCrMatrix_ITU_R_601_4.orEmpty()).takeIf { relabelsBt601AsBt709 },
+    )
+
+  private fun sdrOnly(path: String): EditComposition =
+    compositionOf {
+      clip(MediaSource.of(fixture(HD_SDR_FIXTURE))) { trim(Duration.ZERO, CLIP) }
+      clip(MediaSource.of(path)) { trim(Duration.ZERO, CLIP) }
+    }
+
+  private fun sdrAlone(path: String): EditComposition =
+    compositionOf { clip(MediaSource.of(path)) { trim(Duration.ZERO, CLIP) } }
+
+  // An effect forces the encode, since a clip already inside the height limit would copy across with the tags it has.
+  private fun reencoded(path: String): EditComposition =
+    compositionOf {
+      clip(MediaSource.of(path)) {
+        trim(Duration.ZERO, CLIP)
+        addEffects(listOf(Invert()))
+      }
+    }
+
+  private suspend fun exported(
+    composition: EditComposition,
+    name: String,
+  ): String {
+    val output = temporaryPath(name)
+    withContext(Dispatchers.Default) {
+      filmstrip
+        .export(composition, SPEC, MediaSink.of(output))
+        .toList()
+        .last()
+        .shouldBeInstanceOf<ExportStatus.Success>()
+    }
+    return output
+  }
+
+  private fun temporaryPath(name: String): String = NSTemporaryDirectory() + "filmstrip-tone-map-sdr-$name.mp4"
+
+  private fun remove(path: String) {
+    NSFileManager.defaultManager.removeItemAtPath(path, error = null)
+  }
+
+  private companion object {
+    const val CENTRE = 0.5f
+    const val QUARTER = 0.25f
+    const val BARS = 8
+    const val EBU_PRIMARIES = "EBU_3213"
+
+    // Measured at 20 codes on the worst bar of OUT_OF_GAMUT_BARS.
+    const val MACOS_OUT_OF_GAMUT_CODES = 20.0
+    const val SDR_FIXTURE = "apple_export_a.mp4"
+    const val HD_SDR_FIXTURE = "apple_export_long.mp4"
+    const val CLIP_FRAMES = 15
+    val EVERY_BAR = (0 until BARS).map { (it + CENTRE) / BARS }
+    val CLIP = 500.milliseconds
+    val STILL_COLOR = Triple(170, 120, 90)
+    val TIMEOUT = 3.minutes
+    val SPEC = ExportSpec(heightPx = 720, hdr = HdrMode.ToneMapToSdr)
+  }
+}

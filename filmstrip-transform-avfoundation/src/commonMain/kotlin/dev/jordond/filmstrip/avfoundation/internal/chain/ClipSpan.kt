@@ -38,6 +38,7 @@ import kotlin.time.Duration
  * frame is drawn at its own. Set on the primary's last span when an audio track outlasts it, to the
  * last slot the primary covers, so the held tail repeats that slot's frame, effects included.
  * @property placement Where the clip's pixels land in the output frame, under its own fit.
+ * @property sourceTransfer The HDR transfer this clip's source carries, or null when it is SDR.
  * @property canvasEffectIndices The index in [effects] after which each of the placement's canvases is built, in the
  * same order.
  * @property drawnRect Where the frame [effects] leave is drawn in the output frame, as a fraction of it.
@@ -52,6 +53,7 @@ internal class ClipSpan(
   val heldFrom: Duration? = null,
   val placement: ClipPlacement,
   val canvasEffectIndices: List<Int>,
+  val sourceTransfer: HdrTransfer? = null,
   val drawnRect: NormalizedRect,
 ) {
   fun covers(time: Duration): Boolean = time in start..<end
@@ -135,6 +137,7 @@ internal fun ResolvedClip.spanning(
     heldFrom = heldFrom,
     placement = placement,
     canvasEffectIndices = canvasEffectIndices,
+    sourceTransfer = video?.hdrTransfer,
     drawnRect = drawnRect,
   )
 }

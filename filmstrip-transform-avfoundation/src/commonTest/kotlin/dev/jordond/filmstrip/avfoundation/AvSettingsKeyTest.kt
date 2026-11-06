@@ -1,5 +1,7 @@
 package dev.jordond.filmstrip.avfoundation
 
+import dev.jordond.filmstrip.avfoundation.internal.composition.toneMapOutputAttributes
+import dev.jordond.filmstrip.avfoundation.internal.composition.toneMapSourceAttributes
 import dev.jordond.filmstrip.avfoundation.internal.still.stillSeedBufferAttributes
 import dev.jordond.filmstrip.avfoundation.internal.writer.audioWriterSettings
 import dev.jordond.filmstrip.avfoundation.internal.writer.pcmReaderSettings
@@ -26,6 +28,12 @@ class AvSettingsKeyTest {
   fun `the video reader settings are keyed by strings`() {
     videoReaderSettings(encodesHdr = false).assertStringKeyed()
     videoReaderSettings(encodesHdr = true).assertStringKeyed()
+  }
+
+  @Test
+  fun `the tone map compositor's buffer attributes are keyed by strings`() {
+    toneMapSourceAttributes().assertStringKeyed()
+    toneMapOutputAttributes().assertStringKeyed()
   }
 
   @Test

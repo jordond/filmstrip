@@ -200,9 +200,8 @@ private fun OutputFormat.preset(): String? {
 /**
  * The color target the encoder is pinned to.
  *
- * Tone mapping falls out of this. Core Image renders into the working
- * space the context was built with, and naming Rec.709 here is what makes a BT.2020 source land
- * inside it.
+ * A tone mapped frame already holds BT.709 codes when it gets here, drawn by the tone map compositor and tagged as
+ * BT.709, so naming Rec.709 here leaves it alone.
  */
 private fun colorProperties(
   encodesHdr: Boolean,

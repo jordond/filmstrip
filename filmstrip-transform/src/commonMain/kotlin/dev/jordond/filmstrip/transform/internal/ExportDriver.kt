@@ -3,7 +3,6 @@ package dev.jordond.filmstrip.transform.internal
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.edit.Clip
-import dev.jordond.filmstrip.effect.Degradation
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.geometry.Size
@@ -55,12 +54,14 @@ public interface ExportDriver {
   ): Duration? = null
 
   /**
-   * How this platform's tone map departs from the shared tone curve, or null when it runs that curve.
+   * Why this device cannot tone map an HDR source, or null when it can.
    *
-   * A tone mapped export reports it as an approximation, whichever HDR mode brought it there.
+   * Read once per plan with an HDR source, so an answer that costs something to work out is only paid for there. A
+   * plan that needs the tone map is refused with this as its message.
+   *
+   * @param sdrSources The sources drawn beside that HDR source that carry no grade of their own.
    */
-  public val toneCurve: Degradation?
-    get() = null
+  public fun toneMapLimit(sdrSources: List<MediaSource>): String? = null
 
   /**
    * Names the render backend an unclaimed effect would have needed a resolver for.

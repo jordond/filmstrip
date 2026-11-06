@@ -15,6 +15,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
 
@@ -134,8 +135,7 @@ class HdrPlanTest {
   fun `an asked-for tone map is not an adjustment`() {
     // Auto is the mode that can land somewhere else, so it is the one that reports. Asking for a
     // tone map and getting one is the request honoured, and calling that degraded costs a caller
-    // matching on Capable the plan it can run, and strict the export entirely. This engine runs the
-    // shared tone curve, one with a curve of its own reports that whatever the mode.
+    // matching on Capable the plan it can run, and strict the export entirely.
     val verdict =
       fixture.plan(
         composition(fixture.clip(hdr = HdrTransfer.Hlg)),
@@ -146,7 +146,6 @@ class HdrPlanTest {
     verdict.shouldBeInstanceOf<Verdict.Capable>()
   }
 
-  // On the shared tone curve. An engine with a curve of its own refuses here, which ConcessionsTest pins.
   @Test
   fun `a strict export survives the tone map it asked for`() {
     val verdict =
@@ -212,6 +211,69 @@ class HdrPlanTest {
     reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
       "This source carries an HDR grade and this engine can neither encode it nor tone-map it, so " +
       "there is nowhere to put it."
+  }
+
+  // The limit can be costly to answer, Apple's compiles kernels, and it only speaks to a plan that really tone maps.
+  @Test
+  fun `a kept grade never asks for the tone map limit`() {
+    var asked = 0
+    val composition = composition(fixture.clip(hdr = HdrTransfer.Pq, effects = listOf(Brightness(0.5f))))
+    val infos = fixture.infos(composition)
+    val device = fixture.device(hdr = true)
+    val planner =
+      fixture.planner(
+        toneMapLimit = {
+          asked++
+          TONE_MAP_LIMIT
+        },
+      )
+
+    planner.negotiate(composition, Ask(ExportSpec(), device, infos)).verdict.shouldBeInstanceOf<Verdict.Capable>()
+    planner
+      .negotiate(composition, Ask(ExportSpec(hdr = HdrMode.KeepHdr), device, infos))
+      .verdict
+      .shouldBeInstanceOf<Verdict.Capable>()
+
+    asked shouldBe 0
+  }
+
+  @Test
+  fun `a tone map asks for the limit once and refuses by its name`() {
+    var asked = 0
+    val composition = composition(fixture.clip(hdr = HdrTransfer.Pq, effects = listOf(Brightness(0.5f))))
+    val planner =
+      fixture.planner(
+        toneMapLimit = {
+          asked++
+          TONE_MAP_LIMIT
+        },
+      )
+
+    val verdict =
+      planner
+        .negotiate(
+          composition,
+          Ask(ExportSpec(), fixture.device(), fixture.infos(composition)),
+        ).verdict
+
+    val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe TONE_MAP_LIMIT
+    asked shouldBe 1
+  }
+
+  // A device with no kernel can still keep a grade, so the limit is not the reason a kept grade fails.
+  @Test
+  fun `a refused kept grade does not name the tone map limit`() {
+    val composition = composition(fixture.clip(hdr = HdrTransfer.Pq, effects = listOf(Brightness(0.5f))))
+    val planner = fixture.planner(toneMapLimit = { TONE_MAP_LIMIT })
+
+    val verdict =
+      planner
+        .negotiate(composition, Ask(ExportSpec(hdr = HdrMode.KeepHdr), fixture.device(), fixture.infos(composition)))
+        .verdict
+
+    val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+    reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldNotBe TONE_MAP_LIMIT
   }
 
   @Test
@@ -333,3 +395,5 @@ class HdrPlanTest {
     plan.path shouldBe ExportPath.Copy
   }
 }
+
+private const val TONE_MAP_LIMIT = "This device cannot run the tone map."

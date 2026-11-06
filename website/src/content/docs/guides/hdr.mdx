@@ -39,12 +39,15 @@ of kind `HdrToneMapped` that you can show before the user commits.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Hdr.kt" region="adjustment" />
 
-The browser and ffmpeg run one shared tone curve. Android runs media3's curve, which the shared one is copied from. Apple
-goes through Core Image, which picks its own.
+The browser, ffmpeg and Apple run one shared tone curve. Android runs media3's curve, which the shared one is copied from.
 
 <Aside type="note" title="Limits">
-- Core Image's tone curve can't be set, so a tone mapped Apple export reports an `EffectApproximated` adjustment, and a
-  `strict` spec refuses it.
+- Apple lands within 2 codes of the curve before the encoder. In the written file a grey stays within 2 and a colour within
+  4, since one chroma step in 8-bit H.264 moves red by nearly 2 codes on its own.
+- Apple runs the curve on a Metal kernel. A device that can't compile one refuses the tone map by name when the export is
+  planned, and `KeepHdr` still works there.
+- On macOS, an SDR clip in BT.2020 beside an HDR clip can read up to 20 codes off the same clip in an SDR edit, when a colour
+  sits far outside BT.709. Colours inside it stay within 2.
 - The browser reads ten-bit frames through its software decoder, and HEVC has none there. An HEVC Main 10 source, which is
   what an iPhone writes, keeps its grade only through a stream copy of an untouched clip. Anything that has to be
   re-encoded, a tone map included, is refused by name.

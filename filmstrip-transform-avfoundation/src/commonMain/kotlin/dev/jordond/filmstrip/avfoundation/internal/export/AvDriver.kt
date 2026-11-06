@@ -1,7 +1,10 @@
 package dev.jordond.filmstrip.avfoundation.internal.export
 
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.avfoundation.internal.chain.toneMapKernelLimit
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
+import dev.jordond.filmstrip.avfoundation.internal.composition.hasPixelTransferSession
+import dev.jordond.filmstrip.avfoundation.internal.composition.sdrTransferLimit
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
 import dev.jordond.filmstrip.avfoundation.internal.interop.syncSampleAtOrBefore
@@ -12,8 +15,6 @@ import dev.jordond.filmstrip.avfoundation.internal.writer.WriterRun
 import dev.jordond.filmstrip.avfoundation.internal.writer.avEncoderCapabilities
 import dev.jordond.filmstrip.avfoundation.internal.writer.resolveDestination
 import dev.jordond.filmstrip.capability.DeviceCapabilities
-import dev.jordond.filmstrip.effect.Degradation
-import dev.jordond.filmstrip.effect.DegradationReason
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
@@ -44,6 +45,8 @@ import kotlin.time.Duration
  */
 internal class AvDriver(
   private val prober: MediaProber,
+  private val kernelLimit: () -> String? = { toneMapKernelLimit() },
+  private val pixelTransferExists: Boolean = hasPixelTransferSession,
 ) : ExportDriver {
   override suspend fun capabilities(): DeviceCapabilities = processEncoders.read()
 
@@ -52,8 +55,8 @@ internal class AvDriver(
     hdr: Boolean,
   ): RenderCapabilities = coreImageRenderCapabilities(outputSize, hdr)
 
-  // Naming BT.709 on the composition and the writer is the only control there is, so Core Image picks the curve.
-  override val toneCurve: Degradation = CORE_IMAGE_TONE_CURVE
+  override fun toneMapLimit(sdrSources: List<MediaSource>): String? =
+    kernelLimit() ?: sdrTransferLimit(sdrSources, pixelTransferExists)
 
   override suspend fun syncSampleAtOrBefore(
     source: MediaSource,
@@ -151,23 +154,10 @@ internal fun coreImageRenderCapabilities(
       buildSet {
         add(RenderFeature.MultipassRender)
         add(RenderFeature.TextRendering)
-        // Core Image converts into whatever space the output names, so tone mapping is always on
-        // offer. It is not [hdr], which is true when a grade is being kept and so when nothing is
-        // being tone-mapped at all.
+        // The tone map runs on a Metal kernel, and a device that cannot compile one is refused by toneMapLimit. It is
+        // not [hdr], which is true when a grade is being kept and so when nothing is being tone-mapped at all.
         add(RenderFeature.HdrToneMapping)
       },
   )
 
 private const val MAX_TEXTURE_FLOOR = 8_192
-
-/**
- * How a tone mapped Apple export departs from the shared tone curve. Core Image converts HDR to SDR on a curve of its
- * own, which filmstrip cannot set and has not measured against the shared one.
- */
-internal val CORE_IMAGE_TONE_CURVE: Degradation =
-  Degradation(
-    reason = DegradationReason.ApproximateAlgorithm,
-    message =
-      "Core Image brings HDR down to SDR on its own tone curve, which filmstrip cannot set, so it is not held to " +
-        "the shared curve the other backends run.",
-  )

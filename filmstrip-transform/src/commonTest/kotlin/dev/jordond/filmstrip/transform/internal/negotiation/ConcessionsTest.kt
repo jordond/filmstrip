@@ -4,8 +4,6 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.AudioEncoderCapability
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
-import dev.jordond.filmstrip.effect.Degradation
-import dev.jordond.filmstrip.effect.DegradationReason
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.Sepia
@@ -138,38 +136,6 @@ class ConcessionsTest {
       "tone-mapped to SDR together."
     toneMapped(HdrMode.ToneMapToSdr).shouldBeEmpty()
     toneMapped(HdrMode.Auto, sourceIsHdr = false).shouldBeEmpty()
-  }
-
-  // An engine whose tone map is its own runs it whichever mode asked for one, and an engine on the shared curve, a kept
-  // grade and an SDR source have nothing to report.
-  @Test
-  fun `a tone curve of the engine's own is reported on every tone map and nowhere else`() {
-    val toneCurve = Degradation(DegradationReason.ApproximateAlgorithm, "its own curve")
-
-    fun approximated(
-      mode: HdrMode,
-      hdr: ResolvedHdr = ResolvedHdr.ToneMap,
-      sourceIsHdr: Boolean = true,
-      curve: Degradation? = toneCurve,
-    ) = concessionsOf(
-      ExportSpec(hdr = mode),
-      framingOf(clip, info),
-      gradeOf(sourceIsHdr = sourceIsHdr, hdr = hdr),
-      encodingOf(SIZE),
-      aac,
-      emptyList(),
-      emptySet(),
-      curve,
-    ).map { it.adjustment }
-      .filter { it.kind == AdjustmentKind.EffectApproximated }
-
-    fun expected(mode: HdrMode) =
-      listOf(Adjustment(AdjustmentKind.EffectApproximated, mode.name, "ApproximateAlgorithm", "its own curve"))
-    approximated(HdrMode.ToneMapToSdr) shouldBe expected(HdrMode.ToneMapToSdr)
-    approximated(HdrMode.Auto) shouldBe expected(HdrMode.Auto)
-    approximated(HdrMode.ToneMapToSdr, curve = null).shouldBeEmpty()
-    approximated(HdrMode.KeepHdr, hdr = ResolvedHdr.Keep).shouldBeEmpty()
-    approximated(HdrMode.Auto, sourceIsHdr = false).shouldBeEmpty()
   }
 
   // A fold stands for every effect the caller wrote, and the same cause reached on two clips is one approximation.
