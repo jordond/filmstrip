@@ -172,7 +172,10 @@ private fun Image.codes(sample: (ByteBuffer, Int) -> Int): FrameCodes {
   )
 }
 
-private const val CODE_PATCH = 4
+/**
+ * The side of the square [FrameCodes.codesAt] averages, in pixels.
+ */
+internal const val CODE_PATCH = 4
 private const val SAMPLE_BYTES = 2
 private const val WORD_MASK = 0xFFFF
 private const val BYTE_MASK = 0xFF

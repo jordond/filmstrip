@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.FilmstripBuilder
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
@@ -41,9 +42,15 @@ import kotlin.time.Duration.Companion.minutes
  * the test resources into [context]'s cache. A fixture that was not bundled, or a device that lacks
  * what a test needs, fails an assumption, so the test reports skipped rather than passed.
  */
-internal class Media3ExportProbe {
+internal class Media3ExportProbe(
+  extras: FilmstripBuilder.() -> Unit = {},
+) {
   val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
-  val filmstrip: Filmstrip = Filmstrip(context) { media3Backend() }
+  val filmstrip: Filmstrip =
+    Filmstrip(context) {
+      media3Backend()
+      extras()
+    }
 
   /**
    * Plans [composition] at [spec], exports it to a temporary file and returns that file.

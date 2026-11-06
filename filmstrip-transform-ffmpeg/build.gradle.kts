@@ -18,6 +18,7 @@ kotlin {
 
     jvmTest.dependencies {
       implementation(projects.filmstripTest)
+      implementation(projects.filmstripEffectsFilters)
     }
   }
 }

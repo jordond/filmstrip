@@ -20,6 +20,7 @@ Read the docs at [filmstrip.jordond.dev](https://filmstrip.jordond.dev).
 | `filmstrip` | The bundle: core, effects, player, and the right backend for each target, plus `allBackends()` to register them. Deliberately not Compose. |
 | `filmstrip-core` | Model, `MediaSource`/`MediaSink`, `probe()`, `frame()`, `frames()`, the `VideoPlayer` API and `PlayerEngine` SPI, and the effect SPI. No runtime, no effect catalogue. |
 | `filmstrip-effects` | The built-in effect catalogue. GL effects on Android, Core Image on Apple, ffmpeg filter graphs on the JVM, and canvas drawing in the browser. |
+| `filmstrip-effects-filters` | Opt-in looks on all four backends, starting with VHS. Add it and call `filters()` on the builder. |
 | `filmstrip-transform` | The export planner: shared policy every backend builds on. Add a backend artifact alongside it to actually export. |
 | `filmstrip-transform-media3` | The Media3 backend, Android. Lowers an edit for media3-transformer export and for the player's preview. |
 | `filmstrip-transform-avfoundation` | The AVFoundation backend, iOS and macOS. Lowers an edit for export and for the player's preview. |

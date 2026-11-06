@@ -14,9 +14,13 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
+import dev.jordond.filmstrip.effects.geometry.Crop
+import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
+import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
@@ -141,6 +145,19 @@ class Media3CompositionTest {
           .any { it is FillCoverBlur } shouldBe placement.leavesBars
       }
     }
+  }
+
+  @Test
+  fun `runs no cover blur for a canvas that fills the frame`() {
+    val output = Size(1920, 1080)
+    val size = Size(1600, 1600)
+    val pan = KenBurns(NormalizedRect.Full, NormalizedRect(0f, 0f, 0.5f, 0.5f))
+    val placement = placementOf(size, listOf(listOf(Crop(AspectRatio(16, 9), Fit.Contain), pan)), output)
+
+    placement.leavesBars shouldBe true
+    clip(size = size, placement = placement, canvasEffectIndices = listOf(-1))
+      .clipVideoEffects(Fill.Blurred(), output)
+      .any { it is FillCoverBlur } shouldBe false
   }
 
   // The default radius against a 1080-pixel shorter side, pinned so a later change to the tap
@@ -319,7 +336,7 @@ class Media3CompositionTest {
       sequence.editedMediaItems
         .first()
         .effects.videoEffects shouldBe
-        listOf(PlacedFrame(NormalizedRect.Full, OUTPUT, PlacedFrame.Bars.Clear))
+        listOf(PlacedFrame(NormalizedRect.Full, OUTPUT))
       sequence.editedMediaItems.drop(1).forEach { it.isGap shouldBe false }
     } finally {
       unmockkAll()

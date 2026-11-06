@@ -96,7 +96,7 @@ internal class BrowserPipeline(
       currentCoroutineContext().ensureActive()
 
       val outputUs = render.slotUs(slot)
-      compositor.drawFill(outputUs, render.compositionOverlays)
+      compositor.drawFill(outputUs, render.compositionOverlays, render.compositionPasses)
       encodeFrame(compositor, encoder, outputUs, render.stepUs)
       onProgress(slot + 1, outputUs)
     }
@@ -140,7 +140,8 @@ internal class BrowserPipeline(
         }
 
         val chosen = nearest(current, ahead, sourceUs) ?: break
-        compositor.draw(chosen, render.slotUs(clip.firstSlot + drawn), render.compositionOverlays)
+        val slotUs = render.slotUs(clip.firstSlot + drawn)
+        compositor.draw(chosen, slotUs, render.compositionOverlays, render.compositionPasses)
 
         val outputUs = render.slotUs(clip.firstSlot + slot)
         encodeFrame(compositor, encoder, outputUs, render.stepUs)

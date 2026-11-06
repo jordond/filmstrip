@@ -111,6 +111,21 @@ internal fun CIImage.inCanvas(
       .imageByCroppingToRect(CGRectMake(0.0, 0.0, canvasWidth, canvasHeight))
   }
 
+/**
+ * This canvas with black wherever its alpha leaves it open.
+ *
+ * `CIBlendWithAlphaMask` lerps on the mask's alpha, so a graded pixel at alpha zero adds none of its color.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun CIImage.withBlackBars(): CIImage =
+  imageByApplyingFilter(
+    "CIBlendWithAlphaMask",
+    mapOf(
+      "inputBackgroundImage" to CIImage(color = CIColor.blackColor).imageByCroppingToRect(extent),
+      "inputMaskImage" to this,
+    ),
+  ).imageByCroppingToRect(extent)
+
 // Maps an extent at x, y of width by height onto rect, a top-left fraction of a frame of frameWidth by frameHeight
 // whose origin sits at the bottom left the way Core Image measures it.
 @OptIn(ExperimentalForeignApi::class)

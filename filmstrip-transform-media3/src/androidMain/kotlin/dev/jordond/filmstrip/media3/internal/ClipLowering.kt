@@ -13,6 +13,8 @@ import dev.jordond.filmstrip.effects.overlay.MAX_OVERLAYS_PER_EFFECT
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media3.internal.fill.FillCoverBlur
+import dev.jordond.filmstrip.media3.internal.fill.FillFlatten
+import dev.jordond.filmstrip.transform.internal.geometry.showsBlurredFill
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
@@ -22,31 +24,32 @@ import dev.jordond.filmstrip.transform.internal.resolve.drawnRect
  * A clip's own video effect chain, ending on the pass that places the clip in an output frame of [outputSize].
  *
  * Each crop that makes a canvas a later effect reads has the canvas built right after it, with clear bars the flatten
- * pass paints the fill into, or black ones under [Fill.Blurred], whose cover is drawn from the frame and so carries the
- * bars the way it carries the picture. The clip is then drawn at its [drawnRect], over a blurred cover of itself when
- * it leaves bars for [Fill.Blurred] to fill.
+ * pass paints the fill into. Under [Fill.Blurred] they turn black once the clip's effects have run, since the cover is
+ * drawn from the frame and carries the bars the way it carries the picture. The clip is then drawn at its [drawnRect],
+ * over a blurred cover of itself when [showsBlurredFill] says the cover can be seen.
  */
 internal fun ResolvedClip.clipVideoEffects(
   fill: Fill,
   outputSize: Size,
   wrapper: EffectWrapper = UnwrappedEffects,
 ): List<Effect> {
-  val bars = if (fill is Fill.Blurred) PlacedFrame.Bars.Black else PlacedFrame.Bars.Clear
   // Cut at each canvas, so a run of overlays on one side of it still blends in one pass.
   val cuts = listOf(-1) + canvasEffectIndices
   val chain =
     cuts.indices.flatMap { segment ->
       val until = canvasEffectIndices.getOrNull(segment)?.plus(1) ?: effects.size
       effects.subList(cuts[segment] + 1, until).toMedia3Effects() +
-        listOfNotNull(placement.canvases.getOrNull(segment)?.let { PlacedFrame.canvasOf(it, bars) })
+        listOfNotNull(placement.canvases.getOrNull(segment)?.let(PlacedFrame::canvasOf))
     }
+  val blackBars =
+    if (fill is Fill.Blurred && placement.canvases.isNotEmpty()) listOf(FillFlatten(BLACK_BARS)) else emptyList()
   val placed =
-    if (placement.leavesBars && fill is Fill.Blurred) {
+    if (fill is Fill.Blurred && placement.showsBlurredFill(outputSize)) {
       FillCoverBlur(fill, outputSize, drawnRect)
     } else {
-      PlacedFrame(drawnRect, outputSize, PlacedFrame.Bars.Clear)
+      PlacedFrame(drawnRect, outputSize)
     }
-  return (chain + placed).map(wrapper::wrap)
+  return (chain + blackBars + placed).map(wrapper::wrap)
 }
 
 /**
@@ -115,3 +118,5 @@ internal fun List<ResolvedEffect>.toMedia3Effects(): List<Effect> {
 
 private const val CHANNEL_COUNT = 2
 private val INPUT_CHANNEL_COUNTS = listOf(1, 2)
+
+private const val BLACK_BARS = 0xFF000000.toInt()

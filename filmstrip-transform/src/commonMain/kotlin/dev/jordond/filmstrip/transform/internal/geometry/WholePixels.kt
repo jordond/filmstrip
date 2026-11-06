@@ -32,6 +32,20 @@ public data class PixelRect(
 }
 
 /**
+ * Whether a blurred fill can be seen around this clip in an output [frame].
+ *
+ * A canvas's bars are opaque black by the time its clip is placed under a blurred fill, so they hide the blur like the
+ * picture does. A clip that built a canvas shows the blur only where its rect, in whole pixels, leaves [frame] open.
+ */
+@InternalFilmstripApi
+public fun ClipPlacement.showsBlurredFill(frame: Size): Boolean {
+  if (!leavesBars) return false
+  if (canvases.isEmpty()) return true
+  val drawn = drawnRect.inWholePixelsOf(frame)
+  return drawn.left > 0 || drawn.top > 0 || drawn.right < frame.width || drawn.bottom < frame.height
+}
+
+/**
  * Rounds this rect to whole pixels of [frame].
  *
  * Each edge is rounded to the nearest pixel edge on its own, so the result is never more than half a pixel off this

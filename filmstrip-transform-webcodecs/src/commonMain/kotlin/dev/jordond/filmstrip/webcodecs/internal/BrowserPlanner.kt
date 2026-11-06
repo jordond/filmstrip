@@ -82,6 +82,7 @@ internal class BrowserPlanner(
       export.composition ?: return opaqueRefusal(opaque) ?: LoweredExport(export, null)
     val writesVideo = negotiated.audio != AudioSpec.AudioOnly
     if (writesVideo) canvasRefusal(negotiated)?.let { return it }
+    if (writesVideo) clipFrameError(negotiated, browserMaxTextureSide())?.let { return refusedLowering(it) }
     if (writesVideo && negotiated.path == ExportPath.Transcode) {
       transcodeOnlyRefusal(composition, ask.infos)?.let { return it }
       // A tone map reads the planes a kept grade does, so a source that hands out opaque frames
@@ -240,5 +241,27 @@ private fun canvasRefusal(negotiated: ResolvedComposition): LoweredExport<Nothin
       "A clip builds $most canvases, and the browser draws at most $MAX_CANVASES. Each letterboxing or stretching " +
         "crop with an effect after it that reads its bars builds one.",
     ),
+  )
+}
+
+/**
+ * The refusal for a clip whose own frame runs past [maxSide], the longest texture side this page gives out, or null
+ * when every clip's fits. A clip with a shader pass draws on a frame of its whole quad, and a fit that crops makes that
+ * quad bigger than the output. That is the page's own limit, so it is refused by name at plan time.
+ */
+internal fun clipFrameError(
+  negotiated: ResolvedComposition,
+  maxSide: Int,
+): FilmstripError? {
+  val frame =
+    negotiated.tracks
+      .flatMap { it.clips }
+      .filter { it.stagePasses(negotiated.fill).isNotEmpty() }
+      .map { it.stageFrameOn(negotiated.output.size) }
+      .firstOrNull { maxOf(it.width, it.height) > maxSide }
+      ?: return null
+  return FilmstripError.InvalidComposition(
+    "A clip's own frame is ${frame.width} by ${frame.height} pixels, past the $maxSide this page's textures reach on " +
+      "a side. Its shader passes draw on that whole frame, which a fit that crops makes bigger than the output.",
   )
 }

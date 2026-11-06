@@ -98,8 +98,9 @@ internal fun CIImage.withColorMatrix(
  * that step carries the frame's own codes, the values the other backends read straight off the
  * buffer.
  */
+@InternalFilmstripApi
 @OptIn(ExperimentalForeignApi::class)
-internal inline fun inCodesOf(
+public inline fun inCodesOf(
   colorSpace: ColorSpace,
   block: (toCodes: (CIImage) -> CIImage) -> CIImage,
 ): CIImage {

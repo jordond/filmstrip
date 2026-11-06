@@ -140,6 +140,10 @@ jobs:
         if: matrix.config.target == 'macos-arm' && !cancelled() && steps.ffmpeg-major.outcome == 'success'
         run: ./gradlew :filmstrip-effects:jvmTest --scan
 
+      - name: Run filter tests on current ffmpeg
+        if: matrix.config.target == 'macos-arm' && !cancelled() && steps.ffmpeg-major.outcome == 'success'
+        run: ./gradlew :filmstrip-effects-filters:jvmTest --scan
+
       - name: Slowest test classes
         if: always()
         run: python3 .github/scripts/slowest-tests.py

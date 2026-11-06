@@ -46,25 +46,30 @@ public actual class PlatformEffect private constructor(
  * rectangle or a scalar. A pass needing a texture uniform belongs to the pipeline that owns the
  * texture, not to a declaration a resolver can build without a GL context.
  *
- * @property programKey Which shader program draws this pass. The pipeline links one program per
- *   distinct key and reuses it.
+ * @property programKey Which shader program draws this pass. The compositor links one program per distinct key that
+ * carries a [shader] and reuses it. A key with no [shader] has to name what the compositor folds into its own draw,
+ * through the texture or color matrix uniform or [textureMatrixAt], and the compositor refuses any other.
  * @property uniforms Uniform name to value, in the layout the program declares.
  * @property textureMatrixAt The texture matrix this pass samples through at a composition time, as the nine floats of a
  * column-major `mat3`, or null when the pass is the same on every frame. The compositor evaluates it once per frame and
  * multiplies it into the chain where the pass sits.
+ * @property shader The program this pass draws the frame through, or null when the compositor folds the pass into its
+ * own draw.
  */
 public class WebGlPass private constructor(
   public val programKey: String,
   public val uniforms: Map<String, FloatArray>,
   @property:InternalFilmstripApi
   public val textureMatrixAt: ((compositionTime: Duration) -> FloatArray)?,
+  @property:InternalFilmstripApi
+  public val shader: WebGlShader?,
 ) {
   /**
    * A pass that samples through the same uniforms on every frame.
    *
    * Every built-in effect except a pan builds its pass this way.
    */
-  public constructor(programKey: String, uniforms: Map<String, FloatArray>) : this(programKey, uniforms, null)
+  public constructor(programKey: String, uniforms: Map<String, FloatArray>) : this(programKey, uniforms, null, null)
 
   /**
    * A pass whose texture matrix moves with composition time.
@@ -75,10 +80,36 @@ public class WebGlPass private constructor(
   public constructor(
     programKey: String,
     textureMatrixAt: (compositionTime: Duration) -> FloatArray,
-  ) : this(programKey, emptyMap(), textureMatrixAt)
+  ) : this(programKey, emptyMap(), textureMatrixAt, null)
+
+  /**
+   * A pass that draws the whole frame through [shader] on a target of its own, at the composite stage.
+   *
+   * It carries no uniforms, so a fold over the uniforms of a chain reads nothing from it.
+   */
+  @InternalFilmstripApi
+  public constructor(programKey: String, shader: WebGlShader) : this(programKey, emptyMap(), null, shader)
 
   override fun toString(): String = "WebGlPass(programKey=$programKey, uniforms=${uniforms.keys})"
 }
+
+/**
+ * A GLSL ES 3.00 fragment program and what it needs on each frame, for a [WebGlPass] that draws through its own shader.
+ *
+ * The fragment reads the frame from [textureUniform] at the `vUv` varying, whose `v` runs up the picture. Its alpha is
+ * written as is, with no blending, and clear pixels hold no fill until the compositor lays the result over one.
+ *
+ * @property fragmentSource The fragment shader source.
+ * @property textureUniform The name of the sampler the frame is read from.
+ * @property uniformsAt The uniforms for the frame at a composition time and a size in pixels, by name. A value is a
+ * float, a `vec2`, a `vec3`, a `vec4`, a `mat3` or a `mat4` by its length, and any other length is refused.
+ */
+@InternalFilmstripApi
+public class WebGlShader(
+  public val fragmentSource: String,
+  public val textureUniform: String,
+  public val uniformsAt: (compositionTime: Duration, width: Int, height: Int) -> Map<String, FloatArray>,
+)
 
 /**
  * A raster already drawn at resolve, which the compositor uploads once and draws on every frame

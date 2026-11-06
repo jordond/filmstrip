@@ -10,16 +10,20 @@ import org.gradle.kotlin.dsl.register
 
 /**
  * A rung of the layering contract. A module sits on exactly one, and its resolved graph may only hold projects from
- * the layers in [mayDependOn].
+ * the layers in [mayDependOn]. Its test classpaths may also hold the layers in [mayTestWith].
  */
 internal enum class Layer(
   val mayDependOn: Set<Layer>,
+  val mayTestWith: Set<Layer> = emptySet(),
 ) {
   Core(emptySet()),
   Effects(setOf(Core)),
-  Transform(setOf(Core, Effects)),
-  Backend(setOf(Core, Effects, Transform)),
-  Player(setOf(Core, Effects, Transform, Backend)),
+
+  // Opt-in, so nothing above it may take it in main code. Its end to end tests run from the layers that can export.
+  Filters(setOf(Core, Effects)),
+  Transform(setOf(Core, Effects), mayTestWith = setOf(Filters)),
+  Backend(setOf(Core, Effects, Transform), mayTestWith = setOf(Filters)),
+  Player(setOf(Core, Effects, Transform, Backend), mayTestWith = setOf(Filters)),
   Compose(setOf(Core, Effects, Transform, Backend, Player)),
   ComposeUi(setOf(Core, Effects, Transform, Backend, Player, Compose)),
   Umbrella(setOf(Core, Effects, Transform, Backend, Player)),
@@ -39,6 +43,7 @@ private val LAYERS: Map<String, Layer> =
   mapOf(
     ":filmstrip-core" to Layer.Core,
     ":filmstrip-effects" to Layer.Effects,
+    ":filmstrip-effects-filters" to Layer.Filters,
     ":filmstrip-transform" to Layer.Transform,
     ":filmstrip-transform-media3" to Layer.Backend,
     ":filmstrip-transform-avfoundation" to Layer.Backend,
@@ -94,6 +99,7 @@ private val FORBIDDEN_EXTERNALS: Map<Layer, Set<String>> =
   mapOf(
     Layer.Core to COMPOSE + "androidx.media3",
     Layer.Effects to COMPOSE + MEDIA3_RUNTIMES,
+    Layer.Filters to COMPOSE + MEDIA3_RUNTIMES,
     Layer.Transform to COMPOSE + MEDIA3_RUNTIMES,
     Layer.Backend to COMPOSE,
     Layer.Player to COMPOSE,
@@ -225,7 +231,7 @@ fun Project.configureArchitectureGuards() {
         layer.set(module.name)
         layers.set(LAYERS.mapValues { it.value.name })
         allowedLayers.set(module.mayDependOn.map(Layer::name))
-        allowedTestLayers.set((module.mayDependOn + Layer.Fixtures).map(Layer::name))
+        allowedTestLayers.set((module.mayDependOn + module.mayTestWith + Layer.Fixtures).map(Layer::name))
         forbiddenExternals.set(FORBIDDEN_EXTERNALS[module].orEmpty())
         allowedExternals.set(COMPOSE_ANNOTATIONS + MEDIA3_EFFECT_TYPES)
       }

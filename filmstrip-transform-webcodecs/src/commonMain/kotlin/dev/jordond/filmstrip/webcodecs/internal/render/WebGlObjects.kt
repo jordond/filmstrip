@@ -127,7 +127,7 @@ internal fun bindQuad(
 }
 
 private const val NO_TEXTURE = "WebGL2 refused to create a texture."
-private const val NO_FRAMEBUFFER = "WebGL2 refused to give the fill's background pass a complete framebuffer."
+private const val NO_FRAMEBUFFER = "WebGL2 refused to give a render pass a complete framebuffer."
 
 private const val NO_PROGRAM = "WebGL2 refused to create a program."
 private const val NO_SHADER = "WebGL2 refused to create a shader."

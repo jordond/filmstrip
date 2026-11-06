@@ -12,7 +12,8 @@ filmstrip = "${versions.library}"
 [libraries]
 filmstrip = { module = "${versions.group}:filmstrip", version.ref = "filmstrip" }
 filmstrip-compose = { module = "${versions.group}:filmstrip-compose", version.ref = "filmstrip" }
-filmstrip-compose-ui = { module = "${versions.group}:filmstrip-compose-ui", version.ref = "filmstrip" }`
+filmstrip-compose-ui = { module = "${versions.group}:filmstrip-compose-ui", version.ref = "filmstrip" }
+filmstrip-effects-filters = { module = "${versions.group}:filmstrip-effects-filters", version.ref = "filmstrip" }`
 
 export const build = `kotlin {
   sourceSets {
@@ -82,6 +83,7 @@ Pick single artifacts instead of the bundle when you want less on the classpath.
 | `filmstrip` | The bundle: core, effects, player, and the right backend for each target, plus `allBackends()` to register them. Not Compose. |
 | `filmstrip-core` | Model, `MediaSource`/`MediaSink`, `probe()`, `ThumbnailSource`, the `VideoPlayer` API and `PlayerEngine` SPI, and the effect SPI. No runtime, no effect catalogue. |
 | `filmstrip-effects` | The built-in effect catalogue. GL effects on Android, Core Image on Apple, ffmpeg filter graphs on the JVM, and WebGL2 passes in the browser. |
+| `filmstrip-effects-filters` | Opt-in [filters](/guides/filters/) like VHS, on every target. Not in the bundle, so add it and call `filters()` on the builder. |
 | `filmstrip-transform` | The export planner, shared by every backend. Add a backend artifact alongside it to actually export. |
 | `filmstrip-transform-media3` | The Media3 backend, Android. |
 | `filmstrip-transform-avfoundation` | The AVFoundation backend, iOS and macOS. |

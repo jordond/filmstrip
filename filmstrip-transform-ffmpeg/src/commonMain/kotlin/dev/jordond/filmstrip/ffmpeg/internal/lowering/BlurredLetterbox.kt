@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.ffmpeg.internal.lowering
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
 import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
 import dev.jordond.filmstrip.transform.internal.geometry.sigmaFor
 import kotlin.math.roundToInt
@@ -29,6 +30,55 @@ internal fun coverBlurNodes(
       add(FilterNode("colorchannelmixer", "rr" to gain.toString(), "gg" to gain.toString(), "bb" to gain.toString()))
     }
   }
+
+/**
+ * What a clip's tail ends on, the arguments of [trailingNodes].
+ */
+internal class TrailingFrames(
+  val frameRate: Int,
+  val pixelFormat: String,
+  val slots: Long,
+)
+
+/**
+ * The blurred tail of a clip that leaves bars: a sharp copy of the frame placed at [rect], laid over a blurred copy
+ * that covers the whole [outputSize]. Names its pads from [label] and writes the frame to [label].
+ *
+ * `tailNodes` writes a single chain, but this needs the frame twice, once for each copy, so [pending] is flushed
+ * onto a pad of its own and fanned out with [FilterGraphBuilder.split] instead. The sharp copy lands on [grid], the
+ * chroma grid of the chain both copies come from.
+ */
+internal fun FilterGraphBuilder.blurredTail(
+  pad: String,
+  pending: List<FilterNode>,
+  fill: Fill.Blurred,
+  rect: PixelRect,
+  outputSize: Size,
+  label: String,
+  tail: TrailingFrames,
+  grid: ChromaGrid,
+): String {
+  val pre = "${label}pre"
+  chain(listOf(pad), pending.ifEmpty { listOf(FilterNode("null")) }, pre)
+
+  val background = "${label}bg"
+  val foreground = "${label}fg"
+  split(pre, listOf(background, foreground))
+
+  val blurred = "${label}blur"
+  chain(listOf(background), coverBlurNodes(outputSize, fill), blurred)
+
+  val sharp = "${label}sharp"
+  chain(listOf(foreground), scaledInto(rect, outputSize), sharp)
+
+  val (x, y) = rect.drawnAt(grid)
+  chain(
+    listOf(blurred, sharp),
+    overlayNodes(x, y) + trailingNodes(tail.frameRate, tail.pixelFormat, tail.slots),
+    label,
+  )
+  return label
+}
 
 // 1024 is gblur's own ceiling on sigma, not a limit filmstrip picked.
 private fun blurSigma(

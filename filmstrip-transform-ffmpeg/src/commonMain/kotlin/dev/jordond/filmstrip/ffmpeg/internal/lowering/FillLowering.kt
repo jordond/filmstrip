@@ -33,6 +33,30 @@ internal fun FilterGraphBuilder.flattenOntoFill(
 }
 
 /**
+ * Lays [read] over opaque black of its own size and returns the pad that leaves, in [pixelFormat] or its 4:4:4 form so
+ * the frame stays on [grid]. Names its pads from [label].
+ *
+ * `lut` writes the black from the frame itself, so nothing here has to know the size a clip's effects left it at.
+ */
+internal fun FilterGraphBuilder.overBlack(
+  read: String,
+  label: String,
+  pixelFormat: String,
+  grid: ChromaGrid,
+): String {
+  val base = "${label}blackIn"
+  val top = "${label}top"
+  split(read, listOf(base, top))
+  val black = "${label}black"
+  val opaqueBlack = FilterNode("lut", "y" to "16", "u" to "128", "v" to "128", "a" to "255")
+  chain(listOf(base), listOf(opaqueBlack), black)
+  val format = if (grid == ChromaGrid.Full) fullChromaFormat(pixelFormat) else pixelFormat
+  val over = "${label}over"
+  chain(listOf(black, top), listOf(overlayNode(), FilterNode("format", "pix_fmts" to format)), over)
+  return over
+}
+
+/**
  * Restates the grade on [transfer] onto a pad named [label] after [read], or hands [read] back when there is none.
  *
  * The effect chain is where a frame can go through RGB and come back, and what comes back is

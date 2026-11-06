@@ -43,6 +43,7 @@ kotlin {
       implementation(projects.filmstrip)
       implementation(projects.filmstripCompose)
       implementation(projects.filmstripComposeUi)
+      implementation(projects.filmstripEffectsFilters)
       implementation(projects.filmstripIoFilekit)
       implementation(projects.filmstripIoFilekitCompose)
       implementation(projects.filmstripIoOkio)

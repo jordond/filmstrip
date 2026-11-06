@@ -59,6 +59,22 @@ ffmpeg splits a looping clip into one branch per pass, and up to one pass of dec
 branch still waiting. A long clip looped many times costs that much memory. See
 [Extra tracks](/guides/audio/#extra-tracks).
 
+## Filters
+
+[Filters](/guides/filters/) draw one shared signal on every backend, and these are where a backend lands apart from it or
+refuses.
+
+- An Apple device that can't compile a Core Image Metal kernel, which takes iOS 15 or macOS 12 on an Apple6 GPU, refuses
+  `vhs` by name.
+- The browser draws a shader pass on a clip's whole frame, so a clip whose own frame is longer on a side than the page's
+  `MAX_TEXTURE_SIZE` is refused by name. A fit that crops makes that frame bigger than the output.
+- ffmpeg blurs with `gblur`, a recursive approximation of a Gaussian that lands narrower than the sigma it's given. A hard
+  edge reads up to about a fifth of its step off, the frame's own edge against the black past it included. Anywhere else
+  it's within a few codes.
+- Below about 0.005 pixels `gblur`'s own filter darkens the frame, so a blur smaller than 0.01 pixels runs at 0.01, which
+  changes no pixel.
+- A build missing a filter a look runs on refuses it by name, like any other effect.
+
 ## Sinks
 
 `MediaSink.Uri` is `file://` only on Apple and ffmpeg, and anything else is refused as `SinkUnwritable`. ffmpeg also

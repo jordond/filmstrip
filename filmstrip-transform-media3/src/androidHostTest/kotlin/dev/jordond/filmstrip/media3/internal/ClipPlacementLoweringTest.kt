@@ -24,6 +24,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
 import dev.jordond.filmstrip.media3.internal.fill.FillCoverBlur
+import dev.jordond.filmstrip.media3.internal.fill.FillFlatten
 import dev.jordond.filmstrip.transform.internal.geometry.ClipPlacement
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
@@ -47,13 +48,13 @@ class ClipPlacementLoweringTest {
     val clip = barred
 
     clip.clipVideoEffects(Fill.Black, OUTPUT).last() shouldBe
-      PlacedFrame(clip.drawnRect, OUTPUT, PlacedFrame.Bars.Clear)
+      PlacedFrame(clip.drawnRect, OUTPUT)
     clip.clipVideoEffects(Fill.Blurred(), OUTPUT).last() shouldBe FillCoverBlur(Fill.Blurred(), OUTPUT, clip.drawnRect)
   }
 
   // The crop lowers to nothing that removes pixels, so the canvas is built right behind it and the pan after it reads
-  // the canvas, bars included. The bars stay clear for the flatten pass, or black under a blurred fill, the way every
-  // backend builds them.
+  // the canvas, bars included. The bars stay clear for the flatten pass, and under a blurred fill they turn black once
+  // the clip's effects have run, the way every backend builds them.
   @Test
   fun `builds a clip's canvas right after the crop that makes it`() {
     val crop = AlphaScale(1f)
@@ -66,11 +67,12 @@ class ClipPlacementLoweringTest {
         canvasEffectIndices = listOf(0),
       )
     val built = placement.canvases.single()
-    val canvas = PlacedFrame(built.contentInCanvas, built.size, PlacedFrame.Bars.Clear)
+    val canvas = PlacedFrame(built.contentInCanvas, built.size)
 
     clip.clipVideoEffects(Fill.Black, OUTPUT) shouldBe
-      listOf(crop, canvas, pan, PlacedFrame(placement.drawnRect, OUTPUT, PlacedFrame.Bars.Clear))
-    clip.clipVideoEffects(Fill.Blurred(), OUTPUT)[1] shouldBe canvas.copy(bars = PlacedFrame.Bars.Black)
+      listOf(crop, canvas, pan, PlacedFrame(placement.drawnRect, OUTPUT))
+    clip.clipVideoEffects(Fill.Blurred(), OUTPUT).take(BLURRED_CHAIN) shouldBe
+      listOf(crop, canvas, pan, FillFlatten(BLACK))
   }
 
   // The composition's turn reads the clip's square canvas and runs on that canvas. Its crop then makes a portrait
@@ -103,22 +105,22 @@ class ClipPlacementLoweringTest {
     clip.clipVideoEffects(Fill.Black, portrait) shouldBe
       listOf(
         square,
-        PlacedFrame.canvasOf(canvas, PlacedFrame.Bars.Clear),
+        PlacedFrame.canvasOf(canvas),
         turn,
         tall,
-        PlacedFrame(drawn, portrait, PlacedFrame.Bars.Clear),
+        PlacedFrame(drawn, portrait),
       )
   }
 
   @Test
   fun `a placement that draws the frame onto itself is a no-op`() {
-    PlacedFrame(NormalizedRect.Full, OUTPUT, PlacedFrame.Bars.Clear)
+    PlacedFrame(NormalizedRect.Full, OUTPUT)
       .isNoOp(OUTPUT.width, OUTPUT.height) shouldBe true
-    PlacedFrame(NormalizedRect.Full, OUTPUT, PlacedFrame.Bars.Clear)
+    PlacedFrame(NormalizedRect.Full, OUTPUT)
       .isNoOp(OUTPUT.width, OUTPUT.height + 1) shouldBe false
     barred
       .drawnRect
-      .let { PlacedFrame(it, OUTPUT, PlacedFrame.Bars.Clear) }
+      .let { PlacedFrame(it, OUTPUT) }
       .isNoOp(OUTPUT.width, OUTPUT.height) shouldBe false
   }
 
@@ -198,6 +200,8 @@ class ClipPlacementLoweringTest {
     val PAN = KenBurns(NormalizedRect(0f, 0f, 0.5f, 0.5f), NormalizedRect.Full)
     val LANDSCAPE = Size(640, 360)
     const val QUARTER_TURN = 90
+    const val BLACK = 0xFF000000.toInt()
+    const val BLURRED_CHAIN = 4
 
     // A placement read off a whole-pixel frame lands within this of the aspect it was asked for.
     const val ASPECT_SLACK = 0.02f

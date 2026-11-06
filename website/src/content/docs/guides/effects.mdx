@@ -50,7 +50,9 @@ fills and cuts the overflow. `Stretch` fills each axis on its own.
 
 `scale` defaults to `Contain` and `crop(aspect)` defaults to `Crop`. Each clip gets its own fit, from the last `scale`
 across its clip, track and composition effects. A `crop` with `Fit.Contain` or `Fit.Stretch` makes a canvas of that
-aspect instead of cutting, and every effect after it runs on that canvas, bars included.
+aspect instead of cutting. A composition effect after it runs on the whole canvas, bars included. A clip effect after it
+leaves the bars clear until the fill lands, and only an effect that moves pixels, like [`vhs`](/guides/filters/), reaches
+into one.
 
 Whatever a clip leaves uncovered shows the composition's `fill`, which defaults to black. `Fill.Solid` takes a color and
 `Fill.Blur` draws a blurred copy of the clip behind it.
@@ -94,6 +96,7 @@ so the effect is only valid on a clip. A plan refuses it on a track, on the comp
 - The ffmpeg backend refuses `kenBurns`, since it has no per-frame crop.
 - The browser only turns a frame by whole quarter turns, and refuses any other `rotate` angle by name.
 - A blurred fill on the ffmpeg backend needs a build that carries the `gblur` filter, and is refused by name without it.
+  Any effect is refused the same way when a build lacks a filter it runs on.
 - On a kept HDR grade, `brightness` and the color matrices read the frame the way an SDR display at reference white
   would. Highlights keep going where an SDR export would clip. See [HDR](/guides/hdr/).
 </Aside>

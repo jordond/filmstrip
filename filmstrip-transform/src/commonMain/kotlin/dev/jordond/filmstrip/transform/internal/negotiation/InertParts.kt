@@ -42,7 +42,8 @@ internal class InertElision(
  * Takes every part of [edit] that renders nothing out of it, so no backend is handed one, and names each in a notice.
  *
  * An effect is inert when its color run multiplies out to the identity, when it is a whole turn or a crop that keeps
- * the whole frame it is handed, or when it is an overlay that draws nothing over any run it is laid on. A clip's color
+ * the whole frame it is handed, when it declares [EffectSpec.isInert], or when it is an overlay that draws nothing over
+ * any run it is laid on. A clip's color
  * runs are folded with its track's, the way a backend lowers them, and a run is only taken out whole. A track or
  * composition effect has to be inert on every clip it reaches. A fill is inert when no track starts late and every
  * primary clip's own placement covers the frame. A fade is inert when there is no audio under it.
@@ -197,6 +198,7 @@ private fun List<EffectSpec>.withoutInert(
     val reason =
       when {
         identityColor.any { it === spec } -> InertReason.NoChangeToFrame
+        spec.isInert -> InertReason.NoChangeToFrame
         spec.changesNoGeometry(reaches) -> InertReason.NoChangeToFrame
         spec is OverlayEffect && reaches.isNotEmpty() &&
           reaches.all { reach -> reach.spans.all { spec.drawsNothingWithin(it) } } -> InertReason.NeverVisible

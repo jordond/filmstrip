@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewArguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewFrameBytes
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewFrames
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewLanding
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.readingGraphFrom
 import dev.jordond.filmstrip.ffmpeg.internal.process.Scratch
 import dev.jordond.filmstrip.ffmpeg.internal.process.resolve
 import dev.jordond.filmstrip.ffmpeg.internal.process.scratchFailure
@@ -56,7 +57,7 @@ public suspend fun FfmpegExportEngine.openPreview(
     }
   // Materialising an input or a sidecar touches the file system, and a directory that fails part
   // way through is still a directory. The export path is wrapped for the same reason.
-  val (split, command) =
+  val (split, command, spawned) =
     try {
       val resolvedInputs = invocation.inputs.map { scratch.resolve(it.source).path }
       val resolvedSidecars = invocation.sidecars.map { scratch.write(it) }
@@ -64,7 +65,9 @@ public suspend fun FfmpegExportEngine.openPreview(
       // Worked out once here and handed to previewArguments, so the graph's -frames:v and the
       // pump's split come off the one split.
       val split = invocation.previewFrames(at)
-      split to invocation.previewArguments(toolchain, runtime.config, resolvedInputs, resolvedSidecars, at, split)
+      val command =
+        invocation.previewArguments(toolchain, runtime.config, resolvedInputs, resolvedSidecars, at, split)
+      Triple(split, command, command.readingGraphFrom(scratch))
     } catch (failure: IOException) {
       scratch.delete()
       return PreviewStreamResult.Refused(scratchFailure(failure))
@@ -80,7 +83,7 @@ public suspend fun FfmpegExportEngine.openPreview(
 
   val frames =
     try {
-      runtime.frames(command)
+      runtime.frames(spawned)
     } catch (failure: IOException) {
       scratch.delete()
       return PreviewStreamResult.Refused(unspawnablePump(failure))

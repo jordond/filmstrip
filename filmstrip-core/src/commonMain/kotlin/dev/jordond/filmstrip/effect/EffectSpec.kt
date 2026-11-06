@@ -44,6 +44,34 @@ public interface EffectSpec {
    */
   public val scope: EffectScope
     get() = EffectScope.Everywhere
+
+  /**
+   * Whether this effect needs SDR frames to run on.
+   *
+   * Defaults to `false`. When an effect that survives into the export says `true`, an HDR source tone maps to SDR
+   * instead of keeping its grade. `HdrMode.Auto` reports that as a concession naming the effect, and `HdrMode.KeepHdr`
+   * is refused by name.
+   */
+  public val requiresSdr: Boolean
+    get() = false
+
+  /**
+   * Whether this effect leaves every pixel as it was, as configured.
+   *
+   * Defaults to `false`. When `true` the planner takes the effect out of the edit before anything is negotiated, so no
+   * backend is handed it, and lists it on the plan's inert notices.
+   */
+  public val isInert: Boolean
+    get() = false
+
+  /**
+   * Whether this effect runs ahead of the overlays in [EffectStage.Composite].
+   *
+   * Defaults to `false`. When `true` the effect runs over the fill and under every overlay at the same scope. Outside
+   * [EffectStage.Composite] it changes nothing.
+   */
+  public val beneathOverlays: Boolean
+    get() = false
 }
 
 /**
@@ -130,7 +158,8 @@ public object EffectIds {
  *
  * Effects sort by stage, then by filmstrip's rank within that stage, then by the order they were
  * declared. Anything without a rank lands after the ranked effects in its stage, so a third-party
- * effect's position is stable without a priority number.
+ * effect's position is stable without a priority number. Within [EffectStage.Composite] an effect
+ * that declares [EffectSpec.beneathOverlays] sorts ahead of every rank.
  *
  * @return the effects in the order the pipeline runs them.
  */
@@ -139,6 +168,7 @@ public fun List<EffectSpec>.inCanonicalOrder(): List<EffectSpec> =
     .sortedWith(
       compareBy(
         { (_, spec) -> spec.stage.ordinal },
+        { (_, spec) -> if (spec.stage == EffectStage.Composite && spec.beneathOverlays) 0 else 1 },
         { (_, spec) -> CANONICAL_RANK[spec.id] ?: UNRANKED },
         { (index, _) -> index },
       ),

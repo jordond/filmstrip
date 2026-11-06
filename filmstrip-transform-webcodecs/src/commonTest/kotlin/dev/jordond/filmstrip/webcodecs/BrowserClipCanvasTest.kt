@@ -14,6 +14,7 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.effects.color.Invert
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.KenBurns
 import dev.jordond.filmstrip.effects.geometry.Rotate
@@ -93,6 +94,28 @@ class BrowserClipCanvasTest {
       val placement = placementOf(SOURCE, listOf(listOf(CROP, PAN)), Size(frame.width, frame.height))
 
       assertCanvas(placement, frame, Rgb.Black) { x, y -> PAN.regionAt(Duration.ZERO, SPAN).pointAt(x, y) }
+    }
+
+  // A clip's grade stops at the content, so a bar stays black under a blurred fill.
+  @Test
+  fun aClipGradeLeavesABlurredFillsCanvasBarsBlack() =
+    runTest {
+      val frame = exported(single(listOf(CROP, PAN, Invert()), Fill.Blurred())).last()
+      val placement = placementOf(SOURCE, listOf(listOf(CROP, PAN)), Size(frame.width, frame.height))
+      val canvas = placement.canvases.single().contentInCanvas
+      val contentOf = { x: Double, y: Double ->
+        val (canvasX, canvasY) = PAN.regionAt(Duration.ZERO, SPAN).pointAt(x, y)
+        canvas.contentPointOf(canvasX, canvasY)
+      }
+
+      val (bars, content) = PROBES.partition { (x, y) -> contentOf(x, y) == null }
+      bars.isEmpty() shouldBe false
+      bars.forEach { (x, y) -> assertReads(Rgb.Black, frame.at(x, y), "bar ($x, $y)") }
+      content.forEach { (x, y) ->
+        val source = quadrantAt(contentOf(x, y).shouldNotBeNull())
+        val inverted = Rgb(FULL_CODE - source.red, FULL_CODE - source.green, FULL_CODE - source.blue)
+        assertReads(inverted, frame.at(x, y), "content ($x, $y)")
+      }
     }
 
   // The composition's turn runs after the clip's crop, so it turns the canvas and its bars with it. One
@@ -332,6 +355,7 @@ private val CONTENT_NITS = floatArrayOf(120f, 180f, 75f)
 private const val SLATE_ARGB = 0xFF204060.toInt()
 private const val QUARTER_TURN = 90
 private const val FRAMES = 6
+private const val FULL_CODE = 255
 private const val FRAME_RATE = 30
 private val SPAN = TimeRange(Duration.ZERO, FRAMES.seconds / FRAME_RATE)
 

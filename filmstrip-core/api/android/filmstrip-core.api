@@ -774,14 +774,20 @@ public final class dev/jordond/filmstrip/effect/EffectScope : java/lang/Enum {
 }
 
 public abstract interface class dev/jordond/filmstrip/effect/EffectSpec {
+	public fun getBeneathOverlays ()Z
 	public abstract fun getId ()Ljava/lang/String;
+	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
 	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public fun isInert ()Z
 }
 
 public final class dev/jordond/filmstrip/effect/EffectSpec$DefaultImpls {
+	public static fun getBeneathOverlays (Ldev/jordond/filmstrip/effect/EffectSpec;)Z
+	public static fun getRequiresSdr (Ldev/jordond/filmstrip/effect/EffectSpec;)Z
 	public static fun getScope (Ldev/jordond/filmstrip/effect/EffectSpec;)Ldev/jordond/filmstrip/effect/EffectScope;
 	public static fun getStage (Ldev/jordond/filmstrip/effect/EffectSpec;)Ldev/jordond/filmstrip/effect/EffectStage;
+	public static fun isInert (Ldev/jordond/filmstrip/effect/EffectSpec;)Z
 }
 
 public final class dev/jordond/filmstrip/effect/EffectSpecKt {

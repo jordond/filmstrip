@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.arguments
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.readingGraphFrom
 import dev.jordond.filmstrip.ffmpeg.internal.probe.drift
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProgressParser
 import dev.jordond.filmstrip.ffmpeg.internal.process.SOURCE_GONE
@@ -217,9 +218,9 @@ public class FfmpegExportEngine internal constructor(
         return send(ExportStatus.Failure(scratchFailure(failure)))
       }
     try {
-      val (inputs, resolvedSidecars) =
+      val inputs =
         try {
-          invocation.inputs.map { scratch.resolve(it.source) } to invocation.sidecars.map { scratch.write(it) }
+          invocation.inputs.map { scratch.resolve(it.source) }
         } catch (failure: IOException) {
           return send(ExportStatus.Failure(scratchFailure(failure)))
         }
@@ -229,16 +230,24 @@ public class FfmpegExportEngine internal constructor(
         )
       }
 
+      val (command, spawned) =
+        try {
+          val resolvedSidecars = invocation.sidecars.map { scratch.write(it) }
+          val command = invocation.arguments(toolchain, config, inputs.map { it.path }, resolvedSidecars, outputPath)
+          command to command.readingGraphFrom(scratch)
+        } catch (failure: IOException) {
+          return send(ExportStatus.Failure(scratchFailure(failure)))
+        }
+
       send(ExportStatus.Started)
 
       val progress = ProgressParser(invocation.duration.inWholeMicroseconds)
       val stderr = StderrTail()
-      val command = invocation.arguments(toolchain, config, inputs.map { it.path }, resolvedSidecars, outputPath)
       components.report(BACKEND, DiagnosticEvent.INVOCATION, mapOf(Detail.COMMAND to command.joinToString(" ")))
 
       val exitCode =
         runtime.stream(
-          command = command,
+          command = spawned,
           onStdout = { line -> progress.accept(line)?.let { trySend(it) } },
           onStderr = stderr::accept,
         )

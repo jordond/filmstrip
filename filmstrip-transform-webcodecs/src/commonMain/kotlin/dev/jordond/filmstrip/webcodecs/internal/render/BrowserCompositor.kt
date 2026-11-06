@@ -2,12 +2,12 @@
 
 package dev.jordond.filmstrip.webcodecs.internal.render
 
-import dev.jordond.filmstrip.color.authoredHdrNits
 import dev.jordond.filmstrip.effect.WebGlOverlay
+import dev.jordond.filmstrip.effect.WebGlPass
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.HdrTransfer
-import dev.jordond.filmstrip.webcodecs.internal.BrowserExportFailure
 import dev.jordond.filmstrip.webcodecs.internal.BrowserRender
+import dev.jordond.filmstrip.webcodecs.internal.ClipPassStage
 import dev.jordond.filmstrip.webcodecs.internal.MICROS_PER_SECOND
 import dev.jordond.filmstrip.webcodecs.internal.RenderedClip
 import dev.jordond.filmstrip.webcodecs.internal.TEN_BIT_FORMAT
@@ -37,7 +37,7 @@ import kotlin.time.Duration.Companion.microseconds
  * sixteen live contexts and drops the oldest to make room, so an exporter that never releases
  * eventually loses the context another export is still drawing on.
  */
-internal class BrowserCompositor private constructor(
+internal class BrowserCompositor(
   private val canvas: OffscreenCanvas,
   private val gl: WebGl2,
   private val width: Int,
@@ -53,10 +53,14 @@ internal class BrowserCompositor private constructor(
   private val blur: BlurPass?,
   private val hdr: HdrPass?,
   private val hdrTransfer: HdrTransfer?,
+  private val clearColor: FloatArray,
 ) {
   private var current: RenderedClip? = null
   private var overlayPass: BrowserOverlayPass? = null
   private var toneMapPass: ToneMapPass? = null
+  private val shaderPass = ShaderPass(gl, buffer, width, height)
+  private val clipFrames = PassFrames(gl, hdrTransfer != null)
+  private val compositionFrames = PassFrames(gl, hdrTransfer != null)
 
   /**
    * Where the slot drawn last sits on the output timeline, in microseconds.
@@ -76,6 +80,10 @@ internal class BrowserCompositor private constructor(
    */
   fun clip(clip: RenderedClip) {
     current = clip
+    uploadClip(clip)
+  }
+
+  private fun uploadClip(clip: RenderedClip) {
     gl.useProgram(program)
     if (!clip.matrix.varies) gl.uniformMatrix3fv(texMatrix, false, clip.matrix.at(Duration.ZERO).toFloat32Array())
     gl.uniform2f(quadScale, clip.quadHalfW, clip.quadHalfH)
@@ -98,8 +106,12 @@ internal class BrowserCompositor private constructor(
    * and blurred, straight into the target, before the sharp contained quad goes on top of it. A
    * clip with no bars, or a fill with nothing to blur, skips straight to the clear.
    *
-   * The clip's overlays go on right after it, inside its quad, and the composition's go on last over the whole
-   * frame.
+   * A clip with a shader pass runs it ahead of all this, on a frame of its own, and the composite samples the result in
+   * place of the decoded frame. The composition's shader passes need a frame they can read, so the composite draws into
+   * one of [compositionFrames] when there are any and they write the target.
+   *
+   * The clip's overlays go on right after the composite, inside its quad, and after the composition's passes the
+   * composition's go on last over the whole frame.
    *
    * Suspends only on a grade or a tone mapped clip, where the frame's planes are copied out of the
    * decoder before anything can be uploaded.
@@ -108,14 +120,24 @@ internal class BrowserCompositor private constructor(
    *   for the length of a clip, so this is where a pass that varies with time uploads its per-frame
    *   uniforms.
    * @param compositionOverlays The render's [BrowserRender.compositionOverlays].
+   * @param compositionPasses The render's [BrowserRender.compositionPasses].
    */
   suspend fun draw(
     frame: VideoSample,
     compositionUs: Double,
     compositionOverlays: List<WebGlOverlay>,
+    compositionPasses: List<WebGlPass>,
   ) {
     this.compositionUs = compositionUs
     val clip = checkNotNull(current) { "clip() must run before draw()" }
+    val toneMapFrom = clip.toneMapFrom
+    val decoded =
+      when {
+        hdr != null -> hdr.unpack(gl, frame, program)
+        toneMapFrom != null -> toneMap().toneMap(gl, frame, toneMapFrom, program)
+        else -> uploadImage(frame)
+      }
+    val source = clip.passStage?.let { drawClipStage(clip, it, decoded, compositionUs) } ?: decoded
     if (clip.matrix.varies) {
       gl.useProgram(program)
       gl.uniformMatrix3fv(texMatrix, false, clip.matrix.at(compositionUs.microseconds).toFloat32Array())
@@ -124,14 +146,7 @@ internal class BrowserCompositor private constructor(
       gl.useProgram(program)
       canvasUniforms.uploadAt(gl, clip.canvases, compositionUs.microseconds)
     }
-    val toneMapFrom = clip.toneMapFrom
-    val source =
-      when {
-        hdr != null -> hdr.unpack(gl, frame, program)
-        toneMapFrom != null -> toneMap().toneMap(gl, frame, toneMapFrom, program)
-        else -> uploadImage(frame)
-      }
-    val target = hdr?.outputFbo
+    val target = targetFor(compositionPasses)
 
     // Either branch leaves the target bound for the sharp draw below.
     if (blur != null && clip.hasBars) {
@@ -149,8 +164,7 @@ internal class BrowserCompositor private constructor(
     gl.bindTexture(GL_TEXTURE_2D, source)
     gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
     drawClipOverlays(clip, clip.quadHalfW, clip.quadHalfH, compositionUs)
-    drawCompositionOverlays(compositionOverlays, compositionUs)
-    gl.useProgram(program)
+    finishComposition(compositionPasses, compositionOverlays, compositionUs)
   }
 
   /**
@@ -161,21 +175,73 @@ internal class BrowserCompositor private constructor(
    * keeps the plain clear color. [snapshot] and [present] read the result like any drawn frame,
    * so a kept grade still packs the fill into ten-bit codes.
    *
-   * The composition's overlays still draw over it, since they sit over the fill wherever it shows.
+   * The composition's passes and overlays still draw over it, since they sit over the fill wherever it shows.
    *
    * @param compositionUs Where this slot sits on the output timeline, the same value [draw] takes,
    *   so a gap slot carries the clock a drawn one does.
    * @param compositionOverlays The render's [BrowserRender.compositionOverlays].
+   * @param compositionPasses The render's [BrowserRender.compositionPasses].
    */
   fun drawFill(
     compositionUs: Double,
     compositionOverlays: List<WebGlOverlay>,
+    compositionPasses: List<WebGlPass>,
   ) {
     this.compositionUs = compositionUs
-    gl.bindFramebuffer(GL_FRAMEBUFFER, hdr?.outputFbo)
+    gl.bindFramebuffer(GL_FRAMEBUFFER, targetFor(compositionPasses))
     gl.clear(GL_COLOR_BUFFER_BIT)
+    finishComposition(compositionPasses, compositionOverlays, compositionUs)
+  }
+
+  // Where the composite draws: the output, or a frame the composition's passes can read when there are any.
+  private fun targetFor(compositionPasses: List<WebGlPass>): JsAny? =
+    if (compositionPasses.isEmpty()) hdr?.outputFbo else compositionFrames.read(width, height).framebuffer
+
+  private fun finishComposition(
+    compositionPasses: List<WebGlPass>,
+    compositionOverlays: List<WebGlOverlay>,
+    compositionUs: Double,
+  ) {
+    if (compositionPasses.isNotEmpty()) {
+      val output = hdr?.outputFbo
+      shaderPass.runOnto(compositionPasses, compositionFrames, output, width, height, compositionUs.microseconds)
+    }
     drawCompositionOverlays(compositionOverlays, compositionUs)
     gl.useProgram(program)
+  }
+
+  // Draws the clip's chain so far on a clear frame of its own and runs its passes over that, leaving the composite's
+  // uniforms holding what the clip draws with from there. Blending stays off, so a bar's alpha reaches the passes.
+  private fun drawClipStage(
+    clip: RenderedClip,
+    stage: ClipPassStage,
+    decoded: JsAny,
+    compositionUs: Double,
+  ): JsAny {
+    val time = compositionUs.microseconds
+    gl.useProgram(program)
+    gl.uniformMatrix3fv(texMatrix, false, stage.matrix.at(time).toFloat32Array())
+    gl.uniform2f(quadScale, 1f, 1f)
+    gl.uniformMatrix4fv(colorMatrix, false, stage.colorMatrix.toFloat32Array())
+    gl.uniformMatrix4fv(compositionColorMatrix, false, IDENTITY_4.toFloat32Array())
+    canvasUniforms.upload(gl, stage.canvases)
+    canvasUniforms.uploadAt(gl, stage.canvases, time)
+
+    gl.bindFramebuffer(GL_FRAMEBUFFER, clipFrames.read(stage.width, stage.height).framebuffer)
+    gl.viewport(0, 0, stage.width, stage.height)
+    gl.clearColor(0f, 0f, 0f, 0f)
+    gl.clear(GL_COLOR_BUFFER_BIT)
+    gl.clearColor(clearColor[0], clearColor[1], clearColor[2], 1f)
+    gl.disable(GL_BLEND)
+    gl.activeTexture(GL_TEXTURE0)
+    gl.bindTexture(GL_TEXTURE_2D, decoded)
+    gl.drawArrays(GL_TRIANGLE_STRIP, 0, QUAD_VERTICES)
+    gl.enable(GL_BLEND)
+    gl.viewport(0, 0, width, height)
+
+    val result = shaderPass.run(stage.passes, clipFrames, stage.width, stage.height, time)
+    uploadClip(clip)
+    return result
   }
 
   /**
@@ -345,6 +411,9 @@ internal class BrowserCompositor private constructor(
   fun release() {
     overlayPass?.release()
     toneMapPass?.release(gl)
+    shaderPass.release()
+    clipFrames.release()
+    compositionFrames.release()
     hdr?.release(gl)
     blur?.release(gl)
     gl.deleteTexture(texture)
@@ -367,113 +436,11 @@ internal class BrowserCompositor private constructor(
       height: Int,
       fill: Fill,
       hdrTransfer: HdrTransfer? = null,
-    ): BrowserCompositor {
-      val canvas = OffscreenCanvas(width, height)
-      val gl =
-        canvas.getContext(
-          "webgl2",
-          JsOptions()
-            .put("alpha", true)
-            .put("premultipliedAlpha", true)
-            .build(),
-        ) ?: throw BrowserExportFailure(NO_CONTEXT)
-
-      if (hdrTransfer != null && gl.getExtension(COLOR_BUFFER_FLOAT) == null) {
-        throw BrowserExportFailure(NO_FLOAT_BUFFER)
-      }
-
-      val program = linkedProgram(gl, COMPOSITE_VERTEX_SHADER, compositeFragmentShader(hdrTransfer))
-      gl.useProgram(program)
-
-      val buffer = gl.createBuffer() ?: throw BrowserExportFailure(NO_BUFFER)
-      gl.bindBuffer(GL_ARRAY_BUFFER, buffer)
-      gl.bufferData(GL_ARRAY_BUFFER, UNIT_QUAD.toFloat32Array(), GL_STATIC_DRAW)
-      bindQuad(gl, program)
-
-      // The SDR path uploads a decoded frame straight into this. A grade uploads three planes of
-      // its own instead and has no use for it.
-      val texture = if (hdrTransfer == null) createTexture(gl, GL_LINEAR) else null
-
-      gl.viewport(0, 0, width, height)
-      val (clearRed, clearGreen, clearBlue) = fill.clearColor(hdrTransfer)
-      gl.clearColor(clearRed, clearGreen, clearBlue, 1f)
-      gl.enable(GL_BLEND)
-      gl.blendOntoFill()
-
-      val hdr = hdrTransfer?.let { buildHdrPass(gl, width, height, it, buffer) }
-      val blur =
-        if (fill is Fill.Blurred) buildBlurPass(gl, width, height, fill, buffer, hdrTransfer) else null
-      // Both builders leave their own program bound to upload uniforms. Put the main one back so
-      // clip() and draw() find what they expect.
-      gl.useProgram(program)
-
-      val compositor =
-        BrowserCompositor(
-          canvas = canvas,
-          gl = gl,
-          width = width,
-          height = height,
-          program = program,
-          buffer = buffer,
-          texture = texture,
-          texMatrix = gl.getUniformLocation(program, "uTexMatrix"),
-          quadScale = gl.getUniformLocation(program, "uQuadScale"),
-          colorMatrix = gl.getUniformLocation(program, "uColorMatrix"),
-          compositionColorMatrix = gl.getUniformLocation(program, "uCompositionColorMatrix"),
-          canvasUniforms = ClipCanvasUniforms.of(gl, program),
-          blur = blur,
-          hdr = hdr,
-          hdrTransfer = hdrTransfer,
-        )
-      if (hdrTransfer != null) {
-        gl.useProgram(program)
-        uploadGradeUniforms(gl, program, hdrTransfer)
-      }
-      return compositor
-    }
-
-    private const val NO_CONTEXT = "The page gave out no WebGL2 context, so there is nothing to composite on."
-    private const val NO_BUFFER = "WebGL2 refused to create a vertex buffer."
-    private const val NO_FLOAT_BUFFER =
-      "This context cannot render into a float framebuffer, so an HDR grade has nowhere to " +
-        "composite. EXT_color_buffer_float is missing."
+    ): BrowserCompositor = compositorOf(width, height, fill, hdrTransfer)
   }
 }
 
-/**
- * The clear color [Fill.Solid] paints outright. A blurred fill has no single color of its own, so
- * every pixel it reaches is drawn over before the frame is handed back, and this is only what a
- * stray uncovered one or a slot with no clip at all falls back to.
- *
- * On a kept grade the color is linear light rather than an encoded value, held where
- * [compositorLightOf] puts it, which is the same place an overlay texel of that color lands.
- */
-private fun Fill.clearColor(transfer: HdrTransfer?): FloatArray =
-  when (this) {
-    is Fill.Solid -> {
-      if (transfer == null) {
-        floatArrayOf(
-          ((color shr RED_SHIFT) and BYTE_MASK) / MAX_CHANNEL,
-          ((color shr GREEN_SHIFT) and BYTE_MASK) / MAX_CHANNEL,
-          (color and BYTE_MASK) / MAX_CHANNEL,
-        )
-      } else {
-        compositorLightOf(authoredHdrNits(color))
-      }
-    }
-    is Fill.Blurred -> {
-      floatArrayOf(0f, 0f, 0f)
-    }
-  }
-
-private val UNIT_QUAD = floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f)
 private val IDENTITY_3 = floatArrayOf(1f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 1f)
 private val IDENTITY_4 = floatArrayOf(1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f, 1f)
 
-private const val RED_SHIFT = 16
-private const val GREEN_SHIFT = 8
-private const val BYTE_MASK = 0xFF
-private const val MAX_CHANNEL = 255f
-
-private const val COLOR_BUFFER_FLOAT = "EXT_color_buffer_float"
 private const val LOSE_CONTEXT = "WEBGL_lose_context"

@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.CODEC_LADDER
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.GraphLowering
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.canToneMap
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.filterNames
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.hdrPixelFormatFor
 import dev.jordond.filmstrip.ffmpeg.internal.picture.decodingOverlayPictures
 import dev.jordond.filmstrip.ffmpeg.internal.process.READS_FILES
@@ -101,6 +102,12 @@ internal class FfmpegPlanner(
         return unsupportedBlur("colorchannelmixer")
       }
     }
+    (negotiated.tracks.flatMap { track -> track.clips.flatMap { it.effects } } + negotiated.compositionEffects)
+      .forEach { resolved ->
+        resolved.effect.fragment.filterNames().firstOrNull { !toolchain.hasFilter(it) }?.let { filter ->
+          return refusedLowering(FilmstripError.InvalidComposition(missingEffectFilter(filter, resolved.specId)))
+        }
+      }
     return LoweredExport(
       export,
       GraphLowering(
@@ -122,6 +129,11 @@ internal class FfmpegPlanner(
 
 internal fun missingBlurFilter(filter: String): String =
   "This ffmpeg build has no $filter filter, so it cannot lower Fill.Blurred. Use Fill.Solid instead."
+
+internal fun missingEffectFilter(
+  filter: String,
+  specId: String,
+): String = "This ffmpeg build has no $filter filter, so it cannot lower $specId."
 
 private fun renderCapabilities(
   canToneMap: Boolean,

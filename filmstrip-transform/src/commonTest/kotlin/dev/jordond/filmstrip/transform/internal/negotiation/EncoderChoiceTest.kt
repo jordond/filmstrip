@@ -205,6 +205,26 @@ class EncoderChoiceTest {
   }
 
   @Test
+  fun `an effect that needs SDR leaves nothing to keep a grade with`() {
+    resolveHdr(HdrMode.Auto, true, true, true, canToneMap = true, copyKeepsHdr = true, needsSdr = true) shouldBe
+      ResolvedHdr.ToneMap
+    resolveHdr(HdrMode.ToneMapToSdr, true, true, true, canToneMap = true, copyKeepsHdr = true, needsSdr = true) shouldBe
+      ResolvedHdr.ToneMap
+    resolveHdr(
+      HdrMode.KeepHdr,
+      true,
+      true,
+      true,
+      canToneMap = true,
+      copyKeepsHdr = true,
+      needsSdr = true,
+    ).shouldBeNull()
+    resolveHdr(HdrMode.Auto, true, true, true, canToneMap = false, copyKeepsHdr = true, needsSdr = true).shouldBeNull()
+    resolveHdr(HdrMode.KeepHdr, false, true, true, canToneMap = true, copyKeepsHdr = true, needsSdr = true) shouldBe
+      ResolvedHdr.Keep
+  }
+
+  @Test
   fun `an HDR grade is kept by an encoder or a copy only while every source agrees on it`() {
     resolveHdr(HdrMode.Auto, true, true, deviceEncodesHdr = true, true, copyKeepsHdr = false) shouldBe ResolvedHdr.Keep
     resolveHdr(HdrMode.Auto, true, true, deviceEncodesHdr = false, true, copyKeepsHdr = true) shouldBe ResolvedHdr.Keep

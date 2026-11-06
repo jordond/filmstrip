@@ -49,9 +49,14 @@ internal fun concessionsOf(
           kind = AdjustmentKind.HdrToneMapped,
           requested = spec.hdr.name,
           resolved = HdrMode.ToneMapToSdr.name,
-          // Auto reaches a tone map two ways, and a device that encodes HDR fine still gets here on
-          // a mix, so the message follows whether the grades agree.
-          message = if (grade.gradesAgree) TONE_MAPPED else TONE_MAPPED_MIXED,
+          // Auto reaches a tone map three ways, and a device that encodes HDR fine still gets here on
+          // a mix or under an effect that needs SDR, so the message follows which it was.
+          message =
+            when {
+              grade.sdrForcedBy.isNotEmpty() -> toneMappedFor(grade.sdrForcedBy)
+              grade.gradesAgree -> TONE_MAPPED
+              else -> TONE_MAPPED_MIXED
+            },
         ),
       )
     }
@@ -95,6 +100,9 @@ private fun concession(
 ): Concession = Concession(Adjustment(kind, requested, resolved, message), FilmstripError.InvalidComposition(message))
 
 private fun Size.describe(): String = "${width}x$height"
+
+private fun toneMappedFor(ids: List<String>): String =
+  "${ids.joinToString()} needs SDR frames, so the grade is tone-mapped to SDR."
 
 private const val TONE_MAPPED = "This device cannot encode HDR, so the grade is tone-mapped to SDR."
 

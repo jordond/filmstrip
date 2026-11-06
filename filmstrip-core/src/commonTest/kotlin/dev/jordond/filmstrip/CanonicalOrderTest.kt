@@ -12,6 +12,34 @@ import kotlin.test.Test
  */
 class CanonicalOrderTest {
   @Test
+  fun aBeneathOverlaysSpecRunsAheadOfEveryRankedOverlay() {
+    val beneath =
+      object : EffectSpec {
+        override val id = "test.beneath"
+        override val stage = EffectStage.Composite
+        override val beneathOverlays = true
+      }
+
+    val ordered =
+      listOf(spec(EffectIds.IMAGE_OVERLAY, EffectStage.Composite), beneath, spec(EffectIds.SCALE, EffectStage.Geometry))
+        .inCanonicalOrder()
+
+    ordered.map { it.id } shouldBe listOf(EffectIds.SCALE, "test.beneath", EffectIds.IMAGE_OVERLAY)
+  }
+
+  @Test
+  fun beneathOverlaysChangesNothingOutsideComposite() {
+    val color =
+      object : EffectSpec {
+        override val id = "test.color"
+        override val beneathOverlays = true
+      }
+
+    listOf(spec(EffectIds.BRIGHTNESS, EffectStage.Color), color).inCanonicalOrder().map { it.id } shouldBe
+      listOf(EffectIds.BRIGHTNESS, "test.color")
+  }
+
+  @Test
   fun callOrderIsNotHonoured() {
     // Written in the order that would break: a watermark added before the crop that would
     // otherwise cut it away.

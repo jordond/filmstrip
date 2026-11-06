@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
+import dev.jordond.filmstrip.export.HdrMode
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.copy.CopySupport
 import dev.jordond.filmstrip.transform.internal.copy.copyBlockers
@@ -55,11 +56,21 @@ internal fun gradeOf(
       info = ask.infos.getValue(framing.firstClip.source),
     )
   val copyKeepsHdr = blockers.isEmpty()
+  val sdrForcedBy = if (sourceIsHdr) edit.effectsThatRequireSdr() else emptyList()
   val hdr =
-    resolveHdr(ask.spec.hdr, sourceIsHdr, gradesAgree, ask.device.supportsHdrEncoding, canToneMap, copyKeepsHdr)
+    resolveHdr(
+      ask.spec.hdr,
+      sourceIsHdr,
+      gradesAgree,
+      ask.device.supportsHdrEncoding,
+      canToneMap,
+      copyKeepsHdr,
+      needsSdr = sdrForcedBy.isNotEmpty(),
+    )
       ?: return Phase.Refused(
         invalid(
           when {
+            ask.spec.hdr == HdrMode.KeepHdr && sdrForcedBy.isNotEmpty() -> keepRefusedBy(sdrForcedBy)
             !canToneMap -> NO_HDR_PATH
             !gradesAgree -> MIXED_GRADES
             else -> NO_HDR_ENCODER
@@ -89,6 +100,7 @@ internal fun gradeOf(
         if (copyKeepsHdr && path != ExportPath.Copy) listOf(CopyBlocker.GradeMustToneMap) else blockers,
       // Non-null only on a copy, and then it is the window every backend lays.
       copyOpensAt = copyOpening.takeIf { path == ExportPath.Copy },
+      sdrForcedBy = sdrForcedBy,
     ),
   )
 }
@@ -103,6 +115,17 @@ private fun drawnSdrSources(
     .map { it.source }
     .distinct()
     .filter { source -> ask.infos[source]?.video?.let { it.hdrTransfer == null } == true }
+
+// The id of every effect anywhere in the edit that needs SDR frames, once each, in the order they are written.
+private fun EditComposition.effectsThatRequireSdr(): List<String> =
+  (effects + tracks.flatMap { track -> track.effects + track.clips.flatMap { it.effects } })
+    .filter { it.requiresSdr }
+    .map { it.id }
+    .distinct()
+
+private fun keepRefusedBy(ids: List<String>): String =
+  "HdrMode.KeepHdr cannot keep this grade, since ${ids.joinToString()} needs SDR frames. Use HdrMode.Auto or " +
+    "HdrMode.ToneMapToSdr to bring it down to SDR, or take the effect out."
 
 private const val NO_HDR_ENCODER =
   "HDR was required and this device cannot encode it. Use HdrMode.Auto to tone-map instead."

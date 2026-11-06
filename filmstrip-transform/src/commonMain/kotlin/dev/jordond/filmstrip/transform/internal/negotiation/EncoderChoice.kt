@@ -214,6 +214,9 @@ internal fun resolveFrameRate(
  *
  * An engine that can neither encode the grade, copy it across, nor bring it down has nowhere to put
  * an HDR source, and null is how it refuses, so the untouched grade never lands in an SDR file.
+ *
+ * [needsSdr] says an effect in the edit declared [dev.jordond.filmstrip.effect.EffectSpec.requiresSdr], which leaves
+ * nothing to keep the grade with however capable the device is.
  */
 internal fun resolveHdr(
   mode: HdrMode,
@@ -222,10 +225,11 @@ internal fun resolveHdr(
   deviceEncodesHdr: Boolean,
   canToneMap: Boolean,
   copyKeepsHdr: Boolean,
+  needsSdr: Boolean = false,
 ): ResolvedHdr? {
   if (!sourceIsHdr) return ResolvedHdr.Keep
 
-  val canKeep = gradesAgree && (deviceEncodesHdr || copyKeepsHdr)
+  val canKeep = !needsSdr && gradesAgree && (deviceEncodesHdr || copyKeepsHdr)
   return when (mode) {
     HdrMode.ToneMapToSdr -> {
       if (canToneMap) ResolvedHdr.ToneMap else null

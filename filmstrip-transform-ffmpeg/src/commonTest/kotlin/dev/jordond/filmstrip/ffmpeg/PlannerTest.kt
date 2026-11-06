@@ -16,9 +16,16 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.effect.EffectIds
+import dev.jordond.filmstrip.effect.FilterBranch
+import dev.jordond.filmstrip.effect.FilterCrop
+import dev.jordond.filmstrip.effect.FilterFragment
+import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.PlaneLanes
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.HueRotate
+import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
+import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.CropRect
 import dev.jordond.filmstrip.effects.geometry.Rotate
@@ -41,6 +48,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.TONE_MAP_FILTERS
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.arguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegEncoderNamed
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegEncoders
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.filterNames
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.formatSeconds
 import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
 import dev.jordond.filmstrip.ffmpeg.internal.process.READS_FILES
@@ -80,7 +88,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
 
-private val TONE_MAPPING = setOf("overlay", "concat", "amix") + TONE_MAP_FILTERS
+private val TONE_MAPPING = CATALOGUE_FILTERS + TONE_MAP_FILTERS
 
 // Enough pinned points that the curve they resolve to outruns what one volume node carries, laid
 // close enough together to stay inside the landscape fixture's own length.
@@ -241,7 +249,8 @@ class PlannerTest {
     val composition =
       EditComposition(listOf(Track(listOf(Clip(landscape), Clip(portrait, effects = listOf(mark))))))
 
-    val graph = planner().lower(composition, Ask(ExportSpec(), device(), infos)).graph!!.filterGraph
+    val build = toolchain(CATALOGUE_FILTERS + "colorchannelmixer")
+    val graph = planner(build).lower(composition, Ask(ExportSpec(), device(), infos)).graph!!.filterGraph
 
     val gate =
       Regex("""colorchannelmixer=aa=0:enable=not\(gte\(t\\,([^)]+)\)\*lt\(t\\,([^)]+)\)\),setpts=expr=PTS-STARTPTS""")
@@ -476,6 +485,43 @@ class PlannerTest {
     reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldContain "gblur"
   }
 
+  // Each of these is a filter Vhs lowers, read one at a time so a name missing from the check fails on its own.
+  @Test
+  fun `refuses a vhs by name on a build missing any filter it lowers`() {
+    val composition = EditComposition(listOf(Track(listOf(Clip(landscape)))), listOf(Vhs()))
+    val named = VHS_FILTERS + TONE_MAPPING
+    val spec = ExportSpec(heightPx = 720)
+    val resolvers = listOf(BuiltInEffectResolver(), FilterEffectResolver())
+
+    FfmpegPlanner(toolchain(named), resolvers).lower(composition, Ask(spec, device(), infos)).graph.shouldNotBeNull()
+
+    VHS_FILTERS.forEach { filter ->
+      val verdict =
+        FfmpegPlanner(toolchain(named - filter), resolvers).lower(composition, Ask(spec, device(), infos)).verdict
+      withClue(filter) {
+        val reason = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
+        val message = reason.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message
+        message shouldContain filter
+        message shouldContain Vhs.ID
+      }
+    }
+  }
+
+  @Test
+  fun `names every filter a fragment leaves to the backend`() {
+    val branched =
+      FilterFragment(
+        readsCompositionClock = true,
+        branches = listOf(FilterBranch(listOf(FilterBranch.INPUT), emptyList(), listOf("a", "b"))),
+      )
+    val cropped = FilterFragment(crop = FilterCrop("1", "1"))
+    val lanes = FilterFragment(chain = listOf(FilterNode(PlaneLanes.NAME)))
+
+    branched.filterNames() shouldBe setOf("split", "setpts")
+    cropped.filterNames() shouldBe setOf("split", "crop", "overlay")
+    lanes.filterNames() shouldBe setOf("format", "extractplanes", "mergeplanes")
+  }
+
   // heightPx forces a re-encode rather than the stream copy an untouched clip would take,
   // since a copy never reaches the filter graph at all.
   @Test
@@ -495,7 +541,7 @@ class PlannerTest {
       EditComposition(listOf(Track(listOf(Clip(landscape), Clip(portrait)))), fill = Fill.Blurred(dim = 0.5f))
 
     val verdict =
-      planner(toolchain(setOf("overlay", "concat", "amix", "gblur")))
+      planner(toolchain(CATALOGUE_FILTERS + "gblur"))
         .lower(composition, Ask(ExportSpec(), device(), infos))
         .verdict
 
@@ -898,7 +944,7 @@ class PlannerTest {
     toolchain: Toolchain = toolchain(),
   ): String = planner(toolchain).lower(composition, Ask(spec, device(), infos)).graph!!.filterGraph
 
-  private fun toolchain(filters: Set<String> = setOf("overlay", "concat", "amix")) =
+  private fun toolchain(filters: Set<String> = CATALOGUE_FILTERS) =
     Toolchain(
       ffmpeg = "ffmpeg",
       ffprobe = "ffprobe",

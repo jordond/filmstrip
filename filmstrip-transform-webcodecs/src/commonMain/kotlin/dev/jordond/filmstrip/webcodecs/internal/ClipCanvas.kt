@@ -1,5 +1,7 @@
 package dev.jordond.filmstrip.webcodecs.internal
 
+import dev.jordond.filmstrip.effect.WebGlPass
+import dev.jordond.filmstrip.effect.WebGlShader
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.transform.internal.geometry.CanvasPlacement
 
@@ -23,6 +25,11 @@ internal class ClipCanvas(
   val content: FloatArray,
   val bars: FloatArray,
 ) {
+  /**
+   * This canvas with clear bars, the way a [ClipPassStage] draws it so nothing that runs over it can grade a bar.
+   */
+  fun withClearBars(): ClipCanvas = ClipCanvas(contentMatrix, content, CLEAR_BARS)
+
   companion object {
     /**
      * The canvas [canvas] describes, where [toCrop] is the texture matrix of every effect after the canvas before it up
@@ -60,3 +67,52 @@ internal class ClipCanvas(
     private val BLACK_BARS = floatArrayOf(0f, 0f, 0f, 1f)
   }
 }
+
+/**
+ * What a clip with a shader pass draws ahead of the composite: its chain so far on a frame of its own, clear where a
+ * bar or an edge leaves nothing, and then each pass over that frame. A clip's grade on a canvas under [Fill.Blurred]
+ * takes the same route, so it never reaches a bar.
+ *
+ * The composite then lays the result in the clip's quad through whatever runs after the clip, with the clip's own color
+ * and canvases already in it.
+ *
+ * @property matrix The texture matrix of the clip's chain up to the passes, reading its last canvas when it builds any.
+ * @property colorMatrix The clip's own color chain, as [RenderedClip.colorMatrix] holds one.
+ * @property canvases Every canvas the clip's chain builds, as [RenderedClip.canvases] holds them.
+ * @property width The frame's width in pixels, the clip's quad on the output frame.
+ * @property height The same, for height.
+ * @property passes The clip's shader passes, in chain order, with [BARS_OVER_BLACK] last under [Fill.Blurred].
+ */
+internal class ClipPassStage(
+  val matrix: TextureMatrix,
+  val colorMatrix: FloatArray,
+  val canvases: List<ClipCanvas>,
+  val width: Int,
+  val height: Int,
+  val passes: List<WebGlPass>,
+)
+
+/**
+ * The last pass of a [ClipPassStage] under [Fill.Blurred], which lays the frame over opaque black.
+ *
+ * A canvas's bars are clear while the clip's effects run. Under a blurred fill they then turn black, part of the
+ * picture the cover is blurred from, and picture an effect moved into a bar stays over that black.
+ */
+internal val BARS_OVER_BLACK: WebGlPass =
+  WebGlPass(
+    "filmstrip.barsOverBlack",
+    WebGlShader(
+      """
+      #version 300 es
+      precision highp float;
+      uniform sampler2D uFrame;
+      in vec2 vUv;
+      out vec4 fragColor;
+      void main() {
+        vec4 texel = texture(uFrame, vUv);
+        fragColor = vec4(texel.rgb * texel.a, 1.0);
+      }
+      """.trimIndent(),
+      "uFrame",
+    ) { _, _, _ -> emptyMap() },
+  )

@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.Sepia
+import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.transform.internal.PlannerFixture
 import dev.jordond.filmstrip.transform.internal.composition
@@ -37,6 +38,28 @@ class FillOrderTest {
     negotiated.effectsUnderFill.ids() shouldBe listOf(EffectIds.BRIGHTNESS)
     negotiated.effectsOverFill.ids() shouldBe listOf(FIRST)
     (negotiated.effectsUnderFill + negotiated.effectsOverFill) shouldBe negotiated.compositionEffects
+  }
+
+  @Test
+  fun `a beneath overlays effect runs over the fill and under an image overlay`() {
+    val beneath =
+      object : EffectSpec {
+        override val id = BENEATH
+        override val stage = EffectStage.Composite
+        override val beneathOverlays = true
+      }
+
+    val negotiated = negotiate(effects = listOf(FakeOverlay(EffectIds.IMAGE_OVERLAY), beneath, Brightness(1.2f)))
+
+    negotiated.effectsUnderFill.ids() shouldBe listOf(EffectIds.BRIGHTNESS)
+    negotiated.effectsOverFill.ids() shouldBe listOf(BENEATH, EffectIds.IMAGE_OVERLAY)
+  }
+
+  @Test
+  fun `a vhs runs over the fill and under an overlay at the same scope`() {
+    val negotiated = negotiate(effects = listOf(FakeOverlay(EffectIds.IMAGE_OVERLAY), Vhs(intensity = 0.5f)))
+
+    negotiated.effectsOverFill.ids() shouldBe listOf(Vhs.ID, EffectIds.IMAGE_OVERLAY)
   }
 
   @Test
@@ -105,6 +128,7 @@ class FillOrderTest {
   private companion object {
     const val FIRST = "test.overlay.first"
     const val SECOND = "test.overlay.second"
+    const val BENEATH = "test.beneath"
   }
 }
 

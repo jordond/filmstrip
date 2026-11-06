@@ -11,6 +11,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.readablePath
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
+import dev.jordond.filmstrip.transform.internal.geometry.showsBlurredFill
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -297,7 +298,9 @@ internal class GraphLowering(
       val label = "vfx${firstIndex + offset}"
       val merge = fragment.merge
       val crop = fragment.crop
-      if (crop != null) {
+      if (fragment.branches.isNotEmpty()) {
+        graph.branches(current, fragment, label, Duration.ZERO)
+      } else if (crop != null) {
         graph.cropped(current, fragment, crop, label, grid, ::auxPads)
       } else if (merge == null) {
         graph.chain(listOf(current), (fragment.chain + fragment.post).ifEmpty { listOf(NULL_VIDEO) }, label)
@@ -314,7 +317,7 @@ internal class GraphLowering(
           }
         graph.chain(listOf(input) + auxPads(fragment.auxInputs, label), listOf(merge) + fragment.post, label)
       }
-      if (crop == null) grid = grid.after(fragment.chain + fragment.post)
+      if (crop == null) grid = grid.after(fragment.branches.flatMap { it.nodes } + fragment.chain + fragment.post)
       current = label
     }
     return current
@@ -357,16 +360,24 @@ internal class GraphLowering(
     // A source decodes to 4:2:0 as far as the graph can tell, so every figure is snapped until a format says otherwise.
     var grid = ChromaGrid.Subsampled.after(pending)
 
+    // Under a blurred fill a canvas's bars stay clear for the clip's effects and turn black once they have run.
+    val blackBars = negotiated.fill is Fill.Blurred && clip.placement.canvases.isNotEmpty()
+
     clip.effects.forEachIndexed { effectIndex, resolved ->
       val fragment = resolved.effect.fragment
       sidecars += fragment.sidecars
       val crop = fragment.crop
-      if (crop != null) {
-        // The split reads one pad, so the nodes waiting here are flushed onto it first.
+      if (crop != null || fragment.branches.isNotEmpty()) {
         val label = "v${index}m$merged"
         val read = if (pending.isEmpty()) pad else "${label}in".also { graph.chain(listOf(pad), pending, it) }
         pending.clear()
-        pad = graph.cropped(read, fragment, crop, label, grid, ::auxPads)
+        pad =
+          if (crop != null) {
+            graph.cropped(read, fragment, crop, label, grid, ::auxPads)
+          } else {
+            grid = grid.after(fragment.branches.flatMap { it.nodes })
+            label.also { graph.branches(read, fragment, it, clip.span.start) }
+          }
         merged++
         return@forEachIndexed
       }
@@ -378,7 +389,9 @@ internal class GraphLowering(
         // The canvas crop removes no pixels, so its canvas is built here for the effects after it that read it.
         val canvas = clip.canvasEffectIndices.indexOf(effectIndex)
         if (canvas >= 0) {
-          val built = canvasNodes(clip.placement.canvases[canvas], padColor, tailPixelFormat)
+          val placed = clip.placement.canvases[canvas]
+          val built =
+            if (blackBars) clearCanvasNodes(placed, pixelFormat) else canvasNodes(placed, padColor, tailPixelFormat)
           pending += built
           grid = grid.after(built)
         }
@@ -398,50 +411,22 @@ internal class GraphLowering(
       merged++
     }
 
+    if (blackBars) {
+      val read = "v${index}clear"
+      graph.chain(listOf(pad), pending.ifEmpty { listOf(NULL_VIDEO) }, read)
+      pending.clear()
+      pad = graph.overBlack(read, "v$index", pixelFormat, grid)
+    }
+
     val rect = clip.drawnIn(output.size)
     val fill = negotiated.fill
-    if (clip.placement.leavesBars && fill is Fill.Blurred) {
-      return buildBlurredTail(pad, pending, fill, rect, index, slots, grid)
+    if (fill is Fill.Blurred && clip.placement.showsBlurredFill(output.size)) {
+      val tail = TrailingFrames(frameRate, tailPixelFormat, slots)
+      return graph.blurredTail(pad, pending, fill, rect, output.size, "v$index", tail, grid)
     }
 
     pending += tailNodes(output.size, rect, padColor, frameRate, tailPixelFormat, slots, grid)
     return "v$index".also { graph.chain(listOf(pad), pending, it) }
-  }
-
-  /**
-   * The blurred tail of a clip that leaves bars: a sharp copy of the frame placed at [rect], laid over a blurred copy
-   * that covers the whole output.
-   *
-   * `tailNodes` writes a single chain, but this needs the frame twice, once for each copy, so [pending] is flushed
-   * onto a pad of its own and fanned out with [FilterGraphBuilder.split] instead. The sharp copy lands on [grid], the
-   * chroma grid of the chain both copies come from.
-   */
-  private fun buildBlurredTail(
-    pad: String,
-    pending: List<FilterNode>,
-    fill: Fill.Blurred,
-    rect: PixelRect,
-    index: Int,
-    slots: Long,
-    grid: ChromaGrid,
-  ): String {
-    val pre = "v${index}pre"
-    graph.chain(listOf(pad), pending, pre)
-
-    val background = "v${index}bg"
-    val foreground = "v${index}fg"
-    graph.split(pre, listOf(background, foreground))
-
-    val blurred = "v${index}blur"
-    graph.chain(listOf(background), coverBlurNodes(output.size, fill), blurred)
-
-    val sharp = "v${index}sharp"
-    graph.chain(listOf(foreground), scaledInto(rect, output.size), sharp)
-
-    val (x, y) = rect.drawnAt(grid)
-    return "v$index".also {
-      graph.chain(listOf(blurred, sharp), overlayNodes(x, y) + trailingNodes(frameRate, tailPixelFormat, slots), it)
-    }
   }
 
   /**

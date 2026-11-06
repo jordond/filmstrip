@@ -93,6 +93,7 @@ internal class Framing(
  *
  * @property encodesHdr Whether the grade reaches an encoder, which is never true on a copy.
  * @property copyOpensAt Where the copy opens, or null when the export transcodes.
+ * @property sdrForcedBy The ids of the effects that need SDR frames on an HDR source, empty when none do.
  */
 internal class Grade(
   val sourceIsHdr: Boolean,
@@ -103,6 +104,7 @@ internal class Grade(
   val path: ExportPath,
   val copyBlockedBy: List<CopyBlocker>,
   val copyOpensAt: Duration?,
+  val sdrForcedBy: List<String> = emptyList(),
 )
 
 /**

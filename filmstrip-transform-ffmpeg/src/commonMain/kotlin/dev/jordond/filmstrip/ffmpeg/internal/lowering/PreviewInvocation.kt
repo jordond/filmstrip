@@ -61,7 +61,7 @@ internal fun Invocation.previewArguments(
     add("-start_at_zero")
 
     addAll(previewInputArguments(resolvedInputs, at))
-    addAll(previewMapArguments(resolvedSidecars))
+    addAll(previewMapArguments(resolvedSidecars, previewSeek(at)))
 
     // The graph cuts each clip to its slots counted from the first frame it is handed, and a
     // windowed preview hands it the frame on the landing's slot, so that cut falls past the end of
@@ -124,7 +124,10 @@ private fun Invocation.previewInputArguments(
   }
 
 // The source's own stream for a copy, and the graph's video pad for everything else.
-private fun Invocation.previewMapArguments(resolvedSidecars: List<String>): List<String> =
+private fun Invocation.previewMapArguments(
+  resolvedSidecars: List<String>,
+  windowOpensAt: Duration,
+): List<String> =
   buildList {
     if (copy) {
       // A copy writes the source's own stream, so the frames the preview shows are the source's
@@ -135,8 +138,8 @@ private fun Invocation.previewMapArguments(resolvedSidecars: List<String>): List
       add("-s")
       add("${output.size.width}x${output.size.height}")
     } else {
-      add("-filter_complex")
-      add(resolvedGraph(resolvedSidecars))
+      add(GRAPH_FLAG)
+      add(resolvedGraph(resolvedSidecars, windowOpensAt))
 
       // ffmpeg refuses a graph with an output nothing reads, so the audio branch this backend does
       // not monitor is still mapped, into a muxer that writes nothing.

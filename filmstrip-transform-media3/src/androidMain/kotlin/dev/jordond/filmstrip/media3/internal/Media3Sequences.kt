@@ -122,8 +122,7 @@ internal class Lowering(
 
   // Every clip reaches the composition's chain already placed in the output frame, so the gap's still is stretched
   // over the whole of it the same way.
-  private val gapPlacement =
-    PlacedFrame(NormalizedRect.Full, plan.output.size, PlacedFrame.Bars.Clear)
+  private val gapPlacement = PlacedFrame(NormalizedRect.Full, plan.output.size)
 
   /**
    * A clip's video, decoded for exactly [length].

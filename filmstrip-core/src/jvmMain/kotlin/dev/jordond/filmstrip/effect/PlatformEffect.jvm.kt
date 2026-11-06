@@ -46,6 +46,11 @@ public actual class PlatformEffect(
  * @property post Nodes applied in order to the pad [merge] produces, or to the [chain]'s output
  * when there is no [merge]. With a [crop], the last of them writes the region the `overlay` lays
  * back, so the alpha it leaves on that region is what the blend reads.
+ * @property branches A graph of its own this effect runs instead of [chain], for one that needs the frame more than
+ * once. The last branch writes the pad the effect hands on.
+ * @property readsCompositionClock Whether the nodes read `t` or `T` as composition time. The backend moves the frame's
+ * timestamps onto the composition's clock around them, so an effect never has to know where its clip lands or where a
+ * preview window opened.
  */
 @Poko
 public class FilterFragment(
@@ -55,7 +60,32 @@ public class FilterFragment(
   public val sidecars: List<Sidecar> = emptyList(),
   public val crop: FilterCrop? = null,
   public val post: List<FilterNode> = emptyList(),
+  public val branches: List<FilterBranch> = emptyList(),
+  public val readsCompositionClock: Boolean = false,
 )
+
+/**
+ * One chain of a [FilterFragment.branches] graph, or a fan out when it writes more than one pad.
+ *
+ * Pads are named locally, and the backend makes them unique in the graph it builds.
+ *
+ * @property reads The pads this branch reads, where [INPUT] is the pad the effect receives.
+ * @property nodes The nodes applied in order. Empty on a fan out, which copies its one read to every pad in [writes].
+ * @property writes The pads this branch writes.
+ */
+@Poko
+public class FilterBranch(
+  public val reads: List<String>,
+  public val nodes: List<FilterNode>,
+  public val writes: List<String>,
+) {
+  public companion object {
+    /**
+     * The name of the pad the effect receives.
+     */
+    public const val INPUT: String = "in"
+  }
+}
 
 /**
  * The region a [FilterFragment] works on, as the tool's `crop` filter would cut it.

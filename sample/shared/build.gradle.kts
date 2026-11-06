@@ -41,6 +41,7 @@ kotlin {
 
     commonMain.dependencies {
       api(projects.filmstrip)
+      implementation(projects.filmstripEffectsFilters)
       implementation(projects.filmstripCompose)
       implementation(projects.filmstripComposeUi)
       implementation(projects.filmstripIoFilekit)

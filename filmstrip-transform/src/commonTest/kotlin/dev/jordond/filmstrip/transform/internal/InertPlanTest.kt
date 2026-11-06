@@ -8,9 +8,11 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.effect.EffectIds
 import dev.jordond.filmstrip.effect.EffectSpec
+import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.effects.color.ColorMatrix
 import dev.jordond.filmstrip.effects.color.HueRotate
+import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
@@ -32,6 +34,7 @@ import dev.jordond.filmstrip.style.TextStyle
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.seconds
@@ -59,6 +62,42 @@ class InertPlanTest {
 
     reasonsOf(edit).shouldBeEmpty()
     clipEffectsOf(edit).size shouldBe 1
+  }
+
+  @Test
+  fun `a spec that declares itself inert is left out and named`() {
+    val inert =
+      object : EffectSpec {
+        override val id = "test.inert"
+        override val isInert = true
+      }
+    val edit = single(fixture.clip(effects = listOf(inert)))
+
+    reasonsOf(edit) shouldContainExactly listOf("test.inert" to InertReason.NoChangeToFrame)
+    clipEffectsOf(edit).shouldBeEmpty()
+  }
+
+  @Test
+  fun `a vhs at zero intensity is left out and at a half is kept`() {
+    val silent = single(fixture.clip(effects = listOf(Vhs(intensity = 0f))))
+    val kept = single(fixture.clip(effects = listOf(Vhs(intensity = 0.5f))))
+
+    reasonsOf(silent) shouldContainExactly listOf(Vhs.ID to InertReason.NoChangeToFrame)
+    clipEffectsOf(silent).shouldBeEmpty()
+    reasonsOf(kept).shouldBeEmpty()
+    clipEffectsOf(kept).size shouldBe 1
+  }
+
+  @Test
+  fun `a vhs is refused by name when the filters are not registered`() {
+    val edit = single(fixture.clip(effects = listOf(Vhs(intensity = 0.5f))))
+
+    val verdict = fixture.plan(edit, resolvers = listOf(BuiltInEffectResolver()))
+
+    verdict
+      .shouldBeInstanceOf<Verdict.Incapable>()
+      .reasons
+      .joinToString { it.toString() } shouldContain Vhs.ID
   }
 
   @Test

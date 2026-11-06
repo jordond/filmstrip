@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.transform.internal.geometry.derivesFromFrame
+import dev.jordond.filmstrip.transform.internal.geometry.showsBlurredFill
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedEffect
 import dev.jordond.filmstrip.transform.internal.resolve.drawsSameFormatAs
@@ -280,8 +281,9 @@ internal class CoreImageChain(
 
     if (fill.derivesFromFrame) {
       // Picture, not furniture: the fill is composited in first and the composition's own effects
-      // grade it along with the rest of the frame.
-      image = image.fittedTo(size, rect, fill, state.encodedTransfer)
+      // grade it along with the rest of the frame. A cover the clip hides costs a blur nothing shows.
+      val under = if (span?.placement?.showsBlurredFill(size) == false) Fill.Black else fill
+      image = image.fittedTo(size, rect, under, state.encodedTransfer)
       return image.stepped(resolved.effectsUnderFill, frame).stepped(resolved.effectsOverFill, frame)
     }
 
@@ -297,9 +299,9 @@ internal class CoreImageChain(
   /**
    * Runs [span]'s effects, building each of the clip's canvases right after the crop that makes it.
    *
-   * The canvas bars are clear under a named fill color, so the fill shows through them when it is painted in. A fill
-   * drawn from the frame is composited in before the effects run, so the bars are black under it, the way they are on
-   * every backend.
+   * The canvas bars stay clear through the clip's effects, so none of them grades a bar. A named fill color shows
+   * through them when it is painted in. A fill drawn from the frame is composited in right after this, so the bars turn
+   * black once the effects have run, the way they do on every backend.
    *
    * Each effect is handed the frame it really runs on, so one after a rotate or a canvas measures the rotated frame or
    * the canvas rather than the clip's source.
@@ -309,14 +311,13 @@ internal class CoreImageChain(
     frame: FrameInfo,
     fill: Fill,
   ): CIImage {
-    val bars = if (fill.derivesFromFrame) CIColor.blackColor else CIColor.clearColor
     var image = this
     span.effects.forEachIndexed { index, resolved ->
       image = image.stepped(listOf(resolved), frame.measuring(image, span.attributes))
       val canvas = span.canvasEffectIndices.indexOf(index)
-      if (canvas >= 0) image = image.inCanvas(span.placement.canvases[canvas], bars)
+      if (canvas >= 0) image = image.inCanvas(span.placement.canvases[canvas], CIColor.clearColor)
     }
-    return image
+    return if (fill.derivesFromFrame && span.canvasEffectIndices.isNotEmpty()) image.withBlackBars() else image
   }
 
   /**

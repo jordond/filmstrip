@@ -16,7 +16,7 @@ import dev.jordond.filmstrip.transform.internal.geometry.inWholePixelsOf
 import androidx.media3.common.util.Size as Media3Size
 
 /**
- * Draws the frame it is handed at [rect] of a frame of [size], with [bars] wherever the frame does not reach.
+ * Draws the frame it is handed at [rect] of a frame of [size], leaving zero alpha wherever the frame does not reach.
  *
  * This is how a clip is placed in the output frame at the size stage, and how a crop that letterboxes or stretches
  * builds its canvas inside the clip's chain. A frame [rect] runs past is cut at the edge.
@@ -27,30 +27,11 @@ import androidx.media3.common.util.Size as Media3Size
  *
  * @property rect Where the frame lands, as a fraction of the frame drawn into.
  * @property size The size of the frame drawn into, whatever size the frame handed in is.
- * @property bars What the frame drawn into holds where [rect] does not reach.
  */
 internal data class PlacedFrame(
   val rect: NormalizedRect,
   val size: Size,
-  val bars: Bars,
 ) : GlEffect {
-  /**
-   * What a [PlacedFrame] leaves where the frame does not reach.
-   */
-  enum class Bars(
-    internal val components: FloatArray,
-  ) {
-    /**
-     * Zero alpha, which the flatten pass later paints the fill into.
-     */
-    Clear(floatArrayOf(0f, 0f, 0f, 0f)),
-
-    /**
-     * Opaque black, part of the picture from here on.
-     */
-    Black(floatArrayOf(0f, 0f, 0f, 1f)),
-  }
-
   override fun toGlShaderProgram(
     context: Context,
     useHdr: Boolean,
@@ -67,10 +48,7 @@ internal data class PlacedFrame(
      * The pass that builds [canvas] out of the frame entering the crop that makes it. The canvas is
      * [CanvasPlacement.size], the frame the planner measures every later effect against.
      */
-    fun canvasOf(
-      canvas: CanvasPlacement,
-      bars: Bars,
-    ): PlacedFrame = PlacedFrame(canvas.contentInCanvas, canvas.size, bars)
+    fun canvasOf(canvas: CanvasPlacement): PlacedFrame = PlacedFrame(canvas.contentInCanvas, canvas.size)
   }
 }
 
@@ -94,7 +72,6 @@ private class PlacedFrameProgram(
       GlUtil.getNormalizedCoordinateBounds(),
       GlUtil.HOMOGENEOUS_COORDINATE_VECTOR_SIZE,
     )
-    glProgram.setFloatsUniform("uBars", placed.bars.components)
   }
 
   // Texture coordinates run from the bottom left, so the rect's top and bottom swap over on the way in.
@@ -144,14 +121,13 @@ private val FRAGMENT_SHADER =
   uniform sampler2D uTexSampler;
   uniform vec2 uRectMin;
   uniform vec2 uRectMax;
-  uniform vec4 uBars;
   varying vec2 vTexSamplingCoord;
   void main() {
     vec2 at = vTexSamplingCoord;
     if (all(greaterThanEqual(at, uRectMin)) && all(lessThan(at, uRectMax))) {
       gl_FragColor = texture2D(uTexSampler, (at - uRectMin) / (uRectMax - uRectMin));
     } else {
-      gl_FragColor = uBars;
+      gl_FragColor = vec4(0.0);
     }
   }
   """.trimIndent()

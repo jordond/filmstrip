@@ -781,14 +781,20 @@ public final class dev/jordond/filmstrip/effect/EffectScope : java/lang/Enum {
 }
 
 public abstract interface class dev/jordond/filmstrip/effect/EffectSpec {
+	public fun getBeneathOverlays ()Z
 	public abstract fun getId ()Ljava/lang/String;
+	public fun getRequiresSdr ()Z
 	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
 	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public fun isInert ()Z
 }
 
 public final class dev/jordond/filmstrip/effect/EffectSpec$DefaultImpls {
+	public static fun getBeneathOverlays (Ldev/jordond/filmstrip/effect/EffectSpec;)Z
+	public static fun getRequiresSdr (Ldev/jordond/filmstrip/effect/EffectSpec;)Z
 	public static fun getScope (Ldev/jordond/filmstrip/effect/EffectSpec;)Ldev/jordond/filmstrip/effect/EffectScope;
 	public static fun getStage (Ldev/jordond/filmstrip/effect/EffectSpec;)Ldev/jordond/filmstrip/effect/EffectStage;
+	public static fun isInert (Ldev/jordond/filmstrip/effect/EffectSpec;)Z
 }
 
 public final class dev/jordond/filmstrip/effect/EffectSpecKt {
@@ -814,6 +820,21 @@ public final class dev/jordond/filmstrip/effect/FilterArgument {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class dev/jordond/filmstrip/effect/FilterBranch {
+	public static final field Companion Ldev/jordond/filmstrip/effect/FilterBranch$Companion;
+	public static final field INPUT Ljava/lang/String;
+	public fun <init> (Ljava/util/List;Ljava/util/List;Ljava/util/List;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getNodes ()Ljava/util/List;
+	public final fun getReads ()Ljava/util/List;
+	public final fun getWrites ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effect/FilterBranch$Companion {
+}
+
 public final class dev/jordond/filmstrip/effect/FilterCrop {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)V
 	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -829,14 +850,16 @@ public final class dev/jordond/filmstrip/effect/FilterCrop {
 
 public final class dev/jordond/filmstrip/effect/FilterFragment {
 	public fun <init> ()V
-	public fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterNode;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterCrop;Ljava/util/List;)V
-	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterNode;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterCrop;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterNode;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterCrop;Ljava/util/List;Ljava/util/List;Z)V
+	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterNode;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterCrop;Ljava/util/List;Ljava/util/List;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAuxInputs ()Ljava/util/List;
+	public final fun getBranches ()Ljava/util/List;
 	public final fun getChain ()Ljava/util/List;
 	public final fun getCrop ()Ldev/jordond/filmstrip/effect/FilterCrop;
 	public final fun getMerge ()Ldev/jordond/filmstrip/effect/FilterNode;
 	public final fun getPost ()Ljava/util/List;
+	public final fun getReadsCompositionClock ()Z
 	public final fun getSidecars ()Ljava/util/List;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;

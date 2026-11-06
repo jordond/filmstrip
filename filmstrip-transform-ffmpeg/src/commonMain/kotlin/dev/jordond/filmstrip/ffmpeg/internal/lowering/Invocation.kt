@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
+import dev.jordond.filmstrip.ffmpeg.internal.process.Scratch
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
@@ -67,8 +68,8 @@ internal sealed interface InputSource {
 /**
  * Everything needed to run one export, resolved before anything is spawned.
  *
- * @property filterGraph The whole graph, inlined into one argument of the argument list, which every
- *   ffmpeg from 8.0 to 9.0 reads the same way.
+ * @property filterGraph The whole graph. [readingGraphFrom] hands it to ffmpeg in a file, so its size has no bound from
+ * the command line.
  * @property videoEncoder The libav encoder the device resolved for [OutputFormat.videoCodec], which
  *   is the one `-c:v` names. Null when there is no video track to write.
  * @property duration What the output runs to, which is what progress is a fraction of.
@@ -112,17 +113,28 @@ internal class Invocation(
  * carry a character the graph's own punctuation uses. Every placeholder is swapped in one pass over
  * the graph.
  */
-internal fun Invocation.resolvedGraph(resolvedSidecars: List<String>): String {
+internal fun Invocation.resolvedGraph(
+  resolvedSidecars: List<String>,
+  windowOpensAt: Duration = Duration.ZERO,
+): String {
   check(resolvedSidecars.size == sidecars.size) {
     "The graph reads ${sidecars.size} sidecars and ${resolvedSidecars.size} paths were resolved."
   }
-  if (sidecars.isEmpty()) return filterGraph
+  val clocked = filterGraph.replace(WINDOW_CLOCK, formatSeconds(windowOpensAt.toDouble(DurationUnit.SECONDS)))
+  if (sidecars.isEmpty()) return clocked
 
   val paths =
     sidecars.mapIndexed { index, sidecar -> sidecar.placeholder to escapeFilterValue(resolvedSidecars[index]) }.toMap()
 
-  return Regex(paths.keys.joinToString("|") { Regex.escape(it) }).replace(filterGraph) { paths.getValue(it.value) }
+  return Regex(paths.keys.joinToString("|") { Regex.escape(it) }).replace(clocked) { paths.getValue(it.value) }
 }
+
+/**
+ * What a graph writes where the composition time its window opens at belongs, which a preview only knows per scrub.
+ *
+ * Swapped by [resolvedGraph], and spelled with characters no filter graph escapes, so it survives into the text.
+ */
+internal const val WINDOW_CLOCK: String = "<window-clock>"
 
 /**
  * Builds the argument list.
@@ -183,7 +195,7 @@ internal fun Invocation.arguments(
       add("-c")
       add("copy")
     } else {
-      add("-filter_complex")
+      add(GRAPH_FLAG)
       add(resolvedGraph(resolvedSidecars))
 
       videoLabel?.let {
@@ -211,6 +223,20 @@ internal fun Invocation.arguments(
     addAll(config.extraArgs)
     add(outputPath)
   }
+
+/**
+ * This command with its graph moved into [scratch] and read back with `-/filter_complex`.
+ *
+ * A file has no size bound, where Windows caps a whole command line and Linux caps one argument. The command this is
+ * called on still holds the graph's text, which is what a diagnostics report shows.
+ *
+ * @throws kotlinx.io.IOException When the file cannot be written.
+ */
+internal fun List<String>.readingGraphFrom(scratch: Scratch): List<String> {
+  val flag = indices.firstOrNull { this[it] == GRAPH_FLAG && getOrNull(it - 1) != "-i" } ?: return this
+  val path = scratch.write(this[flag + 1].encodeToByteArray(), GRAPH_EXTENSION)
+  return take(flag) + GRAPH_FILE_FLAG + path + drop(flag + 2)
+}
 
 /**
  * The demuxer options that turn a still into a stream, or nothing for an input read once.
@@ -340,6 +366,9 @@ internal fun formatSeconds(value: Double): String {
 // depth, unless cutree is off. 4.3 encodes these widths either way.
 private val X265_CUTREE_CRASH_WIDTHS = 34..48
 
+internal const val GRAPH_FLAG = "-filter_complex"
+private const val GRAPH_FILE_FLAG = "-/filter_complex"
+private const val GRAPH_EXTENSION = "filtergraph"
 private const val MICROS_PER_SECOND = 1_000_000.0
 private const val MICRO_DIGITS = 6
 private const val MAXRATE_NUMERATOR = 3L

@@ -104,6 +104,7 @@ export default defineConfig({
             { label: 'Sources and sinks', slug: 'guides/sources-and-sinks' },
             { label: 'Edits', slug: 'guides/edits' },
             { label: 'Effects', slug: 'guides/effects' },
+            { label: 'Filters', slug: 'guides/filters' },
             { label: 'Overlays', slug: 'guides/overlays' },
             { label: 'Audio', slug: 'guides/audio' },
             { label: 'Export', slug: 'guides/export' },

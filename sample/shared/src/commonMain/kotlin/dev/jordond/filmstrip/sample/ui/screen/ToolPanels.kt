@@ -39,6 +39,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.effects.color.ColorMatrix
+import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.filekit.compose.rememberImagePickerLauncher
 import dev.jordond.filmstrip.geometry.AspectRatio
@@ -526,6 +527,30 @@ private fun AdjustPanel(state: SampleAppState) {
     }
     GradeSlider(state, "Invert", edit.invert, formatPercent(edit.invert), 0f..1f, 0f) {
       edit.invert = it
+    }
+  }
+
+  ControlGroup("Tape") {
+    SwitchRow(
+      label = "VHS",
+      checked = edit.vhsEnabled,
+      onCheckedChange = {
+        edit.vhsEnabled = it
+        state.onEditChanged()
+      },
+    )
+    if (edit.vhsEnabled) {
+      GradeSlider(state, "Intensity", edit.vhsIntensity, formatPercent(edit.vhsIntensity), 0f..1f, 1f) {
+        edit.vhsIntensity = it
+      }
+      ChipGroup(
+        options = TapeSpeed.entries.map { it.name to it },
+        selected = edit.vhsTape,
+        onSelect = {
+          edit.vhsTape = it
+          state.onEditChanged()
+        },
+      )
     }
   }
 

@@ -1,0 +1,47 @@
+---
+title: Filters
+description: Add an opt-in look like VHS, with its own module and its own resolver.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+import Snippet from '../../../components/Snippet.astro'
+
+Filters are looks that stay out of the `filmstrip` bundle. They live in `filmstrip-effects-filters`, so an app that doesn't
+use one doesn't carry one. See [Installation](/start/installation/#modules) for the artifact.
+
+## Register them
+
+Call `filters()` on the builder. A filter with no renderer registered is refused by name at plan time.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="register" />
+
+## VHS
+
+`vhs` makes a frame look like it was played back from a tape. It softens luma, smears chroma along each line, wobbles the
+lines, bends the bottom of the frame like a head switch, and adds streaky noise, dropouts and the odd tracking band. Every
+backend draws the same tape, and the pattern follows the frame's composition time, so a seek or a smaller preview shows the
+same picture.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Filters.kt" region="vhs" />
+
+| Argument    | What it does                                                                            |
+| ----------- | --------------------------------------------------------------------------------------- |
+| `intensity` | How strong the look is. `0f` leaves the frame alone and is listed as an inert notice    |
+| `tape`      | `TapeSpeed.SP`, `LP` or `EP`, from sharpest to softest. Defaults to `EP`                |
+| `seed`      | Picks the pattern of noise and events. Equal seeds draw the same tape                   |
+
+A `vhs` on the composition covers the whole frame, bars included. One on a clip or a track doesn't grade the bars, and
+picture it moves into a bar lands over the fill. It runs under any overlay at its own scope, so a caption next to it stays
+clean. A clip overlay under a composition `vhs` is part of the clip's frame by then, and is burned in with it.
+
+An HDR source tone maps to SDR first. `HdrMode.Auto` reports that as an `HdrToneMapped` adjustment naming the effect, and
+`HdrMode.KeepHdr` is refused. See [HDR](/guides/hdr/).
+
+<Aside type="note" title="Limits">
+- An Apple device that can't compile a Core Image Metal kernel refuses `vhs` by name. That takes iOS 15 or macOS 12 on an
+  Apple6 GPU, and a device below that gets an `Incapable` plan.
+- The browser refuses a clip whose own frame is longer on a side than the page's `MAX_TEXTURE_SIZE`, since the pass draws on
+  that whole frame.
+- The ffmpeg backend refuses `vhs` by name on a build with none of the filters it runs on, like `geq` or `gblur`.
+- See [Limits](/reference/limits/#filters) for how close each backend lands.
+</Aside>

@@ -179,8 +179,42 @@ class ClipPlacementTest {
       placeIn(squareCanvas, frameAfter(tall, squareCanvas), Fit.Contain)
   }
 
+  @Test
+  fun `a canvas that fills the frame hides a blurred fill`() {
+    val placement = placementOf(SQUARE, listOf(listOf(WIDE, PAN)), HD)
+
+    placement.canvases.size shouldBe 1
+    placement.leavesBars shouldBe true
+    placement.showsBlurredFill(HD) shouldBe false
+    placement.showsBlurredFill(Size(640, 360)) shouldBe false
+  }
+
+  @Test
+  fun `a canvas whose rect leaves the frame open shows a blurred fill`() {
+    val tall = Size(1080, 1920)
+
+    placementOf(SQUARE, listOf(listOf(WIDE, PAN)), tall).showsBlurredFill(tall) shouldBe true
+  }
+
+  // A 16:9 canvas in a frame this slightly taller lands a row short of it, top and bottom, in whole pixels.
+  @Test
+  fun `a canvas a whole row short of the frame shows a blurred fill`() {
+    val frame = Size(1000, 564)
+
+    placementOf(SQUARE, listOf(listOf(WIDE, PAN)), frame).showsBlurredFill(frame) shouldBe true
+  }
+
+  @Test
+  fun `a clip with no canvas shows a blurred fill exactly where it leaves bars`() {
+    placementOf(SQUARE, listOf(emptyList()), HD).showsBlurredFill(HD) shouldBe true
+    placementOf(HD, listOf(emptyList()), HD).showsBlurredFill(HD) shouldBe false
+  }
+
   private companion object {
     val HD = Size(1920, 1080)
+    val SQUARE = Size(1600, 1600)
+    val WIDE = Crop(AspectRatio(16, 9), Fit.Contain)
+    val PAN = KenBurns(NormalizedRect.Full, NormalizedRect(0f, 0f, 0.5f, 0.5f))
     val PORTRAIT = Size(1080, 1350)
     const val EPS = 1e-4f
   }

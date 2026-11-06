@@ -227,6 +227,13 @@ internal external interface WebGl2 : JsAny {
     y: Float,
   )
 
+  fun uniform3f(
+    location: JsAny?,
+    x: Float,
+    y: Float,
+    z: Float,
+  )
+
   fun uniform4f(
     location: JsAny?,
     x: Float,

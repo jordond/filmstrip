@@ -18,6 +18,12 @@ that data into something the current platform can render.
 - `stage` defaults to `EffectStage.Color`. Your effect lands at the end of whichever stage it names.
 - `scope` defaults to `EffectScope.Everywhere`. An effect whose result depends on where a frame sits in its run overrides it
   with `ClipOnly`, and a plan refuses it anywhere else.
+- `requiresSdr` defaults to `false`. An effect that needs SDR frames says `true`, and an HDR source tone maps first.
+  `HdrMode.Auto` reports that as a concession naming your effect, and `HdrMode.KeepHdr` is refused by name.
+- `isInert` defaults to `false`. Say `true` when the spec as configured leaves every pixel alone, and the plan leaves the
+  effect out and lists it on its [inert notices](/guides/export/#inert-notices), so no backend is handed it.
+- `beneathOverlays` defaults to `false`. Say `true` on an `EffectStage.Composite` effect that runs over the fill and under
+  every overlay at its own scope, like [`vhs`](/guides/filters/). Outside that stage it changes nothing.
 
 A spec has to compare by value, which a `data class` gives you. filmstrip compares specs to decide if a composition changed
 and if a cached thumbnail is still good, so one left on identity equality rebuilds the graph and misses the cache every
@@ -62,7 +68,8 @@ platform's function below.
     <Snippet file="jvmMain/kotlin/dev/jordond/filmstrip/docs/extending/CustomEffects.jvm.kt" region="jvm" />
   </TabItem>
   <TabItem label="Web">
-    The browser has no way to run your own shader yet, so refuse by name.
+    A `WebGlPass` that brings its own fragment source through `WebGlShader`, or a refusal by name, which is what this one
+    does.
     <Snippet file="wasmJsMain/kotlin/dev/jordond/filmstrip/docs/extending/CustomEffects.wasmJs.kt" region="web" />
   </TabItem>
 </Tabs>
@@ -79,6 +86,6 @@ Resolvers are asked newest registration first, so add yours after the backends.
 A spec no resolver claims is refused by name at plan time.
 
 <Aside type="note" title="Limits">
-A `PlatformEffect` in the browser is a `WebGlPass`, and the browser's compositor only reads the texture matrix and color
-matrix uniforms off a pass. It ignores the `programKey`, so a pass can't bring its own shader.
+A `PlatformEffect` in the browser is a `WebGlPass`. One with no `WebGlShader` is folded into the compositor's own draw through
+its texture matrix or color matrix uniform, and the compositor refuses a pass that gives it neither.
 </Aside>

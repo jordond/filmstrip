@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.VideoCodec
+import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.CopyBlocker
@@ -16,6 +17,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
 
@@ -27,6 +29,12 @@ import kotlin.test.Test
  */
 class HdrPlanTest {
   private val fixture = PlannerFixture()
+  private val encodesHdr = fixture.device(hdr = true)
+  private val needsSdr =
+    object : EffectSpec {
+      override val id = "test.needsSdr"
+      override val requiresSdr = true
+    }
 
   @Test
   fun `hdr is tone-mapped when the device can neither encode it nor copy it across`() {
@@ -36,6 +44,18 @@ class HdrPlanTest {
     val adjustment = degraded.adjustments.single()
     adjustment.kind shouldBe AdjustmentKind.HdrToneMapped
     adjustment.message shouldBe "This device cannot encode HDR, so the grade is tone-mapped to SDR."
+  }
+
+  @Test
+  fun `an engine that cannot tone map still reports having no hdr path`() {
+    val edit = composition(fixture.clip(hdr = HdrTransfer.Pq, effects = listOf(needsSdr)))
+
+    fixture
+      .plan(edit, device = encodesHdr, canToneMap = false)
+      .shouldBeInstanceOf<Verdict.Incapable>()
+      .reasons
+      .single()
+      .toString() shouldContain "neither encode it nor tone-map it"
   }
 
   // The same drop, reached the way a caller actually reaches it: the muxer would have copied this

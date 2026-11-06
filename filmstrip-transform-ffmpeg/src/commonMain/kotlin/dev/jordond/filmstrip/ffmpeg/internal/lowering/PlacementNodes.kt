@@ -144,6 +144,18 @@ internal fun canvasNodes(
 }
 
 /**
+ * [canvas] with clear bars for a clip under a blurred fill, ahead of [overBlack].
+ *
+ * The frame is brought to limited range first, which is the range [overBlack]'s black is written in.
+ */
+internal fun clearCanvasNodes(
+  canvas: CanvasPlacement,
+  pixelFormat: String,
+): List<FilterNode> =
+  listOf(FilterNode("scale", "out_range" to "limited")) +
+    canvasNodes(canvas, transparentColor(), alphaPixelFormat(pixelFormat))
+
+/**
  * The format with [pixelFormat]'s bit depth and alpha but a chroma sample for every pixel.
  *
  * Fails loudly on a format this has no equivalent for, the way [alphaPixelFormat] does, so a new output format shows

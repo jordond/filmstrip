@@ -330,7 +330,7 @@ class HeldTailLoweringTest {
         ffmpeg = "ffmpeg",
         ffprobe = "ffprobe",
         version = FfmpegVersion("ffmpeg version 9.0.1", 9, 0),
-        filters = setOf("overlay", "concat", "amix"),
+        filters = CATALOGUE_FILTERS,
         encoders = setOf("libx264", "aac"),
       )
   }

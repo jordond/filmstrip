@@ -4,7 +4,12 @@ import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.effects.geometry.Crop
+import dev.jordond.filmstrip.effects.geometry.KenBurns
+import dev.jordond.filmstrip.geometry.AspectRatio
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.geometry.Fit
+import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.geometry.placementOf
@@ -40,6 +45,25 @@ class BrowserFillEdgeTest {
 
         renderOf(composition).clips.last().hasBars shouldBe placementOf(second, emptyList(), OUTPUT).leavesBars
       }
+    }
+
+  @Test
+  fun aCanvasThatFillsTheFrameHasNoCoverToDraw() =
+    runTest {
+      val square = MediaSource.Bytes(makeClip(36, 36, frames = FRAMES) { _, _ -> GREY })
+      val wide = Crop(AspectRatio(16, 9), Fit.Contain)
+      val pan = KenBurns(NormalizedRect.Full, NormalizedRect(0f, 0f, 0.5f, 0.5f))
+      val composition =
+        EditComposition(
+          tracks = listOf(Track(listOf(Clip(square, effects = listOf(wide, pan))))),
+          audio = AudioSpec.Remove,
+          fill = Fill.Blurred(),
+        )
+
+      val clip = renderOf(composition).clips.single()
+
+      clip.canvases.size shouldBe 1
+      clip.hasBars shouldBe false
     }
 
   private companion object {

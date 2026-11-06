@@ -1,0 +1,50 @@
+public final class dev/jordond/filmstrip/effects/filters/FilterEffectResolver : dev/jordond/filmstrip/effect/EffectResolver {
+	public fun <init> ()V
+	public fun prepare (Ldev/jordond/filmstrip/edit/EditComposition;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun resolve (Ldev/jordond/filmstrip/effect/EffectSpec;Ldev/jordond/filmstrip/effect/RenderCapabilities;Ldev/jordond/filmstrip/effect/Attributes;)Ldev/jordond/filmstrip/effect/EffectResolution;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/FilterEffectResolverKt {
+	public static final fun filters (Ldev/jordond/filmstrip/FilmstripBuilder;)Ldev/jordond/filmstrip/FilmstripBuilder;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/vhs/TapeSpeed : java/lang/Enum {
+	public static final field EP Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;
+	public static final field LP Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;
+	public static final field SP Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;
+	public final fun getChromaMHz ()D
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getLumaMHz ()D
+	public static fun valueOf (Ljava/lang/String;)Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;
+	public static fun values ()[Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/vhs/Vhs : dev/jordond/filmstrip/effect/EffectSpec {
+	public static final field Companion Ldev/jordond/filmstrip/effects/filters/vhs/Vhs$Companion;
+	public static final field DEFAULT_SEED I
+	public static final field ID Ljava/lang/String;
+	public fun <init> ()V
+	public fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;I)V
+	public synthetic fun <init> (FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getBeneathOverlays ()Z
+	public fun getId ()Ljava/lang/String;
+	public final fun getIntensity ()F
+	public fun getRequiresSdr ()Z
+	public fun getScope ()Ldev/jordond/filmstrip/effect/EffectScope;
+	public final fun getSeed ()I
+	public fun getStage ()Ldev/jordond/filmstrip/effect/EffectStage;
+	public final fun getTape ()Ldev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;
+	public fun hashCode ()I
+	public fun isInert ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/jordond/filmstrip/effects/filters/vhs/Vhs$Companion {
+}
+
+public final class dev/jordond/filmstrip/effects/filters/vhs/VhsKt {
+	public static final fun vhs (Ldev/jordond/filmstrip/edit/EffectsBuilder;FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;I)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+	public static synthetic fun vhs$default (Ldev/jordond/filmstrip/edit/EffectsBuilder;FLdev/jordond/filmstrip/effects/filters/vhs/TapeSpeed;IILjava/lang/Object;)Ldev/jordond/filmstrip/edit/EffectsBuilder;
+}
+

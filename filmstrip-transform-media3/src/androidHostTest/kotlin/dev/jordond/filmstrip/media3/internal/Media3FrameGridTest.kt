@@ -344,7 +344,7 @@ class Media3FrameGridTest {
     gap.frameRate shouldBe 25
     gap.removeAudio shouldBe true
     gap.effects.videoEffects shouldBe
-      listOf(PlacedFrame(NormalizedRect.Full, FRAME, PlacedFrame.Bars.Clear))
+      listOf(PlacedFrame(NormalizedRect.Full, FRAME))
   }
 
   private fun ResolvedComposition.lower(vararg read: Pair<ResolvedClip, FrameBounds>): List<EditedMediaItemSequence> =

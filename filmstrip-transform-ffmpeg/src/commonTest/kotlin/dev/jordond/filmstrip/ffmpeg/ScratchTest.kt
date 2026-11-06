@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.ffmpeg
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.readingGraphFrom
 import dev.jordond.filmstrip.ffmpeg.internal.process.NOT_A_FILE_URL
 import dev.jordond.filmstrip.ffmpeg.internal.process.Scratch
 import dev.jordond.filmstrip.ffmpeg.internal.process.resolve
@@ -13,6 +14,10 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.io.IOException
+import kotlinx.io.buffered
+import kotlinx.io.files.Path
+import kotlinx.io.files.SystemFileSystem
+import kotlinx.io.readString
 import kotlin.test.AfterTest
 import kotlin.test.Test
 
@@ -44,6 +49,32 @@ class ScratchTest {
     val second = scratch.write(Sidecar("LUT_3D_SIZE 4".encodeToByteArray(), "cube"))
 
     second shouldNotBe first
+  }
+
+  @Test
+  fun `moves the graph into a file and leaves every other argument where it was`() {
+    val command = listOf("ffmpeg", "-i", "a.mp4", "-filter_complex", GRAPH, "-map", "[v]", "out.mp4")
+
+    val spawned = command.readingGraphFrom(scratch)
+
+    spawned shouldBe listOf("ffmpeg", "-i", "a.mp4", "-/filter_complex", spawned[4], "-map", "[v]", "out.mp4")
+    SystemFileSystem.source(Path(spawned[4])).buffered().use { it.readString() } shouldBe GRAPH
+  }
+
+  @Test
+  fun `deletes the graph with the rest of the directory`() {
+    val spawned = listOf("-filter_complex", GRAPH).readingGraphFrom(scratch)
+
+    scratch.delete()
+
+    SystemFileSystem.exists(Path(spawned[1])) shouldBe false
+  }
+
+  @Test
+  fun `leaves a command with no graph as it is`() {
+    val copy = listOf("ffmpeg", "-i", "-filter_complex", "-c", "copy", "out.mp4")
+
+    copy.readingGraphFrom(scratch) shouldBe copy
   }
 
   // ffmpeg opens the name on disk, so an overlay picked through a file dialog has to arrive as the
@@ -140,5 +171,6 @@ class ScratchTest {
 
   private companion object {
     const val CUBE = "LUT_3D_SIZE 2"
+    const val GRAPH = "[0:v]null[v]"
   }
 }

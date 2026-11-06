@@ -10,6 +10,8 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
+import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
+import dev.jordond.filmstrip.effects.filters.vhs.Vhs
 import dev.jordond.filmstrip.effects.geometry.Crop
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.export.ExportSpec
@@ -81,10 +83,25 @@ class CanvasChromaGridTest {
     graph shouldContain "pad=w=${output.width}:h=${output.height}:x=$x:y=$y:color="
   }
 
+  // A Vhs leaves the frame in 4:2:0 whatever it was handed, so the tail after it lands on the even row above.
+  @Test
+  fun `a clip tail after a vhs pads on the even row at or above the shared one`() {
+    val effects = listOf(WIDE_CANVAS, logo(), Vhs())
+    val (graph, output) = lowered(effects)
+    val rect = placementOf(ODD_SOURCE, listOf(effects), output).drawnRect.inWholePixelsOf(output)
+    withClue("the shared rect has to start on an odd row for this to tell, it starts on ${rect.top}") {
+      (rect.top % 2) shouldBe 1
+    }
+
+    val (x, y) = rect.drawnAt(ChromaGrid.Subsampled)
+    graph shouldContain "pad=w=${output.width}:h=${output.height}:x=$x:y=$y:color="
+  }
+
   private fun lowered(effects: List<EffectSpec>): Pair<String, Size> {
     val composition = EditComposition(listOf(Track(listOf(Clip(landscape), Clip(odd, effects = effects)))))
     val lowering =
-      FfmpegPlanner(TOOLCHAIN, listOf(BuiltInEffectResolver())).lower(composition, Ask(ExportSpec(), DEVICE, infos))
+      FfmpegPlanner(TOOLCHAIN, listOf(BuiltInEffectResolver(), FilterEffectResolver()))
+        .lower(composition, Ask(ExportSpec(), DEVICE, infos))
     val graph = withClue("the edit was refused: ${lowering.verdict}") { lowering.graph.shouldNotBeNull() }
     val output = withClue("the edit was refused: ${lowering.verdict}") { lowering.export.composition.shouldNotBeNull() }
     return graph.filterGraph to output.output.size
@@ -140,7 +157,7 @@ class CanvasChromaGridTest {
         ffmpeg = "ffmpeg",
         ffprobe = "ffprobe",
         version = FfmpegVersion("ffmpeg version 9.0.1", 9, 0),
-        filters = setOf("overlay", "concat", "amix"),
+        filters = CATALOGUE_FILTERS + VHS_FILTERS,
         encoders = setOf("libx264", "aac"),
       )
   }

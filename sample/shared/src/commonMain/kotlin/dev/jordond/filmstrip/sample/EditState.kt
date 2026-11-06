@@ -21,6 +21,8 @@ import dev.jordond.filmstrip.effects.color.invert
 import dev.jordond.filmstrip.effects.color.rgbAdjustment
 import dev.jordond.filmstrip.effects.color.saturation
 import dev.jordond.filmstrip.effects.color.sepia
+import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
+import dev.jordond.filmstrip.effects.filters.vhs.vhs
 import dev.jordond.filmstrip.effects.geometry.crop
 import dev.jordond.filmstrip.effects.geometry.flip
 import dev.jordond.filmstrip.effects.geometry.rotate
@@ -117,6 +119,10 @@ public class EditState {
   var sepia: Float by mutableStateOf(0f)
   var invert: Float by mutableStateOf(0f)
   var customMatrix: ColorMatrix by mutableStateOf(ColorMatrix.Identity)
+
+  var vhsEnabled: Boolean by mutableStateOf(false)
+  var vhsIntensity: Float by mutableStateOf(1f)
+  var vhsTape: TapeSpeed by mutableStateOf(TapeSpeed.EP)
 
   var textEnabled: Boolean by mutableStateOf(false)
   var text: String by mutableStateOf("")
@@ -317,6 +323,7 @@ public class EditState {
 
         if (scaleEnabled) scale(scaleHeight, scaleFit)
         addAll(colorEffects)
+        if (vhsEnabled) vhs(vhsIntensity, vhsTape)
 
         if (textEnabled && text.isNotBlank()) {
           textOverlay(
@@ -375,6 +382,9 @@ public class EditState {
     saturation = 1f
     hueDegrees = 0f
     sepia = 0f
+    vhsEnabled = false
+    vhsIntensity = 1f
+    vhsTape = TapeSpeed.EP
     invert = 0f
     customMatrix = ColorMatrix.Identity
     textEnabled = false

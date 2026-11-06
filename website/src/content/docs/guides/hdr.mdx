@@ -15,9 +15,13 @@ import Snippet from '../../../components/Snippet.astro'
 
 | Mode           | What happens                                                         |
 | -------------- | -------------------------------------------------------------------- |
-| `Auto`         | Keeps HDR if the device can encode it, otherwise tone maps and says so |
+| `Auto`         | Keeps HDR when it can, otherwise tone maps and says so               |
 | `KeepHdr`      | Keeps HDR, and refuses the export if the device can't                |
 | `ToneMapToSdr` | Always tone maps down to SDR                                         |
+
+`Auto` keeps a grade when the sources share one transfer, no effect in the edit needs SDR frames, and either the device can
+encode HDR or a stream copy keeps it without an encoder. Anything else tone maps, and the `HdrToneMapped` adjustment says
+which of those it was.
 
 An SDR source resolves to keep whatever you asked for, since there's no grade to map. The `Upload` and `Share`
 [presets](/guides/export/#presets) tone map, and `Archive` keeps.

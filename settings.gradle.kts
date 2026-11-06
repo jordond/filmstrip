@@ -53,6 +53,7 @@ include(
   ":filmstrip",
   ":filmstrip-core",
   ":filmstrip-effects",
+  ":filmstrip-effects-filters",
   ":filmstrip-transform",
   ":filmstrip-transform-media3",
   ":filmstrip-transform-avfoundation",

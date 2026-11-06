@@ -13,6 +13,7 @@ kotlin {
 
     commonTest.dependencies {
       implementation(projects.filmstripTest)
+      implementation(projects.filmstripEffectsFilters)
     }
   }
 }

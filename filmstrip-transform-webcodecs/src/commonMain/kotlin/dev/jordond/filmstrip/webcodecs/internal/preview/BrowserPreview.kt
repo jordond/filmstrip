@@ -359,7 +359,7 @@ public class BrowserPreview internal constructor(
   ): PreviewFrame {
     val pass = compositor()
     pass.clip(slot.clip)
-    pass.draw(sample, slot.outputUs, render.compositionOverlays)
+    pass.draw(sample, slot.outputUs, render.compositionOverlays, render.compositionPasses)
     return readBack(pass, slot.writtenUs)
   }
 
@@ -368,7 +368,7 @@ public class BrowserPreview internal constructor(
    */
   private suspend fun fillFrame(outputUs: Double): PreviewFrame {
     val pass = compositor()
-    pass.drawFill(outputUs, render.compositionOverlays)
+    pass.drawFill(outputUs, render.compositionOverlays, render.compositionPasses)
     return readBack(pass, outputUs)
   }
 
