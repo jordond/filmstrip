@@ -7,6 +7,8 @@ import dev.jordond.filmstrip.effect.AuxInput
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.ExportPath
+import dev.jordond.filmstrip.ffmpeg.internal.process.BytesRoot
+import dev.jordond.filmstrip.ffmpeg.internal.process.DEFAULT_BYTES_ROOT
 import dev.jordond.filmstrip.ffmpeg.internal.process.readablePath
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.media.describe
@@ -40,6 +42,7 @@ import kotlin.time.DurationUnit
 internal class GraphLowering(
   private val negotiated: ResolvedComposition,
   hdrPixelFormat: String?,
+  private val bytesRoot: BytesRoot = DEFAULT_BYTES_ROOT,
 ) {
   private val tracks = negotiated.tracks
   private val output = negotiated.output
@@ -117,7 +120,7 @@ internal class GraphLowering(
       val indices = mutableMapOf<Int, Int>()
       track.clips.forEach { clip ->
         indices.getOrPut(clip.sourceIndex) {
-          val path = checkNotNull(readablePath(clip.source)) { UNREADABLE_SOURCE }
+          val path = checkNotNull(readablePath(clip.source, bytesRoot)) { UNREADABLE_SOURCE }
           inputs.size.also { inputs += InputSpec(source = InputSource.OfPath(path, clip.source.describe())) }
         }
       }
@@ -155,7 +158,10 @@ internal class GraphLowering(
   private fun copyInvocation(): Invocation {
     val clip = tracks.first().clips.first()
     val source =
-      InputSource.OfPath(checkNotNull(readablePath(clip.source)) { UNREADABLE_SOURCE }, clip.source.describe())
+      InputSource.OfPath(
+        checkNotNull(readablePath(clip.source, bytesRoot)) { UNREADABLE_SOURCE },
+        clip.source.describe(),
+      )
     return Invocation(
       inputs =
         listOf(

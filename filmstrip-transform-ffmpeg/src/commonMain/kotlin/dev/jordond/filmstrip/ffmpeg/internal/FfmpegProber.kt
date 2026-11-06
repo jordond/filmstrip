@@ -3,10 +3,13 @@ package dev.jordond.filmstrip.ffmpeg.internal
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.ffmpeg.internal.process.READS_FILES
 import dev.jordond.filmstrip.ffmpeg.internal.process.readablePath
+import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.describe
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Reads metadata with ffprobe.
@@ -20,8 +23,12 @@ internal data class FfmpegProber(
 ) : MediaProber {
   override suspend fun probe(source: MediaSource): ProbeResult {
     val path =
-      readablePath(source)
-        ?: return ProbeResult.Failure(FilmstripError.SourceUnreadable(source.describe(), READS_FILES))
+      try {
+        withContext(Dispatchers.IO) { readablePath(source, runtime.bytesRoot) }
+          ?: return ProbeResult.Failure(FilmstripError.SourceUnreadable(source.describe(), READS_FILES))
+      } catch (failure: MediaBytesFileFailure) {
+        return ProbeResult.Failure(FilmstripError.SourceUnreadable(failure.source, failure.message))
+      }
 
     return when (val outcome = runtime.probeSource(path)) {
       is ProbeOutcome.Read -> ProbeResult.Success(outcome.info)

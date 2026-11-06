@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.EXIF_ORIENTATION_NORMAL
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.containerExtensionOf
 import dev.jordond.filmstrip.media.imageMediaInfoOf
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
@@ -168,11 +169,15 @@ class AvTrackLayingTest {
   }
 
   @Test
-  fun `a path and a uri open as urls and a source with no file is refused`() {
+  fun `a path a uri and bytes open as urls and a still is refused`() {
     MediaSource.of("/clips/a.mp4").toNSURL().path shouldBe "/clips/a.mp4"
     MediaSource.Uri("file:///clips/b.mp4").toNSURL().absoluteString shouldBe "file:///clips/b.mp4"
 
-    assertFailsWith<AvLoweringFailure> { MediaSource.Bytes(ByteArray(1)).toNSURL() }
+    val bytes = ByteArray(1)
+    val written = MediaSource.Bytes(bytes).toNSURL()
+    written.fileURL shouldBe true
+    written.pathExtension shouldBe containerExtensionOf(bytes)
+
     assertFailsWith<AvLoweringFailure> { stillClip(1.seconds).source.toNSURL() }
   }
 

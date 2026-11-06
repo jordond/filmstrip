@@ -17,7 +17,9 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.AppleScratch
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -134,15 +136,17 @@ public class AvComposition internal constructor(
  * inside the filter handler at its own placement, after that clip's own effects and before the composition-level ones,
  * which is what lets clips of differing sizes concatenate. See [CoreImageChain].
  *
+ * @param bytesRoot The directory an in-memory source lands under.
  * @throws AvLoweringFailure when a source or a track cannot be opened.
+ * @throws MediaBytesFileFailure when an in-memory source could not be written to a file.
  */
 @InternalFilmstripApi
 @OptIn(ExperimentalForeignApi::class)
-public fun ResolvedComposition.toAvComposition(): AvComposition {
+public fun ResolvedComposition.toAvComposition(bytesRoot: String = AppleScratch.defaultRoot): AvComposition {
   val keepAudio = output.audioCodec != AudioCodec.None
   val keepVideo = audio != AudioSpec.AudioOnly
   val composition = AVMutableComposition()
-  val assets = AssetCache()
+  val assets = AssetCache(bytesRoot)
   val tail = videoTrack?.let { tailHeldBy(it) } ?: LongRange.EMPTY
 
   val placements =

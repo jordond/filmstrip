@@ -15,8 +15,11 @@ values, built through their companion factories.
 
 - `of` reads a file path the process can read.
 - `ofUri` reads a platform reference, an `android.net.Uri` string on Android or an `NSURL` string on Apple.
-- `ofBytes` reads media already in memory. It's meant for tests and small assets. The hint skips sniffing the
-  container.
+- `ofBytes` reads media already in memory. On Android, Apple and ffmpeg the buffer is written to a temporary file, so
+  it costs its size on disk as well as in memory. The file stays until a later process first uses a buffer, so a
+  process reading many distinct buffers grows disk use with no bound. ffmpeg moves its file when another user holds its
+  directory. In a browser it stays in memory. The hint names the container, and without one it is read off the bytes.
+  See [Limits](/reference/limits/#in-memory-sources).
 
 ## Sinks
 

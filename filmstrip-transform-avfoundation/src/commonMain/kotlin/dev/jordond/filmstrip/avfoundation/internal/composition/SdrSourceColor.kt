@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.avfoundation.internal.composition
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
 import dev.jordond.filmstrip.avfoundation.internal.toNSURL
 import dev.jordond.filmstrip.internal.copyFormatDescription
+import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaSource
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.reinterpret
@@ -60,21 +61,26 @@ internal fun sdrTransferLimit(available: Boolean = hasPixelTransferSession): Str
  * Why this OS cannot draw [sources] beside an HDR clip, or null when it can.
  *
  * A source is only opened on an OS without the pixel transfer. One that says nothing of its colour, or that cannot be
- * opened here, counts as not BT.709, since the compositor would convert its frames too.
+ * opened here, counts as not BT.709, since the compositor would convert its frames too. A buffer that can't be written
+ * to a file is one that cannot be opened.
  *
+ * @param bytesRoot The directory an in-memory source lands under.
  * @param available Whether the pixel transfer that draws such a clip exists here.
  */
 internal fun sdrTransferLimit(
   sources: List<MediaSource>,
+  bytesRoot: String,
   available: Boolean = hasPixelTransferSession,
-): String? = if (available || sources.all { it.isTaggedBt709() }) null else sdrTransferLimit(available = false)
+): String? = if (available || sources.all { it.isTaggedBt709(bytesRoot) }) null else sdrTransferLimit(available = false)
 
 @OptIn(ExperimentalForeignApi::class)
-private fun MediaSource.isTaggedBt709(): Boolean {
+private fun MediaSource.isTaggedBt709(bytesRoot: String): Boolean {
   val url =
     try {
-      toNSURL()
+      toNSURL(bytesRoot)
     } catch (_: AvLoweringFailure) {
+      return false
+    } catch (_: MediaBytesFileFailure) {
       return false
     }
   val track = AVURLAsset(uRL = url, options = null).tracksWithMediaType(AVMediaTypeVideo).firstOrNull() as? AVAssetTrack

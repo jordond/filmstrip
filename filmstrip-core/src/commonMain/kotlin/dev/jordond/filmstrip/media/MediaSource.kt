@@ -33,13 +33,18 @@ public sealed interface MediaSource {
   ) : MediaSource
 
   /**
-   * Bytes already in memory, for tests and small assets.
+   * Bytes already in memory.
+   *
+   * On Android, Apple and ffmpeg the buffer is written to a file in a temporary directory, because that is what the
+   * platform readers open. Every read of one buffer lands on the one file, so a buffer costs its size on disk as well
+   * as in memory. The file stays until a later process first uses a buffer, so a process reading many distinct buffers
+   * grows disk use with no bound. In a browser it stays in memory.
    *
    * Equality reads the whole of [bytes], so treat the array as owned by this source once you hand
    * it over. Writing into it afterwards is unsupported, because the hash is only computed once.
    *
    * @property bytes The encoded media, container and all.
-   * @property hint What container [bytes] holds, or null to let the backend sniff it.
+   * @property hint What container [bytes] holds, or null to read it off the bytes themselves.
    */
   @Poko
   public class Bytes(
@@ -47,6 +52,13 @@ public sealed interface MediaSource {
     public val hint: FormatHint? = null,
   ) : MediaSource {
     private var memoizedHash: Int = 0
+
+    /**
+     * The name [bytes] land on on disk, so reading one source again never hashes the whole array again.
+     *
+     * A race only costs a second digest of the same bytes.
+     */
+    internal var memoizedDigest: String? = null
 
     /**
      * Memoized, because a source is used as a map key on the probe path and [bytes] can be
@@ -124,7 +136,7 @@ public sealed interface MediaSource {
 }
 
 /**
- * A hint about what a byte buffer contains, so the backend can skip sniffing the container.
+ * A hint about what a byte buffer contains, which names the file the buffer is written to.
  *
  * Covers the containers both platforms read.
  */

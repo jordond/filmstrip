@@ -3,12 +3,15 @@ package dev.jordond.filmstrip.ffmpeg
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegProber
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
+import dev.jordond.filmstrip.ffmpeg.internal.process.BytesRoot
 import dev.jordond.filmstrip.ffmpeg.internal.process.READS_FILES
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
+import java.io.File
 import kotlin.test.Test
 
 // None of these spawn anything. The toolchain is pointed at a path that does not exist, so the
@@ -20,15 +23,14 @@ class FfmpegProberTest {
       val runtime = FfmpegRuntime.unshared(FfmpegConfig(executablePath = NOWHERE))
       val prober = FfmpegProber(runtime)
 
-      listOf(
-        MediaSource.ofBytes(ByteArray(16)),
-        MediaSource.ofUri("https://example.com/clip.mp4"),
-      ).forEach { source ->
-        val failure = prober.probe(source).shouldBeInstanceOf<ProbeResult.Failure>()
-        val error = failure.error.shouldBeInstanceOf<FilmstripError.SourceUnreadable>()
+      val failure =
+        prober
+          .probe(
+            MediaSource.ofUri("https://example.com/clip.mp4"),
+          ).shouldBeInstanceOf<ProbeResult.Failure>()
+      val error = failure.error.shouldBeInstanceOf<FilmstripError.SourceUnreadable>()
 
-        error.message shouldBe READS_FILES
-      }
+      error.message shouldBe READS_FILES
       runtime.probeSpawns shouldBe 0
     }
 
@@ -56,6 +58,40 @@ class FfmpegProberTest {
 
       failure.error.shouldBeInstanceOf<FilmstripError.ToolchainMissing>().tool shouldBe "ffmpeg"
       runtime.probeSpawns shouldBe 0
+    }
+
+  @Test
+  fun `a buffer goes to the toolchain as a file rather than being refused`() =
+    runTest {
+      val runtime = FfmpegRuntime.unshared(FfmpegConfig(executablePath = NOWHERE))
+
+      val failure =
+        FfmpegProber(
+          runtime,
+        ).probe(MediaSource.ofBytes(ByteArray(16))).shouldBeInstanceOf<ProbeResult.Failure>()
+
+      failure.error.shouldBeInstanceOf<FilmstripError.ToolchainMissing>().tool shouldBe "ffmpeg"
+    }
+
+  @Test
+  fun `a buffer that cannot be written is unreadable and nothing is spawned`() =
+    runTest {
+      val blocked = File.createTempFile("filmstrip-blocked-root", null)
+      try {
+        val runtime =
+          FfmpegRuntime.unshared(
+            FfmpegConfig(executablePath = NOWHERE),
+            bytesRoot = BytesRoot(blocked.path),
+          )
+
+        val failure =
+          FfmpegProber(runtime).probe(MediaSource.ofBytes(ByteArray(16))).shouldBeInstanceOf<ProbeResult.Failure>()
+
+        failure.error.shouldBeInstanceOf<FilmstripError.SourceUnreadable>().message shouldContain "temporary file"
+        runtime.probeSpawns shouldBe 0
+      } finally {
+        blocked.delete()
+      }
     }
 
   private companion object {

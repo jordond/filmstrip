@@ -6,11 +6,13 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.TrackCodec
 import dev.jordond.filmstrip.media.VideoTrackInfo
+import dev.jordond.filmstrip.media.containerExtensionOf
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.displaySizeOf
 import dev.jordond.filmstrip.media.trackCodecOf
@@ -25,6 +27,7 @@ import kotlinx.cinterop.reinterpret
 import kotlinx.cinterop.useContents
 import kotlinx.cinterop.value
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 import platform.AVFoundation.AVAssetTrack
 import platform.AVFoundation.AVMediaTypeAudio
@@ -78,7 +81,11 @@ import kotlin.time.Duration.Companion.seconds
 // Reads metadata from AVURLAsset track properties, which are read-only AVFoundation symbols and so
 // stay inside core's layering row.
 @OptIn(ExperimentalForeignApi::class)
-internal actual class PlatformProber actual constructor() {
+internal actual class PlatformProber internal constructor(
+  private val bytesRoot: String,
+) {
+  actual constructor() : this(AppleScratch.defaultRoot)
+
   actual suspend fun probe(source: MediaSource): ProbeResult =
     withContext(Dispatchers.Default) {
       val url =
@@ -94,15 +101,14 @@ internal actual class PlatformProber actual constructor() {
           is MediaSource.Uri -> {
             NSURL.URLWithString(source.uri)
           }
+          // AVURLAsset opens a URL, so the buffer is written to a file and probed as that file. The export that follows
+          // finds the same file rather than writing its own.
           is MediaSource.Bytes -> {
-            return@withContext ProbeResult.Failure(
-              FilmstripError.SourceUnreadable(
-                source = "bytes",
-                message =
-                  "In-memory sources are written to a temporary file before probing, " +
-                    "which is not implemented yet.",
-              ),
-            )
+            try {
+              withContext(Dispatchers.IO) { AppleScratch.urlFor(source, bytesRoot) }
+            } catch (failure: MediaBytesFileFailure) {
+              return@withContext ProbeResult.Failure(FilmstripError.SourceUnreadable(failure.source, failure.message))
+            }
           }
         } ?: return@withContext ProbeResult.Failure(
           FilmstripError.SourceUnreadable(source.describe(), "The source is not a valid URL."),
@@ -116,7 +122,11 @@ internal actual class PlatformProber actual constructor() {
         return@withContext ProbeResult.Failure(
           FilmstripError.SourceUnreadable(
             source.describe(),
-            "The asset has no readable video or audio track.",
+            if (source is MediaSource.Bytes) {
+              AppleScratch.unreadableUnder(containerExtensionOf(source.bytes, source.hint))
+            } else {
+              "The asset has no readable video or audio track."
+            },
           ),
         )
       }

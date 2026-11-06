@@ -59,6 +59,13 @@ abstract class PlayerEngineContractTest {
   protected abstract val fixture: EditComposition
 
   /**
+   * [fixture] with its clip handed over as bytes rather than named.
+   *
+   * Every engine plays a buffer, so no subclass gets to skip this.
+   */
+  protected abstract val bytesFixture: EditComposition
+
+  /**
    * Which interruptions this backend can raise through [EngineUnderTest.stage].
    *
    * Empty is the honest answer for a suite that does not run on a device, since audio focus and
@@ -109,6 +116,36 @@ abstract class PlayerEngineContractTest {
           awaitContract("the platform to report a duration of its own") { subject.platformDuration != null }
         }
         subject.platformDuration?.let { platform -> loaded.duration shouldBe platform }
+      }
+    }
+
+  @Test
+  fun aBufferLoadsAndSeeksLikeTheClipItHolds() =
+    contractTest { scope ->
+      var named: Duration? = null
+      val namedSubject = createEngine(scope)
+      withEngine(namedSubject.engine) {
+        named =
+          namedSubject.engine
+            .awaitComposition(fixture)
+            .shouldBeInstanceOf<SetCompositionResult.Success>()
+            .duration
+      }
+
+      val subject = createEngine(scope)
+      withEngine(subject.engine) { recorder ->
+        val loaded = subject.engine.awaitComposition(bytesFixture).shouldBeInstanceOf<SetCompositionResult.Success>()
+        loaded.duration shouldBe named
+
+        awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
+        val duration = recorder.lastState.duration ?: fail("The engine reported no duration to seek within.")
+        val at = duration / 2
+        val landing = outputSlotTime(outputSlotOf(at, fixtureFrameRate), fixtureFrameRate)
+
+        subject.engine.seekTo(at, SeekAccuracy.Exact)
+        awaitContract("the seek to $at to complete") { recorder.seekCompletions.isNotEmpty() }
+
+        recorder.seekCompletions.last().position shouldBe landing
       }
     }
 

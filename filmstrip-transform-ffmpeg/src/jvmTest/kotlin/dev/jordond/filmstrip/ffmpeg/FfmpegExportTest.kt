@@ -145,11 +145,10 @@ class FfmpegExportTest {
       }
     }
 
-  // The prober reads files, and there is nothing on the desktop that reads a container out of a
-  // ByteArray without writing it down first. Core's own prober is consulted after this one and
-  // declines too, so the reported failure is the one that names why.
+  // Bytes are written down and read as a file, so junk is refused the way a junk file is. Core's own
+  // prober is consulted after this one and declines too, so the reported failure is the one that names why.
   @Test
-  fun `declines bytes it cannot open`() =
+  fun `declines bytes holding no container`() =
     runTest(timeout = TIMEOUT) {
       val result = fixture.filmstrip.probe(MediaSource.ofBytes(byteArrayOf(1, 2, 3)))
       val failure = result.shouldBeInstanceOf<ProbeResult.Failure>()

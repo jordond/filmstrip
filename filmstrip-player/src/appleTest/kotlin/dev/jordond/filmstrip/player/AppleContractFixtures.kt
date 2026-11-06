@@ -19,10 +19,13 @@ import dev.jordond.filmstrip.style.TextStyle
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.get
 import kotlinx.cinterop.reinterpret
+import kotlinx.cinterop.usePinned
 import platform.AVFoundation.AVAsset
 import platform.AVFoundation.AVAssetReader
 import platform.AVFoundation.AVAssetReaderVideoCompositionOutput
@@ -42,8 +45,11 @@ import platform.CoreVideo.CVPixelBufferLockBaseAddress
 import platform.CoreVideo.CVPixelBufferRef
 import platform.CoreVideo.CVPixelBufferUnlockBaseAddress
 import platform.CoreVideo.kCVPixelFormatType_32BGRA
+import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSProcessInfo
+import platform.Foundation.create
+import platform.posix.memcpy
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
@@ -76,6 +82,21 @@ internal fun appleFixtureComposition(effects: List<EffectSpec> = emptyList()): E
     tracks = listOf(Track(listOf(Clip(MediaSource.of(appleFixtureClip()), TimeRange.of(Duration.ZERO, CLIP_LENGTH))))),
     effects = effects,
   )
+
+/**
+ * The fixture composition with its clip handed over as the bytes of the file.
+ */
+@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
+internal fun appleFixtureBytesComposition(): EditComposition {
+  val path = appleFixtureClip()
+  val data = NSData.create(contentsOfFile = path) ?: fail("Nothing to read at $path.")
+  val source = data.bytes ?: fail("$path is empty.")
+  val bytes = ByteArray(data.length.toInt())
+  bytes.usePinned { pinned -> memcpy(pinned.addressOf(0), source, data.length) }
+  return EditComposition(
+    tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), TimeRange.of(Duration.ZERO, CLIP_LENGTH))))),
+  )
+}
 
 /**
  * The frame the export writes at [position], tapped where the encoder takes it.

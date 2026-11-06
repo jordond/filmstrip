@@ -5,6 +5,7 @@ import android.media.MediaFormat
 import android.net.Uri
 import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.internal.AndroidScratch
+import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -37,8 +38,10 @@ internal suspend fun frameBoundsOf(
       val first = extractor.earliestSample(start.inWholeMicroseconds, cut) ?: return@withContext null
       val last = extractor.latestSampleBefore(cut) ?: return@withContext null
       FrameBounds(first = first.microseconds, last = last.microseconds, end = cut.microseconds)
-    } catch (unreadable: IOException) {
+    } catch (unwritable: MediaBytesFileFailure) {
       // Thrown when a source handed over as bytes could not be written to the cache.
+      null
+    } catch (unreadable: IOException) {
       null
     } catch (cancelled: CancellationException) {
       throw cancelled

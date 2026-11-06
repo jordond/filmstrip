@@ -25,6 +25,7 @@ import dev.jordond.filmstrip.test.PREVIEW_PARITY_EXPORT_BITRATE
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.test.eightBitFrameAt
 import dev.jordond.filmstrip.test.writeAtomically
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.toList
 import java.io.File
 import kotlin.test.fail
@@ -66,6 +67,17 @@ internal fun androidFixtureComposition(
     effects = effects,
     fill = fill,
   )
+
+/**
+ * The fixture composition with its clip handed over as the bytes of the file.
+ */
+internal fun androidFixtureBytesComposition(): EditComposition {
+  val named = androidFixtureClip().shouldBeInstanceOf<MediaSource.Path>()
+  val bytes = File(named.path).readBytes()
+  return EditComposition(
+    tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), TimeRange.of(Duration.ZERO, CLIP_LENGTH))))),
+  )
+}
 
 /**
  * The frame the export writes at [position], decoded back out of the file it wrote.

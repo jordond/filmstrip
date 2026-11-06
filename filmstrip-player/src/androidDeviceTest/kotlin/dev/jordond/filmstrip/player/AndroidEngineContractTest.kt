@@ -60,6 +60,8 @@ class AndroidEngineContractTest : PlayerEngineContractTest() {
 
   override val fixture: EditComposition = androidFixtureComposition()
 
+  override val bytesFixture: EditComposition = androidFixtureBytesComposition()
+
   override val fixtureFrameRate: Int = FIXTURE_FRAME_RATE
 
   // media3's own limit: a graph keeps the effect slots it was built with and a plain clip has none, so the first effect

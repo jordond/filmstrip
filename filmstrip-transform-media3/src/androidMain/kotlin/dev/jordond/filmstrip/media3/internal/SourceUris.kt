@@ -5,11 +5,11 @@ import android.net.Uri
 import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.internal.AndroidScratch
 import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media3.internal.failure.Media3LoweringFailure
 import java.io.File
-import java.io.IOException
 
 internal fun MediaSource.toAndroidUri(): Uri =
   when (this) {
@@ -68,9 +68,7 @@ private fun cached(write: (Context) -> File): Uri {
 
   return try {
     Uri.fromFile(write(context))
-  } catch (failure: IOException) {
-    throw Media3LoweringFailure("An in-memory source could not be written to a temporary file: ${failure.message}")
-  } catch (denied: SecurityException) {
-    throw Media3LoweringFailure("An in-memory source could not be written to a temporary file: ${denied.message}")
+  } catch (failure: MediaBytesFileFailure) {
+    throw Media3LoweringFailure(failure.message)
   }
 }

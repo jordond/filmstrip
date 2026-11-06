@@ -30,6 +30,8 @@ class JvmEngineContractTest : PlayerEngineContractTest() {
 
   override val fixture: EditComposition = jvmFixtureComposition()
 
+  override val bytesFixture: EditComposition = jvmFixtureBytesComposition()
+
   override val fixtureFrameRate: Int = FIXTURE_RATE
 }
 

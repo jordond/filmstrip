@@ -54,6 +54,19 @@ internal fun jvmFixtureComposition(effects: List<EffectSpec> = emptyList()): Edi
   )
 
 /**
+ * The fixture composition with its clip handed over as the bytes of the file.
+ */
+internal fun jvmFixtureBytesComposition(): EditComposition =
+  EditComposition(
+    tracks =
+      listOf(
+        Track(
+          listOf(Clip(MediaSource.Bytes(File(jvmFixtureClip()).readBytes()), TimeRange.of(Duration.ZERO, CLIP_LENGTH))),
+        ),
+      ),
+  )
+
+/**
  * The fixture cut into two clips of [length] between them, which a preview cannot window with an input seek and reads
  * forward from its head instead.
  */

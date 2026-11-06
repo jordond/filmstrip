@@ -20,7 +20,9 @@ import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.AppleScratch
 import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
@@ -28,8 +30,10 @@ import dev.jordond.filmstrip.transform.internal.ExportDriver
 import dev.jordond.filmstrip.transform.internal.probe.ProcessProbe
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import platform.AVFoundation.AVAssetTrack
 import platform.AVFoundation.AVMediaTypeVideo
@@ -47,6 +51,7 @@ internal class AvDriver(
   private val prober: MediaProber,
   private val kernelLimit: () -> String? = { toneMapKernelLimit() },
   private val pixelTransferExists: Boolean = hasPixelTransferSession,
+  private val bytesRoot: String = AppleScratch.defaultRoot,
 ) : ExportDriver {
   override suspend fun capabilities(): DeviceCapabilities = processEncoders.read()
 
@@ -56,7 +61,7 @@ internal class AvDriver(
   ): RenderCapabilities = coreImageRenderCapabilities(outputSize, hdr)
 
   override fun toneMapLimit(sdrSources: List<MediaSource>): String? =
-    kernelLimit() ?: sdrTransferLimit(sdrSources, pixelTransferExists)
+    kernelLimit() ?: sdrTransferLimit(sdrSources, bytesRoot, pixelTransferExists)
 
   override suspend fun syncSampleAtOrBefore(
     source: MediaSource,
@@ -65,8 +70,11 @@ internal class AvDriver(
     withContext(Dispatchers.Default) {
       val url =
         try {
-          source.toNSURL()
+          withContext(Dispatchers.IO) { source.toNSURL(bytesRoot) }
         } catch (_: AvLoweringFailure) {
+          return@withContext null
+        } catch (_: MediaBytesFileFailure) {
+          // The lowering resolves the same path next and refuses with the reason.
           return@withContext null
         }
       val track =
@@ -84,17 +92,21 @@ internal class AvDriver(
     resolved: ResolvedComposition,
     to: MediaSink,
   ): Flow<ExportStatus> =
-    when (val prepared = prepare(resolved, to)) {
-      is Preparation.Failed -> {
-        flowOf(ExportStatus.Failure(prepared.error))
-      }
-      is Preparation.Ready -> {
-        WriterRun(
-          prober = prober,
-          resolved = resolved,
-          composition = prepared.composition,
-          destination = prepared.destination,
-        ).run()
+    flow {
+      when (val prepared = withContext(Dispatchers.IO) { prepare(resolved, to) }) {
+        is Preparation.Failed -> {
+          emit(ExportStatus.Failure(prepared.error))
+        }
+        is Preparation.Ready -> {
+          emitAll(
+            WriterRun(
+              prober = prober,
+              resolved = resolved,
+              composition = prepared.composition,
+              destination = prepared.destination,
+            ).run(),
+          )
+        }
       }
     }
 
@@ -108,9 +120,11 @@ internal class AvDriver(
   ): Preparation {
     val composition =
       try {
-        resolved.toAvComposition()
+        resolved.toAvComposition(bytesRoot)
       } catch (failure: AvLoweringFailure) {
         return Preparation.Failed(FilmstripError.InvalidComposition(failure.reason))
+      } catch (failure: MediaBytesFileFailure) {
+        return Preparation.Failed(FilmstripError.SourceUnreadable(failure.source, failure.message))
       }
 
     return when (val destination = resolveDestination(to)) {

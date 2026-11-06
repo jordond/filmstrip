@@ -1,16 +1,25 @@
 package dev.jordond.filmstrip.internal
 
 import android.content.Context
+import android.os.Process
 import dev.jordond.filmstrip.media.FormatHint
+import dev.jordond.filmstrip.media.MediaBytesEntry
+import dev.jordond.filmstrip.media.MediaBytesEntryKind
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.containerExtensionOf
+import dev.jordond.filmstrip.media.entryAt
 import dev.jordond.filmstrip.picture.fixtures.Bytes
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
+import kotlinx.io.files.Path
 import java.io.File
 import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 
 /**
@@ -27,8 +36,25 @@ class AndroidScratchTest {
       every { cacheDir } returns cache
     }
 
+  @BeforeTest
+  fun stubProcessId() {
+    mockkStatic(Process::class)
+    every { Process.myPid() } returns STUBBED_PROCESS_ID
+    mockkStatic(PLATFORM_FILE)
+    every { entryAt(any()) } answers {
+      val file = File(firstArg<Path>().toString())
+      when {
+        file.isDirectory -> MediaBytesEntry(MediaBytesEntryKind.Directory, file.length(), ownedByUser = true)
+        file.isFile -> MediaBytesEntry(MediaBytesEntryKind.File, file.length(), ownedByUser = true)
+        else -> null
+      }
+    }
+  }
+
   @AfterTest
   fun removeCache() {
+    unmockkStatic(Process::class)
+    unmockkStatic(PLATFORM_FILE)
     cache.deleteRecursively()
   }
 
@@ -44,14 +70,14 @@ class AndroidScratchTest {
   fun `a source names its file from its hint`() {
     val hinted = AndroidScratch.fileFor(context, MediaSource.Bytes(PNG, FormatHint.Mov))
 
-    withClue("expected a mov extension, got ${hinted.name}") { (hinted.extension == "mov").shouldBeTrue() }
+    hinted.extension shouldBe containerExtensionOf(PNG, FormatHint.Mov)
   }
 
   @Test
-  fun `an unhinted source claims no container`() {
+  fun `an unhinted source lands under the name the shared function gives it`() {
     val unhinted = AndroidScratch.fileFor(context, MediaSource.Bytes(PNG))
 
-    withClue("expected a tmp extension, got ${unhinted.name}") { (unhinted.extension == "tmp").shouldBeTrue() }
+    unhinted.extension shouldBe containerExtensionOf(PNG)
   }
 
   @Test
@@ -101,6 +127,11 @@ class AndroidScratchTest {
   }
 
   private companion object {
+    const val STUBBED_PROCESS_ID = 4242
+
+    // android.system.Os is a stub on the host, so the lstat is answered from java.io here.
+    const val PLATFORM_FILE = "dev.jordond.filmstrip.media.MediaBytesPlatform_androidKt"
+
     val PNG = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x01, 0x02)
     val JPEG = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 0x03, 0x04)
   }

@@ -66,6 +66,8 @@ class IosEngineContractTest : PlayerEngineContractTest() {
 
   override val fixture: EditComposition = appleFixtureComposition()
 
+  override val bytesFixture: EditComposition = appleFixtureBytesComposition()
+
   override val fixtureFrameRate: Int = FIXTURE_FRAME_RATE
 
   override val stageableInterruptions: Set<Interruption> =

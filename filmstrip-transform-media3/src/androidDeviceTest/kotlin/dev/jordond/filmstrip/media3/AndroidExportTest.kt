@@ -1075,6 +1075,22 @@ class AndroidExportTest {
       info.duration shouldBeCloseTo probe.infoOf(MediaSource.of(file.path)).duration
     }
 
+  @Test
+  fun exportsABufferUnderTheNeutralName() =
+    runTest(timeout = TIMEOUT) {
+      val edit =
+        EditComposition(
+          listOf(
+            Track(listOf(Clip(probe.fixture(CLIP)))),
+            Track(listOf(Clip(MediaSource.ofBytes(silentAmr()))), content = TrackContent.Audio),
+          ),
+        )
+
+      val info = export(probe.plan(edit, ExportSpec()))
+
+      info.audio.shouldNotBeNull()
+    }
+
   // Collected off the test scheduler, whose virtual clock would spin the backend's progress poll
   // instead of pacing it.
   private suspend fun export(plan: ExportPlan): MediaInfo {

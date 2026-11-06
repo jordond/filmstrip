@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.internal.AppleScratch
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
@@ -55,11 +56,13 @@ internal class Placement(
  * Opens each source once, however many clips read from it and however many tracks each is laid
  * onto.
  */
-internal class AssetCache {
+internal class AssetCache(
+  private val bytesRoot: String = AppleScratch.defaultRoot,
+) {
   private val assets = mutableMapOf<MediaSource, AVURLAsset>()
 
   fun of(source: MediaSource): AVURLAsset =
-    assets.getOrPut(source) { AVURLAsset(uRL = source.toNSURL(), options = null) }
+    assets.getOrPut(source) { AVURLAsset(uRL = source.toNSURL(bytesRoot), options = null) }
 }
 
 /**
@@ -304,7 +307,7 @@ private const val NO_STILL_SEED =
 /**
  * The URL AVFoundation opens this source through.
  */
-internal fun MediaSource.toNSURL(): NSURL =
+internal fun MediaSource.toNSURL(bytesRoot: String = AppleScratch.defaultRoot): NSURL =
   when (this) {
     is MediaSource.Path -> {
       NSURL.fileURLWithPath(path)
@@ -313,10 +316,7 @@ internal fun MediaSource.toNSURL(): NSURL =
       NSURL.URLWithString(uri) ?: throw AvLoweringFailure("$uri is not a URL AVFoundation can open.")
     }
     is MediaSource.Bytes -> {
-      throw AvLoweringFailure(
-        "In-memory sources are written to a temporary file before encoding, which is not " +
-          "implemented on Apple platforms.",
-      )
+      AppleScratch.urlFor(this, bytesRoot)
     }
     is MediaSource.Image -> {
       throw AvLoweringFailure(

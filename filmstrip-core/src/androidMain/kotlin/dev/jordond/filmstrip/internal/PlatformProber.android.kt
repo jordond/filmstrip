@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.AudioTrackInfo
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
@@ -70,20 +71,10 @@ internal actual class PlatformProber actual constructor() {
 
       try {
         Cached.Written(AndroidScratch.fileFor(context, this@cached))
-      } catch (failure: IOException) {
-        Cached.Failed(unwritable(failure.message))
-      } catch (denied: SecurityException) {
-        Cached.Failed(unwritable(denied.message))
+      } catch (failure: MediaBytesFileFailure) {
+        Cached.Failed(FilmstripError.SourceUnreadable(source = describe(), message = failure.message))
       }
     }
-
-  private fun MediaSource.Bytes.unwritable(reason: String?): FilmstripError.SourceUnreadable =
-    FilmstripError.SourceUnreadable(
-      source = describe(),
-      message =
-        "An in-memory source is written to a temporary file before probing, and it could not " +
-          "be written: $reason",
-    )
 
   /**
    * Where an in-memory source landed, or why it did not land anywhere.

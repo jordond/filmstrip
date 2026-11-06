@@ -44,6 +44,12 @@ val generateVersionFile =
 
 kotlin {
   sourceSets {
+    // Everything that can open a file by path, which is every target but the browser.
+    val filesMain = create("filesMain") { dependsOn(commonMain.get()) }
+    val filesTest = create("filesTest") { dependsOn(commonTest.get()) }
+    listOf("jvmMain", "androidMain", "appleMain").forEach { named(it) { dependsOn(filesMain) } }
+    listOf("jvmTest", "appleTest").forEach { named(it) { dependsOn(filesTest) } }
+
     commonMain {
       kotlin.srcDir(generateVersionFile)
 

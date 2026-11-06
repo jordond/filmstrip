@@ -13,12 +13,15 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.canToneMap
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.filterNames
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.hdrPixelFormatFor
 import dev.jordond.filmstrip.ffmpeg.internal.picture.decodingOverlayPictures
+import dev.jordond.filmstrip.ffmpeg.internal.process.BytesRoot
+import dev.jordond.filmstrip.ffmpeg.internal.process.DEFAULT_BYTES_ROOT
 import dev.jordond.filmstrip.ffmpeg.internal.process.READS_FILES
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.ffmpeg.internal.process.readablePath
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.ExportPlanner
@@ -45,6 +48,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.stillUnsupportedMessage
 internal class FfmpegPlanner(
   private val toolchain: Toolchain,
   resolvers: List<EffectResolver>,
+  private val bytesRoot: BytesRoot = DEFAULT_BYTES_ROOT,
 ) {
   // Computed once and consumed by the negotiator's canToneMap and the capability it reports.
   private val canToneMap = canToneMap(toolchain)
@@ -80,13 +84,24 @@ internal class FfmpegPlanner(
     composition: EditComposition,
     ask: Ask,
     dropped: Set<String> = emptySet(),
+  ): LoweredExport<Invocation> =
+    try {
+      lowerReadable(composition, ask, dropped)
+    } catch (failure: MediaBytesFileFailure) {
+      refusedLowering(FilmstripError.SourceUnreadable(failure.source, failure.message))
+    }
+
+  private fun lowerReadable(
+    composition: EditComposition,
+    ask: Ask,
+    dropped: Set<String>,
   ): LoweredExport<Invocation> {
     composition.tracks.flatMap { it.clips }.forEach { clip ->
       // A still is refused by kind, not by asking readablePath and guessing why it came back
       // null: it names a real file, and the actual reason is that this backend has no stills
       // support, not that the source is unreadable.
       if (clip.source is MediaSource.Image) return stillUnsupported()
-      readablePath(clip.source) ?: return unreadable(clip.source)
+      readablePath(clip.source, bytesRoot) ?: return unreadable(clip.source)
     }
 
     val export = planner.negotiate(composition, ask, dropped)
@@ -113,6 +128,7 @@ internal class FfmpegPlanner(
       GraphLowering(
         negotiated = negotiated,
         hdrPixelFormat = hdrPixelFormatFor(negotiated.encoderName, negotiated.hdrTransfer),
+        bytesRoot = bytesRoot,
       ).build(),
     )
   }

@@ -7,6 +7,8 @@ import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
 import dev.jordond.filmstrip.edit.CompositionDiff
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.internal.AppleScratch
+import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
@@ -18,7 +20,10 @@ import dev.jordond.filmstrip.player.SeekAccuracy
 import dev.jordond.filmstrip.player.SetCompositionRequest
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerItem
 import platform.AVFoundation.AVPlayerItemStatusFailed
@@ -37,7 +42,6 @@ import platform.AVFoundation.setMuted
 import platform.AVFoundation.setVolume
 import platform.AVFoundation.videoComposition
 import platform.CoreMedia.CMTimeGetSeconds
-import platform.Foundation.NSLock
 import platform.darwin.dispatch_queue_create
 import platform.darwin.dispatch_queue_t
 import kotlin.time.Duration
@@ -73,6 +77,7 @@ internal class AvPlayerEngine(
   planner: AvPreviewPlanner,
   config: PlayerConfig,
   muted: Boolean = false,
+  private val bytesRoot: String = AppleScratch.defaultRoot,
 ) : PlannedPlayerEngine<PreviewPlan>(parent, config.qualityPolicy, planner) {
   private val player = AVPlayer().apply { setMuted(muted) }
 
@@ -342,12 +347,14 @@ internal class AvPlayerEngine(
    *
    * @return null when the item was built, or why it could not be.
    */
-  private fun rebuild(next: PreviewPlan): PlaybackError? {
+  private suspend fun rebuild(next: PreviewPlan): PlaybackError? {
     val av =
       try {
-        next.resolved.toAvComposition()
+        withContext(Dispatchers.IO) { next.resolved.toAvComposition(bytesRoot) }
       } catch (refused: AvLoweringFailure) {
         return PlaybackError.UnsupportedFormat(refused.reason)
+      } catch (failure: MediaBytesFileFailure) {
+        return PlaybackError.SourceUnreadable(failure.message)
       }
 
     platformLoads++
@@ -462,39 +469,5 @@ internal class AvPlayerEngine(
   private companion object {
     // The rate BasePlayerEngine's ticker reads at, so the playhead it reports is at most one check behind the item.
     val POSITION_INTERVAL = 16.milliseconds
-  }
-}
-
-/**
- * The engine driving [player], or null when filmstrip did not build it.
- *
- * Engines register on construction and drop out on release, so a surface holding only the platform
- * player from [dev.jordond.filmstrip.player.VideoPlayer.nativePlayer] can find the engine behind
- * it.
- */
-internal fun engineFor(player: AVPlayer): AvPlayerEngine? = enginesLock.guarded { engines[player] }
-
-/**
- * Process-wide, written from whichever thread built or released an engine and read on the main
- * thread by a surface attaching, so every access goes through [enginesLock].
- */
-private val engines = mutableMapOf<AVPlayer, AvPlayerEngine>()
-
-private val enginesLock = NSLock()
-
-// Records the engine driving [player], or forgets [player] when [engine] is null.
-private fun registerEngine(
-  player: AVPlayer,
-  engine: AvPlayerEngine?,
-) {
-  enginesLock.guarded { if (engine == null) engines.remove(player) else engines[player] = engine }
-}
-
-private inline fun <T> NSLock.guarded(block: () -> T): T {
-  lock()
-  try {
-    return block()
-  } finally {
-    unlock()
   }
 }

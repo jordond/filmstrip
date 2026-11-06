@@ -8,6 +8,8 @@ import dev.jordond.filmstrip.ffmpeg.internal.probe.PROBE_ARGUMENTS
 import dev.jordond.filmstrip.ffmpeg.internal.probe.parseMediaInfo
 import dev.jordond.filmstrip.ffmpeg.internal.probe.parseSyncSample
 import dev.jordond.filmstrip.ffmpeg.internal.probe.syncSampleArguments
+import dev.jordond.filmstrip.ffmpeg.internal.process.BytesRoot
+import dev.jordond.filmstrip.ffmpeg.internal.process.DEFAULT_BYTES_ROOT
 import dev.jordond.filmstrip.ffmpeg.internal.process.FrameStream
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessOutput
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessRunner
@@ -30,6 +32,7 @@ import kotlin.time.Duration
  */
 internal class FfmpegRuntime private constructor(
   val config: FfmpegConfig,
+  val bytesRoot: BytesRoot = DEFAULT_BYTES_ROOT,
 ) {
   private val runner = ProcessRunner()
   private val locator = ToolchainLocator(config, runner)
@@ -203,7 +206,10 @@ internal class FfmpegRuntime private constructor(
     /**
      * A runtime nothing else holds, for a caller measuring what a cold cache costs.
      */
-    fun unshared(config: FfmpegConfig): FfmpegRuntime = FfmpegRuntime(config)
+    fun unshared(
+      config: FfmpegConfig,
+      bytesRoot: BytesRoot = DEFAULT_BYTES_ROOT,
+    ): FfmpegRuntime = FfmpegRuntime(config, bytesRoot)
   }
 }
 

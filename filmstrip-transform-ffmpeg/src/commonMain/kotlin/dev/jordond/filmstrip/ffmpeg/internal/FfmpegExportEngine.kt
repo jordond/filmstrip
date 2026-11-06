@@ -34,6 +34,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.resolve
 import dev.jordond.filmstrip.ffmpeg.internal.process.scratchFailure
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.chainedProber
+import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.sinkParentRefusal
@@ -46,6 +47,7 @@ import dev.jordond.filmstrip.transform.internal.probe.PlanningReadResult
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReads
 import dev.jordond.filmstrip.transform.internal.refusal
 import dev.jordond.filmstrip.transform.internal.refusedLowering
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.flow.Flow
@@ -53,6 +55,7 @@ import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.io.IOException
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemTemporaryDirectory
@@ -92,7 +95,16 @@ public class FfmpegExportEngine internal constructor(
   private suspend fun openingAtOrBefore(
     source: MediaSource,
     cut: Duration,
-  ): Duration? = readablePath(source)?.let { runtime.syncSampleAtOrBefore(foundToolchain(), it, cut) }
+  ): Duration? {
+    val path =
+      try {
+        withContext(Dispatchers.IO) { readablePath(source, runtime.bytesRoot) }
+      } catch (_: MediaBytesFileFailure) {
+        // The planner resolves the same path next and refuses with the reason.
+        null
+      }
+    return path?.let { runtime.syncSampleAtOrBefore(foundToolchain(), it, cut) }
+  }
 
   // Whether the last toolchain answer reported was one with binaries in it, or null before any was.
   // A missing toolchain is looked for again on every call, so one installed later is announced too.
@@ -174,7 +186,7 @@ public class FfmpegExportEngine internal constructor(
       }
     val lowered =
       interruptibly {
-        FfmpegPlanner(toolchain, components.effectResolvers)
+        FfmpegPlanner(toolchain, components.effectResolvers, runtime.bytesRoot)
           .lower(composition, Ask(spec, read.device, read.infos, read.openings, layoutSize))
       }
     val graph = lowered.graph

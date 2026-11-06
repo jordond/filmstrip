@@ -6,6 +6,8 @@ import dev.jordond.filmstrip.media.FormatHint
 import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.NEUTRAL_CONTAINER_EXTENSION
+import dev.jordond.filmstrip.media.containerExtensionOf
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.HDR_CLIP
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
@@ -115,6 +117,18 @@ class AndroidProbeTest {
       withClue("no video track") { info.video.shouldNotBeNull() }.codec.kind shouldBe CodecKind.H264
     }
 
+  // AMR has no magic of its own in the shared function, so it lands under the neutral name and the retriever sniffs it.
+  @Test
+  fun readsABufferUnderTheNeutralName() =
+    runTest(timeout = TIMEOUT) {
+      val bytes = silentAmr()
+
+      containerExtensionOf(bytes) shouldBe NEUTRAL_CONTAINER_EXTENSION
+      val audio = probe.infoOf(MediaSource.ofBytes(bytes)).audio
+
+      withClue("no audio track") { audio.shouldNotBeNull() }.sampleRate shouldBe AMR_SAMPLE_RATE
+    }
+
   private fun bytesOf(name: String): ByteArray = probe.fixtureFile(name).readBytes()
 
   private suspend fun infoOf(name: String): MediaInfo = probe.infoOf(probe.fixture(name))
@@ -123,3 +137,16 @@ class AndroidProbeTest {
     const val CLIP_24FPS = "android_export_24fps.mp4"
   }
 }
+
+/**
+ * One second of AMR silence, which is short enough to spell out here and holds no box a sniffer could take for ISO.
+ */
+internal fun silentAmr(): ByteArray {
+  val frame = ByteArray(AMR_FRAME_BYTES).also { it[0] = AMR_12K2_FRAME_HEADER }
+  return "#!AMR\n".encodeToByteArray() + ByteArray(AMR_FRAME_BYTES * AMR_FRAMES_PER_SECOND) { frame[it % frame.size] }
+}
+
+private const val AMR_SAMPLE_RATE = 8_000
+private const val AMR_FRAME_BYTES = 32
+private const val AMR_FRAMES_PER_SECOND = 50
+private const val AMR_12K2_FRAME_HEADER: Byte = 0x3C

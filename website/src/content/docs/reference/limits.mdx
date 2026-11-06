@@ -81,6 +81,26 @@ refuses.
 takes a bare path there. Android writes to any other scheme through its content resolver. The browser ignores the URI
 and hands back an object URL. See [Sinks](/guides/sources-and-sinks/#sinks).
 
+## In-memory sources
+
+On Android, Apple and ffmpeg a `MediaSource.Bytes` is written to a file before it is read, and the file stays until a
+later process first uses a buffer. Disk use grows with the distinct buffers a process reads, with no bound. The browser
+keeps the buffer in memory. See [Sources](/guides/sources-and-sinks/#sources).
+
+ffmpeg writes under a directory named for the user in the shared temporary directory. If another user already holds
+that name, the process writes to a private directory of its own instead, removed when the JVM shuts down.
+
+AVFoundation goes by a file's name, so filmstrip names a buffer's file from its leading bytes, the same names a path
+would carry. A buffer of a container AVFoundation doesn't open reads as `SourceUnreadable`, the same as a path does:
+
+| Container        | macOS | iOS Simulator |
+| ---------------- | ----- | ------------- |
+| Matroska, WebM   | No    | No            |
+| Transport stream | Yes   | No            |
+
+Android's platform extractor refuses a QuickTime file with no `ftyp` box, so such a buffer reads as `SourceUnreadable`,
+the same as a path to that file does. Apple and ffmpeg read it.
+
 ## Named in the guides
 
 The rest are next to the feature they limit.
