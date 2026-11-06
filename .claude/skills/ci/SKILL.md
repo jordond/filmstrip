@@ -6,7 +6,7 @@ argument-hint: "[--remote] [--device] [--rerun] [--only step,step] [checkout] | 
 
 Never run the whole lane inline, its output is long and a builder already ran its own narrow slice.
 
-- `$ARGUMENTS` is `--digest` → re-read the last digest: `for f in "${TMPDIR:-/tmp}"/filmstrip-ci/*.log; do echo "$f"; grep '^RESULT' "$f"; done`, report.
+- `$ARGUMENTS` is `--digest` → re-read the last digest: `for f in "${TMPDIR:-/tmp}"/filmstrip-ci/*/*.log; do echo "$f"; grep -a '^RESULT' "$f"; done`, report. Each path names the checkout its lane ran.
 - Otherwise: `Bash`, `run_in_background: true`, command `bash .claude/skills/ci/ci.sh $ARGUMENTS`. Do something else or end the turn, the completion notification wakes you. Read only the digest and the trailing `exit=N` (the number of `FAIL` and `unknown` steps), never a whole log.
 
 Steps, each its own Gradle call, in CI's order: `spotless`, `abi`, `guards`, `lint`, `android-host`, `jvm`, `wasm`, `js`, `macos`, `ios-boot`, `ios`, `sample`, and `device` with `--device`. `jvm` and `macos` run one after the other, so ffmpeg and Apple never share VideoToolbox.

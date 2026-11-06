@@ -9,7 +9,7 @@
 # --device adds connectedAndroidDeviceTest, which needs an emulator already booted where it runs.
 # --rerun passes Gradle --rerun to each test step. It reruns only the last task of a call, so each test step has one.
 # checkout defaults to the main checkout, pass an integration worktree to test that instead.
-# Logs land in $TMPDIR/filmstrip-ci/<step>.log.
+# Logs land in $TMPDIR/filmstrip-ci/<checkout>/<step>.log.
 set -uo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -30,7 +30,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 checkout=$(cd "${checkout:-$repo}" && pwd)
-logs="${TMPDIR:-/tmp}/filmstrip-ci"
+logs="${TMPDIR:-/tmp}/filmstrip-ci/$(basename "$checkout")"
 mkdir -p "$logs"
 
 # name|gradle tasks|mac or any
@@ -51,6 +51,11 @@ steps=(
 )
 [ "$device" = 1 ] && steps+=("device|connectedAndroidDeviceTest|any")
 
+# Logs can hold binary bytes. Without -a grep prints "Binary file matches" instead of the lines, and in a UTF-8
+# locale BSD grep drops lines with invalid bytes and BSD sed stops at them.
+log_grep() { LC_ALL=C grep -a "$@"; }
+log_sed() { LC_ALL=C sed "$@"; }
+
 # True when a step's Gradle tasks name a test task, in either case, since :convention:test is lowercase.
 runs_tests() {
   [[ $(printf '%s' "$1" | tr '[:upper:]' '[:lower:]') == *test* ]]
@@ -59,7 +64,7 @@ runs_tests() {
 # Gradle only restores or skips a test task that passed, so the XML it left from that run is this step's result.
 # Prints the result dir of every test task the log marks UP-TO-DATE or FROM-CACHE.
 cached_dirs() {
-  sed -nE 's/^> Task (:[^ ]+):([A-Za-z0-9]*[Tt]est) (UP-TO-DATE|FROM-CACHE)$/\1 \2/p' "$1" | while read -r project task; do
+  log_sed -nE 's/^> Task (:[^ ]+):([A-Za-z0-9]*[Tt]est) (UP-TO-DATE|FROM-CACHE)$/\1 \2/p' "$1" | while read -r project task; do
     dir="$checkout$(printf '%s' "$project" | tr ':' '/')/build/test-results/$task"
     [ -d "$dir" ] && printf '%s\n' "$dir"
   done
@@ -118,9 +123,9 @@ for step in "${steps[@]}"; do
     summarise "$marker" "$log" >>"$log"
   fi
   secs=$((SECONDS - start))
-  counts=$(grep '^RESULT ' "$log" | grep -v 'none written' | sed -E 's/.*tests=([0-9]+) failed=([0-9]+) skipped=([0-9]+)/\1 \2 \3/' \
+  counts=$(log_grep '^RESULT ' "$log" | log_grep -v 'none written' | log_sed -E 's/.*tests=([0-9]+) failed=([0-9]+) skipped=([0-9]+)/\1 \2 \3/' \
     | awk '{t+=$1; f+=$2; s+=$3} END {if (NR) printf "tests=%d failed=%d skipped=%d", t, f, s}')
-  cached=$(grep -cE '^> Task :[^ ]+:[A-Za-z0-9]*[Tt]est (UP-TO-DATE|FROM-CACHE)$' "$log")
+  cached=$(log_grep -cE '^> Task :[^ ]+:[A-Za-z0-9]*[Tt]est (UP-TO-DATE|FROM-CACHE)$' "$log")
   [ "$cached" -gt 0 ] && counts="$counts cached=$cached"
   # A test step that passes with no result XML, written or cached, ran no test, so it is not reported green.
   if [ "$status" = 0 ] && [ -z "$counts" ] && runs_tests "$tasks"; then
@@ -132,8 +137,8 @@ for step in "${steps[@]}"; do
     red=$((red + 1))
     digest+=("FAIL  $name ${secs}s $counts  log: $log")
     while IFS= read -r line; do digest+=("        $line"); done < <(
-      grep '^RESULT ' "$log" | grep -v 'failed=0 ' | sed 's/^RESULT //'
-      grep -E '^> Task .* FAILED|FAILED$|^e: |What went wrong' -A2 "$log" | grep -v '^--$' | head -12
+      log_grep '^RESULT ' "$log" | log_grep -v 'failed=0 ' | log_sed 's/^RESULT //'
+      log_grep -E '^> Task .* FAILED|FAILED$|^e: |What went wrong' -A2 "$log" | log_grep -v '^--$' | head -12
     )
   fi
 done
