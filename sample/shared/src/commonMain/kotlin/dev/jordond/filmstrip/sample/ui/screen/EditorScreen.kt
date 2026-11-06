@@ -1,52 +1,62 @@
 package dev.jordond.filmstrip.sample.ui.screen
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledIconButton
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.jordond.filmstrip.sample.SampleAppState
 import dev.jordond.filmstrip.sample.ui.EditorLayout
+import dev.jordond.filmstrip.sample.ui.IconKey
+import dev.jordond.filmstrip.sample.ui.Key
+import dev.jordond.filmstrip.sample.ui.LocalScreenInsets
 import dev.jordond.filmstrip.sample.ui.SampleIcons
-import dev.jordond.filmstrip.sample.ui.excludeBackGesture
+import dev.jordond.filmstrip.sample.ui.Tokens
 import dev.jordond.filmstrip.sample.ui.asClock
+import dev.jordond.filmstrip.sample.ui.bottomLine
 import dev.jordond.filmstrip.sample.ui.currentEditorLayout
+import dev.jordond.filmstrip.sample.ui.excludeBackGesture
+import dev.jordond.filmstrip.sample.ui.focusRing
+import dev.jordond.filmstrip.sample.ui.isCompactWidth
+import dev.jordond.filmstrip.sample.ui.scanlinesFaint
 import kotlin.time.Duration.Companion.seconds
-
-private val InspectorWidth = 340.dp
 
 /**
  * The editor.
@@ -73,7 +83,7 @@ public fun EditorScreen(
 
   Scaffold(
     modifier = modifier,
-    topBar = { EditorTopBar(state) },
+    topBar = { EditorTopBar(state, wide = layout == EditorLayout.TwoPane) },
     containerColor = MaterialTheme.colorScheme.background,
     contentColor = MaterialTheme.colorScheme.onSurface,
   ) { insets ->
@@ -103,28 +113,33 @@ private fun StackedEditor(
   // to the tool it is being typed into and puts everything back when the keyboard goes away.
   val typing = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
-  Column(Modifier.fillMaxSize()) {
-    if (!typing) {
-      PreviewStage(state, Modifier.fillMaxWidth().weight(1f))
-      PlaybackControls(state)
-    }
+  val cornerRoom = LocalScreenInsets.current.bottom
 
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+  BoxWithConstraints(Modifier.fillMaxSize()) {
+    val panelMax = (maxHeight * PANEL_SHARE).coerceIn(PANEL_MIN, PANEL_MAX)
+    Column(Modifier.fillMaxSize()) {
+      if (!typing) {
+        PreviewStage(state, Modifier.fillMaxWidth().weight(1f))
+        PlaybackControls(state)
+      }
 
-    Surface(
-      color = MaterialTheme.colorScheme.surface,
-      modifier = if (typing || splitEvenly) Modifier.weight(1f) else Modifier,
-    ) {
-      Column {
-        ToolRail(state)
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        ToolPanel(
-          state = state,
-          modifier = when {
-            typing || splitEvenly -> Modifier.weight(1f)
-            else -> Modifier.heightIn(min = 150.dp, max = 260.dp)
-          },
-        )
+      HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+      Surface(
+        color = MaterialTheme.colorScheme.surface,
+        modifier = if (typing || splitEvenly) Modifier.weight(1f) else Modifier,
+      ) {
+        Column(Modifier.padding(bottom = cornerRoom)) {
+          ToolRail(state)
+          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+          ToolPanel(
+            state = state,
+            modifier = when {
+              typing || splitEvenly -> Modifier.weight(1f)
+              else -> Modifier.heightIn(min = PANEL_MIN, max = panelMax)
+            },
+          )
+        }
       }
     }
   }
@@ -136,8 +151,10 @@ private fun StackedEditor(
  */
 @Composable
 private fun TwoPaneEditor(state: SampleAppState) {
-  Row(Modifier.fillMaxSize()) {
-    ToolRail(state, vertical = true)
+  val cornerRoom = LocalScreenInsets.current.bottom
+
+  Row(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
+    ToolRail(state, Modifier.padding(bottom = cornerRoom), vertical = true)
     VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
     Column(Modifier.weight(1f).fillMaxHeight()) {
@@ -148,64 +165,80 @@ private fun TwoPaneEditor(state: SampleAppState) {
     VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     Surface(
       color = MaterialTheme.colorScheme.surface,
-      modifier = Modifier.width(InspectorWidth).fillMaxHeight(),
+      modifier = Modifier.width(Tokens.sizeInspector).fillMaxHeight(),
     ) {
-      ToolPanel(state, Modifier.fillMaxHeight())
+      ToolPanel(state, Modifier.fillMaxHeight().padding(bottom = cornerRoom), titled = true)
     }
   }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * The strip across the top of the editor, on a wide window also the deck's status beside the file.
+ */
 @Composable
-private fun EditorTopBar(state: SampleAppState) {
-  TopAppBar(
-    title = {
-      Column {
-        Text(
-          text = state.sourceLabel.ifBlank { "Untitled" },
-          style = MaterialTheme.typography.titleSmall,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-          text = state.sourceSummary(),
-          style = MaterialTheme.typography.labelSmall,
-          color = MaterialTheme.colorScheme.outline,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-        )
-      }
-    },
-    navigationIcon = {
-      IconButton(onClick = state::closeProject) {
-        Icon(SampleIcons.Close, contentDescription = "Close the project")
-      }
-    },
-    actions = {
-      IconButton(onClick = state::openCapabilities) {
-        Icon(SampleIcons.Info, contentDescription = "Device capabilities")
-      }
-      IconButton(onClick = state::openDiagnostics) {
-        Icon(SampleIcons.Warning, contentDescription = "Diagnostics")
-      }
-      Button(
-        onClick = state::openExport,
-        enabled = !state.exporting,
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        modifier = Modifier.padding(end = 8.dp),
-      ) {
-        Icon(SampleIcons.Export, contentDescription = null, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(6.dp))
-        Text("Export", style = MaterialTheme.typography.labelLarge)
-      }
-    },
-    colors = TopAppBarDefaults.topAppBarColors(
-      containerColor = MaterialTheme.colorScheme.background,
-      titleContentColor = MaterialTheme.colorScheme.onSurface,
-      navigationIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-      actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    ),
-  )
+private fun EditorTopBar(
+  state: SampleAppState,
+  wide: Boolean,
+) {
+  val colors = MaterialTheme.colorScheme
+  val insets = LocalScreenInsets.current
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .background(colors.background)
+      .scanlinesFaint()
+      .bottomLine(colors.outlineVariant)
+      .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+      .padding(start = insets.side, end = insets.side, top = insets.top)
+      .heightIn(min = if (wide) 64.dp else 56.dp)
+      .padding(start = 4.dp, end = 12.dp),
+    horizontalArrangement = Arrangement.spacedBy(if (wide) 8.dp else 2.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    IconKey(SampleIcons.Close, "Close the project", state::closeProject)
+    if (wide) DeckStatus(state)
+    Column(Modifier.weight(1f)) {
+      Text(
+        text = state.sourceLabel.ifBlank { "Untitled" },
+        style = MaterialTheme.typography.titleSmall,
+        color = colors.onSurface,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+      )
+      Text(
+        text = state.sourceSummary(),
+        style = MaterialTheme.typography.bodySmall,
+        color = colors.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+      )
+    }
+    IconKey(SampleIcons.Info, "Device capabilities", state::openCapabilities, iconSize = 22.dp)
+    IconKey(SampleIcons.Warning, "Diagnostics", state::openDiagnostics, iconSize = 22.dp)
+    Key(
+      label = "EXPORT",
+      onClick = state::openExport,
+      enabled = !state.exporting,
+      icon = SampleIcons.Record,
+      minHeight = Tokens.sizeTouch,
+      horizontalPadding = if (wide) 20.dp else 12.dp,
+    )
+  }
+}
+
+@Composable
+private fun DeckStatus(state: SampleAppState) {
+  val style = MaterialTheme.typography.labelLarge
+  val colors = MaterialTheme.colorScheme
+  Row(
+    modifier = Modifier.widthIn(min = DECK_WIDTH.dp),
+    horizontalArrangement = Arrangement.spacedBy(10.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Icon(SampleIcons.Play, contentDescription = null, tint = colors.primary, modifier = Modifier.size(16.dp))
+    Text(if (state.playing && state.canPlay) "PLAY" else "EDIT", style = style, color = colors.primary)
+    Text("SP", style = style, color = colors.onSurfaceVariant)
+  }
 }
 
 /**
@@ -231,49 +264,78 @@ private fun Transport(
   modifier: Modifier = Modifier,
 ) {
   val position = state.positionSeconds.toDouble().seconds
+  val compact = isCompactWidth()
+  val clock = MaterialTheme.typography.labelLarge.copy(fontSize = if (compact) 20.sp else 24.sp)
+  val total = state.editedDuration.asClock().let { if (compact) it.substringBeforeLast('.') else it }
 
   Row(
-    modifier = modifier.fillMaxWidth().height(56.dp).padding(horizontal = 12.dp),
+    modifier = modifier.fillMaxWidth().height(Tokens.sizeTransport).padding(horizontal = if (compact) 8.dp else 12.dp),
     verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(4.dp),
+    horizontalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 4.dp),
   ) {
-    IconButton(onClick = { state.stepFrames(-1) }, enabled = state.canPlay) {
-      Icon(SampleIcons.StepBack, contentDescription = "Previous frame")
-    }
-    FilledIconButton(onClick = state::togglePlay, enabled = state.canPlay) {
-      val running = state.playing && state.canPlay
-      Icon(
-        imageVector = if (running) SampleIcons.Pause else SampleIcons.Play,
-        contentDescription = if (running) "Pause" else "Play",
-      )
-    }
-    IconButton(onClick = { state.stepFrames(1) }, enabled = state.canPlay) {
-      Icon(SampleIcons.StepForward, contentDescription = "Next frame")
-    }
+    IconKey(
+      icon = SampleIcons.StepBack,
+      contentDescription = "Previous frame",
+      onClick = { state.stepFrames(-1) },
+      enabled = state.canPlay,
+      tint = Tokens.mutedStrong,
+    )
+    PlayKey(state)
+    IconKey(
+      icon = SampleIcons.StepForward,
+      contentDescription = "Next frame",
+      onClick = { state.stepFrames(1) },
+      enabled = state.canPlay,
+      tint = Tokens.mutedStrong,
+    )
 
-    Spacer(Modifier.width(10.dp))
+    Spacer(Modifier.width(if (compact) 4.dp else 8.dp))
 
-    Text(position.asClock(), style = MaterialTheme.typography.labelLarge)
+    Text(position.asClock(), style = clock, maxLines = 1)
     Text(
-      text = " / ${state.editedDuration.asClock()}",
-      style = MaterialTheme.typography.labelLarge,
-      color = MaterialTheme.colorScheme.outline,
+      text = " / $total",
+      style = clock,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      maxLines = 1,
     )
 
     Spacer(Modifier.weight(1f))
 
-    IconButton(
+    IconKey(
+      icon = SampleIcons.Loop,
+      contentDescription = "Loop",
       onClick = { state.looping = !state.looping },
-      colors = IconButtonDefaults.iconButtonColors(
-        contentColor = if (state.looping) {
-          MaterialTheme.colorScheme.primary
-        } else {
-          MaterialTheme.colorScheme.outline
-        },
+      tint = if (state.looping) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+      iconSize = 22.dp,
+    )
+  }
+}
+
+@Composable
+private fun PlayKey(state: SampleAppState) {
+  val interaction = remember { MutableInteractionSource() }
+  val colors = MaterialTheme.colorScheme
+  val running = state.playing && state.canPlay
+  val enabled = state.canPlay
+  Box(
+    modifier = Modifier
+      .focusRing(interaction)
+      .size(width = PLAY_KEY_WIDTH.dp, height = Tokens.sizeTouch)
+      .background(if (enabled) colors.primary else colors.outline)
+      .clickable(
+        enabled = enabled,
+        role = Role.Button,
+        interactionSource = interaction,
+        indication = null,
+        onClick = state::togglePlay,
       ),
-    ) {
-      Icon(SampleIcons.Loop, contentDescription = "Loop")
-    }
+    contentAlignment = Alignment.Center,
+  ) {
+    Icon(
+      imageVector = if (running) SampleIcons.Pause else SampleIcons.Play,
+      contentDescription = if (running) "Pause" else "Play",
+      tint = if (enabled) colors.onPrimary else colors.onSurfaceVariant,
+    )
   }
 }
 
@@ -286,3 +348,9 @@ private fun SampleAppState.sourceSummary(): String {
   val hdr = if (video.hdrTransfer != null) "HDR" else null
   return listOfNotNull(size, video.codec.name, fps, hdr, info?.duration?.asClock()).joinToString(" · ")
 }
+
+private const val PANEL_SHARE = 0.3f
+private val PANEL_MIN = 150.dp
+private val PANEL_MAX = 260.dp
+private const val DECK_WIDTH = 104
+private const val PLAY_KEY_WIDTH = 52

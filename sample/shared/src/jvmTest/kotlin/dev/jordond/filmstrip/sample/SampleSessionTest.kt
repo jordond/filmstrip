@@ -327,6 +327,8 @@ private class ReportingEngine(
     return Cancellable { }
   }
 
+  override fun setExportSpec(spec: ExportSpec): Unit = Unit
+
   override fun dispose(): Unit = Unit
 
   override fun play(): Unit = Unit
@@ -351,6 +353,4 @@ private class ReportingEngine(
   override fun setPlaybackRange(range: TimeRange?): Unit = Unit
 
   override fun setQualityPolicy(policy: PreviewQualityPolicy): Unit = Unit
-
-  override fun setExportSpec(spec: ExportSpec): Unit = Unit
 }

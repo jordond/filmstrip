@@ -1,29 +1,31 @@
 package dev.jordond.filmstrip.sample.ui.screen
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -35,8 +37,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.effects.color.ColorMatrix
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
@@ -56,14 +60,21 @@ import dev.jordond.filmstrip.sample.ui.Chip
 import dev.jordond.filmstrip.sample.ui.ChipGroup
 import dev.jordond.filmstrip.sample.ui.excludeBackGesture
 import dev.jordond.filmstrip.sample.ui.ControlGroup
+import dev.jordond.filmstrip.sample.ui.Led
+import dev.jordond.filmstrip.sample.ui.LedState
 import dev.jordond.filmstrip.sample.ui.SampleIcons
+import dev.jordond.filmstrip.sample.ui.SampleRangeSlider
 import dev.jordond.filmstrip.sample.ui.SliderRow
 import dev.jordond.filmstrip.sample.ui.SwatchRow
 import dev.jordond.filmstrip.sample.ui.SwitchRow
+import dev.jordond.filmstrip.sample.ui.Tokens
 import dev.jordond.filmstrip.sample.ui.asClock
+import dev.jordond.filmstrip.sample.ui.bottomLine
+import dev.jordond.filmstrip.sample.ui.focusRing
 import dev.jordond.filmstrip.sample.ui.formatDegrees
 import dev.jordond.filmstrip.sample.ui.formatFraction
 import dev.jordond.filmstrip.sample.ui.formatPercent
+import dev.jordond.filmstrip.sample.ui.scanlinesFaint
 import dev.jordond.filmstrip.style.FontWeight
 import dev.jordond.filmstrip.style.TextAlignment
 import io.github.vinceglb.filekit.name
@@ -88,10 +99,10 @@ private val Tools = listOf(
 )
 
 /**
- * The tool switcher. A dot marks a tool that is contributing something to the composition right now.
+ * The tool switcher. An LED marks a tool that is contributing something to the composition right now.
  *
- * @param vertical Lay the tools out in a navigation rail down the side of the window, rather than a
- *   scrolling row under the timeline.
+ * @param vertical Lay the tools out in a rail down the side of the window, rather than a scrolling row under the
+ *   timeline.
  */
 @Composable
 public fun ToolRail(
@@ -99,54 +110,37 @@ public fun ToolRail(
   modifier: Modifier = Modifier,
   vertical: Boolean = false,
 ) {
+  val background = modifier.background(MaterialTheme.colorScheme.surface)
   if (vertical) {
-    NavigationRail(
-      modifier = modifier.verticalScroll(rememberScrollState()),
-      containerColor = MaterialTheme.colorScheme.surface,
-    ) {
-      Tools.forEach { spec ->
-        NavigationRailItem(
-          selected = state.activeTool == spec.tool,
-          onClick = { state.activeTool = spec.tool },
-          icon = { ToolIcon(spec, marked = state.edit.contributes(spec.tool)) },
-          label = { Text(spec.label, style = MaterialTheme.typography.labelSmall) },
-        )
-      }
-    }
-  } else {
-    Row(
-      modifier = modifier
-        .fillMaxWidth()
-        .horizontalScroll(rememberScrollState())
-        .padding(horizontal = 12.dp, vertical = 8.dp),
-      horizontalArrangement = Arrangement.spacedBy(6.dp),
+    Column(
+      background
+        .widthIn(min = Tokens.sizeRail)
+        .width(IntrinsicSize.Max)
+        .fillMaxHeight()
+        .verticalScroll(rememberScrollState()),
     ) {
       Tools.forEach { spec ->
         ToolButton(
           spec = spec,
           selected = state.activeTool == spec.tool,
           marked = state.edit.contributes(spec.tool),
+          modifier = Modifier.fillMaxWidth().bottomLine(MaterialTheme.colorScheme.outlineVariant),
           onClick = { state.activeTool = spec.tool },
         )
       }
     }
-  }
-}
-
-@Composable
-private fun ToolIcon(
-  spec: ToolSpec,
-  marked: Boolean,
-) {
-  Box {
-    Icon(spec.icon, contentDescription = spec.label, modifier = Modifier.size(22.dp))
-    if (marked) {
-      Box(
-        Modifier
-          .align(Alignment.TopEnd)
-          .size(6.dp)
-          .background(MaterialTheme.colorScheme.tertiary, CircleShape),
-      )
+  } else {
+    Row(background.fillMaxWidth().height(IntrinsicSize.Min).horizontalScroll(rememberScrollState())) {
+      Tools.forEach { spec ->
+        ToolButton(
+          spec = spec,
+          selected = state.activeTool == spec.tool,
+          marked = state.edit.contributes(spec.tool),
+          modifier = Modifier.widthIn(min = ROW_TOOL_WIDTH.dp),
+          onClick = { state.activeTool = spec.tool },
+        )
+        VerticalDivider(Modifier.fillMaxHeight(), color = MaterialTheme.colorScheme.outlineVariant)
+      }
     }
   }
 }
@@ -157,53 +151,70 @@ private fun ToolButton(
   selected: Boolean,
   marked: Boolean,
   onClick: () -> Unit,
+  modifier: Modifier = Modifier,
 ) {
-  val tint = when {
-    selected -> MaterialTheme.colorScheme.primary
-    marked -> MaterialTheme.colorScheme.onSurface
-    else -> MaterialTheme.colorScheme.outline
-  }
+  val interaction = remember { MutableInteractionSource() }
+  val colors = MaterialTheme.colorScheme
+  val tint = if (selected) colors.onPrimary else Tokens.mutedStrong
 
-  Column(
-    modifier = Modifier
-      .background(
-        if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent,
-        RoundedCornerShape(12.dp),
-      ).clickable(onClick = onClick)
-      .padding(horizontal = 12.dp, vertical = 8.dp),
-    horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.spacedBy(4.dp),
+  Box(
+    modifier = modifier
+      .focusRing(interaction, inset = 6.dp)
+      .background(if (selected) colors.primary else Color.Transparent)
+      .selectable(
+        selected = selected,
+        role = Role.Tab,
+        interactionSource = interaction,
+        indication = null,
+        onClick = onClick,
+      ).padding(top = 10.dp, bottom = 8.dp),
+    contentAlignment = Alignment.TopCenter,
   ) {
-    Box {
-      Icon(spec.icon, contentDescription = spec.label, tint = tint, modifier = Modifier.size(22.dp))
-      if (marked) {
-        Box(
-          Modifier
-            .align(Alignment.TopEnd)
-            .size(6.dp)
-            .background(MaterialTheme.colorScheme.tertiary, CircleShape),
-        )
-      }
+    Column(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+      Icon(spec.icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
+      Text(
+        text = spec.label.uppercase(),
+        style = MaterialTheme.typography.labelSmall.copy(fontSize = 18.sp),
+        color = tint,
+        maxLines = 1,
+        softWrap = false,
+        modifier = Modifier.padding(horizontal = 4.dp),
+      )
     }
-    Text(spec.label, style = MaterialTheme.typography.labelSmall, color = tint)
+    if (marked) {
+      Led(LedState.Ready, Modifier.align(Alignment.TopEnd).padding(end = 12.dp))
+    }
   }
 }
 
 /**
- * The controls for whichever tool is selected.
+ * The controls for whichever tool is selected, one bordered section to a group.
+ *
+ * @param titled Show the tool's name on a scanline strip above the controls, for a column that has the height.
  */
 @Composable
 public fun ToolPanel(
   state: SampleAppState,
   modifier: Modifier = Modifier,
+  titled: Boolean = false,
 ) {
-  Column(
-    modifier = modifier
-      .fillMaxWidth()
-      .verticalScroll(rememberScrollState())
-      .padding(horizontal = 16.dp, vertical = 12.dp),
-    verticalArrangement = Arrangement.spacedBy(18.dp),
-  ) {
+  Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+    if (titled) {
+      Text(
+        text = Tools.first { it.tool == state.activeTool }.label.uppercase(),
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+          .fillMaxWidth()
+          .scanlinesFaint()
+          .bottomLine(MaterialTheme.colorScheme.outlineVariant)
+          .padding(horizontal = 16.dp, vertical = 8.dp),
+      )
+    }
     when (state.activeTool) {
       EditorTool.Trim -> TrimPanel(state)
       EditorTool.Crop -> CropPanel(state)
@@ -218,12 +229,29 @@ public fun ToolPanel(
   }
 }
 
+/**
+ * One group of a tool's controls, closed off from the next by a line.
+ */
+@Composable
+private fun ToolSection(
+  label: String,
+  content: @Composable ColumnScope.() -> Unit,
+) {
+  ControlGroup(
+    label = label,
+    modifier = Modifier
+      .bottomLine(MaterialTheme.colorScheme.outlineVariant)
+      .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 16.dp),
+    content = content,
+  )
+}
+
 @Composable
 private fun TrimPanel(state: SampleAppState) {
   val edit = state.edit
   val duration = state.sourceDuration?.let { it.inWholeMilliseconds / 1000f } ?: 0f
 
-  ControlGroup("Clip") {
+  ToolSection("Clip") {
     SwitchRow(
       label = "Trim",
       supporting = "Keeps one range of the source",
@@ -236,7 +264,7 @@ private fun TrimPanel(state: SampleAppState) {
     )
 
     if (edit.trimEnabled && duration > 0f) {
-      RangeSlider(
+      SampleRangeSlider(
         value = edit.trimStartSeconds..edit.trimEndSeconds,
         onValueChange = { range ->
           edit.trimStartSeconds = range.start
@@ -266,7 +294,7 @@ private fun TrimPanel(state: SampleAppState) {
     }
   }
 
-  ControlGroup("Clip audio") {
+  ToolSection("Clip audio") {
     SwitchRow(
       label = "Mute this clip",
       supporting = "AudioLevel.Mute, applied to the clip rather than the whole edit",
@@ -283,7 +311,7 @@ private fun TrimPanel(state: SampleAppState) {
 private fun CropPanel(state: SampleAppState) {
   val edit = state.edit
 
-  ControlGroup("Reframe") {
+  ToolSection("Reframe") {
     ChipGroup(
       options = listOf("Off" to CropMode.Off, "Aspect" to CropMode.Aspect, "Rectangle" to CropMode.Rect),
       selected = edit.cropMode,
@@ -298,7 +326,7 @@ private fun CropPanel(state: SampleAppState) {
     CropMode.Off -> Unit
 
     CropMode.Aspect -> {
-      ControlGroup("Aspect ratio") {
+      ToolSection("Aspect ratio") {
         ChipGroup(
           options = listOf(
             "9:16" to AspectRatio.Portrait,
@@ -315,7 +343,7 @@ private fun CropPanel(state: SampleAppState) {
           },
         )
       }
-      ControlGroup("Fit") {
+      ToolSection("Fit") {
         ChipGroup(
           options = listOf("Crop" to Fit.Crop, "Contain" to Fit.Contain, "Stretch" to Fit.Stretch),
           selected = edit.cropFit,
@@ -326,7 +354,7 @@ private fun CropPanel(state: SampleAppState) {
         )
       }
       if (edit.cropFit == Fit.Crop) {
-        ControlGroup("Anchor") {
+        ToolSection("Anchor") {
           AnchorGrid(
             selectedX = edit.cropAnchorX,
             selectedY = edit.cropAnchorY,
@@ -341,11 +369,11 @@ private fun CropPanel(state: SampleAppState) {
     }
 
     CropMode.Rect -> {
-      ControlGroup("Lock") {
+      ToolSection("Lock") {
         Text(
           "Drag the rectangle on the preview. A lock holds the shape the handles may produce.",
           style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.outline,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         ChipGroup(
           options = listOf(
@@ -362,11 +390,11 @@ private fun CropPanel(state: SampleAppState) {
           },
         )
       }
-      ControlGroup("Rectangle") {
+      ToolSection("Rectangle") {
         Text(
           "Normalised to the frame the rotation produced, origin top left.",
           style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.outline,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         RangeSliderRow(
           label = "Horizontal",
@@ -405,11 +433,11 @@ private fun RangeSliderRow(
       Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
       Text(
         "${formatFraction(start)} to ${formatFraction(end)}",
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurface,
+        style = MaterialTheme.typography.labelMedium.copy(fontSize = 22.sp),
+        color = Tokens.coral,
       )
     }
-    RangeSlider(
+    SampleRangeSlider(
       value = start..end,
       onValueChange = { range ->
         onChange(
@@ -426,11 +454,11 @@ private fun RangeSliderRow(
 private fun TransformPanel(state: SampleAppState) {
   val edit = state.edit
 
-  ControlGroup("Rotate") {
+  ToolSection("Rotate") {
     Text(
       "Counter-clockwise, baked into the pixels rather than written as container metadata.",
       style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.outline,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     ChipGroup(
       options = listOf("0" to 0, "90" to 90, "180" to 180, "270" to 270),
@@ -442,7 +470,7 @@ private fun TransformPanel(state: SampleAppState) {
     )
   }
 
-  ControlGroup("Mirror") {
+  ToolSection("Mirror") {
     SwitchRow(
       label = "Flip horizontally",
       checked = edit.flipHorizontal,
@@ -466,7 +494,7 @@ private fun TransformPanel(state: SampleAppState) {
 private fun ScalePanel(state: SampleAppState) {
   val edit = state.edit
 
-  ControlGroup("Scale") {
+  ToolSection("Scale") {
     SwitchRow(
       label = "Set output height",
       supporting = "A composition effect, separate from the export spec's own target height",
@@ -502,12 +530,12 @@ private fun ScalePanel(state: SampleAppState) {
 private fun AdjustPanel(state: SampleAppState) {
   val edit = state.edit
 
-  ControlGroup("Tone") {
+  ToolSection("Tone") {
     Text(
       "Every slider is a color matrix, and a run of them is folded into one before anything clamps, " +
           "so a brightness above 100% and a contrast that pulls it back cancel out.",
       style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.outline,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     GradeSlider(state, "Brightness", edit.brightness, formatPercent(edit.brightness), 0f..2f, 1f) {
       edit.brightness = it
@@ -520,7 +548,7 @@ private fun AdjustPanel(state: SampleAppState) {
     }
   }
 
-  ControlGroup("Tint") {
+  ToolSection("Tint") {
     GradeSlider(state, "Hue", edit.hueDegrees, formatDegrees(edit.hueDegrees), -180f..180f, 0f) {
       edit.hueDegrees = it
     }
@@ -532,7 +560,7 @@ private fun AdjustPanel(state: SampleAppState) {
     }
   }
 
-  ControlGroup("Tape") {
+  ToolSection("Tape") {
     SwitchRow(
       label = "VHS",
       checked = edit.vhsEnabled,
@@ -556,7 +584,7 @@ private fun AdjustPanel(state: SampleAppState) {
     }
   }
 
-  ControlGroup("Film") {
+  ToolSection("Film") {
     SwitchRow(
       label = "Film",
       checked = edit.filmEnabled,
@@ -575,7 +603,7 @@ private fun AdjustPanel(state: SampleAppState) {
     }
   }
 
-  ControlGroup("CRT") {
+  ToolSection("CRT") {
     SwitchRow(
       label = "CRT",
       checked = edit.crtEnabled,
@@ -591,7 +619,7 @@ private fun AdjustPanel(state: SampleAppState) {
     }
   }
 
-  ControlGroup("LUT") {
+  ToolSection("LUT") {
     SwitchRow(
       label = "Teal and orange",
       checked = edit.lutEnabled,
@@ -607,7 +635,7 @@ private fun AdjustPanel(state: SampleAppState) {
     }
   }
 
-  ControlGroup("Channels") {
+  ToolSection("Channels") {
     GradeSlider(state, "Red", edit.channelRed, formatPercent(edit.channelRed), 0f..2f, 1f) {
       edit.channelRed = it
     }
@@ -619,12 +647,12 @@ private fun AdjustPanel(state: SampleAppState) {
     }
   }
 
-  ControlGroup("Matrix") {
+  ToolSection("Matrix") {
     Text(
       "Each output channel is a weighted sum of the three inputs plus a bias. It runs last, after " +
           "everything above.",
       style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.outline,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     ChipGroup(
       options = matrixLooks,
@@ -670,7 +698,7 @@ private fun MatrixGrid(
         Text(
           text = input,
           style = MaterialTheme.typography.labelSmall,
-          color = MaterialTheme.colorScheme.outline,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.weight(1f),
         )
       }
@@ -801,7 +829,7 @@ private fun TextPanel(state: SampleAppState) {
   val edit = state.edit
   val duration = state.editedDurationSeconds
 
-  ControlGroup("Burned-in text") {
+  ToolSection("Burned-in text") {
     SwitchRow(
       label = "Draw text",
       checked = edit.textEnabled,
@@ -829,7 +857,7 @@ private fun TextPanel(state: SampleAppState) {
 
   if (!edit.textEnabled) return
 
-  ControlGroup("Style") {
+  ToolSection("Style") {
     SliderRow(
       label = "Size",
       value = edit.textSize,
@@ -880,7 +908,7 @@ private fun TextPanel(state: SampleAppState) {
     )
   }
 
-  ControlGroup("Color") {
+  ToolSection("Color") {
     SwatchRow(
       colors = Palette,
       selected = edit.textColor,
@@ -891,7 +919,7 @@ private fun TextPanel(state: SampleAppState) {
     )
   }
 
-  ControlGroup("Plate behind the text") {
+  ToolSection("Plate behind the text") {
     SwatchRow(
       colors = Plates,
       selected = edit.textPlate,
@@ -903,7 +931,7 @@ private fun TextPanel(state: SampleAppState) {
     )
   }
 
-  ControlGroup("Anchor") {
+  ToolSection("Anchor") {
     AnchorGrid(
       selectedX = edit.textAnchorX,
       selectedY = edit.textAnchorY,
@@ -915,7 +943,7 @@ private fun TextPanel(state: SampleAppState) {
     )
   }
 
-  ControlGroup("Visible during") {
+  ToolSection("Visible during") {
     SwitchRow(
       label = "Only part of the edit",
       checked = edit.textTimed,
@@ -952,17 +980,19 @@ private fun WatermarkPanel(state: SampleAppState) {
     }
   }
 
-  ControlGroup("Image") {
+  ToolSection("Image") {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
       Chip(
         label = if (edit.watermarkImage == null) "Pick an image" else "Replace",
         selected = false,
+        role = Role.Button,
         onClick = picker::launch,
       )
       if (edit.watermarkImage != null) {
         Chip(
           label = "Remove",
           selected = false,
+          role = Role.Button,
           onClick = {
             edit.watermarkImage = null
             edit.watermarkLabel = ""
@@ -972,13 +1002,17 @@ private fun WatermarkPanel(state: SampleAppState) {
       }
     }
     if (edit.watermarkLabel.isNotBlank()) {
-      Text(edit.watermarkLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+      Text(
+        text = edit.watermarkLabel,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
     }
   }
 
   if (edit.watermarkImage == null) return
 
-  ControlGroup("Corner") {
+  ToolSection("Corner") {
     ChipGroup(
       options = listOf(
         "Top left" to Corner.TopStart,
@@ -994,7 +1028,7 @@ private fun WatermarkPanel(state: SampleAppState) {
     )
   }
 
-  ControlGroup("Placement") {
+  ToolSection("Placement") {
     SliderRow(
       label = "Margin",
       value = edit.watermarkMargin,
@@ -1035,7 +1069,7 @@ private fun WatermarkPanel(state: SampleAppState) {
     )
   }
 
-  ControlGroup("Visible during") {
+  ToolSection("Visible during") {
     SwitchRow(
       label = "Only part of the edit",
       checked = edit.watermarkTimed,
@@ -1068,7 +1102,7 @@ private fun WindowSlider(
   onChange: (Float, Float) -> Unit,
 ) {
   Column(Modifier.fillMaxWidth()) {
-    RangeSlider(
+    SampleRangeSlider(
       value = start.coerceIn(0f, duration)..end.coerceIn(0f, duration),
       onValueChange = { range -> onChange(range.start, range.endInclusive) },
       valueRange = 0f..duration,
@@ -1092,12 +1126,12 @@ private fun WindowSlider(
 private fun AudioPanel(state: SampleAppState) {
   val edit = state.edit
 
-  ControlGroup("Mixed audio") {
+  ToolSection("Mixed audio") {
     Text(
       "Set on the composition, after every track is mixed. Mute keeps a silent track, remove writes " +
           "none at all.",
       style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.outline,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     ChipGroup(
       options = listOf(
@@ -1131,7 +1165,7 @@ private fun AudioPanel(state: SampleAppState) {
     }
   }
 
-  ControlGroup("Clip") {
+  ToolSection("Clip") {
     SwitchRow(
       label = "Mute this clip",
       supporting = "Levels multiply down the scopes, so a mute here silences the clip alone",
@@ -1148,12 +1182,12 @@ private fun AudioPanel(state: SampleAppState) {
 private fun BackgroundPanel(state: SampleAppState) {
   val edit = state.edit
 
-  ControlGroup("Fill") {
+  ToolSection("Fill") {
     Text(
       "What lands where no clip's pixels do: letterbox bars, gaps between tracks, and rounding at " +
           "the edges.",
       style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.outline,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     ChipGroup(
       options = listOf("Solid" to FillMode.Solid, "Blurred" to FillMode.Blurred),
@@ -1166,7 +1200,7 @@ private fun BackgroundPanel(state: SampleAppState) {
   }
 
   when (edit.fillMode) {
-    FillMode.Solid -> ControlGroup("Color") {
+    FillMode.Solid -> ToolSection("Color") {
       SwatchRow(
         colors = Plates,
         selected = edit.fillColor,
@@ -1177,7 +1211,7 @@ private fun BackgroundPanel(state: SampleAppState) {
       )
     }
 
-    FillMode.Blurred -> ControlGroup("Blur") {
+    FillMode.Blurred -> ToolSection("Blur") {
       SliderRow(
         label = "Radius",
         value = edit.blurRadius,
@@ -1215,7 +1249,7 @@ private fun EditState.contributes(tool: EditorTool): Boolean =
     EditorTool.Crop -> cropMode != CropMode.Off
     EditorTool.Transform -> rotationDegrees != 0 || flipHorizontal || flipVertical
     EditorTool.Scale -> scaleEnabled
-    EditorTool.Adjust -> colorGraded
+    EditorTool.Adjust -> gradeContributes
     EditorTool.Text -> textEnabled && text.isNotBlank()
     EditorTool.Watermark -> watermarkImage != null
     EditorTool.Audio -> audioSpec != AudioSpec.Keep || clipMuted
@@ -1241,3 +1275,5 @@ private val Plates = listOf(
 )
 
 private const val MIN_RECT = 0.05f
+
+private const val ROW_TOOL_WIDTH = 72

@@ -1,85 +1,180 @@
 package dev.jordond.filmstrip.sample.ui.screen
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import dev.jordond.filmstrip.FilmstripError
+import androidx.compose.ui.unit.sp
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
-import dev.jordond.filmstrip.export.Adjustment
-import dev.jordond.filmstrip.export.ExportPlan
 import dev.jordond.filmstrip.export.HdrMode
-import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.sample.SampleAppState
+import dev.jordond.filmstrip.sample.ui.Chip
 import dev.jordond.filmstrip.sample.ui.ChipGroup
-import dev.jordond.filmstrip.sample.ui.ControlGroup
-import dev.jordond.filmstrip.sample.ui.Pill
-import dev.jordond.filmstrip.sample.ui.StatRow
-import dev.jordond.filmstrip.sample.ui.SwitchRow
-import dev.jordond.filmstrip.sample.ui.asClock
-import dev.jordond.filmstrip.sample.ui.formatBytes
+import dev.jordond.filmstrip.sample.ui.ChipPalette
+import dev.jordond.filmstrip.sample.ui.LocalChipPalette
+import dev.jordond.filmstrip.sample.ui.SampleIcons
+import dev.jordond.filmstrip.sample.ui.Tokens
+import dev.jordond.filmstrip.sample.ui.drawTubeScanlines
+import dev.jordond.filmstrip.sample.ui.isCompactWidth
 
 /**
- * Everything between an edit and a file: what to ask the encoder for, what this device says it will
- * actually do, and the run itself.
+ * Everything between an edit and a file, laid out as the deck's blue setup menu: what to ask the encoder for, what this
+ * device says it will actually do, and the run itself.
  *
- * The scene around it decides whether this is a bottom sheet or a dialog.
+ * A narrow pane keeps the verdict and the run on a strip under the rows, and one with the room gives them a column of
+ * their own. The scene around it decides whether this is a bottom sheet or a dialog.
  */
 @Composable
 public fun ExportPane(
   state: SampleAppState,
   modifier: Modifier = Modifier,
 ) {
-  Column(
-    modifier = modifier
-      .fillMaxWidth()
-      .heightIn(max = 620.dp)
-      .verticalScroll(rememberScrollState())
-      .padding(horizontal = 20.dp)
-      .padding(top = 8.dp, bottom = 32.dp),
-    verticalArrangement = Arrangement.spacedBy(20.dp),
-  ) {
-    PaneHeader(
-      title = "Export",
-      onClose = state::navigateBack,
-      closeEnabled = !state.exporting,
-    )
+  val compact = isCompactWidth()
+  val base = MaterialTheme.colorScheme
+  val menu =
+    remember(base) {
+      base.copy(onSurface = Tokens.white, onSurfaceVariant = Tokens.white, outline = MENU_LINE)
+    }
 
-    OutputControls(state)
-
-    VerdictBlock(state)
-
-    RunBlock(state)
+  MaterialTheme(colorScheme = menu) {
+    CompositionLocalProvider(LocalChipPalette provides MenuChips, LocalContentColor provides Tokens.white) {
+      BoxWithConstraints(modifier.fillMaxWidth()) {
+        val columns = maxWidth >= COLUMNS_FROM
+        Column(
+          Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(if (compact) PHONE_HEIGHT_FRACTION else 1f)
+            .background(Tokens.vcrBlue)
+            .drawBehind { drawTubeScanlines() },
+        ) {
+          MenuHeader(state, compact)
+          if (columns) WideMenu(state) else PhoneMenu(state)
+        }
+      }
+    }
   }
 }
 
 @Composable
-private fun OutputControls(state: SampleAppState) {
+private fun ColumnScope.PhoneMenu(state: SampleAppState) {
+  Column(
+    Modifier
+      .fillMaxWidth()
+      .weight(1f)
+      .verticalScroll(rememberScrollState())
+      .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+  ) {
+    SetupRows(state, labelWidth = null)
+    DeviceDetailsBlock(state, Modifier.padding(top = 12.dp))
+  }
+  PhoneDeviceStrip(state)
+}
+
+@Composable
+private fun ColumnScope.WideMenu(state: SampleAppState) {
+  Row(
+    Modifier
+      .fillMaxWidth()
+      .weight(1f)
+      .padding(start = 22.dp, end = 22.dp, bottom = 22.dp),
+    horizontalArrangement = Arrangement.spacedBy(28.dp),
+  ) {
+    Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+      Row(Modifier.padding(top = 4.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("SETTING", style = rowLabel(), color = Tokens.vcrHeader, modifier = Modifier.width(LABEL_WIDTH))
+        Text("VALUE", style = rowLabel(), color = Tokens.vcrHeader)
+      }
+      SetupRows(state, labelWidth = LABEL_WIDTH)
+    }
+    WideDeviceColumn(state, Modifier.width(DEVICE_WIDTH).fillMaxHeight())
+  }
+}
+
+@Composable
+private fun MenuHeader(
+  state: SampleAppState,
+  compact: Boolean,
+) {
+  val style = menuTitle(compact)
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 2.dp),
+    horizontalArrangement = Arrangement.SpaceBetween,
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    MenuPath("SETUP", "EXPORT", style)
+    MenuPath(
+      "MENU",
+      "EXIT",
+      style,
+      Modifier
+        .defaultMinSize(minHeight = Tokens.sizeTouch)
+        .semantics { contentDescription = "Close Export" }
+        .clickable(enabled = !state.exporting, role = Role.Button, onClick = state::navigateBack),
+    )
+  }
+}
+
+/**
+ * Two words either side of the menu's vector chevron, since the fonts hold no such glyph.
+ */
+@Composable
+private fun MenuPath(
+  from: String,
+  to: String,
+  style: TextStyle,
+  modifier: Modifier = Modifier,
+) {
+  Row(
+    modifier,
+    horizontalArrangement = Arrangement.spacedBy(6.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Text(from, style = style)
+    Icon(SampleIcons.ChevronRight, contentDescription = null, modifier = Modifier.size(CHEVRON))
+    Text(to, style = style)
+  }
+}
+
+@Composable
+private fun SetupRows(
+  state: SampleAppState,
+  labelWidth: Dp?,
+) {
   val busy = state.exporting
 
-  ControlGroup("Height") {
+  SetupRow("Height", labelWidth) {
     ChipGroup(
       options = listOf("Source" to null, "480" to 480, "720" to 720, "1080" to 1080, "2160" to 2160),
       selected = state.targetHeight,
@@ -91,7 +186,7 @@ private fun OutputControls(state: SampleAppState) {
     )
   }
 
-  ControlGroup("Video codec") {
+  SetupRow("Video codec", labelWidth) {
     ChipGroup(
       options = listOf(
         "Auto" to VideoCodec.Auto,
@@ -109,7 +204,7 @@ private fun OutputControls(state: SampleAppState) {
     )
   }
 
-  ControlGroup("Audio codec") {
+  SetupRow("Audio codec", labelWidth) {
     ChipGroup(
       options = listOf(
         "Auto" to AudioCodec.Auto,
@@ -126,7 +221,7 @@ private fun OutputControls(state: SampleAppState) {
     )
   }
 
-  ControlGroup("Bitrate") {
+  SetupRow("Bitrate", labelWidth) {
     ChipGroup(
       options = listOf("Auto" to null, "2 Mbps" to 2, "4 Mbps" to 4, "8 Mbps" to 8, "16 Mbps" to 16),
       selected = state.bitrateMbps,
@@ -138,7 +233,7 @@ private fun OutputControls(state: SampleAppState) {
     )
   }
 
-  ControlGroup("Frame rate") {
+  SetupRow("Frame rate", labelWidth) {
     ChipGroup(
       options = listOf("Source" to null, "24" to 24, "30" to 30, "60" to 60),
       selected = state.frameRate,
@@ -150,7 +245,7 @@ private fun OutputControls(state: SampleAppState) {
     )
   }
 
-  ControlGroup("High dynamic range") {
+  SetupRow("High dynamic range", labelWidth) {
     ChipGroup(
       options = listOf(
         "Auto" to HdrMode.Auto,
@@ -166,7 +261,7 @@ private fun OutputControls(state: SampleAppState) {
     )
   }
 
-  ControlGroup("Snap the cut back to a key frame") {
+  SetupRow("Snap the cut back to a key frame", labelWidth) {
     ChipGroup(
       options = listOf("Never" to 0f, "0.5s" to 0.5f, "2s" to 2f, "5s" to 5f),
       selected = state.edit.snapWithinSeconds,
@@ -178,233 +273,81 @@ private fun OutputControls(state: SampleAppState) {
     )
   }
 
-  SwitchRow(
-    label = "Strict",
-    supporting = "Refuse a fallback instead of adjusting",
-    checked = state.strict,
-    enabled = !busy,
-    onCheckedChange = {
-      state.strict = it
-      state.onEditChanged()
-    },
-  )
-}
-
-@Composable
-private fun VerdictBlock(state: SampleAppState) {
-  ControlGroup("This device") {
-    OutlinedButton(
-      onClick = state::plan,
-      enabled = !state.planning && !state.exporting,
-      shape = RoundedCornerShape(10.dp),
-      modifier = Modifier.fillMaxWidth(),
-    ) {
-      if (state.planning) {
-        CircularProgressIndicator(Modifier.size(16.dp), color = MaterialTheme.colorScheme.primary, strokeWidth = 2.dp)
-        Text("   Planning")
-      } else {
-        Text("Check what this device will do")
-      }
-    }
-
-    when (val verdict = state.verdict) {
-      null -> Unit
-
-      is Verdict.Capable -> {
-        Pill("READY", MaterialTheme.colorScheme.tertiary)
-        PlanSummary(verdict.plan, state)
-      }
-
-      is Verdict.Degraded -> {
-        Pill("WILL ADJUST", MaterialTheme.colorScheme.primary)
-        Adjustments(verdict.adjustments)
-        PlanSummary(verdict.plan, state)
-      }
-
-      is Verdict.Incapable -> {
-        Pill("CANNOT EXPORT", MaterialTheme.colorScheme.error)
-        verdict.reasons.forEach { ErrorLine(it) }
-        verdict.withoutUnsupported?.let { fallback ->
-          Adjustments(fallback.adjustments)
-          Button(
-            onClick = { state.export(fallback.plan) },
-            enabled = !state.exporting,
-            shape = RoundedCornerShape(10.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-            modifier = Modifier.fillMaxWidth(),
-          ) {
-            Text("Export without the unsupported effects")
-          }
-        }
-      }
+  SetupRow("Strict", labelWidth) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+      Chip(
+        label = if (state.strict) "On" else "Off",
+        selected = state.strict,
+        enabled = !busy,
+        role = Role.Switch,
+        onClick = {
+          state.strict = !state.strict
+          state.onEditChanged()
+        },
+        modifier = Modifier.semantics { contentDescription = "Strict" },
+      )
+      Text("Refuse a fallback instead of adjusting", style = MaterialTheme.typography.bodySmall)
     }
   }
 }
 
+/**
+ * One line of the setup menu under a faint rule, its label above the values on a phone and in a column of
+ * [labelWidth] on a wide window.
+ */
 @Composable
-private fun PlanSummary(
-  plan: ExportPlan,
-  state: SampleAppState,
+private fun SetupRow(
+  label: String,
+  labelWidth: Dp?,
+  content: @Composable () -> Unit,
 ) {
-  val output = plan.output
-  val estimate = plan.estimate
-  val minBytes = estimate.outputSizeBytesMin
-  val maxBytes = estimate.outputSizeBytesMax
-
-  Column(
-    modifier = Modifier
+  val modifier =
+    Modifier
       .fillMaxWidth()
-      .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(12.dp))
-      .padding(14.dp),
-    verticalArrangement = Arrangement.spacedBy(6.dp),
-  ) {
-    StatRow("Frame", "${output.size.width} x ${output.size.height}")
-    StatRow("Video", output.videoCodec.name)
-    StatRow(
-      "Audio",
-      output.audioFormat?.let { "${output.audioCodec.name} · ${it.sampleRate} Hz · ${it.channelCount} ch" }
-        ?: output.audioCodec.name,
-    )
-    output.bitrate?.let { StatRow("Bitrate", it.toString()) }
-    StatRow("Frame rate", "${output.frameRate} fps")
-    StatRow("Path", plan.path.name.lowercase())
-    if (plan.copyBlockedBy.isNotEmpty()) {
-      StatRow("No copy because", plan.copyBlockedBy.joinToString { it.name })
-    }
-    if (plan.inertNotices.isNotEmpty()) {
-      StatRow("Left out, renders nothing", plan.inertNotices.joinToString { it.subject })
-    }
-    StatRow("Parity", plan.parity.name.lowercase())
-    if (minBytes != null && maxBytes != null) {
-      StatRow("Estimated size", "${formatBytes(minBytes)} to ${formatBytes(maxBytes)}")
-    }
-    estimate.approximateDuration?.let { StatRow("Estimated run", "about ${it.asClock()}") }
-
-    val parity = state.parity()
-    if (parity.isNotEmpty()) {
-      Spacer(Modifier.height(2.dp))
-      parity.forEach { (id, name) ->
-        StatRow(
-          id,
-          name.lowercase(),
-          valueColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+      .drawBehind {
+        drawRect(MENU_RULE, Offset.Zero, Size(size.width, RULE_HEIGHT.toPx()))
       }
-    }
-  }
-}
-
-@Composable
-private fun Adjustments(adjustments: List<Adjustment>) {
-  Column(
-    modifier = Modifier
-      .fillMaxWidth()
-      .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
-      .padding(14.dp),
-    verticalArrangement = Arrangement.spacedBy(10.dp),
-  ) {
-    adjustments.forEach { adjustment ->
-      Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-          "${adjustment.kind.name.lowercase()}: ${adjustment.requested} to ${adjustment.resolved}",
-          style = MaterialTheme.typography.labelLarge,
-          color = MaterialTheme.colorScheme.primary,
-        )
-        Text(
-          adjustment.message,
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
-    }
-  }
-}
-
-@Composable
-private fun RunBlock(state: SampleAppState) {
-  val plan = when (val verdict = state.verdict) {
-    is Verdict.Capable -> verdict.plan
-    is Verdict.Degraded -> verdict.plan
-    else -> null
-  }
-
-  if (state.exporting) {
-    val progress = state.exportProgress
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-      if (progress == null) {
-        LinearProgressIndicator(Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.primary)
-        Text("Starting", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-      } else {
-        LinearProgressIndicator(
-          progress = { progress.fraction },
-          modifier = Modifier.fillMaxWidth(),
-          color = MaterialTheme.colorScheme.primary,
-        )
-        val parts = buildList {
-          add("${(progress.fraction * 100).toInt()}%")
-          progress.position?.let { add(it.asClock()) }
-          progress.estimatedRemaining?.let { add("about ${it.asClock()} left") }
-        }
-        Text(
-          parts.joinToString("  ·  "),
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-      }
-      OutlinedButton(
-        onClick = state::cancelExport,
-        shape = RoundedCornerShape(10.dp),
-        modifier = Modifier.fillMaxWidth(),
-      ) {
-        Text("Cancel")
-      }
+  if (labelWidth == null) {
+    Column(modifier.padding(top = 8.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+      Text(label.uppercase(), style = rowLabel(), color = Tokens.vcrHeader)
+      content()
     }
   } else {
-    Button(
-      onClick = { plan?.let(state::export) },
-      enabled = plan != null,
-      shape = RoundedCornerShape(12.dp),
-      colors = ButtonDefaults.buttonColors(
-        containerColor = MaterialTheme.colorScheme.primary,
-        contentColor = MaterialTheme.colorScheme.onPrimary,
-        disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        disabledContentColor = MaterialTheme.colorScheme.outline,
-      ),
-      modifier = Modifier.fillMaxWidth().height(52.dp),
+    Row(
+      modifier.padding(vertical = 6.dp),
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+      verticalAlignment = Alignment.CenterVertically,
     ) {
-      Text(if (plan == null) "Check the device first" else "Export", style = MaterialTheme.typography.labelLarge)
+      Text(label.uppercase(), style = rowLabel(), modifier = Modifier.width(labelWidth))
+      Row(Modifier.weight(1f)) { content() }
     }
   }
-
-  if (state.exportAdjustments.isNotEmpty()) {
-    Adjustments(state.exportAdjustments)
-  }
-
-  state.exportFailure?.let { ErrorLine(it) }
 }
 
 @Composable
-internal fun ErrorLine(error: FilmstripError) {
-  Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .background(MaterialTheme.colorScheme.error.copy(alpha = 0.1f), RoundedCornerShape(10.dp))
-      .padding(12.dp),
-    horizontalArrangement = Arrangement.spacedBy(8.dp),
-    verticalAlignment = Alignment.Top,
-  ) {
-    Box(Modifier.size(6.dp).background(MaterialTheme.colorScheme.error, RoundedCornerShape(3.dp)))
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-      Text(
-        error::class.simpleName ?: "Error",
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.error,
-      )
-      Text(
-        error.message,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
-    }
-  }
-}
+private fun rowLabel(): TextStyle = MaterialTheme.typography.labelMedium.copy(fontSize = ROW_LABEL_SIZE.sp)
+
+@Composable
+private fun menuTitle(compact: Boolean): TextStyle =
+  MaterialTheme.typography.labelLarge.copy(fontSize = if (compact) TITLE_SIZE_COMPACT.sp else TITLE_SIZE.sp)
+
+private val MENU_LINE = Tokens.white.copy(alpha = 0.55f)
+private val MENU_RULE = Tokens.white.copy(alpha = 0.18f)
+
+private val MenuChips =
+  ChipPalette(
+    selectedFill = Tokens.vcrHeader,
+    selectedInk = Tokens.vcrBlue,
+    border = MENU_LINE,
+    ink = Tokens.white,
+  )
+
+private const val PHONE_HEIGHT_FRACTION = 0.9f
+private const val ROW_LABEL_SIZE = 22
+private const val TITLE_SIZE = 28
+private const val TITLE_SIZE_COMPACT = 26
+private val COLUMNS_FROM = 760.dp
+private val LABEL_WIDTH = 180.dp
+private val DEVICE_WIDTH = 360.dp
+private val RULE_HEIGHT = 2.dp
+private val CHEVRON = 18.dp

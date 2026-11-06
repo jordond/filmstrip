@@ -5,6 +5,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavMetadataKey
 import androidx.navigation3.runtime.get
@@ -13,6 +15,7 @@ import androidx.navigation3.scene.OverlayScene
 import androidx.navigation3.scene.Scene
 import androidx.navigation3.scene.SceneStrategy
 import androidx.navigation3.scene.SceneStrategyScope
+import dev.jordond.filmstrip.sample.ui.Tokens
 import dev.jordond.filmstrip.sample.ui.nav.BottomSheetSceneStrategy.Companion.sheet
 
 /**
@@ -58,10 +61,13 @@ public class BottomSheetSceneStrategy<T : Any> : SceneStrategy<T> {
  *   stopping half way.
  * @property dismissOnBack Whether a back gesture or a tap outside closes the sheet. An export that
  *   is already running sets this false, so the run cannot be dismissed out from under itself.
+ * @property container The sheet's own colour, null for the theme's surface. It also shows under the content in the
+ *   system bar's inset, so a pane with its own ground names the colour its foot ends on.
  */
 public class SheetProperties(
   public val skipPartiallyExpanded: Boolean = true,
   public val dismissOnBack: Boolean = true,
+  public val container: Color? = null,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -83,8 +89,11 @@ private class BottomSheetScene<T : Any>(
         skipPartiallyExpanded = properties.skipPartiallyExpanded,
         confirmValueChange = { properties.dismissOnBack },
       ),
-      containerColor = MaterialTheme.colorScheme.surface,
+      shape = RectangleShape,
+      containerColor = properties.container ?: MaterialTheme.colorScheme.surface,
       contentColor = MaterialTheme.colorScheme.onSurface,
+      scrimColor = Tokens.backdrop,
+      dragHandle = null,
     ) {
       entry.Content()
     }

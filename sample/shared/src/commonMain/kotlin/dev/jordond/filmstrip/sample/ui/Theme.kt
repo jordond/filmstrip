@@ -6,126 +6,113 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.remember
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import dev.jordond.filmstrip.sample.resources.Res
+import dev.jordond.filmstrip.sample.resources.rubik_mono_one_regular
+import dev.jordond.filmstrip.sample.resources.space_mono_bold
+import dev.jordond.filmstrip.sample.resources.space_mono_regular
+import dev.jordond.filmstrip.sample.resources.vt323_regular
+import org.jetbrains.compose.resources.Font
 
-private val Ink = Color(0xFF08080A)
-private val Surface = Color(0xFF121216)
-private val SurfaceHigh = Color(0xFF1A1A21)
-private val SurfaceHighest = Color(0xFF23232C)
-private val Divider = Color(0xFF2E2E3A)
-private val Amber = Color(0xFFFFB454)
-private val Iris = Color(0xFF8E9BFF)
-private val Mint = Color(0xFF5FD3A3)
-private val Rose = Color(0xFFFF6F6F)
-private val TextHigh = Color(0xFFF3F3F6)
-private val TextMid = Color(0xFFB4B4C2)
-private val TextLow = Color(0xFF77778A)
-
-/**
- * The sample's palette, mapped onto Material's color roles.
- *
- * An editor is looked at for a long time next to the frame it is grading, so the neutrals stay out
- * of the way and the three accents carry meaning: primary is anything the user can act on, tertiary
- * is a healthy result, error is one that needs attention.
- */
-private val SampleScheme =
+internal val SampleScheme =
   darkColorScheme(
-    primary = Amber,
-    onPrimary = Ink,
-    primaryContainer = Color(0xFF3A2C13),
-    onPrimaryContainer = Amber,
-    secondary = Iris,
-    onSecondary = Ink,
-    secondaryContainer = Color(0xFF23253F),
-    onSecondaryContainer = Iris,
-    tertiary = Mint,
-    onTertiary = Ink,
-    tertiaryContainer = Color(0xFF16332A),
-    onTertiaryContainer = Mint,
-    background = Ink,
-    onBackground = TextHigh,
-    surface = Surface,
-    onSurface = TextHigh,
-    surfaceVariant = SurfaceHigh,
-    onSurfaceVariant = TextMid,
-    surfaceContainerLowest = Ink,
-    surfaceContainerLow = Surface,
-    surfaceContainer = SurfaceHigh,
-    surfaceContainerHigh = SurfaceHighest,
-    surfaceContainerHighest = Color(0xFF2C2C37),
-    surfaceBright = SurfaceHighest,
-    surfaceDim = Ink,
-    surfaceTint = Amber,
-    inverseSurface = TextHigh,
-    inverseOnSurface = Ink,
-    inversePrimary = Color(0xFF6D4A12),
-    outline = TextLow,
-    outlineVariant = Divider,
-    scrim = Ink,
-    error = Rose,
-    onError = Ink,
-    errorContainer = Color(0xFF3A1D1D),
-    onErrorContainer = Rose,
+    primary = Tokens.amber,
+    onPrimary = Tokens.ground,
+    primaryContainer = Tokens.panelRaised,
+    onPrimaryContainer = Tokens.amber,
+    inversePrimary = Tokens.amberHover,
+    secondary = Tokens.cyan,
+    onSecondary = Tokens.ground,
+    secondaryContainer = Tokens.panelRaised,
+    onSecondaryContainer = Tokens.cyan,
+    tertiary = Tokens.pink,
+    onTertiary = Tokens.ground,
+    tertiaryContainer = Tokens.panelRaised,
+    onTertiaryContainer = Tokens.pink,
+    background = Tokens.ground,
+    onBackground = Tokens.text,
+    surface = Tokens.panel,
+    onSurface = Tokens.text,
+    surfaceVariant = Tokens.panelRaised,
+    onSurfaceVariant = Tokens.muted,
+    surfaceContainerLowest = Tokens.screen,
+    surfaceContainerLow = Tokens.panel,
+    surfaceContainer = Tokens.panelRaised,
+    surfaceContainerHigh = Tokens.bezel,
+    surfaceContainerHighest = Tokens.knob,
+    surfaceBright = Tokens.bezel,
+    surfaceDim = Tokens.ground,
+    surfaceTint = Tokens.amber,
+    inverseSurface = Tokens.text,
+    inverseOnSurface = Tokens.ground,
+    outline = Tokens.lineStrong,
+    outlineVariant = Tokens.line,
+    scrim = Tokens.screen,
+    error = Tokens.red,
+    onError = Tokens.ground,
+    errorContainer = Tokens.panelRaised,
+    onErrorContainer = Tokens.red,
   )
+
+private val SquareCorners = RoundedCornerShape(0.dp)
 
 private val SampleShapes =
   Shapes(
-    extraSmall = RoundedCornerShape(6.dp),
-    small = RoundedCornerShape(10.dp),
-    medium = RoundedCornerShape(14.dp),
-    large = RoundedCornerShape(20.dp),
-    extraLarge = RoundedCornerShape(28.dp),
+    extraSmall = SquareCorners,
+    small = SquareCorners,
+    medium = SquareCorners,
+    large = SquareCorners,
+    extraLarge = SquareCorners,
   )
 
-private val SampleTypography =
-  Typography(
-    displaySmall = TextStyle(
-      fontSize = 30.sp,
-      lineHeight = 36.sp,
-      fontWeight = FontWeight.SemiBold,
-      letterSpacing = (-1).sp,
-    ),
-    headlineSmall = TextStyle(
-      fontSize = 24.sp,
-      lineHeight = 30.sp,
-      fontWeight = FontWeight.SemiBold,
-      letterSpacing = (-0.4).sp,
-    ),
-    titleMedium = TextStyle(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold),
-    titleSmall = TextStyle(fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold),
-    bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 20.sp),
-    bodySmall = TextStyle(fontSize = 12.sp, lineHeight = 17.sp),
-    labelLarge = TextStyle(fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium),
-    labelMedium = TextStyle(
-      fontSize = 12.sp,
-      lineHeight = 16.sp,
-      fontWeight = FontWeight.Medium,
-      letterSpacing = 0.2.sp,
-    ),
-    labelSmall = TextStyle(
-      fontSize = 10.sp,
-      lineHeight = 14.sp,
-      fontWeight = FontWeight.Medium,
-      letterSpacing = 0.6.sp,
-    ),
+private val OsdTracking = 0.04.em
+
+private fun sampleTypography(display: FontFamily, osd: FontFamily, body: FontFamily): Typography {
+  fun displayStyle(size: Int, line: Int) = TextStyle(fontFamily = display, fontSize = size.sp, lineHeight = line.sp)
+
+  fun osdStyle(size: Int, line: Int) =
+    TextStyle(fontFamily = osd, fontSize = size.sp, lineHeight = line.sp, letterSpacing = OsdTracking)
+
+  fun bodyStyle(size: Int, line: Int) = TextStyle(fontFamily = body, fontSize = size.sp, lineHeight = line.sp)
+
+  return Typography(
+    displaySmall = displayStyle(size = 30, line = 36),
+    headlineSmall = displayStyle(size = 24, line = 30),
+    titleMedium = osdStyle(size = 24, line = 28),
+    titleSmall = bodyStyle(size = 14, line = 18).copy(fontWeight = FontWeight.Bold),
+    labelLarge = osdStyle(size = 26, line = 28),
+    labelMedium = osdStyle(size = 20, line = 24),
+    labelSmall = osdStyle(size = 16, line = 20),
+    bodyMedium = bodyStyle(size = 14, line = 20),
+    bodySmall = bodyStyle(size = 12, line = 18),
   )
+}
 
 /**
- * Wraps the sample in its editor theme.
+ * Wraps the sample in the look of the landing page, a VCR on a CRT.
  *
- * Dark only, the way editing apps ship: the preview is the brightest thing on screen and everything
- * around it is furniture.
+ * There is one theme and it is dark. Corners are square, and the only faces are Rubik Mono One for titles, VT323 for
+ * anything a machine would print and Space Mono for sentences and values.
  */
 @Composable
 public fun SampleTheme(content: @Composable () -> Unit) {
+  val display = FontFamily(Font(Res.font.rubik_mono_one_regular))
+  val osd = FontFamily(Font(Res.font.vt323_regular))
+  val body = FontFamily(
+    Font(Res.font.space_mono_regular, FontWeight.Normal),
+    Font(Res.font.space_mono_bold, FontWeight.Bold),
+  )
+  val typography = remember(display, osd, body) { sampleTypography(display, osd, body) }
   MaterialTheme(
     colorScheme = SampleScheme,
     shapes = SampleShapes,
-    typography = SampleTypography,
+    typography = typography,
     content = content,
   )
 }

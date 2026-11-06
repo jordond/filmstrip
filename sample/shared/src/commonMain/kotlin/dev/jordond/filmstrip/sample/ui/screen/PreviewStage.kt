@@ -5,17 +5,18 @@ package dev.jordond.filmstrip.sample.ui.screen
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,7 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -37,9 +38,11 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.jordond.filmstrip.compose.ui.CropColors
 import dev.jordond.filmstrip.compose.ui.CropOverlayDefaults
 import dev.jordond.filmstrip.compose.ui.OverlayHandleColors
@@ -59,16 +62,24 @@ import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.sample.CropMode
 import dev.jordond.filmstrip.sample.EditState
+import dev.jordond.filmstrip.sample.EditorTool
 import dev.jordond.filmstrip.sample.FillMode
 import dev.jordond.filmstrip.sample.SampleAppState
 import dev.jordond.filmstrip.sample.compositionFrameLabel
 import dev.jordond.filmstrip.sample.stageSentence
-import dev.jordond.filmstrip.sample.ui.Pill
+import dev.jordond.filmstrip.sample.ui.FringeText
+import dev.jordond.filmstrip.sample.ui.Tokens
+import dev.jordond.filmstrip.sample.ui.asClock
+import dev.jordond.filmstrip.sample.ui.insetVignette
+import dev.jordond.filmstrip.sample.ui.isCompactWidth
+import dev.jordond.filmstrip.sample.ui.scanlinesFaint
+import dev.jordond.filmstrip.sample.ui.timecode
 import dev.jordond.filmstrip.style.FontWeight
 import dev.jordond.filmstrip.style.TextAlignment
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.time.Duration.Companion.seconds
 import androidx.compose.ui.text.TextStyle as ComposeTextStyle
 import androidx.compose.ui.text.font.FontWeight as ComposeFontWeight
 import dev.jordond.filmstrip.geometry.Size as FrameSize
@@ -77,13 +88,16 @@ import dev.jordond.filmstrip.transform.internal.geometry.placeIn
 /**
  * The editor's viewport.
  *
- * It plays the edit through the player `preview` hands back, letterboxed to the output aspect
- * rather than the source's, which is what a surface has to do once a crop is attached. Before a
- * player is open, and where none could be built, it falls back to a schematic of the same edit so
- * the rest of the editor stays usable.
+ * It plays the edit through the player `preview` hands back, letterboxed to the output aspect rather than the
+ * source's, which is what a surface has to do once a crop is attached. Before a player is open, and where none could
+ * be built, it falls back to a schematic of the same edit so the rest of the editor stays usable.
  *
- * The player itself is started and stopped above this, so folding or unfolding a host that swaps
- * this out for a differently laid out copy of itself never tears the player down.
+ * The picture sits on a dark floor with its corners square and nothing over it except the edit and the crop and
+ * overlay handles. Status and timecode print above it, frame size and any note print below it, and viewfinder
+ * brackets stand off its corners.
+ *
+ * The player itself is started and stopped above this, so folding or unfolding a host that swaps this out for a
+ * differently laid out copy of itself never tears the player down.
  */
 @Composable
 public fun PreviewStage(
@@ -91,45 +105,189 @@ public fun PreviewStage(
   modifier: Modifier = Modifier,
 ) {
   val edit = state.edit
+  val compact = isCompactWidth()
 
-  Box(
-    modifier = modifier.background(MaterialTheme.colorScheme.background),
-    contentAlignment = Alignment.Center,
+  Column(
+    modifier = modifier
+      .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+      .insetVignette(if (compact) 37.dp else 74.dp)
+      .scanlinesFaint()
+      .padding(
+        start = if (compact) 16.dp else 24.dp,
+        end = if (compact) 16.dp else 24.dp,
+        top = if (compact) 8.dp else 12.dp,
+        bottom = if (compact) 8.dp else 12.dp,
+      ),
+    verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp),
   ) {
-    VideoStage(
-      // Every platform ships a preview backend, so a build with none is one that never registered
-      // it, and the schematic stands in for the picture.
-      player = state.player?.takeIf { !state.previewUnavailable },
-      outputAspect = edit.outputAspect(state.sourceAspect, cropped = !state.croppingRect),
-      modifier = Modifier
-        .padding(16.dp)
-        .clip(RoundedCornerShape(4.dp))
-        .background(Color.Black)
-        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(4.dp)),
-      fallback = { StageSchematic(state, Modifier.fillMaxSize()) },
-    ) {
-      if (state.croppingRect) {
-        CropOverlay(
-          rect = edit.cropRect,
-          onRectChange = { rect ->
-            edit.setCropRect(rect)
-            state.onEditChanged()
-          },
-          constraint = edit.cropLockAspect
-            ?.let { CropConstraint.lockedTo(it, aspect) }
-            ?: CropOverlayDefaults.Constraint,
-          colors = sampleCropColors(),
-        )
-      } else {
-        // Both tools drag against the whole stage, so the crop rectangle and the overlay handles
-        // take turns rather than sharing a frame's worth of gestures.
-        OverlayHandles(state)
+    OsdStatus(state, compact)
+    Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+      VideoStage(
+        // Every platform ships a preview backend, so a build with none is one that never registered
+        // it, and the schematic stands in for the picture.
+        player = state.player?.takeIf { !state.previewUnavailable },
+        outputAspect = edit.outputAspect(state.sourceAspect, cropped = !state.croppingRect),
+        modifier = Modifier
+          .padding(BracketReach)
+          .viewfinderBrackets()
+          .background(Color.Black),
+        fallback = { StageSchematic(state, Modifier.fillMaxSize()) },
+      ) {
+        if (state.croppingRect) {
+          CropOverlay(
+            rect = edit.cropRect,
+            onRectChange = { rect ->
+              edit.setCropRect(rect)
+              state.onEditChanged()
+            },
+            constraint = edit.cropLockAspect
+              ?.let { CropConstraint.lockedTo(it, aspect) }
+              ?: CropOverlayDefaults.Constraint,
+            colors = sampleCropColors(),
+          )
+        } else {
+          // Both tools drag against the whole stage, so the crop rectangle and the overlay handles
+          // take turns rather than sharing a frame's worth of gestures.
+          OverlayHandles(state)
+        }
       }
     }
-
-    StageChrome(state, Modifier.fillMaxSize().padding(12.dp))
+    StageFloorNotes(state)
   }
 }
+
+/**
+ * The line of machine text above the picture, the status on the left, the tool's step in the middle and the timecode
+ * on the right.
+ */
+@Composable
+private fun OsdStatus(
+  state: SampleAppState,
+  compact: Boolean,
+) {
+  val style = MaterialTheme.typography.labelLarge.copy(
+    fontSize = if (compact) 20.sp else 24.sp,
+    lineHeight = if (compact) 22.sp else 26.sp,
+  )
+  val colors = MaterialTheme.colorScheme
+  val live = state.player != null && !state.previewUnavailable
+  val (word, wordColor) = when {
+    live && state.playerStatus is PlaybackStatus.Error -> "ERROR" to colors.error
+    live && state.playing -> "PLAY" to colors.primary
+    live -> state.playerStatus.statusWord() to colors.primary
+    state.sourceFailure != null -> "UNREADABLE" to colors.error
+    else -> "SCHEMATIC" to colors.secondary
+  }
+  val fps = state.info?.video?.frameRate
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    FringeText(word, style, wordColor, maxLines = 1)
+    FringeText(
+      text = state.stepLabel(compact),
+      style = style,
+      color = colors.onSurface,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+      contentAlignment = Alignment.Center,
+      modifier = Modifier.weight(1f),
+    )
+    FringeText(timecode(state.positionSeconds.toDouble(), fps), style, colors.primary, maxLines = 1)
+  }
+}
+
+/**
+ * What the selected tool is doing, printed like a deck's step. A phone keeps it short so the status and timecode fit.
+ */
+private fun SampleAppState.stepLabel(compact: Boolean): String {
+  val edit = edit
+  return when (activeTool) {
+    EditorTool.Trim ->
+      if (compact || !edit.trimEnabled) {
+        "TRIM"
+      } else {
+        val start = edit.trimStartSeconds.toDouble().seconds.asClock()
+        val end = edit.trimEndSeconds.toDouble().seconds.asClock()
+        "TRIM  $start TO $end"
+      }
+    EditorTool.Crop -> "REFRAME"
+    EditorTool.Transform -> "ROTATE"
+    EditorTool.Scale -> "SCALE"
+    EditorTool.Adjust -> if (compact) "COLOUR GRADE" else "EFFECT  COLOUR GRADE"
+    EditorTool.Text -> if (compact) "TEXT" else "OVERLAY  TEXT"
+    EditorTool.Watermark -> if (compact) "IMAGE" else "OVERLAY  IMAGE"
+    EditorTool.Audio -> "AUDIO"
+    EditorTool.Background -> "FILL"
+  }
+}
+
+/**
+ * The frame size and any note about a stopped preview, on the floor under the picture rather than over it.
+ */
+@Composable
+private fun StageFloorNotes(state: SampleAppState) {
+  val frame = state.compositionFrameLabel()
+  val note = state.previewNote()
+  if (frame == null && note == null) return
+
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    if (note != null) {
+      Text(
+        text = note,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.weight(1f, fill = false),
+      )
+    }
+    if (frame != null) {
+      Text(frame, style = MaterialTheme.typography.labelSmall, color = Tokens.coral, maxLines = 1)
+    }
+  }
+}
+
+/**
+ * Draws the camera corners and a thin outline outside the element, leaving the element itself untouched.
+ */
+private fun Modifier.viewfinderBrackets(): Modifier =
+  drawBehind {
+    val reach = BracketReach.toPx()
+    val length = BracketLength.toPx()
+    val width = BracketWidth.toPx()
+    val outline = BracketWidth.toPx()
+    drawRect(
+      color = Tokens.line,
+      topLeft = Offset(-outline / 2f, -outline / 2f),
+      size = Size(size.width + outline, size.height + outline),
+      style = Stroke(outline),
+    )
+    val left = -reach
+    val top = -reach
+    val right = size.width + reach
+    val bottom = size.height + reach
+    fun corner(x: Float, y: Float, xDirection: Float, yDirection: Float) {
+      drawRect(
+        color = Tokens.trackTick,
+        topLeft = Offset(if (xDirection > 0) x else x - length, if (yDirection > 0) y else y - width),
+        size = Size(length, width),
+      )
+      drawRect(
+        color = Tokens.trackTick,
+        topLeft = Offset(if (xDirection > 0) x else x - width, if (yDirection > 0) y else y - length),
+        size = Size(width, length),
+      )
+    }
+    corner(left, top, 1f, 1f)
+    corner(right, top, -1f, 1f)
+    corner(left, bottom, 1f, -1f)
+    corner(right, bottom, -1f, -1f)
+  }
 
 /**
  * What the stage draws where there is no picture to draw: the same edit, laid out from its
@@ -400,14 +558,14 @@ private fun DrawScope.drawTestCard(
 
   drawRect(
     brush = Brush.linearGradient(
-      colors = listOf(Color(0xFF2B3A67), Color(0xFF6C3F8F), Color(0xFFB4553C)),
+      colors = listOf(Tokens.sceneSkyTop, Tokens.sceneSkyMiddle, Tokens.sceneSkyLow),
       start = Offset.Zero,
       end = Offset(width, height),
     ),
     size = frame,
   )
 
-  val gridColor = Color.White.copy(alpha = 0.10f)
+  val gridColor = Tokens.white.copy(alpha = 0.10f)
   for (i in 1..2) {
     drawLine(gridColor, Offset(width * i / 3f, 0f), Offset(width * i / 3f, height), strokeWidth = 1f)
     drawLine(gridColor, Offset(0f, height * i / 3f), Offset(width, height * i / 3f), strokeWidth = 1f)
@@ -415,7 +573,7 @@ private fun DrawScope.drawTestCard(
 
   // A corner block and an up arrow, so a rotation and a flip both change something obvious.
   drawRect(
-    color = Color(0xFFFFB454),
+    color = Tokens.amber,
     topLeft = Offset(unit * 0.06f, unit * 0.06f),
     size = Size(unit * 0.14f, unit * 0.14f),
   )
@@ -429,15 +587,15 @@ private fun DrawScope.drawTestCard(
     lineTo(arrowCenter - arrowHeight * 0.6f, arrowTop + arrowHeight)
     close()
   }
-  drawPath(arrow, Color.White.copy(alpha = 0.9f))
+  drawPath(arrow, Tokens.white.copy(alpha = 0.9f))
 
   drawCircle(
-    color = Color(0xFF5FD3A3),
+    color = Tokens.cyan,
     radius = unit * 0.13f,
     center = Offset(width * 0.36f, height * 0.55f),
   )
   drawCircle(
-    color = Color.White.copy(alpha = 0.35f),
+    color = Tokens.white.copy(alpha = 0.35f),
     radius = unit * 0.2f,
     center = Offset(width * 0.5f, height * 0.5f),
     style = Stroke(width = max(1f, unit * 0.008f)),
@@ -448,7 +606,7 @@ private fun DrawScope.drawTestCard(
     size = Size(width, height * 0.18f),
   )
   drawRect(
-    color = Color(0xFF8E9BFF).copy(alpha = 0.9f),
+    color = Tokens.pink.copy(alpha = 0.9f),
     topLeft = Offset(width * 0.08f, height * 0.87f),
     size = Size(width * 0.3f * sourceAspect.coerceIn(0.5f, 2f), height * 0.04f),
   )
@@ -485,7 +643,7 @@ private fun CaptionOverlay(
       modifier = Modifier
         .align(BiasAlignment(edit.textAnchorX * 2f - 1f, edit.textAnchorY * 2f - 1f))
         .widthIn(max = frameWidth * edit.textMaxWidth)
-        .then(if (plate != null) Modifier.background(Color(plate), RoundedCornerShape(3.dp)) else Modifier)
+        .then(if (plate != null) Modifier.background(Color(plate)) else Modifier)
         .padding(horizontal = if (plate != null) 6.dp else 0.dp, vertical = if (plate != null) 2.dp else 0.dp),
     )
   }
@@ -512,54 +670,15 @@ private fun WatermarkOverlay(
       modifier = Modifier
         .align(alignment)
         .size(width, width * WATERMARK_ASPECT)
-        .background(Color.White.copy(alpha = 0.14f * edit.watermarkOpacity), RoundedCornerShape(3.dp))
-        .border(1.dp, Color.White.copy(alpha = 0.7f * edit.watermarkOpacity), RoundedCornerShape(3.dp)),
+        .background(Tokens.white.copy(alpha = 0.14f * edit.watermarkOpacity))
+        .border(1.dp, Tokens.white.copy(alpha = 0.7f * edit.watermarkOpacity)),
       contentAlignment = Alignment.Center,
     ) {
       Text(
         text = "IMG",
-        color = Color.White.copy(alpha = 0.85f * edit.watermarkOpacity),
+        color = Tokens.white.copy(alpha = 0.85f * edit.watermarkOpacity),
         fontSize = with(LocalDensity.current) { (width * 0.22f).toSp() },
         fontWeight = ComposeFontWeight.Bold,
-      )
-    }
-  }
-}
-
-@Composable
-private fun StageChrome(
-  state: SampleAppState,
-  modifier: Modifier = Modifier,
-) {
-  val live = state.player != null && !state.previewUnavailable
-  val frame = state.compositionFrameLabel()
-
-  Box(modifier) {
-    Column(Modifier.align(Alignment.TopStart)) {
-      if (live) {
-        Pill(state.playerStatus.pillLabel(), MaterialTheme.colorScheme.primary)
-      } else if (state.sourceFailure != null) {
-        Pill("UNREADABLE", MaterialTheme.colorScheme.error)
-      } else {
-        Pill("SCHEMATIC", MaterialTheme.colorScheme.secondary)
-      }
-    }
-    Row(Modifier.align(Alignment.TopEnd)) {
-      if (frame != null) {
-        Pill(frame, MaterialTheme.colorScheme.onSurfaceVariant)
-      }
-    }
-
-    state.previewNote()?.let { note ->
-      Text(
-        text = note,
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center,
-        modifier = Modifier
-          .align(Alignment.BottomCenter)
-          .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(6.dp))
-          .padding(horizontal = 10.dp, vertical = 6.dp),
       )
     }
   }
@@ -571,7 +690,7 @@ private fun StageChrome(
 private fun SampleAppState.previewNote(): String? =
   sourceFailure ?: previewError?.stageSentence()
 
-private fun PlaybackStatus.pillLabel(): String =
+private fun PlaybackStatus.statusWord(): String =
   when (this) {
     PlaybackStatus.Idle -> "IDLE"
     PlaybackStatus.Preparing -> "LOADING"
@@ -580,6 +699,10 @@ private fun PlaybackStatus.pillLabel(): String =
     PlaybackStatus.Released -> "RELEASED"
     is PlaybackStatus.Error -> "ERROR"
   }
+
+private val BracketReach = 8.dp
+private val BracketLength = 18.dp
+private val BracketWidth = 2.dp
 
 private const val BLUR_GAIN = 6f
 private const val CAP_HEIGHT_RATIO = 0.7f

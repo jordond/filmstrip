@@ -439,6 +439,30 @@ public object SampleIcons {
       lineTo(18f, 14.5f)
     }
 
+  public val ChevronRight: ImageVector =
+    stroke("chevronRight") {
+      moveTo(9.5f, 6f)
+      lineTo(15.5f, 12f)
+      lineTo(9.5f, 18f)
+    }
+
+  public val Record: ImageVector =
+    solid("record") {
+      moveTo(12f, 5f)
+      arcToRelative(7f, 7f, 0f, isMoreThanHalf = true, isPositiveArc = true, 0f, 14f)
+      arcToRelative(7f, 7f, 0f, isMoreThanHalf = true, isPositiveArc = true, 0f, -14f)
+      close()
+    }
+
+  public val Stop: ImageVector =
+    solid("stop") {
+      moveTo(6f, 6f)
+      lineTo(18f, 6f)
+      lineTo(18f, 18f)
+      lineTo(6f, 18f)
+      close()
+    }
+
   public val Film: ImageVector =
     stroke("film") {
       moveTo(3f, 5f)

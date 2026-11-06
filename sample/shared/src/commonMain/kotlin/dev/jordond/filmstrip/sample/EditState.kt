@@ -434,7 +434,7 @@ public class EditState {
     blurDim = 0f
   }
 
-  private fun window(
+  internal fun window(
     enabled: Boolean,
     startSeconds: Float,
     endSeconds: Float,

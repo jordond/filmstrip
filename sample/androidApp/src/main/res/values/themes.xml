@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.Filmstrip" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">#08080A</item>
+        <item name="android:windowBackground">#0E0C12</item>
     </style>
 </resources>

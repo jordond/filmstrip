@@ -1,22 +1,26 @@
 package dev.jordond.filmstrip.sample
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.scene.DialogSceneStrategy
 import androidx.navigation3.scene.SinglePaneSceneStrategy
 import androidx.navigation3.ui.NavDisplay
 import dev.jordond.filmstrip.filekit.compose.rememberMediaPickerLauncher
 import dev.jordond.filmstrip.sample.ui.SampleTheme
+import dev.jordond.filmstrip.sample.ui.Tokens
 import dev.jordond.filmstrip.sample.ui.isCompactWidth
 import dev.jordond.filmstrip.sample.ui.nav.BottomSheetSceneStrategy
 import dev.jordond.filmstrip.sample.ui.nav.OverlayContainer
 import dev.jordond.filmstrip.sample.ui.nav.SheetProperties
+import dev.jordond.filmstrip.sample.ui.nav.overlayDialogProperties
 import dev.jordond.filmstrip.sample.ui.screen.CapabilitiesPane
 import dev.jordond.filmstrip.sample.ui.screen.DiagnosticsPane
 import dev.jordond.filmstrip.sample.ui.screen.EditorScreen
@@ -52,9 +56,16 @@ fun App(state: SampleAppState) {
           }
 
           entry<SampleRoute.Export>(
-            metadata = overlayMetadata(compact, dismissible = !state.exporting),
+            metadata = overlayMetadata(compact, dismissible = !state.exporting, sheetColor = Tokens.vcrBorder),
           ) {
-            OverlayContainer(compact) { ExportPane(state) }
+            OverlayContainer(
+              compact = compact,
+              maxWidth = 1120.dp,
+              maxHeight = 760.dp,
+              frame = BorderStroke(4.dp, Tokens.vcrBorder),
+            ) {
+              ExportPane(state)
+            }
           }
 
           entry<SampleRoute.Capabilities>(
@@ -81,15 +92,13 @@ fun App(state: SampleAppState) {
 /**
  * A sheet at the bottom edge where the window is narrow, a centred dialog where it is not.
  */
-private fun overlayMetadata(compact: Boolean, dismissible: Boolean): Map<String, Any> =
+private fun overlayMetadata(
+  compact: Boolean,
+  dismissible: Boolean,
+  sheetColor: Color? = null,
+): Map<String, Any> =
   if (compact) {
-    BottomSheetSceneStrategy.sheet(SheetProperties(dismissOnBack = dismissible))
+    BottomSheetSceneStrategy.sheet(SheetProperties(dismissOnBack = dismissible, container = sheetColor))
   } else {
-    DialogSceneStrategy.dialog(
-      DialogProperties(
-        dismissOnBackPress = dismissible,
-        dismissOnClickOutside = dismissible,
-        usePlatformDefaultWidth = false,
-      ),
-    )
+    DialogSceneStrategy.dialog(overlayDialogProperties(dismissible))
   }

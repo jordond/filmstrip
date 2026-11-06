@@ -1,6 +1,5 @@
 package dev.jordond.filmstrip.sample.ui.screen
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,15 +7,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,6 +24,9 @@ import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.filekit.compose.rememberShareLauncher
 import dev.jordond.filmstrip.sample.SampleAppState
 import dev.jordond.filmstrip.sample.diagnosticsReport
+import dev.jordond.filmstrip.sample.ui.Key
+import dev.jordond.filmstrip.sample.ui.KeyStyle
+import dev.jordond.filmstrip.sample.ui.Panel
 import dev.jordond.filmstrip.sample.ui.SampleIcons
 import dev.jordond.filmstrip.sample.writeDiagnostics
 import io.github.vinceglb.filekit.path
@@ -71,20 +67,22 @@ public fun DiagnosticsPane(
   ) {
     PaneHeader(title = "Diagnostics", onClose = state::navigateBack)
 
-    Text(BLURB, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+    Text(BLURB, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-      Button(
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+      Key(
+        label = "COPY REPORT",
         onClick = {
           clipboard.setText(AnnotatedString(report.markdown))
           copied = true
         },
-      ) {
-        Icon(SampleIcons.Check, contentDescription = null, modifier = Modifier.size(16.dp))
-        Text("   Copy report", style = MaterialTheme.typography.labelLarge)
-      }
+        modifier = Modifier.weight(1f),
+        icon = SampleIcons.Check,
+        horizontalPadding = 8.dp,
+      )
 
-      OutlinedButton(
+      Key(
+        label = if (saving) "SAVING" else "SAVE FILES",
         onClick = {
           saving = true
           scope.launch {
@@ -97,14 +95,11 @@ public fun DiagnosticsPane(
             }
           }
         },
+        modifier = Modifier.weight(1f),
+        style = KeyStyle.Secondary,
         enabled = !saving,
-      ) {
-        if (saving) {
-          CircularProgressIndicator(Modifier.size(16.dp), color = MaterialTheme.colorScheme.primary, strokeWidth = 2.dp)
-        } else {
-          Text("Save files", style = MaterialTheme.typography.labelLarge)
-        }
-      }
+        horizontalPadding = 8.dp,
+      )
     }
 
     if (copied) {
@@ -123,15 +118,13 @@ public fun DiagnosticsPane(
       )
     }
 
-    Text(
-      text = report.markdown,
-      style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-      modifier = Modifier
-        .fillMaxWidth()
-        .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(12.dp))
-        .padding(12.dp)
-        .horizontalScroll(rememberScrollState()),
-    )
+    Panel("REPORT", Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceContainer, bodyPadding = 12.dp) {
+      Text(
+        text = report.markdown,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+      )
+    }
   }
 }

@@ -27,7 +27,7 @@
         <key>UILaunchScreen</key>
         <dict>
             <key>UIColorName</key>
-            <string></string>
+            <string>Ground</string>
         </dict>
         <key>UIRequiredDeviceCapabilities</key>
         <array>
