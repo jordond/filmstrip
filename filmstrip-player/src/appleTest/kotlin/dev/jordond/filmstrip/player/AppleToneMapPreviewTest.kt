@@ -152,8 +152,9 @@ class AppleToneMapPreviewTest {
           .shouldBeInstanceOf<PlanResult.Ready<PreviewPlan>>()
           .plan
       val laid = plan.resolved.toAvComposition()
-      // The simulator fails any item carrying a video output with -12784, whatever renders it, the handler included. So
-      // it proves the item plays and seeks through the compositor, and macOS and an iPhone read the pixels too.
+      // The iOS 27.0 simulator runtime fails an item with a video composition and a video output with -12784, where
+      // 26.5 and 27.2 reach ready. So a simulator proves the item plays and seeks through the compositor, and macOS and
+      // an iPhone read the pixels too.
       val output = if (runsOnSimulator()) null else bgraOutput()
       val item =
         AVPlayerItem(asset = laid.composition).apply {
@@ -245,8 +246,6 @@ class AppleToneMapPreviewTest {
       }
     }
 
-  private fun runsOnSimulator(): Boolean = NSProcessInfo.processInfo.environment[SIMULATOR_KEY] != null
-
   private fun bgraOutput(): AVPlayerItemVideoOutput =
     AVPlayerItemVideoOutput(
       pixelBufferAttributes =
@@ -325,7 +324,6 @@ class AppleToneMapPreviewTest {
   private companion object {
     const val HALF = 0.5f
     const val FIXTURES = "FILMSTRIP_FIXTURES"
-    const val SIMULATOR_KEY = "SIMULATOR_UDID"
     const val HDR_FIXTURE = "android_export_hdr.mp4"
     const val MAX_CODE = 255.0
     const val THUMBNAIL_HEIGHT = 720

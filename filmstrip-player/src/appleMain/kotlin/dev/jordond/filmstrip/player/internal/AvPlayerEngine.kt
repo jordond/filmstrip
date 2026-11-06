@@ -57,8 +57,8 @@ import kotlin.time.Duration.Companion.seconds
  * pipelines that agree, they are the same one.
  *
  * Seeking lives in [AvSeekCoordinator], the loop range in [AvLoopRangeController], the playhead and the transport in
- * [AvTransport], and what AVFoundation reports about the item in [AvItemObservers]. This class loads compositions and
- * wires those together.
+ * [AvTransport], what AVFoundation reports about the item in [AvItemObservers], and which failures the caller hears
+ * about in [AvItemFailures]. This class loads compositions and wires those together.
  *
  * Not thread safe, and neither is [BasePlayerEngine]. Every platform callback hops onto [scope]
  * before it touches anything here, and nothing here dispatches to the main queue: a host test drives
@@ -70,6 +70,7 @@ import kotlin.time.Duration.Companion.seconds
  * @param config How the player was built.
  * @param muted Silences the player's output without touching its volume. Audio still decodes and plays, nothing
  * reaches the speakers.
+ * @param itemOf Builds the item a lowered composition plays through.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal class AvPlayerEngine(
@@ -78,6 +79,7 @@ internal class AvPlayerEngine(
   config: PlayerConfig,
   muted: Boolean = false,
   private val bytesRoot: String = AppleScratch.defaultRoot,
+  private val itemOf: (AvComposition) -> AVPlayerItem = ::previewItem,
 ) : PlannedPlayerEngine<PreviewPlan>(parent, config.qualityPolicy, config.exportSpec, planner) {
   private val player = AVPlayer().apply { setMuted(muted) }
 
@@ -91,7 +93,7 @@ internal class AvPlayerEngine(
       player = player,
       onChanged = ::onPlatformChanged,
       onReachedEnd = ::onReachedEnd,
-      onFailedToPlayToEnd = ::onFailedToPlayToEnd,
+      onFailedToPlayToEnd = { stopped, reason -> failures.stoppedShort(stopped, reason) },
       onStalled = { setStalled(true) },
       onFirstFrame = { emitEvent(PlaybackEvent.FirstFrameRendered) },
     )
@@ -110,6 +112,22 @@ internal class AvPlayerEngine(
   private val drawFailure = AvDrawFailure(scope, current = { lowered }) { fail(it) }
   private val wrapGuard = WrapGuard()
 
+  // Halting the transport pauses the player, which raises a time control change that reads a failed item back here, so
+  // only the first read may halt.
+  private val failures =
+    AvItemFailures(
+      attached = { item },
+      onFailed = { fail(it) },
+      onFailedAgain = {
+        seeks.abandon()
+        setStatus(PlaybackStatus.Error(it))
+      },
+      onStoppedShort = {
+        transport.halt()
+        emitEvent(PlaybackEvent.Failed(it))
+      },
+    )
+
   private val seeks: AvSeekCoordinator =
     AvSeekCoordinator(
       scope = scope,
@@ -120,6 +138,7 @@ internal class AvPlayerEngine(
       playhead = { transport.playhead },
       onIssued = {
         reachedEnd = false
+        failures.resumed()
         transport.cancelStopReading()
       },
       onLanded = { transport.onSeekLanded(it) },
@@ -235,7 +254,11 @@ internal class AvPlayerEngine(
   }
 
   override fun onPlay() {
+    // A failed status is terminal for the item, so only a new load can play. The status read reports it if that read
+    // hasn't landed yet.
+    if (item?.status == AVPlayerItemStatusFailed) return
     reachedEnd = false
+    failures.resumed()
     transport.play()
   }
 
@@ -362,11 +385,7 @@ internal class AvPlayerEngine(
     setStatus(PlaybackStatus.Preparing)
     detachItem()
 
-    val fresh =
-      AVPlayerItem(asset = av.composition).apply {
-        videoComposition = av.videoComposition
-        audioMix = av.audioMix
-      }
+    val fresh = itemOf(av)
 
     lowered = av
     drawFailure.watch(av)
@@ -397,7 +416,7 @@ internal class AvPlayerEngine(
         setStatus(PlaybackStatus.Error(broken))
       }
       target.status == AVPlayerItemStatusFailed -> {
-        fail(target.playbackError())
+        failures.statusFailed(target)
       }
       target.status == AVPlayerItemStatusReadyToPlay -> {
         setStatus(if (reachedEnd) PlaybackStatus.Ended else PlaybackStatus.Ready)
@@ -419,16 +438,6 @@ internal class AvPlayerEngine(
     setStatus(PlaybackStatus.Ended)
     setPlayWhenReady(false)
     emitEvent(PlaybackEvent.Ended(readPosition(), duration))
-  }
-
-  private fun onFailedToPlayToEnd() {
-    transport.halt()
-    val failure =
-      PlaybackError.Underlying(
-        PlaybackError.Underlying.NO_PLATFORM_CODE,
-        "AVFoundation stopped before the composition ended.",
-      )
-    emitEvent(PlaybackEvent.Failed(failure))
   }
 
   /**
@@ -460,6 +469,7 @@ internal class AvPlayerEngine(
   private fun detachItem() {
     observers.detachItem()
     item = null
+    failures.clear()
     lowered = null
     seeks.abandon()
     transport.cancelStopReading()
@@ -472,3 +482,9 @@ internal class AvPlayerEngine(
     val POSITION_INTERVAL = 16.milliseconds
   }
 }
+
+private fun previewItem(lowered: AvComposition): AVPlayerItem =
+  AVPlayerItem(asset = lowered.composition).apply {
+    videoComposition = lowered.videoComposition
+    audioMix = lowered.audioMix
+  }

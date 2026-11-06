@@ -146,7 +146,8 @@ class AppleSdColorPreviewTest {
       }
     }
 
-  // The simulator fails any item carrying a video output with -12784, so only macOS and an iPhone read the pixels here.
+  // The iOS 27.0 simulator runtime fails an item with a video composition and a video output with -12784, where 26.5
+  // and 27.2 reach ready. Only macOS and an iPhone read the pixels here.
   @IgnoreOnSimulator
   @Test
   fun `a player draws the colour an sd clip displays as`() =

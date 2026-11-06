@@ -52,6 +52,9 @@ without coroutines.
 - `setPlaybackRange` confines playback without changing the composition, which is how a trim drag previews without a
   rebuild.
 - `setVolume` sets monitor volume, which only the player hears. To change the export's level, see [Audio](/guides/audio/).
+- On Apple, `play` on an item AVFoundation failed starts nothing and the status stays `PlaybackStatus.Error`, so a new
+  composition is what tries again. An item that stops before its end reports `PlaybackEvent.Failed` once per play or seek,
+  with the platform's error in it.
 
 ## Features
 
