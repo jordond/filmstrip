@@ -3,22 +3,8 @@ name: docs
 # Only `check` installs dependencies, and it has no secrets. The jobs holding CLOUDFLARE_API_TOKEN
 # deploy the built artifact with the Wrangler pinned below, so no dependency bump reaches the token.
 
+# Manual only until the site goes live.
 on:
-  push:
-    branches: [main]
-    paths: &paths
-      - website/**
-      - internal/docs-samples/**
-      - internal/dokka-plugin/**
-      - filmstrip*/src/**
-      - filmstrip*/Module.md
-      - sample/**
-      - build.gradle.kts
-      - gradle/libs.versions.toml
-      - .github/workflows/docs.yml
-      - .github/scripts/sticky-comment.sh
-  pull_request:
-    paths: *paths
   workflow_dispatch:
 
 permissions:
