@@ -35,8 +35,8 @@ still drawn after it.
   to the bounding box of the turned picture, with black in the corners.
 - `flip` mirrors across `FlipAxis.Horizontal` or `FlipAxis.Vertical`.
 - `crop(aspect)` reframes to an aspect ratio, keeping the region around its anchor.
-- `scale` sets the output height. The width follows from the aspect, and the height is rounded up to the encoder's
-  alignment, which the plan reports.
+- `scale` sets the output height. The width follows from the aspect, and each side rounds down to the encoder's
+  alignment, which the plan reports as a `ResolutionClamped` adjustment.
 
 `crop` also takes a rectangle in fractions of the frame, measured after whatever geometry ran before it. A rectangle
 with no area or reaching outside the frame throws `IllegalArgumentException` when you build it.
@@ -91,7 +91,7 @@ A region whose shape differs from the frame's stretches to fill it. Its result d
 so the effect is only valid on a clip. A plan refuses it on a track, on the composition and on a clip of a looping track.
 
 <Aside type="note" title="Limits">
-- The ffmpeg backend refuses `kenBurns`, since it has no per-frame crop yet.
+- The ffmpeg backend refuses `kenBurns`, since it has no per-frame crop.
 - The browser only turns a frame by whole quarter turns, and refuses any other `rotate` angle by name.
 - A blurred fill on the ffmpeg backend needs a build that carries the `gblur` filter, and is refused by name without it.
 - On a kept HDR grade, `brightness` and the color matrices read the frame the way an SDR display at reference white

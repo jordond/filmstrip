@@ -10,8 +10,8 @@ import dev.jordond.filmstrip.geometry.Fit
 /**
  * Set the output height in pixels. The width follows from the composition's aspect.
  *
- * @property heightPx Target height in pixels. Rounded up to the encoder's alignment, and the
- * rounding is reported.
+ * @property heightPx Target height in pixels. Rounded down to the encoder's alignment, and the
+ * rounding is reported as a `ResolutionClamped` adjustment.
  * @property fit How the frame is fitted to [heightPx].
  */
 @Poko

@@ -78,7 +78,12 @@ changes the duration. Debounce structural edits, so a drag-reorder issues one re
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="swap" />
 
 A load with no `startAt` holds the playhead. The transport stays where it was, so a playing preview keeps playing and a
-paused one stays paused.
+paused one stays paused. Where the playhead lands depends on that transport:
+
+- A paused playhead lands on the frame it rounds to.
+- A playing playhead lands on the first frame at or after its time.
+- A playhead past the end of a shorter composition lands on the last frame.
+- A playing playhead at or past a loop range's wrap lands on the start of the range.
 
 `previewInfo` says what's being delivered, including its `outputSize`, its `parity` with the export and its `inertNotices`,
 which match what the export's plan carries.

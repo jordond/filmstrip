@@ -81,7 +81,7 @@ Pick single artifacts instead of the bundle when you want less on the classpath.
 | --- | --- |
 | `filmstrip` | The bundle: core, effects, player, and the right backend for each target, plus `allBackends()` to register them. Not Compose. |
 | `filmstrip-core` | Model, `MediaSource`/`MediaSink`, `probe()`, `ThumbnailSource`, the `VideoPlayer` API and `PlayerEngine` SPI, and the effect SPI. No runtime, no effect catalogue. |
-| `filmstrip-effects` | The built-in effect catalogue. GL effects on Android, Core Image on Apple, ffmpeg filter graphs on the JVM, and canvas drawing in the browser. |
+| `filmstrip-effects` | The built-in effect catalogue. GL effects on Android, Core Image on Apple, ffmpeg filter graphs on the JVM, and WebGL2 passes in the browser. |
 | `filmstrip-transform` | The export planner, shared by every backend. Add a backend artifact alongside it to actually export. |
 | `filmstrip-transform-media3` | The Media3 backend, Android. |
 | `filmstrip-transform-avfoundation` | The AVFoundation backend, iOS and macOS. |

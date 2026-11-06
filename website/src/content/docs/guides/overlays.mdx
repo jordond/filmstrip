@@ -26,6 +26,10 @@ file describes, and an untagged picture is read as sRGB. SDR output clips a tagg
 HDR grade keeps them inside BT.2020. When a platform's decoder can't land the picture that way, the effect resolves as
 degraded or unsupported and says why.
 
+An export reads a path or URI picture as it is on disk when the export starts, so a file changed after planning draws
+as changed and a deleted one is refused by name. A browser fetches a URI again for each export, and refuses it by name
+if the fetch takes longer than 60 seconds. Bytes are held by value and never change.
+
 ## Text
 
 `textOverlay` burns text into the frame. A preview and its export break lines on the same words.
@@ -87,6 +91,7 @@ on its [inert notices](/guides/export/#inert-notices).
 
 <Aside type="note" title="Limits">
 - A browser page can't read a file path, so an `ImageSource.Path` overlay is refused by name there. Pass bytes or a URI.
+- A path or URI picture's encoded bytes must fit in 1 GiB. Past that it's refused by name.
 - media3 uploads each overlay as one texture, so a picture or text longer on a side than the device's
   `GL_MAX_TEXTURE_SIZE` is refused by name. The browser does the same with WebGL's `MAX_TEXTURE_SIZE`.
 - media3 holds an overlay's position inside the frame, so one animated off the frame stops at the edge there.

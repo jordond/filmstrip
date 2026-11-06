@@ -1,5 +1,77 @@
 ---
 title: Limits
+description: What filmstrip can't do on each backend, and whose limit it is.
 ---
 
-This page is being written.
+Each limit is named once here, with a link to the page that explains the feature around it.
+
+## Stream copy
+
+An export that can copy its streams does, with no re-encode. `ExportPlan.copyBlockedBy` lists every reason one didn't,
+so you can see what to drop to get it back. See [Export](/guides/export/).
+
+| Source of the block | `CopyBlocker`                                                                             |
+| ------------------- | ----------------------------------------------------------------------------------------- |
+| The spec            | `FrameRateSet`, `VideoCodecNamed`, `AudioCodecNamed`, `HeightSet`, `BitrateSet`           |
+| The edit's shape    | `MultipleTracks`, `MultipleClips`, `TrackStartsLate`, `TrackDropsAStream`, `FrameResized` |
+| Effects             | `CompositionHasEffects`, `TrackHasEffects`, `ClipHasEffects`                              |
+| Audio               | `AudioSpecChanged`, `CompositionGainChanged`, `TrackGainChanged`, `ClipGainChanged`       |
+| The source          | `TrimNotOnSyncSample`, `MuxerRefusesSource`, `SourceCodecUnnameable`, `GradeMustToneMap`  |
+| The backend         | `BackendCannotCopy`                                                                       |
+
+Every built-in backend can copy, so none of them reports `BackendCannotCopy`. `quality` blocks as `BitrateSet`, and
+`MatchSource` doesn't block at all.
+
+`Upload`, `Share` and `Archive` each name a codec, so those [presets](/guides/export/#presets) never copy. `Original`
+keeps the copy open.
+
+## Encoder color
+
+Some Android encoders write a different color matrix than they were asked for. filmstrip tags the file with what the
+encoder writes, so its colors decode as authored, and reports a `ColorSpaceChanged` adjustment. Android names primaries
+and matrix together, so a file tagged BT.601 records BT.470 BG primaries too, and a color-managed player can show greens
+a shade apart from the preview.
+
+That adjustment only arrives on `ExportStatus.Success`. A plan can't see it, so a plan can say `Capable` and a `strict`
+spec can't refuse it. See [Export](/guides/export/#run).
+
+## Placement
+
+A clip's placement is the same fraction of the frame on every backend, but not every backend can draw a fraction of a
+pixel. See [Fit](/guides/effects/#fit).
+
+- media3 draws a frame's edge on a pixel edge, and `scale`, `crop` and `pad` in ffmpeg take whole pixels. Both round the
+  placement the same way, so they land on the same pixels.
+- On a 4:2:0 chain, ffmpeg's `pad` and `overlay` land an odd offset on the even pixel below it. A canvas built by a
+  `crop` with `Fit.Contain` or `Fit.Stretch` moves to 4:4:4 where it has an odd figure, so it lands exact.
+- Apple and the browser place a clip at its exact fraction.
+
+## HDR text and pictures
+
+On an HDR grade, an opaque overlay texel lands at the light a fill of that color lands at, and soft edges, fades and
+opacity blend in linear display light. That holds on every backend, ffmpeg included. The one exception is media3 on an
+HLG grade, which holds the frame as scene light and blends there, and the plan reports it as an approximated effect. See
+[Overlays](/guides/overlays/) and [HDR](/guides/hdr/).
+
+## Audio
+
+ffmpeg splits a looping clip into one branch per pass, and up to one pass of decoded media sits in memory for each
+branch still waiting. A long clip looped many times costs that much memory. See
+[Extra tracks](/guides/audio/#extra-tracks).
+
+## Sinks
+
+`MediaSink.Uri` is `file://` only on Apple and ffmpeg, and anything else is refused as `SinkUnwritable`. ffmpeg also
+takes a bare path there. Android writes to any other scheme through its content resolver. The browser ignores the URI
+and hands back an object URL. See [Sinks](/guides/sources-and-sinks/#sinks).
+
+## Named in the guides
+
+The rest are next to the feature they limit.
+
+- [Player](/guides/player/): seeking, scrubbing and redraw cost per backend.
+- [Overlays](/guides/overlays/): file paths in the browser, texture sizes, off-frame animation and line breaking.
+- [Effects](/guides/effects/): `kenBurns`, `rotate`, `Fill.Blur` and color effects on a kept grade.
+- [Audio](/guides/audio/): the media3 tail and the browser preview's fades.
+- [HDR](/guides/hdr/): what each backend can tone map and read.
+- [Stills](/guides/stills/): which backends put a still on the timeline.

@@ -9,7 +9,7 @@ export const MIN_IOS = '15'
 export const MIN_MACOS = '12'
 
 /** The browsers filmstrip is tested on. */
-export const TESTED_BROWSERS = 'Chromium-based browsers (Chrome, Edge)'
+export const TESTED_BROWSERS = 'Chrome'
 
 const catalogPath = 'gradle/libs.versions.toml'
 const toolchainPath =

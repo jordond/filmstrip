@@ -1,5 +1,45 @@
 ---
 title: Targets
+description: The Kotlin targets filmstrip builds for and which module runs on each.
 ---
 
-This page is being written.
+filmstrip builds for these Kotlin targets.
+
+| Platform | Kotlin targets                   |
+| -------- | -------------------------------- |
+| Android  | The Android library target       |
+| iOS      | `iosArm64`, `iosSimulatorArm64`  |
+| macOS    | `macosArm64`                     |
+| JVM      | `jvm`                            |
+| Browser  | `js`, `wasmJs`                   |
+
+Apple targets are arm64 only. There's no `iosX64` or `macosX64`, so a native build doesn't run on an Intel Mac, and that
+includes the iOS simulator on one.
+
+The versions each platform needs are on [Requirements](/start/requirements/).
+
+## Modules
+
+| Module                             | Android | iOS | macOS | JVM | Browser |
+| ---------------------------------- | ------- | --- | ----- | --- | ------- |
+| `filmstrip`                        | Yes     | Yes | Yes   | Yes | Yes     |
+| `filmstrip-core`                   | Yes     | Yes | Yes   | Yes | Yes     |
+| `filmstrip-effects`                | Yes     | Yes | Yes   | Yes | Yes     |
+| `filmstrip-transform`              | Yes     | Yes | Yes   | Yes | Yes     |
+| `filmstrip-player`                 | Yes     | Yes | Yes   | Yes | Yes     |
+| `filmstrip-transform-media3`       | Yes     | No  | No    | No  | No      |
+| `filmstrip-transform-avfoundation` | No      | Yes | Yes   | No  | No      |
+| `filmstrip-transform-webcodecs`    | No      | No  | No    | No  | Yes     |
+| `filmstrip-transform-ffmpeg`       | No      | No  | No    | Yes | No      |
+| `filmstrip-compose`                | Yes     | Yes | No    | Yes | Yes     |
+| `filmstrip-compose-ui`             | Yes     | Yes | No    | Yes | Yes     |
+| `filmstrip-io-filekit`             | Yes     | Yes | Yes   | Yes | Yes     |
+| `filmstrip-io-filekit-compose`     | Yes     | Yes | No    | Yes | Yes     |
+| `filmstrip-io-okio`                | Yes     | Yes | Yes   | Yes | Yes     |
+| `filmstrip-io-kotlinx`             | Yes     | Yes | Yes   | Yes | Yes     |
+| `filmstrip-test`                   | Yes     | Yes | Yes   | Yes | Yes     |
+
+`filmstrip` and `filmstrip-player` depend on the one backend each target runs. See [Backends](/reference/backends/).
+
+The Compose modules have no macOS target, so a macOS app can export and preview but can't use the Compose player or
+the timeline. A Compose Desktop app runs on the `jvm` target and the ffmpeg backend.

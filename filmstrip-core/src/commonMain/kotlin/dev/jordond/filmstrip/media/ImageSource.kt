@@ -34,7 +34,7 @@ public sealed interface ImageSource {
   ) : ImageSource
 
   /**
-   * Encoded image bytes, in PNG, JPEG or WebP.
+   * Encoded image bytes, in any format the backend can decode.
    *
    * @property bytes The encoded image, still to be decoded by the backend.
    */

@@ -1,5 +1,81 @@
 ---
 title: Codecs
+description: The video and audio codecs each backend encodes, and the overlay picture formats each one draws.
 ---
 
-This page is being written.
+import { Aside } from '@astrojs/starlight/components'
+
+Every backend asks its encoders what they can do when it plans. A codec the device turns out not to have falls back and
+reports a `CodecFallback`, and a `strict` spec refuses instead.
+
+## Video
+
+| `VideoCodec` | Android | Apple | Browser | JVM |
+| ------------ | ------- | ----- | ------- | --- |
+| `H264`       | Yes     | Yes   | Yes     | Yes |
+| `Hevc`       | Yes     | Yes   | Yes     | Yes |
+| `Vp9`        | No      | No    | Yes     | Yes |
+| `Vp8`        | No      | No    | No      | No  |
+| `Av1`        | No      | No    | No      | No  |
+
+`Auto` tries H.264 and then HEVC. The browser tries H.264, then VP9, then HEVC. ffmpeg only writes VP9 when you ask for
+it, and only on a build that carries `libvpx-vp9`.
+
+A kept HDR grade is pinned to one codec: HEVC on Android, Apple and ffmpeg, and VP9 Profile 2 in the browser. See
+[HDR](/guides/hdr/#keeping-a-grade).
+
+## Audio
+
+| `AudioCodec` | Android | Apple | Browser               | JVM |
+| ------------ | ------- | ----- | --------------------- | --- |
+| `Aac`        | Yes     | Yes   | If the browser has it | Yes |
+| `Alac`       | No      | No    | No                    | Yes |
+| `Opus`       | No      | No    | No                    | No  |
+| `Mp3`        | No      | No    | No                    | No  |
+| `Flac`       | No      | No    | No                    | No  |
+| `Vorbis`     | No      | No    | No                    | No  |
+
+`AudioCodec.None` writes no audio track.
+
+The browser asks `AudioEncoder` whether it takes AAC, and the answer depends on the platform the browser runs on. Where
+it doesn't, the browser has no audio encoder to offer.
+
+## Stream copy
+
+A codec no backend encodes can still reach an output by copy.
+
+| Stream | Every backend copies  | The browser also copies |
+| ------ | --------------------- | ----------------------- |
+| Video  | H.264, HEVC, VP9, AV1 | VP8                     |
+| Audio  | AAC, MP3, Opus, FLAC  | Vorbis                  |
+
+What else stops a copy is on [Limits](/reference/limits/#stream-copy).
+
+## Containers
+
+Android and Apple write MP4. The browser writes MP4 too, apart from an SDR VP9 export, which is WebM. ffmpeg picks its
+muxer from the sink's file name, and a temporary sink ends in `.mp4`.
+
+## Overlay pictures
+
+| Format  | Android     | Apple       | Chrome      | JVM (ffmpeg)        |
+| ------- | ----------- | ----------- | ----------- | ------------------- |
+| PNG     | Yes         | Yes         | Yes         | Yes                 |
+| JPEG    | Yes         | Yes         | Yes         | Yes                 |
+| WebP    | Yes         | Yes         | Yes         | Yes                 |
+| GIF     | First frame | First frame | First frame | First frame         |
+| HEIC    | From API 28 | Yes         | No          | Yes                 |
+| AVIF    | From API 31 | Yes         | Yes         | Yes                 |
+| JPEG XL | No          | Yes         | No          | Built with `libjxl` |
+
+A picture a backend can't decode is refused by name.
+
+- Android's decoder hands back nothing for a ten-bit AVIF on API 33 or a twelve-bit HEIC, and draws a twelve-bit AVIF
+  only from API 36. Each of these is refused.
+- Chrome decodes an AVIF deeper than eight bits to eight bits, and the plan reports it as degraded.
+- ffmpeg draws an AVIF or HEIC from its own decode, so the build has to decode them.
+- Apple draws what ImageIO decodes on that OS version.
+
+<Aside type="note">
+EXIF orientation is honored on every backend, and so is the clean aperture of an AVIF or HEIC.
+</Aside>

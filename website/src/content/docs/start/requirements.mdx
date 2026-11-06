@@ -5,7 +5,8 @@ description: The platforms, toolchains and versions filmstrip needs.
 
 import { MIN_IOS, MIN_MACOS, TESTED_BROWSERS, versions } from '../../../lib/versions'
 
-These are read from the build that produced this page, so they match the code.
+The Kotlin, Compose, JDK, Android and ffmpeg versions are read from the build that produced this page, so they match
+the code.
 
 ## Build
 
@@ -27,12 +28,12 @@ These are read from the build that produced this page, so they match the code.
 
 ## Browsers
 
-filmstrip is tested on {TESTED_BROWSERS}. Firefox and Safari have WebCodecs too, but nobody has tested filmstrip
-on them yet. They may work.
+filmstrip is tested on {TESTED_BROWSERS}. Edge, Firefox and Safari have WebCodecs too, but filmstrip isn't tested on
+them. They may work.
 
 ## ffmpeg
 
 The JVM backend links no ffmpeg and bundles none. It runs `ffmpeg` and `ffprobe` as separate programs, found
 through `FfmpegConfig`, then the `FILMSTRIP_FFMPEG` and `FILMSTRIP_FFPROBE` environment variables, then `PATH`. An
-older build, or a git build with no release number, is reported as `FilmstripError.ToolchainMissing` when you plan
-or export, never as a crash.
+older build is reported as `FilmstripError.ToolchainMissing` when you plan or export, never as a crash. A snapshot
+with no release number, like `N-121284-g4c9e0eb`, has nothing to compare, so it's let through.
