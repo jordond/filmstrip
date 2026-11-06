@@ -124,7 +124,7 @@ internal class BrowserStreamCopy(
     var count = 0L
     // Named rather than passed as a nullable, since mediabunny reads an omitted argument and an
     // explicit null differently and only the omitted one means "from the start".
-    val stream = PacketStream(if (from == null) sink.packets() else sink.packets(from))
+    val stream = PacketStream(if (from == null) sink.packets() else sink.packets(from)) {}
 
     try {
       copyWindow(

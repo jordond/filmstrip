@@ -12,6 +12,7 @@ import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.webcodecs.internal.BrowserPipeline
 import dev.jordond.filmstrip.webcodecs.internal.BrowserRender
+import dev.jordond.filmstrip.webcodecs.internal.FrameStream
 import dev.jordond.filmstrip.webcodecs.internal.PipelineResult
 import dev.jordond.filmstrip.webcodecs.internal.SourceCache
 import dev.jordond.filmstrip.webcodecs.internal.verify
@@ -20,6 +21,9 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
@@ -89,6 +93,66 @@ class BrowserPipelineTest {
       }
 
       reported shouldBe STOP_AT
+    }
+
+  // Nothing has been drawn yet, so the only thing holding the sink open is the stream the first pull is
+  // waiting on.
+  @Test
+  fun aRunCancelledDuringItsFirstDecodeClosesTheStream() =
+    runTest {
+      val render = renderOf(compositionOf(makeClip(frames = FRAMES)))
+      val pulled = CompletableDeferred<Unit>()
+      var closes = 0
+      val stream =
+        FrameStream(
+          stubIterator(
+            next = {
+              pulled.complete(Unit)
+              pendingStep()
+            },
+            close = {
+              closes++
+              resolvedStep(true, null)
+            },
+          ),
+        ) { it.close() }
+
+      val sources = SourceCache()
+      try {
+        val job = launch { BrowserPipeline(render, sources) { stream }.run { _, _ -> } }
+        pulled.await()
+        job.cancelAndJoin()
+      } finally {
+        sources.close()
+      }
+
+      closes shouldBe 1
+    }
+
+  @Test
+  fun aRunWhoseFirstDecodeFailsClosesTheStream() =
+    runTest {
+      val render = renderOf(compositionOf(makeClip(frames = FRAMES)))
+      var closes = 0
+      val stream =
+        FrameStream(
+          stubIterator(
+            next = { rejectedStep("the decoder gave up") },
+            close = {
+              closes++
+              resolvedStep(true, null)
+            },
+          ),
+        ) { it.close() }
+
+      val sources = SourceCache()
+      try {
+        assertFailsWith<Throwable> { BrowserPipeline(render, sources) { stream }.run { _, _ -> } }
+      } finally {
+        sources.close()
+      }
+
+      closes shouldBe 1
     }
 
   // No frame is drawn on an audio-only run, so nothing is reported against a frame count either.

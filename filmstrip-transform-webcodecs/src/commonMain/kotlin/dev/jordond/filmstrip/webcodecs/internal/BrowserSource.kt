@@ -21,6 +21,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.UrlSource
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoDecoder
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSampleSink
+import dev.jordond.filmstrip.webcodecs.internal.interop.awaitOwned
 import dev.jordond.filmstrip.webcodecs.internal.interop.jsCopyWith
 import dev.jordond.filmstrip.webcodecs.internal.interop.toUint8Array
 import kotlinx.coroutines.await
@@ -137,7 +138,7 @@ internal class SourceReader(
     val track = videoTrack() ?: return null
     val sink = sinkFor(track, tenBit)
     val end = if (endUs.isFinite()) endUs / MICROS_PER_SECOND else OPEN_ENDED_SECONDS
-    return FrameStream(sink.samples(startUs / MICROS_PER_SECOND, end))
+    return FrameStream(sink.samples(startUs / MICROS_PER_SECOND, end)) { it.close() }
   }
 
   /**
@@ -187,7 +188,7 @@ internal class SourceReader(
     val track = audioTrack() ?: return null
     val sink = AudioSampleSink(track)
     val end = if (endUs.isFinite()) endUs / MICROS_PER_SECOND else OPEN_ENDED_SECONDS
-    return SampleStream(sink.samples(startUs / MICROS_PER_SECOND, end))
+    return SampleStream(sink.samples(startUs / MICROS_PER_SECOND, end)) { it.close() }
   }
 
   fun close() {
@@ -243,7 +244,7 @@ internal class SourceReader(
    * the track answers no rather than failing the plan.
    */
   private suspend fun yieldsTenBit(open: () -> VideoSampleSink?): Boolean {
-    val sample = awaitCatching { open()?.getSample(0.0)?.await() }.getOrNull() ?: return false
+    val sample = awaitCatching { open()?.getSample(0.0)?.awaitOwned { it?.close() } }.getOrNull() ?: return false
     return try {
       sample.format?.toString() == TEN_BIT_FORMAT
     } finally {
@@ -285,9 +286,13 @@ internal class SourceReader(
 
 /**
  * What a mediabunny sink yields, pulled one at a time so a reader is fed only as fast as it reads.
+ *
+ * @param release Frees a value whose reader was cancelled before it got it. A value with nothing to
+ * free passes an empty one.
  */
 internal class PulledStream<T : JsAny>(
   private val iterator: MediabunnyIterator<T>,
+  private val release: (T) -> Unit,
 ) {
   private var finished = false
 
@@ -296,7 +301,10 @@ internal class PulledStream<T : JsAny>(
    */
   suspend fun next(): T? {
     if (finished) return null
-    val step = iterator.next().await()
+    val step =
+      iterator.next().awaitOwned { late ->
+        if (!late.done) late.value?.let(release)
+      }
     if (step.done) {
       finished = true
       return null
@@ -327,14 +335,19 @@ internal typealias FrameStream = PulledStream<VideoSample>
  * needs nothing else, while a preview lands on an arbitrary position and then reads on from there.
  *
  * Every frame handed out is the caller's to close.
+ *
+ * @param release Frees a frame whose caller was cancelled before it got it.
  */
 internal class FrameSampler(
   private val sink: VideoSampleSink,
+  private val release: (VideoSample) -> Unit = { it.close() },
 ) {
   /**
-   * The frame presented at [timestampUs], or null past the end of the track.
+   * The frame presented at [timestampUs], or null before the track's first frame. Past the end of
+   * the track that is the last frame.
    */
-  suspend fun sampleAt(timestampUs: Double): VideoSample? = sink.getSample(timestampUs / MICROS_PER_SECOND).await()
+  suspend fun sampleAt(timestampUs: Double): VideoSample? =
+    sink.getSample(timestampUs / MICROS_PER_SECOND).awaitOwned { late -> late?.let(release) }
 
   /**
    * Frames from [startUs] onwards, up to [endUs]. An [endUs] that is not finite runs to the end of
@@ -345,7 +358,7 @@ internal class FrameSampler(
     endUs: Double,
   ): FrameStream {
     val end = if (endUs.isFinite()) endUs / MICROS_PER_SECOND else OPEN_ENDED_SECONDS
-    return FrameStream(sink.samples(startUs / MICROS_PER_SECOND, end))
+    return FrameStream(sink.samples(startUs / MICROS_PER_SECOND, end), release)
   }
 }
 

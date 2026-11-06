@@ -236,8 +236,9 @@ internal external class VideoSampleSink : JsAny {
   ): MediabunnyIterator<VideoSample>
 
   /**
-   * The one frame presented at [timestamp], in seconds, or null past the end of the track. The sink
-   * decodes forward from the key frame at or before it, which is what a seek costs here.
+   * The one frame presented at [timestamp], in seconds, or null before the track's first frame. Past
+   * the end of the track that is the last frame. The sink decodes forward from the key frame at or
+   * before it, which is what a seek costs here.
    */
   fun getSample(timestamp: Double): Promise<VideoSample?>
 }

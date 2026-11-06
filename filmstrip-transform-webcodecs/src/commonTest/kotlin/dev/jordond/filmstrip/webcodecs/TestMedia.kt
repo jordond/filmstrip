@@ -382,7 +382,7 @@ internal suspend fun readEncodedVideoPackets(source: MediaSource): List<ByteArra
   val reader = SourceReader.of(source) ?: error("the decoder could not open $source")
   try {
     val track = reader.videoTrack() ?: error("the source has no video track")
-    val stream = PacketStream(EncodedPacketSink(track).packets())
+    val stream = PacketStream(EncodedPacketSink(track).packets()) {}
     val packets = mutableListOf<ByteArray>()
     try {
       while (true) {

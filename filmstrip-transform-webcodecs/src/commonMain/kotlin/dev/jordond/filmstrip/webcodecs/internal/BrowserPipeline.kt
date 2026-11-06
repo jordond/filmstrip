@@ -14,10 +14,15 @@ import kotlin.math.abs
  * The video loop runs in Kotlin, one frame at a time, with backpressure, cancellation between frames
  * and a `try`/`finally` around every frame. Crossing the boundary once per frame costs a handle
  * reference, not a copy.
+ *
+ * @param framesOf Opens the decoded frames of one clip, or answers null when its source is unreadable.
  */
 internal class BrowserPipeline(
   private val render: BrowserRender,
   private val sources: SourceCache,
+  private val framesOf: suspend (RenderedClip) -> FrameStream? = { clip ->
+    sources.open(clip.source)?.frames(clip.trimStartUs, clip.trimEndUs, tenBit = render.readsPlanes(clip))
+  },
 ) {
   /**
    * Runs the export and returns the muxed file, still in memory and not yet handed to anyone.
@@ -115,18 +120,14 @@ internal class BrowserPipeline(
     onProgress: suspend (Long, Double) -> Unit,
   ): Long {
     if (clip.frames == 0L) return encodedSoFar
-    val stream =
-      sources
-        .open(clip.source)
-        ?.frames(clip.trimStartUs, clip.trimEndUs, tenBit = render.readsPlanes(clip))
-        ?: throw BrowserExportFailure(unreadableMessage(clip.source))
-
-    compositor.clip(clip)
+    val stream = framesOf(clip) ?: throw BrowserExportFailure(unreadableMessage(clip.source))
 
     var emitted = encodedSoFar
     var current: VideoSample? = null
-    var ahead: VideoSample? = stream.next()
+    var ahead: VideoSample? = null
     try {
+      compositor.clip(clip)
+      ahead = stream.next()
       for (slot in 0 until clip.frames + clip.heldFrames) {
         currentCoroutineContext().ensureActive()
 

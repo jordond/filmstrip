@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportFailure
+import dev.jordond.filmstrip.webcodecs.internal.PulledStream
 import dev.jordond.filmstrip.webcodecs.internal.SourceCache
 import dev.jordond.filmstrip.webcodecs.internal.audio.BrowserAudioMix.PAD
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioBuffer
@@ -18,7 +19,9 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.AudioParam
 import dev.jordond.filmstrip.webcodecs.internal.interop.BaseAudioContext
 import dev.jordond.filmstrip.webcodecs.internal.interop.Float32Array
 import dev.jordond.filmstrip.webcodecs.internal.interop.InputAudioTrack
+import dev.jordond.filmstrip.webcodecs.internal.interop.MediabunnyIterator
 import dev.jordond.filmstrip.webcodecs.internal.interop.OfflineAudioContext
+import dev.jordond.filmstrip.webcodecs.internal.interop.WrappedAudioBuffer
 import kotlinx.coroutines.await
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -234,12 +237,17 @@ internal object BrowserAudioMix {
    * A chunk can open before [startSeconds], since the sink yields whole decoded blocks rather than
    * cutting one to the span it was asked for. Such a chunk is pinned to the head of the buffer,
    * which is why a window renders a lead it then drops.
+   *
+   * @param open Starts the sink decoding the span.
    */
   internal suspend fun decode(
     audioTrack: InputAudioTrack,
     startSeconds: Double,
     endSeconds: Double,
     context: BaseAudioContext,
+    open: () -> MediabunnyIterator<WrappedAudioBuffer> = {
+      AudioBufferSink(audioTrack).buffers(startSeconds, endSeconds)
+    },
   ): AudioBuffer? {
     val sampleRate = audioTrack.getSampleRate().await().toDouble()
     val channels = audioTrack.getNumberOfChannels().await().toDouble()
@@ -247,19 +255,20 @@ internal object BrowserAudioMix {
     val frames = ((endSeconds - startSeconds) * sampleRate).roundToInt().coerceAtLeast(1)
     val buffer = context.createBuffer(channelCount, frames, sampleRate.toFloat())
 
-    val iterator = AudioBufferSink(audioTrack).buffers(startSeconds, endSeconds)
-    var step = iterator.next().await()
+    // The sink closes each sample as it wraps it, so a wrapped buffer has nothing left to release.
+    val stream = PulledStream(open()) {}
     var decoded = false
-    while (!step.done) {
-      val wrapped = step.value
-      if (wrapped != null) {
+    try {
+      while (true) {
+        val wrapped = stream.next() ?: break
         decoded = true
         val startInChannel = ((wrapped.timestamp - startSeconds) * sampleRate).roundToInt().coerceIn(0, frames - 1)
         for (channel in 0 until channelCount) {
           buffer.copyToChannel(wrapped.buffer.getChannelData(channel), channel, startInChannel)
         }
       }
-      step = iterator.next().await()
+    } finally {
+      stream.close()
     }
     return if (decoded) buffer else null
   }
