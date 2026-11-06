@@ -127,7 +127,7 @@ class OverlayPictureDecodeTest {
   }
 
   @Test
-  fun `an animated overlay decoded anyway or read by the JDK is sized without a measure`() {
+  fun `an animated overlay decoded anyway is sized without a measure and one that is not by one measure`() {
     val picture = rgbOf(TEXELS)
     val grades = listOf(null to pngOf(picture)) + HdrTransfer.entries.map { it to pngOf(picture) } + (null to HEIF)
     for ((transfer, bytes) in grades) {
@@ -137,7 +137,7 @@ class OverlayPictureDecodeTest {
       val resolution = BuiltInEffectResolver(decoder).resolve(spec, capabilities(), attributes(transfer))
       withClue("$transfer") { resolution.shouldBeInstanceOf<EffectResolution.Resolved>() }
       val decodedHere = transfer != null || bytes === HEIF
-      withClue("$transfer measured") { decoder.measured shouldBe emptyList() }
+      withClue("$transfer measured") { decoder.measured.size shouldBe (if (decodedHere) 0 else 1) }
       withClue("$transfer decodes") { decoder.decodes.size shouldBe (if (decodedHere) 1 else 0) }
     }
   }

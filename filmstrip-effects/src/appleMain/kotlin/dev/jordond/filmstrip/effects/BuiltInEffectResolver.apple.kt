@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.effects
 
+import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.CoreImageEffect
 import dev.jordond.filmstrip.effect.Degradation
@@ -20,20 +21,25 @@ import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.geometry.regionAt
 import dev.jordond.filmstrip.effects.geometry.retainedRect
+import dev.jordond.filmstrip.effects.overlay.HeldBytes
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.LoweringPictures
 import dev.jordond.filmstrip.effects.overlay.PictureRead
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.effects.overlay.animatedBy
 import dev.jordond.filmstrip.effects.overlay.compositedOnto
+import dev.jordond.filmstrip.effects.overlay.decodedPicture
 import dev.jordond.filmstrip.effects.overlay.drawnRangeWithin
 import dev.jordond.filmstrip.effects.overlay.drawnTextSize
+import dev.jordond.filmstrip.effects.overlay.encodedRead
 import dev.jordond.filmstrip.effects.overlay.frameWithin
 import dev.jordond.filmstrip.effects.overlay.placedOn
 import dev.jordond.filmstrip.effects.overlay.rasterizeText
-import dev.jordond.filmstrip.effects.overlay.read
 import dev.jordond.filmstrip.effects.overlay.resolvedFrom
 import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
+import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.media.describe
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents
 import platform.CoreGraphics.CGAffineTransformMakeRotation
@@ -47,6 +53,15 @@ import kotlin.math.PI
  */
 @OptIn(ExperimentalForeignApi::class)
 public actual class BuiltInEffectResolver actual constructor() : EffectResolver {
+  private val pictures = LoweringPictures<HeldBytes> { it.encodedRead() }
+
+  /**
+   * Reads every overlay picture [composition] names by path or URI, so one named twice is one read for this lowering.
+   */
+  override suspend fun prepare(composition: EditComposition) {
+    pictures.readFor(composition)
+  }
+
   actual override fun resolve(
     spec: EffectSpec,
     capabilities: RenderCapabilities,
@@ -90,10 +105,12 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   // those: the slot an effect is handed is settled before any frame is drawn, so it is derived once
   // here and every frame samples within it.
   private fun ImageOverlay.toOverlay(attributes: Attributes): EffectResolution {
+    val held = pictures[image]
+    held.refusal?.let { return EffectResolution.Unsupported(id, it) }
     val raster =
-      when (val read = image.read()) {
+      when (val read = decodedPicture(held.bytes)) {
         is PictureRead.Read -> read.value
-        is PictureRead.Unreadable -> return EffectResolution.Unsupported(id, UNREADABLE_IMAGE)
+        is PictureRead.Unreadable -> return EffectResolution.Unsupported(id, unreadableImage(image))
         is PictureRead.Refused -> return EffectResolution.Unsupported(id, unreadSamples(read.reason))
         is PictureRead.Unsupported -> return EffectResolution.Unsupported(id, read.message)
       }
@@ -210,9 +227,10 @@ private const val STRAIGHT_ANGLE = 180.0
  * The message an image overlay is refused with when its picture cannot be read or holds nothing ImageIO or Core Image
  * decodes.
  */
-internal const val UNREADABLE_IMAGE =
-  "The overlay image could not be decoded. Check that the path or URL is readable by this process, and that the " +
-    "bytes hold a picture ImageIO or Core Image decodes on this OS, like PNG, JPEG, HEIC, AVIF, WebP or JPEG XL."
+internal fun unreadableImage(image: ImageSource): String =
+  "The overlay image ${image.describe()} could not be decoded. Check that the path or URL is readable by this " +
+    "process, and that the bytes hold a picture ImageIO or Core Image decodes on this OS, like PNG, JPEG, HEIC, " +
+    "AVIF, WebP or JPEG XL."
 
 /**
  * The message an image overlay is refused with when ImageIO decodes its picture and its samples cannot be read, with

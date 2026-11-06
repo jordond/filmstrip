@@ -18,9 +18,11 @@ import dev.jordond.filmstrip.picture.PictureOrientation
  * gives it, through [sdrOverlayImage], an AVIF or HEIC from its decode, and any other untagged one from its own bytes.
  * On an HDR grade the picture is decoded and blended in linear display light instead. [decoder] decodes every picture
  * this needs decoded, so the texels are the ones the toolchain draws, and a picture decoded anyway is sized from that
- * decode. One that was not is sized from its header by [shownSize], which asks [decoder] only for a format the JDK
- * reads no header of. Without a decoder the JDK reads them all. A picture this process cannot read, or an animation
- * that cannot be driven at all, is refused before the graph is built.
+ * decode. One that was not is sized by the frame [decoder] checks it yields. Without a decoder the JDK reads them all,
+ * and [shownSize] reads the size off the header. A picture this process cannot read, one that yields no frame, or an
+ * animation that cannot be driven at all, is refused before the graph is built.
+ *
+ * @param bytes The picture's bytes as this lowering read them, or null when this process cannot read them.
  *
  * @return The fragment, [EffectResolution.Degraded] by each limit the decode of its picture reports, or
  * [EffectResolution.Unsupported] when the picture or its animation cannot be lowered here.
@@ -29,13 +31,16 @@ internal fun filterGraphOverlay(
   spec: ImageOverlay,
   attributes: Attributes,
   decoder: OverlayPictureDecoder?,
+  read: HeldBytes = spec.image.encodedRead(),
 ): EffectResolution {
+  read.refusal?.let { return spec.refused(it) }
+  val bytes = read.bytes
   val drawnOn = attributes.inputSize
   spec.animationRefusal(attributes, spec.drawnRangeWithin(attributes.span))?.let { return spec.refused(it) }
   val transfer = attributes.hdrTransfer
   if (transfer != null) {
     val picture =
-      when (val read = storedPicture(spec.image, decoder)) {
+      when (val read = storedPicture(spec.image, decoder, bytes)) {
         is StoredRead.Read -> read.picture
         is StoredRead.Undecoded -> return spec.refused(UNREADABLE_HDR_IMAGE.saying(read.reason))
         is StoredRead.Undrawn -> return spec.refused(read.reason)
@@ -48,11 +53,11 @@ internal fun filterGraphOverlay(
       .lowered(attributes)
   }
   val drawn =
-    when (val read = sdrOverlayImage(spec.image, decoder)) {
+    when (val read = sdrOverlayImage(spec.image, decoder, bytes)) {
       is SdrOverlayImage.Drawn -> read
       is SdrOverlayImage.Refused -> return spec.refused(read.message)
     }
-  val shown = drawn.size ?: spec.image.shownSize(decoder) { return spec.refused(it) }
+  val shown = drawn.size ?: drawn.image.shownSize { return spec.refused(it) }
   val placement = spec.placedOn(drawnOn, shown)
   val opened = GraphPicture.Opened(drawn.image, drawn.orientation)
   return PlacedPicture(spec, opened, placement, spec.opacity, drawn.limits).lowered(attributes)

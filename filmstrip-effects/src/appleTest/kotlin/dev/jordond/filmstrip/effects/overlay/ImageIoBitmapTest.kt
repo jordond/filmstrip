@@ -6,12 +6,12 @@ import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
-import dev.jordond.filmstrip.effects.UNREADABLE_IMAGE
 import dev.jordond.filmstrip.effects.assertRasterReads
 import dev.jordond.filmstrip.effects.overlay.BitmapLayouts.Layout
 import dev.jordond.filmstrip.effects.overlay.BitmapLayouts.bytes
 import dev.jordond.filmstrip.effects.overlay.BitmapLayouts.premultiplied
 import dev.jordond.filmstrip.effects.unreadSamples
+import dev.jordond.filmstrip.effects.unreadableImage
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
@@ -241,7 +241,7 @@ class ImageIoBitmapTest {
       withClue("three stray bytes resolved as $resolved") {
         resolved.shouldBeInstanceOf<EffectResolution.Unsupported>()
       }
-    refused.message shouldBe UNREADABLE_IMAGE
+    refused.message shouldBe unreadableImage(overlay.image)
     listOf("ImageIO or Core Image", "PNG", "JPEG", "HEIC", "AVIF", "WebP", "JPEG XL").forEach { named ->
       refused.message shouldContain named
     }

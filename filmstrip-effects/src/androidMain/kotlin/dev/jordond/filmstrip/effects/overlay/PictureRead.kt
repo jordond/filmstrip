@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ColorSpace
-import android.net.Uri
 import android.os.Build
 import androidx.core.net.toUri
 import dev.jordond.filmstrip.color.PictureColor
@@ -25,7 +24,9 @@ import dev.jordond.filmstrip.picture.pictureOrientationOf
 import dev.jordond.filmstrip.picture.pictureWithoutOrientationTag
 import dev.jordond.filmstrip.picture.pictureYcbcrCoding
 import dev.jordond.filmstrip.picture.withColorDescriptionsHidden
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.InputStream
 
 /**
  * What reading an overlay picture for Android's decoder comes to: a [DecodedPicture], a [RefusedPicture], an
@@ -98,25 +99,77 @@ internal data object ContextlessPicture : PictureRead
  * @param context Needed only to open a `content://` [ImageSource.Uri], which reads as a [ContextlessPicture] without
  * one. Every other form reads without it.
  */
-internal fun ImageSource.read(context: Context?): PictureRead {
-  val bytes =
-    when (this) {
-      is ImageSource.Path -> {
-        readFile(path)
-      }
-      is ImageSource.Bytes -> {
-        bytes
-      }
-      is ImageSource.Uri -> {
-        val parsed = runCatching { uri.toUri() }.getOrNull()
-        when {
-          parsed == null -> null
-          parsed.scheme == null || parsed.scheme == "file" -> parsed.path?.let(::readFile)
-          context == null -> return ContextlessPicture
-          else -> readContent(parsed, context)
+internal fun ImageSource.read(context: Context?): PictureRead = encoded(context).read()
+
+/**
+ * What reading an overlay picture's bytes comes to: the bytes, or the [PictureRead] that says why there are none.
+ */
+internal sealed interface EncodedPicture {
+  /**
+   * The picture's encoded [bytes].
+   */
+  class Read(
+    val bytes: ByteArray,
+  ) : EncodedPicture
+
+  /**
+   * The picture's bytes could not be had, for the reason [read] gives.
+   */
+  class Unread(
+    val read: PictureRead,
+  ) : EncodedPicture
+}
+
+/**
+ * Reads the encoded bytes of [this], as [read] takes them.
+ *
+ * Bytes past [ceiling] are refused with the reason [pictureTooLargeToRead] gives, a file by its length before a byte
+ * is read and a stream by what it gave once it passes the ceiling.
+ *
+ * @param context Needed only to open a `content://` [ImageSource.Uri], which reads as a [ContextlessPicture] without
+ * one. Every other form reads without it.
+ * @param ceiling The most encoded bytes one read may hold, [PICTURE_PEAK_CEILING] by default.
+ */
+internal fun ImageSource.encoded(
+  context: Context?,
+  ceiling: Long = PICTURE_PEAK_CEILING,
+): EncodedPicture =
+  when (this) {
+    is ImageSource.Path -> {
+      fileRead(path, ceiling)
+    }
+    is ImageSource.Bytes -> {
+      EncodedPicture.Read(bytes)
+    }
+    is ImageSource.Uri -> {
+      val parsed = runCatching { uri.toUri() }.getOrNull()
+      when {
+        parsed == null -> {
+          EncodedPicture.Unread(UnreadablePicture)
+        }
+        parsed.scheme == null || parsed.scheme == "file" -> {
+          parsed.path?.let { fileRead(it, ceiling) } ?: EncodedPicture.Unread(UnreadablePicture)
+        }
+        context == null -> {
+          EncodedPicture.Unread(ContextlessPicture)
+        }
+        else -> {
+          streamRead(ceiling) { context.contentResolver.openInputStream(parsed) }
         }
       }
-    } ?: return UnreadablePicture
+    }
+  }
+
+/**
+ * Decodes this read of a picture's bytes, or hands back why it has none, as [ImageSource.read] does.
+ */
+internal fun EncodedPicture.read(): PictureRead =
+  when (this) {
+    is EncodedPicture.Read -> decoded(bytes)
+    is EncodedPicture.Unread -> read
+  }
+
+private fun decoded(bytes: ByteArray): PictureRead {
   val sdk = Build.VERSION.SDK_INT
   val input = bytes.forAndroidDecoder(sdk)
   input.refusal?.let { return RefusedPicture(it) }
@@ -261,17 +314,46 @@ private fun ByteArray.isSixteenBitPng(): Boolean =
     String(this, PNG_IHDR_TYPE, 4, Charsets.ISO_8859_1) == "IHDR" &&
     this[PNG_BIT_DEPTH].toInt() == SIXTEEN_BITS
 
-private fun readFile(path: String): ByteArray? = runCatching { File(path).readBytes() }.getOrNull()
+private fun ImageSource.fileRead(
+  path: String,
+  ceiling: Long,
+): EncodedPicture {
+  val file = File(path)
+  if (runCatching { file.length() > ceiling }.getOrDefault(false)) return tooLarge(ceiling)
+  return streamRead(ceiling) { file.inputStream() }
+}
 
-private fun readContent(
-  uri: Uri,
-  context: Context,
-): ByteArray? =
+private inline fun ImageSource.streamRead(
+  ceiling: Long,
+  open: () -> InputStream?,
+): EncodedPicture =
   runCatching {
-    context.contentResolver.openInputStream(uri)?.use { stream ->
-      stream.readBytes()
-    }
-  }.getOrNull()
+    val stream = open() ?: return EncodedPicture.Unread(UnreadablePicture)
+    stream.use { it.readWithin(ceiling) }?.let(EncodedPicture::Read) ?: tooLarge(ceiling)
+  }.getOrDefault(EncodedPicture.Unread(UnreadablePicture))
+
+private fun ImageSource.tooLarge(ceiling: Long): EncodedPicture =
+  EncodedPicture.Unread(RefusedPicture(pictureTooLargeToRead(this, ceiling)))
+
+/**
+ * Everything left in this stream, or null once it has given more than [ceiling] bytes.
+ *
+ * A provider's stream reports no length, so counting what it gives is the only bound on it.
+ */
+internal fun InputStream.readWithin(ceiling: Long): ByteArray? {
+  val held = ByteArrayOutputStream()
+  val chunk = ByteArray(READ_CHUNK)
+  var total = 0L
+  while (true) {
+    val read = read(chunk)
+    if (read < 0) return held.toByteArray()
+    total += read
+    if (total > ceiling) return null
+    held.write(chunk, 0, read)
+  }
+}
+
+private const val READ_CHUNK = 64 * 1024
 
 private const val PNG_IHDR_TYPE = 12
 private const val PNG_BIT_DEPTH = 24

@@ -134,7 +134,7 @@ class OverlayPictureReadTest {
   @Test
   fun `an animated overlay the JDK reads no header of is sized by the decoder`() {
     val decoder = FakeDecoder(size = SQUARE)
-    val spec = sliding(ImageSource.ofBytes(UNREADABLE))
+    val spec = sliding(ImageSource.ofBytes(UNTAGGED_RIFF_WEBP))
 
     val resolution = BuiltInEffectResolver(decoder).resolve(spec, capabilities(), attributes(null))
     resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
@@ -142,13 +142,13 @@ class OverlayPictureReadTest {
   }
 
   @Test
-  fun `an animated overlay the JDK reads is sized from its header with a decoder too`() {
+  fun `an animated overlay the JDK reads is sized by the decoder's measure with a decoder too`() {
     val decoder = FakeDecoder(size = SQUARE)
     val spec = sliding(ImageSource.ofBytes(pngOf(BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB))))
 
     val resolution = BuiltInEffectResolver(decoder).resolve(spec, capabilities(), attributes(null))
     resolution.shouldBeInstanceOf<EffectResolution.Resolved>()
-    decoder.measured shouldBe emptyList()
+    decoder.measured shouldBe listOf(spec.image)
   }
 
   @Test
@@ -165,7 +165,7 @@ class OverlayPictureReadTest {
 
   @Test
   fun `an animated overlay the decoder cannot read is refused with the decoder's reason`() {
-    val spec = sliding(ImageSource.ofBytes(UNREADABLE))
+    val spec = sliding(ImageSource.ofBytes(UNTAGGED_RIFF_WEBP))
     val resolver = BuiltInEffectResolver(FakeDecoder(size = null, reason = REASON))
 
     val refused =
@@ -175,7 +175,7 @@ class OverlayPictureReadTest {
           capabilities(),
           attributes(null),
         ).shouldBeInstanceOf<EffectResolution.Unsupported>()
-    withClue(refused.message) { ("header" in refused.message && REASON in refused.message) shouldBe true }
+    withClue(refused.message) { (REASON in refused.message) shouldBe true }
   }
 
   @Test
@@ -226,12 +226,12 @@ class OverlayPictureReadTest {
 
   // The graph places an overlay by its shown size, and the JDK reads no JPEG XL header.
   @Test
-  fun `a JPEG XL is refused on an SDR grade without a decoder to size it`() {
+  fun `a JPEG XL is refused on an SDR grade without a decoder to read it`() {
     val refused =
       BuiltInEffectResolver()
         .resolve(overlayOf(JPEG_XL), capabilities(), attributes(null))
         .shouldBeInstanceOf<EffectResolution.Unsupported>()
-    withClue(refused.message) { ("header" in refused.message) shouldBe true }
+    withClue(refused.message) { ("the JDK could not decode one" in refused.message) shouldBe true }
   }
 
   @Test
@@ -255,6 +255,7 @@ class OverlayPictureReadTest {
     const val SLIDE = 0.25f
     const val REASON = "Invalid data found when processing input"
     val UNREADABLE = "not a picture the JDK reads".encodeToByteArray()
+    val UNTAGGED_RIFF_WEBP = "RIFF".encodeToByteArray() + byteArrayOf(4, 0, 0, 0) + "WEBP".encodeToByteArray()
     val SQUARE = Size(64, 64)
     val ROW = Size(TEXELS.size, 1)
 

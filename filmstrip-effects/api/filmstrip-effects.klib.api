@@ -410,8 +410,6 @@ final class dev.jordond.filmstrip.effects/BuiltInEffectResolver : dev.jordond.fi
     constructor <init>() // dev.jordond.filmstrip.effects/BuiltInEffectResolver.<init>|<init>(){}[0]
 
     final fun resolve(dev.jordond.filmstrip.effect/EffectSpec, dev.jordond.filmstrip.effect/RenderCapabilities, dev.jordond.filmstrip.effect/Attributes): dev.jordond.filmstrip.effect/EffectResolution? // dev.jordond.filmstrip.effects/BuiltInEffectResolver.resolve|resolve(dev.jordond.filmstrip.effect.EffectSpec;dev.jordond.filmstrip.effect.RenderCapabilities;dev.jordond.filmstrip.effect.Attributes){}[0]
-
-    // Targets: [js, wasmJs]
     final suspend fun prepare(dev.jordond.filmstrip.edit/EditComposition) // dev.jordond.filmstrip.effects/BuiltInEffectResolver.prepare|prepare(dev.jordond.filmstrip.edit.EditComposition){}[0]
 }
 

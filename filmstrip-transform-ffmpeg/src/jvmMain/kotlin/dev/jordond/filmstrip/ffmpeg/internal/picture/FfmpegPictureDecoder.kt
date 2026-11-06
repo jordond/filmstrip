@@ -408,11 +408,16 @@ private fun encodedBytes(image: ImageSource): ByteArray? =
 // Everything left in [stream], or null when that is nothing.
 private fun wholeStream(stream: InputStream): ByteArray? = stream.readAllBytes().takeIf { it.isNotEmpty() }
 
-// The bytes of [file], or null when it is not a file this process can read.
+// The bytes of [file], or null when it is not a file this process can read, which one it may not open or one too large
+// for an array comes to.
 private fun readable(file: File): ByteArray? =
   try {
     file.takeIf { it.isFile }?.readBytes()
   } catch (unreadable: IOException) {
+    null
+  } catch (forbidden: SecurityException) {
+    null
+  } catch (tooLarge: OutOfMemoryError) {
     null
   }
 

@@ -106,6 +106,63 @@ public object OverlayPixels {
   }
 
   /**
+   * A GIF of [size] with one frame painted [first] and a second painted [second] 40 ms later, as the bytes of the file.
+   *
+   * It plays once and holds its second frame, so a read of any later time tells a decoder that animates it from one
+   * that draws only its first frame. Only the opaque color of each is written.
+   */
+  public fun twoFrameGifOf(
+    size: Size,
+    first: Int,
+    second: Int,
+  ): ByteArray {
+    val screen = int16LittleEndian(size.width) + int16LittleEndian(size.height)
+    val palette =
+      listOf(first, second).flatMap { argb ->
+        listOf(argb shr RED_SHIFT, argb shr GREEN_SHIFT, argb).map { (it and BYTE).toByte() }
+      }
+    val frames =
+      listOf(0, 1).flatMap { index ->
+        val delay = int16LittleEndian(GIF_FRAME_CENTISECONDS)
+        val control = byteArrayOf(0x21, 0xF9.toByte(), 4, 0) + delay + byteArrayOf(0, 0)
+        val descriptor = byteArrayOf(0x2C, 0, 0, 0, 0) + screen + byteArrayOf(0)
+        val codes = lzwOfOneIndex(index, size.width * size.height)
+        (control + descriptor + byteArrayOf(GIF_LZW_WIDTH.toByte()) + gifBlocks(codes)).toList()
+      }
+    return "GIF89a".encodeToByteArray() +
+      screen +
+      byteArrayOf(0x80.toByte(), 0, 0) +
+      palette.toByteArray() +
+      frames.toByteArray() +
+      byteArrayOf(0x3B)
+  }
+
+  // [count] texels of palette entry [index], each behind a clear code so the code width never grows past its first.
+  private fun lzwOfOneIndex(
+    index: Int,
+    count: Int,
+  ): ByteArray {
+    val clear = 1 shl GIF_LZW_WIDTH
+    val codes = List(count) { listOf(clear, index) }.flatten() + (clear + 1)
+    val bytes = ByteArray((codes.size * (GIF_LZW_WIDTH + 1) + 7) / 8)
+    codes.forEachIndexed { position, code ->
+      for (bit in 0..GIF_LZW_WIDTH) {
+        if ((code shr bit) and 1 == 1) {
+          val at = position * (GIF_LZW_WIDTH + 1) + bit
+          bytes[at / 8] = (bytes[at / 8].toInt() or (1 shl (at % 8))).toByte()
+        }
+      }
+    }
+    return bytes
+  }
+
+  private fun gifBlocks(bytes: ByteArray): ByteArray {
+    val blocks =
+      bytes.toList().chunked(GIF_BLOCK_BYTES).flatMap { block -> listOf(block.size.toByte()) + block }
+    return blocks.toByteArray() + byteArrayOf(0)
+  }
+
+  /**
    * A sixteen-bit RGBA PNG of [size] painted [texel] all over, as the bytes of the file.
    *
    * It is written the way [pngOf] writes an eight-bit one, with the chunks [color] describes ahead of the image data.
@@ -229,5 +286,8 @@ public object OverlayPixels {
   private const val ALPHA_SHIFT = 24
   private const val BYTE = 0xFF
   private const val ADLER_MODULUS = 65521
+  private const val GIF_FRAME_CENTISECONDS = 4
+  private const val GIF_LZW_WIDTH = 2
+  private const val GIF_BLOCK_BYTES = 255
   private const val MAX_STORED_BLOCK = 0xFFFF
 }

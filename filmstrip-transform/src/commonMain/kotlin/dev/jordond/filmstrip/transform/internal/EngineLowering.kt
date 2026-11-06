@@ -15,6 +15,8 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * An export engine a preview can lower an edit through without writing anything.
@@ -102,8 +104,15 @@ public fun refusedLowering(error: FilmstripError): LoweredExport<Nothing> =
  * edit and how to run the graph it lowered to.
  *
  * Every resolver is asked to [EffectResolver.prepare] for the edit before each lowering. An export
- * lowers the plan's own composition and spec again, so the engine is expected to cache what it
- * reads.
+ * lowers the plan's own composition and spec again when it starts, so a picture an overlay names by
+ * path or URI is read as it is on disk then. A lowering reads each such picture once, in that prepare
+ * step, and its size, color, orientation, crop and samples all come from those bytes, and nothing it read
+ * is carried into a later lowering.
+ *
+ * Resolvers hold what they prepared until they next prepare, so lowerings of this engine run one at a
+ * time and no overlapping one can replace what another is drawing. A waiter is cancellable, and a
+ * cancelled lowering lets the next one in. A lowering holds no lock while its graph runs, and neither
+ * [EffectResolver.prepare] nor [lower] may start another lowering of this engine.
  *
  * @param lower Lowers an edit, with the frame text is laid out against when it is not the output's.
  * @param run Runs a graph [lower] produced into a sink, with the plan it settled on. The adjustments that plan made
@@ -115,6 +124,8 @@ public class EngineLowering<G : Any>(
   private val lower: suspend (EditComposition, ExportSpec, Size?) -> LoweredExport<G>,
   private val run: (G, ExportPlan, MediaSink) -> Flow<ExportStatus>,
 ) {
+  private val oneAtATime = Mutex()
+
   /**
    * Lowers [composition] the way [plan], [resolve] and [export] all do.
    */
@@ -122,10 +133,11 @@ public class EngineLowering<G : Any>(
     composition: EditComposition,
     spec: ExportSpec,
     layoutSize: Size? = null,
-  ): LoweredExport<G> {
-    resolvers.forEach { it.prepare(composition) }
-    return lower(composition, spec, layoutSize)
-  }
+  ): LoweredExport<G> =
+    oneAtATime.withLock {
+      resolvers.forEach { it.prepare(composition) }
+      lower(composition, spec, layoutSize)
+    }
 
   /**
    * What [ExportEngine.plan] answers.

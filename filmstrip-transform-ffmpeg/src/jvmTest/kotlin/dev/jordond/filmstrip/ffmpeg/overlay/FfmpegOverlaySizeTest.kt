@@ -47,13 +47,12 @@ class FfmpegOverlaySizeTest {
   }
 
   @Test
-  fun `a PNG a JPEG and a GIF are sized from their header at the size this ffmpeg decodes them to`() {
+  fun `a PNG and a JPEG are sized by one measure at the size this ffmpeg decodes them to`() {
     if (!fixture.available()) return
     val pictures =
       listOf(
         "still.png" to pngOf(OPAQUE, MID),
         "still.jpg" to jpegOf(MID),
-        "small-frame.gif" to SMALL_FRAME_GIF,
       )
     for ((name, bytes) in pictures) {
       val image = ImageSource.of(File(directory, name).apply { writeBytes(bytes) }.path)
@@ -62,9 +61,22 @@ class FfmpegOverlaySizeTest {
       val spec = ImageOverlay(image, Corner.TopStart)
 
       withClue(name) { scaleOf(spec, counting) shouldBe scaleFor(spec, measured) }
-      withClue("$name spawned a measure") { counting.measures shouldBe 0 }
+      withClue("$name measures") { counting.measures shouldBe 1 }
       withClue("$name spawned a decode") { counting.decodes shouldBe 0 }
     }
+  }
+
+  // ffmpeg decodes a GIF to its logical screen, so a first frame smaller than the screen does not size it.
+  @Test
+  fun `a GIF is sized by its logical screen from one decode`() {
+    if (!fixture.available()) return
+    val image = ImageSource.of(File(directory, "small-frame.gif").apply { writeBytes(SMALL_FRAME_GIF) }.path)
+    val counting = CountingDecoder(decoder)
+    val spec = ImageOverlay(image, Corner.TopStart)
+
+    scaleOf(spec, counting) shouldBe scaleFor(spec, GIF_SCREEN)
+    counting.decodes shouldBe 1
+    counting.measures shouldBe 0
   }
 
   @Test
@@ -140,6 +152,7 @@ class FfmpegOverlaySizeTest {
     val FRAME = Size(640, 360)
     const val RATE = 30f
     const val OPAQUE = 0xFF4080C0.toInt()
+    val GIF_SCREEN = Size(5, 3)
 
     // Off every power of two and unequal sides, so a size read off the wrong field or turned would show.
     val MID = Size(333, 187)

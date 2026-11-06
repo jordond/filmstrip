@@ -1,6 +1,11 @@
 package dev.jordond.filmstrip.effects.overlay
 
 import dev.jordond.filmstrip.color.pictureSrgbCodes
+import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.effect.Attributes
+import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effects.FakeDecoder
 import dev.jordond.filmstrip.effects.LINEAR_COLOR
 import dev.jordond.filmstrip.effects.argbOf
@@ -8,6 +13,7 @@ import dev.jordond.filmstrip.effects.decodedOf
 import dev.jordond.filmstrip.effects.pngOf
 import dev.jordond.filmstrip.effects.rgbOf
 import dev.jordond.filmstrip.effects.tagged
+import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.picture.PictureOrientation
@@ -18,6 +24,7 @@ import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import java.awt.Transparency
@@ -26,9 +33,14 @@ import java.awt.color.ICC_Profile
 import java.awt.image.BufferedImage
 import java.awt.image.ComponentColorModel
 import java.awt.image.DataBuffer
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.RandomAccessFile
+import javax.imageio.ImageIO
 import kotlin.io.path.createTempFile
 import kotlin.test.Test
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * How the ffmpeg backend reads an overlay picture's stored samples, the picture an SDR grade's graph opens for it, and
@@ -251,6 +263,190 @@ class StoredPictureTest {
     drawn.size shouldBe PictureOrientation.Rotate270.orientedSize(OrientedPictures.SIZE)
   }
 
+  @Test
+  fun `a format outside the content probes whose decode is refused says so with the decoder's reason`() {
+    val refused = FakeDecoder(size = null, reason = REASON)
+
+    val read = sdrOverlayImage(ImageSource.ofBytes(WBMP), refused).shouldBeInstanceOf<SdrOverlayImage.Refused>()
+
+    read.message shouldContain "cannot recognise from its bytes alone"
+    read.message shouldContain REASON
+  }
+
+  @Test
+  fun `a format outside the content probes is decoded from a copy named for it with the same bytes`() {
+    val file = File.createTempFile("badge", ".wbmp").apply { writeBytes(WBMP) }
+    var named: String? = null
+    var copied: ByteArray? = null
+    val decoder =
+      object : OverlayPictureDecoder {
+        override fun decode(image: ImageSource): OverlayPictureDecode<DecodedPicture> {
+          val path = image.shouldBeInstanceOf<ImageSource.Path>().path
+          named = path
+          copied = File(path).readBytes()
+          return OverlayPictureRead.Read(decodedOf(rgbOf(TEXELS), null))
+        }
+
+        override fun measure(image: ImageSource): OverlayPictureRead<Size> = error("nothing to measure")
+      }
+
+    try {
+      sdrOverlayImage(ImageSource.of(file.path), decoder).shouldBeInstanceOf<SdrOverlayImage.Drawn>()
+
+      File(checkNotNull(named)).extension shouldBe "wbmp"
+      withClue("the copy outlived the decode") { File(checkNotNull(named)).exists() shouldBe false }
+      copied shouldBe WBMP
+    } finally {
+      file.delete()
+    }
+  }
+
+  @Test
+  fun `a deep decode that lands where it is stored reaches the graph with its sixteen bit samples`() {
+    val samples = shortArrayOf(0x289F.toShort(), 0x7FFF, 0xC934.toShort(), 0xFFFF.toShort())
+    val decoder =
+      object : OverlayPictureDecoder {
+        override fun decode(image: ImageSource): OverlayPictureDecode<DecodedPicture> =
+          OverlayPictureRead.Read(DecodedPicture(Size(1, 1), StoredSamples.Rgba16(samples), null))
+
+        override fun measure(image: ImageSource): OverlayPictureRead<Size> = error("nothing to measure")
+      }
+
+    val drawn =
+      sdrOverlayImage(ImageSource.ofBytes(UNREADABLE), decoder, UNREADABLE).shouldBeInstanceOf<SdrOverlayImage.Drawn>()
+
+    val png = drawn.image.shouldBeInstanceOf<ImageSource.Bytes>().bytes
+    pictureColor(png).shouldBeNull()
+    val read = ImageIO.read(png.inputStream())
+    read.raster.dataBuffer.dataType shouldBe DataBuffer.TYPE_USHORT
+    read.storedSamples().shouldBeInstanceOf<StoredSamples.Rgba16>().rgba shouldBe samples
+  }
+
+  @Test
+  fun `a format outside the content probes is refused by name without a decoder`() {
+    for (bytes in listOf(WBMP, gifOf())) {
+      val file = File.createTempFile("badge", ".picture").apply { writeBytes(bytes) }
+      try {
+        val refused = sdrOverlayImage(ImageSource.of(file.path), null).shouldBeInstanceOf<SdrOverlayImage.Refused>()
+
+        refused.message shouldContain file.path
+      } finally {
+        file.delete()
+      }
+    }
+  }
+
+  @Test
+  fun `a GIF is drawn from its decode rather than from bytes the graph cannot repeat`() {
+    val decoder = FakeDecoder(size = null, decoded = decodedOf(rgbOf(TEXELS), null))
+
+    val drawn = sdrOverlayImage(ImageSource.ofBytes(gifOf()), decoder).shouldBeInstanceOf<SdrOverlayImage.Drawn>()
+
+    decoder.decodes.size shouldBe 1
+    drawn.image.shouldBeInstanceOf<ImageSource.Bytes>().bytes shouldNotBe gifOf()
+  }
+
+  @Test
+  fun `a BMP draws as its own bytes without a decoder`() {
+    val bmp = encoded("bmp")
+
+    val drawn = sdrOverlayImage(ImageSource.ofBytes(bmp), null).shouldBeInstanceOf<SdrOverlayImage.Drawn>()
+
+    drawn.image.shouldBeInstanceOf<ImageSource.Bytes>().bytes shouldBe bmp
+  }
+
+  @Test
+  fun `a corrupt picture is refused by name at lowering with or without a decoder`() {
+    val png = pngOf(rgbOf(TEXELS))
+    val corrupt = png.copyOf().also { it.fill(CORRUPT, PNG_SIGNATURE, png.size) }
+    val file = File.createTempFile("corrupt", ".png").apply { writeBytes(corrupt) }
+    try {
+      for (decoder in listOf(null, FakeDecoder(size = null, reason = REASON))) {
+        val refused = sdrOverlayImage(ImageSource.of(file.path), decoder).shouldBeInstanceOf<SdrOverlayImage.Refused>()
+
+        refused.message shouldContain file.path
+      }
+    } finally {
+      file.delete()
+    }
+  }
+
+  // One byte past the ceiling, sparse, so a read that did not stop at the file's length would cost a whole gigabyte.
+  @Test
+  fun `a file past the picture ceiling is refused by name without being read`() {
+    val file = File.createTempFile("huge", ".png")
+    try {
+      RandomAccessFile(file, "rw").use { it.setLength(PICTURE_PEAK_CEILING + 1) }
+      val spec = ImageOverlay(ImageSource.of(file.path), Corner.TopStart)
+
+      spec.image.encodedBytes().shouldBeNull()
+      val refused =
+        filterGraphOverlay(spec, ATTRIBUTES, null).shouldBeInstanceOf<EffectResolution.Unsupported>()
+      refused.message shouldBe pictureTooLargeToRead(spec.image)
+      refused.message shouldContain file.path
+    } finally {
+      file.delete()
+    }
+  }
+
+  @Test
+  fun `the encoded bytes are held up to the ceiling and refused one past it`() {
+    val file = File.createTempFile("ceiling", ".bin")
+    try {
+      val encoded = ByteArray(32) { it.toByte() }
+      file.writeBytes(encoded)
+      val image = ImageSource.of(file.path)
+
+      image.encodedRead(encoded.size.toLong()).bytes shouldBe encoded
+      image.encodedRead(encoded.size * 2L).bytes shouldBe encoded
+      val past = image.encodedRead(encoded.size - 1L)
+      past.bytes.shouldBeNull()
+      past.refusal shouldBe pictureTooLargeToRead(image, encoded.size - 1L)
+    } finally {
+      file.delete()
+    }
+  }
+
+  @Test
+  fun `one lowering reads a picture named twice once and the next lowering reads it again`() {
+    val file = File.createTempFile("named-twice", ".png")
+    val first = pngOf(rgbOf(TEXELS))
+    val second = pngOf(rgbOf(intArrayOf(0xFF102030.toInt())))
+    file.writeBytes(first)
+    val image = ImageSource.of(file.path)
+    val composition =
+      EditComposition(
+        tracks = listOf(Track(emptyList())),
+        effects = listOf(ImageOverlay(image, Corner.TopStart), ImageOverlay(image, Corner.BottomEnd)),
+      )
+    val reads = mutableListOf<ByteArray?>()
+    val pictures = LoweringPictures<HeldBytes> { HeldBytes(it.encodedBytes().also(reads::add)) }
+    try {
+      pictures.readFor(composition)
+      file.writeBytes(second)
+
+      pictures[image].bytes shouldBe first
+      pictures[image].bytes shouldBe first
+      reads.size shouldBe 1
+
+      pictures.readFor(composition)
+
+      pictures[image].bytes shouldBe second
+      reads.size shouldBe 2
+    } finally {
+      file.delete()
+    }
+  }
+
+  private fun gifOf(): ByteArray = encoded("gif")
+
+  private fun encoded(format: String): ByteArray {
+    val image = BufferedImage(2, 1, BufferedImage.TYPE_INT_RGB)
+    return ByteArrayOutputStream()
+      .also { withClue("the JDK wrote no $format") { ImageIO.write(image, format, it) shouldBe true } }
+      .toByteArray()
+  }
+
   private fun readOf(
     image: ImageSource,
     decoder: OverlayPictureDecoder,
@@ -270,6 +466,17 @@ class StoredPictureTest {
   }
 
   private companion object {
+    val FRAME = Size(64, 64)
+    val ATTRIBUTES =
+      Attributes(
+        inputSize = FRAME,
+        outputSize = FRAME,
+        layoutSize = FRAME,
+        colorSpace = dev.jordond.filmstrip.media.ColorSpace.Bt709,
+        hdrTransfer = null,
+        frameRate = 30f,
+        span = TimeRange.of(Duration.ZERO, 1.seconds),
+      )
     val SRGB: ColorSpace = ColorSpace.getInstance(ColorSpace.CS_sRGB)
     val SRGB_PROFILE: ByteArray = ICC_Profile.getInstance(ColorSpace.CS_sRGB).data
     val LINEAR_PROFILE: ByteArray = ICC_Profile.getInstance(ColorSpace.CS_LINEAR_RGB).data
@@ -278,6 +485,9 @@ class StoredPictureTest {
     val HALF_ORANGE = 0x80FF8000.toInt()
     const val REASON = "Invalid data found when processing input"
     val UNREADABLE = "not a picture the JDK reads".encodeToByteArray()
+    val WBMP = byteArrayOf(0, 0, 8, 1, 0x7F)
+    const val CORRUPT: Byte = 0x55
+    const val PNG_SIGNATURE = 8
     val UNREACHABLE = ImageSource.Uri("https://example.invalid/overlay.png")
   }
 }

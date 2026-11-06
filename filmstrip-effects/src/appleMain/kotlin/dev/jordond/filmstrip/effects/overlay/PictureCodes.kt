@@ -19,6 +19,9 @@ import platform.CoreGraphics.CGImageRelease
 import platform.CoreImage.CIImage
 import platform.Foundation.CFBridgingRelease
 import platform.Foundation.NSData
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSFileSize
+import platform.Foundation.NSNumber
 import platform.Foundation.NSURL
 import platform.Foundation.create
 import platform.Foundation.dataWithContentsOfURL
@@ -50,24 +53,49 @@ import platform.posix.memcpy
  * [dev.jordond.filmstrip.picture.PictureCrop.refusalFor].
  */
 @OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
-internal fun ImageSource.read(): PictureRead<OverlayPixels> =
-  when (this) {
-    is ImageSource.Path -> {
-      decoded(NSURL.fileURLWithPath(path))
-    }
-    is ImageSource.Uri -> {
-      NSURL.URLWithString(uri)?.let(::decoded) ?: PictureRead.Unreadable
-    }
-    is ImageSource.Bytes -> {
-      decoded(bytes)
-    }
-  }
+internal fun ImageSource.read(): PictureRead<OverlayPixels> = decodedPicture(encoded())
 
-// Read unmapped and copied, since a mapped file rewritten in place would change the bytes under a lazy decode.
+/**
+ * The bytes of [this] as one read gives them, or null when they cannot be read.
+ */
+internal fun ImageSource.encoded(): ByteArray? = encodedRead().bytes
+
+/**
+ * One read of the bytes of [this], refused past [ceiling] with the reason [pictureTooLargeToRead] gives.
+ *
+ * Read unmapped and copied, since a mapped file rewritten in place would change the bytes under a lazy decode.
+ *
+ * @param ceiling The most encoded bytes the read may hold, [PICTURE_PEAK_CEILING] by default.
+ */
+@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
+internal fun ImageSource.encodedRead(ceiling: Long = PICTURE_PEAK_CEILING): HeldBytes {
+  val url =
+    when (this) {
+      is ImageSource.Path -> NSURL.fileURLWithPath(path)
+      is ImageSource.Uri -> NSURL.URLWithString(uri)
+      is ImageSource.Bytes -> return HeldBytes(bytes)
+    } ?: return HeldBytes(null)
+  val tooLarge = HeldBytes(null, pictureTooLargeToRead(this, ceiling))
+  if ((url.fileLength() ?: 0L) > ceiling) return tooLarge
+  // NSData's limit: a remote URL gives no length ahead of the read and no way to stop it, so it is only counted after.
+  val data = NSData.dataWithContentsOfURL(url, options = 0u, error = null) ?: return HeldBytes(null)
+  return if (data.length.toLong() > ceiling) tooLarge else HeldBytes(data.toByteArray())
+}
+
+// The length of the file this URL names, or null when it names none.
 @OptIn(ExperimentalForeignApi::class)
-private fun decoded(url: NSURL): PictureRead<OverlayPixels> =
-  NSData.dataWithContentsOfURL(url, options = 0u, error = null)?.toByteArray()?.let(::decoded)
-    ?: PictureRead.Unreadable
+private fun NSURL.fileLength(): Long? {
+  if (!fileURL) return null
+  val path = path ?: return null
+  val attributes = NSFileManager.defaultManager.attributesOfItemAtPath(path, error = null)
+  return (attributes?.get(NSFileSize) as? NSNumber)?.longLongValue
+}
+
+/**
+ * Decodes one read of a picture, as [ImageSource.read] does, with null for a read that found nothing.
+ */
+internal fun decodedPicture(bytes: ByteArray?): PictureRead<OverlayPixels> =
+  bytes?.let(::decoded) ?: PictureRead.Unreadable
 
 @OptIn(ExperimentalForeignApi::class)
 private fun decoded(bytes: ByteArray): PictureRead<OverlayPixels> {

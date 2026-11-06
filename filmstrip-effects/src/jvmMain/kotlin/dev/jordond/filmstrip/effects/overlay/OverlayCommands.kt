@@ -12,8 +12,6 @@ import java.io.ByteArrayInputStream
 import java.io.IOException
 import java.util.Locale
 import javax.imageio.ImageIO
-import javax.imageio.ImageReader
-import javax.imageio.metadata.IIOMetadataNode
 
 // Why this overlay's animation cannot be driven over [drawnRange] whatever its picture holds, or null when it can or
 // has none. It needs no read of the picture, so it runs ahead of one.
@@ -146,32 +144,29 @@ private fun commandValues(
 }
 
 /**
- * The size this picture is shown at, which is the size the graph places it by.
+ * The size this picture is shown at when nothing decoded it, which is the size the graph places it by.
  *
- * The JDK reads the size out of the picture's header, and [decoder] measures it only when the JDK has no reader for
- * the format. A path or file URL that is not a file this process can read is handed to [refuse] without asking
- * [decoder], as is a picture neither can size. The size is cut to the crop [cropLeftOf] reads and turned by the
- * orientation the graph lays the picture out by.
+ * The JDK reads the size out of the picture's header. A path or file URL that is not a file this process can read is
+ * handed to [refuse], as is a picture the JDK cannot size.
  */
-internal inline fun ImageSource.shownSize(
-  decoder: OverlayPictureDecoder?,
-  refuse: (String) -> Nothing,
-): Size {
+internal inline fun ImageSource.shownSize(refuse: (String) -> Nothing): Size {
   val bytes = encodedBytes() ?: refuse(unreadableImageFile(this))
-  val stored =
-    measureOverlay(bytes) ?: when (val read = decoder?.measure(this)) {
-      is OverlayPictureRead.Read -> read.value
-      is OverlayPictureRead.Refused -> refuse(UNREADABLE_IMAGE.saying(read.reason))
-      null -> refuse(UNREADABLE_IMAGE)
-    }
-  return orientationLeftOf(bytes).orientedSize(cropLeftOf(bytes)?.size ?: stored)
+  return shownOf(bytes, measureOverlay(bytes) ?: refuse(UNREADABLE_IMAGE))
 }
+
+/**
+ * The size a picture of [stored] texels encoded as [bytes] is shown at, cut to the crop [cropLeftOf] reads and turned
+ * by the orientation the graph lays the picture out by.
+ */
+internal fun shownOf(
+  bytes: ByteArray,
+  stored: Size,
+): Size = orientationLeftOf(bytes).orientedSize(cropLeftOf(bytes)?.size ?: stored)
 
 /**
  * The stored pixel size of the picture [bytes] encode, or null when the JDK has no reader for them.
  *
- * ImageIO picks a reader off the bytes' own magic and answers the bounds out of the header, so no texel is decoded. A
- * GIF answers its logical screen rather than its first frame's bounds, since that canvas is the frame ffmpeg decodes.
+ * ImageIO picks a reader off the bytes' own magic and answers the bounds out of the header, so no texel is decoded.
  */
 internal fun measureOverlay(bytes: ByteArray): Size? {
   val stream = ImageIO.createImageInputStream(ByteArrayInputStream(bytes)) ?: return null
@@ -181,7 +176,7 @@ internal fun measureOverlay(bytes: ByteArray): Size? {
     reader?.let {
       try {
         it.input = stream
-        it.gifScreen() ?: Size(it.getWidth(FIRST_IMAGE), it.getHeight(FIRST_IMAGE))
+        Size(it.getWidth(FIRST_IMAGE), it.getHeight(FIRST_IMAGE))
       } finally {
         it.dispose()
       }
@@ -191,19 +186,6 @@ internal fun measureOverlay(bytes: ByteArray): Size? {
   } finally {
     stream.close()
   }
-}
-
-// The logical screen a GIF's stream metadata describes, or null for a reader of any other format.
-private fun ImageReader.gifScreen(): Size? {
-  if (!formatName.equals(GIF, ignoreCase = true)) return null
-  val root = streamMetadata?.getAsTree(GIF_STREAM_METADATA) ?: return null
-  val screen =
-    (0 until root.childNodes.length)
-      .map { root.childNodes.item(it) }
-      .firstOrNull { it.nodeName == LOGICAL_SCREEN } as? IIOMetadataNode ?: return null
-  val width = screen.getAttribute(SCREEN_WIDTH).toIntOrNull() ?: return null
-  val height = screen.getAttribute(SCREEN_HEIGHT).toIntOrNull() ?: return null
-  return Size(width, height)
 }
 
 // colorchannelmixer documents its coefficients in -2..2, which is this filter's own limit. The
@@ -277,13 +259,6 @@ internal const val MASK_INSTANCE = "a"
 
 // The image in an ImageIO stream, which is the only one a still carries.
 private const val FIRST_IMAGE = 0
-
-// The JDK GIF reader's format name and the stream metadata nodes it writes the logical screen to.
-private const val GIF = "gif"
-private const val GIF_STREAM_METADATA = "javax_imageio_gif_stream_1.0"
-private const val LOGICAL_SCREEN = "LogicalScreenDescriptor"
-private const val SCREEN_WIDTH = "logicalScreenWidth"
-private const val SCREEN_HEIGHT = "logicalScreenHeight"
 
 private const val ANIMATION_NO_GRID =
   "An animated overlay is sampled once per output frame, and this composition resolved no frame " +

@@ -117,7 +117,23 @@ internal external interface TextMetrics : JsAny {
  * both targets.
  */
 internal external object JSON {
-  fun parse(text: String): JsAny
+  fun <T : JsAny> parse(text: String): T
+}
+
+/**
+ * The options of a fetch that can be aborted, which a [JSON] literal cannot carry since a signal has no text form.
+ */
+internal external interface FetchOptions : JsAny {
+  var signal: JsAny
+}
+
+/**
+ * Aborts a fetch that was handed its [signal].
+ */
+internal external class AbortController : JsAny {
+  val signal: JsAny
+
+  fun abort()
 }
 
 /**

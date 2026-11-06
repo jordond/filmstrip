@@ -41,7 +41,8 @@ public fun interface EffectResolver {
    *
    * Every export engine calls this before each negotiation of [composition], so work a platform can
    * only do asynchronously, such as decoding an overlay image in a browser, is done by the time
-   * [resolve] needs it. The default does nothing.
+   * [resolve] needs it. An engine runs one negotiation at a time, so what this reads stays the negotiation's own, and
+   * this must not start another negotiation on the engine calling it. The default does nothing.
    */
   public suspend fun prepare(composition: EditComposition) {}
 }

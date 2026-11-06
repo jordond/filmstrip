@@ -92,14 +92,15 @@ class OverlayHeaderTest {
   }
 
   @Test
-  fun `a PNG and a JPEG still are sized from their header without asking the decoder`() {
+  fun `a PNG and a JPEG still are sized by the frame the decoder finds in the bytes it was handed`() {
     for ((name, format) in listOf("still.png" to "png", "still.jpg" to "jpg")) {
       val decoder = FakeDecoder(size = SQUARE)
-      val spec = ImageOverlay(ImageSource.of(writePicture(name, format, MID).path), Corner.TopStart)
+      val file = writePicture(name, format, MID)
+      val spec = ImageOverlay(ImageSource.of(file.path), Corner.TopStart)
 
       val resolution = BuiltInEffectResolver(decoder).resolve(spec, capabilities(), attributes())
-      withClue(name) { scaleOf(resolution) shouldBe scaleFor(spec, MID) }
-      withClue("$name measured") { decoder.measured shouldBe emptyList() }
+      withClue(name) { scaleOf(resolution) shouldBe scaleFor(spec, SQUARE) }
+      withClue("$name measured") { decoder.measured shouldBe listOf(ImageSource.ofBytes(file.readBytes())) }
       withClue("$name decoded") { decoder.decodes shouldBe emptyList() }
     }
   }
@@ -129,12 +130,6 @@ class OverlayHeaderTest {
     val resolution = BuiltInEffectResolver(decoder).resolve(spec, capabilities(), attributes())
     scaleOf(resolution) shouldBe scaleFor(spec, SQUARE)
     decoder.measured shouldBe listOf(spec.image)
-  }
-
-  // ffmpeg decodes a GIF to its logical screen, so a first frame smaller than the screen does not size it.
-  @Test
-  fun `a GIF is sized by its logical screen`() {
-    measureOverlay(SMALL_FRAME_GIF) shouldBe GIF_SCREEN
   }
 
   private fun scaleOf(resolution: EffectResolution?): FilterNode =
@@ -213,16 +208,5 @@ class OverlayHeaderTest {
     // A RIFF WebP holding an empty lossy chunk and no color description, which the JDK has no reader for.
     val UNTAGGED_WEBP: ByteArray =
       "RIFF".encodeToByteArray() + byteArrayOf(12, 0, 0, 0) + "WEBPVP8 ".encodeToByteArray() + ByteArray(4)
-
-    val GIF_SCREEN = Size(5, 3)
-
-    // A GIF89a whose 5 by 3 screen holds one 2 by 1 frame at its top left, two LZW codes of colour 0 between a clear
-    // and an end of information code.
-    val SMALL_FRAME_GIF: ByteArray =
-      "GIF89a".encodeToByteArray() +
-        byteArrayOf(5, 0, 3, 0, 0x80.toByte(), 0, 0) +
-        byteArrayOf(0, 0, 0, 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte()) +
-        byteArrayOf(0x2C, 0, 0, 0, 0, 2, 0, 1, 0, 0) +
-        byteArrayOf(2, 2, 0x04, 0x0A, 0, 0x3B)
   }
 }

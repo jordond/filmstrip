@@ -63,11 +63,18 @@ public sealed interface ImageSource {
 
 /**
  * Renders an image source as a short string for an error message.
+ *
+ * A path or URI is itself, except a `data:` URI, whose payload is the picture. That one keeps its head and says how
+ * long it was.
  */
 @InternalFilmstripApi
 public fun ImageSource.describe(): String =
   when (this) {
     is ImageSource.Path -> path
-    is ImageSource.Uri -> uri
+    is ImageSource.Uri -> if (uri.isLongDataUri()) "${uri.take(DATA_URI_HEAD)}... (${uri.length} characters)" else uri
     is ImageSource.Bytes -> "bytes[${bytes.size}]"
   }
+
+private fun String.isLongDataUri(): Boolean = length > DATA_URI_HEAD && startsWith("data:", ignoreCase = true)
+
+private const val DATA_URI_HEAD = 48

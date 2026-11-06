@@ -878,8 +878,8 @@ class PlannerTest {
 
   private fun toolchain(filters: Set<String> = setOf("overlay", "concat", "amix")) =
     Toolchain(
-      ffmpeg = "/usr/bin/ffmpeg",
-      ffprobe = "/usr/bin/ffprobe",
+      ffmpeg = "ffmpeg",
+      ffprobe = "ffprobe",
       version = FfmpegVersion("ffmpeg version 9.0.1", 9, 0),
       filters = filters,
       encoders = setOf("libx264", "libx265", "aac"),

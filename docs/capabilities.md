@@ -217,11 +217,19 @@ it recognises, and declines the rest so the next resolver gets a look.
     each tile, and an image overlay (`iovl`) from its inputs, each turned into color on its own and
     drawn at its offset over the canvas color. The ffmpeg backend needs ffmpeg 8.0 or later, and
     refuses an older one by name.
-    Every overlay is placed in whole pixels off its picture's own size, read from its header by the
-    JVM where it has a reader for the format and by the backend's ffmpeg where it has none. A picture
-    neither can read, or one deleted between planning and export, is refused by name at resolve rather
-    than handed to the graph. ffmpeg sizes and places an animated GIF
-    overlay by its logical screen, the canvas ffmpeg decodes, not by its first frame.
+    Every overlay is placed in whole pixels off its picture's own size. The ffmpeg backend has its
+    ffmpeg decode one frame of the picture at resolve to size it, so a picture that yields no frame,
+    such as a corrupt PNG, is refused by name rather than handed to the graph. On every backend a
+    lowering reads each picture it opens by path or URI once, in its prepare step, and draws only those
+    bytes, however many effects name it. A lowering runs one at a time per engine, and an export lowers
+    when it starts, so a picture changed after planning draws as changed and one deleted by then is
+    refused by name. The browser reads a URI past its HTTP cache, asking the server to revalidate, and
+    refuses by name a picture whose fetch has not finished after 60 seconds. Every backend refuses by
+    name a picture named by path or URI whose encoded bytes pass 1 GiB, the ceiling a picture's read holds
+    to. The
+    ffmpeg backend draws a GIF's first frame on its logical screen, as every other backend draws a GIF's
+    first frame. A format ffmpeg only recognises by its extension, such as TGA, WBMP or PAM, is drawn
+    from its decode, at sixteen bits a sample when it stores more than eight.
 
 [^web-text]:
     Text is rasterised at resolve against the frame an export writes, as on Android and

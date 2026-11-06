@@ -7,6 +7,7 @@ import androidx.media3.effect.ScaleAndRotateTransformation
 import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.color.brightnessDisplayGain
 import dev.jordond.filmstrip.color.brightnessSceneGain
+import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -29,8 +30,10 @@ import dev.jordond.filmstrip.effects.geometry.retainedRect
 import dev.jordond.filmstrip.effects.overlay.ContextlessPicture
 import dev.jordond.filmstrip.effects.overlay.DecodedPicture
 import dev.jordond.filmstrip.effects.overlay.DecoderLimit
+import dev.jordond.filmstrip.effects.overlay.EncodedPicture
 import dev.jordond.filmstrip.effects.overlay.HalfFloatCurve
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.LoweringPictures
 import dev.jordond.filmstrip.effects.overlay.OPEN_GL_ES
 import dev.jordond.filmstrip.effects.overlay.OverlayEffect
 import dev.jordond.filmstrip.effects.overlay.OverlayPlacement
@@ -43,6 +46,7 @@ import dev.jordond.filmstrip.effects.overlay.TextRaster
 import dev.jordond.filmstrip.effects.overlay.UnreadablePicture
 import dev.jordond.filmstrip.effects.overlay.drawnRangeWithin
 import dev.jordond.filmstrip.effects.overlay.drawnTextSize
+import dev.jordond.filmstrip.effects.overlay.encoded
 import dev.jordond.filmstrip.effects.overlay.fitsTextureSide
 import dev.jordond.filmstrip.effects.overlay.halfFloatCurve
 import dev.jordond.filmstrip.effects.overlay.media3OverlayResolution
@@ -57,12 +61,23 @@ import dev.jordond.filmstrip.geometry.FlipAxis
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.HdrTransfer
+import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.media.describe
 import androidx.media3.effect.Crop as Media3Crop
 
 /**
  * Lowers the built-in catalogue onto Media3's effect classes.
  */
 public actual class BuiltInEffectResolver actual constructor() : EffectResolver {
+  private val pictures = LoweringPictures<EncodedPicture> { it.encoded(FilmstripContext.get()) }
+
+  /**
+   * Reads every overlay picture [composition] names by path or URI, so one named twice is one read for this lowering.
+   */
+  override suspend fun prepare(composition: EditComposition) {
+    pictures.readFor(composition)
+  }
+
   actual override fun resolve(
     spec: EffectSpec,
     capabilities: RenderCapabilities,
@@ -120,7 +135,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   private fun ImageOverlay.toOverlay(
     capabilities: RenderCapabilities,
     attributes: Attributes,
-  ): EffectResolution = toOverlay(image.read(FilmstripContext.get()), attributes, capabilities.maxTextureSize)
+  ): EffectResolution = toOverlay(pictures[image].read(), attributes, capabilities.maxTextureSize)
 
   /**
    * Resolves this overlay onto a frame of [attributes] from its already [read] [picture], or refuses it when the
@@ -137,7 +152,7 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
   ): EffectResolution {
     val decoded =
       when (picture) {
-        UnreadablePicture -> return unsupported(id, UNREADABLE_IMAGE)
+        UnreadablePicture -> return unsupported(id, unreadableImage(image))
         ContextlessPicture -> return unsupported(id, FilmstripContext.MISSING_CONTEXT)
         is RefusedPicture -> return unsupported(id, picture.reason)
         is DecodedPicture -> picture
@@ -263,8 +278,8 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     )
 }
 
-private const val UNREADABLE_IMAGE =
-  "The overlay image could not be read. Check that the path or Uri is readable by this process."
+private fun unreadableImage(image: ImageSource): String =
+  "The overlay image ${image.describe()} could not be read. Check that the path or Uri is readable by this process."
 
 // Android decodes a sixteen-bit picture to half floats in extended sRGB or its linear form, and an overlay reads
 // either back to the samples the file stores. A decoder that picks any other space is Android's to answer for, so the

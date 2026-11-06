@@ -70,14 +70,17 @@ import kotlin.time.Duration
  * text too large to draw is refused with the reason its raster gives. Text or a picture longer on a side than the
  * capabilities' `maxTextureSize` is refused, since WebGL uploads nothing past it.
  */
-public actual class BuiltInEffectResolver actual constructor() : EffectResolver {
-  private val images = OverlayImages()
+public actual class BuiltInEffectResolver internal constructor(
+  private val images: OverlayImages,
+) : EffectResolver {
+  public actual constructor() : this(OverlayImages())
 
   /**
    * Decodes every overlay image in [composition] and waits for every face its text overlays name.
    *
-   * A browser decodes images only asynchronously and [resolve] cannot wait, so this runs before a
-   * composition is planned. An image left out of it resolves unsupported.
+   * A browser decodes images only asynchronously and [resolve] cannot wait, so this runs before each
+   * lowering, and a URI is read again every time. An image left out of it resolves unsupported, and so does one whose
+   * fetch never finished, which gives up after a minute rather than hold up later lowerings.
    */
   override suspend fun prepare(composition: EditComposition) {
     preloadOverlays(composition, images)

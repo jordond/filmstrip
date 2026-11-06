@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effects
 
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectResolution
 import dev.jordond.filmstrip.effect.EffectResolver
@@ -29,9 +30,12 @@ import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.effects.geometry.Scale
 import dev.jordond.filmstrip.effects.geometry.retainedRect
 import dev.jordond.filmstrip.effects.geometry.turnedFrame
+import dev.jordond.filmstrip.effects.overlay.HeldBytes
 import dev.jordond.filmstrip.effects.overlay.ImageOverlay
+import dev.jordond.filmstrip.effects.overlay.LoweringPictures
 import dev.jordond.filmstrip.effects.overlay.OverlayPictureDecoder
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
+import dev.jordond.filmstrip.effects.overlay.encodedRead
 import dev.jordond.filmstrip.effects.overlay.filterGraphOverlay
 import dev.jordond.filmstrip.effects.overlay.filterGraphText
 import dev.jordond.filmstrip.geometry.Fit
@@ -55,6 +59,7 @@ import kotlin.math.PI
  */
 public actual class BuiltInEffectResolver : EffectResolver {
   private val pictureDecoder: OverlayPictureDecoder?
+  private val pictures = LoweringPictures<HeldBytes> { it.encodedRead() }
 
   public actual constructor() {
     pictureDecoder = null
@@ -65,10 +70,9 @@ public actual class BuiltInEffectResolver : EffectResolver {
    *
    * The ffmpeg backend builds its catalogue this way when it finds a [BuiltInEffectResolver] in the resolver list it
    * was given. It matches that type exactly, so a resolver of your own that wraps a [BuiltInEffectResolver] keeps the
-   * JDK-only reads unless it builds the one it wraps with this constructor. Without a decoder, an animated overlay, one
-   * on an HDR grade and one that describes its color are refused when the picture is in a format the JDK has no
-   * reader for, such as WebP, an AVIF or HEIC is refused on every grade, since the graph cannot repeat one as it is,
-   * and a JPEG XL on an SDR grade is drawn without looking for a color description in it.
+   * JDK-only reads unless it builds the one it wraps with this constructor. Without a decoder, a picture the JDK
+   * cannot decode is refused, such as a WebP or JPEG XL, and on every grade so is an AVIF, HEIC, GIF or any other
+   * format the graph cannot repeat from its bytes alone.
    *
    * With a decoder, a URL only ffmpeg opens, such as an `https` one, is drawn from its decode, and refused when that
    * decode describes its color, since this process cannot read the description its container carries.
@@ -78,6 +82,13 @@ public actual class BuiltInEffectResolver : EffectResolver {
   @InternalFilmstripApi
   public constructor(pictureDecoder: OverlayPictureDecoder) {
     this.pictureDecoder = pictureDecoder
+  }
+
+  /**
+   * Reads every overlay picture [composition] names by path or URI, so one named twice is one read for this lowering.
+   */
+  override suspend fun prepare(composition: EditComposition) {
+    pictures.readFor(composition)
   }
 
   actual override fun resolve(
@@ -130,7 +141,7 @@ public actual class BuiltInEffectResolver : EffectResolver {
         colorMatrix(spec, attributes.hdrTransfer)
       }
       is ImageOverlay -> {
-        filterGraphOverlay(spec, attributes, pictureDecoder)
+        filterGraphOverlay(spec, attributes, pictureDecoder, pictures[spec.image])
       }
       is TextOverlay -> {
         filterGraphText(spec, capabilities, attributes)

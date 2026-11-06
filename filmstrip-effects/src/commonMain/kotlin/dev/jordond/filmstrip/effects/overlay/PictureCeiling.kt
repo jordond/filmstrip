@@ -1,5 +1,8 @@
 package dev.jordond.filmstrip.effects.overlay
 
+import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.media.describe
+
 /**
  * The most bytes reading or drawing one overlay picture may hold at its peak, 1 GiB.
  *
@@ -7,9 +10,21 @@ package dev.jordond.filmstrip.effects.overlay
  * the bitmap drawn from it, and a text raster on every backend counts itself, the floats an HDR frame draws it from
  * and any copies held on the way. A picture or text whose count passes it is refused by name, since iOS ends an app
  * past its memory limit without malloc ever failing and a browser tab runs out the same way. The reason names the
- * ceiling in force, which Android lowers in `textCeiling`.
+ * ceiling in force, which Android lowers in `textCeiling`. Every backend holds a path or URI picture's encoded bytes
+ * under it too, as the reason [pictureTooLargeToRead] gives says.
  */
 internal const val PICTURE_PEAK_CEILING: Long = 1L shl 30
+
+/**
+ * The reason a picture is refused when its encoded bytes alone pass [ceiling], which is said before they are all read
+ * wherever the backend can tell.
+ */
+internal fun pictureTooLargeToRead(
+  image: ImageSource,
+  ceiling: Long = PICTURE_PEAK_CEILING,
+): String =
+  "The overlay image ${image.describe()} is too large to read. Its encoded bytes must fit in $ceiling bytes, the " +
+    "most one picture may hold."
 
 /**
  * The bytes one texel of a text raster takes, four sixteen-bit samples.
