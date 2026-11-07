@@ -129,27 +129,29 @@ public fun Chip(
   val colors = MaterialTheme.colorScheme
   val palette = LocalChipPalette.current
   val height = controlHeight()
-  val (fill, border, ink) = when {
-    palette != null && selected -> Triple(palette.selectedFill, palette.selectedFill, palette.selectedInk)
-    palette != null -> Triple(Color.Transparent, palette.border, palette.ink)
-    !enabled -> Triple(Color.Transparent, colors.outline, colors.onSurfaceVariant)
-    selected -> Triple(colors.primary, colors.primary, colors.onPrimary)
-    else -> Triple(Color.Transparent, colors.outline, colors.onSurface)
-  }
+  val (fill, border, ink) =
+    when {
+      palette != null && selected -> Triple(palette.selectedFill, palette.selectedFill, palette.selectedInk)
+      palette != null -> Triple(Color.Transparent, palette.border, palette.ink)
+      !enabled -> Triple(Color.Transparent, colors.outline, colors.onSurfaceVariant)
+      selected -> Triple(colors.primary, colors.primary, colors.onPrimary)
+      else -> Triple(Color.Transparent, colors.outline, colors.onSurface)
+    }
   Box(
-    modifier = modifier
-      .focusRing(interaction)
-      .defaultMinSize(minWidth = height, minHeight = height)
-      .background(fill)
-      .border(2.dp, border)
-      .selectable(
-        selected = selected,
-        enabled = enabled,
-        role = role,
-        interactionSource = interaction,
-        indication = null,
-        onClick = onClick,
-      ).padding(horizontal = 10.dp),
+    modifier =
+      modifier
+        .focusRing(interaction)
+        .defaultMinSize(minWidth = height, minHeight = height)
+        .background(fill)
+        .border(2.dp, border)
+        .selectable(
+          selected = selected,
+          enabled = enabled,
+          role = role,
+          interactionSource = interaction,
+          indication = null,
+          onClick = onClick,
+        ).padding(horizontal = 10.dp),
     contentAlignment = Alignment.Center,
   ) {
     Text(label.uppercase(), style = MaterialTheme.typography.labelMedium, color = ink)
@@ -199,20 +201,21 @@ public fun LedSwitch(
   val colors = MaterialTheme.colorScheme
   val lit = checked && enabled
   Row(
-    modifier = modifier
-      .focusRing(interaction)
-      .defaultMinSize(minHeight = controlHeight())
-      .background(colors.surfaceContainer)
-      .border(2.dp, if (lit) colors.secondary else colors.outline)
-      .semantics { contentDescription = label }
-      .toggleable(
-        value = checked,
-        enabled = enabled,
-        role = Role.Switch,
-        interactionSource = interaction,
-        indication = null,
-        onValueChange = onCheckedChange,
-      ).padding(horizontal = 10.dp),
+    modifier =
+      modifier
+        .focusRing(interaction)
+        .defaultMinSize(minHeight = controlHeight())
+        .background(colors.surfaceContainer)
+        .border(2.dp, if (lit) colors.secondary else colors.outline)
+        .semantics { contentDescription = label }
+        .toggleable(
+          value = checked,
+          enabled = enabled,
+          role = Role.Switch,
+          interactionSource = interaction,
+          indication = null,
+          onValueChange = onCheckedChange,
+        ).padding(horizontal = 10.dp),
     horizontalArrangement = Arrangement.spacedBy(8.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
@@ -265,9 +268,10 @@ public fun Pill(
   borderColor: Color = color,
 ) {
   Box(
-    modifier = modifier
-      .border(2.dp, borderColor)
-      .padding(horizontal = 10.dp, vertical = 1.dp),
+    modifier =
+      modifier
+        .border(2.dp, borderColor)
+        .padding(horizontal = 10.dp, vertical = 1.dp),
   ) {
     Text(text, style = MaterialTheme.typography.labelMedium, color = color)
   }
@@ -309,18 +313,19 @@ private fun AnchorCell(
   val interaction = remember { MutableInteractionSource() }
   val colors = MaterialTheme.colorScheme
   Box(
-    modifier = Modifier
-      .focusRing(interaction)
-      .size(width = maxOf(height, 36.dp), height = height)
-      .background(if (selected) colors.primary else colors.surfaceContainer)
-      .border(if (selected) 2.dp else 1.dp, if (selected) colors.primary else colors.outline)
-      .selectable(
-        selected = selected,
-        role = Role.RadioButton,
-        interactionSource = interaction,
-        indication = null,
-        onClick = onClick,
-      ),
+    modifier =
+      Modifier
+        .focusRing(interaction)
+        .size(width = maxOf(height, 36.dp), height = height)
+        .background(if (selected) colors.primary else colors.surfaceContainer)
+        .border(if (selected) 2.dp else 1.dp, if (selected) colors.primary else colors.outline)
+        .selectable(
+          selected = selected,
+          role = Role.RadioButton,
+          interactionSource = interaction,
+          indication = null,
+          onClick = onClick,
+        ),
     contentAlignment = Alignment.Center,
   ) {
     Box(
@@ -365,18 +370,19 @@ private fun Swatch(
   val interaction = remember { MutableInteractionSource() }
   val colors = MaterialTheme.colorScheme
   Box(
-    modifier = Modifier
-      .focusRing(interaction)
-      .size(controlHeight())
-      .background(color ?: colors.surfaceContainer)
-      .border(if (selected) 3.dp else 1.dp, if (selected) colors.primary else colors.outline)
-      .selectable(
-        selected = selected,
-        role = Role.RadioButton,
-        interactionSource = interaction,
-        indication = null,
-        onClick = onClick,
-      ),
+    modifier =
+      Modifier
+        .focusRing(interaction)
+        .size(controlHeight())
+        .background(color ?: colors.surfaceContainer)
+        .border(if (selected) 3.dp else 1.dp, if (selected) colors.primary else colors.outline)
+        .selectable(
+          selected = selected,
+          role = Role.RadioButton,
+          interactionSource = interaction,
+          indication = null,
+          onClick = onClick,
+        ),
     contentAlignment = Alignment.Center,
   ) {
     if (color == null) {

@@ -2,17 +2,19 @@
 
 package dev.jordond.filmstrip.sample
 
-public actual fun deviceInfo(): DeviceInfo = DeviceInfo(
-  platform = "Browser",
-  model = platformName().toString(),
-  operatingSystem = userAgent().toString(),
-  details = mapOf(
-    "cores" to hardwareConcurrency().toString(),
-    "deviceMemoryGb" to deviceMemory().toString(),
-    "crossOriginIsolated" to crossOriginIsolated().toString(),
-    "webCodecs" to hasWebCodecs().toString(),
-  ),
-)
+public actual fun deviceInfo(): DeviceInfo =
+  DeviceInfo(
+    platform = "Browser",
+    model = platformName().toString(),
+    operatingSystem = userAgent().toString(),
+    details =
+      mapOf(
+        "cores" to hardwareConcurrency().toString(),
+        "deviceMemoryGb" to deviceMemory().toString(),
+        "crossOriginIsolated" to crossOriginIsolated().toString(),
+        "webCodecs" to hasWebCodecs().toString(),
+      ),
+  )
 
 private fun userAgent(): JsString = js("navigator.userAgent")
 

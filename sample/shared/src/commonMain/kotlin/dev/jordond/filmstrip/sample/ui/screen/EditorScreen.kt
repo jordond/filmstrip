@@ -139,10 +139,11 @@ private fun StackedEditor(
           HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
           ToolPanel(
             state = state,
-            modifier = when {
-              typing || splitEvenly -> Modifier.weight(1f)
-              else -> Modifier.heightIn(min = PANEL_MIN, max = panelMax)
-            },
+            modifier =
+              when {
+                typing || splitEvenly -> Modifier.weight(1f)
+                else -> Modifier.heightIn(min = PANEL_MIN, max = panelMax)
+              },
           )
         }
       }
@@ -188,15 +189,16 @@ private fun EditorTopBar(
   val colors = MaterialTheme.colorScheme
   val insets = LocalScreenInsets.current
   Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .background(colors.background)
-      .scanlinesFaint()
-      .bottomLine(colors.outlineVariant)
-      .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-      .padding(start = insets.side, end = insets.side, top = insets.top)
-      .heightIn(min = if (wide) 64.dp else 56.dp)
-      .padding(start = 4.dp, end = 12.dp),
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .background(colors.background)
+        .scanlinesFaint()
+        .bottomLine(colors.outlineVariant)
+        .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+        .padding(start = insets.side, end = insets.side, top = insets.top)
+        .heightIn(min = if (wide) 64.dp else 56.dp)
+        .padding(start = 4.dp, end = 12.dp),
     horizontalArrangement = Arrangement.spacedBy(if (wide) 8.dp else 2.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
@@ -242,12 +244,13 @@ private fun ExportRefusalLine(reason: String) {
     text = reason,
     style = MaterialTheme.typography.bodySmall,
     color = colors.onSurfaceVariant,
-    modifier = Modifier
-      .fillMaxWidth()
-      .background(colors.background)
-      .bottomLine(colors.outlineVariant)
-      .padding(start = insets.side, end = insets.side)
-      .padding(horizontal = 12.dp, vertical = 6.dp),
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .background(colors.background)
+        .bottomLine(colors.outlineVariant)
+        .padding(start = insets.side, end = insets.side)
+        .padding(horizontal = 12.dp, vertical = 6.dp),
   )
 }
 
@@ -343,17 +346,18 @@ private fun PlayKey(state: SampleAppState) {
   val running = state.playing && state.canPlay
   val enabled = state.canPlay
   Box(
-    modifier = Modifier
-      .focusRing(interaction)
-      .size(width = PLAY_KEY_WIDTH.dp, height = Tokens.sizeTouch)
-      .background(if (enabled) colors.primary else colors.outline)
-      .clickable(
-        enabled = enabled,
-        role = Role.Button,
-        interactionSource = interaction,
-        indication = null,
-        onClick = state::togglePlay,
-      ),
+    modifier =
+      Modifier
+        .focusRing(interaction)
+        .size(width = PLAY_KEY_WIDTH.dp, height = Tokens.sizeTouch)
+        .background(if (enabled) colors.primary else colors.outline)
+        .clickable(
+          enabled = enabled,
+          role = Role.Button,
+          interactionSource = interaction,
+          indication = null,
+          onClick = state::togglePlay,
+        ),
     contentAlignment = Alignment.Center,
   ) {
     Icon(

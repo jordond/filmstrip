@@ -38,17 +38,29 @@ public actual suspend fun loadPreset(preset: SamplePreset): MediaSource {
 private suspend fun download(
   url: NSURL,
   name: String,
-): NSData = suspendCancellableCoroutine { continuation ->
-  val task = NSURLSession.sharedSession.dataTaskWithURL(url) { data, _, error ->
-    when {
-      error != null -> continuation.resumeWithException(IllegalStateException("Could not download $name: ${error.localizedDescription}"))
-      data == null -> continuation.resumeWithException(IllegalStateException("The download of $name came back empty."))
-      else -> continuation.resume(data)
-    }
+): NSData =
+  suspendCancellableCoroutine { continuation ->
+    val task =
+      NSURLSession.sharedSession.dataTaskWithURL(url) { data, _, error ->
+        when {
+          error != null -> {
+            continuation.resumeWithException(
+              IllegalStateException("Could not download $name: ${error.localizedDescription}"),
+            )
+          }
+          data == null -> {
+            continuation.resumeWithException(
+              IllegalStateException("The download of $name came back empty."),
+            )
+          }
+          else -> {
+            continuation.resume(data)
+          }
+        }
+      }
+    continuation.invokeOnCancellation { task.cancel() }
+    task.resume()
   }
-  continuation.invokeOnCancellation { task.cancel() }
-  task.resume()
-}
 
 public actual val presetsAvailable: Boolean = true
 

@@ -34,8 +34,7 @@ public val LocalScreenInsets: ProvidableCompositionLocal<ScreenInsets> = staticC
  *
  * @param search The query as `location.search` hands it over, with or without the leading question mark.
  */
-public fun isTubeEmbed(search: String): Boolean =
-  search.removePrefix("?").split('&').any { it == "embed=tv" }
+public fun isTubeEmbed(search: String): Boolean = search.removePrefix("?").split('&').any { it == "embed=tv" }
 
 /**
  * Lays [content] out to clear the corners of the site's television, a wide tube's or the tighter ones a phone gets.

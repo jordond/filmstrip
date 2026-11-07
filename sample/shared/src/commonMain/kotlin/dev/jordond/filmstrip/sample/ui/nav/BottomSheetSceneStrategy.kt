@@ -27,7 +27,6 @@ import dev.jordond.filmstrip.sample.ui.nav.BottomSheetSceneStrategy.Companion.sh
  * builders by window width.
  */
 public class BottomSheetSceneStrategy<T : Any> : SceneStrategy<T> {
-
   override fun SceneStrategyScope<T>.calculateScene(entries: List<NavEntry<T>>): Scene<T>? {
     val entry = entries.lastOrNull() ?: return null
     val properties = entry.metadata[SheetKey] ?: return null
@@ -79,16 +78,16 @@ private class BottomSheetScene<T : Any>(
   private val properties: SheetProperties,
   private val onBack: () -> Unit,
 ) : OverlayScene<T> {
-
   override val entries: List<NavEntry<T>> = listOf(entry)
 
   override val content: @Composable () -> Unit = {
     ModalBottomSheet(
       onDismissRequest = { if (properties.dismissOnBack) onBack() },
-      sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = properties.skipPartiallyExpanded,
-        confirmValueChange = { properties.dismissOnBack },
-      ),
+      sheetState =
+        rememberModalBottomSheetState(
+          skipPartiallyExpanded = properties.skipPartiallyExpanded,
+          confirmValueChange = { properties.dismissOnBack },
+        ),
       shape = RectangleShape,
       containerColor = properties.container ?: MaterialTheme.colorScheme.surface,
       contentColor = MaterialTheme.colorScheme.onSurface,

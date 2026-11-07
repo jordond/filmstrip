@@ -22,7 +22,10 @@ class ThemeRolesTest {
       MINIMUM_TEXT_CONTRAST
   }
 
-  private fun contrast(foreground: Color, background: Color): Float {
+  private fun contrast(
+    foreground: Color,
+    background: Color,
+  ): Float {
     val lighter = maxOf(foreground.luminance(), background.luminance())
     val darker = minOf(foreground.luminance(), background.luminance())
     return (lighter + 0.05f) / (darker + 0.05f)

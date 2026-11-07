@@ -18,10 +18,11 @@ actual fun ResultVideoPlayer(
     message = "Desktop playback happens outside the app.",
     modifier = modifier,
     actionLabel = if (openable) "Open in the system player" else null,
-    action = if (openable) {
-      { Desktop.getDesktop().open(File(path)) }
-    } else {
-      null
-    },
+    action =
+      if (openable) {
+        { Desktop.getDesktop().open(File(path)) }
+      } else {
+        null
+      },
   )
 }

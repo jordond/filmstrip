@@ -11,12 +11,13 @@ import androidx.compose.ui.window.rememberWindowState
  * The desktop sample. The window opens wide enough for the editor's two pane layout, and shrinking
  * it below that stacks the editor the way a phone does.
  */
-fun main() = application {
-  Window(
-    onCloseRequest = ::exitApplication,
-    title = "filmstrip",
-    state = rememberWindowState(size = DpSize(1180.dp, 820.dp)),
-  ) {
-    App(remember { createSampleAppState() })
+fun main() =
+  application {
+    Window(
+      onCloseRequest = ::exitApplication,
+      title = "filmstrip",
+      state = rememberWindowState(size = DpSize(1180.dp, 820.dp)),
+    ) {
+      App(remember { createSampleAppState() })
+    }
   }
-}

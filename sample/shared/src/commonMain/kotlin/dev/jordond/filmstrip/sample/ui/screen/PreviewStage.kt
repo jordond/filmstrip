@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.compose.ui.CropColors
 import dev.jordond.filmstrip.compose.ui.CropOverlayDefaults
 import dev.jordond.filmstrip.compose.ui.OverlayHandleColors
@@ -56,7 +57,6 @@ import dev.jordond.filmstrip.effects.overlay.ImageOverlay
 import dev.jordond.filmstrip.effects.overlay.OverlayPlacement
 import dev.jordond.filmstrip.effects.overlay.TextOverlay
 import dev.jordond.filmstrip.effects.overlay.placedOn
-import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.geometry.Corner
 import dev.jordond.filmstrip.geometry.Fit
 import dev.jordond.filmstrip.player.PlaybackStatus
@@ -76,6 +76,7 @@ import dev.jordond.filmstrip.sample.ui.scanlinesFaint
 import dev.jordond.filmstrip.sample.ui.timecode
 import dev.jordond.filmstrip.style.FontWeight
 import dev.jordond.filmstrip.style.TextAlignment
+import dev.jordond.filmstrip.transform.internal.geometry.placeIn
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -83,7 +84,6 @@ import kotlin.time.Duration.Companion.seconds
 import androidx.compose.ui.text.TextStyle as ComposeTextStyle
 import androidx.compose.ui.text.font.FontWeight as ComposeFontWeight
 import dev.jordond.filmstrip.geometry.Size as FrameSize
-import dev.jordond.filmstrip.transform.internal.geometry.placeIn
 
 /**
  * The editor's viewport.
@@ -108,16 +108,17 @@ public fun PreviewStage(
   val compact = isCompactWidth()
 
   Column(
-    modifier = modifier
-      .background(MaterialTheme.colorScheme.surfaceContainerLowest)
-      .insetVignette(if (compact) 37.dp else 74.dp)
-      .scanlinesFaint()
-      .padding(
-        start = if (compact) 16.dp else 24.dp,
-        end = if (compact) 16.dp else 24.dp,
-        top = if (compact) 8.dp else 12.dp,
-        bottom = if (compact) 8.dp else 12.dp,
-      ),
+    modifier =
+      modifier
+        .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+        .insetVignette(if (compact) 37.dp else 74.dp)
+        .scanlinesFaint()
+        .padding(
+          start = if (compact) 16.dp else 24.dp,
+          end = if (compact) 16.dp else 24.dp,
+          top = if (compact) 8.dp else 12.dp,
+          bottom = if (compact) 8.dp else 12.dp,
+        ),
     verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp),
   ) {
     OsdStatus(state, compact)
@@ -127,10 +128,11 @@ public fun PreviewStage(
         // it, and the schematic stands in for the picture.
         player = state.player?.takeIf { !state.previewUnavailable },
         outputAspect = edit.outputAspect(state.sourceAspect, cropped = !state.croppingRect),
-        modifier = Modifier
-          .padding(BracketReach)
-          .viewfinderBrackets()
-          .background(Color.Black),
+        modifier =
+          Modifier
+            .padding(BracketReach)
+            .viewfinderBrackets()
+            .background(Color.Black),
         fallback = { StageSchematic(state, Modifier.fillMaxSize()) },
       ) {
         if (state.croppingRect) {
@@ -140,9 +142,10 @@ public fun PreviewStage(
               edit.setCropRect(rect)
               state.onEditChanged()
             },
-            constraint = edit.cropLockAspect
-              ?.let { CropConstraint.lockedTo(it, aspect) }
-              ?: CropOverlayDefaults.Constraint,
+            constraint =
+              edit.cropLockAspect
+                ?.let { CropConstraint.lockedTo(it, aspect) }
+                ?: CropOverlayDefaults.Constraint,
             colors = sampleCropColors(),
           )
         } else {
@@ -165,19 +168,21 @@ private fun OsdStatus(
   state: SampleAppState,
   compact: Boolean,
 ) {
-  val style = MaterialTheme.typography.labelLarge.copy(
-    fontSize = if (compact) 20.sp else 24.sp,
-    lineHeight = if (compact) 22.sp else 26.sp,
-  )
+  val style =
+    MaterialTheme.typography.labelLarge.copy(
+      fontSize = if (compact) 20.sp else 24.sp,
+      lineHeight = if (compact) 22.sp else 26.sp,
+    )
   val colors = MaterialTheme.colorScheme
   val live = state.player != null && !state.previewUnavailable
-  val (word, wordColor) = when {
-    live && state.playerStatus is PlaybackStatus.Error -> "ERROR" to colors.error
-    live && state.playing -> "PLAY" to colors.primary
-    live -> state.playerStatus.statusWord() to colors.primary
-    state.sourceFailure != null -> "UNREADABLE" to colors.error
-    else -> "SCHEMATIC" to colors.secondary
-  }
+  val (word, wordColor) =
+    when {
+      live && state.playerStatus is PlaybackStatus.Error -> "ERROR" to colors.error
+      live && state.playing -> "PLAY" to colors.primary
+      live -> state.playerStatus.statusWord() to colors.primary
+      state.sourceFailure != null -> "UNREADABLE" to colors.error
+      else -> "SCHEMATIC" to colors.secondary
+    }
   val fps = state.info?.video?.frameRate
   Row(
     modifier = Modifier.fillMaxWidth(),
@@ -204,22 +209,47 @@ private fun OsdStatus(
 private fun SampleAppState.stepLabel(compact: Boolean): String {
   val edit = edit
   return when (activeTool) {
-    EditorTool.Trim ->
+    EditorTool.Trim -> {
       if (compact || !edit.trimEnabled) {
         "TRIM"
       } else {
-        val start = edit.trimStartSeconds.toDouble().seconds.asClock()
-        val end = edit.trimEndSeconds.toDouble().seconds.asClock()
+        val start =
+          edit.trimStartSeconds
+            .toDouble()
+            .seconds
+            .asClock()
+        val end =
+          edit.trimEndSeconds
+            .toDouble()
+            .seconds
+            .asClock()
         "TRIM  $start TO $end"
       }
-    EditorTool.Crop -> "REFRAME"
-    EditorTool.Transform -> "ROTATE"
-    EditorTool.Scale -> "SCALE"
-    EditorTool.Adjust -> if (compact) "COLOUR GRADE" else "EFFECT  COLOUR GRADE"
-    EditorTool.Text -> if (compact) "TEXT" else "OVERLAY  TEXT"
-    EditorTool.Watermark -> if (compact) "IMAGE" else "OVERLAY  IMAGE"
-    EditorTool.Audio -> "AUDIO"
-    EditorTool.Background -> "FILL"
+    }
+    EditorTool.Crop -> {
+      "REFRAME"
+    }
+    EditorTool.Transform -> {
+      "ROTATE"
+    }
+    EditorTool.Scale -> {
+      "SCALE"
+    }
+    EditorTool.Adjust -> {
+      if (compact) "COLOUR GRADE" else "EFFECT  COLOUR GRADE"
+    }
+    EditorTool.Text -> {
+      if (compact) "TEXT" else "OVERLAY  TEXT"
+    }
+    EditorTool.Watermark -> {
+      if (compact) "IMAGE" else "OVERLAY  IMAGE"
+    }
+    EditorTool.Audio -> {
+      "AUDIO"
+    }
+    EditorTool.Background -> {
+      "FILL"
+    }
   }
 }
 
@@ -271,7 +301,13 @@ private fun Modifier.viewfinderBrackets(): Modifier =
     val top = -reach
     val right = size.width + reach
     val bottom = size.height + reach
-    fun corner(x: Float, y: Float, xDirection: Float, yDirection: Float) {
+
+    fun corner(
+      x: Float,
+      y: Float,
+      xDirection: Float,
+      yDirection: Float,
+    ) {
       drawRect(
         color = Tokens.trackTick,
         topLeft = Offset(if (xDirection > 0) x else x - length, if (yDirection > 0) y else y - width),
@@ -348,14 +384,15 @@ private fun VideoStageScope.OverlayHandles(state: SampleAppState) {
 
   edit.watermarkImage?.let { image ->
     OverlayHandle(
-      placement = remember(edit.watermarkCorner, edit.watermarkMargin, edit.watermarkScale, output) {
-        ImageOverlay(
-          image = image,
-          corner = edit.watermarkCorner,
-          margin = edit.watermarkMargin,
-          scale = edit.watermarkScale,
-        ).placedOn(output, WATERMARK_IMAGE)
-      },
+      placement =
+        remember(edit.watermarkCorner, edit.watermarkMargin, edit.watermarkScale, output) {
+          ImageOverlay(
+            image = image,
+            corner = edit.watermarkCorner,
+            margin = edit.watermarkMargin,
+            scale = edit.watermarkScale,
+          ).placedOn(output, WATERMARK_IMAGE)
+        },
       onFrameAnchorChange = { anchor ->
         edit.setWatermarkAnchor(anchor, output)
         state.onEditChanged()
@@ -377,19 +414,22 @@ private fun textPlacement(
 ): OverlayPlacement {
   val measurer = rememberTextMeasurer()
   val fontSize = with(LocalDensity.current) { (output.height * edit.textSize / CAP_HEIGHT_RATIO).toSp() }
-  val block = measurer.measure(
-    text = edit.text,
-    style = ComposeTextStyle(
-      fontSize = fontSize,
-      lineHeight = fontSize * 1.15f,
-      fontWeight = when (edit.textWeight) {
-        FontWeight.Regular -> ComposeFontWeight.Normal
-        FontWeight.Medium -> ComposeFontWeight.Medium
-        FontWeight.Bold -> ComposeFontWeight.Bold
-      },
-    ),
-    constraints = Constraints(maxWidth = (output.width * edit.textMaxWidth).roundToInt().coerceAtLeast(1)),
-  )
+  val block =
+    measurer.measure(
+      text = edit.text,
+      style =
+        ComposeTextStyle(
+          fontSize = fontSize,
+          lineHeight = fontSize * 1.15f,
+          fontWeight =
+            when (edit.textWeight) {
+              FontWeight.Regular -> ComposeFontWeight.Normal
+              FontWeight.Medium -> ComposeFontWeight.Medium
+              FontWeight.Bold -> ComposeFontWeight.Bold
+            },
+        ),
+      constraints = Constraints(maxWidth = (output.width * edit.textMaxWidth).roundToInt().coerceAtLeast(1)),
+    )
 
   return TextOverlay(
     text = edit.text,
@@ -436,7 +476,9 @@ private fun FrameBackground(
   sourceAspect: Float,
 ) {
   when (edit.fillMode) {
-    FillMode.Solid -> Box(Modifier.fillMaxSize().background(Color(edit.fillColor)))
+    FillMode.Solid -> {
+      Box(Modifier.fillMaxSize().background(Color(edit.fillColor)))
+    }
     FillMode.Blurred -> {
       Box(Modifier.fillMaxSize().background(Color.Black)) {
         SyntheticFrame(
@@ -476,7 +518,6 @@ private fun FrameContent(
       offsetX = -contentWidth * rect.left - (frameWidth - contentWidth) / 2f
       offsetY = -contentHeight * rect.top - (frameHeight - contentHeight) / 2f
     }
-
     // The stage is the crop's canvas, so the frame sits where the library's own placement puts it in there.
     edit.cropMode == CropMode.Aspect && edit.cropFit != Fit.Crop -> {
       val placed =
@@ -491,7 +532,6 @@ private fun FrameContent(
       contentWidth = frameWidth * placed.width
       contentHeight = frameHeight * placed.height
     }
-
     else -> {
       if (frameWidth / frameHeight > rotated) {
         contentWidth = frameWidth
@@ -511,9 +551,10 @@ private fun FrameContent(
       flipHorizontal = edit.flipHorizontal,
       flipVertical = edit.flipVertical,
       sourceAspect = sourceAspect,
-      modifier = Modifier
-        .offset(x = offsetX, y = offsetY)
-        .requiredSize(contentWidth, contentHeight),
+      modifier =
+        Modifier
+          .offset(x = offsetX, y = offsetY)
+          .requiredSize(contentWidth, contentHeight),
     )
   }
 }
@@ -557,11 +598,12 @@ private fun DrawScope.drawTestCard(
   val unit = min(width, height)
 
   drawRect(
-    brush = Brush.linearGradient(
-      colors = listOf(Tokens.sceneSkyTop, Tokens.sceneSkyMiddle, Tokens.sceneSkyLow),
-      start = Offset.Zero,
-      end = Offset(width, height),
-    ),
+    brush =
+      Brush.linearGradient(
+        colors = listOf(Tokens.sceneSkyTop, Tokens.sceneSkyMiddle, Tokens.sceneSkyLow),
+        start = Offset.Zero,
+        end = Offset(width, height),
+      ),
     size = frame,
   )
 
@@ -581,12 +623,13 @@ private fun DrawScope.drawTestCard(
   val arrowHeight = unit * 0.18f
   val arrowTop = height * 0.16f
   val arrowCenter = width * 0.5f
-  val arrow = androidx.compose.ui.graphics.Path().apply {
-    moveTo(arrowCenter, arrowTop)
-    lineTo(arrowCenter + arrowHeight * 0.6f, arrowTop + arrowHeight)
-    lineTo(arrowCenter - arrowHeight * 0.6f, arrowTop + arrowHeight)
-    close()
-  }
+  val arrow =
+    androidx.compose.ui.graphics.Path().apply {
+      moveTo(arrowCenter, arrowTop)
+      lineTo(arrowCenter + arrowHeight * 0.6f, arrowTop + arrowHeight)
+      lineTo(arrowCenter - arrowHeight * 0.6f, arrowTop + arrowHeight)
+      close()
+    }
   drawPath(arrow, Tokens.white.copy(alpha = 0.9f))
 
   drawCircle(
@@ -630,21 +673,24 @@ private fun CaptionOverlay(
       color = Color(edit.textColor),
       fontSize = fontSize,
       lineHeight = fontSize * 1.15f,
-      fontWeight = when (edit.textWeight) {
-        FontWeight.Regular -> ComposeFontWeight.Normal
-        FontWeight.Medium -> ComposeFontWeight.Medium
-        FontWeight.Bold -> ComposeFontWeight.Bold
-      },
-      textAlign = when (edit.textAlignment) {
-        TextAlignment.Start -> TextAlign.Start
-        TextAlignment.Center -> TextAlign.Center
-        TextAlignment.End -> TextAlign.End
-      },
-      modifier = Modifier
-        .align(BiasAlignment(edit.textAnchorX * 2f - 1f, edit.textAnchorY * 2f - 1f))
-        .widthIn(max = frameWidth * edit.textMaxWidth)
-        .then(if (plate != null) Modifier.background(Color(plate)) else Modifier)
-        .padding(horizontal = if (plate != null) 6.dp else 0.dp, vertical = if (plate != null) 2.dp else 0.dp),
+      fontWeight =
+        when (edit.textWeight) {
+          FontWeight.Regular -> ComposeFontWeight.Normal
+          FontWeight.Medium -> ComposeFontWeight.Medium
+          FontWeight.Bold -> ComposeFontWeight.Bold
+        },
+      textAlign =
+        when (edit.textAlignment) {
+          TextAlignment.Start -> TextAlign.Start
+          TextAlignment.Center -> TextAlign.Center
+          TextAlignment.End -> TextAlign.End
+        },
+      modifier =
+        Modifier
+          .align(BiasAlignment(edit.textAnchorX * 2f - 1f, edit.textAnchorY * 2f - 1f))
+          .widthIn(max = frameWidth * edit.textMaxWidth)
+          .then(if (plate != null) Modifier.background(Color(plate)) else Modifier)
+          .padding(horizontal = if (plate != null) 6.dp else 0.dp, vertical = if (plate != null) 2.dp else 0.dp),
     )
   }
 }
@@ -658,20 +704,22 @@ private fun WatermarkOverlay(
   if (edit.watermarkImage == null) return
 
   val width = frameWidth * edit.watermarkScale
-  val alignment = when (edit.watermarkCorner) {
-    Corner.TopStart -> BiasAlignment(-1f, -1f)
-    Corner.TopEnd -> BiasAlignment(1f, -1f)
-    Corner.BottomStart -> BiasAlignment(-1f, 1f)
-    Corner.BottomEnd -> BiasAlignment(1f, 1f)
-  }
+  val alignment =
+    when (edit.watermarkCorner) {
+      Corner.TopStart -> BiasAlignment(-1f, -1f)
+      Corner.TopEnd -> BiasAlignment(1f, -1f)
+      Corner.BottomStart -> BiasAlignment(-1f, 1f)
+      Corner.BottomEnd -> BiasAlignment(1f, 1f)
+    }
 
   Box(Modifier.fillMaxSize().padding(shorterSide * edit.watermarkMargin)) {
     Box(
-      modifier = Modifier
-        .align(alignment)
-        .size(width, width * WATERMARK_ASPECT)
-        .background(Tokens.white.copy(alpha = 0.14f * edit.watermarkOpacity))
-        .border(1.dp, Tokens.white.copy(alpha = 0.7f * edit.watermarkOpacity)),
+      modifier =
+        Modifier
+          .align(alignment)
+          .size(width, width * WATERMARK_ASPECT)
+          .background(Tokens.white.copy(alpha = 0.14f * edit.watermarkOpacity))
+          .border(1.dp, Tokens.white.copy(alpha = 0.7f * edit.watermarkOpacity)),
       contentAlignment = Alignment.Center,
     ) {
       Text(
@@ -687,8 +735,7 @@ private fun WatermarkOverlay(
 /**
  * What the stage says about a preview that is not playing, or null while it is.
  */
-private fun SampleAppState.previewNote(): String? =
-  sourceFailure ?: previewError?.stageSentence()
+private fun SampleAppState.previewNote(): String? = sourceFailure ?: previewError?.stageSentence()
 
 private fun PlaybackStatus.statusWord(): String =
   when (this) {

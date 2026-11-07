@@ -68,7 +68,8 @@ public class DiagnosticsRecorder(
   /**
    * The listener filmstrip's own components report through.
    */
-  public fun asListener(): DiagnosticListener = DiagnosticListener { event ->
-    record("${event.source}.${event.name}", event.detail)
-  }
+  public fun asListener(): DiagnosticListener =
+    DiagnosticListener { event ->
+      record("${event.source}.${event.name}", event.detail)
+    }
 }

@@ -4,7 +4,6 @@ package dev.jordond.filmstrip.sample
 
 import io.github.vinceglb.filekit.PlatformFile
 import kotlinx.cinterop.ExperimentalForeignApi
-
 import platform.Foundation.NSString
 import platform.Foundation.NSTemporaryDirectory
 import platform.Foundation.NSURL

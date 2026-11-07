@@ -16,16 +16,17 @@ import kotlin.test.assertTrue
 class EditStateTest {
   @Test
   fun `every color knob reaches the composition in the order the pipeline runs them`() {
-    val edit = EditState().apply {
-      brightness = 1.2f
-      channelRed = 0.9f
-      contrast = 1.1f
-      saturation = 0.5f
-      hueDegrees = 30f
-      sepia = 0.4f
-      invert = 0.1f
-      customMatrix = ColorMatrix(rb = 0.5f)
-    }
+    val edit =
+      EditState().apply {
+        brightness = 1.2f
+        channelRed = 0.9f
+        contrast = 1.1f
+        saturation = 0.5f
+        hueDegrees = 30f
+        sepia = 0.4f
+        invert = 0.1f
+        customMatrix = ColorMatrix(rb = 0.5f)
+      }
 
     val effects = edit.composition(SOURCE, sourceDuration = null).effects
 

@@ -1,6 +1,7 @@
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
+  id("filmstrip.internal")
   alias(libs.plugins.multiplatform)
   alias(libs.plugins.android.multiplatform.library)
   alias(libs.plugins.compose)
@@ -8,12 +9,22 @@ plugins {
 }
 
 kotlin {
-  jvmToolchain(libs.versions.jvmTarget.get().toInt())
+  jvmToolchain(
+    libs.versions.jvmTarget
+      .get()
+      .toInt(),
+  )
 
   android {
     namespace = "dev.jordond.filmstrip.sample.common"
-    compileSdk = libs.versions.sdk.compile.get().toInt()
-    minSdk = libs.versions.sdk.min.get().toInt()
+    compileSdk =
+      libs.versions.sdk.compile
+        .get()
+        .toInt()
+    minSdk =
+      libs.versions.sdk.min
+        .get()
+        .toInt()
     androidResources.enable = true
   }
 

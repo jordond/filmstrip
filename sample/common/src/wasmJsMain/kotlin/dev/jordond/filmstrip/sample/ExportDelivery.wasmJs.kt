@@ -16,13 +16,9 @@ public actual fun releaseExport(output: MediaSink) {
   if (output is MediaSink.Uri) revokeObjectUrl(output.uri)
 }
 
-private fun revokeObjectUrl(
-  url: String,
-): Unit = js("URL.revokeObjectURL(url)")
+private fun revokeObjectUrl(url: String): Unit = js("URL.revokeObjectURL(url)")
 
-private fun downloadObjectUrl(
-  url: String,
-): Unit =
+private fun downloadObjectUrl(url: String): Unit =
   js(
     """
     {

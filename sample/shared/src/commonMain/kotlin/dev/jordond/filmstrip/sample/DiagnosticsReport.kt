@@ -48,110 +48,112 @@ public fun SampleAppState.diagnosticsReport(): DiagnosticsReport =
 
 private val json = Json { prettyPrint = true }
 
-private fun SampleAppState.diagnosticsMarkdown(): String = buildString {
-  val device = deviceInfo()
+private fun SampleAppState.diagnosticsMarkdown(): String =
+  buildString {
+    val device = deviceInfo()
 
-  section("Version")
-  line(FilmstripVersion.name)
+    section("Version")
+    line(FilmstripVersion.name)
 
-  section("Targets")
-  if (backends.isEmpty()) {
-    line("No export backend is registered.")
-  } else {
-    backends.forEach { backend -> line("* ${backend.name} (`${backend.artifact}`)") }
-  }
-
-  section("Device")
-  line("* ${device.platform}: ${device.model}")
-  line("* ${device.operatingSystem}")
-  device.details.forEach { (key, value) -> line("* $key: $value") }
-
-  section("Media")
-  line(sourceSummary())
-  probeSummary()?.let { line(it) }
-
-  section("Steps to reproduce")
-  line("Spec: ${spec().summary()}")
-  composition()?.let { composition ->
-    val effects = composition.effectIds()
-    line("Effects: ${if (effects.isEmpty()) "none" else effects.joinToString(", ")}")
-    line("Trim: ${edit.trimRange(sourceDuration).summary()}")
-  }
-
-  section("What happened")
-  line(outcomeSummary())
-  val adjustments = exportAdjustments.ifEmpty { (verdict as? Verdict.Degraded)?.adjustments.orEmpty() }
-  if (adjustments.isNotEmpty()) {
-    line("")
-    line("Adjustments:")
-    adjustments.forEach { line("* ${it.summary()}") }
-  }
-  val plan = (verdict as? Verdict.Capable)?.plan ?: (verdict as? Verdict.Degraded)?.plan
-  plan?.summary()?.let { line(it) }
-
-  section("Left out")
-  when {
-    plan == null -> line("No plan to read.")
-    plan.inertNotices.isEmpty() -> line("None.")
-    else -> plan.inertNotices.forEach { line("* ${it.subject} (${it.reason}): ${it.message}") }
-  }
-
-  section("Device capabilities")
-  line(capabilitiesSummary())
-
-  section("Session log")
-  line("```text")
-  if (recorder.events.isEmpty()) {
-    line("Nothing recorded.")
-  } else {
-    recorder.events.forEach { event ->
-      val detail = event.detail.entries.joinToString(" ") { (key, value) -> "$key=${value.oneLine()}" }
-      line("${event.elapsed.inWholeMilliseconds}ms  ${event.label}${if (detail.isEmpty()) "" else "  $detail"}")
+    section("Targets")
+    if (backends.isEmpty()) {
+      line("No export backend is registered.")
+    } else {
+      backends.forEach { backend -> line("* ${backend.name} (`${backend.artifact}`)") }
     }
+
+    section("Device")
+    line("* ${device.platform}: ${device.model}")
+    line("* ${device.operatingSystem}")
+    device.details.forEach { (key, value) -> line("* $key: $value") }
+
+    section("Media")
+    line(sourceSummary())
+    probeSummary()?.let { line(it) }
+
+    section("Steps to reproduce")
+    line("Spec: ${spec().summary()}")
+    composition()?.let { composition ->
+      val effects = composition.effectIds()
+      line("Effects: ${if (effects.isEmpty()) "none" else effects.joinToString(", ")}")
+      line("Trim: ${edit.trimRange(sourceDuration).summary()}")
+    }
+
+    section("What happened")
+    line(outcomeSummary())
+    val adjustments = exportAdjustments.ifEmpty { (verdict as? Verdict.Degraded)?.adjustments.orEmpty() }
+    if (adjustments.isNotEmpty()) {
+      line("")
+      line("Adjustments:")
+      adjustments.forEach { line("* ${it.summary()}") }
+    }
+    val plan = (verdict as? Verdict.Capable)?.plan ?: (verdict as? Verdict.Degraded)?.plan
+    plan?.summary()?.let { line(it) }
+
+    section("Left out")
+    when {
+      plan == null -> line("No plan to read.")
+      plan.inertNotices.isEmpty() -> line("None.")
+      else -> plan.inertNotices.forEach { line("* ${it.subject} (${it.reason}): ${it.message}") }
+    }
+
+    section("Device capabilities")
+    line(capabilitiesSummary())
+
+    section("Session log")
+    line("```text")
+    if (recorder.events.isEmpty()) {
+      line("Nothing recorded.")
+    } else {
+      recorder.events.forEach { event ->
+        val detail = event.detail.entries.joinToString(" ") { (key, value) -> "$key=${value.oneLine()}" }
+        line("${event.elapsed.inWholeMilliseconds}ms  ${event.label}${if (detail.isEmpty()) "" else "  $detail"}")
+      }
+    }
+    line("```")
   }
-  line("```")
-}
 
 private fun SampleAppState.diagnosticsJson(): String {
   val device = deviceInfo()
   val composition = composition()
 
-  val document = buildJsonObject {
-    put("version", FilmstripVersion.name)
-    putJsonArray("backends") {
-      backends.forEach { backend ->
-        add(
-          buildJsonObject {
-            put("name", backend.name)
-            put("artifact", backend.artifact)
-          },
-        )
+  val document =
+    buildJsonObject {
+      put("version", FilmstripVersion.name)
+      putJsonArray("backends") {
+        backends.forEach { backend ->
+          add(
+            buildJsonObject {
+              put("name", backend.name)
+              put("artifact", backend.artifact)
+            },
+          )
+        }
+      }
+      putJsonObject("device") {
+        put("platform", device.platform)
+        put("model", device.model)
+        put("operatingSystem", device.operatingSystem)
+        device.details.forEach { (key, value) -> put(key, value) }
+      }
+      put("source", sourceSummary())
+      put("spec", spec().asJson())
+      put("composition", composition?.asJson(edit.trimRange(sourceDuration)) ?: JsonNull)
+      put("outcome", outcomeSummary())
+      putJsonArray("log") {
+        recorder.events.forEach { event ->
+          add(
+            buildJsonObject {
+              put("at", event.elapsed.toString())
+              put("label", event.label)
+              putJsonObject("detail") {
+                event.detail.forEach { (key, value) -> put(key, value) }
+              }
+            },
+          )
+        }
       }
     }
-    putJsonObject("device") {
-      put("platform", device.platform)
-      put("model", device.model)
-      put("operatingSystem", device.operatingSystem)
-      device.details.forEach { (key, value) -> put(key, value) }
-    }
-    put("source", sourceSummary())
-    put("spec", spec().asJson())
-    put("composition", composition?.asJson(edit.trimRange(sourceDuration)) ?: JsonNull)
-    put("outcome", outcomeSummary())
-    putJsonArray("log") {
-      recorder.events.forEach { event ->
-        add(
-          buildJsonObject {
-            put("at", event.elapsed.toString())
-            put("label", event.label)
-            putJsonObject("detail") {
-              event.detail.forEach { (key, value) -> put(key, value) }
-            }
-          },
-        )
-      }
-    }
-  }
 
   return json.encodeToString(JsonElement.serializer(), document)
 }
@@ -185,22 +187,27 @@ private fun SampleAppState.outcomeSummary(): String {
 
 private fun SampleAppState.capabilitiesSummary(): String =
   when (val result = capabilities) {
-    null -> "Not asked."
-    is CapabilitiesResult.Failure -> "Could not be asked: ${result.error.line()}"
+    null -> {
+      "Not asked."
+    }
+    is CapabilitiesResult.Failure -> {
+      "Could not be asked: ${result.error.line()}"
+    }
     is CapabilitiesResult.Success -> {
       val capabilities = result.capabilities
       buildString {
         appendLine("* HDR encoding: ${capabilities.supportsHdrEncoding}")
         capabilities.concurrentSessionBudget?.let { appendLine("* Concurrent sessions: $it") }
         capabilities.video.forEach { video ->
-          val hardware = when (video.isHardwareAccelerated) {
-            true -> "hardware"
-            false -> "software"
-            null -> "unknown path"
-          }
+          val hardware =
+            when (video.isHardwareAccelerated) {
+              true -> "hardware"
+              false -> "software"
+              null -> "unknown path"
+            }
           appendLine(
             "* ${video.codec.name}: ${video.encoderName ?: "unnamed"}, $hardware, " +
-                "up to ${video.maxSize.width}x${video.maxSize.height}, alignment ${video.sizeAlignment}",
+              "up to ${video.maxSize.width}x${video.maxSize.height}, alignment ${video.sizeAlignment}",
           )
         }
         capabilities.audio.forEach { audio ->
@@ -215,10 +222,10 @@ private fun ProbeResult?.outputSummary(): String =
 
 private fun MediaInfo.summary(): String {
   val track = video ?: return "No video track, ${duration.asClock()} long"
-  val fps = track.frameRate?.let { ", ${it} fps" }.orEmpty()
+  val fps = track.frameRate?.let { ", $it fps" }.orEmpty()
   val hdr = track.hdrTransfer?.let { ", HDR $it" }.orEmpty()
   return "${track.displaySize.width}x${track.displaySize.height} ${track.codec.name}$fps$hdr, " +
-      "rotation ${track.rotationDegrees}, ${duration.asClock()}, exportable=$isExportable"
+    "rotation ${track.rotationDegrees}, ${duration.asClock()}, exportable=$isExportable"
 }
 
 private fun ExportSpec.summary(): String =
@@ -236,7 +243,7 @@ private fun ExportSpec.summary(): String =
 private fun ExportPlan.summary(): String {
   val blocked = if (copyBlockedBy.isEmpty()) "" else ", no copy because ${copyBlockedBy.joinToString { it.name }}"
   return "Plan: $path, ${output.size.width}x${output.size.height} ${output.videoCodec}, " +
-      "${effectOrder.size} effects, parity $parity$blocked"
+    "${effectOrder.size} effects, parity $parity$blocked"
 }
 
 private fun Adjustment.summary(): String = "$kind: $requested became $resolved. $message"
@@ -255,37 +262,39 @@ private fun EditComposition.effectIds(): List<String> =
 /**
  * The fields of the spec a bug report needs, which is every field a caller can set.
  */
-private fun ExportSpec.asJson(): JsonObject = buildJsonObject {
-  put("heightPx", heightPx)
-  put("bitrate", bitrate?.bitsPerSecond)
-  put("quality", quality?.name)
-  put("videoCodec", videoCodec.name)
-  put("audioCodec", audioCodec.name)
-  put("frameRate", frameRate)
-  put("hdr", hdr.name)
-  put("strict", strict)
-}
+private fun ExportSpec.asJson(): JsonObject =
+  buildJsonObject {
+    put("heightPx", heightPx)
+    put("bitrate", bitrate?.bitsPerSecond)
+    put("quality", quality?.name)
+    put("videoCodec", videoCodec.name)
+    put("audioCodec", audioCodec.name)
+    put("frameRate", frameRate)
+    put("hdr", hdr.name)
+    put("strict", strict)
+  }
 
 /**
  * The shape of the composition rather than the composition itself: how many clips sit on each
  * track, what is applied to them and where the cut is. Sources are named by [redactedName], so no
  * path reaches the report.
  */
-private fun EditComposition.asJson(trim: TimeRange?): JsonObject = buildJsonObject {
-  putJsonArray("tracks") {
-    tracks.forEach { track ->
-      add(
-        buildJsonObject {
-          put("content", track.content.name)
-          put("clips", track.clips.size)
-          putJsonArray("sources") { track.clips.forEach { clip -> add(clip.source.redactedName()) } }
-        },
-      )
+private fun EditComposition.asJson(trim: TimeRange?): JsonObject =
+  buildJsonObject {
+    putJsonArray("tracks") {
+      tracks.forEach { track ->
+        add(
+          buildJsonObject {
+            put("content", track.content.name)
+            put("clips", track.clips.size)
+            putJsonArray("sources") { track.clips.forEach { clip -> add(clip.source.redactedName()) } }
+          },
+        )
+      }
     }
+    putJsonArray("effects") { effectIds().forEach { id -> add(id) } }
+    put("trim", trim.summary())
   }
-  putJsonArray("effects") { effectIds().forEach { id -> add(id) } }
-  put("trim", trim.summary())
-}
 
 /**
  * The source reduced to something that names no file.

@@ -48,8 +48,7 @@ internal data class LaneSpans(
  * The player runs over the trimmed edit and the strip spans the whole source, so this is what turns edited time into
  * source time for the playhead, the follow and the lanes.
  */
-internal fun EditState.trimOffset(): Duration =
-  if (trimEnabled) trimStartSeconds.toDouble().seconds else Duration.ZERO
+internal fun EditState.trimOffset(): Duration = if (trimEnabled) trimStartSeconds.toDouble().seconds else Duration.ZERO
 
 /**
  * Whether the edit is changing the picture's colour, which is what the grade lane and the tool rail mark.

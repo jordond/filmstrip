@@ -21,11 +21,12 @@ public actual fun deviceInfo(): DeviceInfo {
     platform = "iOS",
     model = simulator ?: identifier,
     operatingSystem = "${device.systemName} ${device.systemVersion}",
-    details = mapOf(
-      "identifier" to identifier,
-      "simulator" to (simulator != null).toString(),
-      "cores" to NSProcessInfo.processInfo.processorCount.toString(),
-    ),
+    details =
+      mapOf(
+        "identifier" to identifier,
+        "simulator" to (simulator != null).toString(),
+        "cores" to NSProcessInfo.processInfo.processorCount.toString(),
+      ),
   )
 }
 
@@ -36,8 +37,9 @@ public actual fun deviceInfo(): DeviceInfo {
  * architecture rather than the device being simulated, which is why the simulator name is
  * preferred over it where there is one.
  */
-private fun hardwareModel(): String = memScoped {
-  val info = alloc<utsname>()
-  if (uname(info.ptr) != 0) return@memScoped "unknown"
-  info.machine.toKString()
-}
+private fun hardwareModel(): String =
+  memScoped {
+    val info = alloc<utsname>()
+    if (uname(info.ptr) != 0) return@memScoped "unknown"
+    info.machine.toKString()
+  }

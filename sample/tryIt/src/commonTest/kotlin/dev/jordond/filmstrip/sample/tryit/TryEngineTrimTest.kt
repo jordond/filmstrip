@@ -135,7 +135,10 @@ class TryEngineTrimTest {
       engine.apply(Control.SetSteps(Steps(grade = true)))
       runCurrent()
 
-      player.edits.single().startAt.shouldBeNull()
+      player.edits
+        .single()
+        .startAt
+        .shouldBeNull()
       player.edits.single().composition shouldBe beachEdit(source, Steps(grade = true))
     }
 }

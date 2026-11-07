@@ -131,7 +131,12 @@ class TokensMatchSiteTest {
 
   private fun parseColour(value: String): Int {
     if (value.startsWith("#")) return (0xFF000000 or value.drop(1).toLong(16)).toInt()
-    val parts = value.substringAfter('(').substringBefore(')').split(',').map { it.trim() }
+    val parts =
+      value
+        .substringAfter('(')
+        .substringBefore(')')
+        .split(',')
+        .map { it.trim() }
     val alpha = (parts[3].toFloat() * 255 + 0.5f).toInt()
     return (alpha shl 24) or (parts[0].toInt() shl 16) or (parts[1].toInt() shl 8) or parts[2].toInt()
   }

@@ -62,11 +62,12 @@ public fun VerdictPill(
   verdict: Verdict,
   modifier: Modifier = Modifier,
 ) {
-  val (fill, word) = when (verdict) {
-    Verdict.Ready -> Tokens.cyan to "READY"
-    Verdict.WillAdjust -> Tokens.amber to "WILL ADJUST"
-    Verdict.CannotExport -> Tokens.red to "CANNOT EXPORT"
-  }
+  val (fill, word) =
+    when (verdict) {
+      Verdict.Ready -> Tokens.cyan to "READY"
+      Verdict.WillAdjust -> Tokens.amber to "WILL ADJUST"
+      Verdict.CannotExport -> Tokens.red to "CANNOT EXPORT"
+    }
   Box(modifier.background(fill).padding(horizontal = 12.dp, vertical = 2.dp)) {
     Text(
       text = word,
@@ -93,13 +94,14 @@ public fun Led(
   blinking: Boolean = false,
 ) {
   val lit = !blinking || rememberBlink()
-  val colour = when {
-    !lit -> Tokens.lineStrong
-    state == LedState.Off -> Tokens.lineStrong
-    state == LedState.Ready -> Tokens.cyan
-    state == LedState.Busy -> Tokens.amber
-    else -> Tokens.red
-  }
+  val colour =
+    when {
+      !lit -> Tokens.lineStrong
+      state == LedState.Off -> Tokens.lineStrong
+      state == LedState.Ready -> Tokens.cyan
+      state == LedState.Busy -> Tokens.amber
+      else -> Tokens.red
+    }
   val glows = lit && (state == LedState.Ready || state == LedState.Busy)
   Box(
     modifier
@@ -107,11 +109,12 @@ public fun Led(
       .drawBehind {
         if (glows) {
           drawCircle(
-            brush = Brush.radialGradient(
-              colors = listOf(colour.copy(alpha = 0.7f), colour.copy(alpha = 0f)),
-              center = center,
-              radius = size.minDimension / 2 + LedGlow.toPx(),
-            ),
+            brush =
+              Brush.radialGradient(
+                colors = listOf(colour.copy(alpha = 0.7f), colour.copy(alpha = 0f)),
+                center = center,
+                radius = size.minDimension / 2 + LedGlow.toPx(),
+              ),
             radius = size.minDimension / 2 + LedGlow.toPx(),
           )
         }
@@ -135,16 +138,17 @@ public fun Panel(
 ) {
   Column(modifier.background(color).border(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
     Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .scanlinesFaint()
-        .bottomLine(MaterialTheme.colorScheme.outlineVariant)
-        .padding(
-          start = 16.dp,
-          end = if (trailing == null) 16.dp else 4.dp,
-          top = headerVerticalPadding,
-          bottom = headerVerticalPadding,
-        ),
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .scanlinesFaint()
+          .bottomLine(MaterialTheme.colorScheme.outlineVariant)
+          .padding(
+            start = 16.dp,
+            end = if (trailing == null) 16.dp else 4.dp,
+            top = headerVerticalPadding,
+            bottom = headerVerticalPadding,
+          ),
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -159,9 +163,10 @@ public fun Panel(
       trailing?.invoke()
     }
     Column(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(bodyPadding),
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .padding(bodyPadding),
       verticalArrangement = Arrangement.spacedBy(12.dp),
       content = content,
     )

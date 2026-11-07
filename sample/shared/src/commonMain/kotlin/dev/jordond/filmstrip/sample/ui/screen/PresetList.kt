@@ -34,7 +34,7 @@ import dev.jordond.filmstrip.sample.ui.isCompactWidth
 
 private const val BLURB =
   "Each one is here for something an encoder has to get right. Downloaded once, then cached. " +
-      "Naming one in a bug report gives anybody the same input you had."
+    "Naming one in a bug report gives anybody the same input you had."
 
 /**
  * The clips a session can start from without a file on the device, a blurb on what they are for and then one tape to a
@@ -52,10 +52,11 @@ internal fun PresetList(
       text = BLURB,
       style = MaterialTheme.typography.bodySmall,
       color = Tokens.mutedStrong,
-      modifier = Modifier
-        .fillMaxWidth()
-        .bottomLine(MaterialTheme.colorScheme.outlineVariant)
-        .padding(horizontal = if (isCompactWidth()) 12.dp else 16.dp, vertical = 10.dp),
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .bottomLine(MaterialTheme.colorScheme.outlineVariant)
+          .padding(horizontal = if (isCompactWidth()) 12.dp else 16.dp, vertical = 10.dp),
     )
     samplePresets.forEachIndexed { index, preset ->
       PresetRow(
@@ -82,19 +83,20 @@ private fun PresetRow(
   val colors = MaterialTheme.colorScheme
   val compact = isCompactWidth()
   Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .focusRing(interaction, inset = 6.dp)
-      .defaultMinSize(minHeight = if (compact) 56.dp else 60.dp)
-      .background(if (hovered) colors.surfaceContainer else Color.Transparent)
-      .then(if (last) Modifier else Modifier.bottomLine(colors.outlineVariant))
-      .clickable(
-        enabled = enabled,
-        role = Role.Button,
-        interactionSource = interaction,
-        indication = null,
-        onClick = onClick,
-      ).padding(horizontal = if (compact) 12.dp else 16.dp, vertical = if (compact) 8.dp else 10.dp),
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .focusRing(interaction, inset = 6.dp)
+        .defaultMinSize(minHeight = if (compact) 56.dp else 60.dp)
+        .background(if (hovered) colors.surfaceContainer else Color.Transparent)
+        .then(if (last) Modifier else Modifier.bottomLine(colors.outlineVariant))
+        .clickable(
+          enabled = enabled,
+          role = Role.Button,
+          interactionSource = interaction,
+          indication = null,
+          onClick = onClick,
+        ).padding(horizontal = if (compact) 12.dp else 16.dp, vertical = if (compact) 8.dp else 10.dp),
     horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 16.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {

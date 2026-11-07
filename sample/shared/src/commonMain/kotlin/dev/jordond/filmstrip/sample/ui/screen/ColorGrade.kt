@@ -43,10 +43,26 @@ internal fun Modifier.colorGraded(effects: List<EffectSpec>): Modifier {
 private fun ColorMatrix.toComposeColorMatrix(): ComposeColorMatrix =
   ComposeColorMatrix(
     floatArrayOf(
-      rr, rg, rb, 0f, rBias * CODE_RANGE,
-      gr, gg, gb, 0f, gBias * CODE_RANGE,
-      br, bg, bb, 0f, bBias * CODE_RANGE,
-      0f, 0f, 0f, 1f, 0f,
+      rr,
+      rg,
+      rb,
+      0f,
+      rBias * CODE_RANGE,
+      gr,
+      gg,
+      gb,
+      0f,
+      gBias * CODE_RANGE,
+      br,
+      bg,
+      bb,
+      0f,
+      bBias * CODE_RANGE,
+      0f,
+      0f,
+      0f,
+      1f,
+      0f,
     ),
   )
 

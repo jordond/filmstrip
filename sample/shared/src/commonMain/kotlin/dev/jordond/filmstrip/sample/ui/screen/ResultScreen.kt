@@ -74,11 +74,12 @@ public fun ResultScreen(
     if (compact) {
       Column(Modifier.fillMaxSize().padding(insets)) {
         Column(
-          modifier = Modifier
-            .fillMaxWidth()
-            .weight(1f)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .weight(1f)
+              .verticalScroll(rememberScrollState())
+              .padding(horizontal = 16.dp),
           verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
           ResultSet(result, compact = true)
@@ -88,11 +89,12 @@ public fun ResultScreen(
       }
     } else {
       Row(
-        modifier = Modifier
-          .fillMaxSize()
-          .padding(insets)
-          .verticalScroll(rememberScrollState())
-          .padding(start = 40.dp, end = 40.dp, bottom = 40.dp),
+        modifier =
+          Modifier
+            .fillMaxSize()
+            .padding(insets)
+            .verticalScroll(rememberScrollState())
+            .padding(start = 40.dp, end = 40.dp, bottom = 40.dp),
         horizontalArrangement = Arrangement.spacedBy(40.dp),
         verticalAlignment = Alignment.Top,
       ) {
@@ -113,12 +115,13 @@ private fun ResultHeader(
 ) {
   val insets = LocalScreenInsets.current
   Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-      .padding(start = insets.side, end = insets.side, top = insets.top)
-      .heightIn(min = HEADER_HEIGHT)
-      .padding(horizontal = 4.dp),
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+        .padding(start = insets.side, end = insets.side, top = insets.top)
+        .heightIn(min = HEADER_HEIGHT)
+        .padding(horizontal = 4.dp),
     horizontalArrangement = Arrangement.spacedBy(8.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
@@ -200,11 +203,15 @@ private fun ResultFacts(
       }
     }
     when (val probe = state.exportedInfo) {
-      is ProbeResult.Success ->
+      is ProbeResult.Success -> {
         Pill("RE-PROBED · ${probe.info.duration.asClock()}", MaterialTheme.colorScheme.secondary)
-
-      is ProbeResult.Failure -> ErrorLine(probe.error)
-      null -> Unit
+      }
+      is ProbeResult.Failure -> {
+        ErrorLine(probe.error)
+      }
+      null -> {
+        Unit
+      }
     }
   }
 

@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.sample.ui.screen
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -12,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
@@ -127,9 +127,10 @@ private fun MenuHeader(
 ) {
   val style = menuTitle(compact)
   Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 2.dp),
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 2.dp),
     horizontalArrangement = Arrangement.SpaceBetween,
     verticalAlignment = Alignment.CenterVertically,
   ) {
@@ -188,13 +189,14 @@ private fun SetupRows(
 
   SetupRow("Video codec", labelWidth) {
     ChipGroup(
-      options = listOf(
-        "Auto" to VideoCodec.Auto,
-        "H.264" to VideoCodec.H264,
-        "HEVC" to VideoCodec.Hevc,
-        "VP9" to VideoCodec.Vp9,
-        "AV1" to VideoCodec.Av1,
-      ),
+      options =
+        listOf(
+          "Auto" to VideoCodec.Auto,
+          "H.264" to VideoCodec.H264,
+          "HEVC" to VideoCodec.Hevc,
+          "VP9" to VideoCodec.Vp9,
+          "AV1" to VideoCodec.Av1,
+        ),
       selected = state.videoCodec,
       enabled = !busy,
       onSelect = {
@@ -206,12 +208,13 @@ private fun SetupRows(
 
   SetupRow("Audio codec", labelWidth) {
     ChipGroup(
-      options = listOf(
-        "Auto" to AudioCodec.Auto,
-        "AAC" to AudioCodec.Aac,
-        "Opus" to AudioCodec.Opus,
-        "None" to AudioCodec.None,
-      ),
+      options =
+        listOf(
+          "Auto" to AudioCodec.Auto,
+          "AAC" to AudioCodec.Aac,
+          "Opus" to AudioCodec.Opus,
+          "None" to AudioCodec.None,
+        ),
       selected = state.audioCodec,
       enabled = !busy,
       onSelect = {
@@ -247,11 +250,12 @@ private fun SetupRows(
 
   SetupRow("High dynamic range", labelWidth) {
     ChipGroup(
-      options = listOf(
-        "Auto" to HdrMode.Auto,
-        "Keep HDR" to HdrMode.KeepHdr,
-        "Tone map" to HdrMode.ToneMapToSdr,
-      ),
+      options =
+        listOf(
+          "Auto" to HdrMode.Auto,
+          "Keep HDR" to HdrMode.KeepHdr,
+          "Tone map" to HdrMode.ToneMapToSdr,
+        ),
       selected = state.hdr,
       enabled = !busy,
       onSelect = {

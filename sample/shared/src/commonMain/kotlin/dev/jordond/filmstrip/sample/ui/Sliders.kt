@@ -87,17 +87,18 @@ private fun SliderValue(
   val interaction = remember { MutableInteractionSource() }
   val height = controlHeight()
   Box(
-    modifier = Modifier
-      .focusRing(interaction)
-      .defaultMinSize(minWidth = height, minHeight = height)
-      .semantics { contentDescription = "Reset $label" }
-      .clickable(
-        enabled = enabled,
-        role = Role.Button,
-        interactionSource = interaction,
-        indication = null,
-        onClick = onReset,
-      ),
+    modifier =
+      Modifier
+        .focusRing(interaction)
+        .defaultMinSize(minWidth = height, minHeight = height)
+        .semantics { contentDescription = "Reset $label" }
+        .clickable(
+          enabled = enabled,
+          role = Role.Button,
+          interactionSource = interaction,
+          indication = null,
+          onClick = onReset,
+        ),
     contentAlignment = Alignment.CenterEnd,
   ) {
     Text(valueLabel, style = style, color = Tokens.coral)
@@ -105,7 +106,10 @@ private fun SliderValue(
 }
 
 @Composable
-private fun SliderThumb(enabled: Boolean, modifier: Modifier = Modifier) {
+private fun SliderThumb(
+  enabled: Boolean,
+  modifier: Modifier = Modifier,
+) {
   Box(
     modifier
       .size(width = 12.dp, height = 26.dp)
@@ -116,7 +120,10 @@ private fun SliderThumb(enabled: Boolean, modifier: Modifier = Modifier) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SliderTrack(state: SliderState, enabled: Boolean) {
+private fun SliderTrack(
+  state: SliderState,
+  enabled: Boolean,
+) {
   val colors = MaterialTheme.colorScheme
   val fill = if (enabled) colors.primary else colors.outline
   val rest = colors.outlineVariant

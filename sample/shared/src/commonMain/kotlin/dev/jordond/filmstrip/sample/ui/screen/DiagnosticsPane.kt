@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
 
 private const val BLURB =
   "Everything this session knows, in the order the bug template asks for it. File names are " +
-      "reduced to a hash, so nothing here says what you picked or where it lives."
+    "reduced to a hash, so nothing here says what you picked or where it lives."
 
 /**
  * The report, and the two ways of getting it off the device.
@@ -57,12 +57,13 @@ public fun DiagnosticsPane(
   var copied by remember { mutableStateOf(false) }
 
   Column(
-    modifier = modifier
-      .fillMaxWidth()
-      .heightIn(max = 620.dp)
-      .verticalScroll(rememberScrollState())
-      .padding(horizontal = 20.dp)
-      .padding(top = 8.dp, bottom = 32.dp),
+    modifier =
+      modifier
+        .fillMaxWidth()
+        .heightIn(max = 620.dp)
+        .verticalScroll(rememberScrollState())
+        .padding(horizontal = 20.dp)
+        .padding(top = 8.dp, bottom = 32.dp),
     verticalArrangement = Arrangement.spacedBy(16.dp),
   ) {
     PaneHeader(title = "Diagnostics", onClose = state::navigateBack)

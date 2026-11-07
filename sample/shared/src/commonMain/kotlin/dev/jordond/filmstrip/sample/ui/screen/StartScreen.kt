@@ -41,8 +41,8 @@ import dev.jordond.filmstrip.sample.ui.Fringe
 import dev.jordond.filmstrip.sample.ui.FringeText
 import dev.jordond.filmstrip.sample.ui.IconKey
 import dev.jordond.filmstrip.sample.ui.LedState
-import dev.jordond.filmstrip.sample.ui.LocalScreenInsets
 import dev.jordond.filmstrip.sample.ui.LoadKey
+import dev.jordond.filmstrip.sample.ui.LocalScreenInsets
 import dev.jordond.filmstrip.sample.ui.Panel
 import dev.jordond.filmstrip.sample.ui.SampleIcons
 import dev.jordond.filmstrip.sample.ui.TextKey
@@ -53,7 +53,7 @@ import dev.jordond.filmstrip.sample.ui.isCompactWidth
 private const val HEADLINE = "Cut, reframe and export on the device's own encoder."
 private const val BLURB =
   "One composition value drives the plan, the preview and the export. Pick a clip to see what " +
-      "this device will do with it."
+    "this device will do with it."
 
 private val TwoColumnsFrom = 1040.dp
 private val PageWidth = 1200.dp
@@ -81,23 +81,25 @@ public fun StartScreen(
   }
 
   BoxWithConstraints(
-    modifier = modifier
-      .fillMaxSize()
-      .background(MaterialTheme.colorScheme.background)
-      // The page stops at its width, so the ground either side has to scroll it too.
-      .scrollable(scroll, Orientation.Vertical, reverseDirection = true),
+    modifier =
+      modifier
+        .fillMaxSize()
+        .background(MaterialTheme.colorScheme.background)
+        // The page stops at its width, so the ground either side has to scroll it too.
+        .scrollable(scroll, Orientation.Vertical, reverseDirection = true),
     contentAlignment = Alignment.TopCenter,
   ) {
     val twoColumns = maxWidth >= TwoColumnsFrom
     val pageSide = insets.side.coerceAtLeast(if (compact) 16.dp else 40.dp)
     Column(
-      modifier = Modifier
-        .widthIn(max = PageWidth)
-        .fillMaxSize()
-        .windowInsetsPadding(WindowInsets.safeDrawing)
-        .verticalScroll(scroll)
-        .padding(horizontal = pageSide)
-        .padding(top = insets.top + if (compact) 16.dp else 24.dp, bottom = if (compact) 24.dp else 48.dp),
+      modifier =
+        Modifier
+          .widthIn(max = PageWidth)
+          .fillMaxSize()
+          .windowInsetsPadding(WindowInsets.safeDrawing)
+          .verticalScroll(scroll)
+          .padding(horizontal = pageSide)
+          .padding(top = insets.top + if (compact) 16.dp else 24.dp, bottom = if (compact) 24.dp else 48.dp),
       verticalArrangement = Arrangement.spacedBy(if (compact) 20.dp else 32.dp),
     ) {
       Deck(state, compact)
@@ -163,29 +165,32 @@ private fun Pitch(
 ) {
   Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (compact) 14.dp else 24.dp)) {
     Text(
-      text = buildAnnotatedString {
-        append("KOTLIN MULTIPLATFORM · ")
-        withStyle(SpanStyle(color = MaterialTheme.colorScheme.error)) { append("PRE-ALPHA") }
-      },
+      text =
+        buildAnnotatedString {
+          append("KOTLIN MULTIPLATFORM · ")
+          withStyle(SpanStyle(color = MaterialTheme.colorScheme.error)) { append("PRE-ALPHA") }
+        },
       style = MaterialTheme.typography.labelLarge.copy(fontSize = if (compact) 22.sp else 26.sp),
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     FringeText(
       text = "filmstrip",
-      style = MaterialTheme.typography.displaySmall.copy(
-        fontSize = if (compact) 40.sp else 54.sp,
-        lineHeight = 1.em,
-      ),
+      style =
+        MaterialTheme.typography.displaySmall.copy(
+          fontSize = if (compact) 40.sp else 54.sp,
+          lineHeight = 1.em,
+        ),
       color = MaterialTheme.colorScheme.onSurface,
       fringe = Fringe.Large,
       fitWidth = true,
     )
     Text(
       text = HEADLINE,
-      style = MaterialTheme.typography.bodyMedium.copy(
-        fontSize = if (compact) 17.sp else 20.sp,
-        lineHeight = if (compact) 26.sp else 30.sp,
-      ),
+      style =
+        MaterialTheme.typography.bodyMedium.copy(
+          fontSize = if (compact) 17.sp else 20.sp,
+          lineHeight = if (compact) 26.sp else 30.sp,
+        ),
       color = MaterialTheme.colorScheme.onSurface,
     )
     Text(

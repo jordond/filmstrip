@@ -33,10 +33,11 @@ import io.github.vinceglb.filekit.name
 fun App(state: SampleAppState) {
   SampleTheme {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-      val picker = rememberMediaPickerLauncher(
-        onError = { state.onPickFailed(it.message) },
-        onResult = { picked -> state.onPicked(picked?.source, picked?.file?.name.orEmpty()) },
-      )
+      val picker =
+        rememberMediaPickerLauncher(
+          onError = { state.onPickFailed(it.message) },
+          onResult = { picked -> state.onPicked(picked?.source, picked?.file?.name.orEmpty()) },
+        )
 
       val compact = isCompactWidth()
       val sheetStrategy = remember { BottomSheetSceneStrategy<SampleRoute>() }
@@ -46,44 +47,45 @@ fun App(state: SampleAppState) {
         backStack = state.backStack,
         onBack = state::navigateBack,
         sceneStrategies = listOf(sheetStrategy, dialogStrategy, SinglePaneSceneStrategy()),
-        entryProvider = entryProvider {
-          entry<SampleRoute.Start> {
-            StartScreen(state, onImport = picker::launch)
-          }
-
-          entry<SampleRoute.Editor> {
-            EditorScreen(state)
-          }
-
-          entry<SampleRoute.Export>(
-            metadata = overlayMetadata(compact, dismissible = !state.exporting, sheetColor = Tokens.vcrBorder),
-          ) {
-            OverlayContainer(
-              compact = compact,
-              maxWidth = 1120.dp,
-              maxHeight = 760.dp,
-              frame = BorderStroke(4.dp, Tokens.vcrBorder),
-            ) {
-              ExportPane(state)
+        entryProvider =
+          entryProvider {
+            entry<SampleRoute.Start> {
+              StartScreen(state, onImport = picker::launch)
             }
-          }
 
-          entry<SampleRoute.Capabilities>(
-            metadata = overlayMetadata(compact, dismissible = true),
-          ) {
-            OverlayContainer(compact) { CapabilitiesPane(state) }
-          }
+            entry<SampleRoute.Editor> {
+              EditorScreen(state)
+            }
 
-          entry<SampleRoute.Result> {
-            ResultScreen(state)
-          }
+            entry<SampleRoute.Export>(
+              metadata = overlayMetadata(compact, dismissible = !state.exporting, sheetColor = Tokens.vcrBorder),
+            ) {
+              OverlayContainer(
+                compact = compact,
+                maxWidth = 1120.dp,
+                maxHeight = 760.dp,
+                frame = BorderStroke(4.dp, Tokens.vcrBorder),
+              ) {
+                ExportPane(state)
+              }
+            }
 
-          entry<SampleRoute.Diagnostics>(
-            metadata = overlayMetadata(compact, dismissible = true),
-          ) {
-            OverlayContainer(compact) { DiagnosticsPane(state) }
-          }
-        },
+            entry<SampleRoute.Capabilities>(
+              metadata = overlayMetadata(compact, dismissible = true),
+            ) {
+              OverlayContainer(compact) { CapabilitiesPane(state) }
+            }
+
+            entry<SampleRoute.Result> {
+              ResultScreen(state)
+            }
+
+            entry<SampleRoute.Diagnostics>(
+              metadata = overlayMetadata(compact, dismissible = true),
+            ) {
+              OverlayContainer(compact) { DiagnosticsPane(state) }
+            }
+          },
       )
     }
   }

@@ -38,12 +38,13 @@ public fun CapabilitiesPane(
   modifier: Modifier = Modifier,
 ) {
   Column(
-    modifier = modifier
-      .fillMaxWidth()
-      .heightIn(max = 620.dp)
-      .verticalScroll(rememberScrollState())
-      .padding(horizontal = 20.dp)
-      .padding(top = 8.dp, bottom = 32.dp),
+    modifier =
+      modifier
+        .fillMaxWidth()
+        .heightIn(max = 620.dp)
+        .verticalScroll(rememberScrollState())
+        .padding(horizontal = 20.dp)
+        .padding(top = 8.dp, bottom = 32.dp),
     verticalArrangement = Arrangement.spacedBy(16.dp),
   ) {
     PaneHeader(
@@ -72,7 +73,7 @@ internal fun CapabilitiesContent(
     verticalArrangement = Arrangement.spacedBy(12.dp),
   ) {
     when (val result = state.capabilities) {
-      null ->
+      null -> {
         if (state.loadingCapabilities) {
           Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Led(LedState.Busy, blinking = true)
@@ -89,9 +90,10 @@ internal fun CapabilitiesContent(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
         }
-
-      is CapabilitiesResult.Failure -> ErrorLine(result.error)
-
+      }
+      is CapabilitiesResult.Failure -> {
+        ErrorLine(result.error)
+      }
       is CapabilitiesResult.Success -> {
         val capabilities = result.capabilities
 
@@ -140,11 +142,12 @@ internal fun CapabilitiesContent(
 @Composable
 private fun CodecCard(content: @Composable ColumnScope.() -> Unit) {
   Column(
-    modifier = Modifier
-      .fillMaxWidth()
-      .background(MaterialTheme.colorScheme.surfaceContainer)
-      .border(1.dp, MaterialTheme.colorScheme.outlineVariant)
-      .padding(horizontal = 14.dp, vertical = 12.dp),
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .background(MaterialTheme.colorScheme.surfaceContainer)
+        .border(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        .padding(horizontal = 14.dp, vertical = 12.dp),
     verticalArrangement = Arrangement.spacedBy(6.dp),
     content = content,
   )

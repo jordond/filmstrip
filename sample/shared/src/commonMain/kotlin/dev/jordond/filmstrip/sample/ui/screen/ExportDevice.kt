@@ -80,21 +80,27 @@ internal fun PhoneDeviceStrip(state: SampleAppState) {
   ) {
     val verdict = state.verdict
     when {
-      state.exporting -> RunProgress(state)
-      verdict == null -> IdleNote()
-      else -> Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        VerdictWordFor(verdict)
-        verdict.planOrNull()?.let { plan ->
-          Text(
-            text = plan.oneLine(),
-            style = MaterialTheme.typography.bodySmall,
-            textAlign = TextAlign.End,
-            modifier = Modifier.weight(1f),
-          )
+      state.exporting -> {
+        RunProgress(state)
+      }
+      verdict == null -> {
+        IdleNote()
+      }
+      else -> {
+        Row(
+          Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(10.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          VerdictWordFor(verdict)
+          verdict.planOrNull()?.let { plan ->
+            Text(
+              text = plan.oneLine(),
+              style = MaterialTheme.typography.bodySmall,
+              textAlign = TextAlign.End,
+              modifier = Modifier.weight(1f),
+            )
+          }
         }
       }
     }
@@ -146,15 +152,16 @@ private fun VerdictWordFor(verdict: Verdict) {
 @Composable
 private fun DeviceDetails(state: SampleAppState) {
   when (val verdict = state.verdict) {
-    null -> Unit
-
-    is Verdict.Capable -> PlanSummary(verdict.plan, state)
-
+    null -> {
+      Unit
+    }
+    is Verdict.Capable -> {
+      PlanSummary(verdict.plan, state)
+    }
     is Verdict.Degraded -> {
       Adjustments(verdict.adjustments)
       PlanSummary(verdict.plan, state)
     }
-
     is Verdict.Incapable -> {
       verdict.reasons.forEach { ErrorLine(it) }
       verdict.withoutUnsupported?.let { Adjustments(it.adjustments) }
@@ -282,14 +289,16 @@ private fun RunKey(state: SampleAppState) {
   val modifier = Modifier.fillMaxWidth()
 
   when {
-    state.exporting -> Key("CANCEL", state::cancelExport, modifier, style = KeyStyle.Secondary, minHeight = RUN_KEY)
-
-    verdict == null -> CheckKey(
-      label = if (state.planning) "PLANNING" else "CHECK WHAT THIS DEVICE WILL DO",
-      state = state,
-      modifier = modifier,
-    )
-
+    state.exporting -> {
+      Key("CANCEL", state::cancelExport, modifier, style = KeyStyle.Secondary, minHeight = RUN_KEY)
+    }
+    verdict == null -> {
+      CheckKey(
+        label = if (state.planning) "PLANNING" else "CHECK WHAT THIS DEVICE WILL DO",
+        state = state,
+        modifier = modifier,
+      )
+    }
     else -> {
       if (plan != null) {
         Key(

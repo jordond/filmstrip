@@ -22,9 +22,9 @@ import dev.jordond.filmstrip.effects.color.rgbAdjustment
 import dev.jordond.filmstrip.effects.color.saturation
 import dev.jordond.filmstrip.effects.color.sepia
 import dev.jordond.filmstrip.effects.filters.crt.crt
+import dev.jordond.filmstrip.effects.filters.film.film
 import dev.jordond.filmstrip.effects.filters.lut.CubeLut
 import dev.jordond.filmstrip.effects.filters.lut.lut
-import dev.jordond.filmstrip.effects.filters.film.film
 import dev.jordond.filmstrip.effects.filters.vhs.TapeSpeed
 import dev.jordond.filmstrip.effects.filters.vhs.vhs
 import dev.jordond.filmstrip.effects.geometry.crop
@@ -207,29 +207,32 @@ public class EditState {
   }
 
   val textStyle: TextStyle
-    get() = TextStyle(
-      fontSize = textSize,
-      weight = textWeight,
-      color = textColor,
-      backgroundColor = textPlate,
-      alignment = textAlignment,
-      maxWidth = textMaxWidth,
-    )
+    get() =
+      TextStyle(
+        fontSize = textSize,
+        weight = textWeight,
+        color = textColor,
+        backgroundColor = textPlate,
+        alignment = textAlignment,
+        maxWidth = textMaxWidth,
+      )
 
   val fill: Fill
-    get() = when (fillMode) {
-      FillMode.Solid -> Fill.Solid(fillColor)
-      FillMode.Blurred -> Fill.Blurred(blurRadius, blurDim)
-    }
+    get() =
+      when (fillMode) {
+        FillMode.Solid -> Fill.Solid(fillColor)
+        FillMode.Blurred -> Fill.Blurred(blurRadius, blurDim)
+      }
 
   val audioSpec: AudioSpec
-    get() = when (audioMode) {
-      AudioMode.Keep -> AudioSpec.Keep
-      AudioMode.Volume -> AudioSpec.Volume(audioGain)
-      AudioMode.Mute -> AudioSpec.Mute
-      AudioMode.Remove -> AudioSpec.Remove
-      AudioMode.AudioOnly -> AudioSpec.AudioOnly
-    }
+    get() =
+      when (audioMode) {
+        AudioMode.Keep -> AudioSpec.Keep
+        AudioMode.Volume -> AudioSpec.Volume(audioGain)
+        AudioMode.Mute -> AudioSpec.Mute
+        AudioMode.Remove -> AudioSpec.Remove
+        AudioMode.AudioOnly -> AudioSpec.AudioOnly
+      }
 
   /**
    * The color effects the knobs author, in the order the pipeline runs them, or an empty list while
@@ -237,22 +240,23 @@ public class EditState {
    * the custom matrix goes last, after everything the sliders authored.
    */
   val colorEffects: List<EffectSpec>
-    get() = EffectsBuilder()
-      .apply {
-        if (brightness != 1f) brightness(brightness)
-        if (channelRed != 1f || channelGreen != 1f || channelBlue != 1f) {
-          rgbAdjustment(channelRed, channelGreen, channelBlue)
-        }
-        if (contrast != 1f) contrast(contrast)
-        when {
-          saturation == 0f -> grayscale()
-          saturation != 1f -> saturation(saturation)
-        }
-        if (hueDegrees != 0f) hueRotate(hueDegrees)
-        if (sepia != 0f) sepia(sepia)
-        if (invert != 0f) invert(invert)
-        if (customMatrix != ColorMatrix.Identity) colorMatrix(customMatrix)
-      }.build()
+    get() =
+      EffectsBuilder()
+        .apply {
+          if (brightness != 1f) brightness(brightness)
+          if (channelRed != 1f || channelGreen != 1f || channelBlue != 1f) {
+            rgbAdjustment(channelRed, channelGreen, channelBlue)
+          }
+          if (contrast != 1f) contrast(contrast)
+          when {
+            saturation == 0f -> grayscale()
+            saturation != 1f -> saturation(saturation)
+          }
+          if (hueDegrees != 0f) hueRotate(hueDegrees)
+          if (sepia != 0f) sepia(sepia)
+          if (invert != 0f) invert(invert)
+          if (customMatrix != ColorMatrix.Identity) colorMatrix(customMatrix)
+        }.build()
 
   /**
    * Whether any color knob is off its default.
@@ -273,8 +277,7 @@ public class EditState {
   /**
    * How long the edit runs, which is the trim when there is one and the whole source otherwise.
    */
-  fun editedDuration(sourceDuration: Duration?): Duration? =
-    trimRange(sourceDuration)?.duration ?: sourceDuration
+  fun editedDuration(sourceDuration: Duration?): Duration? = trimRange(sourceDuration)?.duration ?: sourceDuration
 
   /**
    * The output frame's aspect after every geometry effect, so the preview can letterbox to the
@@ -289,8 +292,12 @@ public class EditState {
   ): Float {
     val rotated = if (rotationDegrees == 90 || rotationDegrees == 270) 1f / sourceAspect else sourceAspect
     return when (cropMode) {
-      CropMode.Off -> rotated
-      CropMode.Aspect -> cropAspect.value
+      CropMode.Off -> {
+        rotated
+      }
+      CropMode.Aspect -> {
+        cropAspect.value
+      }
       CropMode.Rect -> {
         if (!cropped) return rotated
         val rect = cropRect

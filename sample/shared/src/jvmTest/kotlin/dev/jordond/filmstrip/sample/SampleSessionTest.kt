@@ -48,9 +48,10 @@ import kotlin.time.Duration.Companion.seconds
 class SampleSessionTest {
   private val state =
     SampleAppState(
-      filmstrip = Filmstrip {
-        addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, null, null, true)) } }
-      },
+      filmstrip =
+        Filmstrip {
+          addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, null, null, true)) } }
+        },
       scope = CoroutineScope(Dispatchers.Unconfined),
     )
 
@@ -105,10 +106,13 @@ class SampleSessionTest {
     val engine = ReportingEngine(Size(640, 360))
     val state =
       SampleAppState(
-        filmstrip = Filmstrip {
-          addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, SOURCE_TRACK, null, true)) } }
-          addPlayerEngineFactory { _, _ -> engine }
-        },
+        filmstrip =
+          Filmstrip {
+            addMediaProberFactory {
+              MediaProber { ProbeResult.Success(MediaInfo(5.seconds, SOURCE_TRACK, null, true)) }
+            }
+            addPlayerEngineFactory { _, _ -> engine }
+          },
         scope = CoroutineScope(Dispatchers.Unconfined),
       )
     state.compositionFrameLabel().shouldBeNull()
@@ -164,13 +168,15 @@ class SampleSessionTest {
     val released = mutableListOf<MediaSink>()
     val state =
       SampleAppState(
-        filmstrip = Filmstrip {
-          addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, null, null, true)) } }
-        },
+        filmstrip =
+          Filmstrip {
+            addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, null, null, true)) } }
+          },
         scope = CoroutineScope(Dispatchers.Unconfined),
         release = { released += it },
       )
     val output = MediaSink.ofUri("blob:one")
+
     fun finished() = ExportStatus.Success(output, MediaInfo(5.seconds, null, null, true), emptyList())
     state.onPicked(FIRST, "first.mp4")
 
@@ -258,9 +264,10 @@ class SampleSessionTest {
 
   private fun heldDownloads(gates: Map<SamplePreset, CompletableDeferred<MediaSource>>): SampleAppState =
     SampleAppState(
-      filmstrip = Filmstrip {
-        addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, null, null, true)) } }
-      },
+      filmstrip =
+        Filmstrip {
+          addMediaProberFactory { MediaProber { ProbeResult.Success(MediaInfo(5.seconds, null, null, true)) } }
+        },
       scope = CoroutineScope(Dispatchers.Unconfined),
       // Ignores its own cancellation the way a platform read past the point of no return does.
       download = { preset -> withContext(NonCancellable) { gates.getValue(preset).await() } },
@@ -268,12 +275,13 @@ class SampleSessionTest {
 
   private fun heldProbes(gates: Map<MediaSource, CompletableDeferred<ProbeResult>>): SampleAppState =
     SampleAppState(
-      filmstrip = Filmstrip {
-        addMediaProberFactory {
-          // Ignores its own cancellation the way a platform read past the point of no return does.
-          MediaProber { source -> withContext(NonCancellable) { gates.getValue(source).await() } }
-        }
-      },
+      filmstrip =
+        Filmstrip {
+          addMediaProberFactory {
+            // Ignores its own cancellation the way a platform read past the point of no return does.
+            MediaProber { source -> withContext(NonCancellable) { gates.getValue(source).await() } }
+          }
+        },
       scope = CoroutineScope(Dispatchers.Unconfined),
     )
 

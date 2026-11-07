@@ -15,11 +15,12 @@ import kotlin.test.assertTrue
  */
 class DiagnosticsReportTest {
   private val recorder = DiagnosticsRecorder()
-  private val state = SampleAppState(
-    filmstrip = Filmstrip(),
-    recorder = recorder,
-    scope = CoroutineScope(Dispatchers.Unconfined),
-  )
+  private val state =
+    SampleAppState(
+      filmstrip = Filmstrip(),
+      recorder = recorder,
+      scope = CoroutineScope(Dispatchers.Unconfined),
+    )
 
   @Test
   fun `carries the version and the session log`() {

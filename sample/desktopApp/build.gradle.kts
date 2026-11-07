@@ -1,13 +1,18 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
+  id("filmstrip.internal")
   alias(libs.plugins.multiplatform)
   alias(libs.plugins.compose)
   alias(libs.plugins.compose.compiler)
 }
 
 kotlin {
-  jvmToolchain(libs.versions.jvmTarget.get().toInt())
+  jvmToolchain(
+    libs.versions.jvmTarget
+      .get()
+      .toInt(),
+  )
 
   jvm()
 
@@ -26,7 +31,9 @@ compose.desktop {
     nativeDistributions {
       targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
       packageName = "filmstrip"
-      packageVersion = libs.versions.sample.version.get()
+      packageVersion =
+        libs.versions.sample.version
+          .get()
     }
   }
 }

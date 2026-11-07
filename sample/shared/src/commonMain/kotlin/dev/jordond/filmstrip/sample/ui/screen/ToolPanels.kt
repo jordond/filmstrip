@@ -58,7 +58,6 @@ import dev.jordond.filmstrip.sample.SampleAppState
 import dev.jordond.filmstrip.sample.ui.AnchorGrid
 import dev.jordond.filmstrip.sample.ui.Chip
 import dev.jordond.filmstrip.sample.ui.ChipGroup
-import dev.jordond.filmstrip.sample.ui.excludeBackGesture
 import dev.jordond.filmstrip.sample.ui.ControlGroup
 import dev.jordond.filmstrip.sample.ui.Led
 import dev.jordond.filmstrip.sample.ui.LedState
@@ -70,6 +69,7 @@ import dev.jordond.filmstrip.sample.ui.SwitchRow
 import dev.jordond.filmstrip.sample.ui.Tokens
 import dev.jordond.filmstrip.sample.ui.asClock
 import dev.jordond.filmstrip.sample.ui.bottomLine
+import dev.jordond.filmstrip.sample.ui.excludeBackGesture
 import dev.jordond.filmstrip.sample.ui.focusRing
 import dev.jordond.filmstrip.sample.ui.formatDegrees
 import dev.jordond.filmstrip.sample.ui.formatFraction
@@ -86,17 +86,18 @@ private class ToolSpec(
   val icon: ImageVector,
 )
 
-private val Tools = listOf(
-  ToolSpec(EditorTool.Trim, "Trim", SampleIcons.Trim),
-  ToolSpec(EditorTool.Crop, "Crop", SampleIcons.Crop),
-  ToolSpec(EditorTool.Transform, "Transform", SampleIcons.Rotate),
-  ToolSpec(EditorTool.Scale, "Scale", SampleIcons.Scale),
-  ToolSpec(EditorTool.Adjust, "Adjust", SampleIcons.Brightness),
-  ToolSpec(EditorTool.Text, "Text", SampleIcons.TextGlyph),
-  ToolSpec(EditorTool.Watermark, "Overlay", SampleIcons.Watermark),
-  ToolSpec(EditorTool.Audio, "Audio", SampleIcons.Volume),
-  ToolSpec(EditorTool.Background, "Fill", SampleIcons.Layers),
-)
+private val Tools =
+  listOf(
+    ToolSpec(EditorTool.Trim, "Trim", SampleIcons.Trim),
+    ToolSpec(EditorTool.Crop, "Crop", SampleIcons.Crop),
+    ToolSpec(EditorTool.Transform, "Transform", SampleIcons.Rotate),
+    ToolSpec(EditorTool.Scale, "Scale", SampleIcons.Scale),
+    ToolSpec(EditorTool.Adjust, "Adjust", SampleIcons.Brightness),
+    ToolSpec(EditorTool.Text, "Text", SampleIcons.TextGlyph),
+    ToolSpec(EditorTool.Watermark, "Overlay", SampleIcons.Watermark),
+    ToolSpec(EditorTool.Audio, "Audio", SampleIcons.Volume),
+    ToolSpec(EditorTool.Background, "Fill", SampleIcons.Layers),
+  )
 
 /**
  * The tool switcher. An LED marks a tool that is contributing something to the composition right now.
@@ -158,16 +159,17 @@ private fun ToolButton(
   val tint = if (selected) colors.onPrimary else Tokens.mutedStrong
 
   Box(
-    modifier = modifier
-      .focusRing(interaction, inset = 6.dp)
-      .background(if (selected) colors.primary else Color.Transparent)
-      .selectable(
-        selected = selected,
-        role = Role.Tab,
-        interactionSource = interaction,
-        indication = null,
-        onClick = onClick,
-      ).padding(top = 10.dp, bottom = 8.dp),
+    modifier =
+      modifier
+        .focusRing(interaction, inset = 6.dp)
+        .background(if (selected) colors.primary else Color.Transparent)
+        .selectable(
+          selected = selected,
+          role = Role.Tab,
+          interactionSource = interaction,
+          indication = null,
+          onClick = onClick,
+        ).padding(top = 10.dp, bottom = 8.dp),
     contentAlignment = Alignment.TopCenter,
   ) {
     Column(
@@ -208,11 +210,12 @@ public fun ToolPanel(
         text = Tools.first { it.tool == state.activeTool }.label.uppercase(),
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier
-          .fillMaxWidth()
-          .scanlinesFaint()
-          .bottomLine(MaterialTheme.colorScheme.outlineVariant)
-          .padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .scanlinesFaint()
+            .bottomLine(MaterialTheme.colorScheme.outlineVariant)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
       )
     }
     when (state.activeTool) {
@@ -239,9 +242,10 @@ private fun ToolSection(
 ) {
   ControlGroup(
     label = label,
-    modifier = Modifier
-      .bottomLine(MaterialTheme.colorScheme.outlineVariant)
-      .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 16.dp),
+    modifier =
+      Modifier
+        .bottomLine(MaterialTheme.colorScheme.outlineVariant)
+        .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 16.dp),
     content = content,
   )
 }
@@ -276,7 +280,10 @@ private fun TrimPanel(state: SampleAppState) {
       )
       Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(
-          edit.trimStartSeconds.toDouble().seconds.asClock(),
+          edit.trimStartSeconds
+            .toDouble()
+            .seconds
+            .asClock(),
           style = MaterialTheme.typography.labelMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -286,7 +293,10 @@ private fun TrimPanel(state: SampleAppState) {
           color = MaterialTheme.colorScheme.primary,
         )
         Text(
-          edit.trimEndSeconds.toDouble().seconds.asClock(),
+          edit.trimEndSeconds
+            .toDouble()
+            .seconds
+            .asClock(),
           style = MaterialTheme.typography.labelMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -323,19 +333,21 @@ private fun CropPanel(state: SampleAppState) {
   }
 
   when (edit.cropMode) {
-    CropMode.Off -> Unit
-
+    CropMode.Off -> {
+      Unit
+    }
     CropMode.Aspect -> {
       ToolSection("Aspect ratio") {
         ChipGroup(
-          options = listOf(
-            "9:16" to AspectRatio.Portrait,
-            "1:1" to AspectRatio.Square,
-            "4:5" to AspectRatio.Feed,
-            "4:3" to AspectRatio.Classic,
-            "16:9" to AspectRatio.Landscape,
-            "2.39:1" to AspectRatio.Cinema,
-          ),
+          options =
+            listOf(
+              "9:16" to AspectRatio.Portrait,
+              "1:1" to AspectRatio.Square,
+              "4:5" to AspectRatio.Feed,
+              "4:3" to AspectRatio.Classic,
+              "16:9" to AspectRatio.Landscape,
+              "2.39:1" to AspectRatio.Cinema,
+            ),
           selected = edit.cropAspect,
           onSelect = {
             edit.cropAspect = it
@@ -367,7 +379,6 @@ private fun CropPanel(state: SampleAppState) {
         }
       }
     }
-
     CropMode.Rect -> {
       ToolSection("Lock") {
         Text(
@@ -376,13 +387,14 @@ private fun CropPanel(state: SampleAppState) {
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         ChipGroup(
-          options = listOf(
-            "Free" to null,
-            "9:16" to AspectRatio.Portrait,
-            "1:1" to AspectRatio.Square,
-            "4:5" to AspectRatio.Feed,
-            "16:9" to AspectRatio.Landscape,
-          ),
+          options =
+            listOf(
+              "Free" to null,
+              "9:16" to AspectRatio.Portrait,
+              "1:1" to AspectRatio.Square,
+              "4:5" to AspectRatio.Feed,
+              "16:9" to AspectRatio.Landscape,
+            ),
           selected = edit.cropLockAspect,
           onSelect = {
             edit.cropLockAspect = it
@@ -533,7 +545,7 @@ private fun AdjustPanel(state: SampleAppState) {
   ToolSection("Tone") {
     Text(
       "Every slider is a color matrix, and a run of them is folded into one before anything clamps, " +
-          "so a brightness above 100% and a contrast that pulls it back cancel out.",
+        "so a brightness above 100% and a contrast that pulls it back cancel out.",
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -650,7 +662,7 @@ private fun AdjustPanel(state: SampleAppState) {
   ToolSection("Matrix") {
     Text(
       "Each output channel is a weighted sum of the three inputs plus a bias. It runs last, after " +
-          "everything above.",
+        "everything above.",
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -769,10 +781,11 @@ private fun MatrixCell(
           text = value.toString()
         }
       },
-    colors = OutlinedTextFieldDefaults.colors(
-      focusedBorderColor = MaterialTheme.colorScheme.primary,
-      unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-    ),
+    colors =
+      OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+      ),
   )
 }
 
@@ -847,11 +860,12 @@ private fun TextPanel(state: SampleAppState) {
       label = { Text("Caption") },
       enabled = edit.textEnabled,
       modifier = Modifier.fillMaxWidth(),
-      colors = OutlinedTextFieldDefaults.colors(
-        focusedBorderColor = MaterialTheme.colorScheme.primary,
-        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-        focusedLabelColor = MaterialTheme.colorScheme.primary,
-      ),
+      colors =
+        OutlinedTextFieldDefaults.colors(
+          focusedBorderColor = MaterialTheme.colorScheme.primary,
+          unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+          focusedLabelColor = MaterialTheme.colorScheme.primary,
+        ),
     )
   }
 
@@ -873,11 +887,12 @@ private fun TextPanel(state: SampleAppState) {
       },
     )
     ChipGroup(
-      options = listOf(
-        "Regular" to FontWeight.Regular,
-        "Medium" to FontWeight.Medium,
-        "Bold" to FontWeight.Bold,
-      ),
+      options =
+        listOf(
+          "Regular" to FontWeight.Regular,
+          "Medium" to FontWeight.Medium,
+          "Bold" to FontWeight.Bold,
+        ),
       selected = edit.textWeight,
       onSelect = {
         edit.textWeight = it
@@ -885,11 +900,12 @@ private fun TextPanel(state: SampleAppState) {
       },
     )
     ChipGroup(
-      options = listOf(
-        "Start" to TextAlignment.Start,
-        "Center" to TextAlignment.Center,
-        "End" to TextAlignment.End,
-      ),
+      options =
+        listOf(
+          "Start" to TextAlignment.Start,
+          "Center" to TextAlignment.Center,
+          "End" to TextAlignment.End,
+        ),
       selected = edit.textAlignment,
       onSelect = {
         edit.textAlignment = it
@@ -972,13 +988,14 @@ private fun TextPanel(state: SampleAppState) {
 private fun WatermarkPanel(state: SampleAppState) {
   val edit = state.edit
   val duration = state.editedDurationSeconds
-  val picker = rememberImagePickerLauncher { picked ->
-    if (picked != null) {
-      edit.watermarkImage = picked.source
-      edit.watermarkLabel = picked.file.name
-      state.onEditChanged()
+  val picker =
+    rememberImagePickerLauncher { picked ->
+      if (picked != null) {
+        edit.watermarkImage = picked.source
+        edit.watermarkLabel = picked.file.name
+        state.onEditChanged()
+      }
     }
-  }
 
   ToolSection("Image") {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1014,12 +1031,13 @@ private fun WatermarkPanel(state: SampleAppState) {
 
   ToolSection("Corner") {
     ChipGroup(
-      options = listOf(
-        "Top left" to Corner.TopStart,
-        "Top right" to Corner.TopEnd,
-        "Bottom left" to Corner.BottomStart,
-        "Bottom right" to Corner.BottomEnd,
-      ),
+      options =
+        listOf(
+          "Top left" to Corner.TopStart,
+          "Top right" to Corner.TopEnd,
+          "Bottom left" to Corner.BottomStart,
+          "Bottom right" to Corner.BottomEnd,
+        ),
       selected = edit.watermarkCorner,
       onSelect = {
         edit.watermarkCorner = it
@@ -1129,18 +1147,19 @@ private fun AudioPanel(state: SampleAppState) {
   ToolSection("Mixed audio") {
     Text(
       "Set on the composition, after every track is mixed. Mute keeps a silent track, remove writes " +
-          "none at all.",
+        "none at all.",
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     ChipGroup(
-      options = listOf(
-        "Keep" to AudioMode.Keep,
-        "Volume" to AudioMode.Volume,
-        "Mute" to AudioMode.Mute,
-        "Remove" to AudioMode.Remove,
-        "Audio only" to AudioMode.AudioOnly,
-      ),
+      options =
+        listOf(
+          "Keep" to AudioMode.Keep,
+          "Volume" to AudioMode.Volume,
+          "Mute" to AudioMode.Mute,
+          "Remove" to AudioMode.Remove,
+          "Audio only" to AudioMode.AudioOnly,
+        ),
       selected = edit.audioMode,
       onSelect = {
         edit.audioMode = it
@@ -1185,7 +1204,7 @@ private fun BackgroundPanel(state: SampleAppState) {
   ToolSection("Fill") {
     Text(
       "What lands where no clip's pixels do: letterbox bars, gaps between tracks, and rounding at " +
-          "the edges.",
+        "the edges.",
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -1200,42 +1219,45 @@ private fun BackgroundPanel(state: SampleAppState) {
   }
 
   when (edit.fillMode) {
-    FillMode.Solid -> ToolSection("Color") {
-      SwatchRow(
-        colors = Plates,
-        selected = edit.fillColor,
-        onSelect = {
-          edit.fillColor = it ?: EditState.BLACK
-          state.onEditChanged()
-        },
-      )
+    FillMode.Solid -> {
+      ToolSection("Color") {
+        SwatchRow(
+          colors = Plates,
+          selected = edit.fillColor,
+          onSelect = {
+            edit.fillColor = it ?: EditState.BLACK
+            state.onEditChanged()
+          },
+        )
+      }
     }
-
-    FillMode.Blurred -> ToolSection("Blur") {
-      SliderRow(
-        label = "Radius",
-        value = edit.blurRadius,
-        valueLabel = formatPercent(edit.blurRadius),
-        range = 0f..0.2f,
-        onValueChange = {
-          edit.blurRadius = it
-          state.onEditChanged()
-        },
-        onReset = {
-          edit.blurRadius = 0.04f
-          state.onEditChanged()
-        },
-      )
-      SliderRow(
-        label = "Dim",
-        value = edit.blurDim,
-        valueLabel = formatPercent(edit.blurDim),
-        range = 0f..1f,
-        onValueChange = {
-          edit.blurDim = it
-          state.onEditChanged()
-        },
-      )
+    FillMode.Blurred -> {
+      ToolSection("Blur") {
+        SliderRow(
+          label = "Radius",
+          value = edit.blurRadius,
+          valueLabel = formatPercent(edit.blurRadius),
+          range = 0f..0.2f,
+          onValueChange = {
+            edit.blurRadius = it
+            state.onEditChanged()
+          },
+          onReset = {
+            edit.blurRadius = 0.04f
+            state.onEditChanged()
+          },
+        )
+        SliderRow(
+          label = "Dim",
+          value = edit.blurDim,
+          valueLabel = formatPercent(edit.blurDim),
+          range = 0f..1f,
+          onValueChange = {
+            edit.blurDim = it
+            state.onEditChanged()
+          },
+        )
+      }
     }
   }
 }
@@ -1256,23 +1278,25 @@ private fun EditState.contributes(tool: EditorTool): Boolean =
     EditorTool.Background -> fillMode != FillMode.Solid || fillColor != EditState.BLACK
   }
 
-private val Palette = listOf(
-  0xFFFFFFFF.toInt(),
-  0xFF000000.toInt(),
-  0xFFFFB454.toInt(),
-  0xFF5FD3A3.toInt(),
-  0xFF8E9BFF.toInt(),
-  0xFFFF6F6F.toInt(),
-)
+private val Palette =
+  listOf(
+    0xFFFFFFFF.toInt(),
+    0xFF000000.toInt(),
+    0xFFFFB454.toInt(),
+    0xFF5FD3A3.toInt(),
+    0xFF8E9BFF.toInt(),
+    0xFFFF6F6F.toInt(),
+  )
 
-private val Plates = listOf(
-  0xFF000000.toInt(),
-  0xFF1A1A21.toInt(),
-  0xFFFFFFFF.toInt(),
-  0xFFFFB454.toInt(),
-  0xFF8E9BFF.toInt(),
-  0xFF5FD3A3.toInt(),
-)
+private val Plates =
+  listOf(
+    0xFF000000.toInt(),
+    0xFF1A1A21.toInt(),
+    0xFFFFFFFF.toInt(),
+    0xFFFFB454.toInt(),
+    0xFF8E9BFF.toInt(),
+    0xFF5FD3A3.toInt(),
+  )
 
 private const val MIN_RECT = 0.05f
 

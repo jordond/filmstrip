@@ -66,28 +66,31 @@ public fun Key(
   val hovered by interaction.collectIsHoveredAsState()
   val pressed by interaction.collectIsPressedAsState()
   val colors = MaterialTheme.colorScheme
-  val (fill, edge, ink) = when {
-    !enabled -> Triple(Color.Transparent, colors.outline, colors.onSurfaceVariant)
-    style == KeyStyle.Primary -> Triple(colors.primary, colors.primary, colors.onPrimary)
-    style == KeyStyle.Secondary -> Triple(Color.Transparent, colors.onSurface, colors.onSurface)
-    else -> Triple(Color.Transparent, colors.secondary, colors.secondary)
-  }
-  val lift = when {
-    !enabled -> 0.dp
-    pressed -> -KeyLift
-    hovered -> KeyLift
-    else -> 0.dp
-  }
+  val (fill, edge, ink) =
+    when {
+      !enabled -> Triple(Color.Transparent, colors.outline, colors.onSurfaceVariant)
+      style == KeyStyle.Primary -> Triple(colors.primary, colors.primary, colors.onPrimary)
+      style == KeyStyle.Secondary -> Triple(Color.Transparent, colors.onSurface, colors.onSurface)
+      else -> Triple(Color.Transparent, colors.secondary, colors.secondary)
+    }
+  val lift =
+    when {
+      !enabled -> 0.dp
+      pressed -> -KeyLift
+      hovered -> KeyLift
+      else -> 0.dp
+    }
   val shadow = if (enabled && hovered && !pressed) KeyLiftShadow else 0.dp
   KeyHitBox(interaction, enabled, onClick, modifier.defaultMinSize(minHeight = minHeight)) {
     Row(
-      modifier = Modifier
-        .offset(x = -lift, y = -lift)
-        .focusRing(interaction)
-        .hardShadow(shadow, Tokens.red)
-        .background(fill)
-        .border(2.dp, edge)
-        .padding(horizontal = horizontalPadding),
+      modifier =
+        Modifier
+          .offset(x = -lift, y = -lift)
+          .focusRing(interaction)
+          .hardShadow(shadow, Tokens.red)
+          .background(fill)
+          .border(2.dp, edge)
+          .padding(horizontal = horizontalPadding),
       horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
       verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -121,18 +124,19 @@ public fun LoadKey(
   val minHeight = if (compact) 56.dp else Tokens.sizeKeyLoad
   KeyHitBox(interaction, enabled, onClick, modifier.defaultMinSize(minHeight = minHeight)) {
     Row(
-      modifier = Modifier
-        .offset(x = sink, y = sink)
-        .focusRing(interaction, inset = -LoadKeyRing)
-        .drawBehind {
-          val ring = LoadKeyRing.toPx()
-          val drop = (rest - sink).toPx()
-          val outer = Size(size.width + ring * 2, size.height + ring * 2)
-          drawRect(Tokens.red, topLeft = Offset(drop - ring, drop - ring), size = outer)
-          drawRect(fill, topLeft = Offset(-ring, -ring), size = outer)
-        }.background(fill)
-        .border(LoadKeyRing, colors.background)
-        .padding(horizontal = if (compact) 24.dp else 36.dp),
+      modifier =
+        Modifier
+          .offset(x = sink, y = sink)
+          .focusRing(interaction, inset = -LoadKeyRing)
+          .drawBehind {
+            val ring = LoadKeyRing.toPx()
+            val drop = (rest - sink).toPx()
+            val outer = Size(size.width + ring * 2, size.height + ring * 2)
+            drawRect(Tokens.red, topLeft = Offset(drop - ring, drop - ring), size = outer)
+            drawRect(fill, topLeft = Offset(-ring, -ring), size = outer)
+          }.background(fill)
+          .border(LoadKeyRing, colors.background)
+          .padding(horizontal = if (compact) 24.dp else 36.dp),
       horizontalArrangement = Arrangement.spacedBy(if (compact) 12.dp else 14.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -145,11 +149,12 @@ public fun LoadKey(
       Text(
         text = label,
         maxLines = 1,
-        style = MaterialTheme.typography.labelLarge.copy(
-          fontSize = fontSize,
-          lineHeight = fontSize,
-          letterSpacing = 0.08.em,
-        ),
+        style =
+          MaterialTheme.typography.labelLarge.copy(
+            fontSize = fontSize,
+            lineHeight = fontSize,
+            letterSpacing = 0.08.em,
+          ),
         color = colors.onPrimary,
       )
     }
@@ -169,13 +174,14 @@ private fun KeyHitBox(
   content: @Composable () -> Unit,
 ) {
   Box(
-    modifier = modifier.clickable(
-      enabled = enabled,
-      role = Role.Button,
-      interactionSource = interaction,
-      indication = null,
-      onClick = onClick,
-    ),
+    modifier =
+      modifier.clickable(
+        enabled = enabled,
+        role = Role.Button,
+        interactionSource = interaction,
+        indication = null,
+        onClick = onClick,
+      ),
     propagateMinConstraints = true,
   ) {
     content()
@@ -197,16 +203,17 @@ public fun IconKey(
 ) {
   val interaction = remember { MutableInteractionSource() }
   Box(
-    modifier = modifier
-      .focusRing(interaction)
-      .size(Tokens.sizeTouch)
-      .clickable(
-        enabled = enabled,
-        role = Role.Button,
-        interactionSource = interaction,
-        indication = null,
-        onClick = onClick,
-      ),
+    modifier =
+      modifier
+        .focusRing(interaction)
+        .size(Tokens.sizeTouch)
+        .clickable(
+          enabled = enabled,
+          role = Role.Button,
+          interactionSource = interaction,
+          indication = null,
+          onClick = onClick,
+        ),
     contentAlignment = Alignment.Center,
   ) {
     Icon(
@@ -230,22 +237,26 @@ public fun TextKey(
 ) {
   val interaction = remember { MutableInteractionSource() }
   Box(
-    modifier = modifier
-      .focusRing(interaction)
-      .defaultMinSize(minHeight = Tokens.sizeTouch)
-      .clickable(
-        role = Role.Button,
-        interactionSource = interaction,
-        indication = null,
-        onClick = onClick,
-      ).padding(horizontal = 4.dp),
+    modifier =
+      modifier
+        .focusRing(interaction)
+        .defaultMinSize(minHeight = Tokens.sizeTouch)
+        .clickable(
+          role = Role.Button,
+          interactionSource = interaction,
+          indication = null,
+          onClick = onClick,
+        ).padding(horizontal = 4.dp),
     contentAlignment = Alignment.Center,
   ) {
     Text(label, style = MaterialTheme.typography.labelLarge, color = color)
   }
 }
 
-private fun Modifier.hardShadow(reach: Dp, color: Color): Modifier =
+private fun Modifier.hardShadow(
+  reach: Dp,
+  color: Color,
+): Modifier =
   if (reach == 0.dp) {
     this
   } else {

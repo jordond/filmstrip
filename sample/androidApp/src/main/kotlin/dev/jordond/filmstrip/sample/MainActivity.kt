@@ -9,7 +9,6 @@ import androidx.compose.ui.graphics.toArgb
 import dev.jordond.filmstrip.sample.ui.Tokens
 
 class MainActivity : ComponentActivity() {
-
   override fun onCreate(savedInstanceState: Bundle?) {
     val bars = SystemBarStyle.dark(Tokens.ground.toArgb())
     enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
@@ -22,6 +21,5 @@ class MainActivity : ComponentActivity() {
 private object SampleGraph {
   private var state: SampleAppState? = null
 
-  fun state(): SampleAppState =
-    state ?: createSampleAppState().also { state = it }
+  fun state(): SampleAppState = state ?: createSampleAppState().also { state = it }
 }

@@ -1,13 +1,18 @@
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
+  id("filmstrip.internal")
   alias(libs.plugins.multiplatform)
   alias(libs.plugins.compose)
   alias(libs.plugins.compose.compiler)
 }
 
 kotlin {
-  jvmToolchain(libs.versions.jvmTarget.get().toInt())
+  jvmToolchain(
+    libs.versions.jvmTarget
+      .get()
+      .toInt(),
+  )
 
   jvm()
 
@@ -74,9 +79,10 @@ kotlin.sourceSets.named("wasmJsTest") {
 }
 
 // LandingSnippetTest reads the landing page's snippet, which Gradle can't otherwise see is an input of it.
-val landingSnippet = rootProject.layout.projectDirectory.file(
-  "internal/docs-samples/src/commonMain/kotlin/dev/jordond/filmstrip/docs/landing/Landing.kt",
-)
+val landingSnippet =
+  rootProject.layout.projectDirectory.file(
+    "internal/docs-samples/src/commonMain/kotlin/dev/jordond/filmstrip/docs/landing/Landing.kt",
+  )
 tasks.named<Test>("jvmTest") {
   inputs.file(landingSnippet).withPathSensitivity(PathSensitivity.RELATIVE)
   systemProperty("landing.snippet", landingSnippet.asFile.path)

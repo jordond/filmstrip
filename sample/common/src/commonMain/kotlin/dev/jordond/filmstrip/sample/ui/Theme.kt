@@ -73,13 +73,25 @@ private val SampleShapes =
 
 private val OsdTracking = 0.04.em
 
-private fun sampleTypography(display: FontFamily, osd: FontFamily, body: FontFamily): Typography {
-  fun displayStyle(size: Int, line: Int) = TextStyle(fontFamily = display, fontSize = size.sp, lineHeight = line.sp)
+private fun sampleTypography(
+  display: FontFamily,
+  osd: FontFamily,
+  body: FontFamily,
+): Typography {
+  fun displayStyle(
+    size: Int,
+    line: Int,
+  ) = TextStyle(fontFamily = display, fontSize = size.sp, lineHeight = line.sp)
 
-  fun osdStyle(size: Int, line: Int) =
-    TextStyle(fontFamily = osd, fontSize = size.sp, lineHeight = line.sp, letterSpacing = OsdTracking)
+  fun osdStyle(
+    size: Int,
+    line: Int,
+  ) = TextStyle(fontFamily = osd, fontSize = size.sp, lineHeight = line.sp, letterSpacing = OsdTracking)
 
-  fun bodyStyle(size: Int, line: Int) = TextStyle(fontFamily = body, fontSize = size.sp, lineHeight = line.sp)
+  fun bodyStyle(
+    size: Int,
+    line: Int,
+  ) = TextStyle(fontFamily = body, fontSize = size.sp, lineHeight = line.sp)
 
   return Typography(
     displaySmall = displayStyle(size = 30, line = 36),
@@ -104,10 +116,11 @@ private fun sampleTypography(display: FontFamily, osd: FontFamily, body: FontFam
 public fun SampleTheme(content: @Composable () -> Unit) {
   val display = FontFamily(Font(Res.font.rubik_mono_one_regular))
   val osd = FontFamily(Font(Res.font.vt323_regular))
-  val body = FontFamily(
-    Font(Res.font.space_mono_regular, FontWeight.Normal),
-    Font(Res.font.space_mono_bold, FontWeight.Bold),
-  )
+  val body =
+    FontFamily(
+      Font(Res.font.space_mono_regular, FontWeight.Normal),
+      Font(Res.font.space_mono_bold, FontWeight.Bold),
+    )
   val typography = remember(display, osd, body) { sampleTypography(display, osd, body) }
   MaterialTheme(
     colorScheme = SampleScheme,

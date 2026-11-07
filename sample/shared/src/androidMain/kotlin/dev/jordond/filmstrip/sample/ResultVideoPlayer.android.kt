@@ -18,12 +18,13 @@ actual fun ResultVideoPlayer(
   modifier: Modifier,
 ) {
   val context = LocalContext.current
-  val player = remember(path) {
-    ExoPlayer.Builder(context).build().apply {
-      setMediaItem(MediaItem.fromUri(Uri.fromFile(File(path))))
-      prepare()
+  val player =
+    remember(path) {
+      ExoPlayer.Builder(context).build().apply {
+        setMediaItem(MediaItem.fromUri(Uri.fromFile(File(path))))
+        prepare()
+      }
     }
-  }
 
   DisposableEffect(path) {
     onDispose { player.release() }

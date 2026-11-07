@@ -1,4 +1,5 @@
 plugins {
+  id("filmstrip.internal")
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose)
   alias(libs.plugins.compose.compiler)
@@ -6,14 +7,25 @@ plugins {
 
 android {
   namespace = "dev.jordond.filmstrip.sample"
-  compileSdk = libs.versions.sdk.compile.get().toInt()
+  compileSdk =
+    libs.versions.sdk.compile
+      .get()
+      .toInt()
 
   defaultConfig {
     applicationId = "dev.jordond.filmstrip.sample"
-    minSdk = libs.versions.sdk.min.get().toInt()
-    targetSdk = libs.versions.sdk.target.get().toInt()
+    minSdk =
+      libs.versions.sdk.min
+        .get()
+        .toInt()
+    targetSdk =
+      libs.versions.sdk.target
+        .get()
+        .toInt()
     versionCode = 1
-    versionName = libs.versions.sample.version.get()
+    versionName =
+      libs.versions.sample.version
+        .get()
   }
 
   compileOptions {

@@ -124,7 +124,14 @@ class TimelineLanesTest {
 
   @Test
   fun `grade spans the kept range only`() {
-    val lanes = laneSpans(edit { trim(3f, 7f); saturation = 0.5f }, duration)
+    val lanes =
+      laneSpans(
+        edit {
+          trim(3f, 7f)
+          saturation = 0.5f
+        },
+        duration,
+      )
 
     lanes.grade shouldBe LaneSpan(3.seconds, 7.seconds)
   }

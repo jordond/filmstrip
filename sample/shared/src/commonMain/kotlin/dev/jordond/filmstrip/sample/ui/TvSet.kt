@@ -72,29 +72,31 @@ private class SetMetrics(
   val vignetteReach: Dp,
 )
 
-private val WideSet = SetMetrics(
-  setRadius = 36.dp,
-  padding = 28.dp,
-  chinGap = 14.dp,
-  tubeBorder = 8.dp,
-  tubeRadiusX = 40.dp,
-  tubeRadiusY = 50.dp,
-  knob = Tokens.sizeKnob,
-  plateSize = 12,
-  vignetteReach = 74.dp,
-)
+private val WideSet =
+  SetMetrics(
+    setRadius = 36.dp,
+    padding = 28.dp,
+    chinGap = 14.dp,
+    tubeBorder = 8.dp,
+    tubeRadiusX = 40.dp,
+    tubeRadiusY = 50.dp,
+    knob = Tokens.sizeKnob,
+    plateSize = 12,
+    vignetteReach = 74.dp,
+  )
 
-private val PhoneSet = SetMetrics(
-  setRadius = 22.dp,
-  padding = 14.dp,
-  chinGap = 10.dp,
-  tubeBorder = 6.dp,
-  tubeRadiusX = 20.dp,
-  tubeRadiusY = 26.dp,
-  knob = 22.dp,
-  plateSize = 11,
-  vignetteReach = 37.dp,
-)
+private val PhoneSet =
+  SetMetrics(
+    setRadius = 22.dp,
+    padding = 14.dp,
+    chinGap = 10.dp,
+    tubeBorder = 6.dp,
+    tubeRadiusX = 20.dp,
+    tubeRadiusY = 26.dp,
+    knob = 22.dp,
+    plateSize = 11,
+    vignetteReach = 37.dp,
+  )
 
 /**
  * The television, a bezel holding a tube with a chin below it for the plate, a status [led] and the knobs.
@@ -114,20 +116,27 @@ public fun TvSet(
   val setShape = RoundedCornerShape(metrics.setRadius)
   val tubeShape = remember(metrics) { ellipticalCorners(metrics.tubeRadiusX, metrics.tubeRadiusY) }
   Column(
-    modifier = modifier
-      .clip(setShape)
-      .background(Tokens.bezel)
-      .border(1.dp, Tokens.line, setShape)
-      .padding(start = metrics.padding, end = metrics.padding, top = metrics.padding, bottom = metrics.chinGap + 2.dp),
+    modifier =
+      modifier
+        .clip(setShape)
+        .background(Tokens.bezel)
+        .border(1.dp, Tokens.line, setShape)
+        .padding(
+          start = metrics.padding,
+          end = metrics.padding,
+          top = metrics.padding,
+          bottom = metrics.chinGap + 2.dp,
+        ),
     verticalArrangement = Arrangement.spacedBy(metrics.chinGap),
   ) {
     Box(
-      modifier = Modifier
-        .fillMaxWidth()
-        .aspectRatio(TUBE_ASPECT)
-        .clip(tubeShape)
-        .background(Tokens.screen)
-        .border(metrics.tubeBorder, Tokens.groundDeep, tubeShape),
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .aspectRatio(TUBE_ASPECT)
+          .clip(tubeShape)
+          .background(Tokens.screen)
+          .border(metrics.tubeBorder, Tokens.groundDeep, tubeShape),
     ) {
       content()
       if (tubeEffects) TubeEffects(metrics.vignetteReach)
@@ -156,32 +165,35 @@ public fun ColourBars(
   }
 }
 
-private val BarsTop = listOf(
-  Tokens.barGrey,
-  Tokens.barYellow,
-  Tokens.barCyan,
-  Tokens.barGreen,
-  Tokens.barMagenta,
-  Tokens.barRed,
-  Tokens.barBlue,
-).map { it to 1f }
+private val BarsTop =
+  listOf(
+    Tokens.barGrey,
+    Tokens.barYellow,
+    Tokens.barCyan,
+    Tokens.barGreen,
+    Tokens.barMagenta,
+    Tokens.barRed,
+    Tokens.barBlue,
+  ).map { it to 1f }
 
-private val BarsMiddle = listOf(
-  Tokens.barBlue,
-  Tokens.barBlack,
-  Tokens.barMagenta,
-  Tokens.barBlack,
-  Tokens.barCyan,
-  Tokens.barBlack,
-  Tokens.barGrey,
-).map { it to 1f }
+private val BarsMiddle =
+  listOf(
+    Tokens.barBlue,
+    Tokens.barBlack,
+    Tokens.barMagenta,
+    Tokens.barBlack,
+    Tokens.barCyan,
+    Tokens.barBlack,
+    Tokens.barGrey,
+  ).map { it to 1f }
 
-private val BarsBottom = listOf(
-  Tokens.barNavy to 5f,
-  Tokens.white to 5f,
-  Tokens.barViolet to 5f,
-  Tokens.barBlack to 13f,
-)
+private val BarsBottom =
+  listOf(
+    Tokens.barNavy to 5f,
+    Tokens.white to 5f,
+    Tokens.barViolet to 5f,
+    Tokens.barBlack to 13f,
+  )
 
 private fun barFilter(): ColorFilter {
   val saturation = ColorMatrix().apply { setToSaturation(BAR_SATURATION) }
@@ -237,13 +249,14 @@ private fun DrawScope.drawRollBand(position: Float) {
   val band = RollBandHeight.toPx()
   val y = -band + (size.height + band * 2) * position
   drawRect(
-    brush = Brush.verticalGradient(
-      0f to Color.Transparent,
-      0.5f to Tokens.white.copy(alpha = ROLL_BAND_PEAK),
-      1f to Color.Transparent,
-      startY = y,
-      endY = y + band,
-    ),
+    brush =
+      Brush.verticalGradient(
+        0f to Color.Transparent,
+        0.5f to Tokens.white.copy(alpha = ROLL_BAND_PEAK),
+        1f to Color.Transparent,
+        startY = y,
+        endY = y + band,
+      ),
     topLeft = Offset(0f, y),
     size = Size(size.width, band),
   )
@@ -264,11 +277,12 @@ internal fun DrawScope.drawTubeScanlines() {
 
 private fun DrawScope.drawGlass() {
   drawRect(
-    brush = Brush.radialGradient(
-      colors = listOf(Tokens.white.copy(alpha = 0.07f), Color.Transparent),
-      center = Offset(size.width * 0.3f, size.height * 0.1f),
-      radius = size.width * 0.54f,
-    ),
+    brush =
+      Brush.radialGradient(
+        colors = listOf(Tokens.white.copy(alpha = 0.07f), Color.Transparent),
+        center = Offset(size.width * 0.3f, size.height * 0.1f),
+        radius = size.width * 0.54f,
+      ),
   )
 }
 
@@ -287,11 +301,12 @@ private fun SetChin(
       text = "FILMSTRIP-VISION",
       maxLines = 1,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
-      style = TextStyle(
-        fontFamily = MaterialTheme.typography.displaySmall.fontFamily,
-        fontSize = metrics.plateSize.sp,
-        letterSpacing = 0.2.em,
-      ),
+      style =
+        TextStyle(
+          fontFamily = MaterialTheme.typography.displaySmall.fontFamily,
+          fontSize = metrics.plateSize.sp,
+          letterSpacing = 0.2.em,
+        ),
     )
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
       Led(led)
@@ -308,18 +323,19 @@ private fun Knob(
   modifier: Modifier = Modifier,
 ) {
   Box(
-    modifier = modifier
-      .size(size)
-      .background(Tokens.knob, CircleShape)
-      .drawBehind {
-        val width = 4.dp.toPx()
-        drawRoundRect(
-          color = tick,
-          topLeft = Offset((this.size.width - width) / 2f, this.size.height * 0.13f),
-          size = Size(width, this.size.height * 0.33f),
-          cornerRadius = CornerRadius(2.dp.toPx()),
-        )
-      },
+    modifier =
+      modifier
+        .size(size)
+        .background(Tokens.knob, CircleShape)
+        .drawBehind {
+          val width = 4.dp.toPx()
+          drawRoundRect(
+            color = tick,
+            topLeft = Offset((this.size.width - width) / 2f, this.size.height * 0.13f),
+            size = Size(width, this.size.height * 0.33f),
+            cornerRadius = CornerRadius(2.dp.toPx()),
+          )
+        },
   )
 }
 

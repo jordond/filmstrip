@@ -38,9 +38,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
@@ -237,7 +237,12 @@ public class SampleAppState(
     get() = source != null && !probing && sourceFailure == null && (previewError == null || previewUnavailable)
 
   val sourceAspect: Float
-    get() = info?.video?.displaySize?.aspect?.takeIf { it > 0f } ?: DEFAULT_ASPECT
+    get() =
+      info
+        ?.video
+        ?.displaySize
+        ?.aspect
+        ?.takeIf { it > 0f } ?: DEFAULT_ASPECT
 
   val editedDuration: Duration
     get() = edit.editedDuration(sourceDuration) ?: Duration.ZERO
@@ -248,7 +253,11 @@ public class SampleAppState(
   val editedDurationSeconds: Float
     get() = editedDuration.inWholeMilliseconds / 1000f
 
-  fun onPicked(source: MediaSource?, label: String, preset: SamplePreset? = null) {
+  fun onPicked(
+    source: MediaSource?,
+    label: String,
+    preset: SamplePreset? = null,
+  ) {
     if (source == null) return
 
     presetJob?.cancel()
@@ -256,7 +265,11 @@ public class SampleAppState(
     openSource(source, label, preset)
   }
 
-  private fun openSource(source: MediaSource, label: String, preset: SamplePreset?) {
+  private fun openSource(
+    source: MediaSource,
+    label: String,
+    preset: SamplePreset?,
+  ) {
     this.source = source
     sourceLabel = label
     sourcePreset = preset
@@ -271,22 +284,23 @@ public class SampleAppState(
     probing = true
     probe = null
     navigateTo(SampleRoute.Editor)
-    probeJob = scope.launch {
-      try {
-        val result = filmstrip.probe(source)
-        ensureActive()
-        probe = result
-        when (result) {
-          is ProbeResult.Success -> recorder.record("source.probed", "info" to result.info.toString())
-          is ProbeResult.Failure -> recorder.record("source.unreadable", "error" to result.error.message)
+    probeJob =
+      scope.launch {
+        try {
+          val result = filmstrip.probe(source)
+          ensureActive()
+          probe = result
+          when (result) {
+            is ProbeResult.Success -> recorder.record("source.probed", "info" to result.info.toString())
+            is ProbeResult.Failure -> recorder.record("source.unreadable", "error" to result.error.message)
+          }
+          edit.reset((result as? ProbeResult.Success)?.info?.duration)
+          activeTool = EditorTool.Trim
+        } finally {
+          // A cancelled probe has already handed probing over to whoever cancelled it.
+          if (isActive) probing = false
         }
-        edit.reset((result as? ProbeResult.Success)?.info?.duration)
-        activeTool = EditorTool.Trim
-      } finally {
-        // A cancelled probe has already handed probing over to whoever cancelled it.
-        if (isActive) probing = false
       }
-    }
   }
 
   /**
@@ -298,23 +312,24 @@ public class SampleAppState(
 
     loadingPreset = preset
     pickFailure = null
-    presetJob = scope.launch {
-      try {
-        recorder.record("preset.download", "clip" to preset.fileName)
-        val source = download(preset)
-        ensureActive()
-        openSource(source, preset.name, preset)
-      } catch (cancellation: CancellationException) {
-        throw cancellation
-      } catch (failure: Throwable) {
-        ensureActive()
-        pickFailure = failure.message ?: "The download gave no reason."
-        recorder.record("preset.failed", "clip" to preset.fileName, "reason" to pickFailure.orEmpty())
-      } finally {
-        // A cancelled download has already handed loadingPreset over to whoever cancelled it.
-        if (isActive) loadingPreset = null
+    presetJob =
+      scope.launch {
+        try {
+          recorder.record("preset.download", "clip" to preset.fileName)
+          val source = download(preset)
+          ensureActive()
+          openSource(source, preset.name, preset)
+        } catch (cancellation: CancellationException) {
+          throw cancellation
+        } catch (failure: Throwable) {
+          ensureActive()
+          pickFailure = failure.message ?: "The download gave no reason."
+          recorder.record("preset.failed", "clip" to preset.fileName, "reason" to pickFailure.orEmpty())
+        } finally {
+          // A cancelled download has already handed loadingPreset over to whoever cancelled it.
+          if (isActive) loadingPreset = null
+        }
       }
-    }
   }
 
   /**
@@ -417,15 +432,16 @@ public class SampleAppState(
     return edit.composition(source, sourceDuration, trimmed = false)
   }
 
-  fun spec(): ExportSpec = ExportSpec(
-    heightPx = targetHeight,
-    bitrate = bitrateMbps?.let(Bitrate::mbps),
-    videoCodec = videoCodec,
-    audioCodec = audioCodec,
-    frameRate = frameRate,
-    hdr = hdr,
-    strict = strict,
-  )
+  fun spec(): ExportSpec =
+    ExportSpec(
+      heightPx = targetHeight,
+      bitrate = bitrateMbps?.let(Bitrate::mbps),
+      videoCodec = videoCodec,
+      audioCodec = audioCodec,
+      frameRate = frameRate,
+      hdr = hdr,
+      strict = strict,
+    )
 
   /**
    * Opens a player over the current edit, replacing whatever was open.
@@ -549,46 +565,55 @@ public class SampleAppState(
     // replacement has started and would otherwise report the new export as finished.
     val generation = ++exportGeneration
     exporting = true
-    exportJob = scope.launch {
-      try {
-        filmstrip.export(plan, exportSink()).collect { status ->
-          when (status) {
-            is ExportStatus.Started -> recorder.record("export.started", "path" to plan.path.name)
-            is ExportStatus.Adjusted -> {
-              exportAdjustments = status.adjustments
-              recorder.record(
-                label = "export.adjusted",
-                detail = status.adjustments.associate { it.kind.name to "${'$'}{it.requested} -> ${'$'}{it.resolved}" },
-              )
-            }
-            is ExportStatus.Progress -> exportProgress = status
-            is ExportStatus.Success -> {
-              exported = status
-              // What the backend gave up on once it had the real encoders is only on Success, so
-              // this is the list rather than an addition to it.
-              exportAdjustments = status.adjustments
-              saveExport(status.output)
-              exportedInfo = filmstrip.probe(status.output.asSource())
-              recorder.record("export.succeeded", "output" to status.info.toString())
-              backStack.remove(SampleRoute.Export)
-              navigateTo(SampleRoute.Result)
-            }
-            is ExportStatus.Failure -> {
-              exportFailure = status.error
-              recorder.record(
-                label = "export.failed",
-                detail = mapOf(
-                  "error" to (status.error::class.simpleName ?: "unknown"),
-                  "message" to status.error.message,
-                ),
-              )
+    exportJob =
+      scope.launch {
+        try {
+          filmstrip.export(plan, exportSink()).collect { status ->
+            when (status) {
+              is ExportStatus.Started -> {
+                recorder.record("export.started", "path" to plan.path.name)
+              }
+              is ExportStatus.Adjusted -> {
+                exportAdjustments = status.adjustments
+                recorder.record(
+                  label = "export.adjusted",
+                  detail =
+                    status.adjustments.associate {
+                      it.kind.name to "${'$'}{it.requested} -> ${'$'}{it.resolved}"
+                    },
+                )
+              }
+              is ExportStatus.Progress -> {
+                exportProgress = status
+              }
+              is ExportStatus.Success -> {
+                exported = status
+                // What the backend gave up on once it had the real encoders is only on Success, so
+                // this is the list rather than an addition to it.
+                exportAdjustments = status.adjustments
+                saveExport(status.output)
+                exportedInfo = filmstrip.probe(status.output.asSource())
+                recorder.record("export.succeeded", "output" to status.info.toString())
+                backStack.remove(SampleRoute.Export)
+                navigateTo(SampleRoute.Result)
+              }
+              is ExportStatus.Failure -> {
+                exportFailure = status.error
+                recorder.record(
+                  label = "export.failed",
+                  detail =
+                    mapOf(
+                      "error" to (status.error::class.simpleName ?: "unknown"),
+                      "message" to status.error.message,
+                    ),
+                )
+              }
             }
           }
+        } finally {
+          if (generation == exportGeneration) exporting = false
         }
-      } finally {
-        if (generation == exportGeneration) exporting = false
       }
-    }
   }
 
   fun cancelExport() {
@@ -622,24 +647,25 @@ public class SampleAppState(
   private fun observe(open: VideoPlayer) {
     // Events first, because they are edge-triggered with no replay and the player starts loading
     // the composition it was built with the moment it exists.
-    previewJobs = listOf(
-      scope.launch { open.events.collect(::onPlaybackEvent) },
-      scope.launch { open.state.collect(::onPlayerState) },
-      scope.launch { snapshotFlow { spec() }.collect(open::setExportSpec) },
-      scope.launch {
-        open.previewInfo.collect { info ->
-          previewOutput = info.outputSize.takeIf { it.width > 0 && it.height > 0 }
-        }
-      },
-      scope.launch {
-        open.positionFlow(POSITION_TICK).collect { position ->
-          // The player's own duration once it has loaded, so the clamp agrees with what it is
-          // actually playing rather than with a bound this recomputes from the edit on its own.
-          val bound = (open.state.value.duration ?: editedDuration).inWholeMilliseconds / 1000f
-          positionSeconds = (position.inWholeMilliseconds / 1000f).coerceIn(0f, bound)
-        }
-      },
-    )
+    previewJobs =
+      listOf(
+        scope.launch { open.events.collect(::onPlaybackEvent) },
+        scope.launch { open.state.collect(::onPlayerState) },
+        scope.launch { snapshotFlow { spec() }.collect(open::setExportSpec) },
+        scope.launch {
+          open.previewInfo.collect { info ->
+            previewOutput = info.outputSize.takeIf { it.width > 0 && it.height > 0 }
+          }
+        },
+        scope.launch {
+          open.positionFlow(POSITION_TICK).collect { position ->
+            // The player's own duration once it has loaded, so the clamp agrees with what it is
+            // actually playing rather than with a bound this recomputes from the edit on its own.
+            val bound = (open.state.value.duration ?: editedDuration).inWholeMilliseconds / 1000f
+            positionSeconds = (position.inWholeMilliseconds / 1000f).coerceIn(0f, bound)
+          }
+        },
+      )
   }
 
   private fun onPlayerState(snapshot: PlayerState) {
@@ -666,15 +692,16 @@ public class SampleAppState(
   private fun reloadPreview() {
     val open = player ?: return
     reloadJob?.cancel()
-    reloadJob = scope.launch {
-      delay(RELOAD_DEBOUNCE_MILLIS)
-      val composition = previewComposition() ?: return@launch
-      val result = open.setComposition(composition)
-      if (result is SetCompositionResult.Failure) {
-        recorder.record("player.loadFailed", "error" to result.error.message)
+    reloadJob =
+      scope.launch {
+        delay(RELOAD_DEBOUNCE_MILLIS)
+        val composition = previewComposition() ?: return@launch
+        val result = open.setComposition(composition)
+        if (result is SetCompositionResult.Failure) {
+          recorder.record("player.loadFailed", "error" to result.error.message)
+        }
+        applyLoopRange()
       }
-      applyLoopRange()
-    }
   }
 
   private fun applyLoopRange() {
@@ -689,22 +716,28 @@ public class SampleAppState(
   private fun startLocalClock() {
     if (playing || editedDurationSeconds <= 0f) return
     playing = true
-    clockJob = scope.launch {
-      while (isActive) {
-        delay(TICK_MILLIS)
-        val next = positionSeconds + TICK_SECONDS
-        val end = editedDurationSeconds
-        positionSeconds = when {
-          next < end -> next
-          loopingState -> 0f
-          else -> {
-            playing = false
-            end
-          }
+    clockJob =
+      scope.launch {
+        while (isActive) {
+          delay(TICK_MILLIS)
+          val next = positionSeconds + TICK_SECONDS
+          val end = editedDurationSeconds
+          positionSeconds =
+            when {
+              next < end -> {
+                next
+              }
+              loopingState -> {
+                0f
+              }
+              else -> {
+                playing = false
+                end
+              }
+            }
+          if (!playing) break
         }
-        if (!playing) break
       }
-    }
   }
 
   private fun stopClock() {
@@ -774,16 +807,30 @@ private fun PlaybackEvent.label(): String =
  */
 private fun PlaybackEvent.detail(): Map<String, String> =
   when (this) {
-    is PlaybackEvent.Ended -> mapOf("at" to finalPosition.toString(), "duration" to duration.toString())
-    is PlaybackEvent.SeekCompleted -> mapOf("at" to position.toString())
-    PlaybackEvent.FirstFrameRendered -> emptyMap()
-    is PlaybackEvent.RangeLooped -> mapOf("range" to range.toString())
-    is PlaybackEvent.Failed -> mapOf("error" to (error::class.simpleName ?: "unknown"), "message" to error.message)
-    is PlaybackEvent.ExternalPlayWhenReadyChanged -> mapOf("wanted" to playWhenReady.toString())
+    is PlaybackEvent.Ended -> {
+      mapOf("at" to finalPosition.toString(), "duration" to duration.toString())
+    }
+    is PlaybackEvent.SeekCompleted -> {
+      mapOf("at" to position.toString())
+    }
+    PlaybackEvent.FirstFrameRendered -> {
+      emptyMap()
+    }
+    is PlaybackEvent.RangeLooped -> {
+      mapOf("range" to range.toString())
+    }
+    is PlaybackEvent.Failed -> {
+      mapOf("error" to (error::class.simpleName ?: "unknown"), "message" to error.message)
+    }
+    is PlaybackEvent.ExternalPlayWhenReadyChanged -> {
+      mapOf("wanted" to playWhenReady.toString())
+    }
     is PlaybackEvent.EffectsDegraded -> {
       adjustments
         .groupBy({ it.kind.name }, { it.message })
         .mapValues { (_, messages) -> messages.joinToString(" | ") }
     }
-    is PlaybackEvent.QualityDegraded -> mapOf("message" to message)
+    is PlaybackEvent.QualityDegraded -> {
+      mapOf("message" to message)
+    }
   }

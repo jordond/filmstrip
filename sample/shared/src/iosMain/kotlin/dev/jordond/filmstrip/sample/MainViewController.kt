@@ -9,6 +9,6 @@ import platform.UIKit.UIViewController
  * The state is created once and held here rather than inside the composition, so it survives the
  * controller being torn down and rebuilt while an export is running.
  */
-public fun MainViewController(): UIViewController = ComposeUIViewController { App(state) }
+public fun mainViewController(): UIViewController = ComposeUIViewController { App(state) }
 
 private val state: SampleAppState by lazy { createSampleAppState() }
