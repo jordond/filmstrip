@@ -504,7 +504,7 @@ private suspend fun ThumbnailSource.awaitThumbnails(requests: List<ThumbnailRequ
             gathered[index] = result
           }
           is ThumbnailResult.Failure -> {
-            continuation.resume(fail("a run's thumbnail failed: ${'$'}{result.error.message}"))
+            continuation.resume(fail("a run's thumbnail failed: ${result.error.message}"))
           }
         }
         outstanding--

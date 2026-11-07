@@ -2,11 +2,13 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.player.contract.EngineUnderTest
+import dev.jordond.filmstrip.player.contract.FailingItem
 import dev.jordond.filmstrip.player.contract.Interruption
 import dev.jordond.filmstrip.player.contract.PlayerEngineContractTest
 import dev.jordond.filmstrip.player.contract.awaitComposition
 import dev.jordond.filmstrip.player.contract.awaitContract
 import dev.jordond.filmstrip.player.contract.contractTest
+import dev.jordond.filmstrip.player.contract.cutInTwo
 import dev.jordond.filmstrip.player.contract.withEngine
 import dev.jordond.filmstrip.player.internal.AvPlayerEngine
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -63,6 +65,9 @@ class IosEngineContractTest : PlayerEngineContractTest() {
 
   override fun createEngine(scope: CoroutineScope): EngineUnderTest =
     AppleEngineUnderTest(scope) { engine, occasion -> postInterruption(engine, occasion) }
+
+  override fun createFailingItem(scope: CoroutineScope): FailingItem =
+    FailingItem(appleEngineFailingItsFirstItem(scope), fixture.cutInTwo(fixtureFrameRate))
 
   override val fixture: EditComposition = appleFixtureComposition()
 

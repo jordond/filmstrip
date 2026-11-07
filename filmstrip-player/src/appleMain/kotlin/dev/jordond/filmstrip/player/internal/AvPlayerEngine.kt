@@ -120,10 +120,8 @@ internal class AvPlayerEngine(
         seeks.abandon()
         setStatus(PlaybackStatus.Error(it))
       },
-      onStoppedShort = {
-        transport.halt()
-        emitEvent(PlaybackEvent.Failed(it))
-      },
+      onStoppedShort = { failPlayback(it) },
+      onResumed = { onPlatformChanged() },
     )
 
   private val seeks: AvSeekCoordinator =
@@ -326,12 +324,17 @@ internal class AvPlayerEngine(
     val current = transport.playhead
     wrapGuard.reset()
     drawFailure.clear()
-    val swappable = change == CompositionDiff.ParametersOnly && lowered?.takesParametersOf(next.resolved) == true
+    // A failed status is terminal for the item, so an edit over one rebuilds whatever it changed.
+    val swappable =
+      change == CompositionDiff.ParametersOnly &&
+        item?.status != AVPlayerItemStatusFailed &&
+        lowered?.takesParametersOf(next.resolved) == true
     if (swappable) {
       // Reassigning videoComposition on a playing item stalls the render, so the parameters reach
       // the frames through the chain the item already holds. An edit leaving the copy path can still
       // move the frame, since a transcode holds it to the encoder's size, and that takes a rebuild.
       lowered?.updateParameters(next.resolved)
+      failures.resumed()
     } else {
       rebuild(next)?.let { return it }
     }
@@ -353,7 +356,8 @@ internal class AvPlayerEngine(
     start?.let(transport::jumpTo)
     onPlatformChanged()
     if (swappable) emitFrameRedrawn()
-    if (request.playWhenReady) play()
+    // A failure halts the transport and leaves the play standing, so this load is what starts it again.
+    if (request.playWhenReady || (isPlayWanted && !transport.isPlaying)) play()
     return null
   }
 
@@ -398,7 +402,7 @@ internal class AvPlayerEngine(
    * change and a transport change alike, and two notifications landing together read as one.
    */
   private fun onPlatformChanged() {
-    val refused = refusal
+    val refused = refusal ?: failures.stoppedShortError
     val target = item
     if (target == null) {
       setStatus(refused?.let { PlaybackStatus.Error(it) } ?: PlaybackStatus.Idle)
@@ -466,7 +470,8 @@ internal class AvPlayerEngine(
    * Reports [error] as the reason playback stopped and halts the transport.
    *
    * A failed item answers no seek it was holding after this, so its seeks are abandoned. An item still attached after a
-   * draw failure is left to answer them.
+   * draw failure is left to answer them. A play stays wanted through this, and the next load applied starts it again.
+   * An item that only stopped short plays on from a later play or seek.
    */
   private fun failPlayback(error: PlaybackError) {
     seeks.abandon()

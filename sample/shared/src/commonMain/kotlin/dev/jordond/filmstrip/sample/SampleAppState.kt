@@ -578,9 +578,9 @@ public class SampleAppState(
                 recorder.record(
                   label = "export.adjusted",
                   detail =
-                    status.adjustments.associate {
-                      it.kind.name to "${'$'}{it.requested} -> ${'$'}{it.resolved}"
-                    },
+                    status.adjustments
+                      .groupBy({ it.kind.name }, { "${it.requested} -> ${it.resolved}" })
+                      .mapValues { (_, values) -> values.joinToString(" | ") },
                 )
               }
               is ExportStatus.Progress -> {

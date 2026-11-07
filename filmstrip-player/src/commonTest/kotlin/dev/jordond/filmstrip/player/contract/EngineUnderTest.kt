@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.player.contract
 
+import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlayerEngine
 import kotlin.time.Duration
@@ -60,6 +61,26 @@ interface EngineUnderTest {
   fun stage(interruption: Interruption): Unit =
     throw NotImplementedError("This backend stages no interruption, so $interruption cannot be raised.")
 }
+
+/**
+ * An engine primed to fail on one edit, and that edit.
+ *
+ * What fails is the backend's own item, past anything a planner can check, so every backend stages it its own way. The
+ * engine loads anything else as it normally would.
+ *
+ * @property subject The primed engine, with no composition loaded.
+ * @property composition The edit that fails, which differs structurally from the suite's fixture.
+ * @property refusedAtLoad Whether the load itself answers with the failure, for a backend that draws a frame before it
+ * calls a load a success. Every other backend answers with a success and fails afterwards.
+ * @property restoreSource Puts back what the failed load lost, for a backend whose failure stays with its source. A
+ * backend that only fails the first time has nothing to put back.
+ */
+class FailingItem(
+  val subject: EngineUnderTest,
+  val composition: EditComposition,
+  val refusedAtLoad: Boolean = false,
+  val restoreSource: () -> Unit = { },
+)
 
 /**
  * An occasion outside filmstrip that changes whether playback is wanted.

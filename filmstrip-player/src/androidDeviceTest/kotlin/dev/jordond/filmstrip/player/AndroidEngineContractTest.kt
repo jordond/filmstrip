@@ -4,11 +4,16 @@ import android.hardware.display.DisplayManager
 import android.os.Build
 import android.view.Display
 import androidx.media3.transformer.CompositionPlayer
+import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.export.ExportSpec
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.contract.EngineUnderTest
+import dev.jordond.filmstrip.player.contract.FailingItem
 import dev.jordond.filmstrip.player.contract.Interruption
 import dev.jordond.filmstrip.player.contract.PlayerEngineContractTest
 import dev.jordond.filmstrip.player.contract.awaitComposition
@@ -16,6 +21,9 @@ import dev.jordond.filmstrip.player.contract.awaitContract
 import dev.jordond.filmstrip.player.contract.awaitStep
 import dev.jordond.filmstrip.player.contract.contractTest
 import dev.jordond.filmstrip.player.contract.withEngine
+import dev.jordond.filmstrip.player.internal.Media3PreviewPlan
+import dev.jordond.filmstrip.player.internal.Media3PreviewPlanner
+import dev.jordond.filmstrip.player.internal.PlanResult
 import dev.jordond.filmstrip.player.internal.loopWrapOf
 import dev.jordond.filmstrip.player.internal.toMediaMs
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -29,6 +37,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.test.TestResult
+import java.io.File
 import kotlin.coroutines.resume
 import kotlin.test.Test
 import kotlin.test.fail
@@ -57,6 +66,21 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 class AndroidEngineContractTest : PlayerEngineContractTest() {
   override fun createEngine(scope: CoroutineScope): EngineUnderTest = androidEngine(scope)
+
+  override fun createFailingItem(scope: CoroutineScope): FailingItem {
+    val source = File(contractContext().cacheDir, "vanishing.mp4")
+    val clip = androidFixtureClip().shouldBeInstanceOf<MediaSource.Path>()
+    File(clip.path).copyTo(source, overwrite = true)
+    val failing =
+      EditComposition(
+        tracks = listOf(Track(listOf(Clip(MediaSource.of(source.path), TimeRange.of(Duration.ZERO, CLIP_LENGTH))))),
+      )
+    return FailingItem(
+      subject = AndroidEngineUnderTest(scope, VanishingSourcePlanner(source)),
+      composition = failing,
+      restoreSource = { File(clip.path).copyTo(source, overwrite = true) },
+    )
+  }
 
   override val fixture: EditComposition = androidFixtureComposition()
 
@@ -345,4 +369,25 @@ class AndroidEngineContractTest : PlayerEngineContractTest() {
     fun dropIndices(readings: List<Duration>): List<Int> =
       (1 until readings.size).filter { index -> readings[index] < readings[index - 1] }
   }
+}
+
+/**
+ * Plans an edit as usual and then takes [source] away, so media3 itself fails on the graph it is handed.
+ *
+ * Only after the first plan, so a source put back afterwards stays.
+ */
+private class VanishingSourcePlanner(
+  private val source: File,
+) : Media3PreviewPlanner(CONTRACT_COMPONENTS) {
+  private var vanished = false
+
+  override suspend fun plan(
+    composition: EditComposition,
+    policy: PreviewQualityPolicy,
+    exportSpec: ExportSpec,
+  ): PlanResult<Media3PreviewPlan, PlaybackError> =
+    super.plan(composition, policy, exportSpec).also {
+      if (!vanished) source.delete()
+      vanished = true
+    }
 }

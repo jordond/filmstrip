@@ -78,7 +78,7 @@ internal class Media3PlayerListener(
 
   override fun onPlayerError(error: PlaybackException) {
     val reported = error.toPlaybackError()
-    report { status.fail(reported) }
+    report { status.onPlayerError(reported) }
   }
 
   private fun dispatch(block: () -> Unit) {

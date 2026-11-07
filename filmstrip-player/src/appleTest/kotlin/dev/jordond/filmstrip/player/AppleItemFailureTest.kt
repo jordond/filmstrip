@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.contract.ContractRecorder
 import dev.jordond.filmstrip.player.contract.awaitComposition
@@ -27,13 +28,11 @@ import platform.AVFoundation.AVPlayerItem
 import platform.AVFoundation.AVPlayerItemFailedToPlayToEndTimeErrorKey
 import platform.AVFoundation.AVPlayerItemFailedToPlayToEndTimeNotification
 import platform.AVFoundation.AVPlayerItemStatusFailed
-import platform.AVFoundation.AVURLAsset
 import platform.AVFoundation.currentItem
 import platform.AVFoundation.rate
 import platform.Foundation.NSError
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOSStatusErrorDomain
-import platform.Foundation.NSURL
 import platform.Foundation.NSUnderlyingErrorKey
 import platform.darwin.dispatch_get_main_queue
 import kotlin.test.Test
@@ -166,6 +165,85 @@ class AppleItemFailureTest {
     }
 
   @Test
+  fun `a stop short stays on the status with the play standing until the next play`() =
+    contractTest { scope ->
+      val engine = healthyEngine(scope)
+      withEngine(engine) { recorder ->
+        val item = engine.awaitReadyItem(recorder)
+        engine.play()
+
+        postStoppedShort(item)
+        recorder.awaitQuietFailures(1, engine)
+        recorder.lastState.status shouldBe PlaybackStatus.Error(recorder.failures.single())
+        recorder.lastState.playWhenReady shouldBe true
+        engine.platformPlayer.rate shouldBe 0f
+
+        engine.play()
+
+        recorder.lastState.status shouldBe PlaybackStatus.Ready
+        engine.platformPlayer.rate shouldNotBe 0f
+      }
+    }
+
+  @Test
+  fun `a seek after a stop short clears the status`() =
+    contractTest { scope ->
+      val engine = healthyEngine(scope)
+      withEngine(engine) { recorder ->
+        val item = engine.awaitReadyItem(recorder)
+
+        postStoppedShort(item)
+        recorder.awaitQuietFailures(1, engine)
+        recorder.lastState.status shouldBe PlaybackStatus.Error(recorder.failures.single())
+
+        engine.seekTo(CLIP_LENGTH / 4, SeekAccuracy.Exact)
+
+        recorder.lastState.status shouldBe PlaybackStatus.Ready
+      }
+    }
+
+  @Test
+  fun `a parameter edit after a stop short plays on the same item`() =
+    contractTest { scope ->
+      val engine = healthyEngine(scope)
+      withEngine(engine) { recorder ->
+        engine.awaitComposition(appleFixtureComposition(listOf(Brightness(0.4f))))
+        awaitContract("the item to be ready") { recorder.lastState.status == PlaybackStatus.Ready }
+        val item = engine.platformPlayer.currentItem.shouldNotBeNull()
+        engine.play()
+        postStoppedShort(item)
+        recorder.awaitQuietFailures(1, engine)
+
+        engine
+          .awaitComposition(appleFixtureComposition(listOf(Brightness(1.4f))))
+          .shouldBeInstanceOf<SetCompositionResult.Success>()
+
+        engine.platformLoads shouldBe 1
+        recorder.lastState.status shouldBe PlaybackStatus.Ready
+        engine.platformPlayer.rate shouldNotBe 0f
+      }
+    }
+
+  @Test
+  fun `a parameter edit over a failed item rebuilds and plays`() =
+    contractTest { scope ->
+      val engine = appleEngineFailingItsFirstItem(scope).engine
+      withEngine(engine) { recorder ->
+        engine.awaitComposition(appleFixtureComposition(listOf(Brightness(0.4f))))
+        recorder.awaitQuietFailures(1, engine)
+        engine.play()
+
+        engine
+          .awaitComposition(appleFixtureComposition(listOf(Brightness(1.4f))))
+          .shouldBeInstanceOf<SetCompositionResult.Success>()
+
+        engine.platformLoads shouldBe 2
+        awaitContract("the playhead to leave the start") { (recorder.playhead ?: Duration.ZERO) > Duration.ZERO }
+        recorder.lastState.status shouldBe PlaybackStatus.Ready
+      }
+    }
+
+  @Test
   fun `play on a failed item starts nothing and stays on the error`() =
     contractTest { scope ->
       val rig = FailingRig(scope)
@@ -180,6 +258,24 @@ class AppleItemFailureTest {
         recorder.awaitQuietFailures(1, engine)
         recorder.lastState.status shouldBe failed
         engine.platformPlayer.rate shouldBe 0f
+      }
+    }
+
+  @Test
+  fun `a play made on a failed item starts on the next load`() =
+    contractTest { scope ->
+      val engine = appleEngineFailingItsFirstItem(scope).engine
+      withEngine(engine) { recorder ->
+        engine.awaitComposition(appleFixtureComposition()).shouldBeInstanceOf<SetCompositionResult.Success>()
+        recorder.awaitQuietFailures(1, engine)
+
+        engine.play()
+        engine.platformPlayer.rate shouldBe 0f
+
+        engine.awaitComposition(shorterComposition()).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the playhead to leave the start") { (recorder.playhead ?: Duration.ZERO) > Duration.ZERO }
+        recorder.lastState.status shouldBe PlaybackStatus.Ready
+        recorder.lastState.playWhenReady shouldBe true
       }
     }
 
@@ -274,9 +370,6 @@ class AppleItemFailureTest {
         muted = true,
         itemOf = { missingFileItem().also { items += it } },
       )
-
-    private fun missingFileItem(): AVPlayerItem =
-      AVPlayerItem(asset = AVURLAsset(NSURL.fileURLWithPath(appleFixtureClip() + ".absent"), null))
   }
 
   private class StopShortOnRebuild(

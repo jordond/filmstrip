@@ -171,7 +171,7 @@ class Media3StatusTrackerTest {
     }
 
   @Test
-  fun `a failure holds the error status over later states until it is cleared`() =
+  fun `a refusal holds the error status over later states until it is lifted`() =
     runTest {
       val rig = Rig(this)
       rig.state(Player.STATE_READY)
@@ -187,9 +187,24 @@ class Media3StatusTrackerTest {
       rig.state(Player.STATE_READY)
       rig.statuses.last() shouldBe PlaybackStatus.Error(ERROR)
 
-      rig.tracker.clearFailure()
-      rig.state(Player.STATE_READY)
+      rig.tracker.liftRefusal()
       rig.statuses.last() shouldBe PlaybackStatus.Ready
+      rig.tracker.playerErrored shouldBe false
+    }
+
+  @Test
+  fun `a player error stands until a reset and fails like a refusal`() =
+    runTest {
+      val rig = Rig(this)
+      rig.state(Player.STATE_READY)
+
+      rig.tracker.onPlayerError(ERROR)
+      rig.tracker.playerErrored shouldBe true
+      rig.statuses.last() shouldBe PlaybackStatus.Error(ERROR)
+      rig.events.last() shouldBe PlaybackEvent.Failed(ERROR)
+
+      rig.tracker.reset()
+      rig.tracker.playerErrored shouldBe false
     }
 
   @Test

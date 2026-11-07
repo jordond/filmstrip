@@ -20,6 +20,14 @@ import kotlin.time.Duration.Companion.seconds
 class FakeEngineContractTest : PlayerEngineContractTest() {
   override fun createEngine(scope: CoroutineScope): EngineUnderTest = FakeEngineUnderTest(scope)
 
+  // The fake has no item to fail, so it refuses its first load. Every failed item case here goes through the refused
+  // path aPlayAfterARefusedFirstLoadMovesThePlayheadOnTheNextLoad covers.
+  override fun createFailingItem(scope: CoroutineScope): FailingItem {
+    var refused = false
+    val subject = FakeEngineUnderTest(scope) { !refused.also { refused = true } }
+    return FailingItem(subject, fixture.cutInTwo(fixtureFrameRate), refusedAtLoad = true)
+  }
+
   override val fixture: EditComposition =
     EditComposition(
       tracks = listOf(Track(listOf(Clip(MediaSource.of("contract.mp4"), TimeRange.of(Duration.ZERO, 8.seconds))))),

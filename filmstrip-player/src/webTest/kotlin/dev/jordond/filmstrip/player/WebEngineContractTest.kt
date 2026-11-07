@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.player.contract.EngineUnderTest
+import dev.jordond.filmstrip.player.contract.FailingItem
 import dev.jordond.filmstrip.player.contract.Interruption
 import dev.jordond.filmstrip.player.contract.PlayerEngineContractTest
 import dev.jordond.filmstrip.player.contract.awaitComposition
@@ -13,6 +14,7 @@ import dev.jordond.filmstrip.player.contract.awaitContract
 import dev.jordond.filmstrip.player.contract.awaitFrame
 import dev.jordond.filmstrip.player.contract.awaitStep
 import dev.jordond.filmstrip.player.contract.contractTest
+import dev.jordond.filmstrip.player.contract.cutInTwo
 import dev.jordond.filmstrip.player.contract.withEngine
 import dev.jordond.filmstrip.player.internal.loopWrapOf
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
@@ -43,6 +45,20 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 class WebEngineContractTest : PlayerEngineContractTest() {
   override fun createEngine(scope: CoroutineScope): EngineUnderTest = WebEngineUnderTest(scope)
+
+  // A load draws its first frame before it succeeds, and a preview that cannot refuses the load. That is the only item
+  // failure this engine has, so the first draw is what fails. Every failed item case here goes through the refused path
+  // aPlayAfterARefusedFirstLoadMovesThePlayheadOnTheNextLoad covers.
+  override fun createFailingItem(scope: CoroutineScope): FailingItem {
+    var failed = false
+    val subject =
+      WebEngineUnderTest(scope) { preview, at ->
+        val drawn = failed && preview.frameAt(at) != null
+        failed = true
+        drawn
+      }
+    return FailingItem(subject, fixture.cutInTwo(fixtureFrameRate), refusedAtLoad = true)
+  }
 
   override val fixture: EditComposition = webFixtureComposition()
 

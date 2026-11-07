@@ -73,6 +73,13 @@ abstract class PlayerEngineContractTest {
     get() = EditComposition(tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(ByteArray(UNREADABLE_BYTES)))))))
 
   /**
+   * Builds an engine primed to fail on one edit, in whichever way this backend can make its own item fail.
+   *
+   * @param scope The dispatcher the suite drives the engine from.
+   */
+  protected abstract fun createFailingItem(scope: CoroutineScope): FailingItem
+
+  /**
    * Which interruptions this backend can raise through [EngineUnderTest.stage].
    *
    * Empty is the honest answer for a suite that does not run on a device, since audio focus and
@@ -353,6 +360,20 @@ abstract class PlayerEngineContractTest {
 
   @Test
   fun aPlayAfterARefusedFirstLoadMovesThePlayheadOnTheNextLoad() = earlyTransport.playOutlivesARefusedLoad(false)
+
+  @Test
+  fun aPlayBeforeAFailedItemMovesThePlayheadOnTheNextLoad() =
+    earlyTransport.playOutlivesAFailedItem(::createFailingItem)
+
+  @Test
+  fun theSameEditReloadedAfterAFailedItemPlays() = earlyTransport.theSameEditPlaysAfterAFailedItem(::createFailingItem)
+
+  @Test
+  fun aParameterEditAfterAFailedItemPlays() = earlyTransport.aParameterEditPlaysAfterAFailedItem(::createFailingItem)
+
+  @Test
+  fun aParameterEditAfterARefusedEditPlaysOnTheStandingGraph() =
+    earlyTransport.aParameterEditLiftsARefusalOverAStandingGraph()
 
   @Test
   fun eachStagedInterruptionReportsOneExternalChangeAndLeavesPlaybackUnwanted() =

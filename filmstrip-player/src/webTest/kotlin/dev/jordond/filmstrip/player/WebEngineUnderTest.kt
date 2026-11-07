@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.player.contract.EngineUnderTest
 import dev.jordond.filmstrip.player.contract.Interruption
 import dev.jordond.filmstrip.player.internal.BrowserPlayerEngine
 import dev.jordond.filmstrip.player.internal.BrowserPreviewPlanner
+import dev.jordond.filmstrip.webcodecs.internal.preview.BrowserPreview
 import kotlinx.coroutines.CoroutineScope
 import kotlin.time.Duration
 
@@ -16,15 +17,20 @@ import kotlin.time.Duration
  * makes rather than a faked event object.
  *
  * @param scope The dispatcher the engine is confined to.
+ * @param drawFirstFrame Draws the frame a new graph owes at a position, answering whether it drew one.
  */
 internal class WebEngineUnderTest(
   scope: CoroutineScope,
+  drawFirstFrame: suspend (preview: BrowserPreview, at: Duration) -> Boolean = { preview, at ->
+    preview.frameAt(at) != null
+  },
 ) : EngineUnderTest {
   override val engine: BrowserPlayerEngine =
     BrowserPlayerEngine(
       parent = scope,
       planner = BrowserPreviewPlanner(CONTRACT_COMPONENTS),
       config = PlayerConfig(),
+      drawFirstFrame = drawFirstFrame,
     )
 
   override val platformLoads: Int get() = engine.platformLoads

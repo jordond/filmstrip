@@ -75,6 +75,11 @@ internal class AvTransport(
   private var stopToken: Any? = null
 
   /**
+   * Whether playback the engine started is running, which [stop] and [halt] both end.
+   */
+  val isPlaying: Boolean get() = playing
+
+  /**
    * Where playback is.
    *
    * While playing this is the reading the wrap tick last checked, so the ticker never reports one past the loop's wrap

@@ -1,11 +1,19 @@
 package dev.jordond.filmstrip.player
 
+import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.contract.EngineUnderTest
+import dev.jordond.filmstrip.player.contract.FailingItem
 import dev.jordond.filmstrip.player.contract.PlayerEngineContractTest
 import dev.jordond.filmstrip.player.internal.FfmpegPlayerEngine
 import dev.jordond.filmstrip.player.internal.FfmpegPreviewPlanner
+import dev.jordond.filmstrip.player.internal.PreviewPlan
 import kotlinx.coroutines.CoroutineScope
+import java.io.File
 import kotlin.time.Duration
 
 /**
@@ -28,6 +36,17 @@ import kotlin.time.Duration
 class JvmEngineContractTest : PlayerEngineContractTest() {
   override fun createEngine(scope: CoroutineScope): EngineUnderTest = JvmEngineUnderTest(scope)
 
+  override fun createFailingItem(scope: CoroutineScope): FailingItem {
+    val source = File.createTempFile("filmstrip-vanishing", ".mp4").also { it.deleteOnExit() }
+    val clip = File(jvmFixtureClip())
+    clip.copyTo(source, overwrite = true)
+    return FailingItem(
+      subject = JvmEngineUnderTest(scope, VanishingSourcePlanner(source)),
+      composition = compositionOf(source),
+      restoreSource = { clip.copyTo(source, overwrite = true) },
+    )
+  }
+
   override val fixture: EditComposition = jvmFixtureComposition()
 
   override val bytesFixture: EditComposition = jvmFixtureBytesComposition()
@@ -47,11 +66,12 @@ class JvmEngineContractTest : PlayerEngineContractTest() {
  */
 internal class JvmEngineUnderTest(
   scope: CoroutineScope,
+  planner: FfmpegPreviewPlanner = FfmpegPreviewPlanner(CONTRACT_COMPONENTS),
 ) : EngineUnderTest {
   override val engine: FfmpegPlayerEngine =
     FfmpegPlayerEngine(
       parent = scope,
-      planner = FfmpegPreviewPlanner(CONTRACT_COMPONENTS),
+      planner = planner,
       config = PlayerConfig(),
     )
 
@@ -65,3 +85,29 @@ internal class JvmEngineUnderTest(
     engine.awaitQuiet()
   }
 }
+
+/**
+ * Plans an edit as usual and takes [source] away before the first process opens, so ffmpeg itself fails on the plan.
+ *
+ * Only the first one, so a source put back afterwards stays.
+ */
+private class VanishingSourcePlanner(
+  private val source: File,
+) : FfmpegPreviewPlanner(CONTRACT_COMPONENTS) {
+  private var vanished = false
+
+  override suspend fun open(
+    plan: PreviewPlan,
+    composition: EditComposition,
+    at: Duration,
+  ): PreviewStreamResult {
+    if (!vanished) source.delete()
+    vanished = true
+    return super.open(plan, composition, at)
+  }
+}
+
+private fun compositionOf(source: File): EditComposition =
+  EditComposition(
+    tracks = listOf(Track(listOf(Clip(MediaSource.of(source.absolutePath), TimeRange.of(Duration.ZERO, CLIP_LENGTH))))),
+  )

@@ -66,8 +66,8 @@ internal abstract class BasePlayerEngine(
   private var isReleased = false
 
   /**
-   * Whether the lifecycle axis is on [PlaybackStatus.Error], so a backend applying new parameters knows there is a
-   * failure to clear.
+   * Whether the lifecycle axis is on [PlaybackStatus.Error], so a load knows there is a failure to clear and an equal
+   * edit knows the graph standing is not worth keeping.
    */
   protected val isFailed: Boolean get() = status is PlaybackStatus.Error
 

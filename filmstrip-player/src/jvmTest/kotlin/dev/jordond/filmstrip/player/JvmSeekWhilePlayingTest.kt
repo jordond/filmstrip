@@ -140,7 +140,7 @@ class JvmSeekWhilePlayingTest {
         val failed = recorder.events.filterIsInstance<PlaybackEvent.Failed>().single()
         failed.error.message shouldContain source.name
         recorder.lastState.status shouldBe PlaybackStatus.Error(failed.error)
-        recorder.lastState.playWhenReady shouldBe false
+        recorder.lastState.playWhenReady shouldBe true
         recorder.playhead shouldBe landing
       }
     }

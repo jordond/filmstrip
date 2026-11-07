@@ -42,7 +42,7 @@ class FfmpegPreviewFailureTest {
         error.platformCode shouldBe FAILED
         error.message shouldContain STDERR
         recorder.lastState.status shouldBe PlaybackStatus.Error(error)
-        recorder.lastState.playWhenReady shouldBe false
+        recorder.lastState.playWhenReady shouldBe true
         recorder.events.filterIsInstance<PlaybackEvent.Ended>().shouldBeEmpty()
         engine.platformLoads shouldBe 1
       }

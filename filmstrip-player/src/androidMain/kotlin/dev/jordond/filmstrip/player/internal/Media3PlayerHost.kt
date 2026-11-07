@@ -99,7 +99,8 @@ internal class Media3PlayerHost(
    *
    * A `CompositionPlayer` settles its video graph's output colour on the first input it sees and keeps that graph
    * across
-   * later compositions, so a composition at another [hdrMode] only takes effect on a fresh player.
+   * later compositions, so a composition at another [hdrMode] only takes effect on a fresh player. One that has
+   * reported an error never gets back to ready on a later composition, which is media3's limit, so it is replaced too.
    */
   fun playerFor(
     multipleInputs: Boolean,
@@ -108,7 +109,7 @@ internal class Media3PlayerHost(
     val standing = player
     val sameGraph = takesMultipleInputs == multipleInputs && (graphHdrMode ?: hdrMode) == hdrMode
     graphHdrMode = hdrMode
-    if (standing != null && sameGraph) return standing
+    if (standing != null && sameGraph && standing.playerError == null) return standing
 
     standing?.let {
       onReleased(it)

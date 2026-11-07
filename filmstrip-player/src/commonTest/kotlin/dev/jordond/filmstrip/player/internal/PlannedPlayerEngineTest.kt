@@ -139,6 +139,17 @@ class PlannedPlayerEngineTest {
   }
 
   @Test
+  fun `the loaded edit after its item failed rebuilds`() {
+    load(EDIT)
+    engine.failItem(PlaybackError.UnsupportedFormat(BROKEN))
+
+    load(EDIT) shouldBe listOf(SetCompositionResult.Success(PLAN_LENGTH))
+
+    planner.asked.size shouldBe 2
+    engine.changes shouldBe listOf(CompositionDiff.Structural, CompositionDiff.Structural)
+  }
+
+  @Test
   fun `the loaded edit after a refused parameters plan rebuilds out of the refusal`() {
     load(EDIT)
     planner.answer = { PlanResult.Refused(PlaybackError.UnsupportedFormat(BROKEN)) }

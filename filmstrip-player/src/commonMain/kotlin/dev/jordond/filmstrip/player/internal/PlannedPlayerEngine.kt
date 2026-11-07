@@ -20,9 +20,10 @@ import kotlin.time.Duration
 /**
  * A [BasePlayerEngine] that lowers each edit it is handed into a preview plan against a [PreviewQualityPolicy].
  *
- * [setComposition] answers an edit equal to the loaded one at once, with no platform call, while a graph is standing.
- * Any other edit is planned by [planner] against [policy] and handed to [apply], and its caller hears the plan's
- * duration once [apply] has put it in place, or the error that stopped it.
+ * [setComposition] answers an edit equal to the loaded one at once, with no platform call, while a healthy graph is
+ * standing. Any other edit is planned by [planner] against [policy] and handed to [apply], an equal one over a failure
+ * as a rebuild, and its caller hears the plan's duration once [apply] has put it in place, or the error that stopped
+ * it.
  *
  * [setQualityPolicy] and [setExportSpec] plan the last edit asked for against the new value. A new policy moves the
  * rendered frame, which moves the output format, and no backend can swap that inside a running graph, so it always
@@ -90,7 +91,7 @@ internal abstract class PlannedPlayerEngine<P : PlannedPreview>(
     requested = request.composition
 
     val change = diff(loaded, request.composition)
-    if (change == CompositionDiff.Equal && isGraphStanding && planned == wanted && !standingRefused) {
+    if (change == CompositionDiff.Equal && isGraphStanding && planned == wanted && !standingRefused && !isFailed) {
       // Nothing at the platform level, not even a status move. A listener must not see this load.
       loaded = request.composition
       callback.onResult(SetCompositionResult.Success(plan?.resolved?.duration ?: Duration.ZERO))
@@ -115,11 +116,12 @@ internal abstract class PlannedPlayerEngine<P : PlannedPreview>(
         }
       }
 
-    // Only new inputs bring an equal edit here with a graph standing. A new policy always costs a rebuild, whatever the
-    // edit did, and a new spec costs one only when it moves the grade.
+    // Only new inputs or a failure bring an equal edit here with a graph standing. A new policy always costs a rebuild,
+    // whatever the edit did, a new spec costs one only when it moves the grade, and a failure always costs one.
     val replanned = change == CompositionDiff.Equal && isGraphStanding
     val repolicied = inputs.policy != planned.policy
-    if (replanned && !repolicied && !standingRefused && plan?.resolved?.sameGradeAs(next.resolved) == true) {
+    val failing = standingRefused || isFailed
+    if (replanned && !repolicied && !failing && plan?.resolved?.sameGradeAs(next.resolved) == true) {
       planned = inputs
       return pending.settle(SetCompositionResult.Success(next.resolved.duration))
     }

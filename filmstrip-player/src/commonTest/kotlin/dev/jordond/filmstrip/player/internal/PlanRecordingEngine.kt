@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.PlaybackError
+import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.PlayerFeatures
 import dev.jordond.filmstrip.player.PreviewFrameReadback
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
@@ -40,6 +41,10 @@ internal class PlanRecordingEngine(
   fun planOf(): PreviewPlan? = plan
 
   fun policyOf(): PreviewQualityPolicy = policy
+
+  fun failItem(error: PlaybackError) {
+    setStatus(PlaybackStatus.Error(error))
+  }
 
   override suspend fun apply(
     change: CompositionDiff,

@@ -331,12 +331,14 @@ internal class Media3PlayerEngine(
     next: Media3PreviewPlan,
     request: SetCompositionRequest,
   ): PlaybackError? {
-    val cost = loadCostFor(change, preview != null) { preview?.updateParameters(next.resolved, next.bounds) == true }
+    // A player that reported an error never gets back to ready, which is media3's limit, so it takes a rebuild.
+    val hasGraph = preview != null && !status.playerErrored
+    val cost = loadCostFor(change, hasGraph) { preview?.updateParameters(next.resolved, next.bounds) == true }
     when (cost) {
       LoadCost.Parameters -> {
         // The replayable cache is what lets a paused frame take the new parameters. A playing one
         // takes them on the next frame the graph draws either way.
-        status.clearFailure()
+        status.liftRefusal()
         guard.reset()
         handler.post { player?.experimentalRedrawLastFrame() }
         request.startAt?.let { seekTo(it, SeekAccuracy.Exact) }

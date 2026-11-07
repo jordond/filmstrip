@@ -26,7 +26,8 @@ import kotlin.time.Duration
  * A step that throws while the preview draws, the way an overlay picture too large to draw at its color does at its
  * first converting draw.
  *
- * The preview stops with the step's reason as its error, and keeps that status while its item reports changes.
+ * The preview stops with the step's reason as its error, and keeps that status while its item reports changes. A play
+ * still wanted starts back up on the next load.
  */
 class AppleStepFailureTest {
   init {
@@ -77,8 +78,44 @@ class AppleStepFailureTest {
       }
     }
 
+  /**
+   * The new parameters reach the item already attached, so the player is restarted with no rebuild behind it.
+   */
+  @Test
+  fun `new parameters after a step threw start the play back up`() =
+    contractTest { scope ->
+      val components = ComponentRegistry.Builder(CONTRACT_COMPONENTS).addEffectResolver(ThrowingResolver).build()
+      val engine = AvPlayerEngine(scope, AvPreviewPlanner(components), PlayerConfig(), muted = true)
+      withEngine(engine) { recorder ->
+        engine
+          .awaitComposition(appleFixtureComposition(listOf(Tuned(throws = true))))
+          .shouldBeInstanceOf<SetCompositionResult.Success>()
+        engine.play()
+        engine.readback.requestFrame(Duration.ZERO) { }
+        awaitContract("playback to fail") { recorder.events.any { it is PlaybackEvent.Failed } }
+        engine.drainCallbacks()
+        engine.platformPlayer.rate shouldBe 0f
+        val halted = recorder.playhead ?: Duration.ZERO
+
+        engine
+          .awaitComposition(appleFixtureComposition(listOf(Tuned(throws = false))))
+          .shouldBeInstanceOf<SetCompositionResult.Success>()
+
+        engine.platformLoads shouldBe 1
+        awaitContract("the playhead to move on from $halted") { (recorder.playhead ?: Duration.ZERO) > halted }
+        recorder.lastState.status shouldBe PlaybackStatus.Ready
+        recorder.lastState.playWhenReady shouldBe true
+      }
+    }
+
   private object Throwing : EffectSpec {
     override val id: String = "dev.jordond.filmstrip.test.throwing"
+  }
+
+  private data class Tuned(
+    val throws: Boolean,
+  ) : EffectSpec {
+    override val id: String = "dev.jordond.filmstrip.test.tuned"
   }
 
   private object ThrowingResolver : EffectResolver {
@@ -87,10 +124,16 @@ class AppleStepFailureTest {
       capabilities: RenderCapabilities,
       attributes: Attributes,
     ): EffectResolution? =
-      if (spec !is Throwing) {
-        null
-      } else {
-        EffectResolution.Resolved(PlatformEffect(CoreImageEffect { _, _ -> throw IllegalStateException(REASON) }))
+      when {
+        spec is Throwing || (spec is Tuned && spec.throws) -> {
+          EffectResolution.Resolved(PlatformEffect(CoreImageEffect { _, _ -> throw IllegalStateException(REASON) }))
+        }
+        spec is Tuned -> {
+          EffectResolution.Resolved(PlatformEffect(CoreImageEffect { image, _ -> image }))
+        }
+        else -> {
+          null
+        }
       }
   }
 

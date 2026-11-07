@@ -1,10 +1,14 @@
 package dev.jordond.filmstrip.player.contract
 
+import dev.jordond.filmstrip.edit.CompositionDiff
 import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.edit.diff
+import dev.jordond.filmstrip.effects.color.Brightness
 import dev.jordond.filmstrip.player.PlaybackStatus
 import dev.jordond.filmstrip.player.SetCompositionResult
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.kotest.matchers.types.shouldNotBeInstanceOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.TestResult
 import kotlin.time.Duration
@@ -101,10 +105,120 @@ internal class EarlyTransportContract(
       }
     }
 
+  /**
+   * Plays, has a load's item fail, then loads something readable, and checks the play from before the failure happens.
+   *
+   * @param createFailing Builds an engine primed to fail on one edit.
+   */
+  fun playOutlivesAFailedItem(createFailing: (CoroutineScope) -> FailingItem): TestResult =
+    contractTest { scope ->
+      val failing = createFailing(scope)
+      val engine = failing.subject.engine
+      withEngine(engine) { recorder ->
+        engine.play()
+
+        failing.awaitFailureOf(failing.composition, recorder)
+        recorder.lastState.playWhenReady shouldBe true
+
+        engine.awaitComposition(fixture).shouldBeInstanceOf<SetCompositionResult.Success>()
+
+        recorder.awaitPlayheadMoving()
+        recorder.lastState.playWhenReady shouldBe true
+      }
+    }
+
+  /**
+   * Plays, has a load's item fail, puts its source back, then loads the same edit again and checks that one plays.
+   *
+   * @param createFailing Builds an engine primed to fail on one edit.
+   */
+  fun theSameEditPlaysAfterAFailedItem(createFailing: (CoroutineScope) -> FailingItem): TestResult =
+    contractTest { scope ->
+      val failing = createFailing(scope)
+      val engine = failing.subject.engine
+      withEngine(engine) { recorder ->
+        engine.play()
+        failing.awaitFailureOf(failing.composition, recorder)
+        failing.restoreSource()
+
+        engine.awaitComposition(failing.composition).shouldBeInstanceOf<SetCompositionResult.Success>()
+
+        recorder.awaitPlayheadMoving()
+        recorder.lastState.status.shouldNotBeInstanceOf<PlaybackStatus.Error>()
+        recorder.lastState.playWhenReady shouldBe true
+      }
+    }
+
+  /**
+   * Has a load's item fail, puts its source back, plays, then edits only a parameter and checks that edit plays.
+   *
+   * @param createFailing Builds an engine primed to fail on one edit.
+   */
+  fun aParameterEditPlaysAfterAFailedItem(createFailing: (CoroutineScope) -> FailingItem): TestResult =
+    contractTest { scope ->
+      val failing = createFailing(scope)
+      val engine = failing.subject.engine
+      val first = failing.composition.withEffects(listOf(Brightness(FAILED_BRIGHTNESS)))
+      val retuned = failing.composition.withEffects(listOf(Brightness(RETUNED_BRIGHTNESS)))
+      diff(first, retuned) shouldBe CompositionDiff.ParametersOnly
+      withEngine(engine) { recorder ->
+        failing.awaitFailureOf(first, recorder)
+        failing.restoreSource()
+        engine.play()
+
+        engine.awaitComposition(retuned).shouldBeInstanceOf<SetCompositionResult.Success>()
+
+        recorder.awaitPlayheadMoving()
+        recorder.lastState.status.shouldNotBeInstanceOf<PlaybackStatus.Error>()
+        recorder.lastState.playWhenReady shouldBe true
+      }
+    }
+
+  /**
+   * Loads, has a further edit refused, then edits only a parameter of the loaded one and checks the refusal lifts and
+   * a play goes ahead.
+   */
+  fun aParameterEditLiftsARefusalOverAStandingGraph(): TestResult =
+    contractTest { scope ->
+      val subject = createEngine(scope)
+      val retuned = fixture.withEffects(listOf(Brightness(RETUNED_BRIGHTNESS)))
+      withEngine(subject.engine) { recorder ->
+        subject.engine.awaitComposition(fixture).shouldBeInstanceOf<SetCompositionResult.Success>()
+        awaitContract("the load to be presentable") { recorder.lastState.hasComposition }
+        subject.engine.awaitComposition(unreadable).shouldBeInstanceOf<SetCompositionResult.Failure>()
+        recorder.lastState.status.shouldBeInstanceOf<PlaybackStatus.Error>()
+        subject.engine.play()
+
+        subject.engine.awaitComposition(retuned).shouldBeInstanceOf<SetCompositionResult.Success>()
+
+        awaitContract("the status to leave the refusal") { recorder.lastState.status !is PlaybackStatus.Error }
+        recorder.awaitPlayheadMoving()
+        recorder.lastState.playWhenReady shouldBe true
+      }
+    }
+
+  private suspend fun FailingItem.awaitFailureOf(
+    edit: EditComposition,
+    recorder: ContractRecorder,
+  ) {
+    val answer = subject.engine.awaitComposition(edit)
+    if (refusedAtLoad) {
+      answer.shouldBeInstanceOf<SetCompositionResult.Failure>()
+    } else {
+      answer.shouldBeInstanceOf<SetCompositionResult.Success>()
+    }
+    awaitContract("the item to fail") { recorder.lastState.status is PlaybackStatus.Error }
+  }
+
   // Two readings in a row past the start, so one reading a load or a seek happened to report does not count as moving.
   private suspend fun ContractRecorder.awaitPlayheadMoving() {
     awaitContract("the playhead to leave the start") { (playhead ?: Duration.ZERO) > Duration.ZERO }
     val first = playheads.last()
     awaitContract("the playhead to move on from $first") { playheads.last() > first }
+  }
+
+  private companion object {
+    const val FAILED_BRIGHTNESS = 0.4f
+    const val RETUNED_BRIGHTNESS = 1.4f
   }
 }

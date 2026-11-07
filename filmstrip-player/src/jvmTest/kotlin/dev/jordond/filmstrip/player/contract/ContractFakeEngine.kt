@@ -51,6 +51,7 @@ import kotlin.time.Duration.Companion.seconds
 internal class ContractFakeEngine(
   parent: CoroutineScope,
   private val seekLatency: Duration = SEEK_LATENCY,
+  private val refuses: () -> Boolean = { false },
 ) : BasePlayerEngine(parent) {
   var platformLoads: Int = 0
     private set
@@ -90,7 +91,7 @@ internal class ContractFakeEngine(
     request: SetCompositionRequest,
     callback: SetCompositionCallback,
   ): Cancellable {
-    if (request.composition == FAKE_UNREADABLE) {
+    if (request.composition == FAKE_UNREADABLE || refuses()) {
       val error = PlaybackError.SourceUnreadable("The fake reads nothing from this composition.")
       setStatus(PlaybackStatus.Error(error))
       emitEvent(PlaybackEvent.Failed(error))
@@ -313,11 +314,15 @@ internal val FAKE_UNREADABLE: EditComposition =
 
 /**
  * The fake wired up as a contract subject.
+ *
+ * @param scope The dispatcher the fake is confined to.
+ * @param refuses Asked on each load whether to refuse it, whatever it holds.
  */
 internal class FakeEngineUnderTest(
   scope: CoroutineScope,
+  refuses: () -> Boolean = { false },
 ) : EngineUnderTest {
-  override val engine: ContractFakeEngine = ContractFakeEngine(scope)
+  override val engine: ContractFakeEngine = ContractFakeEngine(scope, refuses = refuses)
 
   override val platformLoads: Int get() = engine.platformLoads
 

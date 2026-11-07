@@ -57,6 +57,12 @@ internal class Media3StatusTracker(
   var graphUp = false
     private set
 
+  /**
+   * Whether media3 reported an error on the standing player, which a plan refused ahead of it never sets.
+   */
+  var playerErrored = false
+    private set
+
   private var presentable = false
   private var surfaceRendered = false
   private var ended = false
@@ -142,10 +148,13 @@ internal class Media3StatusTracker(
   }
 
   /**
-   * Forgets a failure the graph has been given new parameters since.
+   * Takes a refused plan off the status, once the graph that outlived it has taken a plan that went through.
+   *
+   * Never reached with [playerErrored] set, since that graph is rebuilt instead.
    */
-  fun clearFailure() {
+  fun liftRefusal() {
     failure = null
+    publishStatus()
   }
 
   /**
@@ -154,12 +163,24 @@ internal class Media3StatusTracker(
   fun reset() {
     graphUp = false
     failure = null
+    playerErrored = false
     presentable = false
     ended = false
     endReported = false
     firstFrameEmitted = false
   }
 
+  /**
+   * Reports an error media3 raised, which leaves its player dead until a rebuild replaces it.
+   */
+  fun onPlayerError(error: PlaybackError) {
+    playerErrored = true
+    fail(error)
+  }
+
+  /**
+   * Reports [error] as what the status reads until a load clears it.
+   */
   fun fail(error: PlaybackError) {
     failure = error
     graphUp = false

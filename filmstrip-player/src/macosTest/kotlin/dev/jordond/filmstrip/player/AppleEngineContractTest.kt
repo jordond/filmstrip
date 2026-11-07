@@ -2,8 +2,10 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.player.contract.EngineUnderTest
+import dev.jordond.filmstrip.player.contract.FailingItem
 import dev.jordond.filmstrip.player.contract.Interruption
 import dev.jordond.filmstrip.player.contract.PlayerEngineContractTest
+import dev.jordond.filmstrip.player.contract.cutInTwo
 import kotlinx.coroutines.CoroutineScope
 import platform.AppKit.NSWorkspace
 import platform.AppKit.NSWorkspaceWillSleepNotification
@@ -21,6 +23,9 @@ class AppleEngineContractTest : PlayerEngineContractTest() {
 
   override fun createEngine(scope: CoroutineScope): EngineUnderTest =
     AppleEngineUnderTest(scope) { _, _ -> stageSleep() }
+
+  override fun createFailingItem(scope: CoroutineScope): FailingItem =
+    FailingItem(appleEngineFailingItsFirstItem(scope), fixture.cutInTwo(fixtureFrameRate))
 
   override val fixture: EditComposition = appleFixtureComposition()
 
