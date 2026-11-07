@@ -6,7 +6,9 @@ import androidx.media3.common.GlTextureInfo
 import androidx.media3.effect.GlEffect
 import androidx.media3.effect.GlShaderProgram
 import androidx.media3.effect.PassthroughShaderProgram
+import dev.jordond.filmstrip.edit.outputLengthOf
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
 
 /**
  * Puts a clip's frames on the composition's clock before the chain behind it draws them.
@@ -21,14 +23,16 @@ import kotlin.time.Duration
  * timestamp downstream carries the offset, the one a reader reports back included.
  *
  * @property offset Where the clip starts on the composition's timeline.
+ * @property speed How fast the clip plays, since a reader's frames are measured in source time.
  */
 internal class CompositionClock(
   private val offset: Duration,
+  private val speed: Double = 1.0,
 ) : GlEffect {
   override fun toGlShaderProgram(
     context: Context,
     useHdr: Boolean,
-  ): GlShaderProgram = CompositionClockShaderProgram(offset.inWholeMicroseconds)
+  ): GlShaderProgram = CompositionClockShaderProgram(offset.inWholeMicroseconds, speed)
 }
 
 /**
@@ -39,12 +43,14 @@ internal class CompositionClock(
  */
 private class CompositionClockShaderProgram(
   private val offsetUs: Long,
+  private val speed: Double,
 ) : PassthroughShaderProgram() {
   override fun queueInputFrame(
     glObjectsProvider: GlObjectsProvider,
     inputTexture: GlTextureInfo,
     presentationTimeUs: Long,
   ) {
-    super.queueInputFrame(glObjectsProvider, inputTexture, presentationTimeUs + offsetUs)
+    val played = outputLengthOf(presentationTimeUs.microseconds, speed).inWholeMicroseconds
+    super.queueInputFrame(glObjectsProvider, inputTexture, played + offsetUs)
   }
 }

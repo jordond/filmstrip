@@ -22,6 +22,7 @@ import dev.jordond.filmstrip.export.InertReason
 import dev.jordond.filmstrip.geometry.Fill
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.geometry.ClipPlacement
 import dev.jordond.filmstrip.transform.internal.geometry.frameAfter
 import dev.jordond.filmstrip.transform.internal.geometry.frameThrough
@@ -46,7 +47,8 @@ internal class InertElision(
  * any run it is laid on. A clip's color
  * runs are folded with its track's, the way a backend lowers them, and a run is only taken out whole. A track or
  * composition effect has to be inert on every clip it reaches. A fill is inert when no track starts late and every
- * primary clip's own placement covers the frame. A fade is inert when there is no audio under it.
+ * primary clip's own placement covers the frame. A fade is inert when there is no audio under it. A speed on a still is
+ * inert, since a still shows the same pixels at any speed and its length ignores it.
  *
  * Every run is measured from where each clip's trim was written, since only a transcode draws an effect and a copy
  * opening earlier on a sync sample draws none. An edit some track of which will be refused is handed back whole, so
@@ -58,17 +60,11 @@ internal fun withoutInert(
   framing: Framing,
   streams: Streams,
 ): InertElision {
-  val windows =
-    edit.tracks.map { track ->
-      track.clips.map { clip ->
-        trimWindow(clip, ask.infos.getValue(clip.source))
-          ?: return InertElision(edit, emptyList())
-      }
-    }
-  val duration = compositionDurationOf(edit, windows)
+  val windows = laidWindows(edit, ask) { return InertElision(edit, emptyList()) }
+  val duration = windows.duration
   val laid =
     edit.tracks.mapIndexed { index, track ->
-      val lengths = windows[index].map { (from, to) -> to - from }
+      val lengths = windows.tracks[index].map { it.length }
       val runLength = runLengthOf(track.looping, track.start, lengths, duration)
       if (trackRefusal(index, track, lengths, runLength) != null) return InertElision(edit, emptyList())
       LaidSpans(track, passesCovering(lengths, runLength).groupBy({ it.index }, { it.spanFrom(track.start) }))
@@ -91,7 +87,16 @@ internal fun withoutInert(
             clip.effects.withoutInert(listOf(reaches[clipIndex]), identity.clips[clipIndex], where, notices)
           val (fadeIn, fadeOut) =
             fadesWithout(clip.fadeIn, clip.fadeOut, clipIsSilent(edit, streams, track, clip, ask), where, notices)
-          Clip(clip.source, clip.trim, effects, clip.audio, clip.snapWithin, fadeIn, fadeOut)
+          Clip(
+            clip.source,
+            clip.trim,
+            effects,
+            clip.audio,
+            clip.snapWithin,
+            fadeIn,
+            fadeOut,
+            speedWithout(clip, where, notices),
+          )
         }
       val where = "track $trackIndex"
       val (fadeIn, fadeOut) =
@@ -295,6 +300,21 @@ private fun fadesWithout(
   return Duration.ZERO to Duration.ZERO
 }
 
+private fun speedWithout(
+  clip: Clip,
+  where: String,
+  notices: MutableList<InertNotice>,
+): Double {
+  if (clip.source !is MediaSource.Image || clip.speed == 1.0) return clip.speed
+  notices +=
+    InertNotice(
+      SPEED,
+      InertReason.NoChangeToFrame,
+      "The speed on $where changes nothing on a still, so it was left out.",
+    )
+  return 1.0
+}
+
 private fun inertMessage(
   id: String,
   where: String,
@@ -314,4 +334,5 @@ private const val FULL_TURN_DEGREES = 360
 private const val FILL = "fill"
 private const val FADE_IN = "fadeIn"
 private const val FADE_OUT = "fadeOut"
+private const val SPEED = "speed"
 private const val FILL_COVERED = "Every clip covers the frame and no track starts late, so the fill is never seen."

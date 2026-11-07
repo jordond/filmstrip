@@ -2,16 +2,47 @@ package dev.jordond.filmstrip.media3.internal
 
 import androidx.media3.common.C
 import androidx.media3.common.audio.SpeedProvider
+import dev.jordond.filmstrip.edit.outputLengthOf
 import kotlin.math.ceil
+import kotlin.time.Duration.Companion.microseconds
 
 /**
- * Runs an item at its own speed up to its last frame and slower after it, so that frame is held until the item has run
+ * How an item's speed provider runs it, which a frame reader needs to find a frame the way the player would.
+ *
+ * @property clipSpeed The speed the clip was written at.
+ */
+internal sealed interface ClipPace : SpeedProvider {
+  val clipSpeed: Double
+}
+
+/**
+ * Plays an item of [decodedUs] for exactly [lengthUs], which is the length [clipSpeed] asks of it.
+ *
+ * The speed is the one [speedFor] lands on, since media3 rounds and floors its own readings of the length.
+ *
+ * @param decodedUs How long the item decodes for, in microseconds.
+ * @param lengthUs How long the item has to run for, in microseconds.
+ */
+internal class ConstantClipSpeed(
+  override val clipSpeed: Double,
+  decodedUs: Long,
+  lengthUs: Long,
+) : ClipPace {
+  private val speed = speedFor(decodedUs, lengthUs)
+
+  override fun getSpeed(timeUs: Long): Float = speed
+
+  override fun getNextSpeedChangeTimeUs(timeUs: Long): Long = C.TIME_UNSET
+}
+
+/**
+ * Runs an item at [clipSpeed] up to its last frame and slower after it, so that frame is held until the item has run
  * for the length its slots ask for.
  *
- * Only what comes after [fromUs] is slowed, so every frame keeps its own time, the last one included. media3 reads the
- * held length twice, once rounding and once flooring, and the speed is the one both readings land exactly on the length
- * for. A hold of more than a few seconds can run past the length by up to [speedStepUs], which is as close as media3's
- * float speed gets.
+ * Only what comes after [fromUs] is slowed, so every frame keeps its own time at [clipSpeed], the last one included.
+ * media3 reads the held length twice, once rounding and once flooring, and the speed is the one both readings land
+ * exactly on the length for. A hold of more than a few seconds can run past the length by up to [speedStepUs], which is
+ * as close as media3's float speed gets.
  *
  * @property fromUs Where the last frame sits, in microseconds from the start of the item.
  * @param decodedUs How long the item decodes for, in microseconds.
@@ -21,10 +52,22 @@ internal class HeldLastFrame(
   val fromUs: Long,
   decodedUs: Long,
   lengthUs: Long,
-) : SpeedProvider {
-  private val speed = speedFor(decodedUs - fromUs, lengthUs - fromUs)
+  override val clipSpeed: Double = 1.0,
+) : ClipPace {
+  private val playsUs = outputLengthOf(fromUs.microseconds, clipSpeed).inWholeMicroseconds
+  private val playing = if (clipSpeed == 1.0 || fromUs == 0L) 1f else speedFor(fromUs, playsUs)
+  private val held: Float
 
-  override fun getSpeed(timeUs: Long): Float = if (timeUs < fromUs) 1f else speed
+  init {
+    val input = decodedUs - fromUs
+    val output = lengthUs - playsUs
+    require(input > 0 && input / clipSpeed < output) {
+      "A hold has to slow a frame down, and $input microseconds at $clipSpeed already fills $output of them."
+    }
+    held = speedFor(input, output)
+  }
+
+  override fun getSpeed(timeUs: Long): Float = if (timeUs < fromUs) playing else held
 
   override fun getNextSpeedChangeTimeUs(timeUs: Long): Long = if (timeUs < fromUs) fromUs else C.TIME_UNSET
 }
@@ -40,13 +83,13 @@ internal class HeldLastFrame(
  * float may land. That is media3's limit, since it only takes a float, and the frame is then held long rather than
  * short, by at most [speedStepUs].
  *
- * Requires [input] to be positive and shorter than [output], since a hold only slows an item down.
+ * Requires [input] and [output] to be positive.
  */
 private fun speedFor(
   input: Long,
   output: Long,
 ): Float {
-  require(input > 0 && input < output) { "input ($input) must be positive and shorter than output ($output)" }
+  require(input > 0 && output > 0) { "input ($input) and output ($output) must be positive" }
   var speed = (input.toDouble() / output).toFloat()
   while (input / speed.toDouble() < output) speed = Math.nextDown(speed)
   // Clamps to media3's float: where no speed lands both readings, this stops on the one that plays long by a step.

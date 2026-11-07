@@ -28,16 +28,13 @@ internal fun timelineOf(
   lowering: StageLowering,
   naturalSize: Size,
 ): Phase<Timeline> {
-  val windows =
-    edit.tracks.map { track ->
-      track.clips.map { clip ->
-        trimWindow(clip, ask.infos.getValue(clip.source), grade.copyOpensAt)
-          ?: return Phase.Refused(invalid("Clip ${clip.source.describe()} trims to nothing."))
-      }
-    }
   // The structural refusals already turned away an edit where every track loops, so at least one
   // track bounds the composition.
-  val duration = compositionDurationOf(edit, windows)
+  val windows =
+    laidWindows(edit, ask, grade.copyOpensAt) { clip ->
+      return Phase.Refused(invalid("Clip ${clip.source.describe()} trims to nothing."))
+    }
+  val duration = windows.duration
 
   if (!edit.audio.isValid) return Phase.Refused(invalid(COMPOSITION_LEVEL))
   val compositionGeometry = edit.effects.filter { it.stage == EffectStage.Geometry }
@@ -54,10 +51,11 @@ internal fun timelineOf(
     )
   val laid =
     edit.tracks.mapIndexed { index, track ->
-      val lengths = windows[index].map { (from, to) -> to - from }
+      val laidWindows = windows.tracks[index]
+      val lengths = laidWindows.map { it.length }
       val runLength = runLengthOf(track.looping, track.start, lengths, duration)
       trackRefusal(index, track, lengths, runLength)?.let { return Phase.Refused(invalid(it)) }
-      layer.lay(track, windows[index], runLength)
+      layer.lay(track, laidWindows, runLength)
     }
 
   val primary = laid.first().track
@@ -80,19 +78,6 @@ internal fun timelineOf(
 
   return Phase.Next(Timeline(duration, laid.map { it.track }, laid.flatMap { it.lowered }))
 }
-
-/**
- * How long the composition runs once every clip opens and closes on its window in [windows]: the longest track that
- * does not loop.
- */
-internal fun compositionDurationOf(
-  edit: EditComposition,
-  windows: List<List<Pair<Duration, Duration>>>,
-): Duration =
-  edit.tracks
-    .withIndex()
-    .filterNot { (_, track) -> track.looping }
-    .maxOf { (index, track) -> windows[index].fold(track.start) { total, (from, to) -> total + (to - from) } }
 
 private const val PRIMARY_LAYS_NOTHING = "The primary track starts at or after the composition ends."
 

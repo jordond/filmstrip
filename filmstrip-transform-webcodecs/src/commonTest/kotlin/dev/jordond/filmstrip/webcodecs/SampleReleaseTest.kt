@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.webcodecs.internal.SourceReader
 import dev.jordond.filmstrip.webcodecs.internal.interop.MediabunnyIterator
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSampleSink
+import dev.jordond.filmstrip.webcodecs.internal.nearestOf
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -16,6 +17,7 @@ import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.await
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
@@ -268,6 +270,31 @@ class SampleReleaseTest {
         restore()
       }
       stream.close()
+      reader.close()
+    }
+
+  // The first frame sits before the time asked for, so the pick is waiting on the second when the cancel lands.
+  @Test
+  fun aNearestPickCancelledOnItsSecondFrameReleasesTheFirstOnce() =
+    runTest {
+      val reader = opened()
+      val released = Released()
+      val first = FrameSampler(sink(reader)).sampleAt(frameUs(MIDDLE)).shouldNotBeNull()
+      var pulls = 0
+      var returned: VideoSample? = null
+
+      val job =
+        launch(start = CoroutineStart.UNDISPATCHED) {
+          returned =
+            nearestOf(frameUs(MIDDLE) + FRAME_US / 4, released::take) {
+              if (pulls++ == 0) first else awaitCancellation()
+            }
+        }
+      job.cancelAndJoin()
+
+      pulls shouldBe 2
+      returned.shouldBeNull()
+      released.timestamps.single().shouldBeFrame(MIDDLE)
       reader.close()
     }
 

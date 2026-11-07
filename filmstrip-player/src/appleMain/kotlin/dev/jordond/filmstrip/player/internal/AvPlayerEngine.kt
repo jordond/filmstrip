@@ -24,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import platform.AVFoundation.AVAudioTimePitchAlgorithmSpectral
 import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerItem
 import platform.AVFoundation.AVPlayerItemStatusFailed
@@ -32,6 +33,7 @@ import platform.AVFoundation.AVPlayerLayer
 import platform.AVFoundation.AVPlayerRateDidChangeNotification
 import platform.AVFoundation.AVPlayerRateDidChangeReasonKey
 import platform.AVFoundation.audioMix
+import platform.AVFoundation.audioTimePitchAlgorithm
 import platform.AVFoundation.currentTime
 import platform.AVFoundation.duration
 import platform.AVFoundation.pause
@@ -487,4 +489,7 @@ private fun previewItem(lowered: AvComposition): AVPlayerItem =
   AVPlayerItem(asset = lowered.composition).apply {
     videoComposition = lowered.videoComposition
     audioMix = lowered.audioMix
+    // The preview plays the scaled composition through Spectral, where the export pre-stretches its audio to a file.
+    // The two agree on length and pitch, not on samples.
+    audioTimePitchAlgorithm = AVAudioTimePitchAlgorithmSpectral
   }

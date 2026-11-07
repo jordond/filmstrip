@@ -1,5 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg.internal.lowering
 
+import dev.jordond.filmstrip.edit.sourceOffsetAt
+import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import kotlin.time.Duration
@@ -25,10 +27,15 @@ internal const val PREVIEW_CHANNELS: Int = 4
  * ffmpeg rebases a seeked input to zero and every trim the graph carries shifts by the seek. With
  * no seek they leave the timestamps exactly where an export sees them.
  *
- * The clip carries the seek, to the [previewSeek] of the scrub. An overlay image seeked into
- * delivers nothing at all, so a branch [InputSpec.rebased] marks is carried to the same point by
- * `-itsoffset` instead: its timestamps move to the composition times the clip opens on, and the
+ * The clip carries the seek, to the [previewSeek] of the scrub. A clip at a speed other than 1 opens on the sync sample
+ * at or before that point, so the frame showing when the window opens reaches the graph's retime whatever gap sits
+ * ahead of it. An overlay image seeked into delivers nothing at all, so a branch [InputSpec.rebased] marks is carried
+ * to the same point by `-itsoffset` instead: its timestamps move to the composition times the clip opens on, and the
  * `setpts` that branch ends on takes the move back off before the merge lines the frames up.
+ *
+ * The graph's last frame is converted to the format the export's encoder writes before it is converted to RGBA. An
+ * overlay composites in RGB and a filter may end on any format, so the pump shows the frame the encoder is handed
+ * rather than the one the graph let go of. A copy has no graph, and shows the source's own frame.
  *
  * A file keeping an SD colour displays it through its tags, and RGBA frames carry none, so the pump moves that colour
  * onto BT.709's last thing, which is what the file displays as. See [Invocation.previewColor].
@@ -85,7 +92,8 @@ private fun Invocation.previewInputArguments(
 ): List<String> =
   buildList {
     val opening = previewSeek(at)
-    val seek = seekBase?.plus(opening)?.positiveSeconds()
+    val sourceOpening = sourceOffsetAt(opening, seekSpeed)
+    val seek = seekBase?.plus(sourceOpening)?.positiveSeconds()
     // What a rebased branch has to be moved by to land where the seek does. The clip's branch opens
     // with setpts=PTS-STARTPTS, so its clock reads zero at the seek whatever the seek was, and a
     // branch left at its own start would be read against that zero from the top.
@@ -94,6 +102,7 @@ private fun Invocation.previewInputArguments(
       // Only the first input carries the seek. It is the clip the graph windows, and an overlay
       // image or a silence filler seeked into delivers nothing at all.
       if (index == 0 && seek != null) {
+        if (!copy && seekSpeed != 1.0) add("-noaccurate_seek")
         add("-ss")
         add(formatSeconds(seek))
       }
@@ -118,7 +127,7 @@ private fun Invocation.previewInputArguments(
       // its own bound.
       val windowed = index == 0 && seekBase != null
       val length =
-        input.durationSeconds?.let { if (windowed) it - opening.toDouble(DurationUnit.SECONDS) else it }
+        input.durationSeconds?.let { if (windowed) it - sourceOpening.toDouble(DurationUnit.SECONDS) else it }
       length?.let {
         add("-t")
         add(formatSeconds(it))
@@ -148,12 +157,10 @@ private fun Invocation.previewMapArguments(
       add("${output.size.width}x${output.size.height}")
     } else {
       val out = checkNotNull(videoLabel) { NO_VIDEO_TO_PREVIEW }
-      val shown = if (previewColor.isEmpty()) out else PREVIEW_SHOWN
+      val written = writtenPixelFormat(hdrPixelFormatFor(videoEncoder, hdrTransfer))
+      val shown = listOf(FilterNode("format", "pix_fmts" to written)) + previewColor
       add(GRAPH_FLAG)
-      add(
-        resolvedGraph(resolvedSidecars, windowOpensAt) +
-          if (previewColor.isEmpty()) "" else ";[$out]${previewColor.render()}[$shown]",
-      )
+      add(resolvedGraph(resolvedSidecars, windowOpensAt) + ";[$out]${shown.render()}[$PREVIEW_SHOWN]")
 
       // ffmpeg refuses a graph with an output nothing reads, so the audio branch this backend does
       // not monitor is still mapped, into a muxer that writes nothing.
@@ -166,7 +173,7 @@ private fun Invocation.previewMapArguments(
       }
 
       add("-map")
-      add("[$shown]")
+      add("[$PREVIEW_SHOWN]")
     }
   }
 

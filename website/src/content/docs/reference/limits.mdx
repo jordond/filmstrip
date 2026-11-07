@@ -16,6 +16,7 @@ so you can see what to drop to get it back. See [Export](/guides/export/).
 | The edit's shape    | `MultipleTracks`, `MultipleClips`, `TrackStartsLate`, `TrackDropsAStream`, `FrameResized` |
 | Effects             | `CompositionHasEffects`, `TrackHasEffects`, `ClipHasEffects`                              |
 | Audio               | `AudioSpecChanged`, `CompositionGainChanged`, `TrackGainChanged`, `ClipGainChanged`       |
+| Timing              | `ClipSpeedChanged`                                                                        |
 | The source          | `TrimNotOnSyncSample`, `MuxerRefusesSource`, `SourceCodecUnnameable`, `GradeMustToneMap`  |
 | The backend         | `BackendCannotCopy`                                                                       |
 
@@ -46,6 +47,26 @@ pixel. See [Fit](/guides/effects/#fit).
   `crop` with `Fit.Contain` or `Fit.Stretch` moves to 4:4:4 where it has an odd figure, so it lands exact.
 - Apple and the browser place a clip at its exact fraction.
 
+## Preview against the file
+
+An ffmpeg preview ends its graph on the format the export writes and converts from there for the screen, so it shows the
+frame the encoder is handed, and encoder loss is all that's left between the two. That holds on a caption, a picture, a
+grade and an HDR grade, at every speed. A graph that doesn't already end on that format pays for one more conversion.
+At 1080p on ffmpeg 9.0.2 a caption read 478 frames per second against 543 without it, and a composition grade 469
+against 516.
+
+An overlay runs on every frame of its plan, so a frame outside its window goes through the same conversions as one
+inside it, in the file and in the preview.
+
+A media3 preview and its file part in chroma around a caption, because the encoder reduces chroma to 4:2:0 and a preview
+keeps every pixel's. On an API 36 emulator the software `c2.android.avc.encoder` takes each 2x2 block's chroma from its
+top left pixel, which puts a Cb about 1 code from the preview's top left where a box average sits about 5 away. Past a
+file's first 8 frames luma reads 47 to 52 dB against the file on API 30 and API 36, at 1/32, 0.7, 1.5 and 32, and the
+bitrate doesn't move the chroma. Hardware encoders aren't measured, so what filmstrip tests is the bound any of them
+holds: past those frames each block's chroma stays within 3 codes of the preview's range over that block and the pixels
+around it. The encoder's first 8 frames sit further off at every speed, speed 1 included, by up to 16 codes of chroma and
+down to 44 dB of luma, and a short clip at 1/32 writes few frames past them.
+
 ## HDR text and pictures
 
 On an HDR grade, an opaque overlay texel lands at the light a fill of that color lands at, and soft edges, fades and
@@ -58,6 +79,30 @@ HLG grade, which holds the frame as scene light and blends there, and the plan r
 ffmpeg splits a looping clip into one branch per pass, and up to one pass of decoded media sits in memory for each
 branch still waiting. A long clip looped many times costs that much memory. See
 [Extra tracks](/guides/audio/#extra-tracks).
+
+## Clip speed
+
+Every backend plays 1/32 to 32 with the pitch kept and decodes its sources in full, so the cost scales with the speed.
+Each file runs the shared output length, give or take its last frame and its audio tail. What's left is each backend's
+own. See [Speed](/guides/edits/#speed).
+
+| Backend      | Limit                                                                                     |
+| ------------ | ----------------------------------------------------------------------------------------- |
+| AVFoundation | An export renders sped audio to temporary disk, 16-bit PCM for the output length.         |
+| media3       | The AAC encoder runs at most 32 ms past the output length.                                |
+| media3       | On API 30 the AAC encoder ends up to 55 ms before the output length, at any speed.        |
+| media3       | Slow motion is sparse. Nothing duplicates a frame, so a clip's frames sit apart by speed. |
+| ffmpeg       | A preview has no audio, at any speed.                                                     |
+
+Sparse slow motion means a clip at 1/32 from a 30 fps source holds each frame for about a second. The file plays, and its
+last frame was measured running 457 ms past the output length when the trim cuts that frame short. The other backends
+write every output slot. A media3 preview reads whole milliseconds, so a read within 1 ms of a frame's own time can land
+on either side of it. The AAC tail is what the encoder adds at the end of the stream, and a clip at speed 1 has it too.
+
+On API 30 `c2.android.aac.encoder` flushes nothing at the end of the stream and keeps only the whole access units it was
+fed, so the last of the audio never reaches the file. On an emulator that measured 33 to 53 ms, and the same PCM through
+the same encoder on API 36 keeps all of it. The levels between aren't measured. An export that copies its audio isn't
+affected.
 
 ## Filters
 

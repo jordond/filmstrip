@@ -194,7 +194,7 @@ class BrowserMixSeamTest {
       // the mix would agree with it, so what says the fade is one ramp over the whole run is that
       // each pass opens on the gain the pass before it closed on.
       mix.laid.zipWithNext { earlier, later ->
-        val closes = earlier.gain.gainAt(earlier.duration)
+        val closes = earlier.gain.gainAt(earlier.outputDuration)
         val opens = later.gain.gainAt(Duration.ZERO)
         withClue("a pass closed on $closes and the next opened on $opens, so the fade restarted") {
           (abs(opens - closes) < ResolvedGain.PRODUCT_TOLERANCE) shouldBe true
@@ -371,7 +371,7 @@ class BrowserMixSeamTest {
               start = clip.start,
               end = clip.end,
               effects = clip.effects,
-              gain = ResolvedGain.constant(1f, Duration.ZERO, clip.duration),
+              gain = ResolvedGain.constant(1f, Duration.ZERO, clip.sourceDuration),
               startsAtKeyFrame = clip.startsAtKeyFrame,
               span = clip.span,
               sourceIndex = clip.sourceIndex,

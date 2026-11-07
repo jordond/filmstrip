@@ -11,11 +11,14 @@ import androidx.media3.transformer.EditedMediaItemSequence
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
+import dev.jordond.filmstrip.edit.sourceOffsetAt
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.geometry.Fill
@@ -36,7 +39,9 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
+import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.longs.shouldBeInRange
+import io.kotest.matchers.longs.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.just
@@ -45,6 +50,7 @@ import io.mockk.mockkConstructor
 import io.mockk.mockkStatic
 import io.mockk.runs
 import io.mockk.unmockkAll
+import kotlin.math.absoluteValue
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -251,6 +257,108 @@ class Media3FrameGridTest {
     span.positionIn(1.seconds) shouldBe 1.seconds
   }
 
+  // media3's float limit reads against the output length, and every reading lands inside one float step of it.
+  @Test
+  fun `an item at speed runs for the slots of its output length`() {
+    SPEEDS.forEach { speed ->
+      val clip =
+        clip(source = "clip0.mp4", length = 3.seconds, at = Duration.ZERO, start = Duration.ZERO, speed = speed)
+
+      val item =
+        composition(listOf(clip), frameRate = 30)
+          .lower()
+          .first()
+          .editedMediaItems
+          .single()
+
+      val length = slotLengthUs(clip, 30)
+      val decoded = item.clippedUs()
+      clip.outputDuration shouldBe outputLengthOf(3.seconds, speed)
+      (item.presentationDurationUs - length) shouldBeInRange 0L..speedStepUs(length)
+      (SpeedProviderMapper(item.speedProvider).getAdjustedTimeUs(decoded) - length) shouldBeInRange
+        0L..speedStepUs(length)
+      item.speedParameters.shouldMaintainPitch shouldBe true
+    }
+  }
+
+  @Test
+  fun `an item at speed one carries no speed at all`() {
+    val clip = clip(source = "clip0.mp4", length = 3.seconds, at = Duration.ZERO, start = Duration.ZERO)
+
+    val item =
+      composition(listOf(clip), frameRate = 30)
+        .lower()
+        .first()
+        .editedMediaItems
+        .single()
+
+    item.speedProvider shouldBe SpeedProvider.DEFAULT
+  }
+
+  // The source's last frame sits a sample short of what the slots reach, so the clip plays at speed and holds that
+  // frame.
+  @Test
+  fun `a held item at speed keeps every frame on the time its speed puts it`() {
+    listOf(0.7, 1.5).forEach { speed ->
+      val clip =
+        clip(
+          source = "clip0.mp4",
+          length = 2_100.milliseconds,
+          at = Duration.ZERO,
+          start = Duration.ZERO,
+          speed = speed,
+        )
+      val bounds = FrameBounds(first = Duration.ZERO, last = sampleBefore(2.seconds), end = 2.seconds)
+
+      val item =
+        composition(listOf(clip), frameRate = 30)
+          .lower(clip to bounds)
+          .first()
+          .editedMediaItems
+          .single()
+
+      val mapper = SpeedProviderMapper(item.speedProvider)
+      val tolerance = 2L
+      (mapper.getAdjustedTimeUs(1.seconds.inWholeMicroseconds) - outputLengthOf(1.seconds, speed).inWholeMicroseconds)
+        .absoluteValue shouldBeLessThanOrEqual tolerance
+      (mapper.getAdjustedTimeUs(2.seconds.inWholeMicroseconds) - slotLengthUs(clip, 30)) shouldBeInRange
+        0L..speedStepUs(slotLengthUs(clip, 30))
+    }
+  }
+
+  @Test
+  fun `a preview reads a frame at speed through the shared offset`() {
+    listOf(0.7, 1.5).forEach { speed ->
+      val clip = clip(source = "clip0.mp4", length = 3.seconds, at = 1.seconds, start = Duration.ZERO, speed = speed)
+      val composition = composition(listOf(clip), frameRate = 30)
+
+      val span = composition.toMedia3Preview(boundsOf(composition)).spans.last()
+
+      span.speed shouldBe speed
+      val at = 1.seconds + clip.outputDuration / 2
+      val expected = sourceOffsetAt(at - span.start, speed)
+      (span.positionIn(at) - expected).absoluteValue shouldBeLessThanOrEqualTo 40.milliseconds
+    }
+  }
+
+  @Test
+  fun `an audio item at speed carries its window and keeps its pitch`() {
+    listOf(0.7, 1.5).forEach { speed ->
+      val clip = clip(source = "clip0.mp4", length = 3.seconds, at = Duration.ZERO, start = 1.seconds, speed = speed)
+
+      val item =
+        composition(listOf(clip), frameRate = 30)
+          .lower()
+          .last()
+          .editedMediaItems
+          .single()
+
+      item.window() shouldBe (1.seconds.inWholeMicroseconds to 4.seconds.inWholeMicroseconds)
+      item.presentationDurationUs shouldBe clip.outputDuration.inWholeMicroseconds
+      item.speedParameters.shouldMaintainPitch shouldBe true
+    }
+  }
+
   @Test
   fun `each audio item carries its clip's exact window in microseconds`() {
     val clips = laid(List(3) { 1_010.milliseconds })
@@ -427,7 +535,7 @@ class Media3FrameGridTest {
         ),
       layoutSize = FRAME,
       fill = Fill.Black,
-      duration = trackStart + clips.fold(Duration.ZERO) { total, clip -> total + clip.duration },
+      duration = trackStart + clips.fold(Duration.ZERO) { total, clip -> total + clip.sourceDuration },
       hdr = ResolvedHdr.Keep,
       hdrTransfer = null,
       audio = AudioSpec.Keep,
@@ -453,6 +561,7 @@ class Media3FrameGridTest {
     length: Duration,
     at: Duration,
     start: Duration = TRIM_START,
+    speed: Double = 1.0,
   ): ResolvedClip =
     ResolvedClip(
       source = MediaSource.of(source),
@@ -478,10 +587,11 @@ class Media3FrameGridTest {
       start = start,
       end = start + length,
       effects = emptyList(),
-      gain = ResolvedGain.constant(1f, Duration.ZERO, length),
+      gain = ResolvedGain.constant(1f, Duration.ZERO, outputLengthOf(length, speed)),
       startsAtKeyFrame = false,
-      span = TimeRange.of(at, at + length),
+      span = TimeRange.of(at, at + outputLengthOf(length, speed)),
       sourceIndex = 0,
+      speed = speed,
     )
 
   /**
@@ -511,6 +621,7 @@ class Media3FrameGridTest {
     )
 
   private companion object {
+    val SPEEDS = listOf(CLIP_SPEED_RANGE.start, 0.7, 1.5, CLIP_SPEED_RANGE.endInclusive)
     val FRAME = Size(320, 180)
     val SOURCE_LENGTH = 4.seconds
 

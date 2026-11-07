@@ -2,10 +2,13 @@ package dev.jordond.filmstrip.transform.internal.negotiation
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.outputLengthOf
+import dev.jordond.filmstrip.edit.sourceLengthOf
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.transform.internal.FakeResolver
@@ -14,6 +17,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
+import kotlin.test.fail
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -98,6 +102,95 @@ class TimelinePhaseTest {
     val sliver = Track(listOf(fixture.clip(duration = 10.milliseconds, audioRate = 48_000)))
 
     next(EditComposition(listOf(sliver)), keepVideo = false).duration shouldBe 10.milliseconds
+  }
+
+  @Test
+  fun `laid windows read a trimmed clip as its trim`() {
+    val clip = fixture.clip(duration = 6.seconds, trim = TimeRange.of(1.seconds, 3_500.milliseconds))
+    val edit = EditComposition(listOf(Track(listOf(clip))))
+
+    val windows = laidWindows(edit, ask(edit)) { fail("the clip keeps frames") }
+
+    val window = windows.tracks.single().single()
+    window.from shouldBe 1.seconds
+    window.to shouldBe 3_500.milliseconds
+    window.length shouldBe 2_500.milliseconds
+    windows.duration shouldBe edit.duration
+  }
+
+  @Test
+  fun `laid windows hold a still for its span`() {
+    val still = fixture.imageClip(duration = 5.seconds, trim = TimeRange.of(1.seconds, 3.seconds))
+    val edit = EditComposition(listOf(Track(listOf(still))))
+
+    val windows = laidWindows(edit, ask(edit)) { fail("the still holds for a while") }
+
+    val window = windows.tracks.single().single()
+    window.from shouldBe Duration.ZERO
+    window.to shouldBe 2.seconds
+    window.length shouldBe 2.seconds
+    windows.duration shouldBe 2.seconds
+  }
+
+  @Test
+  fun `laid windows leave a looping track out of the composition duration`() {
+    val primary = Track(listOf(fixture.clip(duration = 2.seconds)), start = 1.seconds)
+    val bed = Track(listOf(fixture.audioOnlyClip(duration = 9.seconds)), content = TrackContent.Audio, looping = true)
+    val edit = EditComposition(listOf(primary, bed))
+
+    val windows = laidWindows(edit, ask(edit)) { fail("every clip keeps frames") }
+
+    windows.tracks.map { track -> track.map { it.length } } shouldBe listOf(listOf(2.seconds), listOf(9.seconds))
+    windows.duration shouldBe 3.seconds
+    next(edit).duration shouldBe windows.duration
+  }
+
+  @Test
+  fun `laid windows name the clip that trims to nothing`() {
+    val emptied = fixture.clip(duration = 2.seconds, trim = TimeRange.of(3.seconds, 4.seconds))
+    val edit = EditComposition(listOf(Track(listOf(emptied))))
+
+    clipTrimmedToNothing(edit) shouldBe emptied
+  }
+
+  @Test
+  fun `the timeline and the public model read the same length at speed`() {
+    listOf(0.7, 1.5).forEach { speed ->
+      val clip = fixture.clip(duration = 6.seconds, trim = TimeRange.of(1.seconds, 4.seconds)).withSpeed(speed)
+      val edit = EditComposition(listOf(Track(listOf(clip))))
+
+      val timeline = next(edit)
+
+      timeline.duration shouldBe outputLengthOf(3.seconds, speed)
+      timeline.duration shouldBe edit.duration
+      timeline.tracks.single().duration shouldBe outputLengthOf(3.seconds, speed)
+    }
+  }
+
+  @Test
+  fun `a looping track under a clip at speed fills the output run`() {
+    val speed = 0.7
+    val primary = Track(listOf(fixture.clip(duration = 3.seconds).withSpeed(speed)))
+    val bed =
+      Track(
+        listOf(fixture.audioOnlyClip(duration = 2.seconds).withSpeed(speed)),
+        content = TrackContent.Audio,
+        looping = true,
+      )
+
+    val timeline = next(EditComposition(listOf(primary, bed)))
+
+    timeline.duration shouldBe outputLengthOf(3.seconds, speed)
+    timeline.tracks[1].clips.fold(Duration.ZERO) { total, clip -> total + clip.outputDuration } shouldBe
+      timeline.duration
+    timeline.tracks[1].clips.last().let { last ->
+      last.end shouldBe last.start + sourceLengthOf(last.outputDuration, speed)
+    }
+  }
+
+  private fun clipTrimmedToNothing(edit: EditComposition): Clip {
+    laidWindows(edit, ask(edit)) { return it }
+    fail("every clip keeps frames")
   }
 
   private fun next(

@@ -53,6 +53,10 @@ import kotlin.time.Duration.Companion.seconds
  * The export paints the composition's fill across a gap and draws the composition's overlays over it, so a frame there
  * reads the fill and the overlay rather than whichever clip sits nearest. Every color is read off the fill or the
  * badge the case painted, and every position off the overlay's own placement.
+ *
+ * An overlay composites in RGB and the frame goes back to 4:2:0 for the encoder, which can cost a fill a code of luma
+ * in ffmpeg's scaler. That fits the authored tolerance, so a fill under an overlay reads both the codes it was painted
+ * with and the export's own, and a shift in both fails.
  */
 class JvmThumbnailGapTest {
   @Test
@@ -82,11 +86,12 @@ class JvmThumbnailGapTest {
   fun `a thumbnail inside a leading gap draws the composition overlay over the fill`() =
     contractTest {
       val mark = badge()
-      val request = request(lateComposition(listOf(mark)), IN_GAP, REVISION)
+      val composition = lateComposition(listOf(mark))
+      val request = request(composition, IN_GAP, REVISION)
       val thumbnail = source(request).awaitThumbnail(request)
 
       try {
-        thumbnail.frame().assertBadgeOverFill(mark)
+        thumbnail.frame().assertBadgeOverFill(mark, composition)
       } finally {
         thumbnail.image.close()
       }
@@ -117,16 +122,17 @@ class JvmThumbnailGapTest {
     contractTest { scope ->
       val subject = JvmEngineUnderTest(scope)
       val mark = badge()
+      val composition = lateComposition(listOf(mark))
 
       withEngine(subject.engine) { recorder ->
         subject.engine
-          .awaitComposition(lateComposition(listOf(mark)))
+          .awaitComposition(composition)
           .shouldBeInstanceOf<SetCompositionResult.Success>()
         awaitContract("the first frame to land") { recorder.playhead != null }
 
         val read = subject.engine.readback.awaitFrame(IN_GAP)
         read.presentationTime shouldBe IN_GAP
-        TestFrame(read.pixels, read.size).assertBadgeOverFill(mark)
+        TestFrame(read.pixels, read.size).assertBadgeOverFill(mark, composition)
       }
     }
 
@@ -191,16 +197,28 @@ class JvmThumbnailGapTest {
     ImageOverlay(ImageSource.ofBytes(badgePng), Corner.BottomEnd, BADGE_MARGIN, BADGE_SCALE)
 
   // The badge's middle reads its own color, the point mirrored across the frame reads the fill, and so does the centre.
-  private fun TestFrame.assertBadgeOverFill(mark: ImageOverlay) {
+  private suspend fun TestFrame.assertBadgeOverFill(
+    mark: ImageOverlay,
+    composition: EditComposition,
+  ) {
     val rect = mark.placedOn(size, BADGE).rectOn(size)
     val midX = (rect.left + rect.right) / 2f
     val midY = (rect.top + rect.bottom) / 2f
+    val written = jvmExportFrame(composition, IN_GAP)
 
     withClue("the badge") { colorAt(midX, midY) shouldBeCloseTo AuthoredColors.channelsOf(BADGE_ARGB) }
-    withClue("the fill beside the badge") {
-      colorAt(1f - midX, midY) shouldBeCloseTo AuthoredColors.channelsOf(FILL_ARGB)
-    }
-    withClue("the fill at the centre") { colorAt(HALF, HALF) shouldBeCloseTo AuthoredColors.channelsOf(FILL_ARGB) }
+    withClue("the fill beside the badge") { assertFillAt(1f - midX, midY, written) }
+    withClue("the fill at the centre") { assertFillAt(HALF, HALF, written) }
+  }
+
+  private fun TestFrame.assertFillAt(
+    fx: Float,
+    fy: Float,
+    written: TestFrame,
+  ) {
+    val read = colorAt(fx, fy)
+    read shouldBeCloseTo written.colorAt(fx, fy)
+    read shouldBeCloseTo AuthoredColors.channelsOf(FILL_ARGB)
   }
 
   private companion object {

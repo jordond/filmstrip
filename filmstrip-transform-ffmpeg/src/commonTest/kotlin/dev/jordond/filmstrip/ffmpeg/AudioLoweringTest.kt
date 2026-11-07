@@ -3,8 +3,10 @@ package dev.jordond.filmstrip.ffmpeg
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.ExportPath
@@ -13,6 +15,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.AudioLowering
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.FilterGraphBuilder
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSpec
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.atempoStagesFor
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.formatSeconds
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.render
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.volumeExpressions
@@ -32,11 +35,13 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlin.math.roundToLong
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.DurationUnit
 
 // AudioLowering on its own, over a hand-built plan, so each join, delay and mix is read off the
 // chains it writes rather than through a whole export graph.
@@ -118,6 +123,47 @@ class AudioLoweringTest {
   }
 
   @Test
+  fun `a clip at speed stretches its window and pins it to its output length`() {
+    listOf(0.7, 1.5).forEach { speed ->
+      val length = outputLengthOf(3.seconds, speed)
+      val lowered = lower(track(TrackContent.AudioAndVideo, clip(3.seconds, speed = speed)), length)
+      val samples = (length.toDouble(DurationUnit.SECONDS) * 48_000).roundToLong()
+
+      lowered.graph shouldContain
+        "[t0c0]atrim=start=${formatSeconds(0.0)}:end=${formatSeconds(3.0)},asetpts=expr=PTS-STARTPTS,$STEREO_FORMAT," +
+        "atempo=tempo=$speed,apad=whole_len=$samples,atrim=end_sample=$samples,asetpts=expr=PTS-STARTPTS[a0c0]"
+    }
+  }
+
+  @Test
+  fun `a clip at speed one takes no stretch`() {
+    val lowered = lower(track(TrackContent.AudioAndVideo, clip(3.seconds)), 3.seconds)
+
+    lowered.graph shouldNotContain "atempo"
+    lowered.graph shouldNotContain "apad"
+  }
+
+  @Test
+  fun `a silent clip at speed holds its output length with nothing to stretch`() {
+    val length = outputLengthOf(3.seconds, 1.5)
+    val lowered = lower(track(TrackContent.AudioAndVideo, clip(3.seconds, hasAudio = false, speed = 1.5)), length)
+
+    lowered.inputs.single().durationSeconds shouldBe length.toDouble(DurationUnit.SECONDS)
+    lowered.graph shouldNotContain "atempo"
+  }
+
+  // atempo's own floor is 0.5, which is the one limit this reads as a literal.
+  @Test
+  fun `a speed under one stage of atempo chains stages that multiply out to it`() {
+    atempoStagesFor(0.7) shouldBe listOf(0.7)
+    atempoStagesFor(0.5) shouldBe listOf(0.5)
+    atempoStagesFor(0.2) shouldBe listOf(0.5, 0.5, 0.8)
+    atempoStagesFor(CLIP_SPEED_RANGE.start) shouldBe List(5) { 0.5 }
+    atempoStagesFor(1.5) shouldBe listOf(1.5)
+    atempoStagesFor(CLIP_SPEED_RANGE.endInclusive) shouldBe listOf(CLIP_SPEED_RANGE.endInclusive)
+  }
+
+  @Test
   fun `a constant gain is one volume and unity is none`() {
     val quiet = lower(track(TrackContent.Audio, clip(1.seconds, gain = 0.5f)), 1.seconds)
     val unity = lower(track(TrackContent.Audio, clip(1.seconds)), 1.seconds)
@@ -192,7 +238,7 @@ class AudioLoweringTest {
     start: Duration = Duration.ZERO,
   ): ResolvedTrack {
     var at = start
-    val laid = clips.map { it.laidAt(at).also { _ -> at += it.duration } }
+    val laid = clips.map { it.laidAt(at).also { _ -> at += it.outputDuration } }
     return ResolvedTrack(content = content, looping = false, start = start, clips = laid)
   }
 
@@ -202,6 +248,7 @@ class AudioLoweringTest {
     hasAudio: Boolean = true,
     gain: Float = 1f,
     curve: ResolvedGain = ResolvedGain.constant(gain, Duration.ZERO, length),
+    speed: Double = 1.0,
   ): ResolvedClip =
     ResolvedClip(
       source = MediaSource.of("/clips/sound.m4a"),
@@ -217,8 +264,9 @@ class AudioLoweringTest {
       effects = emptyList(),
       gain = curve,
       startsAtKeyFrame = false,
-      span = TimeRange.of(Duration.ZERO, length),
+      span = TimeRange.of(Duration.ZERO, outputLengthOf(length, speed)),
       sourceIndex = 0,
+      speed = speed,
     )
 
   private fun ResolvedClip.laidAt(at: Duration): ResolvedClip =
@@ -230,8 +278,9 @@ class AudioLoweringTest {
       effects = effects,
       gain = gain,
       startsAtKeyFrame = startsAtKeyFrame,
-      span = TimeRange.of(at, at + duration),
+      span = TimeRange.of(at, at + outputDuration),
       sourceIndex = sourceIndex,
+      speed = speed,
     )
 
   private fun composition(

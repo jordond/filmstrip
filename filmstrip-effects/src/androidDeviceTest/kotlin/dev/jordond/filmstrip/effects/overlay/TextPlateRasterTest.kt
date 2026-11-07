@@ -262,7 +262,7 @@ class TextPlateRasterTest {
       val resolved = BuiltInEffectResolver().resolve(TextOverlay("H", style), CAPABILITIES, PREVIEW)
 
       val handle = resolved.shouldBeInstanceOf<EffectResolution.Resolved>().effect.handle
-      val overlay = handle.shouldBeInstanceOf<Media3Handle.Overlay>().overlay.shouldBeInstanceOf<RasterOverlay>()
+      val overlay = handle.shouldBeInstanceOf<Media3Handle.Overlay>().newOverlay().shouldBeInstanceOf<RasterOverlay>()
       val corner = overlay.getBitmap(0).reading { it.getPixel(0, 0) }
       withClue("the ${plate.hex()} plate drew ${corner.hex()}") { channelsOf(corner) shouldBe channelsOf(plate) }
     }

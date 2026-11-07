@@ -24,9 +24,10 @@ public actual class PlatformEffect private constructor(
   /**
    * Wraps an overlay, which the pipeline gathers with the overlays next to it into one blend.
    *
-   * @param overlay The media3 overlay to draw.
+   * @param newOverlay Builds the media3 overlay. It runs once for every graph that draws the effect, on that graph's GL
+   * thread, and has to answer a new object each time, since an overlay holds the texture of the GL context it drew in.
    */
-  public constructor(overlay: TextureOverlay) : this(Media3Handle.Overlay(overlay))
+  public constructor(newOverlay: () -> TextureOverlay) : this(Media3Handle.Overlay(newOverlay))
 }
 
 /**
@@ -49,10 +50,10 @@ public sealed interface Media3Handle {
   /**
    * An overlay blended with its neighbours.
    *
-   * @property overlay The media3 overlay.
+   * @property newOverlay Builds the media3 overlay for one graph.
    */
   @InternalFilmstripApi
   public class Overlay(
-    public val overlay: TextureOverlay,
+    public val newOverlay: () -> TextureOverlay,
   ) : Media3Handle
 }

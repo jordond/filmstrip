@@ -292,11 +292,11 @@ public class BrowserPreview internal constructor(
     val ready =
       if (window.holds(slot.index)) {
         window.advanceTo(sourceUs)
-        window.nearest(sourceUs)
+        if (window.reaches(sourceUs)) window.nearest(sourceUs) else null
       } else {
         null
       }
-    val own = if (ready == null) sampler(readbackSamplers, slot)?.sampleAt(sourceUs) else null
+    val own = if (ready == null) sampler(readbackSamplers, slot)?.nearestAt(sourceUs, slot.clip.trimEndUs) else null
     val sample = ready ?: own ?: return null
     return try {
       composite(slot, sample)
@@ -351,7 +351,7 @@ public class BrowserPreview internal constructor(
     // The sync sample's own time on the composition timeline, counted from the slot the clip opens
     // on, then put on the grid the way every other time is. One in front of the clip's own trim
     // lands on the clip's first slot, so a seek never reaches back into the clip before it.
-    val keyAt = (render.slotUs(slot.clip.firstSlot) + (keyUs - slot.clip.trimStartUs)).microseconds
+    val keyAt = (render.slotUs(slot.clip.firstSlot) + slot.clip.outputUsOf(keyUs - slot.clip.trimStartUs)).microseconds
     return maxOf(outputSlotOf(keyAt, render.frameRate), slot.clip.firstSlot)
   }
 
@@ -457,7 +457,7 @@ public class BrowserPreview internal constructor(
     private val slot: Long,
     private val writtenSlot: Long = clip.firstSlot + slot,
   ) {
-    val sourceUs: Double get() = clip.trimStartUs + slot * render.stepUs
+    val sourceUs: Double get() = clip.sourceUsAt(slot * render.stepUs)
 
     val outputUs: Double get() = render.slotUs(clip.firstSlot + slot)
 

@@ -212,6 +212,7 @@ final enum class dev.jordond.filmstrip.export/CopyBlocker : kotlin/Enum<dev.jord
     enum entry BitrateSet // dev.jordond.filmstrip.export/CopyBlocker.BitrateSet|null[0]
     enum entry ClipGainChanged // dev.jordond.filmstrip.export/CopyBlocker.ClipGainChanged|null[0]
     enum entry ClipHasEffects // dev.jordond.filmstrip.export/CopyBlocker.ClipHasEffects|null[0]
+    enum entry ClipSpeedChanged // dev.jordond.filmstrip.export/CopyBlocker.ClipSpeedChanged|null[0]
     enum entry CompositionGainChanged // dev.jordond.filmstrip.export/CopyBlocker.CompositionGainChanged|null[0]
     enum entry CompositionHasEffects // dev.jordond.filmstrip.export/CopyBlocker.CompositionHasEffects|null[0]
     enum entry FrameRateSet // dev.jordond.filmstrip.export/CopyBlocker.FrameRateSet|null[0]
@@ -1818,7 +1819,7 @@ final class dev.jordond.filmstrip.diagnostics/DiagnosticEvent { // dev.jordond.f
 }
 
 final class dev.jordond.filmstrip.edit/Clip { // dev.jordond.filmstrip.edit/Clip|null[0]
-    constructor <init>(dev.jordond.filmstrip.media/MediaSource, dev.jordond.filmstrip.edit/TimeRange? = ..., kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec> = ..., dev.jordond.filmstrip.edit/AudioLevel = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ...) // dev.jordond.filmstrip.edit/Clip.<init>|<init>(dev.jordond.filmstrip.media.MediaSource;dev.jordond.filmstrip.edit.TimeRange?;kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>;dev.jordond.filmstrip.edit.AudioLevel;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration){}[0]
+    constructor <init>(dev.jordond.filmstrip.media/MediaSource, dev.jordond.filmstrip.edit/TimeRange? = ..., kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec> = ..., dev.jordond.filmstrip.edit/AudioLevel = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin/Double = ...) // dev.jordond.filmstrip.edit/Clip.<init>|<init>(dev.jordond.filmstrip.media.MediaSource;dev.jordond.filmstrip.edit.TimeRange?;kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>;dev.jordond.filmstrip.edit.AudioLevel;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration;kotlin.Double){}[0]
 
     final val audio // dev.jordond.filmstrip.edit/Clip.audio|{}audio[0]
         final fun <get-audio>(): dev.jordond.filmstrip.edit/AudioLevel // dev.jordond.filmstrip.edit/Clip.audio.<get-audio>|<get-audio>(){}[0]
@@ -1834,6 +1835,8 @@ final class dev.jordond.filmstrip.edit/Clip { // dev.jordond.filmstrip.edit/Clip
         final fun <get-snapWithin>(): kotlin.time/Duration // dev.jordond.filmstrip.edit/Clip.snapWithin.<get-snapWithin>|<get-snapWithin>(){}[0]
     final val source // dev.jordond.filmstrip.edit/Clip.source|{}source[0]
         final fun <get-source>(): dev.jordond.filmstrip.media/MediaSource // dev.jordond.filmstrip.edit/Clip.source.<get-source>|<get-source>(){}[0]
+    final val speed // dev.jordond.filmstrip.edit/Clip.speed|{}speed[0]
+        final fun <get-speed>(): kotlin/Double // dev.jordond.filmstrip.edit/Clip.speed.<get-speed>|<get-speed>(){}[0]
     final val trim // dev.jordond.filmstrip.edit/Clip.trim|{}trim[0]
         final fun <get-trim>(): dev.jordond.filmstrip.edit/TimeRange? // dev.jordond.filmstrip.edit/Clip.trim.<get-trim>|<get-trim>(){}[0]
 
@@ -1845,6 +1848,7 @@ final class dev.jordond.filmstrip.edit/Clip { // dev.jordond.filmstrip.edit/Clip
     final fun withFadeIn(kotlin.time/Duration): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/Clip.withFadeIn|withFadeIn(kotlin.time.Duration){}[0]
     final fun withFadeOut(kotlin.time/Duration): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/Clip.withFadeOut|withFadeOut(kotlin.time.Duration){}[0]
     final fun withSnapWithin(kotlin.time/Duration): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/Clip.withSnapWithin|withSnapWithin(kotlin.time.Duration){}[0]
+    final fun withSpeed(kotlin/Double): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/Clip.withSpeed|withSpeed(kotlin.Double){}[0]
     final fun withTrim(dev.jordond.filmstrip.edit/TimeRange?): dev.jordond.filmstrip.edit/Clip // dev.jordond.filmstrip.edit/Clip.withTrim|withTrim(dev.jordond.filmstrip.edit.TimeRange?){}[0]
 }
 
@@ -1858,6 +1862,7 @@ final class dev.jordond.filmstrip.edit/ClipBuilder { // dev.jordond.filmstrip.ed
     final fun fadeIn(kotlin.time/Duration): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.fadeIn|fadeIn(kotlin.time.Duration){}[0]
     final fun fadeOut(kotlin.time/Duration): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.fadeOut|fadeOut(kotlin.time.Duration){}[0]
     final fun snapWithin(kotlin.time/Duration): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.snapWithin|snapWithin(kotlin.time.Duration){}[0]
+    final fun speed(kotlin/Double): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.speed|speed(kotlin.Double){}[0]
     final fun trim(dev.jordond.filmstrip.edit/TimeRange): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.trim|trim(dev.jordond.filmstrip.edit.TimeRange){}[0]
     final fun trim(kotlin.ranges/ClosedRange<kotlin.time/Duration>): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.trim|trim(kotlin.ranges.ClosedRange<kotlin.time.Duration>){}[0]
     final fun trim(kotlin.time/Duration, kotlin.time/Duration): dev.jordond.filmstrip.edit/ClipBuilder // dev.jordond.filmstrip.edit/ClipBuilder.trim|trim(kotlin.time.Duration;kotlin.time.Duration){}[0]
@@ -2669,6 +2674,8 @@ final val dev.jordond.filmstrip.codec/Kbps // dev.jordond.filmstrip.codec/Kbps|@
     final fun (kotlin/Int).<get-Kbps>(): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Kbps.<get-Kbps>|<get-Kbps>@kotlin.Int(){}[0]
 final val dev.jordond.filmstrip.codec/Mbps // dev.jordond.filmstrip.codec/Mbps|@kotlin.Int{}Mbps[0]
     final fun (kotlin/Int).<get-Mbps>(): dev.jordond.filmstrip.codec/Bitrate // dev.jordond.filmstrip.codec/Mbps.<get-Mbps>|<get-Mbps>@kotlin.Int(){}[0]
+final val dev.jordond.filmstrip.edit/CLIP_SPEED_RANGE // dev.jordond.filmstrip.edit/CLIP_SPEED_RANGE|{}CLIP_SPEED_RANGE[0]
+    final fun <get-CLIP_SPEED_RANGE>(): kotlin.ranges/ClosedFloatingPointRange<kotlin/Double> // dev.jordond.filmstrip.edit/CLIP_SPEED_RANGE.<get-CLIP_SPEED_RANGE>|<get-CLIP_SPEED_RANGE>(){}[0]
 
 final fun (dev.jordond.filmstrip.motion/Easing).dev.jordond.filmstrip.motion/paced(kotlin/Float): kotlin/Float // dev.jordond.filmstrip.motion/paced|paced@dev.jordond.filmstrip.motion.Easing(kotlin.Float){}[0]
 final fun (kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec>).dev.jordond.filmstrip.effect/inCanonicalOrder(): kotlin.collections/List<dev.jordond.filmstrip.effect/EffectSpec> // dev.jordond.filmstrip.effect/inCanonicalOrder|inCanonicalOrder@kotlin.collections.List<dev.jordond.filmstrip.effect.EffectSpec>(){}[0]

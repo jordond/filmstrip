@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.media3
 
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.test.FrameCodes
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test

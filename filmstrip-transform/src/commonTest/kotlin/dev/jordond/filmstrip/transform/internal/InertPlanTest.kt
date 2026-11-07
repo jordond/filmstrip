@@ -328,6 +328,39 @@ class InertPlanTest {
     plan.effectOrder.map { it.spec } shouldBe listOf<EffectSpec>(Brightness(0.5f))
   }
 
+  @Test
+  fun `a speed on a still is left out and named`() {
+    val edit = single(fixture.imageClip(duration = 5.seconds).withSpeed(1.5))
+
+    reasonsOf(edit) shouldContainExactly listOf("speed" to InertReason.NoChangeToFrame)
+    fixture
+      .resolve(edit)
+      .tracks
+      .first()
+      .clips
+      .single()
+      .speed shouldBe 1.0
+  }
+
+  @Test
+  fun `taking an inert effect off a clip keeps its speed`() {
+    val edit = single(fixture.clip(effects = listOf(Brightness(1f))).withSpeed(0.7))
+
+    reasonsOf(edit) shouldContainExactly listOf(EffectIds.BRIGHTNESS to InertReason.NoChangeToFrame)
+    fixture
+      .resolve(edit)
+      .tracks
+      .first()
+      .clips
+      .single()
+      .speed shouldBe 0.7
+  }
+
+  @Test
+  fun `a speed on a video clip is not inert`() {
+    reasonsOf(single(fixture.clip().withSpeed(0.7))).shouldBeEmpty()
+  }
+
   private fun single(clip: Clip): EditComposition = EditComposition(listOf(Track(listOf(clip))))
 
   private fun planOf(edit: EditComposition): ExportPlan = fixture.plan(edit).shouldBeInstanceOf<Verdict.Capable>().plan

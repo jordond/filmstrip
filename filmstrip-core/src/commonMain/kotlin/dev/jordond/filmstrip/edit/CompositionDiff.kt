@@ -83,7 +83,7 @@ private fun EditComposition.timeline(): Timeline =
         content = track.content,
         start = track.start,
         looping = track.looping,
-        clips = track.clips.map { TimelineClip(it.source, it.trim) },
+        clips = track.clips.map { TimelineClip(it.source, it.trim, it.speed) },
       )
     },
   )
@@ -122,6 +122,7 @@ private data class TimelineTrack(
 private data class TimelineClip(
   val source: MediaSource,
   val trim: TimeRange?,
+  val speed: Double,
 )
 
 private data class Rendering(

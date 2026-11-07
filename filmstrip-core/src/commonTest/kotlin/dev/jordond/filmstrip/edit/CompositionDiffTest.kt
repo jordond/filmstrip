@@ -68,6 +68,14 @@ class CompositionDiffTest {
   }
 
   @Test
+  fun `changing a clip's speed is structural`() {
+    val trim = TimeRange(0.seconds, 2.seconds)
+
+    diff(composition(clip(trim = trim)), composition(clip(trim = trim).withSpeed(1.5))) shouldBe
+      CompositionDiff.Structural
+  }
+
+  @Test
   fun `changing a track's start is structural`() {
     val previous = EditComposition(listOf(Track(listOf(clip()), start = 0.seconds)))
     val next = EditComposition(listOf(Track(listOf(clip()), start = 1.seconds)))

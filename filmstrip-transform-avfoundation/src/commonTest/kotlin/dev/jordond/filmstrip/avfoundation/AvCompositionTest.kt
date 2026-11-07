@@ -106,7 +106,7 @@ class AvCompositionTest {
         listOf(1_100.milliseconds, 1_100.milliseconds, 1_100.milliseconds, 800.milliseconds)
           .map { length -> clip(first, Size(640, 360), 200.milliseconds, 200.milliseconds + length) },
       )
-    val run = laid.fold(Duration.ZERO) { total, clip -> total + clip.duration }
+    val run = laid.fold(Duration.ZERO) { total, clip -> total + clip.outputDuration }
     val resolved = loopingResolved(laid, start = BED_START, duration = BED_START + run + BEYOND_THE_RUN)
     val composition = resolved.toAvComposition()
 
@@ -187,9 +187,9 @@ class AvCompositionTest {
 
     val parameters = resolved.toAvComposition().soleAudioParameters() ?: error("expected an audio mix")
     val ramp =
-      parameters.rampAt(trailing.span.start + trailing.duration / 2) ?: error("expected a ramp in the last clip")
+      parameters.rampAt(trailing.span.start + trailing.outputDuration / 2) ?: error("expected a ramp in the last clip")
     ramp.rangeStart shouldBe trailing.span.start.asLaid()
-    ramp.rangeLength shouldBe trailing.duration.asLaid()
+    ramp.rangeLength shouldBe trailing.outputDuration.asLaid()
   }
 
   // A 1.7 s pass is 42.5 slots at 25 fps, so every other seam of the bed sits half way between two slots, and the run
@@ -699,7 +699,7 @@ class AvCompositionTest {
     bed: String,
     run: Duration,
   ): ResolvedComposition {
-    val single = resolvedComposition(listOf(primary), primary.duration, GRID_RATE)
+    val single = resolvedComposition(listOf(primary), primary.outputDuration, GRID_RATE)
     val audio =
       ResolvedTrack(
         content = TrackContent.Audio,
@@ -753,7 +753,7 @@ class AvCompositionTest {
     clips: List<ResolvedClip>,
   ): List<ResolvedClip> {
     var at = from
-    return clips.map { clip -> clip.laidAt(at).also { at += clip.duration } }
+    return clips.map { clip -> clip.laidAt(at).also { at += clip.sourceDuration } }
   }
 
   private fun ResolvedClip.laidAt(at: Duration): ResolvedClip =
@@ -765,7 +765,7 @@ class AvCompositionTest {
       effects = effects,
       gain = gain,
       startsAtKeyFrame = startsAtKeyFrame,
-      span = TimeRange.of(at, at + duration),
+      span = TimeRange.of(at, at + sourceDuration),
       sourceIndex = sourceIndex,
       placement = placement,
       canvasEffectIndices = canvasEffectIndices,

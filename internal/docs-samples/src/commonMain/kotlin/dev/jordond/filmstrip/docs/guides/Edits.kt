@@ -9,6 +9,20 @@ import dev.jordond.filmstrip.media.MediaSource
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
+internal fun clipSpeed(): EditComposition {
+  // region clip-speed
+  val composition =
+    compositionOf {
+      clip(MediaSource.of("/path/to/wave.mp4")) {
+        trim(2.seconds..8.seconds)
+        speed(0.5)
+        fadeIn(1.seconds)
+      }
+    }
+  // endregion
+  return composition
+}
+
 internal fun singleClip(): EditComposition {
   // region single-clip
   val composition =

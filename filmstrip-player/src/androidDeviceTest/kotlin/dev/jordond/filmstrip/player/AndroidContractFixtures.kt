@@ -154,12 +154,15 @@ internal fun androidFixtureBytesComposition(): EditComposition {
 internal suspend fun androidExportFrame(
   composition: EditComposition,
   position: Duration,
-): TestFrame {
-  val file = exports.getOrPut(composition) { export(composition) }
-  return eightBitFrameAt(file, position).toTestFrame()
-}
+): TestFrame = eightBitFrameAt(androidExportedFile(composition), position).toTestFrame()
 
-private suspend fun export(composition: EditComposition): File {
+/**
+ * The file [composition] exports to, written once per composition.
+ */
+internal suspend fun androidExportedFile(composition: EditComposition): File =
+  exports.getOrPut(composition) { export(composition) }
+
+internal suspend fun export(composition: EditComposition): File {
   val engine = media3ExportEngine(CONTRACT_COMPONENTS)
   val plan =
     when (val verdict = engine.plan(composition, ExportSpec(bitrate = PREVIEW_PARITY_EXPORT_BITRATE))) {

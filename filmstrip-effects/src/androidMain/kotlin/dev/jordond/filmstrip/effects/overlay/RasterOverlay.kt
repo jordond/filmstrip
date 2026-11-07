@@ -39,8 +39,11 @@ import androidx.media3.effect.TextOverlay as Media3TextOverlay
  * and once for the matrix and the alpha, so the answer is held against the presentation time it was
  * sampled at and the second ask costs a comparison.
  *
- * @property bitmap The rasterized overlay. Not recycled on [release], because a frame processor may
- *   rebuild its shader programs from the same effect and would then be drawing a dead bitmap.
+ * One instance draws in one graph, since it holds that graph's texture and its last sample. Every graph builds its own
+ * through the effect's factory, and they all read the same [bitmap].
+ *
+ * @property bitmap The rasterized overlay. Not recycled on [release], because every other graph drawing this overlay
+ *   reads the same bitmap, and a later one would be drawing a dead one.
  * @property spec The overlay being drawn, sampled once per frame for its opacity, offset and scale.
  * @property placement Where the overlay lands with nothing animated, which an animation moves and
  *   resizes from.

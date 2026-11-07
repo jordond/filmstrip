@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.color.tenBitCodesFromSignal
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.AuxInput
@@ -26,10 +27,12 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.ChromaGrid
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.GraphLowering
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.WINDOW_CLOCK
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.arguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.drawnAt
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegTag
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.formatSeconds
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.resolvedGraph
 import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.geometry.Fill
@@ -58,6 +61,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldNotContain
+import io.kotest.matchers.ints.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -380,6 +384,41 @@ class GraphLoweringTest {
     invocation.sidecars shouldBe listOf(sidecar)
   }
 
+  // The retime sits ahead of every effect, so an effect reading the time reads the composition's, and the source window
+  // stays what the trim wrote.
+  @Test
+  fun `a clip at speed retimes ahead of its effects and cuts to the slots of its output length`() {
+    listOf(0.7, 1.5).forEach { speed ->
+      val invocation = invocationFor(Fill.Black, clipEffects = listOf(compositionEffect()), speed = speed)
+      val slots = outputSlotOf(outputLengthOf(2.seconds, speed), 30)
+      val graph = invocation.filterGraph
+
+      graph shouldContain "trim=start=${formatSeconds(0.0)}:end=${formatSeconds(2.0)}," +
+        "settb=expr=1/30000,setpts=expr=trunc((PTS-${formatSeconds(0.0)}/TB)/$speed)-round($WINDOW_CLOCK/TB)," +
+        "fps=fps=30:start_time=0"
+      graph.indexOf("start_time=0") shouldBeLessThan graph.indexOf("eq=")
+      graph shouldContain "trim=end_frame=$slots,"
+      invocation.seekSpeed shouldBe speed
+    }
+  }
+
+  @Test
+  fun `a clip at speed one is not retimed`() {
+    val graph = invocationFor(Fill.Black).filterGraph
+    graph shouldNotContain "settb"
+    graph shouldNotContain "start_time"
+    graph shouldNotContain WINDOW_CLOCK
+  }
+
+  // The window's shift is written as a whole number of ticks, so what the seek landed on moves no frame's slot.
+  @Test
+  fun `a window at speed shifts the retime by the composition time it opens at`() {
+    val graph = invocationFor(Fill.Black, speed = 0.7).resolvedGraph(emptyList(), 2.seconds)
+
+    graph shouldContain "-round(${formatSeconds(2.0)}/TB)"
+    graph shouldNotContain WINDOW_CLOCK
+  }
+
   // A copy runs no graph, so the only place a trim can land is the input's own bounds. Without
   // them ffmpeg would remux the whole source and the window would disappear silently.
   @Test
@@ -389,7 +428,7 @@ class GraphLoweringTest {
     val input = copyInvocationFor(clip).inputs.single()
 
     input.startSeconds shouldBe clip.start.toDouble(DurationUnit.SECONDS)
-    input.durationSeconds shouldBe clip.duration.toDouble(DurationUnit.SECONDS)
+    input.durationSeconds shouldBe clip.sourceDuration.toDouble(DurationUnit.SECONDS)
   }
 
   // Nothing is windowed away, so bounds would only ask ffmpeg to trim the container to the length
@@ -1059,8 +1098,10 @@ class GraphLoweringTest {
     hdrTransfer: HdrTransfer? = null,
     passes: Int = 1,
     sourceSize: Size = NARROW,
+    speed: Double = 1.0,
   ): Invocation {
     val duration = 2.seconds
+    val length = outputLengthOf(duration, speed)
     val placement = placementOf(sourceSize, listOf(listOf(Scale(output.height, fit))), output)
     val info =
       MediaInfo(
@@ -1083,18 +1124,19 @@ class GraphLoweringTest {
       )
     val clips =
       List(passes) { pass ->
-        val opens = trackStart + duration * pass
+        val opens = trackStart + length * pass
         ResolvedClip(
           source = source,
           info = info,
           start = Duration.ZERO,
           end = duration,
           effects = clipEffects,
-          gain = ResolvedGain.constant(1f, Duration.ZERO, duration),
+          gain = ResolvedGain.constant(1f, Duration.ZERO, length),
           startsAtKeyFrame = false,
-          span = TimeRange.of(opens, opens + duration),
+          span = TimeRange.of(opens, opens + length),
           sourceIndex = pass,
           placement = placement,
+          speed = speed,
         )
       }
     val track = ResolvedTrack(content = TrackContent.Video, looping = false, start = trackStart, clips = clips)
@@ -1132,6 +1174,7 @@ class GraphLoweringTest {
   private fun trimmedClip(
     start: Duration = TRIM_START,
     end: Duration = TRIM_END,
+    speed: Double = 1.0,
   ): ResolvedClip =
     ResolvedClip(
       source = source,
@@ -1157,10 +1200,11 @@ class GraphLoweringTest {
       start = start,
       end = end,
       effects = emptyList(),
-      gain = ResolvedGain.constant(1f, Duration.ZERO, end - start),
+      gain = ResolvedGain.constant(1f, Duration.ZERO, outputLengthOf(end - start, speed)),
       startsAtKeyFrame = true,
-      span = TimeRange.of(Duration.ZERO, end - start),
+      span = TimeRange.of(Duration.ZERO, outputLengthOf(end - start, speed)),
       sourceIndex = 0,
+      speed = speed,
     )
 
   private fun copyInvocationFor(clip: ResolvedClip): Invocation {
@@ -1188,7 +1232,7 @@ class GraphLoweringTest {
           ),
         layoutSize = output,
         fill = Fill.Black,
-        duration = clip.duration,
+        duration = clip.sourceDuration,
         hdr = ResolvedHdr.Keep,
         hdrTransfer = null,
         path = ExportPath.Copy,

@@ -1,8 +1,11 @@
 package dev.jordond.filmstrip.transform.internal.negotiation
 
 import dev.jordond.filmstrip.edit.Clip
+import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.edit.outputLengthOf
+import dev.jordond.filmstrip.edit.sourceLengthOf
 import dev.jordond.filmstrip.edit.stillHold
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.geometry.Size
@@ -51,14 +54,14 @@ internal class TrackLayer(
   private val startsAtKeyFrame: Boolean,
 ) {
   /**
-   * Lays [track] over [runLength], each clip opening and closing on its window in [timings].
+   * Lays [track] over [runLength], each clip opening and closing on its window in [windows].
    */
   fun lay(
     track: Track,
-    timings: List<Pair<Duration, Duration>>,
+    windows: List<LaidWindow>,
     runLength: Duration,
   ): LaidTrack {
-    val lengths = timings.map { (from, to) -> to - from }
+    val lengths = windows.map { it.length }
     val lowered = mutableListOf<LoweredEffect>()
     // The track's level times its fade, both read against the whole run the track covers.
     val trackCurve =
@@ -71,9 +74,10 @@ internal class TrackLayer(
       passesCovering(lengths, runLength).map { pass ->
         val clip = track.clips[pass.index]
         val info = infos.getValue(clip.source)
-        val from = timings[pass.index].first
-        // The clip's own trimmed length, which its curve and its fades are written over whichever
-        // part of it this pass reaches.
+        val window = windows[pass.index]
+        val from = window.from
+        // The clip's own length on the timeline, which its curve and its fades are written over
+        // whichever part of it this pass reaches.
         val full = lengths[pass.index]
         val span = pass.spanFrom(track.start)
         val effects =
@@ -98,7 +102,8 @@ internal class TrackLayer(
           source = clip.source,
           info = info,
           start = from,
-          end = from + pass.length,
+          // A pass that plays the trim out closes on the trim itself, so nothing rounds it away from the source's end.
+          end = if (pass.length < full) from + sourceLengthOf(pass.length, window.speed) else window.to,
           effects = resolved,
           // The one place the scopes multiply. A backend reads this curve and never asks an
           // AudioLevel what it meant again.
@@ -111,6 +116,7 @@ internal class TrackLayer(
           sourceIndex = pass.index,
           placement = placement,
           canvasEffectIndices = placement.canvases.map { canvasEffectIndexOf(it.chainIndex, effects, resolved) },
+          speed = window.speed,
         )
       }
 
@@ -130,7 +136,7 @@ internal fun LaidPass.spanFrom(trackStart: Duration): TimeRange =
 /**
  * Why the track at [trackIndex] cannot be laid over [runLength], or null when it can.
  *
- * Checks every clip's level and fades against its own trimmed length in [lengths], then the pass
+ * Checks every clip's level and fades against its own length on the timeline in [lengths], then the pass
  * count, then the track's level and fades against the whole run. The passes are counted rather
  * than laid, so a run that would bury a backend in passes costs nothing to refuse.
  */
@@ -148,6 +154,72 @@ internal fun trackRefusal(
   if (!track.audio.isValidOver(runLength)) return TRACK_LEVEL
   if (!fadesFit(track.fadeIn, track.fadeOut, runLength)) return TRACK_FADE
   return null
+}
+
+/**
+ * One clip's source window and the length it runs for on the composition timeline.
+ *
+ * @property from Where the window opens in source time.
+ * @property to Where the window closes in source time.
+ * @property length How long the clip runs for on the composition timeline.
+ * @property speed How fast the window plays, which is always one for a still.
+ */
+internal class LaidWindow(
+  val from: Duration,
+  val to: Duration,
+  val length: Duration,
+  val speed: Double,
+)
+
+/**
+ * Every clip's window, by track and then by clip, and how long the composition runs once each opens and closes on it.
+ *
+ * @property duration The end of the longest track that does not loop.
+ */
+internal class LaidWindows(
+  val tracks: List<List<LaidWindow>>,
+  val duration: Duration,
+)
+
+/**
+ * The one reading of every clip's length in [edit], which the planner, the inert elision and the composition's duration
+ * all consume.
+ *
+ * @param openAt Where each window opens on a copy, passed to [trimWindow].
+ * @param onNothing Called for the first clip that trims to nothing, and has to leave the caller.
+ */
+internal inline fun laidWindows(
+  edit: EditComposition,
+  ask: Ask,
+  openAt: Duration? = null,
+  onNothing: (Clip) -> Nothing,
+): LaidWindows {
+  val tracks =
+    edit.tracks.map { track ->
+      track.clips.map { clip -> laidWindowOf(clip, ask.infos.getValue(clip.source), openAt) ?: onNothing(clip) }
+    }
+  val duration =
+    edit.tracks
+      .withIndex()
+      .filterNot { (_, track) -> track.looping }
+      .maxOf { (index, track) -> tracks[index].fold(track.start) { total, window -> total + window.length } }
+  return LaidWindows(tracks, duration)
+}
+
+/**
+ * One clip's [LaidWindow], or null when its trim keeps no frames or its speed leaves it no time on the timeline.
+ *
+ * A still's window is already the length it holds for, so its speed does not divide it.
+ */
+internal fun laidWindowOf(
+  clip: Clip,
+  info: MediaInfo,
+  openAt: Duration? = null,
+): LaidWindow? {
+  val (from, to) = trimWindow(clip, info, openAt) ?: return null
+  val speed = if (clip.source is MediaSource.Image) 1.0 else clip.speed
+  val length = outputLengthOf(to - from, speed)
+  return if (length <= Duration.ZERO) null else LaidWindow(from, to, length, speed)
 }
 
 /**
@@ -194,15 +266,15 @@ private const val TRACK_LEVEL =
 
 private const val CLIP_LEVEL =
   "A clip's audio level asks for a negative or non-finite gain, or its envelope has points " +
-    "that fall outside the clip's trim or run backwards."
+    "that fall outside the clip or run backwards."
 
 private const val TRACK_FADE =
   "A track's fade is negative, longer than the track, or its fade in and fade out together run " +
     "longer than the track, so the two ramps would cross."
 
 private const val CLIP_FADE =
-  "A clip's fade is negative, longer than the clip's trim, or its fade in and fade out " +
-    "together run longer than the trim, so the two ramps would cross."
+  "A clip's fade is negative, longer than the clip, or its fade in and fade out together run " +
+    "longer than the clip, so the two ramps would cross."
 
 // Where the crop at [chainIndex] of a clip's flattened chain sits in its resolved effects. The lowering keeps the
 // chain's order, folding a run into one effect that names every spec it was folded from, so counting sources finds the

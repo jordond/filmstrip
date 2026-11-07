@@ -102,10 +102,13 @@ internal fun jvmTrimmedComposition(length: Duration): EditComposition =
 internal suspend fun jvmExportFrame(
   composition: EditComposition,
   position: Duration,
-): TestFrame {
-  val path = exports.getOrPut(composition) { exportOf(composition) }
-  return decodeFrame(path, position, FIXTURE_FRAME)
-}
+): TestFrame = decodeFrame(jvmExportedFile(composition), position, FIXTURE_FRAME)
+
+/**
+ * The file [composition] exports to, written once per composition.
+ */
+internal suspend fun jvmExportedFile(composition: EditComposition): String =
+  exports.getOrPut(composition) { exportOf(composition) }
 
 private suspend fun exportOf(composition: EditComposition): String {
   val engine = ffmpegExportEngine(CONTRACT_COMPONENTS)

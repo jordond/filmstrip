@@ -1,4 +1,4 @@
-package dev.jordond.filmstrip.media3
+package dev.jordond.filmstrip.test
 
 import android.media.Image
 import android.media.MediaCodec
@@ -6,12 +6,15 @@ import android.media.MediaCodecInfo
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.os.Build
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.geometry.Size
 import org.junit.AssumptionViolatedException
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlin.time.Duration
 
 /**
  * One decoded frame of a video, held as the luma, Cb and Cr codes it stores.
@@ -22,8 +25,9 @@ import kotlin.math.roundToInt
  *
  * @property size The frame's visible pixel size.
  */
-internal class FrameCodes(
-  val size: Size,
+@InternalFilmstripApi
+public class FrameCodes(
+  public val size: Size,
   private val luma: IntArray,
   private val cb: IntArray,
   private val cr: IntArray,
@@ -31,7 +35,7 @@ internal class FrameCodes(
   /**
    * Luma, Cb and Cr averaged over a small patch centred on the fractions [fx] and [fy] of the frame.
    */
-  fun codesAt(
+  public fun codesAt(
     fx: Float,
     fy: Float,
   ): IntArray {
@@ -49,28 +53,61 @@ internal class FrameCodes(
     }
     return IntArray(3) { (sums[it].toFloat() / (CODE_PATCH * CODE_PATCH)).roundToInt() }
   }
+
+  /**
+   * The Cb sample stored at [column] and [row] of the chroma plane, one for each aligned 2x2 block of pixels.
+   */
+  public fun cbAt(
+    column: Int,
+    row: Int,
+  ): Int = cb[row * (size.width / 2) + column]
+
+  /**
+   * The Cr sample stored at [column] and [row] of the chroma plane, one for each aligned 2x2 block of pixels.
+   */
+  public fun crAt(
+    column: Int,
+    row: Int,
+  ): Int = cr[row * (size.width / 2) + column]
 }
 
 /**
  * Decodes the first frame of [video] as ten-bit samples, skipping the calling test on a device that
  * cannot hand them back.
  */
-internal fun firstTenBitFrame(video: File): FrameCodes {
+@InternalFilmstripApi
+public fun firstTenBitFrame(video: File): FrameCodes {
   if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
     throw AssumptionViolatedException("ten-bit decoder output needs API 29")
   }
-  return firstFrame(video, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010) { it.toTenBitFrame() }
+  return decodedFrame(video, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010, Duration.ZERO) { it.toTenBitFrame() }
 }
 
 /**
  * Decodes the first frame of [video] as eight-bit samples.
  */
-internal fun firstEightBitFrame(video: File): FrameCodes =
-  firstFrame(video, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible) { it.toEightBitFrame() }
+@InternalFilmstripApi
+public fun firstEightBitFrame(video: File): FrameCodes =
+  decodedFrame(
+    video,
+    MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible,
+    Duration.ZERO,
+  ) { it.toEightBitFrame() }
 
-private fun firstFrame(
+/**
+ * Decodes the frame of [video] nearest [at] as eight-bit samples.
+ */
+@InternalFilmstripApi
+public fun eightBitFrameCodesAt(
+  video: File,
+  at: Duration,
+): FrameCodes =
+  decodedFrame(video, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible, at) { it.toEightBitFrame() }
+
+private fun decodedFrame(
   video: File,
   colorFormat: Int,
+  at: Duration,
   read: (Image) -> FrameCodes,
 ): FrameCodes {
   val extractor = MediaExtractor()
@@ -80,6 +117,7 @@ private fun firstFrame(
       extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true
     }
   extractor.selectTrack(track)
+  extractor.seekTo(at.inWholeMicroseconds, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
   val format = extractor.getTrackFormat(track)
   format.setInteger(MediaFormat.KEY_COLOR_FORMAT, colorFormat)
   val codec = MediaCodec.createDecoderByType(checkNotNull(format.getString(MediaFormat.KEY_MIME)))
@@ -87,7 +125,7 @@ private fun firstFrame(
   try {
     codec.configure(format, null, null, 0)
     codec.start()
-    return codec.decodeFirstFrame(extractor, read) ?: error("no frame decoded from $video")
+    return codec.decodeNearest(extractor, at.inWholeMicroseconds, read) ?: error("no frame decoded from $video")
   } finally {
     runCatching { codec.stop() }
     codec.release()
@@ -95,12 +133,16 @@ private fun firstFrame(
   }
 }
 
-private fun MediaCodec.decodeFirstFrame(
+// Decodes forward until a frame lands at or past the target, and hands back whichever frame sat closest to it.
+private fun MediaCodec.decodeNearest(
   extractor: MediaExtractor,
+  target: Long,
   read: (Image) -> FrameCodes,
 ): FrameCodes? {
   val info = MediaCodec.BufferInfo()
   var inputDone = false
+  var nearest: FrameCodes? = null
+  var nearestOff = Long.MAX_VALUE
   val deadline = System.nanoTime() + DECODE_BUDGET_NS
 
   while (System.nanoTime() < deadline) {
@@ -110,10 +152,17 @@ private fun MediaCodec.decodeFirstFrame(
     if (index < 0) continue
     val frame = getOutputImage(index)?.use(read)
     releaseOutputBuffer(index, false)
-    if (frame != null) return frame
-    if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) return null
+    if (frame != null) {
+      val off = abs(info.presentationTimeUs - target)
+      if (off < nearestOff) {
+        nearest = frame
+        nearestOff = off
+      }
+      if (info.presentationTimeUs >= target) return nearest
+    }
+    if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) return nearest
   }
-  return null
+  return nearest
 }
 
 // Answers whether the input has run out.
@@ -175,7 +224,8 @@ private fun Image.codes(sample: (ByteBuffer, Int) -> Int): FrameCodes {
 /**
  * The side of the square [FrameCodes.codesAt] averages, in pixels.
  */
-internal const val CODE_PATCH = 4
+@InternalFilmstripApi
+public const val CODE_PATCH: Int = 4
 private const val SAMPLE_BYTES = 2
 private const val WORD_MASK = 0xFFFF
 private const val BYTE_MASK = 0xFF

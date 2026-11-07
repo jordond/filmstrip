@@ -23,6 +23,7 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.test.eightBitFrameAt
+import dev.jordond.filmstrip.test.firstEightBitFrame
 import dev.jordond.filmstrip.test.writeAtomically
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.Dispatchers

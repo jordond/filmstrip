@@ -172,7 +172,7 @@ internal fun ResolvedComposition.laysSameFramesAs(other: ResolvedComposition): B
   val frameRate = copied.output.frameRate
   return copied.videoTrack?.clips.orEmpty().all { clip ->
     val slots = outputSlotsOf(clip.span, frameRate)
-    !slots.isEmpty() && clip.span.start + clip.duration <= outputSlotTime(slots.last + 1, frameRate)
+    !slots.isEmpty() && clip.span.start + clip.outputDuration <= outputSlotTime(slots.last + 1, frameRate)
   }
 }
 
@@ -194,4 +194,4 @@ internal val ResolvedComposition.videoTrack: ResolvedTrack?
  * identically and the spans of one can be reused for the other.
  */
 internal val ResolvedComposition.videoClipDurations: List<Duration>
-  get() = videoTrack?.clips?.map { it.duration }.orEmpty()
+  get() = videoTrack?.clips?.map { it.outputDuration }.orEmpty()

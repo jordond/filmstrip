@@ -83,7 +83,8 @@ them out of the export and lists each on the plan, so you can tell the user why 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Export.kt" region="run" />
 
 - `Started` arrives when the work actually begins. Exports run one at a time across the process, so a second one
-  waits for the first.
+  waits for the first. On Apple an export with a [clip at a speed](/guides/edits/#speed) begins by rendering that clip's
+  audio, so `Started` comes before the render and the first `Progress` only once frames are being written.
 - `Adjusted` only comes from the `export(composition, spec, sink)` overload, which plans for you. Running a plan you
   already have doesn't repeat it.
 - `Progress.fraction` only ever goes up.

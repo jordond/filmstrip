@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.avfoundation.internal.composition
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.avfoundation.internal.AssetCache
+import dev.jordond.filmstrip.avfoundation.internal.StretchedAudio
 import dev.jordond.filmstrip.avfoundation.internal.chain.ClipSpan
 import dev.jordond.filmstrip.avfoundation.internal.chain.CoreImageChain
 import dev.jordond.filmstrip.avfoundation.internal.chain.laysVideoOnGrid
@@ -62,6 +63,7 @@ import platform.CoreMedia.kCMTimeZero
  * @property encodesHdr Whether an HDR grade reaches the encoder, which is not always what was
  *   asked for.
  * @property drawnByCompositor Whether [AvCompositor] draws the frames, on the clock rather than per sample.
+ * @property timedByGrid Whether the filter handler draws on the frame grid rather than per sample of the source track.
  */
 @InternalFilmstripApi
 public class AvComposition internal constructor(
@@ -73,6 +75,7 @@ public class AvComposition internal constructor(
   private val laidSpans: List<ClipSpan>,
   internal val chain: CoreImageChain?,
   internal val drawnByCompositor: Boolean,
+  internal val timedByGrid: Boolean,
 ) {
   /**
    * The size every frame is drawn at, or null when the output carries no video track.
@@ -152,6 +155,8 @@ public fun ResolvedComposition.toAvComposition(bytesRoot: String = AppleScratch.
  * clip's primaries.
  *
  * @param bytesRoot The directory an in-memory source lands under.
+ * @param stretched The audio an export rendered to its clips' speeds, laid at speed 1 in place of those clips' sources.
+ * Null for a preview, which scales its audio tracks and leaves the pitch to its player.
  * @throws AvLoweringFailure when a source or a track cannot be opened, or when the plan draws an SD clip's primaries
  * and [sdKernelLimit] names a limit.
  * @throws MediaBytesFileFailure when an in-memory source could not be written to a file.
@@ -160,12 +165,14 @@ public fun ResolvedComposition.toAvComposition(bytesRoot: String = AppleScratch.
 internal fun ResolvedComposition.toAvComposition(
   sdKernelLimit: () -> String?,
   bytesRoot: String = AppleScratch.defaultRoot,
+  stretched: StretchedAudio? = null,
 ): AvComposition {
   val keepAudio = output.audioCodec != AudioCodec.None
   val keepVideo = audio != AudioSpec.AudioOnly
   val encodesHdr = hdrTransfer != null
   val composition = AVMutableComposition()
-  val assets = AssetCache(bytesRoot = bytesRoot, drawsSd = !encodesHdr, kernelLimit = sdKernelLimit)
+  val assets =
+    AssetCache(bytesRoot = bytesRoot, drawsSd = !encodesHdr, stretched = stretched, kernelLimit = sdKernelLimit)
   val tail = videoTrack?.let { tailHeldBy(it) } ?: LongRange.EMPTY
 
   val placements =
@@ -197,7 +204,7 @@ internal fun ResolvedComposition.toAvComposition(
 
   val spans = placements.toSpans(composition.duration.toDuration(), output.size, layoutSize, hdrTransfer)
   val chain = if (keepVideo) CoreImageChain(this, spans, encodesHdr) else null
-  val holdsTail = !tail.isEmpty()
+  val timedByGrid = !tail.isEmpty() || placements.any { it.clip.speed != 1.0 }
   // An audio-only clip can bring a grade into the plan that no laid video carries, which leaves nothing to tone map.
   val toneMaps = hdr == ResolvedHdr.ToneMap && spans.any { it.sourceTransfer != null }
   val holdsSd = spans.any { it.sdColor != null }
@@ -208,7 +215,7 @@ internal fun ResolvedComposition.toAvComposition(
       if (drawnByCompositor) {
         composition.compositorComposition(it)
       } else {
-        composition.videoComposition(it, encodesHdr, holdsTail)
+        composition.videoComposition(it, encodesHdr, timedByGrid)
       }
     }
 
@@ -221,6 +228,7 @@ internal fun ResolvedComposition.toAvComposition(
     laidSpans = spans,
     chain = chain,
     drawnByCompositor = drawnByCompositor,
+    timedByGrid = timedByGrid,
   )
 }
 
@@ -229,18 +237,19 @@ internal fun ResolvedComposition.toAvComposition(
  * handler already attached.
  *
  * That composition renders a frame for each sample the video track holds, so a tick stretched over
- * a held tail would be rendered once however many slots it covers. When [holdsTail] is set it
+ * a held tail would be rendered once however many slots it covers. When [timedByGrid] is set it
  * renders one frame every frame duration instead, up to the end of the composition. The audio under
  * the tail can run up to half a slot past the last one, and the export stops the video on the last
  * slot so that time gets no frame of its own.
  *
- * @param holdsTail Whether the primary's last frame is held under a longer audio track.
+ * @param timedByGrid Whether the frame grid rather than the source track says when frames fall, which a held tail and a
+ * clip at speed both need, since a scaled source track would write frames at its own scaled rate.
  */
 @OptIn(ExperimentalForeignApi::class)
 private fun AVMutableComposition.videoComposition(
   chain: CoreImageChain,
   encodesHdr: Boolean,
-  holdsTail: Boolean,
+  timedByGrid: Boolean,
 ): AVMutableVideoComposition {
   val output = chain.output
   val composition =
@@ -250,7 +259,7 @@ private fun AVMutableComposition.videoComposition(
 
   composition.setRenderSize(CGSizeMake(output.size.width.toDouble(), output.size.height.toDouble()))
   composition.setFrameDuration(CMTimeMake(value = 1, timescale = output.frameRate))
-  if (holdsTail) composition.setSourceTrackIDForFrameTiming(kCMPersistentTrackID_Invalid)
+  if (timedByGrid) composition.setSourceTrackIDForFrameTiming(kCMPersistentTrackID_Invalid)
 
   if (encodesHdr) {
     composition.setColorPrimaries(AVVideoColorPrimaries_ITU_R_2020)

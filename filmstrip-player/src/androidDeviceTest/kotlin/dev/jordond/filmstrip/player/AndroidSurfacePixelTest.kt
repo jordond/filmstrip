@@ -43,7 +43,7 @@ import kotlin.time.Duration.Companion.seconds
  * What the display actually shows, read back off the `SurfaceView` the player draws into.
  *
  * Every other pixel test here reads through `FrameExtractor`, which builds a graph of its own from
- * the same effect objects. That graph is configured fresh on every request, so it draws the right
+ * the same plan. That graph is configured fresh on every request, so it draws the right
  * picture whatever state the player's standing graph is in. Only a copy off the surface sees what
  * the player is really rendering.
  *

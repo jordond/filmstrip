@@ -117,3 +117,9 @@ internal fun hdrPixelFormatFor(
   encoderName: String?,
   hdrTransfer: HdrTransfer?,
 ): String? = hdrTransfer?.let { encoderName?.let(::ffmpegEncoderNamed)?.hdrPixelFormat }
+
+/**
+ * The format an export's encoder writes and a preview's graph ends on: [hdrPixelFormat] from [hdrPixelFormatFor] on a
+ * kept grade, and `yuv420p` for everything else.
+ */
+internal fun writtenPixelFormat(hdrPixelFormat: String?): String = hdrPixelFormat ?: "yuv420p"

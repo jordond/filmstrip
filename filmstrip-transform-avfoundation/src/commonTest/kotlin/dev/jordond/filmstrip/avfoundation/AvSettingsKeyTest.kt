@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.avfoundation
 import dev.jordond.filmstrip.avfoundation.internal.composition.compositorOutputAttributes
 import dev.jordond.filmstrip.avfoundation.internal.composition.compositorSourceAttributes
 import dev.jordond.filmstrip.avfoundation.internal.still.stillSeedBufferAttributes
+import dev.jordond.filmstrip.avfoundation.internal.stretchReaderSettings
 import dev.jordond.filmstrip.avfoundation.internal.writer.audioWriterSettings
 import dev.jordond.filmstrip.avfoundation.internal.writer.pcmReaderSettings
 import dev.jordond.filmstrip.avfoundation.internal.writer.videoReaderSettings
@@ -45,6 +46,7 @@ class AvSettingsKeyTest {
   fun `the audio settings are keyed by strings`() {
     audioWriterSettings(output(AudioCodec.Aac))?.assertStringKeyed()
     pcmReaderSettings(output(AudioCodec.Aac)).assertStringKeyed()
+    stretchReaderSettings(sampleRate = 48_000, channels = 2).assertStringKeyed()
   }
 
   private fun Map<Any?, Any?>.assertStringKeyed() {

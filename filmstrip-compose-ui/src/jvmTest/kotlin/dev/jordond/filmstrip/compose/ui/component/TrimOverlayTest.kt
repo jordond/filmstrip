@@ -15,6 +15,9 @@ import androidx.compose.ui.unit.dp
 import dev.jordond.filmstrip.compose.ui.geometry.TimelineScale
 import dev.jordond.filmstrip.compose.ui.interaction.TrimConstraint
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.outputLengthOf
+import dev.jordond.filmstrip.edit.sourceLengthOf
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
@@ -25,6 +28,47 @@ import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalTestApi::class)
 class TrimOverlayTest {
+  // The strip's axis is composition time and the trim is source time, so a clip at a speed writes more or less source
+  // than the distance dragged shows. Touch slop swallows an unknown first stretch, so a later stretch is what is read.
+  @Test
+  fun `a drag at a speed writes the shared source length of what it moved`() =
+    runComposeUiTest {
+      val speed = 0.7
+      val sourceEnd = 20.seconds
+      val scale = TimelineScale(outputLengthOf(sourceEnd, speed), PIXELS_PER_SECOND)
+      var range by mutableStateOf(TimeRange(Duration.ZERO, sourceEnd))
+
+      setContent {
+        Box(Modifier.size(width = 400.dp, height = 72.dp)) {
+          TrimOverlay(
+            range = range,
+            scale = scale,
+            onRangeChange = { range = it },
+            constraint = TrimConstraint.MinDuration(1.seconds),
+            speed = speed,
+          )
+        }
+      }
+
+      onRoot().performTouchInput {
+        down(Offset(0f, 36f))
+        advanceEventTime(16L)
+        moveBy(Offset(STEP_PX, 0f))
+      }
+      waitForIdle()
+      val afterSlop = range.start
+
+      onRoot().performTouchInput {
+        advanceEventTime(16L)
+        moveBy(Offset(STEP_PX, 0f))
+      }
+      waitForIdle()
+      val moved = range.start - afterSlop
+
+      ((moved - sourceLengthOf(scale.timeAt(STEP_PX), speed)).absoluteValue <= DRAG_TOLERANCE).shouldBeTrue()
+      moved shouldBeLessThan scale.timeAt(STEP_PX)
+    }
+
   @Test
   fun `a drag keeps accumulating after its first step`() =
     runComposeUiTest {
@@ -113,6 +157,8 @@ class TrimOverlayTest {
 
   private companion object {
     val DURATION = 30.seconds
+    const val STEP_PX = 70f
+    val DRAG_TOLERANCE = 1.milliseconds
     const val PIXELS_PER_SECOND = 100f
     const val ZOOMED_PIXELS_PER_SECOND = 200f
 

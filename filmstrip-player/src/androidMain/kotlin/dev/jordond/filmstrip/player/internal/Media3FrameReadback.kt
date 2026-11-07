@@ -26,9 +26,9 @@ import kotlin.time.Duration
  *
  * `FrameExtractor` takes one media item and one effect list rather than a composition, so the clip
  * covering the requested time is found through the spans the lowering already laid out and its own
- * chain is run ahead of the composition's. Both lists are the objects the player is drawing with, so
- * a parameter swapped into the live graph is in this frame too, and the readback is the preview's
- * own output.
+ * chain is run ahead of the composition's. Both lists are lowered from the plan the player is drawing,
+ * so a parameter swapped into the live graph is in this frame too, and the readback is the preview's
+ * own output. The graph here is separate from the player's, and overlays build themselves per graph.
  *
  * A photo goes through [Media3StillFrames] instead, because the extractor builds its player with a
  * single video renderer and an image item has nothing there to decode it. A gap is laid as a

@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg.internal.lowering
 
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.audioFramesOf
 import dev.jordond.filmstrip.effect.FilterArgument
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
@@ -154,7 +155,7 @@ internal class AudioLowering(
     inputs +=
       InputSpec(
         source = InputSource.Generated("anullsrc=r=${format.sampleRate}:cl=stereo"),
-        durationSeconds = clip.duration.seconds(),
+        durationSeconds = clip.outputDuration.seconds(),
       )
     return "$generated:a"
   }
@@ -172,6 +173,7 @@ internal class AudioLowering(
       }
       add(ASETPTS)
       add(aformat())
+      if (clip.hasAudio && clip.speed != 1.0) addAll(stretchedNodes(clip))
       // Every scope's level is already multiplied into this, the composition's included, so the mix
       // carries no gain node of its own.
       val constant = clip.gain.constant
@@ -187,6 +189,18 @@ internal class AudioLowering(
         volumeExpressions(clip.gain).forEach { add(FilterNode("volume", "volume" to it, "eval" to "frame")) }
       }
     }
+
+  // atempo works out its own length and rounds it per fragment, so the result is padded or cut to the sample count the
+  // clip's span says and the next clip opens exactly where the plan laid it.
+  private fun stretchedNodes(clip: ResolvedClip): List<FilterNode> {
+    val samples = audioFramesOf(clip.outputDuration, format.sampleRate).toString()
+    return atempoStagesFor(clip.speed).map { FilterNode("atempo", "tempo" to it.toString()) } +
+      listOf(
+        FilterNode("apad", "whole_len" to samples),
+        FilterNode("atrim", "end_sample" to samples),
+        ASETPTS,
+      )
+  }
 
   private fun silence(): String {
     val index = inputs.size
@@ -216,6 +230,26 @@ internal class AudioLowering(
 }
 
 private val ResolvedClip.hasAudio: Boolean get() = info.audio != null
+
+/**
+ * The atempo stages that multiply out to [speed], each inside what one atempo filter takes.
+ *
+ * One atempo filter takes no less than [ATEMPO_MIN], so a speed under that runs through as many stages at the floor as
+ * it needs, with what is left in the last one.
+ */
+internal fun atempoStagesFor(speed: Double): List<Double> =
+  buildList {
+    var left = speed
+    while (left < ATEMPO_MIN) {
+      add(ATEMPO_MIN)
+      left /= ATEMPO_MIN
+    }
+    add(left)
+  }
+
+// atempo's limit on one filter instance, read from af_atempo.c on n8.0. CLIP_SPEED_RANGE never reaches the ceiling, so
+// only the floor takes more than one stage.
+private const val ATEMPO_MIN = 0.5
 
 // The frame size a ramping branch is cut to, a literal because it pins ffmpeg's own granularity
 // rather than anything the shared curve says. 64 samples is 1.3 ms at 48 kHz, against the 21 ms a

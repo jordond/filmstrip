@@ -268,7 +268,7 @@ class AndroidExportTest {
         (written.duration >= BED_START + RAMP_AT.last() + RAMP_WINDOW) shouldBe true
       }
 
-      val firstPassEnds = bedClip.span.start + bedClip.duration
+      val firstPassEnds = bedClip.span.start + bedClip.outputDuration
       RAMP_AT.forEach { inClip ->
         val at = bedClip.span.start + inClip
         withClue("$at reads past the first pass, which ends at $firstPassEnds") { (at < firstPassEnds) shouldBe true }
@@ -671,8 +671,8 @@ class AndroidExportTest {
 
     laid.zipWithNext().forEach { (before, after) ->
       val opens = outputSlotsOf(after.span, rate).first
-      val middleBefore = eightBitFrameAt(file, before.span.start + before.duration / 2).grid()
-      val middleAfter = eightBitFrameAt(file, after.span.start + after.duration / 2).grid()
+      val middleBefore = eightBitFrameAt(file, before.span.start + before.outputDuration / 2).grid()
+      val middleAfter = eightBitFrameAt(file, after.span.start + after.outputDuration / 2).grid()
       val last = eightBitFrameAt(file, outputSlotTime(opens - 1, rate)).grid()
       val first = eightBitFrameAt(file, outputSlotTime(opens, rate)).grid()
       withClue("slot ${opens - 1} does not show the clip before the seam") {
@@ -812,8 +812,8 @@ class AndroidExportTest {
 
       // The cut may open earlier than asked, since a copy has to begin on a sync sample, so the
       // written run is the window at least and the window plus the group it opened in at most.
-      withClue("the copy wrote ${written.duration} for a window of ${clip.duration}") {
-        (written.duration >= clip.duration - DURATION_TOLERANCE) shouldBe true
+      withClue("the copy wrote ${written.duration} for a window of ${clip.outputDuration}") {
+        (written.duration >= clip.outputDuration - DURATION_TOLERANCE) shouldBe true
       }
       withClue("the copy wrote ${written.duration}, which is the whole ${clip.info.duration} source") {
         (written.duration < clip.info.duration - DURATION_TOLERANCE) shouldBe true
@@ -951,8 +951,8 @@ class AndroidExportTest {
     val index = indexOfLast { it.span.start <= at }
     withClue("$at sits before the first of $size laid passes") { (index >= 0) shouldBe true }
     val clip = this[index]
-    withClue("$at falls in the gap after pass ${index + 1}, which ends at ${clip.span.start + clip.duration}") {
-      (at < clip.span.start + clip.duration) shouldBe true
+    withClue("$at falls in the gap after pass ${index + 1}, which ends at ${clip.span.start + clip.outputDuration}") {
+      (at < clip.span.start + clip.outputDuration) shouldBe true
     }
     return index
   }

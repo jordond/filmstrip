@@ -93,6 +93,7 @@ internal fun copyBlockers(
     }
     if (clip.effects.isNotEmpty()) add(CopyBlocker.ClipHasEffects)
     if (clip.altersGain) add(CopyBlocker.ClipGainChanged)
+    if (clip.speed != 1.0 && clip.source !is MediaSource.Image) add(CopyBlocker.ClipSpeedChanged)
     if (copyOpening == null) add(CopyBlocker.TrimNotOnSyncSample)
   }
 

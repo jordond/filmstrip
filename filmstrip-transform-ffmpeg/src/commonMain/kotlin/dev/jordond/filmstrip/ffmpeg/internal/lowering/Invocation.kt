@@ -101,6 +101,8 @@ internal sealed interface InputSource {
  * @property seekBase The source time composition time zero maps to, for a caller windowing this
  *   graph with an input seek. Null for a graph whose timeline an input seek cannot window, which is
  *   read forward from the start instead. Unused by an export, which renders the whole timeline.
+ * @property seekSpeed How fast the clip [seekBase] reads from plays, which turns a composition time into how far past
+ *   [seekBase] the seek lands.
  * @property videoSlots How many output slots the video covers, which is how many frames the graph
  *   writes. A copy writes the source's own frames out to a whole packet, so on a copy this is only
  *   how many of them a preview pumps. Null for an output with no video.
@@ -125,6 +127,7 @@ internal class Invocation(
   val writesBt709: Boolean = false,
   val previewColor: List<FilterNode> = emptyList(),
   val seekBase: Duration? = null,
+  val seekSpeed: Double = 1.0,
   val videoSlots: Long? = null,
   val heldTail: LongRange = LongRange.EMPTY,
   val sidecars: List<Sidecar> = emptyList(),
@@ -307,7 +310,7 @@ private fun Invocation.videoArguments(): List<String> =
     add("-c:v")
     add(name)
     add("-pix_fmt")
-    add(hdrPixelFormat ?: "yuv420p")
+    add(writtenPixelFormat(hdrPixelFormat))
     encoder?.preset?.let {
       add("-preset")
       add(it)

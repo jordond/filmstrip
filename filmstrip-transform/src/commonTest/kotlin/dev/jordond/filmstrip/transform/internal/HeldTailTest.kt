@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.export.ExportPath
@@ -154,6 +155,18 @@ class HeldTailTest {
 
     negotiated.heldTail shouldBe heldTailOf(negotiated.primary, negotiated.duration, GRID_RATE)
     negotiated.videoSlots shouldBe videoSlotsOf(negotiated.duration, GRID_RATE)
+  }
+
+  @Test
+  fun `a held tail opens where the primary at speed ends`() {
+    val speed = 0.7
+    val laid =
+      negotiate(underBed(fixture.clip(duration = 1_010.milliseconds).withSpeed(speed), bed = 5_006.milliseconds))
+    val lastPass = laid.primary.clips.last()
+
+    lastPass.outputDuration shouldBe outputLengthOf(1_010.milliseconds, speed)
+    laid.heldTail.first shouldBe outputSlotsOf(lastPass.span, GRID_RATE).last + 1
+    laid.heldTail.last + 1 shouldBe outputSlotOf(5_006.milliseconds, GRID_RATE)
   }
 
   private fun negotiate(

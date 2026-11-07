@@ -4,6 +4,8 @@ import dev.jordond.filmstrip.edit.AudioLevel
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.edit.outputLengthOf
+import dev.jordond.filmstrip.edit.sourceLengthOf
 import dev.jordond.filmstrip.edit.stillHold
 import dev.jordond.filmstrip.effect.Attributes
 import dev.jordond.filmstrip.effect.EffectIds
@@ -32,6 +34,7 @@ import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -88,10 +91,10 @@ class TrackLayingTest {
 
     trackRefusal(0, loud, listOf(2.seconds), 2.seconds) shouldBe
       "A clip's audio level asks for a negative or non-finite gain, or its envelope has points that fall outside " +
-      "the clip's trim or run backwards."
+      "the clip or run backwards."
     trackRefusal(0, long, listOf(2.seconds), 3.seconds * MAX_LAID_PASSES) shouldBe
-      "A clip's fade is negative, longer than the clip's trim, or its fade in and fade out together run longer " +
-      "than the trim, so the two ramps would cross."
+      "A clip's fade is negative, longer than the clip, or its fade in and fade out together run " +
+      "longer than the clip, so the two ramps would cross."
   }
 
   @Test
@@ -210,10 +213,91 @@ class TrackLayingTest {
     recorder.inputs[EffectIds.ROTATE].shouldNotBeNull() shouldBe frameAfter(scale, Size(1920, 1080))
   }
 
+  @Test
+  fun `a clip at speed holds its output length and keeps its source window`() {
+    listOf(0.7, 1.5).forEach { speed ->
+      val clip = fixture.clip(duration = 6.seconds, trim = TimeRange.of(1.seconds, 4.seconds)).withSpeed(speed)
+      val length = outputLengthOf(3.seconds, speed)
+
+      val laid =
+        layer(listOf(clip))
+          .lay(Track(listOf(clip)), windows(clip), length)
+          .track.clips
+          .single()
+
+      laid.start shouldBe 1.seconds
+      laid.end shouldBe 4.seconds
+      laid.speed shouldBe speed
+      laid.sourceDuration shouldBe 3.seconds
+      laid.outputDuration shouldBe length
+      laid.span shouldBe TimeRange.of(Duration.ZERO, length)
+    }
+  }
+
+  @Test
+  fun `a looping last pass at speed closes on the source the shared arithmetic says it reached`() {
+    val speed = 0.7
+    val clip = fixture.clip(duration = 3.seconds).withSpeed(speed)
+    val pass = outputLengthOf(3.seconds, speed)
+    val run = pass + 1.seconds
+    val track = Track(listOf(clip), looping = true)
+
+    val laid = layer(listOf(clip)).lay(track, windows(clip), run).track.clips
+
+    laid.map { it.outputDuration } shouldBe listOf(pass, 1.seconds)
+    laid.first().end shouldBe 3.seconds
+    laid.last().start shouldBe Duration.ZERO
+    laid.last().end shouldBe sourceLengthOf(1.seconds, speed)
+  }
+
+  @Test
+  fun `a fade at speed runs its own length on the timeline`() {
+    val speed = 1.5
+    val clip = fixture.clip(duration = 6.seconds, fadeOut = 1.seconds).withSpeed(speed)
+    val length = outputLengthOf(6.seconds, speed)
+
+    val gain =
+      layer(listOf(clip))
+        .lay(Track(listOf(clip)), windows(clip), length)
+        .track.clips
+        .single()
+        .gain
+
+    assertNear(1f, gain.gainAt(length - 1.seconds))
+    assertNear(0.5f, gain.gainAt(length - 500.milliseconds))
+    assertNear(0f, gain.gainAt(length))
+  }
+
+  @Test
+  fun `a fade that fits the source but not the clip at speed is refused`() {
+    val clip = fixture.clip(duration = 3.seconds, fadeIn = 2_500.milliseconds).withSpeed(1.5)
+    val track = Track(listOf(clip))
+
+    trackRefusal(0, track, windows(clip).map { it.length }, outputLengthOf(3.seconds, 1.5)).shouldNotBeNull()
+    trackRefusal(0, track, listOf(3.seconds), 3.seconds).shouldBeNull()
+  }
+
+  @Test
+  fun `a still ignores its speed`() {
+    val still = fixture.imageClip(duration = 5.seconds).withSpeed(1.5)
+
+    val window = laidWindowOf(still, infoOf(still)).shouldNotBeNull()
+
+    window.length shouldBe 5.seconds
+    window.speed shouldBe 1.0
+  }
+
+  @Test
+  fun `a clip whose speed leaves it no time on the timeline lays nothing`() {
+    val sliver = fixture.clip(duration = 3.seconds, trim = TimeRange.of(Duration.ZERO, 15.nanoseconds)).withSpeed(32.0)
+
+    laidWindowOf(sliver, infoOf(sliver)).shouldBeNull()
+  }
+
   private fun infoOf(clip: Clip) = fixture.infos(composition(clip)).getValue(clip.source)
 
-  private fun windows(vararg clips: Clip): List<Pair<Duration, Duration>> =
-    clips.map { trimWindow(it, infoOf(it)).shouldNotBeNull() }
+  private fun windows(vararg clips: Clip): List<LaidWindow> =
+    clips.map { laidWindowOf(it, infoOf(it)).shouldNotBeNull() }
 
   private fun layer(
     clips: List<Clip>,

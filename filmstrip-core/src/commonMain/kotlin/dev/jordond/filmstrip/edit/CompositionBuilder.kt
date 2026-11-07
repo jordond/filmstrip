@@ -237,6 +237,7 @@ public class ClipBuilder public constructor(
   private var fadeIn: Duration = Duration.ZERO
   private var fadeOut: Duration = Duration.ZERO
   private var snapWithin: Duration = Duration.ZERO
+  private var speed: Double = 1.0
 
   /**
    * Keeps only `[start, endExclusive)` of the source.
@@ -291,10 +292,17 @@ public class ClipBuilder public constructor(
   /**
    * Ramps this clip's audio down to silence over the [duration] before its last kept sample.
    *
-   * The ramp multiplies whatever [audio] set, an envelope included. Measured against the trim, so
-   * retrimming the clip moves the fade with it.
+   * The ramp multiplies whatever [audio] set, an envelope included. Measured on the composition
+   * timeline back from the end of the trim, so retrimming the clip moves the fade with it.
    */
   public fun fadeOut(duration: Duration): ClipBuilder = apply { fadeOut = duration }
+
+  /**
+   * Plays the trim at [value], where 2.0 runs it in half the time and 0.5 in twice the time.
+   *
+   * The audio keeps its pitch. A value outside [CLIP_SPEED_RANGE] is refused when the composition is planned.
+   */
+  public fun speed(value: Double): ClipBuilder = apply { speed = value }
 
   /**
    * Freezes what has been described.
@@ -308,6 +316,7 @@ public class ClipBuilder public constructor(
       snapWithin = snapWithin,
       fadeIn = fadeIn,
       fadeOut = fadeOut,
+      speed = speed,
     )
 }
 

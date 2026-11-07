@@ -47,15 +47,15 @@ A non-null answer claims the spec, which ends the chain.
 
 Each platform's answer is a `PlatformEffect`, in that platform's own terms. Gate on `capabilities.api` and decline what you
 didn't write for. `attributes` holds what the pipeline already worked out, so multiply a fraction by `inputSize` to get
-pixels, the frame size entering this effect. Return a fresh `PlatformEffect` each time, since one is never shared between
-pipelines.
+pixels, the frame size entering this effect. Return a fresh `PlatformEffect` each time, since each plan holds its own.
 
 The resolver's `softFocusOn` is an `expect` function you declare yourself, whose `actual` on each platform calls that
 platform's function below.
 
 <Tabs syncKey="platform">
   <TabItem label="Android">
-    A media3 `Effect` that runs as its own pass, or a `TextureOverlay`.
+    A media3 `Effect` that runs as its own pass, or a function that builds a `TextureOverlay`. It runs once for every graph
+    that draws the effect, so answer a new overlay each time, since an overlay holds the texture of the graph it drew in.
     <Snippet file="androidMain/kotlin/dev/jordond/filmstrip/docs/extending/CustomEffects.android.kt" region="android" />
   </TabItem>
   <TabItem label="iOS">

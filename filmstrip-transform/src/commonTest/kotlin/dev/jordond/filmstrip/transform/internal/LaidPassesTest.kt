@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.test.LoopingCases
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -16,6 +17,17 @@ import kotlin.time.Duration.Companion.seconds
  * planner builds from it.
  */
 class LaidPassesTest {
+  @Test
+  fun `passes laid from output lengths at speed tile the output run`() {
+    val lengths = listOf(outputLengthOf(1_400.milliseconds, 0.7), outputLengthOf(900.milliseconds, 1.5))
+
+    val passes = passesCovering(lengths, 5.seconds)
+
+    passes.map { it.index } shouldBe listOf(0, 1, 0, 1)
+    passes.map { it.length } shouldBe listOf(2.seconds, 600.milliseconds, 2.seconds, 400.milliseconds)
+    passes.last().offset shouldBe 4_600.milliseconds
+  }
+
   @Test
   fun `a run lays a whole pass for every length that fits and cuts the last`() {
     // Two and a half lengths of room is two whole passes and a cut one, which is what tells this

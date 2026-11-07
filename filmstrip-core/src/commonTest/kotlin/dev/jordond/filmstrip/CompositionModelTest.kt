@@ -1,15 +1,25 @@
 package dev.jordond.filmstrip
 
 import dev.jordond.filmstrip.edit.AudioLevel
+import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
+import dev.jordond.filmstrip.edit.Clip
+import dev.jordond.filmstrip.edit.ClipBuilder
+import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.EnvelopePoint
+import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.compositionOf
+import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.geometry.Fill
+import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSource
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import kotlin.test.Test
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The composition model: one primary track most of the time, several when an edit layers.
@@ -237,6 +247,45 @@ class CompositionModelTest {
     val composition = compositionOf { fill(Fill.White) }
 
     composition.fill shouldBe Fill.White
+  }
+
+  @Test
+  fun `a clip's duration is its output length at speed`() {
+    listOf(CLIP_SPEED_RANGE.start, 0.7, 1.5, CLIP_SPEED_RANGE.endInclusive).forEach { speed ->
+      val clip = Clip(source("a"), TimeRange.of(1.seconds, 4.seconds), speed = speed)
+
+      clip.duration shouldBe outputLengthOf(3.seconds, speed)
+    }
+  }
+
+  @Test
+  fun `a track and a composition add up output lengths at speed`() {
+    val slow = Clip(source("a"), TimeRange.of(1.seconds, 4.seconds), speed = 0.7)
+    val fast = Clip(source("b"), TimeRange.of(Duration.ZERO, 3.seconds), speed = 1.5)
+    val expected = outputLengthOf(3.seconds, 0.7) + outputLengthOf(3.seconds, 1.5)
+
+    Track(listOf(slow, fast)).duration shouldBe expected
+    EditComposition(listOf(Track(listOf(slow, fast)))).duration shouldBe expected
+  }
+
+  @Test
+  fun `a still's duration does not divide by its speed`() {
+    val still = Clip(MediaSource.Image(ImageSource.of("/fixtures/still.jpg"), 5.seconds), speed = 2.0)
+
+    still.duration shouldBe 5.seconds
+  }
+
+  @Test
+  fun `a clip at a speed the planner will refuse has no duration yet`() {
+    listOf(0.0, -1.0, Double.NaN).forEach { speed ->
+      Clip(source("a"), TimeRange.of(Duration.ZERO, 3.seconds), speed = speed).duration.shouldBeNull()
+    }
+  }
+
+  @Test
+  fun `the clip builder carries a speed`() {
+    ClipBuilder(source("a")).speed(0.7).build().speed shouldBe 0.7
+    ClipBuilder(source("a")).build().speed shouldBe 1.0
   }
 
   private fun source(name: String): MediaSource = MediaSource.of("/fixtures/$name.mp4")

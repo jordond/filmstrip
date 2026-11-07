@@ -16,6 +16,7 @@ class WithersTest {
       snapWithin = 200.milliseconds,
       fadeIn = 100.milliseconds,
       fadeOut = 300.milliseconds,
+      speed = 0.7,
     )
 
   private val track =
@@ -32,9 +33,15 @@ class WithersTest {
   @Test
   fun eachClipWitherChangesOnlyItsOwnProperty() {
     clip.withFadeIn(1.seconds) shouldBe
-      Clip(clip.source, clip.trim, clip.effects, clip.audio, clip.snapWithin, 1.seconds, clip.fadeOut)
+      Clip(clip.source, clip.trim, clip.effects, clip.audio, clip.snapWithin, 1.seconds, clip.fadeOut, clip.speed)
     clip.withFadeOut(1.seconds) shouldBe
-      Clip(clip.source, clip.trim, clip.effects, clip.audio, clip.snapWithin, clip.fadeIn, 1.seconds)
+      Clip(clip.source, clip.trim, clip.effects, clip.audio, clip.snapWithin, clip.fadeIn, 1.seconds, clip.speed)
+    clip.withSpeed(1.5) shouldBe
+      Clip(clip.source, clip.trim, clip.effects, clip.audio, clip.snapWithin, clip.fadeIn, clip.fadeOut, 1.5)
+    clip.withTrim(null).speed shouldBe clip.speed
+    clip.withEffects(emptyList()).speed shouldBe clip.speed
+    clip.withAudio(AudioLevel.Mute).speed shouldBe clip.speed
+    clip.withSnapWithin(Duration.ZERO).speed shouldBe clip.speed
   }
 
   @Test

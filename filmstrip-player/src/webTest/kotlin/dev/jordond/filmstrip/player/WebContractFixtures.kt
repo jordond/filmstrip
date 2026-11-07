@@ -79,7 +79,12 @@ internal fun webFixtureTrimmed(length: Duration): EditComposition {
 internal suspend fun webExportFrame(
   composition: EditComposition,
   position: Duration,
-): TestFrame {
+): TestFrame = webFileFrame(webExportedUrl(composition), position)
+
+/**
+ * The blob url of the file [composition] exports to.
+ */
+internal suspend fun webExportedUrl(composition: EditComposition): String {
   val statuses = CONTRACT_FILMSTRIP.export(exportPlanOf(composition), MediaSink.Uri("")).toList()
   statuses.filterIsInstance<ExportStatus.Failure>().firstOrNull()?.let {
     fail("the export failed: ${it.error.message}")
@@ -87,8 +92,16 @@ internal suspend fun webExportFrame(
   val success =
     statuses.filterIsInstance<ExportStatus.Success>().singleOrNull()
       ?: fail("the export produced ${statuses.map { it::class.simpleName }}")
-  val url = (success.output as? MediaSink.Uri)?.uri ?: fail("the export handed back ${success.output}")
+  return (success.output as? MediaSink.Uri)?.uri ?: fail("the export handed back ${success.output}")
+}
 
+/**
+ * The frame at [position] of the written file at [url], through a reader that never saw the encoder.
+ */
+internal suspend fun webFileFrame(
+  url: String,
+  position: Duration,
+): TestFrame {
   val written = EditComposition(tracks = listOf(Track(listOf(Clip(MediaSource.Uri(url))))), audio = AudioSpec.Remove)
   val engine = webCodecsExportEngine(CONTRACT_COMPONENTS)
   val resolved =

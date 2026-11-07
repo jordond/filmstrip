@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.ComponentRegistry
+import dev.jordond.filmstrip.codec.Bitrate
 import dev.jordond.filmstrip.diagnostics.DiagnosticEvent
 import dev.jordond.filmstrip.diagnostics.DiagnosticListener
 import dev.jordond.filmstrip.edit.Clip
@@ -28,9 +29,11 @@ import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.writtenPixelFormat
 import dev.jordond.filmstrip.ffmpeg.internal.preview.FfmpegPreviewStream
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
 import dev.jordond.filmstrip.ffmpeg.internal.preview.openPreview
+import dev.jordond.filmstrip.ffmpeg.support.FilterFrames
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.BAR_FILL
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_COLOR
 import dev.jordond.filmstrip.ffmpeg.support.OverlayConstants.OVERLAY_SIZE
@@ -48,6 +51,8 @@ import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.test.TestFrame
+import dev.jordond.filmstrip.test.compareFrames
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -55,6 +60,7 @@ import dev.jordond.filmstrip.transform.internal.videoSlots
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.doubles.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -94,6 +100,7 @@ class FfmpegPreviewTest {
       .build()
 
   private val engine = FfmpegExportEngine(components, FfmpegRuntime.of(FfmpegConfig()))
+  private val filterFrames = FilterFrames()
 
   @Test
   fun `the preview and the export run the same filter graph`() =
@@ -110,7 +117,9 @@ class FfmpegPreviewTest {
       opened.stream.close()
       output.delete()
 
-      graphOf(DiagnosticEvent.INVOCATION) shouldBe graphOf(DiagnosticEvent.PREVIEW)
+      val written = writtenPixelFormat(null)
+      graphOf(DiagnosticEvent.PREVIEW) shouldBe
+        "${graphOf(DiagnosticEvent.INVOCATION)};[vout]format=pix_fmts=$written[vshown]"
     }
 
   // Reading forward from the head and seeking straight there have to reach the same frame, or the
@@ -281,10 +290,12 @@ class FfmpegPreviewTest {
         open.contentEquals(firstFrame(hidden, INSIDE_WINDOW)).shouldBeFalse()
       }
       withClue("the overlay was drawn before the window") {
-        early.contentEquals(firstFrame(hidden, BEFORE_WINDOW)).shouldBeTrue()
+        assertShownAsExported(windowed, BEFORE_WINDOW, early)
+        early.contentEquals(firstFrame(always, BEFORE_WINDOW)).shouldBeFalse()
       }
       withClue("the overlay was still drawn past the window") {
-        shut.contentEquals(firstFrame(hidden, AFTER_WINDOW)).shouldBeTrue()
+        assertShownAsExported(windowed, AFTER_WINDOW, shut)
+        shut.contentEquals(firstFrame(always, AFTER_WINDOW)).shouldBeFalse()
       }
     }
 
@@ -548,6 +559,20 @@ class FfmpegPreviewTest {
     at: Duration,
   ): ByteArray = frames(composition, at, 1).single()
 
+  // An export's overlay runs on every frame, shut or open, so a preview reads against that export rather than against a
+  // plan holding no overlay at all.
+  private suspend fun assertShownAsExported(
+    composition: EditComposition,
+    at: Duration,
+    shown: ByteArray,
+  ) {
+    val slot = outputSlotOf(at, FIXTURE_RATE).toInt()
+    val written = filterFrames.exportedFrame(composition, slot, ExportSpec(bitrate = HIGH_BITRATE))
+
+    compareFrames(TestFrame(written, FIXTURE_FRAME), TestFrame(shown, FIXTURE_FRAME)).psnrDb shouldBeGreaterThanOrEqual
+      ENCODER_LOSS_FLOOR_DB
+  }
+
   // The frame on the slot [at] lands on, read forward from the head, which is the frame a scrub
   // landing on the same slot has to agree with.
   private suspend fun forwardFrame(
@@ -721,6 +746,10 @@ class FfmpegPreviewTest {
 
   private companion object {
     val TIMEOUT = 2.minutes
+    val HIGH_BITRATE = Bitrate.mbps(200)
+
+    // 200 Mbps at this size reads 59.8 dB on both ffmpeg builds.
+    const val ENCODER_LOSS_FLOOR_DB = 59.0
 
     val FIXTURE_FRAME = Size(640, 360)
     const val CHANNELS = 4

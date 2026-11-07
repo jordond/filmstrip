@@ -269,7 +269,7 @@ class Media3ImageItemTest {
         ),
       layoutSize = Size(320, 180),
       fill = Fill.Black,
-      duration = clips.fold(trackStart) { total, clip -> total + clip.duration },
+      duration = clips.fold(trackStart) { total, clip -> total + clip.sourceDuration },
       hdr = ResolvedHdr.Keep,
       hdrTransfer = null,
       audio = AudioSpec.Keep,

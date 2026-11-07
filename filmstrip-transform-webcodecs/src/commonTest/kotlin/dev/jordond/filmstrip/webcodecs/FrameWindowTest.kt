@@ -65,6 +65,30 @@ class FrameWindowTest {
       window.assertClearedClean()
     }
 
+  // The bound leaves an older frame in hand, which is not what an export draws there, so the window says it fell short.
+  @Test
+  fun aWindowStoppedAtItsBoundDoesNotReachThePlayhead() =
+    runTest {
+      val window = seated(FrameWindow(CAPACITY))
+
+      window.advanceTo(frameUs(SEVENTH))
+      window.reaches(frameUs(SEVENTH)) shouldBe false
+      window.reaches(frameUs(CAPACITY - 2)) shouldBe true
+
+      window.assertClearedClean()
+    }
+
+  @Test
+  fun aDrainedWindowReachesEveryPlayheadPastItsEnd() =
+    runTest {
+      val window = seated(FrameWindow(CAPACITY))
+
+      repeat(FRAMES) { window.advanceTo(frameUs(FRAMES + 5)) }
+      window.reaches(frameUs(FRAMES + 5)) shouldBe true
+
+      window.assertClearedClean()
+    }
+
   @Test
   fun aPlayheadBehindEverythingHeldFindsNoFrame() =
     runTest {

@@ -214,8 +214,8 @@ public actual class BuiltInEffectResolver actual constructor() : EffectResolver 
     // Derived once here, and read by the per-frame sampling on the GL thread for every frame of
     // the export.
     val drawnRange = spec.drawnRangeWithin(attributes.span)
-    val overlay = RasterOverlay(raster.bitmap, spec, placement, size, drawnRange, raster.hdrLuminance)
-    return media3OverlayResolution(PlatformEffect(overlay), attributes.hdrTransfer, limits)
+    val effect = PlatformEffect { RasterOverlay(raster.bitmap, spec, placement, size, drawnRange, raster.hdrLuminance) }
+    return media3OverlayResolution(effect, attributes.hdrTransfer, limits)
   }
 
   private fun unsupported(

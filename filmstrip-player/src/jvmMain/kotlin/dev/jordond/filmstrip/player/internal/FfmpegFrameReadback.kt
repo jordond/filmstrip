@@ -82,11 +82,8 @@ internal class FfmpegFrameReadback(
     val current = plan() ?: return ReadbackResult.Failure(PlaybackError.SourceUnreadable(NOTHING_LOADED))
     val edit = composition() ?: return ReadbackResult.Failure(PlaybackError.SourceUnreadable(NOTHING_LOADED))
     val at = snap(position)
-    val step = current.frameStep
 
-    // Within a frame of what is on screen, because the position a host draws against has been
-    // through its own tick grid on the way here and lands beside the frame rather than on it.
-    presented()?.takeIf { (it.position - at) in -step..step }?.let { standing ->
+    presented()?.takeIf { it.answers(position, at, current.frameRate) }?.let { standing ->
       return ReadbackResult.Success(standing.toReadbackFrame(current))
     }
 
@@ -104,6 +101,18 @@ internal class FfmpegFrameReadback(
     } finally {
       stream.close()
     }
+  }
+
+  // A host's tick grid floors the playhead, so a position short of this frame and past the slot before it is this frame
+  // seen through that grid. A position on any other slot's own time asks for that slot.
+  private fun PreviewFrame.answers(
+    requested: Duration,
+    landing: Duration,
+    frameRate: Int,
+  ): Boolean {
+    if (landing == position) return true
+    val before = outputSlotTime(outputSlotOf(position, frameRate) - 1, frameRate)
+    return requested > before && requested < position
   }
 
   private fun PreviewFrame.toReadbackFrame(plan: PreviewPlan): ReadbackFrame =

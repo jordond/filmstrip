@@ -2,12 +2,15 @@ package dev.jordond.filmstrip.media3.internal
 
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.SpeedParameters
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
+import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
+import dev.jordond.filmstrip.edit.sourceLengthOf
 import dev.jordond.filmstrip.geometry.NormalizedRect
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
@@ -17,6 +20,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
 
 /**
  * Lays one plan's tracks onto media3 sequences, holding what every item of them is lowered against.
@@ -78,10 +82,10 @@ internal class Lowering(
       val still = clip.source as? MediaSource.Image
       when {
         removeVideo && (still != null || clip.info.audio == null) -> {
-          builder.addGap(clip.duration.inWholeMicroseconds)
+          builder.addGap(clip.outputDuration.inWholeMicroseconds)
         }
         still != null -> {
-          builder.addItem(clip.imageItem(still, clip.duration, removeAudio, removeVideo))
+          builder.addItem(clip.imageItem(still, clip.outputDuration, removeAudio, removeVideo))
         }
         else -> {
           builder.addItem(clip.exactItem(removeAudio, removeVideo, mixesAudio))
@@ -131,7 +135,12 @@ internal class Lowering(
    * source's own end, whichever comes first. So the item is clipped from that first sample, and one that decodes for
    * longer than [length] is cut to it. One that decodes for less, because its start sat inside a frame or its slots
    * reach past the source, holds its last frame through [HeldLastFrame] until it has run for [length]. A clip whose
-   * samples were never read is clipped from its own start and not held.
+   * samples were never read is clipped from its own start and not held. A clip at speed counts all of that in the
+   * source
+   * [length] plays at its speed, and the provider it carries lands the item on [length] exactly.
+   *
+   * [setFrameRate] is media3's limit on slow motion: it is a maximum and nothing duplicates a frame, so a clip slowed
+   * past its source's rate writes every source frame further apart instead of filling each output slot.
    */
   private fun ResolvedClip.gridItem(
     length: Duration,
@@ -141,22 +150,26 @@ internal class Lowering(
     val opens = window?.first ?: start
     val cut = window?.end ?: end
     val decoded = cut - opens
-    val closes = if (decoded > length) opens + length else cut
-    val hold =
-      window?.takeIf { decoded < length }?.let {
+    val played = sourceLengthOf(length, speed)
+    val closes = if (decoded > played) opens + played else cut
+    // A hold has to slow a frame down, and a stretch rounding has already filled runs at the clip speed instead.
+    val reaches = if (speed == 1.0) decoded else outputLengthOf(decoded, speed) + 1.microseconds
+    val pace =
+      window?.takeIf { reaches < length }?.let {
         HeldLastFrame(
           fromUs = (it.last - opens).inWholeMicroseconds,
           decodedUs = decoded.inWholeMicroseconds,
           lengthUs = length.inWholeMicroseconds,
+          clipSpeed = speed,
         )
-      }
+      } ?: atSpeed((closes - opens), length)
 
     return EditedMediaItem
       .Builder(clipped(opens, closes, always = true))
       .setRemoveAudio(true)
       .apply {
         sourceDuration(info)
-        hold?.let(::setSpeed)
+        pace?.let { setSpeed(SpeedParameters(it, true)) }
       }
       // A maximum rather than a target: a higher-rate source has frames dropped, a lower-rate one is left alone.
       .setFrameRate(rate)
@@ -166,7 +179,7 @@ internal class Lowering(
   }
 
   /**
-   * A clip over the exact window the plan resolved it to.
+   * A clip over the exact window the plan resolved it to, with its audio pinned to its span when it runs at a speed.
    */
   private fun ResolvedClip.exactItem(
     removeAudio: Boolean,
@@ -174,19 +187,36 @@ internal class Lowering(
     mixesAudio: Boolean,
   ): EditedMediaItem =
     EditedMediaItem
-      .Builder(clipped(start, end))
+      .Builder(clipped(start, end, always = speed != 1.0))
       .setRemoveAudio(removeAudio)
       .setRemoveVideo(removeVideo)
       .apply {
         sourceDuration(info)
         setFrameRate(plan.output.frameRate)
+        atSpeed(sourceDuration, outputDuration)?.let { setSpeed(SpeedParameters(it, true)) }
       }.setEffects(
         Effects(
-          if (removeAudio) emptyList() else audioProcessors(gain, mixesAudio),
+          if (removeAudio) {
+            emptyList()
+          } else {
+            listOfNotNull(AudioLengthPin(outputDuration).takeIf { speed != 1.0 }) +
+              audioProcessors(gain, mixesAudio)
+          },
           // A copy writes the source's own samples, so a clip carrying video here has no frame to place.
           if (removeVideo) emptyList() else effects.toMedia3Effects().map(wrapper::wrap),
         ),
       ).build()
+
+  // What runs this clip at its speed, or null at a speed of one, which is media3's own default.
+  private fun ResolvedClip.atSpeed(
+    decoded: Duration,
+    length: Duration,
+  ): ClipPace? =
+    if (speed == 1.0) {
+      null
+    } else {
+      ConstantClipSpeed(speed, decoded.inWholeMicroseconds, length.inWholeMicroseconds)
+    }
 
   // The duration media3 wants is the source's, before any clipping.
   private fun EditedMediaItem.Builder.sourceDuration(info: MediaInfo) {

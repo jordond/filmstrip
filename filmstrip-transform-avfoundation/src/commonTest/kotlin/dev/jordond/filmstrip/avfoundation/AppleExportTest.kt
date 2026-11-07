@@ -1581,7 +1581,7 @@ class AppleExportTest {
    */
   private fun assertFadeCarriesAcross(laid: List<ResolvedClip>) {
     laid.zipWithNext { earlier, later ->
-      val closed = earlier.gain.gainAt(earlier.duration)
+      val closed = earlier.gain.gainAt(earlier.outputDuration)
       val opened = later.gain.gainAt(Duration.ZERO)
       withClue("a pass opened at $opened where the one before it closed at $closed, so the fade restarted") {
         (abs(opened - closed) <= ResolvedGain.PRODUCT_TOLERANCE).shouldBeTrue()
@@ -1606,7 +1606,9 @@ class AppleExportTest {
     into: Duration,
     what: String,
   ) {
-    withClue("$into runs past $what, which is ${clip.duration} long") { (into < clip.duration).shouldBeTrue() }
+    withClue(
+      "$into runs past $what, which is ${clip.outputDuration} long",
+    ) { (into < clip.outputDuration).shouldBeTrue() }
     val at = clip.span.start + into
     val expected = fixtures * (clip.gain.gainAt(into) / against.gain.gainAt(at - against.span.start))
     val measured = audio.bedAgainstPrimary(at)

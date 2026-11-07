@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effect.EffectSpec
@@ -33,10 +34,13 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.DurationUnit
 
 /**
  * What the browser preview draws, and what it does with the frames it decoded to draw it.
@@ -582,18 +586,104 @@ class BrowserPreviewTest {
       fill = fill,
     )
 
+  // The middle of the clip tells a one to one read from the shared one, where both ends would agree.
+  @Test
+  fun aSeekMidClipAtASpeedDrawsTheSourceFrameTheSharedFunctionsName() =
+    runTest {
+      SPEEDS.forEach { speed ->
+        val source = MediaSource.Bytes(rampClip())
+        val composition =
+          EditComposition(tracks = listOf(Track(listOf(Clip(source, speed = speed)))), audio = AudioSpec.Remove)
+        val preview = previewOf(composition)
+
+        try {
+          val clip =
+            preview.resolved.tracks
+              .first()
+              .clips
+              .first()
+          val slot = outputSlotOf(clip.outputDuration / 2, FRAME_RATE)
+          val at = outputSlotTime(slot, FRAME_RATE)
+          val index = (clip.sourceTimeAt(at).toDouble(DurationUnit.SECONDS) * FRAME_RATE).roundToInt()
+
+          val drawn = withClue("no preview frame at $at") { preview.frameAt(at).shouldNotBeNull() }
+
+          withClue("at speed $speed $at drew ${drawn.at(0.5, 0.5)} where source frame $index is ${ramp(index)}") {
+            drawn.at(x = 0.5, y = 0.5).isNear(ramp(index)) shouldBe true
+          }
+        } finally {
+          preview.release()
+        }
+      }
+    }
+
+  // A 20 fps source on a 30 fps grid puts slot 4 at 133 ms, between frame 2 at 100 ms and frame 3 at 150 ms. The export
+  // draws the nearer one, and a read of the frame at or before that time would draw the other.
+  @Test
+  fun aReadAtSpeedOneDrawsTheNearerFrameTheWayTheExportDoes() =
+    runTest {
+      val source =
+        MediaSource.Bytes(
+          makeClip(
+            width = WIDTH,
+            height = HEIGHT,
+            frames = FRAMES,
+            frameRate = SPARSE_RATE,
+          ) { index, _ -> ramp(index) },
+        )
+      val composition = compositionOf(source)
+      val preview = resolve(composition, FRAME_RATE).toBrowserPreview(composition)
+
+      try {
+        val drawn = preview.frameAt(outputSlotTime(4, FRAME_RATE)).shouldNotBeNull().at(x = 0.5, y = 0.5)
+
+        withClue("slot 4 drew $drawn where source frame 3 is ${ramp(3)}") { drawn.isNear(ramp(3)) shouldBe true }
+      } finally {
+        preview.release()
+      }
+    }
+
+  // The sync sample sits a second into the source, which at a speed lands somewhere other than a second in.
+  @Test
+  fun aRelaxedSeekAtASpeedLandsWhereTheSyncSamplePlays() =
+    runTest {
+      val source = MediaSource.Bytes(secondKeyFrameClip())
+      val speed = 1.2
+      val composition =
+        EditComposition(tracks = listOf(Track(listOf(Clip(source, speed = speed)))), audio = AudioSpec.Remove)
+      val preview = previewOf(composition)
+
+      try {
+        val clip =
+          preview.resolved.tracks
+            .first()
+            .clips
+            .first()
+        val landing = outputLengthOf(1.seconds, speed)
+        val past = clip.outputDuration - frameTime(1)
+
+        val seek = preview.syncSampleAt(past)
+
+        seek shouldBe outputSlotTime(outputSlotOf(landing, FRAME_RATE), FRAME_RATE)
+      } finally {
+        preview.release()
+      }
+    }
+
   private suspend fun previewOf(composition: EditComposition): BrowserPreview =
     resolve(composition).toBrowserPreview(composition)
 
-  private suspend fun resolve(composition: EditComposition) =
-    webCodecsExportEngine(
-      components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(),
-      prober = BrowserProber(),
-    ).resolve(
-      composition,
-      ExportSpec(videoCodec = VideoCodec.H264),
-    ).shouldBeInstanceOf<ResolveResult.Resolved>()
-      .composition
+  private suspend fun resolve(
+    composition: EditComposition,
+    frameRate: Int? = null,
+  ) = webCodecsExportEngine(
+    components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build(),
+    prober = BrowserProber(),
+  ).resolve(
+    composition,
+    ExportSpec(videoCodec = VideoCodec.H264, frameRate = frameRate),
+  ).shouldBeInstanceOf<ResolveResult.Resolved>()
+    .composition
 
   private fun compositionOf(
     source: MediaSource,
@@ -628,6 +718,8 @@ class BrowserPreviewTest {
     const val HEIGHT = 64
     const val FRAME_RATE = 30
     const val FRAMES = 30
+    const val SPARSE_RATE = 20
+    val SPEEDS = listOf(0.7, 1.5)
     const val MILLIS_PER_SECOND = 1_000
 
     const val DIM = 0.4f

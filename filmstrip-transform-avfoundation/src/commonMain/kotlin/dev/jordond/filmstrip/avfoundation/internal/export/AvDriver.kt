@@ -1,6 +1,10 @@
 package dev.jordond.filmstrip.avfoundation.internal.export
 
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.avfoundation.internal.AudioStretchFailure
+import dev.jordond.filmstrip.avfoundation.internal.ClipAudioRender
+import dev.jordond.filmstrip.avfoundation.internal.StretchedAudio
+import dev.jordond.filmstrip.avfoundation.internal.chain.sdPrimariesKernelLimit
 import dev.jordond.filmstrip.avfoundation.internal.chain.toneMapKernelLimit
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.composition.hasPixelTransferSession
@@ -8,6 +12,7 @@ import dev.jordond.filmstrip.avfoundation.internal.composition.sdrTransferLimit
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
 import dev.jordond.filmstrip.avfoundation.internal.interop.syncSampleAtOrBefore
+import dev.jordond.filmstrip.avfoundation.internal.renderClipAudio
 import dev.jordond.filmstrip.avfoundation.internal.toNSURL
 import dev.jordond.filmstrip.avfoundation.internal.writer.AvDestination
 import dev.jordond.filmstrip.avfoundation.internal.writer.DestinationResult
@@ -52,6 +57,7 @@ internal class AvDriver(
   private val kernelLimit: () -> String? = { toneMapKernelLimit() },
   private val pixelTransferExists: Boolean = hasPixelTransferSession,
   private val bytesRoot: String = AppleScratch.defaultRoot,
+  private val renderClip: suspend (ClipAudioRender) -> Unit = ::renderClipAudio,
 ) : ExportDriver {
   override suspend fun capabilities(): DeviceCapabilities = processEncoders.read()
 
@@ -93,34 +99,48 @@ internal class AvDriver(
     to: MediaSink,
   ): Flow<ExportStatus> =
     flow {
-      when (val prepared = withContext(Dispatchers.IO) { prepare(resolved, to) }) {
-        is Preparation.Failed -> {
-          emit(ExportStatus.Failure(prepared.error))
+      val stretched = StretchedAudio(bytesRoot, renderClip)
+      // Rendering a clip's audio is the export's own first step and can run a long while before a frame is written.
+      val startsEarly = stretched.mayRender(resolved)
+      if (startsEarly) emit(ExportStatus.Started)
+      try {
+        when (val prepared = withContext(Dispatchers.IO) { prepare(resolved, to, stretched) }) {
+          is Preparation.Failed -> {
+            emit(ExportStatus.Failure(prepared.error))
+          }
+          is Preparation.Ready -> {
+            emitAll(
+              WriterRun(
+                prober = prober,
+                resolved = resolved,
+                composition = prepared.composition,
+                destination = prepared.destination,
+                announcesStart = !startsEarly,
+              ).run(),
+            )
+          }
         }
-        is Preparation.Ready -> {
-          emitAll(
-            WriterRun(
-              prober = prober,
-              resolved = resolved,
-              composition = prepared.composition,
-              destination = prepared.destination,
-            ).run(),
-          )
-        }
+      } finally {
+        stretched.discard()
       }
     }
 
   /**
    * Settles everything that can fail before a reader or a writer exists, so the run itself has one
-   * shape.
+   * shape. A clip at speed has its audio rendered here, which is the slow part of this for a long clip and stops when
+   * the collector cancels.
    */
-  private fun prepare(
+  private suspend fun prepare(
     resolved: ResolvedComposition,
     to: MediaSink,
+    stretched: StretchedAudio,
   ): Preparation {
     val composition =
       try {
-        resolved.toAvComposition(bytesRoot)
+        stretched.renderAll(resolved, bytesRoot)
+        resolved.toAvComposition(sdKernelLimit = { sdPrimariesKernelLimit() }, bytesRoot, stretched)
+      } catch (failure: AudioStretchFailure) {
+        return Preparation.Failed(failure.error)
       } catch (failure: AvLoweringFailure) {
         return Preparation.Failed(FilmstripError.InvalidComposition(failure.reason))
       } catch (failure: MediaBytesFileFailure) {

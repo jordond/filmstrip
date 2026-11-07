@@ -23,6 +23,52 @@ internal class DecodedAudio(
   val peakAmplitude: Float,
 )
 
+/**
+ * The first channel of an audio track decoded back into one array, and where it ends on the file's timeline.
+ */
+internal class DecodedSamples(
+  val samples: FloatArray,
+  val sampleRate: Int,
+  val durationUs: Double,
+)
+
+internal suspend fun decodeAudioSamples(source: MediaSource): DecodedSamples {
+  val reader = SourceReader.of(source) ?: error("the decoder could not open $source")
+  try {
+    val track = reader.audioTrack() ?: error("$source has no audio track")
+    val sampleRate =
+      track
+        .getSampleRate()
+        .await()
+        .toDouble()
+        .toInt()
+    val iterator = AudioSampleSink(track).samples(0.0, Double.POSITIVE_INFINITY)
+    val chunks = mutableListOf<FloatArray>()
+    var durationUs = 0.0
+    while (true) {
+      val step = iterator.next().await()
+      if (step.done) break
+      val sample = step.value ?: continue
+      try {
+        durationUs = maxOf(durationUs, sample.microsecondTimestamp + sample.microsecondDuration)
+        val data = sample.toAudioBuffer().getChannelData(0)
+        chunks += FloatArray(data.length) { data.at(it) }
+      } finally {
+        sample.close()
+      }
+    }
+    val joined = FloatArray(chunks.sumOf { it.size })
+    var at = 0
+    chunks.forEach { chunk ->
+      chunk.copyInto(joined, at)
+      at += chunk.size
+    }
+    return DecodedSamples(joined, sampleRate, durationUs)
+  } finally {
+    reader.close()
+  }
+}
+
 internal suspend fun decodeAudio(source: MediaSource): DecodedAudio? {
   val reader = SourceReader.of(source) ?: error("the decoder could not open $source")
   try {

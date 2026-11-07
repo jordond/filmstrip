@@ -100,7 +100,7 @@ class StillPlanTest {
       fixture.imageClip(duration = 4_000.milliseconds, trim = TimeRange(1_000.milliseconds, 30_000.milliseconds))
     val resolved = fixture.resolve(composition(still))
 
-    firstClipOf(resolved).duration shouldBe 3_000.milliseconds
+    firstClipOf(resolved).outputDuration shouldBe 3_000.milliseconds
     resolved.duration shouldBe 3_000.milliseconds
   }
 

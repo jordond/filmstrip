@@ -28,6 +28,30 @@ nearest sync sample, up to the duration you give it, so the export can copy the 
 
 The default of zero keeps the cut exactly where the trim put it.
 
+## Speed
+
+A clip plays its trim at `speed`, anywhere from 1/32 to 32. `CLIP_SPEED_RANGE` holds those ends, and a plan refuses a
+speed outside them by name. The default is 1.
+
+<Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Edits.kt" region="clip-speed" />
+
+The trim stays in source time and everything else is output time. The clip above keeps six seconds of its source and
+runs twelve on the timeline, so `Clip.duration` reads twelve seconds, and fades, overlays and `visibleDuring` are all
+measured on that output clock. A timeline's `TrimOverlay` takes the same `speed` and writes source time back.
+
+Pitch is always kept, and there's no option to let it shift. Every backend pins a clip's audio to its output length. A
+still has no speed to change, so one set on a still shows up as an inert notice.
+
+Speed has a cost:
+
+- Sources decode in full, so decoding scales with the speed. A clip at 32 decodes 32 source frames for every frame it
+  writes, and a preview at 32 has to decode that fast to hold its frame rate.
+- On Apple an export renders each sped clip's audio to temporary disk first, as 16-bit PCM for the clip's output length,
+  and removes it when the run ends. A long clip at a slow speed needs that much space. See [Run](/guides/export/#run)
+  for what a caller sees while it renders.
+
+[Limits](/reference/limits/#clip-speed) lists what each backend does at the edges.
+
 ## Tracks
 
 `track` adds a layer that plays alongside the primary track. An audio-only track is mixed in with the rest, which is

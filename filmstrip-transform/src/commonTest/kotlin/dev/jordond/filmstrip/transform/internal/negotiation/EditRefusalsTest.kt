@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.transform.internal.negotiation
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
@@ -21,6 +22,7 @@ import dev.jordond.filmstrip.transform.internal.composition
 import dev.jordond.filmstrip.transform.internal.refusal
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.milliseconds
@@ -191,6 +193,26 @@ class EditRefusalsTest {
     message(edit, ExportSpec(frameRate = 0)) shouldBe
       "A track's start is negative, so it would begin before the composition does. A start is measured from the " +
       "start of the composition and has to be zero or later."
+  }
+
+  @Test
+  fun `a clip speed outside the range is refused by name`() {
+    listOf(0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY, CLIP_SPEED_RANGE.endInclusive * 2).forEach { speed ->
+      val edit = composition(fixture.clip().withSpeed(speed))
+
+      val error = structuralRefusal(edit, ExportSpec(), fixture.infos(edit), Streams(true, false))
+
+      error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldContain "speed of $speed"
+    }
+  }
+
+  @Test
+  fun `the ends of the clip speed range are not refused`() {
+    listOf(CLIP_SPEED_RANGE.start, 0.7, CLIP_SPEED_RANGE.endInclusive).forEach { speed ->
+      val edit = composition(fixture.clip().withSpeed(speed))
+
+      structuralRefusal(edit, ExportSpec(), fixture.infos(edit), Streams(true, false)).shouldBeNull()
+    }
   }
 
   private fun refusal(

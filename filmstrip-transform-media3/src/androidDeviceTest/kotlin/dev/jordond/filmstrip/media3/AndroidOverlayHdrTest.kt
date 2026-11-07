@@ -32,6 +32,7 @@ import dev.jordond.filmstrip.style.TextStyle
 import dev.jordond.filmstrip.test.HdrOverlayCells
 import dev.jordond.filmstrip.test.OverlayPixels.pngOf
 import dev.jordond.filmstrip.test.assumeEncodesHdr
+import dev.jordond.filmstrip.test.firstTenBitFrame
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe

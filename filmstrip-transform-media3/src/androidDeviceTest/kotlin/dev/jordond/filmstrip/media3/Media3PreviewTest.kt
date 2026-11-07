@@ -257,7 +257,7 @@ class Media3PreviewTest {
         ),
       layoutSize = output,
       fill = fill,
-      duration = trackStart + clips.fold(Duration.ZERO) { total, clip -> total + clip.duration },
+      duration = trackStart + clips.fold(Duration.ZERO) { total, clip -> total + clip.sourceDuration },
       hdr = ResolvedHdr.Keep,
       hdrTransfer = null,
       audio = AudioSpec.Keep,

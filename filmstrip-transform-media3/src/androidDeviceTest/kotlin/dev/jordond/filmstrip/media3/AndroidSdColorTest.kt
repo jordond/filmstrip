@@ -20,6 +20,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.Media3ExportProbe.Companion.TIMEOUT
 import dev.jordond.filmstrip.media3.internal.bounds.readClips
 import dev.jordond.filmstrip.media3.internal.preview.toMedia3Preview
+import dev.jordond.filmstrip.test.firstEightBitFrame
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import io.kotest.assertions.withClue
 import io.kotest.matchers.doubles.shouldBeGreaterThan

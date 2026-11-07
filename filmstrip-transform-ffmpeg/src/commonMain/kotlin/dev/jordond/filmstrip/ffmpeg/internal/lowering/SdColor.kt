@@ -2,10 +2,14 @@ package dev.jordond.filmstrip.ffmpeg.internal.lowering
 
 import dev.jordond.filmstrip.color.EBU_PRIMARIES
 import dev.jordond.filmstrip.color.SMPTE_C_PRIMARIES
+import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 
 /**
  * The filter that moves an SD clip onto BT.709's primaries, which [SdColor.toBt709Nodes] lowers to.
@@ -57,6 +61,46 @@ internal data class SdColor(
         FilterNode("crop", "w" to frame.width.toString(), "h" to frame.height.toString(), "x" to "0", "y" to "0"),
       )
     }
+}
+
+/**
+ * What a plan's laid clips decode with and the colour its frames end up on.
+ *
+ * A plan of one SD colour keeps it, codes and tags, unless an effect left in it draws on the frame's colour, which it
+ * reads as BT.709 on every backend. Anything else ends up on one tag for every clip, and BT.709 is the one both a tone
+ * map and a clip on no SD colour already read as.
+ *
+ * @param sdColors The sources on SD primaries, and the colour each decodes with.
+ * @param keepsSdColor Whether no effect in the plan reads the frame's colour.
+ */
+internal class LaidColor(
+  private val negotiated: ResolvedComposition,
+  private val sdColors: Map<MediaSource, SdColor>,
+  private val keepsSdColor: Boolean,
+) {
+  private val laid: List<SdColor?> by lazy {
+    negotiated.tracks
+      .firstOrNull()
+      ?.clips
+      .orEmpty()
+      .filterNot { outputSlotsOf(it.span, negotiated.output.frameRate).isEmpty() }
+      .map { sdColors[it.source] }
+      .distinct()
+  }
+
+  /**
+   * The one SD colour every laid clip keeps, or null for a plan keeping none.
+   */
+  val kept: SdColor? by lazy {
+    laid.singleOrNull().takeIf { keepsSdColor && negotiated.hdr != ResolvedHdr.ToneMap }
+  }
+
+  /**
+   * Whether every frame the graph hands on is BT.709, so the file is tagged that way.
+   */
+  val writesBt709: Boolean by lazy {
+    negotiated.hdr == ResolvedHdr.ToneMap || (kept == null && laid.any { it != null })
+  }
 }
 
 /**

@@ -36,7 +36,7 @@ public class EditComposition(
     get() = tracks.firstOrNull()?.clips ?: emptyList()
 
   /**
-   * Total duration after trimming.
+   * Total duration after trimming and each clip's speed.
    *
    * The longest non-looping track, since tracks play together. Null while any clip's trim is
    * open-ended, and null when every track loops, which is an edit with nothing to bound it. Probe
@@ -220,9 +220,15 @@ public enum class TrackContent {
  *   included, since reaching it costs no accuracy.
  * @property fadeIn How long the audio takes to rise from silence, starting at the first kept
  *   sample. It multiplies [audio] rather than replacing it, so a fade over a level or an envelope
- *   reaches what that asked for.
+ *   reaches what that asked for. Measured on the composition timeline, so [speed] does not stretch it.
  * @property fadeOut How long the audio takes to fall to silence before the last kept sample.
- *   Measured against [trim], so retrimming the clip moves the fade with it.
+ *   Measured on the composition timeline back from the end of [trim], so retrimming the clip moves
+ *   the fade with it and [speed] does not stretch it.
+ * @property speed How fast [trim] plays, where 2.0 runs it in half the time and 0.5 in twice the time, always keeping
+ * the audio's pitch. [trim] stays in source time and everything else on this clip, the effects, overlays, fades and
+ * envelopes, is in composition time. A speed outside [CLIP_SPEED_RANGE] is refused with
+ * [dev.jordond.filmstrip.FilmstripError.InvalidComposition] when the composition is planned. A still shows the same
+ * pixels at any speed, so its length ignores this.
  */
 @Poko
 public class Clip(
@@ -233,48 +239,57 @@ public class Clip(
   public val snapWithin: Duration = Duration.ZERO,
   public val fadeIn: Duration = Duration.ZERO,
   public val fadeOut: Duration = Duration.ZERO,
+  public val speed: Double = 1.0,
 ) {
   /**
-   * How long this clip contributes, or null while it is untrimmed or open-ended and the source has
-   * not been probed.
+   * How long this clip runs on the composition timeline, or null while it is untrimmed or open-ended
+   * and the source has not been probed, or while [speed] is one the planner will refuse.
    *
    * A still needs no probe, because its source already says how long it is held, so even an
    * open-ended trim over one resolves to the length a backend lays.
    */
   public val duration: Duration?
-    get() = (source as? MediaSource.Image)?.let { stillHold(it.duration, trim) } ?: trim?.duration
+    get() =
+      (source as? MediaSource.Image)?.let { stillHold(it.duration, trim) }
+        ?: trim?.duration?.takeIf { isValidClipSpeed(speed) }?.let { outputLengthOf(it, speed) }
 
   /**
    * A copy trimmed to [trim], or untrimmed when null.
    */
-  public fun withTrim(trim: TimeRange?): Clip = Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut)
+  public fun withTrim(trim: TimeRange?): Clip = Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed)
 
   /**
    * A copy with different clip-level effects.
    */
   public fun withEffects(effects: List<EffectSpec>): Clip =
-    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut)
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed)
 
   /**
    * A copy at a different audio level.
    */
-  public fun withAudio(audio: AudioLevel): Clip = Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut)
+  public fun withAudio(audio: AudioLevel): Clip = Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed)
 
   /**
    * A copy that lets the cut move back up to [snapWithin] to reach a sync sample.
    */
   public fun withSnapWithin(snapWithin: Duration): Clip =
-    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut)
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed)
 
   /**
    * A copy whose audio rises from silence over [fadeIn].
    */
-  public fun withFadeIn(fadeIn: Duration): Clip = Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut)
+  public fun withFadeIn(fadeIn: Duration): Clip = Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed)
 
   /**
    * A copy whose audio falls to silence over [fadeOut].
    */
-  public fun withFadeOut(fadeOut: Duration): Clip = Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut)
+  public fun withFadeOut(fadeOut: Duration): Clip =
+    Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed)
+
+  /**
+   * A copy that plays its trim at [speed].
+   */
+  public fun withSpeed(speed: Double): Clip = Clip(source, trim, effects, audio, snapWithin, fadeIn, fadeOut, speed)
 }
 
 /**

@@ -158,7 +158,7 @@ class Media3ClippingTest {
         ),
       layoutSize = Size(640, 360),
       fill = Fill.Black,
-      duration = clip.duration,
+      duration = clip.sourceDuration,
       hdr = ResolvedHdr.Keep,
       hdrTransfer = null,
       audio = AudioSpec.Keep,

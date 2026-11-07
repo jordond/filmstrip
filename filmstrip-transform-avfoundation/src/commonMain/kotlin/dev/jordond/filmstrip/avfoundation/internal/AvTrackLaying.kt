@@ -13,8 +13,10 @@ import dev.jordond.filmstrip.avfoundation.internal.time.ticksBetween
 import dev.jordond.filmstrip.avfoundation.internal.time.timeRangeOf
 import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
+import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
+import dev.jordond.filmstrip.edit.sourceLengthOf
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.internal.AppleScratch
 import dev.jordond.filmstrip.media.HdrTransfer
@@ -27,6 +29,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.AVFoundation.AVAssetTrack
+import platform.AVFoundation.AVMediaTypeAudio
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.AVMutableCompositionTrack
 import platform.AVFoundation.AVURLAsset
@@ -37,6 +40,7 @@ import platform.CoreMedia.CMTimeAdd
 import platform.CoreMedia.CMTimeCompare
 import platform.CoreMedia.CMTimeConvertScale
 import platform.CoreMedia.CMTimeMake
+import platform.CoreMedia.CMTimeMaximum
 import platform.CoreMedia.CMTimeMinimum
 import platform.CoreMedia.CMTimeRangeGetEnd
 import platform.CoreMedia.CMTimeRangeMake
@@ -62,10 +66,13 @@ internal class Placement(
  *
  * @param drawsSd Whether the plan draws an SD clip's colour at all, which it does not when it encodes a grade. Every
  * clip reads as having no SD colour then, and nothing decodes a frame or needs the kernel.
+ * @param stretched The audio an export already rendered to its clips' speeds, or null when a clip's audio track is
+ * scaled instead, which is what a preview's player does.
  */
 internal class AssetCache(
   private val bytesRoot: String = AppleScratch.defaultRoot,
   private val drawsSd: Boolean = true,
+  private val stretched: StretchedAudio? = null,
   private val kernelLimit: () -> String? = { sdPrimariesKernelLimit() },
   private val readSdColor: (AVURLAsset, Int) -> SdSourceColor? = { asset, longestSide ->
     asset.sdSourceColor(longestSide)
@@ -76,6 +83,11 @@ internal class AssetCache(
 
   fun of(source: MediaSource): AVURLAsset =
     assets.getOrPut(source) { AVURLAsset(uRL = source.toNSURL(bytesRoot), options = null) }
+
+  /**
+   * The track holding [clip]'s audio already at its speed, or null when its source is laid.
+   */
+  fun stretchedAudioOf(clip: ResolvedClip): AVAssetTrack? = stretched?.trackOf(clip)
 
   /**
    * The SD colour [clip]'s frames decode with, read once per source, or null for a still, a clip with no video, an HDR
@@ -115,9 +127,9 @@ internal class AssetCache(
  *
  * Each clip opens at the source time the plan resolved it to. A cut that moved back to open a copy
  * on a sync sample has already moved by the time it arrives here, so nothing is re-derived. A clip
- * laid exactly runs no longer than [ResolvedClip.duration], and one on the grid runs as far as its
- * last slot, which can reach past the source's last frame. [insertHolding] holds that frame until
- * the slot ends.
+ * laid exactly runs no longer than [ResolvedClip.outputDuration], and one on the grid runs as far as
+ * its last slot, which can reach past the source's last frame. [insertHolding] holds that frame until
+ * the slot ends. A clip at speed reads the source window that length plays and scales it onto the slot.
  *
  * The last clip laid on the grid runs on over [tail] as well, to the slot the composition ends on,
  * holding the frame its own last slot shows. Its placement carries that slot's time as
@@ -151,7 +163,7 @@ internal fun ResolvedTrack.layOnto(
     var heldFrom: Duration? = null
     if (grid == null) {
       at = clip.span.start
-      end = at + clip.duration
+      end = at + clip.outputDuration
     } else {
       val slots = outputSlotsOf(clip.span, grid)
       if (slots.isEmpty()) return@mapIndexedNotNull null
@@ -174,7 +186,8 @@ internal fun ResolvedTrack.layOnto(
  * clip can be laid there.
  *
  * A still is cut from [stillSeed] on the video track and is empty time on any other. A clip whose source has no track
- * of [mediaType] is empty time too. On the grid at [grid] the source goes through [insertHolding], and off it the
+ * of [mediaType] is empty time too. Audio an export already stretched goes in unscaled from the start of its own file,
+ * which already runs for the slot. On the grid at [grid] the source goes through [insertHolding], and off it the
  * resolved span is laid as it is.
  */
 @OptIn(ExperimentalForeignApi::class)
@@ -190,33 +203,113 @@ private fun AVMutableCompositionTrack.insertClip(
   // On the grid both ends are rounded onto a tick and the length is what lies between, so the next
   // clip opens on the tick this one ends on. A length rounded on its own lands a tick either side of
   // that at 48 fps, which leaves a hole or an overlap at the seam.
-  val length = if (grid == null) clip.duration.toCMTime() else ticksBetween(at, placement.end)
+  val length = if (grid == null) clip.outputDuration.toCMTime() else ticksBetween(at, placement.end)
   val still = clip.source is MediaSource.Image
   val source =
     if (still) null else assets.of(clip.source).tracksWithMediaType(mediaType).firstOrNull() as? AVAssetTrack
+  val stretched = if (mediaType == AVMediaTypeAudio) assets.stretchedAudioOf(clip) else null
   val inserted =
     when {
       still && mediaType == AVMediaTypeVideo -> {
         insertStill(at, placement.end, frameRate)
         true
       }
+      stretched != null -> {
+        insertTimeRange(
+          CMTimeRangeMake(start = Duration.ZERO.toCMTime(), duration = length),
+          stretched,
+          at.toCMTime(),
+          null,
+        )
+      }
       source == null -> {
         false
       }
       grid != null -> {
-        insertHolding(source, clip.start, at, length, placement.heldFrom)
+        insertHolding(source, clip.start, at, length, clip.speed, placement.heldFrom)
       }
       else -> {
-        insertTimeRange(
-          timeRange = CMTimeRangeMake(start = clip.start.toCMTime(), duration = length),
-          ofTrack = source,
-          atTime = at.toCMTime(),
-          error = null,
-        )
+        insertScaled(source, clip.start, at, length, clip.speed)
       }
     }
   if (!inserted) insertEmptyTimeRange(CMTimeRangeMake(start = at.toCMTime(), duration = length))
 }
+
+/**
+ * Lays [source], read from [from], onto this track at [at] so it runs for [length] at [speed].
+ *
+ * A source that ends before the window [length] plays takes the time it has at [speed] and leaves the rest empty, so
+ * the
+ * clip after it still opens on its own slot. At a speed of 1 the range goes in as it is and reaching past the source's
+ * end is left to AVFoundation.
+ */
+@OptIn(ExperimentalForeignApi::class)
+private fun AVMutableCompositionTrack.insertScaled(
+  source: AVAssetTrack,
+  from: Duration,
+  at: Duration,
+  length: CValue<CMTime>,
+  speed: Double,
+): Boolean {
+  val atTime = at.toCMTime()
+  if (speed == 1.0) {
+    return insertTimeRange(CMTimeRangeMake(start = from.toCMTime(), duration = length), source, atTime, null)
+  }
+  val window = sourceTicksOf(length, speed)
+  val available = CMTimeMinimum(window, ticksToSourceEnd(source, from))
+  if (CMTimeCompare(available, CMTimeMake(value = 1, timescale = MEDIA_TIMESCALE)) < 0) return false
+  if (!insertTimeRange(
+      CMTimeRangeMake(start = from.toCMTime(), duration = available),
+      source,
+      atTime,
+      null,
+    )
+  ) {
+    return false
+  }
+  val played = if (CMTimeCompare(available, window) < 0) playedTicksOf(available, speed, length) else length
+  scaleTimeRange(CMTimeRangeMake(start = atTime, duration = available), toDuration = played)
+  if (CMTimeCompare(played, length) < 0) {
+    insertEmptyTimeRange(
+      CMTimeRangeMake(start = CMTimeAdd(atTime, played), duration = CMTimeSubtract(length, played)),
+    )
+  }
+  return true
+}
+
+// The source a track length plays at speed, in whole ticks, since a segment can only be inserted in those.
+@OptIn(ExperimentalForeignApi::class)
+private fun sourceTicksOf(
+  length: CValue<CMTime>,
+  speed: Double,
+): CValue<CMTime> = if (speed == 1.0) length else sourceLengthOf(length.toDuration(), speed).toCMTime()
+
+// The track time whole ticks of source play for at speed, held to at least a tick and at most [ceiling].
+@OptIn(ExperimentalForeignApi::class)
+private fun playedTicksOf(
+  source: CValue<CMTime>,
+  speed: Double,
+  ceiling: CValue<CMTime>,
+): CValue<CMTime> =
+  if (speed == 1.0) {
+    source
+  } else {
+    CMTimeMinimum(
+      CMTimeMaximum(outputLengthOf(source.toDuration(), speed).toCMTime(), CMTimeMake(1, MEDIA_TIMESCALE)),
+      ceiling,
+    )
+  }
+
+@OptIn(ExperimentalForeignApi::class)
+private fun ticksToSourceEnd(
+  source: AVAssetTrack,
+  from: Duration,
+): CValue<CMTime> =
+  CMTimeConvertScale(
+    CMTimeSubtract(CMTimeRangeGetEnd(source.timeRange), from.toCMTime()),
+    MEDIA_TIMESCALE,
+    kCMTimeRoundingMethod_RoundTowardZero,
+  )
 
 /**
  * Lays [length] of [source], read from [from], onto this track at [at], holding the source's last
@@ -231,6 +324,10 @@ private fun AVMutableCompositionTrack.insertClip(
  * With [heldFrom] set the range is cut one tick after that time as well, whichever comes first, so
  * the frame shown there is the one stretched to the end of the length.
  *
+ * At [speed] the source window is scaled onto the time it plays for first, and its last tick of source is what is
+ * stretched over the rest. That is a tick of the source rather than of the track, so the held frame can't change half
+ * way through however fast the clip runs.
+ *
  * @param heldFrom The time on this track whose frame is held to the end of the length, or null to
  * read the source for as long as it lasts.
  */
@@ -240,32 +337,50 @@ private fun AVMutableCompositionTrack.insertHolding(
   from: Duration,
   at: Duration,
   length: CValue<CMTime>,
+  speed: Double = 1.0,
   heldFrom: Duration? = null,
 ): Boolean {
   val tick = CMTimeMake(value = 1, timescale = MEDIA_TIMESCALE)
-  val toSourceEnd =
-    CMTimeConvertScale(
-      CMTimeSubtract(CMTimeRangeGetEnd(source.timeRange), from.toCMTime()),
-      MEDIA_TIMESCALE,
-      kCMTimeRoundingMethod_RoundTowardZero,
-    )
-  val held = heldFrom?.let { CMTimeMinimum(toSourceEnd, CMTimeAdd(ticksBetween(at, it), tick)) } ?: toSourceEnd
-  val short = CMTimeCompare(held, length) < 0 && CMTimeCompare(held, tick) >= 0
+  val atTime = at.toCMTime()
+  val window = sourceTicksOf(length, speed)
+  val toSourceEnd = ticksToSourceEnd(source, from)
+  val held =
+    heldFrom?.let { CMTimeMinimum(toSourceEnd, sourceTicksOf(CMTimeAdd(ticksBetween(at, it), tick), speed)) }
+      ?: toSourceEnd
+  val short = CMTimeCompare(held, window) < 0 && CMTimeCompare(held, tick) >= 0
+  val read = if (short) held else window
   val inserted =
     insertTimeRange(
-      timeRange = CMTimeRangeMake(start = from.toCMTime(), duration = if (short) held else length),
+      timeRange = CMTimeRangeMake(start = from.toCMTime(), duration = read),
       ofTrack = source,
-      atTime = at.toCMTime(),
+      atTime = atTime,
       error = null,
     )
-  if (inserted && short) {
-    val lastTick = CMTimeSubtract(CMTimeAdd(at.toCMTime(), held), tick)
+  if (!inserted) return false
+  if (short) {
+    val played = CMTimeSubtract(read, tick)
+    // Short of the length by a tick, since a fast clip's played part can round up to all of it, and the last tick has
+    // to hold what is left.
+    val shown =
+      if (CMTimeCompare(played, tick) <
+        0
+      ) {
+        played
+      } else {
+        playedTicksOf(played, speed, CMTimeSubtract(length, tick))
+      }
+    if (speed != 1.0 && CMTimeCompare(played, tick) >= 0) {
+      scaleTimeRange(CMTimeRangeMake(start = atTime, duration = played), toDuration = shown)
+    }
+    val lastTick = CMTimeAdd(atTime, shown)
     scaleTimeRange(
       timeRange = CMTimeRangeMake(start = lastTick, duration = tick),
-      toDuration = CMTimeSubtract(CMTimeAdd(at.toCMTime(), length), lastTick),
+      toDuration = CMTimeSubtract(CMTimeAdd(atTime, length), lastTick),
     )
+  } else if (speed != 1.0) {
+    scaleTimeRange(CMTimeRangeMake(start = atTime, duration = read), toDuration = length)
   }
-  return inserted
+  return true
 }
 
 /**

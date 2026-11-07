@@ -481,8 +481,8 @@ public final class dev/jordond/filmstrip/edit/AudioSpec$Volume : dev/jordond/fil
 }
 
 public final class dev/jordond/filmstrip/edit/Clip {
-	public synthetic fun <init> (Ldev/jordond/filmstrip/media/MediaSource;Ldev/jordond/filmstrip/edit/TimeRange;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioLevel;JJJILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public synthetic fun <init> (Ldev/jordond/filmstrip/media/MediaSource;Ldev/jordond/filmstrip/edit/TimeRange;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioLevel;JJJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/media/MediaSource;Ldev/jordond/filmstrip/edit/TimeRange;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioLevel;JJJDILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ldev/jordond/filmstrip/media/MediaSource;Ldev/jordond/filmstrip/edit/TimeRange;Ljava/util/List;Ldev/jordond/filmstrip/edit/AudioLevel;JJJDLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAudio ()Ldev/jordond/filmstrip/edit/AudioLevel;
 	public final fun getDuration-FghU774 ()Lkotlin/time/Duration;
@@ -491,6 +491,7 @@ public final class dev/jordond/filmstrip/edit/Clip {
 	public final fun getFadeOut-UwyO8pc ()J
 	public final fun getSnapWithin-UwyO8pc ()J
 	public final fun getSource ()Ldev/jordond/filmstrip/media/MediaSource;
+	public final fun getSpeed ()D
 	public final fun getTrim ()Ldev/jordond/filmstrip/edit/TimeRange;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
@@ -499,6 +500,7 @@ public final class dev/jordond/filmstrip/edit/Clip {
 	public final fun withFadeIn-LRDsOJo (J)Ldev/jordond/filmstrip/edit/Clip;
 	public final fun withFadeOut-LRDsOJo (J)Ldev/jordond/filmstrip/edit/Clip;
 	public final fun withSnapWithin-LRDsOJo (J)Ldev/jordond/filmstrip/edit/Clip;
+	public final fun withSpeed (D)Ldev/jordond/filmstrip/edit/Clip;
 	public final fun withTrim (Ldev/jordond/filmstrip/edit/TimeRange;)Ldev/jordond/filmstrip/edit/Clip;
 }
 
@@ -511,9 +513,14 @@ public final class dev/jordond/filmstrip/edit/ClipBuilder {
 	public final fun fadeIn-LRDsOJo (J)Ldev/jordond/filmstrip/edit/ClipBuilder;
 	public final fun fadeOut-LRDsOJo (J)Ldev/jordond/filmstrip/edit/ClipBuilder;
 	public final fun snapWithin-LRDsOJo (J)Ldev/jordond/filmstrip/edit/ClipBuilder;
+	public final fun speed (D)Ldev/jordond/filmstrip/edit/ClipBuilder;
 	public final fun trim (Ldev/jordond/filmstrip/edit/TimeRange;)Ldev/jordond/filmstrip/edit/ClipBuilder;
 	public final fun trim (Lkotlin/ranges/ClosedRange;)Ldev/jordond/filmstrip/edit/ClipBuilder;
 	public final fun trim-QTBD994 (JJ)Ldev/jordond/filmstrip/edit/ClipBuilder;
+}
+
+public final class dev/jordond/filmstrip/edit/ClipSpeedKt {
+	public static final fun getCLIP_SPEED_RANGE ()Lkotlin/ranges/ClosedFloatingPointRange;
 }
 
 public final class dev/jordond/filmstrip/edit/CompositionBuilder {
@@ -970,6 +977,7 @@ public final class dev/jordond/filmstrip/export/CopyBlocker : java/lang/Enum {
 	public static final field BitrateSet Ldev/jordond/filmstrip/export/CopyBlocker;
 	public static final field ClipGainChanged Ldev/jordond/filmstrip/export/CopyBlocker;
 	public static final field ClipHasEffects Ldev/jordond/filmstrip/export/CopyBlocker;
+	public static final field ClipSpeedChanged Ldev/jordond/filmstrip/export/CopyBlocker;
 	public static final field CompositionGainChanged Ldev/jordond/filmstrip/export/CopyBlocker;
 	public static final field CompositionHasEffects Ldev/jordond/filmstrip/export/CopyBlocker;
 	public static final field FrameRateSet Ldev/jordond/filmstrip/export/CopyBlocker;

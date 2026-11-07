@@ -1,10 +1,13 @@
 package dev.jordond.filmstrip.media3.internal
 
+import android.content.Context
 import androidx.media3.common.Effect
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.ChannelMixingAudioProcessor
 import androidx.media3.common.audio.ChannelMixingMatrix
 import androidx.media3.common.audio.ToInt16PcmAudioProcessor
+import androidx.media3.effect.GlEffect
+import androidx.media3.effect.GlShaderProgram
 import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.TextureOverlay
 import androidx.media3.transformer.EditedMediaItem
@@ -85,7 +88,7 @@ internal fun audioProcessors(
 /**
  * Lowers a resolved chain, gathering the overlays in it into as few passes as they fit into.
  *
- * A resolver hands back a [TextureOverlay] rather than an [Effect] for anything it composites,
+ * A resolver hands back a [TextureOverlay] factory rather than an [Effect] for anything it composites,
  * because media3 blends every overlay in one [OverlayEffect] with a single draw call, whereas a
  * chain of N `OverlayEffect`s is N render passes over the whole frame. Canonical order already
  * leaves the overlays adjacent, so gathering each run where it appears keeps the declared order and
@@ -93,18 +96,18 @@ internal fun audioProcessors(
  */
 internal fun List<ResolvedEffect>.toMedia3Effects(): List<Effect> {
   val effects = mutableListOf<Effect>()
-  val overlays = mutableListOf<TextureOverlay>()
+  val overlays = mutableListOf<() -> TextureOverlay>()
 
   fun flush() {
     if (overlays.isEmpty()) return
-    effects += OverlayEffect(overlays.toList())
+    effects += OverlayPass(overlays.toList())
     overlays.clear()
   }
 
   forEach { resolved ->
     when (val handle = resolved.effect.handle) {
       is Media3Handle.Overlay -> {
-        overlays += handle.overlay
+        overlays += handle.newOverlay
         if (overlays.size == MAX_OVERLAYS_PER_EFFECT) flush()
       }
       is Media3Handle.Video -> {
@@ -116,6 +119,23 @@ internal fun List<ResolvedEffect>.toMedia3Effects(): List<Effect> {
 
   flush()
   return effects
+}
+
+/**
+ * A run of overlays blended in one [OverlayEffect], with every overlay built for the graph that draws it.
+ *
+ * media3 keeps an uploaded texture's name on the [TextureOverlay] and frees it on release, with no note of the GL
+ * context it came from. The player, a frame reader and a photo's processor each run a context of their own, so an
+ * overlay that two of them shared would bind a name that means something else in the second one. Building the overlays
+ * here gives each shader program its own.
+ */
+private class OverlayPass(
+  private val overlays: List<() -> TextureOverlay>,
+) : GlEffect {
+  override fun toGlShaderProgram(
+    context: Context,
+    useHdr: Boolean,
+  ): GlShaderProgram = OverlayEffect(overlays.map { it() }).toGlShaderProgram(context, useHdr)
 }
 
 private const val CHANNEL_COUNT = 2

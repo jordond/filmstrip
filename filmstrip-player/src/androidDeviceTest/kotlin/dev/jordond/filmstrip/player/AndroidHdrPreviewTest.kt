@@ -143,7 +143,7 @@ class AndroidHdrPreviewTest {
             .map { it.effect.handle }
             .filterIsInstance<Media3Handle.Overlay>()
             .single()
-            .overlay
+            .newOverlay()
         withClue("the preview's overlay is not drawn at the multiplier its texels were mapped against") {
           overlay.getOverlaySettings(0L).hdrLuminanceMultiplier shouldBe
             media3WorkingLight(authoredHdrNits(WHITE), HdrTransfer.Pq).max()

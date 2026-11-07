@@ -4,6 +4,8 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.edit.sourceOffsetAt
+import dev.jordond.filmstrip.effect.FilterNode
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.AudioFormat
 import dev.jordond.filmstrip.export.OutputFormat
@@ -13,18 +15,22 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSpec
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.arguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.formatSeconds
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.hdrPixelFormatFor
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewArguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewFrameBytes
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewLanding
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.writtenPixelFormat
 import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.geometry.Size
+import dev.jordond.filmstrip.media.HdrTransfer
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldEndWith
 import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -35,17 +41,43 @@ import kotlin.time.DurationUnit
  * What the pump puts on the command line, and what it shares with the export that wrote the graph.
  *
  * The first test is the parity claim on this backend at the level a second graph builder would
- * break it: one lowering, two argument lists, one filter graph between them.
+ * break it: one lowering, two argument lists, one filter graph between them, which the pump ends on
+ * the format the encoder writes.
  */
 class PreviewInvocationTest {
   @Test
-  fun `runs the same filter graph the export runs, byte for byte`() {
+  fun `runs the export's filter graph byte for byte and ends it on the format the export writes`() {
     val invocation = graphed()
 
     val exported = invocation.arguments(TOOLCHAIN, FfmpegConfig(), INPUTS, emptyList(), "/out.mp4")
     val previewed = invocation.previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, emptyList(), 400.milliseconds)
 
-    previewed.after("-filter_complex") shouldBe exported.after("-filter_complex")
+    val written = exported.after("-pix_fmt")
+    previewed.after("-filter_complex") shouldBe
+      "${exported.after("-filter_complex")};[v]format=pix_fmts=$written[vshown]"
+  }
+
+  @Test
+  fun `ends a kept grade on the 10-bit format the export writes`() {
+    val invocation = graphed(hdrTransfer = HdrTransfer.Pq, encoder = "libx265")
+
+    val exported = invocation.arguments(TOOLCHAIN, FfmpegConfig(), INPUTS, emptyList(), "/out.mp4")
+    val previewed = invocation.previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, emptyList(), Duration.ZERO)
+
+    val written = exported.after("-pix_fmt")
+    written shouldBe hdrPixelFormatFor("libx265", HdrTransfer.Pq)
+    previewed.after("-filter_complex") shouldEndWith ";[v]format=pix_fmts=$written[vshown]"
+  }
+
+  @Test
+  fun `moves a kept SD colour after the format the export writes`() {
+    val color = FilterNode("colorspace", "all" to "bt709")
+    val previewed =
+      graphed(previewColor = listOf(color))
+        .previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, emptyList(), Duration.ZERO)
+
+    previewed.after("-filter_complex") shouldEndWith
+      ";[v]format=pix_fmts=${writtenPixelFormat(null)},colorspace=all=bt709[vshown]"
   }
 
   // -ss is an input option, so it only means "seek before decoding" ahead of the -i it belongs to.
@@ -150,6 +182,42 @@ class PreviewInvocationTest {
     previewed.after("-t") shouldBe secondsOf(1.seconds - slotOf(ROUNDS_UP))
   }
 
+  // A scrub lands on a slot of the composition, and the seek and the window read source time from there.
+  @Test
+  fun `seeks and shortens through the source a scrub at speed reaches`() {
+    listOf(0.7, 1.5).forEach { speed ->
+      val previewed =
+        copied(window = 3.seconds, seekSpeed = speed)
+          .previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, emptyList(), ROUNDS_UP)
+
+      val reached = sourceOffsetAt(slotOf(ROUNDS_UP), speed)
+      previewed.after("-ss") shouldBe secondsOf(reached)
+      previewed.after("-t") shouldBe secondsOf(3.seconds - reached)
+    }
+  }
+
+  // A branch moved over the scrub sits on the composition clock, which speed leaves alone.
+  @Test
+  fun `moves a rebased branch by the composition time a scrub at speed lands on`() {
+    val previewed =
+      overlaid(seekSpeed = 0.7).previewArguments(TOOLCHAIN, FfmpegConfig(), OVERLAY_INPUTS, emptyList(), ROUNDS_UP)
+
+    previewed.after("-itsoffset") shouldBe secondsOf(slotOf(ROUNDS_UP))
+    previewed.after("-ss") shouldBe secondsOf(SEEK_BASE + sourceOffsetAt(slotOf(ROUNDS_UP), 0.7))
+  }
+
+  // The frame showing when the window opens can sit any distance ahead of the seek, and only a clip at speed reads it.
+  @Test
+  fun `only a clip at speed opens on the sync sample ahead of the seek`() {
+    val atSpeed =
+      overlaid(seekSpeed = 0.7).previewArguments(TOOLCHAIN, FfmpegConfig(), OVERLAY_INPUTS, emptyList(), ROUNDS_UP)
+    atSpeed[atSpeed.indexOf("-ss") - 1] shouldBe "-noaccurate_seek"
+
+    previewArgumentsFor(ROUNDS_UP) shouldNotContain "-noaccurate_seek"
+    copied(window = 3.seconds, seekSpeed = 0.7)
+      .previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, emptyList(), ROUNDS_UP) shouldNotContain "-noaccurate_seek"
+  }
+
   // The graph cuts a clip to its slot count from the first frame it is handed, and a windowed
   // preview hands it the frame on the scrub's slot, so that cut falls past the end of the video. The
   // pump stops on the video's last slot instead, and the bound is an option of the pipe's output
@@ -220,7 +288,7 @@ class PreviewInvocationTest {
   fun `maps the audio branch into a muxer that writes nothing`() {
     val previewed = previewArgumentsFor(Duration.ZERO)
 
-    previewed.allAfter("-map") shouldBe listOf("[a]", "[v]")
+    previewed.allAfter("-map") shouldBe listOf("[a]", "[vshown]")
     previewed.allAfter("-f") shouldBe listOf("null", "rawvideo")
   }
 
@@ -253,7 +321,8 @@ class PreviewInvocationTest {
 
     invocation
       .previewArguments(TOOLCHAIN, FfmpegConfig(), INPUTS, listOf(SIDECAR_PATH), Duration.ZERO)
-      .after("-filter_complex") shouldBe "[0:v]lut3d=file=/scratch/grade\\\\:1/asset0.cube[v]"
+      .after("-filter_complex")
+      .substringBefore(";") shouldBe "[0:v]lut3d=file=/scratch/grade\\\\:1/asset0.cube[v]"
   }
 
   // The frame comes off OUTPUT. Four bytes a pixel is this backend's own wire format, from the rgba
@@ -271,22 +340,32 @@ class PreviewInvocationTest {
   private fun List<String>.allAfter(flag: String): List<String> =
     withIndex().filter { it.value == flag }.map { this[it.index + 1] }
 
-  private fun graphed(seekBase: Duration? = SEEK_BASE): Invocation =
+  private fun graphed(
+    seekBase: Duration? = SEEK_BASE,
+    hdrTransfer: HdrTransfer? = null,
+    encoder: String = "libx264",
+    previewColor: List<FilterNode> = emptyList(),
+  ): Invocation =
     Invocation(
       inputs = listOf(InputSpec(InputSource.OfPath("/fixtures/a.mp4"))),
       filterGraph = "[0:v]trim=start=0.500000:end=1.500000[v];[0:a]anull[a]",
       videoLabel = "v",
       audioLabel = "a",
       output = OUTPUT,
-      videoEncoder = "libx264",
+      videoEncoder = encoder,
       duration = 1.seconds,
+      hdrTransfer = hdrTransfer,
+      previewColor = previewColor,
       seekBase = seekBase,
       videoSlots = VIDEO_SLOTS,
     )
 
   // A clip with an overlay merged onto it: the image is looped at the output rate and its branch
   // ends on the setpts that [InputSpec.rebased] stands for.
-  private fun overlaid(rebased: Boolean = true): Invocation =
+  private fun overlaid(
+    rebased: Boolean = true,
+    seekSpeed: Double = 1.0,
+  ): Invocation =
     Invocation(
       inputs =
         listOf(
@@ -305,13 +384,17 @@ class PreviewInvocationTest {
       videoEncoder = "libx264",
       duration = 1.seconds,
       seekBase = SEEK_BASE,
+      seekSpeed = seekSpeed,
     )
 
   private fun slotOf(at: Duration): Duration = outputSlotTime(outputSlotOf(at, RATE), RATE)
 
   private fun secondsOf(time: Duration): String = formatSeconds(time.toDouble(DurationUnit.SECONDS))
 
-  private fun copied(window: Duration? = null): Invocation =
+  private fun copied(
+    window: Duration? = null,
+    seekSpeed: Double = 1.0,
+  ): Invocation =
     Invocation(
       inputs =
         listOf(
@@ -325,6 +408,7 @@ class PreviewInvocationTest {
       duration = 1.seconds,
       copy = true,
       seekBase = Duration.ZERO,
+      seekSpeed = seekSpeed,
     )
 
   private companion object {

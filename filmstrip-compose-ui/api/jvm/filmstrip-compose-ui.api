@@ -236,7 +236,7 @@ public final class dev/jordond/filmstrip/compose/ui/component/TimelineRulerKt {
 }
 
 public final class dev/jordond/filmstrip/compose/ui/component/TrimOverlayKt {
-	public static final fun TrimOverlay-HXNGIdc (Ldev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/compose/ui/geometry/TimelineScale;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function0;Ldev/jordond/filmstrip/compose/ui/interaction/TrimConstraint;Ldev/jordond/filmstrip/compose/ui/TimelineColors;FFLandroidx/compose/runtime/Composer;II)V
+	public static final fun TrimOverlay-KBW6s6s (Ldev/jordond/filmstrip/edit/TimeRange;Ldev/jordond/filmstrip/compose/ui/geometry/TimelineScale;Lkotlin/jvm/functions/Function1;Landroidx/compose/ui/Modifier;Lkotlin/jvm/functions/Function0;Ldev/jordond/filmstrip/compose/ui/interaction/TrimConstraint;Ldev/jordond/filmstrip/compose/ui/TimelineColors;FFDLandroidx/compose/runtime/Composer;II)V
 }
 
 public final class dev/jordond/filmstrip/compose/ui/geometry/CropFrame {

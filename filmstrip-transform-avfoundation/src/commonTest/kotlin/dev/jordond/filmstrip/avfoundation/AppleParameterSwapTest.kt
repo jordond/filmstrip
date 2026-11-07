@@ -256,7 +256,7 @@ class AppleParameterSwapTest {
         ),
       layoutSize = OUTPUT,
       fill = Fill.Black,
-      duration = clips.fold(Duration.ZERO) { total, clip -> total + clip.duration },
+      duration = clips.fold(Duration.ZERO) { total, clip -> total + clip.sourceDuration },
       hdr = ResolvedHdr.Keep,
       hdrTransfer = null,
       audio = AudioSpec.Keep,

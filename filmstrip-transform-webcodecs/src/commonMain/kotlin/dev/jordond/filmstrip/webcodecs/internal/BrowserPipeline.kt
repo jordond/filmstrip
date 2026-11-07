@@ -5,7 +5,6 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import dev.jordond.filmstrip.webcodecs.internal.render.BrowserCompositor
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlin.math.abs
 
 /**
  * The export itself: every clip demuxed, decoded, drawn through one WebGL pass, encoded and muxed,
@@ -132,14 +131,14 @@ internal class BrowserPipeline(
         currentCoroutineContext().ensureActive()
 
         val drawn = minOf(slot, clip.frames - 1)
-        val sourceUs = clip.trimStartUs + drawn * render.stepUs
+        val sourceUs = clip.sourceUsAt(drawn * render.stepUs)
         while (ahead != null && ahead.microsecondTimestamp <= sourceUs) {
           current?.close()
           current = ahead
           ahead = stream.next()
         }
 
-        val chosen = nearest(current, ahead, sourceUs) ?: break
+        val chosen = nearerOf(current, ahead, sourceUs) ?: break
         val slotUs = render.slotUs(clip.firstSlot + drawn)
         compositor.draw(chosen, slotUs, render.compositionOverlays, render.compositionPasses)
 
@@ -170,18 +169,6 @@ internal class BrowserPipeline(
       frame.close()
     }
   }
-
-  private fun nearest(
-    current: VideoSample?,
-    ahead: VideoSample?,
-    sourceUs: Double,
-  ): VideoSample? =
-    when {
-      current == null -> ahead
-      ahead == null -> current
-      abs(ahead.microsecondTimestamp - sourceUs) < abs(current.microsecondTimestamp - sourceUs) -> ahead
-      else -> current
-    }
 }
 
 /**

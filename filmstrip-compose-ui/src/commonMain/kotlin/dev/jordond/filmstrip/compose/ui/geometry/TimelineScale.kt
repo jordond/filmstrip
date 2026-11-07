@@ -7,7 +7,7 @@ import kotlin.time.DurationUnit
 import kotlin.time.toDuration
 
 /**
- * The mapping between source time and content pixels at one zoom level.
+ * The mapping between composition time and content pixels at one zoom level.
  *
  * The ruler, the tiles, the playhead and the trim handles all read their geometry from this, so a strip that scrolls
  * cannot drift out of agreement with what is drawn over it.
@@ -26,7 +26,7 @@ import kotlin.time.toDuration
  * }
  * ```
  *
- * @property duration How much source time the timeline covers.
+ * @property duration How much composition time the timeline covers.
  * @property pixelsPerSecond How wide one second of that is drawn.
  */
 @Poko
@@ -49,7 +49,7 @@ public class TimelineScale(
     (span.toDouble(DurationUnit.SECONDS) * pixelsPerSecond).toFloat().coerceAtLeast(0f)
 
   /**
-   * The source time drawn at [contentX], clamped into `Duration.ZERO..duration` .
+   * The composition time drawn at [contentX], clamped into `Duration.ZERO..duration` .
    */
   public fun timeAt(contentX: Float): Duration {
     if (pixelsPerSecond <= 0f) return Duration.ZERO

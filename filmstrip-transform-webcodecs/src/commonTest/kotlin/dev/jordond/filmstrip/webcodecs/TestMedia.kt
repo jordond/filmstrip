@@ -263,6 +263,8 @@ internal suspend fun makeClipInCodec(
 
 /**
  * The same clip [makeClip] builds, with a short tone muxed in as an Opus audio track.
+ *
+ * @param toneHzAt The tone's pitch at a time into the clip, which holds still unless a test moves it.
  */
 internal suspend fun makeClipWithAudio(
   width: Int = 64,
@@ -272,6 +274,7 @@ internal suspend fun makeClipWithAudio(
   color: Rgb = Rgb.Grey,
   sampleRate: Int = 48_000,
   keyFrameSeconds: Double = DEFAULT_KEY_FRAME_SECONDS,
+  toneHzAt: (seconds: Double) -> Double = { TONE_HZ },
 ): ByteArray {
   val target = BufferTarget()
   val output =
@@ -333,8 +336,10 @@ internal suspend fun makeClipWithAudio(
   val audioSeconds = frames.toDouble() / frameRate
   val audioFrames = (audioSeconds * sampleRate).toInt()
   val pcm = ByteArray(audioFrames * BYTES_PER_SAMPLE)
+  var phase = 0.0
   for (frame in 0 until audioFrames) {
-    val value = (sin(2.0 * PI * TONE_HZ * frame / sampleRate) * Short.MAX_VALUE * TONE_AMPLITUDE).toInt()
+    val value = (sin(phase) * Short.MAX_VALUE * TONE_AMPLITUDE).toInt()
+    phase += 2.0 * PI * toneHzAt(frame.toDouble() / sampleRate) / sampleRate
     val offset = frame * BYTES_PER_SAMPLE
     pcm[offset] = (value and BYTE_MASK).toByte()
     pcm[offset + 1] = ((value shr BYTE_BITS) and BYTE_MASK).toByte()

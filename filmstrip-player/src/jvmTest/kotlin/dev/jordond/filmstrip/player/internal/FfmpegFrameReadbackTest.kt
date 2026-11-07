@@ -70,17 +70,51 @@ class FfmpegFrameReadbackTest {
     }
 
   @Test
-  fun `a position within a frame of the one on screen reads that frame without spawning`() =
+  fun `a playhead a tick grid floored short of the frame on screen reads that frame without spawning`() =
     runTest {
       val planner = StreamPlanner { IndexedStream(it, 1).opened() }
       val standing = PreviewFrame(slotTime(SLOT), byteArrayOf(STANDING))
 
-      val result = read(readback(planner, presented = standing), slotTime(SLOT) + slotTime(1) / 2)
+      val result = read(readback(planner, presented = standing), slotTime(SLOT) - slotTime(1) * 3 / 4)
 
       val frame = result.shouldBeInstanceOf<ReadbackResult.Success>().frame
       frame.pixels.single() shouldBe STANDING
       frame.presentationTime shouldBe slotTime(SLOT)
       planner.opened.shouldBeEmpty()
+    }
+
+  @Test
+  fun `a position that rounds to the frame on screen reads that frame without spawning`() =
+    runTest {
+      val planner = StreamPlanner { IndexedStream(it, 1).opened() }
+      val standing = PreviewFrame(slotTime(SLOT), byteArrayOf(STANDING))
+      val snap: (Duration) -> Duration = { outputSlotTime(outputSlotOf(it, rate), rate) }
+
+      val result = read(readback(planner, presented = standing, snap = snap), slotTime(SLOT) + slotTime(1) / 3)
+
+      result
+        .shouldBeInstanceOf<ReadbackResult.Success>()
+        .frame.pixels
+        .single() shouldBe STANDING
+      planner.opened.shouldBeEmpty()
+    }
+
+  @Test
+  fun `the slots either side of the frame on screen are each rendered`() =
+    runTest {
+      for (slot in listOf(SLOT - 1, SLOT + 1)) {
+        val planner = StreamPlanner { IndexedStream(it, 1).opened() }
+        val standing = PreviewFrame(slotTime(SLOT), byteArrayOf(STANDING))
+
+        val frame =
+          read(readback(planner, presented = standing), slotTime(slot))
+            .shouldBeInstanceOf<ReadbackResult.Success>()
+            .frame
+
+        frame.pixels.single() shouldBe 0.toByte()
+        frame.presentationTime shouldBe slotTime(slot)
+        planner.opened shouldBe listOf(slotTime(slot))
+      }
     }
 
   @Test

@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.sourceOffsetAt
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.PlatformEffect
 import dev.jordond.filmstrip.export.Adjustment
@@ -132,7 +133,7 @@ public class ResolvedTrack(
   public val start: Duration,
   public val clips: List<ResolvedClip>,
 ) {
-  public val duration: Duration get() = clips.fold(start) { total, clip -> total + clip.duration }
+  public val duration: Duration get() = clips.fold(start) { total, clip -> total + clip.outputDuration }
 }
 
 /**
@@ -152,6 +153,9 @@ public class ResolvedTrack(
  * @property placement Where this clip's pixels land in the output frame, under its own fit.
  * @property canvasEffectIndices The index in [effects] of the crop that makes each of [ClipPlacement.canvases], in the
  * same order. A backend builds each canvas right after its crop, before the effects after it run.
+ * @property speed How fast this clip plays [start] to [end] through [span]. A backend reads [sourceDuration] for what
+ * it
+ * decodes and [outputDuration] for what it lays.
  */
 @InternalFilmstripApi
 public class ResolvedClip(
@@ -166,6 +170,7 @@ public class ResolvedClip(
   public val sourceIndex: Int,
   public val placement: ClipPlacement = ClipPlacement.Filling,
   public val canvasEffectIndices: List<Int> = emptyList(),
+  public val speed: Double = 1.0,
 ) {
   init {
     require(canvasEffectIndices.size == placement.canvases.size) {
@@ -173,7 +178,21 @@ public class ResolvedClip(
     }
   }
 
-  public val duration: Duration get() = end - start
+  /**
+   * How much source this clip plays, from [start] to [end].
+   */
+  public val sourceDuration: Duration get() = end - start
+
+  /**
+   * How long this clip runs on the composition timeline, which is the length of [span].
+   */
+  public val outputDuration: Duration get() = checkNotNull(span.duration) { "A laid clip's span has no end." }
+
+  /**
+   * The source time this clip shows at [compositionTime], read from where its [span] opens.
+   */
+  public fun sourceTimeAt(compositionTime: Duration): Duration =
+    start + sourceOffsetAt(compositionTime - span.start, speed)
 }
 
 /**

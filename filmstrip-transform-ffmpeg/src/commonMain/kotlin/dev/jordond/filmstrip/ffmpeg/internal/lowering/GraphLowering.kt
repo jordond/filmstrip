@@ -81,26 +81,9 @@ internal class GraphLowering(
 
   // The pixel format every clip's tail is pinned to, so concat sees uniform inputs. Falls back to
   // yuv420p whenever there is no grade to carry or the resolved encoder has no HDR profile.
-  private val pixelFormat: String = hdrPixelFormat ?: "yuv420p"
+  private val pixelFormat: String = writtenPixelFormat(hdrPixelFormat)
 
-  // What each laid clip decodes with. A plan of one SD colour keeps it, codes and tags, unless an effect left in it
-  // draws on the frame's colour, which it reads as BT.709 on every backend. Anything else ends up on one tag for every
-  // clip, and BT.709 is the one both a tone map and a clip on no SD colour already read as.
-  private val laidColors: List<SdColor?> by lazy {
-    tracks
-      .firstOrNull()
-      ?.clips
-      .orEmpty()
-      .filter { slotsOf(it) > 0 }
-      .map { sdColors[it.source] }
-      .distinct()
-  }
-  private val keptSdColor: SdColor? by lazy {
-    laidColors.singleOrNull().takeIf { keepsSdColor && negotiated.hdr != ResolvedHdr.ToneMap }
-  }
-  private val writesBt709: Boolean by lazy {
-    negotiated.hdr == ResolvedHdr.ToneMap || (keptSdColor == null && laidColors.any { it != null })
-  }
+  private val laidColor = LaidColor(negotiated, sdColors, keepsSdColor)
 
   // A look runs a graph of its own, which is where a plan's time goes, so its decoders give their threads and the
   // frames each one holds to it. Fragment chains, a LUT's among them, keep the decoder ffmpeg sizes.
@@ -115,13 +98,13 @@ internal class GraphLowering(
   // seek. Only a single clip on a track that opens with the composition can be windowed: a concat's
   // later branches and a tpad lead both count from a timeline the seek has already moved, so a
   // graph carrying either has to be read forward from the start instead.
-  private val seekBase: Duration? =
+  private val windowedClip: ResolvedClip? =
     tracks
       .firstOrNull()
       ?.takeIf { it.start == Duration.ZERO && it.clips.size == 1 }
       ?.clips
       ?.first()
-      ?.start
+  private val seekBase: Duration? = windowedClip?.start
 
   // The composition effects either side of a color fill. Overlays run over it, so they draw on the
   // bars and gaps as well as the picture. Everything else runs under it and never reaches it.
@@ -154,7 +137,7 @@ internal class GraphLowering(
   }
 
   private fun plainTail(): Boolean =
-    negotiated.hdr != ResolvedHdr.ToneMap && negotiated.hdrTransfer == null && !deferFill && !writesBt709
+    negotiated.hdr != ResolvedHdr.ToneMap && negotiated.hdrTransfer == null && !deferFill && !laidColor.writesBt709
 
   fun build(): Invocation {
     if (negotiated.path == ExportPath.Copy) return negotiated.copyInvocation(seekBase, sdColors, bytesRoot)
@@ -199,9 +182,10 @@ internal class GraphLowering(
       videoEncoder = negotiated.encoderName,
       duration = duration,
       hdrTransfer = negotiated.hdrTransfer,
-      writesBt709 = writesBt709,
-      previewColor = keptSdColor?.toBt709Nodes(output.size).orEmpty(),
+      writesBt709 = laidColor.writesBt709,
+      previewColor = laidColor.kept?.toBt709Nodes(output.size).orEmpty(),
       seekBase = seekBase,
+      seekSpeed = windowedClip?.speed ?: 1.0,
       videoSlots = videoLabel?.let { negotiated.videoSlots },
       heldTail = if (videoLabel == null) LongRange.EMPTY else negotiated.heldTail,
       // Two clips carrying the same grade lower to the same file, and a placeholder names its
@@ -309,7 +293,7 @@ internal class GraphLowering(
     // A terminal chain, so the mapped pad has a name of its own and the composition's duration is
     // enforced in the graph rather than trusted from the inputs.
     val out = "vout"
-    val tags = if (writesBt709) listOf(bt709Tags()) else emptyList()
+    val tags = if (laidColor.writesBt709) listOf(bt709Tags()) else emptyList()
     val trim = FilterNode("trim", "end" to formatSeconds(duration.seconds()))
     graph.chain(listOf(current), negotiated.heldTailNodes() + listOf(trim, SETPTS) + tags, out)
     return out
@@ -382,8 +366,8 @@ internal class GraphLowering(
           "start" to formatSeconds(clip.start.seconds()),
           "end" to formatSeconds(clip.end.seconds()),
         ),
-        SETPTS,
       )
+    pending += if (clip.speed == 1.0) listOf(SETPTS) else retimedNodes(clip.start, clip.speed, frameRate)
 
     // Ahead of every effect, and only on the clips that carry a grade. A composition can mix an HDR
     // clip with an SDR one, and running the curve over the SDR clip would change a frame that was
@@ -395,7 +379,7 @@ internal class GraphLowering(
       pending += toneMap.chain
     }
     // Ahead of every effect too, so an effect reads the same signal on every clip of a plan written BT.709.
-    if (writesBt709) sdColors[clip.source]?.let { pending += it.toBt709Nodes(clip.decodedFrame) }
+    if (laidColor.writesBt709) sdColors[clip.source]?.let { pending += it.toBt709Nodes(clip.decodedFrame) }
     // A source decodes to 4:2:0 as far as the graph can tell, so every figure is snapped until a format says otherwise.
     var grid = ChromaGrid.Subsampled.after(pending)
 

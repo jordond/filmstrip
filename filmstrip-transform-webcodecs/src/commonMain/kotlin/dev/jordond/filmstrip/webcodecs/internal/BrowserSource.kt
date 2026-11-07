@@ -27,6 +27,7 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.toUint8Array
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
+import kotlin.math.abs
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.DurationUnit
@@ -350,6 +351,22 @@ internal class FrameSampler(
     sink.getSample(timestampUs / MICROS_PER_SECOND).awaitOwned { late -> late?.let(release) }
 
   /**
+   * The frame an export draws at [timestampUs], picked by [nearerOf] from the two straddling it, up to [endUs]. Null
+   * when the track has no frame there at all. The other frame is closed.
+   */
+  suspend fun nearestAt(
+    timestampUs: Double,
+    endUs: Double,
+  ): VideoSample? {
+    val frames = stream(timestampUs, endUs)
+    try {
+      return nearestOf(timestampUs, release, frames::next) ?: sampleAt(timestampUs)
+    } finally {
+      frames.close()
+    }
+  }
+
+  /**
    * Frames from [startUs] onwards, up to [endUs]. An [endUs] that is not finite runs to the end of
    * the track.
    */
@@ -361,6 +378,49 @@ internal class FrameSampler(
     return FrameStream(sink.samples(startUs / MICROS_PER_SECOND, end), release)
   }
 }
+
+/**
+ * The frame [nearerOf] picks at [timestampUs] from what [next] hands over, reading a second frame only when the first
+ * sits before that time. Null when [next] has nothing at all.
+ *
+ * The frame not chosen goes to [release], and so does the first frame when reading the second fails or is cancelled.
+ */
+internal suspend fun nearestOf(
+  timestampUs: Double,
+  release: (VideoSample) -> Unit,
+  next: suspend () -> VideoSample?,
+): VideoSample? {
+  val current = next() ?: return null
+  if (current.microsecondTimestamp >= timestampUs) return current
+  val ahead =
+    try {
+      next()
+    } catch (failure: Throwable) {
+      release(current)
+      throw failure
+    } ?: return current
+  val chosen = nearerOf(current, ahead, timestampUs)
+  if (chosen !== current) release(current)
+  if (chosen !== ahead) release(ahead)
+  return chosen
+}
+
+/**
+ * Whichever of the two frames either side of [sourceUs] sits closer to it, the earlier one on a tie.
+ *
+ * An export draws this frame at a slot, and a preview has to draw the same one.
+ */
+internal fun nearerOf(
+  current: VideoSample?,
+  ahead: VideoSample?,
+  sourceUs: Double,
+): VideoSample? =
+  when {
+    current == null -> ahead
+    ahead == null -> current
+    abs(ahead.microsecondTimestamp - sourceUs) < abs(current.microsecondTimestamp - sourceUs) -> ahead
+    else -> current
+  }
 
 /**
  * Decoded audio samples, pulled one at a time the same way [FrameStream] pulls frames.

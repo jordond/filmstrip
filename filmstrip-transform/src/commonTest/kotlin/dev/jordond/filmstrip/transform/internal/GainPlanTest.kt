@@ -288,8 +288,8 @@ class GainPlanTest {
 
     val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
     error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
-      "A clip's fade is negative, longer than the clip's trim, or its fade in and fade out " +
-      "together run longer than the trim, so the two ramps would cross."
+      "A clip's fade is negative, longer than the clip, or its fade in and fade out together run " +
+      "longer than the clip, so the two ramps would cross."
   }
 
   @Test
@@ -298,8 +298,8 @@ class GainPlanTest {
 
     val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
     error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
-      "A clip's fade is negative, longer than the clip's trim, or its fade in and fade out " +
-      "together run longer than the trim, so the two ramps would cross."
+      "A clip's fade is negative, longer than the clip, or its fade in and fade out together run " +
+      "longer than the clip, so the two ramps would cross."
   }
 
   @Test
@@ -311,8 +311,8 @@ class GainPlanTest {
 
     val error = verdict.shouldBeInstanceOf<Verdict.Incapable>().reasons.single()
     error.shouldBeInstanceOf<FilmstripError.InvalidComposition>().message shouldBe
-      "A clip's fade is negative, longer than the clip's trim, or its fade in and fade out " +
-      "together run longer than the trim, so the two ramps would cross."
+      "A clip's fade is negative, longer than the clip, or its fade in and fade out together run " +
+      "longer than the clip, so the two ramps would cross."
   }
 
   @Test
@@ -381,6 +381,17 @@ class GainPlanTest {
     val whole = composition(fixture.clip(audioRate = AUDIO_RATE)).withAudio(AudioSpec.Volume(1.5f))
 
     for (edit in listOf(clip, track, whole)) fixture.plan(edit).shouldBeInstanceOf<Verdict.Capable>()
+  }
+
+  @Test
+  fun `a speed other than one keeps a clip off the copy path`() {
+    val fast = fixture.clip(audioRate = AUDIO_RATE).withSpeed(1.5)
+    val verdict = fixture.plan(composition(fast))
+
+    verdict.shouldBeInstanceOf<Verdict.Capable>()
+    verdict.plan.copyBlockedBy shouldBe listOf(CopyBlocker.ClipSpeedChanged)
+    fixture.resolve(composition(fast)).path shouldBe ExportPath.Transcode
+    fixture.resolve(composition(fast.withSpeed(1.0))).path shouldBe ExportPath.Copy
   }
 
   @Test

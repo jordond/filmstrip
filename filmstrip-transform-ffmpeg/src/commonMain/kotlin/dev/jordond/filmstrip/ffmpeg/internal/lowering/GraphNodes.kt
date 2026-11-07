@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.videoSlots
+import kotlin.time.Duration
 
 /**
  * The size stage, which places the clip at [rect] in the resolved output frame.
@@ -69,6 +70,31 @@ internal fun trailingNodes(
     FilterNode("setpts", "expr" to "PTS-STARTPTS"),
     FilterNode("format", "pix_fmts" to pixelFormat),
   )
+
+/**
+ * Moves a clip's frames onto the output slots [speed] plays them at, counted from [trimStart] whichever frame the trim
+ * opens on, so a slot shows the same source frame from any window.
+ *
+ * The clock runs in ticks a slot divides into exactly, so a window's shift is a whole number of slots and a frame
+ * halfway between two slots rounds the same way from every window. `fps` then writes one frame per slot from the
+ * window's opening, dropping what the seek delivered ahead of it and holding the frame showing when it opens. The slot
+ * count the tail cuts to is what holds the clip's length, so nothing here decides how long it runs.
+ */
+internal fun retimedNodes(
+  trimStart: Duration,
+  speed: Double,
+  frameRate: Int,
+): List<FilterNode> =
+  listOf(
+    FilterNode("settb", "expr" to "1/${frameRate * TICKS_PER_SLOT}"),
+    FilterNode(
+      "setpts",
+      "expr" to "trunc((PTS-${formatSeconds(trimStart.seconds())}/TB)/$speed)-round($WINDOW_CLOCK/TB)",
+    ),
+    FilterNode("fps", "fps" to frameRate.toString(), "start_time" to "0"),
+  )
+
+private const val TICKS_PER_SLOT = 1_000
 
 // ffmpeg's limit rather than the grid's: a snapped end runs at most half a slot past the clip's own
 // end, and fps drops the frame it is part way through when its input ends, so two clones cover the

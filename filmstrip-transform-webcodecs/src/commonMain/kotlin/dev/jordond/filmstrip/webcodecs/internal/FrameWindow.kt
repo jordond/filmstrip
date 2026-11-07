@@ -4,7 +4,6 @@ package dev.jordond.filmstrip.webcodecs.internal
 
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import kotlin.js.ExperimentalWasmJsInterop
-import kotlin.math.abs
 
 /**
  * The decoded frames waiting ahead of the playhead, for one clip at a time.
@@ -73,6 +72,13 @@ internal class FrameWindow(
   }
 
   /**
+   * Whether the frames in hand settle which one sits nearest [sourceUs]: one of them lies past it, or the clip has run
+   * out. A bound reached short of it leaves an older frame in hand that is not the one an export draws.
+   */
+  fun reaches(sourceUs: Double): Boolean =
+    drained || frames.lastOrNull()?.let { it.microsecondTimestamp > sourceUs } == true
+
+  /**
    * Decodes forward until the window is full or the clip runs out.
    */
   suspend fun fill() {
@@ -98,9 +104,7 @@ internal class FrameWindow(
       current = frames[index]
       index++
     }
-    val ahead = frames.getOrNull(index) ?: return current
-    val nearer = abs(ahead.microsecondTimestamp - sourceUs) < abs(current.microsecondTimestamp - sourceUs)
-    return if (nearer) ahead else current
+    return nearerOf(current, frames.getOrNull(index), sourceUs)
   }
 
   fun clear() {

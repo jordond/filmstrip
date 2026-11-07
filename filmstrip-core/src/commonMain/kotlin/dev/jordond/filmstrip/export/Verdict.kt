@@ -244,6 +244,11 @@ public enum class CopyBlocker {
   CompositionGainChanged,
 
   /**
+   * The clip's speed is not one, so its frames have to be retimed and its audio stretched.
+   */
+  ClipSpeedChanged,
+
+  /**
    * The clip is trimmed and no sync sample sits within [Clip.snapWithin] of the cut, so reaching it
    * means decoding.
    */

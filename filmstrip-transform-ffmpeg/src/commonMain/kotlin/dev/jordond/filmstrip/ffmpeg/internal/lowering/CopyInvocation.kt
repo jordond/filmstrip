@@ -39,7 +39,7 @@ internal fun ResolvedComposition.copyInvocation(
           // source's own end reads to it rather than asking for a length, and an untrimmed one
           // copies the container across whole, which is what leaves its bytes untouched.
           durationSeconds =
-            clip.duration.toDouble(DurationUnit.SECONDS).takeIf { clip.end < clip.info.duration },
+            clip.sourceDuration.toDouble(DurationUnit.SECONDS).takeIf { clip.end < clip.info.duration },
           startSeconds = clip.start.takeIf { it > Duration.ZERO }?.toDouble(DurationUnit.SECONDS),
         ),
       ),
@@ -53,6 +53,7 @@ internal fun ResolvedComposition.copyInvocation(
     previewColor = sdColors[clip.source]?.toBt709Nodes(clip.decodedFrame).orEmpty(),
     hdrTransfer = hdrTransfer,
     seekBase = seekBase,
+    seekSpeed = clip.speed,
     videoSlots = videoSlots,
   )
 }

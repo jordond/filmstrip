@@ -6,6 +6,9 @@ import androidx.media3.common.MediaItem
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItemSequence
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.edit.sourceLengthOf
+import dev.jordond.filmstrip.edit.sourceOffsetAt
+import dev.jordond.filmstrip.media3.internal.ClipPace
 import dev.jordond.filmstrip.media3.internal.CompositionClock
 import dev.jordond.filmstrip.media3.internal.EffectWrapper
 import dev.jordond.filmstrip.media3.internal.HeldLastFrame
@@ -38,6 +41,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * still a gap is laid as.
  * @property heldFrom How far into the item its last frame sits when that frame is held to fill the clip's slots, or
  * null when the item's own frames run to its end.
+ * @property speed How fast the item plays through this span.
  */
 @InternalFilmstripApi
 public class Media3Span(
@@ -47,6 +51,7 @@ public class Media3Span(
   public val effects: List<Effect>,
   public val still: Boolean,
   public val heldFrom: Duration? = null,
+  public val speed: Double = 1.0,
 ) {
   /**
    * Whether this clip is on screen at [time].
@@ -59,7 +64,8 @@ public class Media3Span(
    * A time while the last frame is held reads as that frame's own position, since the item has no samples past it to
    * seek to.
    */
-  public fun positionIn(time: Duration): Duration = (time - start).coerceIn(Duration.ZERO, heldFrom ?: (end - start))
+  public fun positionIn(time: Duration): Duration =
+    sourceOffsetAt(time - start, speed).coerceIn(Duration.ZERO, heldFrom ?: sourceLengthOf(end - start, speed))
 }
 
 /**
@@ -177,6 +183,7 @@ public class Media3Preview internal constructor(
             effects = span.effects,
             still = span.still,
             heldFrom = span.heldFrom,
+            speed = span.speed,
           )
         Media3Readback(stamped, stamped.readbackChain(compositionEffects))
       }
@@ -256,7 +263,7 @@ public class Media3Readback(
  */
 private fun Media3Span.readbackChain(compositionEffects: List<Effect>): List<Effect> {
   val chain = effects + compositionEffects
-  return if (still) chain else listOf(CompositionClock(start)) + chain
+  return if (still) chain else listOf(CompositionClock(start, speed)) + chain
 }
 
 /**
@@ -301,6 +308,7 @@ private fun Composition.videoSpans(withGaps: Boolean = false): List<Media3Span> 
         // by, so it is also what tells a frame reader there are no samples here to seek.
         still = local.imageDurationMs != C.TIME_UNSET,
         heldFrom = (item.speedProvider as? HeldLastFrame)?.fromUs?.microseconds,
+        speed = (item.speedProvider as? ClipPace)?.clipSpeed ?: 1.0,
       )
     }
   }

@@ -22,12 +22,15 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.compose.ui.FilmstripTimelineDefaults
 import dev.jordond.filmstrip.compose.ui.TimelineColors
 import dev.jordond.filmstrip.compose.ui.geometry.TimelineScale
 import dev.jordond.filmstrip.compose.ui.interaction.TrimConstraint
 import dev.jordond.filmstrip.compose.ui.interaction.TrimHandle
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.outputLengthOf
+import dev.jordond.filmstrip.edit.sourceLengthOf
 import kotlin.math.roundToInt
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -64,7 +67,7 @@ import kotlin.time.Duration.Companion.seconds
  *
  * @param range Where the trim currently sits. An open end runs to the end of the source, and stays open while the start
  * handle moves. Dragging the end handle closes it, since that gesture is the caller naming an end.
- * @param scale What turns the range into content pixels, and where the source's length comes from.
+ * @param scale What turns composition time into content pixels, and where the clip's output length comes from.
  * @param onRangeChange Called with the range a gesture asks for, already constrained.
  * @param modifier Modifier for the overlay, which fills whatever it is placed in.
  * @param scrollPx How far the timeline has scrolled, in content pixels.
@@ -72,7 +75,10 @@ import kotlin.time.Duration.Companion.seconds
  * @param colors What the overlay paints with.
  * @param handleWidth How wide a handle is drawn.
  * @param touchWidth How wide a handle answers to a finger, which is wider than it is drawn.
+ * @param speed The speed the clip plays at. The strip's axis is composition time and [range] is source time, so a
+ * handle is drawn at the output length of its source time and a drag writes the source length of where it lands.
  */
+@OptIn(InternalFilmstripApi::class)
 @Composable
 public fun TrimOverlay(
   range: TimeRange,
@@ -84,15 +90,16 @@ public fun TrimOverlay(
   colors: TimelineColors = FilmstripTimelineDefaults.Palette,
   handleWidth: Dp = FilmstripTimelineDefaults.HandleWidth,
   touchWidth: Dp = FilmstripTimelineDefaults.HandleTouchWidth,
+  speed: Double = 1.0,
 ) {
-  val duration = scale.duration
+  val duration = sourceLengthOf(scale.duration, speed)
   val end = range.endExclusive ?: duration
 
   Box(modifier.fillMaxSize()) {
     Canvas(Modifier.fillMaxSize()) {
       val offset = scrollPx()
-      val startX = (scale.xOf(range.start) - offset).coerceIn(0f, size.width)
-      val endX = (scale.xOf(end) - offset).coerceIn(0f, size.width)
+      val startX = (scale.xOf(outputLengthOf(range.start, speed)) - offset).coerceIn(0f, size.width)
+      val endX = (scale.xOf(outputLengthOf(end, speed)) - offset).coerceIn(0f, size.width)
 
       if (startX > 0f) {
         drawRect(colors.trimScrim, Offset.Zero, Size(startX, size.height))
@@ -103,7 +110,7 @@ public fun TrimOverlay(
     }
 
     TrimHandleBar(
-      time = range.start,
+      time = outputLengthOf(range.start, speed),
       handle = TrimHandle.Start,
       scale = scale,
       scrollPx = scrollPx,
@@ -111,14 +118,14 @@ public fun TrimOverlay(
       handleWidth = handleWidth,
       touchWidth = touchWidth,
       onDragTo = { contentX ->
-        val moved = scale.timeAt(contentX)
+        val moved = sourceLengthOf(scale.timeAt(contentX), speed)
         val next = constraint.constrain(TimeRange(moved, range.endExclusive), TrimHandle.Start, duration)
         onRangeChange(if (range.endExclusive == null) TimeRange.from(next.start) else next)
       },
     )
 
     TrimHandleBar(
-      time = end,
+      time = outputLengthOf(end, speed),
       handle = TrimHandle.End,
       scale = scale,
       scrollPx = scrollPx,
@@ -126,7 +133,7 @@ public fun TrimOverlay(
       handleWidth = handleWidth,
       touchWidth = touchWidth,
       onDragTo = { contentX ->
-        val moved = scale.timeAt(contentX)
+        val moved = sourceLengthOf(scale.timeAt(contentX), speed)
         onRangeChange(constraint.constrain(TimeRange(range.start, moved), TrimHandle.End, duration))
       },
     )

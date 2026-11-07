@@ -379,7 +379,7 @@ class PlannerTest {
     clip.start shouldBe SYNC_SAMPLE
     val input = lowering.graph!!.inputs.single()
     input.startSeconds shouldBe clip.start.toDouble(DurationUnit.SECONDS)
-    input.durationSeconds shouldBe clip.duration.toDouble(DurationUnit.SECONDS)
+    input.durationSeconds shouldBe clip.sourceDuration.toDouble(DurationUnit.SECONDS)
   }
 
   // Snapping only saves the work it costs accuracy for on a copy. An export with an effect on it

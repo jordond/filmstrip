@@ -3,9 +3,12 @@ package dev.jordond.filmstrip.transform.internal.negotiation
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
+import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.isValidClipSpeed
 import dev.jordond.filmstrip.effect.EffectScope
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.outputHeightRefusal
@@ -60,6 +63,10 @@ internal fun structuralRefusal(
   if (spec.bitrate != null && spec.quality != null) return invalid(BITRATE_AND_QUALITY)
   if (edit.tracks.none { it.contributes(streams.keepAudio, streams.keepVideo) }) return invalid(NOTHING_TO_ENCODE)
 
+  edit.tracks.flatMap { it.clips }.firstOrNull { !isValidClipSpeed(it.speed) }?.let { clip ->
+    return invalid(clipSpeedOutOfRange(clip))
+  }
+
   edit.tracks.flatMap { it.clips }.forEach { clip ->
     val info = infos[clip.source] ?: return FilmstripError.SourceUnreadable(clip.source.describe(), UNREADABLE)
     if (!info.isExportable) {
@@ -100,6 +107,10 @@ private fun Track.contributes(
   keepAudio: Boolean,
   keepVideo: Boolean,
 ): Boolean = (keepVideo && content != TrackContent.Audio) || (keepAudio && content != TrackContent.Video)
+
+private fun clipSpeedOutOfRange(clip: Clip): String =
+  "Clip ${clip.source.describe()} asks for a speed of ${clip.speed}, and a clip's speed has to be from " +
+    "${CLIP_SPEED_RANGE.start} to ${CLIP_SPEED_RANGE.endInclusive}."
 
 private fun frameRateNotPositive(rate: Int): String =
   "The export asks for $rate fps, and a frame rate has to be positive. Leave it unset to keep the source's rate."

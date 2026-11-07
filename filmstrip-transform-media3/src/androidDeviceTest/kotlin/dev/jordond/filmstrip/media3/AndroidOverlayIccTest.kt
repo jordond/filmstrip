@@ -39,6 +39,7 @@ import dev.jordond.filmstrip.test.OverlayPixels.ENCODED_TOLERANCE
 import dev.jordond.filmstrip.test.OverlayPixels.hdrSourceOver
 import dev.jordond.filmstrip.test.OverlayPixels.pngOf
 import dev.jordond.filmstrip.test.assumeEncodesHdr
+import dev.jordond.filmstrip.test.firstTenBitFrame
 import dev.jordond.filmstrip.test.ycbcrToRgb
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe

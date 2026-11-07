@@ -10,9 +10,11 @@ import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
+import dev.jordond.filmstrip.edit.sourceOffsetAt
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.color.Brightness
@@ -38,6 +40,8 @@ import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
 import dev.jordond.filmstrip.webcodecs.internal.BrowserProber
 import dev.jordond.filmstrip.webcodecs.internal.render.BrowserCompositor
 import io.kotest.assertions.withClue
+import io.kotest.matchers.doubles.plusOrMinus
+import io.kotest.matchers.doubles.shouldBeWithinPercentageOf
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -49,6 +53,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
@@ -264,7 +269,7 @@ class BrowserExportTest {
     withClue("the middle of the gap was $inGap, and the fill was $PURPLE_RGB") {
       inGap.isNear(PURPLE_RGB) shouldBe true
     }
-    val inClip = frames.nearestTo(micros(clip.span.start + clip.duration / 2)).at(x = 0.5, y = 0.5)
+    val inClip = frames.nearestTo(micros(clip.span.start + clip.outputDuration / 2)).at(x = 0.5, y = 0.5)
     withClue("the middle of the clip was $inClip, and the clip was ${Rgb.Green}") {
       inClip.isNear(Rgb.Green) shouldBe true
     }
@@ -335,7 +340,7 @@ class BrowserExportTest {
         .last()
     val inFirst = frames.nearestTo(micros(length / 2)).at(x = 0.5, y = 0.5)
     withClue("the middle of the first clip was $inFirst") { inFirst.isNear(Rgb.Green) shouldBe true }
-    val inSecond = frames.nearestTo(micros(second.span.start + second.duration / 2)).at(x = 0.5, y = 0.5)
+    val inSecond = frames.nearestTo(micros(second.span.start + second.outputDuration / 2)).at(x = 0.5, y = 0.5)
     withClue("the middle of the second clip was $inSecond") { inSecond.isNear(Rgb.Red) shouldBe true }
   }
 
@@ -1020,6 +1025,114 @@ class BrowserExportTest {
       withClue("an audio-only export resolved to ${output.path}") { output.path.endsWith(".m4a") shouldBe true }
     }
 
+  // Length and pitch are the contract at a speed. The level is read as RMS because a stretch that overlaps grains may
+  // move a single tone's peak, and the other backends do too. What the encoder adds to a file's length is read off the
+  // same clip at speed 1, so the comparison is between two trims and not against the encoder.
+  @Test
+  fun aSpedClipKeepsItsPitchAndLengthThroughAnAudioOnlyExport() =
+    runTest {
+      if (!browserEncodesAac()) return@runTest
+      listOf(1.0 / 32.0 to 500.milliseconds, 0.7 to 1500.milliseconds, 1.5 to 2.seconds, 32.0 to 16.seconds)
+        .forEach { (speed, trim) ->
+          val bytes = makeClipWithAudio(frames = (trim.toDouble(DurationUnit.SECONDS) * 30).roundToInt() + 3)
+          val spec = aacSpec()
+          val unity = exportedAudio(bytes, trim, 1.0, AudioSpec.AudioOnly, spec)
+
+          val audio = exportedAudio(bytes, trim, speed, AudioSpec.AudioOnly, spec)
+
+          withClue("at speed $speed") {
+            audio.assertLengthAgainst(unity, trim, speed)
+            audio.samples.dominantHz(audio.sampleRate) shouldBe (TONE_HZ plusOrMinus DOMINANT_STEP_HZ)
+            audio.middleRms().shouldBeWithinPercentageOf(unity.middleRms(), RMS_PERCENT)
+          }
+        }
+    }
+
+  @Test
+  fun aSpedClipWritesTheAudioAndFrameCountTheSharedFunctionsName() =
+    runTest {
+      if (!browserEncodesAac()) return@runTest
+      listOf(0.7, 1.5).forEach { speed ->
+        val bytes = makeClipWithAudio(frames = 60, frameRate = 30)
+        val trim = TRIM_END - TRIM_START
+        val spec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac)
+        val unity = exportedAudio(bytes, trim, 1.0, AudioSpec.Keep, spec, from = TRIM_START)
+
+        val composition = speedComposition(bytes, trim, speed, AudioSpec.Keep, from = TRIM_START)
+        val output = outputOf(exportOf(composition, MediaSink.Uri(""), spec))
+
+        val audio = decodeAudioSamples(output)
+        withClue("at speed $speed") {
+          audio.assertLengthAgainst(unity, trim, speed)
+          audio.samples.dominantHz(audio.sampleRate) shouldBe (TONE_HZ plusOrMinus DOMINANT_STEP_HZ)
+          val laid = TimeRange.of(Duration.ZERO, outputLengthOf(trim, speed))
+          decodeFrames(output).size shouldBe outputSlotsOf(laid, 30).count()
+        }
+      }
+    }
+
+  // The middle of the clip tells a one to one walk from the shared one, where the opening frame would agree.
+  @Test
+  fun aSpedClipWritesTheSourceFrameTheSharedFunctionsName() =
+    runTest {
+      listOf(0.7, 1.5).forEach { speed ->
+        val bytes = makeClip(width = 64, height = 64, frames = 60, frameRate = 30) { index, _ -> speedRamp(index) }
+        val composition =
+          EditComposition(
+            tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), speed = speed)))),
+            audio = AudioSpec.Remove,
+          )
+
+        val frames = decodeFrames(outputOf(exportOf(composition, MediaSink.Uri(""))))
+
+        val middle = frames[frames.size / 2]
+        val source = sourceOffsetAt(middle.timestampUs.microseconds, speed).toDouble(DurationUnit.SECONDS)
+        val expected = speedRamp((source * 30).roundToInt())
+        withClue("at speed $speed the frame at ${middle.timestampUs} drew ${middle.at(0.5, 0.5)} and not $expected") {
+          middle.at(x = 0.5, y = 0.5).isNear(expected) shouldBe true
+        }
+      }
+    }
+
+  private fun speedRamp(index: Int): Rgb = Rgb(20 + index * 3, 20 + index, 255 - index * 3)
+
+  private suspend fun exportedAudio(
+    bytes: ByteArray,
+    trim: Duration,
+    speed: Double,
+    audio: AudioSpec,
+    spec: ExportSpec,
+    from: Duration = Duration.ZERO,
+  ): DecodedSamples =
+    decodeAudioSamples(outputOf(exportOf(speedComposition(bytes, trim, speed, audio, from), MediaSink.Uri(""), spec)))
+
+  private fun speedComposition(
+    bytes: ByteArray,
+    trim: Duration,
+    speed: Double,
+    audio: AudioSpec,
+    from: Duration = Duration.ZERO,
+  ): EditComposition =
+    EditComposition(
+      tracks =
+        listOf(
+          Track(listOf(Clip(MediaSource.Bytes(bytes), trim = TimeRange(from, from + trim), speed = speed))),
+        ),
+      audio = audio,
+    )
+
+  private fun DecodedSamples.assertLengthAgainst(
+    unity: DecodedSamples,
+    trim: Duration,
+    speed: Double,
+  ) {
+    val added = unity.durationUs - trim.toDouble(DurationUnit.MICROSECONDS)
+    val expected = outputLengthOf(trim, speed).toDouble(DurationUnit.MICROSECONDS) + added
+    durationUs shouldBe (expected plusOrMinus AAC_SLACK_US)
+  }
+
+  private fun DecodedSamples.middleRms(): Double = samples.rms(samples.size / 4, samples.size * 3 / 4)
+
   @Test
   fun compositorsAreHandedBack() {
     // A browser keeps around sixteen live WebGL contexts, but headless Chrome evicts the oldest
@@ -1193,6 +1306,11 @@ class BrowserExportTest {
   private fun aacSpec(): ExportSpec = ExportSpec(videoCodec = VideoCodec.H264, audioCodec = AudioCodec.Aac)
 
   private companion object {
+    const val TONE_HZ = 440.0
+    const val RMS_PERCENT = 20.0
+
+    // AAC writes whole frames of 1024 samples, so two lengths can land one of them apart at 48kHz either way.
+    const val AAC_SLACK_US = 22_000.0
     const val HALF = 32
     const val HALF_BRIGHTNESS = 0.5f
     const val STRETCHED_CONTRAST = 1.5f

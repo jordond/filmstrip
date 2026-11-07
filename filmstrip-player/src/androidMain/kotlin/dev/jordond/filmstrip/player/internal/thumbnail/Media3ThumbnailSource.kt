@@ -38,7 +38,7 @@ import kotlin.time.Duration
  * The extractor takes one media item and one effect list rather than a composition, so the clip
  * covering the requested time is found through the spans the lowering already laid out and its own
  * chain is run ahead of the composition's. That is the same arithmetic the preview's readback uses
- * and the same objects, so a strip frame is the frame the file carries.
+ * and the same lowering, so a strip frame is the frame the file carries.
  *
  * A photo goes through [Media3StillFrames] instead. The extractor builds its player with a single
  * video renderer, so an image item has nothing to decode it, and the same chain is run over the
