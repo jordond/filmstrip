@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.ffmpeg.internal.lowering
 import dev.jordond.filmstrip.effect.FilterBranch
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.LiveInput
 import dev.jordond.filmstrip.effect.PlaneLanes
 import kotlin.time.Duration
 import kotlin.time.DurationUnit
@@ -34,12 +35,16 @@ private val CROPPED_FILTERS = setOf("split", "crop", "overlay")
  *
  * A fragment that reads the composition clock runs with its frames' timestamps moved onto it, then moved back. [origin]
  * is where the frames handed to it land in the composition, and [WINDOW_CLOCK] adds where a windowed preview opened.
+ *
+ * With [liveChain] set a fragment carrying [FilterFragment.live] runs that graph, each of its inputs laid onto its pad
+ * by [liveChain].
  */
 internal fun FilterGraphBuilder.branches(
   read: String,
   fragment: FilterFragment,
   output: String,
   origin: Duration,
+  liveChain: ((input: LiveInput, origin: Duration, output: String) -> Unit)? = null,
 ) {
   val clock = "(${formatSeconds(origin.toDouble(DurationUnit.SECONDS))}+$WINDOW_CLOCK)/TB"
   val input =
@@ -49,7 +54,10 @@ internal fun FilterGraphBuilder.branches(
       read
     }
   val pad = { name: String -> if (name == FilterBranch.INPUT) input else "$output$name" }
-  fragment.branches.forEach { branch ->
+  val live = fragment.live?.takeIf { liveChain != null }
+  live?.inputs?.forEach { checkNotNull(liveChain)(it, origin, pad(it.pad)) }
+  val laid = live?.branches ?: fragment.branches
+  laid.forEach { branch ->
     if (branch.writes.size > 1) {
       split(pad(branch.reads.single()), branch.writes.map(pad))
     } else if (branch.reads.isEmpty()) {
@@ -63,7 +71,7 @@ internal fun FilterGraphBuilder.branches(
   chain(
     listOf(
       pad(
-        fragment.branches
+        laid
           .last()
           .writes
           .single(),

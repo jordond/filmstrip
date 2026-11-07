@@ -111,6 +111,8 @@ private fun Invocation.previewInputArguments(
       }
       addAll(input.loopArguments())
       addAll(input.orientationArguments())
+      addAll(input.decoderArguments())
+      addAll(input.liveArguments())
       // The seek has already eaten its own point out of the window the input bounds, so what is left
       // of it is shorter by the same amount. Every other input is read from its own start and keeps
       // its own bound.

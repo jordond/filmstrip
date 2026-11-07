@@ -1,6 +1,9 @@
 package dev.jordond.filmstrip.effects.filters.film
 
+import dev.jordond.filmstrip.geometry.Size
 import io.kotest.assertions.withClue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import org.junit.Assume.assumeTrue
 import java.io.ByteArrayOutputStream
@@ -30,7 +33,50 @@ class FilmExpressionTest {
     }
   }
 
-  private fun plane(expression: String): ByteArray {
+  @Test
+  fun `a grain plane equals the geq's at a mid-range tick on every raster`() {
+    assumeTrue("this host has no ffmpeg", hasFfmpeg())
+    listOf(
+      Triple(1920, 1080, Size(1920, 1080)),
+      Triple(1920, 1080, Size(3840, 2160)),
+      Triple(1280, 720, Size(1280, 720)),
+    ).forEach { (width, height, frame) ->
+      val input =
+        filmFragment(Film(), frame)
+          .live
+          .shouldNotBeNull()
+          .inputs
+          .single()
+      withClue("the raster of a $frame frame") {
+        input.width shouldBe width
+        input.height shouldBe height
+      }
+      listOf(TICK, TICK + 1, 0).forEach { tick ->
+        val span = FilmSignal.grainCellSpan(width, height)
+        val drawn = plane(FilmExpressions.grainPlane(span, "$tick"), width, height)
+        withClue("tick $tick at ${width}x$height") { input.planeAt(tick).contentEquals(drawn) shouldBe true }
+      }
+    }
+  }
+
+  @Test
+  fun `a film with no grain has no live form and a grain frames lut2 ends with the frame`() {
+    filmFragment(Film(grain = 0f, halation = 0.5f), Size(320, 180)).live.shouldBeNull()
+    val live = filmFragment(Film(), Size(320, 180)).live.shouldNotBeNull()
+    live.branches
+      .last()
+      .nodes
+      .single()
+      .arguments
+      .first()
+      .key shouldBe "shortest"
+  }
+
+  private fun plane(
+    expression: String,
+    width: Int = WIDTH,
+    height: Int = HEIGHT,
+  ): ByteArray {
     val process =
       ProcessBuilder(
         "ffmpeg",
@@ -40,7 +86,7 @@ class FilmExpressionTest {
         "-f",
         "lavfi",
         "-i",
-        "color=c=black:s=${WIDTH}x$HEIGHT:d=0.04",
+        "color=c=black:s=${width}x$height:d=0.04",
         "-frames:v",
         "1",
         "-vf",

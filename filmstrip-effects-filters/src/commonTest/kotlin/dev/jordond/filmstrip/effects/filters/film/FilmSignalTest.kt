@@ -1,12 +1,14 @@
 package dev.jordond.filmstrip.effects.filters.film
 
 import dev.jordond.filmstrip.effects.filters.internal.lumaOf
+import io.kotest.assertions.withClue
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
 import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.doubles.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.doubles.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.sqrt
 import kotlin.test.Test
 
@@ -24,10 +26,37 @@ class FilmSignalTest {
   }
 
   @Test
-  fun `a 24 fps frame truncated to a microsecond keeps its own tick`() {
-    for (frame in 0 until 240) {
-      val truncated = (frame * 1_000_000L / 24).toDouble() / 1_000_000.0
-      FilmSignal.grainTickAt(truncated) shouldBe frame
+  fun `grainTickAt holds a frame under an opening on the tick before it`() {
+    FilmSignal.grainTickAt(0.041663) shouldBe 0
+    FilmSignal.grainTickAt(0.041666) shouldBe 0
+    FilmSignal.grainTickAt(0.041667) shouldBe 1
+  }
+
+  @Test
+  fun `a tick opens on the whole microsecond nearest its exact time`() {
+    for (tick in listOf(1, 2, 3, 37, 577, 100_000, 1_499_999)) {
+      val stamp = ceil(tick * GRAIN_CLOCK_BASE / GRAIN_TICK_RATE - GRAIN_CLOCK_ROUNDING)
+      FilmSignal.grainTickAt(stamp / GRAIN_CLOCK_BASE) shouldBe tick
+      FilmSignal.grainTickAt((stamp - 1) / GRAIN_CLOCK_BASE) shouldBe tick - 1
+    }
+  }
+
+  @Test
+  fun `a 24 fps frame reads one tick of its own with no repeat and no skip`() {
+    val ticks = List(240) { frame -> FilmSignal.grainTickAt(frame / GRAIN_TICK_RATE) }
+
+    ticks shouldBe List(240) { it }
+  }
+
+  @Test
+  fun `grainTickAt reads the tick a frame's exact time gives at every common rate`() {
+    for ((num, den) in listOf(24L to 1L, 30L to 1L, 48L to 1L, 60L to 1L, 24_000L to 1001L)) {
+      val wrong =
+        (0L until 100_000L).filter { frame ->
+          FilmSignal.grainTickAt(frame * den.toDouble() / num).toLong() != frame * den * 24 / num
+        }
+
+      withClue("at $num/$den") { wrong shouldBe emptyList() }
     }
   }
 

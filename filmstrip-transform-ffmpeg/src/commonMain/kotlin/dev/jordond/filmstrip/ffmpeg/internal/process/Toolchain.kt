@@ -12,6 +12,7 @@ import kotlinx.io.files.SystemFileSystem
  *
  * @property filters Every filter this build carries. Gate on it: a prebuilt ffmpeg without
  *   libfreetype has no `drawtext` at all, and that is the common case rather than an exotic one.
+ * @property inputProtocols Every protocol this build can read an input over.
  */
 internal class Toolchain(
   val ffmpeg: String,
@@ -19,10 +20,13 @@ internal class Toolchain(
   val version: FfmpegVersion,
   val filters: Set<String>,
   val encoders: Set<String>,
+  val inputProtocols: Set<String> = emptySet(),
 ) {
   fun hasFilter(name: String): Boolean = name in filters
 
   fun hasEncoder(name: String): Boolean = name in encoders
+
+  fun hasInputProtocol(name: String): Boolean = name in inputProtocols
 }
 
 /**
@@ -79,6 +83,7 @@ internal class ToolchainLocator(
 
     val filters = runner.capture(listOf(ffmpeg, "-hide_banner", "-filters"))
     val encoders = runner.capture(listOf(ffmpeg, "-hide_banner", "-encoders"))
+    val protocols = runner.capture(listOf(ffmpeg, "-hide_banner", "-protocols"))
 
     return ToolchainResult.Available(
       Toolchain(
@@ -87,6 +92,7 @@ internal class ToolchainLocator(
         version = parsed,
         filters = parseNameListing(filters.stdout),
         encoders = parseNameListing(encoders.stdout),
+        inputProtocols = parseInputProtocols(protocols.stdout),
       ),
     )
   }

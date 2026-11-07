@@ -62,6 +62,18 @@ internal fun parseProbeSections(output: String): List<ProbeSection> {
 }
 
 /**
+ * The matrix the first video stream of `ffprobe` output [output] is tagged with, or null when it reports no stream.
+ */
+internal fun parseVideoMatrix(output: String): String? =
+  parseProbeSections(output).firstOrNull { it.name == "STREAM" && it["codec_type"] == "video" }?.get("color_space")
+
+/**
+ * The pixel format of the first video stream of `ffprobe` output [output], or null when it reports no stream.
+ */
+internal fun parseVideoPixelFormat(output: String): String? =
+  parseProbeSections(output).firstOrNull { it.name == "STREAM" && it["codec_type"] == "video" }?.get("pix_fmt")
+
+/**
  * The [SdColor] the first video stream of `ffprobe` output [output] reports, or null when it reports none.
  */
 internal fun parseSdColor(output: String): SdColor? {

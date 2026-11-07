@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.effect
 
 import dev.drewhamilton.poko.Poko
+import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.media.ImageSource
 import java.security.MessageDigest
 import kotlin.time.Duration
@@ -51,18 +52,107 @@ public actual class PlatformEffect(
  * @property readsCompositionClock Whether the nodes read `t` or `T` as composition time. The backend moves the frame's
  * timestamps onto the composition's clock around them, so an effect never has to know where its clip lands or where a
  * preview window opened.
+ * @property live The same graph as [branches], written to read its costly map from a [LiveInput] where the backend can
+ * reach one. Null for a fragment that has no such form.
  */
 @Poko
-public class FilterFragment(
-  public val chain: List<FilterNode> = emptyList(),
-  public val auxInputs: List<AuxInput> = emptyList(),
-  public val merge: FilterNode? = null,
-  public val sidecars: List<Sidecar> = emptyList(),
-  public val crop: FilterCrop? = null,
-  public val post: List<FilterNode> = emptyList(),
-  public val branches: List<FilterBranch> = emptyList(),
-  public val readsCompositionClock: Boolean = false,
+public class FilterFragment
+  @InternalFilmstripApi
+  constructor(
+    public val chain: List<FilterNode> = emptyList(),
+    public val auxInputs: List<AuxInput> = emptyList(),
+    public val merge: FilterNode? = null,
+    public val sidecars: List<Sidecar> = emptyList(),
+    public val crop: FilterCrop? = null,
+    public val post: List<FilterNode> = emptyList(),
+    public val branches: List<FilterBranch> = emptyList(),
+    public val readsCompositionClock: Boolean = false,
+    @InternalFilmstripApi public val live: LiveBranches?,
+  ) {
+    /**
+     * Builds a fragment with no live form.
+     *
+     * @param chain Nodes applied in order to the pad this effect receives.
+     * @param auxInputs Extra inputs this effect needs.
+     * @param merge The node that consumes the main pad and every [auxInputs] entry.
+     * @param sidecars Files this effect needs on disk before the graph runs.
+     * @param crop The region this effect works on.
+     * @param post Nodes applied in order after [merge] or [chain].
+     * @param branches A graph of its own this effect runs instead of [chain].
+     * @param readsCompositionClock Whether the nodes read `t` or `T` as composition time.
+     */
+    public constructor(
+      chain: List<FilterNode> = emptyList(),
+      auxInputs: List<AuxInput> = emptyList(),
+      merge: FilterNode? = null,
+      sidecars: List<Sidecar> = emptyList(),
+      crop: FilterCrop? = null,
+      post: List<FilterNode> = emptyList(),
+      branches: List<FilterBranch> = emptyList(),
+      readsCompositionClock: Boolean = false,
+    ) : this(chain, auxInputs, merge, sidecars, crop, post, branches, readsCompositionClock, null)
+  }
+
+/**
+ * A [FilterFragment]'s graph with a live plane standing in for a map the tool would otherwise draw.
+ *
+ * Its samples match [FilterFragment.branches], so a backend free to run either picks by cost.
+ *
+ * @property inputs The planes the graph reads, each on the pad it names.
+ * @property branches The graph, which reads each input's [LiveInput.pad] like any other pad.
+ * @property needsBt709Frames Whether [branches] holds the match only for frames tagged BT.709. A filter reading two
+ * pads settles one matrix for both, and a plane with chroma of its own moves its luma when it is converted onto
+ * another.
+ */
+@InternalFilmstripApi
+@Poko
+public class LiveBranches(
+  public val inputs: List<LiveInput>,
+  public val branches: List<FilterBranch>,
+  public val needsBt709Frames: Boolean = false,
 )
+
+/**
+ * A plane per tick a backend hands to the tool as a video input while the graph runs.
+ *
+ * The plane lands as 8 bit limited range BT.709 luma, in a frame whose chroma is neutral, with each frame stamped on
+ * its tick of the composition's clock.
+ *
+ * Two inputs are equal when their [key], size and rate are, which [planeAt] has to make a promise of.
+ *
+ * @property pad The local pad a [LiveBranches] graph reads this input from.
+ * @property width The plane's width in pixels.
+ * @property height The plane's height in pixels.
+ * @property ticksPerSecond How many planes a second of the composition's clock holds.
+ * @property key What names the planes this input draws.
+ * @property planeAt Draws one tick's plane, [width] by [height] bytes in reading order. It runs off the graph's own
+ * threads and has to be safe to call from several at once.
+ * @property tickOpening Writes the expression for the whole microsecond a tick opens on, from an expression naming the
+ * tick. It is the same clock the fragment's own reads of a frame's time land on.
+ * @property carriesChroma Whether [planeAt] draws a whole 4:2:0 frame, chroma behind luma, rather than luma alone.
+ */
+@InternalFilmstripApi
+public class LiveInput(
+  public val pad: String,
+  public val width: Int,
+  public val height: Int,
+  public val ticksPerSecond: Double,
+  public val key: String,
+  public val planeAt: (tick: Int) -> ByteArray,
+  public val tickOpening: (tick: String) -> String,
+  public val carriesChroma: Boolean = false,
+) {
+  override fun equals(other: Any?): Boolean =
+    other is LiveInput &&
+      other.pad == pad &&
+      other.width == width &&
+      other.height == height &&
+      other.ticksPerSecond == ticksPerSecond &&
+      other.key == key &&
+      other.carriesChroma == carriesChroma
+
+  override fun hashCode(): Int = listOf(pad, width, height, ticksPerSecond, key, carriesChroma).hashCode()
+}
 
 /**
  * One chain of a [FilterFragment.branches] graph, or a fan out when it writes more than one pad.

@@ -2,7 +2,10 @@ package dev.jordond.filmstrip.ffmpeg.internal.preview
 
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.PreviewFrames
 import dev.jordond.filmstrip.ffmpeg.internal.process.FrameStream
+import dev.jordond.filmstrip.ffmpeg.internal.process.LIVE_FEED_FAILED
+import dev.jordond.filmstrip.ffmpeg.internal.process.LiveFeeds
 import dev.jordond.filmstrip.ffmpeg.internal.process.Scratch
+import dev.jordond.filmstrip.ffmpeg.internal.process.liveFeedFailure
 import dev.jordond.filmstrip.geometry.Size
 import kotlin.time.Duration
 
@@ -11,7 +14,8 @@ import kotlin.time.Duration
  *
  * Once the process has rendered the frames [split] takes from it, the last of them is handed over again for every held
  * frame [split] counts, and the stream ends with the process after that. The scratch directory holds whatever an
- * overlay effect had to be written down for, so it lives exactly as long as the process reading it.
+ * overlay effect had to be written down for, so it lives exactly as long as the process reading it. So do [feeds], and
+ * a feed that failed reads as a failed process, since ffmpeg takes its stream ending as a clean end of the graph.
  */
 internal class FfmpegPreviewStream(
   private val frames: FrameStream,
@@ -20,6 +24,7 @@ internal class FfmpegPreviewStream(
   override val startPosition: Duration,
   private val frameBytes: Int,
   private val split: PreviewFrames = PreviewFrames(rendered = null, held = 0),
+  private val feeds: LiveFeeds? = null,
 ) : PreviewStream {
   private var rendered = 0L
   private var held = 0L
@@ -43,12 +48,16 @@ internal class FfmpegPreviewStream(
     return frame
   }
 
-  override suspend fun exitStatus(): Int? = frames.exitStatus()
+  override suspend fun exitStatus(): Int? {
+    val status = frames.exitStatus()
+    return if (feeds?.failure() != null) LIVE_FEED_FAILED else status
+  }
 
-  override fun errors(): String = frames.errors()
+  override fun errors(): String = feeds?.failure()?.let(::liveFeedFailure) ?: frames.errors()
 
   override fun close() {
     frames.close()
+    feeds?.close()
     scratch.delete()
   }
 }

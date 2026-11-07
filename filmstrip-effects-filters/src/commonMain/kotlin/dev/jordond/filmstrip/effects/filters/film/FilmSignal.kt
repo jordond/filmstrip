@@ -20,10 +20,13 @@ internal const val HALATION_TINT_RED = 1.0
 internal const val HALATION_TINT_GREEN = 0.25
 internal const val HALATION_TINT_BLUE = 0.08
 
-// The grain's clock. A frame's time comes truncated to a microsecond, so the slack, a few microseconds of a tick, holds
-// a frame on an exact multiple of the rate in its own tick.
+// The grain's clock. A frame's time reads on whole microseconds, the clock ffmpeg holds a live plane's stamp against,
+// and a tick opens on the whole microsecond nearest its exact time. The margin holds that reading against double
+// rounding.
 internal const val GRAIN_TICK_RATE = 24.0
-internal const val GRAIN_TICK_SLACK = 1e-4
+internal const val GRAIN_TICK_MARGIN = 1e-9
+internal const val GRAIN_CLOCK_BASE = 1_000_000.0
+internal const val GRAIN_CLOCK_ROUNDING = 0.5
 
 // The grain's raster is 1920 by 1080 cells. Its fit on a frame, and how a pixel lands in a cell, stays in integers. A
 // cell's edge is frame pixels over GRAIN_CELL_SCALE, which is 1080 * 1920 / 120, with 120 taken out of the raster's
@@ -64,8 +67,20 @@ public object FilmSignal {
 
   /**
    * The tick a frame at [seconds] of composition time sits on, at 24 a second.
+   *
+   * The time reads to its nearest whole microsecond first, on every backend, and a tick opens on the whole microsecond
+   * nearest its exact time, the one [grainTickOpening] writes. A frame that sits on a tick reads that tick.
    */
-  public fun grainTickAt(seconds: Double): Int = floor(seconds * GRAIN_TICK_RATE + GRAIN_TICK_SLACK).toInt()
+  public fun grainTickAt(seconds: Double): Int {
+    val microseconds = floor(seconds * GRAIN_CLOCK_BASE + GRAIN_CLOCK_ROUNDING)
+    return floor((microseconds + GRAIN_CLOCK_ROUNDING) / GRAIN_CLOCK_BASE * GRAIN_TICK_RATE + GRAIN_TICK_MARGIN).toInt()
+  }
+
+  /**
+   * The expression for the whole microsecond the tick named by the expression [tick] opens on under [grainTickAt].
+   */
+  public fun grainTickOpening(tick: String): String =
+    "ceil(($tick)*$GRAIN_CLOCK_BASE/$GRAIN_TICK_RATE-$GRAIN_CLOCK_ROUNDING)"
 
   /**
    * What a frame's size divides a pixel position by, once it is multiplied by the cell scale, to land on a grain cell.

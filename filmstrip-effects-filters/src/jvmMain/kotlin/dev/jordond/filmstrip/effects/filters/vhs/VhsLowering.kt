@@ -3,6 +3,8 @@ package dev.jordond.filmstrip.effects.filters.vhs
 import dev.jordond.filmstrip.effect.FilterBranch
 import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.LiveBranches
+import dev.jordond.filmstrip.effect.LiveInput
 import dev.jordond.filmstrip.effects.filters.internal.FilterNoise
 import dev.jordond.filmstrip.effects.filters.internal.HASH_RANGE
 import dev.jordond.filmstrip.effects.filters.internal.HashExpression
@@ -68,6 +70,20 @@ internal fun vhsFragment(
     }
   val upscale = FilterNode("scale", "w" to "$width", "h" to "$height", "flags" to "neighbor")
   val unpad = FilterNode("crop", "w" to "$width", "h" to "$height", "x" to "$margin", "y" to "0")
+  val planes =
+    VhsPlanes(vhs.seed, params, RASTER_WIDTH, height, nodes.lumaGrainScale, nodes.chromaGrainScale)
+  val liveInput = { pad: String, planeAt: (Int) -> ByteArray ->
+    LiveInput(
+      pad = pad,
+      width = RASTER_WIDTH,
+      height = height,
+      ticksPerSecond = TICK_RATE,
+      key = "vhs.$pad:$vhs",
+      planeAt = planeAt,
+      tickOpening = VhsSignal::tickOpening,
+      carriesChroma = true,
+    )
+  }
   return FilterFragment(
     readsCompositionClock = true,
     branches =
@@ -82,6 +98,23 @@ internal fun vhsFragment(
         FilterBranch(listOf("ringed", "grain"), listOf(nodes.grade()), listOf("graded")),
         FilterBranch(listOf("dropIn"), listOf(raster, nodes.dropMap(), upscale), listOf("drop")),
         FilterBranch(listOf("graded", "drop"), listOf(nodes.landDropout()), listOf("out")),
+      ),
+    // A live plane runs on past the frames it lands on, so its lut2s stop with the shorter of their inputs.
+    live =
+      LiveBranches(
+        inputs = listOf(liveInput(GRAIN_PLANE, planes::grainAt), liveInput(DROP_PLANE, planes::dropAt)),
+        branches =
+          listOf(
+            FilterBranch(listOf(FilterBranch.INPUT), normalised + sharp, listOf("sharp")),
+            FilterBranch(listOf("sharp"), emptyList(), listOf("near", "far")),
+            FilterBranch(listOf("far"), listOf(gblur(HALO_SIGMA * width, LUMA_PLANE)), listOf("wide")),
+            FilterBranch(listOf("near", "wide"), listOf(halo, unpad), listOf("ringed")),
+            FilterBranch(listOf(GRAIN_PLANE), listOf(upscale), listOf("grain")),
+            FilterBranch(listOf("ringed", "grain"), listOf(nodes.grade(stopsWithFrame = true)), listOf("graded")),
+            FilterBranch(listOf(DROP_PLANE), listOf(upscale), listOf("drop")),
+            FilterBranch(listOf("graded", "drop"), listOf(nodes.landDropout(stopsWithFrame = true)), listOf("out")),
+          ),
+        needsBt709Frames = true,
       ),
   )
 }
@@ -172,30 +205,37 @@ internal class VhsExpressions(
   /**
    * The `lut2` that adds the noise and lifts and desaturates the frame, rounding the sum once, so noise under half a
    * code still moves the codes it tips over. Its table is worked out once a graph, so a pixel costs one read.
+   *
+   * @param stopsWithFrame Whether the frame ending ends this `lut2`, for a map that runs on past it.
    */
-  fun grade(): FilterNode {
+  fun grade(stopsWithFrame: Boolean = false): FilterNode {
     val lift = params.lift
     val chroma = "0.5+$CHROMA_ZERO+(x-$CHROMA_ZERO+(y-$MID_SCALE)/$chromaGrainScale)*(1-${params.desaturation})"
-    return FilterNode(
-      "lut2",
-      "c0" to "max(0,0.5+$LUMA_BLACK+$LUMA_CODES*$lift+(x+(y-$MID_SCALE)/$lumaGrainScale-$LUMA_BLACK)*(1-$lift))",
-      "c1" to chroma,
-      "c2" to chroma,
+    return lut2(
+      stopsWithFrame,
+      "max(0,0.5+$LUMA_BLACK+$LUMA_CODES*$lift+(x+(y-$MID_SCALE)/$lumaGrainScale-$LUMA_BLACK)*(1-$lift))",
+      chroma,
     )
   }
 
   /**
    * The `lut2` that lands a dropout on a graded frame. Lifting is the same screen a dropout is, so it does not matter
    * which of them runs first, and a pixel no dropout covers passes through with no second rounding.
+   *
+   * @param stopsWithFrame Whether the frame ending ends this `lut2`, for a map that runs on past it.
    */
-  fun landDropout(): FilterNode {
+  fun landDropout(stopsWithFrame: Boolean = false): FilterNode {
     val chroma = "0.5+$CHROMA_ZERO+(x-$CHROMA_ZERO)*y/$FULL_SCALE"
-    return FilterNode(
-      "lut2",
-      "c0" to "0.5+x+($LUMA_WHITE-x)*y/$FULL_SCALE",
-      "c1" to chroma,
-      "c2" to chroma,
-    )
+    return lut2(stopsWithFrame, "0.5+x+($LUMA_WHITE-x)*y/$FULL_SCALE", chroma)
+  }
+
+  private fun lut2(
+    stopsWithFrame: Boolean,
+    luma: String,
+    chroma: String,
+  ): FilterNode {
+    val planes = listOf("c0" to luma, "c1" to chroma, "c2" to chroma)
+    return FilterNode("lut2", *(if (stopsWithFrame) listOf("shortest" to "1") + planes else planes).toTypedArray())
   }
 
   /**
@@ -210,8 +250,8 @@ internal class VhsExpressions(
   private val hasher = HashExpression(seed)
 
   // Map codes to a plane's code, so the most noise a plane takes reaches GRAIN_REACH either side of mid scale.
-  private val lumaGrainScale = grainScale(LUMA_CODES * (params.lumaNoise + params.trackingNoise))
-  private val chromaGrainScale = grainScale(CHROMA_CODES * params.chromaNoise)
+  val lumaGrainScale = grainScale(LUMA_CODES * (params.lumaNoise + params.trackingNoise))
+  val chromaGrainScale = grainScale(CHROMA_CODES * params.chromaNoise)
 
   private fun grainScale(mostCodes: Double) = GRAIN_REACH / max(mostCodes, MIN_GRAIN_CODES)
 
@@ -219,11 +259,16 @@ internal class VhsExpressions(
 
   private fun signed(hashExpression: String) = "(${unit(hashExpression)}*2-1)"
 
+  // VhsSignal.tickAt of the frame's time.
+  private val clockTick =
+    "floor((floor(T*$TICK_CLOCK_BASE+$TICK_CLOCK_ROUNDING)+$TICK_CLOCK_ROUNDING)/$TICK_CLOCK_BASE*$TICK_RATE+" +
+      "$TICK_ROUNDING+$TICK_MARGIN)"
+
   // The tick and the row of this pixel, from the sample's own position in its plane.
-  private fun prelude() = "st(2,floor(T*$TICK_RATE+0.5));st(3,floor(Y*$VIRTUAL_ROWS/H))"
+  private fun prelude() = "st(2,$clockTick);st(3,floor(Y*$VIRTUAL_ROWS/H))"
 
   // A chroma streak row covers two virtual rows.
-  private fun chromaPrelude() = "st(2,floor(T*$TICK_RATE+0.5));st(3,floor(floor(Y*$VIRTUAL_ROWS/H)/$CHROMA_NOISE_ROWS))"
+  private fun chromaPrelude() = "st(2,$clockTick);st(3,floor(floor(Y*$VIRTUAL_ROWS/H)/$CHROMA_NOISE_ROWS))"
 
   // Runs [steps] on the first sample of each row, which a slice always draws ahead of the rest of the row.
   private fun onEachRow(vararg steps: String): String = "if(X,0,${steps.joinToString(";")})"
@@ -391,11 +436,14 @@ private const val CHROMA_PLANES = 6
 private const val MIN_SIGMA = 0.01
 private const val LUMA_BLACK = 16
 private const val LUMA_WHITE = 235
-private const val LUMA_CODES = 219
+internal const val LUMA_CODES = 219
 private const val CHROMA_ZERO = 128
-private const val CHROMA_CODES = 224
-private const val MID_SCALE = 128
+internal const val CHROMA_CODES = 224
+internal const val MID_SCALE = 128
 private const val GRAIN_REACH = 120.0
 private const val MIN_GRAIN_CODES = 0.01
-private const val FULL_SCALE = 255
+internal const val FULL_SCALE = 255
 private const val RASTER_WIDTH = 640
+
+private const val GRAIN_PLANE = "grainPlane"
+private const val DROP_PLANE = "dropPlane"

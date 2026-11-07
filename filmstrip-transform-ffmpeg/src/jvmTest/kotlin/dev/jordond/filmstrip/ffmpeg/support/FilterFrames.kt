@@ -2,9 +2,11 @@ package dev.jordond.filmstrip.ffmpeg.support
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.diagnostics.DiagnosticListener
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.Track
+import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectSpec
 import dev.jordond.filmstrip.effects.BuiltInEffectResolver
 import dev.jordond.filmstrip.effects.filters.FilterEffectResolver
@@ -17,12 +19,15 @@ import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
 import dev.jordond.filmstrip.ffmpeg.ffmpegBackend
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.PREVIEW_PIXEL_FORMAT
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewArguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.readingGraphFrom
 import dev.jordond.filmstrip.ffmpeg.internal.preview.FfmpegPreviewStream
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
 import dev.jordond.filmstrip.ffmpeg.internal.preview.openPreview
+import dev.jordond.filmstrip.ffmpeg.internal.process.LiveBinding
+import dev.jordond.filmstrip.ffmpeg.internal.process.LiveFeedRequest
 import dev.jordond.filmstrip.ffmpeg.internal.process.Scratch
 import dev.jordond.filmstrip.ffmpeg.internal.process.resolve
 import dev.jordond.filmstrip.geometry.Fill
@@ -46,14 +51,25 @@ import kotlin.time.DurationUnit
  *
  * The preview runs the export's own graph, so a pump frame is what an export encodes before the encoder touches it.
  */
-internal class FilterFrames {
+internal class FilterFrames(
+  extraResolver: EffectResolver? = null,
+  listener: DiagnosticListener? = null,
+  bindFeeds: ((List<LiveFeedRequest>) -> LiveBinding)? = null,
+) {
   private val components =
     ComponentRegistry
       .Builder()
       .addEffectResolver(BuiltInEffectResolver())
       .addEffectResolver(FilterEffectResolver())
-      .build()
-  private val engine = FfmpegExportEngine(components, FfmpegRuntime.of(FfmpegConfig()))
+      .apply {
+        extraResolver?.let { addEffectResolver(it) }
+        listener?.let { addDiagnosticListener(it) }
+      }.build()
+  val engine =
+    FfmpegExportEngine(
+      components,
+      bindFeeds?.let { FfmpegRuntime.unshared(FfmpegConfig(), bindFeeds = it) } ?: FfmpegRuntime.of(FfmpegConfig()),
+    )
   private val filmstrip =
     Filmstrip {
       ffmpegBackend()
@@ -90,6 +106,40 @@ internal class FilterFrames {
     } finally {
       opened.close()
     }
+  }
+
+  /**
+   * Opens the preview of [composition] at [at] for a test that drives or closes it itself.
+   */
+  suspend fun opened(
+    composition: EditComposition,
+    at: Duration = Duration.ZERO,
+  ): FfmpegPreviewStream =
+    engine
+      .openPreview(composition, ExportSpec(), at = at)
+      .shouldBeInstanceOf<PreviewStreamResult.Opened>()
+      .stream
+      .shouldBeInstanceOf<FfmpegPreviewStream>()
+
+  /**
+   * What [composition] lowers to, before a form is chosen to run.
+   */
+  suspend fun invocationOf(composition: EditComposition): Invocation =
+    engine.runs
+      .lowered(composition, ExportSpec(), null)
+      .graph
+      .shouldNotBeNull()
+      .invocation
+
+  /**
+   * Runs an export of [composition] to [output] through this engine, and hands back every status it reported.
+   */
+  suspend fun exportStatuses(
+    composition: EditComposition,
+    output: File,
+  ): List<ExportStatus> {
+    val plan = engine.plan(composition, ExportSpec()).shouldBeInstanceOf<Verdict.Capable>().plan
+    return engine.export(plan, MediaSink.of(output.absolutePath)).toList()
   }
 
   /**
@@ -175,6 +225,10 @@ internal class FilterFrames {
     pixelFormat: String = PLANES_FORMAT,
     range: String = "tv",
     onSmpteC: Boolean = false,
+    rate: String = "$FILTER_RATE",
+    seconds: Int = 2,
+    container: String = "mkv",
+    timescale: Int? = null,
   ): Clip {
     val image = BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
     for (x in 0 until width) {
@@ -183,7 +237,7 @@ internal class FilterFrames {
     }
     val still = File.createTempFile("filter-still", ".png").apply { deleteOnExit() }
     ImageIO.write(image, "png", still)
-    val video = File.createTempFile("filter-still", ".mkv").apply { deleteOnExit() }
+    val video = File.createTempFile("filter-still", ".$container").apply { deleteOnExit() }
     val convert =
       if (onSmpteC) {
         "scale=out_color_matrix=bt601:out_range=$range," +
@@ -203,15 +257,17 @@ internal class FilterFrames {
         "-i",
         still.path,
         "-t",
-        "2",
+        "$seconds",
         "-r",
-        "$FILTER_RATE",
+        rate,
         "-vf",
         convert,
         "-colorspace",
         if (onSmpteC) "smpte170m" else "bt709",
         "-color_range",
         range,
+        *if (container == "mov") MOV_COLOUR_TAGS else emptyArray(),
+        *timescale?.let { arrayOf("-video_track_timescale", "$it") }.orEmpty(),
         "-c:v",
         "ffv1",
         "-pix_fmt",
@@ -359,10 +415,14 @@ internal class Yuv420Frame(
 }
 
 private const val PLANES_FORMAT = "yuv420p"
-private const val PLANES_BYTES_PER_TWO_PIXELS = 3
-private val PLANES_ARGUMENTS = listOf(PLANES_FORMAT, "-color_range", "tv", "-colorspace", "bt709")
+internal const val PLANES_BYTES_PER_TWO_PIXELS = 3
+internal val PLANES_ARGUMENTS = listOf(PLANES_FORMAT, "-color_range", "tv", "-colorspace", "bt709")
 
 internal const val FILTER_RATE = 30
+
+// A mov keeps a frame's exact time, which a mkv rounds to a millisecond, and needs its tags asked for.
+private val MOV_COLOUR_TAGS =
+  arrayOf("-movflags", "+write_colr", "-color_primaries", "bt709", "-color_trc", "bt709")
 internal const val RGBA = 4
 internal const val BYTE = 0xFF
 internal const val FULL = 255.0

@@ -4,16 +4,22 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.effect.EffectResolver
 import dev.jordond.filmstrip.effect.EffectStage
+import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.RenderApi
 import dev.jordond.filmstrip.effect.RenderCapabilities
 import dev.jordond.filmstrip.effect.RenderFeature
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.CODEC_LADDER
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.GraphLowering
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.InputSource
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.LIVE_PROTOCOL
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.SdColor
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.canToneMap
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.filterNames
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.hdrPixelFormatFor
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.liveFilterNames
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.noLiveProtocol
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.tooManyLiveInputs
 import dev.jordond.filmstrip.ffmpeg.internal.picture.decodingOverlayPictures
 import dev.jordond.filmstrip.ffmpeg.internal.process.BytesRoot
 import dev.jordond.filmstrip.ffmpeg.internal.process.DEFAULT_BYTES_ROOT
@@ -108,9 +114,11 @@ internal class FfmpegPlanner(
     ask: Ask,
     dropped: Set<String> = emptySet(),
     sdColors: Map<MediaSource, SdColor> = emptyMap(),
+    bt709Sources: Set<MediaSource> = emptySet(),
+    tailFormatSources: Set<MediaSource> = emptySet(),
   ): LoweredExport<Invocation> =
     try {
-      lowerReadable(composition, ask, dropped, sdColors)
+      lowerReadable(composition, ask, dropped, sdColors, bt709Sources, tailFormatSources)
     } catch (failure: MediaBytesFileFailure) {
       refusedLowering(FilmstripError.SourceUnreadable(failure.source, failure.message))
     }
@@ -120,6 +128,8 @@ internal class FfmpegPlanner(
     ask: Ask,
     dropped: Set<String>,
     sdColors: Map<MediaSource, SdColor>,
+    bt709Sources: Set<MediaSource>,
+    tailFormatSources: Set<MediaSource>,
   ): LoweredExport<Invocation> {
     sourceRefusal(composition)?.let { return it }
 
@@ -148,16 +158,29 @@ internal class FfmpegPlanner(
         return refusedLowering(FilmstripError.InvalidComposition(missingFilter(filter, what)))
       }
     }
-    return LoweredExport(
-      export,
+    val lowering = { readsLivePlanes: Boolean, liveForm: Invocation?, liveFallback: String? ->
       GraphLowering(
         negotiated = negotiated,
         hdrPixelFormat = hdrPixelFormatFor(negotiated.encoderName, negotiated.hdrTransfer),
         bytesRoot = bytesRoot,
         sdColors = sdColors,
         keepsSdColor = !drawsOnColor && composition.effectsThatRequireSdr().isEmpty(),
-      ).build(),
-    )
+        tailFormatSources = tailFormatSources,
+        readsLivePlanes = readsLivePlanes,
+        liveForm = liveForm,
+        liveFallback = liveFallback,
+      ).build()
+    }
+    val fragments = effects.map { it.effect.fragment }
+    if (fragments.none { it.live != null }) return LoweredExport(export, lowering(false, null, null))
+    // A live plan's limits are named rather than refused, since the graph it falls back on writes the same samples.
+    val sources = negotiated.tracks.flatMap { track -> track.clips.map { it.source } }
+    val refusal =
+      toolchain.liveRefusal(fragments) ?: untaggedFrames(fragments, sources.all { it in bt709Sources })
+    val live = if (refusal == null) lowering(true, null, null) else null
+    val overCap = live?.let { form -> tooManyLiveInputs(form.inputs.count { it.source is InputSource.Live }) }
+    val fallback = refusal ?: overCap
+    return LoweredExport(export, lowering(false, live.takeIf { fallback == null }, fallback))
   }
 
   private fun unreadable(source: MediaSource): LoweredExport<Nothing> =
@@ -179,6 +202,27 @@ internal class FfmpegPlanner(
 
   private fun unsupportedBlur(filter: String): LoweredExport<Nothing> =
     refusedLowering(FilmstripError.InvalidComposition(missingBlurFilter(filter)))
+}
+
+// A limit of ffmpeg's negotiation, which offers no way to copy one pad's matrix onto another.
+private fun untaggedFrames(
+  fragments: List<FilterFragment>,
+  everySourceBt709: Boolean,
+): String? =
+  if (!everySourceBt709 && fragments.any { it.live?.needsBt709Frames == true }) {
+    "A clip here is not tagged BT.709, and a look's plane with chroma of its own would move on the way onto it, " +
+      "so it draws its map with its own graph."
+  } else {
+    null
+  }
+
+// Why this build cannot read a live plane, or null when it can.
+private fun Toolchain.liveRefusal(fragments: List<FilterFragment>): String? {
+  if (!hasInputProtocol(LIVE_PROTOCOL)) return noLiveProtocol()
+  return fragments
+    .flatMap { it.liveFilterNames() }
+    .firstOrNull { !hasFilter(it) }
+    ?.let { "This ffmpeg build has no $it filter, so a look draws its map with its own graph." }
 }
 
 private const val SD_CLIP = "a clip on SMPTE C or EBU primaries"

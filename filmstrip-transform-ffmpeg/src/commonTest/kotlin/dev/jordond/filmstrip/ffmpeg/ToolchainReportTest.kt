@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.ffmpeg.internal.process.parseInputProtocols
 import dev.jordond.filmstrip.ffmpeg.internal.process.parseNameListing
 import dev.jordond.filmstrip.ffmpeg.internal.process.parseVersion
 import io.kotest.assertions.withClue
@@ -7,6 +8,15 @@ import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 
 class ToolchainReportTest {
+  @Test
+  fun `reads the input protocols and leaves the output ones out`() {
+    val listing = "Supported file protocols:\nInput:\n  file\n  tcp\nOutput:\n  file\n  rtmp\n"
+
+    parseInputProtocols(listing) shouldBe setOf("file", "tcp")
+    parseInputProtocols("Supported file protocols:\nInput:\n  file\nOutput:\n  tcp\n") shouldBe setOf("file")
+    parseInputProtocols("") shouldBe emptySet()
+  }
+
   @Test
   fun `reads a release version`() {
     val version = parseVersion("ffmpeg version 9.0.1 Copyright (c) 2000-2026 the FFmpeg developers")

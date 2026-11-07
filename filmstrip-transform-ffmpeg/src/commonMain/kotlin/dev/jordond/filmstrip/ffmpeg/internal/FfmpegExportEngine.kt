@@ -28,8 +28,10 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.Scratch
 import dev.jordond.filmstrip.ffmpeg.internal.process.StderrTail
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainResult
+import dev.jordond.filmstrip.ffmpeg.internal.process.chooseForm
 import dev.jordond.filmstrip.ffmpeg.internal.process.classifyExit
 import dev.jordond.filmstrip.ffmpeg.internal.process.interruptibly
+import dev.jordond.filmstrip.ffmpeg.internal.process.liveFeedFailure
 import dev.jordond.filmstrip.ffmpeg.internal.process.missingSource
 import dev.jordond.filmstrip.ffmpeg.internal.process.readablePath
 import dev.jordond.filmstrip.ffmpeg.internal.process.resolve
@@ -190,12 +192,16 @@ public class FfmpegExportEngine internal constructor(
         is PlanningReadResult.Read -> result
       }
     val sdColors = sdColorsOf(toolchain, composition)
+    val bt709Sources = sourcesWhere(composition) { runtime.isTaggedBt709(toolchain, it) }
+    val tailFormatSources = sourcesWhere(composition) { runtime.decodesToTailFormat(toolchain, it) }
     val lowered =
       interruptibly {
         FfmpegPlanner(toolchain, components.effectResolvers, runtime.bytesRoot).lower(
           composition,
           Ask(spec, read.device, read.infos, read.openings, layoutSize, grade),
           sdColors = sdColors,
+          bt709Sources = bt709Sources,
+          tailFormatSources = tailFormatSources,
         )
       }
     val graph = lowered.graph
@@ -217,6 +223,18 @@ public class FfmpegExportEngine internal constructor(
       .mapNotNull { source ->
         sdColorPath(source)?.let { runtime.sdColor(toolchain, it) }?.let { source to it }
       }.toMap()
+
+  private suspend fun sourcesWhere(
+    composition: EditComposition,
+    holds: suspend (String) -> Boolean,
+  ): Set<MediaSource> =
+    composition.tracks
+      .filter { it.content != TrackContent.Audio }
+      .flatMap { it.clips }
+      .map { it.source }
+      .distinct()
+      .filter { source -> sdColorPath(source)?.let { holds(it) } == true }
+      .toSet()
 
   private suspend fun sdColorPath(source: MediaSource): String? =
     try {
@@ -265,7 +283,7 @@ public class FfmpegExportEngine internal constructor(
     plan: ExportPlan,
     to: MediaSink,
   ) {
-    val (toolchain, invocation, adjustments) = graph
+    val (toolchain, planned, adjustments) = graph
 
     // ffmpeg opens its inputs and its output only once it runs, and a missing file reads the same from either side on
     // every release, so both are looked for here before anything is spawned.
@@ -282,10 +300,12 @@ public class FfmpegExportEngine internal constructor(
       } catch (failure: IOException) {
         return send(ExportStatus.Failure(scratchFailure(failure)))
       }
+    val chosen = chooseForm(planned, Duration.ZERO, runtime.bindFeeds)
+    val invocation = chosen.invocation
     try {
       val inputs =
         try {
-          invocation.inputs.map { scratch.resolve(it.source) }
+          invocation.inputs.map { scratch.resolve(it.source, chosen.feeds) }
         } catch (failure: IOException) {
           return send(ExportStatus.Failure(scratchFailure(failure)))
         }
@@ -308,14 +328,24 @@ public class FfmpegExportEngine internal constructor(
 
       val progress = ProgressParser(invocation.duration.inWholeMicroseconds)
       val stderr = StderrTail()
-      components.report(BACKEND, DiagnosticEvent.INVOCATION, mapOf(Detail.COMMAND to command.joinToString(" ")))
+      components.report(BACKEND, DiagnosticEvent.INVOCATION, invocationDetails(command, chosen.fallback))
 
+      chosen.feeds?.start()
       val exitCode =
         runtime.stream(
           command = spawned,
           onStdout = { line -> progress.accept(line)?.let { trySend(it) } },
           onStderr = stderr::accept,
         )
+
+      // ffmpeg reads a feed that failed as a stream that ended, and can exit cleanly on a short file.
+      chosen.feeds?.failure()?.let {
+        return send(
+          ExportStatus.Failure(
+            FilmstripError.Underlying(FilmstripError.Underlying.NO_PLATFORM_CODE, liveFeedFailure(it)),
+          ),
+        )
+      }
 
       if (exitCode != 0) {
         // Looked for again, since a file can go between the check above and ffmpeg opening it.
@@ -349,6 +379,7 @@ public class FfmpegExportEngine internal constructor(
         ),
       )
     } finally {
+      chosen.feeds?.close()
       scratch.delete()
     }
   }
@@ -367,6 +398,18 @@ public class FfmpegExportEngine internal constructor(
 
   internal companion object {
     const val BACKEND = "ffmpeg"
+
+    /**
+     * What a run reports about its command, and why it draws a look's map with its own graph when it does.
+     */
+    fun invocationDetails(
+      command: List<String>,
+      fallback: String?,
+    ): Map<String, String> =
+      buildMap {
+        put(Detail.COMMAND, command.joinToString(" "))
+        fallback?.let { put(Detail.REASON, it) }
+      }
 
     private const val NO_TOOLCHAIN = "The sources were read before a toolchain was found."
 

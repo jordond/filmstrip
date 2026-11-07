@@ -21,6 +21,15 @@ import kotlin.math.sin
 internal const val TICK_RATE = 59.94
 internal const val VIRTUAL_ROWS = 480
 
+// How a frame's time lands on a tick. The time reads on whole microseconds, the clock ffmpeg holds a live plane's stamp
+// against, and rounds to the nearest tick, which opens on the whole microsecond nearest its exact time. The margin
+// holds that reading against double rounding and sits under the 1e-8 of a tick between any opening and the middle of a
+// microsecond.
+internal const val TICK_ROUNDING = 0.5
+internal const val TICK_MARGIN = 1e-9
+internal const val TICK_CLOCK_BASE = 1_000_000.0
+internal const val TICK_CLOCK_ROUNDING = 0.5
+
 // The two figures sigmaFor is made of: cycles of picture width per MHz, and sigma times frequency at -3 dB.
 private const val CYCLES_PER_MHZ = 52.0
 private const val SIGMA_AT_CUTOFF = 0.1325
@@ -85,8 +94,25 @@ private const val TAU = 2.0 * PI
 public object VhsSignal {
   /**
    * The tick a frame at [seconds] of composition time sits on, rounded to the nearest.
+   *
+   * The time reads to its nearest whole microsecond first, on every backend, and a tick opens on the whole microsecond
+   * nearest its exact time, the one [tickOpening] writes. A frame that sits on an opening reads the tick it opens.
+   *
+   * The clock runs at exactly 59.94, not 60000/1001, so a clip on a 1001 rate drifts across the openings. A 23.976 clip
+   * has odd frames within half a microsecond under a half tick, and those read the later tick.
    */
-  public fun tickAt(seconds: Double): Int = floor(seconds * TICK_RATE + 0.5).toInt()
+  public fun tickAt(seconds: Double): Int {
+    val microseconds = floor(seconds * TICK_CLOCK_BASE + TICK_CLOCK_ROUNDING)
+    return floor(
+      (microseconds + TICK_CLOCK_ROUNDING) / TICK_CLOCK_BASE * TICK_RATE + TICK_ROUNDING + TICK_MARGIN,
+    ).toInt()
+  }
+
+  /**
+   * The expression for the whole microsecond the tick named by the expression [tick] opens on under [tickAt].
+   */
+  public fun tickOpening(tick: String): String =
+    "ceil(($tick-$TICK_ROUNDING)*$TICK_CLOCK_BASE/$TICK_RATE-$TICK_CLOCK_ROUNDING)"
 
   /**
    * The virtual row that pixel row [y] of a frame [height] pixels tall sits on, counted from the top.

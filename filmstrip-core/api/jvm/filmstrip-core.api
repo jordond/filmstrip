@@ -849,7 +849,6 @@ public final class dev/jordond/filmstrip/effect/FilterCrop {
 }
 
 public final class dev/jordond/filmstrip/effect/FilterFragment {
-	public fun <init> ()V
 	public fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterNode;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterCrop;Ljava/util/List;Ljava/util/List;Z)V
 	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterNode;Ljava/util/List;Ldev/jordond/filmstrip/effect/FilterCrop;Ljava/util/List;Ljava/util/List;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun equals (Ljava/lang/Object;)Z

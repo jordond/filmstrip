@@ -31,11 +31,15 @@ public class DiagnosticEvent(
 
     /**
      * The command line an export spawned, in [Detail.COMMAND].
+     *
+     * Carries [Detail.REASON] as well when the run fell back on a slower form of the same graph.
      */
     public const val INVOCATION: String = "invocation"
 
     /**
      * The command line a preview stream spawned, in [Detail.COMMAND].
+     *
+     * Carries [Detail.REASON] as well when the stream fell back on a slower form of the same graph.
      */
     public const val PREVIEW: String = "preview"
   }
@@ -75,7 +79,7 @@ public class DiagnosticEvent(
     public const val FOUND: String = "found"
 
     /**
-     * Why a lookup failed, readable by a person.
+     * Why a lookup failed or a run fell back, readable by a person.
      */
     public const val REASON: String = "reason"
   }

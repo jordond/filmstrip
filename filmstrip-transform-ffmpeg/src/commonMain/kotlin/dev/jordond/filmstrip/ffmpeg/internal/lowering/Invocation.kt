@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.ffmpeg.internal.lowering
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.LiveInput
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.OutputFormat
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
@@ -28,6 +29,8 @@ import kotlin.time.DurationUnit
  * @property rebased Whether the branch this input feeds ends on a `setpts` back to its own first
  *   frame, which leaves the branch reaching the merge at zero wherever the input opened. A scrubbed
  *   preview moves such an input to the scrub with `-itsoffset`.
+ * @property decoderThreads How many threads the input's decoder runs on, or null to leave it at ffmpeg's own count. One
+ *   holds a look's plan to fewer reference frames in memory and leaves the cores to the filters.
  */
 internal class InputSpec(
   val source: InputSource,
@@ -35,6 +38,7 @@ internal class InputSpec(
   val startSeconds: Double? = null,
   val loopFrameRate: Float? = null,
   val rebased: Boolean = false,
+  val decoderThreads: Int? = null,
 )
 
 /**
@@ -64,6 +68,19 @@ internal sealed interface InputSource {
   class Generated(
     val description: String,
   ) : InputSource
+
+  /**
+   * Planes a feed writes over loopback while the graph runs.
+   *
+   * Compared by identity, since two clips reading equal planes still read them from clocks of their own.
+   *
+   * @property input What draws the planes.
+   * @property origin Where this input's frames land in the composition, before a preview's window.
+   */
+  class Live(
+    val input: LiveInput,
+    val origin: Duration,
+  ) : InputSource
 }
 
 /**
@@ -91,6 +108,9 @@ internal sealed interface InputSource {
  * track runs past it. Empty when nothing does, and for an output with no video.
  * @property sidecars The files [filterGraph] reads, which the caller writes down and hands back as
  * paths in this order. Each one is named in the graph by its placeholder until then.
+ * @property liveForm This plan with its look's maps read from live planes, for a caller that can bind them. Null when
+ * the plan carries none, or when [liveFallback] names why it cannot run them.
+ * @property liveFallback Why a plan carrying live planes draws them with this graph instead, for the diagnostics.
  */
 internal class Invocation(
   val inputs: List<InputSpec>,
@@ -108,6 +128,8 @@ internal class Invocation(
   val videoSlots: Long? = null,
   val heldTail: LongRange = LongRange.EMPTY,
   val sidecars: List<Sidecar> = emptyList(),
+  val liveForm: Invocation? = null,
+  val liveFallback: String? = null,
 )
 
 /**
@@ -124,7 +146,10 @@ internal fun Invocation.resolvedGraph(
   check(resolvedSidecars.size == sidecars.size) {
     "The graph reads ${sidecars.size} sidecars and ${resolvedSidecars.size} paths were resolved."
   }
-  val clocked = filterGraph.replace(WINDOW_CLOCK, formatSeconds(windowOpensAt.toDouble(DurationUnit.SECONDS)))
+  val clocked =
+    filterGraph
+      .replace(WINDOW_CLOCK, formatSeconds(windowOpensAt.toDouble(DurationUnit.SECONDS)))
+      .withLiveStarts(inputs, windowOpensAt)
   if (sidecars.isEmpty()) return clocked
 
   val paths =
@@ -174,6 +199,8 @@ internal fun Invocation.arguments(
       }
       addAll(input.loopArguments())
       addAll(input.orientationArguments())
+      addAll(input.decoderArguments())
+      addAll(input.liveArguments())
       // Ahead of -i, which is the seek the demuxer performs. After -i it would decode every frame
       // up to the cut and throw them away, which is the whole cost a snapped trim exists to avoid.
       input.startSeconds?.let {
@@ -260,6 +287,14 @@ internal fun InputSpec.loopArguments(): List<String> =
  */
 internal fun InputSpec.orientationArguments(): List<String> =
   if (source is InputSource.OfImage) listOf("-noautorotate") else emptyList()
+
+/**
+ * `-threads` for an input whose decoder is pinned to a count, or nothing for any other input.
+ *
+ * Ahead of `-i` it reaches the decoder, where the same flag after the maps reaches only the encoder.
+ */
+internal fun InputSpec.decoderArguments(): List<String> =
+  decoderThreads?.let { listOf("-threads", it.toString()) }.orEmpty()
 
 private fun Invocation.videoArguments(): List<String> =
   buildList {

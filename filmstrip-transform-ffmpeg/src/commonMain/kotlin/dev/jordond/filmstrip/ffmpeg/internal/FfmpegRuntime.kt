@@ -9,15 +9,20 @@ import dev.jordond.filmstrip.ffmpeg.internal.probe.PROBE_ARGUMENTS
 import dev.jordond.filmstrip.ffmpeg.internal.probe.parseMediaInfo
 import dev.jordond.filmstrip.ffmpeg.internal.probe.parseSdColor
 import dev.jordond.filmstrip.ffmpeg.internal.probe.parseSyncSample
+import dev.jordond.filmstrip.ffmpeg.internal.probe.parseVideoMatrix
+import dev.jordond.filmstrip.ffmpeg.internal.probe.parseVideoPixelFormat
 import dev.jordond.filmstrip.ffmpeg.internal.probe.syncSampleArguments
 import dev.jordond.filmstrip.ffmpeg.internal.process.BytesRoot
 import dev.jordond.filmstrip.ffmpeg.internal.process.DEFAULT_BYTES_ROOT
 import dev.jordond.filmstrip.ffmpeg.internal.process.FrameStream
+import dev.jordond.filmstrip.ffmpeg.internal.process.LiveBinding
+import dev.jordond.filmstrip.ffmpeg.internal.process.LiveFeedRequest
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessOutput
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessRunner
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainLocator
 import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainResult
+import dev.jordond.filmstrip.ffmpeg.internal.process.bindLiveFeeds
 import dev.jordond.filmstrip.ffmpeg.internal.process.exclusively
 import dev.jordond.filmstrip.media.MediaInfo
 import kotlinx.coroutines.sync.Mutex
@@ -35,6 +40,7 @@ import kotlin.time.Duration
 internal class FfmpegRuntime private constructor(
   val config: FfmpegConfig,
   val bytesRoot: BytesRoot = DEFAULT_BYTES_ROOT,
+  val bindFeeds: (List<LiveFeedRequest>) -> LiveBinding = ::bindLiveFeeds,
 ) {
   private val runner = ProcessRunner()
   private val locator = ToolchainLocator(config, runner)
@@ -43,6 +49,8 @@ internal class FfmpegRuntime private constructor(
 
   // Written beside probes by the one read that fills it, and held under the same lock.
   private val sdColors = mutableMapOf<String, SdColor?>()
+  private val videoMatrices = mutableMapOf<String, String?>()
+  private val videoPixelFormats = mutableMapOf<String, String?>()
   private val syncSampleLock = Mutex()
   private val syncSamples = mutableMapOf<Pair<String, Duration>, Duration?>()
   private val capabilityLock = Mutex()
@@ -136,10 +144,36 @@ internal class FfmpegRuntime private constructor(
       if (!sdColors.containsKey(path)) {
         sdColorSpawns++
         val output = capture(listOf(toolchain.ffprobe) + PROBE_ARGUMENTS + path)
-        if (output.started && output.exitCode == 0) sdColors[path] = parseSdColor(output.stdout)
+        if (output.started && output.exitCode == 0) {
+          sdColors[path] = parseSdColor(output.stdout)
+          videoMatrices[path] = parseVideoMatrix(output.stdout)
+          videoPixelFormats[path] = parseVideoPixelFormat(output.stdout)
+        }
       }
       sdColors[path]
     }
+
+  /**
+   * Whether [path]'s video stream is tagged BT.709, read off the spawn [sdColor] and [probe] already answer from.
+   */
+  suspend fun isTaggedBt709(
+    toolchain: Toolchain,
+    path: String,
+  ): Boolean {
+    sdColor(toolchain, path)
+    return probeLock.withLock { videoMatrices[path] == BT709_MATRIX }
+  }
+
+  /**
+   * Whether [path]'s video stream decodes to the plain 4:2:0 a clip's tail ends on, read the way [isTaggedBt709] is.
+   */
+  suspend fun decodesToTailFormat(
+    toolchain: Toolchain,
+    path: String,
+  ): Boolean {
+    sdColor(toolchain, path)
+    return probeLock.withLock { videoPixelFormats[path] == TAIL_PIXEL_FORMAT }
+  }
 
   /**
    * The sync sample at or before [at] in [path]'s video stream, or null when there is none.
@@ -187,6 +221,8 @@ internal class FfmpegRuntime private constructor(
     val output = capture(listOf(toolchain.ffprobe) + PROBE_ARGUMENTS + path)
     if (!output.started || output.exitCode != 0) return null
     sdColors[path] = parseSdColor(output.stdout)
+    videoMatrices[path] = parseVideoMatrix(output.stdout)
+    videoPixelFormats[path] = parseVideoPixelFormat(output.stdout)
     return parseMediaInfo(output.stdout)
   }
 
@@ -215,6 +251,9 @@ internal class FfmpegRuntime private constructor(
     }
 
   companion object {
+    private const val BT709_MATRIX = "bt709"
+    private const val TAIL_PIXEL_FORMAT = "yuv420p"
+
     // Keyed on the config, which compares structurally, so two callers that spelled the same
     // configuration reach the same runtime. Held in use order and capped: a process usually
     // registers one configuration, and a caller that keeps spelling fresh ones drops the least
@@ -246,7 +285,8 @@ internal class FfmpegRuntime private constructor(
     fun unshared(
       config: FfmpegConfig,
       bytesRoot: BytesRoot = DEFAULT_BYTES_ROOT,
-    ): FfmpegRuntime = FfmpegRuntime(config, bytesRoot)
+      bindFeeds: (List<LiveFeedRequest>) -> LiveBinding = ::bindLiveFeeds,
+    ): FfmpegRuntime = FfmpegRuntime(config, bytesRoot, bindFeeds)
   }
 }
 

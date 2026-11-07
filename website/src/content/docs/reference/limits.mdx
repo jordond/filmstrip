@@ -86,6 +86,20 @@ refuses.
 - `lut` on media3 and the browser reads its table from a texture 2 times `ceil(sqrt(N))` tiles wide, so a grid of 65 points
   takes 1170x520 and a grid of 129 takes 3096x1419. A GL context whose `MAX_TEXTURE_SIZE` is smaller fails by name, and media3
   and the browser need OpenGL ES 3.
+- ffmpeg reads `film` grain, and `vhs` grain and dropouts, from planes filmstrip draws in Kotlin and hands over a
+  loopback TCP socket, at the same samples a `geq` would write. Measured on ffmpeg 8.0.1 on a 12 thread x86 server with
+  x264 medium, `film` runs about 17.5 fps at 1080p and 7.9 fps at 4K against 2.05 and 1.96 on `geq`, and `vhs` about 9.1
+  and 2.8 against 6.75 and 2.3. Peak ffmpeg memory for `film` was about 1 GB at 1080p and 3.4 GB at 4K, and for `vhs`
+  about 1 GB and 3.3 GB.
+- A plan falls back to the `geq` graph by name in the diagnostics, as the same samples and slower, when the JVM cannot
+  bind a loopback listener, when the ffmpeg build has no `tcp` protocol, when a graph would open more than 16 live
+  inputs, and for `vhs` when a source is not tagged BT.709. ffmpeg offers no way to copy one pad's matrix onto another,
+  and a VHS map carries chroma that a conversion would move.
+- A plan where every clip runs one equal `crt` at the output's size, decoded as plain 4:2:0 and joined with no gap, runs
+  the look once after the join. That took 12 clips at 1080p from 5.5 GB to about 1.9 GB. `film` and `vhs` stay on each
+  clip, since they read a frame's own timestamp and the join moves it.
+- Changing a `crt` in a preview restarts ffmpeg like any graph change, measured at 0.6 to 1.7 s to the first frame on the
+  same server.
 - `lut` on ffmpeg passes through RGB and 4:2:0 on its way back to the encoder. Measured on ffmpeg 8.0.1 x86_64, luma lands
   within 1.72 codes of `CubeLut.at`, chroma within 1.17, and a channel read back as RGB within 2.59.
 - ffmpeg draws `lut` through `lut3d` on `gbrap`. With an x264 veryfast encode and a 65 point table that ran at about 70 fps

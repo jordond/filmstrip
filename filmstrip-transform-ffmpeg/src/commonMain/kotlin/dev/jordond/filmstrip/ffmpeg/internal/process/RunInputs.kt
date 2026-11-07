@@ -21,9 +21,14 @@ internal class ResolvedInput(
 /**
  * Turns [input] into what the command line names, writing an in-memory picture into this directory first.
  *
+ * A live input names the port [feeds] listens on for it.
+ *
  * @throws IOException When a picture cannot be written down.
  */
-internal fun Scratch.resolve(input: InputSource): ResolvedInput =
+internal fun Scratch.resolve(
+  input: InputSource,
+  feeds: LiveFeeds? = null,
+): ResolvedInput =
   when (input) {
     is InputSource.OfPath -> {
       ResolvedInput(input.path, input.description)
@@ -35,7 +40,12 @@ internal fun Scratch.resolve(input: InputSource): ResolvedInput =
     is InputSource.Generated -> {
       ResolvedInput(input.description, source = null)
     }
+    is InputSource.Live -> {
+      ResolvedInput(checkNotNull(feeds) { UNBOUND_LIVE_INPUT }.urlOf(input), source = null)
+    }
   }
+
+private const val UNBOUND_LIVE_INPUT = "A live input was resolved with no feeds bound for it."
 
 /**
  * The source of the first local input that is no longer on disk, or null when every one of them is still there.

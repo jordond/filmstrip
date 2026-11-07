@@ -138,9 +138,11 @@ a couple of codes of the shared blur. ffmpeg draws it with `gblur` and rounds th
 whole look within 2.5 codes of an 8 bit limited range source, and within about 5 of a full range or SD one. Apple
 refuses a `Film` on a device that can't compile its Core Image Metal kernel, the same way it refuses a tone map.
 
-ffmpeg works out the grain with `geq`, on the CPU, once per cell of the raster where a cell spans whole pixels and once
-per pixel on any other frame. It's the slowest part of the look. An export with H.264 on an Intel i5-12400 ran at 2.23
-frames a second at 1080p and 1.95 at 4K, against 26.93 and 34.90 with no effect.
+ffmpeg reads the grain from planes filmstrip draws on the CPU and hands over a loopback socket, once per cell of the
+raster where a cell spans whole pixels and once per pixel on any other frame. An export with H.264 on an Intel i5-12400
+ran at about 17.5 frames a second at 1080p and 7.9 at 4K, against 26.93 and 34.90 with no effect. Where a JVM can't bind
+a loopback listener or the build has no `tcp` protocol, a `geq` draws the same samples at about 2 frames a second, and
+the diagnostics say so. See [Limits](/reference/limits/#filters).
 
 ## Failures
 

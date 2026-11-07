@@ -4,7 +4,9 @@ import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.AuxInput
+import dev.jordond.filmstrip.effect.FilterFragment
 import dev.jordond.filmstrip.effect.FilterNode
+import dev.jordond.filmstrip.effect.LiveInput
 import dev.jordond.filmstrip.effect.Sidecar
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.ffmpeg.internal.process.BytesRoot
@@ -40,6 +42,10 @@ import kotlin.time.Duration
  *   for an output that carries none.
  * @param sdColors The sources on SD primaries, and the colour each decodes with.
  * @param keepsSdColor Whether a plan of one SD colour can keep it, so no effect in it reads the frame's colour.
+ * @param tailFormatSources The sources that already decode to the format a clip's tail ends on.
+ * @param readsLivePlanes Whether a fragment carrying [dev.jordond.filmstrip.effect.FilterFragment.live] runs that form.
+ * @param liveForm This plan's form that reads live planes, handed through on the invocation.
+ * @param liveFallback Why this plan draws its maps with its graph, handed through on the invocation.
  */
 internal class GraphLowering(
   private val negotiated: ResolvedComposition,
@@ -47,6 +53,10 @@ internal class GraphLowering(
   private val bytesRoot: BytesRoot = DEFAULT_BYTES_ROOT,
   private val sdColors: Map<MediaSource, SdColor> = emptyMap(),
   private val keepsSdColor: Boolean = true,
+  private val tailFormatSources: Set<MediaSource> = emptySet(),
+  private val readsLivePlanes: Boolean = false,
+  private val liveForm: Invocation? = null,
+  private val liveFallback: String? = null,
 ) {
   private val tracks = negotiated.tracks
   private val output = negotiated.output
@@ -92,6 +102,15 @@ internal class GraphLowering(
     negotiated.hdr == ResolvedHdr.ToneMap || (keptSdColor == null && laidColors.any { it != null })
   }
 
+  // A look runs a graph of its own, which is where a plan's time goes, so its decoders give their threads and the
+  // frames each one holds to it. Fragment chains, a LUT's among them, keep the decoder ffmpeg sizes.
+  private val runsLook: Boolean =
+    (tracks.flatMap { track -> track.clips.flatMap { it.effects } } + negotiated.compositionEffects)
+      .any {
+        it.effect.fragment.branches
+          .isNotEmpty()
+      }
+
   // The source time composition time zero maps to, for a caller windowing this graph with an input
   // seek. Only a single clip on a track that opens with the composition can be windowed: a concat's
   // later branches and a tpad lead both count from a timeline the seek has already moved, so a
@@ -130,6 +149,13 @@ internal class GraphLowering(
   // own color otherwise, since nothing under the fill runs after it to need telling apart.
   private val padColor: String = if (deferFill) transparentColor() else fillColor(negotiated.fill)
 
+  private val hoistedLook: FilterFragment? by lazy {
+    hoistableLook(tracks.firstOrNull(), output.size, tailFormatSources, plainTail = plainTail(), ::slotsOf)
+  }
+
+  private fun plainTail(): Boolean =
+    negotiated.hdr != ResolvedHdr.ToneMap && negotiated.hdrTransfer == null && !deferFill && !writesBt709
+
   fun build(): Invocation {
     if (negotiated.path == ExportPath.Copy) return negotiated.copyInvocation(seekBase, sdColors, bytesRoot)
 
@@ -144,7 +170,13 @@ internal class GraphLowering(
       track.clips.forEach { clip ->
         indices.getOrPut(clip.sourceIndex) {
           val path = checkNotNull(readablePath(clip.source, bytesRoot)) { UNREADABLE_SOURCE }
-          inputs.size.also { inputs += InputSpec(source = InputSource.OfPath(path, clip.source.describe())) }
+          inputs.size.also {
+            inputs +=
+              InputSpec(
+                source = InputSource.OfPath(path, clip.source.describe()),
+                decoderThreads = if (runsLook) LOOK_DECODER_THREADS else null,
+              )
+          }
         }
       }
       clipInput += indices
@@ -175,6 +207,8 @@ internal class GraphLowering(
       // Two clips carrying the same grade lower to the same file, and a placeholder names its
       // contents, so the one path serves both references.
       sidecars = sidecars.distinct(),
+      liveForm = liveForm,
+      liveFallback = liveFallback,
     )
   }
 
@@ -226,9 +260,14 @@ internal class GraphLowering(
       } else {
         "vcat".also { label ->
           val concat = FilterNode("concat", "n" to segments.size.toString(), "v" to "1", "a" to "0")
-          graph.chain(segments, listOf(concat, frameGridBase()), label)
+          graph.chain(segments, listOf(concat, FilterNode("settb", "expr" to "1/$frameRate")), label)
         }
       }
+
+    hoistedLook?.let { look ->
+      sidecars += look.sidecars
+      current = "vhoist".also { graph.branches(current, look, it, Duration.ZERO, liveChain) }
+    }
 
     // The gap ahead of a late track is the slots its start covers, so the first clip opens on the slot
     // its start lands on.
@@ -271,7 +310,8 @@ internal class GraphLowering(
     // enforced in the graph rather than trusted from the inputs.
     val out = "vout"
     val tags = if (writesBt709) listOf(bt709Tags()) else emptyList()
-    graph.chain(listOf(current), negotiated.heldTailNodes() + listOf(trimTo(duration), SETPTS) + tags, out)
+    val trim = FilterNode("trim", "end" to formatSeconds(duration.seconds()))
+    graph.chain(listOf(current), negotiated.heldTailNodes() + listOf(trim, SETPTS) + tags, out)
     return out
   }
 
@@ -296,7 +336,7 @@ internal class GraphLowering(
       val merge = fragment.merge
       val crop = fragment.crop
       if (fragment.branches.isNotEmpty()) {
-        graph.branches(current, fragment, label, Duration.ZERO)
+        graph.branches(current, fragment, label, Duration.ZERO, liveChain)
       } else if (crop != null) {
         graph.cropped(current, fragment, crop, label, grid, ::auxPads)
       } else if (merge == null) {
@@ -362,7 +402,8 @@ internal class GraphLowering(
     // Under a blurred fill a canvas's bars stay clear for the clip's effects and turn black once they have run.
     val blackBars = negotiated.fill is Fill.Blurred && clip.placement.canvases.isNotEmpty()
 
-    clip.effects.forEachIndexed { effectIndex, resolved ->
+    val clipEffects = if (hoistedLook == null) clip.effects else emptyList()
+    clipEffects.forEachIndexed { effectIndex, resolved ->
       val fragment = resolved.effect.fragment
       sidecars += fragment.sidecars
       val crop = fragment.crop
@@ -375,7 +416,7 @@ internal class GraphLowering(
             graph.cropped(read, fragment, crop, label, grid, ::auxPads)
           } else {
             grid = grid.after(fragment.branches.flatMap { it.nodes })
-            label.also { graph.branches(read, fragment, it, clip.span.start) }
+            label.also { graph.branches(read, fragment, it, clip.span.start, liveChain) }
           }
         merged++
         return@forEachIndexed
@@ -428,45 +469,27 @@ internal class GraphLowering(
     return "v$index".also { graph.chain(listOf(pad), pending, it) }
   }
 
-  /**
-   * The extra inputs a merging effect composites, each prepared on a pad of its own.
-   *
-   * An input naming a timeline is looped for a frame longer than the run it covers. Overshooting
-   * costs nothing, since the graph's own `trim=duration=` is what cuts the output, while
-   * undershooting drops the overlay from the frame the branch runs out with no diagnostic at all.
-   *
-   * Every branch closes on a `setpts` back to its own first frame. An export reads the input from
-   * zero and the node changes nothing, while a preview opens the input at the scrub instead, so
-   * anything ahead of the node reads the composition time the frames belong to and the merge below
-   * it still sees the clip's own clock. [InputSpec.rebased] is what tells the preview so.
-   */
   private fun auxPads(
     auxInputs: List<AuxInput>,
     label: String,
-  ): List<String> =
-    auxInputs.mapIndexed { index, aux ->
-      val input = inputs.size
-      inputs +=
-        InputSpec(
-          source = InputSource.OfImage(aux.image),
-          durationSeconds = aux.timeline?.let { it.duration.seconds() + 1.0 / it.frameRate },
-          loopFrameRate = aux.timeline?.frameRate,
-          rebased = true,
-        )
-      "${label}a$index".also { graph.chain(listOf("$input:v"), aux.chain + SETPTS, it) }
-    }
+  ): List<String> = graph.auxPads(inputs, auxInputs, label)
+
+  // Declares one live input and writes its stamped frames to the pad a fragment reads it from.
+  private val liveChain: ((LiveInput, Duration, String) -> Unit)? =
+    { input: LiveInput, origin: Duration, output: String ->
+      val index = inputs.size
+      inputs += InputSpec(source = InputSource.Live(input, origin))
+      graph.chain(listOf("$index:v"), liveInputNodes(input, index), output)
+    }.takeIf { readsLivePlanes }
 
   // How many output slots a clip's span covers, which is how many frames its picture is cut to.
   private fun slotsOf(clip: ResolvedClip): Long =
     outputSlotsOf(clip.span, frameRate).let { if (it.isEmpty()) 0 else it.last - it.first + 1 }
 
-  private fun trimTo(end: Duration): FilterNode = FilterNode("trim", "end" to formatSeconds(end.seconds()))
-
-  private fun frameGridBase(): FilterNode = FilterNode("settb", "expr" to "1/$frameRate")
-
   private companion object {
-    val SETPTS = FilterNode("setpts", "expr" to "PTS-STARTPTS")
+    val SETPTS = RESTART_PTS
     val NULL_VIDEO = FilterNode("null")
+    const val LOOK_DECODER_THREADS = 1
   }
 }
 

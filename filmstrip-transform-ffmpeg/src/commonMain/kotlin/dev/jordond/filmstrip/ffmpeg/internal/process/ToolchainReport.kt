@@ -74,4 +74,16 @@ internal fun parseNameListing(output: String): Set<String> {
     }.toSet()
 }
 
+/**
+ * The protocols `-protocols` lists under its input heading, one name a line above its output heading.
+ */
+internal fun parseInputProtocols(output: String): Set<String> =
+  output
+    .substringAfter("Input:", missingDelimiterValue = "")
+    .substringBefore("Output:")
+    .lineSequence()
+    .map { it.trim() }
+    .filter { it.isNotEmpty() }
+    .toSet()
+
 private val WHITESPACE = Regex("""\s+""")

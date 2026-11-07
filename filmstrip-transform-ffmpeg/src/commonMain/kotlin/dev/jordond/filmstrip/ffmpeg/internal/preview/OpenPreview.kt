@@ -11,8 +11,10 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewArguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewFrameBytes
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewFrames
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewLanding
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewSeek
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.readingGraphFrom
 import dev.jordond.filmstrip.ffmpeg.internal.process.Scratch
+import dev.jordond.filmstrip.ffmpeg.internal.process.chooseForm
 import dev.jordond.filmstrip.ffmpeg.internal.process.resolve
 import dev.jordond.filmstrip.ffmpeg.internal.process.scratchFailure
 import dev.jordond.filmstrip.ffmpeg.internal.process.unspawnablePump
@@ -51,7 +53,7 @@ public suspend fun FfmpegExportEngine.openPreview(
   grade: ResolvedHdr? = null,
 ): PreviewStreamResult {
   val lowered = runs.lowered(composition, spec, layoutSize, grade)
-  val (toolchain, invocation) = lowered.graph ?: return PreviewStreamResult.Refused(lowered.export.refusal())
+  val (toolchain, planned) = lowered.graph ?: return PreviewStreamResult.Refused(lowered.export.refusal())
 
   val scratch =
     try {
@@ -59,11 +61,13 @@ public suspend fun FfmpegExportEngine.openPreview(
     } catch (failure: IOException) {
       return PreviewStreamResult.Refused(scratchFailure(failure))
     }
+  val chosen = chooseForm(planned, planned.previewSeek(at), runtime.bindFeeds)
+  val invocation = chosen.invocation
   // Materialising an input or a sidecar touches the file system, and a directory that fails part
   // way through is still a directory. The export path is wrapped for the same reason.
   val (split, command, spawned) =
     try {
-      val resolvedInputs = invocation.inputs.map { scratch.resolve(it.source).path }
+      val resolvedInputs = invocation.inputs.map { scratch.resolve(it.source, chosen.feeds).path }
       val resolvedSidecars = invocation.sidecars.map { scratch.write(it) }
 
       // Worked out once here and handed to previewArguments, so the graph's -frames:v and the
@@ -73,24 +77,32 @@ public suspend fun FfmpegExportEngine.openPreview(
         invocation.previewArguments(toolchain, runtime.config, resolvedInputs, resolvedSidecars, at, split)
       Triple(split, command, command.readingGraphFrom(scratch))
     } catch (failure: IOException) {
+      chosen.feeds?.close()
       scratch.delete()
       return PreviewStreamResult.Refused(scratchFailure(failure))
     } catch (throwable: Throwable) {
+      chosen.feeds?.close()
       scratch.delete()
       throw throwable
     }
   components.report(
     FfmpegExportEngine.BACKEND,
     DiagnosticEvent.PREVIEW,
-    mapOf(Detail.COMMAND to command.joinToString(" ")),
+    FfmpegExportEngine.invocationDetails(command, chosen.fallback),
   )
 
   val frames =
     try {
+      chosen.feeds?.start()
       runtime.frames(spawned)
     } catch (failure: IOException) {
+      chosen.feeds?.close()
       scratch.delete()
       return PreviewStreamResult.Refused(unspawnablePump(failure))
+    } catch (throwable: Throwable) {
+      chosen.feeds?.close()
+      scratch.delete()
+      throw throwable
     }
 
   return PreviewStreamResult.Opened(
@@ -101,6 +113,7 @@ public suspend fun FfmpegExportEngine.openPreview(
       startPosition = invocation.previewLanding(at),
       frameBytes = invocation.previewFrameBytes,
       split = split,
+      feeds = chosen.feeds,
     ),
   )
 }
