@@ -4,6 +4,7 @@
 // LOAD also grows the screen and slims the bezel, so the sample has room to be used. A browser with no WebCodecs keeps
 // the bars and gets a note in place of LOAD.
 import { DEMO_SIZE, DEMO_SRC } from '../lib/demo'
+import NoWebCodecs from './NoWebCodecs.astro'
 import TvChin from './landing/TvChin.astro'
 
 interface Props {
@@ -51,10 +52,7 @@ const bottom = [
           </button>
           <span class="rgb-sm note">{size.toUpperCase()} DOWNLOAD · STARTS WHEN YOU PRESS LOAD</span>
         </div>
-        <div class="no-webcodecs" data-demo-panel="no-webcodecs" hidden>
-          <span class="rgb-sm no-webcodecs-title">THIS BROWSER HAS NO WEBCODECS</span>
-          <span class="rgb-sm note">THE DEMO NEEDS IT · OPEN THIS PAGE IN CHROME</span>
-        </div>
+        <NoWebCodecs />
         <div class="loading" data-demo-panel="loading" tabindex="-1" hidden>
           <span class="rgb-sm loading-title">LOADING TAPE <span class="blink" aria-hidden="true">▮</span></span>
           <div class="cells" aria-hidden="true">
@@ -70,7 +68,7 @@ const bottom = [
 </div>
 
 <script>
-  import { DEMO_SRC, canLoadDemo, demoIframe, webCodecsSupport } from '../lib/demo'
+  import { DEMO_SRC, demoIframe, gateLoad, webCodecsSupport } from '../lib/demo'
 
   const support = webCodecsSupport(globalThis)
 
@@ -78,33 +76,30 @@ const bottom = [
     const screen = tv.querySelector<HTMLElement>('#demo-screen')!
     const led = tv.querySelector<HTMLElement>('[data-demo-led]')!
     const panel = (name: string) => tv.querySelector<HTMLElement>(`[data-demo-panel="${name}"]`)!
+    const noWebCodecs = tv.querySelector<HTMLElement>('[data-no-webcodecs]')!
 
-    if (!canLoadDemo(support)) {
-      panel('idle').hidden = true
-      panel('no-webcodecs').hidden = false
-      continue
-    }
-
-    tv.querySelector('[data-demo-load]')?.addEventListener(
-      'click',
-      () => {
-        tv.dataset.demoLoaded = ''
-        panel('idle').hidden = true
-        panel('loading').hidden = false
-        panel('loading').focus()
-        led.dataset.state = 'loading'
-        const iframe = demoIframe(tv.dataset.src ?? DEMO_SRC, () => {
-          iframe.classList.add('ready')
-          tv.dataset.demoReady = ''
-          led.dataset.state = 'ready'
-          // Before the loading panel goes, so focus never falls back to body.
-          iframe.focus()
-          for (const idle of tv.querySelectorAll('[data-demo-idle]')) idle.remove()
-        })
-        screen.append(iframe)
-      },
-      { once: true },
-    )
+    gateLoad(support, { offer: panel('idle'), noWebCodecs }, () => {
+      tv.querySelector('[data-demo-load]')?.addEventListener(
+        'click',
+        () => {
+          tv.dataset.demoLoaded = ''
+          panel('idle').hidden = true
+          panel('loading').hidden = false
+          panel('loading').focus()
+          led.dataset.state = 'loading'
+          const iframe = demoIframe(tv.dataset.src ?? DEMO_SRC, () => {
+            iframe.classList.add('ready')
+            tv.dataset.demoReady = ''
+            led.dataset.state = 'ready'
+            // Before the loading panel goes, so focus never falls back to body.
+            iframe.focus()
+            for (const idle of tv.querySelectorAll('[data-demo-idle]')) idle.remove()
+          })
+          screen.append(iframe)
+        },
+        { once: true },
+      )
+    })
   }
 </script>
 
@@ -202,23 +197,7 @@ const bottom = [
     gap: 12px;
   }
 
-  .no-webcodecs {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .no-webcodecs-title {
-    background: rgba(7, 6, 10, 0.9);
-    padding: 4px 16px;
-    font-size: clamp(24px, 3vw, 40px);
-    color: var(--amber);
-    text-align: center;
-  }
-
   .idle[hidden],
-  .no-webcodecs[hidden],
   .loading[hidden] {
     display: none;
   }

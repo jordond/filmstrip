@@ -33,8 +33,8 @@ internal fun landingComposition(): EditComposition {
       clip(MediaSource.of("beach.mp4")) {
         trim(2.seconds..8.seconds)
         effects {
-          saturation(1.3f)
-          contrast(1.1f)
+          saturation(2f)
+          contrast(1.15f)
           textOverlay(
             text = "SUMMER '96",
             at = 0.seconds..3.seconds,

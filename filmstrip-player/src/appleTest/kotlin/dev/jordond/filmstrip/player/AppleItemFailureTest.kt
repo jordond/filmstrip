@@ -183,6 +183,23 @@ class AppleItemFailureTest {
       }
     }
 
+  @Test
+  fun `a failed item halts a player the engine was playing`() =
+    contractTest { scope ->
+      val rig = FailingRig(scope)
+      val engine = rig.engine
+      withEngine(engine) { recorder ->
+        engine.play()
+        engine.platformPlayer.rate shouldNotBe 0f
+
+        engine.awaitComposition(appleFixtureComposition()).shouldBeInstanceOf<SetCompositionResult.Success>()
+        recorder.awaitQuietFailures(1, engine)
+
+        recorder.lastState.status shouldBe PlaybackStatus.Error(rig.items.last().playbackError())
+        engine.platformPlayer.rate shouldBe 0f
+      }
+    }
+
   /**
    * The stop is posted from the state change that starts the rebuild, while the old item is still watched. Its hop to
    * the engine's dispatcher then lands behind the rest of the rebuild, on an engine holding a fresh item.

@@ -50,7 +50,7 @@ jobs:
         run: ./gradlew dokkaGenerate
       - name: Build the wasm sample
         working-directory: .
-        run: ./gradlew :sample:webApp:wasmJsBrowserDistribution
+        run: ./gradlew :sample:webApp:wasmJsBrowserDistribution :sample:tryIt:wasmJsBrowserDistribution
       - &node
         name: Install Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

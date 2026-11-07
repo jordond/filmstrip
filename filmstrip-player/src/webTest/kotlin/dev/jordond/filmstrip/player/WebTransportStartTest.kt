@@ -2,6 +2,7 @@ package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
+import dev.jordond.filmstrip.player.contract.ContractRecorder
 import dev.jordond.filmstrip.player.contract.awaitComposition
 import dev.jordond.filmstrip.player.contract.awaitContract
 import dev.jordond.filmstrip.player.contract.awaitStep
@@ -98,6 +99,61 @@ class WebTransportStartTest {
       gate.resumed shouldBe listOf(1)
       gate.starts shouldBe listOf(Duration.ZERO, Duration.ZERO)
       engine.clockRunning shouldBe true
+    }
+
+  @Test
+  fun `a play before the first load starts once the load has its first frame`() =
+    beforeLoad { engine, gate, recorder ->
+      engine.play()
+      recorder.lastState.playWhenReady shouldBe true
+      recorder.lastState.isPlaying shouldBe false
+      engine.transportStarted shouldBe false
+      gate.entered shouldBe 0
+
+      engine.awaitComposition(webFixtureComposition()).shouldBeInstanceOf<SetCompositionResult.Success>()
+      awaitContract("the start to reach the audio graph") { gate.entered == 1 }
+      gate.releaseAll()
+      engine.awaitQuietDone()
+
+      gate.starts shouldBe listOf(Duration.ZERO)
+      engine.clockRunning shouldBe true
+      recorder.lastState.isPlaying shouldBe true
+    }
+
+  @Test
+  fun `a pause before the first load leaves the load stopped`() =
+    beforeLoad { engine, gate, recorder ->
+      engine.play()
+      engine.pause()
+
+      engine.awaitComposition(webFixtureComposition()).shouldBeInstanceOf<SetCompositionResult.Success>()
+      engine.awaitQuietDone()
+
+      gate.entered shouldBe 0
+      recorder.lastState.isPlaying shouldBe false
+    }
+
+  @Test
+  fun `a page hidden before the first load takes the play back`() =
+    beforeLoad { engine, gate, recorder ->
+      engine.play()
+      engine.onPageHidden()
+      recorder.lastState.playWhenReady shouldBe false
+
+      engine.awaitComposition(webFixtureComposition()).shouldBeInstanceOf<SetCompositionResult.Success>()
+      engine.awaitQuietDone()
+
+      gate.entered shouldBe 0
+    }
+
+  private fun beforeLoad(body: suspend (BrowserPlayerEngine, AudioStartGate, ContractRecorder) -> Unit) =
+    contractTest { scope ->
+      val gate = AudioStartGate()
+      val engine = heldEngine(scope, gate)
+      withEngine(engine) { recorder ->
+        body(engine, gate, recorder)
+        engine.pause()
+      }
     }
 
   private fun heldStart(body: suspend (BrowserPlayerEngine, AudioStartGate) -> Unit) =

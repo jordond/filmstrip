@@ -24,7 +24,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import platform.AVFoundation.AVAudioTimePitchAlgorithmSpectral
 import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerItem
 import platform.AVFoundation.AVPlayerItemStatusFailed
@@ -32,23 +31,17 @@ import platform.AVFoundation.AVPlayerItemStatusReadyToPlay
 import platform.AVFoundation.AVPlayerLayer
 import platform.AVFoundation.AVPlayerRateDidChangeNotification
 import platform.AVFoundation.AVPlayerRateDidChangeReasonKey
-import platform.AVFoundation.audioMix
-import platform.AVFoundation.audioTimePitchAlgorithm
 import platform.AVFoundation.currentTime
-import platform.AVFoundation.duration
 import platform.AVFoundation.pause
 import platform.AVFoundation.rate
 import platform.AVFoundation.replaceCurrentItemWithPlayerItem
 import platform.AVFoundation.setForwardPlaybackEndTime
 import platform.AVFoundation.setMuted
 import platform.AVFoundation.setVolume
-import platform.AVFoundation.videoComposition
-import platform.CoreMedia.CMTimeGetSeconds
 import platform.darwin.dispatch_queue_create
 import platform.darwin.dispatch_queue_t
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * The AVFoundation preview engine.
@@ -111,7 +104,10 @@ internal class AvPlayerEngine(
   private var item: AVPlayerItem? = null
   private var reachedEnd = false
 
-  private val drawFailure = AvDrawFailure(scope, current = { lowered }) { fail(it) }
+  // The load refused since the last one applied. The status reports it over anything the platform does until then.
+  private var refusal: PlaybackError? = null
+
+  private val drawFailure = AvDrawFailure(scope, current = { lowered }) { failPlayback(it) }
   private val wrapGuard = WrapGuard()
 
   // Halting the transport pauses the player, which raises a time control change that reads a failed item back here, so
@@ -119,7 +115,7 @@ internal class AvPlayerEngine(
   private val failures =
     AvItemFailures(
       attached = { item },
-      onFailed = { fail(it) },
+      onFailed = { failPlayback(it) },
       onFailedAgain = {
         seeks.abandon()
         setStatus(PlaybackStatus.Error(it))
@@ -198,11 +194,7 @@ internal class AvPlayerEngine(
    * indefinite time, which is no answer and reads as null.
    */
   val platformDuration: Duration?
-    get() {
-      val seconds = item?.let { CMTimeGetSeconds(it.duration) } ?: return null
-      if (seconds.isNaN() || seconds.isInfinite() || seconds <= 0.0) return null
-      return seconds.seconds
-    }
+    get() = item?.settledDuration()
 
   /**
    * The player the engine drives.
@@ -344,6 +336,7 @@ internal class AvPlayerEngine(
       rebuild(next)?.let { return it }
     }
 
+    refusal = null
     loaded = request.composition
     plan = next
     loop.arm()
@@ -405,9 +398,10 @@ internal class AvPlayerEngine(
    * change and a transport change alike, and two notifications landing together read as one.
    */
   private fun onPlatformChanged() {
+    val refused = refusal
     val target = item
     if (target == null) {
-      setStatus(PlaybackStatus.Idle)
+      setStatus(refused?.let { PlaybackStatus.Error(it) } ?: PlaybackStatus.Idle)
       return
     }
 
@@ -419,6 +413,9 @@ internal class AvPlayerEngine(
       }
       target.status == AVPlayerItemStatusFailed -> {
         failures.statusFailed(target)
+      }
+      refused != null -> {
+        setStatus(PlaybackStatus.Error(refused))
       }
       target.status == AVPlayerItemStatusReadyToPlay -> {
         setStatus(if (reachedEnd) PlaybackStatus.Ended else PlaybackStatus.Ready)
@@ -437,7 +434,7 @@ internal class AvPlayerEngine(
     reachedEnd = true
     transport.stop()
     val duration = plan?.resolved?.duration ?: Duration.ZERO
-    setStatus(PlaybackStatus.Ended)
+    if (refusal == null) setStatus(PlaybackStatus.Ended)
     setPlayWhenReady(false)
     emitEvent(PlaybackEvent.Ended(readPosition(), duration))
   }
@@ -455,12 +452,23 @@ internal class AvPlayerEngine(
   }
 
   /**
-   * Reports [error] as the reason playback stopped.
+   * Reports a refused load, leaving the transport and any item still attached running as they were.
    *
-   * A failed item answers no seek it was holding after this, so its seeks are abandoned. An item still attached after a
-   * draw failure or a refused load is left to answer them.
+   * The status stays on [error] until a load is applied, and a play made before the refusal carries over to that load.
    */
   override fun fail(error: PlaybackError) {
+    refusal = error
+    setStatus(PlaybackStatus.Error(error))
+    emitEvent(PlaybackEvent.Failed(error))
+  }
+
+  /**
+   * Reports [error] as the reason playback stopped and halts the transport.
+   *
+   * A failed item answers no seek it was holding after this, so its seeks are abandoned. An item still attached after a
+   * draw failure is left to answer them.
+   */
+  private fun failPlayback(error: PlaybackError) {
     seeks.abandon()
     wrapGuard.reset()
     transport.halt()
@@ -484,12 +492,3 @@ internal class AvPlayerEngine(
     val POSITION_INTERVAL = 16.milliseconds
   }
 }
-
-private fun previewItem(lowered: AvComposition): AVPlayerItem =
-  AVPlayerItem(asset = lowered.composition).apply {
-    videoComposition = lowered.videoComposition
-    audioMix = lowered.audioMix
-    // The preview plays the scaled composition through Spectral, where the export pre-stretches its audio to a file.
-    // The two agree on length and pitch, not on samples.
-    audioTimePitchAlgorithm = AVAudioTimePitchAlgorithmSpectral
-  }

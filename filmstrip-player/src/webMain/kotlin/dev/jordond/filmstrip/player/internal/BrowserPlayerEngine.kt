@@ -242,10 +242,10 @@ internal class BrowserPlayerEngine(
   }
 
   override fun onPlay() {
-    if (preview == null) return
     reachedEnd = false
     wantsPlayback = true
-    launchStart { readPosition() }
+    // With no preview yet there is nothing to start, and the load that builds one starts it instead.
+    if (preview != null) launchStart { readPosition() }
   }
 
   override fun onPause() {

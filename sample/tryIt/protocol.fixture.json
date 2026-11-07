@@ -1,0 +1,77 @@
+{
+  "control": [
+    { "type": "control", "name": "steps", "trim": true, "grade": false, "title": true },
+    { "type": "control", "name": "export" },
+    { "type": "control", "name": "save" },
+    { "type": "control", "name": "cancel" },
+    { "type": "control", "name": "retry" }
+  ],
+  "ready": [
+    { "type": "ready" }
+  ],
+  "failed": [
+    { "type": "failed" }
+  ],
+  "status": [
+    {
+      "type": "status",
+      "positionMs": 0,
+      "durationMs": null,
+      "trimRange": null,
+      "export": { "state": "idle" },
+      "exportRefusal": null,
+      "error": null,
+      "awaitingTap": false
+    },
+    {
+      "type": "status",
+      "positionMs": 5250,
+      "durationMs": 12000,
+      "trimRange": { "startMs": 2000, "endMs": 8000 },
+      "export": { "state": "running", "fraction": 0.37 },
+      "exportRefusal": null,
+      "error": null,
+      "awaitingTap": false
+    },
+    {
+      "type": "status",
+      "positionMs": 7000,
+      "durationMs": 12000,
+      "trimRange": null,
+      "export": { "state": "done" },
+      "exportRefusal": null,
+      "error": "The file could not be \"read\": a\\b.",
+      "awaitingTap": false
+    },
+    {
+      "type": "status",
+      "positionMs": 7000,
+      "durationMs": 12000,
+      "trimRange": null,
+      "export": { "state": "idle" },
+      "exportRefusal": "This device can't encode video, so it can preview but not export.",
+      "error": null,
+      "awaitingTap": false
+    },
+    {
+      "type": "status",
+      "positionMs": 7000,
+      "durationMs": 12000,
+      "trimRange": null,
+      "export": { "state": "idle" },
+      "exportRefusal": null,
+      "error": null,
+      "awaitingTap": true
+    }
+  ],
+  "ignored": [
+    "not json",
+    "null",
+    "[]",
+    "{\"type\":\"bogus\"}",
+    "{\"type\":\"control\",\"name\":\"bogus\"}",
+    "{\"type\":\"control\",\"name\":\"steps\"}",
+    "{\"type\":\"control\",\"name\":\"steps\",\"trim\":true,\"grade\":false}",
+    "{\"type\":\"control\",\"name\":\"steps\",\"trim\":1,\"grade\":false,\"title\":false}"
+  ]
+}

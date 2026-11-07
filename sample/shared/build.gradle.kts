@@ -14,7 +14,6 @@ kotlin {
     namespace = "dev.jordond.filmstrip.sample.shared"
     compileSdk = libs.versions.sdk.compile.get().toInt()
     minSdk = libs.versions.sdk.min.get().toInt()
-    androidResources.enable = true
   }
 
   jvm()
@@ -42,6 +41,7 @@ kotlin {
 
     commonMain.dependencies {
       api(projects.filmstrip)
+      api(projects.sample.common)
       implementation(projects.filmstripEffectsFilters)
       implementation(projects.filmstripCompose)
       implementation(projects.filmstripComposeUi)
@@ -50,7 +50,6 @@ kotlin {
       implementation(libs.compose.runtime)
       implementation(libs.compose.foundation)
       implementation(libs.compose.material3)
-      implementation(libs.compose.components.resources)
       implementation(libs.compose.adaptive)
       implementation(libs.compose.adaptive.layout)
       implementation(libs.navigation3.runtime)
@@ -83,21 +82,4 @@ kotlin {
       implementation(libs.compose.ui.test)
     }
   }
-}
-
-compose.resources {
-  packageOfResClass = "dev.jordond.filmstrip.sample.resources"
-}
-
-// The token test reads these, so a change to any of them has to rerun it.
-tasks.named<Test>("jvmTest") {
-  inputs
-    .files(
-      rootProject.file("website/src/styles/tokens.css"),
-      rootProject.file("website/src/styles/crt.css"),
-      rootProject.file("sample/androidApp/src/main/res/values/themes.xml"),
-      rootProject.file("sample/webApp/src/wasmJsMain/resources/index.html"),
-    ).withPathSensitivity(PathSensitivity.RELATIVE)
-    .withPropertyName("siteTokens")
-  systemProperty("filmstrip.rootDir", rootProject.projectDir.absolutePath)
 }

@@ -48,6 +48,7 @@ jobs:
           ./gradlew :internal:docs-samples:compileKotlinWasmJs
           ./gradlew :internal:docs-samples:compileAndroidMain
           ./gradlew :internal:docs-samples:compileKotlinIosArm64
+          ./gradlew :sample:tryIt:compileKotlinWasmJs
 
       - name: Build logic tests
         run: ./gradlew -p build-logic :convention:test

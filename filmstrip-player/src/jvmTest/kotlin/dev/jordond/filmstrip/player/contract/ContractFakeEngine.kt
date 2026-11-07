@@ -2,15 +2,18 @@ package dev.jordond.filmstrip.player.contract
 
 import dev.jordond.filmstrip.Cancellable
 import dev.jordond.filmstrip.capability.EffectParity
+import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.CompositionDiff
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.diff
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ColorSpace
+import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
 import dev.jordond.filmstrip.player.PlaybackStatus
@@ -87,6 +90,14 @@ internal class ContractFakeEngine(
     request: SetCompositionRequest,
     callback: SetCompositionCallback,
   ): Cancellable {
+    if (request.composition == FAKE_UNREADABLE) {
+      val error = PlaybackError.SourceUnreadable("The fake reads nothing from this composition.")
+      setStatus(PlaybackStatus.Error(error))
+      emitEvent(PlaybackEvent.Failed(error))
+      callback.onResult(SetCompositionResult.Failure(error))
+      return Cancellable { }
+    }
+
     val change = diff(loaded, request.composition)
     val duration = request.composition.duration ?: UNTRIMMED_DURATION
 
@@ -291,6 +302,14 @@ internal class ContractFakeEngine(
  * Every seek into the fake lands on this grid, the way a real backend lands on the one its lowered composition carries.
  */
 internal const val FAKE_FRAME_RATE: Int = 30
+
+/**
+ * The one composition [ContractFakeEngine] refuses to load.
+ *
+ * The fake reads no bytes, so nothing about a source can stop it the way it stops a real backend.
+ */
+internal val FAKE_UNREADABLE: EditComposition =
+  EditComposition(tracks = listOf(Track(listOf(Clip(MediaSource.of("unreadable.mp4"))))))
 
 /**
  * The fake wired up as a contract subject.

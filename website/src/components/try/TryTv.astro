@@ -1,0 +1,296 @@
+---
+// The Try it TV: the hero's set with the real library behind it. LOAD starts the app in an iframe over the picture, and
+// the page draws everything around that from what the app reports. Each key only sends a control. A browser with no
+// WebCodecs keeps the scene and gets a note in place of LOAD.
+import { NO_STEPS, tvFrame, WAITING } from '../../lib/beachTv'
+import { TRY_SIZE, TRY_SRC } from '../../lib/demo'
+import BeachTv from '../landing/BeachTv.astro'
+import NoWebCodecs from '../NoWebCodecs.astro'
+---
+
+<div class="try-tv" data-try-tv data-src={TRY_SRC}>
+  <BeachTv frame={tvFrame(WAITING, NO_STEPS)} led="demo">
+    <div slot="over" class="over" aria-live="polite" data-try-over>
+      <div class="offer" data-try-offer>
+        <button type="button" class="osd load" data-try-load>LOAD</button>
+        <span class="osd rgb-sm size">{TRY_SIZE.toUpperCase()} DOWNLOAD · STARTS WHEN YOU PRESS LOAD</span>
+      </div>
+      <span class="osd rgb-sm size" data-try-loading tabindex="-1" hidden>LOADING beach.mp4</span>
+      <span class="osd rgb-sm size" data-try-tap hidden>TAP TO PLAY</span>
+      <NoWebCodecs />
+    </div>
+    <div slot="controls" class="controls">
+      <div class="keys" role="group" aria-label="Edit steps">
+        <button type="button" class="osd key trim" aria-pressed="false" disabled data-step="trim">TRIM</button>
+        <button type="button" class="osd key grade" aria-pressed="false" disabled data-step="grade">GRADE</button>
+        <button type="button" class="osd key title" aria-pressed="false" disabled data-step="title">TITLE</button>
+        <button type="button" class="osd key export" disabled data-try-export>EXPORT</button>
+      </div>
+      <p class="osd note" role="status" data-try-note></p>
+    </div>
+  </BeachTv>
+</div>
+
+<script>
+  import {
+    APP_FAILED,
+    drawFrame,
+    exportKey,
+    NO_STEPS,
+    noteOf,
+    overlayOf,
+    tvFrame,
+    tvParts,
+    WAITING,
+    writeText,
+  } from '../../lib/beachTv'
+  import { demoIframe, gateLoad, webCodecsSupport } from '../../lib/demo'
+  import { connectFrame, type FrameLink, type Status, type Steps } from '../../lib/tryProtocol'
+
+  const root = document.querySelector<HTMLElement>('[data-try-tv]')
+  if (root) {
+    const parts = tvParts(root)
+    const over = root.querySelector<HTMLElement>('[data-try-over]')!
+    const offer = root.querySelector<HTMLElement>('[data-try-offer]')!
+    const loading = root.querySelector<HTMLElement>('[data-try-loading]')!
+    const tap = root.querySelector<HTMLElement>('[data-try-tap]')!
+    const noWebCodecs = root.querySelector<HTMLElement>('[data-no-webcodecs]')!
+    const led = root.querySelector<HTMLElement>('[data-demo-led]')!
+    const note = root.querySelector<HTMLElement>('[data-try-note]')!
+    const load = root.querySelector<HTMLButtonElement>('[data-try-load]')!
+    const exporter = root.querySelector<HTMLButtonElement>('[data-try-export]')!
+    const stepKeys = [...root.querySelectorAll<HTMLButtonElement>('[data-step]')]
+
+    let iframe: HTMLIFrameElement | null = null
+    let link: FrameLink | null = null
+    let pressed = false
+    let status: Status = WAITING
+    let steps: Steps = NO_STEPS
+
+    const draw = () => {
+      const heldFocus = document.activeElement === loading
+      const overlay = overlayOf(pressed, status)
+      const key = exportKey(status)
+      const up = status.durationMs !== null
+      drawFrame(parts, tvFrame(status, steps))
+      over.hidden = overlay === 'none'
+      over.classList.toggle('tap', overlay === 'tap')
+      offer.hidden = overlay !== 'offer'
+      loading.hidden = overlay !== 'loading'
+      tap.hidden = overlay !== 'tap'
+      parts.scene.hidden = up
+      iframe?.classList.toggle('ready', up)
+      // Only a gesture inside the app counts for its own audio, so the picture takes a tap or a key while one is asked for.
+      iframe?.classList.toggle('tap', overlay === 'tap')
+      if (iframe) iframe.tabIndex = overlay === 'tap' ? 0 : -1
+      led.dataset.state = up ? 'ready' : overlay === 'loading' ? 'loading' : 'idle'
+      for (const stepKey of stepKeys) {
+        stepKey.disabled = !up
+        stepKey.setAttribute('aria-pressed', String(steps[stepKey.dataset.step as keyof Steps]))
+      }
+      writeText(exporter, key.label)
+      exporter.disabled = key.disabled
+      writeText(note, noteOf(status))
+      if (heldFocus && overlay !== 'loading') (up ? stepKeys[0] : load).focus()
+    }
+
+    const openFrame = () => {
+      const frame = demoIframe(root.dataset.src!)
+      frame.title = 'filmstrip Try it'
+      frame.tabIndex = -1
+      link = connectFrame(frame, (message) => {
+        if (message.type === 'failed') {
+          link?.close()
+          link = null
+          iframe = null
+          frame.remove()
+          status = { ...WAITING, error: APP_FAILED }
+          draw()
+        } else if (message.type === 'status') {
+          status = message
+          draw()
+        }
+      })
+      iframe = frame
+      parts.well.append(frame)
+    }
+
+    gateLoad(webCodecsSupport(globalThis), { offer, noWebCodecs }, () => {
+      load.addEventListener('click', () => {
+        pressed = true
+        status = { ...status, error: null }
+        if (link) link.send({ name: 'retry' })
+        else openFrame()
+        draw()
+        if (!loading.hidden) loading.focus()
+      })
+    })
+
+    for (const stepKey of stepKeys) {
+      stepKey.addEventListener('click', () => {
+        const step = stepKey.dataset.step as keyof Steps
+        steps = { ...steps, [step]: !steps[step] }
+        link?.send({ name: 'steps', ...steps })
+        draw()
+      })
+    }
+    exporter.addEventListener('click', () => link?.send(exportKey(status).control))
+  }
+</script>
+
+<style>
+  .try-tv {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  .try-tv :global(iframe) {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .try-tv :global(iframe.ready) {
+    opacity: 1;
+  }
+
+  .try-tv :global(iframe.tap) {
+    pointer-events: auto;
+    cursor: pointer;
+  }
+
+  .over {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 2%;
+    overflow: hidden;
+  }
+
+  .over.tap {
+    pointer-events: none;
+  }
+
+  .over[hidden],
+  .offer[hidden],
+  .size[hidden] {
+    display: none;
+  }
+
+  .offer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .load {
+    cursor: pointer;
+    min-height: 44px;
+    padding: 0 clamp(24px, 4vw, 48px);
+    background: var(--amber);
+    color: var(--ground);
+    border: 3px solid var(--ground);
+    box-shadow:
+      0 0 0 3px var(--amber),
+      6px 6px 0 3px var(--red);
+    font-size: clamp(26px, 4vw, 52px);
+    letter-spacing: 0.08em;
+  }
+
+  .size {
+    background: var(--backdrop);
+    padding: 2px 12px;
+    font-size: clamp(16px, 1.8vw, 24px);
+    color: var(--text);
+    text-align: center;
+  }
+
+  .controls {
+    padding-top: 14px;
+  }
+
+  .keys {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .key {
+    cursor: pointer;
+    min-height: 44px;
+    padding: 0 4px;
+    font-size: clamp(18px, 2.4vw, 28px);
+    color: var(--text);
+    background: var(--knob);
+    border: 2px solid var(--line-strong);
+    overflow: hidden;
+  }
+
+  .key:enabled:hover,
+  .key:enabled:focus-visible {
+    border-color: var(--amber);
+  }
+
+  .key:disabled {
+    cursor: not-allowed;
+    color: var(--muted);
+    border-color: var(--line);
+  }
+
+  .key.trim[aria-pressed='true'] {
+    color: var(--ground);
+    background: var(--amber);
+  }
+
+  .key.grade[aria-pressed='true'] {
+    color: var(--ground);
+    background: var(--cyan);
+  }
+
+  .key.title[aria-pressed='true'] {
+    color: var(--ground);
+    background: var(--pink);
+  }
+
+  .key.export:enabled {
+    color: var(--red);
+  }
+
+  .note {
+    margin: 8px 0 0;
+    min-height: 1.2em;
+    font-size: clamp(16px, 1.8vw, 22px);
+    line-height: 1.2;
+    color: var(--amber);
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 34rem) {
+    .try-tv :global(.screen) {
+      aspect-ratio: 5 / 6;
+    }
+
+    .try-tv :global(.status) {
+      flex-wrap: wrap;
+      row-gap: 2px;
+    }
+
+    .try-tv :global(.step) {
+      order: 3;
+      flex-basis: 100%;
+      white-space: normal;
+    }
+  }
+</style>

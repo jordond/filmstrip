@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { canLoadDemo, demoUrl, webCodecsSupport } from './demo'
+import { canLoadDemo, demoUrl, gateLoad, type WebCodecsSupport, webCodecsSupport } from './demo'
 
 describe('demoUrl', () => {
   test('asks the app to sit inside the television', () => {
@@ -36,5 +36,26 @@ describe('canLoadDemo', () => {
 
   test('builds no iframe with no WebCodecs', () => {
     expect(canLoadDemo('none')).toBe(false)
+  })
+})
+
+describe('gateLoad', () => {
+  const gated = (support: WebCodecsSupport) => {
+    const panels = { offer: { hidden: false }, noWebCodecs: { hidden: true } }
+    let armed = 0
+    gateLoad(support, panels, () => armed++)
+    return { armed, offer: panels.offer.hidden, note: panels.noWebCodecs.hidden }
+  }
+
+  test('offers LOAD with an encoder and a decoder', () => {
+    expect(gated(webCodecsSupport({ VideoDecoder: 1, VideoEncoder: 1 }))).toEqual({ armed: 1, offer: false, note: true })
+  })
+
+  test('offers LOAD with only a decoder, since preview runs', () => {
+    expect(gated(webCodecsSupport({ VideoDecoder: 1 }))).toEqual({ armed: 1, offer: false, note: true })
+  })
+
+  test('shows the note and arms nothing with no decoder, so nothing can build the iframe', () => {
+    expect(gated(webCodecsSupport({}))).toEqual({ armed: 0, offer: true, note: false })
   })
 })

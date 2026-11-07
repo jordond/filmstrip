@@ -15,6 +15,10 @@ byte for byte on any machine with the same ffmpeg.
 Each one exists for a reason: a container a backend may not read, a rotation that has to survive a
 crop, audio that stops before the video does, a frame size past what a phone will encode.
 
+`beach-sunset.mp4` is generated too, drawn from ffmpeg's own filters to look like the landing page
+hero and left flat for a grade to bring back. The landing page's Try it sample plays it. It belongs
+to nobody. `./generate.sh beach-sunset` rebuilds just that clip.
+
 Two clips are real footage, because synthetic frames say nothing about how an encoder handles
 grain, motion and shadow:
 

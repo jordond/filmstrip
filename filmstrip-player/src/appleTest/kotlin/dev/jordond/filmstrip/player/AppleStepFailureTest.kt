@@ -15,8 +15,10 @@ import dev.jordond.filmstrip.player.contract.withEngine
 import dev.jordond.filmstrip.player.internal.AvPlayerEngine
 import dev.jordond.filmstrip.player.internal.AvPreviewPlanner
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
+import platform.AVFoundation.rate
 import kotlin.test.Test
 import kotlin.time.Duration
 
@@ -52,6 +54,26 @@ class AppleStepFailureTest {
             .shouldBeInstanceOf<PlaybackError.UnsupportedFormat>()
         error.message shouldContain REASON
         recorder.lastState.status shouldBe PlaybackStatus.Error(error)
+      }
+    }
+
+  @Test
+  fun `a step that throws while drawing halts a player the engine was playing`() =
+    contractTest { scope ->
+      val components = ComponentRegistry.Builder(CONTRACT_COMPONENTS).addEffectResolver(ThrowingResolver).build()
+      val engine = AvPlayerEngine(scope, AvPreviewPlanner(components), PlayerConfig(), muted = true)
+      withEngine(engine) { recorder ->
+        engine
+          .awaitComposition(appleFixtureComposition(listOf(Throwing)))
+          .shouldBeInstanceOf<SetCompositionResult.Success>()
+        engine.play()
+        engine.platformPlayer.rate shouldNotBe 0f
+
+        engine.readback.requestFrame(Duration.ZERO) { }
+        awaitContract("playback to fail") { recorder.events.any { it is PlaybackEvent.Failed } }
+        engine.drainCallbacks()
+
+        engine.platformPlayer.rate shouldBe 0f
       }
     }
 

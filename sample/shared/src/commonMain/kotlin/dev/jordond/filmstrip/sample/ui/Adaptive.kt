@@ -43,10 +43,3 @@ public fun currentEditorLayout(): EditorLayout {
     else -> EditorLayout.Stacked
   }
 }
-
-/**
- * Whether the window is narrow enough that a modal belongs at the bottom edge rather than centred.
- */
-@Composable
-public fun isCompactWidth(): Boolean =
-  !currentWindowAdaptiveInfoV2().windowSizeClass.isWidthAtLeastBreakpoint(WIDTH_DP_MEDIUM_LOWER_BOUND)

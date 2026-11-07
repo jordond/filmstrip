@@ -1,15 +1,22 @@
 ---
-import DemoFrame from '../DemoFrame.astro'
+import TryTv from '../try/TryTv.astro'
 ---
 
 <section id="try" class="section" aria-labelledby="try-title">
   <h2 id="try-title" class="disp section-title heading">Try it</h2>
-  <DemoFrame />
+  <TryTv />
+  <p class="more">Want the whole thing? <a href="/demo/">Open the full sample app</a>.</p>
 </section>
 
 <style>
   .heading {
     text-align: center;
     margin-bottom: 48px;
+  }
+
+  .more {
+    margin: 24px 0 0;
+    text-align: center;
+    color: var(--muted-strong);
   }
 </style>

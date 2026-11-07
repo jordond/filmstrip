@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport">
+    <title>filmstrip</title>
+    <link rel="preload" href="/fonts/rubik-mono-one-400.woff2" as="font" type="font/woff2" crossorigin>
+    <style>
+        @font-face {
+          font-family: 'Rubik Mono One';
+          font-style: normal;
+          font-weight: 400;
+          src: url('/fonts/rubik-mono-one-400.woff2') format('woff2');
+        }
+
+        html, body {
+          margin: 0;
+          padding: 0;
+          height: 100%;
+          overflow: hidden;
+          background: #0e0c12;
+        }
+    </style>
+    <script>
+      // The page stops listening for this once the app says it is ready.
+      const failed = () => parent.postMessage('{"type":"failed"}', location.origin)
+      // A script from another origin, like a browser extension's, is not the app. A browser names none on a cross-origin
+      // error, and may name none or a wasm address on the app's own.
+      const isOwn = ({ filename, message }) =>
+        filename
+          ? filename.startsWith('wasm:') || new URL(filename, location.href).origin === location.origin
+          : message !== 'Script error.'
+      addEventListener('error', (event) => {
+        if (isOwn(event)) failed()
+      })
+      addEventListener('unhandledrejection', failed)
+      document.fonts.load("400 16px 'Rubik Mono One'").catch(() => {})
+    </script>
+</head>
+<body>
+<script src="try.js" onerror="failed()"></script>
+</body>
+</html>
