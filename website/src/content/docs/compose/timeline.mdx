@@ -39,9 +39,9 @@ The window keeps to `FilmstripTimelineDefaults.Trim`, a minimum of 200 milliseco
 
 ## Options
 
-`zoom` sets how far in the timeline is drawn, and null fits the whole composition on screen. `TimelineZoom.of` takes a step
-from 0 to 10. `TimelineOptions` holds the rest, such as sizes, `followPlayhead` and the `pinchZoom` and `wheelZoom`
-switches.
+`zoom` sets how far in the timeline is drawn, and null fits the whole composition on screen. A null zoom refits when the
+width changes, like on a rotation or a window resize, until someone zooms. `TimelineZoom.of` takes a step from 0 to 10.
+`TimelineOptions` holds the rest, such as sizes, `followPlayhead` and the `pinchZoom` and `wheelZoom` switches.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/compose/Timeline.kt" region="options" />
 

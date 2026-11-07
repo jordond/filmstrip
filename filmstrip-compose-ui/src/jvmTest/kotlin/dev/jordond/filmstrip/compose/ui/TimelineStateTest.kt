@@ -137,46 +137,31 @@ class TimelineStateTest {
       state.scrollPx() shouldBe 420f
     }
 
-  @Test
-  fun `a viewport width change does not undo a zoom set through zoomTo`() =
-    runComposeUiTest {
-      var viewportWidthPx by mutableStateOf(VIEWPORT_WIDTH_PX)
-      lateinit var state: TimelineState
-      setContent {
-        state = rememberTimelineState(DURATION, viewportWidthPx, TILE_WIDTH_PX)
-        strip(state)
-      }
-
-      state.zoomTo(TimelineZoom.of(5), focusViewportPx = 50f)
-      waitForIdle()
-      state.zoom shouldBe TimelineZoom.of(5)
-
-      // A resize, such as a window resize, must not refit the ladder and undo it.
-      viewportWidthPx = 300f
-      waitForIdle()
-
-      state.zoom shouldBe TimelineZoom.of(5)
-    }
-
-  /**
-   * A bare row over [state]'s grid, laid out so a scroll on [state]'s list state has real content to act on.
-   */
-  @Composable
-  private fun strip(state: TimelineState) {
-    val density = LocalDensity.current
-    Box(Modifier.size(width = 400.dp, height = 72.dp)) {
-      LazyRow(state = state.listState) {
-        items(state.grid.count) { index ->
-          val tileWidth = with(density) { state.grid.tileWidthPxAt(index).toDp() }
-          Box(Modifier.width(tileWidth).fillMaxHeight().background(Color.DarkGray))
-        }
-      }
-    }
-  }
-
   private companion object {
     val DURATION = 60.seconds
     const val VIEWPORT_WIDTH_PX = 800f
+    const val RESIZED_WIDTH_PX = 1300f
     const val TILE_WIDTH_PX = 46
+  }
+}
+
+/**
+ * A bare row over [state]'s grid, laid out so a scroll on [state]'s list state has real content to act on.
+ */
+@Composable
+internal fun strip(
+  state: TimelineState,
+  widthPx: Float = 400f,
+  modifier: Modifier = Modifier,
+) {
+  val density = LocalDensity.current
+  val width = with(density) { widthPx.toDp() }
+  Box(modifier.size(width = width, height = 72.dp)) {
+    LazyRow(state = state.listState) {
+      items(state.grid.count) { index ->
+        val tileWidth = with(density) { state.grid.tileWidthPxAt(index).toDp() }
+        Box(Modifier.width(tileWidth).fillMaxHeight().background(Color.DarkGray))
+      }
+    }
   }
 }
