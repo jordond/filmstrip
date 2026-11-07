@@ -148,6 +148,50 @@ class EncoderChoiceTest {
   }
 
   @Test
+  fun `a graded negotiation with no encoder at all keeps the asked codec and reports nothing`() {
+    val device = fixture.device(video = emptyList(), audio = emptyList())
+
+    val named = resolveAudioCodec(ExportSpec(audioCodec = AudioCodec.Aac), device, silent = false, graded = true)
+    val silent = resolveAudioCodec(ExportSpec(audioCodec = AudioCodec.Aac), device, silent = true, graded = true)
+
+    named.codec shouldBe AudioCodec.Aac
+    named.fallback.shouldBeNull()
+    silent.codec shouldBe AudioCodec.None
+    resolveAudioCodec(ExportSpec(), device, silent = false, graded = true).codec shouldBe AudioCodec.Auto
+  }
+
+  // An export runs here and writes no audio, and the preview reads what it writes.
+  @Test
+  fun `a device with a video encoder and no audio encoder resolves to none with or without a grade`() {
+    val device = fixture.device(audio = emptyList())
+
+    for (graded in listOf(true, false)) {
+      val choice = resolveAudioCodec(ExportSpec(audioCodec = AudioCodec.Aac), device, silent = false, graded = graded)
+
+      choice.codec shouldBe AudioCodec.None
+      choice.fallback.shouldBeNull()
+    }
+  }
+
+  @Test
+  fun `a listed audio encoder that lacks the asked codec falls back the same with or without a grade`() {
+    val alac = listOf(AudioEncoderCapability(AudioCodec.Alac, listOf(48_000), 2))
+    val spec = ExportSpec(audioCodec = AudioCodec.Aac)
+
+    for (device in listOf(fixture.device(audio = alac), fixture.device(video = emptyList(), audio = alac))) {
+      val graded = resolveAudioCodec(spec, device, silent = false, graded = true)
+      val exported = resolveAudioCodec(spec, device, silent = false, graded = false)
+
+      graded.codec shouldBe AudioCodec.Alac
+      exported.codec shouldBe AudioCodec.Alac
+      graded.fallback
+        .shouldNotBeNull()
+        .adjustment.kind shouldBe AdjustmentKind.CodecFallback
+      graded.fallback?.adjustment shouldBe exported.fallback?.adjustment
+    }
+  }
+
+  @Test
   fun `the first clip with audio proposes the rate and an encoder that lists it keeps it`() {
     val tracks = tracksOf(fixture.clip(), fixture.clip(audioRate = 48_000), fixture.clip(audioRate = 32_000))
 

@@ -32,6 +32,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.arguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.drawnAt
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.ffmpegTag
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.formatSeconds
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.hdrPixelFormatFor
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.resolvedGraph
 import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
@@ -254,6 +255,23 @@ class GraphLoweringTest {
         "color=s=1920x1080:r=30,trim=end_frame=1,format=pix_fmts=yuv420p10le,lutyuv=y=$luma:u=$cb:v=$cr," +
         "$grade,loop=loop=-1:size=1[vbg]"
       graph.split("lutyuv").size shouldBe 2
+    }
+  }
+
+  // A negotiation handed its grade can settle on no encoder, which reads the way one with no HDR profile does.
+  @Test
+  fun `a kept grade with no encoder named pins every clip's tail to yuv420p`() {
+    for (transfer in HdrTransfer.entries) {
+      val graph =
+        invocationFor(
+          fill = Fill.Black,
+          hdrTransfer = transfer,
+          encoderName = null,
+          hdrPixelFormat = hdrPixelFormatFor(null, transfer),
+        ).filterGraph
+
+      graph shouldContain "format=pix_fmts=yuva420p[v0]"
+      graph shouldContain "format=pix_fmts=yuv420p[vflat]"
     }
   }
 
@@ -1099,6 +1117,8 @@ class GraphLoweringTest {
     passes: Int = 1,
     sourceSize: Size = NARROW,
     speed: Double = 1.0,
+    encoderName: String? = "libx264",
+    hdrPixelFormat: String? = hdrTransfer?.let { "yuv420p10le" },
   ): Invocation {
     val duration = 2.seconds
     val length = outputLengthOf(duration, speed)
@@ -1161,10 +1181,10 @@ class GraphLoweringTest {
         path = ExportPath.Transcode,
         audio = AudioSpec.Keep,
         adjustments = emptyList(),
-        encoderName = "libx264",
+        encoderName = encoderName,
       )
 
-    return GraphLowering(negotiated, hdrPixelFormat = hdrTransfer?.let { "yuv420p10le" }).build()
+    return GraphLowering(negotiated, hdrPixelFormat = hdrPixelFormat).build()
   }
 
   /**

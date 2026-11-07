@@ -199,6 +199,29 @@ would carry. A buffer of a container AVFoundation doesn't open reads as `SourceU
 Android's platform extractor refuses a QuickTime file with no `ftyp` box, so such a buffer reads as `SourceUnreadable`,
 the same as a path to that file does. Apple and ffmpeg read it.
 
+## Browsers without WebCodecs
+
+WebCodecs is the only way filmstrip decodes or encodes in a browser, and there's no fallback. Firefox for Android has
+neither half, per caniuse as checked on 2026-11-06.
+
+- With no `VideoDecoder`, a preview of anything with video fails before it reads a source. Its status is
+  `PlaybackStatus.Error` with a `PlaybackError.UnsupportedFormat` saying "This browser has no WebCodecs video decoder, so
+  it can't preview video." An `AudioSpec.AudioOnly` composition draws nothing, so it needs an `AudioDecoder` instead.
+- With no `AudioDecoder`, a preview of anything with video plays silently and doesn't report
+  `PlayerFeature.AudioMonitoring`. An `AudioSpec.AudioOnly` composition has nothing to play, so it fails before it reads
+  a source, with a `PlaybackError.UnsupportedFormat` saying "This browser has no WebCodecs audio decoder, so it can't
+  preview audio."
+- With no `VideoEncoder`, a preview runs as normal and carries its audio. `Filmstrip.capabilities()` lists no video
+  encoder, and a plan refuses with `FilmstripError.NoEncoder`, so check `video` on the capabilities to know an export
+  can't run.
+- With a `VideoEncoder` and no `AudioEncoder`, an export writes no audio and its preview matches it, so both are silent.
+
+Thumbnails need a `VideoDecoder` too. With none, each request fails with a `FilmstripError.InvalidComposition` carrying
+the same words as the preview.
+
+The demo on this site reads the same two globals. With no `VideoDecoder` it keeps the colour bars and says so where LOAD
+would be, and nothing downloads. See [Player](/guides/player/).
+
 ## Named in the guides
 
 The rest are next to the feature they limit.

@@ -65,6 +65,7 @@ import dev.jordond.filmstrip.transform.internal.geometry.frameAfter
 import dev.jordond.filmstrip.transform.internal.heldTail
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.passesCovering
+import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.stillUnsupportedMessage
 import dev.jordond.filmstrip.transform.internal.videoSlots
 import dev.jordond.filmstrip.webcodecs.internal.BrowserExportEngine
@@ -654,6 +655,23 @@ class BrowserPlannerTest {
     // The codec alone does not settle the bit depth: VP9 Profile 0 is 8-bit and would write an SDR
     // stream into a file tagged BT.2020.
     lowering.graph?.videoEncoding?.encoderCodec shouldBe HDR_VP9_CODEC
+  }
+
+  // The source would copy, which is how the export keeps its grade, and only the cap reaches for an encoder.
+  @Test
+  fun aCappedPreviewOfACopiedGradeLowersOnTheTenBitStringWithNoEncoderForIt() {
+    val clip = Clip(source("a"))
+    val composition = EditComposition(tracks = listOf(Track(listOf(clip))), audio = AudioSpec.Keep)
+    val infos = mapOf(clip.source to info(hdr = HdrTransfer.Pq))
+
+    for (device in listOf(device(), device(VideoCodec.H264))) {
+      val ask = Ask(ExportSpec(heightPx = 720), device, infos, grade = ResolvedHdr.Keep)
+
+      val render = planner.lower(composition, ask).graph.shouldNotBeNull()
+
+      render.hdrTransfer shouldBe HdrTransfer.Pq
+      render.videoEncoding?.encoderCodec shouldBe HDR_VP9_CODEC
+    }
   }
 
   // ffmpeg and the mobile backends stream-copy an untouched clip straight through. This pipeline

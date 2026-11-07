@@ -69,4 +69,8 @@ internal actual fun hasVideoEncoder(): Boolean = js("typeof VideoEncoder !== 'un
 
 internal actual fun hasAudioEncoder(): Boolean = js("typeof AudioEncoder !== 'undefined'").unsafeCast<Boolean>()
 
+internal actual fun hasVideoDecoder(): Boolean = js("typeof VideoDecoder !== 'undefined'").unsafeCast<Boolean>()
+
+internal actual fun hasAudioDecoder(): Boolean = js("typeof AudioDecoder !== 'undefined'").unsafeCast<Boolean>()
+
 internal actual fun hasAudioContext(): Boolean = js("typeof AudioContext !== 'undefined'").unsafeCast<Boolean>()

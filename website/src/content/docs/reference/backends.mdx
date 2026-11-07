@@ -52,14 +52,14 @@ also needs a float framebuffer and a VP9 Profile 2 encoder.
 
 `features` on a player says what this backend can do on this device.
 
-| Feature               | Android              | Apple | Browser         | JVM |
-| --------------------- | -------------------- | ----- | --------------- | --- |
-| `FrameReadback`       | Yes                  | Yes   | Needs WebGL2    | Yes |
-| `FrameStepping`       | Yes                  | Yes   | Needs WebGL2    | Yes |
-| `LiveParameterRedraw` | Yes                  | Yes   | Needs WebGL2    | No  |
-| `AudioMonitoring`     | When media3 can      | No    | Needs Web Audio | No  |
-| `HdrPreview`          | When the display can | No    | No              | No  |
-| `PlaybackSpeed`       | No                   | No    | No              | No  |
+| Feature               | Android              | Apple | Browser                            | JVM |
+| --------------------- | -------------------- | ----- | ---------------------------------- | --- |
+| `FrameReadback`       | Yes                  | Yes   | Needs WebGL2                       | Yes |
+| `FrameStepping`       | Yes                  | Yes   | Needs WebGL2                       | Yes |
+| `LiveParameterRedraw` | Yes                  | Yes   | Needs WebGL2                       | No  |
+| `AudioMonitoring`     | When media3 can      | No    | Needs Web Audio and `AudioDecoder` | No  |
+| `HdrPreview`          | When the display can | No    | No                                 | No  |
+| `PlaybackSpeed`       | No                   | No    | No                                 | No  |
 
 See [Player](/guides/player/#features) for what each one means.
 

@@ -27,6 +27,10 @@ import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
  * A transcode that writes video always settles on a bitrate, the one the spec names or else the one its quality tier
  * resolves to through [resolveVideoBitrate], with [DEFAULT_QUALITY] standing in for no tier. One above the encoder's
  * own ceiling is held to it and reported the same way the frame is. A copy and an audio-only export settle none.
+ *
+ * A negotiation that writes no file never refuses for a missing encoder. With nothing to encode what it would pick, it
+ * reads as the first rung of [hdrLadder] when the grade reaches the encoder and of [ladder] otherwise, with no encoder
+ * and no ceiling. An export still refuses.
  */
 internal fun encodingOf(
   ask: Ask,
@@ -39,10 +43,9 @@ internal fun encodingOf(
 ): Phase<Encoding> {
   val spec = ask.spec
   val sourceCodec = videoCodecOf(framing.firstVideo.codec.kind)
-  // A negotiation handed its grade writes no file, so having no encoder for a kept grade refuses nothing.
   val video =
     resolveVideoCodec(spec, ask.device, grade.encodesHdr, ladder, hdrLadder, sourceCodec)
-      ?: ask.grade?.let { resolveVideoCodec(spec, ask.device, encodesHdr = false, ladder, hdrLadder, sourceCodec) }
+      ?: CodecChoice((if (grade.encodesHdr) hdrLadder else ladder).first(), null).takeIf { ask.writesNoFile }
       ?: return Phase.Refused(FilmstripError.NoEncoder(spec.videoCodec, NO_ENCODER))
   val encoder = ask.device.encoderFor(video.codec)
   val copies = grade.path == ExportPath.Copy

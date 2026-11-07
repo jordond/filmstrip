@@ -21,3 +21,17 @@ export function demoIframe(src: string, onLoad?: () => void): HTMLIFrameElement 
   if (onLoad) iframe.addEventListener('load', onLoad, { once: true })
   return iframe
 }
+
+/** How much of filmstrip this browser can run. Preview needs `VideoDecoder`, and export needs `VideoEncoder` as well. */
+export type WebCodecsSupport = 'full' | 'previewOnly' | 'none'
+
+/** What [globals], the page's global scope, carries of WebCodecs. */
+export function webCodecsSupport(globals: object): WebCodecsSupport {
+  if (!('VideoDecoder' in globals)) return 'none'
+  return 'VideoEncoder' in globals ? 'full' : 'previewOnly'
+}
+
+/** Whether the sample can run under [support]. When it can't, nothing builds its iframe and nothing downloads. */
+export function canLoadDemo(support: WebCodecsSupport): boolean {
+  return support !== 'none'
+}

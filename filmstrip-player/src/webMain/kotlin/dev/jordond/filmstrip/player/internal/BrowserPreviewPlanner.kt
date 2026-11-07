@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.FilmstripComponents
 import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.OutputProperty
 import dev.jordond.filmstrip.capability.PreviewFidelity
+import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.player.PlaybackError
@@ -11,6 +12,8 @@ import dev.jordond.filmstrip.player.PreviewInfo
 import dev.jordond.filmstrip.player.PreviewQualityPolicy
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
+import dev.jordond.filmstrip.webcodecs.internal.preview.browserCanDecodeAudio
+import dev.jordond.filmstrip.webcodecs.internal.preview.browserCanDecodeVideo
 import dev.jordond.filmstrip.webcodecs.webCodecsExportEngine
 
 /**
@@ -32,6 +35,10 @@ internal class BrowserPreviewPlan(
 /**
  * Lowers an edit through the same WebCodecs engine an export of it runs on, and carries the edit beside the graph.
  *
+ * WebCodecs is the only decoder this backend has, so a page with no `VideoDecoder` refuses anything that draws before a
+ * source is probed. An audio-only composition decodes no frame, so it needs an `AudioDecoder` instead and refuses by
+ * name without one, since it has nothing else to play.
+ *
  * @param components The components the owning `Filmstrip` was built with.
  */
 internal open class BrowserPreviewPlanner(
@@ -43,9 +50,15 @@ internal open class BrowserPreviewPlanner(
     composition: EditComposition,
     policy: PreviewQualityPolicy,
     exportSpec: ExportSpec,
-  ): PlanResult<BrowserPreviewPlan, PlaybackError> =
+  ): PlanResult<BrowserPreviewPlan, PlaybackError> {
+    val missingDecoder =
+      when {
+        composition.audio == AudioSpec.AudioOnly -> NO_AUDIO_DECODER.takeUnless { browserCanDecodeAudio() }
+        else -> NO_VIDEO_DECODER.takeUnless { browserCanDecodeVideo() }
+      }
+    if (missingDecoder != null) return PlanResult.Refused(PlaybackError.UnsupportedFormat(missingDecoder))
     // What the preview says about the grade follows the grade the plan settles on, so the notes go on once it has.
-    when (
+    return when (
       val result =
         planPreview(
           composition,
@@ -72,6 +85,7 @@ internal open class BrowserPreviewPlanner(
         )
       }
     }
+  }
 }
 
 /**
@@ -95,6 +109,16 @@ internal fun browserFidelity(hdr: ResolvedHdr): List<FidelityNote> =
       message = "A frame the decoder could not deliver in time is held. An exported one is not.",
     ),
   )
+
+/**
+ * What a page with no `VideoDecoder` is told when it asks for anything drawn, a preview or a thumbnail.
+ */
+internal const val NO_VIDEO_DECODER = "This browser has no WebCodecs video decoder, so it can't preview video."
+
+/**
+ * What a page with no `AudioDecoder` is told when it asks for an audio-only preview.
+ */
+internal const val NO_AUDIO_DECODER = "This browser has no WebCodecs audio decoder, so it can't preview audio."
 
 private val KEPT_GRADE =
   FidelityNote(

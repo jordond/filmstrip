@@ -15,6 +15,11 @@ backend its exports use, so the compositing isn't a second implementation.
 `filmstrip-player` registered, the player reports `PlaybackError.BackendMissing` instead of throwing. A browser reports
 the same error, naming `filmstrip-transform-webcodecs`, when `webCodecsBackend()` isn't registered.
 
+A preview writes no file, so a device with no video encoder still previews and only its exports are refused. In a
+browser that preview plays its audio too, given a WebCodecs `AudioDecoder`. A browser needs a WebCodecs `VideoDecoder`
+to draw, and one without it reports `PlaybackError.UnsupportedFormat`. See
+[Limits](/reference/limits/#browsers-without-webcodecs).
+
 `config` sets how hard a preview works. `CapHeight` limits its height without changing what an export writes.
 
 <Snippet file="commonMain/kotlin/dev/jordond/filmstrip/docs/guides/Player.kt" region="quality" />
@@ -61,14 +66,14 @@ without coroutines.
 `features` says what this backend can do on this device. Ask it before you draw a control, since a control for a missing
 feature looks frozen.
 
-| Feature               | Android           | Apple | Browser        | JVM |
-| --------------------- | ----------------- | ----- | -------------- | --- |
-| `FrameReadback`       | Yes               | Yes   | Needs WebGL2   | Yes |
-| `FrameStepping`       | Yes               | Yes   | Needs WebGL2   | Yes |
-| `LiveParameterRedraw` | Yes               | Yes   | Needs WebGL2   | No  |
-| `AudioMonitoring`     | When media3 can   | No    | Needs Web Audio | No  |
-| `HdrPreview`          | When the display can | No | No             | No  |
-| `PlaybackSpeed`       | No                | No    | No             | No  |
+| Feature               | Android              | Apple | Browser                            | JVM |
+| --------------------- | -------------------- | ----- | ---------------------------------- | --- |
+| `FrameReadback`       | Yes                  | Yes   | Needs WebGL2                       | Yes |
+| `FrameStepping`       | Yes                  | Yes   | Needs WebGL2                       | Yes |
+| `LiveParameterRedraw` | Yes                  | Yes   | Needs WebGL2                       | No  |
+| `AudioMonitoring`     | When media3 can      | No    | Needs Web Audio and `AudioDecoder` | No  |
+| `HdrPreview`          | When the display can | No    | No                                 | No  |
+| `PlaybackSpeed`       | No                   | No    | No                                 | No  |
 
 `readback` hands you a rendered preview frame, after effects and before encoding.
 

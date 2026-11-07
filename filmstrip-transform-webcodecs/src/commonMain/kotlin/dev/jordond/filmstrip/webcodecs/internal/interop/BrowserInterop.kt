@@ -103,6 +103,16 @@ internal expect fun hasVideoEncoder(): Boolean
 internal expect fun hasAudioEncoder(): Boolean
 
 /**
+ * True when the page has a `VideoDecoder` global at all, which every frame this backend draws is decoded through.
+ */
+internal expect fun hasVideoDecoder(): Boolean
+
+/**
+ * True when the page has an `AudioDecoder` global at all, which every sample the preview plays is decoded through.
+ */
+internal expect fun hasAudioDecoder(): Boolean
+
+/**
  * True when the page has an `AudioContext` global at all, which the preview's clock and its monitor
  * volume both run on.
  */

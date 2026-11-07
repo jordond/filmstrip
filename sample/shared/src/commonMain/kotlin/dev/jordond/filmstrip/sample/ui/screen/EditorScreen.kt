@@ -83,7 +83,12 @@ public fun EditorScreen(
 
   Scaffold(
     modifier = modifier,
-    topBar = { EditorTopBar(state, wide = layout == EditorLayout.TwoPane) },
+    topBar = {
+      Column {
+        EditorTopBar(state, wide = layout == EditorLayout.TwoPane)
+        state.exportRefusal?.let { ExportRefusalLine(it) }
+      }
+    },
     containerColor = MaterialTheme.colorScheme.background,
     contentColor = MaterialTheme.colorScheme.onSurface,
   ) { insets ->
@@ -218,12 +223,32 @@ private fun EditorTopBar(
     Key(
       label = "EXPORT",
       onClick = state::openExport,
-      enabled = !state.exporting,
+      enabled = !state.exporting && state.exportRefusal == null,
       icon = SampleIcons.Record,
       minHeight = Tokens.sizeTouch,
       horizontalPadding = if (wide) 20.dp else 12.dp,
     )
   }
+}
+
+/**
+ * Why the export key is off, under the strip it sits on.
+ */
+@Composable
+private fun ExportRefusalLine(reason: String) {
+  val colors = MaterialTheme.colorScheme
+  val insets = LocalScreenInsets.current
+  Text(
+    text = reason,
+    style = MaterialTheme.typography.bodySmall,
+    color = colors.onSurfaceVariant,
+    modifier = Modifier
+      .fillMaxWidth()
+      .background(colors.background)
+      .bottomLine(colors.outlineVariant)
+      .padding(start = insets.side, end = insets.side)
+      .padding(horizontal = 12.dp, vertical = 6.dp),
+  )
 }
 
 @Composable

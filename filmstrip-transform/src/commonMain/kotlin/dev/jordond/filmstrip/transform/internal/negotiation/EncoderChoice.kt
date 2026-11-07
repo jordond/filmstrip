@@ -82,16 +82,22 @@ internal fun resolveVideoCodec(
  *
  * @param silent Whether nothing survives to be encoded, which settles on [AudioCodec.None] whatever
  *   was asked for.
+ * @param graded Whether the negotiation was handed its grade, so it writes no file. A device with no video encoder has
+ * no export to disagree with, so having no audio encoder either keeps the audio under the codec that was asked for. A
+ * device that can export reads as its export does.
  */
 internal fun resolveAudioCodec(
   spec: ExportSpec,
   device: DeviceCapabilities,
   silent: Boolean,
+  graded: Boolean = false,
 ): CodecChoice<AudioCodec> {
   val requested = spec.audioCodec
   if (silent) return CodecChoice(AudioCodec.None, null)
   if (device.audio.any { it.codec == requested }) return CodecChoice(requested, null)
-  val fallback = device.audio.firstOrNull()?.codec ?: return CodecChoice(AudioCodec.None, null)
+  val fallback =
+    device.audio.firstOrNull()?.codec
+      ?: return CodecChoice(if (graded && device.video.isEmpty()) requested else AudioCodec.None, null)
   if (requested == AudioCodec.Auto) return CodecChoice(fallback, null)
 
   val message = "This device has no $requested encoder, so $fallback is used instead."

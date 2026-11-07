@@ -102,8 +102,9 @@ internal fun audioWriterSettings(output: OutputFormat): Map<Any?, Any?>? {
   val format = output.audioFormat ?: return null
 
   return mapOf(
-    // Auto and Alac never reach here. The planner resolves both against the device's real encoder
-    // list, and AAC is the only one this platform advertises.
+    // An export resolves Auto and Alac against the device's real encoder list, and AAC is the only
+    // one this platform advertises. A graded plan can carry either, but it writes no file and never
+    // opens this writer.
     AVFormatIDKey to kAudioFormatMPEG4AAC,
     AVSampleRateKey to format.sampleRate.toDouble(),
     AVNumberOfChannelsKey to format.channelCount,

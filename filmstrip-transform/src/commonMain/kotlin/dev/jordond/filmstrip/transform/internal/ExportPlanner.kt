@@ -197,7 +197,7 @@ public class ExportPlanner(
     }
     if (unsupported.isNotEmpty()) return Settlement.Unsupported(unsupported)
 
-    val audio = resolveAudioCodec(ask.spec, ask.device, silent = !streams.keepAudio)
+    val audio = resolveAudioCodec(ask.spec, ask.device, silent = !streams.keepAudio, graded = ask.writesNoFile)
     val output = outputFormatOf(ask, framing, grade, encoding, audio, timeline.tracks)
     val concessions = concessionsOf(ask.spec, framing, grade, encoding, audio, lowered, dropped)
     if (ask.spec.strict && concessions.isNotEmpty()) {

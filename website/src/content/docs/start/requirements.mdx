@@ -24,12 +24,16 @@ the code.
 | iOS | {MIN_IOS} | AVFoundation, VideoToolbox and AVPlayer |
 | macOS | {MIN_MACOS} | AVFoundation, VideoToolbox and AVPlayer |
 | Desktop (JVM) | ffmpeg {versions.ffmpeg} | The `ffmpeg` and `ffprobe` on the machine |
-| Browser | WebCodecs | WebCodecs, drawn to a canvas |
+| Browser | WebCodecs `VideoDecoder`, and `VideoEncoder` to export | WebCodecs, drawn to a canvas |
 
 ## Browsers
 
 filmstrip is tested on {TESTED_BROWSERS}. Edge, Firefox and Safari have WebCodecs too, but filmstrip isn't tested on
 them. They may work.
+
+A preview needs `VideoDecoder` to draw and `AudioDecoder` to play sound, and an export needs `VideoEncoder` as well.
+Firefox for Android has neither video half, per caniuse as checked on 2026-11-06. See
+[what the reader sees there](/reference/limits/#browsers-without-webcodecs).
 
 ## ffmpeg
 

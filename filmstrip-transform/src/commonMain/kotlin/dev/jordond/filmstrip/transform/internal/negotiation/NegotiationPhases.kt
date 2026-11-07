@@ -67,7 +67,14 @@ public class Ask(
   public val openings: Map<MediaSource, Duration> = emptyMap(),
   public val layoutSize: Size? = null,
   public val grade: ResolvedHdr? = null,
-)
+) {
+  /**
+   * Whether this negotiation writes no file, which is what being handed its [grade] means.
+   *
+   * A preview or a thumbnail reads its plan this way, so a missing encoder refuses nothing here.
+   */
+  internal val writesNoFile: Boolean get() = grade != null
+}
 
 /**
  * The frame the output is measured from and the size the composition asks for.

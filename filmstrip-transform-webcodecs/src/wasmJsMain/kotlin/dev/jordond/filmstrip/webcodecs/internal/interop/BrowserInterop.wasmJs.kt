@@ -76,6 +76,10 @@ internal actual fun hasVideoEncoder(): Boolean = js("typeof VideoEncoder !== 'un
 
 internal actual fun hasAudioEncoder(): Boolean = js("typeof AudioEncoder !== 'undefined'")
 
+internal actual fun hasVideoDecoder(): Boolean = js("typeof VideoDecoder !== 'undefined'")
+
+internal actual fun hasAudioDecoder(): Boolean = js("typeof AudioDecoder !== 'undefined'")
+
 internal actual fun hasAudioContext(): Boolean = js("typeof AudioContext !== 'undefined'")
 
 @JsFun("() => ({})")

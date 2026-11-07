@@ -21,6 +21,8 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.OffscreenCanvas
 import dev.jordond.filmstrip.webcodecs.internal.interop.Uint8Array
 import dev.jordond.filmstrip.webcodecs.internal.interop.VideoSample
 import dev.jordond.filmstrip.webcodecs.internal.interop.hasAudioContext
+import dev.jordond.filmstrip.webcodecs.internal.interop.hasAudioDecoder
+import dev.jordond.filmstrip.webcodecs.internal.interop.hasVideoDecoder
 import dev.jordond.filmstrip.webcodecs.internal.interop.toByteArray
 import dev.jordond.filmstrip.webcodecs.internal.render.BrowserCompositor
 import kotlinx.coroutines.await
@@ -96,11 +98,14 @@ public class BrowserPreview internal constructor(
   public val frameRate: Int get() = render.frameRate
 
   /**
-   * Whether anything in this composition contributes audible audio.
+   * Whether anything in this composition contributes audible audio that this page can decode.
+   *
+   * A page with no `AudioDecoder` has nothing to play it with, so its preview runs silently on wall time.
    */
   public val carriesAudio: Boolean
     get() =
-      render.audioFormat != null &&
+      browserCanDecodeAudio() &&
+        render.audioFormat != null &&
         render.audioTracks.any { track -> track.clips.any { it.gain.peak > 0f && it.info.audio != null } }
 
   /**
@@ -481,10 +486,23 @@ public fun browserCanComposite(): Boolean =
   }.getOrDefault(false)
 
 /**
- * Whether this page carries the Web Audio API the preview's clock and monitor volume run on.
+ * Whether this page carries the Web Audio API the preview's clock and monitor volume run on, and the WebCodecs
+ * `AudioDecoder` that gives them anything to play.
  */
 @InternalFilmstripApi
-public fun browserCanMonitorAudio(): Boolean = hasAudioContext()
+public fun browserCanMonitorAudio(): Boolean = hasAudioContext() && browserCanDecodeAudio()
+
+/**
+ * Whether this page carries the WebCodecs `VideoDecoder` every previewed frame is decoded through.
+ */
+@InternalFilmstripApi
+public fun browserCanDecodeVideo(): Boolean = hasVideoDecoder()
+
+/**
+ * Whether this page carries the WebCodecs `AudioDecoder` every previewed sample is decoded through.
+ */
+@InternalFilmstripApi
+public fun browserCanDecodeAudio(): Boolean = hasAudioDecoder()
 
 /**
  * Lowers this plan for a preview, through the same lowering an export of [edit] runs.

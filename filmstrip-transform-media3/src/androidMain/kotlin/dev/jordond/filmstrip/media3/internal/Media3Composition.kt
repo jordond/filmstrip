@@ -113,10 +113,11 @@ internal fun VideoCodec.toMimeType(): String =
 internal fun AudioCodec.toMimeType(): String? =
   when (this) {
     AudioCodec.None -> null
-    // Android's only muxer-supported audio encoder in the AAC family, and the only one the planner
-    // ever resolves to on this platform.
+    // Android's only muxer-supported audio encoder in the AAC family, and the only one an export
+    // resolves to on this platform.
     AudioCodec.Aac -> MimeTypes.AUDIO_AAC
-    // These error, so a resolver change that starts picking one of them fails loudly.
+    // These error, so a resolver change that starts picking one for an export fails loudly. A graded
+    // plan can carry any of them, but it writes no file and never asks for a MIME type.
     AudioCodec.Auto, AudioCodec.Alac, AudioCodec.Opus -> error("media3 has no encoder for $this.")
     AudioCodec.Mp3, AudioCodec.Flac, AudioCodec.Vorbis -> error("media3 has no encoder for $this.")
   }

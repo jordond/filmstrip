@@ -205,6 +205,11 @@ public class SampleAppState(
   var loadingCapabilities: Boolean by mutableStateOf(false)
     private set
 
+  /**
+   * Why this device can't export at all, or null when it can or hasn't answered yet.
+   */
+  val exportRefusal: String? get() = exportRefusalOf(capabilities)
+
   private var exportJob: Job? = null
   private var exportGeneration = 0
   private var clockJob: Job? = null

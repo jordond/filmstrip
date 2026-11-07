@@ -1,7 +1,8 @@
 ---
 // A big CRT showing colour bars until the reader presses LOAD, then the wasm sample in an iframe. Nothing downloads
 // before the click. The screen layers stay on top of the iframe and let every pointer event through. On narrow widths
-// LOAD also grows the screen and slims the bezel, so the sample has room to be used.
+// LOAD also grows the screen and slims the bezel, so the sample has room to be used. A browser with no WebCodecs keeps
+// the bars and gets a note in place of LOAD.
 import { DEMO_SIZE, DEMO_SRC } from '../lib/demo'
 import TvChin from './landing/TvChin.astro'
 
@@ -50,6 +51,10 @@ const bottom = [
           </button>
           <span class="rgb-sm note">{size.toUpperCase()} DOWNLOAD · STARTS WHEN YOU PRESS LOAD</span>
         </div>
+        <div class="no-webcodecs" data-demo-panel="no-webcodecs" hidden>
+          <span class="rgb-sm no-webcodecs-title">THIS BROWSER HAS NO WEBCODECS</span>
+          <span class="rgb-sm note">THE DEMO NEEDS IT · OPEN THIS PAGE IN CHROME</span>
+        </div>
         <div class="loading" data-demo-panel="loading" tabindex="-1" hidden>
           <span class="rgb-sm loading-title">LOADING TAPE <span class="blink" aria-hidden="true">▮</span></span>
           <div class="cells" aria-hidden="true">
@@ -65,12 +70,20 @@ const bottom = [
 </div>
 
 <script>
-  import { DEMO_SRC, demoIframe } from '../lib/demo'
+  import { DEMO_SRC, canLoadDemo, demoIframe, webCodecsSupport } from '../lib/demo'
+
+  const support = webCodecsSupport(globalThis)
 
   for (const tv of document.querySelectorAll<HTMLElement>('[data-demo]')) {
     const screen = tv.querySelector<HTMLElement>('#demo-screen')!
     const led = tv.querySelector<HTMLElement>('[data-demo-led]')!
     const panel = (name: string) => tv.querySelector<HTMLElement>(`[data-demo-panel="${name}"]`)!
+
+    if (!canLoadDemo(support)) {
+      panel('idle').hidden = true
+      panel('no-webcodecs').hidden = false
+      continue
+    }
 
     tv.querySelector('[data-demo-load]')?.addEventListener(
       'click',
@@ -189,7 +202,23 @@ const bottom = [
     gap: 12px;
   }
 
+  .no-webcodecs {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .no-webcodecs-title {
+    background: rgba(7, 6, 10, 0.9);
+    padding: 4px 16px;
+    font-size: clamp(24px, 3vw, 40px);
+    color: var(--amber);
+    text-align: center;
+  }
+
   .idle[hidden],
+  .no-webcodecs[hidden],
   .loading[hidden] {
     display: none;
   }
