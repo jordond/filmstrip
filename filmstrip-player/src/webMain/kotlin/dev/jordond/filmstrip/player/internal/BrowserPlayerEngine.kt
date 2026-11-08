@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.player.internal
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.CompositionDiff
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.player.PlaybackError
@@ -359,7 +360,7 @@ internal class BrowserPlayerEngine(
         )
       }
 
-    if (!drawn) return PlaybackError.SourceUnreadable("The browser could not decode a frame of this composition.")
+    if (!drawn) return FilmstripError.InvalidComposition(NO_FIRST_FRAME).toPlaybackError()
     firstFrameOwed = false
     emitEvent(PlaybackEvent.FirstFrameRendered)
     return null
@@ -376,3 +377,8 @@ internal class BrowserPlayerEngine(
     const val VISIBILITY_CHANGE = "visibilitychange"
   }
 }
+
+/**
+ * What a load is refused with when its first frame cannot be drawn, because the decoder handed back no frame there.
+ */
+internal const val NO_FIRST_FRAME = "The browser could not decode a frame of this composition."

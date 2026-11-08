@@ -7,12 +7,15 @@ import dev.jordond.filmstrip.diagnostics.report
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegExportEngine
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.PREVIEW_SINK
+import dev.jordond.filmstrip.ffmpeg.internal.lowering.PreviewFrames
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewArguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewFrameBytes
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewFrames
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewLanding
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.previewSeek
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.readingGraphFrom
+import dev.jordond.filmstrip.ffmpeg.internal.process.ResolvedInput
 import dev.jordond.filmstrip.ffmpeg.internal.process.Scratch
 import dev.jordond.filmstrip.ffmpeg.internal.process.chooseForm
 import dev.jordond.filmstrip.ffmpeg.internal.process.resolve
@@ -65,17 +68,24 @@ public suspend fun FfmpegExportEngine.openPreview(
   val invocation = chosen.invocation
   // Materialising an input or a sidecar touches the file system, and a directory that fails part
   // way through is still a directory. The export path is wrapped for the same reason.
-  val (split, command, spawned) =
+  val (split, inputs, command, spawned) =
     try {
-      val resolvedInputs = invocation.inputs.map { scratch.resolve(it.source, chosen.feeds).path }
+      val resolvedInputs = invocation.inputs.map { scratch.resolve(it.source, chosen.feeds) }
       val resolvedSidecars = invocation.sidecars.map { scratch.write(it) }
 
       // Worked out once here and handed to previewArguments, so the graph's -frames:v and the
       // pump's split come off the one split.
       val split = invocation.previewFrames(at)
       val command =
-        invocation.previewArguments(toolchain, runtime.config, resolvedInputs, resolvedSidecars, at, split)
-      Triple(split, command, command.readingGraphFrom(scratch))
+        invocation.previewArguments(
+          toolchain,
+          runtime.config,
+          resolvedInputs.map { it.path },
+          resolvedSidecars,
+          at,
+          split,
+        )
+      PreviewCommand(split, resolvedInputs, command, command.readingGraphFrom(scratch))
     } catch (failure: IOException) {
       chosen.feeds?.close()
       scratch.delete()
@@ -111,9 +121,18 @@ public suspend fun FfmpegExportEngine.openPreview(
       scratch = scratch,
       size = invocation.output.size,
       startPosition = invocation.previewLanding(at),
+      inputs = inputs,
+      sink = PREVIEW_SINK,
       frameBytes = invocation.previewFrameBytes,
       split = split,
       feeds = chosen.feeds,
     ),
   )
 }
+
+private data class PreviewCommand(
+  val split: PreviewFrames,
+  val inputs: List<ResolvedInput>,
+  val command: List<String>,
+  val spawned: List<String>,
+)

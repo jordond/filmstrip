@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.FilmstripComponents
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.FidelityNote
 import dev.jordond.filmstrip.capability.OutputProperty
 import dev.jordond.filmstrip.capability.PreviewFidelity
@@ -56,7 +57,7 @@ internal open class BrowserPreviewPlanner(
         composition.audio == AudioSpec.AudioOnly -> NO_AUDIO_DECODER.takeUnless { browserCanDecodeAudio() }
         else -> NO_VIDEO_DECODER.takeUnless { browserCanDecodeVideo() }
       }
-    if (missingDecoder != null) return PlanResult.Refused(PlaybackError.UnsupportedFormat(missingDecoder))
+    missingDecoder?.let { return PlanResult.Refused(FilmstripError.InvalidComposition(it).toPlaybackError()) }
     // What the preview says about the grade follows the grade the plan settles on, so the notes go on once it has.
     return when (
       val result =

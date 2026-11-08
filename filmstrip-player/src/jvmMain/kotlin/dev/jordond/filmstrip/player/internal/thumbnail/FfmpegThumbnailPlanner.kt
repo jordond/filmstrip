@@ -21,7 +21,7 @@ import kotlin.time.Duration
  *
  * @param components The components the owning `Filmstrip` was built with.
  */
-internal class FfmpegThumbnailPlanner(
+internal open class FfmpegThumbnailPlanner(
   components: FilmstripComponents,
 ) {
   private val engine = components.registeredFfmpegEngine()
@@ -48,7 +48,7 @@ internal class FfmpegThumbnailPlanner(
   /**
    * Spawns the pump for one frame of [composition], windowed at [at].
    */
-  suspend fun open(
+  open suspend fun open(
     plan: HeightLowering,
     composition: EditComposition,
     at: Duration,

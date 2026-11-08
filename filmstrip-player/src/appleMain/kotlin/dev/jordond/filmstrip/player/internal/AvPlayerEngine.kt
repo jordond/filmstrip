@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.player.internal
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
@@ -7,7 +8,6 @@ import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
 import dev.jordond.filmstrip.edit.CompositionDiff
 import dev.jordond.filmstrip.edit.TimeRange
-import dev.jordond.filmstrip.internal.AppleScratch
 import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PlaybackEvent
@@ -65,6 +65,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * @param config How the player was built.
  * @param muted Silences the player's output without touching its volume. Audio still decodes and plays, nothing
  * reaches the speakers.
+ * @param lower Builds the composition a plan plays through, throwing what the AVFoundation lowering throws.
  * @param itemOf Builds the item a lowered composition plays through.
  */
 @OptIn(ExperimentalForeignApi::class)
@@ -73,7 +74,7 @@ internal class AvPlayerEngine(
   planner: AvPreviewPlanner,
   config: PlayerConfig,
   muted: Boolean = false,
-  private val bytesRoot: String = AppleScratch.defaultRoot,
+  private val lower: suspend (PreviewPlan) -> AvComposition = { it.resolved.toAvComposition() },
   private val itemOf: (AvComposition) -> AVPlayerItem = ::previewItem,
 ) : PlannedPlayerEngine<PreviewPlan>(parent, config.qualityPolicy, config.exportSpec, planner) {
   private val player = AVPlayer().apply { setMuted(muted) }
@@ -373,11 +374,11 @@ internal class AvPlayerEngine(
   private suspend fun rebuild(next: PreviewPlan): PlaybackError? {
     val av =
       try {
-        withContext(Dispatchers.IO) { next.resolved.toAvComposition(bytesRoot) }
+        withContext(Dispatchers.IO) { lower(next) }
       } catch (refused: AvLoweringFailure) {
-        return PlaybackError.UnsupportedFormat(refused.reason)
+        return FilmstripError.InvalidComposition(refused.reason).toPlaybackError()
       } catch (failure: MediaBytesFileFailure) {
-        return PlaybackError.SourceUnreadable(failure.message)
+        return FilmstripError.SourceUnreadable(failure.source, failure.message).toPlaybackError()
       }
 
     platformLoads++

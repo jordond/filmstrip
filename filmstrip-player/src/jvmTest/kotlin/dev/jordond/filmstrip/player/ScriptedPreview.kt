@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.player
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStream
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
@@ -36,6 +37,7 @@ internal class ScriptedPlanner(
  *
  * @param readGate Holds the read after the last frame, closed or not, until it opens. The read then ends the stream.
  * @param exitGate Holds the status read of a stream that was not closed until it opens.
+ * @param failure What the stream classifies a failed exit as, or null for one carrying the status and [stderr].
  */
 internal class ScriptedStream(
   override val startPosition: Duration,
@@ -44,6 +46,7 @@ internal class ScriptedStream(
   private val stderr: String = "",
   private val readGate: StreamGate? = null,
   private val exitGate: StreamGate? = null,
+  private val failure: FilmstripError? = null,
 ) : PreviewStream {
   private var sent = 0L
 
@@ -66,6 +69,8 @@ internal class ScriptedStream(
   }
 
   override fun errors(): String = stderr
+
+  override fun exitError(status: Int): FilmstripError = failure ?: FilmstripError.Underlying(status, stderr)
 
   override fun close() {
     closed = true

@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.player.CONTRACT_COMPONENTS
 import dev.jordond.filmstrip.player.FIXTURE_FRAME
 import dev.jordond.filmstrip.player.MID_GOP_POSITION
 import dev.jordond.filmstrip.player.internal.HeightLowering
+import dev.jordond.filmstrip.player.internal.IndexedStream
 import dev.jordond.filmstrip.player.internal.PlanResult
 import dev.jordond.filmstrip.player.internal.PreviewFrame
 import dev.jordond.filmstrip.player.internal.frameAt
@@ -132,6 +133,28 @@ class FfmpegThumbnailSourceTest {
       }
     }
 
+  // The source went between the lowering and the process, so only the exit can say which one it was.
+  @Test
+  fun `a process that fails on a missing source fails the thumbnail with the source the stream names`(): Unit =
+    runBlocking {
+      val stream =
+        IndexedStream(MID_GOP_POSITION, frames = 0, status = FAILED, stderr = NO_SUCH_FILE, failure = GONE)
+      val scripted =
+        object : FfmpegThumbnailPlanner(CONTRACT_COMPONENTS) {
+          override suspend fun open(
+            plan: HeightLowering,
+            composition: EditComposition,
+            at: Duration,
+          ): PreviewStreamResult = PreviewStreamResult.Opened(stream)
+        }
+
+      val result = render(request(), scripted)
+
+      val error = result.shouldBeInstanceOf<ThumbnailResult.Failure>().error
+      error.shouldBeInstanceOf<FilmstripError.SourceUnreadable>()
+      error shouldBe GONE
+    }
+
   @Test
   fun `a request cancelled before it renders is never answered`() =
     runTest {
@@ -197,5 +220,12 @@ class FfmpegThumbnailSourceTest {
     const val ALPHA = 3
     const val OPAQUE = 0xFF.toByte()
     val BUDGET = 60.seconds
+
+    // What ffmpeg exits with on an input it could not open.
+    const val FAILED = 1
+
+    const val NO_SUCH_FILE = "scripted.mp4: No such file or directory"
+
+    val GONE = FilmstripError.SourceUnreadable(source = "scripted.mp4", message = NO_SUCH_FILE)
   }
 }

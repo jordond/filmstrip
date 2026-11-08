@@ -126,7 +126,10 @@ public sealed interface PlaybackError {
   ) : PlaybackError
 
   /**
-   * The container or codec is not playable here.
+   * The preview cannot be played here.
+   *
+   * The container or codec is one this platform cannot play, or the backend refused the composition or one of its
+   * effects. A composition an export of the same edit fails as invalid reads as this, with the same message.
    */
   @Poko
   public class UnsupportedFormat(

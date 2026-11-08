@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.Cancellable
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
@@ -45,6 +46,20 @@ internal suspend fun PreviewStream.frameAt(
     slot++
   }
 }
+
+/**
+ * Why this stream ran out of frames, once [PreviewStream.next] has returned null.
+ *
+ * A failed exit reads as [PreviewStream.exitError]. A clean exit, or a status that could not be read, says nothing more
+ * than that the frames ran out.
+ *
+ * @return The failure, or null when the process did not report one.
+ */
+internal suspend fun PreviewStream.failedExit(): FilmstripError? =
+  exitStatus()
+    ?.takeIf {
+      it != 0
+    }?.let { exitError(it) }
 
 /**
  * Reads a rendered frame back, out of the pump where it is already there and out of a process of
@@ -96,7 +111,9 @@ internal class FfmpegFrameReadback(
     try {
       val frame =
         stream.frameAt(at, current.frameRate)
-          ?: return ReadbackResult.Failure(PlaybackError.Underlying(NO_CODE, noFrame(at)))
+          ?: return ReadbackResult.Failure(
+            stream.failedExit()?.toPlaybackError() ?: PlaybackError.Underlying(NO_CODE, noFrame(at)),
+          )
       return ReadbackResult.Success(frame.toReadbackFrame(current))
     } finally {
       stream.close()

@@ -95,14 +95,14 @@ class FfmpegPumpTest {
     }
 
   @Test
-  fun `a process that exits with a status reports it with its stderr and does not finish`() =
+  fun `a process that exits with a status reports it as the stream classifies it and does not finish`() =
     runTest {
       val rig = Rig(this) { at -> opened(IndexedStream(at, frames = 2, status = FAILED, stderr = STDERR)) }
 
       rig.pump.start(slotTime(START))
       advanceUntilIdle()
 
-      rig.processFailures shouldBe listOf(FAILED to STDERR)
+      rig.processFailures shouldBe listOf(FilmstripError.Underlying(FAILED, STDERR).toPlaybackError())
       rig.finishes.shouldBeEmpty()
     }
 
@@ -115,9 +115,9 @@ class FfmpegPumpTest {
       rig.pump.start(slotTime(START))
       advanceUntilIdle()
 
-      val (status, errors) = rig.processFailures.single()
-      status shouldBe 0
-      errors shouldContain "wrote no frame"
+      val error = rig.processFailures.single().shouldBeInstanceOf<PlaybackError.Underlying>()
+      error.platformCode shouldBe 0
+      error.message shouldContain "wrote no frame"
       rig.finishes.shouldBeEmpty()
     }
 
@@ -194,7 +194,7 @@ class FfmpegPumpTest {
     val pixels = mutableListOf<Byte>()
     val finishes = mutableListOf<Boolean>()
     val failures = mutableListOf<PlaybackError>()
-    val processFailures = mutableListOf<Pair<Int, String>>()
+    val processFailures = mutableListOf<PlaybackError>()
     private var presented: PreviewFrame? = null
 
     private val planner = StreamPlanner(open)
@@ -229,7 +229,7 @@ class FfmpegPumpTest {
           pixels += frame.pixels.single()
         },
         fail = { failures += it },
-        failProcess = { status, errors -> processFailures += status to errors },
+        failProcess = { processFailures += it },
       )
   }
 

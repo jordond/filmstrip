@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg
 
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.ffmpeg.internal.process.LIVE_FEED_FAILED
 import dev.jordond.filmstrip.ffmpeg.internal.process.PUMP_UNSPAWNABLE
 import dev.jordond.filmstrip.ffmpeg.internal.process.ResolvedInput
 import dev.jordond.filmstrip.ffmpeg.internal.process.SPAWN_FAILED
@@ -23,6 +24,16 @@ class ExitCodesTest {
       error.shouldBeInstanceOf<FilmstripError.InsufficientStorage>().requiredBytes shouldBe null
       error.message shouldBe "av_interleaved_write_frame(): No space left on device"
     }
+  }
+
+  // A feed failure can quote the operating system, so an export and a preview read its arm before its message.
+  @Test
+  fun `a failed live feed has no platform code whatever its message says`() {
+    val error = classifyExit(LIVE_FEED_FAILED, "write failed: No space left on device", SINK)
+
+    error.shouldBeInstanceOf<FilmstripError.Underlying>().platformCode shouldBe
+      FilmstripError.Underlying.NO_PLATFORM_CODE
+    error.message shouldBe "write failed: No space left on device"
   }
 
   @Test

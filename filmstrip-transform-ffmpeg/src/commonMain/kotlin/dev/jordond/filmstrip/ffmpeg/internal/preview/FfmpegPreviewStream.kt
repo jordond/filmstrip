@@ -1,11 +1,15 @@
 package dev.jordond.filmstrip.ffmpeg.internal.preview
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.PreviewFrames
 import dev.jordond.filmstrip.ffmpeg.internal.process.FrameStream
 import dev.jordond.filmstrip.ffmpeg.internal.process.LIVE_FEED_FAILED
 import dev.jordond.filmstrip.ffmpeg.internal.process.LiveFeeds
+import dev.jordond.filmstrip.ffmpeg.internal.process.ResolvedInput
 import dev.jordond.filmstrip.ffmpeg.internal.process.Scratch
+import dev.jordond.filmstrip.ffmpeg.internal.process.classifyExit
 import dev.jordond.filmstrip.ffmpeg.internal.process.liveFeedFailure
+import dev.jordond.filmstrip.ffmpeg.internal.process.missingSource
 import dev.jordond.filmstrip.geometry.Size
 import kotlin.time.Duration
 
@@ -22,6 +26,8 @@ internal class FfmpegPreviewStream(
   private val scratch: Scratch,
   override val size: Size,
   override val startPosition: Duration,
+  private val inputs: List<ResolvedInput>,
+  private val sink: String,
   private val frameBytes: Int,
   private val split: PreviewFrames = PreviewFrames(rendered = null, held = 0),
   private val feeds: LiveFeeds? = null,
@@ -54,6 +60,15 @@ internal class FfmpegPreviewStream(
   }
 
   override fun errors(): String = feeds?.failure()?.let(::liveFeedFailure) ?: frames.errors()
+
+  override fun exitError(status: Int): FilmstripError =
+    classifyExit(
+      exitCode = status,
+      stderr = errors(),
+      sink = sink,
+      inputs = inputs,
+      missingSource = inputs.missingSource(),
+    )
 
   override fun close() {
     frames.close()

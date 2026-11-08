@@ -159,6 +159,21 @@ class FfmpegFrameReadbackTest {
       streams.single().closed shouldBe true
     }
 
+  // The source went between the plan and the process, so only the exit can say which one it was.
+  @Test
+  fun `a process that fails on a missing source fails the readback with the source the stream names`() =
+    runTest {
+      val stream =
+        IndexedStream(slotTime(SLOT), frames = 0, status = FAILED, stderr = NO_SUCH_FILE, failure = GONE)
+      val planner = StreamPlanner { stream.opened() }
+
+      val result = read(readback(planner), slotTime(SLOT))
+
+      val error = result.shouldBeInstanceOf<ReadbackResult.Failure>().error
+      error.shouldBeInstanceOf<PlaybackError.SourceUnreadable>()
+      error shouldBe GONE.toPlaybackError()
+    }
+
   @Test
   fun `a process that could not open fails the readback with why`() =
     runTest {
@@ -212,5 +227,12 @@ class FfmpegFrameReadbackTest {
     const val STANDING: Byte = 0x5A
 
     const val WHY = "ffmpeg was not found on the PATH."
+
+    // What ffmpeg exits with on an input it could not open.
+    const val FAILED = 1
+
+    const val NO_SUCH_FILE = "scripted.mp4: No such file or directory"
+
+    val GONE = FilmstripError.SourceUnreadable(source = "scripted.mp4", message = NO_SUCH_FILE)
   }
 }

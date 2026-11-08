@@ -10,6 +10,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.ExperimentalApi
 import androidx.media3.transformer.CompositionPlayer
 import dev.jordond.filmstrip.Cancellable
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.CompositionDiff
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.effectsRevision
@@ -49,6 +50,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * @param context The application context media3 decodes and renders against.
  * @param planner Lowers an edit the way an export of it would be lowered.
  * @param config How the player was built.
+ * @param lower Builds the graph a plan plays through, throwing what the media3 lowering throws.
  */
 @ExperimentalApi
 internal class Media3PlayerEngine(
@@ -56,6 +58,7 @@ internal class Media3PlayerEngine(
   private val context: Context,
   planner: Media3PreviewPlanner,
   config: PlayerConfig,
+  private val lower: (Media3PreviewPlan) -> Media3Preview = { it.resolved.toMedia3Preview(it.bounds) },
 ) : PlannedPlayerEngine<Media3PreviewPlan>(parent, config.qualityPolicy, config.exportSpec, planner) {
   private val thread = HandlerThread(THREAD_NAME).apply { start() }
   private val handler = Handler(thread.looper)
@@ -372,9 +375,9 @@ internal class Media3PlayerEngine(
   ): PlaybackError? {
     val lowered =
       try {
-        next.resolved.toMedia3Preview(next.bounds)
+        lower(next)
       } catch (refused: Media3LoweringFailure) {
-        return PlaybackError.UnsupportedFormat(refused.reason)
+        return FilmstripError.InvalidComposition(refused.reason).toPlaybackError()
       }
 
     platformLoads++

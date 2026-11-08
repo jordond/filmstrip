@@ -55,6 +55,14 @@ public interface PreviewStream {
   public fun errors(): String
 
   /**
+   * Why the process failed with [status], classified the way an export of the same edit classifies its own exit.
+   *
+   * What is on disk is read when this is called, so call it after the exit for an input that went missing to be named
+   * as the source that failed.
+   */
+  public fun exitError(status: Int): FilmstripError
+
+  /**
    * Kills the process and releases what it was reading. Idempotent.
    */
   public fun close()

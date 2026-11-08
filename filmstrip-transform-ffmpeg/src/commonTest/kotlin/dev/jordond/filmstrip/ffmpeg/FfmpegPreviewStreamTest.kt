@@ -1,12 +1,16 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.PreviewFrames
 import dev.jordond.filmstrip.ffmpeg.internal.preview.FfmpegPreviewStream
 import dev.jordond.filmstrip.ffmpeg.internal.process.FrameStream
+import dev.jordond.filmstrip.ffmpeg.internal.process.ResolvedInput
 import dev.jordond.filmstrip.ffmpeg.internal.process.Scratch
+import dev.jordond.filmstrip.ffmpeg.internal.process.classifyExit
 import dev.jordond.filmstrip.geometry.Size
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.time.Duration
@@ -57,11 +61,42 @@ class FfmpegPreviewStreamTest {
       drain(stream) shouldBe (1..RENDERED).toList()
     }
 
+  // Each exit names a different input, so a stream classifying against anything but its own inputs fails here.
+  @Test
+  fun `classifies a failed exit the way an export does`() =
+    runTest {
+      val exits =
+        listOf(
+          NO_SUCH_FILE to FilmstripError.SourceUnreadable("scripted.mp4", NO_SUCH_FILE),
+          INPUT_REFUSED to FilmstripError.SourceUnreadable("refused.mp4", INPUT_REFUSED),
+        )
+
+      exits.forEach { (stderr, expected) ->
+        val stream = streamOf(Numbered(0, stderr), PreviewFrames(rendered = null, held = 0), listOf(GONE, REFUSED))
+
+        val error = stream.exitError(FAILED)
+        stream.close()
+
+        error shouldBe classifyExit(FAILED, stderr, SINK, listOf(GONE, REFUSED), missingSource = GONE.source)
+        error.shouldBeInstanceOf<FilmstripError.SourceUnreadable>() shouldBe expected
+      }
+    }
+
   private fun streamOf(
     frames: FrameStream,
     split: PreviewFrames,
+    inputs: List<ResolvedInput> = emptyList(),
   ): FfmpegPreviewStream =
-    FfmpegPreviewStream(frames, Scratch.create(), Size(1, 1), Duration.ZERO, frameBytes = 1, split = split)
+    FfmpegPreviewStream(
+      frames,
+      Scratch.create(),
+      Size(1, 1),
+      Duration.ZERO,
+      inputs = inputs,
+      sink = SINK,
+      frameBytes = 1,
+      split = split,
+    )
 
   private suspend fun drain(stream: FfmpegPreviewStream): List<Int> =
     try {
@@ -73,6 +108,7 @@ class FfmpegPreviewStreamTest {
   // Writes frames numbered from one up to [count], then ends.
   private class Numbered(
     private val count: Int,
+    private val stderr: String = "",
   ) : FrameStream {
     private var written = 0
 
@@ -88,7 +124,7 @@ class FfmpegPreviewStreamTest {
 
     override suspend fun exitStatus(): Int? = 0
 
-    override fun errors(): String = ""
+    override fun errors(): String = stderr
 
     override fun close() = Unit
   }
@@ -96,5 +132,14 @@ class FfmpegPreviewStreamTest {
   private companion object {
     const val RENDERED = 4
     const val HELD = 3
+    const val FAILED = 1
+    const val SINK = "pipe:1"
+    const val NO_SUCH_FILE = "/filmstrip/missing/scripted.mp4: No such file or directory"
+    const val INPUT_REFUSED =
+      "[in#0 @ 0x600001e1c000] Error opening input: Permission denied\n" +
+        "Error opening input file /filmstrip/refused/scripted.mp4."
+
+    val GONE = ResolvedInput(path = "/filmstrip/missing/scripted.mp4", source = "scripted.mp4")
+    val REFUSED = ResolvedInput(path = "/filmstrip/refused/scripted.mp4", source = "refused.mp4")
   }
 }

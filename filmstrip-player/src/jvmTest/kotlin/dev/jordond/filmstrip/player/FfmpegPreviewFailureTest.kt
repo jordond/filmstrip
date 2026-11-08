@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.player
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.effects.color.Brightness
@@ -10,6 +11,7 @@ import dev.jordond.filmstrip.player.contract.awaitStep
 import dev.jordond.filmstrip.player.contract.contractTest
 import dev.jordond.filmstrip.player.contract.withEngine
 import dev.jordond.filmstrip.player.internal.FfmpegPlayerEngine
+import dev.jordond.filmstrip.player.internal.toPlaybackError
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -65,6 +67,43 @@ class FfmpegPreviewFailureTest {
           .filterIsInstance<PlaybackEvent.Ended>()
           .single()
           .finalPosition shouldBe recorder.lastState.duration
+      }
+    }
+
+  // Each exit classifies apart from a plain failure, so a player reporting the raw status fails here. The last one
+  // classifies off the status it is handed, so a player passing anything but the status it read fails too.
+  @Test
+  fun `a failed exit reports what the stream classifies it as`() =
+    contractTest { scope ->
+      val exits =
+        listOf(
+          Exit(status = INVALID_ARGUMENT, stderr = STDERR, failure = FilmstripError.InvalidComposition(STDERR)),
+          Exit(status = FAILED, stderr = STDERR, failure = FilmstripError.SourceUnreadable(SOURCE, STDERR)),
+          Exit(status = FAILED, stderr = STDERR, failure = FilmstripError.SinkUnwritable(SINK, STDERR)),
+          Exit(status = KILLED_BY_SIGNAL, stderr = ""),
+        )
+
+      exits.forEach { exit ->
+        val planner =
+          ScriptedPlanner {
+            ScriptedStream(
+              it,
+              frames = 0,
+              status = exit.status,
+              stderr = exit.stderr,
+              failure = exit.failure,
+            )
+          }
+        val engine = FfmpegPlayerEngine(parent = scope, planner = planner, config = PlayerConfig())
+
+        withEngine(engine) { recorder ->
+          engine.awaitComposition(jvmFixtureComposition()).shouldBeInstanceOf<SetCompositionResult.Success>()
+          awaitContract("the pump to fail") { recorder.failures.isNotEmpty() }
+          engine.awaitPumpsDone()
+
+          val classified = planner.opened.single().exitError(exit.status)
+          recorder.failures.single().error shouldBe classified.toPlaybackError()
+        }
       }
     }
 
@@ -212,6 +251,12 @@ class FfmpegPreviewFailureTest {
     awaitStep("the replaced pumps to finish") { awaitRetired() }
   }
 
+  private class Exit(
+    val status: Int,
+    val stderr: String,
+    val failure: FilmstripError? = null,
+  )
+
   private val ContractRecorder.failures: List<PlaybackEvent.Failed>
     get() = events.filterIsInstance<PlaybackEvent.Failed>()
 
@@ -223,6 +268,16 @@ class FfmpegPreviewFailureTest {
     const val FAILED = 1
 
     const val STDERR = "scripted.mp4: No such file or directory"
+
+    // AVERROR(EINVAL) truncated to a byte, which an export reads as a composition ffmpeg refused.
+    const val INVALID_ARGUMENT = 234
+
+    // What a child killed by SIGKILL reads back as.
+    const val KILLED_BY_SIGNAL = 137
+
+    const val SOURCE = "scripted.mp4"
+
+    const val SINK = "pipe:1"
 
     val PLAY_BUDGET = 10.seconds
 

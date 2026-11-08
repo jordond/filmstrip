@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.player.internal
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStream
@@ -55,6 +56,7 @@ internal class StreamPlanner(
  * closed it reads back no status, the way a process the caller killed does.
  *
  * @param readGate Holds the read after the last frame until it completes.
+ * @param failure What the stream classifies a failed exit as, or null for one carrying the status and [stderr].
  */
 internal class IndexedStream(
   override val startPosition: Duration,
@@ -62,6 +64,7 @@ internal class IndexedStream(
   private val status: Int = 0,
   private val stderr: String = "",
   private val readGate: CompletableDeferred<Unit>? = null,
+  private val failure: FilmstripError? = null,
 ) : PreviewStream {
   private var sent = 0
 
@@ -79,6 +82,8 @@ internal class IndexedStream(
   override suspend fun exitStatus(): Int? = if (closed) null else status
 
   override fun errors(): String = stderr
+
+  override fun exitError(status: Int): FilmstripError = failure ?: FilmstripError.Underlying(status, stderr)
 
   override fun close() {
     closed = true

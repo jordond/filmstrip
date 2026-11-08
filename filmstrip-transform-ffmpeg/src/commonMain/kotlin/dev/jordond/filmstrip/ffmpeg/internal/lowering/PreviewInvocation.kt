@@ -16,6 +16,11 @@ internal const val PREVIEW_PIXEL_FORMAT: String = "rgba"
 internal const val PREVIEW_CHANNELS: Int = 4
 
 /**
+ * Where the pump's process writes its frames, which is the output its command line names.
+ */
+internal const val PREVIEW_SINK: String = "pipe:1"
+
+/**
  * Builds the argument list for the preview pump.
  *
  * A sibling of [arguments]. The graph, its labels and its inputs are the
@@ -195,7 +200,7 @@ private fun previewSinkArguments(config: FfmpegConfig): List<String> =
       add(it.toString())
     }
 
-    add("pipe:1")
+    add(PREVIEW_SINK)
   }
 
 /**

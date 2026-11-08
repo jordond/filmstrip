@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.player
 
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.player.contract.awaitComposition
 import dev.jordond.filmstrip.player.contract.contractTest
 import dev.jordond.filmstrip.player.contract.withEngine
@@ -8,6 +9,7 @@ import dev.jordond.filmstrip.player.internal.AvPlayerEngine
 import dev.jordond.filmstrip.player.internal.AvPreviewPlanner
 import dev.jordond.filmstrip.player.internal.PlanResult
 import dev.jordond.filmstrip.player.internal.thumbnail.AvThumbnailPlanner
+import dev.jordond.filmstrip.player.internal.toPlaybackError
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -47,7 +49,7 @@ class AppleBytesRootFailureTest {
           AvPreviewPlanner(CONTRACT_COMPONENTS),
           PlayerConfig(),
           muted = true,
-          bytesRoot = blockedRoot,
+          lower = { it.resolved.toAvComposition(blockedRoot) },
         )
       withEngine(engine) {
         val failed =
@@ -56,26 +58,28 @@ class AppleBytesRootFailureTest {
             .shouldBeInstanceOf<SetCompositionResult.Failure>()
 
         failed.error.shouldBeInstanceOf<PlaybackError.SourceUnreadable>().message shouldContain "temporary file"
+        failed.error shouldBe thumbnailRefusal().toPlaybackError()
       }
     }
 
   @Test
   fun `a thumbnail of a buffer that cannot be written is refused as unreadable`() =
     contractTest {
-      val request =
-        ThumbnailRequest(
-          composition = appleFixtureBytesComposition(),
-          position = Duration.ZERO,
-          heightPx = FIXTURE_FRAME.height,
-          effectsRevision = 0,
-          precise = true,
-        )
-
-      val refused =
-        AvThumbnailPlanner(CONTRACT_COMPONENTS, blockedRoot)
-          .lower(request)
-          .shouldBeInstanceOf<PlanResult.Refused<FilmstripError>>()
-
-      refused.error.shouldBeInstanceOf<FilmstripError.SourceUnreadable>().message shouldContain "temporary file"
+      thumbnailRefusal().shouldBeInstanceOf<FilmstripError.SourceUnreadable>().message shouldContain "temporary file"
     }
+
+  private suspend fun thumbnailRefusal(): FilmstripError {
+    val request =
+      ThumbnailRequest(
+        composition = appleFixtureBytesComposition(),
+        position = Duration.ZERO,
+        heightPx = FIXTURE_FRAME.height,
+        effectsRevision = 0,
+        precise = true,
+      )
+    return AvThumbnailPlanner(CONTRACT_COMPONENTS, blockedRoot)
+      .lower(request)
+      .shouldBeInstanceOf<PlanResult.Refused<FilmstripError>>()
+      .error
+  }
 }

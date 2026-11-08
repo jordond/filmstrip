@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.PlatformImage
 import dev.jordond.filmstrip.player.internal.PlanResult
+import dev.jordond.filmstrip.player.internal.failedExit
 import dev.jordond.filmstrip.player.internal.frameAt
 import dev.jordond.filmstrip.player.internal.frameRate
 import dev.jordond.filmstrip.thumbnail.ThumbnailCallback
@@ -83,7 +84,8 @@ internal class FfmpegThumbnailSource(
       val frame =
         stream.frameAt(request.position, plan.resolved.frameRate)
           ?: return ThumbnailResult.Failure(
-            FilmstripError.Underlying(FilmstripError.Underlying.NO_PLATFORM_CODE, noFrame(request.position)),
+            stream.failedExit()
+              ?: FilmstripError.Underlying(FilmstripError.Underlying.NO_PLATFORM_CODE, noFrame(request.position)),
           )
 
       return ThumbnailResult.Success(

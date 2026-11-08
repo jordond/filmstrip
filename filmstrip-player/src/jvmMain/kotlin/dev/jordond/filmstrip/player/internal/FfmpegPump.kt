@@ -40,7 +40,7 @@ import kotlin.time.TimeSource
  * @param ends Decides what happens at the landing and the end of each pump.
  * @param show Puts a frame on screen and moves the playhead onto it.
  * @param fail Reports an error that stopped a process from opening.
- * @param failProcess Reports a process that exited with a status and its stderr instead of rendering to its end.
+ * @param failProcess Reports a process that failed instead of rendering to its end.
  */
 internal class FfmpegPump(
   private val scope: CoroutineScope,
@@ -51,7 +51,7 @@ internal class FfmpegPump(
   private val ends: FfmpegRangeEnd,
   private val show: (PreviewFrame) -> Unit,
   private val fail: (PlaybackError) -> Unit,
-  private val failProcess: (status: Int, errors: String) -> Unit,
+  private val failProcess: (PlaybackError) -> Unit,
 ) {
   private var job: Job? = null
   private val retired = mutableListOf<Job>()
@@ -299,18 +299,29 @@ internal class FfmpegPump(
     val status = exit.await()
     if (token != generation) return
     if (status != null && status != 0) {
-      failProcess(status, stream.errors())
+      failProcess(stream.exitError(status).toPlaybackError())
       return
     }
     // A graph can exit cleanly having written nothing, and the plan says a covered slot holds a frame, so it failed.
     if (!delivered && outputSlotOf(from, current.frameRate) < current.resolved.videoSlots) {
-      failProcess(status ?: 0, "The filter graph wrote no frame for a slot the plan covers.\n${stream.errors()}")
+      failProcess(noFrameWritten(status ?: 0, stream.errors()))
       return
     }
     ends.ranOut(landed, current)
   }
 
+  private fun noFrameWritten(
+    status: Int,
+    errors: String,
+  ): PlaybackError {
+    val exited = "ffmpeg exited with status $status."
+    val tail = "$NO_FRAME_WRITTEN\n$errors".trim()
+    return PlaybackError.Underlying(status, "$exited\n$tail")
+  }
+
   private companion object {
+    const val NO_FRAME_WRITTEN = "The filter graph wrote no frame for a slot the plan covers."
+
     // Measured: eight frames covers the worst cold spawn seen with a filter graph attached, and
     // costs about a millisecond a frame to fill once the process is warm.
     const val LOOK_AHEAD = 8

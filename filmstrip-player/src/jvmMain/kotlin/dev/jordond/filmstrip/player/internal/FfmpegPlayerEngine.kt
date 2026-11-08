@@ -339,20 +339,14 @@ internal class FfmpegPlayerEngine(
   }
 
   /**
-   * Reports a pump whose process exited with [status] instead of rendering to its end.
+   * Reports a pump whose process failed instead of rendering to its end.
    *
    * A seek still waiting on the pump lands where the playhead holds, the way [finish] lands it. A play stays wanted
-   * through this, and the next load's pump plays. The error carries [status] as its platform code and the tail of
-   * [errors] as its message.
+   * through this, and the next load's pump plays.
    */
-  private fun failProcess(
-    status: Int,
-    errors: String,
-  ) {
+  private fun failProcess(error: PlaybackError) {
     ends.settleLanding()
-    val exited = "ffmpeg exited with status $status."
-    val tail = errors.trim()
-    fail(PlaybackError.Underlying(status, if (tail.isEmpty()) exited else "$exited\n$tail"))
+    fail(error)
   }
 
   private fun snap(at: Duration): Duration = plan?.resolved?.seekLandingOf(at) ?: Duration.ZERO

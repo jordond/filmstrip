@@ -1,5 +1,7 @@
 package dev.jordond.filmstrip.player.internal
 
+import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.edit.AudioSpec
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.player.FIXTURE_FRAME_STEP
 import dev.jordond.filmstrip.player.PROBE_POSITIONS
@@ -25,6 +27,23 @@ class BrowserFrameReadbackTest {
 
       val failure = answers.single().shouldBeInstanceOf<ReadbackResult.Failure>()
       failure.error.shouldBeInstanceOf<PlaybackError.SourceUnreadable>()
+    }
+
+  @Test
+  fun `a position with no frame fails the way an export of it would`() =
+    contractTest { scope ->
+      val (_, preview) = browserPreviewOf(webFixtureComposition(audio = AudioSpec.AudioOnly))
+      try {
+        var answer: ReadbackResult? = null
+
+        BrowserFrameReadback(scope, { preview }, { 1f }).requestFrame(PROBE_POSITIONS.first()) { answer = it }
+        awaitContract("a readback with no frame") { answer != null }
+
+        answer.shouldBeInstanceOf<ReadbackResult.Failure>().error shouldBe
+          FilmstripError.InvalidComposition(NO_READBACK_FRAME).toPlaybackError()
+      } finally {
+        preview.release()
+      }
     }
 
   @Test

@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.player
 
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.outputSlotOf
@@ -383,6 +384,8 @@ private class HeldStream(
   override suspend fun exitStatus(): Int? = if (closed) null else 0
 
   override fun errors(): String = ""
+
+  override fun exitError(status: Int): FilmstripError = FilmstripError.Underlying(status, errors())
 
   override fun close() {
     closed = true

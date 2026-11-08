@@ -16,14 +16,15 @@ private val DISK_FULL = listOf("No space left on device", "There is not enough s
 private const val PERMISSION_DENIED = "Permission denied"
 
 /**
- * Classifies a failed run.
+ * Classifies a failed run, for an export and a preview alike.
  *
- * stderr is read first, for the two failures it names in words: running out of disk and being refused a path. A
- * refusal is pinned on the input or the output whose path ffmpeg named with it, and one that names neither falls
- * through. What the engine found on disk after the run comes next, because a missing file comes back as
- * AVERROR(ENOENT) whichever side was missing. The exit code is the fallback, and in every case stderr is only the
- * message.
+ * A live feed that failed is read first, as an [FilmstripError.Underlying] with no platform code. stderr comes next,
+ * for the two failures it names in words: running out of disk and being refused a path. A refusal is pinned on the
+ * input or the output whose path ffmpeg named with it, and one that names neither falls through. What the engine found
+ * on disk after the run comes next, because a missing file comes back as AVERROR(ENOENT) whichever side was missing.
+ * The exit code is the fallback, and in every case stderr is only the message.
  *
+ * @param exitCode What the process exited with, or [LIVE_FEED_FAILED] for a run whose live feed failed.
  * @param stderr The tail of what the child wrote, which becomes the error's message.
  * @param sink Where the output was going, for a failure that is about the destination.
  * @param inputs Every input the command line named, for a refusal that is about one of them.
@@ -45,6 +46,7 @@ internal fun classifyExit(
   val refusedSource = if (refused) inputs.firstOrNull { stderr.refuses(it.path, "input") }?.source else null
 
   return when {
+    exitCode == LIVE_FEED_FAILED -> FilmstripError.Underlying(FilmstripError.Underlying.NO_PLATFORM_CODE, message)
     isDiskFull(stderr) -> FilmstripError.InsufficientStorage(requiredBytes = null, message = message)
     refusedSource != null -> FilmstripError.SourceUnreadable(source = refusedSource, message = message)
     refused && stderr.refuses(sink, "output") -> FilmstripError.SinkUnwritable(sink = sink, message = message)

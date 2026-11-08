@@ -20,6 +20,7 @@ import dev.jordond.filmstrip.player.internal.NO_VIDEO_DECODER
 import dev.jordond.filmstrip.player.internal.PlanResult
 import dev.jordond.filmstrip.player.internal.browserPreviewOf
 import dev.jordond.filmstrip.player.internal.thumbnail.BrowserThumbnailPlanner
+import dev.jordond.filmstrip.player.internal.toPlaybackError
 import dev.jordond.filmstrip.thumbnail.ThumbnailRequest
 import dev.jordond.filmstrip.webcodecs.webCodecsBackend
 import io.kotest.matchers.shouldBe
@@ -48,7 +49,7 @@ class WebNoDecoderPreviewTest {
             .plan(unreadable, PreviewQualityPolicy.Full, ExportSpec())
             .shouldBeInstanceOf<PlanResult.Refused<PlaybackError>>()
 
-        refused.error shouldBe PlaybackError.UnsupportedFormat(NO_VIDEO_DECODER)
+        refused.error shouldBe FilmstripError.InvalidComposition(NO_VIDEO_DECODER).toPlaybackError()
       }
     }
 
@@ -68,7 +69,7 @@ class WebNoDecoderPreviewTest {
             .map { it.status }
             .filterIsInstance<PlaybackStatus.Error>()
             .first()
-            .error shouldBe PlaybackError.UnsupportedFormat(NO_VIDEO_DECODER)
+            .error shouldBe FilmstripError.InvalidComposition(NO_VIDEO_DECODER).toPlaybackError()
         } finally {
           player.close()
         }
@@ -119,7 +120,7 @@ class WebNoDecoderPreviewTest {
         planner
           .plan(webFixtureComposition(audio = AudioSpec.AudioOnly), PreviewQualityPolicy.Full, ExportSpec())
           .shouldBeInstanceOf<PlanResult.Refused<PlaybackError>>()
-          .error shouldBe PlaybackError.UnsupportedFormat(NO_AUDIO_DECODER)
+          .error shouldBe FilmstripError.InvalidComposition(NO_AUDIO_DECODER).toPlaybackError()
       }
     }
 

@@ -1,6 +1,7 @@
 package dev.jordond.filmstrip.player.internal
 
 import dev.jordond.filmstrip.Cancellable
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.media.ColorSpace
 import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.PreviewFrameReadback
@@ -46,7 +47,7 @@ internal class BrowserFrameReadback(
           try {
             when (val frame = target.frameAt(position)) {
               null -> {
-                ReadbackResult.Failure(PlaybackError.SourceUnreadable(NO_FRAME))
+                ReadbackResult.Failure(FilmstripError.InvalidComposition(NO_READBACK_FRAME).toPlaybackError())
               }
               else -> {
                 ReadbackResult.Success(
@@ -97,6 +98,11 @@ internal class BrowserFrameReadback(
 
   private companion object {
     const val NO_COMPOSITION = "No composition is loaded, so there is no frame to read back."
-    const val NO_FRAME = "The composition has no frame at that position."
   }
 }
+
+/**
+ * What a read-back is told when the preview draws nothing at the position asked for, such as a composition with no
+ * video track.
+ */
+internal const val NO_READBACK_FRAME = "The composition has no frame at that position."

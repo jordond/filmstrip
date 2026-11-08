@@ -22,6 +22,7 @@ import dev.jordond.filmstrip.ffmpeg.internal.lowering.SdColor
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.arguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.readingGraphFrom
 import dev.jordond.filmstrip.ffmpeg.internal.probe.drift
+import dev.jordond.filmstrip.ffmpeg.internal.process.LIVE_FEED_FAILED
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProgressParser
 import dev.jordond.filmstrip.ffmpeg.internal.process.SOURCE_GONE
 import dev.jordond.filmstrip.ffmpeg.internal.process.Scratch
@@ -340,11 +341,7 @@ public class FfmpegExportEngine internal constructor(
 
       // ffmpeg reads a feed that failed as a stream that ended, and can exit cleanly on a short file.
       chosen.feeds?.failure()?.let {
-        return send(
-          ExportStatus.Failure(
-            FilmstripError.Underlying(FilmstripError.Underlying.NO_PLATFORM_CODE, liveFeedFailure(it)),
-          ),
-        )
+        return send(ExportStatus.Failure(classifyExit(LIVE_FEED_FAILED, liveFeedFailure(it), outputPath)))
       }
 
       if (exitCode != 0) {
