@@ -12,6 +12,7 @@ import java.util.zip.CRC32
 
 private const val TEST_SHARD_PROPERTY = "testShard"
 private const val TEST_FORKS_PROPERTY = "testForks"
+private const val TEST_FORKS_SYSTEM_PROPERTY = "filmstrip.testForks"
 private const val TEST_WEIGHTS_PROPERTY = "testWeights"
 private const val IOS_SHARED_PROPERTY = "iosShared"
 private const val IOS_SIMULATOR_TEST_TASK = "iosSimulatorArm64Test"
@@ -63,12 +64,16 @@ internal fun parseTestForks(value: String): Int =
     ?: throw GradleException("-PtestForks=$value is not a whole number of at least 1")
 
 /**
- * Runs every JVM and Android host [Test] task in this project on as many test JVMs at once as `-PtestForks` says.
- * Without it Gradle's default of one stands.
+ * Runs every JVM and Android host [Test] task in this project on as many test JVMs at once as `-PtestForks` says, and
+ * hands each test JVM that count as the `filmstrip.testForks` system property so a test that loads the host can keep
+ * to its own share of it. Without it Gradle's default of one stands and the property is unset.
  */
 internal fun Project.configureTestForks() {
   val forks = providers.gradleProperty(TEST_FORKS_PROPERTY).orNull?.let(::parseTestForks) ?: return
-  tasks.withType(Test::class.java).configureEach { maxParallelForks = forks }
+  tasks.withType(Test::class.java).configureEach {
+    maxParallelForks = forks
+    systemProperty(TEST_FORKS_SYSTEM_PROPERTY, forks)
+  }
 }
 
 /**

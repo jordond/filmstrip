@@ -72,11 +72,14 @@ class FfmpegOverlayDeterminismMediaTest {
     }
   }
 
-  // Every core spins while block runs, so the graph's threads are scheduled the way a loaded host schedules them.
+  // This test JVM's share of the cores spins while block runs, so the graph's threads are scheduled the way a loaded
+  // host schedules them. A run with several test JVMs splits the host between them, and spinning every core would
+  // starve the tests the other JVMs are running.
   private suspend fun <T> busy(block: suspend () -> T): T {
     val spinning = AtomicBoolean(true)
+    val forks = System.getProperty(TEST_FORKS)?.toIntOrNull() ?: 1
     val burners =
-      List(Runtime.getRuntime().availableProcessors()) {
+      List((Runtime.getRuntime().availableProcessors() / forks).coerceAtLeast(1)) {
         Thread {
           var sink = 0L
           while (spinning.get()) sink += System.nanoTime() and 1L
@@ -96,6 +99,9 @@ class FfmpegOverlayDeterminismMediaTest {
 
   private companion object {
     const val RUNS = 3
+
+    // How many test JVMs the build runs at once, set by -PtestForks.
+    const val TEST_FORKS = "filmstrip.testForks"
 
     // A second and a half at 30 fps, inside both fixtures.
     const val FRAMES = 45

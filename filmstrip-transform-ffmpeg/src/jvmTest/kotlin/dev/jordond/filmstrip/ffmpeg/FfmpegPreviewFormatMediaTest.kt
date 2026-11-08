@@ -198,9 +198,9 @@ class FfmpegPreviewFormatMediaTest {
     floor: EncoderLoss = SDR_FLOOR,
   ) {
     val size = frames.invocationOf(edit).output.size
-    for (slot in slots) {
+    val exported = frames.exportedFrames(edit, slots, spec)
+    for ((slot, written) in slots.zip(exported)) {
       val shown = frames.frames(edit, frameTime(slot, FILTER_RATE), 1, spec).single()
-      val written = frames.exportedFrame(edit, slot, spec)
 
       withClue("slot $slot") {
         compareFrames(written.framed(size), shown.framed(size)).psnrDb shouldBeGreaterThanOrEqual floor.minPsnrDb

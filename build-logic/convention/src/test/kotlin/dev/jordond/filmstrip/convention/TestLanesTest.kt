@@ -305,6 +305,23 @@ class TestLanesTest {
   }
 
   @Test
+  fun `the forks property sets the test JVM count and hands it to each test JVM`() {
+    project.resolve("build.gradle").appendText(
+      """
+
+      tasks.register('printForks') {
+        def test = tasks.named('jvmTest').get()
+        def line = "${'$'}{test.maxParallelForks} ${'$'}{test.systemProperties['filmstrip.testForks']}"
+        doLast { println "forks: ${'$'}line" }
+      }
+      """.trimIndent(),
+    )
+
+    forks("-PtestForks=3") shouldBe "3 3"
+    forks() shouldBe "1 null"
+  }
+
+  @Test
   fun `the weights file reads class and seconds and skips comments`() {
     parseTestWeights("# made by hand\n\na.B 12.5\n  a.C   3\n") shouldBe mapOf("a.B" to 12.5, "a.C" to 3.0)
     assertFailsWith<GradleException> { parseTestWeights("a.B twelve\n") }.message shouldContain "line 1"
@@ -448,6 +465,14 @@ class TestLanesTest {
         val parts = line.removePrefix("excludes: ").split(" ")
         parts[0] to (parts[1] to parts.drop(2).filter { it.isNotEmpty() })
       }
+
+  private fun forks(vararg properties: String): String =
+    runner("printForks", *properties)
+      .build()
+      .output
+      .lines()
+      .single { it.startsWith("forks: ") }
+      .removePrefix("forks: ")
 
   private fun runner(vararg arguments: String): GradleRunner =
     GradleRunner

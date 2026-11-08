@@ -202,14 +202,24 @@ internal class FilterFrames(
     composition: EditComposition,
     slot: Int,
     spec: ExportSpec,
-  ): ByteArray {
+  ): ByteArray = exportedFrames(composition, listOf(slot), spec).single()
+
+  /**
+   * Exports [composition] at [spec] once and reads the frame in each of [slots] back out of the file, in the order
+   * given.
+   */
+  suspend fun exportedFrames(
+    composition: EditComposition,
+    slots: List<Int>,
+    spec: ExportSpec,
+  ): List<ByteArray> {
     val output = File.createTempFile("filter-export", ".mp4").apply { deleteOnExit() }
     output.delete()
     val plan = planOf(composition, spec)
     val finished = filmstrip.export(plan, MediaSink.of(output.absolutePath)).toList().last()
     finished.shouldBeInstanceOf<ExportStatus.Success>()
     val size = plan.output.size
-    return rgbaOf(output, opensOn(slot, plan), size.width * size.height * RGBA)
+    return slots.map { rgbaOf(output, opensOn(it, plan), size.width * size.height * RGBA) }
   }
 
   /**
