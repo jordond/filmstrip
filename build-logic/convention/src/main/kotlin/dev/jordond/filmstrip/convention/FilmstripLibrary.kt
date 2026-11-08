@@ -97,7 +97,8 @@ private fun KotlinMultiplatformExtension.configureShared(project: Project) {
 /**
  * Adds the `androidDeviceTest` source set and its instrumentation runner.
  *
- * Call it from any module whose tests touch MediaCodec, which cannot run on the JVM.
+ * Call it from any module whose tests touch MediaCodec, which cannot run on the JVM. Under `-PtestShard` the runner
+ * leaves out the classes other shards own.
  */
 fun Project.androidDeviceTests() {
   extensions.configure<KotlinMultiplatformExtension> {
@@ -105,6 +106,7 @@ fun Project.androidDeviceTests() {
       instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
   }
+  configureDeviceTestShard()
 }
 
 private fun KotlinMultiplatformExtension.androidLibraryTarget(): KotlinMultiplatformAndroidLibraryTarget? =

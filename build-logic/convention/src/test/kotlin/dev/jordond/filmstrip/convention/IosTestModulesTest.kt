@@ -6,15 +6,17 @@ import java.nio.file.Files
 import kotlin.test.Test
 
 /**
- * Builds a stub with three modules, one with an iOS simulator target and a test, one with the target and no test and
- * one with only jvm, then reads what `printIosTestModules` prints from the root.
+ * Builds a stub with modules that have an iOS simulator target and an iOS-only test, a shared canary test, only a
+ * shared test or no test, and one with only jvm, then reads what `printIosTestModules` prints from the root.
  */
 class IosTestModulesTest {
   private val project = Files.createTempDirectory("ios-modules-project").toFile()
 
   @Test
-  fun `only a module whose iOS simulator tests hold a test is printed`() {
-    project.resolve("settings.gradle").writeText("rootProject.name = 'stub'\ninclude ':tested', ':untested', ':jvm'\n")
+  fun `only a module with an iOS-only or canary test is printed`() {
+    project.resolve("settings.gradle").writeText(
+      "rootProject.name = 'stub'\ninclude ':tested', ':canary', ':shared', ':untested', ':jvm'\n",
+    )
     project.resolve("build.gradle").writeText(
       """
       plugins {
@@ -24,11 +26,20 @@ class IosTestModulesTest {
       allprojects { dev.jordond.filmstrip.convention.IosTestModulesKt.configureIosTestModules(project) }
       """.trimIndent(),
     )
-    writeModule("tested", "iosSimulatorArm64()")
-    writeModule("untested", "iosSimulatorArm64()")
+    listOf("tested", "canary", "shared", "untested").forEach { writeModule(it, "iosSimulatorArm64()") }
     writeModule("jvm", "jvm()")
-    project.resolve("tested/src/commonTest/kotlin/StubTest.kt").apply { parentFile.mkdirs() }.writeText(
+    project.resolve("tested/src/iosTest/kotlin/StubTest.kt").apply { parentFile.mkdirs() }.writeText(
       "import kotlin.test.Test\n\nclass StubTest {\n  @Test fun runs() {}\n}\n",
+    )
+    project
+      .resolve("canary/src/commonTest/kotlin/dev/jordond/filmstrip/effects/CoreImageTest.kt")
+      .apply { parentFile.mkdirs() }
+      .writeText(
+        "package dev.jordond.filmstrip.effects\n\nimport kotlin.test.Test\n\n" +
+          "class CoreImageTest {\n  @Test fun runs() {}\n}\n",
+      )
+    project.resolve("shared/src/commonTest/kotlin/SharedTest.kt").apply { parentFile.mkdirs() }.writeText(
+      "import kotlin.test.Test\n\nclass SharedTest {\n  @Test fun runs() {}\n}\n",
     )
     project.resolve("untested/src/commonTest/kotlin/Fixture.kt").apply { parentFile.mkdirs() }.writeText(
       "val fixture = 1\n",
@@ -45,7 +56,7 @@ class IosTestModulesTest {
         .lines()
         .filter { it.isNotBlank() && !it.startsWith("w:") }
 
-    printed shouldContainExactly listOf("tested")
+    printed.sorted() shouldContainExactly listOf("canary", "tested")
   }
 
   private fun writeModule(

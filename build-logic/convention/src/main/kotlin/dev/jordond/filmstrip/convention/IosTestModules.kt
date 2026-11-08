@@ -13,7 +13,9 @@ import org.gradle.kotlin.dsl.register
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 
 /**
- * Prints the project's path, without its leading colon, when a Kotlin file in [sourceDirs] holds a `@Test`.
+ * Prints the project's path, without its leading colon, when `iosSimulatorArm64Test` has a class to run under the
+ * iOS-only rule. That is a Kotlin file in [iosOnlyDirs] holding a `@Test`, or one in [sharedDirs] whose class is in
+ * [IOS_CANARY_CLASSES].
  *
  * Run from the root as `./gradlew -q printIosTestModules`, every project's task runs, so the output lists each module
  * whose `iosSimulatorArm64Test` task has tests to run. The CI matrix guard compares that list with the ios matrix.
@@ -26,21 +28,38 @@ abstract class PrintIosTestModulesTask : DefaultTask() {
   abstract val modulePath: Property<String>
 
   /**
-   * The Kotlin directories of every source set the iOS simulator test compilation reads.
+   * The Kotlin directories of the source sets in [IOS_ONLY_SOURCE_SETS] the iOS simulator test compilation reads.
    */
   @get:InputFiles
   @get:PathSensitive(PathSensitivity.RELATIVE)
-  abstract val sourceDirs: ConfigurableFileCollection
+  abstract val iosOnlyDirs: ConfigurableFileCollection
+
+  /**
+   * The Kotlin directories of every other source set the iOS simulator test compilation reads.
+   */
+  @get:InputFiles
+  @get:PathSensitive(PathSensitivity.RELATIVE)
+  abstract val sharedDirs: ConfigurableFileCollection
 
   @TaskAction
   fun print() {
-    val hasTests =
-      sourceDirs.asFileTree.any { it.extension == "kt" && TEST_ANNOTATION.containsMatchIn(it.readText()) }
-    if (hasTests) println(modulePath.get().removePrefix(":"))
+    val tests = { dirs: ConfigurableFileCollection ->
+      dirs.asFileTree
+        .filter { it.extension == "kt" }
+        .map { it to it.readText() }
+        .filter { (_, text) -> TEST_ANNOTATION.containsMatchIn(text) }
+    }
+    val canary =
+      tests(sharedDirs).any { (file, text) ->
+        val pkg = PACKAGE.find(text)?.groupValues?.get(1)
+        (if (pkg == null) file.nameWithoutExtension else "$pkg.${file.nameWithoutExtension}") in IOS_CANARY_CLASSES
+      }
+    if (canary || tests(iosOnlyDirs).isNotEmpty()) println(modulePath.get().removePrefix(":"))
   }
 
   private companion object {
     val TEST_ANNOTATION = Regex("""@Test\b""")
+    val PACKAGE = Regex("""^package\s+([\w.]+)""", RegexOption.MULTILINE)
   }
 }
 
@@ -50,23 +69,28 @@ abstract class PrintIosTestModulesTask : DefaultTask() {
  */
 internal fun Project.configureIosTestModules() {
   val module = this
+  val sourceSets =
+    module.provider {
+      module.extensions
+        .findByType(KotlinMultiplatformExtension::class.java)
+        ?.targets
+        ?.findByName(IOS_SIMULATOR_TARGET)
+        ?.compilations
+        ?.findByName("test")
+        ?.allKotlinSourceSets
+        .orEmpty()
+    }
   tasks.register<PrintIosTestModulesTask>("printIosTestModules") {
     group = "help"
-    description = "Prints this module's path when its iOS simulator test compilation has tests."
+    description = "Prints this module's path when its iOS simulator tests run a class under the iOS-only rule."
     modulePath.set(module.path)
-    sourceDirs.from(
-      module.provider {
-        module.extensions
-          .findByType(KotlinMultiplatformExtension::class.java)
-          ?.targets
-          ?.findByName(IOS_SIMULATOR_TARGET)
-          ?.compilations
-          ?.findByName("test")
-          ?.allKotlinSourceSets
-          ?.flatMap { it.kotlin.srcDirs }
-          .orEmpty()
-      },
-    )
+
+    fun dirs(iosOnly: Boolean) =
+      sourceSets.map { sets ->
+        sets.filter { (it.name in IOS_ONLY_SOURCE_SETS) == iosOnly }.flatMap { it.kotlin.srcDirs }
+      }
+    iosOnlyDirs.from(dirs(iosOnly = true))
+    sharedDirs.from(dirs(iosOnly = false))
   }
 }
 

@@ -10,6 +10,7 @@ import org.gradle.api.GradleException
 import org.gradle.testkit.runner.GradleRunner
 import java.io.File
 import java.nio.file.Files
+import kotlin.random.Random
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
@@ -219,6 +220,155 @@ class TestLanesTest {
   fun `the android host task is never the reference`() {
     pureExcludedPatterns(listOf("a.B"), taskTarget = null, reference = "jvm", pureEverywhere = false) shouldBe
       listOf("a.B", "a.B.*")
+  }
+
+  @Test
+  fun `every class lands in exactly one shard of any count`() {
+    val random = Random(7)
+    repeat(50) {
+      val classes = List(random.nextInt(0, 40)) { "pkg.Class${random.nextInt(0, 200)}Test" }.distinct()
+      val weights = classes.filter { random.nextBoolean() }.associateWith { random.nextDouble(0.1, 400.0) }
+      val count = random.nextInt(1, 7)
+
+      val owned = (1..count).map { classes - TestShard(it, count).classesOwnedElsewhere(classes, weights).toSet() }
+
+      owned.flatten().sorted() shouldBe classes.sorted()
+    }
+  }
+
+  @Test
+  fun `a range of shards runs what those shards own and the rest runs the remainder`() {
+    val classes = List(30) { "pkg.Class${it}Test" }
+    val weights = classes.take(20).withIndex().associate { (i, name) -> name to (i + 1) * 7.0 }
+    val owners = assignShards(classes, 4, weights)
+
+    val first = classes - TestShard(1, 4, last = 3).classesOwnedElsewhere(classes, weights).toSet()
+    val rest = classes - TestShard(4, 4).classesOwnedElsewhere(classes, weights).toSet()
+
+    first.toSet() shouldBe owners.filterValues { it in 1..3 }.keys
+    (first + rest).sorted() shouldBe classes.sorted()
+  }
+
+  @Test
+  fun `weighted classes pack longest first onto the lightest shard`() {
+    val weights = mapOf("a.A" to 5.0, "a.B" to 4.0, "a.C" to 3.0, "a.D" to 3.0, "a.E" to 2.0)
+
+    assignShards(weights.keys, 2, weights) shouldBe
+      mapOf("a.A" to 1, "a.B" to 2, "a.C" to 2, "a.D" to 1, "a.E" to 2)
+  }
+
+  @Test
+  fun `a class with no weight keeps its shard whatever else is weighted`() {
+    val alone = assignShards(listOf("a.Unweighted"), 3, emptyMap()).getValue("a.Unweighted")
+    val weights = mapOf("a.Heavy" to 300.0, "a.Mid" to 120.0, "a.Light" to 4.0)
+
+    assignShards(weights.keys + "a.Unweighted", 3, weights).getValue("a.Unweighted") shouldBe alone
+    (alone in 1..3) shouldBe true
+  }
+
+  @Test
+  fun `the shard property needs an index from one to the count`() {
+    parseTestShard("2/4") shouldBe TestShard(2, 4)
+    parseTestShard("1-3/4") shouldBe TestShard(1, 4, last = 3)
+    for (value in listOf("0/4", "5/4", "1", "a/b", "1/0", "1/2/3", "3-2/4", "1-5/4", "1-2-3/4", "-2/4")) {
+      assertFailsWith<GradleException> { parseTestShard(value) }.message shouldContain "-PtestShard=$value"
+    }
+  }
+
+  @Test
+  fun `the forks property needs a whole number of at least one`() {
+    parseTestForks("3") shouldBe 3
+    for (value in listOf("0", "-1", "two", "1.5", "")) {
+      assertFailsWith<GradleException> { parseTestForks(value) }.message shouldContain "-PtestForks=$value"
+    }
+  }
+
+  @Test
+  fun `the weights file reads class and seconds and skips comments`() {
+    parseTestWeights("# made by hand\n\na.B 12.5\n  a.C   3\n") shouldBe mapOf("a.B" to 12.5, "a.C" to 3.0)
+    assertFailsWith<GradleException> { parseTestWeights("a.B twelve\n") }.message shouldContain "line 1"
+  }
+
+  @Test
+  fun `a device shard leaves out every class another shard owns`() {
+    val classes = listOf("a.ATest", "a.BTest", "a.CTest")
+    val weights = mapOf("a.ATest" to 10.0, "a.BTest" to 6.0, "a.CTest" to 5.0)
+
+    deviceRunnerArguments(classes, TestShard(1, 2), weights) shouldBe mapOf("notClass" to "a.BTest,a.CTest")
+    deviceRunnerArguments(classes, TestShard(2, 2), weights) shouldBe mapOf("notClass" to "a.ATest")
+    deviceRunnerArguments(classes, TestShard(1, 1), weights) shouldBe emptyMap()
+  }
+
+  @Test
+  fun `jvm and browser shards split the module's classes between them`() {
+    writeCommonClasses("HeavyTest", "MiddleTest", "LightTest", "FreshTest")
+    project.resolve("gradle").mkdirs()
+    project.resolve("gradle/test-weights.txt").writeText("stub.HeavyTest 90\nstub.MiddleTest 50\nstub.LightTest 30\n")
+    val all = listOf("stub.FreshTest", "stub.HeavyTest", "stub.LightTest", "stub.MiddleTest")
+
+    val first = excludes("-PtestShard=1/2")
+    val second = excludes("-PtestShard=2/2")
+
+    for (task in listOf("jvmTest", "jsBrowserTest")) {
+      val firstOwns = all.filterNot { "$it.*" in first.getValue(task).second }
+      val secondOwns = all.filterNot { "$it.*" in second.getValue(task).second }
+      (firstOwns + secondOwns).sorted() shouldBe all
+      firstOwns shouldContain "stub.HeavyTest"
+      secondOwns shouldContain "stub.MiddleTest"
+    }
+  }
+
+  @Test
+  fun `a shard leaves out no class the lane already drops`() {
+    writeCommonClasses("SlowMediaTest", "PlainTest")
+
+    val shardExcludes = (excludes("-PtestShard=1/2") + excludes("-PtestShard=2/2")).values.flatMap { it.second }
+
+    shardExcludes shouldNotContain "stub.SlowMediaTest"
+  }
+
+  @Test
+  fun `the simulator runs only ios classes and the canaries`() {
+    writeBuild(
+      targets = listOf("macosArm64()", "iosSimulatorArm64()"),
+      testTasks = listOf("macosArm64Test", "iosSimulatorArm64Test"),
+    )
+    writeCommonClasses("SharedTest")
+    writeTestClass("iosTest", "stub", "OnlyIosTest")
+    writeTestClass("commonTest", "dev.jordond.filmstrip.avfoundation", "AppleExportSmokeTest")
+
+    val ios = excludes().getValue("iosSimulatorArm64Test").second
+    val macos = excludes().getValue("macosArm64Test").second
+
+    ios shouldContain "stub.SharedTest"
+    ios shouldNotContain "stub.OnlyIosTest"
+    ios shouldNotContain "dev.jordond.filmstrip.avfoundation.AppleExportSmokeTest"
+    macos shouldNotContain "stub.SharedTest"
+  }
+
+  @Test
+  fun `iosShared runs the shared classes on the simulator too`() {
+    writeBuild(
+      targets = listOf("macosArm64()", "iosSimulatorArm64()"),
+      testTasks = listOf("iosSimulatorArm64Test"),
+    )
+    writeCommonClasses("SharedTest")
+
+    excludes("-PiosShared").getValue("iosSimulatorArm64Test").second shouldNotContain "stub.SharedTest"
+  }
+
+  private fun writeCommonClasses(vararg names: String) = names.forEach { writeTestClass("commonTest", "stub", it) }
+
+  private fun writeTestClass(
+    sourceSet: String,
+    pkg: String,
+    name: String,
+  ) {
+    val directory = project.resolve("src/$sourceSet/kotlin/${pkg.replace('.', '/')}").apply { mkdirs() }
+    directory
+      .resolve(
+        "$name.kt",
+      ).writeText("package $pkg\n\nimport kotlin.test.Test\n\nclass $name {\n  @Test fun runs() {}\n}\n")
   }
 
   private fun writePureFile(

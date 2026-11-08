@@ -26,18 +26,28 @@ env:
 
 jobs:
   # ffmpeg 8 is apt's 8.0.1 on ubuntu 26.04, the backend's floor, and runs every jvm suite. ffmpeg 9 is the pinned
-  # static build on the PATH and runs the suites that drive ffmpeg. Each major splits the backend from the rest.
+  # static build on the PATH and runs the suites that drive ffmpeg. Each major splits the backend from the rest, and
+  # the backend runs in four shards, since one runner takes over half an hour on it.
+  #
+  # A cell with a shard passes -PtestShard=i/n, which packs the classes by gradle/test-weights.txt so every class runs
+  # in exactly one shard of the cell.
   ffmpeg:
-    name: "Test ffmpeg ${{ matrix.major }} ${{ matrix.suite }}"
+    name: "Test ffmpeg ${{ matrix.major }} ${{ matrix.suite }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }}"
     runs-on: ubuntu-26.04
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { major: 8, suite: backend, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
+          - { major: 8, suite: backend, shard: 1/4, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
+          - { major: 8, suite: backend, shard: 2/4, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
+          - { major: 8, suite: backend, shard: 3/4, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
+          - { major: 8, suite: backend, shard: 4/4, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
           - { major: 8, suite: rest, tasks: "jvmTest -x :filmstrip-transform-ffmpeg:jvmTest" }
-          - { major: 9, suite: backend, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
+          - { major: 9, suite: backend, shard: 1/4, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
+          - { major: 9, suite: backend, shard: 2/4, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
+          - { major: 9, suite: backend, shard: 3/4, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
+          - { major: 9, suite: backend, shard: 4/4, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
           - { major: 9, suite: rest, tasks: ":filmstrip-player:jvmTest :filmstrip-effects:jvmTest :filmstrip-effects-filters:jvmTest" }
     steps:
       - &checkout
@@ -92,12 +102,28 @@ jobs:
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
       - name: Run tests
-        run: ./gradlew ${{ matrix.tasks }} -Pmedia --scan
+        run: >-
+          ./gradlew ${{ matrix.tasks }} -Pmedia --scan
+          ${{ matrix.shard && format('-PtestShard={0}', matrix.shard) || '' }}
 
       - &slowest
         name: Slowest test classes
         if: always()
         run: python3 .github/scripts/slowest-tests.py
+
+      # Every job keeps its result XML, green or red, so slowest-tests.py --weights can rebuild the shard weights from
+      # one run's artifacts.
+      - &results
+        name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: media-results-${{ github.job }}-${{ strategy.job-index }}
+          path: |
+            **/build/test-results/
+            **/build/outputs/androidTest-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - &reports
         name: Upload test reports
@@ -107,42 +133,49 @@ jobs:
           name: media-reports-${{ github.job }}-${{ strategy.job-index }}
           path: |
             **/build/reports/tests/
-            **/build/test-results/
+            **/build/reports/androidTests/
+          if-no-files-found: ignore
           retention-days: 7
 
   # See ci.yml for why the browser cells run with smaller daemon heaps. js also runs every pureTest class, which the
-  # fast lane runs on jvm only.
+  # fast lane runs on jvm only. Karma reports no real class times, so these shards split by a hash of the class name.
   browser:
-    name: "Test ${{ matrix.target }} browser"
+    name: "Test ${{ matrix.target }} browser ${{ matrix.shard }}"
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { target: js, tasks: "jsBrowserTest -PpureEverywhere" }
-          - { target: wasm, tasks: "wasmJsBrowserTest" }
+          - { target: js, shard: 1/2, tasks: "jsBrowserTest -PpureEverywhere" }
+          - { target: js, shard: 2/2, tasks: "jsBrowserTest -PpureEverywhere" }
+          - { target: wasm, shard: 1/2, tasks: "wasmJsBrowserTest" }
+          - { target: wasm, shard: 2/2, tasks: "wasmJsBrowserTest" }
     steps:
       - *checkout
       - *java
       - *gradle
       - name: Run browser tests
         run: >-
-          ./gradlew ${{ matrix.tasks }} -Pmedia --scan
+          ./gradlew ${{ matrix.tasks }} -PtestShard=${{ matrix.shard }} -Pmedia --scan
           "-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8 -Dkotlin.daemon.jvm.options=-Xmx3g"
       - *slowest
+      - *results
       - *reports
 
+  # The shard reaches the device run as a notClass runner argument, so each shard skips the classes the other owns.
   device:
-    name: "Test android device ${{ matrix.suite }}"
+    name: "Test android device ${{ matrix.suite }} ${{ matrix.shard }}"
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { suite: media3, tasks: ":filmstrip-transform-media3:connectedAndroidDeviceTest" }
-          - { suite: rest, tasks: "connectedAndroidDeviceTest -x :filmstrip-transform-media3:connectedAndroidDeviceTest" }
+          - { suite: media3, shard: 1/2, tasks: ":filmstrip-transform-media3:connectedAndroidDeviceTest", apks: ":filmstrip-transform-media3:packageAndroidDeviceTest" }
+          - { suite: media3, shard: 2/2, tasks: ":filmstrip-transform-media3:connectedAndroidDeviceTest", apks: ":filmstrip-transform-media3:packageAndroidDeviceTest" }
+          - { suite: rest, shard: 1/2, tasks: "connectedAndroidDeviceTest -x :filmstrip-transform-media3:connectedAndroidDeviceTest", apks: "packageAndroidDeviceTest -x :filmstrip-transform-media3:packageAndroidDeviceTest" }
+          - { suite: rest, shard: 2/2, tasks: "connectedAndroidDeviceTest -x :filmstrip-transform-media3:connectedAndroidDeviceTest", apks: "packageAndroidDeviceTest -x :filmstrip-transform-media3:packageAndroidDeviceTest" }
     steps:
       - *checkout
       - *java
@@ -155,6 +188,18 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - *gradle
+
+      # Builds the test APKs in the background while the emulator runner installs and boots its device. The runner
+      # runs each script line in its own shell, so await-apks.sh waits for the build and replays its log before the
+      # tests start in the same daemon.
+      - name: Build device test APKs in the background
+        run: |
+          (./gradlew ${{ matrix.apks }} -PtestShard=${{ matrix.shard }} -Pmedia; echo $? > "$RUNNER_TEMP/apks.status") < /dev/null > "$RUNNER_TEMP/apks.log" 2>&1 &
+          cat > "$RUNNER_TEMP/await-apks.sh" <<'EOF'
+          until [ -f "$RUNNER_TEMP/apks.status" ]; do sleep 5; done
+          cat "$RUNNER_TEMP/apks.log"
+          exit "$(cat "$RUNNER_TEMP/apks.status")"
+          EOF
 
       - name: Run device tests
         uses: reactivecircus/android-emulator-runner@v2
@@ -171,43 +216,31 @@ jobs:
           # first draw of each blurred fill shader, which runs an export past media3's 25s wait for
           # its first muxer sample.
           emulator-options: "-no-window -gpu swangle_indirect -no-snapshot -noaudio -no-boot-anim -feature -HardwareDecoder"
-          script: ./gradlew ${{ matrix.tasks }} -Pmedia --scan
+          script: |
+            bash "$RUNNER_TEMP/await-apks.sh"
+            ./gradlew ${{ matrix.tasks }} -PtestShard=${{ matrix.shard }} -Pmedia --scan
 
       - *slowest
+      - *results
+      - *reports
 
-      - name: Upload test reports
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: media-reports-${{ github.job }}-${{ strategy.job-index }}
-          path: |
-            **/build/reports/androidTests/
-            **/build/outputs/androidTest-results/
-          retention-days: 7
-
-  # One job per module with iOS tests, so the simulator suites run side by side instead of one 40 minute cell.
-  # check-ios-matrix.sh fails CI when this list and the modules with iOS tests differ.
+  # The simulator runs only what no other target can, under the iOS-only rule. Shared commonTest and appleTest classes
+  # run once, on macos below, apart from the canary classes TestShards.kt names. The modules are grouped into four jobs,
+  # since GitHub runs at most five macOS jobs at once and each job pays its setup and klib compile again.
+  # A module with no iOS-only and no canary class would only link here, so it is left out. check-ios-matrix.sh fails
+  # CI when the groups and the modules printIosTestModules prints under that rule differ.
   ios:
-    name: "Test ios ${{ matrix.module }}"
+    name: "Test ios ${{ matrix.group }}"
     runs-on: macos-latest
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        module:
-          - filmstrip
-          - filmstrip-core
-          - filmstrip-transform
-          - filmstrip-transform-avfoundation
-          - filmstrip-effects
-          - filmstrip-effects-filters
-          - filmstrip-player
-          - filmstrip-compose
-          - filmstrip-test
-          - filmstrip-io-filekit
-          - filmstrip-io-kotlinx
-          - filmstrip-io-okio
-          - internal:ios-harness
+        include:
+          - { group: compose, modules: "filmstrip-compose" }
+          - { group: avfoundation, modules: "filmstrip-transform-avfoundation" }
+          - { group: core, modules: "filmstrip-io-filekit filmstrip-core" }
+          - { group: player, modules: "filmstrip-player filmstrip-effects" }
     steps:
       - *checkout
       - *java
@@ -224,15 +257,18 @@ jobs:
             ${{ runner.os }}-konan-
       - *gradle
 
-      # Boots the simulator the tests spawn into before the test build starts. A fresh iOS runtime
-      # keeps the machine busy with first boot work for minutes after it reports booted, and booting
-      # here moves that work under compilation instead of under the first tests.
-      - name: Boot iOS simulator
-        run: ./gradlew :filmstrip-player:bootIosSimulator
-
+      # The boot is the first task of the same parallel build, so it runs in its own worker while the klibs compile
+      # and the test binaries link. A fresh iOS runtime keeps the machine busy with first boot work for minutes after
+      # it reports booted, and that work lands under the link instead of under the first tests.
       - name: Run ios simulator tests
-        run: ./gradlew :${{ matrix.module }}:iosSimulatorArm64Test -Pmedia --scan
+        env:
+          MODULES: ${{ matrix.modules }}
+        run: |
+          tasks=()
+          for module in $MODULES; do tasks+=(":$module:iosSimulatorArm64Test"); done
+          ./gradlew :filmstrip-player:bootIosSimulator "${tasks[@]}" -Pmedia --scan
       - *slowest
+      - *results
       - *reports
 
   # Runs every pureTest class on macOS as well, which the fast lane runs on jvm only.
@@ -248,4 +284,5 @@ jobs:
       - name: Run macos tests
         run: ./gradlew macosArm64Test -Pmedia -PpureEverywhere --scan
       - *slowest
+      - *results
       - *reports

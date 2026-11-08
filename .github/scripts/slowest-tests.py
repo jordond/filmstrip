@@ -4,16 +4,37 @@ Reads every TEST-*.xml under a build/test-results or build/outputs/androidTest-r
 times per class and result directory, and prints the slowest. A missing or half-written file is skipped, so the step
 never fails the job. Karma reports near-zero times for js and wasm, so those classes rank low whatever they cost.
 
+With --weights it prints the shard weights file instead, gradle/test-weights.txt, one "class seconds" line per class
+with the longest time any result directory gave it. Each source is a directory of result XML, like an unpacked media
+lane artifact, or a saved log holding this script's own table, like `gh run view <id> --log`. Classes under a tenth of
+a second are left out, since a shard puts a class with no weight by its name instead.
+
 Usage: slowest-tests.py [root] [count]
+       slowest-tests.py --weights source...
 """
 
 import os
+import re
 import sys
 import xml.etree.ElementTree as ElementTree
 from collections import defaultdict
 
 RESULT_DIRS = ("/build/test-results/", "/build/outputs/androidTest-results/")
 SKIPPED_DIRS = {".git", ".gradle", "node_modules", "kotlin-js-store"}
+TABLE_LINE = re.compile(r"^\s*(\d+\.\d+)  (\S+)  \((\S+)\)\s*$")
+TIMESTAMP = re.compile(r"^\d{4}-\d\d-\d\dT[\d:.]+Z ")
+TASK_PREFIX = re.compile(r"^[a-z][A-Za-z0-9]*Test\.")
+WEIGHT_FLOOR = 0.1
+WEIGHTS_HEADER = """\
+# Shard weights, test class and seconds. Written by .github/scripts/slowest-tests.py --weights.
+#
+# -PtestShard=i/n packs the classes it finds here longest first and puts the rest by a hash of the name, so a stale
+# or missing line only costs balance. To regenerate from a media lane run:
+#
+#   gh run download <run> -D <dir>
+#   gh run view <run> --log > <dir>.log
+#   python3 .github/scripts/slowest-tests.py --weights <dir> <dir>.log [more result roots] > gradle/test-weights.txt
+"""
 
 
 def result_files(root):
@@ -39,7 +60,35 @@ def class_times(root):
     return totals
 
 
+def logged_times(path):
+    totals = {}
+    with open(path, encoding="utf-8", errors="replace") as log:
+        for line in log:
+            # A GitHub log line opens with the job and the step, each before a tab, then a timestamp.
+            match = TABLE_LINE.match(TIMESTAMP.sub("", line.split("\t")[-1]))
+            if match:
+                totals[(match.group(2), match.group(3))] = float(match.group(1))
+    return totals
+
+
+def weights(sources):
+    longest = defaultdict(float)
+    for source in sources:
+        times = class_times(source) if os.path.isdir(source) else logged_times(source)
+        for (name, _), seconds in times.items():
+            # Kotlin/Native results can lead the class with the test task, which no filter sees.
+            name = TASK_PREFIX.sub("", name)
+            longest[name] = max(longest[name], seconds)
+    print(WEIGHTS_HEADER, end="")
+    for name, seconds in sorted(longest.items()):
+        if seconds >= WEIGHT_FLOOR:
+            print(f"{name} {seconds:.2f}")
+
+
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "--weights":
+        weights(sys.argv[2:])
+        return
     root = sys.argv[1] if len(sys.argv) > 1 else "."
     count = int(sys.argv[2]) if len(sys.argv) > 2 else 20
     totals = class_times(root)

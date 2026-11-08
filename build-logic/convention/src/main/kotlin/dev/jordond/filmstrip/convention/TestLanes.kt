@@ -3,8 +3,9 @@ package dev.jordond.filmstrip.convention
 import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.internal.tasks.testing.filter.DefaultTestFilter
+import org.gradle.api.provider.Property
 import org.gradle.api.provider.ValueSource
 import org.gradle.api.provider.ValueSourceParameters
 import org.gradle.api.tasks.testing.AbstractTestTask
@@ -13,6 +14,7 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.targets.js.testing.KotlinJsTest
 import org.jetbrains.kotlin.gradle.targets.jvm.tasks.KotlinJvmTest
 import org.jetbrains.kotlin.gradle.tasks.KotlinTest
+import java.io.File
 
 private const val MEDIA_PROPERTY = "media"
 private const val HARDWARE_PROPERTY = "hardware"
@@ -61,6 +63,16 @@ internal fun pureExcludedPatterns(
 ): List<String> = if (pureEverywhere || taskTarget == reference) emptyList() else pureClasses.flatMap(::classPatterns)
 
 /**
+ * True when this lane runs the class named [className], going by the same suffixes [excludedPatterns] drops.
+ */
+internal fun TestLane.runs(className: String): Boolean {
+  val simpleName = className.substringAfterLast('.')
+  return (media || !simpleName.endsWith("MediaTest")) &&
+    (hardware || !simpleName.endsWith("HardwareTest")) &&
+    (measure || !simpleName.endsWith("MeasureTest"))
+}
+
+/**
  * The target a module's pure classes run on, the first of `jvm`, `macosArm64` and `js` the module declares. That is
  * `jvm` for `filmstrip.library`, `macosArm64` for `filmstrip.library.apple` and `js` for `filmstrip.library.web`.
  */
@@ -71,7 +83,8 @@ internal fun pureReferenceTarget(targetNames: Collection<String>): String =
 private val PURE_REFERENCE_ORDER = listOf("jvm", "macosArm64", "js")
 
 /**
- * Applies the [TestLane] Gradle was given to every [AbstractTestTask] in this project.
+ * Applies the [TestLane] Gradle was given to every [AbstractTestTask] in this project, then the shard and iOS rules
+ * [configureTestShards] sets out and the fork count [configureTestForks] reads.
  *
  * That covers the JVM and Android host `Test` tasks, `KotlinNativeTest` and the browser `KotlinJsTest` tasks alike.
  * Android instrumentation tasks (`connected*AndroidTest`) and the iPhone `run.sh` binary launch are not test tasks, so
@@ -91,6 +104,8 @@ internal fun Project.configureTestLanes() {
     )
   val patterns = lane.excludedPatterns()
   tasks.withType(AbstractTestTask::class.java).configureEach { excludeTestClasses(patterns) }
+  configureTestShards(lane)
+  configureTestForks()
 }
 
 /**
@@ -131,8 +146,9 @@ internal fun Project.configurePureTestLane(reference: String) {
   val pureEverywhere = providers.gradleProperty(PURE_EVERYWHERE_PROPERTY).isPresent
   val pureClasses =
     providers
-      .of(PureTestClassesSource::class.java) {
-        parameters.directory.set(layout.projectDirectory.dir("src/pureTest/kotlin"))
+      .of(TestClassesSource::class.java) {
+        parameters.directories.from(layout.projectDirectory.dir("src/pureTest/kotlin"))
+        parameters.fileNamedClasses.set(true)
       }.get()
   tasks.withType(AbstractTestTask::class.java).configureEach {
     excludeTestClasses(pureExcludedPatterns(pureClasses, kotlinTargetName(), reference, pureEverywhere))
@@ -211,43 +227,63 @@ internal fun Project.configureNoMatchingTestsCheck() {
 }
 
 /**
- * Lists the class names in a `pureTest` Kotlin directory, each file's package plus its file name, sorted. It fails
- * naming the file when one holding a `@Test` declares no class named after itself, since its tests would then run
- * everywhere unnoticed.
+ * Lists the test class names in a set of Kotlin directories, sorted.
+ *
+ * With [Parameters.fileNamedClasses], the way the `pureTest` lane reads its directory, each file gives its package plus
+ * its file name. Configuration then fails naming the file when one holding a `@Test` declares no class named after
+ * itself, since its tests would run everywhere unnoticed. Without it, each top-level class in a file holding a `@Test`
+ * is listed by its package and name.
  */
-internal abstract class PureTestClassesSource : ValueSource<List<String>, PureTestClassesSource.Parameters> {
+internal abstract class TestClassesSource : ValueSource<List<String>, TestClassesSource.Parameters> {
   interface Parameters : ValueSourceParameters {
-    val directory: DirectoryProperty
+    val directories: ConfigurableFileCollection
+    val fileNamedClasses: Property<Boolean>
   }
 
   override fun obtain(): List<String> {
-    val root = parameters.directory.get().asFile
-    if (!root.isDirectory) return emptyList()
-    return root
-      .walkTopDown()
-      .filter { it.isFile && it.extension == "kt" }
-      .map { file ->
-        val text = file.readText()
-        val name = file.nameWithoutExtension
-        val declaresClass = Regex("""^\s*(?:[a-z]+\s+)*class\s+${Regex.escape(name)}\b""", RegexOption.MULTILINE)
-        if (TEST_ANNOTATION.containsMatchIn(text) && !declaresClass.containsMatchIn(text)) {
-          throw GradleException("$file has a @Test but no class named $name, so the pure test lane cannot find it")
-        }
-        val pkg = PACKAGE.find(text)?.groupValues?.get(1)
-        if (pkg == null) name else "$pkg.$name"
-      }.sorted()
-      .toList()
+    val fileNamed = parameters.fileNamedClasses.get()
+    return parameters.directories.files
+      .filter { it.isDirectory }
+      .flatMap { root -> root.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList() }
+      .flatMap { file -> if (fileNamed) listOf(fileNamedClass(file)) else declaredTestClasses(file) }
+      .distinct()
+      .sorted()
+  }
+
+  private fun fileNamedClass(file: File): String {
+    val text = file.readText()
+    val name = file.nameWithoutExtension
+    val declaresClass = Regex("""^\s*(?:[a-z]+\s+)*class\s+${Regex.escape(name)}\b""", RegexOption.MULTILINE)
+    if (TEST_ANNOTATION.containsMatchIn(text) && !declaresClass.containsMatchIn(text)) {
+      throw GradleException("$file has a @Test but no class named $name, so the pure test lane cannot find it")
+    }
+    return qualified(text, name)
+  }
+
+  private fun declaredTestClasses(file: File): List<String> {
+    val text = file.readText()
+    if (!TEST_ANNOTATION.containsMatchIn(text)) return emptyList()
+    return TOP_LEVEL_CLASS.findAll(text).map { qualified(text, it.groupValues[1]) }.toList()
+  }
+
+  private fun qualified(
+    text: String,
+    name: String,
+  ): String {
+    val pkg = PACKAGE.find(text)?.groupValues?.get(1)
+    return if (pkg == null) name else "$pkg.$name"
   }
 
   private companion object {
     val TEST_ANNOTATION = Regex("""@Test\b""")
     val PACKAGE = Regex("""^\s*package\s+([\w.]+)""", RegexOption.MULTILINE)
+    val TOP_LEVEL_CLASS = Regex("""^(?:@\w+(?:\([^)\n]*\))?\s+)*(?:[a-z]+\s+)*class\s+(\w+)""", RegexOption.MULTILINE)
   }
 }
 
-private fun classPatterns(name: String): List<String> = listOf(name, "$name.*")
+internal fun classPatterns(name: String): List<String> = listOf(name, "$name.*")
 
-private fun AbstractTestTask.excludeTestClasses(patterns: List<String>) {
+internal fun AbstractTestTask.excludeTestClasses(patterns: List<String>) {
   if (patterns.isEmpty()) return
   patterns.forEach { filter.excludeTestsMatching(it) }
   doFirst {

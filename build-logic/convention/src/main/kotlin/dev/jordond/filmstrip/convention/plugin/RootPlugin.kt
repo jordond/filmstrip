@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.convention.configureCompileTests
 import dev.jordond.filmstrip.convention.configureComposeUiTestCheck
 import dev.jordond.filmstrip.convention.configureIosTestModules
 import dev.jordond.filmstrip.convention.configureKDocWidthCheck
+import dev.jordond.filmstrip.convention.configureModuleGraph
 import dev.jordond.filmstrip.convention.configureNoMatchingTestsCheck
 import dev.jordond.filmstrip.convention.configureSpotless
 import dev.jordond.filmstrip.convention.configureTestLanes
@@ -25,6 +26,7 @@ class RootPlugin : Plugin<Project> {
       configureTestLanes()
       configureCompileTests()
       configureIosTestModules()
+      configureModuleGraph()
       configureKDocWidthCheck()
       configureNoMatchingTestsCheck()
     }
