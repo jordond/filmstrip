@@ -146,13 +146,13 @@ internal class ContractFakeEngine(
   }
 
   /**
-   * Where a seek to [position] lands, which is the output slot it rounds to at [FAKE_FRAME_RATE].
+   * Where a seek to [target] lands, which is the output slot it rounds to at [FAKE_FRAME_RATE].
    *
    * Clamped to the slots the laid down clips cover, so a seek past the end lands on the last one.
    */
-  private fun landingOf(position: Duration): Duration {
+  override fun landingOf(target: Duration): Duration {
     val last = (outputSlotOf(platformDuration ?: Duration.ZERO, FAKE_FRAME_RATE) - 1).coerceAtLeast(0)
-    return outputSlotTime(outputSlotOf(position, FAKE_FRAME_RATE).coerceIn(0, last), FAKE_FRAME_RATE)
+    return outputSlotTime(outputSlotOf(target, FAKE_FRAME_RATE).coerceIn(0, last), FAKE_FRAME_RATE)
   }
 
   override fun onPlay() {

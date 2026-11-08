@@ -13,6 +13,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.transform.internal.copy.CopyAsk
 import dev.jordond.filmstrip.transform.internal.copy.withCopyPackets
+import dev.jordond.filmstrip.transform.internal.copy.withFallbackCopyPackets
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReadResult
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReads
@@ -82,7 +83,8 @@ public class PlannedExportEngine(
         refusedLowering(withPackets.error)
       }
       is CopyAsk.Asked -> {
-        val export = planner.negotiate(composition, withPackets.ask)
+        val negotiated = planner.negotiate(composition, withPackets.ask)
+        val export = planner.withFallbackCopyPackets(composition, withPackets.ask, negotiated, backend::copyPackets)
         LoweredExport(export, export.composition)
       }
     }

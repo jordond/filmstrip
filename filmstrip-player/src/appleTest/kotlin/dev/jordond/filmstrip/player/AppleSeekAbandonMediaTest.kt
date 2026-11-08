@@ -48,14 +48,15 @@ class AppleSeekAbandonMediaTest {
   /**
    * The detached item still answers the seek once the main queue is served. That late answer is neither counted against
    * the item that replaced it nor taken as where playback is, so a frame step afterwards starts from the new item's
-   * start rather than from where the old seek was going.
+   * start rather than from where the old seek was going. The new item is asked to start at zero, since a load left to
+   * itself holds the playhead the old seek was holding.
    */
   @Test
   fun `a new item abandons the seek its predecessor was holding`(): TestResult =
     withSeekHeld { engine, recorder, mainQueue ->
       val loads = engine.platformLoads
       val shorter = shorterComposition()
-      engine.awaitComposition(shorter).shouldBeInstanceOf<SetCompositionResult.Success>()
+      engine.awaitComposition(shorter, startAt = Duration.ZERO).shouldBeInstanceOf<SetCompositionResult.Success>()
       engine.platformLoads shouldBe loads + 1
       engine.fence.unansweredSeeks shouldBe 0
 

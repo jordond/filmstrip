@@ -35,8 +35,11 @@ import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.ExportGrade
 import dev.jordond.filmstrip.transform.internal.ExportPlanner
 import dev.jordond.filmstrip.transform.internal.LoweredExport
+import dev.jordond.filmstrip.transform.internal.NegotiatedExport
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacketRead
 import dev.jordond.filmstrip.transform.internal.copy.CopyPacketWindow
 import dev.jordond.filmstrip.transform.internal.copy.Mp4Copy
+import dev.jordond.filmstrip.transform.internal.copy.withFallbackCopyPackets
 import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.negotiation.effectsThatRequireSdr
@@ -117,6 +120,17 @@ internal class FfmpegPlanner(
       // lower refuses the same source with the reason.
       null
     }
+
+  /**
+   * [export] with the plan it falls back on settled over the packets [read] lists, through
+   * [ExportPlanner.withFallbackCopyPackets].
+   */
+  suspend fun withFallbackCopyPackets(
+    composition: EditComposition,
+    ask: Ask,
+    export: NegotiatedExport,
+    read: suspend (CopyPacketWindow) -> CopyPacketRead?,
+  ): NegotiatedExport = planner.withFallbackCopyPackets(composition, ask, export, read)
 
   /**
    * Negotiates [composition] against [ask] and lowers what it settles on onto a filter graph.

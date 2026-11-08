@@ -95,8 +95,16 @@ public class BrowserExportEngine(
     val device = if (opaque.isEmpty()) read.device else read.device.withoutHdrEncoding()
     val asked = Ask(spec, device, read.infos, read.openings, layoutSize, grade)
     return when (val withPackets = askedWithPackets(composition, asked)) {
-      is CopyAsk.Refused -> refusedLowering(withPackets.error)
-      is CopyAsk.Asked -> planner.lower(composition, withPackets.ask, opaque = opaque)
+      is CopyAsk.Refused -> {
+        refusedLowering(withPackets.error)
+      }
+      is CopyAsk.Asked -> {
+        val lowered = planner.lower(composition, withPackets.ask, opaque = opaque)
+        if (lowered.export.fallbackCopyWindow == null) return lowered
+        val export =
+          planner.withFallbackCopyPackets(composition, withPackets.ask, lowered.export) { sources.copyPacketsOf(it) }
+        LoweredExport(export, null)
+      }
     }
   }
 

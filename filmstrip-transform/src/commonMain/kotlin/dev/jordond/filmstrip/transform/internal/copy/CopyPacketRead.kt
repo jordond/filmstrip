@@ -2,7 +2,11 @@ package dev.jordond.filmstrip.transform.internal.copy
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
+import dev.jordond.filmstrip.edit.EditComposition
+import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.transform.internal.ExportPlanner
+import dev.jordond.filmstrip.transform.internal.NegotiatedExport
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import kotlin.time.Duration
 
@@ -84,5 +88,25 @@ public suspend fun Ask.withCopyPackets(
     is CopyPacketRead.Read -> {
       CopyAsk.Asked(Ask(spec, device, infos, openings, layoutSize, grade, listed.packets))
     }
+  }
+}
+
+/**
+ * [export] with the plan it falls back on settled, once the packets [read] lists over its
+ * [NegotiatedExport.fallbackCopyWindow] are in [ask], or [export] itself when it names no such window.
+ *
+ * A read that fails refuses the export the way [withCopyPackets] refuses it.
+ */
+@InternalFilmstripApi
+public suspend fun ExportPlanner.withFallbackCopyPackets(
+  composition: EditComposition,
+  ask: Ask,
+  export: NegotiatedExport,
+  read: suspend (CopyPacketWindow) -> CopyPacketRead?,
+): NegotiatedExport {
+  val window = export.fallbackCopyWindow ?: return export
+  return when (val withPackets = ask.withCopyPackets(window, read)) {
+    is CopyAsk.Refused -> NegotiatedExport(Verdict.Incapable(listOf(withPackets.error), null), null)
+    is CopyAsk.Asked -> negotiateFallback(composition, withPackets.ask, export)
   }
 }

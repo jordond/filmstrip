@@ -115,10 +115,18 @@ internal abstract class BasePlayerEngine(
   /**
    * The playhead as listeners read it.
    *
-   * From a seek being asked for until it resolves this is the newest target asked for, whatever the platform reads, so
-   * a wrap never reports the range's end once it is decided. Otherwise it is [readPosition].
+   * From a seek being asked for until it resolves this is the slot the newest target asked for lands on, by
+   * [landingOf], whatever the platform reads, so a wrap never reports the range's end once it is decided. Otherwise it
+   * is [readPosition].
    */
   protected val reportedPosition: Duration get() = heldPlayhead ?: readPosition()
+
+  /**
+   * The slot time an exact seek to [target] lands on, which is what the playhead holds while the seek is in flight.
+   *
+   * An engine with nothing loaded has no frame grid to land on, so this returns [target] unchanged.
+   */
+  protected open fun landingOf(target: Duration): Duration = target
 
   /**
    * Whether the platform can seek right now.
@@ -184,7 +192,7 @@ internal abstract class BasePlayerEngine(
     position: Duration,
     accuracy: SeekAccuracy,
   ) {
-    heldPlayhead = position
+    heldPlayhead = landingOf(position)
     if (isScrubbing) scrubTarget = position
     chase.request(position, if (isScrubbing) SeekAccuracy.Nearest else accuracy)
     setSeeking(chase.isSeeking)
@@ -194,11 +202,11 @@ internal abstract class BasePlayerEngine(
    * Seeks exactly to [position] as a loop wrap, through the same chase as [seekTo].
    *
    * The request is marked as a wrap for as long as the chase holds it, so [isWrapSeek] reads true in the [performSeek]
-   * that finally issues it. The playhead reports [position] straight away and holds it until the seek resolves, the way
-   * [seekTo] holds its target.
+   * that finally issues it. The playhead reports where [position] lands straight away and holds it until the seek
+   * resolves, the way [seekTo] holds its target.
    */
   protected fun seekToWrap(position: Duration) {
-    heldPlayhead = position
+    heldPlayhead = landingOf(position)
     emitPosition(position)
     if (isScrubbing) scrubTarget = position
     chase.request(position, if (isScrubbing) SeekAccuracy.Nearest else SeekAccuracy.Exact, wrap = true)
@@ -222,7 +230,7 @@ internal abstract class BasePlayerEngine(
     // any other.
     val target = scrubTarget ?: return
     scrubTarget = null
-    heldPlayhead = target
+    heldPlayhead = landingOf(target)
     chase.request(target, SeekAccuracy.Exact)
     setSeeking(chase.isSeeking)
   }

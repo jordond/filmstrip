@@ -49,6 +49,7 @@ import dev.jordond.filmstrip.transform.internal.LoweringExportEngine
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.copy.CopyAsk
 import dev.jordond.filmstrip.transform.internal.copy.CopyPacketRead
+import dev.jordond.filmstrip.transform.internal.copy.CopyPacketWindow
 import dev.jordond.filmstrip.transform.internal.copy.withCopyPackets
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
 import dev.jordond.filmstrip.transform.internal.probe.OpeningRead
@@ -220,6 +221,10 @@ public class FfmpegExportEngine internal constructor(
           tailFormatSources = colors.tailFormatSources,
         )
       }
+    if (lowered.export.fallbackCopyWindow != null) {
+      val export = planner.withFallbackCopyPackets(composition, ask, lowered.export) { readCopyPackets(toolchain, it) }
+      return LoweredExport(export, null)
+    }
     val graph = lowered.graph
     val negotiated = lowered.export.composition
     if (graph == null || negotiated == null) return LoweredExport(lowered.export, null)
@@ -235,11 +240,17 @@ public class FfmpegExportEngine internal constructor(
     planner: FfmpegPlanner,
     composition: EditComposition,
     ask: Ask,
-  ): CopyAsk =
-    ask.withCopyPackets(interruptibly { planner.copyPacketWindowOf(composition, ask) }) { window ->
-      sourcePath(window.source)?.let { runtime.copyPackets(toolchain, it, window.from, window.to) }
-        ?: CopyPacketRead.Failed(READS_FILES)
-    }
+  ): CopyAsk {
+    val window = interruptibly { planner.copyPacketWindowOf(composition, ask) }
+    return ask.withCopyPackets(window) { readCopyPackets(toolchain, it) }
+  }
+
+  private suspend fun readCopyPackets(
+    toolchain: Toolchain,
+    window: CopyPacketWindow,
+  ): CopyPacketRead =
+    sourcePath(window.source)?.let { runtime.copyPackets(toolchain, it, window.from, window.to) }
+      ?: CopyPacketRead.Failed(READS_FILES)
 
   private suspend fun sourcePath(source: MediaSource): String? =
     try {

@@ -83,6 +83,8 @@ internal abstract class PlannedPlayerEngine<P : PlannedPreview>(
    */
   protected abstract val isGraphStanding: Boolean
 
+  final override fun landingOf(target: Duration): Duration = plan?.resolved?.seekLandingOf(target) ?: target
+
   final override fun setComposition(
     request: SetCompositionRequest,
     callback: SetCompositionCallback,

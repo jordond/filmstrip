@@ -3,6 +3,8 @@ package dev.jordond.filmstrip.transform.internal
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.effect.EffectResolver
+import dev.jordond.filmstrip.effects.color.Sepia
 import dev.jordond.filmstrip.effects.geometry.Rotate
 import dev.jordond.filmstrip.export.CopyBlocker
 import dev.jordond.filmstrip.export.ExportPath
@@ -129,17 +131,64 @@ class CopyPacketPlanTest {
 
   // The effect blocks the copy, so only the plan that leaves it out can copy, and that plan reads the same window.
   @Test
-  fun `an edit with an effect this device cannot run reads the window its fallback copies`() {
+  fun `an edit with an effect this device cannot run names the window its fallback copies`() {
     val composition =
       composition(
         fixture.clip(trim = TimeRange.of(1_000.milliseconds, 3_000.milliseconds), effects = listOf(Rotate(90))),
       )
 
-    val window = fixture.planner(resolvers = emptyList()).copyPacketWindowOf(composition, ask(composition))
+    val export = fixture.planner(resolvers = emptyList()).negotiate(composition, ask(composition))
 
-    window.shouldNotBeNull()
+    export.verdict
+      .shouldBeInstanceOf<Verdict.Incapable>()
+      .withoutUnsupported
+      .shouldBeNull()
+    val window = export.fallbackCopyWindow.shouldNotBeNull()
     window.from shouldBe 1_000.milliseconds
     window.to shouldBe 3_000.milliseconds
+  }
+
+  @Test
+  fun `the fallback settles on the packets read over its window`() {
+    val composition =
+      composition(
+        fixture.clip(trim = TimeRange.of(1_000.milliseconds, 3_000.milliseconds), effects = listOf(Rotate(90))),
+      )
+    val planner = fixture.planner(resolvers = emptyList())
+    val export = planner.negotiate(composition, ask(composition))
+    val packets = timed(from = 1_000.milliseconds, frames = 60)
+
+    val settled = planner.negotiateFallback(composition, ask(composition, packets = packets), export)
+
+    settled.fallbackCopyWindow.shouldBeNull()
+    val fallback =
+      settled.verdict
+        .shouldBeInstanceOf<Verdict.Incapable>()
+        .withoutUnsupported
+        .shouldNotBeNull()
+    fallback.plan.path shouldBe ExportPath.Copy
+  }
+
+  // A resolver is called once per pipeline, so naming the window asks none of them and negotiating asks each once.
+  @Test
+  fun `naming a copy's window lowers no effect`() {
+    val fake = FakeResolver()
+    var asked = 0
+    val counting =
+      EffectResolver { spec, capabilities, attributes ->
+        asked++
+        fake.resolve(spec, capabilities, attributes)
+      }
+    val composition =
+      composition(
+        fixture.clip(trim = TimeRange.of(1_000.milliseconds, 3_000.milliseconds), effects = listOf(Sepia(1f))),
+      )
+    val planner = fixture.planner(resolvers = listOf(counting))
+
+    planner.copyPacketWindowOf(composition, ask(composition)).shouldBeNull()
+    asked shouldBe 0
+    planner.negotiate(composition, ask(composition)).fallbackCopyWindow.shouldBeNull()
+    asked shouldBe 1
   }
 
   @Test

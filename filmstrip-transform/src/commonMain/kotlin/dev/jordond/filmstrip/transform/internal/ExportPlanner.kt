@@ -95,7 +95,9 @@ public class ExportPlanner(
    * Negotiates [composition] against what [ask] read into a verdict and the graph an export would run.
    *
    * An edit carrying effects this device cannot run is refused with a reason per effect, and the
-   * refusal carries the plan the same edit settles on with those effects left out.
+   * refusal carries the plan the same edit settles on with those effects left out. When that plan copies over a window
+   * [ask] holds no packets for, the refusal names the window in [NegotiatedExport.fallbackCopyWindow] instead, and
+   * [negotiateFallback] settles the plan once they are read.
    *
    * @param ask What the export is asked for and what the engine read about the sources and the device.
    * @param dropped Effect ids to leave out of the graph entirely.
@@ -114,14 +116,35 @@ public class ExportPlanner(
 
     // Only a negotiation that dropped nothing retries, so a retry that still finds an effect it
     // cannot run is refused without a fallback of its own.
-    val fallback =
-      if (dropped.isEmpty()) {
-        val retry = settle(composition.withoutEffectIds(unsupported.keys), unsupported.keys, ask)
-        // The retry drops at least one effect and reports each as an adjustment, so it is never Capable.
-        (retry as? Settlement.Settled)?.export?.verdict as? Verdict.Degraded
-      } else {
-        null
-      }
+    if (dropped.isNotEmpty()) return NegotiatedExport(Verdict.Incapable(unsupported.values.toList(), null), null)
+    val window = if (ask.copyPackets == null) windowOf(composition.withoutEffectIds(unsupported.keys), ask) else null
+    if (window != null) {
+      return NegotiatedExport(Verdict.Incapable(unsupported.values.toList(), null), null, window, unsupported)
+    }
+    return fallbackOf(composition, ask, unsupported)
+  }
+
+  /**
+   * Settles the plan [export] falls back on, with [ask] now holding the packets over its
+   * [NegotiatedExport.fallbackCopyWindow].
+   *
+   * Only the edit without the effects [export] found unsupported is negotiated again, so no effect of the edit as
+   * written is lowered twice.
+   */
+  public fun negotiateFallback(
+    composition: EditComposition,
+    ask: Ask,
+    export: NegotiatedExport,
+  ): NegotiatedExport = fallbackOf(composition, ask, export.unsupported)
+
+  private fun fallbackOf(
+    composition: EditComposition,
+    ask: Ask,
+    unsupported: Map<String, FilmstripError>,
+  ): NegotiatedExport {
+    val retry = settle(composition.withoutEffectIds(unsupported.keys), unsupported.keys, ask)
+    // The retry drops at least one effect and reports each as an adjustment, so it is never Capable.
+    val fallback = (retry as? Settlement.Settled)?.export?.verdict as? Verdict.Degraded
     return NegotiatedExport(Verdict.Incapable(unsupported.values.toList(), fallback), null)
   }
 
@@ -145,22 +168,14 @@ public class ExportPlanner(
    * The window an export of [composition] at [ask] copies whose packets an engine reads into [Ask.copyPackets], or
    * null when it does not copy or the copy runs to its source's end.
    *
-   * It runs the phases [exportGradeOf] does, so the window is the one the copy then opens and closes on. An edit
-   * carrying effects this device cannot run names the window of the plan [negotiate] falls back on without them, since
-   * that plan can copy where the edit itself cannot.
+   * It runs the phases [exportGradeOf] does and lowers no effect, so the window is the one the copy then opens and
+   * closes on. The window of the plan an edit carrying effects this device cannot run falls back on comes from
+   * [negotiate], which has lowered them by then.
    */
   public fun copyPacketWindowOf(
     composition: EditComposition,
     ask: Ask,
-  ): CopyPacketWindow? {
-    windowOf(composition, ask)?.let { return it }
-    // Leaving every effect out is as far as the fallback can go, so an edit that does not copy even then is not
-    // negotiated again to find out which effects it would leave out.
-    val ids = composition.effectIds()
-    if (ids.isEmpty() || windowOf(composition.withoutEffectIds(ids), ask) == null) return null
-    val unsupported = (settle(composition, emptySet(), ask) as? Settlement.Unsupported)?.effects ?: return null
-    return windowOf(composition.withoutEffectIds(unsupported.keys), ask)
-  }
+  ): CopyPacketWindow? = windowOf(composition, ask)
 
   private fun windowOf(
     composition: EditComposition,
@@ -370,9 +385,6 @@ public class ExportPlanner(
     const val APPROXIMATE = "The preview and the export diverge by a bounded amount for this effect."
   }
 }
-
-private fun EditComposition.effectIds(): Set<String> =
-  (tracks.flatMap { track -> track.clips.flatMap { it.effects } + track.effects } + effects).map { it.id }.toSet()
 
 private fun EditComposition.withoutEffectIds(ids: Set<String>): EditComposition {
   if (ids.isEmpty()) return this
