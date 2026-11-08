@@ -51,7 +51,7 @@ public class Media3ClipReads internal constructor(
  * off each source's own container.
  *
  * A clip is read once per window, however many passes of a looping track cut the same one. A clip whose container
- * cannot be read, or whose window holds no sample, is left out, and the lowering lays it from its own start.
+ * cannot be read is left out, and the lowering lays it from its own start.
  *
  * @return what every lowering of this plan lays its video items by.
  */

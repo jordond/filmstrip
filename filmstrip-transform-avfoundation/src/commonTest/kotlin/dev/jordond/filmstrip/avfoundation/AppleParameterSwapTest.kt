@@ -22,7 +22,6 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
-import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.test.assertFramesDiffer
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
@@ -35,19 +34,8 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.addressOf
-import kotlinx.cinterop.usePinned
+import kotlinx.coroutines.test.runTest
 import platform.AVFoundation.AVAssetImageGenerator
-import platform.CoreGraphics.CGBitmapContextCreate
-import platform.CoreGraphics.CGColorSpaceCreateDeviceRGB
-import platform.CoreGraphics.CGColorSpaceRelease
-import platform.CoreGraphics.CGContextDrawImage
-import platform.CoreGraphics.CGContextRelease
-import platform.CoreGraphics.CGImageAlphaInfo
-import platform.CoreGraphics.CGImageGetHeight
-import platform.CoreGraphics.CGImageGetWidth
-import platform.CoreGraphics.CGImageRelease
-import platform.CoreGraphics.CGRectMake
 import platform.CoreImage.CIImage
 import platform.CoreImage.CIVector
 import kotlin.test.Test
@@ -73,151 +61,163 @@ import kotlin.time.Duration.Companion.seconds
 @OptIn(ExperimentalForeignApi::class)
 class AppleParameterSwapTest {
   @Test
-  fun `a swap reaches the frames the same video composition renders`() {
-    val source = fixture(CLIP_NAME)
+  fun `a swap reaches the frames the same video composition renders`() =
+    runTest {
+      val source = fixture(CLIP_NAME)
 
-    val av = graded(source, DIM).toAvComposition()
-    val chain = withClue("a composition with a video track has a chain") { av.chain.shouldNotBeNull() }
-    val generator = generatorFor(av)
+      val av = graded(source, DIM).toAvComposition()
+      val chain = withClue("a composition with a video track has a chain") { av.chain.shouldNotBeNull() }
+      val generator = generatorFor(av)
 
-    val dimmed = generator.frameAt(PROBE)
-    chain.updateParameters(graded(source, BRIGHT))
-    val brightened = generator.frameAt(PROBE)
+      val dimmed = generator.frameAt(PROBE)
+      chain.updateParameters(graded(source, BRIGHT))
+      val brightened = generator.frameAt(PROBE)
 
-    assertFramesDiffer(
-      dimmed,
-      brightened,
-      message = "the swapped parameter never reached the render",
-    )
-  }
-
-  @Test
-  fun `a swap keeps the slots the spans already hold`() {
-    val source = fixture(CLIP_NAME)
-
-    val av = graded(source, DIM).toAvComposition()
-    val chain = withClue("a composition with a video track has a chain") { av.chain.shouldNotBeNull() }
-    val slots = chain.spans.map { it.start to it.end }
-
-    val swapped = graded(source, BRIGHT)
-    chain.updateParameters(swapped)
-
-    chain.spans.map { it.start to it.end } shouldBe slots
-    withClue("the span kept the effects it was built with") {
-      chain.spans.single().effects shouldBeSameInstanceAs
-        swapped.tracks
-          .single()
-          .clips
-          .single()
-          .effects
+      assertFramesDiffer(
+        dimmed,
+        brightened,
+        message = "the swapped parameter never reached the render",
+      )
     }
-  }
 
   @Test
-  fun `a swap that moves the output frame is refused`() {
-    val source = fixture(CLIP_NAME)
-    val chain = graded(source, DIM).toAvComposition().chain.shouldNotBeNull()
+  fun `a swap keeps the slots the spans already hold`() =
+    runTest {
+      val source = fixture(CLIP_NAME)
 
-    val moved = graded(source, BRIGHT, output = Size(160, 90))
+      val av = graded(source, DIM).toAvComposition()
+      val chain = withClue("a composition with a video track has a chain") { av.chain.shouldNotBeNull() }
+      val slots = chain.spans.map { it.start to it.end }
 
-    chain.takesParametersOf(moved) shouldBe false
-    assertFailsWith<IllegalArgumentException> { chain.updateParameters(moved) }
-  }
+      val swapped = graded(source, BRIGHT)
+      chain.updateParameters(swapped)
 
-  @Test
-  fun `a swap that moves the frame rate is refused`() {
-    val source = fixture(CLIP_NAME)
-    val chain = graded(source, DIM).toAvComposition().chain.shouldNotBeNull()
-    val moved = graded(source, BRIGHT, frameRate = 24)
-
-    chain.takesParametersOf(moved) shouldBe false
-    assertFailsWith<IllegalArgumentException> { chain.updateParameters(moved) }
-  }
-
-  @Test
-  fun `a swap from a copy plan to a transcode plan reaches the frames`() {
-    val source = fixture(CLIP_NAME)
-
-    val av = plainCopy(source, CLIP).toAvComposition()
-    val chain = withClue("a composition with a video track has a chain") { av.chain.shouldNotBeNull() }
-    val generator = generatorFor(av)
-    val transcode = graded(source, BRIGHT, bitrate = PLANNED_BITRATE)
-
-    val copied = generator.frameAt(PROBE)
-    chain.takesParametersOf(transcode) shouldBe true
-    chain.updateParameters(transcode)
-
-    assertFramesDiffer(copied, generator.frameAt(PROBE), message = "the swapped parameter never reached the render")
-    chain.output.bitrate shouldBe PLANNED_BITRATE
-  }
-
-  @Test
-  fun `a swap keeps a copy lay ending inside its last slot`() {
-    val source = fixture(CLIP_NAME)
-    val chain = plainCopy(source, ROUNDS_UP).toAvComposition().chain.shouldNotBeNull()
-
-    chain.takesParametersOf(graded(source, BRIGHT, clipEnd = ROUNDS_UP)) shouldBe true
-  }
-
-  @Test
-  fun `a swap refuses a copy lay running past its last slot in either direction`() {
-    val source = fixture(CLIP_NAME)
-
-    val copied = plainCopy(source, ROUNDS_DOWN).toAvComposition().chain.shouldNotBeNull()
-    copied.takesParametersOf(graded(source, BRIGHT, clipEnd = ROUNDS_DOWN)) shouldBe false
-
-    val transcoded = graded(source, BRIGHT, clipEnd = ROUNDS_DOWN).toAvComposition().chain.shouldNotBeNull()
-    transcoded.takesParametersOf(plainCopy(source, ROUNDS_DOWN)) shouldBe false
-  }
-
-  @Test
-  fun `a swap refuses a plan that removes the audio the graph laid`() {
-    val source = fixture(CLIP_NAME)
-    val av = graded(source, DIM).toAvComposition()
-
-    av.takesParametersOf(graded(source, BRIGHT)) shouldBe true
-    av.takesParametersOf(graded(source, BRIGHT, audio = AudioSpec.Remove, audioCodec = AudioCodec.None)) shouldBe false
-  }
-
-  @Test
-  fun `a swap that moves the transfer function is refused`() {
-    val source = fixture(CLIP_NAME)
-    val chain = graded(source, DIM).toAvComposition().chain.shouldNotBeNull()
-
-    assertFailsWith<IllegalArgumentException> {
-      chain.updateParameters(graded(source, BRIGHT, transfer = HdrTransfer.Pq))
+      chain.spans.map { it.start to it.end } shouldBe slots
+      withClue("the span kept the effects it was built with") {
+        chain.spans.single().effects shouldBeSameInstanceAs
+          swapped.tracks
+            .single()
+            .clips
+            .single()
+            .effects
+      }
     }
-  }
 
   @Test
-  fun `a swap that moves the timeline is refused`() {
-    val source = fixture(CLIP_NAME)
-    val chain = graded(source, DIM).toAvComposition().chain.shouldNotBeNull()
+  fun `a swap that moves the output frame is refused`() =
+    runTest {
+      val source = fixture(CLIP_NAME)
+      val chain = graded(source, DIM).toAvComposition().chain.shouldNotBeNull()
 
-    assertFailsWith<IllegalArgumentException> {
-      chain.updateParameters(graded(source, BRIGHT, clipEnd = 700.milliseconds))
+      val moved = graded(source, BRIGHT, output = Size(160, 90))
+
+      chain.takesParametersOf(moved) shouldBe false
+      assertFailsWith<IllegalArgumentException> { chain.updateParameters(moved) }
     }
-  }
+
+  @Test
+  fun `a swap that moves the frame rate is refused`() =
+    runTest {
+      val source = fixture(CLIP_NAME)
+      val chain = graded(source, DIM).toAvComposition().chain.shouldNotBeNull()
+      val moved = graded(source, BRIGHT, frameRate = 24)
+
+      chain.takesParametersOf(moved) shouldBe false
+      assertFailsWith<IllegalArgumentException> { chain.updateParameters(moved) }
+    }
+
+  @Test
+  fun `a swap from a copy plan to a transcode plan reaches the frames`() =
+    runTest {
+      val source = fixture(CLIP_NAME)
+
+      val av = plainCopy(source, CLIP).toAvComposition()
+      val chain = withClue("a composition with a video track has a chain") { av.chain.shouldNotBeNull() }
+      val generator = generatorFor(av)
+      val transcode = graded(source, BRIGHT, bitrate = PLANNED_BITRATE)
+
+      val copied = generator.frameAt(PROBE)
+      chain.takesParametersOf(transcode) shouldBe true
+      chain.updateParameters(transcode)
+
+      assertFramesDiffer(copied, generator.frameAt(PROBE), message = "the swapped parameter never reached the render")
+      chain.output.bitrate shouldBe PLANNED_BITRATE
+    }
+
+  @Test
+  fun `a swap keeps a copy lay ending inside its last slot`() =
+    runTest {
+      val source = fixture(CLIP_NAME)
+      val chain = plainCopy(source, ROUNDS_UP).toAvComposition().chain.shouldNotBeNull()
+
+      chain.takesParametersOf(graded(source, BRIGHT, clipEnd = ROUNDS_UP)) shouldBe true
+    }
+
+  @Test
+  fun `a swap refuses a copy lay running past its last slot in either direction`() =
+    runTest {
+      val source = fixture(CLIP_NAME)
+
+      val copied = plainCopy(source, ROUNDS_DOWN).toAvComposition().chain.shouldNotBeNull()
+      copied.takesParametersOf(graded(source, BRIGHT, clipEnd = ROUNDS_DOWN)) shouldBe false
+
+      val transcoded = graded(source, BRIGHT, clipEnd = ROUNDS_DOWN).toAvComposition().chain.shouldNotBeNull()
+      transcoded.takesParametersOf(plainCopy(source, ROUNDS_DOWN)) shouldBe false
+    }
+
+  @Test
+  fun `a swap refuses a plan that removes the audio the graph laid`() =
+    runTest {
+      val source = fixture(CLIP_NAME)
+      val av = graded(source, DIM).toAvComposition()
+
+      av.takesParametersOf(graded(source, BRIGHT)) shouldBe true
+      val silenced = graded(source, BRIGHT, audio = AudioSpec.Remove, audioCodec = AudioCodec.None)
+      av.takesParametersOf(silenced) shouldBe false
+    }
+
+  @Test
+  fun `a swap that moves the transfer function is refused`() =
+    runTest {
+      val source = fixture(CLIP_NAME)
+      val chain = graded(source, DIM).toAvComposition().chain.shouldNotBeNull()
+
+      assertFailsWith<IllegalArgumentException> {
+        chain.updateParameters(graded(source, BRIGHT, transfer = HdrTransfer.Pq))
+      }
+    }
+
+  @Test
+  fun `a swap that moves the timeline is refused`() =
+    runTest {
+      val source = fixture(CLIP_NAME)
+      val chain = graded(source, DIM).toAvComposition().chain.shouldNotBeNull()
+
+      assertFailsWith<IllegalArgumentException> {
+        chain.updateParameters(graded(source, BRIGHT, clipEnd = 700.milliseconds))
+      }
+    }
 
   // The invariant a looping track needs from a swap: one span per laid pass, each rebuilt from the
   // clip at its own index. A pass of the plan is a clip of its own now, so the two lists have to
   // stay the same length and stay in step.
   @Test
-  fun `a swap over a looping track respans every pass with that pass's own clip`() {
-    val source = fixture(CLIP_NAME)
+  fun `a swap over a looping track respans every pass with that pass's own clip`() =
+    runTest {
+      val source = fixture(CLIP_NAME)
 
-    val laid = loopedClips(source)
-    val chain = loopingComposition(laid).toAvComposition().chain.shouldNotBeNull()
-    val swapped = loopingComposition(loopedClips(source, scale = BRIGHT))
-    chain.updateParameters(swapped)
+      val laid = loopedClips(source)
+      val chain = loopingComposition(laid).toAvComposition().chain.shouldNotBeNull()
+      val swapped = loopingComposition(loopedClips(source, scale = BRIGHT))
+      chain.updateParameters(swapped)
 
-    chain.spans.size shouldBe laid.size
-    swapped.tracks.single().clips.forEachIndexed { index, clip ->
-      withClue("pass $index kept another pass's effects") {
-        chain.spans[index].effects shouldBeSameInstanceAs clip.effects
+      chain.spans.size shouldBe laid.size
+      swapped.tracks.single().clips.forEachIndexed { index, clip ->
+        withClue("pass $index kept another pass's effects") {
+          chain.spans[index].effects shouldBeSameInstanceAs clip.effects
+        }
       }
     }
-  }
 
   /**
    * One clip laid down three times, the last pass cut, carrying the spans the planner would have
@@ -427,46 +427,6 @@ class AppleParameterSwapTest {
       requestedTimeToleranceAfter = Duration.ZERO.toCMTime()
     }
 
-  @Suppress("DEPRECATION")
-  private fun AVAssetImageGenerator.frameAt(time: Duration): TestFrame {
-    val image =
-      copyCGImageAtTime(time.toCMTime(), actualTime = null, error = null)
-        ?: error("no frame came back at $time")
-
-    try {
-      val width = CGImageGetWidth(image).toInt()
-      val height = CGImageGetHeight(image).toInt()
-      val pixels = ByteArray(width * height * CHANNELS)
-      val colorSpace = CGColorSpaceCreateDeviceRGB()
-
-      try {
-        pixels.usePinned { pinned ->
-          val context =
-            CGBitmapContextCreate(
-              pinned.addressOf(0),
-              width.toULong(),
-              height.toULong(),
-              BITS_PER_CHANNEL.toULong(),
-              (width * CHANNELS).toULong(),
-              colorSpace,
-              CGImageAlphaInfo.kCGImageAlphaPremultipliedLast.value,
-            ) ?: error("could not create a bitmap context")
-          try {
-            CGContextDrawImage(context, CGRectMake(0.0, 0.0, width.toDouble(), height.toDouble()), image)
-          } finally {
-            CGContextRelease(context)
-          }
-        }
-      } finally {
-        CGColorSpaceRelease(colorSpace)
-      }
-
-      return TestFrame(pixels, Size(width, height))
-    } finally {
-      CGImageRelease(image)
-    }
-  }
-
   private companion object {
     const val CLIP_NAME = "apple_export_a.mp4"
     const val SPEC_ID = "test.channel-gain"
@@ -488,8 +448,5 @@ class AppleParameterSwapTest {
     // Far enough apart that no encoder rounding could account for the difference.
     const val DIM = 0.2
     const val BRIGHT = 0.9
-
-    const val CHANNELS = 4
-    const val BITS_PER_CHANNEL = 8
   }
 }

@@ -28,6 +28,7 @@ import dev.jordond.filmstrip.motion.Easing
 import dev.jordond.filmstrip.test.PREVIEW_PARITY_EXPORT_BITRATE
 import dev.jordond.filmstrip.test.TestFrame
 import dev.jordond.filmstrip.test.eightBitFrameAt
+import dev.jordond.filmstrip.test.eightBitFrameCovering
 import dev.jordond.filmstrip.test.writeAtomically
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -155,6 +156,16 @@ internal suspend fun androidExportFrame(
   composition: EditComposition,
   position: Duration,
 ): TestFrame = eightBitFrameAt(androidExportedFile(composition), position).toTestFrame()
+
+/**
+ * The frame [composition] exports that a player shows at [position], the last one the file presents at or before it.
+ *
+ * The export is the one [androidExportFrame] reads.
+ */
+internal suspend fun androidExportFrameCovering(
+  composition: EditComposition,
+  position: Duration,
+): TestFrame = eightBitFrameCovering(androidExportedFile(composition), position).toTestFrame()
 
 /**
  * The file [composition] exports to, written once per composition.

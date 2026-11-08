@@ -186,6 +186,7 @@ internal class GraphLowering(
       previewColor = laidColor.kept?.toBt709Nodes(output.size).orEmpty(),
       seekBase = seekBase,
       seekSpeed = windowedClip?.speed ?: 1.0,
+      seekKeepsEarlierFrames = windowedClip?.retimes(frameRate) ?: false,
       videoSlots = videoLabel?.let { negotiated.videoSlots },
       heldTail = if (videoLabel == null) LongRange.EMPTY else negotiated.heldTail,
       // Two clips carrying the same grade lower to the same file, and a placeholder names its
@@ -359,15 +360,9 @@ internal class GraphLowering(
   ): String {
     var pad = branch
     var merged = 0
-    val pending =
-      mutableListOf(
-        FilterNode(
-          "trim",
-          "start" to formatSeconds(clip.start.seconds()),
-          "end" to formatSeconds(clip.end.seconds()),
-        ),
-      )
-    pending += if (clip.speed == 1.0) listOf(SETPTS) else retimedNodes(clip.start, clip.speed, frameRate)
+    val read = clip.readAt(frameRate)
+    val clockOrigin = read.clockOrigin
+    val pending = read.nodes.toMutableList()
 
     // Ahead of every effect, and only on the clips that carry a grade. A composition can mix an HDR
     // clip with an SDR one, and running the curve over the SDR clip would change a frame that was
@@ -400,7 +395,7 @@ internal class GraphLowering(
             graph.cropped(read, fragment, crop, label, grid, ::auxPads)
           } else {
             grid = grid.after(fragment.branches.flatMap { it.nodes })
-            label.also { graph.branches(read, fragment, it, clip.span.start, liveChain) }
+            label.also { graph.branches(read, fragment, it, clockOrigin, liveChain) }
           }
         merged++
         return@forEachIndexed

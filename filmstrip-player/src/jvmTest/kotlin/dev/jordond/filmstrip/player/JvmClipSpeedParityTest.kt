@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.ffmpeg.ffmpegBackend
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.player.contract.ClipParityBackend
 import dev.jordond.filmstrip.player.contract.ClipSpeedParityContractTest
 import dev.jordond.filmstrip.player.contract.asTestFrame
 import dev.jordond.filmstrip.player.contract.awaitComposition
@@ -33,17 +34,7 @@ import kotlin.time.Duration.Companion.seconds
  * The clip speed contract on ffmpeg, where the preview and the export share one graph. The export side has been through
  * libx264 and back, so the comparison takes the same thresholds [JvmPixelContractTest] does.
  */
-class JvmClipSpeedParityTest : ClipSpeedParityContractTest() {
-  override val filmstrip: Filmstrip = Filmstrip { ffmpegBackend() }
-
-  override val fixtureClip: MediaSource = MediaSource.of(jvmFixtureClip())
-
-  override val frameRate: Int = FIXTURE_RATE
-
-  override val minPsnrDb: Double get() = ENCODED_MIN_PSNR_DB
-
-  override val minSsim: Double get() = ENCODED_MIN_SSIM
-
+class JvmClipSpeedParityTest : ClipSpeedParityContractTest(JvmClipParity) {
   // Loading a composition presents slot 0, and a read of the next slot must not be answered from it.
   @Test
   fun aReadAtTheSlotBesideTheOneShowingRendersItsOwnFrame() =
@@ -68,6 +59,23 @@ class JvmClipSpeedParityTest : ClipSpeedParityContractTest() {
         }
       }
     }
+}
+
+/**
+ * ffmpeg's side of the suites that hold a clip's preview to its export.
+ */
+internal object JvmClipParity : ClipParityBackend {
+  private val moving = mutableMapOf<Int, MediaSource>()
+
+  override val filmstrip: Filmstrip = Filmstrip { ffmpegBackend() }
+
+  override val fixtureClip: MediaSource = MediaSource.of(jvmFixtureClip())
+
+  override val frameRate: Int = FIXTURE_RATE
+
+  override val minPsnrDb: Double get() = ENCODED_MIN_PSNR_DB
+
+  override val minSsim: Double get() = ENCODED_MIN_SSIM
 
   override fun createEngine(scope: CoroutineScope): PlayerEngine =
     FfmpegPlayerEngine(
@@ -77,7 +85,22 @@ class JvmClipSpeedParityTest : ClipSpeedParityContractTest() {
     )
 
   // This backend refuses a pan, so the moving source is drawn by ffmpeg itself rather than exported.
-  override suspend fun movingSource(): MediaSource {
+  override suspend fun movingSource(): MediaSource = movingSourceAt(FIXTURE_RATE)
+
+  /**
+   * A moving source drawn by ffmpeg at [rate], written once per rate.
+   */
+  fun movingSourceAt(rate: Int): MediaSource = moving.getOrPut(rate) { drawMovingSource(rate) }
+
+  override suspend fun exportedSource(composition: EditComposition): MediaSource =
+    MediaSource.of(jvmExportedFile(composition))
+
+  override suspend fun exportFrame(
+    composition: EditComposition,
+    position: Duration,
+  ): TestFrame = jvmExportFrame(composition, position)
+
+  private fun drawMovingSource(rate: Int): MediaSource {
     val file = File.createTempFile("filmstrip-jvm-moving", ".mp4").also { it.deleteOnExit() }
     val seconds = "1.5"
     val process =
@@ -91,7 +114,7 @@ class JvmClipSpeedParityTest : ClipSpeedParityContractTest() {
         "-f",
         "lavfi",
         "-i",
-        "testsrc2=size=${FIXTURE_FRAME.width}x${FIXTURE_FRAME.height}:rate=$FIXTURE_RATE:duration=$seconds",
+        "testsrc2=size=${FIXTURE_FRAME.width}x${FIXTURE_FRAME.height}:rate=$rate:duration=$seconds",
         "-f",
         "lavfi",
         "-i",
@@ -108,12 +131,4 @@ class JvmClipSpeedParityTest : ClipSpeedParityContractTest() {
     if (process.waitFor() != 0) fail("writing the moving source failed: $log")
     return MediaSource.of(file.absolutePath)
   }
-
-  override suspend fun exportedSource(composition: EditComposition): MediaSource =
-    MediaSource.of(jvmExportedFile(composition))
-
-  override suspend fun exportFrame(
-    composition: EditComposition,
-    position: Duration,
-  ): TestFrame = jvmExportFrame(composition, position)
 }

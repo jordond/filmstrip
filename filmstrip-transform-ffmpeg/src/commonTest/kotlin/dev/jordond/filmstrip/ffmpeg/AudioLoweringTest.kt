@@ -129,10 +129,23 @@ class AudioLoweringTest {
       val lowered = lower(track(TrackContent.AudioAndVideo, clip(3.seconds, speed = speed)), length)
       val samples = (length.toDouble(DurationUnit.SECONDS) * 48_000).roundToLong()
 
+      val filler = formatSeconds(0.12 * maxOf(speed, 1.0))
+
       lowered.graph shouldContain
         "[t0c0]atrim=start=${formatSeconds(0.0)}:end=${formatSeconds(3.0)},asetpts=expr=PTS-STARTPTS,$STEREO_FORMAT," +
-        "atempo=tempo=$speed,apad=whole_len=$samples,atrim=end_sample=$samples,asetpts=expr=PTS-STARTPTS[a0c0]"
+        "apad=pad_dur=$filler,atempo=tempo=$speed,apad=whole_len=$samples,atrim=end_sample=$samples," +
+        "asetpts=expr=PTS-STARTPTS[a0c0]"
     }
+  }
+
+  // atempo writes nothing short of a whole fragment, so a clip a few milliseconds long needs silence behind it to play.
+  @Test
+  fun `a stretch fills atempo with silence that the cut then drops`() {
+    val fast = lower(track(TrackContent.AudioAndVideo, clip(500.milliseconds, speed = 32.0)), 16.milliseconds)
+    fast.graph shouldContain "apad=pad_dur=${formatSeconds(3.84)},atempo=tempo=32.0,"
+
+    val slow = lower(track(TrackContent.AudioAndVideo, clip(1.milliseconds, speed = 1.0 / 32)), 32.milliseconds)
+    slow.graph shouldContain "apad=pad_dur=${formatSeconds(0.12)},atempo=tempo=0.5,"
   }
 
   @Test

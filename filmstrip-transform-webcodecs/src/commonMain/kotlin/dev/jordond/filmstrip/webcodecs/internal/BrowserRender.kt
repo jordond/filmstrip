@@ -7,7 +7,6 @@ import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
-import dev.jordond.filmstrip.edit.sourceOffsetAt
 import dev.jordond.filmstrip.effect.EffectStage
 import dev.jordond.filmstrip.effect.WebGlOverlay
 import dev.jordond.filmstrip.effect.WebGlPass
@@ -33,6 +32,7 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import dev.jordond.filmstrip.transform.internal.resolve.drawnRect
 import dev.jordond.filmstrip.transform.internal.resolve.effectsOverFill
 import dev.jordond.filmstrip.transform.internal.resolve.effectsUnderFill
+import dev.jordond.filmstrip.transform.internal.sourceTimeOfSlot
 import dev.jordond.filmstrip.webcodecs.internal.audio.BrowserAudioMix
 import dev.jordond.filmstrip.webcodecs.internal.interop.containerFor
 import dev.jordond.filmstrip.webcodecs.internal.interop.muxCodecKey
@@ -80,11 +80,12 @@ import kotlin.time.DurationUnit
  * its frames are read through before the composite. Null for an SDR source and for a render that keeps the grade.
  * @property passStage What the clip draws onto a frame of its own ahead of the composite, or null when no pass of the
  * clip's runs a shader. With one, [matrix], [colorMatrix] and [canvases] are left holding only what runs after it.
- * @property speed How fast the slots walk through the trim, which [sourceUsAt] and [outputUsOf] read.
+ * @property speed How fast the slots walk through the trim, which [sourceUsOf] and [outputUsOf] read.
+ * @property spanStart Where the clip's span opens on the composition timeline, which its trim start plays at.
  */
 internal class RenderedClip(
   val source: MediaSource,
-  val trimStartUs: Double,
+  val trimStart: Duration,
   val trimEndUs: Double,
   val firstSlot: Long,
   val quadHalfW: Float,
@@ -103,18 +104,24 @@ internal class RenderedClip(
   val toneMapFrom: HdrTransfer?,
   val passStage: ClipPassStage? = null,
   val speed: Double = 1.0,
+  val spanStart: Duration,
 ) {
   /**
-   * The source time in microseconds that [outputUs] into this clip's slots shows.
-   *
-   * At a speed of 1 the two run together, and the answer keeps the precision of the slot walk rather than a Duration's.
+   * Where the trim opens in the source, in microseconds.
    */
-  fun sourceUsAt(outputUs: Double): Double =
-    trimStartUs +
-      if (speed == 1.0) outputUs else sourceOffsetAt(outputUs.microseconds, speed).toDouble(DurationUnit.MICROSECONDS)
+  val trimStartUs: Double get() = trimStart.microseconds()
 
   /**
-   * How far into this clip's slots, in microseconds, the source time [sourceUs] past the trim start lands.
+   * The source time in microseconds that this clip's [slot]th slot shows on a grid of [frameRate], the shared
+   * [sourceTimeOfSlot].
+   */
+  fun sourceUsOf(
+    slot: Long,
+    frameRate: Int,
+  ): Double = sourceTimeOfSlot(trimStart, spanStart, speed, firstSlot + slot, frameRate).microseconds()
+
+  /**
+   * How far past where this clip's span opens, in microseconds, the source time [sourceUs] past the trim start lands.
    */
   fun outputUsOf(sourceUs: Double): Double =
     if (speed == 1.0) sourceUs else outputLengthOf(sourceUs.microseconds, speed).toDouble(DurationUnit.MICROSECONDS)
@@ -336,7 +343,7 @@ private fun renderedClip(
     }
   return RenderedClip(
     source = resolved.source,
-    trimStartUs = resolved.start.microseconds(),
+    trimStart = resolved.start,
     // Open ended only where the pass really does read to the source's end. A looping track
     // cuts its last pass, and that one carries a bound even though the clip it was laid from
     // was never trimmed.
@@ -363,6 +370,7 @@ private fun renderedClip(
     toneMapFrom = if (toneMaps) resolved.info.video?.hdrTransfer else null,
     passStage = passStage,
     speed = resolved.speed,
+    spanStart = resolved.span.start,
   )
 }
 

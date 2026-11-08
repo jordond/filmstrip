@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStream
 import dev.jordond.filmstrip.ffmpeg.internal.preview.PreviewStreamResult
 import dev.jordond.filmstrip.player.PlaybackError
+import dev.jordond.filmstrip.transform.internal.videoSlots
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
@@ -242,10 +243,12 @@ internal class FfmpegPump(
     var anchor: TimeMark? = null
     var anchorAt = Duration.ZERO
     var landed = false
+    var delivered = false
     val half = current.frameStep / 2
 
     for (frame in frames) {
       if (token != generation) return
+      delivered = true
       // Frames before the target only arrive on a composition the graph could not window with an
       // input seek, which opens at its head and is read forward instead.
       if (frame.position < from - half) continue
@@ -297,6 +300,11 @@ internal class FfmpegPump(
     if (token != generation) return
     if (status != null && status != 0) {
       failProcess(status, stream.errors())
+      return
+    }
+    // A graph can exit cleanly having written nothing, and the plan says a covered slot holds a frame, so it failed.
+    if (!delivered && outputSlotOf(from, current.frameRate) < current.resolved.videoSlots) {
+      failProcess(status ?: 0, "The filter graph wrote no frame for a slot the plan covers.\n${stream.errors()}")
       return
     }
     ends.ranOut(landed, current)

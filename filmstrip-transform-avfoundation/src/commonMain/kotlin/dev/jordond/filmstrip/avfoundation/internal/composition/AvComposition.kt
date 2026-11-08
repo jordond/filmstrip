@@ -142,27 +142,29 @@ public class AvComposition internal constructor(
  * inside the filter handler at its own placement, after that clip's own effects and before the composition-level ones,
  * which is what lets clips of differing sizes concatenate. See [CoreImageChain].
  *
+ * Reading a long clip's frame times takes a while, and stops when the caller is cancelled.
+ *
  * @param bytesRoot The directory an in-memory source lands under.
- * @throws AvLoweringFailure when a source or a track cannot be opened.
+ * @throws AvLoweringFailure when a source or a track cannot be opened, or a clip's frames cannot be laid.
  * @throws MediaBytesFileFailure when an in-memory source could not be written to a file.
  */
 @InternalFilmstripApi
-public fun ResolvedComposition.toAvComposition(bytesRoot: String = AppleScratch.defaultRoot): AvComposition =
+public suspend fun ResolvedComposition.toAvComposition(bytesRoot: String = AppleScratch.defaultRoot): AvComposition =
   toAvComposition(sdKernelLimit = { sdPrimariesKernelLimit() }, bytesRoot = bytesRoot)
 
 /**
  * Builds the AVFoundation composition this plan runs as, with [sdKernelLimit] saying why this device cannot draw an SD
- * clip's primaries.
+ * clip's primaries. It stops when the caller is cancelled.
  *
  * @param bytesRoot The directory an in-memory source lands under.
  * @param stretched The audio an export rendered to its clips' speeds, laid at speed 1 in place of those clips' sources.
  * Null for a preview, which scales its audio tracks and leaves the pitch to its player.
- * @throws AvLoweringFailure when a source or a track cannot be opened, or when the plan draws an SD clip's primaries
- * and [sdKernelLimit] names a limit.
+ * @throws AvLoweringFailure when a source or a track cannot be opened, a clip's frames cannot be laid, or the plan
+ * draws an SD clip's primaries and [sdKernelLimit] names a limit.
  * @throws MediaBytesFileFailure when an in-memory source could not be written to a file.
  */
 @OptIn(ExperimentalForeignApi::class)
-internal fun ResolvedComposition.toAvComposition(
+internal suspend fun ResolvedComposition.toAvComposition(
   sdKernelLimit: () -> String?,
   bytesRoot: String = AppleScratch.defaultRoot,
   stretched: StretchedAudio? = null,
@@ -204,7 +206,7 @@ internal fun ResolvedComposition.toAvComposition(
 
   val spans = placements.toSpans(composition.duration.toDuration(), output.size, layoutSize, hdrTransfer)
   val chain = if (keepVideo) CoreImageChain(this, spans, encodesHdr) else null
-  val timedByGrid = !tail.isEmpty() || placements.any { it.clip.speed != 1.0 }
+  val timedByGrid = laysVideoOnGrid && placements.isNotEmpty()
   // An audio-only clip can bring a grade into the plan that no laid video carries, which leaves nothing to tone map.
   val toneMaps = hdr == ResolvedHdr.ToneMap && spans.any { it.sourceTransfer != null }
   val holdsSd = spans.any { it.sdColor != null }
@@ -242,8 +244,8 @@ internal fun ResolvedComposition.toAvComposition(
  * the tail can run up to half a slot past the last one, and the export stops the video on the last
  * slot so that time gets no frame of its own.
  *
- * @param timedByGrid Whether the frame grid rather than the source track says when frames fall, which a held tail and a
- * clip at speed both need, since a scaled source track would write frames at its own scaled rate.
+ * @param timedByGrid Whether the frame grid rather than the source track says when frames fall, which every plan laying
+ * its video on the grid needs, since each slot's segment holds the frame nearest it and not the source's own timing.
  */
 @OptIn(ExperimentalForeignApi::class)
 private fun AVMutableComposition.videoComposition(

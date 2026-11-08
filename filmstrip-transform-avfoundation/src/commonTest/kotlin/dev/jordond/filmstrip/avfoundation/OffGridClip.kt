@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.avfoundation.internal.interop.PIXEL_BUFFER_WIDTH_KE
 import dev.jordond.filmstrip.avfoundation.internal.interop.PIXEL_FORMAT_KEY
 import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TIMESCALE
 import dev.jordond.filmstrip.avfoundation.internal.time.toCMTime
+import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.UByteVar
 import kotlinx.cinterop.alloc
@@ -52,6 +53,7 @@ import platform.CoreMedia.CMBlockBufferFillDataBytes
 import platform.CoreMedia.CMBlockBufferRefVar
 import platform.CoreMedia.CMSampleBufferRef
 import platform.CoreMedia.CMSampleBufferRefVar
+import platform.CoreMedia.CMTime
 import platform.CoreMedia.kCMBlockBufferAssureMemoryNowFlag
 import platform.CoreVideo.CVPixelBufferGetBaseAddress
 import platform.CoreVideo.CVPixelBufferGetDataSize
@@ -89,6 +91,8 @@ import kotlin.time.TimeSource
  * @param encodesAudio Whether that silence is written as AAC, which an mp4 copy can carry, rather than as PCM.
  * @param side How wide and how tall every frame is.
  * @param timescale The timescale the video track is written at.
+ * @param frameTime When each frame, counted from zero, is presented. One frame at [frameRate] apart by default.
+ * @param matrix The YCbCr matrix the frames are tagged and encoded with.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal fun writeOffGridClip(
@@ -100,6 +104,8 @@ internal fun writeOffGridClip(
   encodesAudio: Boolean = false,
   side: Int = CLIP_SIDE,
   timescale: Int = MEDIA_TIMESCALE,
+  frameTime: (Int) -> CValue<CMTime> = { (1.seconds * it / frameRate).toCMTime() },
+  matrix: String? = AVVideoYCbCrMatrix_ITU_R_709_2,
 ) {
   require(frames <= INDEXABLE_FRAMES) { "$frames frames is more than the $INDEXABLE_FRAMES colors an index reads as" }
   NSFileManager.defaultManager.removeItemAtPath(path, error = null)
@@ -120,7 +126,7 @@ internal fun writeOffGridClip(
             mapOf(
               AVVideoColorPrimariesKey to AVVideoColorPrimaries_ITU_R_709_2,
               AVVideoTransferFunctionKey to AVVideoTransferFunction_ITU_R_709_2,
-              AVVideoYCbCrMatrixKey to AVVideoYCbCrMatrix_ITU_R_709_2,
+              AVVideoYCbCrMatrixKey to matrix,
             ),
         ),
     )
@@ -171,7 +177,7 @@ internal fun writeOffGridClip(
       check(!deadline.hasPassedNow()) { "the writer took no frame for $WRITE_BUDGET" }
       usleep(READY_POLL_MICROS)
     }
-    check(adaptor.appendFlatFrame(index, 1.seconds * index / frameRate)) {
+    check(adaptor.appendFlatFrame(index, frameTime(index))) {
       "frame $index was refused: ${writer.error?.localizedDescription}"
     }
   }
@@ -269,7 +275,7 @@ private fun silenceFor(length: Duration): Pair<CMAudioFormatDescriptionRef, CMSa
 @OptIn(ExperimentalForeignApi::class)
 private fun AVAssetWriterInputPixelBufferAdaptor.appendFlatFrame(
   index: Int,
-  at: Duration,
+  at: CValue<CMTime>,
 ): Boolean =
   memScoped {
     val pool = pixelBufferPool ?: return@memScoped false
@@ -279,7 +285,7 @@ private fun AVAssetWriterInputPixelBufferAdaptor.appendFlatFrame(
 
     try {
       buffer.paint(index)
-      appendPixelBuffer(buffer, withPresentationTime = at.toCMTime())
+      appendPixelBuffer(buffer, withPresentationTime = at)
     } finally {
       CVPixelBufferRelease(buffer)
     }

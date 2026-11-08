@@ -80,7 +80,7 @@ internal fun ticksBetween(
  * Whole ticks at [MEDIA_TIMESCALE], rounded to nearest so a duration that falls between two lands
  * on the closer one.
  */
-private fun Duration.ticks(): Long {
+internal fun Duration.ticks(): Long {
   val micros = inWholeMicroseconds
   return (micros * MEDIA_TIMESCALE + MICROS_PER_SECOND / 2) / MICROS_PER_SECOND
 }

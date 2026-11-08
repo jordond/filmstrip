@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.player
 import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.player.contract.ClipParityBackend
 import dev.jordond.filmstrip.player.contract.ClipSpeedParityContractTest
 import dev.jordond.filmstrip.player.internal.BrowserPlayerEngine
 import dev.jordond.filmstrip.player.internal.BrowserPreviewPlanner
@@ -15,7 +16,12 @@ import kotlin.time.Duration
  * compositor. The fixture's own picture moves, and the export is read back one H.264 round trip away, so the comparison
  * takes the floor [WebPixelContractTest] does.
  */
-class WebClipSpeedParityTest : ClipSpeedParityContractTest() {
+class WebClipSpeedParityTest : ClipSpeedParityContractTest(WebClipParity)
+
+/**
+ * The browser's side of the suites that hold a clip's preview to its export.
+ */
+internal object WebClipParity : ClipParityBackend {
   private val written = mutableMapOf<EditComposition, String>()
 
   override val filmstrip: Filmstrip = CONTRACT_FILMSTRIP
@@ -46,10 +52,11 @@ class WebClipSpeedParityTest : ClipSpeedParityContractTest() {
     position: Duration,
   ): TestFrame = webFileFrame(urlOf(composition), position)
 
-  private suspend fun urlOf(composition: EditComposition): String =
+  /**
+   * The blob url of the file [composition] exports to, written once per composition.
+   */
+  suspend fun urlOf(composition: EditComposition): String =
     written.getOrPut(composition) { webExportedUrl(composition) }
 
-  private companion object {
-    const val CAPTION_MIN_PSNR_DB = 36.5
-  }
+  private const val CAPTION_MIN_PSNR_DB = 36.5
 }

@@ -11,8 +11,8 @@ import dev.jordond.filmstrip.edit.sourceOffsetAt
 import dev.jordond.filmstrip.media3.internal.ClipPace
 import dev.jordond.filmstrip.media3.internal.CompositionClock
 import dev.jordond.filmstrip.media3.internal.EffectWrapper
-import dev.jordond.filmstrip.media3.internal.HeldLastFrame
 import dev.jordond.filmstrip.media3.internal.LiveSlot
+import dev.jordond.filmstrip.media3.internal.SlotPace
 import dev.jordond.filmstrip.media3.internal.SlotSwap
 import dev.jordond.filmstrip.media3.internal.UnwrappedEffects
 import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
@@ -39,8 +39,8 @@ import kotlin.time.Duration.Companion.milliseconds
  * @property effects The clip's own chain, before the composition's runs.
  * @property still Whether the clip is a single picture rather than a run of samples, either a photo or the transparent
  * still a gap is laid as.
- * @property heldFrom How far into the item its last frame sits when that frame is held to fill the clip's slots, or
- * null when the item's own frames run to its end.
+ * @property shown Each frame the item writes, as how far into the span it is written paired with where it sits in the
+ * item, in order. Empty when the item runs its own frames at its speed.
  * @property speed How fast the item plays through this span.
  */
 @InternalFilmstripApi
@@ -50,7 +50,7 @@ public class Media3Span(
   public val item: MediaItem,
   public val effects: List<Effect>,
   public val still: Boolean,
-  public val heldFrom: Duration? = null,
+  public val shown: List<Pair<Duration, Duration>> = emptyList(),
   public val speed: Double = 1.0,
 ) {
   /**
@@ -59,13 +59,27 @@ public class Media3Span(
   public fun covers(time: Duration): Boolean = time in start..<end
 
   /**
+   * The clock a reader's chain puts this clip's frames on, which stamps each frame [shown] where the span writes it.
+   */
+  internal val clock: CompositionClock by lazy { CompositionClock(start, speed, shown) }
+
+  /**
    * Where [time] falls inside the trimmed item, which is what a frame reader seeks to.
    *
-   * A time while the last frame is held reads as that frame's own position, since the item has no samples past it to
-   * seek to.
+   * With [shown] frames that is the position of the one written last at or before [time], which is the frame the
+   * export shows there.
    */
-  public fun positionIn(time: Duration): Duration =
-    sourceOffsetAt(time - start, speed).coerceIn(Duration.ZERO, heldFrom ?: sourceLengthOf(end - start, speed))
+  public fun positionIn(time: Duration): Duration {
+    val offset = time - start
+    if (shown.isEmpty()) {
+      return sourceOffsetAt(
+        offset,
+        speed,
+      ).coerceIn(Duration.ZERO, sourceLengthOf(end - start, speed))
+    }
+    val found = shown.binarySearch { (written, _) -> written.compareTo(offset) }
+    return shown[if (found >= 0) found else (-found - 2).coerceAtLeast(0)].second
+  }
 }
 
 /**
@@ -182,7 +196,7 @@ public class Media3Preview internal constructor(
                 .build(),
             effects = span.effects,
             still = span.still,
-            heldFrom = span.heldFrom,
+            shown = span.shown,
             speed = span.speed,
           )
         Media3Readback(stamped, stamped.readbackChain(compositionEffects))
@@ -246,24 +260,34 @@ public class Media3Readback(
   public val effects: List<Effect>,
 ) {
   /**
-   * The composition time a frame reader's answer of [framePositionMs] carries.
+   * The composition time a frame a reader answers with at [framePositionMs] into the item is drawn at.
    *
-   * The chain starts on the composition's clock, so a reader's own answer comes off it too and this
-   * only changes the units.
+   * A reader floors its answer to the millisecond, and a slowed clip stretches each millisecond over many of the
+   * composition's. So a frame the span shows is taken at its own position, which sits in the millisecond answered, and
+   * drawn where the span writes it. Only a frame the span never shows, which a seek to the nearest sync sample can land
+   * on, is taken at the millisecond.
    */
-  public fun compositionTimeOf(framePositionMs: Long): Duration = framePositionMs.milliseconds
+  public fun compositionTimeOf(framePositionMs: Long): Duration {
+    val reported = framePositionMs.milliseconds
+    val found = span.shown.binarySearch { (_, position) -> position.compareTo(reported) }
+    val first = span.shown.getOrNull(if (found >= 0) found else -found - 1)?.second
+    val shown = first?.takeIf { it < reported + 1.milliseconds }
+    return span.clock.compositionTimeOf(shown ?: reported)
+  }
 }
 
 /**
  * The whole chain a frame reader runs over this clip, on the composition's clock.
  *
  * A clip's frames reach a reader measured from the start of the item it decoded, so the clock goes
- * in front of the chain that was lowered against the composition. A photo needs none: its reader
- * draws one picture and is handed the composition time it draws at directly.
+ * in front of the chain that was lowered against the composition, and its undoing goes behind it so
+ * the reader sees the item's time it seeks by. A photo needs neither: its reader draws one picture
+ * and is handed the composition time it draws at directly.
  */
 private fun Media3Span.readbackChain(compositionEffects: List<Effect>): List<Effect> {
   val chain = effects + compositionEffects
-  return if (still) chain else listOf(CompositionClock(start, speed)) + chain
+  if (still) return chain
+  return listOf(clock) + chain + clock.itemClock
 }
 
 /**
@@ -307,7 +331,7 @@ private fun Composition.videoSpans(withGaps: Boolean = false): List<Media3Span> 
         // The length a still is held for is what media3 itself routes an item to its image loader
         // by, so it is also what tells a frame reader there are no samples here to seek.
         still = local.imageDurationMs != C.TIME_UNSET,
-        heldFrom = (item.speedProvider as? HeldLastFrame)?.fromUs?.microseconds,
+        shown = (item.speedProvider as? SlotPace)?.shown.orEmpty(),
         speed = (item.speedProvider as? ClipPace)?.clipSpeed ?: 1.0,
       )
     }

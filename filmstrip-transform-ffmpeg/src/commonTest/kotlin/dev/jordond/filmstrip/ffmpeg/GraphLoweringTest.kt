@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.effect.AuxInput
 import dev.jordond.filmstrip.effect.EffectStage
@@ -47,6 +48,7 @@ import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.VideoTrackInfo
 import dev.jordond.filmstrip.media.trackCodecOf
+import dev.jordond.filmstrip.transform.internal.NEAREST_FRAME_TIE
 import dev.jordond.filmstrip.transform.internal.encode.resolveVideoBitrate
 import dev.jordond.filmstrip.transform.internal.geometry.PixelRect
 import dev.jordond.filmstrip.transform.internal.geometry.backgroundGain
@@ -63,12 +65,15 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.ints.shouldBeLessThan
+import io.kotest.matchers.longs.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 import kotlin.test.Test
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
@@ -411,13 +416,123 @@ class GraphLoweringTest {
       val slots = outputSlotOf(outputLengthOf(2.seconds, speed), 30)
       val graph = invocation.filterGraph
 
-      graph shouldContain "trim=start=${formatSeconds(0.0)}:end=${formatSeconds(2.0)}," +
-        "settb=expr=1/30000,setpts=expr=trunc((PTS-${formatSeconds(0.0)}/TB)/$speed)-round($WINDOW_CLOCK/TB)," +
-        "fps=fps=30:start_time=0"
+      graph shouldContain "trim=start=${formatSeconds(0.0)}:end=${formatSeconds(2.0 + 1.0 / 30)}," +
+        "settb=expr=1/30000,setpts=expr=trunc((PTS-${formatSeconds(0.0)}/TB+$tie/TB)/$speed)+(${shiftAt(speed)})-" +
+        "round($WINDOW_CLOCK/TB),fps=fps=30:start_time=0"
       graph.indexOf("start_time=0") shouldBeLessThan graph.indexOf("eq=")
       graph shouldContain "trim=end_frame=$slots,"
       invocation.seekSpeed shouldBe speed
     }
+  }
+
+  // Half a slot less half a source frame at the clip's speed, in the ticks a slot divides into. The slow end's frame
+  // outlasts many slots, so its clock runs behind and the clones make up what that takes off the clip's end.
+  @Test
+  fun `a clip at speed moves its clock so a slot keeps the nearest frame`() {
+    invocationFor(Fill.Black, speed = 1.5).filterGraph shouldContain "+(${shiftAt(1.5)})-"
+    shiftAt(32.0) shouldBe 484L
+    shiftAt(1.0 / 32) shouldBe -15_500L
+
+    val slow = invocationFor(Fill.Black, speed = 1.0 / 32).filterGraph
+    slow shouldContain "fps=fps=30:start_time=0,tpad=stop_mode=clone:stop=16,"
+    invocationFor(Fill.Black, speed = 32.0).filterGraph shouldNotContain "start_time=0,tpad"
+  }
+
+  // Both ends of a trim that sits between two frames, so a slot can read the frame either side of it, with the clock
+  // still counted from where the trim opens.
+  @Test
+  fun `a trim holding no frame reads past it through the retimed clock at speed one`() {
+    val graph = invocationFor(Fill.Black, clipStart = 10.milliseconds, clipEnd = 30.milliseconds)
+
+    graph.filterGraph shouldContain "trim=start=${formatSeconds(0.0)}:end=${formatSeconds(0.03 + 1.0 / 30)}," +
+      "settb=expr=1/30000,setpts=expr=trunc((PTS-${formatSeconds(0.01)}/TB+$tie/TB)/1.0)+(0)-round($WINDOW_CLOCK/TB)"
+    graph.seekKeepsEarlierFrames shouldBe true
+  }
+
+  @Test
+  fun `a trim opening on a frame keeps the restarted clock at speed one`() {
+    val frame = 1.seconds / 30
+    val invocation = invocationFor(Fill.Black, clipStart = frame, clipEnd = frame + 10.milliseconds)
+
+    invocation.filterGraph shouldNotContain "settb"
+    invocation.seekKeepsEarlierFrames shouldBe false
+  }
+
+  // A quarter of a frame in, or the first microsecond past half a frame, the first slot shows the frame before the
+  // trim, which a restarted clock skips. Three quarters in it shows the frame after, the one a restart opens on.
+  @Test
+  fun `a trim opening nearer the frame before it retimes at speed one`() {
+    val frame = 1.seconds / 30
+    listOf(frame / 4, (frame / 2).inWholeMicroseconds.microseconds + 1.microseconds).forEach { into ->
+      invocationFor(Fill.Black, clipStart = frame + into, clipEnd = frame * 3).filterGraph shouldContain "settb"
+    }
+    invocationFor(Fill.Black, clipStart = frame + frame * 3 / 4, clipEnd = frame * 3).filterGraph shouldNotContain
+      "settb"
+  }
+
+  // The span opens a quarter of a slot past slot 14's time, so the clock runs that quarter ahead of the slot it opens
+  // on. Slot 14 reads the trim's start, whose nearest frame is 11, so the read opens half a frame ahead of that frame
+  // and frame 10 never reaches the clock.
+  @Test
+  fun `a span opening past its first slot moves the clock by how far past it opens`() {
+    val frame = 1.seconds / 30
+    val opens = 475.milliseconds
+    val invocation =
+      invocationFor(Fill.Black, trackStart = opens, clipStart = frame * 10.6, clipEnd = frame * 10.6 + 500.milliseconds)
+    val lead = (opens - outputSlotTime(outputSlotOf(opens, 30), 30)).inWholeMicroseconds * 30 / 1_000
+    val read = (frame * 11).inWholeMicroseconds.microseconds - frame / 2
+
+    invocation.filterGraph shouldContain "trim=start=${formatSeconds(read.toDouble(DurationUnit.SECONDS))}:"
+    invocation.filterGraph shouldContain "/1.0)+($lead)-"
+  }
+
+  // The span opens a fifth of a slot ahead of slot 14's time, which takes more off the clock than the nearest frame's
+  // move at 1.5 adds, so the clock runs behind its slots and the frames that costs the clip's end are held there.
+  @Test
+  fun `a span opening ahead of its first slot moves the clock back by how far ahead it opens`() {
+    val frame = 1.seconds / 30
+    val opens = 460.milliseconds
+    val start = frame * 10.4
+    val graph =
+      invocationFor(Fill.Black, trackStart = opens, speed = 1.5, clipStart = start, clipEnd = start + 1.seconds)
+        .filterGraph
+    val lead = ((opens - outputSlotTime(outputSlotOf(opens, 30), 30)).inWholeMicroseconds * 30 / 1_000.0).roundToLong()
+    val shift = shiftAt(1.5) + lead
+
+    shift shouldBeLessThan 0L
+    graph shouldContain "/1.5)+($shift)-"
+    graph shouldContain "fps=fps=30:start_time=0,tpad=stop_mode=clone:stop=${-shift / 1_000 + 1},"
+  }
+
+  // fps alone keeps the frame its own rounding puts on a slot, which from 24 fps is the one before the nearest on one
+  // slot in five, so the clock moves by half a slot less half that source's frame, in the thousand ticks to a slot.
+  @Test
+  fun `a source at another rate retimes at speed one`() {
+    val graph = invocationFor(Fill.Black, sourceRate = 24f)
+
+    graph.filterGraph shouldContain
+      "settb=expr=1/30000,setpts=expr=trunc((PTS-${formatSeconds(0.0)}/TB+$tie/TB)/1.0)+(-125)-"
+    graph.seekKeepsEarlierFrames shouldBe true
+  }
+
+  // ffmpeg's limit: 24000/1001 puts three frames in four off the clock's tick, and the lowering reads the source as
+  // frames at that rate from zero. The read opens on the frame that grid puts nearest the first slot's source time,
+  // frame 1 for a trim six tenths of a frame in, and the clock moves by that rate.
+  @Test
+  fun `a source rate off the clock's tick reads the grid it names`() {
+    val rate = 24_000f / 1_001
+    val frame = 1.seconds / rate.toDouble()
+    val graph = invocationFor(Fill.Black, sourceRate = rate, clipStart = frame * 0.6, clipEnd = frame * 30).filterGraph
+    val read = frame.inWholeMicroseconds.microseconds - frame / 2
+
+    graph shouldContain "trim=start=${formatSeconds(read.toDouble(DurationUnit.SECONDS))}:"
+    graph shouldContain "/1.0)+(-126)-"
+  }
+
+  // fps leaves a frame on its own slot's time base, and a live input meets it on whole microseconds.
+  @Test
+  fun `a retimed frame moves onto a whole microsecond`() {
+    invocationFor(Fill.Black, speed = 1.5).filterGraph shouldContain "fps=fps=30:start_time=0,settb=expr=1/1000000"
   }
 
   @Test
@@ -1106,6 +1221,17 @@ class GraphLoweringTest {
       sourceSize = sourceSize,
     ).filterGraph
 
+  // How late the retimed clock reads every frame, the shared tie in the seconds the graph writes.
+  private val tie = formatSeconds(NEAREST_FRAME_TIE.toDouble(DurationUnit.SECONDS))
+
+  // The clock's shift for a 30 fps source on a 30 fps grid, read off the graph that writes it.
+  private fun shiftAt(speed: Double): Long =
+    invocationFor(Fill.Black, speed = speed)
+      .filterGraph
+      .substringAfter("/$speed)+(")
+      .substringBefore(")")
+      .toLong()
+
   private fun invocationFor(
     fill: Fill,
     fit: Fit = Fit.Contain,
@@ -1119,6 +1245,9 @@ class GraphLoweringTest {
     speed: Double = 1.0,
     encoderName: String? = "libx264",
     hdrPixelFormat: String? = hdrTransfer?.let { "yuv420p10le" },
+    clipStart: Duration = Duration.ZERO,
+    clipEnd: Duration = 2.seconds,
+    sourceRate: Float = 30f,
   ): Invocation {
     val duration = 2.seconds
     val length = outputLengthOf(duration, speed)
@@ -1132,7 +1261,7 @@ class GraphLoweringTest {
             displaySize = sourceSize,
             rotationDegrees = 0,
             pixelAspectRatio = 1f,
-            frameRate = 30f,
+            frameRate = sourceRate,
             codec = trackCodecOf("avc1"),
             bitDepth = 8,
             colorSpace = ColorSpace.Bt709,
@@ -1148,8 +1277,8 @@ class GraphLoweringTest {
         ResolvedClip(
           source = source,
           info = info,
-          start = Duration.ZERO,
-          end = duration,
+          start = clipStart,
+          end = clipEnd,
           effects = clipEffects,
           gain = ResolvedGain.constant(1f, Duration.ZERO, length),
           startsAtKeyFrame = false,

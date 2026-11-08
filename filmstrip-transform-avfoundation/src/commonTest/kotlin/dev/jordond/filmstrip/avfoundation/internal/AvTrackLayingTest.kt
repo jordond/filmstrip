@@ -24,6 +24,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.coroutines.test.runTest
 import platform.AVFoundation.AVMediaTypeAudio
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.AVFoundation.AVMutableComposition
@@ -47,82 +48,88 @@ class AvTrackLayingTest {
   // Audio lays each clip over exactly the span the plan resolved, which is what its gain curve is
   // measured against, so a clip opening off the frame grid stays there.
   @Test
-  fun `an audio track lays each clip over exactly its planned span`() {
-    val source = MediaSource.of(fixture(CLIP))
-    val track = laidTrack(TrackContent.Audio, OFF_GRID, source to 700.milliseconds, source to 450.milliseconds)
-    val media = mediaTrack(AVMediaTypeAudio)
+  fun `an audio track lays each clip over exactly its planned span`() =
+    runTest {
+      val source = MediaSource.of(fixture(CLIP))
+      val track = laidTrack(TrackContent.Audio, OFF_GRID, source to 700.milliseconds, source to 450.milliseconds)
+      val media = mediaTrack(AVMediaTypeAudio)
 
-    val placements = track.layOnto(media, AVMediaTypeAudio, AssetCache(), frameRate = RATE, onGrid = false)
+      val placements = track.layOnto(media, AVMediaTypeAudio, AssetCache(), frameRate = RATE, onGrid = false)
 
-    placements.map { it.start to it.end } shouldBe
-      listOf(OFF_GRID to OFF_GRID + 700.milliseconds, OFF_GRID + 700.milliseconds to OFF_GRID + 1_150.milliseconds)
-    placements.forEach { it.heldFrom shouldBe null }
-  }
+      placements.map { it.start to it.end } shouldBe
+        listOf(OFF_GRID to OFF_GRID + 700.milliseconds, OFF_GRID + 700.milliseconds to OFF_GRID + 1_150.milliseconds)
+      placements.forEach { it.heldFrom shouldBe null }
+    }
 
   // On the grid each end is read back off the tick its slot is laid on, so one clip's end is the
   // next clip's start.
   @Test
-  fun `a video track on the grid opens and closes each clip on its slots`() {
-    val source = MediaSource.of(fixture(CLIP))
-    val track = laidTrack(TrackContent.AudioAndVideo, OFF_GRID, source to 700.milliseconds, source to 450.milliseconds)
+  fun `a video track on the grid opens and closes each clip on its slots`() =
+    runTest {
+      val source = MediaSource.of(fixture(CLIP))
+      val track =
+        laidTrack(TrackContent.AudioAndVideo, OFF_GRID, source to 700.milliseconds, source to 450.milliseconds)
 
-    val placements = track.layOnto(mediaTrack(AVMediaTypeVideo), AVMediaTypeVideo, AssetCache(), RATE, onGrid = true)
+      val placements = track.layOnto(mediaTrack(AVMediaTypeVideo), AVMediaTypeVideo, AssetCache(), RATE, onGrid = true)
 
-    placements.first().start shouldBe slotTime(OFF_GRID)
-    placements[0].end shouldBe placements[1].start
-    placements[0].end shouldBe slotTime(OFF_GRID + 700.milliseconds)
-    placements[1].end shouldBe slotTime(OFF_GRID + 1_150.milliseconds)
-  }
-
-  @Test
-  fun `a clip covering no slot on the grid takes no placement`() {
-    val source = MediaSource.of(fixture(CLIP))
-    val track =
-      laidTrack(
-        TrackContent.AudioAndVideo,
-        Duration.ZERO,
-        source to 1.seconds,
-        source to 10.milliseconds,
-        source to 1.seconds,
-      )
-
-    val placements = track.layOnto(mediaTrack(AVMediaTypeVideo), AVMediaTypeVideo, AssetCache(), RATE, onGrid = true)
-
-    placements.map { it.clip } shouldBe listOf(track.clips[0], track.clips[2])
-  }
+      placements.first().start shouldBe slotTime(OFF_GRID)
+      placements[0].end shouldBe placements[1].start
+      placements[0].end shouldBe slotTime(OFF_GRID + 700.milliseconds)
+      placements[1].end shouldBe slotTime(OFF_GRID + 1_150.milliseconds)
+    }
 
   @Test
-  fun `the last clip on the grid runs over the held tail and holds its own last slot`() {
-    val source = MediaSource.of(fixture(CLIP))
-    val primary = laidTrack(TrackContent.AudioAndVideo, Duration.ZERO, source to 1.seconds)
-    val bed = laidTrack(TrackContent.Audio, Duration.ZERO, source to 1_500.milliseconds)
-    val plan = laidPlan(listOf(primary, bed), 1_500.milliseconds)
-    val tail = plan.tailHeldBy(primary)
+  fun `a clip covering no slot on the grid takes no placement`() =
+    runTest {
+      val source = MediaSource.of(fixture(CLIP))
+      val track =
+        laidTrack(
+          TrackContent.AudioAndVideo,
+          Duration.ZERO,
+          source to 1.seconds,
+          source to 10.milliseconds,
+          source to 1.seconds,
+        )
 
-    val held =
-      primary
-        .layOnto(mediaTrack(AVMediaTypeVideo), AVMediaTypeVideo, AssetCache(), RATE, onGrid = true, tail = tail)
-        .single()
+      val placements = track.layOnto(mediaTrack(AVMediaTypeVideo), AVMediaTypeVideo, AssetCache(), RATE, onGrid = true)
 
-    held.end shouldBe outputSlotTime(tail.last + 1, RATE).asLaid()
-    held.heldFrom shouldBe outputSlotTime(tail.first - 1, RATE)
-  }
+      placements.map { it.clip } shouldBe listOf(track.clips[0], track.clips[2])
+    }
+
+  @Test
+  fun `the last clip on the grid runs over the held tail and holds its own last slot`() =
+    runTest {
+      val source = MediaSource.of(fixture(CLIP))
+      val primary = laidTrack(TrackContent.AudioAndVideo, Duration.ZERO, source to 1.seconds)
+      val bed = laidTrack(TrackContent.Audio, Duration.ZERO, source to 1_500.milliseconds)
+      val plan = laidPlan(listOf(primary, bed), 1_500.milliseconds)
+      val tail = plan.tailHeldBy(primary)
+
+      val held =
+        primary
+          .layOnto(mediaTrack(AVMediaTypeVideo), AVMediaTypeVideo, AssetCache(), RATE, onGrid = true, tail = tail)
+          .single()
+
+      held.end shouldBe outputSlotTime(tail.last + 1, RATE).asLaid()
+      held.heldFrom shouldBe outputSlotTime(tail.first - 1, RATE)
+    }
 
   // A still has no asset to read, so on the video track it takes a real segment of its own rather
   // than an empty range AVFoundation would drop off the end.
   @Test
-  fun `a still on the video track takes a real segment for its whole slot`() {
-    val still = stillClip(1.seconds)
-    val media = mediaTrack(AVMediaTypeVideo)
+  fun `a still on the video track takes a real segment for its whole slot`() =
+    runTest {
+      val still = stillClip(1.seconds)
+      val media = mediaTrack(AVMediaTypeVideo)
 
-    val placement =
-      ResolvedTrack(TrackContent.AudioAndVideo, looping = false, start = Duration.ZERO, clips = listOf(still))
-        .layOnto(media, AVMediaTypeVideo, AssetCache(), RATE, onGrid = true)
-        .single()
+      val placement =
+        ResolvedTrack(TrackContent.AudioAndVideo, looping = false, start = Duration.ZERO, clips = listOf(still))
+          .layOnto(media, AVMediaTypeVideo, AssetCache(), RATE, onGrid = true)
+          .single()
 
-    placement.end shouldBe slotTime(1.seconds)
-    CMTimeRangeGetEnd(media.timeRange).toDuration() shouldBe placement.end
-  }
+      placement.end shouldBe slotTime(1.seconds)
+      CMTimeRangeGetEnd(media.timeRange).toDuration() shouldBe placement.end
+    }
 
   @Test
   fun `spans tile the timeline from each placement to the next and the last reaches the composition's end`() {

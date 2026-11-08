@@ -2,10 +2,12 @@ package dev.jordond.filmstrip.transform.internal
 
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.AudioSpec
+import dev.jordond.filmstrip.edit.CLIP_SPEED_RANGE
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.edit.TimeRange
 import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
+import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotsOf
 import dev.jordond.filmstrip.export.ExportSpec
@@ -184,6 +186,43 @@ class FrameCoverageTest {
     withClue("the fixture's run covers a slot of its own") { outputSlotsOf(run, GRID_RATE).isEmpty().shouldBeTrue() }
 
     fixture.plan(composition, gridSpec()).shouldBeInstanceOf<Verdict.Capable>()
+  }
+
+  // The fast end of the speed range puts half a second of source under half a slot at the source's own rate.
+  @Test
+  fun `a primary run at speed that starts and ends on the same output frame is refused`() {
+    val speed = CLIP_SPEED_RANGE.endInclusive
+    val trim = TimeRange.of(Duration.ZERO, 500.milliseconds)
+    val composition = composition(fixture.clip(trim = trim).withSpeed(speed))
+
+    val verdict = fixture.plan(composition, ExportSpec(frameRate = SOURCE_RATE))
+
+    val run = TimeRange.of(Duration.ZERO, outputLengthOf(500.milliseconds, speed))
+    assertRefusedForCoveringNoFrame(verdict, run, SOURCE_RATE)
+  }
+
+  // Only the second clip reaches a half way point, so the run plans on the one slot it covers.
+  @Test
+  fun `three clips at speed covering one slot between them plan`() {
+    val speed = CLIP_SPEED_RANGE.endInclusive
+    val composition =
+      composition(
+        fixture.clip(trim = TimeRange.of(Duration.ZERO, 500.milliseconds)).withSpeed(speed),
+        fixture.clip(trim = TimeRange.of(500.milliseconds, 1_000.milliseconds)).withSpeed(speed),
+        fixture.clip(trim = TimeRange.of(1_000.milliseconds, 1_500.milliseconds)).withSpeed(speed),
+      )
+
+    val spec = ExportSpec(frameRate = SOURCE_RATE)
+    val run = TimeRange.of(Duration.ZERO, outputLengthOf(1_500.milliseconds, speed))
+    assertCoversAFrameAndPlans(fixture.plan(composition, spec), run, SOURCE_RATE)
+    val covered =
+      fixture
+        .resolve(composition, spec)
+        .tracks
+        .first()
+        .clips
+        .map { outputSlotsOf(it.span, SOURCE_RATE).count() }
+    covered shouldBe listOf(0, 1, 0)
   }
 
   private fun gridSpec() = ExportSpec(frameRate = GRID_RATE)

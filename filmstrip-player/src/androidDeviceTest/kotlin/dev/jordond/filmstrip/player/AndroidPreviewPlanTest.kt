@@ -12,7 +12,7 @@ import dev.jordond.filmstrip.player.internal.Media3PreviewPlan
 import dev.jordond.filmstrip.player.internal.Media3PreviewPlanner
 import dev.jordond.filmstrip.player.internal.PlanResult
 import io.kotest.assertions.withClue
-import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.Dispatchers
@@ -33,9 +33,9 @@ class AndroidPreviewPlanTest {
   /**
    * A clip that opens inside a source frame is laid the way an export lays it.
    *
-   * media3 opens such a clip on the next source frame, so it decodes short of the slots it covers and its last frame is
-   * held to fill them. The preview's items and the spans a frame reader reads carry the same clipping and the same held
-   * frame as the export's.
+   * Each slot shows the source frame nearest it, so the clip opens on one source frame and closes on another. The
+   * preview's items and the spans a frame reader reads carry the same clipping and the same shown frames as the
+   * export's.
    */
   @Test
   fun aClipOpeningInsideASourceFrameIsLaidTheWayTheExportLaysIt() =
@@ -50,19 +50,18 @@ class AndroidPreviewPlanTest {
         val preview = plan.resolved.toMedia3Preview(plan.bounds)
         val exported = plan.resolved.toMedia3Preview(plan.resolved.readClips())
 
-        // A clip that holds nothing is laid the same whether or not its container was read.
-        withClue("the export holds no frame, so the case proves nothing") {
+        withClue("the export shows no frame of its own, so the case proves nothing") {
           exported.spans
             .first()
-            .heldFrom
-            .shouldNotBeNull()
+            .shown
+            .shouldNotBeEmpty()
         }
         preview.spans.map { it.laid() } shouldBe exported.spans.map { it.laid() }
       }
     }
 
-  private fun Media3Span.laid(): Triple<Long, Long, Duration?> =
-    Triple(item.clippingConfiguration.startPositionUs, item.clippingConfiguration.endPositionUs, heldFrom)
+  private fun Media3Span.laid(): Triple<Long, Long, List<Pair<Duration, Duration>>> =
+    Triple(item.clippingConfiguration.startPositionUs, item.clippingConfiguration.endPositionUs, shown)
 
   private fun openingInsideAFrame(): EditComposition =
     EditComposition(

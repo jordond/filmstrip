@@ -102,7 +102,7 @@ private fun Invocation.previewInputArguments(
       // Only the first input carries the seek. It is the clip the graph windows, and an overlay
       // image or a silence filler seeked into delivers nothing at all.
       if (index == 0 && seek != null) {
-        if (!copy && seekSpeed != 1.0) add("-noaccurate_seek")
+        if (!copy && seekKeepsEarlierFrames) add("-noaccurate_seek")
         add("-ss")
         add(formatSeconds(seek))
       }

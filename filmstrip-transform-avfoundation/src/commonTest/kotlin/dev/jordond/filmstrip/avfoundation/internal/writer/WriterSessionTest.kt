@@ -465,7 +465,7 @@ class WriterSessionTest {
   // The last read queues this behind the step it is on, so it lands once finishWriting has been called and ahead of the
   // handler, which waits on the writer closing the file. Starting undispatched keeps it on the queue up to its first
   // suspension, which is after the stop has queued its teardown.
-  private fun WriterSessionRig.driveThenAtFinish(
+  private suspend fun WriterSessionRig.driveThenAtFinish(
     scope: CoroutineScope,
     atFinish: suspend (WriterSession) -> Unit,
   ) {

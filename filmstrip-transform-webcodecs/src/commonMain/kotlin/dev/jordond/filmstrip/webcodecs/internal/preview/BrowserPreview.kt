@@ -353,10 +353,10 @@ public class BrowserPreview internal constructor(
     val keyUs = reader.keyFrameAt(slot.sourceUs) ?: return null
     if (keyUs > slot.sourceUs) return null
 
-    // The sync sample's own time on the composition timeline, counted from the slot the clip opens
-    // on, then put on the grid the way every other time is. One in front of the clip's own trim
+    // The sync sample's own time on the composition timeline, counted from where the clip's span
+    // opens, then put on the grid the way every other time is. One in front of the clip's own trim
     // lands on the clip's first slot, so a seek never reaches back into the clip before it.
-    val keyAt = (render.slotUs(slot.clip.firstSlot) + slot.clip.outputUsOf(keyUs - slot.clip.trimStartUs)).microseconds
+    val keyAt = slot.clip.spanStart + slot.clip.outputUsOf(keyUs - slot.clip.trimStartUs).microseconds
     return maxOf(outputSlotOf(keyAt, render.frameRate), slot.clip.firstSlot)
   }
 
@@ -462,7 +462,7 @@ public class BrowserPreview internal constructor(
     private val slot: Long,
     private val writtenSlot: Long = clip.firstSlot + slot,
   ) {
-    val sourceUs: Double get() = clip.sourceUsAt(slot * render.stepUs)
+    val sourceUs: Double get() = clip.sourceUsOf(slot, render.frameRate)
 
     val outputUs: Double get() = render.slotUs(clip.firstSlot + slot)
 

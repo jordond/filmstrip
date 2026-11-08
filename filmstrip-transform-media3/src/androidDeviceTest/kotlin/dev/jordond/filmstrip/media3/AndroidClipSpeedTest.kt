@@ -9,10 +9,12 @@ import dev.jordond.filmstrip.edit.Track
 import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.edit.audioFramesOf
 import dev.jordond.filmstrip.edit.outputLengthOf
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.export.ExportSpec
 import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.videoSlotsOf
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
@@ -30,7 +32,8 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * A clip at speed exported through media3: how long the file runs, where its frames land and whether the audio kept its
- * pitch. media3 duplicates no frame, so a slow clip's frames sit as far apart as its speed puts them.
+ * pitch. media3 duplicates no frame, so a slow clip's frames sit as far apart as its speed puts them, and its video
+ * still ends on the last slot the clip covers.
  */
 class AndroidClipSpeedTest {
   private val probe = Media3ExportProbe()
@@ -131,9 +134,10 @@ class AndroidClipSpeedTest {
     val file = exported(EditComposition(listOf(Track(listOf(clip)))))
 
     val times = videoSampleTimes(file)
-    val ends = times.last() + maxOf(SOURCE_FRAME, SOURCE_FRAME / speed)
-    withClue("speed $speed last frame ran to $ends of a clip of $length") {
-      ((ends - length).absoluteValue <= maxOf(SOURCE_FRAME, SOURCE_FRAME / speed)).shouldBeTrue()
+    val ends = videoTrackLength(file)
+    val lastSlotEnds = outputSlotTime(videoSlotsOf(length, OUTPUT_RATE), OUTPUT_RATE)
+    withClue("speed $speed video ran to $ends of a clip whose slots end at $lastSlotEnds") {
+      ((ends - lastSlotEnds).absoluteValue <= TRACK_END_TOLERANCE).shouldBeTrue()
     }
     // media3's limit: nothing duplicates a frame, so a slow clip's frames sit as far apart as its speed puts them.
     times.zipWithNext { earlier, later -> later - earlier }.forEach { gap ->
@@ -186,15 +190,19 @@ class AndroidClipSpeedTest {
 
   private companion object {
     val TIMEOUT = 3.minutes
+    const val OUTPUT_RATE = 30
     const val SHORT = "android_export_a.mp4"
     const val LONG = "android_export_long.mp4"
     const val BED = "tone_bed_880.mp4"
     val BED_LENGTH = 3.seconds
     val SOURCE_FRAME = 1.seconds / 30
-    val OUTPUT_FRAME = 1.seconds / 30
+    val OUTPUT_FRAME = 1.seconds / OUTPUT_RATE
     val SPARSE_TOLERANCE = 2.milliseconds
     val TAIL_TOLERANCE = 100.milliseconds
     val AUDIO_TOLERANCE = 1.milliseconds
+
+    // The container's own time scale, which the track's length is rounded to.
+    val TRACK_END_TOLERANCE = 1.milliseconds
     val AAC_TAIL = 1.seconds * 1_536 / 48_000
     const val AAC_UNIT_FRAMES = 1_024L
     const val AAC_PRIMING_FRAMES = 1_600L

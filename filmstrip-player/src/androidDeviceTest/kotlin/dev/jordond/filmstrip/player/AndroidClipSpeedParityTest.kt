@@ -5,6 +5,7 @@ import dev.jordond.filmstrip.Filmstrip
 import dev.jordond.filmstrip.edit.EditComposition
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media3.media3Backend
+import dev.jordond.filmstrip.player.contract.ClipParityBackend
 import dev.jordond.filmstrip.player.contract.ClipSpeedParityContractTest
 import dev.jordond.filmstrip.player.internal.Media3PlayerEngine
 import dev.jordond.filmstrip.player.internal.Media3PreviewPlanner
@@ -18,7 +19,12 @@ import kotlin.time.Duration.Companion.seconds
  * The clip speed contract on media3, where the preview and the export lower through one `toMedia3`. The frames compared
  * are one encode apart, so the comparison takes the threshold [AndroidPixelContractTest] does.
  */
-class AndroidClipSpeedParityTest : ClipSpeedParityContractTest() {
+class AndroidClipSpeedParityTest : ClipSpeedParityContractTest(AndroidClipParity)
+
+/**
+ * media3's side of the suites that hold a clip's preview to its export.
+ */
+internal object AndroidClipParity : ClipParityBackend {
   override val filmstrip: Filmstrip = Filmstrip(contractContext()) { media3Backend() }
 
   override val fixtureClip: MediaSource = androidFixtureClip()
@@ -31,6 +37,10 @@ class AndroidClipSpeedParityTest : ClipSpeedParityContractTest() {
   override val minSsim: Double
     get() = if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.R) API_30_ENCODED_MIN_SSIM else ENCODED_MIN_SSIM
 
+  // The encoder's limit: c2.android.avc.encoder writes its opening frames further off, so a slot inside them holds the
+  // opening floor.
+  override fun minSsimAt(slot: Long): Double = encodedMinSsimAt(slot, minSsim)
+
   // media3's limit: the player's getFrame takes whole milliseconds, so a read that close to a frame's own time can land
   // on either side of it.
   override val previewReadSlack: Duration get() = 1.milliseconds
@@ -40,8 +50,8 @@ class AndroidClipSpeedParityTest : ClipSpeedParityContractTest() {
   // chroma.
   override fun comparedPart(frame: TestFrame): TestFrame = frame.bt709Luma()
 
-  // media3's limit: its last frame runs a whole source frame at the clip's speed, past a trim that cuts it short, and
-  // the slowest clip here was measured running 457 ms over.
+  // media3's limit: a slowed clip's audio runs past the length while its video ends on it. 4 s at 1/32 was measured
+  // writing 4.416 s of audio on API 30 and 4.457 s on API 36.
   override fun writtenLengthSlack(speed: Double): Duration =
     minOf(1.seconds / FIXTURE_FRAME_RATE / speed, 457.milliseconds)
 
@@ -59,9 +69,7 @@ class AndroidClipSpeedParityTest : ClipSpeedParityContractTest() {
   override suspend fun exportFrame(
     composition: EditComposition,
     position: Duration,
-  ): TestFrame = androidExportFrame(composition, position)
+  ): TestFrame = androidExportFrameCovering(composition, position)
 
-  private companion object {
-    const val API_30_ENCODED_MIN_SSIM = 0.98
-  }
+  private const val API_30_ENCODED_MIN_SSIM = 0.98
 }

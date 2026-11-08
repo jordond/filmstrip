@@ -173,7 +173,7 @@ internal class WriterSessionRig(
     }
   }
 
-  fun session(
+  suspend fun session(
     clockFrameRate: Int?,
     videoSlots: Long = 0,
     gate: StepGate? = null,
@@ -241,7 +241,7 @@ internal class WriterSessionRig(
     }.apply { expectsMediaDataInRealTime = false }
   }
 
-  private fun composition(): AvComposition {
+  private suspend fun composition(): AvComposition {
     val source = MediaSource.of(fixture(CLIP))
     return laidPlan(listOf(laidTrack(TrackContent.AudioAndVideo, 0.seconds, source to 2.seconds)), 2.seconds)
       .toAvComposition()

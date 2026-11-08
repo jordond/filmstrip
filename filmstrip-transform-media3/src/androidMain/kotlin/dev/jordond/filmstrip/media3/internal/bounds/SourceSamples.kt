@@ -11,17 +11,21 @@ import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 
 /**
- * The samples [source] decodes between [start] and [end], or null when its container cannot be read or holds no video
- * sample in that window.
+ * The samples a clip of [source] from [start] to [end] can show, or null when its container cannot be read or holds no
+ * video sample there.
  *
- * The extractor walks samples in decode order, so the earliest and the latest in presentation order are found by
- * reading on past each end until a second sync sample beyond it, which is as far as a frame can be reordered.
+ * The extractor walks samples in decode order, so the walk opens on the sync sample before [start] and reads on past
+ * the end until a second sync sample beyond it, which is as far as a frame can be reordered. The end is [end] or the
+ * source's own end, whichever comes first. The last sample read stops showing at that second sync sample, or where the
+ * video track ends when the walk runs out first. A track naming no end of its own runs one frame interval past its last
+ * sample.
  */
 internal suspend fun frameBoundsOf(
   source: MediaSource,
@@ -34,12 +38,24 @@ internal suspend fun frameBoundsOf(
       if (!extractor.open(source)) return@withContext null
       val track = extractor.videoTrackIndex() ?: return@withContext null
       val sourceEnd = extractor.longestTrackUs()
+      val trackEnd = extractor.getTrackFormat(track).durationUs()
       extractor.selectTrack(track)
 
       val cut = sourceEnd?.let { minOf(end.inWholeMicroseconds, it) } ?: end.inWholeMicroseconds
-      val first = extractor.earliestSample(start.inWholeMicroseconds, cut) ?: return@withContext null
-      val last = extractor.latestSampleBefore(cut) ?: return@withContext null
-      FrameBounds(first = first.microseconds, last = last.microseconds, end = cut.microseconds)
+      extractor.seekTo(start.inWholeMicroseconds, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+      val read = mutableListOf<Long>()
+      val stoppedOn =
+        extractor.walkUntilSecondSyncFrom(cut) {
+          ensureActive()
+          read += it
+        }
+      val samples = read.distinct().sorted()
+      val last = samples.lastOrNull() ?: return@withContext null
+      val interval = samples.getOrNull(samples.lastIndex - 1)?.let { last - it }
+      val shownUntil =
+        listOfNotNull(stoppedOn, trackEnd, interval?.let { last + it }).firstOrNull { it > last }
+          ?: return@withContext null
+      FrameBounds(samples.map { it.microseconds }, shownUntil.microseconds)
     } catch (unwritable: MediaBytesFileFailure) {
       // Thrown when a source handed over as bytes could not be written to the cache.
       null
@@ -87,50 +103,23 @@ internal suspend fun sdPrimariesNamedBy(source: MediaSource): Int? =
   }
 
 /**
- * The earliest sample at or after [from] and before [until], in presentation order.
- */
-private fun MediaExtractor.earliestSample(
-  from: Long,
-  until: Long,
-): Long? {
-  seekTo(from, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
-  var earliest = Long.MAX_VALUE
-  walkUntilSecondSyncFrom(from) { time ->
-    if (time in from..<until) earliest = minOf(earliest, time)
-  }
-  return earliest.takeIf { it != Long.MAX_VALUE }
-}
-
-/**
- * The latest sample before [until], in presentation order.
- *
- * Opened on the sync sample before [until] rather than at it, since a cut that sits exactly on a sync sample closes on
- * a frame of the group before.
- */
-private fun MediaExtractor.latestSampleBefore(until: Long): Long? {
-  seekTo(until - 1, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
-  var latest = Long.MIN_VALUE
-  walkUntilSecondSyncFrom(until) { time ->
-    if (time < until) latest = maxOf(latest, time)
-  }
-  return latest.takeIf { it != Long.MIN_VALUE }
-}
-
-/**
  * Hands [visit] every sample from where the extractor stands, up to the second sync sample at or after [time] or the
  * end of the track.
+ *
+ * @return the time of the second sync sample the walk stopped on, or null when it ran to the end of the track.
  */
 private inline fun MediaExtractor.walkUntilSecondSyncFrom(
   time: Long,
   visit: (Long) -> Unit,
-) {
+): Long? {
   var syncs = 0
   while (sampleTime >= 0) {
     val sample = sampleTime
-    if (sample >= time && (sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC) != 0 && ++syncs == 2) return
+    if (sample >= time && (sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC) != 0 && ++syncs == 2) return sample
     visit(sample)
-    if (!advance()) return
+    if (!advance()) return null
   }
+  return null
 }
 
 /**
@@ -139,9 +128,13 @@ private inline fun MediaExtractor.walkUntilSecondSyncFrom(
  */
 private fun MediaExtractor.longestTrackUs(): Long? =
   (0 until trackCount)
-    .mapNotNull { index ->
-      getTrackFormat(index).takeIf { it.containsKey(MediaFormat.KEY_DURATION) }?.getLong(MediaFormat.KEY_DURATION)
+    .mapNotNull {
+      getTrackFormat(it).durationUs()
     }.maxOrNull()
+
+// How long a track runs, in microseconds, or null when its format doesn't say.
+private fun MediaFormat.durationUs(): Long? =
+  takeIf { it.containsKey(MediaFormat.KEY_DURATION) }?.getLong(MediaFormat.KEY_DURATION)
 
 /**
  * Points this extractor at [source], or returns false when there is no container to point it at.

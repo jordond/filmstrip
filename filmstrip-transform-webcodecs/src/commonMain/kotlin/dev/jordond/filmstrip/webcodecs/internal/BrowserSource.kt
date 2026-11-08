@@ -6,6 +6,7 @@ import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.internal.awaitCatching
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.describe
+import dev.jordond.filmstrip.transform.internal.nearestSourceFrame
 import dev.jordond.filmstrip.webcodecs.internal.interop.ALL_FORMATS
 import dev.jordond.filmstrip.webcodecs.internal.interop.ArrayBuffer
 import dev.jordond.filmstrip.webcodecs.internal.interop.AudioSample
@@ -27,7 +28,6 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.toUint8Array
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.js.JsAny
-import kotlin.math.abs
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.DurationUnit
@@ -406,7 +406,7 @@ internal suspend fun nearestOf(
 }
 
 /**
- * Whichever of the two frames either side of [sourceUs] sits closer to it, the earlier one on a tie.
+ * Whichever of the two frames either side of [sourceUs] [nearestSourceFrame] picks.
  *
  * An export draws this frame at a slot, and a preview has to draw the same one.
  */
@@ -414,13 +414,11 @@ internal fun nearerOf(
   current: VideoSample?,
   ahead: VideoSample?,
   sourceUs: Double,
-): VideoSample? =
-  when {
-    current == null -> ahead
-    ahead == null -> current
-    abs(ahead.microsecondTimestamp - sourceUs) < abs(current.microsecondTimestamp - sourceUs) -> ahead
-    else -> current
-  }
+): VideoSample? {
+  if (current == null || ahead == null) return current ?: ahead
+  val times = listOf(current.microsecondTimestamp.microseconds, ahead.microsecondTimestamp.microseconds)
+  return if (nearestSourceFrame(times, sourceUs.microseconds) == 1) ahead else current
+}
 
 /**
  * Decoded audio samples, pulled one at a time the same way [FrameStream] pulls frames.

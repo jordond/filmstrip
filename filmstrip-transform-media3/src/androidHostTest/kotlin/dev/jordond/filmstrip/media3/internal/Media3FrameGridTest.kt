@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
+import dev.jordond.filmstrip.edit.sourceLengthOf
 import dev.jordond.filmstrip.edit.sourceOffsetAt
 import dev.jordond.filmstrip.export.ExportPath
 import dev.jordond.filmstrip.export.OutputFormat
@@ -34,12 +35,16 @@ import dev.jordond.filmstrip.media3.internal.bounds.ClipWindow
 import dev.jordond.filmstrip.media3.internal.bounds.FrameBounds
 import dev.jordond.filmstrip.media3.internal.bounds.Media3ClipReads
 import dev.jordond.filmstrip.media3.internal.preview.toMedia3Preview
+import dev.jordond.filmstrip.transform.internal.nearestSourceFrame
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedGain
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
+import dev.jordond.filmstrip.transform.internal.sourceTimeOfSlot
+import io.kotest.assertions.withClue
 import io.kotest.matchers.comparables.shouldBeLessThanOrEqualTo
+import io.kotest.matchers.doubles.plusOrMinus
 import io.kotest.matchers.longs.shouldBeInRange
 import io.kotest.matchers.longs.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
@@ -106,35 +111,93 @@ class Media3FrameGridTest {
     video.editedMediaItems.map { it.presentationDurationUs } shouldBe clips.map { slotLengthUs(it, 25) }
   }
 
-  // The cut sits between two of the source's samples, and media3 opens the item on the later one.
+  // The cut sits between two of the source's samples, and the item opens on the one nearer its first slot's source
+  // time.
   @Test
-  fun `each video item opens on the first sample at or after its cut`() {
+  fun `each video item opens on the sample its first slot shows`() {
     val clips = laid(List(3) { 1_010.milliseconds })
 
     val video = composition(clips, frameRate = 25).lower().first()
 
     video.editedMediaItems.map { it.mediaItem.clippingConfiguration.startPositionUs } shouldBe
-      clips.map { sampleAtOrAfter(it.start).inWholeMicroseconds }
+      clips.map { shownAt(it, outputSlotsOf(it.span, 25).first, 25).inWholeMicroseconds }
   }
 
-  // 2.020s of a source whose container ends at 2.000s covers 61 slots at 30 fps. What media3
-  // decodes stops at the container, so the last frame holds for the rest.
+  // A trim from a third of a frame to most of one holds no sample, so its slot shows the one nearest its start, from
+  // outside the trim on either side.
   @Test
-  fun `an item whose slots reach past its source holds its last frame until they are filled`() {
+  fun `an item on a window holding no sample opens on the nearest one and closes on the sample after it`() {
+    val frame = 1.seconds / 30
+    listOf(frame * 0.3 to 0L, frame * 1.8 to 2L).forEach { (start, nearest) ->
+      listOf(1.0, CLIP_SPEED_RANGE.start).forEach { speed ->
+        val clip = clip("clip0.mp4", sourceLengthOf(20.milliseconds, speed), Duration.ZERO, start, speed = speed)
+
+        val item =
+          composition(listOf(clip), frameRate = 30)
+            .lower()
+            .first()
+            .editedMediaItems
+            .single()
+
+        item.window() shouldBe (sample(nearest).inWholeMicroseconds to sample(nearest + 1).inWholeMicroseconds)
+        item.presentationDurationUs shouldBe slotLengthUs(clip, 30)
+      }
+    }
+  }
+
+  // The source's last sample has none after it, so the item closes where the video track ends.
+  @Test
+  fun `an item showing the source's last sample closes where its track ends`() {
     val clip = clip(source = "clip0.mp4", length = 2_020.milliseconds, at = Duration.ZERO, start = Duration.ZERO)
-    val bounds = FrameBounds(first = Duration.ZERO, last = sampleBefore(2.seconds), end = 2.seconds)
 
     val item =
       composition(listOf(clip), frameRate = 30)
-        .lower(clip to bounds)
+        .lower(clip to sourceEndingAt(2.seconds))
+        .first()
+        .editedMediaItems
+        .single()
+
+    item.window() shouldBe (0L to 2.seconds.inWholeMicroseconds)
+  }
+
+  // A preview's player plays the silence of a video item through the item's speed, and media3's pitch keeping at a
+  // speed near zero sizes its buffer past what a device holds. A clip at speed one plays every stretch at about one,
+  // the source's last frame included.
+  @Test
+  fun `an item at speed one plays its last frame at speed one`() {
+    val clip = clip(source = "clip0.mp4", length = 2.seconds, at = Duration.ZERO, start = Duration.ZERO)
+
+    val item =
+      composition(listOf(clip), frameRate = 30)
+        .lower(clip to sourceEndingAt(2.seconds))
+        .first()
+        .editedMediaItems
+        .single()
+
+    val pace = item.speedProvider
+    val starts = generateSequence(0L) { pace.getNextSpeedChangeTimeUs(it).takeIf { next -> next != C.TIME_UNSET } }
+    starts.toList().forEach { start ->
+      withClue(
+        "the stretch at $start us",
+      ) { pace.getSpeed(start).toDouble() shouldBe (1.0 plusOrMinus SPEED_ONE_SLACK) }
+    }
+    starts.last() shouldBe sampleBefore(2.seconds).inWholeMicroseconds
+  }
+
+  @Test
+  fun `an item whose slots reach past its source holds its last frame until they are filled`() {
+    val clip = clip(source = "clip0.mp4", length = 2_020.milliseconds, at = Duration.ZERO, start = Duration.ZERO)
+
+    val item =
+      composition(listOf(clip), frameRate = 30)
+        .lower(clip to sourceEndingAt(2.seconds))
         .first()
         .editedMediaItems
         .single()
 
     val slots = outputSlotsOf(clip.span, 30)
     val length = (outputSlotTime(slots.last + 1, 30) - outputSlotTime(slots.first, 30)).inWholeMicroseconds
-    val decoded = (bounds.end - bounds.first).inWholeMicroseconds
-    item.window() shouldBe (bounds.first.inWholeMicroseconds to bounds.end.inWholeMicroseconds)
+    val decoded = item.clippedUs()
     item.presentationDurationUs shouldBe length
     SpeedProviderUtil.getDurationAfterSpeedProviderApplied(item.speedProvider, decoded) shouldBe length
     SpeedProviderMapper(item.speedProvider).getAdjustedTimeUs(decoded) shouldBe length
@@ -149,7 +212,7 @@ class Media3FrameGridTest {
 
     listOf(1.seconds, 2_500.milliseconds, 4.seconds).forEach { held ->
       val length = from + held.inWholeMicroseconds
-      val hold = HeldLastFrame(from, decoded, length)
+      val hold = holdingLast(from, decoded, length)
 
       SpeedProviderUtil.getDurationAfterSpeedProviderApplied(hold, decoded) shouldBe length
       SpeedProviderMapper(hold).getAdjustedTimeUs(decoded) shouldBe length
@@ -166,7 +229,7 @@ class Media3FrameGridTest {
     val misses =
       listOf(30.seconds, 3.minutes, 1.hours).map { held ->
         val length = from + held.inWholeMicroseconds
-        val hold = HeldLastFrame(from, decoded, length)
+        val hold = holdingLast(from, decoded, length)
         val readings =
           listOf(
             SpeedProviderUtil.getDurationAfterSpeedProviderApplied(hold, decoded),
@@ -179,39 +242,40 @@ class Media3FrameGridTest {
     misses.any { it > 0 } shouldBe true
   }
 
-  // A hold only slows a frame down, so it refuses one that already reached its length or decoded no more of it.
+  // Every stretch has to decode something and have time left to run in.
   @Test
-  fun `a hold refuses a frame that already reached its length or decoded nothing more of it`() {
+  fun `a pace refuses a stretch that decodes nothing or has no time to run`() {
     val from = sample(SOURCE_RATE - 1).inWholeMicroseconds
     val decoded = sample(SOURCE_RATE).inWholeMicroseconds
 
-    assertFailsWith<IllegalArgumentException> { HeldLastFrame(fromUs = from, decodedUs = from, lengthUs = decoded) }
-    assertFailsWith<IllegalArgumentException> { HeldLastFrame(fromUs = from, decodedUs = decoded, lengthUs = decoded) }
+    assertFailsWith<IllegalArgumentException> { holdingLast(fromUs = from, decodedUs = from, lengthUs = decoded) }
+    assertFailsWith<IllegalArgumentException> { holdingLast(fromUs = from, decodedUs = decoded, lengthUs = from) }
   }
 
-  // Only what follows the last frame is slowed, so a frame in the middle of the item and the last
-  // frame itself are shown when they always were.
+  // Each sample of a source at the output's own rate sits on its slot, so a frame in the middle of a held item and the
+  // last frame itself are written when they always were.
   @Test
   fun `a held item keeps every frame on its own time`() {
     val clip = clip(source = "clip0.mp4", length = 2_020.milliseconds, at = Duration.ZERO, start = Duration.ZERO)
-    val bounds = FrameBounds(first = Duration.ZERO, last = sampleBefore(2.seconds), end = 2.seconds)
 
     val item =
       composition(listOf(clip), frameRate = 30)
-        .lower(clip to bounds)
+        .lower(clip to sourceEndingAt(2.seconds))
         .first()
         .editedMediaItems
         .single()
 
     val mapper = SpeedProviderMapper(item.speedProvider)
     mapper.getAdjustedTimeUs(1.seconds.inWholeMicroseconds) shouldBe 1.seconds.inWholeMicroseconds
-    mapper.getAdjustedTimeUs(bounds.last.inWholeMicroseconds) shouldBe bounds.last.inWholeMicroseconds
+    mapper.getAdjustedTimeUs(sampleBefore(2.seconds).inWholeMicroseconds) shouldBe
+      sampleBefore(2.seconds).inWholeMicroseconds
   }
 
-  // Cut 16.667ms in, a second of a 30 fps source opens on the sample at 33.333ms and decodes a
-  // partial frame short of the 30 slots its span covers.
+  // Cut 16.667ms in, a second of a 30 fps source opens within a microsecond of half way between two samples, which is
+  // a tie, so the item opens on the earlier one. Its last slot ties too, so it shows the earlier one and closes on the
+  // sample after it.
   @Test
-  fun `an item whose cut sits inside a frame holds its last frame for what the cut lost`() {
+  fun `an item whose cut sits inside a frame shows the nearer sample on every slot`() {
     val start = 16_667.microseconds
     val clip = clip(source = "clip0.mp4", length = 1.seconds, at = Duration.ZERO, start = start)
 
@@ -222,13 +286,19 @@ class Media3FrameGridTest {
         .editedMediaItems
         .single()
 
-    item.window() shouldBe (sampleAtOrAfter(start).inWholeMicroseconds to clip.end.inWholeMicroseconds)
+    val slots = outputSlotsOf(clip.span, 30)
+    item.window() shouldBe
+      (
+        shownAt(clip, slots.first, 30).inWholeMicroseconds to
+          sampleAtOrAfter(shownAt(clip, slots.last, 30) + 1.microseconds).inWholeMicroseconds
+      )
     item.presentationDurationUs shouldBe slotLengthUs(clip, 30)
   }
 
-  // 1.010s from a sample at 25 fps covers 25 slots, which is less than it decodes, so it is cut and not slowed.
+  // 1.010s from a sample at 25 fps covers 25 slots, which is less than it decodes, so it closes on the sample after the
+  // last one its slots show.
   @Test
-  fun `an item that decodes past its slots is cut to them and carries no hold`() {
+  fun `an item that decodes past its slots closes on the sample after the last one it shows`() {
     val clip = clip(source = "clip0.mp4", length = 1_010.milliseconds, at = Duration.ZERO, start = Duration.ZERO)
 
     val item =
@@ -238,8 +308,9 @@ class Media3FrameGridTest {
         .editedMediaItems
         .single()
 
-    item.speedProvider shouldBe SpeedProvider.DEFAULT
-    item.clippedUs() shouldBe slotLengthUs(clip, 25)
+    val last = shownAt(clip, outputSlotsOf(clip.span, 25).last, 25)
+    item.window() shouldBe (0L to sampleAtOrAfter(last + 1.microseconds).inWholeMicroseconds)
+    item.presentationDurationUs shouldBe slotLengthUs(clip, 25)
   }
 
   // A reader asked for a time while the last frame is held seeks to that frame, since the item has
@@ -247,13 +318,11 @@ class Media3FrameGridTest {
   @Test
   fun `a preview reads a held stretch at the frame it holds`() {
     val clip = clip(source = "clip0.mp4", length = 2_020.milliseconds, at = Duration.ZERO, start = Duration.ZERO)
-    val bounds = FrameBounds(first = Duration.ZERO, last = sampleBefore(2.seconds), end = 2.seconds)
     val composition = composition(listOf(clip), frameRate = 30)
 
-    val span = composition.toMedia3Preview(boundsOf(composition, clip to bounds)).spans.single()
+    val span = composition.toMedia3Preview(boundsOf(composition, clip to sourceEndingAt(2.seconds))).spans.single()
 
-    span.heldFrom shouldBe bounds.last
-    span.positionIn(2_010.milliseconds) shouldBe bounds.last
+    span.positionIn(2_010.milliseconds) shouldBe sampleBefore(2.seconds)
     span.positionIn(1.seconds) shouldBe 1.seconds
   }
 
@@ -282,12 +351,13 @@ class Media3FrameGridTest {
   }
 
   @Test
-  fun `an item at speed one carries no speed at all`() {
+  fun `an item at speed one whose samples were never read carries no speed at all`() {
     val clip = clip(source = "clip0.mp4", length = 3.seconds, at = Duration.ZERO, start = Duration.ZERO)
 
     val item =
       composition(listOf(clip), frameRate = 30)
-        .lower()
+        .toMedia3(Media3ClipReads.None)
+        .sequences
         .first()
         .editedMediaItems
         .single()
@@ -295,34 +365,46 @@ class Media3FrameGridTest {
     item.speedProvider shouldBe SpeedProvider.DEFAULT
   }
 
-  // The source's last frame sits a sample short of what the slots reach, so the clip plays at speed and holds that
-  // frame.
+  // Read the way media3's frame rate cap reads a decoded item: it keeps the first frame, then each one at or past a
+  // tick a whole microsecond step of the output rate past the last tick, so what it keeps is every sample a slot shows
+  // and each of those on the first slot showing it. Mid range speeds and the fast end, from a trim inside a frame.
   @Test
-  fun `a held item at speed keeps every frame on the time its speed puts it`() {
-    listOf(0.7, 1.5).forEach { speed ->
-      val clip =
-        clip(
-          source = "clip0.mp4",
-          length = 2_100.milliseconds,
-          at = Duration.ZERO,
-          start = Duration.ZERO,
-          speed = speed,
-        )
-      val bounds = FrameBounds(first = Duration.ZERO, last = sampleBefore(2.seconds), end = 2.seconds)
+  fun `media3's frame rate cap keeps every sample a slot shows on that slot and drops the rest`() {
+    listOf(0.7, 1.0, 1.5, 3.0, CLIP_SPEED_RANGE.endInclusive).forEach { speed ->
+      val start = 1.seconds / 30 / 4
+      val clip = clip(source = "clip0.mp4", length = 3.seconds, at = 1.seconds, start = start, speed = speed)
 
       val item =
         composition(listOf(clip), frameRate = 30)
-          .lower(clip to bounds)
+          .lower()
           .first()
           .editedMediaItems
-          .single()
+          .last()
 
+      val opens = item.mediaItem.clippingConfiguration.startPositionUs
+      val closes = item.mediaItem.clippingConfiguration.endPositionUs
       val mapper = SpeedProviderMapper(item.speedProvider)
-      val tolerance = 2L
-      (mapper.getAdjustedTimeUs(1.seconds.inWholeMicroseconds) - outputLengthOf(1.seconds, speed).inWholeMicroseconds)
-        .absoluteValue shouldBeLessThanOrEqual tolerance
-      (mapper.getAdjustedTimeUs(2.seconds.inWholeMicroseconds) - slotLengthUs(clip, 30)) shouldBeInRange
-        0L..speedStepUs(slotLengthUs(clip, 30))
+      val decoded =
+        (0 until SOURCE_LENGTH.inWholeMicroseconds * SOURCE_RATE / MICROS_PER_SECOND)
+          .map { sample(it).inWholeMicroseconds }
+          .filter { it in opens..<closes }
+          .map { mapper.getAdjustedTimeUs(it - opens) }
+      val step = MICROS_PER_SECOND / 30
+      var tick = -1L
+      val kept =
+        decoded.filter { written ->
+          val keeps = tick < 0 || written >= tick
+          if (keeps) tick = if (tick < 0) written + step else tick + step
+          keeps
+        }
+
+      val slots = outputSlotsOf(clip.span, 30)
+      val opensAt = outputSlotTime(slots.first, 30)
+      val expected =
+        slots
+          .groupBy { shownAt(clip, it, 30) }
+          .map { (_, showing) -> (outputSlotTime(showing.first(), 30) - opensAt).inWholeMicroseconds }
+      withClue("speed $speed") { kept shouldBe expected }
     }
   }
 
@@ -330,14 +412,17 @@ class Media3FrameGridTest {
   fun `a preview reads a frame at speed through the shared offset`() {
     listOf(0.7, 1.5).forEach { speed ->
       val clip = clip(source = "clip0.mp4", length = 3.seconds, at = 1.seconds, start = Duration.ZERO, speed = speed)
-      val composition = composition(listOf(clip), frameRate = 30)
+      val composition = composition(listOf(clip), frameRate = 30, trackStart = 1.seconds)
 
       val span = composition.toMedia3Preview(boundsOf(composition)).spans.last()
 
       span.speed shouldBe speed
-      val at = 1.seconds + clip.outputDuration / 2
-      val expected = sourceOffsetAt(at - span.start, speed)
-      (span.positionIn(at) - expected).absoluteValue shouldBeLessThanOrEqualTo 40.milliseconds
+      val slot = outputSlotOf(1.seconds + clip.outputDuration / 2, 30)
+      val at = outputSlotTime(slot, 30)
+      val opens = span.item.clippingConfiguration.startPositionUs.microseconds
+      (span.positionIn(at) - sourceOffsetAt(at - span.start, speed)).absoluteValue shouldBeLessThanOrEqualTo
+        1.seconds / 30 / 2
+      span.positionIn(at) shouldBe shownAt(clip, slot, 30) - opens
     }
   }
 
@@ -470,10 +555,63 @@ class Media3FrameGridTest {
     return Media3ClipReads(
       composition.tracks.flatMap { it.clips }.associate { clip ->
         ClipWindow(clip.source, clip.start, clip.end) to
-          (named[clip] ?: FrameBounds(sampleAtOrAfter(clip.start), sampleBefore(clip.end), clip.end))
+          (named[clip] ?: readAround(clip.start, clip.end))
       },
     )
   }
+
+  // What the walk reads off a source of SOURCE_LENGTH, from the sample before [start] to two past [end].
+  private fun samplesAround(
+    start: Duration,
+    end: Duration,
+  ): List<Duration> {
+    val last = SOURCE_LENGTH.inWholeMicroseconds * SOURCE_RATE / MICROS_PER_SECOND - 1
+    val from = (start.inWholeMicroseconds * SOURCE_RATE / MICROS_PER_SECOND - 1).coerceAtLeast(0)
+    val to = (end.inWholeMicroseconds * SOURCE_RATE / MICROS_PER_SECOND + 2).coerceAtMost(last)
+    return (from..to).map(::sample)
+  }
+
+  // What the walk reads around [start] and [end], stopping on the sample after the last or at the end of SOURCE_LENGTH.
+  private fun readAround(
+    start: Duration,
+    end: Duration,
+  ): FrameBounds {
+    val samples = samplesAround(start, end)
+    return FrameBounds(samples, sampleAtOrAfter(samples.last() + 1.microseconds).coerceAtMost(SOURCE_LENGTH))
+  }
+
+  // A source whose container ends at [end], which is every sample before it.
+  private fun sourceEndingAt(end: Duration): FrameBounds =
+    FrameBounds((0L..end.inWholeMicroseconds * SOURCE_RATE / MICROS_PER_SECOND).map(::sample).filter { it < end }, end)
+
+  // The sample the shared rule picks for [slot] of [clip].
+  private fun shownAt(
+    clip: ResolvedClip,
+    slot: Long,
+    frameRate: Int,
+  ): Duration {
+    val samples = samplesAround(clip.start, clip.end)
+    val time = sourceTimeOfSlot(clip.start, clip.span.start, clip.speed, slot, frameRate)
+    return samples[checkNotNull(nearestSourceFrame(samples, time))]
+  }
+
+  // A pace that plays up to [fromUs] at speed one and holds the sample there until [lengthUs].
+  private fun holdingLast(
+    fromUs: Long,
+    decodedUs: Long,
+    lengthUs: Long,
+  ): SlotPace =
+    SlotPace(
+      ShownFrames(
+        opens = Duration.ZERO,
+        closes = decodedUs.microseconds,
+        inputsUs = listOf(0L, fromUs),
+        outputsUs = listOf(0L, fromUs),
+        lengthUs = lengthUs,
+        shown = listOf(0L to 0L, fromUs to fromUs),
+      ),
+      clipSpeed = 1.0,
+    )
 
   // The source's samples sit on its own 30 fps ladder, each at k * 1/30 s in whole microseconds.
   private fun sample(index: Long): Duration = (index * MICROS_PER_SECOND / SOURCE_RATE).microseconds
@@ -630,5 +768,8 @@ class Media3FrameGridTest {
 
     const val SOURCE_RATE = 30L
     const val MICROS_PER_SECOND = 1_000_000L
+
+    // A sample interval and a slot of the same rate differ by at most a microsecond in about 33 333.
+    const val SPEED_ONE_SLACK = 1e-4
   }
 }

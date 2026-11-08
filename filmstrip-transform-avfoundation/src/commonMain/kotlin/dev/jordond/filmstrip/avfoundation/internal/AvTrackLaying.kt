@@ -128,8 +128,10 @@ internal class AssetCache(
  * Each clip opens at the source time the plan resolved it to. A cut that moved back to open a copy
  * on a sync sample has already moved by the time it arrives here, so nothing is re-derived. A clip
  * laid exactly runs no longer than [ResolvedClip.outputDuration], and one on the grid runs as far as
- * its last slot, which can reach past the source's last frame. [insertHolding] holds that frame until
- * the slot ends. A clip at speed reads the source window that length plays and scales it onto the slot.
+ * its last slot, which can reach past the source's last frame.
+ *
+ * Video on the grid has its frames drawn on the slots, so each clip goes through [insertShown] and every slot shows
+ * the frame nearest its own source time, whatever the clip's speed and its source's rate.
  *
  * The last clip laid on the grid runs on over [tail] as well, to the slot the composition ends on,
  * holding the frame its own last slot shows. Its placement carries that slot's time as
@@ -140,7 +142,7 @@ internal class AssetCache(
  * @param tail The output slots the primary's last frame is held over, empty when nothing outlasts it.
  */
 @OptIn(ExperimentalForeignApi::class)
-internal fun ResolvedTrack.layOnto(
+internal suspend fun ResolvedTrack.layOnto(
   media: AVMutableCompositionTrack,
   mediaType: String?,
   assets: AssetCache,
@@ -161,22 +163,24 @@ internal fun ResolvedTrack.layOnto(
     val at: Duration
     val end: Duration
     var heldFrom: Duration? = null
+    var slots = LongRange.EMPTY
     if (grid == null) {
       at = clip.span.start
       end = at + clip.outputDuration
     } else {
-      val slots = outputSlotsOf(clip.span, grid)
-      if (slots.isEmpty()) return@mapIndexedNotNull null
+      val covered = outputSlotsOf(clip.span, grid)
+      if (covered.isEmpty()) return@mapIndexedNotNull null
+      val closing = if (index == holding) tail.last + 1 else covered.last + 1
+      slots = covered.first until closing
       // Read back off the tick each end is laid on, so at a rate the timescale does not divide the span
       // still opens and closes where its segment does, and a frame at the seam finds its own clip.
-      at = outputSlotTime(slots.first, grid).toCMTime().toDuration()
-      val closing = if (index == holding) tail.last + 1 else slots.last + 1
+      at = outputSlotTime(covered.first, grid).toCMTime().toDuration()
       end = outputSlotTime(closing, grid).toCMTime().toDuration()
       if (index == holding) heldFrom = outputSlotTime(tail.first - 1, grid)
     }
     val sdColor = if (video) assets.sdColorOf(clip) else null
     Placement(clip = clip, start = at, end = end, heldFrom = heldFrom, sdColor = sdColor).also {
-      media.insertClip(it, mediaType, assets, frameRate, grid)
+      media.insertClip(it, mediaType, assets, frameRate, slots)
     }
   }
 }
@@ -187,17 +191,21 @@ internal fun ResolvedTrack.layOnto(
  *
  * A still is cut from [stillSeed] on the video track and is empty time on any other. A clip whose source has no track
  * of [mediaType] is empty time too. Audio an export already stretched goes in unscaled from the start of its own file,
- * which already runs for the slot. On the grid at [grid] the source goes through [insertHolding], and off it the
- * resolved span is laid as it is.
+ * which already runs for the slot. Video on the grid goes through [insertShown]. Off the grid the resolved span is laid
+ * as it is.
+ *
+ * @param slots The output slots the placement runs over, empty off the grid.
+ * @throws AvLoweringFailure When video on the grid can't be laid.
  */
 @OptIn(ExperimentalForeignApi::class)
-private fun AVMutableCompositionTrack.insertClip(
+private suspend fun AVMutableCompositionTrack.insertClip(
   placement: Placement,
   mediaType: String?,
   assets: AssetCache,
   frameRate: Int,
-  grid: Int?,
+  slots: LongRange,
 ) {
+  val grid = frameRate.takeIf { !slots.isEmpty() }
   val clip = placement.clip
   val at = placement.start
   // On the grid both ends are rounded onto a tick and the length is what lies between, so the next
@@ -226,7 +234,8 @@ private fun AVMutableCompositionTrack.insertClip(
         false
       }
       grid != null -> {
-        insertHolding(source, clip.start, at, length, clip.speed, placement.heldFrom)
+        insertShown(source, clip, slots, grid)
+        true
       }
       else -> {
         insertScaled(source, clip.start, at, length, clip.speed)
@@ -310,78 +319,6 @@ private fun ticksToSourceEnd(
     MEDIA_TIMESCALE,
     kCMTimeRoundingMethod_RoundTowardZero,
   )
-
-/**
- * Lays [length] of [source], read from [from], onto this track at [at], holding the source's last
- * frame over any part of that which runs past the end of its track.
- *
- * AVFoundation takes a range reaching past the end of a track without complaint, and the reader
- * then draws an empty frame from where the track runs out until the segment ends. The range is cut
- * at the track's end instead, in whole ticks so none of it is past the end, and its final tick is
- * stretched over the rest of the length. That shows the last frame until the length runs out and
- * starts no frame of its own where the track did.
- *
- * With [heldFrom] set the range is cut one tick after that time as well, whichever comes first, so
- * the frame shown there is the one stretched to the end of the length.
- *
- * At [speed] the source window is scaled onto the time it plays for first, and its last tick of source is what is
- * stretched over the rest. That is a tick of the source rather than of the track, so the held frame can't change half
- * way through however fast the clip runs.
- *
- * @param heldFrom The time on this track whose frame is held to the end of the length, or null to
- * read the source for as long as it lasts.
- */
-@OptIn(ExperimentalForeignApi::class)
-private fun AVMutableCompositionTrack.insertHolding(
-  source: AVAssetTrack,
-  from: Duration,
-  at: Duration,
-  length: CValue<CMTime>,
-  speed: Double = 1.0,
-  heldFrom: Duration? = null,
-): Boolean {
-  val tick = CMTimeMake(value = 1, timescale = MEDIA_TIMESCALE)
-  val atTime = at.toCMTime()
-  val window = sourceTicksOf(length, speed)
-  val toSourceEnd = ticksToSourceEnd(source, from)
-  val held =
-    heldFrom?.let { CMTimeMinimum(toSourceEnd, sourceTicksOf(CMTimeAdd(ticksBetween(at, it), tick), speed)) }
-      ?: toSourceEnd
-  val short = CMTimeCompare(held, window) < 0 && CMTimeCompare(held, tick) >= 0
-  val read = if (short) held else window
-  val inserted =
-    insertTimeRange(
-      timeRange = CMTimeRangeMake(start = from.toCMTime(), duration = read),
-      ofTrack = source,
-      atTime = atTime,
-      error = null,
-    )
-  if (!inserted) return false
-  if (short) {
-    val played = CMTimeSubtract(read, tick)
-    // Short of the length by a tick, since a fast clip's played part can round up to all of it, and the last tick has
-    // to hold what is left.
-    val shown =
-      if (CMTimeCompare(played, tick) <
-        0
-      ) {
-        played
-      } else {
-        playedTicksOf(played, speed, CMTimeSubtract(length, tick))
-      }
-    if (speed != 1.0 && CMTimeCompare(played, tick) >= 0) {
-      scaleTimeRange(CMTimeRangeMake(start = atTime, duration = played), toDuration = shown)
-    }
-    val lastTick = CMTimeAdd(atTime, shown)
-    scaleTimeRange(
-      timeRange = CMTimeRangeMake(start = lastTick, duration = tick),
-      toDuration = CMTimeSubtract(CMTimeAdd(atTime, length), lastTick),
-    )
-  } else if (speed != 1.0) {
-    scaleTimeRange(CMTimeRangeMake(start = atTime, duration = read), toDuration = length)
-  }
-  return true
-}
 
 /**
  * Gives a still the slot from [at] until [end] on this track, as real segments cut from the seed

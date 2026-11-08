@@ -131,7 +131,7 @@ internal class BrowserPipeline(
         currentCoroutineContext().ensureActive()
 
         val drawn = minOf(slot, clip.frames - 1)
-        val sourceUs = clip.sourceUsAt(drawn * render.stepUs)
+        val sourceUs = clip.sourceUsOf(drawn, render.frameRate)
         while (ahead != null && ahead.microsecondTimestamp <= sourceUs) {
           current?.close()
           current = ahead

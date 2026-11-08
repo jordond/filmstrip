@@ -104,6 +104,20 @@ public fun eightBitFrameCodesAt(
 ): FrameCodes =
   decodedFrame(video, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible, at) { it.toEightBitFrame() }
 
+/**
+ * Decodes the frame of [video] a player shows at [at] as eight-bit samples, the last sample presented at or before it.
+ *
+ * A file that writes no sample on a slot reads as the one it holds over that slot, the way [eightBitFrameCovering]
+ * reads it.
+ *
+ * @throws IllegalArgumentException When [video] holds no video sample at or before [at].
+ */
+@InternalFilmstripApi
+public fun eightBitFrameCodesCovering(
+  video: File,
+  at: Duration,
+): FrameCodes = eightBitFrameCodesAt(video, coveringSampleTimeOf(video, at))
+
 private fun decodedFrame(
   video: File,
   colorFormat: Int,

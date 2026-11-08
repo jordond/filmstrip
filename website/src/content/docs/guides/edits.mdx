@@ -42,6 +42,20 @@ measured on that output clock. A timeline's `TrimOverlay` takes the same `speed`
 Pitch is always kept, and there's no option to let it shift. Every backend pins a clip's audio to its output length. A
 still has no speed to change, so one set on a still shows up as an inert notice.
 
+A clip's picture is laid on the output frame grid. Its span covers one output frame for each point half way between two
+frames that it reaches, and each frame it covers shows the source frame nearest that frame's source time. Every backend
+does this at any speed and from a source at any frame rate, within the [limits](/reference/limits/#clip-speed) it
+names, so a 24 fps clip in a 30 fps export shows the nearest of its frames on each output frame, at speed 1 as at any
+other. That holds however short the clip is:
+
+- A primary track whose video covers no frame at all is refused with `InvalidComposition`. At 30 fps that's 500 ms at 32
+  or 15 ms at 1, and the message names the run and the frame rate.
+- A clip covering no frame inside a longer run lays no picture. Its neighbours keep their frames, and its audio still
+  plays.
+- A clip covering one frame writes one frame, at 32 as at 1.
+- A trim holding no source frame, like 10 to 30 ms of a 30 fps source, shows the frame nearest its source time, here
+  frame 0, even though that frame sits outside the trim.
+
 Speed has a cost:
 
 - Sources decode in full, so decoding scales with the speed. A clip at 32 decodes 32 source frames for every frame it

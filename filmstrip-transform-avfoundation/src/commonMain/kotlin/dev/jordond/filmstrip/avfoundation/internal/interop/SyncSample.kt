@@ -4,6 +4,7 @@ import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TICK
 import dev.jordond.filmstrip.avfoundation.internal.time.timeRangeOf
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
 import kotlinx.cinterop.BetaInteropApi
+import kotlinx.cinterop.CValue
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.autoreleasepool
 import kotlinx.cinterop.readValue
@@ -24,7 +25,10 @@ import platform.CoreFoundation.CFRelease
 import platform.CoreMedia.CMSampleBufferGetPresentationTimeStamp
 import platform.CoreMedia.CMSampleBufferGetSampleAttachmentsArray
 import platform.CoreMedia.CMSampleBufferRef
+import platform.CoreMedia.CMTime
+import platform.CoreMedia.CMTimeSubtract
 import platform.CoreMedia.kCMSampleAttachmentKey_NotSync
+import platform.CoreMedia.kCMTimeZero
 import kotlin.time.Duration
 
 /**
@@ -79,13 +83,21 @@ internal fun AVAssetTrack.syncSampleAtOrBefore(time: Duration): Duration? {
  * `insertTimeRange:ofTrack:` asks for the presentation time, so one has to be moved onto the other.
  */
 @OptIn(ExperimentalForeignApi::class)
-private fun AVAssetTrack.editShift(): Duration {
-  val segment = segments.filterIsInstance<AVAssetTrackSegment>().firstOrNull { !it.empty } ?: return Duration.ZERO
-
-  return segment.timeMapping.useContents {
+internal fun AVAssetTrack.editShift(): Duration =
+  firstEdit()?.timeMapping?.useContents {
     target.start.readValue().toDuration() - source.start.readValue().toDuration()
-  }
-}
+  } ?: Duration.ZERO
+
+/**
+ * The same shift as [editShift], as an exact time in the track's own timescale.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun AVAssetTrack.editShiftTime(): CValue<CMTime> =
+  firstEdit()?.timeMapping?.useContents { CMTimeSubtract(target.start.readValue(), source.start.readValue()) }
+    ?: kCMTimeZero.readValue()
+
+private fun AVAssetTrack.firstEdit(): AVAssetTrackSegment? =
+  segments.filterIsInstance<AVAssetTrackSegment>().firstOrNull { !it.empty }
 
 /**
  * Whether a decoder could open on this sample.

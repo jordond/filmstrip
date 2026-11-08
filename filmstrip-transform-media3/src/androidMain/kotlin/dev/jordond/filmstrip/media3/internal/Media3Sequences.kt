@@ -6,7 +6,6 @@ import androidx.media3.common.SpeedParameters
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
-import dev.jordond.filmstrip.edit.outputLengthOf
 import dev.jordond.filmstrip.edit.outputSlotOf
 import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.edit.outputSlotsOf
@@ -20,7 +19,6 @@ import dev.jordond.filmstrip.transform.internal.resolve.ResolvedClip
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedTrack
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.microseconds
 
 /**
  * Lays one plan's tracks onto media3 sequences, holding what every item of them is lowered against.
@@ -129,40 +127,26 @@ internal class Lowering(
   private val gapPlacement = PlacedFrame(NormalizedRect.Full, plan.output.size)
 
   /**
-   * A clip's video, decoded for exactly [length].
+   * A clip's video, written for exactly [length] with each of its slots showing the frame nearest that slot's source
+   * time.
    *
-   * media3 opens a clipped item on the first sample at or after its start and ends it at its clipped end or the
-   * source's own end, whichever comes first. So the item is clipped from that first sample, and one that decodes for
-   * longer than [length] is cut to it. One that decodes for less, because its start sat inside a frame or its slots
-   * reach past the source, holds its last frame through [HeldLastFrame] until it has run for [length]. A clip whose
-   * samples were never read is clipped from its own start and not held. A clip at speed counts all of that in the
-   * source
-   * [length] plays at its speed, and the provider it carries lands the item on [length] exactly.
+   * With the samples its window decodes read, the item is laid by [ShownFrames] and played through a [SlotPace], so
+   * every sample a slot shows is written on the first slot showing it and media3's frame rate cap drops the rest. A
+   * clip whose samples were never read is clipped from its own start, cut to what its speed plays in [length], and run
+   * at that speed.
    *
    * [setFrameRate] is media3's limit on slow motion: it is a maximum and nothing duplicates a frame, so a clip slowed
-   * past its source's rate writes every source frame further apart instead of filling each output slot.
+   * past its source's rate writes each frame it shows once, on the first of its slots, instead of filling every slot.
    */
   private fun ResolvedClip.gridItem(
     length: Duration,
     rate: Int,
   ): EditedMediaItem {
-    val window = bounds[this]
-    val opens = window?.first ?: start
-    val cut = window?.end ?: end
-    val decoded = cut - opens
+    val shown = bounds[this]?.let { ShownFrames.of(this, it, rate) }
     val played = sourceLengthOf(length, speed)
-    val closes = if (decoded > played) opens + played else cut
-    // A hold has to slow a frame down, and a stretch rounding has already filled runs at the clip speed instead.
-    val reaches = if (speed == 1.0) decoded else outputLengthOf(decoded, speed) + 1.microseconds
-    val pace =
-      window?.takeIf { reaches < length }?.let {
-        HeldLastFrame(
-          fromUs = (it.last - opens).inWholeMicroseconds,
-          decodedUs = decoded.inWholeMicroseconds,
-          lengthUs = length.inWholeMicroseconds,
-          clipSpeed = speed,
-        )
-      } ?: atSpeed((closes - opens), length)
+    val opens = shown?.opens ?: start
+    val closes = shown?.closes ?: if (end - start > played) start + played else end
+    val pace = if (shown != null) SlotPace(shown, speed) else atSpeed(closes - opens, length)
 
     return EditedMediaItem
       .Builder(clipped(opens, closes, always = true))

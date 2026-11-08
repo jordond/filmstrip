@@ -61,11 +61,15 @@ inside it, in the file and in the preview.
 A media3 preview and its file part in chroma around a caption, because the encoder reduces chroma to 4:2:0 and a preview
 keeps every pixel's. On an API 36 emulator the software `c2.android.avc.encoder` takes each 2x2 block's chroma from its
 top left pixel, which puts a Cb about 1 code from the preview's top left where a box average sits about 5 away. Past a
-file's first 8 frames luma reads 47 to 52 dB against the file on API 30 and API 36, at 1/32, 0.7, 1.5 and 32, and the
-bitrate doesn't move the chroma. Hardware encoders aren't measured, so what filmstrip tests is the bound any of them
-holds: past those frames each block's chroma stays within 3 codes of the preview's range over that block and the pixels
-around it. The encoder's first 8 frames sit further off at every speed, speed 1 included, by up to 16 codes of chroma and
-down to 44 dB of luma, and a short clip at 1/32 writes few frames past them.
+file's first 7 frames luma reads 45 to 51 dB against the file on API 30 and API 36, at 1/32, 0.7, 1.5 and 32, and the
+bitrate doesn't move the chroma. Each block's chroma there stays within 5 codes of the preview's range over that block
+and the pixels around it, against a measured worst of 4, where a wrong frame reads 11 or more.
+
+The encoder's first 7 frames of any file, 0 to 6, sit further off at every speed, speed 1 included. They read up to 13
+codes of chroma and 45 to 49 dB of luma on API 30 and API 36, and no encoder setting or bitrate media3 offers moves them.
+filmstrip holds them within 16 codes, which a wrong colour breaks but a wrong frame doesn't, so those frames are told
+apart by luma. A clip at 1/32 runs 32 times its source, so it writes mostly those frames only when it holds under about
+8.3 ms of a 30 fps source. Hardware encoders aren't measured.
 
 ## HDR text and pictures
 
@@ -86,6 +90,12 @@ Every backend plays 1/32 to 32 with the pitch kept and decodes its sources in fu
 Each file runs the shared output length, give or take its last frame and its audio tail. What's left is each backend's
 own. See [Speed](/guides/edits/#speed).
 
+A clip shorter than an output frame behaves the same on every backend. A primary track whose video covers no output
+frame is refused with `InvalidComposition`. A clip that covers none inside a longer run lays no picture, its neighbours
+keep their frames, and its audio still plays. Each frame a clip covers shows the source frame nearest its source time,
+and a trim holding no source frame shows the nearest one outside it. The file holds a sample on every one of those
+frames, except where media3 shows one source frame on several, as its sparse slow motion below does.
+
 | Backend      | Limit                                                                                     |
 | ------------ | ----------------------------------------------------------------------------------------- |
 | AVFoundation | An export renders sped audio to temporary disk, 16-bit PCM for the output length.         |
@@ -93,16 +103,37 @@ own. See [Speed](/guides/edits/#speed).
 | media3       | On API 30 the AAC encoder ends up to 55 ms before the output length, at any speed.        |
 | media3       | Slow motion is sparse. Nothing duplicates a frame, so a clip's frames sit apart by speed. |
 | ffmpeg       | A preview has no audio, at any speed.                                                     |
+| ffmpeg       | Picks frames off the probed rate's grid from zero, timed to 1/1000 of an output frame.    |
 
-Sparse slow motion means a clip at 1/32 from a 30 fps source holds each frame for about a second. The file plays, and its
-last frame was measured running 457 ms past the output length when the trim cuts that frame short. The other backends
+Sparse slow motion means a clip at 1/32 from a 30 fps source holds each frame for about a second. The file plays and its
+video ends on the output length, though its audio was measured running up to 457 ms past it at 1/32. The other backends
 write every output slot. A media3 preview reads whole milliseconds, so a read within 1 ms of a frame's own time can land
 on either side of it. The AAC tail is what the encoder adds at the end of the stream, and a clip at speed 1 has it too.
+
+ffmpeg picks the frame a slot shows from the source's probed frame rate, as if every frame sat on that rate's grid from
+zero, and reads each frame's time to a thousandth of an output frame, 33 µs at 30 fps. A variable rate source, or one
+whose frames don't sit on that grid, can show the frame either side of a slot whose source time lands near half way
+between two of them. So can any source within that thousandth of half way.
+
+AVFoundation lays frames on a composition track in ticks of 1/3600 of a second, about 0.28 ms. Two source frames inside
+one tick can't both be shown, since AVFoundation shows the later one there. An output frame whose nearest source frame
+is the earlier of the two shows the later instead, which sits less than a tick from it. Each clip reads the times of at
+most 10,000,000 source frames, more than an eight hour clip at 120 fps holds. A clip past that, a source whose frame
+times AVFoundation won't give, or a frame it won't lay is refused by name. An export fails with `InvalidComposition`
+and a preview with `UnsupportedFormat`, both with the same reason, and nothing of the clip is left on the track.
 
 On API 30 `c2.android.aac.encoder` flushes nothing at the end of the stream and keeps only the whole access units it was
 fed, so the last of the audio never reaches the file. On an emulator that measured 33 to 53 ms, and the same PCM through
 the same encoder on API 36 keeps all of it. The levels between aren't measured. An export that copies its audio isn't
 affected.
+
+A media3 clip whose source frames come faster than the output's, from its speed or its source rate, leaves out the
+ones between the frames it shows through media3's frame rate cap. The cap keeps a frame only at or past its next tick,
+a whole number of microseconds per output frame past the first frame it kept. An output frame isn't a whole number of
+microseconds, so a long clip's frames run ahead of those ticks, a third of a microsecond per frame at 30 fps. About 55
+minutes into one clip at 30 fps, or 7 at 60, the cap keeps a frame it should leave out, and from there the file's
+frames no longer sit on their slots. That holds for a 60 fps source at speed 1 into 30 as much as for a sped up clip.
+A clip whose source rate times its speed is at or below the output rate leaves nothing out and isn't affected.
 
 ## Filters
 

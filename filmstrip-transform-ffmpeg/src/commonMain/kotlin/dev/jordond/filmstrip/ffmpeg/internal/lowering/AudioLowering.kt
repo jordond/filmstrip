@@ -194,7 +194,10 @@ internal class AudioLowering(
   // clip's span says and the next clip opens exactly where the plan laid it.
   private fun stretchedNodes(clip: ResolvedClip): List<FilterNode> {
     val samples = audioFramesOf(clip.outputDuration, format.sampleRate).toString()
-    return atempoStagesFor(clip.speed).map { FilterNode("atempo", "tempo" to it.toString()) } +
+    // atempo's limit: it writes nothing until it holds a whole fragment, measured at 1.4 s of source at 32, and pad's
+    // silence is then all that clip plays. Silence after the source fills the fragment, and the cut below drops it.
+    val filler = FilterNode("apad", "pad_dur" to formatSeconds(ATEMPO_FILLER_SECONDS * maxOf(clip.speed, 1.0)))
+    return listOf(filler) + atempoStagesFor(clip.speed).map { FilterNode("atempo", "tempo" to it.toString()) } +
       listOf(
         FilterNode("apad", "whole_len" to samples),
         FilterNode("atrim", "end_sample" to samples),
@@ -250,6 +253,9 @@ internal fun atempoStagesFor(speed: Double): List<Double> =
 // atempo's limit on one filter instance, read from af_atempo.c on n8.0. CLIP_SPEED_RANGE never reaches the ceiling, so
 // only the floor takes more than one stage.
 private const val ATEMPO_MIN = 0.5
+
+// Twice the fragment atempo cuts at its default window, in source seconds at a speed of 1.
+private const val ATEMPO_FILLER_SECONDS = 0.12
 
 // The frame size a ramping branch is cut to, a literal because it pins ffmpeg's own granularity
 // rather than anything the shared curve says. 64 samples is 1.3 ms at 48 kHz, against the 21 ms a

@@ -103,6 +103,8 @@ internal sealed interface InputSource {
  *   read forward from the start instead. Unused by an export, which renders the whole timeline.
  * @property seekSpeed How fast the clip [seekBase] reads from plays, which turns a composition time into how far past
  *   [seekBase] the seek lands.
+ * @property seekKeepsEarlierFrames Whether the seek keeps the frames ahead of where it lands, for a graph that reads
+ *   them back off its own clock. An accurate seek drops them.
  * @property videoSlots How many output slots the video covers, which is how many frames the graph
  *   writes. A copy writes the source's own frames out to a whole packet, so on a copy this is only
  *   how many of them a preview pumps. Null for an output with no video.
@@ -128,6 +130,7 @@ internal class Invocation(
   val previewColor: List<FilterNode> = emptyList(),
   val seekBase: Duration? = null,
   val seekSpeed: Double = 1.0,
+  val seekKeepsEarlierFrames: Boolean = seekSpeed != 1.0,
   val videoSlots: Long? = null,
   val heldTail: LongRange = LongRange.EMPTY,
   val sidecars: List<Sidecar> = emptyList(),

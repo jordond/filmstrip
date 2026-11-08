@@ -74,8 +74,8 @@ internal class WriterRun(
 ) {
   private val queue = dispatch_queue_create(QUEUE_LABEL, attr = null)
 
-  // A held tail, a clip at speed and the compositor all render a frame every frame duration until the audio ends, which
-  // can be up to half a slot past the last slot, so the video pump stops once it reaches a frame past that slot.
+  // A plan on the grid renders a frame every frame duration until the audio ends, which can be up to half a slot past
+  // the last slot, so the video pump stops once it reaches a frame past that slot.
   private val clockFrameRate: Int? =
     resolved.output.frameRate.takeIf {
       resolved.path != ExportPath.Copy &&

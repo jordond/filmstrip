@@ -4,20 +4,24 @@ import dev.jordond.filmstrip.media.MediaSource
 import kotlin.time.Duration
 
 /**
- * The video samples one clip's window decodes, read off its source's container.
+ * The video samples one clip's window can show, read off its source's container.
  *
- * Every time is on the source's own clock. media3 opens a clipped item on the earliest sample at or after its start and
- * stops decoding at [end], so an item's decoded length runs from [first] to [end].
+ * Every time is on the source's own clock, in presentation order. They run from the sync sample before the clip's start
+ * up to the second sync sample past its end, so the sample nearest either end is among them even when it sits outside
+ * the window.
  *
- * @property first The earliest sample at or after the clip's start, in presentation order.
- * @property last The latest sample before [end], in presentation order.
- * @property end Where the decoded window stops, which is the clip's end or the source's own end when that comes first.
+ * @property samples Each sample's presentation time.
+ * @property end Where the last of [samples] stops showing. That is the sample the read stopped on, or the end of the
+ * video track when the read ran out of samples.
  */
 internal class FrameBounds(
-  val first: Duration,
-  val last: Duration,
+  val samples: List<Duration>,
   val end: Duration,
-)
+) {
+  init {
+    require(samples.isNotEmpty() && end > samples.last()) { "end ($end) must come after the last sample" }
+  }
+}
 
 /**
  * The window a clip cuts from its source, which is all its [FrameBounds] depend on.

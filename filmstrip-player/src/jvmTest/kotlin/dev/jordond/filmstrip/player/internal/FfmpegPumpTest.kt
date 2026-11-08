@@ -8,6 +8,7 @@ import dev.jordond.filmstrip.player.PlaybackError
 import dev.jordond.filmstrip.player.jvmFixtureComposition
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -102,6 +103,21 @@ class FfmpegPumpTest {
       advanceUntilIdle()
 
       rig.processFailures shouldBe listOf(FAILED to STDERR)
+      rig.finishes.shouldBeEmpty()
+    }
+
+  // Against a plan that says the slot holds a frame, a clean exit with nothing written is a failure and not an end.
+  @Test
+  fun `a process that exits cleanly having written nothing is reported and does not finish`() =
+    runTest {
+      val rig = Rig(this) { at -> opened(IndexedStream(at, frames = 0)) }
+
+      rig.pump.start(slotTime(START))
+      advanceUntilIdle()
+
+      val (status, errors) = rig.processFailures.single()
+      status shouldBe 0
+      errors shouldContain "wrote no frame"
       rig.finishes.shouldBeEmpty()
     }
 

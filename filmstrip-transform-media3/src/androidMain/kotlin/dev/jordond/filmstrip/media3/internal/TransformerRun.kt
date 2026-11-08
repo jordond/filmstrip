@@ -9,10 +9,12 @@ import androidx.media3.common.C
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
+import androidx.media3.transformer.InAppMp4Muxer
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.TransformationRequest
 import androidx.media3.transformer.Transformer
 import dev.jordond.filmstrip.FilmstripError
+import dev.jordond.filmstrip.edit.outputSlotTime
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.AdjustmentKind
 import dev.jordond.filmstrip.export.ExportPath
@@ -31,6 +33,7 @@ import dev.jordond.filmstrip.transform.internal.probe.readSources
 import dev.jordond.filmstrip.transform.internal.remainingAt
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedHdr
+import dev.jordond.filmstrip.transform.internal.videoSlotsOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
@@ -119,6 +122,7 @@ internal class TransformerRun(
             resolved.output.audioCodec
               .toMimeType()
               ?.let(::setAudioMimeType)
+            setMuxerFactory(videoEndingOnTheGrid())
           }
         }.setEncoderFactory(encoders)
         .setLooper(looper)
@@ -157,6 +161,21 @@ internal class TransformerRun(
     } catch (rejected: IllegalStateException) {
       Startup.Rejected(rejected.message ?: REJECTED)
     }
+  }
+
+  /**
+   * media3's own muxer, told where the video track ends so its last frame lasts until the end of the last slot the
+   * plan covers.
+   *
+   * Without that end the muxer gives the last frame the gap before it. A slowed clip writes each frame it shows once,
+   * on the first of its slots, so that gap can be many slots long and the track would run past the plan by it. A longer
+   * audio track holds the last frame to the same end, which sits on the frame grid like every other frame's.
+   */
+  private fun videoEndingOnTheGrid(): InAppMp4Muxer.Factory {
+    val rate = resolved.output.frameRate
+    return InAppMp4Muxer
+      .Factory()
+      .setVideoDurationUs(outputSlotTime(videoSlotsOf(resolved.duration, rate), rate).inWholeMicroseconds)
   }
 
   /**

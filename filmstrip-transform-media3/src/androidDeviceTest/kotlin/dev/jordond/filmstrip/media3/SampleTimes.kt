@@ -28,6 +28,17 @@ internal fun videoSampleTimes(file: File): List<Duration> =
   }
 
 /**
+ * How long [file]'s video track runs, as its container records it.
+ *
+ * The length is the track's own, not the file's, so an audio track running longer leaves it alone.
+ */
+internal fun videoTrackLength(file: File): Duration =
+  MediaExtractor().releasing { extractor ->
+    extractor.setDataSource(file.path)
+    extractor.getTrackFormat(extractor.trackOf(VIDEO)).getLong(MediaFormat.KEY_DURATION).microseconds
+  }
+
+/**
  * Copies the opening of [source]'s picture into [target] without decoding it, ending the copy part way into its last
  * frame.
  *

@@ -117,4 +117,8 @@ internal fun String.withLiveStarts(
 private fun liveStartHolder(index: Int) = "<live-start-$index>"
 
 private const val LIVE_GRAPH_FORMAT = "yuva420p"
-private const val LIVE_STAMP_BASE = 1_000_000
+
+/**
+ * The time base a live input's frames are stamped on, whole microseconds, which a frame meeting one has to sit on too.
+ */
+internal const val LIVE_STAMP_BASE: Int = 1_000_000
