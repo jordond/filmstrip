@@ -16,7 +16,7 @@ import kotlin.math.abs
 import kotlin.test.Test
 
 /**
- * Where the wrong answers [FfmpegHdrEffectTest] names alike on a plane land on the HDR fixture's patch.
+ * Where the wrong answers [FfmpegHdrEffectMediaTest] names alike on a plane land on the HDR fixture's patch.
  *
  * Each wrong answer in [FLATTENING_ALIKE] lands within twice [CODE_TOLERANCE] of [FLATTENING]'s prediction on every
  * plane it names, which is why that case leaves those planes out of telling the two apart. This fails once the

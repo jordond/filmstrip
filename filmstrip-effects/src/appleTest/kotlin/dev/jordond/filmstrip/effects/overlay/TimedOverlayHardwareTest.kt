@@ -1,0 +1,316 @@
+package dev.jordond.filmstrip.effects.overlay
+
+import dev.jordond.filmstrip.edit.TimeRange
+import dev.jordond.filmstrip.effect.CoreImageEffect
+import dev.jordond.filmstrip.effect.FrameInfo
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.BASELINE
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.CHANNELS
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.FRAME
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.FRAME_RECT
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.RASTER
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.SPAN
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.at
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.decodeHex
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.pixels
+import dev.jordond.filmstrip.effects.overlay.OverlayFixtures.stepFor
+import dev.jordond.filmstrip.effects.renderingContext
+import dev.jordond.filmstrip.geometry.Corner
+import dev.jordond.filmstrip.media.ImageSource
+import dev.jordond.filmstrip.style.TextStyle
+import io.kotest.assertions.withClue
+import io.kotest.matchers.floats.plusOrMinus
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
+import io.kotest.matchers.types.shouldNotBeSameInstanceAs
+import kotlinx.cinterop.ExperimentalForeignApi
+import platform.CoreImage.CIColor
+import platform.CoreImage.CIContext
+import platform.CoreImage.CIImage
+import kotlin.math.abs
+import kotlin.test.Test
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * Overlays that appear for part of the composition, and how they are drawn across it.
+ *
+ * A step is asked for a frame and a [FrameInfo], and the time in it is the composition's timeline
+ * position, which is the same base media3 hands its overlays and the same one ffmpeg's `enable`
+ * gates on. Outside its window a step hands the frame straight back, so the assertion is identity.
+ * That says the overlay drew nothing at all, not that it drew something invisible.
+ *
+ * The animated cases read the middle of a ramp rather than its ends, since both ends agree under an
+ * additive and a multiplicative reading, and every expectation comes from [frameAt] and [animatedBy]
+ * rather than from a number copied out of them.
+ *
+ * Pixels are read in the codes of the frame's own BT.709 color space, the values an encoder writes
+ * and the ones an SDR overlay blends on.
+ */
+@OptIn(ExperimentalForeignApi::class)
+class TimedOverlayHardwareTest {
+  @Test
+  fun `draws a watermark inside its window and not outside`() {
+    val step = stepFor(ImageOverlay(RED, Corner.BottomEnd, visibleDuring = WINDOW))
+    val frame = background()
+
+    withClue("the watermark is absent inside its window") {
+      step.apply(frame, at(1.5.seconds)) shouldNotBeSameInstanceAs frame
+    }
+    withClue("the watermark is still drawn after its window") {
+      step.apply(frame, at(3.seconds)) shouldBeSameInstanceAs frame
+    }
+    withClue("the watermark is drawn before its window") {
+      step.apply(frame, at(0.5.seconds)) shouldBeSameInstanceAs frame
+    }
+  }
+
+  @Test
+  fun `draws text inside its window and not outside`() {
+    val step = stepFor(TextOverlay("caption", TextStyle(), visibleDuring = WINDOW))
+    val frame = background()
+
+    withClue("the text is absent inside its window") {
+      step.apply(frame, at(1.5.seconds)) shouldNotBeSameInstanceAs frame
+    }
+    withClue("the text is still drawn after its window") {
+      step.apply(frame, at(3.seconds)) shouldBeSameInstanceAs frame
+    }
+  }
+
+  // The window is half-open, the same as every other TimeRange in filmstrip.
+  @Test
+  fun `includes the window's start and excludes its end`() {
+    val step = stepFor(ImageOverlay(RED, Corner.TopStart, visibleDuring = WINDOW))
+    val frame = background()
+
+    withClue("the start of the window is excluded") { step.apply(frame, at(1.seconds)) shouldNotBeSameInstanceAs frame }
+    withClue("the end of the window is included") { step.apply(frame, at(2.seconds)) shouldBeSameInstanceAs frame }
+  }
+
+  // An overlay that named no window is drawn on every frame it is handed, the span's own bounds
+  // included, so a timestamp landing on one never drops a frame nothing asked to hide.
+  @Test
+  fun `draws an untimed overlay on every frame`() {
+    val step = stepFor(ImageOverlay(RED, Corner.BottomEnd))
+    val frame = background()
+
+    listOf(Duration.ZERO, 1.5.seconds, 99.seconds).forEach { time ->
+      withClue("an untimed overlay was absent at $time") { step.apply(frame, at(time)) shouldNotBeSameInstanceAs frame }
+    }
+  }
+
+  // The authored opacity is the one frameAt folds in, so the backend applies it once and a
+  // watermark authored at half covers half of what an opaque one covers.
+  @Test
+  fun `draws an authored opacity as the coverage it asks for`() {
+    val context = renderingContext()
+    val overlay = ImageOverlay(RED, Corner.TopStart, opacity = HALF)
+    val plain = pixels(background(), context)
+    val whole = movedBy(stepFor(ImageOverlay(RED, Corner.TopStart)), BASELINE, context, plain)
+    withClue("the opaque watermark only moved the frame by $whole, so nothing here measures an alpha") {
+      (whole > FLOOR) shouldBe true
+    }
+
+    val opacity = withClue("the watermark was not drawn") { overlay.frameAt(BASELINE, SPAN).shouldNotBeNull() }.opacity
+    val moved = movedBy(stepFor(overlay), BASELINE, context, plain)
+
+    withClue("a half alpha watermark moved $moved of a full $whole") {
+      moved shouldBe (opacity * whole plusOrMinus whole * DRIFT)
+    }
+  }
+
+  @Test
+  fun `fades a watermark in across the middle of its ramp`() {
+    val context = renderingContext()
+    val overlay = ImageOverlay(RED, Corner.TopStart, animation = fade(inDuration = RAMP))
+    val faded = stepFor(overlay)
+    val plain = pixels(background(), context)
+    val whole = movedBy(stepFor(ImageOverlay(RED, Corner.TopStart)), BASELINE, context, plain)
+    withClue("the unfaded watermark only moved the frame by $whole, so nothing here measures a fade") {
+      (whole > FLOOR) shouldBe true
+    }
+
+    val drawn =
+      RAMP_POINTS.map { time ->
+        val opacity =
+          withClue("the watermark was not drawn at $time") {
+            overlay.frameAt(time, SPAN).shouldNotBeNull()
+          }.opacity
+        val moved = movedBy(faded, time, context, plain)
+        withClue("a fade at $time moved $moved of a full $whole") {
+          moved shouldBe (opacity * whole plusOrMinus whole * DRIFT)
+        }
+        moved
+      }
+
+    withClue("the two points of the ramp drew the same picture: $drawn") { (drawn[0] < drawn[1]) shouldBe true }
+    withClue("three quarters of the ramp drew as much as the unfaded watermark") { (drawn[1] < whole) shouldBe true }
+  }
+
+  // TextOverlay carries no authored opacity, so everything it fades by comes from the animation. The
+  // style carries a plate because CoreText draws the glyphs themselves black over a black frame.
+  @Test
+  fun `fades text in across the middle of its ramp`() {
+    val context = renderingContext()
+    val overlay = TextOverlay(CAPTION, PLATED, animation = fade(inDuration = RAMP))
+    val faded = stepFor(overlay)
+    val plain = pixels(background(), context)
+    val whole = movedBy(stepFor(TextOverlay(CAPTION, PLATED)), BASELINE, context, plain)
+    withClue("the unfaded text only moved the frame by $whole, so nothing here measures a fade") {
+      (whole > FLOOR) shouldBe true
+    }
+
+    RAMP_POINTS.forEach { time ->
+      val opacity =
+        withClue("the text was not drawn at $time") {
+          overlay.frameAt(time, SPAN).shouldNotBeNull()
+        }.opacity
+      val moved = movedBy(faded, time, context, plain)
+      withClue("a fade at $time moved $moved of a full $whole") {
+        moved shouldBe (opacity * whole plusOrMinus whole * DRIFT)
+      }
+    }
+  }
+
+  // The only case that reaches animatedBy, since a fade leaves the geometry where it was authored.
+  @Test
+  fun `slides a watermark across the middle of its ramp`() {
+    val context = renderingContext()
+    val overlay = ImageOverlay(RED, Corner.TopStart, animation = slideIn(TRAVEL, RAMP))
+    val step = stepFor(overlay)
+    val still = ImageOverlay(RED, Corner.TopStart)
+    // Upscaling a four pixel wide raster leaves a soft edge, so the column the watermark first
+    // reads on sits a few pixels inside its rectangle. The same few on every frame, so an
+    // unanimated draw is what the animated ones are measured against.
+    val resting = leftEdgeOf(pixels(stepFor(still).apply(background(), at(BASELINE)), context))
+    val restingLeft = still.placedOn(FRAME, RASTER).rectOn(FRAME).left * FRAME.width
+
+    RAMP_POINTS.forEach { time ->
+      val sampled = withClue("the watermark was not drawn at $time") { overlay.frameAt(time, SPAN).shouldNotBeNull() }
+      val expected =
+        overlay
+          .placedOn(FRAME, RASTER)
+          .animatedBy(sampled)
+          .rectOn(FRAME)
+          .left * FRAME.width
+      val drawn = leftEdgeOf(pixels(step.apply(background(), at(time)), context))
+
+      withClue("a slide at $time moved the watermark ${drawn - resting} pixels from where it was authored") {
+        (drawn - resting).toFloat() shouldBe (expected - restingLeft plusOrMinus EDGE_DRIFT)
+      }
+    }
+  }
+
+  @Test
+  fun `draws nothing outside the window an animation ramps over`() {
+    val overlay = ImageOverlay(RED, Corner.TopStart, visibleDuring = WINDOW, animation = fade(inDuration = RAMP))
+    val step = stepFor(overlay)
+    val frame = background()
+
+    withClue("an animated watermark was drawn before its window") {
+      step.apply(frame, at(0.5.seconds)) shouldBeSameInstanceAs frame
+    }
+    withClue("an animated watermark was drawn after its window") {
+      step.apply(frame, at(3.seconds)) shouldBeSameInstanceAs frame
+    }
+  }
+
+  // The ramp is measured off the window rather than off the span, so a one second fade inside a one
+  // second window is a quarter done a quarter of a second in, not a fortieth of the way up the span.
+  @Test
+  fun `ramps from the window's own start`() {
+    val context = renderingContext()
+    val overlay = ImageOverlay(RED, Corner.TopStart, visibleDuring = WINDOW, animation = fade(inDuration = WINDOW_RAMP))
+    val step = stepFor(overlay)
+    val plain = pixels(background(), context)
+    val whole = movedBy(stepFor(ImageOverlay(RED, Corner.TopStart)), BASELINE, context, plain)
+    withClue("the unfaded watermark only moved the frame by $whole, so nothing here measures a fade") {
+      (whole > FLOOR) shouldBe true
+    }
+    val time = WINDOW.start + INTO_WINDOW
+
+    val opacity =
+      withClue("the watermark was not drawn at $time") {
+        overlay.frameAt(time, SPAN).shouldNotBeNull()
+      }.opacity
+    val moved = movedBy(step, time, context, plain)
+
+    withClue("a fade at $time moved $moved of a full $whole") {
+      moved shouldBe (opacity * whole plusOrMinus whole * DRIFT)
+    }
+  }
+
+  private fun background(): CIImage = CIImage(color = CIColor.blackColor).imageByCroppingToRect(FRAME_RECT)
+
+  /**
+   * How far [step] moved the frame away from [plain] at [time], summed over every channel of every
+   * pixel.
+   *
+   * Compositing over a fixed background moves each channel by the overlay's opacity times something
+   * the opacity does not appear in, so the total is that opacity times what a fully opaque draw
+   * would have moved. Whatever the overlay is and wherever it lands cancels out of the ratio.
+   */
+  private fun movedBy(
+    step: CoreImageEffect,
+    time: Duration,
+    context: CIContext,
+    plain: FloatArray,
+  ): Float {
+    val drawn = pixels(step.apply(background(), at(time)), context)
+    var total = 0f
+    for (index in drawn.indices) total += abs(drawn[index] - plain[index])
+    return total
+  }
+
+  /**
+   * The leftmost column of [pixels] the red watermark covers, or -1 when it covers none.
+   */
+  private fun leftEdgeOf(pixels: FloatArray): Int {
+    for (column in 0 until FRAME.width) {
+      for (row in 0 until FRAME.height) {
+        val offset = (row * FRAME.width + column) * CHANNELS
+        if (pixels[offset] > RED_FLOOR && pixels[offset + 1] < GREEN_CEILING) return column
+      }
+    }
+    return -1
+  }
+
+  private companion object {
+    val WINDOW = TimeRange(1.seconds, 2.seconds)
+
+    val RAMP = 2.seconds
+    val QUARTER = 500.milliseconds
+    val THREE_QUARTERS = 1_500.milliseconds
+    val RAMP_POINTS = listOf(QUARTER, THREE_QUARTERS)
+
+    val WINDOW_RAMP = 1.seconds
+    val INTO_WINDOW = 250.milliseconds
+
+    // Half the frame's width, which keeps the watermark on frame at both points of the ramp.
+    val TRAVEL = OverlayOffset(0.5f, 0f)
+
+    const val CAPTION = "caption"
+
+    // A flat mid blue, far enough off black that a quarter of it is still well clear of the floor.
+    val PLATED = TextStyle(backgroundColor = 0xFF6699CC.toInt())
+
+    const val HALF = 0.5f
+    const val DRIFT = 0.02f
+    const val EDGE_DRIFT = 2f
+    const val FLOOR = 100f
+    const val RED_FLOOR = 0.5f
+    const val GREEN_CEILING = 0.25f
+
+    // A four by two opaque red PNG, so the height following the image's own aspect is exercised.
+    val RED =
+      ImageSource.ofBytes(
+        (
+          "89504e470d0a1a0a0000000d4948445200000004000000020806000000" +
+            "7fa87d630000001249444154789c63f8cfc0f01f1933a00b00000f210ff1" +
+            "0437c69f0000000049454e44ae426082"
+        ).decodeHex(),
+      )
+  }
+}

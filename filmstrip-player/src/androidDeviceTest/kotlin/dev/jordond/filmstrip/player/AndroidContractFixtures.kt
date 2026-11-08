@@ -147,7 +147,7 @@ internal fun androidFixtureBytesComposition(): EditComposition {
  * [media3ExportEngine], lowered again by `toMedia3`, and run through `Transformer` onto a real file
  * with a real encoder at [PREVIEW_PARITY_EXPORT_BITRATE]. Only the encoder separates it from the preview's own
  * frame, which is the one thing a preview is documented not to carry, and it is what the thresholds in
- * [AndroidPixelContractTest] are set against.
+ * [AndroidPixelContractMediaTest] are set against.
  *
  * Each composition is exported once and its file kept, since the suite compares several frames of
  * the same edit.

@@ -145,7 +145,7 @@ abstract class AppleOverlayIccCase {
     val HDR = ExportSpec(heightPx = 720, hdr = HdrMode.KeepHdr, bitrate = COLOR_READ_BITRATE)
 
     // What a real encode, a 4:2:0 round trip and the probe's color match leave on one channel of a flat color, as
-    // AppleEffectTest holds its overlays to.
+    // AppleEffectHardwareTest holds its overlays to.
     const val CHANNEL_DRIFT = 6
     const val FULL_SCALE = 255f
     const val SAMPLE_MASK = 0xFFFF

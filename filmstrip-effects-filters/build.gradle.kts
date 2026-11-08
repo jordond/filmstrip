@@ -1,5 +1,6 @@
 import dev.jordond.filmstrip.convention.androidDeviceTests
 import dev.jordond.filmstrip.convention.bootIosSimulatorForTests
+import dev.jordond.filmstrip.convention.pureTests
 import dev.jordond.filmstrip.convention.usesHostFfmpeg
 
 plugins {
@@ -7,6 +8,7 @@ plugins {
 }
 
 androidDeviceTests()
+pureTests()
 
 kotlin {
   sourceSets {

@@ -24,7 +24,7 @@ import kotlin.time.Duration.Companion.minutes
  * advertise and the Display P3 HEIC ImageIO writes on both.
  *
  * The `appleHardwareTest` source set is shared by `macosArm64Test` and `iosArm64Test`. The simulator reports no
- * hardware flag, which AppleSimulatorEncoderTest holds on that target along with its own HDR and HEIC answers.
+ * hardware flag, which AppleSimulatorEncoderHardwareTest holds on that target along with its own HDR and HEIC answers.
  * The HDR and HEIC pins are unmeasured on an iPhone, so the first device run confirms them.
  */
 class AppleHardwareEncoderTest {

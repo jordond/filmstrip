@@ -1,5 +1,8 @@
 name: CI
 
+# The fast lane. Media classes (*MediaTest) and hardware classes (*HardwareTest) are left out by build-logic, and
+# pureTest classes run on each plugin's reference target only. media.yml runs the rest nightly and before a release.
+
 on:
   workflow_dispatch:
   push:
@@ -12,7 +15,6 @@ on:
       - main
     types: [ opened, synchronize, reopened, ready_for_review ]
     paths-ignore:
-      - 'art/**'
       - '**.md'
 
 concurrency:
@@ -23,210 +25,223 @@ permissions:
   contents: write
 
 jobs:
+  # A pull request runs the library jobs when a library file or this workflow changed, and only the sample job when
+  # nothing but the sample changed. A push to main or a dispatch runs every library job.
+  changes:
+    name: "Changes"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      library: ${{ steps.classify.outputs.library }}
+      sample: ${{ steps.classify.outputs.sample }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: Classify changed paths
+        id: classify
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            git diff --name-only HEAD^1 HEAD | .github/scripts/classify-paths.sh | tee -a "$GITHUB_OUTPUT"
+          else
+            printf 'library=true\nsample=true\n' | tee -a "$GITHUB_OUTPUT"
+          fi
+
   verify:
     name: "Verify"
-    runs-on: macos-latest
+    needs: changes
+    if: needs.changes.outputs.library == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - name: Checkout
+      - &checkout
+        name: Checkout
         uses: actions/checkout@v7
 
-      - name: setup-java
+      - &java
+        name: setup-java
         uses: actions/setup-java@v6
         with:
           java-version: 17
           distribution: temurin
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
-
-      - name: Formatting, ABI, architecture guards and lint
-        run: ./gradlew --continue spotlessCheck checkKotlinAbi checkForbiddenImports checkLayering lint --scan
-
-      - name: Compile the docs snippets
-        run: |
-          ./gradlew :internal:docs-samples:compileKotlinJvm
-          ./gradlew :internal:docs-samples:compileKotlinWasmJs
-          ./gradlew :internal:docs-samples:compileAndroidMain
-          ./gradlew :internal:docs-samples:compileKotlinIosArm64
-          ./gradlew :sample:tryIt:compileKotlinWasmJs
-
-      - name: Build logic tests
-        run: ./gradlew -p build-logic :convention:test
-
-  test:
-    strategy:
-      fail-fast: false
-      matrix:
-        config: [
-          { target: "android-host", os: "ubuntu-latest", tasks: "testAndroidHostTest" },
-          { target: "jvm", os: "ubuntu-26.04", tasks: "jvmTest", ffmpeg: true },
-          { target: "ios-simulator", os: "macos-latest", tasks: "iosSimulatorArm64Test" },
-          { target: "macos-arm", os: "macos-latest", tasks: "macosArm64Test", ffmpeg: true },
-          { target: "wasm-browser", os: "ubuntu-latest", tasks: "wasmJsBrowserTest", browser: true },
-          { target: "js-browser", os: "ubuntu-latest", tasks: "jsBrowserTest", browser: true },
-          { target: "sample", os: "ubuntu-latest", tasks: ":sample:androidApp:assembleDebug" }
-        ]
-    runs-on: ${{ matrix.config.os }}
-    name: Test ${{ matrix.config.target }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: setup-java
-        uses: actions/setup-java@v6
-        with:
-          java-version: 17
-          distribution: temurin
-
-      - name: Install ffmpeg (linux)
-        if: matrix.config.ffmpeg && runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
-      # The JVM draws a text overlay with the fonts fontconfig finds, so the jvm cell pins one it always has.
-      - name: Install fonts (jvm)
-        if: matrix.config.target == 'jvm'
-        run: sudo apt-get install -y --no-install-recommends fontconfig fonts-dejavu-core
-
-      - name: Install ffmpeg (macos)
-        if: matrix.config.ffmpeg && runner.os == 'macOS'
-        run: brew install ffmpeg
-
-      - name: Cache Konan
+      - &konan
+        name: Cache Konan
         uses: actions/cache@v6
         with:
           path: |
             ~/.konan/caches
             ~/.konan/dependencies
-            ~/.konan/kotlin-native-prebuilt-macos-*
+            ~/.konan/kotlin-native-prebuilt-*
           key: ${{ runner.os }}-konan-${{ hashFiles('**/gradle/libs.versions.toml') }}
           restore-keys: |
             ${{ runner.os }}-konan-
 
-      - name: Setup Gradle
+      - &gradle
+        name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
       - name: Gradle Wrapper Validation
         uses: gradle/actions/wrapper-validation@v6
 
-      # Boots the simulator the tests spawn into before the test build starts. A fresh iOS runtime
-      # keeps the machine busy with first boot work for minutes after it reports booted, and booting
-      # here moves that work under compilation instead of under the first tests.
-      - name: Boot iOS simulator
-        if: matrix.config.target == 'ios-simulator'
-        run: ./gradlew :filmstrip-player:bootIosSimulator
+      - name: Path classifier
+        run: bash .github/scripts/classify-paths-test.sh
 
-      # A browser cell runs a SwiftShader Chrome per module, about 8 GB between them at their peak, beside the daemons.
-      # At gradle.properties' 8 GB heaps the Kotlin daemon alone reaches 9.5 GB, and in 16 GB the kernel kills Chrome
-      # mid-suite. With these heaps the same cell, measured in a 16 GB container, kills nothing.
-      - name: Run ${{ matrix.config.target }} tests
-        env:
-          DAEMON_HEAPS: ${{ matrix.config.browser && '-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8 -Dkotlin.daemon.jvm.options=-Xmx3g' || '' }}
-        run: ./gradlew ${{ matrix.config.tasks }} --scan ${DAEMON_HEAPS:+"$DAEMON_HEAPS"}
+      - name: iOS matrix lists every module with iOS tests
+        run: bash .github/scripts/check-ios-matrix.sh
 
-      # The ffmpeg backend on the release each cell means to test. The jvm cell, pinned to ubuntu 26.04, runs apt's
-      # 8.0.1, and the macos-arm cell runs current ffmpeg from brew, 9 or later. This step only checks the cell got that
-      # release. Whether a build meets the backend's floor is checked by checkFfmpegTestToolchain, which every
-      # ffmpeg jvmTest runs first with the backend's own rule. The macos-arm tests below run whatever the Apple tests
-      # did, each in its own Gradle call so ffmpeg and Apple never share VideoToolbox.
-      - name: Check ffmpeg major
-        id: ffmpeg-major
-        if: matrix.config.ffmpeg && !cancelled()
-        env:
-          INTENDED_MAJOR: ${{ matrix.config.target == 'macos-arm' && 9 || 8 }}
-          OR_LATER: ${{ matrix.config.target == 'macos-arm' }}
+      # Klibs cross-compile on Linux, so the ABI dumps of the Apple targets check here too.
+      - name: Formatting, ABI, architecture guards and the docs snippets
+        run: >-
+          ./gradlew --continue --scan
+          spotlessCheck checkKotlinAbi checkForbiddenImports checkLayering
+          :internal:docs-samples:compileKotlinJvm
+          :internal:docs-samples:compileKotlinWasmJs
+          :internal:docs-samples:compileAndroidMain
+          :internal:docs-samples:compileKotlinIosArm64
+          :sample:tryIt:compileKotlinWasmJs
+
+      - name: Build logic tests
+        run: ./gradlew -p build-logic :convention:test
+
+  lint:
+    name: "Lint"
+    needs: changes
+    if: needs.changes.outputs.library == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - *checkout
+      - *java
+      - *gradle
+      - name: Lint
+        run: ./gradlew lint --scan
+
+  jvm:
+    name: "Test jvm"
+    needs: changes
+    if: needs.changes.outputs.library == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - *checkout
+      - *java
+      # apt's ffmpeg on 26.04 is 8.0.1, the backend's floor. Every ffmpeg jvmTest runs checkFfmpegTestToolchain first.
+      # The JVM draws a text overlay with the fonts fontconfig finds, so the cell pins one it always has.
+      - name: Install ffmpeg and fonts
         run: |
-          banner=$(ffmpeg -version | head -1)
-          echo "$banner"
-          major=$(echo "$banner" | sed -nE 's/^ffmpeg version n?([0-9]+)\..*/\1/p')
-          if [ -z "$major" ]; then
-            echo "::error::expected a release of ffmpeg $INTENDED_MAJOR, got '$banner'"
-            exit 1
-          fi
-          if [ "$major" -eq "$INTENDED_MAJOR" ]; then
-            exit 0
-          fi
-          if [ "$OR_LATER" = true ] && [ "$major" -gt "$INTENDED_MAJOR" ]; then
-            exit 0
-          fi
-          echo "::error::expected ffmpeg $INTENDED_MAJOR$([ "$OR_LATER" = true ] && echo ' or later'), got '$banner'"
-          exit 1
-
-      - name: Run ffmpeg backend tests on current ffmpeg
-        if: matrix.config.target == 'macos-arm' && !cancelled() && steps.ffmpeg-major.outcome == 'success'
-        run: ./gradlew :filmstrip-transform-ffmpeg:jvmTest --scan
-
-      - name: Run effects tests on current ffmpeg
-        if: matrix.config.target == 'macos-arm' && !cancelled() && steps.ffmpeg-major.outcome == 'success'
-        run: ./gradlew :filmstrip-effects:jvmTest --scan
-
-      - name: Run filter tests on current ffmpeg
-        if: matrix.config.target == 'macos-arm' && !cancelled() && steps.ffmpeg-major.outcome == 'success'
-        run: ./gradlew :filmstrip-effects-filters:jvmTest --scan
-
-      - name: Slowest test classes
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg fontconfig fonts-dejavu-core
+      - *gradle
+      - name: Run jvm tests
+        run: ./gradlew jvmTest --scan
+      - &slowest
+        name: Slowest test classes
         if: always()
         run: python3 .github/scripts/slowest-tests.py
-
-      - name: Upload test reports
+      - &reports
+        name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: test-reports-${{ matrix.config.target }}
+          name: test-reports-${{ github.job }}-${{ strategy.job-index }}
           path: |
             **/build/reports/tests/
             **/build/test-results/
           retention-days: 7
 
-  test-android-device:
-    name: "Test android device"
+  android:
+    name: "Test android"
+    needs: changes
+    if: needs.changes.outputs.library == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
+      - *checkout
+      - *java
+      - *gradle
+      - name: Run android host tests and build the sample
+        run: ./gradlew testAndroidHostTest :sample:androidApp:assembleDebug --scan
+      - *slowest
+      - *reports
 
-      - name: setup-java
-        uses: actions/setup-java@v6
-        with:
-          java-version: 17
-          distribution: temurin
+  # A browser cell runs a SwiftShader Chrome per module, about 8 GB between them at their peak, beside the daemons.
+  # At gradle.properties' 8 GB heaps the Kotlin daemon alone reaches 9.5 GB, and in 16 GB the kernel kills Chrome
+  # mid-suite. With these heaps the same cell, measured in a 16 GB container, kills nothing.
+  js:
+    name: "Test js"
+    needs: changes
+    if: needs.changes.outputs.library == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - *checkout
+      - *java
+      - *gradle
+      - name: Run js browser tests
+        run: >-
+          ./gradlew jsBrowserTest --scan
+          "-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8 -Dkotlin.daemon.jvm.options=-Xmx3g"
+      - *slowest
+      - *reports
 
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
-            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
+  # Compiles the test sources no fast-lane job runs: the iOS test klibs, the wasm test executable and the Android
+  # device tests.
+  compile:
+    name: "Compile tests"
+    needs: changes
+    if: needs.changes.outputs.library == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - *checkout
+      - *java
+      - *konan
+      - *gradle
+      - name: Compile every test source
+        run: ./gradlew compileTests --scan
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
+  # The only fast-lane job on macOS, and the only place Kotlin/Native logic and the Apple smoke export run per push.
+  macos:
+    name: "Test macos"
+    needs: changes
+    if: needs.changes.outputs.library == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - *checkout
+      - *java
+      - *konan
+      - *gradle
+      - name: Run macos tests
+        run: ./gradlew macosArm64Test --scan
+      - *slowest
+      - *reports
 
-      - name: Run device tests
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 30
-          arch: x86_64
-          target: google_apis
-          # The runner's defaults with two changes.
-          # -HardwareDecoder leaves video to the software decoder. The API 30 image's host-backed
-          # OMX.android.goldfish.h264.decoder drops frames it was told to render, and media3 waits
-          # 20s for them on an emulator at every seek and release.
-          # swangle_indirect renders through ANGLE on SwiftShader's Vulkan device. The legacy
-          # SwiftShader GLES behind swiftshader_indirect spends 10 to 18s of one host core on the
-          # first draw of each blurred fill shader, which runs an export past media3's 25s wait for
-          # its first muxer sample.
-          emulator-options: "-no-window -gpu swangle_indirect -no-snapshot -noaudio -no-boot-anim -feature -HardwareDecoder"
-          script: ./gradlew connectedAndroidDeviceTest --scan
-
-      - name: Slowest test classes
-        if: always()
-        run: python3 .github/scripts/slowest-tests.py
-
-      - name: Upload test reports
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: test-reports-android-device
-          path: |
-            **/build/reports/androidTests/
-            **/build/outputs/androidTest-results/
-          retention-days: 7
+  # A pull request that touches only the sample, or the stylesheets it reads, builds the app and runs its jvm tests.
+  sample:
+    name: "Test sample"
+    needs: changes
+    if: needs.changes.outputs.library != 'true' && needs.changes.outputs.sample == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - *checkout
+      - *java
+      - *gradle
+      - name: Build the sample and run its jvm tests
+        run: >-
+          ./gradlew --scan
+          :sample:androidApp:assembleDebug
+          :sample:common:jvmTest
+          :sample:shared:jvmTest
+          :sample:tryIt:jvmTest
+          :sample:tryIt:compileKotlinWasmJs
+      - *slowest
+      - *reports

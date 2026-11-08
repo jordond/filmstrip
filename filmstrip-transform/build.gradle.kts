@@ -1,6 +1,10 @@
+import dev.jordond.filmstrip.convention.pureTests
+
 plugins {
   id("filmstrip.library")
 }
+
+pureTests()
 
 kotlin {
   sourceSets {

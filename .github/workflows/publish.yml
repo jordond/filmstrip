@@ -9,8 +9,15 @@ permissions:
   contents: write
 
 jobs:
+  # The media lane gates every release, since the fast lane on each push leaves the media suites out.
+  media:
+    name: Media lane
+    uses: ./.github/workflows/media.yml
+    secrets: inherit
+
   release:
     name: Publish library
+    needs: media
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -29,6 +36,8 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
 
       - name: Deploy to Maven Central (Central Portal)
         run: ./gradlew publishAllPublicationsToMavenCentral --no-configuration-cache --stacktrace

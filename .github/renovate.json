@@ -12,6 +12,8 @@
   "semanticCommitType": "chore",
   "semanticCommitScope": "deps",
   "minimumReleaseAge": "3 days",
+  "schedule": ["before 6am on monday"],
+  "timezone": "America/Toronto",
   "prConcurrentLimit": 5,
   "prHourlyLimit": 0,
   "rebaseWhen": "conflicted",

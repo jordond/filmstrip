@@ -10,7 +10,7 @@ internal const val RENDER_CODES = 2.0
 /**
  * How far a colour read off a file media3 wrote may land from what it should read, in 8-bit codes.
  *
- * Measured over every encoded read in `AndroidFilmTest`, twice each on the API 30 and API 36 x86_64 emulators, and
+ * Measured over every encoded read in `AndroidFilmMediaTest`, twice each on the API 30 and API 36 x86_64 emulators, and
  * rounded up to the next whole code. The largest was the film glow on API 36, 4.41 codes off the signal where the
  * chain drew it 1.41 off, and API 30 read it 2.41 off.
  */

@@ -14,7 +14,7 @@ import kotlin.test.assertFailsWith
  *
  * Every array the raster holds lives on the Java heap, so the ceiling is the smaller of the picture ceiling and half
  * that heap. The heaps here are literals, since they pin Android's own limit. Preparing a raster that runs out of
- * memory is refused by name. The pixels the raster keeps are read on a device, in `TextPlateRasterTest`.
+ * memory is refused by name. The pixels the raster keeps are read on a device, in `TextPlateRasterMediaTest`.
  */
 class TextRasterHostTest {
   @Test

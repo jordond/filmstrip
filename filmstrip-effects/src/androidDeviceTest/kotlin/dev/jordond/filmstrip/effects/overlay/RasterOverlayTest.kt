@@ -21,7 +21,7 @@ import kotlin.time.Duration.Companion.seconds
  * What media3 is handed for one frame, read off the overlay rather than off an export.
  *
  * On a device because every type in the answer is a framework one: the bitmap, the pairs media3
- * carries its anchors in, and the builder that holds them. `AndroidOverlayTest` measures the pixels
+ * carries its anchors in, and the builder that holds them. `AndroidOverlayMediaTest` measures the pixels
  * these produce, and this is the half that would not show up there, which is whether a still
  * overlay still costs nothing per frame and where the anchor clamp lands. It also pins the text raster's size
  * against the shared text metrics.

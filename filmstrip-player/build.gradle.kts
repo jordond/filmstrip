@@ -1,5 +1,6 @@
 import dev.jordond.filmstrip.convention.androidDeviceTests
 import dev.jordond.filmstrip.convention.bootIosSimulatorForTests
+import dev.jordond.filmstrip.convention.pureTests
 import dev.jordond.filmstrip.convention.testmedia.FixturePatch
 import dev.jordond.filmstrip.convention.testmedia.FixtureSpec
 import dev.jordond.filmstrip.convention.testmedia.FixtureTransfer
@@ -12,6 +13,7 @@ plugins {
 }
 
 androidDeviceTests()
+pureTests()
 
 kotlin {
   sourceSets {

@@ -9,8 +9,8 @@ import kotlin.math.abs
 import kotlin.test.Test
 
 /**
- * Checks each bound AppleHdrBrightnessTest holds an HDR brightness read to still catches the wrong readings it is
- * there for.
+ * Checks each bound AppleHdrBrightnessHardwareTest holds an HDR brightness read to still catches the wrong readings it
+ * is there for.
  *
  * Works from the shared gains alone, so it runs on every Apple target without a fixture or an HDR encoder.
  */

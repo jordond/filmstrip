@@ -1,0 +1,252 @@
+name: Media
+
+# The media lane. Every Gradle call passes -Pmedia, which brings the *MediaTest classes back. *HardwareTest classes
+# stay out, since the hosted macOS GPU is a paravirtual device whose encoder jitters, so Apple pixel and encode suites
+# count only on real hardware in the local lane. Runs nightly on main, on dispatch, and from publish.yml before a
+# release goes out.
+
+on:
+  schedule:
+    # 07:00 UTC, 2 or 3 am in Toronto.
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: media-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # A month-end BtbN autobuild, which BtbN keeps once the dailies roll off. The gpl build is static apart from glibc
+  # and carries libx265, so it passes checkFfmpegTestToolchain's ten-bit HEVC gate.
+  FFMPEG9_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-31-12-59/ffmpeg-n9.0.2-39-g7adfbe40dc-linux64-gpl-9.0.tar.xz
+  FFMPEG9_SHA256: 73e29a56974ae5a651133a04584c7483b21afe941e17dc91d79814a758b608d3
+
+jobs:
+  # ffmpeg 8 is apt's 8.0.1 on ubuntu 26.04, the backend's floor, and runs every jvm suite. ffmpeg 9 is the pinned
+  # static build on the PATH and runs the suites that drive ffmpeg. Each major splits the backend from the rest.
+  ffmpeg:
+    name: "Test ffmpeg ${{ matrix.major }} ${{ matrix.suite }}"
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { major: 8, suite: backend, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
+          - { major: 8, suite: rest, tasks: "jvmTest -x :filmstrip-transform-ffmpeg:jvmTest" }
+          - { major: 9, suite: backend, tasks: ":filmstrip-transform-ffmpeg:jvmTest" }
+          - { major: 9, suite: rest, tasks: ":filmstrip-player:jvmTest :filmstrip-effects:jvmTest :filmstrip-effects-filters:jvmTest" }
+    steps:
+      - &checkout
+        name: Checkout
+        uses: actions/checkout@v7
+
+      - &java
+        name: setup-java
+        uses: actions/setup-java@v6
+        with:
+          java-version: 17
+          distribution: temurin
+
+      # The JVM draws a text overlay with the fonts fontconfig finds, so the cell pins one it always has.
+      - name: Install fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fontconfig fonts-dejavu-core
+
+      - name: Install ffmpeg 8
+        if: matrix.major == 8
+        run: sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Install ffmpeg 9
+        if: matrix.major == 9
+        run: |
+          dir="$RUNNER_TEMP/ffmpeg9"
+          mkdir -p "$dir"
+          curl -fsSL --retry 3 -o "$dir/ffmpeg.tar.xz" "$FFMPEG9_URL"
+          echo "$FFMPEG9_SHA256  $dir/ffmpeg.tar.xz" | sha256sum -c -
+          tar -xJf "$dir/ffmpeg.tar.xz" -C "$dir" --strip-components=1
+          echo "$dir/bin" >> "$GITHUB_PATH"
+
+      # Checks the cell got the major it means to test. Whether a build meets the backend's floor is
+      # checkFfmpegTestToolchain's call, which every ffmpeg jvmTest runs first with the backend's own rule.
+      - name: Check ffmpeg major
+        env:
+          INTENDED_MAJOR: ${{ matrix.major }}
+        run: |
+          banner=$(ffmpeg -version | head -1)
+          echo "$banner"
+          major=$(echo "$banner" | sed -nE 's/^ffmpeg version n?([0-9]+)\..*/\1/p')
+          if [ "$major" != "$INTENDED_MAJOR" ]; then
+            echo "::error::expected a release of ffmpeg $INTENDED_MAJOR, got '$banner'"
+            exit 1
+          fi
+
+      - &gradle
+        name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+
+      - name: Run tests
+        run: ./gradlew ${{ matrix.tasks }} -Pmedia --scan
+
+      - &slowest
+        name: Slowest test classes
+        if: always()
+        run: python3 .github/scripts/slowest-tests.py
+
+      - &reports
+        name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: media-reports-${{ github.job }}-${{ strategy.job-index }}
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          retention-days: 7
+
+  # See ci.yml for why the browser cells run with smaller daemon heaps. js also runs every pureTest class, which the
+  # fast lane runs on jvm only.
+  browser:
+    name: "Test ${{ matrix.target }} browser"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: js, tasks: "jsBrowserTest -PpureEverywhere" }
+          - { target: wasm, tasks: "wasmJsBrowserTest" }
+    steps:
+      - *checkout
+      - *java
+      - *gradle
+      - name: Run browser tests
+        run: >-
+          ./gradlew ${{ matrix.tasks }} -Pmedia --scan
+          "-Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8 -Dkotlin.daemon.jvm.options=-Xmx3g"
+      - *slowest
+      - *reports
+
+  device:
+    name: "Test android device ${{ matrix.suite }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { suite: media3, tasks: ":filmstrip-transform-media3:connectedAndroidDeviceTest" }
+          - { suite: rest, tasks: "connectedAndroidDeviceTest -x :filmstrip-transform-media3:connectedAndroidDeviceTest" }
+    steps:
+      - *checkout
+      - *java
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - *gradle
+
+      - name: Run device tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          # The runner's defaults with two changes.
+          # -HardwareDecoder leaves video to the software decoder. The API 30 image's host-backed
+          # OMX.android.goldfish.h264.decoder drops frames it was told to render, and media3 waits
+          # 20s for them on an emulator at every seek and release.
+          # swangle_indirect renders through ANGLE on SwiftShader's Vulkan device. The legacy
+          # SwiftShader GLES behind swiftshader_indirect spends 10 to 18s of one host core on the
+          # first draw of each blurred fill shader, which runs an export past media3's 25s wait for
+          # its first muxer sample.
+          emulator-options: "-no-window -gpu swangle_indirect -no-snapshot -noaudio -no-boot-anim -feature -HardwareDecoder"
+          script: ./gradlew ${{ matrix.tasks }} -Pmedia --scan
+
+      - *slowest
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: media-reports-${{ github.job }}-${{ strategy.job-index }}
+          path: |
+            **/build/reports/androidTests/
+            **/build/outputs/androidTest-results/
+          retention-days: 7
+
+  # One job per module with iOS tests, so the simulator suites run side by side instead of one 40 minute cell.
+  # check-ios-matrix.sh fails CI when this list and the modules with iOS tests differ.
+  ios:
+    name: "Test ios ${{ matrix.module }}"
+    runs-on: macos-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - filmstrip
+          - filmstrip-core
+          - filmstrip-transform
+          - filmstrip-transform-avfoundation
+          - filmstrip-effects
+          - filmstrip-effects-filters
+          - filmstrip-player
+          - filmstrip-compose
+          - filmstrip-test
+          - filmstrip-io-filekit
+          - filmstrip-io-kotlinx
+          - filmstrip-io-okio
+          - internal:ios-harness
+    steps:
+      - *checkout
+      - *java
+      - &konan
+        name: Cache Konan
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.konan/caches
+            ~/.konan/dependencies
+            ~/.konan/kotlin-native-prebuilt-*
+          key: ${{ runner.os }}-konan-${{ hashFiles('**/gradle/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-konan-
+      - *gradle
+
+      # Boots the simulator the tests spawn into before the test build starts. A fresh iOS runtime
+      # keeps the machine busy with first boot work for minutes after it reports booted, and booting
+      # here moves that work under compilation instead of under the first tests.
+      - name: Boot iOS simulator
+        run: ./gradlew :filmstrip-player:bootIosSimulator
+
+      - name: Run ios simulator tests
+        run: ./gradlew :${{ matrix.module }}:iosSimulatorArm64Test -Pmedia --scan
+      - *slowest
+      - *reports
+
+  # Runs every pureTest class on macOS as well, which the fast lane runs on jvm only.
+  macos:
+    name: "Test macos"
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - *checkout
+      - *java
+      - *konan
+      - *gradle
+      - name: Run macos tests
+        run: ./gradlew macosArm64Test -Pmedia -PpureEverywhere --scan
+      - *slowest
+      - *reports

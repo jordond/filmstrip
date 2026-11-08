@@ -264,22 +264,25 @@ internal const val TONE_MAP_TOLERANCE_CODES = 2.0
 /**
  * What a colour read back out of a written file meets, in 8-bit codes.
  *
- * Measured on a MacBook Pro with an M4 Max (Mac16,5) on macOS 26.6.2, twice, over every encoded colour read in the
- * Apple tone map, ladder, SD colour, film, CRT and LUT tests. The largest is 4.42 codes, a film glow's red over a flat
- * grey, which leaves a margin of 0.58. One 8-bit Cr step in the written H.264 moves red by 1.8 codes, so a colour
- * rounds further in the encoder than a grey does.
+ * Measured over every encoded colour read in the Apple tone map, ladder, SD colour, film, CRT and LUT tests on a
+ * MacBook Pro with an M4 Max (Mac16,5), twice on macOS 26.6.2 through the hardware VideoToolbox encoder and twice on
+ * the iOS 27.0 simulator through its software encoder, whose reads repeat exactly. The ladder test runs on macOS only.
+ * The largest on macOS is 4.42 codes, a film glow's red over a flat grey, which leaves a margin of 0.58. The largest on
+ * the simulator is 4.06 codes, an SMPTE C bar written as BT.709. One 8-bit Cr step in the written H.264 moves red by
+ * 1.8 codes, so a colour rounds further in the encoder than a grey does.
  */
 internal const val WRITTEN_COLOUR_CODES = 5.0
 
 /**
  * What a luma read, or a mean of the three channels, read back out of a written file meets, in 8-bit codes.
  *
- * Measured on a MacBook Pro with an M4 Max (Mac16,5) on macOS 26.6.2, twice, over the film glow's luma and the VHS
- * channel means. The largest is 0.78 codes, a VHS frame over a tone mapped PQ clip, which leaves a margin of 0.22. Luma
- * is carried at full resolution in the written H.264, and a mean of the channels follows it, so either rounds less than
- * one colour does.
+ * Measured over the film glow's luma and the VHS channel means on a MacBook Pro with an M4 Max (Mac16,5), once on macOS
+ * 26.6.2 and twice on the iOS 27.0 simulator, whose reads repeat exactly. The largest on macOS is 1.13 codes, a VHS
+ * frame over a tone mapped HLG clip. The largest on the simulator is 1.26 codes, a VHS frame over a tone mapped PQ
+ * clip, which leaves a margin of 0.24. Luma is carried at full resolution in the written H.264, and a mean of the
+ * channels follows it, so either rounds less than one colour does.
  */
-internal const val WRITTEN_LUMA_CODES = 1.0
+internal const val WRITTEN_LUMA_CODES = 1.5
 
 private const val MAX_CODE = 255.0
 private const val CODE_EPSILON = 1e-9

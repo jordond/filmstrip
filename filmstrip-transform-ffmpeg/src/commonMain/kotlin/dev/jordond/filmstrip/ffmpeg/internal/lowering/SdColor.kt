@@ -31,7 +31,7 @@ internal data class SdColor(
    *
    * The input range stays off the frame, so a full range clip reads as one. Both curves are named as BT.709's, since
    * that is the curve the shared function goes through whatever a clip's transfer tag says. The filter works out its
-   * own matrix from the same chromaticities core holds, and `FfmpegSdColorTest` holds the two together.
+   * own matrix from the same chromaticities core holds, and `FfmpegSdColorMediaTest` holds the two together.
    */
   private val toBt709: FilterNode
     get() =

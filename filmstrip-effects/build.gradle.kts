@@ -1,11 +1,13 @@
 import dev.jordond.filmstrip.convention.androidDeviceTests
 import dev.jordond.filmstrip.convention.bootIosSimulatorForTests
+import dev.jordond.filmstrip.convention.pureTests
 
 plugins {
   id("filmstrip.library")
 }
 
 androidDeviceTests()
+pureTests()
 
 kotlin {
   sourceSets {

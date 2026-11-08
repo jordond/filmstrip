@@ -2,10 +2,12 @@ package dev.jordond.filmstrip.convention.plugin
 
 import dev.jordond.filmstrip.convention.configureArchitectureGuards
 import dev.jordond.filmstrip.convention.configureBuildLogicSpotless
+import dev.jordond.filmstrip.convention.configureCompileTests
 import dev.jordond.filmstrip.convention.configureComposeUiTestCheck
-import dev.jordond.filmstrip.convention.configureMeasureLane
+import dev.jordond.filmstrip.convention.configureIosTestModules
 import dev.jordond.filmstrip.convention.configureNoMatchingTestsCheck
 import dev.jordond.filmstrip.convention.configureSpotless
+import dev.jordond.filmstrip.convention.configureTestLanes
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 
@@ -19,7 +21,9 @@ class RootPlugin : Plugin<Project> {
     // through a convention of their own.
     target.allprojects {
       configureComposeUiTestCheck()
-      configureMeasureLane()
+      configureTestLanes()
+      configureCompileTests()
+      configureIosTestModules()
       configureNoMatchingTestsCheck()
     }
   }

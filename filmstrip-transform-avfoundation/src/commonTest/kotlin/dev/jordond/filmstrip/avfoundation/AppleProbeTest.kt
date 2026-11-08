@@ -22,7 +22,7 @@ import kotlin.time.Duration.Companion.minutes
  * The fixtures are generated to a spec, so the expected values are that spec, never whatever the
  * platform happened to say.
  *
- * A case fails when its fixture is missing, as in [AppleExportTest].
+ * A case fails when its fixture is missing, as in [AppleExportHardwareTest].
  */
 class AppleProbeTest {
   private val filmstrip = Filmstrip { avFoundationBackend() }

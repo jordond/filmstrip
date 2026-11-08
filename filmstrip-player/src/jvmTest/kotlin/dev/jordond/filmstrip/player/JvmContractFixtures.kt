@@ -95,7 +95,7 @@ internal fun jvmTrimmedComposition(length: Duration): EditComposition =
  * This is the export path in full, encoder included, rather than a second run of the preview's own
  * graph: the edit is negotiated again, encoded at [PREVIEW_PARITY_EXPORT_BITRATE] to a real mp4, and the frame at
  * [position] decoded out of it. That is one encode further than the preview goes, which is why
- * [JvmPixelContractTest] loosens its thresholds and says by how much.
+ * [JvmPixelContractMediaTest] loosens its thresholds and says by how much.
  *
  * The file is kept per composition, since the suite asks for several frames of each.
  */

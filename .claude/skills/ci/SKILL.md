@@ -1,7 +1,7 @@
 ---
 name: ci
 description: "Run filmstrip's full CI lane (spotless, ABI, layer guards, lint, every test target, sample build) one Gradle call per step in the background and read only the digest. Use once per plan after its review, never inline."
-argument-hint: "[--remote] [--device] [--rerun] [--only step,step] [checkout] | --digest"
+argument-hint: "[--remote] [--hosts a,b] [--device] [--fast] [--rerun] [--dry] [--only step,step] [checkout] | --digest"
 ---
 
 Never run the whole lane inline, its output is long and a builder already ran its own narrow slice.
@@ -9,8 +9,12 @@ Never run the whole lane inline, its output is long and a builder already ran it
 - `$ARGUMENTS` is `--digest` → re-read the last digest: `for f in "${TMPDIR:-/tmp}"/filmstrip-ci/*/*.log; do echo "$f"; grep -a '^RESULT' "$f"; done`, report. Each path names the checkout its lane ran.
 - Otherwise: `Bash`, `run_in_background: true`, command `bash .claude/skills/ci/ci.sh $ARGUMENTS`. Do something else or end the turn, the completion notification wakes you. Read only the digest and the trailing `exit=N` (the number of `FAIL` and `unknown` steps), never a whole log.
 
-Steps, each its own Gradle call, in CI's order: `spotless`, `abi`, `guards`, `lint`, `android-host`, `jvm`, `wasm`, `js`, `macos`, `ios-boot`, `ios`, `sample`, and `device` with `--device`. `jvm` and `macos` run one after the other, so ffmpeg and Apple never share VideoToolbox.
-- `--remote` sends every step except `abi`, `macos` and the `ios` pair to cerebro, for when the owner wants the Mac free.
+Steps, each its own Gradle call, in CI's order: `spotless`, `build-logic`, `abi`, `guards`, `lint`, `android-host`, `jvm`, `wasm`, `js`, `macos`, `ios-boot`, `ios`, `sample`, and `device` with `--device`. The digest prints in this order, each line with its start time and chain.
+- Every test step passes `-Pmedia -Phardware -PpureEverywhere`, so the lane runs media, hardware and pure tests on every target. `--fast` drops them and runs what a push runs.
+- Without `--remote` every step runs on the Mac one at a time, so ffmpeg and Apple never share VideoToolbox.
+- `--remote` runs two chains at once. The mac chain (`abi`, `wasm`, `js`, `macos`, `ios-boot`, `ios`) stays on the Mac, since cerebro has no working ChromeHeadless. The remote chain sends the rest, `device` included, to `FILMSTRIP_REMOTE` or cerebro. Wall time is the longer chain.
+- `--hosts a,b` implies `--remote` and splits the remote chain across both hosts, alternating steps. A host is `cerebro`, `hoogflix` or `user@address`. `device` always goes to the first host, so list the one with the emulator first.
+- `--dry` prints each step's chain, host, properties and tasks and runs nothing. Use it to check a flag combination.
 - `--device` needs an emulator booted first: the local AVD per memory `running-android-device-suite`, or `scratchpad/remote/emulator.sh start` with `--remote`. Required for green on any preview, readback, thumbnail or export pixel path.
 - A checkout argument runs the lane against an integration worktree instead of `main`.
 - A test task Gradle skips as `UP-TO-DATE` or restores `FROM-CACHE` passed at these exact inputs, so its existing result XML counts and the digest shows `cached=<n>`. Gradle never caches a failed test task. Local steps only: `--remote` still reports a cached step as `unknown`.

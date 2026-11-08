@@ -50,6 +50,11 @@ kotlin {
     listOf("jvmMain", "androidMain", "appleMain").forEach { named(it) { dependsOn(filesMain) } }
     listOf("jvmTest", "appleTest").forEach { named(it) { dependsOn(filesTest) } }
 
+    // Reads a still's header through the platform decoder, on the targets that measure one off the host. Android
+    // decodes through BitmapFactory, which the device suite covers.
+    val imageProbeTest = create("imageProbeTest") { dependsOn(commonTest.get()) }
+    listOf("jvmTest", "macosArm64Test", "jsTest").forEach { named(it) { dependsOn(imageProbeTest) } }
+
     commonMain {
       kotlin.srcDir(generateVersionFile)
 
