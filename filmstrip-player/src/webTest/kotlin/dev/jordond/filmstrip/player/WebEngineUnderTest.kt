@@ -20,12 +20,16 @@ import kotlin.time.Duration
  * @param scope The dispatcher the engine is confined to.
  * @param readDevice Reads what the engine's planner takes this device's encoders to be. The page's own by default.
  * @param drawFirstFrame Draws the frame a new graph owes at a position, answering whether it drew one.
+ * @param readSyncSample Reads the sync sample a relaxed seek lands on, at or before a position.
  */
 internal class WebEngineUnderTest(
   scope: CoroutineScope,
   readDevice: (suspend () -> DeviceCapabilities)? = null,
   drawFirstFrame: suspend (preview: BrowserPreview, at: Duration) -> Boolean = { preview, at ->
     preview.frameAt(at) != null
+  },
+  readSyncSample: suspend (preview: BrowserPreview, position: Duration) -> Duration = { preview, position ->
+    preview.syncSampleAt(position)
   },
 ) : EngineUnderTest {
   override val engine: BrowserPlayerEngine =
@@ -34,6 +38,7 @@ internal class WebEngineUnderTest(
       planner = BrowserPreviewPlanner(CONTRACT_COMPONENTS, readDevice),
       config = PlayerConfig(),
       drawFirstFrame = drawFirstFrame,
+      readSyncSample = readSyncSample,
     )
 
   override val platformLoads: Int get() = engine.platformLoads

@@ -26,16 +26,8 @@ import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.ranges.shouldBeIn
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
-import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Delay
-import kotlinx.coroutines.InternalCoroutinesApi
-import kotlinx.coroutines.Runnable
-import kotlin.coroutines.ContinuationInterceptor
-import kotlin.coroutines.CoroutineContext
-import kotlin.coroutines.resume
+import kotlinx.coroutines.delay
 import kotlin.test.Test
 import kotlin.test.fail
 import kotlin.time.Duration
@@ -154,9 +146,9 @@ class FfmpegLoopWrapTest {
   fun `a wrap held back behind a seek lands on the range standing`() =
     contractTest { scope ->
       val planner = GatedPlanner()
-      val clock = HeldDelayDispatcher(scope.coroutineContext[ContinuationInterceptor] as CoroutineDispatcher)
-      val engineScope = CoroutineScope(scope.coroutineContext + clock)
-      val engine = FfmpegPlayerEngine(parent = engineScope, planner = planner, config = PlayerConfig())
+      val scrub = HeldScrubDebounce()
+      val engine =
+        FfmpegPlayerEngine(parent = scope, planner = planner, config = PlayerConfig(), scrubDebounce = scrub::await)
 
       withEngine(engine) { recorder ->
         engine
@@ -182,14 +174,13 @@ class FfmpegLoopWrapTest {
         val registration = engine.addListener(seeker)
         seeker.armed = true
         val release = planner.holdNextOpen(at = wrapLanding)
-        // The engine is paused on the last slot, so the next delay it asks for is the seek's debounce.
-        val debounce = clock.holdNextDelay()
+        val debounce = scrub.holdNext()
         val events = recorder.events.size
         engine
           .awaitComposition(jvmFixtureComposition(listOf(Brightness(BRIGHT))), playWhenReady = true)
           .shouldBeInstanceOf<SetCompositionResult.Success>()
         awaitContract("the wrap onto $OLD_RANGE to fire", timeout = PLAY_BUDGET) {
-          clock.delayHeld && recorder.events.drop(events).any { it is PlaybackEvent.RangeLooped }
+          scrub.held && recorder.events.drop(events).any { it is PlaybackEvent.RangeLooped }
         }
         debounce.complete(Unit)
         awaitContract("the wrap onto $OLD_RANGE to be held", timeout = PLAY_BUDGET) { planner.openHeld }
@@ -271,40 +262,25 @@ private class SeekOnPreviewInfo(
 }
 
 /**
- * Runs everything on [inner] and, once armed, holds the next delay asked of it until the test lets it go.
+ * Stands in for the engine's scrub debounce and, once armed, holds the next one until the test lets it go.
  *
- * An engine built on this waits out a scrub debounce only when the test says so, which fixes the order between the
- * debounce and a pump that would otherwise race it on the clock. Every other delay runs on [inner]'s own clock.
+ * This fixes the order between the debounce and a pump that would otherwise race it on the clock. An unarmed debounce
+ * waits out the length the engine asks for.
  */
-@OptIn(InternalCoroutinesApi::class)
-private class HeldDelayDispatcher(
-  private val inner: CoroutineDispatcher,
-) : CoroutineDispatcher(),
-  Delay {
-  private val clock: Delay = inner as? Delay ?: error("$inner keeps no clock of its own")
+private class HeldScrubDebounce {
   private var hold: CompletableDeferred<Unit>? = null
 
   @Volatile
-  var delayHeld: Boolean = false
+  var held: Boolean = false
     private set
 
-  fun holdNextDelay(): CompletableDeferred<Unit> = CompletableDeferred<Unit>().also { hold = it }
+  fun holdNext(): CompletableDeferred<Unit> = CompletableDeferred<Unit>().also { hold = it }
 
-  override fun isDispatchNeeded(context: CoroutineContext): Boolean = inner.isDispatchNeeded(context)
-
-  override fun dispatch(
-    context: CoroutineContext,
-    block: Runnable,
-  ) = inner.dispatch(context, block)
-
-  override fun scheduleResumeAfterDelay(
-    timeMillis: Long,
-    continuation: CancellableContinuation<Unit>,
-  ) {
-    val gate = hold ?: return clock.scheduleResumeAfterDelay(timeMillis, continuation)
+  suspend fun await(debounce: Duration) {
+    val gate = hold ?: return delay(debounce)
     hold = null
-    delayHeld = true
-    gate.invokeOnCompletion { continuation.resume(Unit) }
+    held = true
+    gate.await()
   }
 }
 

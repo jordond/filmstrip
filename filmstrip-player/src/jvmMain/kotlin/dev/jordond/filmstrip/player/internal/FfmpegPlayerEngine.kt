@@ -41,11 +41,13 @@ import kotlin.time.Duration.Companion.milliseconds
  *   confined to.
  * @param planner Lowers an edit the way an export of it would be lowered, and opens pumps on it.
  * @param config How the player was built.
+ * @param scrubDebounce Waits out the debounce it is handed, which a relaxed seek takes before it opens its pump.
  */
 internal class FfmpegPlayerEngine(
   parent: CoroutineScope,
   private val planner: FfmpegPreviewPlanner,
   config: PlayerConfig,
+  private val scrubDebounce: suspend (Duration) -> Unit = { delay(it) },
 ) : PlannedPlayerEngine<PreviewPlan>(parent, config.qualityPolicy, config.exportSpec, planner) {
   private var position: Duration = Duration.ZERO
   private var presented: PreviewFrame? = null
@@ -137,7 +139,7 @@ internal class FfmpegPlayerEngine(
         // A relaxed seek is a finger moving, and every one of them costs a process. Waiting the
         // debounce out first is what bounds the respawns: the chase coalesces whatever arrives while
         // this waits and dispatches only the newest of them next.
-        if (accuracy == SeekAccuracy.Nearest) delay(SCRUB_DEBOUNCE)
+        if (accuracy == SeekAccuracy.Nearest) scrubDebounce(SCRUB_DEBOUNCE)
         this@FfmpegPlayerEngine.position = target
         startPump(target, onComplete)
       }

@@ -11,11 +11,13 @@ import dev.jordond.filmstrip.player.contract.contractTest
 import dev.jordond.filmstrip.player.contract.withEngine
 import dev.jordond.filmstrip.player.internal.BrowserPlayerEngine
 import dev.jordond.filmstrip.player.internal.loopWrapOf
+import dev.jordond.filmstrip.webcodecs.internal.preview.BrowserPreview
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.coroutines.CompletableDeferred
 import kotlin.test.Test
 import kotlin.test.fail
 import kotlin.time.Duration
@@ -24,9 +26,8 @@ import kotlin.time.Duration.Companion.milliseconds
 /**
  * How the browser engine lands a seek that waited on the preview.
  *
- * A relaxed seek reads the sync sample under the preview's lock, so a queue of readbacks taken out first holds its
- * landing open for as long as they take to decode. Each test checks the hold outlasted what it has to, and fails
- * rather than passes when it did not.
+ * A relaxed seek reads the sync sample under the preview's lock before it lands. A test holds that read open until the
+ * event it waits for has happened, or queues readbacks on the lock ahead of it so the landing waits for them to decode.
  */
 class WebSeekLandingTest {
   // The landing is held until the rebuild released the old preview. It then has nothing to write, so the playhead
@@ -34,24 +35,25 @@ class WebSeekLandingTest {
   @Test
   fun `a seek landing that outlives a rebuild writes nothing`() =
     contractTest { scope ->
-      val engine = WebEngineUnderTest(scope).engine
+      val hold = HeldSyncSample()
+      val engine = WebEngineUnderTest(scope, readSyncSample = hold::read).engine
       withEngine(engine) { recorder ->
         engine.awaitComposition(webFixtureComposition()).shouldBeInstanceOf<SetCompositionResult.Success>()
         awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
         val start = outputSlotTime(outputSlotOf(REBUILD_START, FIXTURE_FRAME_RATE), FIXTURE_FRAME_RATE)
 
-        val hold = PreviewHold(engine, LONG_HOLD)
+        val release = hold.holdNext()
         val seeks = recorder.seekCompletions.size
         engine.seekTo(HELD_TARGET, SeekAccuracy.Nearest)
+        awaitContract("the landing to be held") { hold.held }
         engine
           .awaitComposition(webFixtureTrimmed(SHORTENED_LENGTH), startAt = REBUILD_START)
           .shouldBeInstanceOf<SetCompositionResult.Success>()
-        awaitContract("the held readbacks to drain") { hold.drained }
+        release.complete(Unit)
         engine.awaitQuietDone()
 
-        // Only a readback that took the lock after the release comes back without a frame, and the landing queued
-        // behind it.
-        hold.last.shouldBeInstanceOf<ReadbackResult.Failure>()
+        // A released preview answers the position itself rather than a sync sample before it.
+        hold.answers shouldBe listOf(HELD_TARGET)
         engine.clockPosition shouldBe start
         recorder.seekCompletions.drop(seeks).map { it.position } shouldBe listOf(HELD_TARGET)
       }
@@ -97,7 +99,8 @@ class WebSeekLandingTest {
   @Test
   fun `no wrap is taken while a seek that is not a wrap is in flight`() =
     contractTest { scope ->
-      val engine = WebEngineUnderTest(scope).engine
+      val hold = HeldSyncSample()
+      val engine = WebEngineUnderTest(scope, readSyncSample = hold::read).engine
       withEngine(engine) { recorder ->
         engine.awaitComposition(webFixtureComposition()).shouldBeInstanceOf<SetCompositionResult.Success>()
         awaitContract("the engine to become seekable") { recorder.lastState.hasComposition }
@@ -115,9 +118,13 @@ class WebSeekLandingTest {
 
         val log = EventLog()
         val registration = engine.addListener(log)
-        val hold = PreviewHold(engine, LONG_HOLD)
+        val release = hold.holdNext()
         engine.seekTo(HELD_TARGET, SeekAccuracy.Nearest)
         engine.play()
+        awaitContract("more than $HELD_READINGS playhead readings while the landing is held") {
+          hold.held && log.entries.count { it is Duration } > HELD_READINGS
+        }
+        release.complete(Unit)
         awaitContract("the wrap after the held seek to land") {
           log.entries
             .dropWhile { it !is PlaybackEvent.SeekCompleted }
@@ -145,7 +152,6 @@ class WebSeekLandingTest {
         // The playhead holds the seek's target until it lands, whatever the clock reads past the wrap.
         waiting.forEach { it shouldBe HELD_TARGET }
         (entries[landed] as PlaybackEvent.SeekCompleted).position shouldBe landing
-        hold.drained shouldBe true
 
         val after = entries.drop(landed + 1).filterIsInstance<PlaybackEvent>()
         after.filterIsInstance<PlaybackEvent.Ended>().shouldBeEmpty()
@@ -257,8 +263,36 @@ class WebSeekLandingTest {
     }
 
     val drained: Boolean get() = results.all { it != null }
+  }
 
-    val last: ReadbackResult? get() = results.last()
+  /**
+   * Reads the sync sample a relaxed seek lands on and, once armed, holds the next read until the test lets it go.
+   *
+   * A held read takes the preview's lock only once it is let go, so whatever the test does meanwhile happens before
+   * the landing.
+   */
+  private class HeldSyncSample {
+    private var hold: CompletableDeferred<Unit>? = null
+
+    var held: Boolean = false
+      private set
+
+    // What each held read answered once it was let go.
+    var answers: List<Duration> = emptyList()
+      private set
+
+    fun holdNext(): CompletableDeferred<Unit> = CompletableDeferred<Unit>().also { hold = it }
+
+    suspend fun read(
+      preview: BrowserPreview,
+      position: Duration,
+    ): Duration {
+      val gate = hold ?: return preview.syncSampleAt(position)
+      hold = null
+      held = true
+      gate.await()
+      return preview.syncSampleAt(position).also { answers = answers + it }
+    }
   }
 
   /**
@@ -304,9 +338,6 @@ class WebSeekLandingTest {
   }
 
   private companion object {
-    // Long enough to outlast a rebuild or several playhead readings on the wall clock, even on a fast machine.
-    const val LONG_HOLD = 256
-
     // Only has to be queued ahead of the landing when the fence starts.
     const val FENCE_HOLD = 16
     const val HELD_READINGS = 3

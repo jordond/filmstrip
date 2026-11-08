@@ -24,42 +24,8 @@ import dev.jordond.filmstrip.webcodecs.internal.interop.toUint8Array
 import kotlinx.coroutines.await
 import kotlin.js.ExperimentalWasmJsInterop
 import kotlin.math.PI
-import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sin
-
-/**
- * A color, as the eight-bit channels a test asserts on.
- */
-internal class Rgb(
-  val red: Int,
-  val green: Int,
-  val blue: Int,
-) {
-  /**
-   * True when every channel is within [tolerance] of [other]. Color survives a 4:2:0 round trip
-   * approximately, never exactly.
-   */
-  fun isNear(
-    other: Rgb,
-    tolerance: Int = DEFAULT_TOLERANCE,
-  ): Boolean =
-    abs(red - other.red) <= tolerance &&
-      abs(green - other.green) <= tolerance &&
-      abs(blue - other.blue) <= tolerance
-
-  override fun toString(): String = "rgb($red, $green, $blue)"
-
-  companion object {
-    const val DEFAULT_TOLERANCE = 24
-
-    val Black = Rgb(0, 0, 0)
-    val Red = Rgb(220, 30, 30)
-    val Blue = Rgb(30, 30, 220)
-    val Green = Rgb(30, 200, 30)
-    val Grey = Rgb(200, 200, 200)
-  }
-}
 
 /**
  * This color after [spec], taken through the matrix every backend lowers rather than through a

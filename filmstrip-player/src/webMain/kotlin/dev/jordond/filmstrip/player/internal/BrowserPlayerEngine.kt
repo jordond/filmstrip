@@ -45,6 +45,8 @@ import kotlin.time.Duration
  *   the clock starts, and a test swaps in one it can hold open.
  * @param drawFirstFrame Draws the frame a new graph owes at a position, answering whether it drew one. A test swaps in
  *   one it can hold open.
+ * @param readSyncSample Reads the sync sample a relaxed seek lands on, at or before a position. A test swaps in one it
+ *   can hold open.
  */
 internal class BrowserPlayerEngine(
   parent: CoroutineScope,
@@ -55,6 +57,9 @@ internal class BrowserPlayerEngine(
   },
   private val drawFirstFrame: suspend (preview: BrowserPreview, at: Duration) -> Boolean = { preview, at ->
     preview.frameAt(at) != null
+  },
+  readSyncSample: suspend (preview: BrowserPreview, position: Duration) -> Duration = { preview, position ->
+    preview.syncSampleAt(position)
   },
 ) : PlannedPlayerEngine<BrowserPreviewPlan>(parent, config.qualityPolicy, config.exportSpec, planner) {
   private var preview: BrowserPreview? = null
@@ -99,6 +104,7 @@ internal class BrowserPlayerEngine(
       clock = { clock },
       loopRange = { loopRange },
       isWrapSeek = { isWrapSeek },
+      readSyncSample = readSyncSample,
     )
 
   /**

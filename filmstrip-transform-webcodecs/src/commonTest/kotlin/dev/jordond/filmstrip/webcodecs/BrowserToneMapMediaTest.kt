@@ -33,7 +33,6 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
-import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.milliseconds
@@ -308,11 +307,6 @@ class BrowserToneMapMediaTest {
     }
 
   private fun code(signal: Double): Int = (signal * MAX_CODE).roundToInt()
-
-  private fun Rgb.isNear(
-    other: Rgb,
-    cell: Int,
-  ): Boolean = abs(red - other.red) <= cell && abs(green - other.green) <= cell && abs(blue - other.blue) <= cell
 
   private companion object {
     const val PATCH_ROWS = 32

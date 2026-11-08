@@ -60,7 +60,7 @@ class BrowserGeometryExportMediaTest {
         withClue("Rotate($degrees)") {
           Size(frame.width, frame.height) shouldBe frameAfter(Rotate(degrees), QUADRANT_SIZE)
           for ((x, y) in QUADRANT_PROBES) {
-            assertReads(quadrantAt(turned(turns, x, y)), frame.at(x, y), "($x, $y)")
+            assertReads(quadrantAt(turned(turns, x, y)), frame.at(x, y), "($x, $y)", Rgb.DEFAULT_TOLERANCE.toFloat())
           }
         }
       }
@@ -78,7 +78,12 @@ class BrowserGeometryExportMediaTest {
       for ((x, y) in listOf(0.5 to 0.5, 0.3 to 0.7)) {
         val turnedX = TOP_LEFT_QUARTER.left + x * TOP_LEFT_QUARTER.width
         val turnedY = TOP_LEFT_QUARTER.top + y * TOP_LEFT_QUARTER.height
-        assertReads(quadrantAt(turned(1, turnedX, turnedY)), frame.at(x, y), "($x, $y)")
+        assertReads(
+          quadrantAt(turned(1, turnedX, turnedY)),
+          frame.at(x, y),
+          "($x, $y)",
+          Rgb.DEFAULT_TOLERANCE.toFloat(),
+        )
       }
     }
 
@@ -98,7 +103,7 @@ class BrowserGeometryExportMediaTest {
         withClue(label) {
           Size(frame.width, frame.height) shouldBe frameAfter(Rotate(QUARTER_TURN), QUADRANT_SIZE)
           for ((x, y) in QUADRANT_PROBES) {
-            assertReads(quadrantAt(turned(1, x, y)), frame.at(x, y), "($x, $y)")
+            assertReads(quadrantAt(turned(1, x, y)), frame.at(x, y), "($x, $y)", Rgb.DEFAULT_TOLERANCE.toFloat())
           }
         }
       }
@@ -126,7 +131,7 @@ class BrowserGeometryExportMediaTest {
           Size(frame.width, frame.height) shouldBe output
           val (halfW, halfH) = halfExtents(fit, frameAfter(scale, BANDED_SIZE), output)
           for ((x, y) in listOf(EDGE_PROBE to 0.5, 0.5 to BAR_PROBE, 0.5 to 0.5)) {
-            assertReads(fittedAt(halfW, halfH, x, y), frame.at(x, y), "($x, $y)")
+            assertReads(fittedAt(halfW, halfH, x, y), frame.at(x, y), "($x, $y)", Rgb.DEFAULT_TOLERANCE.toFloat())
           }
         }
       }
@@ -156,7 +161,12 @@ class BrowserGeometryExportMediaTest {
       try {
         val drawn = preview.frameAt(outputSlotTime(slot.toLong(), FRAME_RATE)).shouldNotBeNull()
         for ((x, y) in QUADRANT_PROBES + listOf(EDGE_PROBE to 0.3)) {
-          assertReads(written[slot].at(x, y), drawn.at(x, y), "the preview at ($x, $y)")
+          assertReads(
+            written[slot].at(x, y),
+            drawn.at(x, y),
+            "the preview at ($x, $y)",
+            Rgb.DEFAULT_TOLERANCE.toFloat(),
+          )
         }
       } finally {
         preview.release()
@@ -199,8 +209,13 @@ class BrowserGeometryExportMediaTest {
         val previewed = preview.frameAt(outputSlotTime(slot.toLong(), FRAME_RATE)).shouldNotBeNull()
         for (x in FILL_PROBES) {
           val expected = bandAt(turned(1, 0.5 + (x - 0.5) / coverW, 0.5 + (FILL_ROW - 0.5) / coverH).second)
-          assertReads(expected, written[slot].at(x, FILL_ROW), "the bar at $x")
-          assertReads(written[slot].at(x, FILL_ROW), previewed.at(x, FILL_ROW), "the preview's bar at $x")
+          assertReads(expected, written[slot].at(x, FILL_ROW), "the bar at $x", Rgb.DEFAULT_TOLERANCE.toFloat())
+          assertReads(
+            written[slot].at(x, FILL_ROW),
+            previewed.at(x, FILL_ROW),
+            "the preview's bar at $x",
+            Rgb.DEFAULT_TOLERANCE.toFloat(),
+          )
         }
       } finally {
         preview.release()
@@ -230,13 +245,23 @@ class BrowserGeometryExportMediaTest {
       val turnedY = 1.0 - rect.middleX
 
       Size(frame.width, frame.height) shouldBe frameAfter(turn, BADGED_SIZE)
-      assertReads(BADGE, frame.at(turnedX, turnedY), "the turned badge")
-      assertReads(Rgb.Blue, frame.at(rect.middleX, rect.middleY), "where it was authored")
+      assertReads(BADGE, frame.at(turnedX, turnedY), "the turned badge", Rgb.DEFAULT_TOLERANCE.toFloat())
+      assertReads(
+        Rgb.Blue,
+        frame.at(rect.middleX, rect.middleY),
+        "where it was authored",
+        Rgb.DEFAULT_TOLERANCE.toFloat(),
+      )
 
       val preview = previewOf(composition)
       try {
         val previewed = preview.frameAt(outputSlotTime(slot.toLong(), FRAME_RATE)).shouldNotBeNull()
-        assertReads(frame.at(turnedX, turnedY), previewed.at(turnedX, turnedY), "the preview's turned badge")
+        assertReads(
+          frame.at(turnedX, turnedY),
+          previewed.at(turnedX, turnedY),
+          "the preview's turned badge",
+          Rgb.DEFAULT_TOLERANCE.toFloat(),
+        )
       } finally {
         preview.release()
       }
@@ -262,14 +287,6 @@ class BrowserGeometryExportMediaTest {
       tracks = listOf(Track(listOf(Clip(MediaSource.Bytes(bytes), effects = clipEffects)))),
       audio = AudioSpec.Remove,
     )
-
-  private fun assertReads(
-    expected: Rgb,
-    read: Rgb,
-    where: String,
-  ) {
-    withClue("$where read $read, and $expected was expected") { read.isNear(expected) shouldBe true }
-  }
 }
 
 private suspend fun quadrantClip(): ByteArray =

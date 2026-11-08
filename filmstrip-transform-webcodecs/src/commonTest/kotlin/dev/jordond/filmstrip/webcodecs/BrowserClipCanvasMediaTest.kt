@@ -78,7 +78,7 @@ class BrowserClipCanvasMediaTest {
       try {
         val drawn = preview.frameAt(outputSlotTime(written.lastIndex.toLong(), FRAME_RATE)).shouldNotBeNull()
         for ((x, y) in PROBES) {
-          assertReads(frame.at(x, y), drawn.at(x, y), "the preview at ($x, $y)")
+          assertReads(frame.at(x, y), drawn.at(x, y), "the preview at ($x, $y)", Rgb.DEFAULT_TOLERANCE.toFloat())
         }
       } finally {
         preview.release()
@@ -110,11 +110,11 @@ class BrowserClipCanvasMediaTest {
 
       val (bars, content) = PROBES.partition { (x, y) -> contentOf(x, y) == null }
       bars.isEmpty() shouldBe false
-      bars.forEach { (x, y) -> assertReads(Rgb.Black, frame.at(x, y), "bar ($x, $y)") }
+      bars.forEach { (x, y) -> assertReads(Rgb.Black, frame.at(x, y), "bar ($x, $y)", Rgb.DEFAULT_TOLERANCE.toFloat()) }
       content.forEach { (x, y) ->
         val source = quadrantAt(contentOf(x, y).shouldNotBeNull())
         val inverted = Rgb(FULL_CODE - source.red, FULL_CODE - source.green, FULL_CODE - source.blue)
-        assertReads(inverted, frame.at(x, y), "content ($x, $y)")
+        assertReads(inverted, frame.at(x, y), "content ($x, $y)", Rgb.DEFAULT_TOLERANCE.toFloat())
       }
     }
 
@@ -153,7 +153,12 @@ class BrowserClipCanvasMediaTest {
         val x = (marked.left + marked.right) / 2.0
         val y = (marked.top + marked.bottom) / 2.0
 
-        assertReads(MARK_RGB, frame.at(x, y), "the overlay at ($x, $y) after ${effects.size - 1} effects")
+        assertReads(
+          MARK_RGB,
+          frame.at(x, y),
+          "the overlay at ($x, $y) after ${effects.size - 1} effects",
+          Rgb.DEFAULT_TOLERANCE.toFloat(),
+        )
       }
     }
 
@@ -248,7 +253,12 @@ class BrowserClipCanvasMediaTest {
       probes.map { (x, y) ->
         val (canvasX, canvasY) = toCanvas(x, y)
         val content = canvas.contentInCanvas.contentPointOf(canvasX, canvasY)
-        assertReads(content?.let(::quadrantAt) ?: bar, frame.at(x, y), "($x, $y), canvas ($canvasX, $canvasY)")
+        assertReads(
+          content?.let(::quadrantAt) ?: bar,
+          frame.at(x, y),
+          "($x, $y), canvas ($canvasX, $canvasY)",
+          Rgb.DEFAULT_TOLERANCE.toFloat(),
+        )
         content == null
       }
     reads shouldContain true
@@ -276,14 +286,6 @@ class BrowserClipCanvasMediaTest {
       audio = AudioSpec.Remove,
       fill = fill,
     )
-
-  private fun assertReads(
-    expected: Rgb,
-    read: Rgb,
-    where: String,
-  ) {
-    withClue("$where read $read, and $expected was expected") { read.isNear(expected) shouldBe true }
-  }
 }
 
 private suspend fun quadrantClip(): ByteArray =

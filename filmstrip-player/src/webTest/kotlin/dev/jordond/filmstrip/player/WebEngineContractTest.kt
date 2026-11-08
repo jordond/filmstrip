@@ -60,11 +60,14 @@ class WebEngineContractTest : PlayerEngineContractTest() {
   override fun createFailingItem(scope: CoroutineScope): FailingItem {
     var failed = false
     val subject =
-      WebEngineUnderTest(scope) { preview, at ->
-        val drawn = failed && preview.frameAt(at) != null
-        failed = true
-        drawn
-      }
+      WebEngineUnderTest(
+        scope,
+        drawFirstFrame = { preview, at ->
+          val drawn = failed && preview.frameAt(at) != null
+          failed = true
+          drawn
+        },
+      )
     return FailingItem(subject, fixture.cutInTwo(fixtureFrameRate), refusedAtLoad = true)
   }
 

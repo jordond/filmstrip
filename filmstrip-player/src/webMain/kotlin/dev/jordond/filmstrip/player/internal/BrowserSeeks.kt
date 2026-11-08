@@ -26,6 +26,7 @@ import kotlin.time.Duration
  * @param clock The clock counting now.
  * @param loopRange The loop range set now, if any.
  * @param isWrapSeek Whether the seek being issued is a loop wrap.
+ * @param readSyncSample Reads the sync sample at or before a position off a preview, which a relaxed seek lands on.
  */
 internal class BrowserSeeks(
   private val scope: CoroutineScope,
@@ -36,6 +37,7 @@ internal class BrowserSeeks(
   private val clock: () -> PreviewClock,
   private val loopRange: () -> TimeRange?,
   private val isWrapSeek: () -> Boolean,
+  private val readSyncSample: suspend (preview: BrowserPreview, position: Duration) -> Duration,
 ) {
   private var serial = 0
 
@@ -66,7 +68,7 @@ internal class BrowserSeeks(
         val sent =
           when (accuracy) {
             SeekAccuracy.Exact -> composition.seekLandingOf(requested)
-            SeekAccuracy.Nearest -> composition.seekLandingOf(target.syncSampleAt(requested))
+            SeekAccuracy.Nearest -> composition.seekLandingOf(readSyncSample(target, requested))
           }
         // A stale landing still answers its seek, from where the playhead stands. A chase that let the seek go ignores
         // the answer, and one still waiting on it would otherwise wait for good.

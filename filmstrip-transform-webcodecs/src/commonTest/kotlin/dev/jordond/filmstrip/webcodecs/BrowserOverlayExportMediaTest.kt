@@ -47,7 +47,6 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlin.math.abs
-import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -68,12 +67,12 @@ class BrowserOverlayExportMediaTest {
       val frame = exported(single(effects = listOf(badge))).last()
       val rect = badge.placedOn(frame.size, PNG).rectOn(frame.size)
 
-      assertReads(OVERLAY, frame.around(rect.middleX, rect.middleY), "the badge")
+      assertReads(OVERLAY, frame.around(rect.middleX, rect.middleY), "the badge", AuthoredColors.TOLERANCE)
       assertReads(
         Rgb.Blue,
         frame.around(1.0 - rect.middleX, 1.0 - rect.middleY),
         "the far corner",
-        Rgb.DEFAULT_TOLERANCE.toFloat(),
+        AuthoredColors.TOLERANCE,
       )
     }
 
@@ -109,12 +108,17 @@ class BrowserOverlayExportMediaTest {
       val frame = exported(single(clipEffects = listOf(badge), effects = listOf(Flip(FlipAxis.Horizontal)))).last()
       val rect = badge.placedOn(frame.size, PNG).rectOn(frame.size)
 
-      assertReads(OVERLAY, frame.around(1.0 - rect.middleX, rect.middleY), "the flipped badge")
+      assertReads(
+        OVERLAY,
+        frame.around(1.0 - rect.middleX, rect.middleY),
+        "the flipped badge",
+        AuthoredColors.TOLERANCE,
+      )
       assertReads(
         Rgb.Blue,
         frame.around(rect.middleX, rect.middleY),
         "where it was authored",
-        Rgb.DEFAULT_TOLERANCE.toFloat(),
+        AuthoredColors.TOLERANCE,
       )
     }
 
@@ -128,8 +132,18 @@ class BrowserOverlayExportMediaTest {
       val clipRect = onClip.placedOn(frame.size, PNG).rectOn(frame.size)
       val compositionRect = onComposition.placedOn(frame.size, PNG).rectOn(frame.size)
 
-      assertReads(OVERLAY.graded(sepia), frame.around(clipRect.middleX, clipRect.middleY), "the clip's badge")
-      assertReads(OVERLAY, frame.around(compositionRect.middleX, compositionRect.middleY), "the composition's badge")
+      assertReads(
+        OVERLAY.graded(sepia),
+        frame.around(clipRect.middleX, clipRect.middleY),
+        "the clip's badge",
+        AuthoredColors.TOLERANCE,
+      )
+      assertReads(
+        OVERLAY,
+        frame.around(compositionRect.middleX, compositionRect.middleY),
+        "the composition's badge",
+        AuthoredColors.TOLERANCE,
+      )
     }
 
   // A composition overlay is placed on the output frame, so one authored into a bar draws there and
@@ -142,9 +156,14 @@ class BrowserOverlayExportMediaTest {
       val rect = badge.placedOn(frame.size, PNG).rectOn(frame.size)
       withClue("the badge reaches ${rect.right}, past the bar at $BAR") { (rect.right < BAR) shouldBe true }
 
-      assertReads(OVERLAY, frame.around(rect.middleX, rect.middleY), "the badge in the bar")
-      assertReads(FILL, frame.around(rect.middleX, (rect.bottom + 1.0) / 2), "the bar under the badge")
-      assertReads(FILL, frame.around(1.0 - BAR / 2, 0.5), "the far bar")
+      assertReads(OVERLAY, frame.around(rect.middleX, rect.middleY), "the badge in the bar", AuthoredColors.TOLERANCE)
+      assertReads(
+        FILL,
+        frame.around(rect.middleX, (rect.bottom + 1.0) / 2),
+        "the bar under the badge",
+        AuthoredColors.TOLERANCE,
+      )
+      assertReads(FILL, frame.around(1.0 - BAR / 2, 0.5), "the far bar", AuthoredColors.TOLERANCE)
     }
 
   // An SDR overlay blends on the frame's own codes on every backend, and both colors land there as
@@ -157,7 +176,12 @@ class BrowserOverlayExportMediaTest {
       val rect = badge.placedOn(frame.size, PNG).rectOn(frame.size)
       val opacity = badge.frameAt(Duration.ZERO, TimeRange(Duration.ZERO, 1.seconds)).shouldNotBeNull().opacity
 
-      assertReads(FILL.towards(OVERLAY, opacity), frame.around(rect.middleX, rect.middleY), "the half opaque badge")
+      assertReads(
+        FILL.towards(OVERLAY, opacity),
+        frame.around(rect.middleX, rect.middleY),
+        "the half opaque badge",
+        AuthoredColors.TOLERANCE,
+      )
     }
 
   @Test
@@ -169,8 +193,8 @@ class BrowserOverlayExportMediaTest {
           .first()
       val rect = badge.placedOn(frame.size, PNG).rectOn(frame.size)
 
-      assertReads(OVERLAY, frame.around(rect.middleX, rect.middleY), "the badge over the gap")
-      assertReads(FILL, frame.around(0.5, 0.5), "the gap where the picture will be")
+      assertReads(OVERLAY, frame.around(rect.middleX, rect.middleY), "the badge over the gap", AuthoredColors.TOLERANCE)
+      assertReads(FILL, frame.around(0.5, 0.5), "the gap where the picture will be", AuthoredColors.TOLERANCE)
     }
 
   // Half the badge is pushed off the clip's own frame, so that half must not land in the bar beside it.
@@ -191,8 +215,18 @@ class BrowserOverlayExportMediaTest {
       val frame = exported(letterboxed(clipEffects = listOf(badge))).last()
 
       // The picture spans the output's full height, so a clip's y is the output's y and only x moves.
-      assertReads(OVERLAY, frame.around(BAR + rect.right * PICTURE / 2, rect.middleY), "the badge on the clip")
-      assertReads(FILL, frame.around(BAR + rect.left * PICTURE / 2, rect.middleY), "the bar beside it")
+      assertReads(
+        OVERLAY,
+        frame.around(BAR + rect.right * PICTURE / 2, rect.middleY),
+        "the badge on the clip",
+        AuthoredColors.TOLERANCE,
+      )
+      assertReads(
+        FILL,
+        frame.around(BAR + rect.left * PICTURE / 2, rect.middleY),
+        "the bar beside it",
+        AuthoredColors.TOLERANCE,
+      )
     }
 
   // A blurred fill has no color of its own, so the bar is read against the same export without the
@@ -363,38 +397,7 @@ class BrowserOverlayExportMediaTest {
       prober = BrowserProber(),
     )
 
-  private fun assertReads(
-    expected: Rgb,
-    drawn: Rgb,
-    what: String,
-    tolerance: Float = AuthoredColors.TOLERANCE,
-  ) {
-    val off = maxOf(abs(drawn.red - expected.red), abs(drawn.green - expected.green), abs(drawn.blue - expected.blue))
-    withClue("$what read $drawn, where $expected was expected within $tolerance") { (off <= tolerance) shouldBe true }
-  }
-
   private val OutputFrame.size: Size get() = Size(width, height)
-
-  /**
-   * The mean color of the three by three block around a point, so one pixel's rounding does not
-   * decide a reading.
-   */
-  private fun OutputFrame.around(
-    x: Double,
-    y: Double,
-  ): Rgb {
-    val column = (x * width).toInt()
-    val row = (y * height).toInt()
-    val samples =
-      (-1..1).flatMap { dy ->
-        (-1..1).map { dx -> at((column + dx + 0.5) / width, (row + dy + 0.5) / height) }
-      }
-    return Rgb(
-      samples.map { it.red }.average().roundToInt(),
-      samples.map { it.green }.average().roundToInt(),
-      samples.map { it.blue }.average().roundToInt(),
-    )
-  }
 
   private fun Rgb.distanceTo(other: Rgb): Int = abs(red - other.red) + abs(green - other.green) + abs(blue - other.blue)
 
