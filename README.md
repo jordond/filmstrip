@@ -60,14 +60,10 @@ needs and how the test fixtures are made and published.
 
 ## Running the sample
 
-`sample/` is a small editor over the library: pick a clip or one of the sample clips, edit it while it plays, export it.
+`sample/` is the editor the docs site runs at [/demo](https://filmstrip.jordond.dev/demo). Pick a clip or one of the
+sample clips, edit it while it plays, then export it and download the result, all in the browser.
 
-| Target | Command |
-|---|---|
-| Android | `./gradlew :sample:androidApp:installDebug`, with an emulator running or a device connected. Then open filmstrip from the launcher. |
-| Desktop | `./gradlew :sample:desktopApp:run`, with `ffmpeg` and `ffprobe` 8.0 or newer on the `PATH`. |
-| Browser | `./gradlew :sample:webApp:wasmJsBrowserDevelopmentRun`, then open <http://localhost:8080> in Chrome. |
-| iOS | `open sample/iosApp/iosApp.xcodeproj`, pick a simulator and press Run. A physical iPhone also needs your own team under Signing & Capabilities. |
+To run it locally, `./gradlew :sample:webApp:wasmJsBrowserDevelopmentRun`, then open <http://localhost:8080> in Chrome.
 
 ## Releasing
 

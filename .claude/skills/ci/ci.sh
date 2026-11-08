@@ -78,7 +78,7 @@ steps=(
   "macos|macosArm64Test|mac"
   "ios-boot|:filmstrip-player:bootIosSimulator|mac"
   "ios|iosSimulatorArm64Test|mac"
-  "sample|:sample:androidApp:assembleDebug|any"
+  "sample|:sample:webApp:wasmJsBrowserDistribution|any"
 )
 [ "$device" = 1 ] && steps+=("device|connectedAndroidDeviceTest|any")
 

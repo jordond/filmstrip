@@ -71,9 +71,6 @@ include(
 
 include(
   ":sample:common",
-  ":sample:shared",
-  ":sample:androidApp",
-  ":sample:desktopApp",
   ":sample:webApp",
   ":sample:tryIt",
 )

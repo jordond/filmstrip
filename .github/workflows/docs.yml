@@ -3,8 +3,10 @@ name: docs
 # Only `check` installs dependencies, and it has no secrets. The jobs holding CLOUDFLARE_API_TOKEN
 # deploy the built artifact with the Wrangler pinned below, so no dependency bump reaches the token.
 
-# Manual only until the site goes live.
 on:
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -28,15 +30,13 @@ defaults:
 jobs:
   check:
     name: Check and build
-    # Dokka only sees the Apple source sets on a Mac.
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # Starlight's "last updated" reads each page's history.
           fetch-depth: 0
       - name: Install JDK
         uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
@@ -118,7 +118,6 @@ jobs:
   preview:
     name: Preview
     needs: check
-    # Secrets are not given to pull requests from forks.
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15

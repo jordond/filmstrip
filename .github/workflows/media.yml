@@ -7,7 +7,6 @@ name: Media
 
 on:
   schedule:
-    # 07:00 UTC, 2 or 3 am in Toronto.
     - cron: '0 7 * * *'
   workflow_dispatch:
   workflow_call:

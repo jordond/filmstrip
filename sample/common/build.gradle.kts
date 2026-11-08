@@ -3,7 +3,6 @@ import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 plugins {
   id("filmstrip.internal")
   alias(libs.plugins.multiplatform)
-  alias(libs.plugins.android.multiplatform.library)
   alias(libs.plugins.compose)
   alias(libs.plugins.compose.compiler)
 }
@@ -15,19 +14,6 @@ kotlin {
       .toInt(),
   )
 
-  android {
-    namespace = "dev.jordond.filmstrip.sample.common"
-    compileSdk =
-      libs.versions.sdk.compile
-        .get()
-        .toInt()
-    minSdk =
-      libs.versions.sdk.min
-        .get()
-        .toInt()
-    androidResources.enable = true
-  }
-
   jvm()
 
   @OptIn(ExperimentalWasmDsl::class)
@@ -35,18 +21,7 @@ kotlin {
     browser()
   }
 
-  iosArm64()
-  iosSimulatorArm64()
-
-  applyDefaultHierarchyTemplate()
-
   sourceSets {
-    create("jvmCommonMain") {
-      dependsOn(commonMain.get())
-      androidMain.get().dependsOn(this)
-      jvmMain.get().dependsOn(this)
-    }
-
     commonMain.dependencies {
       api(projects.filmstrip)
       implementation(libs.compose.runtime)
@@ -81,7 +56,6 @@ tasks.named<Test>("jvmTest") {
     .files(
       rootProject.file("website/src/styles/tokens.css"),
       rootProject.file("website/src/styles/crt.css"),
-      rootProject.file("sample/androidApp/src/main/res/values/themes.xml"),
       rootProject.file("sample/webApp/src/wasmJsMain/resources/index.html"),
       rootProject.file("sample/tryIt/src/wasmJsMain/resources/index.html"),
     ).withPathSensitivity(PathSensitivity.RELATIVE)
