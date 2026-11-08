@@ -288,20 +288,30 @@ internal abstract class TestClassesSource : ValueSource<List<String>, TestClasse
   ): List<String> {
     var index = from
     if (index < text.length && text[index] == '<') index = closing(text, index, '<', '>')
-    index = CONSTRUCTOR_PREFIX.matchAt(text, index)?.range?.last?.plus(1) ?: index
+    index = CONSTRUCTOR_PREFIX
+      .matchAt(text, index)
+      ?.range
+      ?.last
+      ?.plus(1) ?: index
     if (index < text.length && text[index] == '(') index = closing(text, index, '(', ')')
     val colon = SUPERTYPE_COLON.find(text, index) ?: return emptyList()
     val header = StringBuilder()
     var depth = 0
     for (char in text.substring(colon.range.last + 1)) {
-      if (depth == 0 && (char == '{' || char == '\n' && header.trimEnd().lastOrNull() != ',')) break
+      if (depth == 0 && (char == '{' || (char == '\n' && header.trimEnd().lastOrNull() != ','))) break
       when (char) {
         '(', '<' -> depth++
         ')', '>' -> depth--
         else -> if (depth == 0) header.append(char)
       }
     }
-    return header.split(',').mapNotNull { SUPERTYPE.find(it)?.groupValues?.get(1)?.substringAfterLast('.') }
+    return header.split(',').mapNotNull {
+      SUPERTYPE
+        .find(it)
+        ?.groupValues
+        ?.get(1)
+        ?.substringAfterLast('.')
+    }
   }
 
   private fun closing(
