@@ -34,6 +34,7 @@ internal data class FfmpegProber(
       is ProbeOutcome.Read -> ProbeResult.Success(outcome.info)
       is ProbeOutcome.NoToolchain -> ProbeResult.Failure(outcome.error)
       ProbeOutcome.Unreadable -> ProbeResult.Failure(FilmstripError.SourceUnreadable(source.describe(), UNREADABLE))
+      is ProbeOutcome.Expired -> ProbeResult.Failure(FilmstripError.SourceUnreadable(source.describe(), outcome.reason))
     }
   }
 

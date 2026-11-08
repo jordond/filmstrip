@@ -30,6 +30,7 @@ import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.copy.CopyAsk
 import dev.jordond.filmstrip.transform.internal.copy.withCopyPackets
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
+import dev.jordond.filmstrip.transform.internal.probe.OpeningRead
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReadResult
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReads
 import dev.jordond.filmstrip.transform.internal.refusedLowering
@@ -68,12 +69,12 @@ public class BrowserExportEngine(
   private val reads =
     PlanningReads(
       prober,
-      readDevice ?: backend::capabilities,
-    ) { source, cut -> sources.open(source)?.syncSampleAtOrBefore(cut) }
+      { CapabilitiesResult.Success((readDevice ?: backend::capabilities)()) },
+    ) { source, cut -> OpeningRead.At(sources.open(source)?.syncSampleAtOrBefore(cut)) }
   override val lowering: EngineLowering<*> =
     EngineLowering(components.effectResolvers, ::grade, ::lower) { render, plan, to -> run(render, plan.path, to) }
 
-  override suspend fun capabilities(): CapabilitiesResult = CapabilitiesResult.Success(reads.device())
+  override suspend fun capabilities(): CapabilitiesResult = reads.device()
 
   override fun parityOf(specId: String): EffectParity? = browserParityOf(specId)
 

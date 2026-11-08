@@ -5,24 +5,32 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
+import java.io.BufferedReader
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Paths
 import java.nio.file.attribute.BasicFileAttributes
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Duration
 
-internal actual class ProcessRunner {
-  actual suspend fun capture(command: List<String>): ProcessOutput =
+internal actual class ProcessRunner actual constructor(
+  private val stopGrace: Duration,
+) {
+  actual suspend fun capture(
+    command: List<String>,
+    timeout: Duration,
+  ): ProcessOutput =
     withContext(Dispatchers.IO) {
       val stdout = StringBuilder()
       val stderr = StringBuilder()
       val code =
         try {
-          drain(command, stdout::appendLine, stderr::appendLine)
+          drain(command, timeout, stdout::appendLine, stderr::appendLine)
         } catch (cause: IOException) {
           return@withContext ProcessOutput(SPAWN_FAILED, "", cause.message.orEmpty())
         }
@@ -32,12 +40,13 @@ internal actual class ProcessRunner {
 
   actual suspend fun run(
     command: List<String>,
+    timeout: Duration,
     onStdout: (String) -> Unit,
     onStderr: (String) -> Unit,
   ): Int =
     withContext(Dispatchers.IO) {
       try {
-        drain(command, onStdout, onStderr)
+        drain(command, timeout, onStdout, onStderr)
       } catch (e: IOException) {
         onStderr(e.message.orEmpty())
         SPAWN_FAILED
@@ -61,9 +70,11 @@ internal actual class ProcessRunner {
 
   // stdout and stderr are drained on their own coroutines because a full pipe blocks the child, and
   // ffmpeg is chatty on stderr while stdout carries the machine-readable progress. They are not
-  // merged.
+  // merged. A child still running at its deadline is stopped with every process it started before the readers are
+  // joined, since they only end once the last process holding the pipes is gone.
   private suspend fun drain(
     command: List<String>,
+    timeout: Duration,
     onStdout: (String) -> Unit,
     onStderr: (String) -> Unit,
   ): Int {
@@ -72,20 +83,60 @@ internal actual class ProcessRunner {
         ProcessBuilder(command).start()
       }
 
+    val stopped = AtomicBoolean(false)
     try {
       return coroutineScope {
         // inputReader() and errorReader() decode with the native encoding. An InputStreamReader
         // would use Charset.defaultCharset(), which JEP 400 made UTF-8 in JDK 18 whatever the
         // console is, so it mangles output on a non-UTF-8 host.
-        val out = launch { runInterruptible { process.inputReader().forEachLine(onStdout) } }
-        val err = launch { runInterruptible { process.errorReader().forEachLine(onStderr) } }
-        val code = runInterruptible { process.waitFor() }
+        val out = launch { runInterruptible { readLines(process.inputReader(), stopped, onStdout) } }
+        val err = launch { runInterruptible { readLines(process.errorReader(), stopped, onStderr) } }
+        val exited = runInterruptible { awaitDeadline(process, timeout) }
+        if (!exited) {
+          stopped.set(true)
+          stopTree(process)
+        }
         out.join()
         err.join()
-        code
+        if (exited) process.exitValue() else TIMED_OUT
       }
     } finally {
-      if (process.isAlive) stop(process)
+      if (process.isAlive) stopTree(process)
+    }
+  }
+
+  // The descendants are read before the child is stopped, since a process whose parent has gone is no longer one of
+  // them. A shell that runs a command without exec leaves it holding the pipes once the shell itself has exited. The
+  // interrupt is held aside for the waits the way stop holds it, and put back for the caller.
+  private fun stopTree(process: Process) {
+    val descendants = process.descendants().toList()
+    val interrupted = Thread.interrupted()
+    try {
+      stop(process)
+      descendants.forEach(ProcessHandle::destroy)
+      runCatching {
+        CompletableFuture
+          .allOf(*descendants.map { it.onExit() }.toTypedArray())
+          .get(stopGrace.inWholeMilliseconds, TimeUnit.MILLISECONDS)
+      }
+      descendants.filter(ProcessHandle::isAlive).forEach(ProcessHandle::destroyForcibly)
+      runCatching { process.inputStream.close() }
+      runCatching { process.errorStream.close() }
+    } finally {
+      if (interrupted) Thread.currentThread().interrupt()
+    }
+  }
+
+  // A stream closed under a reader by stopTree ends the read rather than failing the call.
+  private fun readLines(
+    reader: BufferedReader,
+    stopped: AtomicBoolean,
+    onLine: (String) -> Unit,
+  ) {
+    try {
+      reader.forEachLine(onLine)
+    } catch (failure: IOException) {
+      if (!stopped.get()) throw failure
     }
   }
 
@@ -118,10 +169,19 @@ internal actual class ProcessRunner {
     }
   }
 
+  private fun awaitDeadline(
+    process: Process,
+    timeout: Duration,
+  ): Boolean {
+    if (!timeout.isInfinite()) return process.waitFor(timeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
+    process.waitFor()
+    return true
+  }
+
   // An interrupt landing mid-wait reads as "has not exited yet" rather than skipping the step after
   // it, so a stop that is interrupted twice still escalates instead of falling out of the ladder.
   private fun awaitExit(process: Process): Boolean =
-    runCatching { process.waitFor(STOP_GRACE_MILLIS, TimeUnit.MILLISECONDS) }.getOrDefault(false)
+    runCatching { process.waitFor(stopGrace.inWholeMilliseconds, TimeUnit.MILLISECONDS) }.getOrDefault(false)
 }
 
 private val exclusion = Any()

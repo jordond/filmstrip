@@ -19,6 +19,7 @@ import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.media.ProbeResult
 import dev.jordond.filmstrip.media.containerExtensionOf
 import dev.jordond.filmstrip.transform.internal.ResolveResult
+import dev.jordond.filmstrip.transform.internal.probe.OpeningRead
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -234,7 +235,8 @@ class AppleBytesSourceMediaTest {
             .shouldBeInstanceOf<ExportStatus.Failure>()
 
         failure.error.shouldBeInstanceOf<FilmstripError.SourceUnreadable>().message shouldContain "temporary file"
-        driver.syncSampleAtOrBefore(bytesOf(CLIP), TRIM_START) shouldBe null
+        val opening = driver.syncSampleAtOrBefore(bytesOf(CLIP), TRIM_START)
+        opening.shouldBeInstanceOf<OpeningRead.At>().opening shouldBe null
       } finally {
         NSFileManager.defaultManager.removeItemAtPath(blocked, null)
       }

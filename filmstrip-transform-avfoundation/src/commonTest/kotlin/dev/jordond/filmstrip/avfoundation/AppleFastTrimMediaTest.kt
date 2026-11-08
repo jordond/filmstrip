@@ -2,8 +2,10 @@ package dev.jordond.filmstrip.avfoundation
 
 import dev.jordond.filmstrip.ComponentRegistry
 import dev.jordond.filmstrip.Filmstrip
+import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.export.AvDriver
+import dev.jordond.filmstrip.avfoundation.internal.interop.pastCap
 import dev.jordond.filmstrip.avfoundation.internal.interop.syncSampleAtOrBefore
 import dev.jordond.filmstrip.avfoundation.internal.time.MEDIA_TICK
 import dev.jordond.filmstrip.avfoundation.internal.time.toDuration
@@ -20,9 +22,11 @@ import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.internal.chainedProber
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.ResolveResult
 import dev.jordond.filmstrip.transform.internal.copy.CopyPrefix
 import dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf
+import dev.jordond.filmstrip.transform.internal.probe.OpeningRead
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import io.kotest.assertions.withClue
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -146,9 +150,26 @@ class AppleFastTrimMediaTest {
       val throughDriver =
         withContext(Dispatchers.Default) {
           driver().syncSampleAtOrBefore(MediaSource.of(long), TRIM_START)
-        }
+        }.shouldBeInstanceOf<OpeningRead.At>().opening
 
       throughDriver shouldBe track.syncSampleAtOrBefore(TRIM_START)
+    }
+
+  // The walk from the trim back to the sync sample before it steps over more frames than this cap.
+  @Test
+  fun `refuses the plan when the sync sample read fails`() =
+    runTest(timeout = TIMEOUT) {
+      val components = ComponentRegistry.Builder().addEffectResolver(BuiltInEffectResolver()).build()
+      val prober = chainedProber(components)
+      val engine = avFoundationExportEngine(components, prober, AvDriver(prober, syncSampleCap = 1))
+
+      val refused =
+        withContext(Dispatchers.Default) { engine.resolve(snapping(fixture(LONG)), ExportSpec()) }
+          .shouldBeInstanceOf<ResolveResult.Refused>()
+
+      val error = refused.error.shouldBeInstanceOf<FilmstripError.SourceUnreadable>()
+      error.source shouldBe MediaSource.of(fixture(LONG)).describe()
+      error.message shouldBe pastCap(1)
     }
 
   // The window ends inside a reorder group, so a frame the copy leaves out sits between the ones it writes and the

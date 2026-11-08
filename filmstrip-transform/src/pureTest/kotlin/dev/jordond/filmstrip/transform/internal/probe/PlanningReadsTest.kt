@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.transform.internal.probe
 
+import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.edit.Clip
 import dev.jordond.filmstrip.edit.EditComposition
@@ -70,7 +71,10 @@ class PlanningReadsTest {
   @Test
   fun `a cut with no opening is held and not asked again`() =
     runTest {
-      val reads = PlanningReads(prober(), { device }, { source, cut -> null.also { openingReads += source to cut } })
+      val reads =
+        PlanningReads(prober(), { CapabilitiesResult.Success(device) }, { source, cut ->
+          OpeningRead.At(null).also { openingReads += source to cut }
+        })
 
       val first = reads.read(composition(trimmed)).shouldBeInstanceOf<PlanningReadResult.Read>()
       reads.read(composition(trimmed))
@@ -96,7 +100,7 @@ class PlanningReadsTest {
     runTest {
       var probes = 0
       val counted = MediaProber { source -> ProbeResult.Success(infos.getValue(source)).also { probes++ } }
-      val reads = PlanningReads(counted, { device }, { _, _ -> OPENING })
+      val reads = PlanningReads(counted, { CapabilitiesResult.Success(device) }, { _, _ -> OpeningRead.At(OPENING) })
 
       val read =
         reads
@@ -112,7 +116,12 @@ class PlanningReadsTest {
   fun `a source that fails to probe fails the read before the device is asked`() =
     runTest {
       val error = FilmstripError.SourceUnreadable("gone", "the prober could not open it")
-      val reads = PlanningReads({ ProbeResult.Failure(error) }, { device.also { deviceReads++ } }, { _, _ -> OPENING })
+      val reads =
+        PlanningReads(
+          { ProbeResult.Failure(error) },
+          { CapabilitiesResult.Success(device).also { deviceReads++ } },
+          { _, _ -> OpeningRead.At(OPENING) },
+        )
 
       val failed = reads.read(composition(trimmed)).shouldBeInstanceOf<PlanningReadResult.Failed>()
 
@@ -120,13 +129,52 @@ class PlanningReadsTest {
       deviceReads shouldBe 0
     }
 
+  // An opening read that could not finish has no answer to plan a copy on, so the export is refused rather than
+  // transcoded, and the next negotiation asks again.
+  @Test
+  fun `an opening read that fails fails the read and is not held`() =
+    runTest {
+      val error = FilmstripError.SourceUnreadable("slow", "the opening read was stopped")
+      val reads =
+        PlanningReads(prober(), { CapabilitiesResult.Success(device) }, { source, cut ->
+          OpeningRead.Failed(error).also { openingReads += source to cut }
+        })
+
+      reads.read(composition(trimmed)).shouldBeInstanceOf<PlanningReadResult.Failed>().error shouldBeSameInstanceAs
+        error
+      reads.read(composition(trimmed))
+
+      openingReads.size shouldBe 2
+    }
+
+  @Test
+  fun `a device read that fails fails the read and is not held`() =
+    runTest {
+      val error = FilmstripError.Underlying(FilmstripError.Underlying.NO_PLATFORM_CODE, "the ladder was stopped")
+      var failing = true
+      val reads =
+        PlanningReads(prober(), {
+          deviceReads++
+          if (failing) CapabilitiesResult.Failure(error) else CapabilitiesResult.Success(device)
+        }, { _, _ -> OpeningRead.At(OPENING) })
+
+      reads.read(composition(trimmed)).shouldBeInstanceOf<PlanningReadResult.Failed>().error shouldBeSameInstanceAs
+        error
+      failing = false
+      reads.read(composition(trimmed)).shouldBeInstanceOf<PlanningReadResult.Read>().device shouldBeSameInstanceAs
+        device
+      reads.device()
+
+      deviceReads shouldBe 2
+    }
+
   private fun reads(): PlanningReads =
     PlanningReads(
       prober(),
-      readDevice = { device.also { deviceReads++ } },
+      readDevice = { CapabilitiesResult.Success(device).also { deviceReads++ } },
       readOpening = { source, cut ->
         openingReads += source to cut
-        OPENING
+        OpeningRead.At(OPENING)
       },
     )
 

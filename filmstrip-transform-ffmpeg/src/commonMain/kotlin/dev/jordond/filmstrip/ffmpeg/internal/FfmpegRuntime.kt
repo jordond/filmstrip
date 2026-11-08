@@ -1,11 +1,13 @@
 package dev.jordond.filmstrip.ffmpeg.internal
 
+import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime.Companion.of
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.SdColor
 import dev.jordond.filmstrip.ffmpeg.internal.probe.PROBE_ARGUMENTS
+import dev.jordond.filmstrip.ffmpeg.internal.probe.SYNC_SAMPLE_WINDOW
 import dev.jordond.filmstrip.ffmpeg.internal.probe.UNLISTED_PACKETS
 import dev.jordond.filmstrip.ffmpeg.internal.probe.copyPacketArguments
 import dev.jordond.filmstrip.ffmpeg.internal.probe.packetCapReason
@@ -22,18 +24,23 @@ import dev.jordond.filmstrip.ffmpeg.internal.process.FileStamp
 import dev.jordond.filmstrip.ffmpeg.internal.process.FrameStream
 import dev.jordond.filmstrip.ffmpeg.internal.process.LiveBinding
 import dev.jordond.filmstrip.ffmpeg.internal.process.LiveFeedRequest
+import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeAnswer
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessOutput
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProcessRunner
+import dev.jordond.filmstrip.ffmpeg.internal.process.TIMED_OUT
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
 import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainLocator
 import dev.jordond.filmstrip.ffmpeg.internal.process.ToolchainResult
 import dev.jordond.filmstrip.ffmpeg.internal.process.bindLiveFeeds
 import dev.jordond.filmstrip.ffmpeg.internal.process.exclusively
 import dev.jordond.filmstrip.ffmpeg.internal.process.fileStampOf
+import dev.jordond.filmstrip.ffmpeg.internal.process.probeDeadline
+import dev.jordond.filmstrip.ffmpeg.internal.process.probeExpiredReason
 import dev.jordond.filmstrip.media.MediaInfo
 import dev.jordond.filmstrip.transform.internal.copy.CopyPacket
 import dev.jordond.filmstrip.transform.internal.copy.CopyPacketRead
 import dev.jordond.filmstrip.transform.internal.copy.copyPacketCap
+import dev.jordond.filmstrip.transform.internal.copy.copyPacketSpan
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -52,9 +59,10 @@ internal class FfmpegRuntime private constructor(
   val config: FfmpegConfig,
   val bytesRoot: BytesRoot = DEFAULT_BYTES_ROOT,
   val bindFeeds: (List<LiveFeedRequest>) -> LiveBinding = ::bindLiveFeeds,
+  val deadline: (window: Duration) -> Duration = ::probeDeadline,
+  private val runner: ProcessRunner = ProcessRunner(),
 ) {
-  private val runner = ProcessRunner()
-  private val locator = ToolchainLocator(config, runner)
+  private val locator = ToolchainLocator(config, runner, deadline(Duration.ZERO))
   private val probeLock = Mutex()
   private val probes = mutableMapOf<String, Stamped<MediaInfo>>()
 
@@ -96,31 +104,34 @@ internal class FfmpegRuntime private constructor(
   suspend fun toolchain(): ToolchainResult = locator.toolchain()
 
   /**
-   * What this toolchain can encode, measured by [measure] the first time it is asked for.
+   * What this toolchain can encode, measured by [measure] the first time it is asked for, or why it could not be.
    *
    * Held on the runtime, so every engine a process builds for its components shares one measurement
    * of the ladder. The lock is held across the measurement, so two callers arriving together measure
-   * once between them.
+   * once between them. A measurement that failed is not held, so the next caller measures again.
    *
    * @param measure Runs the ladder against the toolchain this runtime resolved.
    */
-  suspend fun capabilities(measure: suspend () -> DeviceCapabilities): DeviceCapabilities =
+  suspend fun capabilities(measure: suspend () -> CapabilitiesResult): CapabilitiesResult =
     capabilityLock.withLock {
-      capabilities ?: measure().also {
-        capabilities = it
-        capabilityMeasures++
-      }
+      capabilities?.let { return@withLock CapabilitiesResult.Success(it) }
+      capabilityMeasures++
+      measure().also { if (it is CapabilitiesResult.Success) capabilities = it.capabilities }
     }
 
-  suspend fun capture(command: List<String>): ProcessOutput = runner.capture(command)
+  suspend fun capture(
+    command: List<String>,
+    timeout: Duration,
+  ): ProcessOutput = runner.capture(command, timeout)
 
+  // An export runs as long as its media does, so it has no deadline.
   suspend fun stream(
     command: List<String>,
     onStdout: (String) -> Unit,
     onStderr: (String) -> Unit,
   ): Int {
     streamSpawns++
-    return runner.run(command, onStdout, onStderr)
+    return runner.run(command, Duration.INFINITE, onStdout, onStderr)
   }
 
   /**
@@ -131,77 +142,61 @@ internal class FfmpegRuntime private constructor(
   suspend fun frames(command: List<String>): FrameStream = runner.frames(command)
 
   /**
-   * Reads [path] through ffprobe, or null when it could not be read.
+   * Reads [path] through ffprobe, answering null when it could not be read.
    *
    * Each file read is cached by path and the file's [FileStamp], so a plan that names the same clip in several places
    * spawns one ffprobe, a re-lowering spawns none, and a file rewritten at the same path is read again. A path that
-   * could not be read is not held, so the next caller asks again and finds a file that turned up since.
+   * could not be read is not held, so the next caller asks again and finds a file that turned up since. A read still
+   * running at its [deadline] is [ProbeAnswer.Expired].
    */
   suspend fun probe(
     toolchain: Toolchain,
     path: String,
-  ): MediaInfo? =
+  ): ProbeAnswer<MediaInfo?> =
     probeLock.withLock {
       val stamp = stampOf(path)
-      probes[path]?.valueAt(stamp) ?: read(toolchain, path, stamp)?.also { probes[path] = Stamped(stamp, it) }
+      probes[path]?.valueAt(stamp)?.let { return@withLock ProbeAnswer.Answered(it) }
+      read(toolchain, path, stamp).also { read -> read.held?.let { probes[path] = Stamped(stamp, it) } }
     }
 
   /**
-   * The [SdColor] of [path]'s video stream, or null when it has none or [path] could not be read.
+   * What [path]'s video stream says about its colour, answering null when [path] could not be read.
    *
    * A file [probe] read already answers from that spawn. One a registered prober answered for spawns once for this,
-   * since a [MediaInfo] holds no primaries, and is cached the same way.
+   * since a [MediaInfo] holds no primaries, and is cached the same way. A read still running at its [deadline] is
+   * [ProbeAnswer.Expired].
    */
-  suspend fun sdColor(
+  suspend fun colorRead(
     toolchain: Toolchain,
     path: String,
-  ): SdColor? = colorRead(toolchain, path)?.sdColor
-
-  /**
-   * Whether [path]'s video stream is tagged BT.709, read off the spawn [sdColor] and [probe] already answer from.
-   */
-  suspend fun isTaggedBt709(
-    toolchain: Toolchain,
-    path: String,
-  ): Boolean = colorRead(toolchain, path)?.matrix == BT709_MATRIX
-
-  /**
-   * Whether [path]'s video stream decodes to the plain 4:2:0 a clip's tail ends on, read the way [isTaggedBt709] is.
-   */
-  suspend fun decodesToTailFormat(
-    toolchain: Toolchain,
-    path: String,
-  ): Boolean = colorRead(toolchain, path)?.pixelFormat == TAIL_PIXEL_FORMAT
-
-  // What the probe spawn said about the video's colour, cached the way probe is, or null when it could not be read.
-  private suspend fun colorRead(
-    toolchain: Toolchain,
-    path: String,
-  ): ColorRead? =
+  ): ProbeAnswer<ColorRead?> =
     probeLock.withLock {
       val stamp = stampOf(path)
-      colorReads[path]?.valueAt(stamp)?.let { return@withLock it }
+      colorReads[path]?.valueAt(stamp)?.let { return@withLock ProbeAnswer.Answered(it) }
       sdColorSpawns++
-      val output = capture(listOf(toolchain.ffprobe) + PROBE_ARGUMENTS + path)
-      if (!output.started || output.exitCode != 0) return@withLock null
-      colorReadOf(output.stdout).also { colorReads[path] = Stamped(stamp, it) }
+      val timeout = deadline(Duration.ZERO)
+      val output = capture(listOf(toolchain.ffprobe) + PROBE_ARGUMENTS + path, timeout)
+      if (output.timedOut) return@withLock ProbeAnswer.Expired(probeExpiredReason(FFPROBE, timeout))
+      if (!output.started || output.exitCode != 0) return@withLock ProbeAnswer.Answered(null)
+      ProbeAnswer.Answered(colorReadOf(output.stdout).also { colorReads[path] = Stamped(stamp, it) })
     }
 
   /**
-   * The sync sample at or before [at] in [path]'s video stream, or null when there is none.
+   * The sync sample at or before [at] in [path]'s video stream, answering null when there is none.
    *
    * Cached by path, the file's [FileStamp] and cut, negatives included, so the plan, the resolve behind a preview and
-   * the export of one edit read the same answer, and a file rewritten at the same path is read again.
+   * the export of one edit read the same answer, and a file rewritten at the same path is read again. A read still
+   * running at the [deadline] of [SYNC_SAMPLE_WINDOW] is [ProbeAnswer.Expired] and is not held.
    */
   suspend fun syncSampleAtOrBefore(
     toolchain: Toolchain,
     path: String,
     at: Duration,
-  ): Duration? =
+  ): ProbeAnswer<Duration?> =
     syncSampleLock.withLock {
       val key = Triple(path, stampOf(path), at)
-      if (syncSamples.containsKey(key)) return@withLock syncSamples[key]
-      readSyncSample(toolchain, path, at).also { syncSamples[key] = it }
+      if (syncSamples.containsKey(key)) return@withLock ProbeAnswer.Answered(syncSamples[key])
+      readSyncSample(toolchain, path, at).also { if (it is ProbeAnswer.Answered) syncSamples[key] = it.value }
     }
 
   /**
@@ -211,7 +206,8 @@ internal class FfmpegRuntime private constructor(
    * preview and the export of one edit count the same packets, a file rewritten at the same path is read again, and an
    * edit whose window keeps moving holds one listing rather than one per window. A failed read is not held, so the
    * next caller asks again. A read listing more than [dev.jordond.filmstrip.transform.internal.copy.copyPacketCap]
-   * packets is stopped there and fails naming the cap.
+   * packets is stopped there and fails naming the cap, and one still running at the [deadline] of the
+   * [copyPacketSpan] it reads fails naming that.
    */
   suspend fun copyPackets(
     toolchain: Toolchain,
@@ -251,11 +247,24 @@ internal class FfmpegRuntime private constructor(
     fun valueAt(current: FileStamp?): T? = value.takeIf { stamp == current }
   }
 
-  private class ColorRead(
+  /**
+   * What ffprobe said about a video stream's colour.
+   *
+   * @property isTaggedBt709 Whether the stream is tagged BT.709.
+   * @property decodesToTailFormat Whether the stream decodes to the plain 4:2:0 a clip's tail ends on.
+   */
+  class ColorRead(
     val sdColor: SdColor?,
-    val matrix: String?,
-    val pixelFormat: String?,
-  )
+    matrix: String?,
+    pixelFormat: String?,
+  ) {
+    val isTaggedBt709: Boolean = matrix == BT709_MATRIX
+
+    val decodesToTailFormat: Boolean = pixelFormat == TAIL_PIXEL_FORMAT
+  }
+
+  // The MediaInfo a probe read answered with, which is what the cache holds for it.
+  private val ProbeAnswer<MediaInfo?>.held: MediaInfo? get() = (this as? ProbeAnswer.Answered)?.value
 
   private fun colorReadOf(stdout: String): ColorRead =
     ColorRead(parseSdColor(stdout), parseVideoMatrix(stdout), parseVideoPixelFormat(stdout))
@@ -269,16 +278,17 @@ internal class FfmpegRuntime private constructor(
   suspend fun reprobe(
     toolchain: Toolchain,
     path: String,
-  ): MediaInfo? =
+  ): ProbeAnswer<MediaInfo?> =
     probeLock.withLock {
       copyPacketLock.withLock { copyPacketReads.remove(path) }
       val stamp = stampOf(path)
       read(toolchain, path, stamp).also {
-        if (it == null) {
+        val held = it.held
+        if (held == null) {
           probes.remove(path)
           colorReads.remove(path)
         } else {
-          probes[path] = Stamped(stamp, it)
+          probes[path] = Stamped(stamp, held)
         }
       }
     }
@@ -287,22 +297,28 @@ internal class FfmpegRuntime private constructor(
     toolchain: Toolchain,
     path: String,
     stamp: FileStamp?,
-  ): MediaInfo? {
+  ): ProbeAnswer<MediaInfo?> {
     probeSpawns++
-    val output = capture(listOf(toolchain.ffprobe) + PROBE_ARGUMENTS + path)
-    if (!output.started || output.exitCode != 0) return null
+    val timeout = deadline(Duration.ZERO)
+    val output = capture(listOf(toolchain.ffprobe) + PROBE_ARGUMENTS + path, timeout)
+    if (output.timedOut) return ProbeAnswer.Expired(probeExpiredReason(FFPROBE, timeout))
+    if (!output.started || output.exitCode != 0) return ProbeAnswer.Answered(null)
     colorReads[path] = Stamped(stamp, colorReadOf(output.stdout))
-    return parseMediaInfo(output.stdout)
+    return ProbeAnswer.Answered(parseMediaInfo(output.stdout))
   }
 
   private suspend fun readSyncSample(
     toolchain: Toolchain,
     path: String,
     at: Duration,
-  ): Duration? {
+  ): ProbeAnswer<Duration?> {
     syncSampleSpawns++
-    val output = capture(syncSampleArguments(toolchain, path, at))
-    return if (output.started && output.exitCode == 0) parseSyncSample(output.stdout, at) else null
+    val timeout = deadline(SYNC_SAMPLE_WINDOW)
+    val output = capture(syncSampleArguments(toolchain, path, at), timeout)
+    if (output.timedOut) return ProbeAnswer.Expired(probeExpiredReason(FFPROBE, timeout))
+    return ProbeAnswer.Answered(
+      if (output.started && output.exitCode == 0) parseSyncSample(output.stdout, at) else null,
+    )
   }
 
   private suspend fun readCopyPackets(
@@ -313,11 +329,13 @@ internal class FfmpegRuntime private constructor(
   ): CopyPacketRead {
     copyPacketSpawns++
     val cap = copyPacketCap(from, to)
+    val timeout = deadline(copyPacketSpan(from, to))
     val packets = mutableListOf<CopyPacket>()
     val code =
       try {
         runner.run(
           copyPacketArguments(toolchain, path, from, to),
+          timeout,
           onStdout = { line ->
             parseCopyPacket(line)?.let { packets += it }
             if (packets.size > cap) throw PacketCapReached()
@@ -327,7 +345,11 @@ internal class FfmpegRuntime private constructor(
       } catch (_: PacketCapReached) {
         return CopyPacketRead.Failed(packetCapReason(cap, from, to))
       }
-    return if (code == 0) CopyPacketRead.Read(packets) else CopyPacketRead.Failed(UNLISTED_PACKETS)
+    return when (code) {
+      0 -> CopyPacketRead.Read(packets)
+      TIMED_OUT -> CopyPacketRead.Failed(probeExpiredReason(FFPROBE, timeout))
+      else -> CopyPacketRead.Failed(UNLISTED_PACKETS)
+    }
   }
 
   // Thrown out of the line reader to stop a packet read at its cap, which also stops the child.
@@ -342,14 +364,17 @@ internal class FfmpegRuntime private constructor(
         ProbeOutcome.NoToolchain(result.error)
       }
       is ToolchainResult.Available -> {
-        val info = probe(result.toolchain, path)
-        if (info == null) ProbeOutcome.Unreadable else ProbeOutcome.Read(info)
+        when (val read = probe(result.toolchain, path)) {
+          is ProbeAnswer.Expired -> ProbeOutcome.Expired(read.reason)
+          is ProbeAnswer.Answered -> read.value?.let { ProbeOutcome.Read(it) } ?: ProbeOutcome.Unreadable
+        }
       }
     }
 
   companion object {
     private const val BT709_MATRIX = "bt709"
     private const val TAIL_PIXEL_FORMAT = "yuv420p"
+    private const val FFPROBE = "ffprobe"
 
     // Keyed on the config, which compares structurally, so two callers that spelled the same
     // configuration reach the same runtime. Held in use order and capped: a process usually
@@ -383,7 +408,9 @@ internal class FfmpegRuntime private constructor(
       config: FfmpegConfig,
       bytesRoot: BytesRoot = DEFAULT_BYTES_ROOT,
       bindFeeds: (List<LiveFeedRequest>) -> LiveBinding = ::bindLiveFeeds,
-    ): FfmpegRuntime = FfmpegRuntime(config, bytesRoot, bindFeeds)
+      deadline: (window: Duration) -> Duration = ::probeDeadline,
+      runner: ProcessRunner = ProcessRunner(),
+    ): FfmpegRuntime = FfmpegRuntime(config, bytesRoot, bindFeeds, deadline, runner)
   }
 }
 
@@ -401,4 +428,8 @@ internal sealed interface ProbeOutcome {
   ) : ProbeOutcome
 
   data object Unreadable : ProbeOutcome
+
+  class Expired(
+    val reason: String,
+  ) : ProbeOutcome
 }

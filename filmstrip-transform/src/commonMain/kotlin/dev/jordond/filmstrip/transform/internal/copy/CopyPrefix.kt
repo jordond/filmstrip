@@ -48,14 +48,24 @@ public val COPY_PACKET_MARGIN: Duration = 1.seconds
 public const val MAX_COPY_PACKET_RATE: Int = 1_000
 
 /**
- * How many packets a read of the window from [from] to [to] lists at most, which is that window and its
- * [COPY_PACKET_MARGIN] at [MAX_COPY_PACKET_RATE]. A backend refuses a copy whose read lists more.
+ * How much of a source a read of the window from [from] to [to] covers, which is that window and its
+ * [COPY_PACKET_MARGIN].
+ */
+@InternalFilmstripApi
+public fun copyPacketSpan(
+  from: Duration,
+  to: Duration,
+): Duration = to + COPY_PACKET_MARGIN - from
+
+/**
+ * How many packets a read of the window from [from] to [to] lists at most, which is its [copyPacketSpan] at
+ * [MAX_COPY_PACKET_RATE]. A backend refuses a copy whose read lists more.
  */
 @InternalFilmstripApi
 public fun copyPacketCap(
   from: Duration,
   to: Duration,
-): Int = ceil((to + COPY_PACKET_MARGIN - from).toDouble(DurationUnit.SECONDS) * MAX_COPY_PACKET_RATE).toInt()
+): Int = ceil(copyPacketSpan(from, to).toDouble(DurationUnit.SECONDS) * MAX_COPY_PACKET_RATE).toInt()
 
 /**
  * What [copyPrefixOf] counts off a copy's packets.

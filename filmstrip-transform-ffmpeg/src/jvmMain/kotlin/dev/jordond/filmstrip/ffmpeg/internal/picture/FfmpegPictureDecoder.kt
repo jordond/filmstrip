@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.effects.overlay.OverlayPictureDecoder
 import dev.jordond.filmstrip.effects.overlay.OverlayPictureRead
 import dev.jordond.filmstrip.effects.overlay.decodedPng
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
+import dev.jordond.filmstrip.ffmpeg.internal.process.probeDeadline
 import dev.jordond.filmstrip.geometry.Size
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.filePathOf
@@ -93,7 +94,7 @@ internal actual fun decodingOverlayPictures(
  */
 internal class FfmpegPictureDecoder(
   private val ffmpeg: String,
-  private val timeoutMillis: Long = PICTURE_TIMEOUT_MILLIS,
+  private val timeoutMillis: Long = probeDeadline().inWholeMilliseconds,
   private val scratch: File? = null,
   private val write: (File, ByteArray) -> Unit = File::writeBytes,
 ) : OverlayPictureDecoder {
@@ -388,8 +389,5 @@ private val PLANES_ON_STDOUT = listOf("-f", "yuv4mpegpipe", "-strict", "-1", "-"
 private val SIZE_ON_STDOUT = listOf("-c:v", "wrapped_avframe", "-f", "framecrc", "-")
 
 private const val FRAMECRC_DIMENSIONS = "#dimensions 0:"
-
-// Long enough for a large AVIF on a loaded machine, and short of leaving a plan hung on a child that never finishes.
-internal const val PICTURE_TIMEOUT_MILLIS: Long = 30_000
 
 private const val SCRATCH_PREFIX = "filmstrip-overlay"

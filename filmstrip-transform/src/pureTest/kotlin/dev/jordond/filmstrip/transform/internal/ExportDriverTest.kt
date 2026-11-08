@@ -30,6 +30,7 @@ import dev.jordond.filmstrip.transform.internal.copy.CopyPacketRead
 import dev.jordond.filmstrip.transform.internal.copy.CopyPacketWindow
 import dev.jordond.filmstrip.transform.internal.copy.CopyPrefix
 import dev.jordond.filmstrip.transform.internal.copy.copyPrefixOf
+import dev.jordond.filmstrip.transform.internal.probe.OpeningRead
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -55,14 +56,13 @@ class ExportDriverTest {
       val trimmed = composition(fixture.clip(trim = TimeRange.of(1_000.milliseconds, 3_000.milliseconds)))
       val driver = DefaultSyncDriver(fixture.device())
 
-      driver.syncSampleAtOrBefore(
+      val source =
         trimmed.tracks
           .single()
           .clips
           .single()
-          .source,
-        1.seconds,
-      ) shouldBe null
+          .source
+      driver.syncSampleAtOrBefore(source, 1.seconds).shouldBeInstanceOf<OpeningRead.At>().opening shouldBe null
 
       val plan = engine(driver, trimmed).plan(trimmed, SPEC).shouldBeInstanceOf<Verdict.Capable>()
       plan.plan.path shouldBe ExportPath.Transcode
@@ -303,9 +303,9 @@ private class RecordingDriver(
   override suspend fun syncSampleAtOrBefore(
     source: MediaSource,
     cut: Duration,
-  ): Duration? {
+  ): OpeningRead {
     asked += source to cut
-    return opening
+    return OpeningRead.At(opening)
   }
 }
 
@@ -322,7 +322,7 @@ private class PacketDriver(
   override suspend fun syncSampleAtOrBefore(
     source: MediaSource,
     cut: Duration,
-  ): Duration = cut
+  ): OpeningRead = OpeningRead.At(cut)
 
   override suspend fun copyPackets(window: CopyPacketWindow): CopyPacketRead {
     windows += window

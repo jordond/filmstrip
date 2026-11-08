@@ -3,6 +3,7 @@ package dev.jordond.filmstrip.ffmpeg
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
 import dev.jordond.filmstrip.ffmpeg.internal.process.FfmpegVersion
 import dev.jordond.filmstrip.ffmpeg.internal.process.Toolchain
+import dev.jordond.filmstrip.ffmpeg.support.answer
 import dev.jordond.filmstrip.transform.internal.copy.CopyPacketRead
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -35,8 +36,8 @@ class RewrittenSourceTest {
     runTest {
       source.writeText("1.0\n")
 
-      runtime.syncSampleAtOrBefore(toolchain, source.path, CUT) shouldBe 1.seconds
-      runtime.syncSampleAtOrBefore(toolchain, source.path, CUT) shouldBe 1.seconds
+      runtime.syncSampleAtOrBefore(toolchain, source.path, CUT).answer() shouldBe 1.seconds
+      runtime.syncSampleAtOrBefore(toolchain, source.path, CUT).answer() shouldBe 1.seconds
 
       runtime.syncSampleSpawns shouldBe 1
     }
@@ -45,22 +46,22 @@ class RewrittenSourceTest {
   fun `a sync sample is read again once the file is written at the same size`() =
     runTest {
       source.writeText("1.0\n")
-      runtime.syncSampleAtOrBefore(toolchain, source.path, CUT) shouldBe 1.seconds
+      runtime.syncSampleAtOrBefore(toolchain, source.path, CUT).answer() shouldBe 1.seconds
 
       rewrite("2.0\n", keepModified = false)
 
-      runtime.syncSampleAtOrBefore(toolchain, source.path, CUT) shouldBe 2.seconds
+      runtime.syncSampleAtOrBefore(toolchain, source.path, CUT).answer() shouldBe 2.seconds
     }
 
   @Test
   fun `a sync sample is read again once the file changes size under the same modified time`() =
     runTest {
       source.writeText("1.0\n")
-      runtime.syncSampleAtOrBefore(toolchain, source.path, CUT) shouldBe 1.seconds
+      runtime.syncSampleAtOrBefore(toolchain, source.path, CUT).answer() shouldBe 1.seconds
 
       rewrite("2.50\n", keepModified = true)
 
-      runtime.syncSampleAtOrBefore(toolchain, source.path, CUT) shouldBe 2.5.seconds
+      runtime.syncSampleAtOrBefore(toolchain, source.path, CUT).answer() shouldBe 2.5.seconds
     }
 
   @Test
@@ -128,6 +129,7 @@ class RewrittenSourceTest {
       source.writeText(report(width = 320))
       runtime
         .probe(toolchain, source.path)
+        .answer()
         ?.video
         ?.codedSize
         ?.width shouldBe 320
@@ -136,6 +138,7 @@ class RewrittenSourceTest {
 
       runtime
         .probe(toolchain, source.path)
+        .answer()
         ?.video
         ?.codedSize
         ?.width shouldBe 640
@@ -147,6 +150,7 @@ class RewrittenSourceTest {
       source.writeText(report(width = 320))
       runtime
         .probe(toolchain, source.path)
+        .answer()
         ?.video
         ?.codedSize
         ?.width shouldBe 320
@@ -155,6 +159,7 @@ class RewrittenSourceTest {
 
       runtime
         .probe(toolchain, source.path)
+        .answer()
         ?.video
         ?.codedSize
         ?.width shouldBe 1280
@@ -166,14 +171,14 @@ class RewrittenSourceTest {
     runTest {
       source.writeText(report(pixelFormat = "yuv420p", matrix = "bt709"))
       runtime.probe(toolchain, source.path)
-      runtime.decodesToTailFormat(toolchain, source.path) shouldBe true
-      runtime.isTaggedBt709(toolchain, source.path) shouldBe true
+      runtime.colorRead(toolchain, source.path).answer()?.decodesToTailFormat shouldBe true
+      runtime.colorRead(toolchain, source.path).answer()?.isTaggedBt709 shouldBe true
 
       rewrite(report(pixelFormat = "yuv422p", matrix = "bt709"), keepModified = false)
-      runtime.decodesToTailFormat(toolchain, source.path) shouldBe false
+      runtime.colorRead(toolchain, source.path).answer()?.decodesToTailFormat shouldBe false
 
       rewrite(report(pixelFormat = "yuv422p", matrix = "bt2020nc"), keepModified = true)
-      runtime.isTaggedBt709(toolchain, source.path) shouldBe false
+      runtime.colorRead(toolchain, source.path).answer()?.isTaggedBt709 shouldBe false
     }
 
   // What ffprobe prints for a one-second video stream, as the probe reads it.

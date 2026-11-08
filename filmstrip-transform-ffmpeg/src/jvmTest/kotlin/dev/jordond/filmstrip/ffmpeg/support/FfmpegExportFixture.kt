@@ -142,7 +142,7 @@ internal class FfmpegExportFixture {
     val runtime = FfmpegRuntime.of(FfmpegConfig())
     val openings =
       copyOpenings(composition) { source, cut ->
-        runtime.syncSampleAtOrBefore(toolchain, readablePath(source).shouldNotBeNull(), cut)
+        runtime.syncSampleAtOrBefore(toolchain, readablePath(source).shouldNotBeNull(), cut).answer()
       }
     val planner = FfmpegPlanner(toolchain, listOf(BuiltInEffectResolver()))
     val ask = Ask(spec, device, infos, openings)

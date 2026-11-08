@@ -10,6 +10,7 @@ import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
 import dev.jordond.filmstrip.transform.internal.copy.CopyPacketRead
 import dev.jordond.filmstrip.transform.internal.copy.CopyPacketWindow
+import dev.jordond.filmstrip.transform.internal.probe.OpeningRead
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Duration
@@ -46,14 +47,15 @@ public interface ExportDriver {
    * Reads the sync sample at or before [cut] in [source], which is where a stream copy of a clip
    * trimmed to [cut] would have to open.
    *
-   * Null when this platform can name none, and the clip's trim then blocks the copy. Asked only for
-   * a clip whose [Clip.snapWithin] leaves the answer able to change the plan, so a driver with no
-   * cheap way to read one may decline by keeping the default.
+   * An [OpeningRead.At] with no opening when this platform can name none, and the clip's trim then blocks the copy.
+   * An [OpeningRead.Failed] when the read could not finish, which refuses the plan. Asked only for a clip whose
+   * [Clip.snapWithin] leaves the answer able to change the plan, so a driver with no cheap way to read one may
+   * decline by keeping the default.
    */
   public suspend fun syncSampleAtOrBefore(
     source: MediaSource,
     cut: Duration,
-  ): Duration? = null
+  ): OpeningRead = OpeningRead.At(null)
 
   /**
    * Lists the video packets of [window]'s source in decode order, from the sync sample its copy opens on through

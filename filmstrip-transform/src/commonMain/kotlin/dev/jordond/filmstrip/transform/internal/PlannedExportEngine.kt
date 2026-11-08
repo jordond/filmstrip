@@ -48,11 +48,16 @@ public class PlannedExportEngine(
       toneMapLimit = backend::toneMapLimit,
     )
 
-  private val reads = PlanningReads(prober, backend::capabilities, backend::syncSampleAtOrBefore)
+  private val reads =
+    PlanningReads(
+      prober,
+      { CapabilitiesResult.Success(backend.capabilities()) },
+      backend::syncSampleAtOrBefore,
+    )
   override val lowering: EngineLowering<*> =
     EngineLowering(resolvers, ::grade, ::lower) { resolved, _, to -> backend.export(resolved, to) }
 
-  override suspend fun capabilities(): CapabilitiesResult = CapabilitiesResult.Success(reads.device())
+  override suspend fun capabilities(): CapabilitiesResult = reads.device()
 
   override fun parityOf(specId: String): EffectParity? = parity[specId]
 

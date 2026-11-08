@@ -6,6 +6,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
+import kotlin.time.Duration
 
 /**
  * A usable pair of binaries, and what the ffmpeg one can do.
@@ -49,14 +50,18 @@ internal sealed interface ToolchainResult {
  *
  * A missing or too old ffmpeg is looked for again on the next call, so a host that installs one or
  * sets `FILMSTRIP_FFMPEG` after the first attempt is picked up without a new runtime. A build without the
- * [PACKET_DROP_FILTER] bitstream filter is refused the same way, here rather than part way through an export.
+ * [PACKET_DROP_FILTER] bitstream filter is refused the same way, here rather than part way through an export. So is one
+ * still answering its version or one of its listings at [deadline], naming the option it hung on.
  *
  * Resolution is [FfmpegConfig.executablePath], then `FILMSTRIP_FFMPEG`, then a `PATH` search, and
  * the result is always made absolute before it is spawned.
+ *
+ * @param deadline How long each of the binary's listings may run before it is stopped.
  */
 internal class ToolchainLocator(
   private val config: FfmpegConfig,
   private val runner: ProcessRunner,
+  private val deadline: Duration = probeDeadline(),
 ) {
   private val lock = Mutex()
   private var resolved: ToolchainResult.Available? = null
@@ -71,8 +76,9 @@ internal class ToolchainLocator(
       locate(config.executablePath, "FILMSTRIP_FFMPEG", FFMPEG)
         ?: return ToolchainResult.Unavailable(missing(FFMPEG, null))
 
-    val version = runner.capture(listOf(ffmpeg, "-version"))
+    val version = runner.capture(listOf(ffmpeg, "-version"), deadline)
     if (!version.started) return ToolchainResult.Unavailable(missing(FFMPEG, null))
+    if (version.timedOut) return ToolchainResult.Unavailable(hung(VERSION, null))
 
     val parsed = parseVersion(version.stdout)
     if (!parsed.meetsFloor()) {
@@ -85,23 +91,24 @@ internal class ToolchainLocator(
         ?: siblingOf(ffmpeg)
         ?: return ToolchainResult.Unavailable(missing(FFPROBE, null))
 
-    val bitstreamFilters = runner.capture(listOf(ffmpeg, "-hide_banner", "-bsfs"))
-    if (PACKET_DROP_FILTER !in parseBitstreamFilters(bitstreamFilters.stdout)) {
-      return ToolchainResult.Unavailable(lacksPacketDrop(parsed.printed))
+    val listings = mutableMapOf<String, String>()
+    for (listing in LISTINGS) {
+      val output = runner.capture(listOf(ffmpeg, "-hide_banner", listing), deadline)
+      if (output.timedOut) return ToolchainResult.Unavailable(hung(listing, parsed.printed))
+      if (listing == BITSTREAM_FILTERS && PACKET_DROP_FILTER !in parseBitstreamFilters(output.stdout)) {
+        return ToolchainResult.Unavailable(lacksPacketDrop(parsed.printed))
+      }
+      listings[listing] = output.stdout
     }
-
-    val filters = runner.capture(listOf(ffmpeg, "-hide_banner", "-filters"))
-    val encoders = runner.capture(listOf(ffmpeg, "-hide_banner", "-encoders"))
-    val protocols = runner.capture(listOf(ffmpeg, "-hide_banner", "-protocols"))
 
     return ToolchainResult.Available(
       Toolchain(
         ffmpeg = ffmpeg,
         ffprobe = ffprobe,
         version = parsed,
-        filters = parseNameListing(filters.stdout),
-        encoders = parseNameListing(encoders.stdout),
-        inputProtocols = parseInputProtocols(protocols.stdout),
+        filters = parseNameListing(listings.getValue(FILTERS)),
+        encoders = parseNameListing(listings.getValue(ENCODERS)),
+        inputProtocols = parseInputProtocols(listings.getValue(PROTOCOLS)),
       ),
     )
   }
@@ -175,8 +182,31 @@ internal class ToolchainLocator(
           "or newer build that carries it, or point FfmpegConfig.executablePath at one, or set FILMSTRIP_FFMPEG.",
     )
 
+  // A binary that never answers one of its own listings is broken whatever version it is, so it is refused naming the
+  // listing rather than read as one that carries nothing.
+  private fun hung(
+    option: String,
+    found: String?,
+  ): FilmstripError.ToolchainMissing =
+    FilmstripError.ToolchainMissing(
+      tool = FFMPEG,
+      foundVersion = found,
+      message =
+        "`$FFMPEG $option` was still running after $deadline and was stopped, so filmstrip could not tell what this " +
+          "build can do. Point FfmpegConfig.executablePath at an ffmpeg $MINIMUM_MAJOR.$MINIMUM_MINOR or newer " +
+          "that answers it, or set FILMSTRIP_FFMPEG.",
+    )
+
   private companion object {
     const val FFMPEG = "ffmpeg"
     const val FFPROBE = "ffprobe"
+    const val VERSION = "-version"
+    const val BITSTREAM_FILTERS = "-bsfs"
+    const val FILTERS = "-filters"
+    const val ENCODERS = "-encoders"
+    const val PROTOCOLS = "-protocols"
+
+    // Asked in this order, so a build without the bitstream filter is refused for it before the rest are asked.
+    val LISTINGS = listOf(BITSTREAM_FILTERS, FILTERS, ENCODERS, PROTOCOLS)
   }
 }

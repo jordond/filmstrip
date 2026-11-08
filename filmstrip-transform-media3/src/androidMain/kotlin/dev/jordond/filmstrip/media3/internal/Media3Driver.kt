@@ -18,6 +18,7 @@ import dev.jordond.filmstrip.media3.internal.bounds.readClips
 import dev.jordond.filmstrip.media3.internal.bounds.videoTrackIndex
 import dev.jordond.filmstrip.media3.internal.failure.Media3LoweringFailure
 import dev.jordond.filmstrip.transform.internal.ExportDriver
+import dev.jordond.filmstrip.transform.internal.probe.OpeningRead
 import dev.jordond.filmstrip.transform.internal.probe.ProcessProbe
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import kotlinx.coroutines.CancellationException
@@ -52,6 +53,11 @@ internal class Media3Driver(
       "builtInEffects(), or add a resolver that recognises RenderApi.OpenGlEs."
 
   override suspend fun syncSampleAtOrBefore(
+    source: MediaSource,
+    cut: Duration,
+  ): OpeningRead = OpeningRead.At(syncSampleOf(source, cut))
+
+  private suspend fun syncSampleOf(
     source: MediaSource,
     cut: Duration,
   ): Duration? {

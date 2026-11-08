@@ -1,5 +1,7 @@
 package dev.jordond.filmstrip.ffmpeg
 
+import dev.jordond.filmstrip.CapabilitiesResult
+import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.codec.AudioCodec
 import dev.jordond.filmstrip.codec.VideoCodec
 import dev.jordond.filmstrip.ffmpeg.internal.FfmpegRuntime
@@ -25,7 +27,7 @@ class FfmpegCapabilityProbeMediaTest {
   @Test
   fun `an encoder the build carries is measured to a rung of the ladder`() =
     runTest {
-      val capabilities = runtime.measureCapabilities(narrowed(setOf("libx264", "aac")))
+      val capabilities = measured(narrowed(setOf("libx264", "aac")))
 
       val video = capabilities.video.single()
       video.codec shouldBe VideoCodec.H264
@@ -42,7 +44,7 @@ class FfmpegCapabilityProbeMediaTest {
   @Test
   fun `a build with no encoder on the hdr ladder cannot encode hdr`() =
     runTest {
-      runtime.measureCapabilities(narrowed(setOf("libx264"))).supportsHdrEncoding shouldBe false
+      measured(narrowed(setOf("libx264"))).supportsHdrEncoding shouldBe false
     }
 
   @Test
@@ -51,7 +53,7 @@ class FfmpegCapabilityProbeMediaTest {
       val real = toolchain()
       if (!real.hasEncoder("libx265")) return@runTest
 
-      val capabilities = runtime.measureCapabilities(narrowed(setOf("libx265")))
+      val capabilities = measured(narrowed(setOf("libx265")))
 
       capabilities.video.single().encoderName shouldBe "libx265"
       capabilities.supportsHdrEncoding shouldBe true
@@ -69,12 +71,15 @@ class FfmpegCapabilityProbeMediaTest {
           .toSet() + setOf("aac", "alac")
       val broken = Toolchain(MISSING, MISSING, toolchain().version, emptySet(), everything)
 
-      val capabilities = runtime.measureCapabilities(broken)
+      val capabilities = measured(broken)
 
       capabilities.video.shouldBeEmpty()
       capabilities.supportsHdrEncoding shouldBe false
       capabilities.audio.map { it.codec } shouldBe listOf(AudioCodec.Aac, AudioCodec.Alac)
     }
+
+  private suspend fun measured(toolchain: Toolchain): DeviceCapabilities =
+    runtime.measureCapabilities(toolchain).shouldBeInstanceOf<CapabilitiesResult.Success>().capabilities
 
   private suspend fun toolchain(): Toolchain =
     runtime.toolchain().shouldBeInstanceOf<ToolchainResult.Available>().toolchain

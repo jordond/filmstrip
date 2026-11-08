@@ -1,5 +1,6 @@
 package dev.jordond.filmstrip.transform.internal.probe
 
+import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
 import dev.jordond.filmstrip.capability.DeviceCapabilities
@@ -17,31 +18,33 @@ import kotlin.time.Duration
  *
  * An engine negotiates the same edit to plan it, to resolve it for a preview and again to export
  * it, and none of these answers can move between those. Sources go through a [ProbeCache], the
- * device is read once, and where a copy of each cut could open is read once per source and cut.
+ * device is read once, and where a copy of each cut could open is read once per source and cut. A device read that
+ * failed is not held, so the next caller asks again.
  *
- * @param readDevice Reads what this device's encoders can do.
- * @param readOpening Reads the sync sample at or before a cut in a source, or null when there is
- *   none this engine can name.
+ * @param readDevice Reads what this device's encoders can do, or why it could not.
+ * @param readOpening Reads the sync sample at or before a cut in a source, or why it could not be read.
  */
 @InternalFilmstripApi
 public class PlanningReads(
   prober: MediaProber,
-  private val readDevice: suspend () -> DeviceCapabilities,
-  private val readOpening: suspend (MediaSource, Duration) -> Duration?,
+  private val readDevice: suspend () -> CapabilitiesResult,
+  private val readOpening: suspend (MediaSource, Duration) -> OpeningRead,
 ) {
   private val probes = ProbeCache(prober)
   private var device: DeviceCapabilities? = null
   private val openings = mutableMapOf<Pair<MediaSource, Duration>, Duration?>()
 
   /**
-   * What this device's encoders can do, read the first time anything asks.
+   * What this device's encoders can do, read the first time anything asks, or why it could not be read.
    */
-  public suspend fun device(): DeviceCapabilities = device ?: readDevice().also { device = it }
+  public suspend fun device(): CapabilitiesResult =
+    device?.let { CapabilitiesResult.Success(it) }
+      ?: readDevice().also { if (it is CapabilitiesResult.Success) device = it.capabilities }
 
   /**
    * Reads what every source of [composition] is, the device, and where a copy of it could open.
    *
-   * @return Everything read, or the first failure a probe reported.
+   * @return Everything read, or the first failure a probe, the device read or an opening read reported.
    */
   public suspend fun read(composition: EditComposition): PlanningReadResult {
     val infos = mutableMapOf<MediaSource, MediaInfo>()
@@ -52,17 +55,58 @@ public class PlanningReads(
         is ProbeResult.Failure -> return PlanningReadResult.Failed(result.error)
       }
     }
-    return PlanningReadResult.Read(infos, device(), copyOpenings(composition, ::openingFor))
+    val device =
+      when (val result = device()) {
+        is CapabilitiesResult.Success -> result.capabilities
+        is CapabilitiesResult.Failure -> return PlanningReadResult.Failed(result.error)
+      }
+    var failed: FilmstripError? = null
+    val openings =
+      copyOpenings(composition) { source, cut ->
+        when (val opening = openingFor(source, cut)) {
+          is OpeningRead.At -> opening.opening
+          is OpeningRead.Failed -> null.also { failed = opening.error }
+        }
+      }
+    failed?.let { return PlanningReadResult.Failed(it) }
+    return PlanningReadResult.Read(infos, device, openings)
   }
 
+  // A failed read is not held, so the next negotiation asks again.
   private suspend fun openingFor(
     source: MediaSource,
     cut: Duration,
-  ): Duration? {
+  ): OpeningRead {
     val key = source to cut
-    if (key in openings) return openings[key]
-    return readOpening(source, cut).also { openings[key] = it }
+    if (key in openings) return OpeningRead.At(openings[key])
+    return readOpening(source, cut).also { if (it is OpeningRead.At) openings[key] = it.opening }
   }
+}
+
+/**
+ * What reading the sync sample at or before a cut came back with.
+ */
+@InternalFilmstripApi
+public sealed interface OpeningRead {
+  /**
+   * The read finished.
+   *
+   * @property opening The sync sample at or before the cut, or null when there is none this engine can name.
+   */
+  @InternalFilmstripApi
+  public class At(
+    public val opening: Duration?,
+  ) : OpeningRead
+
+  /**
+   * The read could not finish.
+   *
+   * @property error Why it could not.
+   */
+  @InternalFilmstripApi
+  public class Failed(
+    public val error: FilmstripError,
+  ) : OpeningRead
 }
 
 /**
@@ -85,7 +129,7 @@ public sealed interface PlanningReadResult {
   ) : PlanningReadResult
 
   /**
-   * A source could not be read.
+   * A source, the device or an opening could not be read.
    *
    * @property error Why it could not.
    */

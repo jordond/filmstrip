@@ -53,6 +53,19 @@ nothing.
 
 On Apple a copy's preview shows the frames its export writes, and holds the last of them where the audio runs past it.
 
+## Probe deadline
+
+On ffmpeg every short call to `ffmpeg` or `ffprobe` has a deadline of 30 s, plus 10 ms for each second of source it
+reads, so the packet read for a two hour copy gets 102 s. That covers the toolchain lookup, reading a source and its color, the sync sample a trimmed copy opens on, the
+packets a copy counts by, the encoder test encodes and decoding an overlay picture. A preview's opening reads are the
+same calls, so they share it.
+
+A call still running at its deadline is stopped and the plan refused with the deadline in its message. A source read is
+`SourceUnreadable`, and the toolchain lookup is `ToolchainMissing` naming the option ffmpeg didn't answer. An encoder
+test encode that runs out of time fails `capabilities()` with an `Underlying` error naming the encoder and the size,
+and so does a plan that needed them. That failure isn't kept, so the next call measures again. An export and a
+preview's frames run as long as their media does and have no deadline.
+
 ## Encoder color
 
 Some Android encoders write a different color matrix than they were asked for. filmstrip tags the file with what the

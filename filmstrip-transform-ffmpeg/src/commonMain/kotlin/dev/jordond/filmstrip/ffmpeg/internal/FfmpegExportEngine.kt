@@ -3,13 +3,11 @@ package dev.jordond.filmstrip.ffmpeg.internal
 import dev.jordond.filmstrip.CapabilitiesResult
 import dev.jordond.filmstrip.FilmstripError
 import dev.jordond.filmstrip.InternalFilmstripApi
-import dev.jordond.filmstrip.capability.DeviceCapabilities
 import dev.jordond.filmstrip.capability.EffectParity
 import dev.jordond.filmstrip.diagnostics.DiagnosticEvent
 import dev.jordond.filmstrip.diagnostics.DiagnosticEvent.Detail
 import dev.jordond.filmstrip.diagnostics.report
 import dev.jordond.filmstrip.edit.EditComposition
-import dev.jordond.filmstrip.edit.TrackContent
 import dev.jordond.filmstrip.export.Adjustment
 import dev.jordond.filmstrip.export.EngineComponents
 import dev.jordond.filmstrip.export.ExportPlan
@@ -18,11 +16,11 @@ import dev.jordond.filmstrip.export.ExportStatus
 import dev.jordond.filmstrip.export.Verdict
 import dev.jordond.filmstrip.ffmpeg.FfmpegConfig
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.Invocation
-import dev.jordond.filmstrip.ffmpeg.internal.lowering.SdColor
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.arguments
 import dev.jordond.filmstrip.ffmpeg.internal.lowering.readingGraphFrom
 import dev.jordond.filmstrip.ffmpeg.internal.probe.drift
 import dev.jordond.filmstrip.ffmpeg.internal.process.LIVE_FEED_FAILED
+import dev.jordond.filmstrip.ffmpeg.internal.process.ProbeAnswer
 import dev.jordond.filmstrip.ffmpeg.internal.process.ProgressParser
 import dev.jordond.filmstrip.ffmpeg.internal.process.READS_FILES
 import dev.jordond.filmstrip.ffmpeg.internal.process.SOURCE_GONE
@@ -43,6 +41,7 @@ import dev.jordond.filmstrip.internal.chainedProber
 import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.media.sinkParentRefusal
 import dev.jordond.filmstrip.transform.internal.EngineLowering
 import dev.jordond.filmstrip.transform.internal.ExportGrade
@@ -53,6 +52,7 @@ import dev.jordond.filmstrip.transform.internal.copy.CopyAsk
 import dev.jordond.filmstrip.transform.internal.copy.CopyPacketRead
 import dev.jordond.filmstrip.transform.internal.copy.withCopyPackets
 import dev.jordond.filmstrip.transform.internal.negotiation.Ask
+import dev.jordond.filmstrip.transform.internal.probe.OpeningRead
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReadResult
 import dev.jordond.filmstrip.transform.internal.probe.PlanningReads
 import dev.jordond.filmstrip.transform.internal.refusal
@@ -106,15 +106,18 @@ public class FfmpegExportEngine internal constructor(
   private suspend fun openingAtOrBefore(
     source: MediaSource,
     cut: Duration,
-  ): Duration? {
+  ): OpeningRead {
     val path =
       try {
         withContext(Dispatchers.IO) { readablePath(source, runtime.bytesRoot) }
       } catch (_: MediaBytesFileFailure) {
         // The planner resolves the same path next and refuses with the reason.
         null
-      }
-    return path?.let { runtime.syncSampleAtOrBefore(foundToolchain(), it, cut) }
+      } ?: return OpeningRead.At(null)
+    return when (val read = runtime.syncSampleAtOrBefore(foundToolchain(), path, cut)) {
+      is ProbeAnswer.Answered -> OpeningRead.At(read.value)
+      is ProbeAnswer.Expired -> OpeningRead.Failed(FilmstripError.SourceUnreadable(source.describe(), read.reason))
+    }
   }
 
   // Whether the last toolchain answer reported was one with binaries in it, or null before any was.
@@ -127,7 +130,7 @@ public class FfmpegExportEngine internal constructor(
         CapabilitiesResult.Failure(result.error)
       }
       is ToolchainResult.Available -> {
-        CapabilitiesResult.Success(device(result.toolchain))
+        device(result.toolchain)
       }
     }
 
@@ -196,9 +199,11 @@ public class FfmpegExportEngine internal constructor(
         is PlanningReadResult.Failed -> return refusedLowering(result.error)
         is PlanningReadResult.Read -> result
       }
-    val sdColors = sdColorsOf(toolchain, composition)
-    val bt709Sources = sourcesWhere(composition) { runtime.isTaggedBt709(toolchain, it) }
-    val tailFormatSources = sourcesWhere(composition) { runtime.decodesToTailFormat(toolchain, it) }
+    val colors =
+      when (val result = runtime.sourceColorsOf(toolchain, composition, ::sourcePath)) {
+        is SourceColorRead.Refused -> return refusedLowering(result.error)
+        is SourceColorRead.Read -> result
+      }
     val planner = FfmpegPlanner(toolchain, components.effectResolvers, runtime.bytesRoot)
     val asked = Ask(spec, read.device, read.infos, read.openings, layoutSize, grade)
     val ask =
@@ -211,9 +216,9 @@ public class FfmpegExportEngine internal constructor(
         planner.lower(
           composition,
           ask,
-          sdColors = sdColors,
-          bt709Sources = bt709Sources,
-          tailFormatSources = tailFormatSources,
+          sdColors = colors.sdColors,
+          bt709Sources = colors.bt709Sources,
+          tailFormatSources = colors.tailFormatSources,
         )
       }
     val graph = lowered.graph
@@ -236,32 +241,6 @@ public class FfmpegExportEngine internal constructor(
       sourcePath(window.source)?.let { runtime.copyPackets(toolchain, it, window.from, window.to) }
         ?: CopyPacketRead.Failed(READS_FILES)
     }
-
-  // Audio has no colour to read, and a source a clip cannot read from is refused before these are looked at.
-  private suspend fun sdColorsOf(
-    toolchain: Toolchain,
-    composition: EditComposition,
-  ): Map<MediaSource, SdColor> =
-    composition.tracks
-      .filter { it.content != TrackContent.Audio }
-      .flatMap { it.clips }
-      .map { it.source }
-      .distinct()
-      .mapNotNull { source ->
-        sourcePath(source)?.let { runtime.sdColor(toolchain, it) }?.let { source to it }
-      }.toMap()
-
-  private suspend fun sourcesWhere(
-    composition: EditComposition,
-    holds: suspend (String) -> Boolean,
-  ): Set<MediaSource> =
-    composition.tracks
-      .filter { it.content != TrackContent.Audio }
-      .flatMap { it.clips }
-      .map { it.source }
-      .distinct()
-      .filter { source -> sourcePath(source)?.let { holds(it) } == true }
-      .toSet()
 
   private suspend fun sourcePath(source: MediaSource): String? =
     try {
@@ -387,8 +366,14 @@ public class FfmpegExportEngine internal constructor(
       }
 
       val written =
-        runtime.reprobe(toolchain, outputPath)
-          ?: return send(ExportStatus.Failure(FilmstripError.SinkUnwritable(outputPath, NOT_READABLE)))
+        when (val read = runtime.reprobe(toolchain, outputPath)) {
+          is ProbeAnswer.Expired -> {
+            return send(ExportStatus.Failure(FilmstripError.SinkUnwritable(outputPath, read.reason)))
+          }
+          is ProbeAnswer.Answered -> {
+            read.value ?: return send(ExportStatus.Failure(FilmstripError.SinkUnwritable(outputPath, NOT_READABLE)))
+          }
+        }
 
       // ffmpeg falls back silently when it cannot honour a request, so the exit code is not enough. The probe is on
       // the critical path anyway, because Success carries a MediaInfo.
@@ -411,7 +396,7 @@ public class FfmpegExportEngine internal constructor(
 
   // Memoised on the runtime, so every engine built over one config reaches the ladder that was
   // already measured.
-  private suspend fun device(toolchain: Toolchain): DeviceCapabilities =
+  private suspend fun device(toolchain: Toolchain): CapabilitiesResult =
     runtime.capabilities { runtime.measureCapabilities(toolchain) }
 
   // What an export runs: the graph, the toolchain it was lowered for, and what the negotiation changed to get there.

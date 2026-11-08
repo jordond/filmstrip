@@ -3,9 +3,11 @@ package dev.jordond.filmstrip.media3.internal
 import dev.jordond.filmstrip.FilmstripContext
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media3.Media3ExportProbe
+import dev.jordond.filmstrip.transform.internal.probe.OpeningRead
 import io.kotest.assertions.withClue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -31,13 +33,17 @@ class SyncSampleContextTest {
       val source = probe.fixture(CLIP_LONG)
       val installed =
         withClue("no sync sample before $CUT") {
-          driver.syncSampleAtOrBefore(source, CUT).shouldNotBeNull()
+          driver
+            .syncSampleAtOrBefore(source, CUT)
+            .shouldBeInstanceOf<OpeningRead.At>()
+            .opening
+            .shouldNotBeNull()
         }
       withClue("the cut at $CUT already sat on a sync sample, so nothing was read") { (installed < CUT) shouldBe true }
 
       FilmstripContext.clear()
 
-      driver.syncSampleAtOrBefore(source, CUT) shouldBe installed
+      driver.syncSampleAtOrBefore(source, CUT).shouldBeInstanceOf<OpeningRead.At>().opening shouldBe installed
     }
 }
 

@@ -9,6 +9,7 @@ import dev.jordond.filmstrip.avfoundation.internal.chain.toneMapKernelLimit
 import dev.jordond.filmstrip.avfoundation.internal.composition.AvComposition
 import dev.jordond.filmstrip.avfoundation.internal.composition.toAvComposition
 import dev.jordond.filmstrip.avfoundation.internal.failure.AvLoweringFailure
+import dev.jordond.filmstrip.avfoundation.internal.interop.SAMPLE_TIMES_CAP
 import dev.jordond.filmstrip.avfoundation.internal.interop.copyPacketsWithin
 import dev.jordond.filmstrip.avfoundation.internal.interop.syncSampleAtOrBefore
 import dev.jordond.filmstrip.avfoundation.internal.renderClipAudio
@@ -30,9 +31,11 @@ import dev.jordond.filmstrip.media.MediaBytesFileFailure
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSink
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.media.describe
 import dev.jordond.filmstrip.transform.internal.ExportDriver
 import dev.jordond.filmstrip.transform.internal.copy.CopyPacketRead
 import dev.jordond.filmstrip.transform.internal.copy.CopyPacketWindow
+import dev.jordond.filmstrip.transform.internal.probe.OpeningRead
 import dev.jordond.filmstrip.transform.internal.probe.ProcessProbe
 import dev.jordond.filmstrip.transform.internal.resolve.ResolvedComposition
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +60,7 @@ internal class AvDriver(
   private val prober: MediaProber,
   private val kernelLimit: () -> String? = { toneMapKernelLimit() },
   private val bytesRoot: String = AppleScratch.defaultRoot,
+  private val syncSampleCap: Int = SAMPLE_TIMES_CAP,
   private val renderClip: suspend (ClipAudioRender) -> Unit = ::renderClipAudio,
 ) : ExportDriver {
   override suspend fun capabilities(): DeviceCapabilities = processEncoders.read()
@@ -71,22 +75,26 @@ internal class AvDriver(
   override suspend fun syncSampleAtOrBefore(
     source: MediaSource,
     cut: Duration,
-  ): Duration? =
+  ): OpeningRead =
     withContext(Dispatchers.Default) {
       val url =
         try {
           withContext(Dispatchers.IO) { source.toNSURL(bytesRoot) }
         } catch (_: AvLoweringFailure) {
-          return@withContext null
+          return@withContext OpeningRead.At(null)
         } catch (_: MediaBytesFileFailure) {
           // The lowering resolves the same path next and refuses with the reason.
-          return@withContext null
+          return@withContext OpeningRead.At(null)
         }
       val track =
         AVURLAsset(uRL = url, options = null)
           .tracksWithMediaType(AVMediaTypeVideo)
           .firstOrNull() as? AVAssetTrack
-      track?.syncSampleAtOrBefore(cut)
+      try {
+        OpeningRead.At(track?.syncSampleAtOrBefore(cut, syncSampleCap))
+      } catch (failure: AvLoweringFailure) {
+        OpeningRead.Failed(FilmstripError.SourceUnreadable(source.describe(), failure.reason))
+      }
     }
 
   override suspend fun copyPackets(window: CopyPacketWindow): CopyPacketRead =

@@ -3,7 +3,9 @@ package dev.jordond.filmstrip.media3.internal
 import dev.jordond.filmstrip.media.ImageSource
 import dev.jordond.filmstrip.media.MediaProber
 import dev.jordond.filmstrip.media.MediaSource
+import dev.jordond.filmstrip.transform.internal.probe.OpeningRead
 import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.time.Duration.Companion.seconds
@@ -22,6 +24,10 @@ class Media3DriverTest {
       val driver = Media3Driver(prober = MediaProber { error("a still's sync sample is answered without probing") })
       val still = MediaSource.Image(ImageSource.Path("poster.jpg"), duration = 2.seconds)
 
-      driver.syncSampleAtOrBefore(still, cut = 1.seconds).shouldBeNull()
+      driver
+        .syncSampleAtOrBefore(still, cut = 1.seconds)
+        .shouldBeInstanceOf<OpeningRead.At>()
+        .opening
+        .shouldBeNull()
     }
 }
